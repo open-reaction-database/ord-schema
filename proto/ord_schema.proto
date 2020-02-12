@@ -14,11 +14,14 @@ message Reaction {
   message ReactionNotes {
     // Equivalent to "not single phase".
     bool is_heterogeneous = 1;
+    // Qualitative exothermicity (primarily for safety).
     bool is_exothermic = 2;
+    // Qualitative offgassing (primarily for safety).
     bool is_offgasses = 3;
-    bool is_moisture_sensitive = 4;
-    bool is_oxygen_sensitive = 5;
-    string safety_notes = 6;
+    bool is_sensitive_to_moisture = 4;
+    bool is_sensitive_to_oxygen = 5;
+    bool is_sensitive_to_light = 6;
+    string safety_notes = 7;
   }
   ReactionNotes notes = 9;
   message ReactionObservation {
@@ -45,9 +48,15 @@ message ReactionInput {
     REACTION_ROLE_CATALYST = 4;
   }
   ReactionRole reaction_role = 2;
+  // Whether this species should be considered a limiting reactant.
   bool is_limiting = 3;
+  /**
+   * Used to define order of addition. ReactionInputs with the same 
+   * addition_stage were added simultaneously. One ReactionInput with a 
+   *  lower addition_stage than another was added earlier in the procedure.
+   */
   int32 addition_stage = 4;
-  float addition_time = 5;
+  float addition_time = 5; // Reaction time (in hours)
   enum AdditionSpeed {
     ADDITION_SPEED_UNKNOWN = 0;
     ADDITION_SPEED_ALL_AT_ONCE = 1;
@@ -60,15 +69,34 @@ message ReactionInput {
 }
 
 message Compound {
+  // TODO(coley): Include ChemAxon extended SMILES (cxsmiles), inchi_key, xyz?
+  //              & Perhaps a separate "Identifier" message would be prudent
+  //              to accommodate the many ways a chemical can be specified
+  //  Simplified molecular-input line-entry system.
   string smiles = 1;
+  // IUPAC International Chemical Identifier.
   string inchi = 2;
+  // MDL Molfile V3000.
   string molfile = 3;
+  // Chemical name following IUPAC nomenclature recommendations.
   string iupac_name = 4;
   // Any accepted common name, trade name, etc.
   string name = 5;
+  // Chemical Abstracts Service Registry Number (with hyphens).
   string cas_number = 6;
-  int32 pubchem_sid = 7;
+  // PubChem Compound ID number.
+  int32 pubchem_cid = 7;
+  // ChemSpider ID number.
   int32 chemspider_id = 8;
+  /**
+   * The quantitative Amount of a Compound used in a particular reaction.
+   * Compounds added in their pure form should have their value defined by
+   * mass, moles, or volume. Compounds prepared as solutions should be defined
+   * only in terms of their concentration; the amount of solution used is defined
+   * by the volume of the specified solvent (or co-solvent). Compounds prepared
+   * on solid supports should define the total quantity including the support;
+   * the identity of the support is defined separately.
+   */
   message Amount {
     // TODO(kearnes): Should this be a float value and a type enum?
     oneof value {
@@ -77,7 +105,8 @@ message Compound {
       float volume_in_ml = 3;
       float concentration_in_m = 4;
     }
-    Compound solvent = 5;
+    // For pre-mixed solutions when value given in concentration.
+    repeated Compound solvent = 5;
     // For catalysts on supports.
     Compound support = 6;
     float weight_percent = 7;
@@ -87,14 +116,20 @@ message Compound {
   Amount amount = 9;
   enum CompoundPreparation {
     COMPOUND_PREPARATION_UNKNOWN = 0;
-    COMPOUND_PREPARATION_NONE = 1;
+    COMPOUND_PREPARATION_NONE = 1; // Compound used as received.
     COMPOUND_PREPARATION_REPURIFIED = 2;
     COMPOUND_PREPARATION_SPARGED = 3;
-    COMPOUND_PREPARATION_DRIED = 4;
+    COMPOUND_PREPARATION_DRIED = 4; // Moisture removed, e.g., using molecular sieves.
   }
   CompoundPreparation preparation = 10;
   string vendor_source = 11;
   string vendor_lot = 12;
+  /**
+   * Compounds can accommodate any number of features. These may include simple
+   * properties of the compound (e.g., molecular weight), heuristic estimates
+   * of physical properties (e.g., ClogP), optimized geometries (e.g., through
+   * DFT), and calculated stereoselectronic descriptors.
+   */
   message CompoundFeature {
     string name = 1;
     oneof kind {
@@ -114,6 +149,7 @@ message ReactionSetup {
     VESSEL_TYPE_MICROWAVE_VIAL = 3;
     VESSEL_TYPE_TUBE = 4;
     VESSEL_TYPE_CONTINUOUS_STIRRED_TANK_REACTOR = 5;
+    VESSEL_TYPE_PACKED_BED_REACTOR = 6;
   }
   VesselType vessel_type = 1;
   // Used to describe an UNKNOWN vessel type.
@@ -149,11 +185,12 @@ message TemperatureConditions {
     TEMPERATURE_CONTROL_UNKNOWN = 0;
     TEMPERATURE_CONTROL_AMBIENT = 1;
     TEMPERATURE_CONTROL_OIL_BATH = 2;
-    TEMPERATURE_CONTROL_SAND_BATH = 3;
-    TEMPERATURE_CONTROL_ICE_BATH = 4;
+    TEMPERATURE_CONTROL_WATER_BATH = 3;
+    TEMPERATURE_CONTROL_SAND_BATH = 4;
+    TEMPERATURE_CONTROL_ICE_BATH = 5;
     TEMPERATURE_CONTROL_DRY_ALUMINUM_PLATE = 5;
     TEMPERATURE_CONTROL_MICROWAVE = 6;
-    TEMPERATURE_CONTROL_DRY_ICE_AND_ACETONE_BATH = 7;
+    TEMPERATURE_CONTROL_DRY_ICE_BATH = 7;
     TEMPERATURE_CONTROL_AIR_FAN = 8;
     TEMPERATURE_CONTROL_LIQUID_NITROGEN = 9;
   }
@@ -169,6 +206,8 @@ message TemperatureConditions {
   repeated Measurement measurements = 5;
   // Thermocouple, pressure transducer, etc.
   // TODO(kearnes): Should this be an enum?
+  // (coley) The benefit of an enum would be the ability to distinguish
+  // NONE, UNKNOWN, INTERNAL_THERMOCOUPLE, EXTERNAL_THERMOCOUPLE, INFRARED
   string measurement_method = 6;
 }
 
@@ -177,6 +216,7 @@ message PressureConditions {
     PRESSURE_CONTROL_UNKNOWN = 0;
     PRESSURE_CONTROL_AMBIENT = 1;
     PRESSURE_CONTROL_BALLOON = 2;
+    PRESSURE_CONTROL_SEALED = 3; // Fully sealed vessel (e.g., microwave vial)
   }
   PressureControl pressure_control = 1;
   // Used to describe an UNKNOWN pressure control.
@@ -199,8 +239,7 @@ message PressureConditions {
     float value_in_barg = 2;
   }
   repeated Measurement measurements = 7;
-  // TODO(kearnes): Do we want a measurement_method here like we have in
-  // TemperatureConditions?
+  string measurement_method = 8;
 }
 
 message StirringConditions {
@@ -260,10 +299,12 @@ message ElectrochemistryConditions {
 }
 
 message FlowConditions {
+  // TODO(coley): add string field for custom type
   enum FlowType {
     FLOW_TYPE_NONE = 0;
     FLOW_TYPE_PLUG_FLOW_REACTOR = 1;
     FLOW_TYPE_CONTINUOUS_STIRRED_TANK_REACTOR = 2;
+    FLOW_TYPE_PACKED_BED_REACTOR = 3;
   }
   FlowType flow_type = 1;
   string pump_type = 2;
@@ -272,6 +313,7 @@ message FlowConditions {
 }
 
 message ReactionWorkup {
+  // TODO(ccoley): add string field for custom workup
   enum WorkupType {
     WORKUP_TYPE_NONE = 0;
     WORKUP_TYPE_THERMAL = 1;
@@ -279,13 +321,14 @@ message ReactionWorkup {
   }
   WorkupType workup_type = 1;
   // TODO(kearnes): Should this be a oneof?
+  // (coley): I think no, since they can be used simultaneously
   TemperatureConditions thermal_quench = 2;
   Compound solvent_quench = 3;
 }
 
 message ReactionOutcome {
   float reaction_time_in_h = 1;
-  // Conversion wrt the limiting reactant.
+  // Conversion with respect to the limiting reactant.
   float conversion_in_percent = 2;
   repeated ReactionProduct products = 3;
   repeated ReactionAnalysis analyses = 4;
@@ -298,6 +341,7 @@ message ReactionProduct {
   float yield_precision_in_percent = 4;
   // TODO(kearnes): Is this the right name? Should this be YieldMeasurementType?
   // Or maybe this should be a ReactionAnalysis.AnalysisType?
+  // (coley): I think it should be a ReactionAnalysis.AnalysisType
   enum YieldType {
     YIELD_TYPE_UNKNOWN = 0;
     YIELD_TYPE_NMR = 1;
@@ -331,15 +375,21 @@ message DateTime {
 }
 
 message ReactionAnalysis {
+  // TODO(ccoley): How to define composite methods (LCMS) in a non-burdensome way?
+  // should analysis_type be repeated?
   enum AnalysisType {
     ANALYSIS_TYPE_UNKNOWN = 0;
-    ANALYSIS_TYPE_HPLC = 1;
-    ANALYSIS_TYPE_IR = 2;
-    ANALYSIS_TYPE_NMR = 3;
-    ANALYSIS_TYPE_MP = 4;
-    ANALYSIS_TYPE_UV = 5;
-    ANALYSIS_TYPE_TLC = 6;
-    ANALYSIS_TYPE_HRMS = 7;
+    ANALYSIS_TYPE_LC = 1; // Liquid chromatography.
+    ANALYSIS_TYPE_GC = 2; // Gas chromatography.
+    ANALYSIS_TYPE_IR = 3; // Infrared spectroscopy.
+    ANALYSIS_TYPE_NMR = 4; // NMR spectroscopy.
+    ANALYSIS_TYPE_MP = 5; // Melting point characterization.
+    ANALYSIS_TYPE_UV = 6; // Ultraviolet spectroscopy.
+    ANALYSIS_TYPE_TLC = 7; // Thin-layer chromatography.
+    ANALYSIS_TYPE_MS = 8; // Mass spectrometry.
+    ANALYSIS_TYPE_HRMS = 9; // High resolution mass spectrometry.
+    ANALYSIS_TYPE_MSMS = 10; // Two-dimensional mass spectrometry.
+    ANALYSIS_TYPE_WEIGHT = 11; // Weight of an isolated compound.
   }
   AnalysisType analysis_type = 1;
   // Used to describe an UNKNOWN analysis type.
@@ -364,6 +414,7 @@ message ReactionProvenance {
     string doi = 4;
     string patent = 5;
   }
-  DateTime record_created = 6;
-  DateTime record_modified = 7;
+  string publication_url = 6;
+  DateTime record_created = 7;
+  DateTime record_modified = 8;
 }
