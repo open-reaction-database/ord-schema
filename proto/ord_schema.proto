@@ -387,8 +387,8 @@ message ElectrochemistryConditions {
   }
   ElectrochemistryType electrochemistry_type = 1;
   string electrochemistry_type_custom = 2;
-  Current current = 3;
-  Voltage voltage = 4;
+  Current constant_current = 3;
+  Voltage constant_voltage = 4;
   string anode_material = 4;
   string cathode_material = 5;
   Length electrode_separation = 6;
