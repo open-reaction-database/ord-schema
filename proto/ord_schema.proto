@@ -1,38 +1,54 @@
 // Schema for the Open Reaction Database.
 syntax = "proto3";
 
+
+/**
+ * Throughout this schema, we introduce enums to encourage consistency in
+ * nomenclature and to avoid unnecessary downstream data processing that would
+ * otherwise be required to consolidate equivalent entries. However, we do
+ * not wish to restrict what users are able to specify if their synthesis
+ * does not fit cleanly into a pre-existing enum field. For that reason, we
+ * frequently introduce a string field '<field_name>_custom' in addition to
+ * the enumerated field '<field_name>'. This `<field_name_custom>' string 
+ * field should only be used when the enum is set to UNKNOWN, which is always
+ * used as its default value. If that field is not UNKNOWN, the custom field
+ * may be ignored.
+ */
+
 message Reaction {
-  string reaction_smiles = 1;
-  string atom_mapped_reaction_smiles = 2;
-  string how_atom_mapped = 3;
-  string rinchi = 4;
-  string reaction_name = 5;
+  repeated ReactionIdentifier identifiers = 1;
   // List of reactants, reagents, etc.
-  repeated ReactionInput inputs = 6;
-  ReactionSetup setup = 7;
-  ReactionConditions conditions = 8;
-  message ReactionNotes {
-    // Equivalent to "not single phase".
-    bool is_heterogeneous = 1;
-    bool is_exothermic = 2;
-    bool is_offgasses = 3;
-    bool is_moisture_sensitive = 4;
-    bool is_oxygen_sensitive = 5;
-    string safety_notes = 6;
+  repeated ReactionInput inputs = 2;
+  ReactionSetup setup = 3;
+  ReactionConditions conditions = 4;
+  // Reaction notes largely pertain to safety considerations.
+  ReactionNotes notes = 5;
+  repeated ReactionObservation observations = 6;
+  repeated ReactionWorkup workup = 7;
+  repeated ReactionOutcome outcomes = 8;
+  ReactionProvenance provenance = 9;
+}
+
+/**
+ * Reaction identifiers define descriptions of the overall reaction.
+ * While we encourage the use of SMILES strings, these do not work well in
+ * all cases. The <reaction_smiles> field should be able to be derived
+ * from the information present in the ReactionInput and ReactionOutcome
+ * fields of any Reaction message.
+ */
+message ReactionIdentifier {
+  // Possible identifier types are listed in an enum for extensibility
+  enum IdentifierType {
+    REACTION_IDENTIFIER_TYPE_UNKNOWN = 0;  
+    REACTION_IDENTIFIER_TYPE_REACTION_SMILES = 1;  // Reaction SMILES.
+    REACTION_IDENTIFIER_TYPE_ATOM_MAPPED_SMILES = 2;  // Atom-mapped SMILES.
+    REACTION_IDENTIFIER_TYPE_RINCHI = 3;  // Reaction InChI.
+    REACTION_IDENTIFIER_TYPE_NAME = 4;  // Named reaction or reaction category.
   }
-  ReactionNotes notes = 9;
-  message ReactionObservation {
-    float time_in_h = 1;
-    oneof kind {
-      string color = 2;
-      bytes image = 3;
-      string comment = 4;
-    }
-  }
-  repeated ReactionObservation observations = 10;
-  ReactionWorkup workup = 11;
-  repeated ReactionOutcome outcomes = 12;
-  ReactionProvenance provenance = 13;
+  IdentifierType type = 1;
+  // Custom reaction identifier 
+  string type_custom = 2;
+  string value = 3;
 }
 
 message ReactionInput {
@@ -45,9 +61,15 @@ message ReactionInput {
     REACTION_ROLE_CATALYST = 4;
   }
   ReactionRole reaction_role = 2;
+  // Whether this species should be considered a limiting reactant.
   bool is_limiting = 3;
+  /**
+   * Used to define order of addition. ReactionInputs with the same 
+   * addition_stage were added simultaneously. One ReactionInput with a 
+   *  lower addition_stage than another was added earlier in the procedure.
+   */
   int32 addition_stage = 4;
-  float addition_time = 5;
+  Time addition_time = 5;  // Reaction time
   enum AdditionSpeed {
     ADDITION_SPEED_UNKNOWN = 0;
     ADDITION_SPEED_ALL_AT_ONCE = 1;
@@ -60,42 +82,32 @@ message ReactionInput {
 }
 
 message Compound {
-  string smiles = 1;
-  string inchi = 2;
-  string molfile = 3;
-  string iupac_name = 4;
-  // Any accepted common name, trade name, etc.
-  string name = 5;
-  string cas_number = 6;
-  int32 pubchem_sid = 7;
-  int32 chemspider_id = 8;
-  message Amount {
-    // TODO(kearnes): Should this be a float value and a type enum?
-    oneof value {
-      float mass_in_g = 1;
-      float moles = 2;
-      float volume_in_ml = 3;
-      float concentration_in_m = 4;
-    }
-    Compound solvent = 5;
-    // For catalysts on supports.
-    Compound support = 6;
-    float weight_percent = 7;
-    // Precision of the measurement, as a percentage of the value.
-    float precision_in_percent = 8;
-  }
-  Amount amount = 9;
-  enum CompoundPreparation {
+  repeated CompoundIdentifier identifiers = 1;
+  Amount amount = 2;
+  /**
+   * Compounds may undergo additional preparation before being used in a 
+   * reaction after being received from a supplier or vendor. 
+   */
+  enum Preparation {
     COMPOUND_PREPARATION_UNKNOWN = 0;
-    COMPOUND_PREPARATION_NONE = 1;
+    // Compound used as received.
+    COMPOUND_PREPARATION_NONE = 1;  
     COMPOUND_PREPARATION_REPURIFIED = 2;
     COMPOUND_PREPARATION_SPARGED = 3;
+    // Moisture removed, e.g., using molecular sieves.
     COMPOUND_PREPARATION_DRIED = 4;
   }
-  CompoundPreparation preparation = 10;
-  string vendor_source = 11;
-  string vendor_lot = 12;
-  message CompoundFeature {
+  Preparation preparation = 3;
+  string preparation_custom = 4;
+  string vendor_source = 5;
+  string vendor_lot = 6;
+  /**
+   * Compounds can accommodate any number of features. These may include simple
+   * properties of the compound (e.g., molecular weight), heuristic estimates
+   * of physical properties (e.g., ClogP), optimized geometries (e.g., through
+   * DFT), and calculated stereoselectronic descriptors.
+   */
+  message Feature {
     string name = 1;
     oneof kind {
       string string_value = 2;
@@ -103,7 +115,130 @@ message Compound {
     }
     string how_computed = 4;
   }
-  repeated CompoundFeature features = 13;
+  repeated Feature features = 7;
+}
+
+/**
+ * Compound identifiers uniquely define a single (pure) chemical species.
+ * While we encourage the use of SMILES strings, these do not work well in
+ * all cases (e.g., handling tautomerism, axial chirality). Multiple
+ * identifiers may be specified for a single compound to avoid ambiguity.
+ * We discourage chemicals from being defined only by a name.
+ */
+message CompoundIdentifier {
+  // Possible identifier types are listed in an enum for extensibility
+  enum IdentifierType {
+    COMPOUND_IDENTIFIER_TYPE_UNKNOWN = 0;  // Any other identifier
+    //  Simplified molecular-input line-entry system.
+    COMPOUND_IDENTIFIER_TYPE_SMILES = 1;
+    // IUPAC International Chemical Identifier.
+    COMPOUND_IDENTIFIER_TYPE_INCHI = 2;
+    // MDL Molfile V3000.
+    COMPOUND_IDENTIFIER_TYPE_MOLFILE = 3;
+    // Chemical name following IUPAC nomenclature recommendations.
+    COMPOUND_IDENTIFIER_TYPE_IUPAC_NAME = 4;
+    // Any accepted common name, trade name, etc.
+    COMPOUND_IDENTIFIER_TYPE_NAME = 5;
+    // Chemical Abstracts Service Registry Number (with hyphens).
+    COMPOUND_IDENTIFIER_TYPE_CAS_NUMBER = 6;
+    // PubChem Compound ID number.
+    COMPOUND_IDENTIFIER_TYPE_PUBCHEM_CID = 7;
+    // ChemSpider ID number.
+    COMPOUND_IDENTIFIER_TYPE_CHEMSPIDER_ID = 8;
+    // ChemAxon extended SMILES
+    COMPOUND_IDENTIFIER_TYPE_CXSMILES = 9;
+    // IUPAC International Chemical Identifier key
+    COMPOUND_IDENTIFIER_TYPE_INCHI_KEY = 10;
+    // XYZ molecule file
+    COMPOUND_IDENTIFIER_TYPE_XYZ = 11;
+    // UniProt ID (for enzymes)
+    COMPOUND_IDENTIFIER_TYPE_UNIPROT_ID = 12;
+    // Protein data bank ID (for enzymes)
+    COMPOUND_IDENTIFIER_TYPE_PDB_ID = 13;
+  }
+  IdentifierType type = 1;
+  // Custom compound identifier 
+  string type_custom = 2;
+  // Value of the compound identifier; certain types (e.g., pubchem_cid) may
+  // cast the string as an integer for downstream processing and validation.
+  string value = 3;
+  
+}
+/**
+ * The quantitative Amount of a Compound used in a particular reaction.
+ * Compounds added in their pure form should have their value defined by
+ * mass, moles, or volume. Compounds prepared as solutions should be defined
+ * in terms of their concentration and volume. If using a pure solvent, the
+ * solvent field must only specify a compound identifier. If using a solvent
+ * mixture, multiple solvents may be listed. If amounts are not given, we
+ * assume equal ratios. If amounts (volumes) are given for the solvents, that
+ * will be used to calculate the solvent composition. Compounds prepared
+ * on solid supports should define the total quantity including the support;
+ * the identity of the support is defined separately.
+ */
+message Amount {
+  oneof kind {
+    Mass mass = 1;
+    Moles moles = 2;
+    Volume volume = 3;
+    FlowRate flow_rate = 4;  // Used only for continuous synthesis.
+  }
+  // Precision of the measurement, as a percentage of the value.
+  float precision_in_percent = 5;
+  // TODO(ccoley): fix this bastardization of proto and json
+  /**
+   * For pre-mixed solutions when value given in concentration, the solvent
+   * is specified as an additional Compound, which should have an identifier
+   * and an amount specified by volume. For example, suppose we are adding
+   * 3 mL of a 4 M solution of NaOH in water.
+   * 
+   * compound {
+   *   identifiers: [
+   *     {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
+   *     {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
+   *   ]
+   *   amount {
+   *     volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
+   *     concentration: {value: 4, units: CONCENTRATION_UNITS_MOLAR}
+   *     solvent {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "O"},
+   *         {type: IDENTIFIER_NAME, value: "water"}
+   *       ]
+   *     }
+   *   }
+   * }
+   */
+  // The concentration of the pre-mixed solution as-added, *not* the final
+  // concentration in the overall crude reaction/product mixture.
+  Concentration concentration = 6;
+  repeated Compound solvent = 7;
+
+  // TODO(ccoley) Also fix this one
+  /**
+   * For catalysts on supports. For example, a reaction using 5 grams of
+   * 10% Pd/C might be reported as...
+   * 
+   * compound {
+   *   identifiers: [
+   *     {type: IDENTIFIER_SMILES, value: "[Pd]"},
+   *     {type: IDENTIFIER_NAME, value: "palladium"}
+   *   ]
+   *   amount {
+   *     mass: {value: 5, units: MASS_UNITS_GRAM}
+   *     support {
+   *       identifiers: [
+   *         {type: IDENTIFIER_NAME, value: "carbon"}
+   *       ]
+   *     }
+   *     weight_percent: 10
+   *   }
+   * }
+   *
+   * Immobilized proteins should also use the "support" field.
+   */
+  Compound support = 8;
+  float weight_percent = 9;
 }
 
 message ReactionSetup {
@@ -114,10 +249,11 @@ message ReactionSetup {
     VESSEL_TYPE_MICROWAVE_VIAL = 3;
     VESSEL_TYPE_TUBE = 4;
     VESSEL_TYPE_CONTINUOUS_STIRRED_TANK_REACTOR = 5;
+    VESSEL_TYPE_PACKED_BED_REACTOR = 6;
   }
   VesselType vessel_type = 1;
   // Used to describe an UNKNOWN vessel type.
-  string custom_vessel_type = 2;
+  string vessel_type_custom = 2;
   enum VesselPrep {
     VESSEL_PREP_UNKNOWN = 0;
     VESSEL_PREP_NONE = 1;
@@ -125,11 +261,11 @@ message ReactionSetup {
   }
   VesselPrep vessel_prep = 3;
   // Used to describe an UNKNOWN vessel prep.
-  string custom_vessel_prep = 4;
-  float vessel_volume_in_ml = 5;
+  string vessel_prep_custom = 4;
+  Volume vessel_volume = 5;
+  // Specification of automated protocols.
   bool is_automated = 6;
   string automation_platform = 7;
-  // TODO(kearnes): Do we need this? Is this the right format?
   map <string, bytes> automation_code = 8;
 }
 
@@ -149,27 +285,35 @@ message TemperatureConditions {
     TEMPERATURE_CONTROL_UNKNOWN = 0;
     TEMPERATURE_CONTROL_AMBIENT = 1;
     TEMPERATURE_CONTROL_OIL_BATH = 2;
-    TEMPERATURE_CONTROL_SAND_BATH = 3;
-    TEMPERATURE_CONTROL_ICE_BATH = 4;
-    TEMPERATURE_CONTROL_DRY_ALUMINUM_PLATE = 5;
-    TEMPERATURE_CONTROL_MICROWAVE = 6;
-    TEMPERATURE_CONTROL_DRY_ICE_AND_ACETONE_BATH = 7;
-    TEMPERATURE_CONTROL_AIR_FAN = 8;
-    TEMPERATURE_CONTROL_LIQUID_NITROGEN = 9;
+    TEMPERATURE_CONTROL_WATER_BATH = 3;
+    TEMPERATURE_CONTROL_SAND_BATH = 4;
+    TEMPERATURE_CONTROL_ICE_BATH = 5;
+    TEMPERATURE_CONTROL_DRY_ALUMINUM_PLATE = 6;
+    TEMPERATURE_CONTROL_MICROWAVE = 7;
+    TEMPERATURE_CONTROL_DRY_ICE_BATH = 8;
+    TEMPERATURE_CONTROL_AIR_FAN = 9;
+    TEMPERATURE_CONTROL_LIQUID_NITROGEN = 10;
   }
   TemperatureControl temperature_control = 1;
   // Used to describe an UNKNOWN temperature control.
-  string custom_temperature_control = 2;
+  string temperature_control_custom = 2;
   float setpoint_in_c = 3;
   float precision_in_c = 4;
   message Measurement {
-    float time_in_h = 1;
-    float value_in_c = 2;
+    Time time = 1;
+    Temperature temperature = 2;
   }
   repeated Measurement measurements = 5;
-  // Thermocouple, pressure transducer, etc.
-  // TODO(kearnes): Should this be an enum?
-  string measurement_method = 6;
+  enum MeasurementType {
+    TEMPERATURE_MEASUREMENT_UNKNOWN = 0;
+    // Physically in reaction solution.
+    TEMPERATURE_MEASUREMENT_THERMOCOUPLE_INTERNAL = 1;
+    // On outside of vessel or, e.g., in oil bath.
+    TEMPERATURE_MEASUREMENT_THERMOCOUPLE_EXTERNAL = 2;
+    TEMPERATURE_MEASUREMENT_INFRARED = 3;  // Contactless infrared probe.
+  }
+  MeasurementType measurement_type = 6;
+  string measurement_type_custom = 7;
 }
 
 message PressureConditions {
@@ -177,6 +321,11 @@ message PressureConditions {
     PRESSURE_CONTROL_UNKNOWN = 0;
     PRESSURE_CONTROL_AMBIENT = 1;
     PRESSURE_CONTROL_BALLOON = 2;
+    // Fully sealed vessel (e.g., microwave vial)
+    PRESSURE_CONTROL_SEALED = 3;
+    PRESSURE_CONTROL_RELEASEVALVE = 4;
+    // Back pressure regulator, as used in flow synthesis.
+    PRESSURE_CONTROL_BPR = 5;  
   }
   PressureControl pressure_control = 1;
   // Used to describe an UNKNOWN pressure control.
@@ -193,14 +342,19 @@ message PressureConditions {
   }
   Atmosphere atmosphere = 5;
   // Used to describe an UNKNOWN atmosphere.
-  string custom_atmosphere = 6;
+  string atmosphere_custom = 6;
   message Measurement {
-    float time_in_h = 1;
-    float value_in_barg = 2;
+    Time time = 1;
+    Pressure pressure = 2;
   }
   repeated Measurement measurements = 7;
-  // TODO(kearnes): Do we want a measurement_method here like we have in
-  // TemperatureConditions?
+  // TODO(ccoley) get input on how to expand this enum, among others
+  enum MeasurementType {
+    PRESSURE_MEASUREMENT_UNKNOWN = 0;
+    PRESSURE_MEASUREMENT_PRESSURE_TRANSDUCER = 1;
+  }
+  MeasurementType measurement_type = 8;
+  string measurement_type_custom = 9;
 }
 
 message StirringConditions {
@@ -213,14 +367,13 @@ message StirringConditions {
   }
   StirringType stirring_type = 1;
   // Used to describe an UNKNOWN stirring type.
-  string custom_stirring_type = 2;
+  string stirring_type_custom = 2;
   enum StirringRate {
     STIRRING_RATE_UNKNOWN = 0;
     STIRRING_RATE_HIGH = 1;
     STIRRING_RATE_MEDIUM = 2;
     STIRRING_RATE_LOW = 3;
   }
-  // TODO(kearnes): Should this be a oneof?
   StirringRate stirring_rate = 3;
   int32 stirring_rpm = 4;
 }
@@ -238,54 +391,115 @@ message IlluminationConditions {
   }
   IlluminationType illumination_type = 1;
   // Used to describe an UKNOWN illumination type.
-  string custom_illumination_type = 2;
-  int32 peak_wavelength_in_nm = 3;
+  string illumination_type_custom = 2;
+  Wavelength peak_wavelength = 3;
   string color = 4;
   // Approximate distance to vessel.
-  float distance_in_cm = 5;
+  Length distance_to_vessel = 5;
 }
 
 message ElectrochemistryConditions {
   enum ElectrochemistryType {
-    ELECTROCHEMISTRY_TYPE_NONE = 0;
+    ELECTROCHEMISTRY_TYPE_UNKNOWN = 0;
     ELECTROCHEMISTRY_TYPE_CONSTANT_CURRENT = 1;
     ELECTROCHEMISTRY_TYPE_CONSTANT_VOLTAGE = 2;
   }
   ElectrochemistryType electrochemistry_type = 1;
-  float current_in_a = 2;
-  float voltage_in_v = 3;
-  string anode_material = 4;
-  string cathode_material = 5;
-  float electrode_distance_in_mm = 6;
+  string electrochemistry_type_custom = 2;
+  Current current = 3;
+  Voltage voltage = 4;
+  string anode_material = 5;
+  string cathode_material = 6;
+  Length electrode_separation = 7;
+  message Measurement {
+    Time time = 1;
+    oneof kind {
+      Current current = 2;
+      Voltage voltage = 3;
+    }
+  }
+  repeated Measurement measurements = 8;
 }
 
 message FlowConditions {
   enum FlowType {
-    FLOW_TYPE_NONE = 0;
+    FLOW_TYPE_UNKNOWN = 0;
     FLOW_TYPE_PLUG_FLOW_REACTOR = 1;
     FLOW_TYPE_CONTINUOUS_STIRRED_TANK_REACTOR = 2;
+    FLOW_TYPE_PACKED_BED_REACTOR = 3;
   }
   FlowType flow_type = 1;
-  string pump_type = 2;
-  // TODO(kearnes): Should this be an enum?
-  string tube_material = 3;
+  string flow_type_custom = 2;
+  string pump_type = 3;
+  enum TubeMaterial {
+    TUBE_MATERIAL_UNKNOWN = 0;
+    TUBE_MATERIAL_STEEL = 1;
+    TUBE_MATERIAL_COPPER = 2;
+    TUBE_MATERIAL_PFA = 3;
+    TUBE_MATERIAL_FEP = 4;
+    TUBE_MATERIAL_TEFLONAF = 5;
+    TUBE_MATERIAL_PTFE = 6;
+    TUBE_MATERIAL_GLASS = 7;
+    TUBE_MATERIAL_QUARTZ = 8;
+    TUBE_MATERIAL_SILICON = 9;  // e.g., a chip-based microreactor
+    TUBE_MATEIRAL_PDMS = 10;
+  }
+  TubeMaterial tube_material = 4;
+  string tube_material_custom = 5;
+  Length tube_diameter = 6;
+}
+
+message ReactionNotes {
+  // Equivalent to "not single phase".
+  bool is_heterogeneous = 1;
+  // Qualitative exothermicity (primarily for safety).
+  bool is_exothermic = 2;
+  // Qualitative offgassing (primarily for safety).
+  bool is_offgasses = 3;
+  bool is_sensitive_to_moisture = 4;
+  bool is_sensitive_to_oxygen = 5;
+  bool is_sensitive_to_light = 6;
+  string safety_notes = 7;
+}
+
+message ReactionObservation {
+  Time time = 1;
+  oneof kind {
+    string color = 2;
+    bytes image = 3;
+    string comment = 4;
+  }
 }
 
 message ReactionWorkup {
+  // TODO(ccoley): add string field for custom workup
   enum WorkupType {
-    WORKUP_TYPE_NONE = 0;
-    WORKUP_TYPE_THERMAL = 1;
-    WORKUP_TYPE_SOLVENT = 2;
+    WORKUP_TYPE_UNKNOWN = 0;
+    WORKUP_TYPE_THERMAL_QUENCH = 1;
+    WORKUP_TYPE_SOLVENT_QUENCH = 2;
+    WORKUP_TYPE_EXTRACTION = 3;
+    WORKUP_TYPE_FLASH_CHROMATOGRAPHY = 4;
   }
   WorkupType workup_type = 1;
-  // TODO(kearnes): Should this be a oneof?
-  TemperatureConditions thermal_quench = 2;
-  Compound solvent_quench = 3;
+  string workup_type_custom = 2;
+  TemperatureConditions thermal_quench = 3;
+  Compound solvent_quench = 4;
 }
 
+/**
+ * The outcomes of a reaction describe the conversion, yield, and/or other
+ * analyses of the resulting product mixture after workup step(s). Each
+ * outcome is associated with a reaction/residence time. To allow for
+ * one Reaction message to contain the results of a full kinetic profiling
+ * experiment, this is a repeated field of the Reaction message.
+ * 
+ * It is the parent message for product characterization and any analytical
+ * data.
+ */
 message ReactionOutcome {
-  float reaction_time_in_h = 1;
-  // Conversion wrt the limiting reactant.
+  // Reaction time (for flow, equivalent to residence time or spacetime)
+  Time reaction_time = 1;  
+  // Conversion with respect to the limiting reactant.
   float conversion_in_percent = 2;
   repeated ReactionProduct products = 3;
   repeated ReactionAnalysis analyses = 4;
@@ -296,74 +510,204 @@ message ReactionProduct {
   bool is_desired_product = 2;
   float yield_in_percent = 3;
   float yield_precision_in_percent = 4;
-  // TODO(kearnes): Is this the right name? Should this be YieldMeasurementType?
-  // Or maybe this should be a ReactionAnalysis.AnalysisType?
-  enum YieldType {
-    YIELD_TYPE_UNKNOWN = 0;
-    YIELD_TYPE_NMR = 1;
-    YIELD_TYPE_HPLC = 2;
-    YIELD_TYPE_MS = 3;  // TODO(kearnes): Should this be LCMS?
-  }
-  YieldType yield_type = 5;
+  ReactionAnalysis.AnalysisType yield_type = 5;
   // Used to describe an UNKNOWN yield type.
-  string custom_yield_type = 6;
+  string yield_type_custom = 6;
   float purity_in_percent = 7;
   enum SelectivityType {
     SELECTIVITY_TYPE_UNKNOWN = 0;
-    SELECTIVITY_TYPE_EE = 1;
-    SELECTIVITY_TYPE_ER = 2;
-    SELECTIVITY_TYPE_DE = 3;
+    SELECTIVITY_TYPE_EE = 1;  // Enantiomeric excess as a percentage.
+    SELECTIVITY_TYPE_ER = 2;  // Enantiomeric ratio. (x:1)
+    SELECTIVITY_TYPE_DE = 3;  // Diasteromeric ratio (x:1)
   }
   SelectivityType selectivity_type = 8;
-  // TODO(kearnes): Units?
-  float selectivity_value = 9;
-  float selectivity_precision = 10;
+  string selectivity_type_custom = 9;
+  float selectivity_value = 10;
+  float selectivity_precision_in_percent = 11;
 }
 
-// TODO(kearnes): Time zone (e.g. as +/-UTC)?
+// TODO(ccoley): If we want the DateTime to be a string that we parse as
+// needed, should it simply be "string datetime" when used? Or is there any 
+// benefit to having a separate message type that could be changed in the 
+// future if needed?
 message DateTime {
-  int32 year = 1;
-  int32 month = 2;
-  int32 day = 3;
-  int32 hour = 4;
-  int32 minute = 5;
-  float second = 6;
+  string value = 1;
 }
 
 message ReactionAnalysis {
+  // TODO(ccoley): Solicit more feedback from experimentalists
   enum AnalysisType {
     ANALYSIS_TYPE_UNKNOWN = 0;
-    ANALYSIS_TYPE_HPLC = 1;
-    ANALYSIS_TYPE_IR = 2;
-    ANALYSIS_TYPE_NMR = 3;
-    ANALYSIS_TYPE_MP = 4;
-    ANALYSIS_TYPE_UV = 5;
-    ANALYSIS_TYPE_TLC = 6;
-    ANALYSIS_TYPE_HRMS = 7;
+    ANALYSIS_TYPE_LC = 1;  // Liquid chromatography.
+    ANALYSIS_TYPE_GC = 2;  // Gas chromatography.
+    ANALYSIS_TYPE_IR = 3;  // Infrared spectroscopy.
+    ANALYSIS_TYPE_NMR = 4;  // NMR spectroscopy.
+    ANALYSIS_TYPE_MP = 5;  // Melting point characterization.
+    ANALYSIS_TYPE_UV = 6;  // Ultraviolet spectroscopy.
+    ANALYSIS_TYPE_TLC = 7;  // Thin-layer chromatography.
+    ANALYSIS_TYPE_MS = 8;  // Mass spectrometry.
+    ANALYSIS_TYPE_HRMS = 9;  // High resolution mass spectrometry.
+    ANALYSIS_TYPE_MSMS = 10;  // Two-dimensional mass spectrometry.
+    ANALYSIS_TYPE_WEIGHT = 11;  // Weight of an isolated compound.
+    ANALYSIS_TYPE_LCMS = 12;  // Combined LC/MS.
+    ANALYSIS_TYPE_GCMS = 13;  // Combined GC/MS.
+    ANALYSIS_TYPE_ELSD = 14;  // Evaporative light scattering detector.
   }
   AnalysisType analysis_type = 1;
   // Used to describe an UNKNOWN analysis type.
-  string custom_analysis_type = 2;
-  map <string, bytes> processed_data = 3;
-  map <string, bytes> raw_data = 4;
-  string instrument_manufacturer = 5;
-  DateTime instrument_last_calibrated = 6;
+  string analysis_type_custom = 2;
+  // Any details about analysis (e.g., columns, gradients, conditions)
+  string analysis_details = 3;
+  // Data files (processed or annotated).
+  map <string, bytes> data_processed = 4;
+  // Data files (raw) obtained directly from the instrument
+  map <string, bytes> data_raw = 5;
+  string instrument_manufacturer = 6;
+  DateTime instrument_last_calibrated = 7;
 }
 
 message ReactionProvenance {
-  message Person {
-    string username = 1;
-    string name = 2;
-    string orcid = 3;
-    string organization = 4;
-  }
   Person experimenter = 1;
   string city = 2;
   DateTime experiment_start = 3;
-  oneof publication {
-    string doi = 4;
-    string patent = 5;
-  }
-  DateTime record_created = 6;
-  DateTime record_modified = 7;
+  string doi = 4;
+  string patent = 5;
+  string publication_url = 6;
+  DateTime record_created = 7;
+  DateTime record_modified = 8;
+  // TODO(ccoley): is it useful to create a unique ID field 
+  // that the centralized database can write to? (I know uniqueness is not
+  // enforceable)
+  int32 id = 9;  
 }
+
+message Person {
+  string username = 1;
+  string name = 2;
+  string orcid = 3;
+  string organization = 4;
+}
+
+
+/**
+ * To allow users to describe synthetic processes in whatever units they find
+ * most natural, we define a fixed list of allowable units for each measurement
+ * type. Upon submission to a centralized database, or using a validation and
+ * canonicalization script, we will convert all values to the default units
+ * (the first item in each enum).
+ */
+message Time {
+  enum TimeUnit {
+    TIME_UNIT_HOUR = 0;
+    TIME_UNIT_MINUTE = 1;
+    TIME_UNIT_SECOND = 2;
+  }
+  float value = 1;
+  TimeUnit units = 2;
+}
+message Mass {
+  enum MassUnit {
+    MASS_UNIT_GRAM = 0;
+    MASS_UNIT_MILLIGRAM = 1;
+    MASS_UNIT_MICROGRAM = 2;
+    MASS_UNIT_KILOGRAM = 3;
+  }
+  float value = 1;
+  MassUnit units = 2;
+}
+message Moles {
+  enum MolesUnit {
+    MOLES_UNIT_MOLES = 0;
+    MOLES_UNIT_MILLIMOLES = 1;
+    MOLES_UNIT_MICROMOLES = 2;
+    MOLES_UNIT_NANOMOLES = 3;
+  }
+  float value = 1;
+  MolesUnit units = 2;
+}
+message Volume {
+  enum VolumeUnit {
+    VOLUME_UNIT_MILLILITER = 0;
+    VOLUME_UNIT_MICROLITER = 1;
+    VOLUME_UNIT_LITER = 2;
+  }
+  float value = 1;
+  VolumeUnit units = 2;
+}
+message Concentration {
+  enum ConcentrationUnit {
+    CONCENTRATION_UNIT_MOLAR = 0;
+    CONCENTRATION_UNIT_MILLIMOLAR = 1;
+    CONCENTRATION_UNIT_MICROMOLAR = 2;
+  }
+  float value = 1;
+  ConcentrationUnit units = 2;
+}
+message Pressure {
+  enum PressureUnit {
+    PRESSURE_UNIT_BAR = 0;
+    PRESSURE_UNIT_ATMOSPHERE = 1;
+    PRESSURE_UNIT_PSI = 2;
+    PRESSURE_UNIT_KPSI = 3;
+    PRESSURE_UNIT_PASCAL = 4;  // Pascal
+    PRESSURE_UNIT_KILOPASCAL= 5;  // 
+  }
+  float value = 1;
+  PressureUnit units = 2;
+}
+message Temperature {
+  enum TemperatureUnit {
+    TEMPERATURE_UNIT_CELSIUS = 0;
+    TEMPERATURE_UNIT_FAHRENHEIT = 1;
+    TEMPERATURE_UNIT_KELVIN = 2;
+  }
+  float value = 1;
+  TemperatureUnit units = 2;
+}
+message Current {
+  enum CurrentUnit {
+    CURRENT_UNIT_AMPERE = 0;
+    CURRENT_UNIT_MILLIAMPERE = 1;
+  }
+  float value = 1;
+  CurrentUnit units = 2;
+}
+message Voltage {
+  enum VoltageUnit {
+    VOLTAGE_UNIT_VOLT = 0;
+    VOLTAGE_UNIT_MILLIVOLT = 1;
+  }
+  float value = 1;
+  VoltageUnit units = 2;
+}
+message Length {
+  enum LengthUnit {
+    LENGTH_UNIT_CENTIMETER = 0;
+    LENGTH_UNIT_MILLIMETER = 1;
+    LENGTH_UNIT_METER = 2;
+    LENGTH_UNIT_INCH = 3;
+    LENGTH_UNIT_FOOT = 4;
+  }
+  float value = 1;
+  LengthUnit units = 2;
+}
+message Wavelength {
+  enum WavelengthUnit {
+    WAVELENGTH_UNIT_NANOMETER = 0;
+    WAVELENGTH_UNIT_WAVENUMBER = 1;  // cm^{-1}
+  }
+  float value = 1;
+  WavelengthUnit units = 2;
+}
+message FlowRate {
+  enum FlowRateUnit {
+    FLOW_RATE_UNIT_MICROLITER_PER_MINUTE = 0;
+    FLOW_RATE_UNIT_MICROLITER_PER_SECOND = 1;
+    FLOW_RATE_UNIT_MILLILITER_PER_MINUTE = 2;
+    FLOW_RATE_UNIT_MILLILITER_PER_SECOND = 3;
+    FLOW_RATE_UNIT_MICROLITER_PER_HOUR = 4;
+  }
+  float value = 1;
+  FlowRateUnit units = 2;
+}
+
