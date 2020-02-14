@@ -69,7 +69,7 @@ message ReactionInput {
    *  lower addition_stage than another was added earlier in the procedure.
    */
   int32 addition_stage = 4;
-  float addition_time = 5;  // Reaction time (in hours)
+  Time addition_time = 5;  // Reaction time
   enum AdditionSpeed {
     ADDITION_SPEED_UNKNOWN = 0;
     ADDITION_SPEED_ALL_AT_ONCE = 1;
@@ -85,15 +85,17 @@ message Compound {
   repeated CompoundIdentifier identifiers = 1;
   Amount amount = 2;
   /**
-   * Compounds may undergo additional preparation before being used in a reaction
-   * after being received from a supplier or vendor. 
+   * Compounds may undergo additional preparation before being used in a 
+   * reaction after being received from a supplier or vendor. 
    */
   enum Preparation {
     COMPOUND_PREPARATION_UNKNOWN = 0;
-    COMPOUND_PREPARATION_NONE = 1;  // Compound used as received.
+    // Compound used as received.
+    COMPOUND_PREPARATION_NONE = 1;  
     COMPOUND_PREPARATION_REPURIFIED = 2;
     COMPOUND_PREPARATION_SPARGED = 3;
-    COMPOUND_PREPARATION_DRIED = 4;  // Moisture removed, e.g., using molecular sieves.
+    // Moisture removed, e.g., using molecular sieves.
+    COMPOUND_PREPARATION_DRIED = 4;
   }
   Preparation preparation = 3;
   string preparation_custom = 4;
@@ -127,19 +129,32 @@ message CompoundIdentifier {
   // Possible identifier types are listed in an enum for extensibility
   enum IdentifierType {
     COMPOUND_IDENTIFIER_TYPE_UNKNOWN = 0;  // Any other identifier
-    COMPOUND_IDENTIFIER_TYPE_SMILES = 1;  //  Simplified molecular-input line-entry system.
-    COMPOUND_IDENTIFIER_TYPE_INCHI = 2;  // IUPAC International Chemical Identifier.
-    COMPOUND_IDENTIFIER_TYPE_MOLFILE = 3;  // MDL Molfile V3000.
-    COMPOUND_IDENTIFIER_TYPE_IUPAC_NAME = 4;  // Chemical name following IUPAC nomenclature recommendations.
-    COMPOUND_IDENTIFIER_TYPE_NAME = 5;  // Any accepted common name, trade name, etc.
-    COMPOUND_IDENTIFIER_TYPE_CAS_NUMBER = 6;  // Chemical Abstracts Service Registry Number (with hyphens).
-    COMPOUND_IDENTIFIER_TYPE_PUBCHEM_CID = 7;  // PubChem Compound ID number.
-    COMPOUND_IDENTIFIER_TYPE_CHEMSPIDER_ID = 8;  // ChemSpider ID number.
-    COMPOUND_IDENTIFIER_TYPE_CXSMILES = 9;  // ChemAxon extended SMILES
-    COMPOUND_IDENTIFIER_TYPE_INCHI_KEY = 10;  // IUPAC International Chemical Identifier key
-    COMPOUND_IDENTIFIER_TYPE_XYZ = 11;  // XYZ molecule file
-    COMPOUND_IDENTIFIER_TYPE_UNIPROT_ID = 12;  // UniProt ID (for enzymes)
-    COMPOUND_IDENTIFIER_TYPE_PDB_ID = 13;  // Protein data bank ID (for enzymes)
+    //  Simplified molecular-input line-entry system.
+    COMPOUND_IDENTIFIER_TYPE_SMILES = 1;
+    // IUPAC International Chemical Identifier.
+    COMPOUND_IDENTIFIER_TYPE_INCHI = 2;
+    // MDL Molfile V3000.
+    COMPOUND_IDENTIFIER_TYPE_MOLFILE = 3;
+    // Chemical name following IUPAC nomenclature recommendations.
+    COMPOUND_IDENTIFIER_TYPE_IUPAC_NAME = 4;
+    // Any accepted common name, trade name, etc.
+    COMPOUND_IDENTIFIER_TYPE_NAME = 5;
+    // Chemical Abstracts Service Registry Number (with hyphens).
+    COMPOUND_IDENTIFIER_TYPE_CAS_NUMBER = 6;
+    // PubChem Compound ID number.
+    COMPOUND_IDENTIFIER_TYPE_PUBCHEM_CID = 7;
+    // ChemSpider ID number.
+    COMPOUND_IDENTIFIER_TYPE_CHEMSPIDER_ID = 8;
+    // ChemAxon extended SMILES
+    COMPOUND_IDENTIFIER_TYPE_CXSMILES = 9;
+    // IUPAC International Chemical Identifier key
+    COMPOUND_IDENTIFIER_TYPE_INCHI_KEY = 10;
+    // XYZ molecule file
+    COMPOUND_IDENTIFIER_TYPE_XYZ = 11;
+    // UniProt ID (for enzymes)
+    COMPOUND_IDENTIFIER_TYPE_UNIPROT_ID = 12;
+    // Protein data bank ID (for enzymes)
+    COMPOUND_IDENTIFIER_TYPE_PDB_ID = 13;
   }
   IdentifierType type = 1;
   // Custom compound identifier 
@@ -247,7 +262,7 @@ message ReactionSetup {
   VesselPrep vessel_prep = 3;
   // Used to describe an UNKNOWN vessel prep.
   string vessel_prep_custom = 4;
-  float vessel_volume_in_ml = 5;
+  Volume vessel_volume = 5;
   // Specification of automated protocols.
   bool is_automated = 6;
   string automation_platform = 7;
@@ -291,8 +306,10 @@ message TemperatureConditions {
   repeated Measurement measurements = 5;
   enum MeasurementType {
     TEMPERATURE_MEASUREMENT_UNKNOWN = 0;
-    TEMPERATURE_MEASUREMENT_THERMOCOUPLE_INTERNAL = 1;  // Physically in reaction solution.
-    TEMPERATURE_MEASUREMENT_THERMOCOUPLE_EXTERNAL = 2;  // On outside of vessel or, e.g., in oil bath.
+    // Physically in reaction solution.
+    TEMPERATURE_MEASUREMENT_THERMOCOUPLE_INTERNAL = 1;
+    // On outside of vessel or, e.g., in oil bath.
+    TEMPERATURE_MEASUREMENT_THERMOCOUPLE_EXTERNAL = 2;
     TEMPERATURE_MEASUREMENT_INFRARED = 3;  // Contactless infrared probe.
   }
   MeasurementType measurement_type = 6;
@@ -304,9 +321,11 @@ message PressureConditions {
     PRESSURE_CONTROL_UNKNOWN = 0;
     PRESSURE_CONTROL_AMBIENT = 1;
     PRESSURE_CONTROL_BALLOON = 2;
-    PRESSURE_CONTROL_SEALED = 3;  // Fully sealed vessel (e.g., microwave vial)
+    // Fully sealed vessel (e.g., microwave vial)
+    PRESSURE_CONTROL_SEALED = 3;
     PRESSURE_CONTROL_RELEASEVALVE = 4;
-    PRESSURE_CONTROL_BPR = 5;  // Back pressure regulator, as used in flow synthesis.
+    // Back pressure regulator, as used in flow synthesis.
+    PRESSURE_CONTROL_BPR = 5;  
   }
   PressureControl pressure_control = 1;
   // Used to describe an UNKNOWN pressure control.
@@ -427,6 +446,7 @@ message FlowConditions {
   }
   TubeMaterial tube_material = 4;
   string tube_material_custom = 5;
+  Length tube_diameter = 6;
 }
 
 message ReactionNotes {
@@ -443,7 +463,7 @@ message ReactionNotes {
 }
 
 message ReactionObservation {
-  float time_in_h = 1;
+  Time time = 1;
   oneof kind {
     string color = 2;
     bytes image = 3;
@@ -568,9 +588,7 @@ message Person {
   string organization = 4;
 }
 
-// TODO(ccoley) is it appropriate to have these be part of messages? It looks
-// redundant, but I think this is actually a fairly clean way to do it, rather
-// than putting all of the possible measurement/unit types into one giant enum
+
 /**
  * To allow users to describe synthetic processes in whatever units they find
  * most natural, we define a fixed list of allowable units for each measurement
