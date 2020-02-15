@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: 
+      - master
+  pull_request:
+    branches: 
+      - master
+
+jobs:
+  run_tests:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        python setup.py build_py
+        python setup.py install
+    - name: Run tests
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        for TEST_FILENAME in "$(ls **/*_test.py)"; do \
+          echo "Running tests in ${TEST_FILENAME}"; \
+          python TEST_FILENAME; \
+        done
