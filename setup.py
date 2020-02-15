@@ -30,5 +30,4 @@ if __name__ == '__main__':
         install_requires=['absl-py>=0.9.0', 'protobuf>=3.11.0'],
         version="0.1",
         packages=setuptools.find_packages(),
-        cmdclass={'build_py': BuildPyCommand},
-    )
+        cmdclass={'build_py': BuildPyCommand})
