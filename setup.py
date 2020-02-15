@@ -13,6 +13,8 @@ class BuildPyCommand(build_py.build_py):
     def run(self):
         """Runs the protocol buffer compiler."""
         protoc = spawn.find_executable('protoc')
+        if not protoc:
+            raise RuntimeError('cannot find protoc')
         for source in glob.glob('proto/*.proto'):
             protoc_command = [protoc, '--python_out=ord_schema', source]
             self.announce(f'running {protoc_command}')
