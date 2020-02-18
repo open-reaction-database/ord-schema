@@ -1,4 +1,7 @@
 #!/bin/bash
+#
+# Generates HTML documentation for the Open Reaction Database schema.
+# See https://github.com/pseudomuto/protoc-gen-doc.
 
 set -ex
 
