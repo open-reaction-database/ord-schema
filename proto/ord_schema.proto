@@ -40,14 +40,14 @@ message Reaction {
 message ReactionIdentifier {
   // Possible identifier types are listed in an enum for extensibility
   enum IdentifierType {
-    REACTION_IDENTIFIER_TYPE_UNKNOWN = 0;  
+    REACTION_IDENTIFIER_TYPE_UNKNOWN = 0;  // Unspecified or custom.
     REACTION_IDENTIFIER_TYPE_REACTION_SMILES = 1;  // Reaction SMILES.
     REACTION_IDENTIFIER_TYPE_ATOM_MAPPED_SMILES = 2;  // Atom-mapped SMILES.
     REACTION_IDENTIFIER_TYPE_RINCHI = 3;  // Reaction InChI.
     REACTION_IDENTIFIER_TYPE_NAME = 4;  // Named reaction or reaction category.
   }
   IdentifierType type = 1;
-  // Custom reaction identifier 
+  // Custom reaction identifier, used only when 'type' field is UNKNOWN.
   string type_custom = 2;
   string value = 3;
 }
@@ -55,23 +55,31 @@ message ReactionIdentifier {
 message ReactionInput {
   Compound compound = 1;
   enum ReactionRole {
-    REACTION_ROLE_UNKNOWN = 0;
+    // Unspecified.
+    REACTION_ROLE_UNKNOWN = 0;  
+    // TODO(ccoley): Do we want to use the definition of a reactant aligned
+    // with Reaxys, or say that any species that contributes heavy atoms 
+    // to a desired product is a reactant? This field might be kind of a 
+    // throwaway anyway...
     REACTION_ROLE_REACTANT = 1;
     REACTION_ROLE_REAGENT = 2;
     REACTION_ROLE_SOLVENT = 3;
     REACTION_ROLE_CATALYST = 4;
   }
   ReactionRole reaction_role = 2;
-  // Whether this species should be considered a limiting reactant.
+  // Whether this species was intended to be a limiting reactant.
   bool is_limiting = 3;
   /**
    * Used to define order of addition. ReactionInputs with the same 
    * addition_stage were added simultaneously. One ReactionInput with a 
-   *  lower addition_stage than another was added earlier in the procedure.
+   * lower addition_stage than another was added earlier in the procedure.
    */
   int32 addition_stage = 4;
-  Time addition_time = 5;  // Reaction time
+  // When the addition event took place in terms of the reaction time (or, 
+  // in the case of flow chemistry, the residence time).
+  Time addition_time = 5;
   enum AdditionSpeed {
+    // Unspecified.
     ADDITION_SPEED_UNKNOWN = 0;
     ADDITION_SPEED_ALL_AT_ONCE = 1;
     ADDITION_SPEED_FAST = 2;
@@ -79,34 +87,50 @@ message ReactionInput {
     ADDITION_SPEED_DROPWISE = 4;
     ADDITION_SPEED_CONTINUOUS = 5;
   }
+  // The qualitative rate of addition.
   AdditionSpeed addition_speed = 6;
 }
 
 message Compound {
+  // Set of identifiers used to uniquely define this compound.
   repeated CompoundIdentifier identifiers = 1;
+  // Quantity of this compound used in the reaction.
   Amount amount = 2;
   /**
    * Compounds may undergo additional preparation before being used in a 
-   * reaction after being received from a supplier or vendor. 
+   * reaction after being received from a supplier or vendor. We encourage
+   * the use of the 'preparation' enum when possible, even if the description
+   * is an oversimplification of the full procedure, which can be detailed 
+   * in the 'preparation_details' field.
    */
   enum Preparation {
+    // Unspecified or custom.
     COMPOUND_PREPARATION_UNKNOWN = 0;
     // Compound used as received.
-    COMPOUND_PREPARATION_NONE = 1;  
+    COMPOUND_PREPARATION_NONE = 1;
+    // Compound repurified (e.g., recrystallized).
     COMPOUND_PREPARATION_REPURIFIED = 2;
+    // Compound sparged, most likely to be the case with solvents.
     COMPOUND_PREPARATION_SPARGED = 3;
     // Moisture removed, e.g., using molecular sieves.
     COMPOUND_PREPARATION_DRIED = 4;
   }
   Preparation preparation = 3;
+  // Custom preparation, used only when 'type' field is UNKNOWN.
   string preparation_custom = 4;
-  string vendor_source = 5;
-  string vendor_lot = 6;
+  // Full description of how the received compound was prepared.
+  string preparation_details = 5;
+  // Name of the vendor or supplier the compound was purchased from.
+  string vendor_source = 6;
+  // Compound ID in the vendor database or catalog.
+  string vendor_id = 7;
+  // Batch/lot identification.
+  string vendor_lot = 8;
   /**
    * Compounds can accommodate any number of features. These may include simple
    * properties of the compound (e.g., molecular weight), heuristic estimates
    * of physical properties (e.g., ClogP), optimized geometries (e.g., through
-   * DFT), and calculated stereoselectronic descriptors.
+   * DFT), and calculated stereoselectronic descriptors. 
    */
   message Feature {
     string name = 1;
@@ -116,7 +140,7 @@ message Compound {
     }
     string how_computed = 4;
   }
-  repeated Feature features = 7;
+  repeated Feature features = 9;
 }
 
 /**
@@ -124,10 +148,12 @@ message Compound {
  * While we encourage the use of SMILES strings, these do not work well in
  * all cases (e.g., handling tautomerism, axial chirality). Multiple
  * identifiers may be specified for a single compound to avoid ambiguity.
- * We discourage chemicals from being defined only by a name.
+ * We discourage chemicals from being defined only by a name. For compounds
+ * that are prepared or isolated as salts, the identifier should include
+ * specification of which salt.
  */
 message CompoundIdentifier {
-  // Possible identifier types are listed in an enum for extensibility
+  // Possible identifier types are listed in an enum for extensibility.
   enum IdentifierType {
     COMPOUND_IDENTIFIER_TYPE_UNKNOWN = 0;  // Any other identifier
     //  Simplified molecular-input line-entry system.
@@ -163,8 +189,8 @@ message CompoundIdentifier {
   // Value of the compound identifier; certain types (e.g., pubchem_cid) may
   // cast the string as an integer for downstream processing and validation.
   string value = 3;
-  
 }
+
 /**
  * The quantitative Amount of a Compound used in a particular reaction.
  * Compounds added in their pure form should have their value defined by
@@ -263,10 +289,13 @@ message ReactionSetup {
   VesselPrep vessel_prep = 3;
   // Used to describe an UNKNOWN vessel prep.
   string vessel_prep_custom = 4;
+  // Size (volume) of the vessel.
   Volume vessel_volume = 5;
   // Specification of automated protocols.
   bool is_automated = 6;
+  // Automated platform name, brand, or model number.
   string automation_platform = 7;
+  // Raw automation code or synthetic recipe definition.
   map <string, bytes> automation_code = 8;
 }
 
@@ -498,7 +527,7 @@ message ReactionWorkup {
  * data.
  */
 message ReactionOutcome {
-  // Reaction time (for flow, equivalent to residence time or spacetime)
+  // Reaction time (for flow, equivalent to residence time or spacetime).
   Time reaction_time = 1;  
   // Conversion with respect to the limiting reactant.
   float conversion_in_percent = 2;
@@ -525,6 +554,18 @@ message ReactionProduct {
   string selectivity_type_custom = 9;
   float selectivity_value = 10;
   float selectivity_precision_in_percent = 11;
+  // TODO(ccoley): How to allow specification of the state of matter of the 
+  // purified compound? For example, "___ was recovered as a white powder in
+  // x% yield (y.z mg)". Or oils, crystal texture, etc. This is only relevant 
+  // for compounds that are isolated.
+  string isolated_color = 12;
+  enum Texture {
+    TEXTURE_UNKNOWN = 0;
+    TEXTURE_POWDER = 1;
+    TEXTURE_CRYSTAL = 2;
+    TEXTURE_OIL = 3;
+  }
+  Texture isolated_texture = 13; 
 }
 
 // TODO(ccoley): If we want the DateTime to be a string that we parse as
