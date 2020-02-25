@@ -217,7 +217,7 @@ message Compound {
     }
     string how_computed = 4;
   }
-  repeated Feature features = 9;
+  repeated Feature features = 10;
 }
 
 /**
