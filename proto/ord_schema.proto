@@ -585,6 +585,7 @@ message ReactionProduct {
     TEXTURE_OIL = 3;
   }
   Texture isolated_texture = 13; 
+  string isolated_texture_custom = 14;
 }
 
 // TODO(ccoley): If we want the DateTime to be a string that we parse as
@@ -659,114 +660,126 @@ message Person {
  */
 message Time {
   enum TimeUnit {
-    TIME_UNIT_HOUR = 0;
-    TIME_UNIT_MINUTE = 1;
-    TIME_UNIT_SECOND = 2;
+    TIME_UNIT_UNKNOWN = 0;
+    TIME_UNIT_HOUR = 1;
+    TIME_UNIT_MINUTE = 2;
+    TIME_UNIT_SECOND = 3;
   }
   float value = 1;
   TimeUnit units = 2;
 }
 message Mass {
   enum MassUnit {
-    MASS_UNIT_GRAM = 0;
-    MASS_UNIT_MILLIGRAM = 1;
-    MASS_UNIT_MICROGRAM = 2;
-    MASS_UNIT_KILOGRAM = 3;
+    MASS_UNIT_UNKNOWN = 0;
+    MASS_UNIT_GRAM = 1;
+    MASS_UNIT_MILLIGRAM = 2;
+    MASS_UNIT_MICROGRAM = 3;
+    MASS_UNIT_KILOGRAM = 4;
   }
   float value = 1;
   MassUnit units = 2;
 }
 message Moles {
   enum MolesUnit {
-    MOLES_UNIT_MOLES = 0;
-    MOLES_UNIT_MILLIMOLES = 1;
-    MOLES_UNIT_MICROMOLES = 2;
-    MOLES_UNIT_NANOMOLES = 3;
+    MOLES_UNIT_UNKNOWN = 0;
+    MOLES_UNIT_MOLES = 1;
+    MOLES_UNIT_MILLIMOLES = 2;
+    MOLES_UNIT_MICROMOLES = 3;
+    MOLES_UNIT_NANOMOLES = 4;
   }
   float value = 1;
   MolesUnit units = 2;
 }
 message Volume {
   enum VolumeUnit {
-    VOLUME_UNIT_MILLILITER = 0;
-    VOLUME_UNIT_MICROLITER = 1;
-    VOLUME_UNIT_LITER = 2;
+    VOLUME_UNIT_UNKNOWN = 0;
+    VOLUME_UNIT_MILLILITER = 1;
+    VOLUME_UNIT_MICROLITER = 2;
+    VOLUME_UNIT_LITER = 3;
   }
   float value = 1;
   VolumeUnit units = 2;
 }
 message Concentration {
   enum ConcentrationUnit {
-    CONCENTRATION_UNIT_MOLAR = 0;
-    CONCENTRATION_UNIT_MILLIMOLAR = 1;
-    CONCENTRATION_UNIT_MICROMOLAR = 2;
+    CONCENTRATION_UNIT_UNKNOWN = 0;
+    CONCENTRATION_UNIT_MOLAR = 1;
+    CONCENTRATION_UNIT_MILLIMOLAR = 2;
+    CONCENTRATION_UNIT_MICROMOLAR = 3;
   }
   float value = 1;
   ConcentrationUnit units = 2;
 }
 message Pressure {
   enum PressureUnit {
-    PRESSURE_UNIT_BAR = 0;
-    PRESSURE_UNIT_ATMOSPHERE = 1;
-    PRESSURE_UNIT_PSI = 2;
-    PRESSURE_UNIT_KPSI = 3;
-    PRESSURE_UNIT_PASCAL = 4;  // Pascal
-    PRESSURE_UNIT_KILOPASCAL= 5;  // 
+    PRESSURE_UNIT_UNKNOWN = 0;
+    PRESSURE_UNIT_BAR = 1;
+    PRESSURE_UNIT_ATMOSPHERE = 2;
+    PRESSURE_UNIT_PSI = 3;
+    PRESSURE_UNIT_KPSI = 4;
+    PRESSURE_UNIT_PASCAL = 5;  // Pascal
+    PRESSURE_UNIT_KILOPASCAL= 6;  // KiloPascal
   }
   float value = 1;
   PressureUnit units = 2;
 }
 message Temperature {
   enum TemperatureUnit {
-    TEMPERATURE_UNIT_CELSIUS = 0;
-    TEMPERATURE_UNIT_FAHRENHEIT = 1;
-    TEMPERATURE_UNIT_KELVIN = 2;
+    TEMPERATURE_UNIT_UNKNOWN = 0;
+    TEMPERATURE_UNIT_CELSIUS = 1;
+    TEMPERATURE_UNIT_FAHRENHEIT = 2;
+    TEMPERATURE_UNIT_KELVIN = 3;
   }
   float value = 1;
   TemperatureUnit units = 2;
 }
 message Current {
   enum CurrentUnit {
-    CURRENT_UNIT_AMPERE = 0;
-    CURRENT_UNIT_MILLIAMPERE = 1;
+    CURRENT_UNIT_UNKNOWN = 0;
+    CURRENT_UNIT_AMPERE = 1;
+    CURRENT_UNIT_MILLIAMPERE = 2;
   }
   float value = 1;
   CurrentUnit units = 2;
 }
 message Voltage {
   enum VoltageUnit {
-    VOLTAGE_UNIT_VOLT = 0;
-    VOLTAGE_UNIT_MILLIVOLT = 1;
+    VOLTAGE_UNIT_UNKNOWN = 0;
+    VOLTAGE_UNIT_VOLT = 1;
+    VOLTAGE_UNIT_MILLIVOLT = 2;
   }
   float value = 1;
   VoltageUnit units = 2;
 }
 message Length {
   enum LengthUnit {
-    LENGTH_UNIT_CENTIMETER = 0;
-    LENGTH_UNIT_MILLIMETER = 1;
-    LENGTH_UNIT_METER = 2;
-    LENGTH_UNIT_INCH = 3;
-    LENGTH_UNIT_FOOT = 4;
+    LENGTH_UNIT_UNKNOWN = 0;
+    LENGTH_UNIT_CENTIMETER = 1;
+    LENGTH_UNIT_MILLIMETER = 2;
+    LENGTH_UNIT_METER = 3;
+    LENGTH_UNIT_INCH = 4;
+    LENGTH_UNIT_FOOT = 5;
   }
   float value = 1;
   LengthUnit units = 2;
 }
 message Wavelength {
   enum WavelengthUnit {
-    WAVELENGTH_UNIT_NANOMETER = 0;
-    WAVELENGTH_UNIT_WAVENUMBER = 1;  // cm^{-1}
+    WAVELENGTH_UNIT_UNKNOWN = 0;
+    WAVELENGTH_UNIT_NANOMETER = 1;
+    WAVELENGTH_UNIT_WAVENUMBER = 2;  // cm^{-1}
   }
   float value = 1;
   WavelengthUnit units = 2;
 }
 message FlowRate {
   enum FlowRateUnit {
-    FLOW_RATE_UNIT_MICROLITER_PER_MINUTE = 0;
-    FLOW_RATE_UNIT_MICROLITER_PER_SECOND = 1;
-    FLOW_RATE_UNIT_MILLILITER_PER_MINUTE = 2;
-    FLOW_RATE_UNIT_MILLILITER_PER_SECOND = 3;
-    FLOW_RATE_UNIT_MICROLITER_PER_HOUR = 4;
+    FLOW_RATE_UNIT_UNKNOWN = 0;
+    FLOW_RATE_UNIT_MICROLITER_PER_MINUTE = 1;
+    FLOW_RATE_UNIT_MICROLITER_PER_SECOND = 2;
+    FLOW_RATE_UNIT_MILLILITER_PER_MINUTE = 3;
+    FLOW_RATE_UNIT_MILLILITER_PER_SECOND = 4;
+    FLOW_RATE_UNIT_MICROLITER_PER_HOUR = 5;
   }
   float value = 1;
   FlowRateUnit units = 2;
