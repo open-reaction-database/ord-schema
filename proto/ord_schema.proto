@@ -94,9 +94,83 @@ message ReactionInput {
 
 message Compound {
   // Set of identifiers used to uniquely define this compound.
+  // Solutions or mixed compounds should use the NAME identifier
+  // and list all constituent compounds in the "components" field.
   repeated CompoundIdentifier identifiers = 1;
   // Quantity of this compound used in the reaction.
   Amount amount = 2;
+  // TODO(ccoley): fix this bastardization of proto and json
+  /**
+   * The "components" field is only used when species are not added to the
+   * reaction vessel in their pure form. 
+   *
+   * For pre-mixed solutions, we define all components of what went in
+   * to the stock solution. For example, suppose we are adding
+   * 3 mL of a 4 M solution of NaOH in water.
+   * 
+   * compound {
+   *   identifiers: [
+   *     {type: IDENTIFIER_NAME, value: "4M NaOH solution in water"}
+   *   ]
+   *   amount {
+   *     volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
+   *   }
+   *   components: [
+   *     {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "O"},
+   *         {type: IDENTIFIER_NAME, value: "water"}
+   *       ]
+   *       amount: {
+   *         volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
+   *       }
+   *     }
+   *     {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
+   *         {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
+   *       ]
+   *       amount {
+   *         concentration: {value: 4, units: CONCENTRATION_UNITS_MOLAR}
+   *       }
+   *     }
+   *   ]
+   * }
+   *
+   * Equivalently, if 1 L of the stock solution had been prepared,
+   * 
+   * compound {
+   *   identifiers: [
+   *     {type: IDENTIFIER_NAME, value: "4M NaOH solution in water"}
+   *   ]
+   *   amount {
+   *     volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
+   *   }
+   *   components: [
+   *     {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "O"},
+   *         {type: IDENTIFIER_NAME, value: "water"}
+   *       ]
+   *       amount: {
+   *         volume: {value: 1, units: VOLUME_UNITS_LITER}
+   *       }
+   *     }
+   *     {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
+   *         {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
+   *       ]
+   *       amount {
+   *         moles: {value: 4, units: MOLES_UNIT_MOLES}
+   *       }
+   *     }
+   *   ]
+   * }
+   *
+   * A similar definition is used for supported catalysts (TODO)
+   */
+  repeated Compound components = 3;
   /**
    * Compounds may undergo additional preparation before being used in a 
    * reaction after being received from a supplier or vendor. We encourage
@@ -118,17 +192,17 @@ message Compound {
     // Compound synthesized in-house
     COMPOUND_PREPARATION_SYNTHESIZED = 5;
   }
-  Preparation preparation = 3;
+  Preparation preparation = 4;
   // Custom preparation, used only when 'type' field is UNKNOWN.
-  string preparation_custom = 4;
+  string preparation_custom = 5;
   // Full description of how the received compound was prepared.
-  string preparation_details = 5;
+  string preparation_details = 6;
   // Name of the vendor or supplier the compound was purchased from.
-  string vendor_source = 6;
+  string vendor_source = 7;
   // Compound ID in the vendor database or catalog.
-  string vendor_id = 7;
+  string vendor_id = 8;
   // Batch/lot identification.
-  string vendor_lot = 8;
+  string vendor_lot = 9;
   /**
    * Compounds can accommodate any number of features. These may include simple
    * properties of the compound (e.g., molecular weight), heuristic estimates
@@ -198,13 +272,8 @@ message CompoundIdentifier {
  * The quantitative Amount of a Compound used in a particular reaction.
  * Compounds added in their pure form should have their value defined by
  * mass, moles, or volume. Compounds prepared as solutions should be defined
- * in terms of their concentration and volume. If using a pure solvent, the
- * solvent field must only specify a compound identifier. If using a solvent
- * mixture, multiple solvents may be listed. If amounts are not given, we
- * assume equal ratios. If amounts (volumes) are given for the solvents, that
- * will be used to calculate the solvent composition. Compounds prepared
- * on solid supports should define the total quantity including the support;
- * the identity of the support is defined separately.
+ * in terms of their volume. Compounds prepared on solid supports should 
+ * define the total mass/volume including the support.
  */
 message Amount {
   oneof kind {
@@ -215,60 +284,6 @@ message Amount {
   }
   // Precision of the measurement, as a percentage of the value.
   float precision_in_percent = 5;
-  // TODO(ccoley): fix this bastardization of proto and json
-  /**
-   * For pre-mixed solutions when value given in concentration, the solvent
-   * is specified as an additional Compound, which should have an identifier
-   * and an amount specified by volume. For example, suppose we are adding
-   * 3 mL of a 4 M solution of NaOH in water.
-   * 
-   * compound {
-   *   identifiers: [
-   *     {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
-   *     {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
-   *   ]
-   *   amount {
-   *     volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
-   *     concentration: {value: 4, units: CONCENTRATION_UNITS_MOLAR}
-   *     solvent {
-   *       identifiers: [
-   *         {type: IDENTIFIER_SMILES, value: "O"},
-   *         {type: IDENTIFIER_NAME, value: "water"}
-   *       ]
-   *     }
-   *   }
-   * }
-   */
-  // The concentration of the pre-mixed solution as-added, *not* the final
-  // concentration in the overall crude reaction/product mixture.
-  Concentration concentration = 6;
-  repeated Compound solvent = 7;
-
-  // TODO(ccoley) Also fix this one
-  /**
-   * For catalysts on supports. For example, a reaction using 5 grams of
-   * 10% Pd/C might be reported as...
-   * 
-   * compound {
-   *   identifiers: [
-   *     {type: IDENTIFIER_SMILES, value: "[Pd]"},
-   *     {type: IDENTIFIER_NAME, value: "palladium"}
-   *   ]
-   *   amount {
-   *     mass: {value: 5, units: MASS_UNITS_GRAM}
-   *     support {
-   *       identifiers: [
-   *         {type: IDENTIFIER_NAME, value: "carbon"}
-   *       ]
-   *     }
-   *     weight_percent: 10
-   *   }
-   * }
-   *
-   * Immobilized proteins should also use the "support" field.
-   */
-  Compound support = 8;
-  float weight_percent = 9;
 }
 
 message ReactionSetup {
