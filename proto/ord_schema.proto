@@ -71,10 +71,11 @@ message ReactionInput {
   bool is_limiting = 3;
   /**
    * Used to define order of addition. ReactionInputs with the same 
-   * addition_stage were added simultaneously. One ReactionInput with a 
-   * lower addition_stage than another was added earlier in the procedure.
+   * addition_order were added simultaneously. One ReactionInput with a 
+   * lower addition_order than another was added earlier in the procedure.
+   * This field is 1-indexed.
    */
-  int32 addition_stage = 4;
+  int32 addition_order = 4;
   // When the addition event took place in terms of the reaction time (or, 
   // in the case of flow chemistry, the residence time).
   Time addition_time = 5;
@@ -114,6 +115,8 @@ message Compound {
     COMPOUND_PREPARATION_SPARGED = 3;
     // Moisture removed, e.g., using molecular sieves.
     COMPOUND_PREPARATION_DRIED = 4;
+    // Compound synthesized in-house
+    COMPOUND_PREPARATION_SYNTHESIZED = 5;
   }
   Preparation preparation = 3;
   // Custom preparation, used only when 'type' field is UNKNOWN.
@@ -272,14 +275,15 @@ message ReactionSetup {
   enum VesselType {
     VESSEL_TYPE_UNKNOWN = 0;
     VESSEL_TYPE_ROUND_BOTTOM_FLASK = 1;
-    VESSEL_TYPE_WELL_PLATE = 2;
-    VESSEL_TYPE_MICROWAVE_VIAL = 3;
-    VESSEL_TYPE_TUBE = 4;
-    VESSEL_TYPE_CONTINUOUS_STIRRED_TANK_REACTOR = 5;
-    VESSEL_TYPE_PACKED_BED_REACTOR = 6;
+    VESSEL_TYPE_VIAL = 2;  // Regular glass vial 
+    VESSEL_TYPE_WELL_PLATE = 3;
+    VESSEL_TYPE_MICROWAVE_VIAL = 4;
+    VESSEL_TYPE_TUBE = 5;
+    VESSEL_TYPE_CONTINUOUS_STIRRED_TANK_REACTOR = 6;
+    VESSEL_TYPE_PACKED_BED_REACTOR = 7;
   }
   VesselType vessel_type = 1;
-  // Used to describe an UNKNOWN vessel type.
+  // Used to describe an UNKNOWN vessel type or elaborate.
   string vessel_type_custom = 2;
   enum VesselPrep {
     VESSEL_PREP_UNKNOWN = 0;
@@ -598,7 +602,7 @@ message ReactionAnalysis {
   AnalysisType analysis_type = 1;
   // Used to describe an UNKNOWN analysis type.
   string analysis_type_custom = 2;
-  // Any details about analysis (e.g., columns, gradients, conditions)
+  // Any details about analysis (e.g., NMR type, columns, gradients, conditions)
   string analysis_details = 3;
   // Data files (processed or annotated).
   map <string, bytes> data_processed = 4;
