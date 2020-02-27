@@ -300,22 +300,30 @@ message ReactionSetup {
   VesselType vessel_type = 1;
   // Used to describe an UNKNOWN vessel type or elaborate.
   string vessel_type_custom = 2;
+  enum VesselMaterial {
+    VESSEL_MATERIAL_UNKNOWN = 0;
+    VESSEL_MATERIAL_GLASS = 1;
+    VESSEL_MATERIAL_POLYPROPYLENE = 2;
+    VESSEL_MATERIAL_PLASTIC = 3;
+  }
+  VesselMaterial vessel_material = 3;
+  string vessel_material_custom = 4;
   enum VesselPrep {
     VESSEL_PREP_UNKNOWN = 0;
     VESSEL_PREP_NONE = 1;
     VESSEL_PREP_OVEN_DRIED = 2;
   }
-  VesselPrep vessel_prep = 3;
+  VesselPrep vessel_prep = 5;
   // Used to describe an UNKNOWN vessel prep.
-  string vessel_prep_custom = 4;
+  string vessel_prep_custom = 6;
   // Size (volume) of the vessel.
-  Volume vessel_volume = 5;
+  Volume vessel_volume = 7;
   // Specification of automated protocols.
-  bool is_automated = 6;
+  bool is_automated = 8;
   // Automated platform name, brand, or model number.
-  string automation_platform = 7;
+  string automation_platform = 9;
   // Raw automation code or synthetic recipe definition.
-  map <string, bytes> automation_code = 8;
+  map <string, bytes> automation_code = 10;
 }
 
 message ReactionConditions {
