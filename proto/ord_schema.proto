@@ -1,6 +1,7 @@
 // Schema for the Open Reaction Database.
 syntax = "proto3";
 
+package ord;
 
 /**
  * Throughout this schema, we introduce enums to encourage consistency in
@@ -39,14 +40,14 @@ message Reaction {
 message ReactionIdentifier {
   // Possible identifier types are listed in an enum for extensibility
   enum IdentifierType {
-    REACTION_IDENTIFIER_TYPE_UNKNOWN = 0;  
+    REACTION_IDENTIFIER_TYPE_UNKNOWN = 0;  // Unspecified or custom.
     REACTION_IDENTIFIER_TYPE_REACTION_SMILES = 1;  // Reaction SMILES.
     REACTION_IDENTIFIER_TYPE_ATOM_MAPPED_SMILES = 2;  // Atom-mapped SMILES.
     REACTION_IDENTIFIER_TYPE_RINCHI = 3;  // Reaction InChI.
     REACTION_IDENTIFIER_TYPE_NAME = 4;  // Named reaction or reaction category.
   }
   IdentifierType type = 1;
-  // Custom reaction identifier 
+  // Custom reaction identifier, used only when 'type' field is UNKNOWN.
   string type_custom = 2;
   string value = 3;
 }
@@ -54,23 +55,32 @@ message ReactionIdentifier {
 message ReactionInput {
   Compound compound = 1;
   enum ReactionRole {
-    REACTION_ROLE_UNKNOWN = 0;
+    // Unspecified.
+    REACTION_ROLE_UNKNOWN = 0;  
+    // TODO(ccoley): Do we want to use the definition of a reactant aligned
+    // with Reaxys, or say that any species that contributes heavy atoms 
+    // to a desired product is a reactant? This field might be kind of a 
+    // throwaway anyway...
     REACTION_ROLE_REACTANT = 1;
     REACTION_ROLE_REAGENT = 2;
     REACTION_ROLE_SOLVENT = 3;
     REACTION_ROLE_CATALYST = 4;
   }
   ReactionRole reaction_role = 2;
-  // Whether this species should be considered a limiting reactant.
+  // Whether this species was intended to be a limiting reactant.
   bool is_limiting = 3;
   /**
    * Used to define order of addition. ReactionInputs with the same 
-   * addition_stage were added simultaneously. One ReactionInput with a 
-   *  lower addition_stage than another was added earlier in the procedure.
+   * addition_order were added simultaneously. One ReactionInput with a 
+   * lower addition_order than another was added earlier in the procedure.
+   * This field is 1-indexed.
    */
-  int32 addition_stage = 4;
-  Time addition_time = 5;  // Reaction time
+  int32 addition_order = 4;
+  // When the addition event took place in terms of the reaction time (or, 
+  // in the case of flow chemistry, the residence time).
+  Time addition_time = 5;
   enum AdditionSpeed {
+    // Unspecified.
     ADDITION_SPEED_UNKNOWN = 0;
     ADDITION_SPEED_ALL_AT_ONCE = 1;
     ADDITION_SPEED_FAST = 2;
@@ -78,34 +88,126 @@ message ReactionInput {
     ADDITION_SPEED_DROPWISE = 4;
     ADDITION_SPEED_CONTINUOUS = 5;
   }
+  // The qualitative rate of addition.
   AdditionSpeed addition_speed = 6;
 }
 
 message Compound {
+  // Set of identifiers used to uniquely define this compound.
+  // Solutions or mixed compounds should use the NAME identifier
+  // and list all constituent compounds in the "components" field.
   repeated CompoundIdentifier identifiers = 1;
+  // Quantity of this compound used in the reaction.
   Amount amount = 2;
+  // TODO(ccoley): fix this bastardization of proto and json
+  /**
+   * The "components" field is only used when species are not added to the
+   * reaction vessel in their pure form. 
+   *
+   * For pre-mixed solutions, we define all components of what went in
+   * to the stock solution. For example, suppose we are adding
+   * 3 mL of a 4 M solution of NaOH in water.
+   * 
+   * compound {
+   *   identifiers: [
+   *     {type: IDENTIFIER_NAME, value: "4M NaOH solution in water"}
+   *   ]
+   *   amount {
+   *     volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
+   *   }
+   *   components: [
+   *     {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "O"},
+   *         {type: IDENTIFIER_NAME, value: "water"}
+   *       ]
+   *       amount: {
+   *         volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
+   *       }
+   *     }
+   *     {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
+   *         {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
+   *       ]
+   *       amount {
+   *         concentration: {value: 4, units: CONCENTRATION_UNITS_MOLAR}
+   *       }
+   *     }
+   *   ]
+   * }
+   *
+   * Equivalently, if 1 L of the stock solution had been prepared,
+   * 
+   * compound {
+   *   identifiers: [
+   *     {type: IDENTIFIER_NAME, value: "4M NaOH solution in water"}
+   *   ]
+   *   amount {
+   *     volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
+   *   }
+   *   components: [
+   *     {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "O"},
+   *         {type: IDENTIFIER_NAME, value: "water"}
+   *       ]
+   *       amount: {
+   *         volume: {value: 1, units: VOLUME_UNITS_LITER}
+   *       }
+   *     }
+   *     {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
+   *         {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
+   *       ]
+   *       amount {
+   *         moles: {value: 4, units: MOLES_UNIT_MOLES}
+   *       }
+   *     }
+   *   ]
+   * }
+   *
+   * A similar definition is used for supported catalysts (TODO)
+   */
+  repeated Compound components = 3;
   /**
    * Compounds may undergo additional preparation before being used in a 
-   * reaction after being received from a supplier or vendor. 
+   * reaction after being received from a supplier or vendor. We encourage
+   * the use of the 'preparation' enum when possible, even if the description
+   * is an oversimplification of the full procedure, which can be detailed 
+   * in the 'preparation_details' field.
    */
   enum Preparation {
+    // Unspecified or custom.
     COMPOUND_PREPARATION_UNKNOWN = 0;
     // Compound used as received.
-    COMPOUND_PREPARATION_NONE = 1;  
+    COMPOUND_PREPARATION_NONE = 1;
+    // Compound repurified (e.g., recrystallized).
     COMPOUND_PREPARATION_REPURIFIED = 2;
+    // Compound sparged, most likely to be the case with solvents.
     COMPOUND_PREPARATION_SPARGED = 3;
     // Moisture removed, e.g., using molecular sieves.
     COMPOUND_PREPARATION_DRIED = 4;
+    // Compound synthesized in-house
+    COMPOUND_PREPARATION_SYNTHESIZED = 5;
   }
-  Preparation preparation = 3;
-  string preparation_custom = 4;
-  string vendor_source = 5;
-  string vendor_lot = 6;
+  Preparation preparation = 4;
+  // Custom preparation, used only when 'type' field is UNKNOWN.
+  string preparation_custom = 5;
+  // Full description of how the received compound was prepared.
+  string preparation_details = 6;
+  // Name of the vendor or supplier the compound was purchased from.
+  string vendor_source = 7;
+  // Compound ID in the vendor database or catalog.
+  string vendor_id = 8;
+  // Batch/lot identification.
+  string vendor_lot = 9;
   /**
    * Compounds can accommodate any number of features. These may include simple
    * properties of the compound (e.g., molecular weight), heuristic estimates
    * of physical properties (e.g., ClogP), optimized geometries (e.g., through
-   * DFT), and calculated stereoselectronic descriptors.
+   * DFT), and calculated stereoselectronic descriptors. 
    */
   message Feature {
     string name = 1;
@@ -115,7 +217,7 @@ message Compound {
     }
     string how_computed = 4;
   }
-  repeated Feature features = 7;
+  repeated Feature features = 10;
 }
 
 /**
@@ -123,10 +225,12 @@ message Compound {
  * While we encourage the use of SMILES strings, these do not work well in
  * all cases (e.g., handling tautomerism, axial chirality). Multiple
  * identifiers may be specified for a single compound to avoid ambiguity.
- * We discourage chemicals from being defined only by a name.
+ * We discourage chemicals from being defined only by a name. For compounds
+ * that are prepared or isolated as salts, the identifier should include
+ * specification of which salt.
  */
 message CompoundIdentifier {
-  // Possible identifier types are listed in an enum for extensibility
+  // Possible identifier types are listed in an enum for extensibility.
   enum IdentifierType {
     COMPOUND_IDENTIFIER_TYPE_UNKNOWN = 0;  // Any other identifier
     //  Simplified molecular-input line-entry system.
@@ -162,19 +266,14 @@ message CompoundIdentifier {
   // Value of the compound identifier; certain types (e.g., pubchem_cid) may
   // cast the string as an integer for downstream processing and validation.
   string value = 3;
-  
 }
+
 /**
  * The quantitative Amount of a Compound used in a particular reaction.
  * Compounds added in their pure form should have their value defined by
  * mass, moles, or volume. Compounds prepared as solutions should be defined
- * in terms of their concentration and volume. If using a pure solvent, the
- * solvent field must only specify a compound identifier. If using a solvent
- * mixture, multiple solvents may be listed. If amounts are not given, we
- * assume equal ratios. If amounts (volumes) are given for the solvents, that
- * will be used to calculate the solvent composition. Compounds prepared
- * on solid supports should define the total quantity including the support;
- * the identity of the support is defined separately.
+ * in terms of their volume. Compounds prepared on solid supports should 
+ * define the total mass/volume including the support.
  */
 message Amount {
   oneof kind {
@@ -185,88 +284,46 @@ message Amount {
   }
   // Precision of the measurement, as a percentage of the value.
   float precision_in_percent = 5;
-  // TODO(ccoley): fix this bastardization of proto and json
-  /**
-   * For pre-mixed solutions when value given in concentration, the solvent
-   * is specified as an additional Compound, which should have an identifier
-   * and an amount specified by volume. For example, suppose we are adding
-   * 3 mL of a 4 M solution of NaOH in water.
-   * 
-   * compound {
-   *   identifiers: [
-   *     {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
-   *     {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
-   *   ]
-   *   amount {
-   *     volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
-   *     concentration: {value: 4, units: CONCENTRATION_UNITS_MOLAR}
-   *     solvent {
-   *       identifiers: [
-   *         {type: IDENTIFIER_SMILES, value: "O"},
-   *         {type: IDENTIFIER_NAME, value: "water"}
-   *       ]
-   *     }
-   *   }
-   * }
-   */
-  // The concentration of the pre-mixed solution as-added, *not* the final
-  // concentration in the overall crude reaction/product mixture.
-  Concentration concentration = 6;
-  repeated Compound solvent = 7;
-
-  // TODO(ccoley) Also fix this one
-  /**
-   * For catalysts on supports. For example, a reaction using 5 grams of
-   * 10% Pd/C might be reported as...
-   * 
-   * compound {
-   *   identifiers: [
-   *     {type: IDENTIFIER_SMILES, value: "[Pd]"},
-   *     {type: IDENTIFIER_NAME, value: "palladium"}
-   *   ]
-   *   amount {
-   *     mass: {value: 5, units: MASS_UNITS_GRAM}
-   *     support {
-   *       identifiers: [
-   *         {type: IDENTIFIER_NAME, value: "carbon"}
-   *       ]
-   *     }
-   *     weight_percent: 10
-   *   }
-   * }
-   *
-   * Immobilized proteins should also use the "support" field.
-   */
-  Compound support = 8;
-  float weight_percent = 9;
 }
 
 message ReactionSetup {
   enum VesselType {
     VESSEL_TYPE_UNKNOWN = 0;
     VESSEL_TYPE_ROUND_BOTTOM_FLASK = 1;
-    VESSEL_TYPE_WELL_PLATE = 2;
-    VESSEL_TYPE_MICROWAVE_VIAL = 3;
-    VESSEL_TYPE_TUBE = 4;
-    VESSEL_TYPE_CONTINUOUS_STIRRED_TANK_REACTOR = 5;
-    VESSEL_TYPE_PACKED_BED_REACTOR = 6;
+    VESSEL_TYPE_VIAL = 2;  // Regular glass vial 
+    VESSEL_TYPE_WELL_PLATE = 3;
+    VESSEL_TYPE_MICROWAVE_VIAL = 4;
+    VESSEL_TYPE_TUBE = 5;
+    VESSEL_TYPE_CONTINUOUS_STIRRED_TANK_REACTOR = 6;
+    VESSEL_TYPE_PACKED_BED_REACTOR = 7;
   }
   VesselType vessel_type = 1;
-  // Used to describe an UNKNOWN vessel type.
+  // Used to describe an UNKNOWN vessel type or elaborate.
   string vessel_type_custom = 2;
+  enum VesselMaterial {
+    VESSEL_MATERIAL_UNKNOWN = 0;
+    VESSEL_MATERIAL_GLASS = 1;
+    VESSEL_MATERIAL_POLYPROPYLENE = 2;
+    VESSEL_MATERIAL_PLASTIC = 3;
+  }
+  VesselMaterial vessel_material = 3;
+  string vessel_material_custom = 4;
   enum VesselPrep {
     VESSEL_PREP_UNKNOWN = 0;
     VESSEL_PREP_NONE = 1;
     VESSEL_PREP_OVEN_DRIED = 2;
   }
-  VesselPrep vessel_prep = 3;
+  VesselPrep vessel_prep = 5;
   // Used to describe an UNKNOWN vessel prep.
-  string vessel_prep_custom = 4;
-  Volume vessel_volume = 5;
+  string vessel_prep_custom = 6;
+  // Size (volume) of the vessel.
+  Volume vessel_volume = 7;
   // Specification of automated protocols.
-  bool is_automated = 6;
-  string automation_platform = 7;
-  map <string, bytes> automation_code = 8;
+  bool is_automated = 8;
+  // Automated platform name, brand, or model number.
+  string automation_platform = 9;
+  // Raw automation code or synthetic recipe definition.
+  map <string, bytes> automation_code = 10;
 }
 
 message ReactionConditions {
@@ -497,7 +554,7 @@ message ReactionWorkup {
  * data.
  */
 message ReactionOutcome {
-  // Reaction time (for flow, equivalent to residence time or spacetime)
+  // Reaction time (for flow, equivalent to residence time or spacetime).
   Time reaction_time = 1;  
   // Conversion with respect to the limiting reactant.
   float conversion_in_percent = 2;
@@ -524,6 +581,19 @@ message ReactionProduct {
   string selectivity_type_custom = 9;
   float selectivity_value = 10;
   float selectivity_precision_in_percent = 11;
+  // TODO(ccoley): How to allow specification of the state of matter of the 
+  // purified compound? For example, "___ was recovered as a white powder in
+  // x% yield (y.z mg)". Or oils, crystal texture, etc. This is only relevant 
+  // for compounds that are isolated.
+  string isolated_color = 12;
+  enum Texture {
+    TEXTURE_UNKNOWN = 0;
+    TEXTURE_POWDER = 1;
+    TEXTURE_CRYSTAL = 2;
+    TEXTURE_OIL = 3;
+  }
+  Texture isolated_texture = 13; 
+  string isolated_texture_custom = 14;
 }
 
 // TODO(ccoley): If we want the DateTime to be a string that we parse as
@@ -556,7 +626,7 @@ message ReactionAnalysis {
   AnalysisType analysis_type = 1;
   // Used to describe an UNKNOWN analysis type.
   string analysis_type_custom = 2;
-  // Any details about analysis (e.g., columns, gradients, conditions)
+  // Any details about analysis (e.g., NMR type, columns, gradients, conditions)
   string analysis_details = 3;
   // Data files (processed or annotated).
   map <string, bytes> data_processed = 4;
@@ -598,114 +668,126 @@ message Person {
  */
 message Time {
   enum TimeUnit {
-    TIME_UNIT_HOUR = 0;
-    TIME_UNIT_MINUTE = 1;
-    TIME_UNIT_SECOND = 2;
+    TIME_UNIT_UNKNOWN = 0;
+    TIME_UNIT_HOUR = 1;
+    TIME_UNIT_MINUTE = 2;
+    TIME_UNIT_SECOND = 3;
   }
   float value = 1;
   TimeUnit units = 2;
 }
 message Mass {
   enum MassUnit {
-    MASS_UNIT_GRAM = 0;
-    MASS_UNIT_MILLIGRAM = 1;
-    MASS_UNIT_MICROGRAM = 2;
-    MASS_UNIT_KILOGRAM = 3;
+    MASS_UNIT_UNKNOWN = 0;
+    MASS_UNIT_GRAM = 1;
+    MASS_UNIT_MILLIGRAM = 2;
+    MASS_UNIT_MICROGRAM = 3;
+    MASS_UNIT_KILOGRAM = 4;
   }
   float value = 1;
   MassUnit units = 2;
 }
 message Moles {
   enum MolesUnit {
-    MOLES_UNIT_MOLES = 0;
-    MOLES_UNIT_MILLIMOLES = 1;
-    MOLES_UNIT_MICROMOLES = 2;
-    MOLES_UNIT_NANOMOLES = 3;
+    MOLES_UNIT_UNKNOWN = 0;
+    MOLES_UNIT_MOLES = 1;
+    MOLES_UNIT_MILLIMOLES = 2;
+    MOLES_UNIT_MICROMOLES = 3;
+    MOLES_UNIT_NANOMOLES = 4;
   }
   float value = 1;
   MolesUnit units = 2;
 }
 message Volume {
   enum VolumeUnit {
-    VOLUME_UNIT_MILLILITER = 0;
-    VOLUME_UNIT_MICROLITER = 1;
-    VOLUME_UNIT_LITER = 2;
+    VOLUME_UNIT_UNKNOWN = 0;
+    VOLUME_UNIT_MILLILITER = 1;
+    VOLUME_UNIT_MICROLITER = 2;
+    VOLUME_UNIT_LITER = 3;
   }
   float value = 1;
   VolumeUnit units = 2;
 }
 message Concentration {
   enum ConcentrationUnit {
-    CONCENTRATION_UNIT_MOLAR = 0;
-    CONCENTRATION_UNIT_MILLIMOLAR = 1;
-    CONCENTRATION_UNIT_MICROMOLAR = 2;
+    CONCENTRATION_UNIT_UNKNOWN = 0;
+    CONCENTRATION_UNIT_MOLAR = 1;
+    CONCENTRATION_UNIT_MILLIMOLAR = 2;
+    CONCENTRATION_UNIT_MICROMOLAR = 3;
   }
   float value = 1;
   ConcentrationUnit units = 2;
 }
 message Pressure {
   enum PressureUnit {
-    PRESSURE_UNIT_BAR = 0;
-    PRESSURE_UNIT_ATMOSPHERE = 1;
-    PRESSURE_UNIT_PSI = 2;
-    PRESSURE_UNIT_KPSI = 3;
-    PRESSURE_UNIT_PASCAL = 4;  // Pascal
-    PRESSURE_UNIT_KILOPASCAL= 5;  // 
+    PRESSURE_UNIT_UNKNOWN = 0;
+    PRESSURE_UNIT_BAR = 1;
+    PRESSURE_UNIT_ATMOSPHERE = 2;
+    PRESSURE_UNIT_PSI = 3;
+    PRESSURE_UNIT_KPSI = 4;
+    PRESSURE_UNIT_PASCAL = 5;  // Pascal
+    PRESSURE_UNIT_KILOPASCAL= 6;  // KiloPascal
   }
   float value = 1;
   PressureUnit units = 2;
 }
 message Temperature {
   enum TemperatureUnit {
-    TEMPERATURE_UNIT_CELSIUS = 0;
-    TEMPERATURE_UNIT_FAHRENHEIT = 1;
-    TEMPERATURE_UNIT_KELVIN = 2;
+    TEMPERATURE_UNIT_UNKNOWN = 0;
+    TEMPERATURE_UNIT_CELSIUS = 1;
+    TEMPERATURE_UNIT_FAHRENHEIT = 2;
+    TEMPERATURE_UNIT_KELVIN = 3;
   }
   float value = 1;
   TemperatureUnit units = 2;
 }
 message Current {
   enum CurrentUnit {
-    CURRENT_UNIT_AMPERE = 0;
-    CURRENT_UNIT_MILLIAMPERE = 1;
+    CURRENT_UNIT_UNKNOWN = 0;
+    CURRENT_UNIT_AMPERE = 1;
+    CURRENT_UNIT_MILLIAMPERE = 2;
   }
   float value = 1;
   CurrentUnit units = 2;
 }
 message Voltage {
   enum VoltageUnit {
-    VOLTAGE_UNIT_VOLT = 0;
-    VOLTAGE_UNIT_MILLIVOLT = 1;
+    VOLTAGE_UNIT_UNKNOWN = 0;
+    VOLTAGE_UNIT_VOLT = 1;
+    VOLTAGE_UNIT_MILLIVOLT = 2;
   }
   float value = 1;
   VoltageUnit units = 2;
 }
 message Length {
   enum LengthUnit {
-    LENGTH_UNIT_CENTIMETER = 0;
-    LENGTH_UNIT_MILLIMETER = 1;
-    LENGTH_UNIT_METER = 2;
-    LENGTH_UNIT_INCH = 3;
-    LENGTH_UNIT_FOOT = 4;
+    LENGTH_UNIT_UNKNOWN = 0;
+    LENGTH_UNIT_CENTIMETER = 1;
+    LENGTH_UNIT_MILLIMETER = 2;
+    LENGTH_UNIT_METER = 3;
+    LENGTH_UNIT_INCH = 4;
+    LENGTH_UNIT_FOOT = 5;
   }
   float value = 1;
   LengthUnit units = 2;
 }
 message Wavelength {
   enum WavelengthUnit {
-    WAVELENGTH_UNIT_NANOMETER = 0;
-    WAVELENGTH_UNIT_WAVENUMBER = 1;  // cm^{-1}
+    WAVELENGTH_UNIT_UNKNOWN = 0;
+    WAVELENGTH_UNIT_NANOMETER = 1;
+    WAVELENGTH_UNIT_WAVENUMBER = 2;  // cm^{-1}
   }
   float value = 1;
   WavelengthUnit units = 2;
 }
 message FlowRate {
   enum FlowRateUnit {
-    FLOW_RATE_UNIT_MICROLITER_PER_MINUTE = 0;
-    FLOW_RATE_UNIT_MICROLITER_PER_SECOND = 1;
-    FLOW_RATE_UNIT_MILLILITER_PER_MINUTE = 2;
-    FLOW_RATE_UNIT_MILLILITER_PER_SECOND = 3;
-    FLOW_RATE_UNIT_MICROLITER_PER_HOUR = 4;
+    FLOW_RATE_UNIT_UNKNOWN = 0;
+    FLOW_RATE_UNIT_MICROLITER_PER_MINUTE = 1;
+    FLOW_RATE_UNIT_MICROLITER_PER_SECOND = 2;
+    FLOW_RATE_UNIT_MILLILITER_PER_MINUTE = 3;
+    FLOW_RATE_UNIT_MILLILITER_PER_SECOND = 4;
+    FLOW_RATE_UNIT_MICROLITER_PER_HOUR = 5;
   }
   float value = 1;
   FlowRateUnit units = 2;
