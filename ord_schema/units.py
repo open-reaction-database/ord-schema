@@ -35,7 +35,7 @@ _UNIT_SYNONYMS = {
 }
 
 
-class UnitResolver(object):
+class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
 
     def __init__(self):
