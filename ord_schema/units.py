@@ -15,7 +15,7 @@ _UNIT_SYNONYMS = {
     schema.Mass: {
         schema.Mass.MASS_UNIT_GRAM: ['g', 'gram', 'grams', 'gs', 'gm', 'gms'],
         schema.Mass.MASS_UNIT_MILLIGRAM: ['mg', 'mgs', 'milligrams',
-                                          ' milligram'],
+                                          'milligram'],
         schema.Mass.MASS_UNIT_MICROGRAM: ['ug', 'ugs', 'micg', 'micgs',
                                           'micrograms', 'microgram'],
         schema.Mass.MASS_UNIT_KILOGRAM: ['kg', 'kgs', 'kilogram', 'kilograms'],
