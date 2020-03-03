@@ -41,10 +41,10 @@ message ReactionIdentifier {
   // Possible identifier types are listed in an enum for extensibility
   enum IdentifierType {
     REACTION_IDENTIFIER_TYPE_UNKNOWN = 0;  // Unspecified or custom.
-    REACTION_IDENTIFIER_TYPE_REACTION_SMILES = 1;  // Reaction SMILES.
-    REACTION_IDENTIFIER_TYPE_ATOM_MAPPED_SMILES = 2;  // Atom-mapped SMILES.
-    REACTION_IDENTIFIER_TYPE_RINCHI = 3;  // Reaction InChI.
-    REACTION_IDENTIFIER_TYPE_NAME = 4;  // Named reaction or reaction category.
+    REACTION_SMILES = 1;  // Reaction SMILES.
+    ATOM_MAPPED_SMILES = 2;  // Atom-mapped SMILES.
+    RINCHI = 3;  // Reaction InChI.
+    NAME = 4;  // Named reaction or reaction category.
   }
   IdentifierType type = 1;
   // Custom reaction identifier, used only when 'type' field is UNKNOWN.
@@ -61,10 +61,10 @@ message ReactionInput {
     // with Reaxys, or say that any species that contributes heavy atoms 
     // to a desired product is a reactant? This field might be kind of a 
     // throwaway anyway...
-    REACTION_ROLE_REACTANT = 1;
-    REACTION_ROLE_REAGENT = 2;
-    REACTION_ROLE_SOLVENT = 3;
-    REACTION_ROLE_CATALYST = 4;
+    REACTANT = 1;
+    REAGENT = 2;
+    SOLVENT = 3;
+    CATALYST = 4;
   }
   ReactionRole reaction_role = 2;
   // Whether this species was intended to be a limiting reactant.
@@ -82,11 +82,11 @@ message ReactionInput {
   enum AdditionSpeed {
     // Unspecified.
     ADDITION_SPEED_UNKNOWN = 0;
-    ADDITION_SPEED_ALL_AT_ONCE = 1;
-    ADDITION_SPEED_FAST = 2;
-    ADDITION_SPEED_SLOW = 3;
-    ADDITION_SPEED_DROPWISE = 4;
-    ADDITION_SPEED_CONTINUOUS = 5;
+    ALL_AT_ONCE = 1;
+    FAST = 2;
+    SLOW = 3;
+    DROPWISE = 4;
+    CONTINUOUS = 5;
   }
   // The qualitative rate of addition.
   AdditionSpeed addition_speed = 6;
@@ -182,15 +182,15 @@ message Compound {
     // Unspecified or custom.
     COMPOUND_PREPARATION_UNKNOWN = 0;
     // Compound used as received.
-    COMPOUND_PREPARATION_NONE = 1;
+    NONE = 1;
     // Compound repurified (e.g., recrystallized).
-    COMPOUND_PREPARATION_REPURIFIED = 2;
+    REPURIFIED = 2;
     // Compound sparged, most likely to be the case with solvents.
-    COMPOUND_PREPARATION_SPARGED = 3;
+    SPARGED = 3;
     // Moisture removed, e.g., using molecular sieves.
-    COMPOUND_PREPARATION_DRIED = 4;
+    DRIED = 4;
     // Compound synthesized in-house
-    COMPOUND_PREPARATION_SYNTHESIZED = 5;
+    SYNTHESIZED = 5;
   }
   Preparation preparation = 4;
   // Custom preparation, used only when 'type' field is UNKNOWN.
@@ -234,31 +234,31 @@ message CompoundIdentifier {
   enum IdentifierType {
     COMPOUND_IDENTIFIER_TYPE_UNKNOWN = 0;  // Any other identifier
     //  Simplified molecular-input line-entry system.
-    COMPOUND_IDENTIFIER_TYPE_SMILES = 1;
+    SMILES = 1;
     // IUPAC International Chemical Identifier.
-    COMPOUND_IDENTIFIER_TYPE_INCHI = 2;
+    INCHI = 2;
     // MDL Molfile V3000.
-    COMPOUND_IDENTIFIER_TYPE_MOLFILE = 3;
+    MOLFILE = 3;
     // Chemical name following IUPAC nomenclature recommendations.
-    COMPOUND_IDENTIFIER_TYPE_IUPAC_NAME = 4;
+    IUPAC_NAME = 4;
     // Any accepted common name, trade name, etc.
-    COMPOUND_IDENTIFIER_TYPE_NAME = 5;
+    NAME = 5;
     // Chemical Abstracts Service Registry Number (with hyphens).
-    COMPOUND_IDENTIFIER_TYPE_CAS_NUMBER = 6;
+    CAS_NUMBER = 6;
     // PubChem Compound ID number.
-    COMPOUND_IDENTIFIER_TYPE_PUBCHEM_CID = 7;
+    PUBCHEM_CID = 7;
     // ChemSpider ID number.
-    COMPOUND_IDENTIFIER_TYPE_CHEMSPIDER_ID = 8;
+    CHEMSPIDER_ID = 8;
     // ChemAxon extended SMILES
-    COMPOUND_IDENTIFIER_TYPE_CXSMILES = 9;
+    CXSMILES = 9;
     // IUPAC International Chemical Identifier key
-    COMPOUND_IDENTIFIER_TYPE_INCHI_KEY = 10;
+    INCHI_KEY = 10;
     // XYZ molecule file
-    COMPOUND_IDENTIFIER_TYPE_XYZ = 11;
+    XYZ = 11;
     // UniProt ID (for enzymes)
-    COMPOUND_IDENTIFIER_TYPE_UNIPROT_ID = 12;
+    UNIPROT_ID = 12;
     // Protein data bank ID (for enzymes)
-    COMPOUND_IDENTIFIER_TYPE_PDB_ID = 13;
+    PDB_ID = 13;
   }
   IdentifierType type = 1;
   // Custom compound identifier 
@@ -289,29 +289,29 @@ message Amount {
 message ReactionSetup {
   enum VesselType {
     VESSEL_TYPE_UNKNOWN = 0;
-    VESSEL_TYPE_ROUND_BOTTOM_FLASK = 1;
-    VESSEL_TYPE_VIAL = 2;  // Regular glass vial 
-    VESSEL_TYPE_WELL_PLATE = 3;
-    VESSEL_TYPE_MICROWAVE_VIAL = 4;
-    VESSEL_TYPE_TUBE = 5;
-    VESSEL_TYPE_CONTINUOUS_STIRRED_TANK_REACTOR = 6;
-    VESSEL_TYPE_PACKED_BED_REACTOR = 7;
+    ROUND_BOTTOM_FLASK = 1;
+    VIAL = 2;  // Regular glass vial
+    WELL_PLATE = 3;
+    MICROWAVE_VIAL = 4;
+    TUBE = 5;
+    CONTINUOUS_STIRRED_TANK_REACTOR = 6;
+    PACKED_BED_REACTOR = 7;
   }
   VesselType vessel_type = 1;
   // Used to describe an UNKNOWN vessel type or elaborate.
   string vessel_type_custom = 2;
   enum VesselMaterial {
     VESSEL_MATERIAL_UNKNOWN = 0;
-    VESSEL_MATERIAL_GLASS = 1;
-    VESSEL_MATERIAL_POLYPROPYLENE = 2;
-    VESSEL_MATERIAL_PLASTIC = 3;
+    GLASS = 1;
+    POLYPROPYLENE = 2;
+    PLASTIC = 3;
   }
   VesselMaterial vessel_material = 3;
   string vessel_material_custom = 4;
   enum VesselPrep {
     VESSEL_PREP_UNKNOWN = 0;
-    VESSEL_PREP_NONE = 1;
-    VESSEL_PREP_OVEN_DRIED = 2;
+    NONE = 1;
+    OVEN_DRIED = 2;
   }
   VesselPrep vessel_prep = 5;
   // Used to describe an UNKNOWN vessel prep.
@@ -340,16 +340,16 @@ message ReactionConditions {
 message TemperatureConditions {
   enum TemperatureControl {
     TEMPERATURE_CONTROL_UNKNOWN = 0;
-    TEMPERATURE_CONTROL_AMBIENT = 1;
-    TEMPERATURE_CONTROL_OIL_BATH = 2;
-    TEMPERATURE_CONTROL_WATER_BATH = 3;
-    TEMPERATURE_CONTROL_SAND_BATH = 4;
-    TEMPERATURE_CONTROL_ICE_BATH = 5;
-    TEMPERATURE_CONTROL_DRY_ALUMINUM_PLATE = 6;
-    TEMPERATURE_CONTROL_MICROWAVE = 7;
-    TEMPERATURE_CONTROL_DRY_ICE_BATH = 8;
-    TEMPERATURE_CONTROL_AIR_FAN = 9;
-    TEMPERATURE_CONTROL_LIQUID_NITROGEN = 10;
+    AMBIENT = 1;
+    OIL_BATH = 2;
+    WATER_BATH = 3;
+    SAND_BATH = 4;
+    ICE_BATH = 5;
+    DRY_ALUMINUM_PLATE = 6;
+    MICROWAVE = 7;
+    DRY_ICE_BATH = 8;
+    AIR_FAN = 9;
+    LIQUID_NITROGEN = 10;
   }
   TemperatureControl temperature_control = 1;
   // Used to describe an UNKNOWN temperature control.
@@ -362,12 +362,12 @@ message TemperatureConditions {
   }
   repeated Measurement measurements = 5;
   enum MeasurementType {
-    TEMPERATURE_MEASUREMENT_UNKNOWN = 0;
+    TEMPERATURE_MEASUREMENT_TYPE_UNKNOWN = 0;
     // Physically in reaction solution.
-    TEMPERATURE_MEASUREMENT_THERMOCOUPLE_INTERNAL = 1;
+    THERMOCOUPLE_INTERNAL = 1;
     // On outside of vessel or, e.g., in oil bath.
-    TEMPERATURE_MEASUREMENT_THERMOCOUPLE_EXTERNAL = 2;
-    TEMPERATURE_MEASUREMENT_INFRARED = 3;  // Contactless infrared probe.
+    THERMOCOUPLE_EXTERNAL = 2;
+    INFRARED = 3;  // Contactless infrared probe.
   }
   MeasurementType measurement_type = 6;
   string measurement_type_custom = 7;
@@ -376,13 +376,13 @@ message TemperatureConditions {
 message PressureConditions {
   enum PressureControl {
     PRESSURE_CONTROL_UNKNOWN = 0;
-    PRESSURE_CONTROL_AMBIENT = 1;
-    PRESSURE_CONTROL_BALLOON = 2;
+    AMBIENT = 1;
+    BALLOON = 2;
     // Fully sealed vessel (e.g., microwave vial)
-    PRESSURE_CONTROL_SEALED = 3;
-    PRESSURE_CONTROL_RELEASEVALVE = 4;
+    SEALED = 3;
+    RELEASEVALVE = 4;
     // Back pressure regulator, as used in flow synthesis.
-    PRESSURE_CONTROL_BPR = 5;  
+    BPR = 5;
   }
   PressureControl pressure_control = 1;
   // Used to describe an UNKNOWN pressure control.
@@ -391,11 +391,11 @@ message PressureConditions {
   float precision_in_barg = 4;
   enum Atmosphere {
     ATMOSPHERE_UNKNOWN = 0;
-    ATMOSPHERE_AIR = 1;
-    ATMOSPHERE_NITROGEN = 2;
-    ATMOSPHERE_ARGON = 3;
-    ATMOSPHERE_OXYGEN = 4;
-    ATMOSPHERE_HYDROGEN = 5;
+    AIR = 1;
+    NITROGEN = 2;
+    ARGON = 3;
+    OXYGEN = 4;
+    HYDROGEN = 5;
   }
   Atmosphere atmosphere = 5;
   // Used to describe an UNKNOWN atmosphere.
@@ -407,8 +407,8 @@ message PressureConditions {
   repeated Measurement measurements = 7;
   // TODO(ccoley) get input on how to expand this enum, among others
   enum MeasurementType {
-    PRESSURE_MEASUREMENT_UNKNOWN = 0;
-    PRESSURE_MEASUREMENT_PRESSURE_TRANSDUCER = 1;
+    PRESSURE_MEASUREMENT_TYPE_UNKNOWN = 0;
+    PRESSURE_TRANSDUCER = 1;
   }
   MeasurementType measurement_type = 8;
   string measurement_type_custom = 9;
@@ -417,19 +417,19 @@ message PressureConditions {
 message StirringConditions {
   enum StirringType {
     STIRRING_TYPE_UNKNOWN = 0;
-    STIRRING_TYPE_NONE = 1;
-    STIRRING_TYPE_STIR_BAR = 2;
-    STIRRING_TYPE_OVERHEAD_MIXER = 3;
-    STIRRING_TYPE_AGITATION = 4;
+    NONE = 1;
+    STIR_BAR = 2;
+    OVERHEAD_MIXER = 3;
+    AGITATION = 4;
   }
   StirringType stirring_type = 1;
   // Used to describe an UNKNOWN stirring type.
   string stirring_type_custom = 2;
   enum StirringRate {
     STIRRING_RATE_UNKNOWN = 0;
-    STIRRING_RATE_HIGH = 1;
-    STIRRING_RATE_MEDIUM = 2;
-    STIRRING_RATE_LOW = 3;
+    HIGH = 1;
+    MEDIUM = 2;
+    LOW = 3;
   }
   StirringRate stirring_rate = 3;
   int32 stirring_rpm = 4;
@@ -438,13 +438,13 @@ message StirringConditions {
 message IlluminationConditions {
   enum IlluminationType {
     ILLUMINATION_TYPE_UNKNOWN = 0;
-    ILLUMINATION_TYPE_AMBIENT = 1;
-    ILLUMINATION_TYPE_DARK = 2;
-    ILLUMINATION_TYPE_LED = 3;
-    ILLUMINATION_TYPE_HALOGEN_LAMP = 4;
-    ILLUMINATION_TYPE_DEUTERIUM_LAMP = 5;
-    ILLUMINATION_TYPE_SOLAR_SIMULATOR = 6;
-    ILLUMINATION_TYPE_BROAD_SPECTRUM = 7;
+    AMBIENT = 1;
+    DARK = 2;
+    LED = 3;
+    HALOGEN_LAMP = 4;
+    DEUTERIUM_LAMP = 5;
+    SOLAR_SIMULATOR = 6;
+    BROAD_SPECTRUM = 7;
   }
   IlluminationType illumination_type = 1;
   // Used to describe an UKNOWN illumination type.
@@ -458,8 +458,8 @@ message IlluminationConditions {
 message ElectrochemistryConditions {
   enum ElectrochemistryType {
     ELECTROCHEMISTRY_TYPE_UNKNOWN = 0;
-    ELECTROCHEMISTRY_TYPE_CONSTANT_CURRENT = 1;
-    ELECTROCHEMISTRY_TYPE_CONSTANT_VOLTAGE = 2;
+    CONSTANT_CURRENT = 1;
+    CONSTANT_VOLTAGE = 2;
   }
   ElectrochemistryType electrochemistry_type = 1;
   string electrochemistry_type_custom = 2;
@@ -481,25 +481,25 @@ message ElectrochemistryConditions {
 message FlowConditions {
   enum FlowType {
     FLOW_TYPE_UNKNOWN = 0;
-    FLOW_TYPE_PLUG_FLOW_REACTOR = 1;
-    FLOW_TYPE_CONTINUOUS_STIRRED_TANK_REACTOR = 2;
-    FLOW_TYPE_PACKED_BED_REACTOR = 3;
+    PLUG_FLOW_REACTOR = 1;
+    CONTINUOUS_STIRRED_TANK_REACTOR = 2;
+    PACKED_BED_REACTOR = 3;
   }
   FlowType flow_type = 1;
   string flow_type_custom = 2;
   string pump_type = 3;
   enum TubeMaterial {
     TUBE_MATERIAL_UNKNOWN = 0;
-    TUBE_MATERIAL_STEEL = 1;
-    TUBE_MATERIAL_COPPER = 2;
-    TUBE_MATERIAL_PFA = 3;
-    TUBE_MATERIAL_FEP = 4;
-    TUBE_MATERIAL_TEFLONAF = 5;
-    TUBE_MATERIAL_PTFE = 6;
-    TUBE_MATERIAL_GLASS = 7;
-    TUBE_MATERIAL_QUARTZ = 8;
-    TUBE_MATERIAL_SILICON = 9;  // e.g., a chip-based microreactor
-    TUBE_MATEIRAL_PDMS = 10;
+    STEEL = 1;
+    COPPER = 2;
+    PFA = 3;
+    FEP = 4;
+    TEFLONAF = 5;
+    PTFE = 6;
+    GLASS = 7;
+    QUARTZ = 8;
+    SILICON = 9;  // e.g., a chip-based microreactor
+    PDMS = 10;
   }
   TubeMaterial tube_material = 4;
   string tube_material_custom = 5;
@@ -532,10 +532,10 @@ message ReactionWorkup {
   // TODO(ccoley): add string field for custom workup
   enum WorkupType {
     WORKUP_TYPE_UNKNOWN = 0;
-    WORKUP_TYPE_THERMAL_QUENCH = 1;
-    WORKUP_TYPE_SOLVENT_QUENCH = 2;
-    WORKUP_TYPE_EXTRACTION = 3;
-    WORKUP_TYPE_FLASH_CHROMATOGRAPHY = 4;
+    THERMAL_QUENCH = 1;
+    SOLVENT_QUENCH = 2;
+    EXTRACTION = 3;
+    FLASH_CHROMATOGRAPHY = 4;
   }
   WorkupType workup_type = 1;
   string workup_type_custom = 2;
@@ -573,9 +573,9 @@ message ReactionProduct {
   float purity_in_percent = 7;
   enum SelectivityType {
     SELECTIVITY_TYPE_UNKNOWN = 0;
-    SELECTIVITY_TYPE_EE = 1;  // Enantiomeric excess as a percentage.
-    SELECTIVITY_TYPE_ER = 2;  // Enantiomeric ratio. (x:1)
-    SELECTIVITY_TYPE_DE = 3;  // Diasteromeric ratio (x:1)
+    EE = 1;  // Enantiomeric excess as a percentage.
+    ER = 2;  // Enantiomeric ratio. (x:1)
+    DE = 3;  // Diasteromeric ratio (x:1)
   }
   SelectivityType selectivity_type = 8;
   string selectivity_type_custom = 9;
@@ -588,9 +588,9 @@ message ReactionProduct {
   string isolated_color = 12;
   enum Texture {
     TEXTURE_UNKNOWN = 0;
-    TEXTURE_POWDER = 1;
-    TEXTURE_CRYSTAL = 2;
-    TEXTURE_OIL = 3;
+    POWDER = 1;
+    CRYSTAL = 2;
+    OIL = 3;
   }
   Texture isolated_texture = 13; 
   string isolated_texture_custom = 14;
@@ -608,20 +608,20 @@ message ReactionAnalysis {
   // TODO(ccoley): Solicit more feedback from experimentalists
   enum AnalysisType {
     ANALYSIS_TYPE_UNKNOWN = 0;
-    ANALYSIS_TYPE_LC = 1;  // Liquid chromatography.
-    ANALYSIS_TYPE_GC = 2;  // Gas chromatography.
-    ANALYSIS_TYPE_IR = 3;  // Infrared spectroscopy.
-    ANALYSIS_TYPE_NMR = 4;  // NMR spectroscopy.
-    ANALYSIS_TYPE_MP = 5;  // Melting point characterization.
-    ANALYSIS_TYPE_UV = 6;  // Ultraviolet spectroscopy.
-    ANALYSIS_TYPE_TLC = 7;  // Thin-layer chromatography.
-    ANALYSIS_TYPE_MS = 8;  // Mass spectrometry.
-    ANALYSIS_TYPE_HRMS = 9;  // High resolution mass spectrometry.
-    ANALYSIS_TYPE_MSMS = 10;  // Two-dimensional mass spectrometry.
-    ANALYSIS_TYPE_WEIGHT = 11;  // Weight of an isolated compound.
-    ANALYSIS_TYPE_LCMS = 12;  // Combined LC/MS.
-    ANALYSIS_TYPE_GCMS = 13;  // Combined GC/MS.
-    ANALYSIS_TYPE_ELSD = 14;  // Evaporative light scattering detector.
+    LC = 1;  // Liquid chromatography.
+    GC = 2;  // Gas chromatography.
+    IR = 3;  // Infrared spectroscopy.
+    NMR = 4;  // NMR spectroscopy.
+    MP = 5;  // Melting point characterization.
+    UV = 6;  // Ultraviolet spectroscopy.
+    TLC = 7;  // Thin-layer chromatography.
+    MS = 8;  // Mass spectrometry.
+    HRMS = 9;  // High resolution mass spectrometry.
+    MSMS = 10;  // Two-dimensional mass spectrometry.
+    WEIGHT = 11;  // Weight of an isolated compound.
+    LCMS = 12;  // Combined LC/MS.
+    GCMS = 13;  // Combined GC/MS.
+    ELSD = 14;  // Evaporative light scattering detector.
   }
   AnalysisType analysis_type = 1;
   // Used to describe an UNKNOWN analysis type.
@@ -669,9 +669,9 @@ message Person {
 message Time {
   enum TimeUnit {
     TIME_UNIT_UNKNOWN = 0;
-    TIME_UNIT_HOUR = 1;
-    TIME_UNIT_MINUTE = 2;
-    TIME_UNIT_SECOND = 3;
+    HOUR = 1;
+    MINUTE = 2;
+    SECOND = 3;
   }
   float value = 1;
   TimeUnit units = 2;
@@ -679,10 +679,10 @@ message Time {
 message Mass {
   enum MassUnit {
     MASS_UNIT_UNKNOWN = 0;
-    MASS_UNIT_GRAM = 1;
-    MASS_UNIT_MILLIGRAM = 2;
-    MASS_UNIT_MICROGRAM = 3;
-    MASS_UNIT_KILOGRAM = 4;
+    GRAM = 1;
+    MILLIGRAM = 2;
+    MICROGRAM = 3;
+    KILOGRAM = 4;
   }
   float value = 1;
   MassUnit units = 2;
@@ -690,10 +690,10 @@ message Mass {
 message Moles {
   enum MolesUnit {
     MOLES_UNIT_UNKNOWN = 0;
-    MOLES_UNIT_MOLES = 1;
-    MOLES_UNIT_MILLIMOLES = 2;
-    MOLES_UNIT_MICROMOLES = 3;
-    MOLES_UNIT_NANOMOLES = 4;
+    MOLES = 1;
+    MILLIMOLES = 2;
+    MICROMOLES = 3;
+    NANOMOLES = 4;
   }
   float value = 1;
   MolesUnit units = 2;
@@ -701,9 +701,9 @@ message Moles {
 message Volume {
   enum VolumeUnit {
     VOLUME_UNIT_UNKNOWN = 0;
-    VOLUME_UNIT_MILLILITER = 1;
-    VOLUME_UNIT_MICROLITER = 2;
-    VOLUME_UNIT_LITER = 3;
+    MILLILITER = 1;
+    MICROLITER = 2;
+    LITER = 3;
   }
   float value = 1;
   VolumeUnit units = 2;
@@ -711,9 +711,9 @@ message Volume {
 message Concentration {
   enum ConcentrationUnit {
     CONCENTRATION_UNIT_UNKNOWN = 0;
-    CONCENTRATION_UNIT_MOLAR = 1;
-    CONCENTRATION_UNIT_MILLIMOLAR = 2;
-    CONCENTRATION_UNIT_MICROMOLAR = 3;
+    MOLAR = 1;
+    MILLIMOLAR = 2;
+    MICROMOLAR = 3;
   }
   float value = 1;
   ConcentrationUnit units = 2;
@@ -721,12 +721,12 @@ message Concentration {
 message Pressure {
   enum PressureUnit {
     PRESSURE_UNIT_UNKNOWN = 0;
-    PRESSURE_UNIT_BAR = 1;
-    PRESSURE_UNIT_ATMOSPHERE = 2;
-    PRESSURE_UNIT_PSI = 3;
-    PRESSURE_UNIT_KPSI = 4;
-    PRESSURE_UNIT_PASCAL = 5;  // Pascal
-    PRESSURE_UNIT_KILOPASCAL= 6;  // KiloPascal
+    BAR = 1;
+    ATMOSPHERE = 2;
+    PSI = 3;
+    KPSI = 4;
+    PASCAL = 5;  // Pascal
+    KILOPASCAL= 6;  // KiloPascal
   }
   float value = 1;
   PressureUnit units = 2;
@@ -734,9 +734,9 @@ message Pressure {
 message Temperature {
   enum TemperatureUnit {
     TEMPERATURE_UNIT_UNKNOWN = 0;
-    TEMPERATURE_UNIT_CELSIUS = 1;
-    TEMPERATURE_UNIT_FAHRENHEIT = 2;
-    TEMPERATURE_UNIT_KELVIN = 3;
+    CELSIUS = 1;
+    FAHRENHEIT = 2;
+    KELVIN = 3;
   }
   float value = 1;
   TemperatureUnit units = 2;
@@ -744,8 +744,8 @@ message Temperature {
 message Current {
   enum CurrentUnit {
     CURRENT_UNIT_UNKNOWN = 0;
-    CURRENT_UNIT_AMPERE = 1;
-    CURRENT_UNIT_MILLIAMPERE = 2;
+    AMPERE = 1;
+    MILLIAMPERE = 2;
   }
   float value = 1;
   CurrentUnit units = 2;
@@ -753,8 +753,8 @@ message Current {
 message Voltage {
   enum VoltageUnit {
     VOLTAGE_UNIT_UNKNOWN = 0;
-    VOLTAGE_UNIT_VOLT = 1;
-    VOLTAGE_UNIT_MILLIVOLT = 2;
+    VOLT = 1;
+    MILLIVOLT = 2;
   }
   float value = 1;
   VoltageUnit units = 2;
@@ -762,11 +762,11 @@ message Voltage {
 message Length {
   enum LengthUnit {
     LENGTH_UNIT_UNKNOWN = 0;
-    LENGTH_UNIT_CENTIMETER = 1;
-    LENGTH_UNIT_MILLIMETER = 2;
-    LENGTH_UNIT_METER = 3;
-    LENGTH_UNIT_INCH = 4;
-    LENGTH_UNIT_FOOT = 5;
+    CENTIMETER = 1;
+    MILLIMETER = 2;
+    METER = 3;
+    INCH = 4;
+    FOOT = 5;
   }
   float value = 1;
   LengthUnit units = 2;
@@ -774,8 +774,8 @@ message Length {
 message Wavelength {
   enum WavelengthUnit {
     WAVELENGTH_UNIT_UNKNOWN = 0;
-    WAVELENGTH_UNIT_NANOMETER = 1;
-    WAVELENGTH_UNIT_WAVENUMBER = 2;  // cm^{-1}
+    NANOMETER = 1;
+    WAVENUMBER = 2;  // cm^{-1}
   }
   float value = 1;
   WavelengthUnit units = 2;
@@ -783,11 +783,11 @@ message Wavelength {
 message FlowRate {
   enum FlowRateUnit {
     FLOW_RATE_UNIT_UNKNOWN = 0;
-    FLOW_RATE_UNIT_MICROLITER_PER_MINUTE = 1;
-    FLOW_RATE_UNIT_MICROLITER_PER_SECOND = 2;
-    FLOW_RATE_UNIT_MILLILITER_PER_MINUTE = 3;
-    FLOW_RATE_UNIT_MILLILITER_PER_SECOND = 4;
-    FLOW_RATE_UNIT_MICROLITER_PER_HOUR = 5;
+    MICROLITER_PER_MINUTE = 1;
+    MICROLITER_PER_SECOND = 2;
+    MILLILITER_PER_MINUTE = 3;
+    MILLILITER_PER_SECOND = 4;
+    MICROLITER_PER_HOUR = 5;
   }
   float value = 1;
   FlowRateUnit units = 2;
