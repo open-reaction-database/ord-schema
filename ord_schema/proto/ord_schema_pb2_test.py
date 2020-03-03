@@ -9,10 +9,8 @@ class OrdSchemaPb2Test(absltest.TestCase):
 
     def test_simple(self):
         reaction = ord_schema_pb2.Reaction()
-        identifier = reaction.identifiers.add()
-        identifier.type = (
-            identifier.IdentifierType.REACTION_IDENTIFIER_TYPE_REACTION_SMILES)
-        identifier.value = 'C(C)Cl.Br>>C(C)Br.Cl'
+        reaction.identifiers.add(value='C(C)Cl.Br>>C(C)Br.Cl',
+                                 type='REACTION_SMILES')
         self.assertTrue(reaction.IsInitialized())
         self.assertLen(reaction.identifiers, 1)
         self.assertFalse(reaction.HasField('setup'))

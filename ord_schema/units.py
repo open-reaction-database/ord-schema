@@ -8,28 +8,27 @@ from ord_schema.proto import ord_schema_pb2 as schema
 # lowercase.
 _UNIT_SYNONYMS = {
     schema.Time: {
-        schema.Time.TIME_UNIT_HOUR: ['h', 'hour', 'hr', 'hrs'],
-        schema.Time.TIME_UNIT_MINUTE: ['m', 'min', 'mins', 'minute', 'minutes'],
-        schema.Time.TIME_UNIT_SECOND: ['s', 'sec', 'secs', 'second', 'seconds'],
+        schema.Time.HOUR: ['h', 'hour', 'hr', 'hrs'],
+        schema.Time.MINUTE: ['m', 'min', 'mins', 'minute', 'minutes'],
+        schema.Time.SECOND: ['s', 'sec', 'secs', 'second', 'seconds'],
     },
     schema.Mass: {
-        schema.Mass.MASS_UNIT_GRAM: ['g', 'gram', 'grams', 'gs', 'gm', 'gms'],
-        schema.Mass.MASS_UNIT_MILLIGRAM: ['mg', 'mgs', 'milligrams',
-                                          'milligram'],
-        schema.Mass.MASS_UNIT_MICROGRAM: ['ug', 'ugs', 'micg', 'micgs',
-                                          'micrograms', 'microgram'],
-        schema.Mass.MASS_UNIT_KILOGRAM: ['kg', 'kgs', 'kilogram', 'kilograms'],
+        schema.Mass.GRAM: ['g', 'gram', 'grams', 'gs', 'gm', 'gms'],
+        schema.Mass.MILLIGRAM: ['mg', 'mgs', 'milligrams', 'milligram'],
+        schema.Mass.MICROGRAM: ['ug', 'ugs', 'micg', 'micgs', 'micrograms',
+                                'microgram'],
+        schema.Mass.KILOGRAM: ['kg', 'kgs', 'kilogram', 'kilograms'],
     },
     schema.Moles: {
-        schema.Moles.MOLES_UNIT_MOLES: ['mol', 'mols', 'mole', 'moles'],
-        schema.Moles.MOLES_UNIT_MILLIMOLES: ['mmol', 'millimoles', 'mmols'],
-        schema.Moles.MOLES_UNIT_MICROMOLES: ['umol', 'umols', 'micromoles'],
-        schema.Moles.MOLES_UNIT_NANOMOLES: ['nmol', 'nanomoles'],
+        schema.Moles.MOLES: ['mol', 'mols', 'mole', 'moles'],
+        schema.Moles.MILLIMOLES: ['mmol', 'millimoles', 'mmols'],
+        schema.Moles.MICROMOLES: ['umol', 'umols', 'micromoles'],
+        schema.Moles.NANOMOLES: ['nmol', 'nanomoles'],
     },
     schema.Volume: {
-        schema.Volume.VOLUME_UNIT_MILLILITER: ['ml', 'milliliters'],
-        schema.Volume.VOLUME_UNIT_MICROLITER: ['ul', 'micl', 'microliters'],
-        schema.Volume.VOLUME_UNIT_LITER: ['l', 'liters', 'litres'],
+        schema.Volume.MILLILITER: ['ml', 'milliliters'],
+        schema.Volume.MICROLITER: ['ul', 'micl', 'microliters'],
+        schema.Volume.LITER: ['l', 'liters', 'litres'],
     },
     # TODO(coley): others
 }

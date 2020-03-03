@@ -15,14 +15,11 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
 
     @parameterized.named_parameters(
         ('capitalized', '15.0 ML',
-         schema.Volume(value=15.0, units=schema.Volume.VOLUME_UNIT_MILLILITER)),
-        ('integer', '24 H',
-         schema.Time(value=24, units=schema.Time.TIME_UNIT_HOUR)),
-        ('no space', '32.1g',
-         schema.Mass(value=32.1, units=schema.Mass.MASS_UNIT_GRAM)),
+         schema.Volume(value=15.0, units=schema.Volume.MILLILITER)),
+        ('integer', '24 H', schema.Time(value=24, units=schema.Time.HOUR)),
+        ('no space', '32.1g', schema.Mass(value=32.1, units=schema.Mass.GRAM)),
         ('extra space', '   32.1      \t   g  ',
-         schema.Mass(value=32.1, units=schema.Mass.MASS_UNIT_GRAM)),
-    )
+         schema.Mass(value=32.1, units=schema.Mass.GRAM)), )
     def test_resolve(self, string, expected):
         self.assertEqual(self._resolver.resolve(string), expected)
 
