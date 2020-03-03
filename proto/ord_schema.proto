@@ -97,8 +97,12 @@ message Compound {
   // Solutions or mixed compounds should use the NAME identifier
   // and list all constituent compounds in the "components" field.
   repeated CompoundIdentifier identifiers = 1;
-  // Quantity of this compound used in the reaction.
-  Amount amount = 2;
+  // The quantitative Amount of a Compound used in a particular reaction.
+  // Compounds added in their pure form should have their value defined by mass,
+  // moles, or volume. Compounds prepared as solutions should be defined in
+  // terms of their volume. Compounds prepared on solid supports should define
+  // the total mass/volume including the support.
+  Measurement amount = 2;
   // TODO(ccoley): fix this bastardization of proto and json
   /**
    * The "components" field is only used when species are not added to the
@@ -268,24 +272,6 @@ message CompoundIdentifier {
   string value = 3;
 }
 
-/**
- * The quantitative Amount of a Compound used in a particular reaction.
- * Compounds added in their pure form should have their value defined by
- * mass, moles, or volume. Compounds prepared as solutions should be defined
- * in terms of their volume. Compounds prepared on solid supports should 
- * define the total mass/volume including the support.
- */
-message Amount {
-  oneof kind {
-    Mass mass = 1;
-    Moles moles = 2;
-    Volume volume = 3;
-    FlowRate flow_rate = 4;  // Used only for continuous synthesis.
-  }
-  // Precision of the measurement, as a percentage of the value.
-  float precision_in_percent = 5;
-}
-
 message ReactionSetup {
   enum VesselType {
     VESSEL_TYPE_UNKNOWN = 0;
@@ -317,7 +303,7 @@ message ReactionSetup {
   // Used to describe an UNKNOWN vessel prep.
   string vessel_prep_custom = 6;
   // Size (volume) of the vessel.
-  Volume vessel_volume = 7;
+  Measurement vessel_volume = 7;
   // Specification of automated protocols.
   bool is_automated = 8;
   // Automated platform name, brand, or model number.
@@ -356,10 +342,6 @@ message TemperatureConditions {
   string temperature_control_custom = 2;
   float setpoint_in_c = 3;
   float precision_in_c = 4;
-  message Measurement {
-    Time time = 1;
-    Temperature temperature = 2;
-  }
   repeated Measurement measurements = 5;
   enum MeasurementType {
     TEMPERATURE_MEASUREMENT_TYPE_UNKNOWN = 0;
@@ -400,10 +382,6 @@ message PressureConditions {
   Atmosphere atmosphere = 5;
   // Used to describe an UNKNOWN atmosphere.
   string atmosphere_custom = 6;
-  message Measurement {
-    Time time = 1;
-    Pressure pressure = 2;
-  }
   repeated Measurement measurements = 7;
   // TODO(ccoley) get input on how to expand this enum, among others
   enum MeasurementType {
@@ -449,10 +427,10 @@ message IlluminationConditions {
   IlluminationType illumination_type = 1;
   // Used to describe an UKNOWN illumination type.
   string illumination_type_custom = 2;
-  Wavelength peak_wavelength = 3;
+  Measurement peak_wavelength = 3;
   string color = 4;
   // Approximate distance to vessel.
-  Length distance_to_vessel = 5;
+  Measurement distance_to_vessel = 5;
 }
 
 message ElectrochemistryConditions {
@@ -463,18 +441,11 @@ message ElectrochemistryConditions {
   }
   ElectrochemistryType electrochemistry_type = 1;
   string electrochemistry_type_custom = 2;
-  Current current = 3;
-  Voltage voltage = 4;
+  Measurement current = 3;
+  Measurement voltage = 4;
   string anode_material = 5;
   string cathode_material = 6;
-  Length electrode_separation = 7;
-  message Measurement {
-    Time time = 1;
-    oneof kind {
-      Current current = 2;
-      Voltage voltage = 3;
-    }
-  }
+  Measurement electrode_separation = 7;
   repeated Measurement measurements = 8;
 }
 
@@ -503,7 +474,7 @@ message FlowConditions {
   }
   TubeMaterial tube_material = 4;
   string tube_material_custom = 5;
-  Length tube_diameter = 6;
+  Measurement tube_diameter = 6;
 }
 
 message ReactionNotes {
@@ -676,7 +647,12 @@ message Time {
   float value = 1;
   TimeUnit units = 2;
 }
-message Mass {
+
+message Measurement {
+  float value = 1;
+  // Precision of the measurement, as a percentage of the value.
+  float precision_in_percent = 2;
+  Time time = 3;
   enum MassUnit {
     MASS_UNIT_UNKNOWN = 0;
     GRAM = 1;
@@ -684,10 +660,6 @@ message Mass {
     MICROGRAM = 3;
     KILOGRAM = 4;
   }
-  float value = 1;
-  MassUnit units = 2;
-}
-message Moles {
   enum MolesUnit {
     MOLES_UNIT_UNKNOWN = 0;
     MOLES = 1;
@@ -695,30 +667,18 @@ message Moles {
     MICROMOLES = 3;
     NANOMOLES = 4;
   }
-  float value = 1;
-  MolesUnit units = 2;
-}
-message Volume {
   enum VolumeUnit {
     VOLUME_UNIT_UNKNOWN = 0;
     MILLILITER = 1;
     MICROLITER = 2;
     LITER = 3;
   }
-  float value = 1;
-  VolumeUnit units = 2;
-}
-message Concentration {
   enum ConcentrationUnit {
     CONCENTRATION_UNIT_UNKNOWN = 0;
     MOLAR = 1;
     MILLIMOLAR = 2;
     MICROMOLAR = 3;
   }
-  float value = 1;
-  ConcentrationUnit units = 2;
-}
-message Pressure {
   enum PressureUnit {
     PRESSURE_UNIT_UNKNOWN = 0;
     BAR = 1;
@@ -728,38 +688,22 @@ message Pressure {
     PASCAL = 5;  // Pascal
     KILOPASCAL= 6;  // KiloPascal
   }
-  float value = 1;
-  PressureUnit units = 2;
-}
-message Temperature {
   enum TemperatureUnit {
     TEMPERATURE_UNIT_UNKNOWN = 0;
     CELSIUS = 1;
     FAHRENHEIT = 2;
     KELVIN = 3;
   }
-  float value = 1;
-  TemperatureUnit units = 2;
-}
-message Current {
   enum CurrentUnit {
     CURRENT_UNIT_UNKNOWN = 0;
     AMPERE = 1;
     MILLIAMPERE = 2;
   }
-  float value = 1;
-  CurrentUnit units = 2;
-}
-message Voltage {
   enum VoltageUnit {
     VOLTAGE_UNIT_UNKNOWN = 0;
     VOLT = 1;
     MILLIVOLT = 2;
   }
-  float value = 1;
-  VoltageUnit units = 2;
-}
-message Length {
   enum LengthUnit {
     LENGTH_UNIT_UNKNOWN = 0;
     CENTIMETER = 1;
@@ -768,19 +712,11 @@ message Length {
     INCH = 4;
     FOOT = 5;
   }
-  float value = 1;
-  LengthUnit units = 2;
-}
-message Wavelength {
   enum WavelengthUnit {
     WAVELENGTH_UNIT_UNKNOWN = 0;
     NANOMETER = 1;
     WAVENUMBER = 2;  // cm^{-1}
   }
-  float value = 1;
-  WavelengthUnit units = 2;
-}
-message FlowRate {
   enum FlowRateUnit {
     FLOW_RATE_UNIT_UNKNOWN = 0;
     MICROLITER_PER_MINUTE = 1;
@@ -789,7 +725,18 @@ message FlowRate {
     MILLILITER_PER_SECOND = 4;
     MICROLITER_PER_HOUR = 5;
   }
-  float value = 1;
-  FlowRateUnit units = 2;
+  oneof kind {
+    MassUnit mass = 4;
+    MolesUnit moles = 5;
+    VolumeUnit volume = 6;
+    ConcentrationUnit concentration = 7;
+    PressureUnit pressure = 8;
+    TemperatureUnit temperature = 9;
+    CurrentUnit current = 10;
+    VoltageUnit voltage = 11;
+    LengthUnit length = 12;
+    WavelengthUnit wavelength = 13;
+    FlowRateUnit flow_rate = 14;
+  }
 }
 
