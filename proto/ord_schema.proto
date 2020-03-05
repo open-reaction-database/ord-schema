@@ -74,7 +74,7 @@ message ReactionInput {
    *         {type: IDENTIFIER_NAME, value: "water"}
    *       ]
    *       amount: {
-   *         volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
+   *         volume: {value: 3, units: MILLILITER}
    *       }
    *     }
    *  components: [
@@ -84,7 +84,7 @@ message ReactionInput {
    *         {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
    *       ]
    *       amount {
-   *         concentration: {value: 4, units: CONCENTRATION_UNITS_MOLAR}
+   *         moles: {value: 12, units: MILLIMOLES}
    *       }
    *     }
    *   ]
