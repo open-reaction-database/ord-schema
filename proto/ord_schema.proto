@@ -53,7 +53,76 @@ message ReactionIdentifier {
 }
 
 message ReactionInput {
-  Compound compound = 1;
+  // Description or name of this pure substance or mixture that
+  // was added to the reaction vessel. This description is 
+  // intended to be used for convenience and legibility, and does not 
+  // need to be defined.
+  string description = 1;
+
+   /**   
+   * We use the components field for pure substances and mixtures.
+   * 
+   * For example, suppose we are adding
+   * 3 mL of a 4 M solution of NaOH in water.
+   * 
+   * input {
+   *   description: "3 mL of 4M NaOH solution in water"
+   *   components: [
+   *     {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "O"},
+   *         {type: IDENTIFIER_NAME, value: "water"}
+   *       ]
+   *       amount: {
+   *         volume: {value: 3, units: MILLILITER}
+   *       }
+   *     }
+   *  components: [
+   *     {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
+   *         {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
+   *       ]
+   *       amount {
+   *         moles: {value: 12, units: MILLIMOLES}
+   *       }
+   *     }
+   *   ]
+   * }
+   */
+   repeated Compound components = 2;
+  /**
+   * Used to define order of addition. ReactionInputs with the same 
+   * addition_order were added simultaneously. One ReactionInput with a 
+   * lower addition_order than another was added earlier in the procedure.
+   * This field is 1-indexed.
+   */
+  int32 addition_order = 3;
+  // When the addition event took place in terms of the reaction time (or, 
+  // in the case of flow chemistry, the residence time).
+  Time addition_time = 4;
+  enum AdditionSpeed {
+    // Unspecified.
+    ADDITION_SPEED_UNKNOWN = 0;
+    ALL_AT_ONCE = 1;
+    FAST = 2;
+    SLOW = 3;
+    DROPWISE = 4;
+    CONTINUOUS = 5;
+  }
+  // The qualitative rate of addition.
+  AdditionSpeed addition_speed = 5;
+  // For continuous synthesis, we instead specify a flow rate.
+  FlowRate flow_rate = 6;  
+}
+
+message Compound {
+  // Set of identifiers used to uniquely define this compound.
+  // Solutions or mixed compounds should use the NAME identifier
+  // and list all constituent compounds in the "components" field.
+  repeated CompoundIdentifier identifiers = 1;
+  // Quantity of this compound used in the reaction.
+  Amount amount = 2;
   enum ReactionRole {
     // Unspecified.
     REACTION_ROLE_UNKNOWN = 0;  
@@ -66,111 +135,10 @@ message ReactionInput {
     SOLVENT = 3;
     CATALYST = 4;
   }
-  ReactionRole reaction_role = 2;
+  ReactionRole reaction_role = 3;
   // Whether this species was intended to be a limiting reactant.
-  bool is_limiting = 3;
-  /**
-   * Used to define order of addition. ReactionInputs with the same 
-   * addition_order were added simultaneously. One ReactionInput with a 
-   * lower addition_order than another was added earlier in the procedure.
-   * This field is 1-indexed.
-   */
-  int32 addition_order = 4;
-  // When the addition event took place in terms of the reaction time (or, 
-  // in the case of flow chemistry, the residence time).
-  Time addition_time = 5;
-  enum AdditionSpeed {
-    // Unspecified.
-    ADDITION_SPEED_UNKNOWN = 0;
-    ALL_AT_ONCE = 1;
-    FAST = 2;
-    SLOW = 3;
-    DROPWISE = 4;
-    CONTINUOUS = 5;
-  }
-  // The qualitative rate of addition.
-  AdditionSpeed addition_speed = 6;
-}
+  bool is_limiting = 4;
 
-message Compound {
-  // Set of identifiers used to uniquely define this compound.
-  // Solutions or mixed compounds should use the NAME identifier
-  // and list all constituent compounds in the "components" field.
-  repeated CompoundIdentifier identifiers = 1;
-  // Quantity of this compound used in the reaction.
-  Amount amount = 2;
-  // TODO(ccoley): fix this bastardization of proto and json
-  /**
-   * The "components" field is only used when species are not added to the
-   * reaction vessel in their pure form. 
-   *
-   * For pre-mixed solutions, we define all components of what went in
-   * to the stock solution. For example, suppose we are adding
-   * 3 mL of a 4 M solution of NaOH in water.
-   * 
-   * compound {
-   *   identifiers: [
-   *     {type: IDENTIFIER_NAME, value: "4M NaOH solution in water"}
-   *   ]
-   *   amount {
-   *     volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
-   *   }
-   *   components: [
-   *     {
-   *       identifiers: [
-   *         {type: IDENTIFIER_SMILES, value: "O"},
-   *         {type: IDENTIFIER_NAME, value: "water"}
-   *       ]
-   *       amount: {
-   *         volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
-   *       }
-   *     }
-   *     {
-   *       identifiers: [
-   *         {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
-   *         {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
-   *       ]
-   *       amount {
-   *         concentration: {value: 4, units: CONCENTRATION_UNITS_MOLAR}
-   *       }
-   *     }
-   *   ]
-   * }
-   *
-   * Equivalently, if 1 L of the stock solution had been prepared,
-   * 
-   * compound {
-   *   identifiers: [
-   *     {type: IDENTIFIER_NAME, value: "4M NaOH solution in water"}
-   *   ]
-   *   amount {
-   *     volume: {value: 3, units: VOLUME_UNITS_MILLILITER}
-   *   }
-   *   components: [
-   *     {
-   *       identifiers: [
-   *         {type: IDENTIFIER_SMILES, value: "O"},
-   *         {type: IDENTIFIER_NAME, value: "water"}
-   *       ]
-   *       amount: {
-   *         volume: {value: 1, units: VOLUME_UNITS_LITER}
-   *       }
-   *     }
-   *     {
-   *       identifiers: [
-   *         {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
-   *         {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
-   *       ]
-   *       amount {
-   *         moles: {value: 4, units: MOLES_UNIT_MOLES}
-   *       }
-   *     }
-   *   ]
-   * }
-   *
-   * A similar definition is used for supported catalysts (TODO)
-   */
-  repeated Compound components = 3;
   /**
    * Compounds may undergo additional preparation before being used in a 
    * reaction after being received from a supplier or vendor. We encourage
@@ -192,17 +160,17 @@ message Compound {
     // Compound synthesized in-house
     SYNTHESIZED = 5;
   }
-  Preparation preparation = 4;
+  Preparation preparation = 5;
   // Custom preparation, used only when 'type' field is UNKNOWN.
-  string preparation_custom = 5;
+  string preparation_custom = 6;
   // Full description of how the received compound was prepared.
-  string preparation_details = 6;
+  string preparation_details = 7;
   // Name of the vendor or supplier the compound was purchased from.
-  string vendor_source = 7;
+  string vendor_source = 8;
   // Compound ID in the vendor database or catalog.
-  string vendor_id = 8;
+  string vendor_id = 9;
   // Batch/lot identification.
-  string vendor_lot = 9;
+  string vendor_lot = 10;
   /**
    * Compounds can accommodate any number of features. These may include simple
    * properties of the compound (e.g., molecular weight), heuristic estimates
@@ -217,7 +185,7 @@ message Compound {
     }
     string how_computed = 4;
   }
-  repeated Feature features = 10;
+  repeated Feature features = 11;
 }
 
 /**
@@ -280,7 +248,7 @@ message Amount {
     Mass mass = 1;
     Moles moles = 2;
     Volume volume = 3;
-    FlowRate flow_rate = 4;  // Used only for continuous synthesis.
+    
   }
   // Precision of the measurement, as a percentage of the value.
   float precision_in_percent = 5;
