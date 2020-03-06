@@ -313,13 +313,12 @@ message TemperatureConditions {
   TemperatureControl temperature_control = 1;
   // Used to describe an UNKNOWN temperature control.
   string temperature_control_custom = 2;
-  float setpoint_in_c = 3;
-  float precision_in_c = 4;
+  Temperature setpoint = 3;
   message Measurement {
     Time time = 1;
     Temperature temperature = 2;
   }
-  repeated Measurement measurements = 5;
+  repeated Measurement measurements = 4;
   enum MeasurementType {
     TEMPERATURE_MEASUREMENT_TYPE_UNKNOWN = 0;
     // Physically in reaction solution.
@@ -328,8 +327,8 @@ message TemperatureConditions {
     THERMOCOUPLE_EXTERNAL = 2;
     INFRARED = 3;  // Contactless infrared probe.
   }
-  MeasurementType measurement_type = 6;
-  string measurement_type_custom = 7;
+  MeasurementType measurement_type = 5;
+  string measurement_type_custom = 6;
 }
 
 message PressureConditions {
@@ -346,8 +345,7 @@ message PressureConditions {
   PressureControl pressure_control = 1;
   // Used to describe an UNKNOWN pressure control.
   string pressure_control_custom = 2;
-  float setpoint_in_barg = 3;
-  float precision_in_barg = 4;
+  Pressure setpoint = 3;
   enum Atmosphere {
     ATMOSPHERE_UNKNOWN = 0;
     AIR = 1;
@@ -356,21 +354,21 @@ message PressureConditions {
     OXYGEN = 4;
     HYDROGEN = 5;
   }
-  Atmosphere atmosphere = 5;
+  Atmosphere atmosphere = 4;
   // Used to describe an UNKNOWN atmosphere.
-  string atmosphere_custom = 6;
+  string atmosphere_custom = 5;
   message Measurement {
     Time time = 1;
     Pressure pressure = 2;
   }
-  repeated Measurement measurements = 7;
+  repeated Measurement measurements = 6;
   // TODO(ccoley) get input on how to expand this enum, among others
   enum MeasurementType {
     PRESSURE_MEASUREMENT_TYPE_UNKNOWN = 0;
     PRESSURE_TRANSDUCER = 1;
   }
-  MeasurementType measurement_type = 8;
-  string measurement_type_custom = 9;
+  MeasurementType measurement_type = 7;
+  string measurement_type_custom = 8;
 }
 
 message StirringConditions {
@@ -537,9 +535,9 @@ message ReactionProduct {
   }
   SelectivityType selectivity_type = 7;
   string selectivity_type_custom = 8;
-  // TODO(kearnes): Should these fields be replaced with Percentage?
   float selectivity_value = 9;
-  float selectivity_precision_in_percent = 10;
+  // TODO(kearnes): What does precision mean in this context?
+  float selectivity_precision = 10;
   // TODO(ccoley): How to allow specification of the state of matter of the 
   // purified compound? For example, "___ was recovered as a white powder in
   // x% yield (y.z mg)". Or oils, crystal texture, etc. This is only relevant 
