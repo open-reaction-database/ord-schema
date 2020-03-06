@@ -121,8 +121,18 @@ message Compound {
   // Solutions or mixed compounds should use the NAME identifier
   // and list all constituent compounds in the "components" field.
   repeated CompoundIdentifier identifiers = 1;
-  // Quantity of this compound used in the reaction.
-  Amount amount = 2;
+  /**
+   * The quantitative Amount of a Compound used in a particular reaction.
+   * Compounds added in their pure form should have their value defined by
+   * mass, moles, or volume. Compounds prepared as solutions should be defined
+   * in terms of their volume. Compounds prepared on solid supports should
+   * define the total mass/volume including the support.
+   */
+  oneof amount {
+    Mass mass = 2;
+    Moles moles = 3;
+    Volume volume = 4;
+  }
   enum ReactionRole {
     // Unspecified.
     REACTION_ROLE_UNKNOWN = 0;  
@@ -135,10 +145,9 @@ message Compound {
     SOLVENT = 3;
     CATALYST = 4;
   }
-  ReactionRole reaction_role = 3;
+  ReactionRole reaction_role = 5;
   // Whether this species was intended to be a limiting reactant.
-  bool is_limiting = 4;
-
+  bool is_limiting = 6;
   /**
    * Compounds may undergo additional preparation before being used in a 
    * reaction after being received from a supplier or vendor. We encourage
@@ -160,17 +169,17 @@ message Compound {
     // Compound synthesized in-house
     SYNTHESIZED = 5;
   }
-  Preparation preparation = 5;
+  Preparation preparation = 7;
   // Custom preparation, used only when 'type' field is UNKNOWN.
-  string preparation_custom = 6;
+  string preparation_custom = 8;
   // Full description of how the received compound was prepared.
-  string preparation_details = 7;
+  string preparation_details = 9;
   // Name of the vendor or supplier the compound was purchased from.
-  string vendor_source = 8;
+  string vendor_source = 10;
   // Compound ID in the vendor database or catalog.
-  string vendor_id = 9;
+  string vendor_id = 11;
   // Batch/lot identification.
-  string vendor_lot = 10;
+  string vendor_lot = 12;
   /**
    * Compounds can accommodate any number of features. These may include simple
    * properties of the compound (e.g., molecular weight), heuristic estimates
@@ -185,7 +194,7 @@ message Compound {
     }
     string how_computed = 4;
   }
-  repeated Feature features = 11;
+  repeated Feature features = 13;
 }
 
 /**
@@ -234,24 +243,6 @@ message CompoundIdentifier {
   // Value of the compound identifier; certain types (e.g., pubchem_cid) may
   // cast the string as an integer for downstream processing and validation.
   string value = 3;
-}
-
-/**
- * The quantitative Amount of a Compound used in a particular reaction.
- * Compounds added in their pure form should have their value defined by
- * mass, moles, or volume. Compounds prepared as solutions should be defined
- * in terms of their volume. Compounds prepared on solid supports should 
- * define the total mass/volume including the support.
- */
-message Amount {
-  oneof kind {
-    Mass mass = 1;
-    Moles moles = 2;
-    Volume volume = 3;
-    
-  }
-  // Precision of the measurement, as a percentage of the value.
-  float precision_in_percent = 5;
 }
 
 message ReactionSetup {
@@ -525,7 +516,7 @@ message ReactionOutcome {
   // Reaction time (for flow, equivalent to residence time or spacetime).
   Time reaction_time = 1;  
   // Conversion with respect to the limiting reactant.
-  float conversion_in_percent = 2;
+  Percentage conversion = 2;
   repeated ReactionProduct products = 3;
   repeated ReactionAnalysis analyses = 4;
 }
@@ -533,22 +524,22 @@ message ReactionOutcome {
 message ReactionProduct {
   Compound compound = 1;
   bool is_desired_product = 2;
-  float yield_in_percent = 3;
-  float yield_precision_in_percent = 4;
-  ReactionAnalysis.AnalysisType yield_type = 5;
+  Percentage yield = 3;
+  ReactionAnalysis.AnalysisType yield_type = 4;
   // Used to describe an UNKNOWN yield type.
-  string yield_type_custom = 6;
-  float purity_in_percent = 7;
+  string yield_type_custom = 5;
+  float purity_in_percent = 6;
   enum SelectivityType {
     SELECTIVITY_TYPE_UNKNOWN = 0;
     EE = 1;  // Enantiomeric excess as a percentage.
     ER = 2;  // Enantiomeric ratio. (x:1)
     DE = 3;  // Diasteromeric ratio (x:1)
   }
-  SelectivityType selectivity_type = 8;
-  string selectivity_type_custom = 9;
-  float selectivity_value = 10;
-  float selectivity_precision_in_percent = 11;
+  SelectivityType selectivity_type = 7;
+  string selectivity_type_custom = 8;
+  // TODO(kearnes): Should these fields be replaced with Percentage?
+  float selectivity_value = 9;
+  float selectivity_precision_in_percent = 10;
   // TODO(ccoley): How to allow specification of the state of matter of the 
   // purified compound? For example, "___ was recovered as a white powder in
   // x% yield (y.z mg)". Or oils, crystal texture, etc. This is only relevant 
@@ -632,7 +623,11 @@ message Person {
  * most natural, we define a fixed list of allowable units for each measurement
  * type. Upon submission to a centralized database, or using a validation and
  * canonicalization script, we will convert all values to the default units
- * (the first item in each enum).
+ * (the first nonzero item in each enum).
+ *
+ * Each message also contains a `precision` field, which specifies the precision
+ * of the measurement in the same units as the measurement itself. Often the
+ * precision will be the standard deviation from an instrument calibration.
  */
 message Time {
   enum TimeUnit {
@@ -642,7 +637,9 @@ message Time {
     SECOND = 3;
   }
   float value = 1;
-  TimeUnit units = 2;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+  TimeUnit units = 3;
 }
 message Mass {
   enum MassUnit {
@@ -653,7 +650,9 @@ message Mass {
     KILOGRAM = 4;
   }
   float value = 1;
-  MassUnit units = 2;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+  MassUnit units = 3;
 }
 message Moles {
   enum MolesUnit {
@@ -664,7 +663,9 @@ message Moles {
     NANOMOLES = 4;
   }
   float value = 1;
-  MolesUnit units = 2;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+  MolesUnit units = 3;
 }
 message Volume {
   enum VolumeUnit {
@@ -674,7 +675,9 @@ message Volume {
     LITER = 3;
   }
   float value = 1;
-  VolumeUnit units = 2;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+  VolumeUnit units = 3;
 }
 message Concentration {
   enum ConcentrationUnit {
@@ -684,7 +687,9 @@ message Concentration {
     MICROMOLAR = 3;
   }
   float value = 1;
-  ConcentrationUnit units = 2;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+  ConcentrationUnit units = 3;
 }
 message Pressure {
   enum PressureUnit {
@@ -697,7 +702,9 @@ message Pressure {
     KILOPASCAL= 6;  // KiloPascal
   }
   float value = 1;
-  PressureUnit units = 2;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+  PressureUnit units = 3;
 }
 message Temperature {
   enum TemperatureUnit {
@@ -707,7 +714,9 @@ message Temperature {
     KELVIN = 3;
   }
   float value = 1;
-  TemperatureUnit units = 2;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+  TemperatureUnit units = 3;
 }
 message Current {
   enum CurrentUnit {
@@ -716,7 +725,9 @@ message Current {
     MILLIAMPERE = 2;
   }
   float value = 1;
-  CurrentUnit units = 2;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+  CurrentUnit units = 3;
 }
 message Voltage {
   enum VoltageUnit {
@@ -725,7 +736,9 @@ message Voltage {
     MILLIVOLT = 2;
   }
   float value = 1;
-  VoltageUnit units = 2;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+  VoltageUnit units = 3;
 }
 message Length {
   enum LengthUnit {
@@ -737,7 +750,9 @@ message Length {
     FOOT = 5;
   }
   float value = 1;
-  LengthUnit units = 2;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+  LengthUnit units = 3;
 }
 message Wavelength {
   enum WavelengthUnit {
@@ -746,7 +761,9 @@ message Wavelength {
     WAVENUMBER = 2;  // cm^{-1}
   }
   float value = 1;
-  WavelengthUnit units = 2;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+  WavelengthUnit units = 3;
 }
 message FlowRate {
   enum FlowRateUnit {
@@ -758,6 +775,13 @@ message FlowRate {
     MICROLITER_PER_HOUR = 5;
   }
   float value = 1;
-  FlowRateUnit units = 2;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+  FlowRateUnit units = 3;
 }
-
+// Used for things like conversion and yield.
+message Percentage {
+  float value = 1;
+  // Precision of the measurement (with the same units as `value`).
+  float precision = 2;
+}
