@@ -522,22 +522,22 @@ message ReactionOutcome {
 message ReactionProduct {
   Compound compound = 1;
   bool is_desired_product = 2;
-  Percentage yield = 3;
-  ReactionAnalysis.AnalysisType yield_type = 4;
+  Percentage compound_yield = 3;
+  ReactionAnalysis.AnalysisType compound_yield_type = 4;
   // Used to describe an UNKNOWN yield type.
-  string yield_type_custom = 5;
-  float purity_in_percent = 6;
+  string compound_yield_type_custom = 5;
+  Percentage compound_purity = 6;
   enum SelectivityType {
     SELECTIVITY_TYPE_UNKNOWN = 0;
     EE = 1;  // Enantiomeric excess as a percentage.
     ER = 2;  // Enantiomeric ratio. (x:1)
     DE = 3;  // Diasteromeric ratio (x:1)
   }
-  SelectivityType selectivity_type = 7;
-  string selectivity_type_custom = 8;
-  float selectivity_value = 9;
+  SelectivityType compound_selectivity_type = 7;
+  string compound_selectivity_type_custom = 8;
+  float compound_selectivity_value = 9;
   // TODO(kearnes): What does precision mean in this context?
-  float selectivity_precision = 10;
+  float compound_selectivity_precision = 10;
   // TODO(ccoley): How to allow specification of the state of matter of the 
   // purified compound? For example, "___ was recovered as a white powder in
   // x% yield (y.z mg)". Or oils, crystal texture, etc. This is only relevant 
