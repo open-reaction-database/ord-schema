@@ -15,7 +15,6 @@ from absl import flags
 from ord_schema.proto import ord_schema_pb2
 
 FLAGS = flags.FLAGS
-
 flags.DEFINE_string('output', None, 'Output filename (*.json).')
 
 
