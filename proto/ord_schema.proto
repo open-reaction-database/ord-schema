@@ -522,11 +522,11 @@ message ReactionOutcome {
 message ReactionProduct {
   Compound compound = 1;
   bool is_desired_product = 2;
-  Percentage yield = 3;
+  Percentage compound_yield = 3;
   ReactionAnalysis.AnalysisType yield_type = 4;
   // Used to describe an UNKNOWN yield type.
   string yield_type_custom = 5;
-  float purity_in_percent = 6;
+  Percentage purity = 6;
   enum SelectivityType {
     SELECTIVITY_TYPE_UNKNOWN = 0;
     EE = 1;  // Enantiomeric excess as a percentage.
