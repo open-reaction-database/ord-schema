@@ -8,7 +8,7 @@ from ord_schema.proto import ord_schema_pb2 as schema
 # lowercase.
 _UNIT_SYNONYMS = {
     schema.Time: {
-        schema.Time.HOUR: ['h', 'hour', 'hr', 'hrs'],
+        schema.Time.HOUR: ['h', 'hour', 'hours', 'hr', 'hrs'],
         schema.Time.MINUTE: ['m', 'min', 'mins', 'minute', 'minutes'],
         schema.Time.SECOND: ['s', 'sec', 'secs', 'second', 'seconds'],
     },
