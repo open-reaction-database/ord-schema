@@ -9,9 +9,8 @@ package ord;
  * otherwise be required to consolidate equivalent entries. However, we do
  * not wish to restrict what users are able to specify if their synthesis
  * does not fit cleanly into a pre-existing enum field. For that reason, we
- * frequently introduce a string field 'custom' in addition to any enumerated
- * values.
- */
+ * frequently introduce a string field '<field_name>_custom' in addition to
+ * the enumerated field '<field_name>'. These fields are mutually exclusive.
 
 message Reaction {
   repeated ReactionIdentifier identifiers = 1;
