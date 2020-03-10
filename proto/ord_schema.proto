@@ -271,7 +271,7 @@ message Vessel {
     }
     oneof kind {
       VesselMaterial type = 1;
-      string customs = 2;
+      string custom = 2;
     }
   }
   message VesselPrep {
