@@ -8,9 +8,15 @@ package ord;
  * nomenclature and to avoid unnecessary downstream data processing that would
  * otherwise be required to consolidate equivalent entries. However, we do
  * not wish to restrict what users are able to specify if their synthesis
- * does not fit cleanly into a pre-existing enum field. For that reason, we
- * frequently introduce a string field '<field_name>_custom' in addition to
- * the enumerated field '<field_name>'. These fields are mutually exclusive.
+ * does not fit cleanly into a pre-existing enum field. For that reason, many
+ * enums contain a CUSTOM field, which must be accompanied by setting the
+ * '<field_name>_details' field.
+ *
+ * NOTE(kearnes): In many places, we deliberately violate the style guide for
+ * enums by nesting instead of prefixing; this is not done lightly. The primary
+ * consideration is API consistency and the ability to use unqualified strings
+ * as enum values. For instance, we want 'CUSTOM' to be a valid value for all
+ * enums that support custom types.
  */
 message Reaction {
   repeated ReactionIdentifier identifiers = 1;
@@ -241,11 +247,6 @@ message CompoundIdentifier {
 }
 
 message Vessel {
-  // NOTE(kearnes): This deliberate violation of the style guide for enums
-  // (nesting vs. prefixing) is not done lightly. The primary consideration is
-  // API consistency and the ability to use unqualified strings as enum values.
-  // For instance, we want 'CUSTOM' to be a valid value for all enums that
-  // support custom types.
   message VesselType {
     enum VesselTypeEnum {
       UNSPECIFIED = 0;
