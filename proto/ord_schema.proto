@@ -132,8 +132,7 @@ message Compound {
     Volume volume = 4;
   }
   enum ReactionRole {
-    // Unspecified.
-    REACTION_ROLE_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     // TODO(ccoley): Do we want to use the definition of a reactant aligned
     // with Reaxys, or say that any species that contributes heavy atoms 
     // to a desired product is a reactant? This field might be kind of a 
@@ -155,8 +154,7 @@ message Compound {
    */
   message Preparation {
     enum PreparationType {
-      // Unspecified or custom.
-      COMPOUND_PREPARATION_UNKNOWN = 0;
+      UNSPECIFIED = 0;
       // Compound used as received.
       NONE = 1;
       // Compound repurified (e.g., recrystallized).
@@ -620,7 +618,7 @@ message DateTime {
 message ReactionAnalysis {
   // TODO(ccoley): Solicit more feedback from experimentalists
   enum AnalysisType {
-    ANALYSIS_TYPE_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     LC = 1; // Liquid chromatography.
     GC = 2; // Gas chromatography.
     IR = 3; // Infrared spectroscopy.
@@ -685,7 +683,7 @@ message Person {
  */
 message Time {
   enum TimeUnit {
-    TIME_UNIT_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     HOUR = 1;
     MINUTE = 2;
     SECOND = 3;
@@ -697,7 +695,7 @@ message Time {
 }
 message Mass {
   enum MassUnit {
-    MASS_UNIT_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     GRAM = 1;
     MILLIGRAM = 2;
     MICROGRAM = 3;
@@ -710,7 +708,7 @@ message Mass {
 }
 message Moles {
   enum MolesUnit {
-    MOLES_UNIT_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     MOLES = 1;
     MILLIMOLES = 2;
     MICROMOLES = 3;
@@ -723,7 +721,7 @@ message Moles {
 }
 message Volume {
   enum VolumeUnit {
-    VOLUME_UNIT_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     MILLILITER = 1;
     MICROLITER = 2;
     LITER = 3;
@@ -735,7 +733,7 @@ message Volume {
 }
 message Concentration {
   enum ConcentrationUnit {
-    CONCENTRATION_UNIT_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     MOLAR = 1;
     MILLIMOLAR = 2;
     MICROMOLAR = 3;
@@ -747,7 +745,7 @@ message Concentration {
 }
 message Pressure {
   enum PressureUnit {
-    PRESSURE_UNIT_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     BAR = 1;
     ATMOSPHERE = 2;
     PSI = 3;
@@ -762,7 +760,7 @@ message Pressure {
 }
 message Temperature {
   enum TemperatureUnit {
-    TEMPERATURE_UNIT_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     CELSIUS = 1;
     FAHRENHEIT = 2;
     KELVIN = 3;
@@ -774,7 +772,7 @@ message Temperature {
 }
 message Current {
   enum CurrentUnit {
-    CURRENT_UNIT_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     AMPERE = 1;
     MILLIAMPERE = 2;
   }
@@ -785,7 +783,7 @@ message Current {
 }
 message Voltage {
   enum VoltageUnit {
-    VOLTAGE_UNIT_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     VOLT = 1;
     MILLIVOLT = 2;
   }
@@ -796,7 +794,7 @@ message Voltage {
 }
 message Length {
   enum LengthUnit {
-    LENGTH_UNIT_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     CENTIMETER = 1;
     MILLIMETER = 2;
     METER = 3;
@@ -810,7 +808,7 @@ message Length {
 }
 message Wavelength {
   enum WavelengthUnit {
-    WAVELENGTH_UNIT_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     NANOMETER = 1;
     WAVENUMBER = 2; // cm^{-1}
   }
@@ -821,7 +819,7 @@ message Wavelength {
 }
 message FlowRate {
   enum FlowRateUnit {
-    FLOW_RATE_UNIT_UNKNOWN = 0;
+    UNSPECIFIED = 0;
     MICROLITER_PER_MINUTE = 1;
     MICROLITER_PER_SECOND = 2;
     MILLILITER_PER_MINUTE = 3;
