@@ -145,34 +145,6 @@ message Compound {
   ReactionRole reaction_role = 5;
   // Whether this species was intended to be a limiting reactant.
   bool is_limiting = 6;
-  /**
-   * Compounds may undergo additional preparation before being used in a 
-   * reaction after being received from a supplier or vendor. We encourage
-   * the use of the 'preparation' enum when possible, even if the description
-   * is an oversimplification of the full procedure, which can be detailed 
-   * in the 'preparation_details' field.
-   */
-  message Preparation {
-    enum PreparationType {
-      UNSPECIFIED = 0;
-      // Compound used as received.
-      NONE = 1;
-      // Compound repurified (e.g., recrystallized).
-      REPURIFIED = 2;
-      // Compound sparged, most likely to be the case with solvents.
-      SPARGED = 3;
-      // Moisture removed, e.g., using molecular sieves.
-      DRIED = 4;
-      // Compound synthesized in-house
-      SYNTHESIZED = 5;
-    }
-    oneof kind {
-      PreparationType preparation = 1;
-      string custom = 2;
-    }
-    // Full description of how the received compound was prepared.
-    string details = 3;
-  }
   Preparation preparation = 7;
   // Name of the vendor or supplier the compound was purchased from.
   string vendor_source = 8;
@@ -195,6 +167,35 @@ message Compound {
     string how_computed = 4;
   }
   repeated Feature features = 13;
+}
+
+/**
+ * Compounds may undergo additional preparation before being used in a
+ * reaction after being received from a supplier or vendor. We encourage
+ * the use of the 'preparation' enum when possible, even if the description
+ * is an oversimplification of the full procedure, which can be detailed
+ * in the 'preparation_details' field.
+ */
+message Preparation {
+  enum PreparationType {
+    UNSPECIFIED = 0;
+    // Compound used as received.
+    NONE = 1;
+    // Compound repurified (e.g., recrystallized).
+    REPURIFIED = 2;
+    // Compound sparged, most likely to be the case with solvents.
+    SPARGED = 3;
+    // Moisture removed, e.g., using molecular sieves.
+    DRIED = 4;
+    // Compound synthesized in-house
+    SYNTHESIZED = 5;
+  }
+  oneof kind {
+    PreparationType preparation = 1;
+    string custom = 2;
+  }
+  // Full description of how the received compound was prepared.
+  string details = 3;
 }
 
 /**
@@ -482,8 +483,8 @@ message FlowConditions {
     string custom = 2;
   }
   string pump_type = 3;
-  message Tube {
-    enum TubeMaterialType {
+  message Tubing {
+    enum TubingMaterialType {
       UNSPECIFIED = 0;
       STEEL = 1;
       COPPER = 2;
@@ -497,12 +498,12 @@ message FlowConditions {
       PDMS = 10;
     }
     oneof kind {
-      TubeMaterialType type = 1;
+      TubingMaterialType type = 1;
       string custom = 2;
     }
     Length diameter = 3;
   }
-  Tube tube = 4;
+  Tubing tubing = 4;
 }
 
 message ReactionNotes {
@@ -571,21 +572,6 @@ message ReactionProduct {
     string custom = 5;
   }
   Percentage purity = 6;
-  message Selectivity {
-    enum SelectivityType {
-      UNSPECIFIED = 0;
-      EE = 1; // Enantiomeric excess as a percentage.
-      ER = 2; // Enantiomeric ratio. (x:1)
-      DE = 3; // Diasteromeric ratio (x:1)
-    }
-    oneof kind {
-      SelectivityType type = 1;
-      string custom = 2;
-    }
-    float value = 3;
-    // TODO(kearnes): What does precision mean in this context?
-    float precision = 4;
-  }
   // TODO(ccoley): How to allow specification of the state of matter of the 
   // purified compound? For example, "___ was recovered as a white powder in
   // x% yield (y.z mg)". Or oils, crystal texture, etc. This is only relevant 
@@ -750,8 +736,8 @@ message Pressure {
     ATMOSPHERE = 2;
     PSI = 3;
     KPSI = 4;
-    PASCAL = 5; // Pascal
-    KILOPASCAL = 6; // KiloPascal
+    PASCAL = 5;
+    KILOPASCAL = 6;
   }
   float value = 1;
   // Precision of the measurement (with the same units as `value`).
@@ -836,4 +822,20 @@ message Percentage {
   float value = 1;
   // Precision of the measurement (with the same units as `value`).
   float precision = 2;
+}
+
+message Selectivity {
+  enum SelectivityType {
+    UNSPECIFIED = 0;
+    EE = 1; // Enantiomeric excess as a percentage.
+    ER = 2; // Enantiomeric ratio. (x:1)
+    DE = 3; // Diasteromeric ratio (x:1)
+  }
+  oneof kind {
+    SelectivityType type = 1;
+    string custom = 2;
+  }
+  float value = 3;
+  // TODO(kearnes): What does precision mean in this context?
+  float precision = 4;
 }
