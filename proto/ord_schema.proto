@@ -10,7 +10,7 @@ package ord;
  * not wish to restrict what users are able to specify if their synthesis
  * does not fit cleanly into a pre-existing enum field. For that reason, many
  * enums contain a CUSTOM field, which must be accompanied by setting the
- * '<field_name>_details' field.
+ * 'details' field (or '<field_name>_details', where appropriate).
  *
  * NOTE(kearnes): In many places, we deliberately violate the style guide for
  * enums by nesting instead of prefixing; this is not done lightly. The primary
@@ -50,7 +50,7 @@ message ReactionIdentifier {
     NAME = 5;  // Named reaction or reaction category.
   }
   IdentifierType type = 1;
-  string type_details = 2;
+  string details = 2;
   string value = 3;
 }
 
@@ -181,8 +181,8 @@ message Compound {
  * Compounds may undergo additional preparation before being used in a
  * reaction after being received from a supplier or vendor. We encourage
  * the use of the 'preparation' enum when possible, even if the description
- * is an oversimplification of the full procedure, which can be detailed
- * in the 'preparation_details' field.
+ * is an oversimplification of the full procedure, which can be described
+ * in the 'details' field.
  */
 message CompoundPreparation {
   enum PreparationType {
@@ -196,7 +196,7 @@ message CompoundPreparation {
   }
   PreparationType type = 1;
   // Full description of how the received compound was prepared.
-  string type_details = 2;
+  string details = 2;
 }
 
 /**
@@ -240,7 +240,7 @@ message CompoundIdentifier {
     PDB_ID = 14;
   }
   IdentifierType type = 1;
-  string type_details = 2;
+  string details = 2;
   // Value of the compound identifier; certain types (e.g., PUBCHEM_CID) may
   // cast the string as an integer for downstream processing and validation.
   string value = 3;
@@ -261,7 +261,7 @@ message Vessel {
     }
   }
   VesselType.VesselTypeEnum type = 1;
-  string type_details = 2;
+  string details = 2;
   message VesselMaterial {
     enum VesselMaterialType {
       UNSPECIFIED = 0;
@@ -323,7 +323,7 @@ message TemperatureConditions {
     LIQUID_NITROGEN = 11;
   }
   TemperatureControl type = 1;
-  string type_details = 2;
+  string details = 2;
   Temperature setpoint = 3;
   message Measurement {
     enum MeasurementType {
@@ -334,7 +334,7 @@ message TemperatureConditions {
       INFRARED = 4;  // Contactless infrared probe.
     }
     MeasurementType type = 1;
-    string type_details = 2;
+    string details = 2;
     Time time = 3;
     Temperature temperature = 4;
   }
@@ -354,7 +354,7 @@ message PressureConditions {
     }
   }
   PressureControl.PressureControlType type = 1;
-  string type_details = 2;
+  string details = 2;
   Pressure setpoint = 3;
   message Atmosphere {
     enum AtmosphereType {
@@ -377,7 +377,7 @@ message PressureConditions {
       PRESSURE_TRANSDUCER = 2;
     }
     MeasurementType type = 1;
-    string type_details = 2;
+    string details = 2;
     Time time = 3;
     Pressure pressure = 4;
   }
@@ -396,7 +396,7 @@ message StirringConditions {
     }
   }
   StirringMethod.StirringMethodType type = 1;
-  string type_details = 2;
+  string details = 2;
   message StirringRate {
     enum StirringRateType {
       UNSPECIFIED = 0;
@@ -422,7 +422,7 @@ message IlluminationConditions {
     BROAD_SPECTRUM = 8;
   }
   IlluminationType type = 1;
-  string type_details = 2;
+  string details = 2;
   Wavelength peak_wavelength = 3;
   string color = 4;
   Length distance_to_vessel = 5;
@@ -436,7 +436,7 @@ message ElectrochemistryConditions {
     CONSTANT_VOLTAGE = 3;
   }
   ElectrochemistryType type = 1;
-  string type_details = 2;
+  string details = 2;
   Current current = 3;
   Voltage voltage = 4;
   string anode_material = 5;
@@ -461,7 +461,7 @@ message FlowConditions {
     PACKED_BED_REACTOR = 4;
   }
   FlowType type = 1;
-  string type_details = 2;
+  string details = 2;
   string pump_type = 3;
   message Tubing {
     enum TubingMaterialType {
@@ -479,7 +479,7 @@ message FlowConditions {
       PDMS = 11;
     }
     TubingMaterialType type = 1;
-    string type_details = 2;
+    string details = 2;
     Length diameter = 3;
   }
   Tubing tubing = 4;
@@ -517,7 +517,7 @@ message ReactionWorkup {
     FLASH_CHROMATOGRAPHY = 5;
   }
   WorkupType type = 1;
-  string type_details = 2;
+  string details = 2;
   TemperatureConditions thermal_quench = 3;
   Compound solvent_quench = 4;
 }
@@ -577,7 +577,7 @@ message Selectivity {
     DE = 4;  // Diasteromeric ratio (x:1)
   }
   SelectivityType type = 1;
-  string type_details = 2;
+  string details = 2;
   float value = 3;
   // TODO(kearnes): What does precision mean in this context?
   float precision = 4;
@@ -613,7 +613,7 @@ message ReactionAnalysis {
   }
   AnalysisType type = 1;
   // Any details about analysis (e.g., NMR type, columns, gradients, conditions)
-  string type_details = 2;
+  string details = 2;
   // Data files (processed or annotated).
   map<string, bytes> data_processed = 3;
   // Data files (raw) obtained directly from the instrument
