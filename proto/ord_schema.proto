@@ -58,36 +58,36 @@ message ReactionInput {
   string description = 1;
 
   /**
-  * We use the components field for pure substances and mixtures.
-  *
-  * For example, suppose we are adding
-  * 3 mL of a 4 M solution of NaOH in water.
-  *
-  * input {
-  *   description: "3 mL of 4M NaOH solution in water"
-  *   components: [
-  *     {
-  *       identifiers: [
-  *         {type: IDENTIFIER_SMILES, value: "O"},
-  *         {type: IDENTIFIER_NAME, value: "water"}
-  *       ]
-  *       amount: {
-  *         volume: {value: 3, units: MILLILITER}
-  *       }
-  *     }
-  *  components: [
-  *     {
-  *       identifiers: [
-  *         {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
-  *         {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
-  *       ]
-  *       amount {
-  *         moles: {value: 12, units: MILLIMOLES}
-  *       }
-  *     }
-  *   ]
-  * }
-  */
+   * We use the components field for pure substances and mixtures.
+   *
+   * For example, suppose we are adding
+   * 3 mL of a 4 M solution of NaOH in water.
+   *
+   * input {
+   *   description: "3 mL of 4M NaOH solution in water"
+   *   components: [
+   *     {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "O"},
+   *         {type: IDENTIFIER_NAME, value: "water"}
+   *       ]
+   *       amount: {
+   *         volume: {value: 3, units: MILLILITER}
+   *       }
+   *     }
+   *  components: [
+   *     {
+   *       identifiers: [
+   *         {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
+   *         {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
+   *       ]
+   *       amount {
+   *         moles: {value: 12, units: MILLIMOLES}
+   *       }
+   *     }
+   *   ]
+   * }
+   */
   repeated Compound components = 2;
   /**
    * Used to define order of addition. ReactionInputs with the same 
