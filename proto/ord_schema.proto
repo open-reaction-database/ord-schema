@@ -44,7 +44,7 @@ message ReactionIdentifier {
     NAME = 5;  // Named reaction or reaction category.
   }
   IdentifierType type = 1;
-  string details = 2;
+  string type_details = 2;
   string value = 3;
 }
 
@@ -97,17 +97,19 @@ message ReactionInput {
   // When the addition event took place in terms of the reaction time (or, 
   // in the case of flow chemistry, the residence time).
   Time addition_time = 4;
-  enum AdditionSpeed {
-    // Unspecified.
-    UNSPECIFIED = 0;
-    ALL_AT_ONCE = 1;
-    FAST = 2;
-    SLOW = 3;
-    DROPWISE = 4;
-    CONTINUOUS = 5;
+  message AdditionSpeed {
+    enum AdditionSpeedType {
+      // Unspecified.
+      UNSPECIFIED = 0;
+      ALL_AT_ONCE = 1;
+      FAST = 2;
+      SLOW = 3;
+      DROPWISE = 4;
+      CONTINUOUS = 5;
+    }
   }
   // The qualitative rate of addition.
-  AdditionSpeed addition_speed = 5;
+  AdditionSpeed.AdditionSpeedType addition_speed = 5;
   // For continuous synthesis, we instead specify a flow rate.
   FlowRate flow_rate = 6;
 }
@@ -129,18 +131,20 @@ message Compound {
     Moles moles = 3;
     Volume volume = 4;
   }
-  enum ReactionRole {
-    UNSPECIFIED = 0;
-    // TODO(ccoley): Do we want to use the definition of a reactant aligned
-    // with Reaxys, or say that any species that contributes heavy atoms 
-    // to a desired product is a reactant? This field might be kind of a 
-    // throwaway anyway...
-    REACTANT = 1;
-    REAGENT = 2;
-    SOLVENT = 3;
-    CATALYST = 4;
+  message ReactionRole {
+    enum ReactionRoleType {
+      UNSPECIFIED = 0;
+      // TODO(ccoley): Do we want to use the definition of a reactant aligned
+      // with Reaxys, or say that any species that contributes heavy atoms
+      // to a desired product is a reactant? This field might be kind of a
+      // throwaway anyway...
+      REACTANT = 1;
+      REAGENT = 2;
+      SOLVENT = 3;
+      CATALYST = 4;
+    }
   }
-  ReactionRole reaction_role = 5;
+  ReactionRole.ReactionRoleType reaction_role = 5;
   // Whether this species was intended to be a limiting reactant.
   bool is_limiting = 6;
   CompoundPreparation preparation = 7;
@@ -186,7 +190,7 @@ message CompoundPreparation {
   }
   PreparationType type = 1;
   // Full description of how the received compound was prepared.
-  string details = 2;
+  string type_details = 2;
 }
 
 /**
@@ -230,42 +234,53 @@ message CompoundIdentifier {
     PDB_ID = 14;
   }
   IdentifierType type = 1;
-  string details = 2;
+  string type_details = 2;
   // Value of the compound identifier; certain types (e.g., PUBCHEM_CID) may
   // cast the string as an integer for downstream processing and validation.
   string value = 3;
 }
 
 message Vessel {
-  enum VesselType {
-    TYPE_UNSPECIFIED = 0;
-    TYPE_CUSTOM = 1;
-    ROUND_BOTTOM_FLASK = 2;
-    VIAL = 3;
-    WELL_PLATE = 4;
-    MICROWAVE_VIAL = 5;
-    TUBE = 6;
-    CONTINUOUS_STIRRED_TANK_REACTOR = 7;
-    PACKED_BED_REACTOR = 8;
+  // NOTE(kearnes): This deliberate violation of the style guide for enums
+  // (nesting vs. prefixing) is not done lightly. The primary consideration is
+  // API consistency and the ability to use unqualified strings as enum values.
+  // For instance, we want 'CUSTOM' to be a valid value for all enums that
+  // support custom types.
+  message VesselType {
+    enum VesselTypeEnum {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      ROUND_BOTTOM_FLASK = 2;
+      VIAL = 3;
+      WELL_PLATE = 4;
+      MICROWAVE_VIAL = 5;
+      TUBE = 6;
+      CONTINUOUS_STIRRED_TANK_REACTOR = 7;
+      PACKED_BED_REACTOR = 8;
+    }
   }
-  VesselType type = 1;
+  VesselType.VesselTypeEnum type = 1;
   string type_details = 2;
-  enum VesselMaterial {
-    MATERIAL_UNSPECIFIED = 0;
-    MATERIAL_CUSTOM = 1;
-    GLASS = 2;
-    POLYPROPYLENE = 3;
-    PLASTIC = 4;
+  message VesselMaterial {
+    enum VesselMaterialType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      GLASS = 2;
+      POLYPROPYLENE = 3;
+      PLASTIC = 4;
+    }
   }
-  VesselMaterial material = 3;
+  VesselMaterial.VesselMaterialType material = 3;
   string material_details = 4;
-  enum VesselPreparation {
-    PREPARATION_UNSPECIFIED = 0;
-    PREPARATION_CUSTOM = 1;
-    NONE = 2;
-    OVEN_DRIED = 3;
+  message VesselPreparation {
+    enum VesselPreparationType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      NONE = 2;
+      OVEN_DRIED = 3;
+    }
   }
-  VesselPreparation preparation = 5;
+  VesselPreparation.VesselPreparationType preparation = 5;
   string preparation_details = 6;
   Volume vessel_volume = 7;  // Size (volume) of the vessel.
 }
@@ -326,28 +341,32 @@ message TemperatureConditions {
 }
 
 message PressureConditions {
-  enum PressureControlType {
-    PRESSURE_CONTROL_UNSPECIFIED = 0;
-    PRESSURE_CONTROL_CUSTOM = 1;
-    AMBIENT = 2;
-    BALLOON = 3;
-    SEALED = 4;  // Fully sealed vessel (e.g., microwave vial).
-    RELEASEVALVE = 5;
-    BPR = 6;  // Back pressure regulator, as used in flow synthesis.
+  message PressureControl {
+    enum PressureControlType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      AMBIENT = 2;
+      BALLOON = 3;
+      SEALED = 4; // Fully sealed vessel (e.g., microwave vial).
+      RELEASEVALVE = 5;
+      BPR = 6; // Back pressure regulator, as used in flow synthesis.
+    }
   }
-  PressureControlType type = 1;
+  PressureControl.PressureControlType type = 1;
   string type_details = 2;
   Pressure setpoint = 3;
-  enum AtmosphereType {
-    ATMOSPHERE_UNSPECIFIED = 0;
-    ATMOSPHERE_CUSTOM = 1;
-    AIR = 2;
-    NITROGEN = 3;
-    ARGON = 4;
-    OXYGEN = 5;
-    HYDROGEN = 6;
+  message Atmosphere {
+    enum AtmosphereType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      AIR = 2;
+      NITROGEN = 3;
+      ARGON = 4;
+      OXYGEN = 5;
+      HYDROGEN = 6;
+    }
   }
-  AtmosphereType atmosphere = 4;
+  Atmosphere.AtmosphereType atmosphere = 4;
   string atmosphere_details = 5;
   message Measurement {
     // TODO(ccoley) get input on how to expand this enum, among others
@@ -357,7 +376,7 @@ message PressureConditions {
       PRESSURE_TRANSDUCER = 2;
     }
     MeasurementType type = 1;
-    string type_custom = 2;
+    string type_details = 2;
     Time time = 3;
     Pressure pressure = 4;
   }
@@ -365,23 +384,27 @@ message PressureConditions {
 }
 
 message StirringConditions {
-  enum StirringMethod {
-    STIRRING_METHOD_UNSPECIFIED = 0;
-    STIRRING_METHOD_CUSTOM = 1;
-    NONE = 2;
-    STIR_BAR = 3;
-    OVERHEAD_MIXER = 4;
-    AGITATION = 5;
+  message StirringMethod {
+    enum StirringMethodType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      NONE = 2;
+      STIR_BAR = 3;
+      OVERHEAD_MIXER = 4;
+      AGITATION = 5;
+    }
   }
-  StirringMethod type = 1;
+  StirringMethod.StirringMethodType type = 1;
   string type_details = 2;
-  enum StirringRate {
-    STIRRING_RATE_UNSPECIFIED = 0;
-    HIGH = 1;
-    MEDIUM = 2;
-    LOW = 3;
+  message StirringRate {
+    enum StirringRateType {
+      UNSPECIFIED = 0;
+      HIGH = 1;
+      MEDIUM = 2;
+      LOW = 3;
+    }
   }
-  StirringRate stirring_rate = 3;
+  StirringRate.StirringRateType stirring_rate = 3;
   int32 stirring_rpm = 4;
 }
 
@@ -521,10 +544,8 @@ message ReactionProduct {
   Compound compound = 1;
   bool is_desired_product = 2;
   Percentage compound_yield = 3;
-  oneof analysis_type {
-    ReactionAnalysis.AnalysisType analysis = 4;
-    string analysis_custom = 5;
-  }
+  ReactionAnalysis.AnalysisType analysis = 4;
+  string analysis_details = 5;
   Percentage purity = 6;
   Selectivity selectivity = 7;
   // TODO(ccoley): How to allow specification of the state of matter of the 
@@ -533,14 +554,16 @@ message ReactionProduct {
   // for compounds that are isolated.
   // TODO(kearnes): Should this be an Observation message?
   string isolated_color = 8;
-  enum TextureType {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    POWDER = 2;
-    CRYSTAL = 3;
-    OIL = 4;
+  message Texture {
+    enum TextureType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      POWDER = 2;
+      CRYSTAL = 3;
+      OIL = 4;
+    }
   }
-  TextureType texture = 9;
+  Texture.TextureType texture = 9;
   string texture_details = 10;
 }
 
@@ -588,15 +611,14 @@ message ReactionAnalysis {
     ELSD = 15;  // Evaporative light scattering detector.
   }
   AnalysisType type = 1;
-  string type_details = 2;
   // Any details about analysis (e.g., NMR type, columns, gradients, conditions)
-  string analysis_details = 3;
+  string type_details = 2;
   // Data files (processed or annotated).
-  map<string, bytes> data_processed = 4;
+  map<string, bytes> data_processed = 3;
   // Data files (raw) obtained directly from the instrument
-  map<string, bytes> data_raw = 5;
-  string instrument_manufacturer = 6;
-  DateTime instrument_last_calibrated = 7;
+  map<string, bytes> data_raw = 4;
+  string instrument_manufacturer = 5;
+  DateTime instrument_last_calibrated = 6;
 }
 
 message ReactionProvenance {
