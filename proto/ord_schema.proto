@@ -40,8 +40,8 @@ message ReactionIdentifier {
     UNSPECIFIED = 0;
     REACTION_SMILES = 1;
     ATOM_MAPPED_SMILES = 2;
-    RINCHI = 3; // Reaction InChI.
-    NAME = 4; // Named reaction or reaction category.
+    RINCHI = 3;  // Reaction InChI.
+    NAME = 4;  // Named reaction or reaction category.
   }
   oneof kind {
     IdentifierType type = 1;
@@ -289,7 +289,7 @@ message Vessel {
   VesselForm form = 1;
   VesselMaterial material = 2;
   VesselPrep prep = 3;
-  Volume vessel_volume = 4; // Size (volume) of the vessel.
+  Volume vessel_volume = 4;  // Size (volume) of the vessel.
 }
 
 message ReactionSetup {
@@ -338,9 +338,9 @@ message TemperatureConditions {
   message Measurement {
     enum MeasurementType {
       UNSPECIFIED = 0;
-      THERMOCOUPLE_INTERNAL = 1; // Physically in reaction solution.
-      THERMOCOUPLE_EXTERNAL = 2; // On outside of vessel or, e.g., in oil bath.
-      INFRARED = 3; // Contactless infrared probe.
+      THERMOCOUPLE_INTERNAL = 1;  // Physically in reaction solution.
+      THERMOCOUPLE_EXTERNAL = 2;  // On outside of vessel or, e.g., in oil bath.
+      INFRARED = 3;  // Contactless infrared probe.
     }
     Time time = 1;
     Temperature temperature = 2;
@@ -358,9 +358,9 @@ message PressureConditions {
       UNSPECIFIED = 0;
       AMBIENT = 1;
       BALLOON = 2;
-      SEALED = 3; // Fully sealed vessel (e.g., microwave vial).
+      SEALED = 3;  // Fully sealed vessel (e.g., microwave vial).
       RELEASEVALVE = 4;
-      BPR = 5; // Back pressure regulator, as used in flow synthesis.
+      BPR = 5;  // Back pressure regulator, as used in flow synthesis.
     }
     oneof kind {
       PressureControlType type = 1;
@@ -494,7 +494,7 @@ message FlowConditions {
       PTFE = 6;
       GLASS = 7;
       QUARTZ = 8;
-      SILICON = 9; // e.g., a chip-based microreactor
+      SILICON = 9;  // e.g., a chip-based microreactor
       PDMS = 10;
     }
     oneof kind {
@@ -605,20 +605,20 @@ message ReactionAnalysis {
   // TODO(ccoley): Solicit more feedback from experimentalists
   enum AnalysisType {
     UNSPECIFIED = 0;
-    LC = 1; // Liquid chromatography.
-    GC = 2; // Gas chromatography.
-    IR = 3; // Infrared spectroscopy.
-    NMR = 4; // NMR spectroscopy.
-    MP = 5; // Melting point characterization.
-    UV = 6; // Ultraviolet spectroscopy.
-    TLC = 7; // Thin-layer chromatography.
-    MS = 8; // Mass spectrometry.
-    HRMS = 9; // High resolution mass spectrometry.
-    MSMS = 10; // Two-dimensional mass spectrometry.
-    WEIGHT = 11; // Weight of an isolated compound.
-    LCMS = 12; // Combined LC/MS.
-    GCMS = 13; // Combined GC/MS.
-    ELSD = 14; // Evaporative light scattering detector.
+    LC = 1;  // Liquid chromatography.
+    GC = 2;  // Gas chromatography.
+    IR = 3;  // Infrared spectroscopy.
+    NMR = 4;  // NMR spectroscopy.
+    MP = 5;  // Melting point characterization.
+    UV = 6;  // Ultraviolet spectroscopy.
+    TLC = 7;  // Thin-layer chromatography.
+    MS = 8;  // Mass spectrometry.
+    HRMS = 9;  // High resolution mass spectrometry.
+    MSMS = 10;  // Two-dimensional mass spectrometry.
+    WEIGHT = 11;  // Weight of an isolated compound.
+    LCMS = 12;  // Combined LC/MS.
+    GCMS = 13;  // Combined GC/MS.
+    ELSD = 14;  // Evaporative light scattering detector.
   }
   oneof kind {
     AnalysisType type = 1;
@@ -796,7 +796,7 @@ message Wavelength {
   enum WavelengthUnit {
     UNSPECIFIED = 0;
     NANOMETER = 1;
-    WAVENUMBER = 2; // cm^{-1}
+    WAVENUMBER = 2;  // cm^{-1}
   }
   float value = 1;
   // Precision of the measurement (with the same units as `value`).
@@ -827,9 +827,9 @@ message Percentage {
 message Selectivity {
   enum SelectivityType {
     UNSPECIFIED = 0;
-    EE = 1; // Enantiomeric excess as a percentage.
-    ER = 2; // Enantiomeric ratio. (x:1)
-    DE = 3; // Diasteromeric ratio (x:1)
+    EE = 1;  // Enantiomeric excess as a percentage.
+    ER = 2;  // Enantiomeric ratio. (x:1)
+    DE = 3;  // Diasteromeric ratio (x:1)
   }
   oneof kind {
     SelectivityType type = 1;
