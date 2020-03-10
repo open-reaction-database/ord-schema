@@ -11,7 +11,7 @@ package ord;
  * does not fit cleanly into a pre-existing enum field. For that reason, we
  * frequently introduce a string field '<field_name>_custom' in addition to
  * the enumerated field '<field_name>'. These fields are mutually exclusive.
-
+ */
 message Reaction {
   repeated ReactionIdentifier identifiers = 1;
   // List of reactants, reagents, etc.
