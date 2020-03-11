@@ -624,6 +624,7 @@ message ReactionAnalysis {
     LCMS = 13;  // Combined LC/MS.
     GCMS = 14;  // Combined GC/MS.
     ELSD = 15;  // Evaporative light scattering detector.
+    CD = 16;  // Circular Dichroism.
   }
   AnalysisType type = 1;
   // Any details about analysis (e.g., NMR type, columns, gradients, conditions)
