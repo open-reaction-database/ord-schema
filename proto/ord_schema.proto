@@ -20,8 +20,11 @@ package ord;
  */
 message Reaction {
   repeated ReactionIdentifier identifiers = 1;
-  // List of reactants, reagents, etc.
-  repeated ReactionInput inputs = 2;
+  // List of pure substances or mixtures that were added to the 
+  // reaction vessel. This is a map, not a repeated, to simplify
+  // reaction templating through the use of keys. String keys are 
+  // simple descriptions and are present only for convenience.
+  map<string, ReactionInput> inputs = 2;
   ReactionSetup setup = 3;
   ReactionConditions conditions = 4;
   // Reaction notes largely pertain to safety considerations.
@@ -55,12 +58,6 @@ message ReactionIdentifier {
 }
 
 message ReactionInput {
-  // Description or name of this pure substance or mixture that
-  // was added to the reaction vessel. This description is 
-  // intended to be used for convenience and legibility, and does not 
-  // need to be defined.
-  string description = 1;
-
   /**
    * We use the components field for pure substances and mixtures.
    *
@@ -92,17 +89,17 @@ message ReactionInput {
    *   ]
    * }
    */
-  repeated Compound components = 2;
+  repeated Compound components = 1;
   /**
    * Used to define order of addition. ReactionInputs with the same 
    * addition_order were added simultaneously. One ReactionInput with a 
    * lower addition_order than another was added earlier in the procedure.
    * This field is 1-indexed.
    */
-  int32 addition_order = 3;
+  int32 addition_order = 2;
   // When the addition event took place in terms of the reaction time (or, 
   // in the case of flow chemistry, the residence time).
-  Time addition_time = 4;
+  Time addition_time = 3;
   message AdditionSpeed {
     enum AdditionSpeedType {
       // Unspecified.
@@ -115,7 +112,9 @@ message ReactionInput {
     }
   }
   // The qualitative rate of addition.
-  AdditionSpeed.AdditionSpeedType addition_speed = 5;
+  AdditionSpeed.AdditionSpeedType addition_speed = 4;
+  // Quantitatively, how long addition took
+  Time addition_duration = 5;
   // For continuous synthesis, we instead specify a flow rate.
   FlowRate flow_rate = 6;
 }
@@ -148,6 +147,7 @@ message Compound {
       REAGENT = 2;
       SOLVENT = 3;
       CATALYST = 4;
+      WORKUP = 5;
     }
   }
   ReactionRole.ReactionRoleType reaction_role = 5;
@@ -283,7 +283,7 @@ message Vessel {
   }
   VesselPreparation.VesselPreparationType preparation = 5;
   string preparation_details = 6;
-  Volume vessel_volume = 7;  // Size (volume) of the vessel.
+  Volume volume = 7;  // Size (volume) of the vessel.
 }
 
 message ReactionSetup {
@@ -308,21 +308,23 @@ message ReactionConditions {
 }
 
 message TemperatureConditions {
-  enum TemperatureControl {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    AMBIENT = 2;
-    OIL_BATH = 3;
-    WATER_BATH = 4;
-    SAND_BATH = 5;
-    ICE_BATH = 6;
-    DRY_ALUMINUM_PLATE = 7;
-    MICROWAVE = 8;
-    DRY_ICE_BATH = 9;
-    AIR_FAN = 10;
-    LIQUID_NITROGEN = 11;
+  message TemperatureControl {
+    enum TemperatureControlType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      AMBIENT = 2;
+      OIL_BATH = 3;
+      WATER_BATH = 4;
+      SAND_BATH = 5;
+      ICE_BATH = 6;
+      DRY_ALUMINUM_PLATE = 7;
+      MICROWAVE = 8;
+      DRY_ICE_BATH = 9;
+      AIR_FAN = 10;
+      LIQUID_NITROGEN = 11;
+    }
   }
-  TemperatureControl type = 1;
+  TemperatureControl.TemperatureControlType type = 1;
   string details = 2;
   Temperature setpoint = 3;
   message Measurement {
@@ -349,8 +351,9 @@ message PressureConditions {
       AMBIENT = 2;
       BALLOON = 3;
       SEALED = 4; // Fully sealed vessel (e.g., microwave vial).
-      RELEASEVALVE = 5;
-      BPR = 6; // Back pressure regulator, as used in flow synthesis.
+      SEPTUM_WITH_NEEDLE = 5;  // Slight positive pressure maintained 
+      RELEASEVALVE = 6;
+      BPR = 7; // Back pressure regulator, as used in flow synthesis.
     }
   }
   PressureControl.PressureControlType type = 1;
@@ -405,8 +408,8 @@ message StirringConditions {
       LOW = 3;
     }
   }
-  StirringRate.StirringRateType stirring_rate = 3;
-  int32 stirring_rpm = 4;
+  StirringRate.StirringRateType rate = 3;
+  int32 rpm = 4;
 }
 
 message IlluminationConditions {
@@ -538,23 +541,34 @@ message ReactionOutcome {
   // Conversion with respect to the limiting reactant.
   Percentage conversion = 2;
   repeated ReactionProduct products = 3;
-  repeated ReactionAnalysis analyses = 4;
+  // Analyses are stored in a map to associate each with a unique key. 
+  // The key is cross-referenced in ReactionProduct messages to indicate
+  // which analyses were used to derive which performance values/metrics.
+  // The string used for the key carries no meaning outside of this
+  // cross-referencing.
+  map<string, ReactionAnalysis> analyses = 4;
 }
 
 message ReactionProduct {
   Compound compound = 1;
   bool is_desired_product = 2;
   Percentage compound_yield = 3;
-  ReactionAnalysis.AnalysisType analysis = 4;
-  string analysis_details = 5;
-  Percentage purity = 6;
-  Selectivity selectivity = 7;
+  Percentage purity = 4;
+  Selectivity selectivity = 5;
+  // Key(s) of the analysis used to confirm identity.
+  repeated string analysis_identity = 6;
+  // Key(s) of the analysis used to assess yield.
+  repeated string analysis_yield = 7;
+  // Key(s) of the analysis used to assess purity.
+  repeated string analysis_purity = 8;
+  // Key(s) of the analysis used to assess selectivity 
+  repeated string analysis_selectivity = 9;
   // TODO(ccoley): How to allow specification of the state of matter of the 
   // purified compound? For example, "___ was recovered as a white powder in
   // x% yield (y.z mg)". Or oils, crystal texture, etc. This is only relevant 
   // for compounds that are isolated.
   // TODO(kearnes): Should this be an Observation message?
-  string isolated_color = 8;
+  string isolated_color = 10;
   message Texture {
     enum TextureType {
       UNSPECIFIED = 0;
@@ -564,8 +578,8 @@ message ReactionProduct {
       OIL = 4;
     }
   }
-  Texture.TextureType texture = 9;
-  string texture_details = 10;
+  Texture.TextureType texture = 11;
+  string texture_details = 12;
 }
 
 message Selectivity {
@@ -610,6 +624,8 @@ message ReactionAnalysis {
     LCMS = 13;  // Combined LC/MS.
     GCMS = 14;  // Combined GC/MS.
     ELSD = 15;  // Evaporative light scattering detector.
+    CD = 16;  // Circular Dichroism.
+    SFC = 17;  // Supercritical fluid chromatography.
   }
   AnalysisType type = 1;
   // Any details about analysis (e.g., NMR type, columns, gradients, conditions)
