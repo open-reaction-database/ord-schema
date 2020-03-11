@@ -20,8 +20,11 @@ package ord;
  */
 message Reaction {
   repeated ReactionIdentifier identifiers = 1;
-  // List of reactants, reagents, etc.
-  repeated ReactionInput inputs = 2;
+  // List of pure substances or mixtures that were added to the 
+  // reaction vessel. This is a map, not a repeated, to simplify
+  // reaction templating through the use of keys. String keys are 
+  // simple descriptions and are present only for convenience.
+  map<string, ReactionInput> inputs = 2;
   ReactionSetup setup = 3;
   ReactionConditions conditions = 4;
   // Reaction notes largely pertain to safety considerations.
@@ -55,12 +58,6 @@ message ReactionIdentifier {
 }
 
 message ReactionInput {
-  // Description or name of this pure substance or mixture that
-  // was added to the reaction vessel. This description is 
-  // intended to be used for convenience and legibility, and does not 
-  // need to be defined.
-  string description = 1;
-
   /**
    * We use the components field for pure substances and mixtures.
    *
@@ -92,17 +89,17 @@ message ReactionInput {
    *   ]
    * }
    */
-  repeated Compound components = 2;
+  repeated Compound components = 1;
   /**
    * Used to define order of addition. ReactionInputs with the same 
    * addition_order were added simultaneously. One ReactionInput with a 
    * lower addition_order than another was added earlier in the procedure.
    * This field is 1-indexed.
    */
-  int32 addition_order = 3;
+  int32 addition_order = 2;
   // When the addition event took place in terms of the reaction time (or, 
   // in the case of flow chemistry, the residence time).
-  Time addition_time = 4;
+  Time addition_time = 3;
   message AdditionSpeed {
     enum AdditionSpeedType {
       // Unspecified.
@@ -115,9 +112,9 @@ message ReactionInput {
     }
   }
   // The qualitative rate of addition.
-  AdditionSpeed.AdditionSpeedType addition_speed = 5;
+  AdditionSpeed.AdditionSpeedType addition_speed = 4;
   // For continuous synthesis, we instead specify a flow rate.
-  FlowRate flow_rate = 6;
+  FlowRate flow_rate = 5;
 }
 
 message Compound {
