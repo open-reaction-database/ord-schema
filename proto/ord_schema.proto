@@ -145,6 +145,7 @@ message Compound {
       REAGENT = 2;
       SOLVENT = 3;
       CATALYST = 4;
+      WORKUP = 5;
     }
   }
   ReactionRole.ReactionRoleType reaction_role = 5;
@@ -348,8 +349,9 @@ message PressureConditions {
       AMBIENT = 2;
       BALLOON = 3;
       SEALED = 4; // Fully sealed vessel (e.g., microwave vial).
-      RELEASEVALVE = 5;
-      BPR = 6; // Back pressure regulator, as used in flow synthesis.
+      SEPTUM_WITH_NEEDLE = 5;  // Slight positive pressure maintained 
+      RELEASEVALVE = 6;
+      BPR = 7; // Back pressure regulator, as used in flow synthesis.
     }
   }
   PressureControl.PressureControlType type = 1;
