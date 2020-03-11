@@ -113,8 +113,10 @@ message ReactionInput {
   }
   // The qualitative rate of addition.
   AdditionSpeed.AdditionSpeedType addition_speed = 4;
+  // Quantitatively, how long addition took
+  Time addition_duration = 5;
   // For continuous synthesis, we instead specify a flow rate.
-  FlowRate flow_rate = 5;
+  FlowRate flow_rate = 6;
 }
 
 message Compound {
