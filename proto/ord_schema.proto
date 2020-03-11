@@ -283,7 +283,7 @@ message Vessel {
   }
   VesselPreparation.VesselPreparationType preparation = 5;
   string preparation_details = 6;
-  Volume vessel_volume = 7;  // Size (volume) of the vessel.
+  Volume volume = 7;  // Size (volume) of the vessel.
 }
 
 message ReactionSetup {
