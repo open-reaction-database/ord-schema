@@ -308,21 +308,23 @@ message ReactionConditions {
 }
 
 message TemperatureConditions {
-  enum TemperatureControl {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    AMBIENT = 2;
-    OIL_BATH = 3;
-    WATER_BATH = 4;
-    SAND_BATH = 5;
-    ICE_BATH = 6;
-    DRY_ALUMINUM_PLATE = 7;
-    MICROWAVE = 8;
-    DRY_ICE_BATH = 9;
-    AIR_FAN = 10;
-    LIQUID_NITROGEN = 11;
+  message TemperatureControl {
+    enum TemperatureControlType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      AMBIENT = 2;
+      OIL_BATH = 3;
+      WATER_BATH = 4;
+      SAND_BATH = 5;
+      ICE_BATH = 6;
+      DRY_ALUMINUM_PLATE = 7;
+      MICROWAVE = 8;
+      DRY_ICE_BATH = 9;
+      AIR_FAN = 10;
+      LIQUID_NITROGEN = 11;
+    }
   }
-  TemperatureControl type = 1;
+  TemperatureControl.TemperatureControlType type = 1;
   string details = 2;
   Temperature setpoint = 3;
   message Measurement {
