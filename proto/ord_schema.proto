@@ -407,8 +407,8 @@ message StirringConditions {
       LOW = 3;
     }
   }
-  StirringRate.StirringRateType stirring_rate = 3;
-  int32 stirring_rpm = 4;
+  StirringRate.StirringRateType rate = 3;
+  int32 rpm = 4;
 }
 
 message IlluminationConditions {
