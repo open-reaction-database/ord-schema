@@ -538,23 +538,34 @@ message ReactionOutcome {
   // Conversion with respect to the limiting reactant.
   Percentage conversion = 2;
   repeated ReactionProduct products = 3;
-  repeated ReactionAnalysis analyses = 4;
+  // Analyses are stored in a map to associate each with a unique key. 
+  // The key is cross-referenced in ReactionProduct messages to indicate
+  // which analyses were used to derive which performance values/metrics.
+  // The string used for the key carries no meaning outside of this
+  // cross-referencing.
+  map<string, ReactionAnalysis> analyses = 4;
 }
 
 message ReactionProduct {
   Compound compound = 1;
   bool is_desired_product = 2;
   Percentage compound_yield = 3;
-  ReactionAnalysis.AnalysisType analysis = 4;
-  string analysis_details = 5;
-  Percentage purity = 6;
-  Selectivity selectivity = 7;
+  Percentage purity = 4;
+  Selectivity selectivity = 5;
+  // Key of the analysis used to confirm identity.
+  string analysis_identity = 6;
+  // Key of the analysis used to assess yield.
+  string analysis_yield = 7;
+  // Key of the analysis used to assess purity.
+  string analysis_purity = 8;
+  // Key of the analysis used to assess selectivity 
+  string analysis_selectivity = 9;
   // TODO(ccoley): How to allow specification of the state of matter of the 
   // purified compound? For example, "___ was recovered as a white powder in
   // x% yield (y.z mg)". Or oils, crystal texture, etc. This is only relevant 
   // for compounds that are isolated.
   // TODO(kearnes): Should this be an Observation message?
-  string isolated_color = 8;
+  string isolated_color = 10;
   message Texture {
     enum TextureType {
       UNSPECIFIED = 0;
@@ -564,8 +575,8 @@ message ReactionProduct {
       OIL = 4;
     }
   }
-  Texture.TextureType texture = 9;
-  string texture_details = 10;
+  Texture.TextureType texture = 11;
+  string texture_details = 12;
 }
 
 message Selectivity {
