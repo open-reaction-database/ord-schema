@@ -555,14 +555,14 @@ message ReactionProduct {
   Percentage compound_yield = 3;
   Percentage purity = 4;
   Selectivity selectivity = 5;
-  // Key of the analysis used to confirm identity.
-  string analysis_identity = 6;
-  // Key of the analysis used to assess yield.
-  string analysis_yield = 7;
-  // Key of the analysis used to assess purity.
-  string analysis_purity = 8;
-  // Key of the analysis used to assess selectivity 
-  string analysis_selectivity = 9;
+  // Key(s) of the analysis used to confirm identity.
+  repeated string analysis_identity = 6;
+  // Key(s) of the analysis used to assess yield.
+  repeated string analysis_yield = 7;
+  // Key(s) of the analysis used to assess purity.
+  repeated string analysis_purity = 8;
+  // Key(s) of the analysis used to assess selectivity 
+  repeated string analysis_selectivity = 9;
   // TODO(ccoley): How to allow specification of the state of matter of the 
   // purified compound? For example, "___ was recovered as a white powder in
   // x% yield (y.z mg)". Or oils, crystal texture, etc. This is only relevant 
