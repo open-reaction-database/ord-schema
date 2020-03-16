@@ -30,6 +30,7 @@ message Reaction {
   // Reaction notes largely pertain to safety considerations.
   ReactionNotes notes = 5;
   repeated ReactionObservation observations = 6;
+  // Workup steps are listed in the order they are performed.
   repeated ReactionWorkup workup = 7;
   repeated ReactionOutcome outcomes = 8;
   ReactionProvenance provenance = 9;
@@ -514,15 +515,59 @@ message ReactionWorkup {
   enum WorkupType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
-    THERMAL_QUENCH = 2;
-    SOLVENT_QUENCH = 3;
-    EXTRACTION = 4;
-    FLASH_CHROMATOGRAPHY = 5;
+    // Addition (quench, dilution, extraction solvent, etc.)
+    // Specify composition/amount in "components".
+    ADDITION = 2;
+    // Change of temperature.
+    // Specify conditions in "temperature".
+    TEMPERATURE = 3;
+    // Concentration step, often using a rotovap.
+    CONCENTRATION = 4;
+    // Liquid extractions are often preceded by Additions. If there
+    // are multiple distinct additions prior to an extraction, it is 
+    // assumed that the kept phases are pooled.
+    // Specify which phase to keep in "keep_phase".
+    EXTRACTION = 5;
+    // Filtration (can keep solid or filtrate).
+    // Specify which phase to keep in "keep phase".
+    FILTRATION = 6;
+    // Washing a solid or liquid, keeping the original phase.
+    // Specify "components" of rinse. Rinses performed in 
+    // multiple stages should be given multiple workup steps
+    WASH = 7;
+    // Dried under vacuum.
+    DRY_IN_VACUUM = 8;
+    // Dried with chemical additive.
+    // Specify chemical additive in "components".
+    DRY_WITH_MATERIAL = 9;
+    // Purification by flash chromatography. 
+    FLASH_CHROMATOGRAPHY = 10;
+    // Purification by other prep chromatography.
+    OTHER_CHROMATOGRAPHY = 11;
+    // Scavenging step (e.g., pass through alumina pad)
+    // Specify any material additives in "components".
+    SCAVENGING = 12;
+    // Waiting step. Specify "duration".
+    WAIT = 13;
+    // Mixing step. Specify "stirring"
+    STIRRING = 14;
+    CRYSTALLIZATION = 15;
+    // pH adjustments should specify "components" to define
+    // species used as well as "ph" for target ph
+    PH_ADJUST = 16;
+    // Redissolution considered to be a special form of addition.
+    // Specify "components"
+    DISSOLUTION = 17;
   }
   WorkupType type = 1;
   string details = 2;
-  TemperatureConditions thermal_quench = 3;
-  Compound solvent_quench = 4;
+  Time duration = 3;
+  repeated Compound components = 4;
+  TemperatureConditions temperature = 5;
+  string keep_phase = 6;
+  StirringConditions stirring = 7;
+  float target_ph = 8;
+  
 }
 
 /**
