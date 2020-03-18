@@ -44,9 +44,9 @@ def get_schema(message_descriptor):
         if field.type == field.TYPE_BOOL:
             field_properties.update({'type': 'boolean'})
         elif field.type == field.TYPE_FLOAT:
-            field_properties.update({'type': 'numeric'})
+            field_properties.update({'type': 'number'})
         elif field.type in [field.TYPE_INT32, field.TYPE_INT64]:
-            field_properties.update({'type': 'integer', 'multipleOf': 1.0})
+            field_properties.update({'type': 'number', 'multipleOf': 1.0})
         elif field.type in [field.TYPE_STRING, field.TYPE_BYTES]:
             field_properties.update({'type': 'string'})
         elif field.type == field.TYPE_ENUM:

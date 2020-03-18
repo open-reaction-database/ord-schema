@@ -14,9 +14,9 @@ class JsonSchemaTest(absltest.TestCase):
             'title': 'Scalar',
             'type': 'object',
             'properties': {
-                'int32_value': {'type': 'integer', 'multipleOf': 1.0},
-                'int64_value': {'type': 'integer', 'multipleOf': 1.0},
-                'float_value': {'type': 'numeric'},
+                'int32_value': {'type': 'number', 'multipleOf': 1.0},
+                'int64_value': {'type': 'number', 'multipleOf': 1.0},
+                'float_value': {'type': 'number'},
                 'string_value': {'type': 'string'},
                 'bytes_value': {'type': 'string'}
             },
@@ -32,7 +32,7 @@ class JsonSchemaTest(absltest.TestCase):
             'properties': {
                 'value': {
                     'type': 'array',
-                    'items': {'type': 'numeric'}
+                    'items': {'type': 'number'}
                 }
             },
             'additionalProperties': False,
@@ -82,7 +82,7 @@ class JsonSchemaTest(absltest.TestCase):
                     'title': 'Child',
                     'type': 'object',
                     'properties': {
-                        'value': {'type': 'numeric'}
+                        'value': {'type': 'number'}
                     },
                     'additionalProperties': False,
                 }
@@ -103,7 +103,7 @@ class JsonSchemaTest(absltest.TestCase):
                         'title': 'Child',
                         'type': 'object',
                         'properties': {
-                            'value': {'type': 'numeric'}
+                            'value': {'type': 'number'}
                         },
                         'additionalProperties': False,
                     }
@@ -139,7 +139,7 @@ class JsonSchemaTest(absltest.TestCase):
                         'type': 'object',
                         'properties': {
                             'key': {'type': 'string'},
-                            'value': {'type': 'numeric'}
+                            'value': {'type': 'number'}
                         },
                         'additionalProperties': False,
                     }
