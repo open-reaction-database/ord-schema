@@ -46,6 +46,9 @@ def get_schema(message_descriptor):
         elif field.type == field.TYPE_FLOAT:
             field_properties.update({'type': 'number'})
         elif field.type in [field.TYPE_INT32, field.TYPE_INT64]:
+            # NOTE(kearnes): We avoid 'integer' since its implementation differs
+            # between validators; see
+            # https://json-schema.org/understanding-json-schema/reference/numeric.html#integer.
             field_properties.update({'type': 'number', 'multipleOf': 1.0})
         elif field.type in [field.TYPE_STRING, field.TYPE_BYTES]:
             field_properties.update({'type': 'string'})
