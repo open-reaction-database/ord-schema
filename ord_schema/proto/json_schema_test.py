@@ -115,8 +115,8 @@ class JsonSchemaTest(absltest.TestCase):
 
     def test_map(self):
         # NOTE(kearnes): Proto maps are represented in JSON as arrays of
-        # ValuesEntry objects, which have 'key' and 'value' fields. In other
-        # words:
+        # <map_name>Entry objects, which have 'key' and 'value' fields.
+        # In other words:
         #
         # map<string, float> values = 1;
         #
