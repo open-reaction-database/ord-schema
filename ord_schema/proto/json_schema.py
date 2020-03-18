@@ -31,6 +31,9 @@ def get_schema(message_descriptor):
         NotImplementedError: If a FieldDescriptor type is not supported.
     """
     schema = {
+        # NOTE(kearnes): Setting additionalProperties to False here ensures
+        # that only the listed properties are allowed. See
+        # https://json-schema.org/understanding-json-schema/reference/object.html#properties.
         'additionalProperties': False,
         'type': 'object',
         'properties': {},
