@@ -26,11 +26,48 @@ _UNIT_SYNONYMS = {
         schema.Moles.NANOMOLES: ['nmol', 'nanomoles'],
     },
     schema.Volume: {
-        schema.Volume.MILLILITER: ['ml', 'milliliters'],
-        schema.Volume.MICROLITER: ['ul', 'micl', 'microliters'],
-        schema.Volume.LITER: ['l', 'liters', 'litres'],
+        schema.Volume.MILLILITER: ['mL', 'milliliters'],
+        schema.Volume.MICROLITER: ['uL', 'micl', 'microliters'],
+        schema.Volume.LITER: ['L', 'liters', 'litres'],
     },
-    # TODO(coley): others
+    # schema.Concentration: {
+    #     schema.Concentration.MOLAR: ['M', 'molar'],
+    #     schema.Concentration.MILLIMOLAR: ['mM', 'millimolar'],
+    #     schema.Concentration.MICROMOLAR: ['uM', 'micromolar'],
+    # }
+    schema.Pressure: {
+        schema.Pressure.BAR: ['bar', 'barg', 'bars'],
+        schema.Pressure.ATMOSPHERE: ['atm', 'atmosphere', 'atmospheres'],
+        schema.Pressure.PSI: ['psi'],
+        schema.Pressure.KPSI: ['kpsi'],
+        schema.Pressure.PASCAL: ['Pa', 'pascal', 'pascals', 'pas'],
+        schema.Pressure.KILOPASCAL: ['kPa', 'kilopascals', 'kPas'],
+    },
+    schema.Temperature: {
+        schema.Temperature.CELSIUS: ['C', 'degC', 'celsius'],
+        schema.Temperature.FAHRENHEIT: ['F', 'degF', 'fahrenheit'],
+        schema.Temperature.KELVIN: ['K', 'degK', 'Kelvin'],
+    },
+    schema.Current: {
+        schema.Current.AMPERE: ['A', 'ampere', 'amps', 'amp'],
+        schema.Current.MILLIAMPERE: ['mA', 'milliampere', 'milliamp', 
+                                     'milliamps'],
+    },
+    schema.Voltage: {
+        schema.Voltage.VOLT: ['V', 'volt', 'volts'],
+        schema.Voltage.MILLIVOLT: ['mV', 'millivolt', 'millivolts'],
+    },
+    schema.Wavelength: {
+        schema.Wavelength.NANOMETER: ['nm', 'nanometer', 'nanometers'],
+        schema.Wavelength.WAVENUMBER: ['cm-1', 'wavenumber', '1/cm'],
+    },
+    schema.FlowRate: {
+        schema.FlowRate.MICROLITER_PER_MINUTE: ['uL/min'],
+        schema.FlowRate.MICROLITER_PER_SECOND: ['uL/s'],
+        schema.FlowRate.MILLILITER_PER_MINUTE: ['mL/min'],
+        schema.FlowRate.MILLILITER_PER_SECOND: ['mL/s'],
+        schema.FlowRate.MICROLITER_PER_HOUR: ['uL/h'],
+    },
 }
 
 
