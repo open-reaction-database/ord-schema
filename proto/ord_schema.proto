@@ -306,6 +306,12 @@ message ReactionConditions {
   FlowConditions flow = 6;
   bool reflux = 7;
   float pH = 8;
+  // Boolean to describe whether the conditions cannot be 
+  // represented by the static, single-step schema.
+  bool conditions_are_dynamic = 9;
+  // A catch-all string field for providing more information about
+  // the conditions (e.g., multiple stages)
+  string details = 10;
 }
 
 message TemperatureConditions {
