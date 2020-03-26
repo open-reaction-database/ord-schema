@@ -4,10 +4,7 @@ The output is a JSON-lines file, where newlines are used to separate records.
 See http://jsonlines.org/ for more details.
 """
 
-<<<<<<< HEAD
 import base64
-=======
->>>>>>> Add proto_to_json.py
 import glob
 import json
 
