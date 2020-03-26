@@ -63,10 +63,15 @@ def get_database_json(message):
             field_key = field.message_type.fields_by_name['key']
             field_value = field.message_type.fields_by_name['value']
             entries = []
-            for map_key, map_value in value.items():
+            # Order is not preserved in the map, so we attempt to sort here.
+            try:
+                keys = sorted(value)
+            except TypeError:
+                keys = value.keys()
+            for map_key in keys:
                 entry = {
                     'key': get_processed_value(field_key, map_key),
-                    'value': get_processed_value(field_value, map_value),
+                    'value': get_processed_value(field_value, value[map_key]),
                 }
                 entries.append(entry)
             record[field.name] = entries
