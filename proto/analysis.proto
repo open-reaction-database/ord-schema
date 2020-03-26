@@ -126,7 +126,7 @@ message MethodNMR {
     NMRSolventType type = 1;
   }
   NMRSolvent.NMRSolventType solvent = 3;  // Assumes fully deuterated
-  repeated Compound solvent_custom = 4;
+  Compound solvent_custom = 4;
   string solvent_details = 5;
   float frequency = 6;  // MHz #TODO(ccoley) add Frequency unit?
   Temperature temperature = 7;
