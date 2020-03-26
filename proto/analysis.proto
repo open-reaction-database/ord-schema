@@ -1,0 +1,313 @@
+// Schema for the Open Reaction Database.
+syntax = "proto3";
+
+import public "proto/compound.proto";
+import public "proto/units.proto";
+
+// Placeholder message -- should not be used!
+message TODOMethod {
+  string details = 1;
+}
+// Placeholder message -- should not be used!
+message TODOData {
+  bytes data = 1;
+}
+
+message Buffer {
+  repeated Compound components = 1;
+}
+
+message MethodChromatography {
+  // https://orochem.com/product-category/chromatography/hplc-column/
+  enum ColumnMaterial {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    C18 = 2;
+    C8 = 3;
+    C4 = 4;
+    C1 = 5;
+    C30 = 6;
+    PHENYL = 7;
+    BIPHENYL = 8;
+    PFP = 9;  // pentafluoropropyl
+    MIXED = 10;
+    SAX = 11;  // Strong Anion Exchange
+    WAX = 12;  // Weak Anion Exchange
+    DEAE = 13;  // diethylaminoethyl
+    SCX = 14;  // Strong Cation Exchange
+    WCX = 15;  // Weak Cation Exchange
+    AMINO = 16;
+    SULFONIC = 17;
+    CM = 18;  // carboxymethyl
+    CYANO = 19;
+    SILICA = 20;
+  }
+  ColumnMaterial column_material = 1;
+  string column_material_details = 2;
+  bool column_is_chiral = 3;
+  Length diameter = 4;
+  Length length = 5;
+  Length particle_diameter = 6;
+  Time duration = 7;
+  // A Time->Buffer map is used to describe solvents so that 
+  // gradients can easily be defined. Linear ramps are assumed
+  // between time points. However, because map keys can't be 
+  // messages, we use wrapper messages.
+  message TimeBuffer {
+    Time time = 1;
+    Buffer solvent = 2;
+  }
+  repeated TimeBuffer set_solvent = 8;
+  message TimeFlowRate {
+    Time time = 1;
+    FlowRate flow_rate = 2;
+  }
+  repeated TimeFlowRate set_flow_rate = 9;
+  message TimeTemperature {
+    Time time = 1;
+    Temperature temperature = 2;
+  }
+  repeated TimeTemperature set_temperature = 10;
+  // Internal standard used for quantification
+  Compound internal_standard = 11;
+}
+
+// #TODO(ccoley) expand to include more complex NMR parameters
+message MethodNMR {
+  enum NMRType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    NMR_1H = 2;
+    NMR_2H = 3;
+    NMR_3HE = 4;
+    NMR_11B = 5;
+    NMR_13C = 6;
+    NMR_14N = 7;
+    NMR_15N = 8;
+    NMR_17O = 9;
+    NMR_19F = 10;
+    NMR_31P = 11;
+    NMR_35Cl = 12;
+    NMR_37Cl = 13;
+    NMR_43CA = 14;
+    NMR_195PT = 15;
+  }
+  NMRType type = 1;
+  string type_details = 2;
+  message NMRSolvent {
+    enum NMRSolventType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      CHLOROFORM = 2;
+      WATER = 3;
+      ACETONE = 4;
+      ACETONITRILE = 5;
+      ACETIC_ACID = 6;
+      BENZENE = 7;
+      CARBON_TETRACHLORIDE = 8;
+      DCM = 9;
+      DIETHYL_ETHER = 10;
+      DIMETHYL_ETHER = 11;
+      DMF = 12;
+      DMSO = 13;
+      DIOXAN = 14;
+      ETHANOL = 15;
+      METHANOL = 16;
+      NITROBENZENE = 17;
+      NITROMETHANE = 18;
+      PYRIDINE = 19;
+      TETRACHLOROETHANE = 20;
+      THF = 21;
+      TOLUENE = 22;
+      TRICHLOROFLUOROMETHANE = 23;
+      TRIFLUOROACETIC_ACID = 24;
+      TRIFLUOROETHANOL = 25;
+    }
+    NMRSolventType type = 1;
+  }
+  NMRSolvent.NMRSolventType solvent = 3;  // Assumes fully deuterated
+  repeated Compound solvent_custom = 4;
+  string solvent_details = 5;
+  float frequency = 6;  // MHz #TODO(ccoley) add Frequency unit?
+  Temperature temperature = 7;
+  // Internal standard used for quantification
+  Compound internal_standard = 8;
+}
+
+// #TODO(ccoley) add enums for common IR set-ups?
+message MethodSpectrum {
+  // Solvent for acquisition (or no solvent)
+  Buffer solvent = 1;
+  bool no_solvent = 2;
+  Concentration concentration = 3;
+  // Path length (or thin film / ATR)
+  Length path_length = 4;
+  bool thin_film = 5;
+  Temperature temperature = 6;
+  Wavelength wavelength_min = 7;
+  Wavelength wavelength_max = 8;
+}
+
+message MethodMP {
+  enum MPType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    GLASS_CAPILLARY = 2;
+    GLASS_SLIP = 3;
+  }
+  MPType type = 1;
+  string type_details = 2;
+}
+
+message MethodCD {
+  Buffer solvent = 1;
+  Concentration concentration = 2;
+  Length path_length = 3;
+  // Full spectrum of light
+  DataSpectrum spectrum = 4;
+}
+
+message MethodLCMS {
+  MethodChromatography lc = 1;
+  MethodMS ms = 2;
+}
+
+message MethodGC {
+  // #TODO (ccoley): I don't know GC that well
+  string details = 1;
+}
+
+message MethodGCMS {
+  MethodGC gc = 1;
+  MethodMS ms = 2;
+}
+
+message MethodMS {
+  Voltage voltage = 1;
+  FlowRate drying_gas = 2;
+  FlowRate nebulizing_gas = 3;
+  Temperature temperature = 4;
+  float mz_min = 5;
+  float mz_max = 6;
+}
+
+// #TODO(check)
+message DataCD {
+  float specific_rotation = 1;  // [α]D (angle in millidegrees)
+}
+
+// #TODO(ccoley) Is TLC data reported as more than just an image?
+message DataTLC {
+  bytes image = 1;
+}
+
+// #TODO(ccoley) I made this structure up - should check
+message DataMSMS {
+  message DatumMSMS {
+    float parent = 1;  // Parent peak (m/z)
+    DataMS ms = 2;  // Fragmentation pattern
+  }
+  repeated DatumMSMS spectra = 1;
+}
+
+message DataHRMS {
+  float mass = 1;
+  float mass_expected = 2;
+}
+
+message DataLCMS {
+  DataTemporalSpectrum uv = 1;
+  DataTemporalMS ms = 2;
+  DataTemporalIntensity ms_pos = 3;  // TIC for positive mode 
+  DataTemporalIntensity ms_neg = 4;  // TIC for negative mode 
+}
+
+// Data type only used for isolated weight
+message DataWeight {
+  Mass mass = 1;
+}
+
+// #TODO(ccoley): Need much more details
+message DataNMR {
+  // #TODO(ccoley) This was only written with simple 1D NMR in mind
+  // and is very incomplete
+  message NMRPeak {
+    float shift = 1;  // Chemical shift in ppm
+    float intensity = 2;  // Normalized or unnormalized peak area or peak height
+    message Splitting {
+      enum Multiplicity {
+        UNSPECIFIED = 0;
+        CUSTOM = 1;
+        SINGLET = 2;
+        DOUBLET = 3;
+        TRIPLET = 4;
+        QUADRUPLET = 5;
+        QUINTUPLET = 6;
+        SEXTUPLET = 7;
+        SEPTUPLET = 8;
+        MULTIPLET = 9;
+      }
+      Multiplicity multiplicity = 1;
+      float J = 2;  // Splitting constant (Hz)
+    }
+    repeated Splitting splitting = 3;  // If empty, a singlet is assumed.
+    string details = 4;  // TODO(ccoley) just a placeholder
+  }
+  repeated NMRPeak peaks = 1;
+}
+
+// Melting point 
+message DataMP {
+  Temperature temperature = 1;
+}
+
+// Mass spec data associating m/z values with intensities
+message DataMS {
+  repeated float mz = 1;
+  repeated float values = 2;
+}
+
+// Data type used for intensity/counts (like ELSD)
+message DataTemporalIntensity {
+  repeated Time times = 1;
+  repeated float values = 2;
+}
+
+// Data type used for LCMS or GCMS where we have MS spectra at each time.
+message DataTemporalMS {
+  repeated Time times = 1;
+  repeated DataMS spectra = 2;
+}
+
+// Data type used for full spectra (UV, IR, etc.) or peak tables
+message DataSpectrum {
+  // A single spectral peak.
+  message SpectrumPeak {
+    Wavelength wavelength = 1;
+    float value = 2;
+    enum SpectrumType {
+      UNSPECIFIED = 0;
+      ABSORBANCE = 1;
+      TRANSMITTANCE = 2;
+      INTENSITY = 3;  // e.g., for fluorescence
+    }
+    SpectrumType type = 3;
+    enum Breadth {
+      // A full spectrum will have a value at every 
+      // discretized wavelength.
+      POINT = 0;
+      NARROW = 1;
+      MEDIUM = 2;
+      BROAD = 3;
+    }
+    Breadth breadth = 4;
+  }
+  repeated SpectrumPeak peaks = 1;
+}
+
+// Data used for time resolved spectra (LC). If only a single wavelength is 
+// used, then the DataSpectrum will have a single peak at each time
+message DataTemporalSpectrum {
+  repeated Time times = 1;
+  repeated DataSpectrum spectra = 2;
+}

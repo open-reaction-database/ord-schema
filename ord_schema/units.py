@@ -67,6 +67,7 @@ _UNIT_SYNONYMS = {
         schema.FlowRate.MILLILITER_PER_MINUTE: ['mL/min'],
         schema.FlowRate.MILLILITER_PER_SECOND: ['mL/s'],
         schema.FlowRate.MICROLITER_PER_HOUR: ['uL/h'],
+        schema.FlowRate.LITER_PER_MINUTE: ['l/min'],
     },
 }
 

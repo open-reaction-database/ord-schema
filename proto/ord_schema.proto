@@ -3,6 +3,10 @@ syntax = "proto3";
 
 package ord;
 
+import public "proto/compound.proto";
+import public "proto/analysis.proto";
+import public "proto/units.proto";
+
 /**
  * Throughout this schema, we introduce enums to encourage consistency in
  * nomenclature and to avoid unnecessary downstream data processing that would
@@ -120,132 +124,7 @@ message ReactionInput {
   FlowRate flow_rate = 6;
 }
 
-message Compound {
-  // Set of identifiers used to uniquely define this compound.
-  // Solutions or mixed compounds should use the NAME identifier
-  // and list all constituent compounds in the "components" field.
-  repeated CompoundIdentifier identifiers = 1;
-  /**
-   * The quantitative Amount of a Compound used in a particular reaction.
-   * Compounds added in their pure form should have their value defined by
-   * mass, moles, or volume. Compounds prepared as solutions should be defined
-   * in terms of their volume. Compounds prepared on solid supports should
-   * define the total mass/volume including the support.
-   */
-  oneof amount {
-    Mass mass = 2;
-    Moles moles = 3;
-    Volume volume = 4;
-  }
-  message ReactionRole {
-    enum ReactionRoleType {
-      UNSPECIFIED = 0;
-      // TODO(ccoley): Do we want to use the definition of a reactant aligned
-      // with Reaxys, or say that any species that contributes heavy atoms
-      // to a desired product is a reactant? This field might be kind of a
-      // throwaway anyway...
-      REACTANT = 1;
-      REAGENT = 2;
-      SOLVENT = 3;
-      CATALYST = 4;
-      WORKUP = 5;
-    }
-  }
-  ReactionRole.ReactionRoleType reaction_role = 5;
-  // Whether this species was intended to be a limiting reactant.
-  bool is_limiting = 6;
-  CompoundPreparation preparation = 7;
-  // Name of the vendor or supplier the compound was purchased from.
-  string vendor_source = 8;
-  // Compound ID in the vendor database or catalog.
-  string vendor_id = 9;
-  // Batch/lot identification.
-  string vendor_lot = 10;
-  /**
-   * Compounds can accommodate any number of features. These may include simple
-   * properties of the compound (e.g., molecular weight), heuristic estimates
-   * of physical properties (e.g., ClogP), optimized geometries (e.g., through
-   * DFT), and calculated stereoselectronic descriptors. 
-   */
-  message Feature {
-    string name = 1;
-    oneof kind {
-      string string_value = 2;
-      float float_value = 3;
-    }
-    string how_computed = 4;
-  }
-  repeated Feature features = 13;
-}
 
-/**
- * Compounds may undergo additional preparation before being used in a
- * reaction after being received from a supplier or vendor. We encourage
- * the use of the 'preparation' enum when possible, even if the description
- * is an oversimplification of the full procedure, which can be described
- * in the 'details' field.
- */
-message CompoundPreparation {
-  enum PreparationType {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    NONE = 2;  // Compound used as received.
-    REPURIFIED = 3;  // Compound repurified (e.g., recrystallized).
-    SPARGED = 4;  // Compound sparged, most likely to be the case with solvents.
-    DRIED = 5;  // Moisture removed, e.g., using molecular sieves.
-    SYNTHESIZED = 6;  // Compound synthesized in-house
-  }
-  PreparationType type = 1;
-  // Full description of how the received compound was prepared.
-  string details = 2;
-}
-
-/**
- * Compound identifiers uniquely define a single (pure) chemical species.
- * While we encourage the use of SMILES strings, these do not work well in
- * all cases (e.g., handling tautomerism, axial chirality). Multiple
- * identifiers may be specified for a single compound to avoid ambiguity.
- * We discourage chemicals from being defined only by a name. For compounds
- * that are prepared or isolated as salts, the identifier should include
- * specification of which salt.
- */
-message CompoundIdentifier {
-  enum IdentifierType {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    //  Simplified molecular-input line-entry system.
-    SMILES = 2;
-    // IUPAC International Chemical Identifier.
-    INCHI = 3;
-    // MDL Molfile V3000.
-    MOLFILE = 4;
-    // Chemical name following IUPAC nomenclature recommendations.
-    IUPAC_NAME = 5;
-    // Any accepted common name, trade name, etc.
-    NAME = 6;
-    // Chemical Abstracts Service Registry Number (with hyphens).
-    CAS_NUMBER = 7;
-    // PubChem Compound ID number.
-    PUBCHEM_CID = 8;
-    // ChemSpider ID number.
-    CHEMSPIDER_ID = 9;
-    // ChemAxon extended SMILES
-    CXSMILES = 10;
-    // IUPAC International Chemical Identifier key
-    INCHI_KEY = 11;
-    // XYZ molecule file
-    XYZ = 12;
-    // UniProt ID (for enzymes)
-    UNIPROT_ID = 13;
-    // Protein data bank ID (for enzymes)
-    PDB_ID = 14;
-  }
-  IdentifierType type = 1;
-  string details = 2;
-  // Value of the compound identifier; certain types (e.g., PUBCHEM_CID) may
-  // cast the string as an integer for downstream processing and validation.
-  string value = 3;
-}
 
 message Vessel {
   message VesselType {
@@ -668,9 +547,10 @@ message ReactionAnalysis {
     WEIGHT = 12;  // Weight of an isolated compound.
     LCMS = 13;  // Combined LC/MS.
     GCMS = 14;  // Combined GC/MS.
-    ELSD = 15;  // Evaporative light scattering detector.
+    ELSD = 15;  // Evaporative light scattering detector. #TODO(ccoley) w/o LC?
     CD = 16;  // Circular Dichroism.
     SFC = 17;  // Supercritical fluid chromatography.
+    RAMAN = 18;  // Raman spectroscopy
   }
   AnalysisType type = 1;
   // Any details about analysis (e.g., NMR type, columns, gradients, conditions)
@@ -681,6 +561,53 @@ message ReactionAnalysis {
   map<string, bytes> data_raw = 4;
   string instrument_manufacturer = 5;
   DateTime instrument_last_calibrated = 6;
+  // Method of capturing structured data for common analyses. We use the same 
+  // terms as the enum type for consistency.
+  oneof data_kind {
+    DataTemporalSpectrum data_lc = 7;
+    DataTemporalIntensity data_gc = 8;
+    DataSpectrum data_ir = 9;
+    DataNMR data_nmr = 10;
+    DataMP data_mp = 11;
+    DataSpectrum data_uv = 12;
+    DataTLC data_tlc = 13;
+    DataMS data_ms = 14;
+    DataHRMS data_hrms = 15;
+    DataMSMS data_msms = 16;
+    DataWeight data_weight = 17;
+    DataLCMS data_lcms = 18;
+    DataTemporalMS data_gcms = 19;
+    TODOData data_elsd = 20;
+    DataCD data_cd = 21;
+    DataTemporalSpectrum data_sfc = 22;
+    DataSpectrum data_raman = 23;
+  }
+  // Instrumental details for common analyses. Structured fields will make 
+  // it easier to search this data. We use the same terms as the enum type for 
+  // consistency.
+  oneof method_kind {
+    MethodChromatography method_lc = 24;
+    TODOMethod method_gc = 25;
+    MethodSpectrum method_ir = 26;
+    MethodNMR method_nmr = 27;
+    MethodMP method_mp = 28;
+    MethodSpectrum method_uv = 29;
+    TODOMethod method_tlc = 30;
+    MethodMS method_ms = 31;
+    TODOMethod method_hrms = 32;
+    TODOMethod method_msms = 33;
+    MethodLCMS method_lcms = 34;
+    MethodGCMS method_gcms = 35;
+    TODOMethod method_elsd = 36;
+    MethodCD method_cd = 37;
+    MethodChromatography method_sfc = 38;
+    MethodSpectrum method_raman = 39;
+  }
+  // This details field should be used sparingly, only to 
+  // clarify any processing/scaling of the data. Details of
+  // how the data was acquired should be place in the higher 
+  // level ReactionAnalysis.details field.
+  string data_details = 99;
 }
 
 message ReactionProvenance {
@@ -705,170 +632,4 @@ message Person {
   string organization = 4;
 }
 
-/**
- * To allow users to describe synthetic processes in whatever units they find
- * most natural, we define a fixed list of allowable units for each measurement
- * type. Upon submission to a centralized database, or using a validation and
- * canonicalization script, we will convert all values to the default units
- * (the first nonzero item in each enum).
- *
- * Each message also contains a `precision` field, which specifies the precision
- * of the measurement in the same units as the measurement itself. Often the
- * precision will be the standard deviation from an instrument calibration.
- */
-message Time {
-  enum TimeUnit {
-    UNSPECIFIED = 0;
-    HOUR = 1;
-    MINUTE = 2;
-    SECOND = 3;
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  TimeUnit units = 3;
-}
-message Mass {
-  enum MassUnit {
-    UNSPECIFIED = 0;
-    GRAM = 1;
-    MILLIGRAM = 2;
-    MICROGRAM = 3;
-    KILOGRAM = 4;
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  MassUnit units = 3;
-}
-message Moles {
-  enum MolesUnit {
-    UNSPECIFIED = 0;
-    MOLES = 1;
-    MILLIMOLES = 2;
-    MICROMOLES = 3;
-    NANOMOLES = 4;
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  MolesUnit units = 3;
-}
-message Volume {
-  enum VolumeUnit {
-    UNSPECIFIED = 0;
-    MILLILITER = 1;
-    MICROLITER = 2;
-    LITER = 3;
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  VolumeUnit units = 3;
-}
-message Concentration {
-  enum ConcentrationUnit {
-    UNSPECIFIED = 0;
-    MOLAR = 1;
-    MILLIMOLAR = 2;
-    MICROMOLAR = 3;
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  ConcentrationUnit units = 3;
-}
-message Pressure {
-  enum PressureUnit {
-    UNSPECIFIED = 0;
-    BAR = 1;
-    ATMOSPHERE = 2;
-    PSI = 3;
-    KPSI = 4;
-    PASCAL = 5;
-    KILOPASCAL = 6;
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  PressureUnit units = 3;
-}
-message Temperature {
-  enum TemperatureUnit {
-    UNSPECIFIED = 0;
-    CELSIUS = 1;
-    FAHRENHEIT = 2;
-    KELVIN = 3;
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  TemperatureUnit units = 3;
-}
-message Current {
-  enum CurrentUnit {
-    UNSPECIFIED = 0;
-    AMPERE = 1;
-    MILLIAMPERE = 2;
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  CurrentUnit units = 3;
-}
-message Voltage {
-  enum VoltageUnit {
-    UNSPECIFIED = 0;
-    VOLT = 1;
-    MILLIVOLT = 2;
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  VoltageUnit units = 3;
-}
-message Length {
-  enum LengthUnit {
-    UNSPECIFIED = 0;
-    CENTIMETER = 1;
-    MILLIMETER = 2;
-    METER = 3;
-    INCH = 4;
-    FOOT = 5;
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  LengthUnit units = 3;
-}
-message Wavelength {
-  enum WavelengthUnit {
-    UNSPECIFIED = 0;
-    NANOMETER = 1;
-    WAVENUMBER = 2;  // cm^{-1}
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  WavelengthUnit units = 3;
-}
-message FlowRate {
-  enum FlowRateUnit {
-    UNSPECIFIED = 0;
-    MICROLITER_PER_MINUTE = 1;
-    MICROLITER_PER_SECOND = 2;
-    MILLILITER_PER_MINUTE = 3;
-    MILLILITER_PER_SECOND = 4;
-    MICROLITER_PER_HOUR = 5;
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  FlowRateUnit units = 3;
-}
-// Used for things like conversion and yield.
-message Percentage {
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-}
+
