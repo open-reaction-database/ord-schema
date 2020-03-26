@@ -39,7 +39,7 @@ def get_processed_value(field, value):
     elif field.type == field.TYPE_ENUM:
         return field.enum_type.values_by_number[value].name
     elif field.type == field.TYPE_BYTES:
-        return str(value)  # JSON does not support bytes.
+        return value.decode('utf-8')  # JSON does not support bytes.
     else:
         return value
 
