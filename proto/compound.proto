@@ -1,0 +1,131 @@
+// Schema for the Open Reaction Database.
+syntax = "proto3";
+
+import public "proto/units.proto";
+
+message Compound {
+  // Set of identifiers used to uniquely define this compound.
+  // Solutions or mixed compounds should use the NAME identifier
+  // and list all constituent compounds in the "components" field.
+  repeated CompoundIdentifier identifiers = 1;
+  /**
+   * The quantitative Amount of a Compound used in a particular reaction.
+   * Compounds added in their pure form should have their value defined by
+   * mass, moles, or volume. Compounds prepared as solutions should be defined
+   * in terms of their volume. Compounds prepared on solid supports should
+   * define the total mass/volume including the support.
+   */
+  oneof amount {
+    Mass mass = 2;
+    Moles moles = 3;
+    Volume volume = 4;
+  }
+  message ReactionRole {
+    enum ReactionRoleType {
+      UNSPECIFIED = 0;
+      // TODO(ccoley): Do we want to use the definition of a reactant aligned
+      // with Reaxys, or say that any species that contributes heavy atoms
+      // to a desired product is a reactant? This field might be kind of a
+      // throwaway anyway...
+      REACTANT = 1;
+      REAGENT = 2;
+      SOLVENT = 3;
+      CATALYST = 4;
+      WORKUP = 5;
+    }
+  }
+  ReactionRole.ReactionRoleType reaction_role = 5;
+  // Whether this species was intended to be a limiting reactant.
+  bool is_limiting = 6;
+  CompoundPreparation preparation = 7;
+  // Name of the vendor or supplier the compound was purchased from.
+  string vendor_source = 8;
+  // Compound ID in the vendor database or catalog.
+  string vendor_id = 9;
+  // Batch/lot identification.
+  string vendor_lot = 10;
+  /**
+   * Compounds can accommodate any number of features. These may include simple
+   * properties of the compound (e.g., molecular weight), heuristic estimates
+   * of physical properties (e.g., ClogP), optimized geometries (e.g., through
+   * DFT), and calculated stereoselectronic descriptors. 
+   */
+  message Feature {
+    string name = 1;
+    oneof kind {
+      string string_value = 2;
+      float float_value = 3;
+    }
+    string how_computed = 4;
+  }
+  repeated Feature features = 13;
+}
+
+/**
+ * Compounds may undergo additional preparation before being used in a
+ * reaction after being received from a supplier or vendor. We encourage
+ * the use of the 'preparation' enum when possible, even if the description
+ * is an oversimplification of the full procedure, which can be described
+ * in the 'details' field.
+ */
+message CompoundPreparation {
+  enum PreparationType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    NONE = 2;  // Compound used as received.
+    REPURIFIED = 3;  // Compound repurified (e.g., recrystallized).
+    SPARGED = 4;  // Compound sparged, most likely to be the case with solvents.
+    DRIED = 5;  // Moisture removed, e.g., using molecular sieves.
+    SYNTHESIZED = 6;  // Compound synthesized in-house
+  }
+  PreparationType type = 1;
+  // Full description of how the received compound was prepared.
+  string details = 2;
+}
+
+/**
+ * Compound identifiers uniquely define a single (pure) chemical species.
+ * While we encourage the use of SMILES strings, these do not work well in
+ * all cases (e.g., handling tautomerism, axial chirality). Multiple
+ * identifiers may be specified for a single compound to avoid ambiguity.
+ * We discourage chemicals from being defined only by a name. For compounds
+ * that are prepared or isolated as salts, the identifier should include
+ * specification of which salt.
+ */
+message CompoundIdentifier {
+  enum IdentifierType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    //  Simplified molecular-input line-entry system.
+    SMILES = 2;
+    // IUPAC International Chemical Identifier.
+    INCHI = 3;
+    // MDL Molfile V3000.
+    MOLFILE = 4;
+    // Chemical name following IUPAC nomenclature recommendations.
+    IUPAC_NAME = 5;
+    // Any accepted common name, trade name, etc.
+    NAME = 6;
+    // Chemical Abstracts Service Registry Number (with hyphens).
+    CAS_NUMBER = 7;
+    // PubChem Compound ID number.
+    PUBCHEM_CID = 8;
+    // ChemSpider ID number.
+    CHEMSPIDER_ID = 9;
+    // ChemAxon extended SMILES
+    CXSMILES = 10;
+    // IUPAC International Chemical Identifier key
+    INCHI_KEY = 11;
+    // XYZ molecule file
+    XYZ = 12;
+    // UniProt ID (for enzymes)
+    UNIPROT_ID = 13;
+    // Protein data bank ID (for enzymes)
+    PDB_ID = 14;
+  }
+  IdentifierType type = 1;
+  string details = 2;
+  // Value of the compound identifier; certain types (e.g., PUBCHEM_CID) may
+  // cast the string as an integer for downstream processing and validation.
+  string value = 3;
+}
