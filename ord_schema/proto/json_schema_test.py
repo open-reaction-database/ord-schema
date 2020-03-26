@@ -30,7 +30,7 @@ class JsonSchemaTest(absltest.TestCase):
             'title': 'RepeatedScalar',
             'type': 'object',
             'properties': {
-                'value': {
+                'values': {
                     'type': 'array',
                     'items': {'type': 'number'}
                 }
@@ -60,7 +60,7 @@ class JsonSchemaTest(absltest.TestCase):
             'title': 'RepeatedEnum',
             'type': 'object',
             'properties': {
-                'value': {
+                'values': {
                     'type': 'array',
                     'items': {
                         'type': 'string',
@@ -114,7 +114,7 @@ class JsonSchemaTest(absltest.TestCase):
         self.assertEqual(schema, expected)
 
     def test_map(self):
-        # NOTE(kearnes): Proto maps are represented in JSON as arrays of
+        # NOTE(kearnes): Proto maps are represented in JSON schema as arrays of
         # <map_name>Entry objects, which have 'key' and 'value' fields.
         # In other words:
         #
@@ -140,6 +140,36 @@ class JsonSchemaTest(absltest.TestCase):
                         'properties': {
                             'key': {'type': 'string'},
                             'value': {'type': 'number'}
+                        },
+                        'additionalProperties': False,
+                    }
+                }
+            },
+            'additionalProperties': False,
+        }
+        self.assertEqual(schema, expected)
+
+    def test_map_nested(self):
+        schema = json_schema.get_schema(test_pb2.MapNested.DESCRIPTOR)
+        expected = {
+            'title': 'MapNested',
+            'type': 'object',
+            'properties': {
+                'children': {
+                    'type': 'array',
+                    'items': {
+                        'title': 'ChildrenEntry',
+                        'type': 'object',
+                        'properties': {
+                            'key': {'type': 'string'},
+                            'value': {
+                                'title': 'Child',
+                                'type': 'object',
+                                'properties': {
+                                    'value': {'type': 'number'}
+                                },
+                                'additionalProperties': False,
+                            },
                         },
                         'additionalProperties': False,
                     }

@@ -12,7 +12,7 @@ message Scalar {
 }
 
 message RepeatedScalar {
-    repeated float value = 1;
+    repeated float values = 1;
 }
 
 message Enum {
@@ -30,7 +30,7 @@ message RepeatedEnum {
         FIRST = 1;
         SECOND = 2;
     }
-    repeated EnumValues value = 1;
+    repeated EnumValues values = 1;
 }
 
 message Nested {
@@ -49,4 +49,11 @@ message RepeatedNested {
 
 message Map {
     map<string, float> values = 1;
+}
+
+message MapNested {
+    message Child {
+        float value = 1;
+    }
+    map<string, Child> children = 1;
 }
