@@ -25,13 +25,13 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
     @parameterized.named_parameters(
         ('neg volume', 
             schema.Volume(value=-15.0, units=schema.Volume.MILLILITER),
-            'nonnegative'),
+            'non-negative'),
         ('neg time', schema.Time(value=-24, units=schema.Time.HOUR), 
-            'nonnegative'),
+            'non-negative'),
         ('neg mass', schema.Mass(value=-32.1, units=schema.Mass.GRAM),
-            'nonnegative'),
+            'non-negative'),
         ('invalid ORCID', schema.Person(orcid='abcd-0001-2345-678X'), 
-            'invalid'),
+            'Invalid'),
     )
     def test_resolve_should_fail(self, message, expected_error):
         with self.assertRaisesRegex((ValueError), expected_error):

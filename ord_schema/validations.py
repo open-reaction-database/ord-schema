@@ -92,7 +92,7 @@ def ValidateMessage(message, recurse=True):
             schema.Wavelength: ValidateWavelength,
             schema.FlowRate: ValidateFlowRate,
             schema.Percentage: ValidatePercentage,
-        }[type(message)]
+        }[type(message)](message)
     except KeyError:
         # NOTE(ccoley): I made the conscious decision to raise an error here,
         # rather than assume that the message is valid. If a message does not
@@ -112,17 +112,17 @@ def return_message_if_valid(func):
     return wrapper
 
 def ensure_float_nonnegative(message, field):
-    if gettattr(message, field) < 0:
+    if getattr(message, field) < 0:
         raise ValueError(f'Field {field} of message '\
             f'{type(message).DESCRIPTOR.name} must be non-negative')
 
 def ensure_float_range(message, field, min, max):
-    if gettattr(message, field) < min or getattr(message, field) > max:
+    if getattr(message, field) < min or getattr(message, field) > max:
         raise ValueError(f'Field {field} of message '\
             f'{type(message).DESCRIPTOR.name} must be between {min} and {max}')
 
 def ensure_units_specified_if_value_defined(message):
-    if mesage.value: # can't distinguish 0 and unspecified anyway
+    if message.value: # can't distinguish 0 and unspecified anyway
         if message.units == message.UNSPECIFIED:
             raise ValueError(f'Unspecified units for {type(message)} with ' \
                 f'value defined ({message.value})')
