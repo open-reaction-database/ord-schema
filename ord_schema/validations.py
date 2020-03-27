@@ -323,10 +323,10 @@ def ValidateReactionProvenance(message):
             'record_modified is')
     # Check signs of time differences
     if message.experiment_start.value and message.record_created.value:
-        if (record_created - experiment_start) < 0:
+        if (record_created - experiment_start).seconds < 0:
             raise ValueError('Record creation time should be after experiment')
     if message.record_modified.value and message.record_created.value:
-        if (record_modified - record_created) < 0:
+        if (record_modified - record_created).seconds < 0:
             raise ValueError('Record modified time should be after creation')
     # TODO(ccoley) could check if publication_url is valid, etc.
 
