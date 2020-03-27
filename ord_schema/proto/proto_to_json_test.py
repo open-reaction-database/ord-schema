@@ -1,6 +1,7 @@
 """Tests for ord_schema.proto.proto_to_json."""
 
 import base64
+
 from absl.testing import absltest
 
 from ord_schema.proto import proto_to_json
