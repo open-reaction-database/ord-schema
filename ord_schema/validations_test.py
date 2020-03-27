@@ -31,6 +31,10 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
             'non-negative'),
         ('no units', schema.FlowRate(value=5), 'units'),
         ('percentage out of range', schema.Percentage(value=200), 'between'),
+        ('low temperature', schema.Temperature(value=-5, units='KELVIN'),
+            'between'),
+        ('low temperature 2', schema.Temperature(value=-500, units='CELSIUS'),
+            'between'),
     )
     def test_units_should_fail(self, message, expected_error):
         with self.assertRaisesRegex((ValueError), expected_error):
@@ -49,7 +53,6 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
         message = schema.Reaction()
         with self.assertRaisesRegex((ValueError), 'reaction input'):
             self.validations.ValidateReaction(message)
-        
 
     def test_reaction_recursive(self):
         message = schema.Reaction()
@@ -68,6 +71,15 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
         self.assertEqual(self.validations.ValidateMessage(message), message)
         outcome = message.outcomes.add()
         analysis = outcome.analyses['dummy_analysis']
+        self.assertEqual(self.validations.ValidateMessage(message), message)
+
+    def test_datetimes(self):
+        message = schema.ReactionProvenance()
+        message.experiment_start.value = '11 am'
+        message.record_created.value = '10 am'
+        with self.assertRaisesRegex((ValueError), 'after'):
+            self.validations.ValidateMessage(message)
+        message.record_created.value = '11:15 am'
         self.assertEqual(self.validations.ValidateMessage(message), message)
 
 if __name__ == '__main__':

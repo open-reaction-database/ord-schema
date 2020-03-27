@@ -3,6 +3,7 @@
 from ord_schema.proto import ord_schema_pb2 as schema
 
 import re
+from math import inf
 from dateutil import parser as dateparser
 
 def ValidateMessage(message, recurse=True):
@@ -323,10 +324,10 @@ def ValidateReactionProvenance(message):
             'record_modified is')
     # Check signs of time differences
     if message.experiment_start.value and message.record_created.value:
-        if (record_created - experiment_start).seconds < 0:
+        if (record_created - experiment_start).total_seconds() < 0:
             raise ValueError('Record creation time should be after experiment')
     if message.record_modified.value and message.record_created.value:
-        if (record_modified - record_created).seconds < 0:
+        if (record_modified - record_created).total_seconds() < 0:
             raise ValueError('Record modified time should be after creation')
     # TODO(ccoley) could check if publication_url is valid, etc.
 
@@ -377,11 +378,11 @@ def ValidatePressure(message):
 @return_message_if_valid
 def ValidateTemperature(message):
     if message.units == message.CELSIUS:
-        ensure_float_nonnegative(message, 'value')
+        ensure_float_range(message, 'value', -273.15, inf)
     elif message.units == message.FAHRENHEIT:
-        ensure_float_nonnegative(message + 459.67, 'value')
+        ensure_float_range(message, 'value', -459, inf)
     elif message.units == message.KELVIN:
-        ensure_float_nonnegative(message + 273.15, 'value')
+        ensure_float_range(message, 'value', 0, inf)
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
 
