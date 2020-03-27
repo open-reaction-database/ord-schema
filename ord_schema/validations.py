@@ -3,7 +3,7 @@
 from ord_schema.proto import ord_schema_pb2 as schema
 
 import re
-import dateutil
+from dateutil import parser as dateparser
 
 def ValidateMessage(message, recurse=True):
     """Template function for validating custom messages in the schema.
@@ -28,14 +28,20 @@ def ValidateMessage(message, recurse=True):
         for field in message.DESCRIPTOR.fields:
             if field.type == field.TYPE_MESSAGE: # recurse
                 if field.label == field.LABEL_REPEATED:
-                    for submessage in getattr(message, field.name):
-                        submessage.CopyFrom(
-                            ValidateMessage(submessage, recurse=recurse)
-                        )
+                    if field.message_type.GetOptions().map_entry: # map
+                        for key,submessage in getattr(message, field.name).items():
+                            submessage.CopyFrom(
+                                ValidateMessage(submessage)
+                            )
+                    else: # Just a repeated message
+                        for submessage in getattr(message, field.name):
+                            submessage.CopyFrom(
+                                ValidateMessage(submessage)
+                            )
                 else: # no recursion needed
                     submessage = getattr(message, field.name)
                     submessage.CopyFrom(
-                        ValidateMessage(submessage, recurse=recurse)
+                        ValidateMessage(submessage)
                     )
 
     # Message-specific validation
@@ -216,7 +222,7 @@ def ValidatePressureMeasurement(message):
 
 @return_message_if_valid
 def ValidateStirringConditions(message):
-    ensure_float_nonnegative(rpm, 'precision')
+    ensure_float_nonnegative(message, 'rpm')
     if message.type == message.StirringMethod.CUSTOM:
         if not message.details:
             raise ValueError('Stirring method custom, but no details provided')
@@ -235,7 +241,7 @@ def ValidateElectrochemistryMeasurement(message):
 
 @return_message_if_valid
 def ValidateFlowConditions(message):
-    ensure_units_specified_if_value_defined(message)
+    ensure_details_specified_if_type_custom(message)
 
 @return_message_if_valid
 def ValidateTubing(message):
@@ -290,8 +296,8 @@ def ValidateSelectivity(message):
 def ValidateDateTime(message):
     if message.value:
         try:
-            message.value = dateutil.parser.parse(message.value).ctime()
-        except dateutil.parser.ParserError:
+            message.value = dateparser.parse(message.value).ctime()
+        except dateparser.ParserError:
             raise ValueError(f'Could not parse DateTime string {message.value}')
 
 @return_message_if_valid
@@ -302,21 +308,21 @@ def ValidateReactionAnalysis(message):
 @return_message_if_valid
 def ValidateReactionProvenance(message):
     # Prepare datetimes
-    if message.experiment_start:
-        experiment_start = dateutil.parser.parse(message.experiment_start)
-    if message.record_created:
-        record_created = dateutil.parser.parse(message.record_created)
-    if message.record_modified:
-        record_modified = dateutil.parser.parse(message.record_created)
+    if message.experiment_start.value:
+        experiment_start = dateparser.parse(message.experiment_start.value)
+    if message.record_created.value:
+        record_created = dateparser.parse(message.record_created.value)
+    if message.record_modified.value:
+        record_modified = dateparser.parse(message.record_created.value)
     # Check if record_created undefined
-    if message.record_modified and not message.record_created:
+    if message.record_modified.value and not message.record_created.value:
         raise ValidationWarning('record_created not defined, but ' \
             'record_modified is')
     # Check signs of time differences
-    if message.experiment_start and message.record_created:
+    if message.experiment_start.value and message.record_created.value:
         if (record_created - experiment_start) < 0:
             raise ValueError('Record creation time should be after experiment')
-    if message.record_modified and message.record_created:
+    if message.record_modified.value and message.record_created.value:
         if (record_modified - record_created) < 0:
             raise ValueError('Record modified time should be after creation')
     # TODO(ccoley) could check if publication_url is valid, etc.
