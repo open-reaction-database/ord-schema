@@ -286,7 +286,7 @@ def ValidateReactionProduct(message):
 def ValidateSelectivity(message):
     ensure_float_nonnegative(message, 'precision')
     if message.type == message.EE:
-        ensure_float_range(message, 0, 100)
+        ensure_float_range(message, 'value', 0, 100)
         if message.value > 0 and message.value < 1:
             raise ValidationWarning('EE selectivity values are 0-100, ' \
                 f'not fractions ({message.value} used)')
@@ -419,6 +419,6 @@ def ValidatePercentage(message):
             f'not fractions ({message.value} used)')
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
-    ensure_float_range(message, 0, 105)  # generous upper bound
+    ensure_float_range(message, 'value', 0, 105)  # generous upper bound
 
 

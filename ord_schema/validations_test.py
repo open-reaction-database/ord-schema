@@ -30,6 +30,7 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
         ('neg mass', schema.Mass(value=-32.1, units=schema.Mass.GRAM),
             'non-negative'),
         ('no units', schema.FlowRate(value=5), 'units'),
+        ('percentage out of range', schema.Percentage(value=200), 'between'),
     )
     def test_units_should_fail(self, message, expected_error):
         with self.assertRaisesRegex((ValueError), expected_error):
