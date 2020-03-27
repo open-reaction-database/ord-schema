@@ -9,20 +9,24 @@ import dateutil.parser
 def ValidateMessage(message, recurse=True):
     """Template function for validating custom messages in the schema.
 
-        Messages are not validated to check enum values, since these
-        are enforced by the schema. Instead, we only check for validity
-        of items that cannot be enforced in the schema (e.g., non-negativity
-        of certain measurements, consistency of cross-referenced keys)
-        
-        Args:
-            message: a message to validate.
+    Messages are not validated to check enum values, since these are enforced 
+    by the schema. Instead, we only check for validity of items that cannot be
+    enforced in the schema (e.g., non-negativity of certain measurements, 
+    consistency of cross-referenced keys).
+    
+    Args:
+        message: A message to validate.
+        recurse: A boolean that controls whether submessages of message (i.e.,
+            fields that are messages) should also be validated. Defaults to 
+            True.
 
-        Returns:
-            The input message, with any unambiguous changes made as
-            needed to ensure validity.
+    Returns:
+        The input message, with any unambiguous changes made as
+        needed to ensure validity.
 
-        Raises:
-            ValueError: If any fields are invalid."""
+    Raises:
+        ValueError: If any fields are invalid.
+    """
 
     # Recurse through submessages
     if recurse:
@@ -126,7 +130,7 @@ def ensure_float_nonnegative(message, field):
         raise ValueError(f'Field {field} of message '\
             f'{type(message).DESCRIPTOR.name} must be non-negative')
 
-def ensure_float_range(message, field, min, max):
+def ensure_float_range(message, field, min=-math.inf, max=math.inf):
     if getattr(message, field) < min or getattr(message, field) > max:
         raise ValueError(f'Field {field} of message '\
             f'{type(message).DESCRIPTOR.name} must be between {min} and {max}')
@@ -291,7 +295,7 @@ def ValidateSelectivity(message):
     ensure_float_nonnegative(message, 'precision')
     if message.type == message.EE:
         ensure_float_range(message, 'value', 0, 100)
-        if message.value > 0 and message.value < 1:
+        if 0 < message.value < 1:
             raise ValidationWarning('EE selectivity values are 0-100, ' \
                 f'not fractions ({message.value} used)')
     ensure_details_specified_if_type_custom(message)
@@ -378,11 +382,11 @@ def ValidatePressure(message):
 @return_message_if_valid
 def ValidateTemperature(message):
     if message.units == message.CELSIUS:
-        ensure_float_range(message, 'value', -273.15, math.inf)
+        ensure_float_range(message, 'value', min=-273.15)
     elif message.units == message.FAHRENHEIT:
-        ensure_float_range(message, 'value', -459, math.inf)
+        ensure_float_range(message, 'value', min=-459)
     elif message.units == message.KELVIN:
-        ensure_float_range(message, 'value', 0, math.inf)
+        ensure_float_range(message, 'value', min=0)
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
 
@@ -418,7 +422,7 @@ def ValidateFlowRate(message):
 
 @return_message_if_valid
 def ValidatePercentage(message):
-    if message.value > 0 and message.value < 1:
+    if 0 < message.value < 1:
         raise ValidationWarning('Percentage values are 0-100, ' \
             f'not fractions ({message.value} used)')
     ensure_float_nonnegative(message, 'value')
