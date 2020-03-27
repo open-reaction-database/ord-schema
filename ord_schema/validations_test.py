@@ -66,6 +66,9 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
             self.validations.ValidateMessage(message)
         dummy_component.identifiers[0].details = 'custom_identifier'
         self.assertEqual(self.validations.ValidateMessage(message), message)
+        outcome = message.outcomes.add()
+        analysis = outcome.analyses['dummy_analysis']
+        self.assertEqual(self.validations.ValidateMessage(message), message)
 
 if __name__ == '__main__':
     absltest.main()

@@ -26,13 +26,16 @@ def ValidateMessage(message, recurse=True):
     # Recurse through submessages
     if recurse:
         for field in message.DESCRIPTOR.fields:
-            if field.type == field.TYPE_MESSAGE: # recurse
+            if field.type == field.TYPE_MESSAGE: # need to recurse
                 if field.label == field.LABEL_REPEATED:
                     if field.message_type.GetOptions().map_entry: # map
-                        for key,submessage in getattr(message, field.name).items():
-                            submessage.CopyFrom(
-                                ValidateMessage(submessage)
-                            )
+                        if field.message_type.fields[1].type == field.TYPE_MESSAGE: # value is message
+                            for key,submessage in getattr(message, field.name).items():
+                                submessage.CopyFrom(
+                                    ValidateMessage(submessage)
+                                )
+                        else: # value is a primitive
+                            pass
                     else: # Just a repeated message
                         for submessage in getattr(message, field.name):
                             submessage.CopyFrom(
