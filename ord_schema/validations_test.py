@@ -7,7 +7,7 @@ from ord_schema import validations
 from ord_schema.proto import ord_schema_pb2 as schema
 
 
-class UnitsTest(parameterized.TestCase, absltest.TestCase):
+class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
         super().setUp()
