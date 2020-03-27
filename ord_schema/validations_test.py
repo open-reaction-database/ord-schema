@@ -17,9 +17,8 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
         ('volume', schema.Volume(value=15.0, units=schema.Volume.MILLILITER)),
         ('time', schema.Time(value=24, units=schema.Time.HOUR)),
         ('mass', schema.Mass(value=32.1, units=schema.Mass.GRAM)),
-        ('orcid', schema.Person(orcid='0000-0001-2345-678X'))
     )
-    def test_resolve(self, message):
+    def test_units(self, message):
         self.assertEqual(self.validations.ValidateMessage(message), message)
 
     @parameterized.named_parameters(
@@ -30,13 +29,42 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
             'non-negative'),
         ('neg mass', schema.Mass(value=-32.1, units=schema.Mass.GRAM),
             'non-negative'),
-        ('invalid ORCID', schema.Person(orcid='abcd-0001-2345-678X'), 
-            'Invalid'),
+        ('no units', schema.FlowRate(value=5), 'units'),
     )
-    def test_resolve_should_fail(self, message, expected_error):
+    def test_units_should_fail(self, message, expected_error):
         with self.assertRaisesRegex((ValueError), expected_error):
             self.validations.ValidateMessage(message)
 
+    def test_orcid(self):
+        message = schema.Person(orcid='0000-0001-2345-678X')
+        self.assertEqual(self.validations.ValidateMessage(message), message)
+
+    def test_orcid_should_fail(self):
+        message = schema.Person(orcid='abcd-0001-2345-678X')
+        with self.assertRaisesRegex((ValueError), 'Invalid'):
+            self.validations.ValidateMessage(message)
+
+    def test_reaction(self):
+        message = schema.Reaction()
+        with self.assertRaisesRegex((ValueError), 'reaction input'):
+            self.validations.ValidateReaction(message)
+        
+
+    def test_reaction_recursive(self):
+        message = schema.Reaction()
+        with self.assertRaisesRegex((ValueError), 'reaction input'):
+            self.validations.ValidateMessage(message, recurse=False)
+        dummy_input = message.inputs['dummy_input']
+        with self.assertRaisesRegex((ValueError), 'component'):
+            self.validations.ValidateMessage(message)
+        dummy_component = dummy_input.components.add()
+        with self.assertRaisesRegex((ValueError), 'identifier'):
+            self.validations.ValidateMessage(message)
+        dummy_component.identifiers.add(type='CUSTOM')
+        with self.assertRaisesRegex((ValueError), 'details'):
+            self.validations.ValidateMessage(message)
+        dummy_component.identifiers[0].details = 'custom_identifier'
+        self.assertEqual(self.validations.ValidateMessage(message), message)
 
 if __name__ == '__main__':
     absltest.main()
