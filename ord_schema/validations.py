@@ -3,8 +3,8 @@
 from ord_schema.proto import ord_schema_pb2 as schema
 
 import re
-from math import inf
-from dateutil import parser as dateparser
+import math
+import dateutil.parser
 
 def ValidateMessage(message, recurse=True):
     """Template function for validating custom messages in the schema.
@@ -300,8 +300,8 @@ def ValidateSelectivity(message):
 def ValidateDateTime(message):
     if message.value:
         try:
-            message.value = dateparser.parse(message.value).ctime()
-        except dateparser.ParserError:
+            message.value = dateutil.parser.parse(message.value).ctime()
+        except dateutil.parser.ParserError:
             raise ValueError(f'Could not parse DateTime string {message.value}')
 
 @return_message_if_valid
@@ -313,11 +313,11 @@ def ValidateReactionAnalysis(message):
 def ValidateReactionProvenance(message):
     # Prepare datetimes
     if message.experiment_start.value:
-        experiment_start = dateparser.parse(message.experiment_start.value)
+        experiment_start = dateutil.parser.parse(message.experiment_start.value)
     if message.record_created.value:
-        record_created = dateparser.parse(message.record_created.value)
+        record_created = dateutil.parser.parse(message.record_created.value)
     if message.record_modified.value:
-        record_modified = dateparser.parse(message.record_created.value)
+        record_modified = dateutil.parser.parse(message.record_created.value)
     # Check if record_created undefined
     if message.record_modified.value and not message.record_created.value:
         raise ValidationWarning('record_created not defined, but ' \
@@ -378,11 +378,11 @@ def ValidatePressure(message):
 @return_message_if_valid
 def ValidateTemperature(message):
     if message.units == message.CELSIUS:
-        ensure_float_range(message, 'value', -273.15, inf)
+        ensure_float_range(message, 'value', -273.15, math.inf)
     elif message.units == message.FAHRENHEIT:
-        ensure_float_range(message, 'value', -459, inf)
+        ensure_float_range(message, 'value', -459, math.inf)
     elif message.units == message.KELVIN:
-        ensure_float_range(message, 'value', 0, inf)
+        ensure_float_range(message, 'value', 0, math.inf)
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
 
