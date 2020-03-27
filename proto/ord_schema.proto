@@ -506,6 +506,8 @@ message ReactionNotes {
   bool is_sensitive_to_oxygen = 5;
   bool is_sensitive_to_light = 6;
   string safety_notes = 7;
+  // Overflow field for full procedure details
+  string procedure_details = 8;
 }
 
 message ReactionObservation {
