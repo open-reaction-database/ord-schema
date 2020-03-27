@@ -4,6 +4,7 @@ The output is a JSON-lines file, where newlines are used to separate records.
 See http://jsonlines.org/ for more details.
 """
 
+import base64
 import glob
 import json
 
@@ -39,7 +40,8 @@ def get_processed_value(field, value):
     elif field.type == field.TYPE_ENUM:
         return field.enum_type.values_by_number[value].name
     elif field.type == field.TYPE_BYTES:
-        return value.decode('utf-8')  # JSON does not support bytes.
+        # JSON does not support bytes.
+        return base64.b64encode(value).decode('utf-8')
     else:
         return value
 

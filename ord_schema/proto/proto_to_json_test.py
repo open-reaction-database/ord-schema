@@ -1,5 +1,7 @@
 """Tests for ord_schema.proto.proto_to_json."""
 
+import base64
+
 from absl.testing import absltest
 
 from ord_schema.proto import proto_to_json
@@ -23,7 +25,10 @@ class GetDatabaseJsonTest(absltest.TestCase):
         self.assertEqual(record['int64_value'], 2)
         self.assertAlmostEqual(record['float_value'], 3.4, places=3)
         self.assertEqual(record['string_value'], 'five')
-        self.assertEqual(record['bytes_value'], b'six')
+        # Note that bytes values are converted to base64 and then decoded.
+        self.assertEqual(record['bytes_value'], 'c2l4')
+        self.assertEqual(
+            base64.b64decode(record['bytes_value'].encode('utf-8')), b'six')
 
     def test_repeated_scalar(self):
         message = test_pb2.RepeatedScalar(values=[1.1, 2.2, 3.3])
