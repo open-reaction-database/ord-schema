@@ -18,7 +18,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         ('mass', schema.Mass(value=32.1, units=schema.Mass.GRAM)),
     )
     def test_units(self, message):
-        self.assertEqual(validations.ValidateMessage(message), message)
+        self.assertEqual(validations.validate_message(message), message)
 
     @parameterized.named_parameters(
         ('neg volume', 
@@ -37,51 +37,51 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
     )
     def test_units_should_fail(self, message, expected_error):
         with self.assertRaisesRegex((ValueError), expected_error):
-            validations.ValidateMessage(message)
+            validations.validate_message(message)
 
     def test_orcid(self):
         message = schema.Person(orcid='0000-0001-2345-678X')
-        self.assertEqual(validations.ValidateMessage(message), message)
+        self.assertEqual(validations.validate_message(message), message)
 
     def test_orcid_should_fail(self):
         message = schema.Person(orcid='abcd-0001-2345-678X')
         with self.assertRaisesRegex((ValueError), 'Invalid'):
-            validations.ValidateMessage(message)
+            validations.validate_message(message)
 
     def test_reaction(self):
         message = schema.Reaction()
         with self.assertRaisesRegex((ValueError), 'reaction input'):
-            validations.ValidateReaction(message)
+            validations.validate_reaction(message)
 
     def test_reaction_recursive(self):
         message = schema.Reaction()
         with self.assertRaisesRegex((ValueError), 'reaction input'):
-            validations.ValidateMessage(message)
+            validations.validate_message(message)
         dummy_input = message.inputs['dummy_input']
-        self.assertEqual(validations.ValidateMessage(message, recurse=False), 
+        self.assertEqual(validations.validate_message(message, recurse=False), 
             message)
         with self.assertRaisesRegex((ValueError), 'component'):
-            validations.ValidateMessage(message)
+            validations.validate_message(message)
         dummy_component = dummy_input.components.add()
         with self.assertRaisesRegex((ValueError), 'identifier'):
-            validations.ValidateMessage(message)
+            validations.validate_message(message)
         dummy_component.identifiers.add(type='CUSTOM')
         with self.assertRaisesRegex((ValueError), 'details'):
-            validations.ValidateMessage(message)
+            validations.validate_message(message)
         dummy_component.identifiers[0].details = 'custom_identifier'
-        self.assertEqual(validations.ValidateMessage(message), message)
+        self.assertEqual(validations.validate_message(message), message)
         outcome = message.outcomes.add()
         analysis = outcome.analyses['dummy_analysis']
-        self.assertEqual(validations.ValidateMessage(message), message)
+        self.assertEqual(validations.validate_message(message), message)
 
     def test_datetimes(self):
         message = schema.ReactionProvenance()
         message.experiment_start.value = '11 am'
         message.record_created.value = '10 am'
         with self.assertRaisesRegex((ValueError), 'after'):
-            validations.ValidateMessage(message)
+            validations.validate_message(message)
         message.record_created.value = '11:15 am'
-        self.assertEqual(validations.ValidateMessage(message), message)
+        self.assertEqual(validations.validate_message(message), message)
 
 if __name__ == '__main__':
     absltest.main()
