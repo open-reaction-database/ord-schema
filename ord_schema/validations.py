@@ -4,7 +4,7 @@ from ord_schema.proto import ord_schema_pb2 as schema
 
 import re
 import math
-import dateutil.parser
+from dateutil import parser
 
 
 def validate_message(message, recurse=True):
@@ -272,8 +272,8 @@ def validate_selectivity(message):
 def validate_dateTime(message):
     if message.value:
         try:
-            message.value = dateutil.parser.parse(message.value).ctime()
-        except dateutil.parser.ParserError:
+            message.value = parser.parse(message.value).ctime()
+        except parser.ParserError:
             raise ValueError(f'Could not parse DateTime string {message.value}')
     return message
 
@@ -287,12 +287,12 @@ def validate_reaction_analysis(message):
 def validate_reaction_provenance(message):
     # Prepare datetimes
     if message.experiment_start.value:
-        experiment_start = dateutil.parser.parse(
+        experiment_start = parser.parse(
             message.experiment_start.value)
     if message.record_created.value:
-        record_created = dateutil.parser.parse(message.record_created.value)
+        record_created = parser.parse(message.record_created.value)
     if message.record_modified.value:
-        record_modified = dateutil.parser.parse(message.record_created.value)
+        record_modified = parser.parse(message.record_created.value)
     # Check if record_created undefined
     if message.record_modified.value and not message.record_created.value:
         raise ValidationWarning('record_created not defined, but '
