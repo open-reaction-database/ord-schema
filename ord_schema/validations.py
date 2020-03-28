@@ -269,7 +269,7 @@ def validate_selectivity(message):
     return message
 
 
-def validate_dateTime(message):
+def validate_date_time(message):
     if message.value:
         try:
             message.value = parser.parse(message.value).ctime()
@@ -399,7 +399,7 @@ def validate_wavelength(message):
     return message
 
 
-def validate_flowRate(message):
+def validate_flow_rate(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
@@ -449,7 +449,7 @@ _VALIDATOR_SWITCH = {
     schema.ReactionOutcome: validate_reaction_outcome,
     schema.ReactionProduct: validate_reaction_product,
     schema.Selectivity: validate_selectivity,
-    schema.DateTime: validate_dateTime,
+    schema.DateTime: validate_date_time,
     schema.ReactionAnalysis: validate_reaction_analysis,
     # Metadata
     schema.ReactionProvenance: validate_reaction_provenance,
@@ -466,6 +466,6 @@ _VALIDATOR_SWITCH = {
     schema.Voltage: validate_voltage,
     schema.Length: validate_length,
     schema.Wavelength: validate_wavelength,
-    schema.FlowRate: validate_flowRate,
+    schema.FlowRate: validate_flow_rate,
     schema.Percentage: validate_percentage,
 }
