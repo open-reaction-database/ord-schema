@@ -413,7 +413,7 @@ def validate_percentage(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_float_range(message, 'value', 0, 105)  # generous upper bound
-
+    return message
 
 _VALIDATOR_SWITCH = {
     schema.Reaction: validate_reaction,
