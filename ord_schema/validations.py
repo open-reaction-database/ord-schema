@@ -36,7 +36,7 @@ def validate_message(message, recurse=True):
                 if field.label == field.LABEL_REPEATED:
                     if field.message_type.GetOptions().map_entry:  # map
                         # value is message
-                        if field.message_type.fields_by_name['value'].type ==
+                        if field.message_type.fields_by_name['value'].type == \
                                 field.TYPE_MESSAGE:
                             for key, submessage in value.items():
                                 submessage.CopyFrom(
