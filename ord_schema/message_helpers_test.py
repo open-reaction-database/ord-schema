@@ -4,11 +4,10 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 from ord_schema import message_helpers
-from ord_schema import testing
 from ord_schema.proto import ord_schema_pb2 as schema
 
 
-class BuildCompoundTest(parameterized.TestCase, testing.TestCase):
+class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
 
     def test_smiles_and_name(self):
         compound = message_helpers.build_compound(
