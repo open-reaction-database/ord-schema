@@ -292,7 +292,7 @@ def validate_reaction_provenance(message):
     record_modified = None
     if message.experiment_start.value:
         experiment_start = parser.parse(message.experiment_start.value)
-    if message.record_created.time:
+    if message.record_created.time.value:
         record_created = parser.parse(message.record_created.time.value)
     for record in message.record_modified:
         # Use the last record as the most recent modification time.
