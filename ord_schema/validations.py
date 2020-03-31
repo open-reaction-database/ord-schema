@@ -286,25 +286,35 @@ def validate_reaction_analysis(message):
 
 def validate_reaction_provenance(message):
     # Prepare datetimes
+    # TODO(kearnes): Require these to be set?
+    experiment_start = None
+    record_created = None
+    record_modified = None
     if message.experiment_start.value:
-        experiment_start = parser.parse(
-            message.experiment_start.value)
-    if message.record_created.value:
-        record_created = parser.parse(message.record_created.value)
-    if message.record_modified.value:
-        record_modified = parser.parse(message.record_created.value)
+        experiment_start = parser.parse(message.experiment_start.value)
+    if message.record_created.time:
+        record_created = parser.parse(message.record_created.time.value)
+    for record in message.record_modified:
+        # Use the last record as the most recent modification time.
+        record_modified = parser.parse(record.time.value)
     # Check if record_created undefined
-    if message.record_modified.value and not message.record_created.value:
+    if record_modified and not record_created:
         raise ValidationWarning('record_created not defined, but '
                                 'record_modified is')
     # Check signs of time differences
-    if message.experiment_start.value and message.record_created.value:
+    if experiment_start and record_created:
         if (record_created - experiment_start).total_seconds() < 0:
             raise ValueError('Record creation time should be after experiment')
-    if message.record_modified.value and message.record_created.value:
+    if record_modified and record_created:
         if (record_modified - record_created).total_seconds() < 0:
             raise ValueError('Record modified time should be after creation')
     # TODO(ccoley) could check if publication_url is valid, etc.
+    return message
+
+
+def validate_record_event(message):
+    if not message.time.value:
+        raise ValueError('RecordEvent must have `time` specified')
     return message
 
 
@@ -453,6 +463,7 @@ _VALIDATOR_SWITCH = {
     schema.ReactionAnalysis: validate_reaction_analysis,
     # Metadata
     schema.ReactionProvenance: validate_reaction_provenance,
+    schema.ReactionProvenance.RecordEvent: validate_record_event,
     schema.Person: validate_person,
     # Units
     schema.Time: validate_time,

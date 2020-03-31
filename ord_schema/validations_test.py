@@ -77,10 +77,10 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
     def test_datetimes(self):
         message = schema.ReactionProvenance()
         message.experiment_start.value = '11 am'
-        message.record_created.value = '10 am'
+        message.record_created.time.value = '10 am'
         with self.assertRaisesRegex((ValueError), 'after'):
             validations.validate_message(message)
-        message.record_created.value = '11:15 am'
+        message.record_created.time.value = '11:15 am'
         self.assertEqual(validations.validate_message(message), message)
 
 if __name__ == '__main__':
