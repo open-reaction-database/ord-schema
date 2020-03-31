@@ -698,12 +698,18 @@ message ReactionProvenance {
   string doi = 4;
   string patent = 5;
   string publication_url = 6;
-  DateTime record_created = 7;
-  DateTime record_modified = 8;
+  // Metadata for the public database.
+  message RecordEvent {
+    DateTime time = 1;
+    Person person = 2;
+    string details = 3;
+  }
+  RecordEvent record_created = 7;
+  repeated RecordEvent record_modified = 8;
   // TODO(ccoley): is it useful to create a unique ID field 
   // that the centralized database can write to? (I know uniqueness is not
   // enforceable)
-  int32 id = 9;
+  string record_id = 9;
 }
 
 message Person {
