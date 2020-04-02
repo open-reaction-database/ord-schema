@@ -3,6 +3,7 @@
 from ord_schema import units
 from ord_schema.proto import ord_schema_pb2 as schema
 
+
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
 
@@ -76,3 +77,16 @@ def build_compound(smiles=None, name=None, amount=None, role=None,
     if vendor:
         compound.vendor_source = vendor
     return compound
+
+
+def read_bytes(filename):
+    """Reads the raw data from a file.
+
+    Args:
+        filename: Text filename.
+
+    Returns:
+        Bytes file data.
+    """
+    with open(filename, 'rb') as f:
+        return f.read()

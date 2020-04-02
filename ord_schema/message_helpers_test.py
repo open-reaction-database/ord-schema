@@ -1,10 +1,28 @@
 """Tests for ord_schema.message_helpers."""
 
+import os
+import tempfile
+
+from absl import flags
 from absl.testing import absltest
 from absl.testing import parameterized
 
 from ord_schema import message_helpers
 from ord_schema.proto import ord_schema_pb2 as schema
+
+
+class MessageHelpersTest(absltest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
+
+    def test_read_bytes(self):
+        filename = os.path.join(self.test_subdirectory, 'test.data')
+        data = b'test data'
+        with open(filename, 'wb') as f:
+            f.write(data)
+        self.assertEqual(data, message_helpers.read_bytes(filename))
 
 
 class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
