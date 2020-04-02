@@ -50,7 +50,7 @@ _UNIT_SYNONYMS = {
     },
     schema.Current: {
         schema.Current.AMPERE: ['A', 'ampere', 'amps', 'amp'],
-        schema.Current.MILLIAMPERE: ['mA', 'milliampere', 'milliamp', 
+        schema.Current.MILLIAMPERE: ['mA', 'milliampere', 'milliamp',
                                      'milliamps'],
     },
     schema.Voltage: {
