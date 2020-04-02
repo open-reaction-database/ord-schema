@@ -294,7 +294,7 @@ message ReactionSetup {
   // Automated platform name, brand, or model number.
   string automation_platform = 3;
   // Raw automation code or synthetic recipe definition.
-  map<string, bytes> automation_code = 4;
+  repeated BinaryData automation_code = 4;
 }
 
 message ReactionConditions {
@@ -512,11 +512,8 @@ message ReactionNotes {
 
 message ReactionObservation {
   Time time = 1;
-  oneof kind {
-    string color = 2;
-    bytes image = 3;
-    string comment = 4;
-  }
+  string comment = 2;  // e.g. what color is the reaction?
+  BinaryData image = 3;
 }
 
 message ReactionWorkup {
@@ -684,9 +681,9 @@ message ReactionAnalysis {
   // Any details about analysis (e.g., NMR type, columns, gradients, conditions)
   string details = 2;
   // Data files (processed or annotated).
-  map<string, bytes> data_processed = 3;
+  repeated BinaryData processed_data = 3;
   // Data files (raw) obtained directly from the instrument
-  map<string, bytes> data_raw = 4;
+  repeated BinaryData raw_data = 4;
   string instrument_manufacturer = 5;
   DateTime instrument_last_calibrated = 6;
 }
@@ -885,4 +882,11 @@ message Percentage {
   float value = 1;
   // Precision of the measurement (with the same units as `value`).
   float precision = 2;
+}
+
+// BinaryData is a container for binary (bytes) data.
+message BinaryData {
+  bytes value = 1;
+  string filename = 2;
+  string description = 3;
 }

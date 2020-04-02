@@ -11,18 +11,35 @@ from ord_schema import message_helpers
 from ord_schema.proto import ord_schema_pb2 as schema
 
 
-class MessageHelpersTest(absltest.TestCase):
+class BuildBinaryDataTest(absltest.TestCase):
 
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
+        self.data = b'test data'
+        self.filename = os.path.join(self.test_subdirectory, 'test.data')
+        with open(self.filename, 'wb') as f:
+            f.write(self.data)
 
-    def test_read_bytes(self):
-        filename = os.path.join(self.test_subdirectory, 'test.data')
-        data = b'test data'
-        with open(filename, 'wb') as f:
-            f.write(data)
-        self.assertEqual(data, message_helpers.read_bytes(filename))
+    def test_defaults(self):
+        message = message_helpers.build_binary_data(self.filename)
+        self.assertEqual(message.value, self.data)
+        self.assertEqual(message.description, '')
+        self.assertEqual(message.filename, self.filename)
+
+    def test_description(self):
+        message = message_helpers.build_binary_data(self.filename,
+                                                    description='binary data')
+        self.assertEqual(message.value, self.data)
+        self.assertEqual(message.description, 'binary data')
+        self.assertEqual(message.filename, self.filename)
+
+    def test_noinclude_filename(self):
+        message = message_helpers.build_binary_data(self.filename,
+                                                    include_filename=False)
+        self.assertEqual(message.value, self.data)
+        self.assertEqual(message.description, '')
+        self.assertEqual(message.filename, '')
 
 
 class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):

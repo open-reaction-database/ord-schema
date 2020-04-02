@@ -79,14 +79,23 @@ def build_compound(smiles=None, name=None, amount=None, role=None,
     return compound
 
 
-def read_bytes(filename):
-    """Reads the raw data from a file.
+def build_binary_data(filename, description=None, include_filename=True):
+    """Reads raw data from a file and creates a BinaryData message.
 
     Args:
         filename: Text filename.
+        description: Text description of the data.
+        include_filename: Boolean whether to populate the `filename` field in
+            the resulting message.
 
     Returns:
-        Bytes file data.
+        BinaryData message.
     """
+    data = schema.BinaryData()
     with open(filename, 'rb') as f:
-        return f.read()
+        data.value = f.read()
+    if description:
+        data.description = description
+    if include_filename:
+        data.filename = filename
+    return data
