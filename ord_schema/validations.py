@@ -1,10 +1,10 @@
 """Helpers validating specific Message types."""
 
-from ord_schema.proto import ord_schema_pb2 as schema
-
-import re
 import math
+import re
 from dateutil import parser
+
+from ord_schema.proto import ord_schema_pb2 as schema
 
 
 def validate_message(message, recurse=True):
@@ -28,8 +28,8 @@ def validate_message(message, recurse=True):
     Raises:
         ValueError: If any fields are invalid.
     """
-
     # Recurse through submessages
+    # pylint: disable=too-many-nested-blocks
     if recurse:
         for field, value in message.ListFields():
             if field.type == field.TYPE_MESSAGE:  # need to recurse
@@ -38,7 +38,7 @@ def validate_message(message, recurse=True):
                         # value is message
                         if field.message_type.fields_by_name['value'].type == \
                                 field.TYPE_MESSAGE:
-                            for key, submessage in value.items():
+                            for submessage in value.values():
                                 submessage.CopyFrom(
                                     validate_message(submessage)
                                 )
@@ -54,6 +54,7 @@ def validate_message(message, recurse=True):
                     submessage.CopyFrom(
                         validate_message(submessage)
                     )
+    # pylint: enable=too-many-nested-blocks
 
     # Message-specific validation
     try:
@@ -71,6 +72,7 @@ class ValidationWarning(Warning):
     pass
 
 
+# pylint: disable=missing-function-docstring
 def ensure_float_nonnegative(message, field):
     if getattr(message, field) < 0:
         raise ValueError(f'Field {field} of message '
@@ -78,11 +80,12 @@ def ensure_float_nonnegative(message, field):
                          ' non-negative')
 
 
-def ensure_float_range(message, field, min=-math.inf, max=math.inf):
-    if getattr(message, field) < min or getattr(message, field) > max:
+def ensure_float_range(message, field, min_value=-math.inf, max_value=math.inf):
+    if (getattr(message, field) < min_value or
+            getattr(message, field) > max_value):
         raise ValueError(f'Field {field} of message '
                          f'{type(message).DESCRIPTOR.name} must be between'
-                         f' {min} and {max}')
+                         f' {min_value} and {max_value}')
 
 
 def ensure_units_specified_if_value_defined(message):
@@ -371,11 +374,11 @@ def validate_pressure(message):
 
 def validate_temperature(message):
     if message.units == message.CELSIUS:
-        ensure_float_range(message, 'value', min=-273.15)
+        ensure_float_range(message, 'value', min_value=-273.15)
     elif message.units == message.FAHRENHEIT:
-        ensure_float_range(message, 'value', min=-459)
+        ensure_float_range(message, 'value', min_value=-459)
     elif message.units == message.KELVIN:
-        ensure_float_range(message, 'value', min=0)
+        ensure_float_range(message, 'value', min_value=0)
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
     return message
@@ -425,6 +428,9 @@ def validate_percentage(message):
     ensure_float_range(message, 'value', 0, 105)  # generous upper bound
     return message
 
+
+# pylint: enable=missing-function-docstring
+
 _VALIDATOR_SWITCH = {
     schema.Reaction: validate_reaction,
     # Basics
@@ -447,7 +453,7 @@ _VALIDATOR_SWITCH = {
     schema.StirringConditions: validate_stirring_conditions,
     schema.IlluminationConditions: validate_illumination_conditions,
     schema.ElectrochemistryConditions: validate_electrochemistry_conditions,
-    schema.ElectrochemistryConditions.Measurement: 
+    schema.ElectrochemistryConditions.Measurement:
         validate_electrochemistry_measurement,
     schema.FlowConditions: validate_flow_conditions,
     schema.FlowConditions.Tubing: validate_tubing,
