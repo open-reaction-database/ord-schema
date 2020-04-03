@@ -40,5 +40,6 @@ jobs:
           python "${TEST_FILENAME}"; \
         done
     - name: Run pylint
-      run: pylint ord_schema
-        
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        pylint ord_schema
