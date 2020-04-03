@@ -9,7 +9,7 @@ on:
       - master
 
 jobs:
-  run_pylint:
+  build_and_test:
 
     runs-on: ubuntu-latest
 
@@ -31,6 +31,14 @@ jobs:
         cd "${GITHUB_WORKSPACE}"
         python setup.py build_py
         python setup.py install
+    - name: Run tests
+      run: |
+        shopt -s globstar
+        cd "${GITHUB_WORKSPACE}"
+        for TEST_FILENAME in ord_schema/**/*_test.py; do \
+          echo "Running tests in ${TEST_FILENAME}"; \
+          python "${TEST_FILENAME}"; \
+        done
     - name: Run pylint
       run: pylint ord_schema
         
