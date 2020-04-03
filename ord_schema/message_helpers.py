@@ -1,5 +1,7 @@
 """Helper functions for constructing Protocol Buffer messages."""
 
+import os
+
 from ord_schema import units
 from ord_schema.proto import ord_schema_pb2 as schema
 
@@ -79,23 +81,23 @@ def build_compound(smiles=None, name=None, amount=None, role=None,
     return compound
 
 
-def build_binary_data(filename, description=None, include_filename=True):
+def build_binary_data(filename, description=None):
     """Reads raw data from a file and creates a BinaryData message.
 
     Args:
         filename: Text filename.
         description: Text description of the data.
-        include_filename: Boolean whether to populate the `filename` field in
-            the resulting message.
 
     Returns:
         BinaryData message.
     """
+    _, extension = os.path.splitext(filename)
+    if not extension.startswith('.'):
+        raise ValueError(f'cannot deduce the file format for {filename}')
     data = schema.BinaryData()
+    data.format = extension[1:]
     with open(filename, 'rb') as f:
         data.value = f.read()
     if description:
         data.description = description
-    if include_filename:
-        data.filename = filename
     return data
