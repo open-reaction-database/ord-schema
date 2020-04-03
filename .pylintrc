@@ -442,8 +442,8 @@ method-naming-style=snake_case
 
 # Regular expression matching correct method names. Overrides method-naming-
 # style.
-# Copied from https://github.com/tensorflow/tensorflow/blob/master/tensorflow/tools/ci_build/pylintrc
-method-rgx=^(?:(?P<exempt>__[a-z0-9_]+__|next)|(?P<camel_case>_{0,2}[A-Z][a-zA-Z0-9]*)|(?P<snake_case>_{0,2}[a-z][a-z0-9_]*))$
+# Adapted from https://github.com/tensorflow/tensorflow/blob/master/tensorflow/tools/ci_build/pylintrc
+method-rgx=^(?:(?P<exempt>__[a-z0-9_]+__|next)|(?P<snake_case>_{0,2}[a-z][a-z0-9_]*))|setUp$
 
 # Naming style matching correct module names.
 module-naming-style=snake_case
