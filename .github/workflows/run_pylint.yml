@@ -9,7 +9,7 @@ on:
       - master
 
 jobs:
-  run_tests:
+  run_pylint:
 
     runs-on: ubuntu-latest
 
@@ -21,13 +21,16 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: '3.x'
-    - name: Install
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pylint
+    - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
         python setup.py build_py
         python setup.py install
     - name: Run pylint
-      run: |
-        python -m pip install --upgrade pip pylint
-        pylint ord_schema
+      run: pylint ord_schema
         
