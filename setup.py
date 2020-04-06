@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+import os
+
 from distutils.command import build_py
 from distutils import spawn
 import glob
@@ -16,7 +18,11 @@ class BuildPyCommand(build_py.build_py):
         if not protoc:
             raise RuntimeError('cannot find protoc')
         for source in glob.glob('proto/*.proto'):
-            protoc_command = [protoc, '--python_out=ord_schema', source]
+            protoc_command = [
+                protoc,
+                '--proto_path', os.path.dirname(os.path.realpath(__file__)),
+                '--python_out=ord_schema', source
+            ]
             self.announce(f'running {protoc_command}')
             subprocess.check_call(protoc_command)
         # build_py.build_py is an old-style class, so super() doesn't work.

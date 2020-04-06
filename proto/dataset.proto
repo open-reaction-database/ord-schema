@@ -3,7 +3,7 @@ syntax = "proto3";
 
 package ord;
 
-import "reaction.proto";
+import "proto/reaction.proto";
 
 // A Dataset is a collection of Reaction record IDs (not Reaction records) that
 // is used to group reactions together into a logical unit along with relevant
