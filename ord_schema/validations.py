@@ -429,6 +429,13 @@ def validate_percentage(message):
     return message
 
 
+def validate_binary_data(message):
+    if not message.value:
+        raise ValueError('value is required for BinaryData')
+    if not message.format:
+        raise ValidationWarning('No format specified for BinaryData')
+
+
 # pylint: enable=missing-function-docstring
 
 _VALIDATOR_SWITCH = {
@@ -485,4 +492,5 @@ _VALIDATOR_SWITCH = {
     schema.Wavelength: validate_wavelength,
     schema.FlowRate: validate_flow_rate,
     schema.Percentage: validate_percentage,
+    schema.BinaryData: validate_binary_data,
 }
