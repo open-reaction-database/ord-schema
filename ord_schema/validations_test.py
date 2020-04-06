@@ -1,4 +1,4 @@
-"""Tests for ord_reaction_pb2.units."""
+"""Tests for ord_schema.units."""
 
 from absl.testing import absltest
 from absl.testing import parameterized

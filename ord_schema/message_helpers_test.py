@@ -1,4 +1,4 @@
-"""Tests for ord_reaction_pb2.message_helpers."""
+"""Tests for ord_schema.message_helpers."""
 
 import os
 import tempfile
