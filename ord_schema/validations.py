@@ -4,11 +4,11 @@ import math
 import re
 from dateutil import parser
 
-from ord_schema.proto import ord_schema_pb2 as schema
+from ord_schema.proto import reaction_pb2
 
 
 def validate_message(message, recurse=True):
-    """Template function for validating custom messages in the schema.
+    """Template function for validating custom messages in the reaction_pb2.
 
     Messages are not validated to check enum values, since these are enforced
     by the schema. Instead, we only check for validity of items that cannot be
@@ -439,58 +439,60 @@ def validate_binary_data(message):
 # pylint: enable=missing-function-docstring
 
 _VALIDATOR_SWITCH = {
-    schema.Reaction: validate_reaction,
+    reaction_pb2.Reaction: validate_reaction,
     # Basics
-    schema.ReactionIdentifier: validate_reaction_identifier,
-    schema.ReactionInput: validate_reaction_input,
+    reaction_pb2.ReactionIdentifier: validate_reaction_identifier,
+    reaction_pb2.ReactionInput: validate_reaction_input,
     # Compounds
-    schema.Compound: validate_compound,
-    schema.Compound.Feature: validate_compound_feature,
-    schema.CompoundPreparation: validate_compound_preparation,
-    schema.CompoundIdentifier: validate_compound_identifier,
+    reaction_pb2.Compound: validate_compound,
+    reaction_pb2.Compound.Feature: validate_compound_feature,
+    reaction_pb2.CompoundPreparation: validate_compound_preparation,
+    reaction_pb2.CompoundIdentifier: validate_compound_identifier,
     # Setup
-    schema.Vessel: validate_vessel,
-    schema.ReactionSetup: validate_reaction_setup,
+    reaction_pb2.Vessel: validate_vessel,
+    reaction_pb2.ReactionSetup: validate_reaction_setup,
     # Conditions
-    schema.ReactionConditions: validate_reaction_conditions,
-    schema.TemperatureConditions: validate_temperature_conditions,
-    schema.TemperatureConditions.Measurement: validate_temperature_measurement,
-    schema.PressureConditions: validate_pressure_conditions,
-    schema.PressureConditions.Measurement: validate_pressure_measurement,
-    schema.StirringConditions: validate_stirring_conditions,
-    schema.IlluminationConditions: validate_illumination_conditions,
-    schema.ElectrochemistryConditions: validate_electrochemistry_conditions,
-    schema.ElectrochemistryConditions.Measurement:
+    reaction_pb2.ReactionConditions: validate_reaction_conditions,
+    reaction_pb2.TemperatureConditions: validate_temperature_conditions,
+    reaction_pb2.TemperatureConditions.Measurement: (
+        validate_temperature_measurement),
+    reaction_pb2.PressureConditions: validate_pressure_conditions,
+    reaction_pb2.PressureConditions.Measurement: validate_pressure_measurement,
+    reaction_pb2.StirringConditions: validate_stirring_conditions,
+    reaction_pb2.IlluminationConditions: validate_illumination_conditions,
+    reaction_pb2.ElectrochemistryConditions: (
+        validate_electrochemistry_conditions),
+    reaction_pb2.ElectrochemistryConditions.Measurement:
         validate_electrochemistry_measurement,
-    schema.FlowConditions: validate_flow_conditions,
-    schema.FlowConditions.Tubing: validate_tubing,
+    reaction_pb2.FlowConditions: validate_flow_conditions,
+    reaction_pb2.FlowConditions.Tubing: validate_tubing,
     # Annotations
-    schema.ReactionNotes: validate_reaction_notes,
-    schema.ReactionObservation: validate_reaction_observation,
+    reaction_pb2.ReactionNotes: validate_reaction_notes,
+    reaction_pb2.ReactionObservation: validate_reaction_observation,
     # Outcome
-    schema.ReactionWorkup: validate_reaction_workup,
-    schema.ReactionOutcome: validate_reaction_outcome,
-    schema.ReactionProduct: validate_reaction_product,
-    schema.Selectivity: validate_selectivity,
-    schema.DateTime: validate_date_time,
-    schema.ReactionAnalysis: validate_reaction_analysis,
+    reaction_pb2.ReactionWorkup: validate_reaction_workup,
+    reaction_pb2.ReactionOutcome: validate_reaction_outcome,
+    reaction_pb2.ReactionProduct: validate_reaction_product,
+    reaction_pb2.Selectivity: validate_selectivity,
+    reaction_pb2.DateTime: validate_date_time,
+    reaction_pb2.ReactionAnalysis: validate_reaction_analysis,
     # Metadata
-    schema.ReactionProvenance: validate_reaction_provenance,
-    schema.ReactionProvenance.RecordEvent: validate_record_event,
-    schema.Person: validate_person,
+    reaction_pb2.ReactionProvenance: validate_reaction_provenance,
+    reaction_pb2.ReactionProvenance.RecordEvent: validate_record_event,
+    reaction_pb2.Person: validate_person,
     # Units
-    schema.Time: validate_time,
-    schema.Mass: validate_mass,
-    schema.Moles: validate_moles,
-    schema.Volume: validate_volume,
-    schema.Concentration: validate_concentration,
-    schema.Pressure: validate_pressure,
-    schema.Temperature: validate_temperature,
-    schema.Current: validate_current,
-    schema.Voltage: validate_voltage,
-    schema.Length: validate_length,
-    schema.Wavelength: validate_wavelength,
-    schema.FlowRate: validate_flow_rate,
-    schema.Percentage: validate_percentage,
-    schema.BinaryData: validate_binary_data,
+    reaction_pb2.Time: validate_time,
+    reaction_pb2.Mass: validate_mass,
+    reaction_pb2.Moles: validate_moles,
+    reaction_pb2.Volume: validate_volume,
+    reaction_pb2.Concentration: validate_concentration,
+    reaction_pb2.Pressure: validate_pressure,
+    reaction_pb2.Temperature: validate_temperature,
+    reaction_pb2.Current: validate_current,
+    reaction_pb2.Voltage: validate_voltage,
+    reaction_pb2.Length: validate_length,
+    reaction_pb2.Wavelength: validate_wavelength,
+    reaction_pb2.FlowRate: validate_flow_rate,
+    reaction_pb2.Percentage: validate_percentage,
+    reaction_pb2.BinaryData: validate_binary_data,
 }

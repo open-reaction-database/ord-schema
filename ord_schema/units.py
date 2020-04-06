@@ -2,71 +2,71 @@
 
 import re
 
-from ord_schema.proto import ord_schema_pb2 as schema
+from ord_schema.proto import reaction_pb2
 
 # Accepted synonyms for units. Note that all values will be converted to
 # lowercase.
 _UNIT_SYNONYMS = {
-    schema.Time: {
-        schema.Time.HOUR: ['h', 'hour', 'hours', 'hr', 'hrs'],
-        schema.Time.MINUTE: ['m', 'min', 'mins', 'minute', 'minutes'],
-        schema.Time.SECOND: ['s', 'sec', 'secs', 'second', 'seconds'],
+    reaction_pb2.Time: {
+        reaction_pb2.Time.HOUR: ['h', 'hour', 'hours', 'hr', 'hrs'],
+        reaction_pb2.Time.MINUTE: ['m', 'min', 'mins', 'minute', 'minutes'],
+        reaction_pb2.Time.SECOND: ['s', 'sec', 'secs', 'second', 'seconds'],
     },
-    schema.Mass: {
-        schema.Mass.GRAM: ['g', 'gram', 'grams', 'gs', 'gm', 'gms'],
-        schema.Mass.MILLIGRAM: ['mg', 'mgs', 'milligrams', 'milligram'],
-        schema.Mass.MICROGRAM: ['ug', 'ugs', 'micg', 'micgs', 'micrograms',
-                                'microgram'],
-        schema.Mass.KILOGRAM: ['kg', 'kgs', 'kilogram', 'kilograms'],
+    reaction_pb2.Mass: {
+        reaction_pb2.Mass.GRAM: ['g', 'gram', 'grams', 'gs', 'gm', 'gms'],
+        reaction_pb2.Mass.MILLIGRAM: ['mg', 'mgs', 'milligrams', 'milligram'],
+        reaction_pb2.Mass.MICROGRAM: ['ug', 'ugs', 'micg', 'micgs',
+                                      'micrograms', 'microgram'],
+        reaction_pb2.Mass.KILOGRAM: ['kg', 'kgs', 'kilogram', 'kilograms'],
     },
-    schema.Moles: {
-        schema.Moles.MOLES: ['mol', 'mols', 'mole', 'moles'],
-        schema.Moles.MILLIMOLES: ['mmol', 'millimoles', 'mmols'],
-        schema.Moles.MICROMOLES: ['umol', 'umols', 'micromoles'],
-        schema.Moles.NANOMOLES: ['nmol', 'nanomoles'],
+    reaction_pb2.Moles: {
+        reaction_pb2.Moles.MOLES: ['mol', 'mols', 'mole', 'moles'],
+        reaction_pb2.Moles.MILLIMOLES: ['mmol', 'millimoles', 'mmols'],
+        reaction_pb2.Moles.MICROMOLES: ['umol', 'umols', 'micromoles'],
+        reaction_pb2.Moles.NANOMOLES: ['nmol', 'nanomoles'],
     },
-    schema.Volume: {
-        schema.Volume.MILLILITER: ['mL', 'milliliters'],
-        schema.Volume.MICROLITER: ['uL', 'micl', 'microliters'],
-        schema.Volume.LITER: ['L', 'liters', 'litres'],
+    reaction_pb2.Volume: {
+        reaction_pb2.Volume.MILLILITER: ['mL', 'milliliters'],
+        reaction_pb2.Volume.MICROLITER: ['uL', 'micl', 'microliters'],
+        reaction_pb2.Volume.LITER: ['L', 'liters', 'litres'],
     },
-    # schema.Concentration: {
-    #     schema.Concentration.MOLAR: ['M', 'molar'],
-    #     schema.Concentration.MILLIMOLAR: ['mM', 'millimolar'],
-    #     schema.Concentration.MICROMOLAR: ['uM', 'micromolar'],
+    # reaction_pb2.Concentration: {
+    #     reaction_pb2.Concentration.MOLAR: ['M', 'molar'],
+    #     reaction_pb2.Concentration.MILLIMOLAR: ['mM', 'millimolar'],
+    #     reaction_pb2.Concentration.MICROMOLAR: ['uM', 'micromolar'],
     # }
-    schema.Pressure: {
-        schema.Pressure.BAR: ['bar', 'barg', 'bars'],
-        schema.Pressure.ATMOSPHERE: ['atm', 'atmosphere', 'atmospheres'],
-        schema.Pressure.PSI: ['psi'],
-        schema.Pressure.KPSI: ['kpsi'],
-        schema.Pressure.PASCAL: ['Pa', 'pascal', 'pascals', 'pas'],
-        schema.Pressure.KILOPASCAL: ['kPa', 'kilopascals', 'kPas'],
+    reaction_pb2.Pressure: {
+        reaction_pb2.Pressure.BAR: ['bar', 'barg', 'bars'],
+        reaction_pb2.Pressure.ATMOSPHERE: ['atm', 'atmosphere', 'atmospheres'],
+        reaction_pb2.Pressure.PSI: ['psi'],
+        reaction_pb2.Pressure.KPSI: ['kpsi'],
+        reaction_pb2.Pressure.PASCAL: ['Pa', 'pascal', 'pascals', 'pas'],
+        reaction_pb2.Pressure.KILOPASCAL: ['kPa', 'kilopascals', 'kPas'],
     },
-    schema.Temperature: {
-        schema.Temperature.CELSIUS: ['C', 'degC', 'celsius'],
-        schema.Temperature.FAHRENHEIT: ['F', 'degF', 'fahrenheit'],
-        schema.Temperature.KELVIN: ['K', 'degK', 'Kelvin'],
+    reaction_pb2.Temperature: {
+        reaction_pb2.Temperature.CELSIUS: ['C', 'degC', 'celsius'],
+        reaction_pb2.Temperature.FAHRENHEIT: ['F', 'degF', 'fahrenheit'],
+        reaction_pb2.Temperature.KELVIN: ['K', 'degK', 'Kelvin'],
     },
-    schema.Current: {
-        schema.Current.AMPERE: ['A', 'ampere', 'amps', 'amp'],
-        schema.Current.MILLIAMPERE: ['mA', 'milliampere', 'milliamp',
-                                     'milliamps'],
+    reaction_pb2.Current: {
+        reaction_pb2.Current.AMPERE: ['A', 'ampere', 'amps', 'amp'],
+        reaction_pb2.Current.MILLIAMPERE: ['mA', 'milliampere', 'milliamp',
+                                           'milliamps'],
     },
-    schema.Voltage: {
-        schema.Voltage.VOLT: ['V', 'volt', 'volts'],
-        schema.Voltage.MILLIVOLT: ['mV', 'millivolt', 'millivolts'],
+    reaction_pb2.Voltage: {
+        reaction_pb2.Voltage.VOLT: ['V', 'volt', 'volts'],
+        reaction_pb2.Voltage.MILLIVOLT: ['mV', 'millivolt', 'millivolts'],
     },
-    schema.Wavelength: {
-        schema.Wavelength.NANOMETER: ['nm', 'nanometer', 'nanometers'],
-        schema.Wavelength.WAVENUMBER: ['cm-1', 'wavenumber', '1/cm'],
+    reaction_pb2.Wavelength: {
+        reaction_pb2.Wavelength.NANOMETER: ['nm', 'nanometer', 'nanometers'],
+        reaction_pb2.Wavelength.WAVENUMBER: ['cm-1', 'wavenumber', '1/cm'],
     },
-    schema.FlowRate: {
-        schema.FlowRate.MICROLITER_PER_MINUTE: ['uL/min'],
-        schema.FlowRate.MICROLITER_PER_SECOND: ['uL/s'],
-        schema.FlowRate.MILLILITER_PER_MINUTE: ['mL/min'],
-        schema.FlowRate.MILLILITER_PER_SECOND: ['mL/s'],
-        schema.FlowRate.MICROLITER_PER_HOUR: ['uL/h'],
+    reaction_pb2.FlowRate: {
+        reaction_pb2.FlowRate.MICROLITER_PER_MINUTE: ['uL/min'],
+        reaction_pb2.FlowRate.MICROLITER_PER_SECOND: ['uL/s'],
+        reaction_pb2.FlowRate.MILLILITER_PER_MINUTE: ['mL/min'],
+        reaction_pb2.FlowRate.MILLILITER_PER_SECOND: ['mL/s'],
+        reaction_pb2.FlowRate.MICROLITER_PER_HOUR: ['uL/h'],
     },
 }
 

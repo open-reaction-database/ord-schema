@@ -14,7 +14,7 @@ from absl import logging
 
 from google.protobuf import json_format
 from google.protobuf.pyext import _message
-from ord_schema.proto import ord_schema_pb2
+from ord_schema.proto import reaction_pb2
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('input', None, 'Input pattern (glob).')
@@ -95,7 +95,7 @@ def main(argv):
     records = []
     for filename in filenames:
         with open(filename, 'rb') as f:
-            reaction = ord_schema_pb2.Reaction.FromString(f.read())
+            reaction = reaction_pb2.Reaction.FromString(f.read())
         if FLAGS.database:
             record_dict = get_database_json(reaction)
             record = json.dumps(record_dict)
