@@ -12,7 +12,7 @@ import json
 from absl import app
 from absl import flags
 
-from ord_schema.proto import ord_schema_pb2
+from ord_schema.proto import reaction_pb2
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('output', None, 'Output filename (*.json).')
@@ -62,7 +62,7 @@ def get_schema(message_descriptor):
 
 def main(argv):
     del argv  # Only used by app.run().
-    schema = get_schema(ord_schema_pb2.Reaction.DESCRIPTOR)
+    schema = get_schema(reaction_pb2.Reaction.DESCRIPTOR)
     with open(FLAGS.output, 'w') as f:
         json.dump(schema, f, indent=2)
 

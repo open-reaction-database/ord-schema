@@ -1,10 +1,10 @@
-"""Tests for ord_schema.units."""
+"""Tests for ord_reaction_pb2.units."""
 
 from absl.testing import absltest
 from absl.testing import parameterized
 
 from ord_schema import units
-from ord_schema.proto import ord_schema_pb2 as schema
+from ord_schema.proto import reaction_pb2
 
 
 class UnitsTest(parameterized.TestCase, absltest.TestCase):
@@ -15,11 +15,13 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
 
     @parameterized.named_parameters(
         ('capitalized', '15.0 ML',
-         schema.Volume(value=15.0, units=schema.Volume.MILLILITER)),
-        ('integer', '24 H', schema.Time(value=24, units=schema.Time.HOUR)),
-        ('no space', '32.1g', schema.Mass(value=32.1, units=schema.Mass.GRAM)),
+         reaction_pb2.Volume(value=15.0, units=reaction_pb2.Volume.MILLILITER)),
+        ('integer', '24 H',
+         reaction_pb2.Time(value=24, units=reaction_pb2.Time.HOUR)),
+        ('no space', '32.1g',
+         reaction_pb2.Mass(value=32.1, units=reaction_pb2.Mass.GRAM)),
         ('extra space', '   32.1      \t   g  ',
-         schema.Mass(value=32.1, units=schema.Mass.GRAM)), )
+         reaction_pb2.Mass(value=32.1, units=reaction_pb2.Mass.GRAM)), )
     def test_resolve(self, string, expected):
         self.assertEqual(self._resolver.resolve(string), expected)
 
