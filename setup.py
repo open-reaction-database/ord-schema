@@ -29,8 +29,6 @@ if __name__ == '__main__':
         description='Schema for the Open Reaction Database',
         url='https://github.com/Open-Reaction-Database/ord-schema',
         license='Apache License, Version 2.0',
-        install_requires=['absl-py>=0.9.0', 'protobuf>=3.11.0',
-            'python-dateutil>=1.10.0'],
         version="0.1",
         packages=setuptools.find_packages(),
         cmdclass={'build_py': BuildPyCommand})

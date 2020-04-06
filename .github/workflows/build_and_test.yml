@@ -9,7 +9,7 @@ on:
       - master
 
 jobs:
-  run_tests:
+  build_and_test:
 
     runs-on: ubuntu-latest
 
@@ -21,7 +21,12 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: '3.x'
-    - name: Install
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pylint
+    - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
         python setup.py build_py
@@ -34,3 +39,7 @@ jobs:
           echo "Running tests in ${TEST_FILENAME}"; \
           python "${TEST_FILENAME}"; \
         done
+    - name: Run pylint
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        pylint ord_schema
