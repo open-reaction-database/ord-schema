@@ -1,10 +1,43 @@
 """Tests for ord_schema.message_helpers."""
 
+import os
+import tempfile
+
+from absl import flags
 from absl.testing import absltest
 from absl.testing import parameterized
 
 from ord_schema import message_helpers
 from ord_schema.proto import ord_schema_pb2 as schema
+
+
+class BuildBinaryDataTest(absltest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
+        self.data = b'test data'
+        self.filename = os.path.join(self.test_subdirectory, 'test.data')
+        with open(self.filename, 'wb') as f:
+            f.write(self.data)
+
+    def test_defaults(self):
+        message = message_helpers.build_binary_data(self.filename)
+        self.assertEqual(message.value, self.data)
+        self.assertEqual(message.description, '')
+        self.assertEqual(message.format, 'data')
+
+    def test_description(self):
+        message = message_helpers.build_binary_data(self.filename,
+                                                    description='binary data')
+        self.assertEqual(message.value, self.data)
+        self.assertEqual(message.description, 'binary data')
+        self.assertEqual(message.format, 'data')
+
+    def test_bad_filename(self):
+        with self.assertRaisesRegex(ValueError,
+                                    'cannot deduce the file format'):
+            message_helpers.build_binary_data('testdata')
 
 
 class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
