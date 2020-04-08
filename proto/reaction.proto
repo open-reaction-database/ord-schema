@@ -52,10 +52,14 @@ message ReactionIdentifier {
     ATOM_MAPPED_SMILES = 3;
     RINCHI = 4;  // Reaction InChI.
     NAME = 5;  // Named reaction or reaction category.
+    RDKIT_BINARY = 6;  // RDKit binary format (for fast loading).
   }
   IdentifierType type = 1;
   string details = 2;
-  string value = 3;
+  oneof kind {
+    string value = 3;
+    bytes bytes_value = 4;
+  }
 }
 
 message ReactionInput {
@@ -239,12 +243,17 @@ message CompoundIdentifier {
     UNIPROT_ID = 13;
     // Protein data bank ID (for enzymes)
     PDB_ID = 14;
+    // RDKit binary format (for fast loading)
+    RDKIT_BINARY = 15;
   }
   IdentifierType type = 1;
   string details = 2;
   // Value of the compound identifier; certain types (e.g., PUBCHEM_CID) may
   // cast the string as an integer for downstream processing and validation.
-  string value = 3;
+  oneof kind {
+    string value = 3;
+    bytes bytes_value = 4;
+  }
 }
 
 message Vessel {

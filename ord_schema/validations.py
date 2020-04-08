@@ -110,6 +110,8 @@ def validate_reaction(message):
 
 def validate_reaction_identifier(message):
     ensure_details_specified_if_type_custom(message)
+    if not message.value and not message.bytes_value:
+        raise ValueError('{bytes_}value must be set')
     return message
 
 
@@ -136,6 +138,8 @@ def validate_compound_preparation(message):
 
 def validate_compound_identifier(message):
     ensure_details_specified_if_type_custom(message)
+    if not message.value and not message.bytes_value:
+        raise ValueError('{bytes_}value must be set')
     # TODO(ccoley): Add identifier-specific validation, e.g., by using
     # RDKit to try to parse SMILES, looking up NAMEs using online resolvers
     return message
