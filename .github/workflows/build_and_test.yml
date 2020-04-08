@@ -17,15 +17,15 @@ jobs:
     - uses: actions/checkout@v2
     - name: Set up protoc
       uses: arduino/setup-protoc@v1.1.0
-    - name: Set up Python
-      uses: actions/setup-python@v1
+    - name: Install miniconda
+      uses: goanpeca/setup-miniconda@v1.0.2
       with:
-        python-version: '3.x'
+        auto-update-conda: true
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pylint
+        conda install --file requirements.txt
+        conda install -c rdkit rdkit
+        conda install pylint
     - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
