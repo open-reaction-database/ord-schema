@@ -28,6 +28,7 @@ jobs:
         conda install pylint
     - name: Install ord_schema
       run: |
+        export PATH="$(dirname $(which conda))":${PATH}
         cd "${GITHUB_WORKSPACE}"
         python setup.py build_py
         python setup.py install
