@@ -70,6 +70,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(ValueError, 'details'):
             validations.validate_message(message)
         dummy_component.identifiers[0].details = 'custom_identifier'
+        dummy_component.identifiers[0].value = 'custom_value'
         self.assertEqual(validations.validate_message(message), message)
         outcome = message.outcomes.add()
         _ = outcome.analyses['dummy_analysis']
