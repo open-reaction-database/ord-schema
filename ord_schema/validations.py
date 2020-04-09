@@ -308,7 +308,7 @@ def validate_reaction_provenance(message):
     # Check if record_created undefined
     if record_modified and not record_created:
         warnings.warn('record_created not defined but record_modified is',
-            ValidationWarning)
+                      ValidationWarning)
     # Check signs of time differences
     if experiment_start and record_created:
         if (record_created - experiment_start).total_seconds() < 0:
@@ -427,7 +427,7 @@ def validate_flow_rate(message):
 def validate_percentage(message):
     if 0 < message.value < 1:
         warnings.warn('Percentage values are 0-100, not fractions '
-                    f'({message.value} used)', ValidationWarning)
+                      f'({message.value} used)', ValidationWarning)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_float_range(message, 'value', 0, 105)  # generous upper bound
