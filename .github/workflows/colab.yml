@@ -1,0 +1,13 @@
+name: colab_badges
+
+on: push
+
+jobs:
+  colab_badges:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Colab Badge Action
+      uses: trsvchn/colab-badge-action@v1
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
