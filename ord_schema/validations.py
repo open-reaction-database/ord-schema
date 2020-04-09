@@ -438,6 +438,7 @@ def validate_binary_data(message):
         raise ValueError('value is required for BinaryData')
     if not message.format:
         raise ValidationWarning('No format specified for BinaryData')
+    return message
 
 
 # pylint: enable=missing-function-docstring
