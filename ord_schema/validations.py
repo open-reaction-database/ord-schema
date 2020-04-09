@@ -2,6 +2,7 @@
 
 import math
 import re
+import warnings
 from dateutil import parser
 
 from ord_schema.proto import reaction_pb2
@@ -270,8 +271,8 @@ def validate_selectivity(message):
     if message.type == message.EE:
         ensure_float_range(message, 'value', 0, 100)
         if 0 < message.value < 1:
-            raise ValidationWarning('EE selectivity values are 0-100, '
-                                    f'not fractions ({message.value} used)')
+            warnings.warn('EE selectivity values are 0-100, not fractions '
+                          f'({message.value} used)', ValidationWarning)
     ensure_details_specified_if_type_custom(message)
     return message
 
@@ -306,8 +307,8 @@ def validate_reaction_provenance(message):
         record_modified = parser.parse(record.time.value)
     # Check if record_created undefined
     if record_modified and not record_created:
-        raise ValidationWarning('record_created not defined, but '
-                                'record_modified is')
+        warnings.warn('record_created not defined but record_modified is',
+            ValidationWarning)
     # Check signs of time differences
     if experiment_start and record_created:
         if (record_created - experiment_start).total_seconds() < 0:
@@ -425,8 +426,8 @@ def validate_flow_rate(message):
 
 def validate_percentage(message):
     if 0 < message.value < 1:
-        raise ValidationWarning('Percentage values are 0-100, '
-                                f'not fractions ({message.value} used)')
+        warnings.warn('Percentage values are 0-100, not fractions '
+                    f'({message.value} used)', ValidationWarning)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_float_range(message, 'value', 0, 105)  # generous upper bound
@@ -437,7 +438,7 @@ def validate_binary_data(message):
     if not message.value:
         raise ValueError('value is required for BinaryData')
     if not message.format:
-        raise ValidationWarning('No format specified for BinaryData')
+        warnings.warn('No format specified for BinaryData', ValidationWarning)
     return message
 
 
