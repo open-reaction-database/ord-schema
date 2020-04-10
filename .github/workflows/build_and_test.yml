@@ -48,3 +48,8 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         pylint ord_schema
+    - name: Test notebooks
+      shell: bash -l {0}
+      run: |
+        pip install treon
+        treon
