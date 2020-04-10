@@ -15,7 +15,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Colab Badge Action
-      uses: skearnes/colab-badge-action@v1.1
+      uses: skearnes/colab-badge-action@v1.1.1
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         target_branch: master
