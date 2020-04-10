@@ -4,10 +4,12 @@
 # See https://github.com/marketplace/actions/colab-badge-action for more details.
 name: colab_badges
 
+# NOTE(kearnes): This action is incompatible with the `pull_request` event; see
+# https://github.com/trsvchn/colab-badge-action/issues/3 for details.
 on:
-  pull_request:
-    branches: 
-      - master
+  push:
+    branches-ignore: 
+      - master  # master is protected
 
 jobs:
   colab_badges:
