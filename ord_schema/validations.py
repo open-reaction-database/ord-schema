@@ -14,7 +14,8 @@ def validate_message(message, recurse=True):
     Messages are not validated to check enum values, since these are enforced
     by the schema. Instead, we only check for validity of items that cannot be
     enforced in the schema (e.g., non-negativity of certain measurements,
-    consistency of cross-referenced keys).
+    consistency of cross-referenced keys). Fatal issues are raised as errors,
+    while non-fatal issues use the built-in warnings module.
 
     Args:
         message: A message to validate.
