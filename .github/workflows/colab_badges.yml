@@ -18,4 +18,6 @@ jobs:
       uses: skearnes/colab-badge-action@v1.1.1
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
+        check: "all"
+        update: True
         target_branch: master
