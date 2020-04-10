@@ -1,0 +1,17 @@
+# This workflow adds an "Open in Colab" badge to Jupyter notebooks.
+#
+# To use, add "{{ badge }}" in a Markdown cell (usually at the top of the notebook).
+# See https://github.com/marketplace/actions/colab-badge-action for more details.
+name: colab_badges
+
+on: push
+
+jobs:
+  colab_badges:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Colab Badge Action
+      uses: trsvchn/colab-badge-action@v1
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
