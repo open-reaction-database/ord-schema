@@ -9,7 +9,7 @@ name: colab_badges
 on:
   push:
     branches-ignore: 
-      - master  # master is protected
+      - master  # master is protected.
 
 jobs:
   colab_badges:
@@ -19,7 +19,9 @@ jobs:
     - name: Colab Badge Action
       uses: skearnes/colab-badge-action@v1.1.3
       with:
-        github_token: ${{ secrets.trigger_workflows }}
-        check: "all"
+        # Do not use GITHUB_TOKEN here since it will not trigger events in response; see
+        # https://help.github.com/en/actions/reference/events-that-trigger-workflows#triggering-new-workflows-using-a-personal-access-token.
+        github_token: ${{ secrets.TRIGGER_WORKFLOWS }}
+        check: all
         update: True
         target_branch: master
