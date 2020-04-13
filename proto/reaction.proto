@@ -901,6 +901,7 @@ message BinaryData {
   }
   string description = 3;
   // Description of the file format; usually the file extension. For example,
-  // 'png' or 'tiff' for images.
+  // 'png' or 'tiff' for images. If empty, assume that `value` decodes to a
+  // string.
   string format = 4;
 }
