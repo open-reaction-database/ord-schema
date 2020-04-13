@@ -171,12 +171,12 @@ def validate_compound(message):
                 this_mol = Chem.MolFromSmiles(identifier.value)
                 if this_mol is None:
                     raise ValueError(f'RDKit {RDKIT_VERSION} could not validate'
-                                     ' SMILES identifier {identifier.value}')
+                                     f' SMILES identifier {identifier.value}')
             elif identifier.type == identifier.INCHI:
                 this_mol = Chem.MolFromInchi(identifier.value)
                 if this_mol is None:
                     raise ValueError(f'RDKit {RDKIT_VERSION} could not validate'
-                                     ' InChI identifier {identifier.value}')
+                                     f' InChI identifier {identifier.value}')
             elif identifier.type == identifier.MOLBLOCK:
                 this_mol = Chem.MolFromMolBlock(identifier.value)
                 if this_mol is None:
@@ -324,7 +324,7 @@ def validate_reaction_workup(message):
                          'temperature conditions')
     if (message.type in (reaction_pb2.ReactionWorkup.EXTRACTION,
                          reaction_pb2.ReactionWorkup.FILTRATION) and
-            not message.keep_hase):
+            not message.keep_phase):
         raise ValueError('Workup step EXTRACTION or FILTRATION missing '
                          'required field keep_phase')
     if (message.type in (reaction_pb2.ReactionWorkup.ADDITION,
@@ -335,7 +335,7 @@ def validate_reaction_workup(message):
                          reaction_pb2.ReactionWorkup.PH_ADJUST) and
             not message.components):
         raise ValueError('Workup step missing required components definition')
-    if (message.type == reaction_pb2.ReactionWorkupSTIRRING and
+    if (message.type == reaction_pb2.ReactionWorkup.STIRRING and
             not message.stirring):
         raise ValueError('Stirring workup step missing stirring definition')
     if (message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and
