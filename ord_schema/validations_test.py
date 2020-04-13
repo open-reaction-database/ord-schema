@@ -7,9 +7,10 @@ from ord_schema import validations
 from ord_schema.proto import reaction_pb2
 
 try:
-    from rdkit import Chem as Chem
+    from rdkit import Chem
 except ImportError:
     Chem = None
+
 
 class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
@@ -24,7 +25,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     @parameterized.named_parameters(
         ('neg volume',
-         reaction_pb2.Volume(value=-15.0, units=reaction_pb2.Volume.MILLILITER),
+         reaction_pb2.Volume(
+             value=-15.0, units=reaction_pb2.Volume.MILLILITER),
          'non-negative'),
         ('neg time', reaction_pb2.Time(value=-24, units=reaction_pb2.Time.HOUR),
          'non-negative'),
@@ -99,10 +101,11 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         identifier = message.identifiers.add()
         identifier.type = identifier.NAME
         identifier.value = 'aspirin'
-        self.assertEqual(validations.validate_message(message).identifiers[1],
-            reaction_pb2.CompoundIdentifier(type='SMILES', 
-            value='CC(=O)OC1=CC=CC=C1C(=O)O',
-            details='NAME resolved by PubChem'))
+        self.assertEqual(
+            validations.validate_message(message).identifiers[1],
+            reaction_pb2.CompoundIdentifier(type='SMILES',
+                                            value='CC(=O)OC1=CC=CC=C1C(=O)O',
+                                            details='NAME resolved by PubChem'))
 
     @absltest.skipIf(Chem is None, 'no rdkit')
     def test_compound_rdkit_binary(self):
@@ -111,9 +114,10 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         identifier = message.identifiers.add()
         identifier.type = identifier.SMILES
         identifier.value = Chem.MolToSmiles(mol)
-        self.assertEqual(validations.validate_message(message).identifiers[1],
-            reaction_pb2.CompoundIdentifier(type='RDKIT_BINARY', 
-            bytes_value=mol.ToBinary()))
+        self.assertEqual(
+            validations.validate_message(message).identifiers[1],
+            reaction_pb2.CompoundIdentifier(type='RDKIT_BINARY',
+                                            bytes_value=mol.ToBinary()))
 
 
 if __name__ == '__main__':
