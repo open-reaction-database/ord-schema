@@ -3,9 +3,16 @@
 import math
 import re
 import warnings
+from urllib import request
+from urllib.error import HTTPError
 from dateutil import parser
 
 from ord_schema.proto import reaction_pb2
+
+try:
+    from rdkit import Chem, __version__ as RDKIT_VERSION
+except ImportError:
+    Chem = None
 
 
 def validate_message(message, recurse=True):
@@ -120,16 +127,78 @@ def validate_reaction_identifier(message):
 def validate_reaction_input(message):
     if len(message.components) == 0:
         raise ValueError('Reaction inputs must have at least one component')
+    for component in message.components:
+        if not component.WhichOneof('amount'):
+            raise ValueError('Reaction input\'s components require an amount')
     return message
 
 
+def pubchem_resolve(value_type, value):
+    return request.urlopen('https://pubchem.ncbi.nlm.nih.gov/rest/pug'
+                           f'/compound/{value_type}/{value}/property/'
+                           'IsomericSMILES/txt').read().decode().strip()
+
 def validate_compound(message):
+    # pylint: disable=too-many-branches
     if len(message.identifiers) == 0:
         raise ValueError('Compounds must have at least one identifier')
+
+    # If no structural identifiers have been used, iterate through available
+    # identifiers until we can resolve one to a SMILES string
+    if not any(identifier.type in COMPOUND_STRUCTURAL_IDENTIFIERS_ for
+               identifier in message.identifiers):
+        for identifier in message.identifiers:
+            if identifier.type == identifier.NAME:
+                try:
+                    smiles = pubchem_resolve('name', identifier.value)
+                    new_identifier = message.identifiers.add()
+                    new_identifier.type = new_identifier.SMILES
+                    new_identifier.value = smiles
+                    new_identifier.details = 'NAME resolved by PubChem'
+                    break
+                except HTTPError:
+                    pass
+
+    # Try to create an RDKit binary identifier
+    # TODO(ccoley) add more sources for RDKIT_BINARY
+    if Chem and not any(identifier.type == identifier.RDKIT_BINARY for
+                        identifier in message.identifiers):
+        mol = None
+        for identifier in message.identifiers:
+            this_mol = None
+
+            if Chem and identifier.type == identifier.SMILES:
+                this_mol = Chem.MolFromSmiles(identifier.value)
+                if this_mol is None:
+                    raise ValueError(f'RDKit {RDKIT_VERSION} could not validate'
+                                     ' SMILES identifier {identifier.value}')
+            elif identifier.type == identifier.INCHI:
+                this_mol = Chem.MolFromInchi(identifier.value)
+                if this_mol is None:
+                    raise ValueError(f'RDKit {RDKIT_VERSION} could not validate'
+                                     ' InChI identifier {identifier.value}')
+            elif identifier.type == identifier.MOLBLOCK:
+                this_mol = Chem.MolFromMolBlock(identifier.value)
+                if this_mol is None:
+                    raise ValueError(f'RDKit {RDKIT_VERSION} could not validate'
+                                     ' MolBlock identifier')
+
+            # If RDKit mol was not defined, define it with this resolved mol
+            mol = mol or this_mol
+
+        if mol is not None:
+            # TODO(ccoley) More canonicalization, sanitization, etc.
+            new_identifier = message.identifiers.add()
+            new_identifier.type = new_identifier.RDKIT_BINARY
+            new_identifier.bytes_value = mol.ToBinary()
+    # pylint: enable=too-many-branches
+
     return message
 
 
 def validate_compound_feature(message):
+    if not message.name:
+        raise ValueError('Compound features must have names')
     return message
 
 
@@ -142,8 +211,6 @@ def validate_compound_identifier(message):
     ensure_details_specified_if_type_custom(message)
     if not message.value and not message.bytes_value:
         raise ValueError('{bytes_}value must be set')
-    # TODO(ccoley): Add identifier-specific validation, e.g., by using
-    # RDKit to try to parse SMILES, looking up NAMEs using online resolvers
     return message
 
 
@@ -168,6 +235,11 @@ def validate_reaction_conditions(message):
         raise ValueError('Reaction conditions are dynamic, but no details'
                          ' provided to explain how procedure deviates from'
                          ' normal single-step reaction conditions.')
+    if message.details and not message.conditions_are_dynamic:
+        warnings.warn('Reaction condition details provided but field '
+                      'conditions_are_dynamic is False. If the conditions '
+                      'cannot be fully captured by the schema, set to True.',
+                      ValidationWarning)
     return message
 
 
@@ -175,6 +247,10 @@ def validate_temperature_conditions(message):
     if message.type == message.TemperatureControl.CUSTOM and \
             not message.details:
         raise ValueError('Temperature control custom, but no details provided')
+    if not message.setpoint.value:
+        warnings.warn('Temperature setpoints should be specified; even if '
+                      'using ambient conditions, estimate room temperature and '
+                      'the precision of your estimate.', ValidationWarning)
     return message
 
 
@@ -239,6 +315,32 @@ def validate_reaction_observation(message):
 
 def validate_reaction_workup(message):
     ensure_details_specified_if_type_custom(message)
+    if (message.type == reaction_pb2.ReactionWorkup.WAIT and
+            not message.duration.value):
+        raise ValueError('"WAIT" workup steps require a defined duration')
+    if (message.type == reaction_pb2.ReactionWorkup.TEMPERATURE and
+            not message.HasField('temperature')):
+        raise ValueError('"TEMPERATURE" workup steps require defined '
+                         'temperature conditions')
+    if (message.type in (reaction_pb2.ReactionWorkup.EXTRACTION,
+                         reaction_pb2.ReactionWorkup.FILTRATION) and
+            not message.keep_hase):
+        raise ValueError('Workup step EXTRACTION or FILTRATION missing '
+                         'required field keep_phase')
+    if (message.type in (reaction_pb2.ReactionWorkup.ADDITION,
+                         reaction_pb2.ReactionWorkup.WASH,
+                         reaction_pb2.ReactionWorkup.DRY_WITH_MATERIAL,
+                         reaction_pb2.ReactionWorkup.SCAVENGING,
+                         reaction_pb2.ReactionWorkup.DISSOLUTION,
+                         reaction_pb2.ReactionWorkup.PH_ADJUST) and
+            not message.components):
+        raise ValueError('Workup step missing required components definition')
+    if (message.type == reaction_pb2.ReactionWorkupSTIRRING and
+            not message.stirring):
+        raise ValueError('Stirring workup step missing stirring definition')
+    if (message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and
+            not message.target_ph):
+        raise ValueError('pH adjustment workup missing target pH')
     return message
 
 
@@ -256,6 +358,10 @@ def validate_reaction_outcome(message):
                 if key not in analysis_keys:
                     raise ValueError(f'Undefined analysis key {key} '
                                      'in ReactionProduct')
+    if not message.products:
+        warnings.warn('No products specified for reaction outcome; this should'
+                      ' only be used when screening for reaction conversion',
+                      ValidationWarning)
     return message
 
 
@@ -295,7 +401,8 @@ def validate_reaction_analysis(message):
 
 def validate_reaction_provenance(message):
     # Prepare datetimes
-    # TODO(kearnes): Require these to be set?
+    if not message.HasField('record_created'):
+        raise ValueError('Reactions must have record_created defined.')
     experiment_start = None
     record_created = None
     record_modified = None
@@ -306,10 +413,6 @@ def validate_reaction_provenance(message):
     for record in message.record_modified:
         # Use the last record as the most recent modification time.
         record_modified = parser.parse(record.time.value)
-    # Check if record_created undefined
-    if record_modified and not record_created:
-        warnings.warn('record_created not defined but record_modified is',
-                      ValidationWarning)
     # Check signs of time differences
     if experiment_start and record_created:
         if (record_created - experiment_start).total_seconds() < 0:
@@ -503,3 +606,11 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.Percentage: validate_percentage,
     reaction_pb2.BinaryData: validate_binary_data,
 }
+
+COMPOUND_STRUCTURAL_IDENTIFIERS_ = [
+    reaction_pb2.CompoundIdentifier.SMILES,
+    reaction_pb2.CompoundIdentifier.INCHI,
+    reaction_pb2.CompoundIdentifier.MOLBLOCK,
+    reaction_pb2.CompoundIdentifier.CXSMILES,
+    reaction_pb2.CompoundIdentifier.XYZ,
+]

@@ -6,6 +6,10 @@ from absl.testing import parameterized
 from ord_schema import validations
 from ord_schema.proto import reaction_pb2
 
+try:
+    from rdkit import Chem as Chem
+except ImportError:
+    Chem = None
 
 class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
@@ -64,6 +68,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(ValueError, 'component'):
             validations.validate_message(message)
         dummy_component = dummy_input.components.add()
+
         with self.assertRaisesRegex(ValueError, 'identifier'):
             validations.validate_message(message)
         dummy_component.identifiers.add(type='CUSTOM')
@@ -71,6 +76,10 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
             validations.validate_message(message)
         dummy_component.identifiers[0].details = 'custom_identifier'
         dummy_component.identifiers[0].value = 'custom_value'
+        with self.assertRaisesRegex(ValueError, 'require an amount'):
+            validations.validate_message(message)
+        dummy_component.mass.value = 1
+        dummy_component.mass.units = reaction_pb2.Mass.GRAM
         self.assertEqual(validations.validate_message(message), message)
         outcome = message.outcomes.add()
         _ = outcome.analyses['dummy_analysis']
@@ -84,6 +93,27 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
             validations.validate_message(message)
         message.record_created.time.value = '11:15 am'
         self.assertEqual(validations.validate_message(message), message)
+
+    def test_compound_name_resolver(self):
+        message = reaction_pb2.Compound()
+        identifier = message.identifiers.add()
+        identifier.type = identifier.NAME
+        identifier.value = 'aspirin'
+        self.assertEqual(validations.validate_message(message).identifiers[1],
+            reaction_pb2.CompoundIdentifier(type='SMILES', 
+            value='CC(=O)OC1=CC=CC=C1C(=O)O',
+            details='NAME resolved by PubChem'))
+
+    @absltest.skipIf(Chem is None, 'no rdkit')
+    def test_compound_rdkit_binary(self):
+        mol = Chem.MolFromSmiles('CC(=O)OC1=CC=CC=C1C(=O)O')
+        message = reaction_pb2.Compound()
+        identifier = message.identifiers.add()
+        identifier.type = identifier.SMILES
+        identifier.value = Chem.MolToSmiles(mol)
+        self.assertEqual(validations.validate_message(message).identifiers[1],
+            reaction_pb2.CompoundIdentifier(type='RDKIT_BINARY', 
+            bytes_value=mol.ToBinary()))
 
 
 if __name__ == '__main__':
