@@ -25,7 +25,7 @@ jobs:
       uses: skearnes/colab-badge-action@v1.2
       with:
         github_token: ${{ secrets.TRIGGER_WORKFLOWS }}
-        check: all
+        check: latest
         update: True
         target_branch: master
         target_repository: Open-Reaction-Database/ord-schema
