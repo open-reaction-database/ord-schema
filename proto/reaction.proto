@@ -895,9 +895,12 @@ message Percentage {
 
 // BinaryData is a container for binary (bytes) data.
 message BinaryData {
-  bytes value = 1;
-  string description = 2;
+  oneof kind {
+    bytes value = 1;
+    string url = 2;  // URL for data stored elsewhere.
+  }
+  string description = 3;
   // Description of the file format; usually the file extension. For example,
   // 'png' or 'tiff' for images.
-  string format = 3;
+  string format = 4;
 }
