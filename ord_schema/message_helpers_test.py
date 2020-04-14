@@ -21,23 +21,17 @@ class BuildBinaryDataTest(absltest.TestCase):
         with open(self.filename, 'wb') as f:
             f.write(self.data)
 
-    def test_defaults(self):
-        message = message_helpers.build_binary_data(self.filename)
-        self.assertEqual(message.value, self.data)
-        self.assertEqual(message.description, '')
-        self.assertEqual(message.format, 'data')
-
-    def test_description(self):
-        message = message_helpers.build_binary_data(self.filename,
-                                                    description='binary data')
-        self.assertEqual(message.value, self.data)
+    def test_build_data(self):
+        message = message_helpers.build_data(self.filename,
+                                             description='binary data')
+        self.assertEqual(message.bytes_value, self.data)
         self.assertEqual(message.description, 'binary data')
         self.assertEqual(message.format, 'data')
 
     def test_bad_filename(self):
         with self.assertRaisesRegex(ValueError,
                                     'cannot deduce the file format'):
-            message_helpers.build_binary_data('testdata')
+            message_helpers.build_data('testdata', 'no description')
 
 
 class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
