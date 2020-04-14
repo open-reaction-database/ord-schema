@@ -303,7 +303,7 @@ message ReactionSetup {
   // Automated platform name, brand, or model number.
   string automation_platform = 3;
   // Raw automation code or synthetic recipe definition.
-  map<string, BinaryData> automation_code = 4;
+  map<string, Data> automation_code = 4;
 }
 
 message ReactionConditions {
@@ -522,7 +522,7 @@ message ReactionNotes {
 message ReactionObservation {
   Time time = 1;
   string comment = 2;  // e.g. what color is the reaction?
-  BinaryData image = 3;
+  Data image = 3;
 }
 
 message ReactionWorkup {
@@ -690,9 +690,9 @@ message ReactionAnalysis {
   // Any details about analysis (e.g., NMR type, columns, gradients, conditions)
   string details = 2;
   // Data files (processed or annotated).
-  map<string, BinaryData> processed_data = 3;
+  map<string, Data> processed_data = 3;
   // Data files (raw) obtained directly from the instrument
-  map<string, BinaryData> raw_data = 4;
+  map<string, Data> raw_data = 4;
   string instrument_manufacturer = 5;
   DateTime instrument_last_calibrated = 6;
 }
@@ -891,11 +891,15 @@ message Percentage {
   float precision = 2;
 }
 
-// BinaryData is a container for binary (bytes) data.
-message BinaryData {
-  bytes value = 1;
-  string description = 2;
-  // Description of the file format; usually the file extension. For example,
-  // 'png' or 'tiff' for images.
-  string format = 3;
+// Data is a container for arbitrary string or bytes data.
+message Data {
+  oneof kind {
+    string value = 1;
+    bytes bytes_value = 2;
+    string url = 3;  // URL for data stored elsewhere.
+  }
+  string description = 4;
+  // Description of the file format (if applicable); usually the file extension.
+  // For example, 'png' or 'tiff' for images. If empty, we assume string data.
+  string format = 5;
 }
