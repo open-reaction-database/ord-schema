@@ -557,7 +557,7 @@ def validate_data(message):
         raise ValueError('Data requires one of {value, bytes_value, url}')
     if message.bytes_value and not message.format:
         raise ValueError('Data format is required for bytes_data')
-    elif not message.format:
+    if not message.format:
         # Warn for all data types if format is not specified.
         warnings.warn('No format specified for Data; assuming string',
                       ValidationWarning)
