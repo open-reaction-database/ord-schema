@@ -198,7 +198,7 @@ def validate_compound(message):
             mol = mol or this_mol
 
         if mol is not None:
-            # TODO(ccoley) We will want to add more canonicalization, 
+            # TODO(ccoley) We will want to add more canonicalization,
             # sanitization, etc., and separate this into its own function.
             new_identifier = message.identifiers.add()
             new_identifier.type = new_identifier.RDKIT_BINARY
