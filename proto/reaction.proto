@@ -221,8 +221,8 @@ message CompoundIdentifier {
     SMILES = 2;
     // IUPAC International Chemical Identifier.
     INCHI = 3;
-    // MDL Molfile V3000.
-    MOLFILE = 4;
+    // Molblock from a MDL Molfile V3000.
+    MOLBLOCK = 4;
     // Chemical name following IUPAC nomenclature recommendations.
     IUPAC_NAME = 5;
     // Any accepted common name, trade name, etc.
@@ -712,9 +712,7 @@ message ReactionProvenance {
   }
   RecordEvent record_created = 7;
   repeated RecordEvent record_modified = 8;
-  // TODO(ccoley): is it useful to create a unique ID field 
-  // that the centralized database can write to? (I know uniqueness is not
-  // enforceable)
+  // This is a unique ID field that the centralized database will write to.
   string record_id = 9;
 }
 
