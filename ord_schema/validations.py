@@ -555,8 +555,6 @@ def validate_percentage(message):
 def validate_data(message):
     if not message.WhichOneof('kind'):
         raise ValueError('Data requires one of {value, bytes_value, url}')
-    if not message.description:
-        raise ValueError('Data requires a description')
     if message.bytes_value and not message.format:
         raise ValueError('Data format is required for bytes_data')
     elif not message.format:

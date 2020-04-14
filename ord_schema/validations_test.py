@@ -124,9 +124,6 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(ValueError, 'requires one of'):
             validations.validate_message(message)
         message.bytes_value = b'test data'
-        with self.assertRaisesRegex(ValueError, 'requires a description'):
-            validations.validate_message(message)
-        message.description = 'test data'
         with self.assertRaisesRegex(ValueError, 'format is required'):
             validations.validate_message(message)
         message.value = 'test data'
