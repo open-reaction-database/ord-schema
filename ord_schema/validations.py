@@ -4,16 +4,25 @@ import math
 import re
 import warnings
 from urllib import request
-from urllib.error import HTTPError
+import urllib.error
 from dateutil import parser
 
 from ord_schema.proto import reaction_pb2
 
 try:
-    from rdkit import Chem, __version__ as RDKIT_VERSION
+    from rdkit import Chem
+    from rdkit import __version__ as RDKIT_VERSION
 except ImportError:
     Chem = None
+    RDKIT_VERSION = None
 
+_COMPOUND_STRUCTURAL_IDENTIFIERS = [
+    reaction_pb2.CompoundIdentifier.SMILES,
+    reaction_pb2.CompoundIdentifier.INCHI,
+    reaction_pb2.CompoundIdentifier.MOLBLOCK,
+    reaction_pb2.CompoundIdentifier.CXSMILES,
+    reaction_pb2.CompoundIdentifier.XYZ,
+]
 
 def validate_message(message, recurse=True):
     """Template function for validating custom messages in the reaction_pb2.
@@ -145,7 +154,7 @@ def validate_compound(message):
 
     # If no structural identifiers have been used, iterate through available
     # identifiers until we can resolve one to a SMILES string
-    if not any(identifier.type in COMPOUND_STRUCTURAL_IDENTIFIERS_ for
+    if not any(identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS for
                identifier in message.identifiers):
         for identifier in message.identifiers:
             if identifier.type == identifier.NAME:
@@ -156,7 +165,7 @@ def validate_compound(message):
                     new_identifier.value = smiles
                     new_identifier.details = 'NAME resolved by PubChem'
                     break
-                except HTTPError:
+                except urllib.error.HTTPError:
                     pass
 
     # Try to create an RDKit binary identifier
@@ -360,7 +369,7 @@ def validate_reaction_outcome(message):
                                      'in ReactionProduct')
     if not message.products:
         warnings.warn('No products specified for reaction outcome; this should'
-                      ' only be used when screening for reaction conversion',
+                      ' only be empty when screening for reaction conversion',
                       ValidationWarning)
     return message
 
@@ -606,11 +615,3 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.Percentage: validate_percentage,
     reaction_pb2.BinaryData: validate_binary_data,
 }
-
-COMPOUND_STRUCTURAL_IDENTIFIERS_ = [
-    reaction_pb2.CompoundIdentifier.SMILES,
-    reaction_pb2.CompoundIdentifier.INCHI,
-    reaction_pb2.CompoundIdentifier.MOLBLOCK,
-    reaction_pb2.CompoundIdentifier.CXSMILES,
-    reaction_pb2.CompoundIdentifier.XYZ,
-]

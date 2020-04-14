@@ -712,7 +712,7 @@ message ReactionProvenance {
   }
   RecordEvent record_created = 7;
   repeated RecordEvent record_modified = 8;
-  // This is a unique ID field that the centralized database will write to
+  // This is a unique ID field that the centralized database will write to.
   string record_id = 9;
 }
 
