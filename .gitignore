@@ -1,1 +1,4 @@
+# PyCharm files.
 .idea/
+# Generated protocol buffer wrappers.
+*_pb2.py
