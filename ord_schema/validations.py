@@ -24,6 +24,7 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.XYZ,
 ]
 
+
 def validate_message(message, recurse=True):
     """Template function for validating custom messages in the reaction_pb2.
 
@@ -146,6 +147,7 @@ def pubchem_resolve(value_type, value):
     return request.urlopen('https://pubchem.ncbi.nlm.nih.gov/rest/pug'
                            f'/compound/{value_type}/{value}/property/'
                            'IsomericSMILES/txt').read().decode().strip()
+
 
 def validate_compound(message):
     # pylint: disable=too-many-branches
@@ -550,11 +552,17 @@ def validate_percentage(message):
     return message
 
 
-def validate_binary_data(message):
-    if not message.value:
-        raise ValueError('value is required for BinaryData')
-    if not message.format:
-        warnings.warn('No format specified for BinaryData', ValidationWarning)
+def validate_data(message):
+    if not message.WhichOneof('kind'):
+        raise ValueError('Data requires one of {value, bytes_value, url}')
+    if not message.description:
+        raise ValueError('Data requires a description')
+    if message.bytes_value and not message.format:
+        raise ValueError('Data format is required for bytes_data')
+    elif not message.format:
+        # Warn for all data types if format is not specified.
+        warnings.warn('No format specified for Data; assuming string',
+                      ValidationWarning)
     return message
 
 
@@ -616,5 +624,5 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.Wavelength: validate_wavelength,
     reaction_pb2.FlowRate: validate_flow_rate,
     reaction_pb2.Percentage: validate_percentage,
-    reaction_pb2.BinaryData: validate_binary_data,
+    reaction_pb2.Data: validate_data,
 }
