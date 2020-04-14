@@ -168,7 +168,9 @@ def validate_compound(message):
                 except urllib.error.HTTPError:
                     pass
 
-    # Try to create an RDKit binary identifier
+    # Validate compound identifiers that can be parsed by RDKit. At the same
+    # time, create an RDKIT_BINARY identifier for the first valid structure
+    # that we are able to parse.
     # TODO(ccoley) add more sources for RDKIT_BINARY
     if Chem and not any(identifier.type == identifier.RDKIT_BINARY for
                         identifier in message.identifiers):
@@ -196,7 +198,8 @@ def validate_compound(message):
             mol = mol or this_mol
 
         if mol is not None:
-            # TODO(ccoley) More canonicalization, sanitization, etc.
+            # TODO(ccoley) We will want to add more canonicalization, 
+            # sanitization, etc., and separate this into its own function.
             new_identifier = message.identifiers.add()
             new_identifier.type = new_identifier.RDKIT_BINARY
             new_identifier.bytes_value = mol.ToBinary()
