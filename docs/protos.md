@@ -4,7 +4,6 @@
 ## Table of Contents
 
 - [reaction.proto](#reaction.proto)
-    - [BinaryData](#ord.BinaryData)
     - [Compound](#ord.Compound)
     - [Compound.Feature](#ord.Compound.Feature)
     - [Compound.ReactionRole](#ord.Compound.ReactionRole)
@@ -12,6 +11,7 @@
     - [CompoundPreparation](#ord.CompoundPreparation)
     - [Concentration](#ord.Concentration)
     - [Current](#ord.Current)
+    - [Data](#ord.Data)
     - [DateTime](#ord.DateTime)
     - [ElectrochemistryConditions](#ord.ElectrochemistryConditions)
     - [ElectrochemistryConditions.Measurement](#ord.ElectrochemistryConditions.Measurement)
@@ -114,23 +114,6 @@
 
 ## reaction.proto
 Schema for the Open Reaction Database.
-
-
-<a name="ord.BinaryData"></a>
-
-### BinaryData
-BinaryData is a container for binary (bytes) data.
-
-
-| Field | Type | Label | Description |
-| ----- | ---- | ----- | ----------- |
-| value | [bytes](#bytes) |  |  |
-| description | [string](#string) |  |  |
-| format | [string](#string) |  | Description of the file format; usually the file extension. For example, &#39;png&#39; or &#39;tiff&#39; for images. |
-
-
-
-
 
 
 <a name="ord.Compound"></a>
@@ -261,6 +244,25 @@ in the &#39;details&#39; field.
 | value | [float](#float) |  |  |
 | precision | [float](#float) |  | Precision of the measurement (with the same units as `value`). |
 | units | [Current.CurrentUnit](#ord.Current.CurrentUnit) |  |  |
+
+
+
+
+
+
+<a name="ord.Data"></a>
+
+### Data
+Data is a container for arbitrary string or bytes data.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| value | [string](#string) |  |  |
+| bytes_value | [bytes](#bytes) |  |  |
+| url | [string](#string) |  | URL for data stored elsewhere. |
+| description | [string](#string) |  |  |
+| format | [string](#string) |  | Description of the file format (if applicable); usually the file extension. For example, &#39;png&#39; or &#39;tiff&#39; for images. If empty, we assume string data. |
 
 
 
@@ -635,7 +637,7 @@ enums that support custom types.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
-| value | [BinaryData](#ord.BinaryData) |  |  |
+| value | [Data](#ord.Data) |  |  |
 
 
 
@@ -651,7 +653,7 @@ enums that support custom types.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
-| value | [BinaryData](#ord.BinaryData) |  |  |
+| value | [Data](#ord.Data) |  |  |
 
 
 
@@ -770,7 +772,7 @@ input { description: &#34;3 mL of 4M NaOH solution in water&#34; components: [ {
 | ----- | ---- | ----- | ----------- |
 | time | [Time](#ord.Time) |  |  |
 | comment | [string](#string) |  | e.g. what color is the reaction? |
-| image | [BinaryData](#ord.BinaryData) |  |  |
+| image | [Data](#ord.Data) |  |  |
 
 
 
@@ -870,7 +872,7 @@ data.
 | publication_url | [string](#string) |  |  |
 | record_created | [ReactionProvenance.RecordEvent](#ord.ReactionProvenance.RecordEvent) |  |  |
 | record_modified | [ReactionProvenance.RecordEvent](#ord.ReactionProvenance.RecordEvent) | repeated |  |
-| record_id | [string](#string) |  | TODO(ccoley): is it useful to create a unique ID field that the centralized database can write to? (I know uniqueness is not enforceable) |
+| record_id | [string](#string) |  | This is a unique ID field that the centralized database will write to. |
 
 
 
@@ -921,7 +923,7 @@ Metadata for the public database.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | key | [string](#string) |  |  |
-| value | [BinaryData](#ord.BinaryData) |  |  |
+| value | [Data](#ord.Data) |  |  |
 
 
 
@@ -1225,7 +1227,7 @@ precision will be the standard deviation from an instrument calibration.
 | CUSTOM | 1 |  |
 | SMILES | 2 | Simplified molecular-input line-entry system. |
 | INCHI | 3 | IUPAC International Chemical Identifier. |
-| MOLFILE | 4 | MDL Molfile V3000. |
+| MOLBLOCK | 4 | Molblock from a MDL Molfile V3000. |
 | IUPAC_NAME | 5 | Chemical name following IUPAC nomenclature recommendations. |
 | NAME | 6 | Any accepted common name, trade name, etc. |
 | CAS_NUMBER | 7 | Chemical Abstracts Service Registry Number (with hyphens). |
