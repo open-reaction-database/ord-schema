@@ -82,23 +82,22 @@ def build_compound(smiles=None, name=None, amount=None, role=None,
     return compound
 
 
-def build_binary_data(filename, description=None):
-    """Reads raw data from a file and creates a BinaryData message.
+def build_data(filename, description):
+    """Reads raw data from a file and creates a Data message.
 
     Args:
         filename: Text filename.
         description: Text description of the data.
 
     Returns:
-        BinaryData message.
+        Data message.
     """
     _, extension = os.path.splitext(filename)
     if not extension.startswith('.'):
         raise ValueError(f'cannot deduce the file format for {filename}')
-    data = reaction_pb2.BinaryData()
+    data = reaction_pb2.Data()
     data.format = extension[1:]
     with open(filename, 'rb') as f:
-        data.value = f.read()
-    if description:
-        data.description = description
+        data.bytes_value = f.read()
+    data.description = description
     return data
