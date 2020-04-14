@@ -553,6 +553,7 @@ def validate_percentage(message):
 
 
 def validate_data(message):
+    # TODO(kearnes): Validate/ping URLs?
     if not message.WhichOneof('kind'):
         raise ValueError('Data requires one of {value, bytes_value, url}')
     if message.bytes_value and not message.format:
