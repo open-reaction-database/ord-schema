@@ -1,9 +1,13 @@
 """Helper functions for constructing Protocol Buffer messages."""
 
+import hashlib
 import os
 
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
+
+# Prefix for filenames that store reaction_pb2.Data values.
+DATA_PREFIX = 'ord_data'
 
 
 # pylint: disable=too-many-arguments
@@ -101,3 +105,35 @@ def build_data(filename, description):
         data.bytes_value = f.read()
     data.description = description
     return data
+
+
+def write_data(message, dirname):
+    """Writes a Data value to a file.
+
+    Args:
+        message: Data message.
+        dirname: Text output directory.
+
+    Returns:
+        Text filename containing the written data, or None if the value is a
+        URL.
+
+    Raises:
+        ValueError: if there is no value defined in `message`.
+    """
+    kind = message.WhichOneof('kind')
+    if kind == 'value':
+        value = message.value.encode()  # Convert to bytes.
+    elif kind == 'bytes_value':
+        value = message.bytes_value
+    elif kind == 'url':
+        return None
+    else:
+        raise ValueError('no value to write')
+    value_hash = hashlib.sha256(value).hexdigest()
+    suffix = message.format or 'txt'
+    basename = f'{DATA_PREFIX}-{value_hash}.{suffix}'
+    filename = os.path.join(dirname, basename)
+    with open(filename, 'wb') as f:
+        f.write(value)
+    return filename

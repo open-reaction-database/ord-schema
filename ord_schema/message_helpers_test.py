@@ -11,7 +11,7 @@ from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
 
 
-class BuildBinaryDataTest(absltest.TestCase):
+class BuildDataTest(absltest.TestCase):
 
     def setUp(self):
         super().setUp()
@@ -32,6 +32,48 @@ class BuildBinaryDataTest(absltest.TestCase):
         with self.assertRaisesRegex(ValueError,
                                     'cannot deduce the file format'):
             message_helpers.build_data('testdata', 'no description')
+
+
+class WriteDataTest(absltest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
+
+    def test_string_value(self):
+        message = reaction_pb2.Data(value='test value')
+        filename = message_helpers.write_data(message, self.test_subdirectory)
+        expected = os.path.join(
+            self.test_subdirectory,
+            'ord_data-'
+            '47d1d8273710fd6f6a5995fac1a0983fe0e8828c288e35e80450ddc5c4412def'
+            '.txt')
+        self.assertEqual(filename, expected)
+        # NOTE(kearnes): Open with 'r' to get the decoded string.
+        with open(filename, 'r') as f:
+            self.assertEqual(message.value, f.read())
+
+    def test_bytes_value(self):
+        message = reaction_pb2.Data(bytes_value=b'test value')
+        filename = message_helpers.write_data(message, self.test_subdirectory)
+        expected = os.path.join(
+            self.test_subdirectory,
+            'ord_data-'
+            '47d1d8273710fd6f6a5995fac1a0983fe0e8828c288e35e80450ddc5c4412def'
+            '.txt')
+        self.assertEqual(filename, expected)
+        with open(filename, 'rb') as f:
+            self.assertEqual(message.bytes_value, f.read())
+
+    def test_url_value(self):
+        message = reaction_pb2.Data(url='test value')
+        self.assertIsNone(
+            message_helpers.write_data(message, self.test_subdirectory))
+
+    def test_missing_value(self):
+        message = reaction_pb2.Data()
+        with self.assertRaisesRegex(ValueError, 'no value to write'):
+            message_helpers.write_data(message, self.test_subdirectory)
 
 
 class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
