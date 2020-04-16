@@ -75,6 +75,18 @@ class WriteDataTest(absltest.TestCase):
         with self.assertRaisesRegex(ValueError, 'no value to write'):
             message_helpers.write_data(message, self.test_subdirectory)
 
+    def test_min_size(self):
+        message = reaction_pb2.Data(value='test_value')
+        self.assertIsNone(
+            message_helpers.write_data(
+                message, self.test_subdirectory, min_size=1.0))
+
+    def test_max_size(self):
+        message = reaction_pb2.Data(value='test value')
+        with self.assertRaisesRegex(ValueError, 'larger than max_size'):
+            message_helpers.write_data(
+                message, self.test_subdirectory, max_size=1e-6)
+
 
 class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
 
