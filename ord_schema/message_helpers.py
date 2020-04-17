@@ -4,6 +4,9 @@ import hashlib
 import os
 import sys
 
+from google import protobuf
+from google.protobuf.pyext import _message
+
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
 
@@ -108,6 +111,48 @@ def build_data(filename, description):
     return data
 
 
+def find_submessages(message, submessage_type):
+    """Recursively finds all submessages of a specified type.
+
+    Args:
+        message: Protocol buffer.
+        submessage_type: Protocol buffer type.
+
+    Returns:
+        List of messages.
+
+    Raises:
+        TypeError: if `submessage_type` is not a protocol buffer type.
+    """
+    if not issubclass(submessage_type, protobuf.message.Message):
+        raise TypeError('submessage_type must be a Protocol Buffer type')
+    submessage_name = submessage_type.DESCRIPTOR.full_name
+    submessages = []
+    for field, value in message.ListFields():
+        if field.type != field.TYPE_MESSAGE:
+            continue
+        if field.message_type.full_name == submessage_name:
+            if field.label == field.LABEL_REPEATED:
+                submessages.extend(value)
+            else:
+                submessages.append(value)
+        elif isinstance(value, _message.MessageMapContainer):
+            # Map field.
+            field_value = field.message_type.fields_by_name['value']
+            if field_value.type != field_value.TYPE_MESSAGE:
+                continue
+            if field_value.message_type.full_name == submessage_name:
+                submessages.extend(value.values())
+        elif field.label == field.LABEL_REPEATED:
+            # Standard repeated field.
+            for submessage in value:
+                submessages.extend(
+                    find_submessages(submessage, submessage_type))
+        else:
+            submessages.extend(find_submessages(value, submessage_type))
+    return submessages
+
+
 def write_data(message, dirname, min_size=0.0, max_size=1.0):
     """Writes a Data value to a file.
 
@@ -139,7 +184,7 @@ def write_data(message, dirname, min_size=0.0, max_size=1.0):
     value_size = sys.getsizeof(value) / 1e6
     if value_size < min_size:
         return None
-    elif value_size > max_size:
+    if value_size > max_size:
         raise ValueError(
             f'value is larger than max_size ({value_size} vs {max_size}')
     value_hash = hashlib.sha256(value).hexdigest()
