@@ -111,5 +111,14 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
             'Sally')
 
 
+class GetCompoundSmilesTest(absltest.TestCase):
+
+    def test_get_compound_smiles(self):
+        compound = message_helpers.build_compound(
+            smiles='c1ccccc1', name='benzene')
+        self.assertEqual(message_helpers.get_compound_smiles(compound),
+                         'c1ccccc1')
+
+
 if __name__ == '__main__':
     absltest.main()
