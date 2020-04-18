@@ -22,7 +22,7 @@ jobs:
         # See https://stackoverflow.com/a/60418414.
         token: ${{ secrets.TRIGGER_WORKFLOWS }}
     - name: Colab Badge Action
-      uses: skearnes/colab-badge-action@v1.2
+      uses: skearnes/colab-badge-action@master
       with:
         github_token: ${{ secrets.TRIGGER_WORKFLOWS }}
         check: latest
