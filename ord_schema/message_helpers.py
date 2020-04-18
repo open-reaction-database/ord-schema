@@ -5,6 +5,13 @@ import os
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
 
+try:
+    from rdkit import Chem
+    from rdkit import __version__ as RDKIT_VERSION
+except ImportError:
+    Chem = None
+    RDKIT_VERSION = None
+
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -101,3 +108,35 @@ def build_data(filename, description):
         data.bytes_value = f.read()
     data.description = description
     return data
+
+
+def get_compound_mol(compound):
+    """Retrieves an RDKit molecule object from a Compound.
+
+    Args:
+        compound: reaction_pb2.Compound message.
+
+    Returns:
+        RDKit molecule.
+    """
+    if not Chem:
+        raise ImportError('Missing RDKit dependency')
+    for identifier in compound.identifiers:
+        if identifier.type == reaction_pb2.CompoundIdentifier.RDKIT_BINARY:
+            return Chem.Mol(identifier.bytes_value)
+    return None
+
+
+def get_compound_smiles(compound):
+    """Retrieves a SMILES string identifier from a Compound.
+
+    Args:
+        compound: reaction_pb2.Compound message.
+
+    Returns:
+        The SMILES string identifier for the compound or None.
+    """
+    for identifier in compound.identifiers:
+        if identifier.type == reaction_pb2.CompoundIdentifier.SMILES:
+            return identifier.value
+    return None
