@@ -10,6 +10,11 @@ from absl.testing import parameterized
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
 
+try:
+    from rdkit import Chem
+except ImportError:
+    Chem = None
+
 
 class BuildBinaryDataTest(absltest.TestCase):
 
@@ -109,6 +114,30 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
         self.assertEqual(
             message_helpers.build_compound(vendor='Sally').vendor_source,
             'Sally')
+
+
+class GetCompoundSmilesTest(absltest.TestCase):
+
+    def test_get_compound_smiles(self):
+        compound = message_helpers.build_compound(
+            smiles='c1ccccc1', name='benzene')
+        self.assertEqual(message_helpers.get_compound_smiles(compound),
+                         'c1ccccc1')
+
+
+class GetCompoundMolTest(absltest.TestCase):
+
+    @absltest.skipIf(Chem is None, 'no rdkit')
+    def test_get_compound_mol(self):
+        mol = Chem.MolFromSmiles('c1ccccc1')
+        compound = message_helpers.build_compound(
+            smiles='c1ccccc1', name='benzene')
+        identifier = compound.identifiers.add()
+        identifier.type = identifier.RDKIT_BINARY
+        identifier.bytes_value = mol.ToBinary()
+        self.assertEqual(
+            Chem.MolToSmiles(mol),
+            Chem.MolToSmiles(message_helpers.get_compound_mol(compound)))
 
 
 if __name__ == '__main__':
