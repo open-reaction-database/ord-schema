@@ -9,6 +9,7 @@ from absl.testing import parameterized
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
+from ord_schema.proto import test_pb2
 
 try:
     from rdkit import Chem
@@ -16,7 +17,47 @@ except ImportError:
     Chem = None
 
 
-class BuildBinaryDataTest(absltest.TestCase):
+class FindSubmessagesTest(absltest.TestCase):
+
+    def test_scalar(self):
+        message = test_pb2.Scalar(int32_value=5, float_value=6.7)
+        self.assertEmpty(
+            message_helpers.find_submessages(message, test_pb2.Scalar))
+        with self.assertRaisesRegex(TypeError, 'must be a Protocol Buffer'):
+            message_helpers.find_submessages(message, float)
+
+    def test_nested(self):
+        message = test_pb2.Nested()
+        self.assertEmpty(
+            message_helpers.find_submessages(message, test_pb2.Nested.Child))
+        message.child.value = 5.6
+        submessages = message_helpers.find_submessages(
+            message, test_pb2.Nested.Child)
+        self.assertLen(submessages, 1)
+        # Show that the returned submessages work as references.
+        submessages[0].value = 7.8
+        self.assertAlmostEqual(message.child.value, 7.8, places=4)
+
+    def test_repeated_nested(self):
+        message = test_pb2.RepeatedNested()
+        message.children.add().value = 1.2
+        message.children.add().value = 3.4
+        self.assertLen(
+            message_helpers.find_submessages(
+                message, test_pb2.RepeatedNested.Child),
+            2)
+
+    def test_map_nested(self):
+        message = test_pb2.MapNested()
+        message.children['one'].value = 1.2
+        message.children['two'].value = 3.4
+        self.assertLen(
+            message_helpers.find_submessages(
+                message, test_pb2.MapNested.Child),
+            2)
+
+
+class BuildDataTest(absltest.TestCase):
 
     def setUp(self):
         super().setUp()
@@ -37,6 +78,80 @@ class BuildBinaryDataTest(absltest.TestCase):
         with self.assertRaisesRegex(ValueError,
                                     'cannot deduce the file format'):
             message_helpers.build_data('testdata', 'no description')
+
+
+class WriteDataTest(absltest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
+
+    def test_string_value(self):
+        message = reaction_pb2.Data(value='test value')
+        filename = message_helpers.write_data(message, self.test_subdirectory)
+        expected = os.path.join(
+            self.test_subdirectory,
+            'ord_data-'
+            '47d1d8273710fd6f6a5995fac1a0983fe0e8828c288e35e80450ddc5c4412def'
+            '.txt')
+        self.assertEqual(filename, expected)
+        # NOTE(kearnes): Open with 'r' to get the decoded string.
+        with open(filename, 'r') as f:
+            self.assertEqual(message.value, f.read())
+
+    def test_bytes_value(self):
+        message = reaction_pb2.Data(bytes_value=b'test value')
+        filename = message_helpers.write_data(message, self.test_subdirectory)
+        expected = os.path.join(
+            self.test_subdirectory,
+            'ord_data-'
+            '47d1d8273710fd6f6a5995fac1a0983fe0e8828c288e35e80450ddc5c4412def'
+            '.txt')
+        self.assertEqual(filename, expected)
+        with open(filename, 'rb') as f:
+            self.assertEqual(message.bytes_value, f.read())
+
+    def test_url_value(self):
+        message = reaction_pb2.Data(url='test value')
+        self.assertIsNone(
+            message_helpers.write_data(message, self.test_subdirectory))
+
+    def test_missing_value(self):
+        message = reaction_pb2.Data()
+        with self.assertRaisesRegex(ValueError, 'no value to write'):
+            message_helpers.write_data(message, self.test_subdirectory)
+
+    def test_min_size(self):
+        message = reaction_pb2.Data(value='test_value')
+        self.assertIsNone(
+            message_helpers.write_data(
+                message, self.test_subdirectory, min_size=1.0))
+
+    def test_max_size(self):
+        message = reaction_pb2.Data(value='test value')
+        with self.assertRaisesRegex(ValueError, 'larger than max_size'):
+            message_helpers.write_data(
+                message, self.test_subdirectory, max_size=1e-6)
+
+    def test_find_data_messages(self):
+        message = reaction_pb2.Reaction()
+        self.assertEmpty(
+            message_helpers.find_submessages(message, reaction_pb2.Data))
+        message = reaction_pb2.ReactionObservation()
+        message.image.value = 'not an image'
+        self.assertLen(
+            message_helpers.find_submessages(message, reaction_pb2.Data), 1)
+        message = reaction_pb2.ReactionSetup()
+        message.automation_code['test1'].value = 'test data 1'
+        message.automation_code['test2'].bytes_value = b'test data 2'
+        self.assertLen(
+            message_helpers.find_submessages(message, reaction_pb2.Data), 2)
+        message = reaction_pb2.Reaction()
+        message.observations.add().image.value = 'not an image'
+        message.setup.automation_code['test1'].value = 'test data 1'
+        message.setup.automation_code['test2'].bytes_value = b'test data 2'
+        self.assertLen(
+            message_helpers.find_submessages(message, reaction_pb2.Data), 3)
 
 
 class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
