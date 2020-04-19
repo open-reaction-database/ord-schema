@@ -77,7 +77,7 @@ def validate_message(message, recurse=True, raise_on_error=True):
                         validate_message(value, raise_on_error=raise_on_error))
 
     # Message-specific validation
-    if type(message) not in _VALIDATOR_SWITCH:
+    if not isinstance(message, tuple(_VALIDATOR_SWITCH.keys())):
         # NOTE(ccoley): I made the conscious decision to raise an error here,
         # rather than assume that the message is valid. If a message does not
         # require any message-level checks (not uncommon), then it should still
