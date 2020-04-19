@@ -6,6 +6,8 @@ import tempfile
 from absl import flags
 from absl.testing import absltest
 from absl.testing import parameterized
+from google.protobuf import json_format
+from google.protobuf import text_format
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
@@ -253,6 +255,49 @@ class GetCompoundMolTest(absltest.TestCase):
         self.assertEqual(
             Chem.MolToSmiles(mol),
             Chem.MolToSmiles(message_helpers.get_compound_mol(compound)))
+
+
+class LoadMessageTest(absltest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.messages = [
+            test_pb2.Scalar(int32_value=3, float_value=4.5),
+            test_pb2.RepeatedScalar(values=[1.2, 3.4]),
+            test_pb2.Enum(value='FIRST'),
+            test_pb2.RepeatedEnum(values=['FIRST', 'SECOND']),
+            test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
+        ]
+
+    def test_binary(self):
+        for message in self.messages:
+            with tempfile.NamedTemporaryFile() as f:
+                f.write(message.SerializeToString())
+                f.flush()
+                self.assertEqual(
+                    message,
+                    message_helpers.load_message(
+                        f.name, type(message), 'binary'))
+
+    def test_json(self):
+        for message in self.messages:
+            with tempfile.NamedTemporaryFile(mode='w+') as f:
+                f.write(json_format.MessageToJson(message))
+                f.flush()
+                self.assertEqual(
+                    message,
+                    message_helpers.load_message(
+                        f.name, type(message), 'json'))
+
+    def test_pbtxt(self):
+        for message in self.messages:
+            with tempfile.NamedTemporaryFile(mode='w+') as f:
+                f.write(text_format.MessageToString(message))
+                f.flush()
+                self.assertEqual(
+                    message,
+                    message_helpers.load_message(
+                        f.name, type(message), 'pbtxt'))
 
 
 if __name__ == '__main__':
