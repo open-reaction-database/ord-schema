@@ -5,6 +5,8 @@ import os
 import sys
 
 from google import protobuf
+from google.protobuf import json_format
+from google.protobuf import text_format
 from google.protobuf.pyext import _message
 
 from ord_schema import units
@@ -19,6 +21,7 @@ except ImportError:
 
 # Prefix for filenames that store reaction_pb2.Data values.
 DATA_PREFIX = 'ord_data'
+
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -201,6 +204,7 @@ def write_data(message, dirname, min_size=0.0, max_size=1.0):
         f.write(value)
     return filename
 
+
 def get_compound_mol(compound):
     """Retrieves an RDKit molecule object from a Compound.
 
@@ -231,3 +235,35 @@ def get_compound_smiles(compound):
         if identifier.type == reaction_pb2.CompoundIdentifier.SMILES:
             return identifier.value
     return None
+
+
+def load_message(filename, message_type, input_format):
+    """Loads a Reaction proto from a file.
+
+    Args:
+        filename: Text filename containing a serialized protocol buffer message.
+        message_type: google.protobuf.message.Message subclass.
+        input_format: Text input format. Supported options are
+            ['binary', 'json', 'pbtxt'].
+
+    Returns:
+        Message object.
+
+    Raises:
+        ValueError: if the message cannot be parsed, or if `input_format` is not
+            supported.
+    """
+    if input_format == 'binary':
+        mode = 'rb'
+    else:
+        mode = 'r'
+    with open(filename, mode) as f:
+        if input_format == 'json':
+            return json_format.Parse(f.read(), message_type())
+        if input_format == 'pbtxt':
+            return text_format.Parse(f.read(), message_type())
+        if input_format == 'binary':
+            message = message_type()
+            message.ParseFromString(f.read())
+            return message
+    raise ValueError(f'unsupported input_format: {input_format}')
