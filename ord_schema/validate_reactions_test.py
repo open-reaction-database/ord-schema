@@ -32,6 +32,9 @@ class ValidateReactionsTest(absltest.TestCase):
         with open(os.path.join(self.test_subdirectory, 'reaction2.pbtxt'),
                   'w') as f:
             f.write(text_format.MessageToString(reaction2))
+        with open(os.path.join(self.test_subdirectory, 'reaction3.pbtxt'),
+                  'w') as f:
+            f.write('garbage that is not a reaction proto')
 
     def test_main(self):
         input_pattern = os.path.join(self.test_subdirectory, 'reaction1.pbtxt')
@@ -48,10 +51,14 @@ class ValidateReactionsTest(absltest.TestCase):
                                         'validation encountered errors'):
                 validate_reactions.main(())
         self.assertTrue(os.path.exists(output))
-        expected_output = ('reaction2.pbtxt: Reactions should have '
-                           'at least 1 reaction input\n')
+        expected_output = [
+            'reaction2.pbtxt: Reactions should have '
+            'at least 1 reaction input\n',
+            'reaction3.pbtxt: 1:1 : Message type "ord.Reaction" '
+            'has no field named "garbage".\n',
+        ]
         with open(output) as f:
-            self.assertEqual(f.read(), expected_output)
+            self.assertEqual(f.readlines(), expected_output)
 
 
 if __name__ == '__main__':

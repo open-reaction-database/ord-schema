@@ -6,6 +6,7 @@ import tempfile
 from absl import flags
 from absl.testing import absltest
 from absl.testing import parameterized
+from google import protobuf
 from google.protobuf import json_format
 from google.protobuf import text_format
 
@@ -299,13 +300,41 @@ class LoadMessageTest(absltest.TestCase):
                     message_helpers.load_message(
                         f.name, type(message), 'pbtxt'))
 
-    def test_bad(self):
+    def test_bad_binary(self):
         with tempfile.NamedTemporaryFile() as f:
             message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
             f.write(message.SerializeToString())
             f.flush()
-            # DO NOT SUBMIT
-            message_helpers.load_message(f.name, test_pb2.Scalar, 'binary')
+            # NOTE(kearnes): The decoder is not perfect; for example, it will
+            # not be able to distinguish from a message with the same tags and
+            # types (e.g. test_pb2.Scalar and test_pb2.RepeatedScalar).
+            with self.assertRaisesRegex(protobuf.message.DecodeError,
+                                        'Error parsing message'):
+                message_helpers.load_message(f.name, test_pb2.Nested, 'binary')
+
+    def test_bad_json(self):
+        with tempfile.NamedTemporaryFile(mode='w+') as f:
+            message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
+            f.write(json_format.MessageToJson(message))
+            f.flush()
+            # NOTE(kearnes): The decoder is not perfect; for example, it will
+            # not be able to distinguish from a message with the same tags and
+            # types (e.g. test_pb2.Scalar and test_pb2.RepeatedScalar).
+            with self.assertRaisesRegex(json_format.ParseError,
+                                        'no field named "values"'):
+                message_helpers.load_message(f.name, test_pb2.Nested, 'json')
+
+    def test_bad_pbtxt(self):
+        with tempfile.NamedTemporaryFile(mode='w+') as f:
+            message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
+            f.write(text_format.MessageToString(message))
+            f.flush()
+            # NOTE(kearnes): The decoder is not perfect; for example, it will
+            # not be able to distinguish from a message with the same tags and
+            # types (e.g. test_pb2.Scalar and test_pb2.RepeatedScalar).
+            with self.assertRaisesRegex(text_format.ParseError,
+                                        'no field named "values"'):
+                message_helpers.load_message(f.name, test_pb2.Nested, 'pbtxt')
 
 
 if __name__ == '__main__':
