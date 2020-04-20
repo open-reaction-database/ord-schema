@@ -21,6 +21,9 @@ from ord_schema.proto import reaction_pb2
 FLAGS = flags.FLAGS
 flags.DEFINE_string('input_pattern', None,
                     'Pattern (glob) matching input records.')
+flags.DEFINE_string(
+    'input_file', None,
+    'Input file containing filenames to validate; one per line.')
 flags.DEFINE_enum('input_format', 'pbtxt', ['pbtxt', 'json'],
                   'Input record format.')
 flags.DEFINE_string('output', None, 'Output file for validation errors.')
@@ -28,7 +31,18 @@ flags.DEFINE_string('output', None, 'Output file for validation errors.')
 
 def main(argv):
     del argv  # Only used by app.run().
-    filenames = glob.glob(FLAGS.input_pattern)
+    if FLAGS.input_pattern and FLAGS.input_file:
+        raise ValueError('use --input_pattern or --input_file, not both')
+    if not (FLAGS.input_pattern or FLAGS.input_file):
+        raise ValueError('one of --input_pattern or --input_file is required')
+    if FLAGS.input_pattern:
+        # Setting recursive=True allows recursive matching with '**'.
+        filenames = glob.glob(FLAGS.input_pattern, recursive=True)
+    else:
+        with open(FLAGS.input_file) as f:
+            filenames = [line.strip() for line in f.readlines()]
+    if not filenames:
+        raise ValueError('no matching files to validate')
     errors = []
     for filename in sorted(filenames):
         basename = os.path.basename(filename)
@@ -58,5 +72,4 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    flags.mark_flags_as_required(['input_pattern'])
     app.run(main)

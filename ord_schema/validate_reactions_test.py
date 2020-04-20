@@ -43,6 +43,16 @@ class ValidateReactionsTest(absltest.TestCase):
             validate_reactions.main(())
         self.assertFalse(os.path.exists(output))
 
+    def test_main_with_input_file(self):
+        input_file = os.path.join(self.test_subdirectory, 'input_file.txt')
+        output = os.path.join(self.test_subdirectory, 'output.txt')
+        with open(input_file, 'w') as f:
+            filename = os.path.join(self.test_subdirectory, 'reaction1.pbtxt')
+            f.write(f'{filename}\n')
+        with flagsaver.flagsaver(input_file=input_file, output=output):
+            validate_reactions.main(())
+        self.assertFalse(os.path.exists(output))
+
     def test_main_with_errors(self):
         input_pattern = os.path.join(self.test_subdirectory, 'reaction*.pbtxt')
         output = os.path.join(self.test_subdirectory, 'output.txt')
@@ -60,6 +70,21 @@ class ValidateReactionsTest(absltest.TestCase):
         with open(output) as f:
             self.assertEqual(f.readlines(), expected_output)
 
+    def test_main_no_input(self):
+        with flagsaver.flagsaver():
+            with self.assertRaisesRegex(ValueError, 'is required'):
+                validate_reactions.main(())
+
+    def test_main_ambiguous_input(self):
+        with flagsaver.flagsaver(input_pattern='foo', input_file='bar'):
+            with self.assertRaisesRegex(ValueError, 'not both'):
+                validate_reactions.main(())
+
+    def test_main_no_matches(self):
+        input_pattern = os.path.join(self.test_subdirectory, 'missing*.pbtxt')
+        with flagsaver.flagsaver(input_pattern=input_pattern):
+            with self.assertRaisesRegex(ValueError, 'no matching files'):
+                validate_reactions.main(())
 
 if __name__ == '__main__':
     absltest.main()
