@@ -80,11 +80,6 @@ class ValidateReactionsTest(absltest.TestCase):
             with self.assertRaisesRegex(ValueError, 'not both'):
                 validate_reactions.main(())
 
-    def test_main_no_matches(self):
-        input_pattern = os.path.join(self.test_subdirectory, 'missing*.pbtxt')
-        with flagsaver.flagsaver(input_pattern=input_pattern):
-            with self.assertRaisesRegex(ValueError, 'no matching files'):
-                validate_reactions.main(())
 
 if __name__ == '__main__':
     absltest.main()

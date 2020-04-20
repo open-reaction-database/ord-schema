@@ -41,8 +41,6 @@ def main(argv):
     else:
         with open(FLAGS.input_file) as f:
             filenames = [line.strip() for line in f.readlines()]
-    if not filenames:
-        raise ValueError('no matching files to validate')
     errors = []
     for filename in sorted(filenames):
         basename = os.path.basename(filename)
