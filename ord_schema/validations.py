@@ -85,18 +85,15 @@ def validate_message(message, recurse=True, raise_on_error=True):
         # us to think about what is necessary if/when new messages are added.
         raise NotImplementedError(f"Don't know how to validate {type(message)}")
 
-    warnings_to_emit = []
     with warnings.catch_warnings(record=True) as tape:
         _VALIDATOR_SWITCH[type(message)](message)
-        for warning in tape:
-            if issubclass(warning.category, ValidationError):
-                if raise_on_error:
-                    raise warning.message
-                errors.append(str(warning.message))
-            else:
-                warnings_to_emit.append(warning.message)
-    for warning in warnings_to_emit:
-        warnings.warn(warning)
+    for warning in tape:
+        if issubclass(warning.category, ValidationError):
+            if raise_on_error:
+                raise warning.message
+            errors.append(str(warning.message))
+        else:
+            warnings.warn(warning.message)
     return errors
 
 
