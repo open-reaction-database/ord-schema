@@ -29,13 +29,19 @@ def main(argv):
     num_errors = 0
     errors = []
     for filename in filenames:
-        reaction = message_helpers.load_message(
-            filename, reaction_pb2.Reaction, FLAGS.input_format)
+        basename = os.path.basename(filename)
+        try:
+            reaction = message_helpers.load_message(
+                filename, reaction_pb2.Reaction, FLAGS.input_format)
+        except ValueError as error:
+            num_errors += 1
+            errors.append((basename, error))
+            logging.warning('Parsing error for %s: %s', basename, error)
+            continue
         try:
             validations.validate_message(reaction)
         except ValueError as error:
             num_errors += 1
-            basename = os.path.basename(filename)
             errors.append((basename, error))
             logging.warning('Validation error for %s: %s', basename, error)
     logging.info('Validation summary: %d/%d successful (%d failures)',

@@ -241,8 +241,8 @@ def load_message(filename, message_type, input_format):
     """Loads a Reaction proto from a file.
 
     Args:
-        filename: Text filename.
-        message_type: google.protobuf.message.Message class.
+        filename: Text filename containing a serialized protocol buffer message.
+        message_type: google.protobuf.message.Message subclass.
         input_format: Text input format. Supported options are
             ['binary', 'json', 'pbtxt'].
 
@@ -250,7 +250,8 @@ def load_message(filename, message_type, input_format):
         Message object.
 
     Raises:
-        ValueError: if `input_format` is not supported.
+        ValueError: if the message cannot be parsed, or if `input_format` is not
+            supported.
     """
     if input_format == 'binary':
         mode = 'rb'
@@ -262,5 +263,7 @@ def load_message(filename, message_type, input_format):
         if input_format == 'pbtxt':
             return text_format.Parse(f.read(), message_type())
         if input_format == 'binary':
-            return message_type.FromString(f.read())
+            message = message_type()
+            message.ParseFromString(f.read())
+            return message
     raise ValueError(f'unsupported input_format: {input_format}')

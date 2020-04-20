@@ -299,6 +299,14 @@ class LoadMessageTest(absltest.TestCase):
                     message_helpers.load_message(
                         f.name, type(message), 'pbtxt'))
 
+    def test_bad(self):
+        with tempfile.NamedTemporaryFile() as f:
+            message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
+            f.write(message.SerializeToString())
+            f.flush()
+            # DO NOT SUBMIT
+            message_helpers.load_message(f.name, test_pb2.Scalar, 'binary')
+
 
 if __name__ == '__main__':
     absltest.main()
