@@ -7,7 +7,6 @@ import sys
 from google import protobuf
 from google.protobuf import json_format
 from google.protobuf import text_format
-from google.protobuf.pyext import _message
 
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
@@ -145,7 +144,7 @@ def find_submessages(message, submessage_type):
                 submessages.extend(value)
             else:
                 submessages.append(value)
-        elif isinstance(value, _message.MessageMapContainer):
+        elif field.message_type.GetOptions().map_entry:
             # Map field.
             field_value = field.message_type.fields_by_name['value']
             if field_value.type != field_value.TYPE_MESSAGE:
