@@ -144,15 +144,23 @@ message Compound {
   message ReactionRole {
     enum ReactionRoleType {
       UNSPECIFIED = 0;
-      // TODO(ccoley): Do we want to use the definition of a reactant aligned
-      // with Reaxys, or say that any species that contributes heavy atoms
-      // to a desired product is a reactant? This field might be kind of a
-      // throwaway anyway...
+      // A reactant is any compound that contributes atoms to a desired or 
+      // observed product. 
+      // TODO(ccoley) refine the documentation of this definition.
       REACTANT = 1;
       REAGENT = 2;
       SOLVENT = 3;
       CATALYST = 4;
+      // THe workup role is used when defining quenches, buffer additives for
+      // liquid-liquid separations, etc.
       WORKUP = 5;
+      // Product role is always implicitly defined when a compound appears in
+      // a reaction outcome's list of products.
+      PRODUCT = 6;
+      // Internal standards can be included as part of a reaction input (when
+      // added prior to the start of the reaction) or as part of a workup
+      // step of addition.
+      INTERNAL_STANDARD = 6;
     }
   }
   ReactionRole.ReactionRoleType reaction_role = 5;
@@ -529,7 +537,7 @@ message ReactionWorkup {
   enum WorkupType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
-    // Addition (quench, dilution, extraction solvent, etc.)
+    // Addition (quench, dilution, extraction solvent, internal standard, etc.)
     // Specify composition/amount in "components".
     ADDITION = 2;
     // Change of temperature.
@@ -669,7 +677,7 @@ message ReactionAnalysis {
   enum AnalysisType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
-    LC = 2;  // Liquid chromatography.
+    LC = 2;  // Liquid chromatography, including HPLC and UPLC.
     GC = 3;  // Gas chromatography.
     IR = 4;  // Infrared spectroscopy.
     NMR = 5;  // NMR spectroscopy.
@@ -695,6 +703,9 @@ message ReactionAnalysis {
   map<string, Data> raw_data = 4;
   string instrument_manufacturer = 5;
   DateTime instrument_last_calibrated = 6;
+  // Whether an internal standard was used with this analytical technique for
+  // quantification, e.g., of yield.
+  bool uses_internal_standard = 7;
 }
 
 message ReactionProvenance {
