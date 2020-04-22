@@ -160,7 +160,7 @@ message Compound {
       // Internal standards can be included as part of a reaction input (when
       // added prior to the start of the reaction) or as part of a workup
       // step of addition.
-      INTERNAL_STANDARD = 6;
+      INTERNAL_STANDARD = 7;
     }
   }
   ReactionRole.ReactionRoleType reaction_role = 5;
