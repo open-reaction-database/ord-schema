@@ -23,8 +23,10 @@ class ValidateReactionsTest(absltest.TestCase):
         dummy_component.identifiers.add(type='CUSTOM')
         dummy_component.identifiers[0].details = 'custom_identifier'
         dummy_component.identifiers[0].value = 'custom_value'
+        dummy_component.is_limiting = True
         dummy_component.mass.value = 1
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
+        reaction1.outcomes.add().conversion.value = 75
         with open(os.path.join(self.test_subdirectory, 'reaction1.pbtxt'),
                   'w') as f:
             f.write(text_format.MessageToString(reaction1))
@@ -64,6 +66,8 @@ class ValidateReactionsTest(absltest.TestCase):
         expected_output = [
             'reaction2.pbtxt: Reactions should have '
             'at least 1 reaction input\n',
+            'reaction2.pbtxt: Reactions should have '
+            'at least 1 reaction outcome\n',
             'reaction3.pbtxt: 1:1 : Message type "ord.Reaction" '
             'has no field named "garbage".\n',
         ]
