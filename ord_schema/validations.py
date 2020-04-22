@@ -142,12 +142,12 @@ def reaction_has_internal_standard(message):
     """Whether any reaction component uses the internal standard role."""
     for reaction_input in message.inputs.values():
         for compound in reaction_input.components:
-            if (compound.reaction_role == 
+            if (compound.reaction_role ==
                     compound.ReactionRole.INTERNAL_STANDARD):
                 return True
     for workup in message.workup:
         for compound in workup.components:
-            if (compound.reaction_role == 
+            if (compound.reaction_role ==
                     compound.ReactionRole.INTERNAL_STANDARD):
                 return True
     return False
