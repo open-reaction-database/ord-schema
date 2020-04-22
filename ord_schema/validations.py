@@ -139,13 +139,13 @@ def ensure_details_specified_if_type_custom(message):
 
 
 def reaction_has_internal_standard(message):
-    return any(compound.reaction_role == 
-                compound.ReactionRole.INTERNAL_STANDARD for
-                reaction_input in message.inputs.values() for
-                compound in reaction_input.components) or \
-            any(compound.reaction_role == 
-                compound.ReactionRole.INTERNAL_STANDARD for
-                workup in message.workup for compound in workup.components)
+    return any(compound.reaction_role ==
+               compound.ReactionRole.INTERNAL_STANDARD for
+               reaction_input in message.inputs.values() for
+               compound in reaction_input.components) or \
+        any(compound.reaction_role ==
+            compound.ReactionRole.INTERNAL_STANDARD for
+            workup in message.workup for compound in workup.components)
 
 
 def validate_reaction(message):
@@ -155,19 +155,19 @@ def validate_reaction(message):
     if len(message.outcomes) == 0:
         warnings.warn('Reactions should have at least 1 reaction outcome',
                       ValidationError)
-    if any(analysis.uses_internal_standard for outcome in message.outcomes
-            for analysis in outcome.analyses.values()) and not \
-            reaction_has_internal_standard(message):
+    if any(analysis.uses_internal_standard for outcome in message.outcomes \
+            for analysis in outcome.analyses.values()) and \
+            not reaction_has_internal_standard(message):
         warnings.warn('Reaction analysis uses an internal standard, but no '
-            'component (as reaction input or workup) uses the reaction role '
-            'INTERNAL_STANDARD', ValidationError)
+                      'component (as reaction input or workup) uses the '
+                      'reaction role INTERNAL_STANDARD', ValidationError)
     if any(outcome.HasField('conversion') for outcome in message.outcomes) \
             and not any(compound.is_limiting for
-            reaction_input in message.inputs.values() for
-            compound in reaction_input.components):
+                        reaction_input in message.inputs.values() for
+                        compound in reaction_input.components):
         warnings.warn('If reaction conversion is specified, at least one '
-            'reaction input component must be labeled is_limiting',
-            ValidationError)
+                      'reaction input component must be labeled is_limiting',
+                      ValidationError)
     return message
 
 
@@ -414,7 +414,8 @@ def validate_reaction_workup(message):
                       ValidationError)
     if (message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and
             not message.target_ph):
-        warnings.warn('pH adjustment workup missing target pH', ValidationError)
+        warnings.warn('pH adjustment workup missing target pH',
+                      ValidationError)
     return message
 
 
@@ -504,7 +505,8 @@ def validate_reaction_provenance(message):
 
 def validate_record_event(message):
     if not message.time.value:
-        warnings.warn('RecordEvent must have `time` specified', ValidationError)
+        warnings.warn('RecordEvent must have `time` specified',
+                      ValidationError)
     return message
 
 
@@ -623,7 +625,8 @@ def validate_data(message):
         warnings.warn('Data requires one of {value, bytes_value, url}',
                       ValidationError)
     if message.bytes_value and not message.format:
-        warnings.warn('Data format is required for bytes_data', ValidationError)
+        warnings.warn('Data format is required for bytes_data',
+                      ValidationError)
     return message
 
 
