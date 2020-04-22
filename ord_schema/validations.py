@@ -138,11 +138,24 @@ def ensure_details_specified_if_type_custom(message):
     return message
 
 
+def reaction_has_internal_standard(message):
+    return any(compound.reaction_role == compound.INTERNAL_STANDARD for
+                reaction_input in message.inputs.values() for
+                compound in reaction_input.components) or \
+            any(compound.reaction_role == compound.INTERNAL_STANDARD for
+                workup in message.workup for compound in workup.components)
+
+
 def validate_reaction(message):
     if len(message.inputs) == 0:
         warnings.warn('Reactions should have at least 1 reaction input',
                       ValidationError)
-    # TODO(ccoley) Should outcomes also have a minimum length?
+    if any(analysis.uses_internal_standard for outcome in reaction.outcomes
+            for analysis in outcome.analyses.values()) and not \
+            reaction_has_internal_standard(message):
+        warnings.warn('Reaction analysis uses an internal standard, but no '
+            'component (as reaction input or workup) uses the reaction role '
+            'INTERNAL_STANDARD', ValidationError)
     return message
 
 
@@ -408,10 +421,9 @@ def validate_reaction_outcome(message):
                 if key not in analysis_keys:
                     warnings.warn(f'Undefined analysis key {key} '
                                   'in ReactionProduct', ValidationError)
-    if not message.products:
-        warnings.warn('No products specified for reaction outcome; this should'
-                      ' only be empty when screening for reaction conversion',
-                      ValidationWarning)
+    if not message.products and not message.HasField('conversion'):
+        warnings.warn('No products or conversion are specified for reaction;'
+                      ' at least one must be specified', ValidationError)
     return message
 
 
