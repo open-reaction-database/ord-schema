@@ -115,8 +115,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         # Assigning internal standard role to input should resolve the error
         message_input_istd = reaction_pb2.Reaction()
         message_input_istd.CopyFrom(message)
-        message_input_istd.inputs['dummy_input'].components[0].reaction_role = \
-            reaction_pb2.Compound.ReactionRole.INTERNAL_STANDARD
+        message_input_istd.inputs['dummy_input'].components[0].reaction_role = (
+            reaction_pb2.Compound.ReactionRole.INTERNAL_STANDARD)
         self.assertEmpty(validations.validate_message(message_input_istd))
         # Assigning internal standard role to workup should resolve the error
         message_workup_istd = reaction_pb2.Reaction()
