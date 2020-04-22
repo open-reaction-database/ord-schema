@@ -30,6 +30,12 @@ class UpdateReactionsTest(absltest.TestCase):
             self.test_subdirectory, 'reaction2.pbtxt')
         with open(self.reaction2_filename, 'w') as f:
             f.write(text_format.MessageToString(reaction2))
+        reaction3 = reaction_pb2.Reaction()
+        reaction3.provenance.record_id = 'bad-id'
+        self.reaction3_filename = os.path.join(
+            self.test_subdirectory, 'reaction3.pbtxt')
+        with open(self.reaction3_filename, 'w') as f:
+            f.write(text_format.MessageToString(reaction3))
 
     def test_main(self):
         input_file = os.path.join(self.test_subdirectory, 'input_file.txt')
@@ -48,6 +54,27 @@ class UpdateReactionsTest(absltest.TestCase):
             self.assertTrue(message.provenance.record_id)
             record_ids.append(message.provenance.record_id)
         self.assertIn('ord-test', record_ids)
+        # Only reaction3.pbtxt should be left since cleanup=True.
+        self.assertLen(
+            glob.glob(os.path.join(self.test_subdirectory, '*.pbtxt')), 1)
+
+    def test_main_bad_id(self):
+        input_file = os.path.join(self.test_subdirectory, 'input_file.txt')
+        with open(input_file, 'w') as f:
+            f.write(f'M\t{self.reaction3_filename}\n')
+        output_dir = os.path.join(self.test_subdirectory, 'data')
+        with flagsaver.flagsaver(input_file=input_file, root_dir=output_dir):
+            with self.assertRaisesRegex(ValueError, 'malformed record_id'):
+                update_reactions.main(())
+
+    def test_main_existing_id(self):
+        input_file = os.path.join(self.test_subdirectory, 'input_file.txt')
+        with open(input_file, 'w') as f:
+            f.write(f'A\t{self.reaction2_filename}\n')
+        output_dir = os.path.join(self.test_subdirectory, 'data')
+        with flagsaver.flagsaver(input_file=input_file, root_dir=output_dir):
+            with self.assertRaisesRegex(ValueError, 'record_id is already set'):
+                update_reactions.main(())
 
 
 if __name__ == '__main__':
