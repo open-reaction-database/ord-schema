@@ -192,7 +192,7 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
 
     def test_bad_role(self):
         with self.assertRaisesRegex(KeyError, 'not a supported type'):
-            message_helpers.build_compound(role='product')
+            message_helpers.build_compound(role='flavorant')
 
     def test_is_limiting(self):
         self.assertTrue(
