@@ -246,20 +246,17 @@ class BuildSolutionTest(parameterized.TestCase, absltest.TestCase):
         solute = message_helpers.build_compound(name='Solute')
         solvent2 = message_helpers.build_compound(name='Solvent',
                                                   amount='100 mL')
-        solute, solvent2 = message_helpers.build_solution(solute, solvent2,
-                                                          '1 molar')
+        message_helpers.build_solution(solute, solvent2, '1 molar')
         self.assertEqual(solute.moles, reaction_pb2.Moles(units='MILLIMOLES',
                                                           value=100))
         solvent3 = message_helpers.build_compound(name='Solvent',
                                                   amount='75 uL')
-        solute, solvent3 = message_helpers.build_solution(solute, solvent3,
-                                                          '3 mM')
+        message_helpers.build_solution(solute, solvent3, '3 mM')
         self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
                                                           value=225))
         solvent4 = message_helpers.build_compound(name='Solvent',
                                                   amount='0.2 uL')
-        solute, solvent4 = message_helpers.build_solution(solute, solvent4,
-                                                          '30 mM')
+        message_helpers.build_solution(solute, solvent4, '30 mM')
         self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
                                                           value=6))
 
