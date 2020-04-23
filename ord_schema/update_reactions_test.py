@@ -2,7 +2,6 @@
 
 import glob
 import os
-import subprocess
 import tempfile
 
 from absl import flags
