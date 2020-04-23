@@ -6,7 +6,6 @@ import tempfile
 from absl import flags
 from absl.testing import absltest
 from absl.testing import flagsaver
-from google.protobuf import text_format
 
 from ord_schema import validate_reactions
 from ord_schema.proto import reaction_pb2
@@ -28,15 +27,15 @@ class ValidateReactionsTest(absltest.TestCase):
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
         reaction1.outcomes.add().conversion.value = 75
         with open(os.path.join(self.test_subdirectory, 'reaction1.pbtxt'),
-                  'w') as f:
-            f.write(text_format.MessageToString(reaction1))
+                  'wb') as f:
+            f.write(reaction1.SerializeToString())
         reaction2 = reaction_pb2.Reaction()
         with open(os.path.join(self.test_subdirectory, 'reaction2.pbtxt'),
-                  'w') as f:
-            f.write(text_format.MessageToString(reaction2))
+                  'wb') as f:
+            f.write(reaction2.SerializeToString())
         with open(os.path.join(self.test_subdirectory, 'reaction3.pbtxt'),
-                  'w') as f:
-            f.write('garbage that is not a reaction proto')
+                  'wb') as f:
+            f.write(b'garbage that is not a reaction proto')
 
     def test_main(self):
         input_pattern = os.path.join(self.test_subdirectory, 'reaction1.pbtxt')
@@ -50,7 +49,7 @@ class ValidateReactionsTest(absltest.TestCase):
         output = os.path.join(self.test_subdirectory, 'output.txt')
         with open(input_file, 'w') as f:
             filename = os.path.join(self.test_subdirectory, 'reaction1.pbtxt')
-            f.write(f'{filename}\n')
+            f.write(f'A\t{filename}\n')
         with flagsaver.flagsaver(input_file=input_file, output=output):
             validate_reactions.main(())
         self.assertFalse(os.path.exists(output))
@@ -68,8 +67,7 @@ class ValidateReactionsTest(absltest.TestCase):
             'at least 1 reaction input\n',
             'reaction2.pbtxt: Reactions should have '
             'at least 1 reaction outcome\n',
-            'reaction3.pbtxt: 1:1 : Message type "ord.Reaction" '
-            'has no field named "garbage".\n',
+            'reaction3.pbtxt: Error parsing message\n',
         ]
         with open(output) as f:
             self.assertEqual(f.readlines(), expected_output)
