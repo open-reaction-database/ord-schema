@@ -9,7 +9,7 @@ from ord_schema.proto import reaction_pb2
 _UNIT_SYNONYMS = {
     reaction_pb2.Time: {
         reaction_pb2.Time.HOUR: ['h', 'hour', 'hours', 'hr', 'hrs'],
-        reaction_pb2.Time.MINUTE: ['m', 'min', 'mins', 'minute', 'minutes'],
+        reaction_pb2.Time.MINUTE: ['min', 'mins', 'minute', 'minutes'],
         reaction_pb2.Time.SECOND: ['s', 'sec', 'secs', 'second', 'seconds'],
     },
     reaction_pb2.Mass: {
@@ -30,11 +30,18 @@ _UNIT_SYNONYMS = {
         reaction_pb2.Volume.MICROLITER: ['uL', 'micl', 'microliters'],
         reaction_pb2.Volume.LITER: ['L', 'liters', 'litres'],
     },
-    # reaction_pb2.Concentration: {
-    #     reaction_pb2.Concentration.MOLAR: ['M', 'molar'],
-    #     reaction_pb2.Concentration.MILLIMOLAR: ['mM', 'millimolar'],
-    #     reaction_pb2.Concentration.MICROMOLAR: ['uM', 'micromolar'],
-    # }
+    reaction_pb2.Length: {
+        reaction_pb2.Length.CENTIMETER: ['cm', 'centimeter'],
+        reaction_pb2.Length.MILLIMETER: ['millimeter', 'millimeters'],
+        reaction_pb2.Length.METER: ['meter', 'meters'],
+        reaction_pb2.Length.INCH: ['in', 'inch', 'inches'],
+        reaction_pb2.Length.FOOT: ['ft', 'foot', 'feet'],
+    },
+    reaction_pb2.Concentration: {
+        reaction_pb2.Concentration.MOLAR: ['molar'],
+        reaction_pb2.Concentration.MILLIMOLAR: ['millimolar'],
+        reaction_pb2.Concentration.MICROMOLAR: ['micromolar'],
+    },
     reaction_pb2.Pressure: {
         reaction_pb2.Pressure.BAR: ['bar', 'barg', 'bars'],
         reaction_pb2.Pressure.ATMOSPHERE: ['atm', 'atmosphere', 'atmospheres'],
@@ -68,6 +75,11 @@ _UNIT_SYNONYMS = {
         reaction_pb2.FlowRate.MILLILITER_PER_SECOND: ['mL/s'],
         reaction_pb2.FlowRate.MICROLITER_PER_HOUR: ['uL/h'],
     },
+}
+
+_FORBIDDEN_UNITS = {
+    'm': 'ambiguous between meter and minute',
+    'mm': 'ambiguous between millimeter and millimolar',
 }
 
 
@@ -107,6 +119,9 @@ class UnitResolver:
                 f'string does not contain a value with units: {string}')
         value, string_unit = match.groups()
         string_unit = string_unit.lower()
+        if string_unit in _FORBIDDEN_UNITS:
+            raise KeyError(f'forbidden units: {string_unit}: '
+                           f'({_FORBIDDEN_UNITS[string_unit]})')
         if string_unit not in self._resolver:
             raise KeyError(f'unrecognized units: {string_unit}')
         message, unit = self._resolver[string_unit]
