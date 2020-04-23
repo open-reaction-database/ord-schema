@@ -13,7 +13,6 @@ from absl import flags
 from absl import logging
 
 from google.protobuf import json_format
-from google.protobuf.pyext import _message
 from ord_schema.proto import reaction_pb2
 
 FLAGS = flags.FLAGS
@@ -60,8 +59,8 @@ def get_database_json(message):
     """
     record = {}
     for field, value in message.ListFields():
-        if isinstance(value, (
-                _message.ScalarMapContainer, _message.MessageMapContainer)):
+        if (field.type == field.TYPE_MESSAGE and
+                field.message_type.GetOptions().map_entry):
             # Convert proto maps to lists of (key, value) pairs.
             field_key = field.message_type.fields_by_name['key']
             field_value = field.message_type.fields_by_name['value']

@@ -64,30 +64,71 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     def test_reaction_recursive(self):
         message = reaction_pb2.Reaction()
+        # Reactions must have at least one input
         with self.assertRaisesRegex(
                 validations.ValidationError, 'reaction input'):
-            validations.validate_message(message)
+            validations.validate_message(message, recurse=False)
         dummy_input = message.inputs['dummy_input']
+        # Reactions must have at least one outcome
+        with self.assertRaisesRegex(
+                validations.ValidationError, 'reaction outcome'):
+            validations.validate_message(message, recurse=False)
+        outcome = message.outcomes.add()
         self.assertEmpty(validations.validate_message(message, recurse=False))
+        # Inputs must have at least one component
         with self.assertRaisesRegex(validations.ValidationError, 'component'):
             validations.validate_message(message)
         dummy_component = dummy_input.components.add()
+        # Components must have at least one identifier
         with self.assertRaisesRegex(validations.ValidationError, 'identifier'):
             validations.validate_message(message)
         dummy_component.identifiers.add(type='CUSTOM')
+        # Custom identifiers must have details specified
         with self.assertRaisesRegex(validations.ValidationError, 'details'):
             validations.validate_message(message)
         dummy_component.identifiers[0].details = 'custom_identifier'
         dummy_component.identifiers[0].value = 'custom_value'
+        # Components of reaction inputs must have a defined amount
         with self.assertRaisesRegex(
                 validations.ValidationError, 'require an amount'):
             validations.validate_message(message)
         dummy_component.mass.value = 1
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
+        # Reactions must have defined products or conversion
+        with self.assertRaisesRegex(
+                validations.ValidationError, 'products or conversion'):
+            validations.validate_message(message)
+        outcome.conversion.value = 75
+        # If converseions are defined, must have limiting reagent flag
+        with self.assertRaisesRegex(
+                validations.ValidationError, 'is_limiting'):
+            validations.validate_message(message)
+        dummy_component.is_limiting = True
         self.assertEmpty(validations.validate_message(message))
-        outcome = message.outcomes.add()
-        _ = outcome.analyses['dummy_analysis']
-        self.assertEmpty(validations.validate_message(message))
+
+        # If an analysis uses an internal standard, a component must have
+        # an INTERNAL_STANDARD reaction role
+        outcome.analyses['dummy_analysis'].uses_internal_standard = True
+        with self.assertRaisesRegex(
+                validations.ValidationError, 'INTERNAL_STANDARD'):
+            validations.validate_message(message)
+        # Assigning internal standard role to input should resolve the error
+        message_input_istd = reaction_pb2.Reaction()
+        message_input_istd.CopyFrom(message)
+        message_input_istd.inputs['dummy_input'].components[0].reaction_role = (
+            reaction_pb2.Compound.ReactionRole.INTERNAL_STANDARD)
+        self.assertEmpty(validations.validate_message(message_input_istd))
+        # Assigning internal standard role to workup should resolve the error
+        message_workup_istd = reaction_pb2.Reaction()
+        message_workup_istd.CopyFrom(message)
+        workup = message_workup_istd.workup.add()
+        istd = workup.components.add()
+        istd.identifiers.add(type='SMILES', value='CCO')
+        istd.mass.value = 1
+        istd.mass.units = reaction_pb2.Mass.GRAM
+        istd.reaction_role = istd.ReactionRole.INTERNAL_STANDARD
+        self.assertEmpty(validations.validate_message(message_workup_istd))
+
 
     def test_reaction_recursive_noraise_on_error(self):
         message = reaction_pb2.Reaction()
@@ -95,9 +136,11 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         errors = validations.validate_message(message, raise_on_error=False)
         expected = [
             'Compounds must have at least one identifier',
-            "Reaction input's components require an amount"
+            "Reaction input's components require an amount",
+            'Reactions should have at least 1 reaction outcome',
         ]
         self.assertEqual(errors, expected)
+
 
     def test_datetimes(self):
         message = reaction_pb2.ReactionProvenance()
