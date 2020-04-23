@@ -22,8 +22,8 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
          reaction_pb2.Mass(value=32.1, units=reaction_pb2.Mass.GRAM)),
         ('extra space', '   32.1      \t   g  ',
          reaction_pb2.Mass(value=32.1, units=reaction_pb2.Mass.GRAM)),
-        ('lengths', ' 10 millimeter',
-         reaction_pb2.Length(value=10, units=reaction_pb2.Length.MILLIMETER)),
+        ('lengths', ' 10 meter',
+         reaction_pb2.Length(value=10, units=reaction_pb2.Length.METER)),
     )
     def test_resolve(self, string, expected):
         self.assertEqual(self._resolver.resolve(string), expected)

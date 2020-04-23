@@ -37,11 +37,6 @@ _UNIT_SYNONYMS = {
         reaction_pb2.Length.INCH: ['in', 'inch', 'inches'],
         reaction_pb2.Length.FOOT: ['ft', 'foot', 'feet'],
     },
-    reaction_pb2.Concentration: {
-        reaction_pb2.Concentration.MOLAR: ['molar'],
-        reaction_pb2.Concentration.MILLIMOLAR: ['millimolar'],
-        reaction_pb2.Concentration.MICROMOLAR: ['micromolar'],
-    },
     reaction_pb2.Pressure: {
         reaction_pb2.Pressure.BAR: ['bar', 'barg', 'bars'],
         reaction_pb2.Pressure.ATMOSPHERE: ['atm', 'atmosphere', 'atmospheres'],
@@ -79,18 +74,29 @@ _UNIT_SYNONYMS = {
 
 _FORBIDDEN_UNITS = {
     'm': 'ambiguous between meter and minute',
-    'mm': 'ambiguous between millimeter and millimolar',
+}
+
+# Concentration units are defined separately since they are not needed for any
+# native fields in the reaction schema.
+_CONCENTRATION_UNIT_SYNONYMS = {
+    reaction_pb2.Concentration: {
+        reaction_pb2.Concentration.MOLAR: ['M', 'molar'],
+        reaction_pb2.Concentration.MILLIMOLAR: ['mM', 'millimolar'],
+        reaction_pb2.Concentration.MICROMOLAR: ['uM', 'micromolar'],
+    },
 }
 
 
 class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
 
-    def __init__(self):
+    def __init__(self, unit_synonyms=_UNIT_SYNONYMS, 
+            forbidden_units=_FORBIDDEN_UNITS):
+        self._forbidden_units = forbidden_units
         self._resolver = {}
-        for message in _UNIT_SYNONYMS:
-            for unit in _UNIT_SYNONYMS[message]:
-                for string_unit in _UNIT_SYNONYMS[message][unit]:
+        for message in unit_synonyms:
+            for unit in unit_synonyms[message]:
+                for string_unit in unit_synonyms[message][unit]:
                     string_unit = string_unit.lower()
                     if string_unit in self._resolver:
                         raise KeyError(f'duplicated unit: {string_unit}')
@@ -119,9 +125,9 @@ class UnitResolver:
                 f'string does not contain a value with units: {string}')
         value, string_unit = match.groups()
         string_unit = string_unit.lower()
-        if string_unit in _FORBIDDEN_UNITS:
+        if string_unit in self._forbidden_units:
             raise KeyError(f'forbidden units: {string_unit}: '
-                           f'({_FORBIDDEN_UNITS[string_unit]})')
+                           f'({self._forbidden_units[string_unit]})')
         if string_unit not in self._resolver:
             raise KeyError(f'unrecognized units: {string_unit}')
         message, unit = self._resolver[string_unit]
