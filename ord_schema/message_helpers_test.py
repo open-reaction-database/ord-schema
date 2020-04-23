@@ -234,6 +234,36 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
             'Sally')
 
 
+class BuildSolutionTest(parameterized.TestCase, absltest.TestCase):
+
+    def test_build_solution_should_fail(self):
+        solute = message_helpers.build_compound(name='Solute')
+        solvent1 = message_helpers.build_compound(name='Solvent')
+        with self.assertRaisesRegex(ValueError, 'defined volume'):
+            message_helpers.build_solution(solute, solvent1, '10 mM')
+
+    def test_build_solution(self):
+        solute = message_helpers.build_compound(name='Solute')
+        solvent2 = message_helpers.build_compound(name='Solvent',
+                                                  amount='100 mL')
+        solute, solvent2 = message_helpers.build_solution(solute, solvent2,
+                                                          '1 molar')
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='MILLIMOLES',
+                                                          value=100))
+        solvent3 = message_helpers.build_compound(name='Solvent',
+                                                  amount='75 uL')
+        solute, solvent3 = message_helpers.build_solution(solute, solvent3,
+                                                          '3 mM')
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
+                                                          value=225))
+        solvent4 = message_helpers.build_compound(name='Solvent',
+                                                  amount='0.2 uL')
+        solute, solvent4 = message_helpers.build_solution(solute, solvent4,
+                                                          '30 mM')
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
+                                                          value=6))
+
+
 class GetCompoundSmilesTest(absltest.TestCase):
 
     def test_get_compound_smiles(self):

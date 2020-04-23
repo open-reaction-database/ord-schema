@@ -78,7 +78,7 @@ _FORBIDDEN_UNITS = {
 
 # Concentration units are defined separately since they are not needed for any
 # native fields in the reaction schema.
-_CONCENTRATION_UNIT_SYNONYMS = {
+CONCENTRATION_UNIT_SYNONYMS = {
     reaction_pb2.Concentration: {
         reaction_pb2.Concentration.MOLAR: ['M', 'molar'],
         reaction_pb2.Concentration.MILLIMOLAR: ['mM', 'millimolar'],

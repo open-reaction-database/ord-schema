@@ -98,6 +98,58 @@ def build_compound(smiles=None, name=None, amount=None, role=None,
     return compound
 
 
+def build_solution(solute, solvent, concentration):
+    """Helps define components for stock solution inputs with a single solute
+    and a single solvent compound.
+
+    Args:
+        solute: Compound with identifiers, roles, etc.; this argument is
+            modified in place to define an amount in moles.
+        solvent: Compound with identifiers, roles, etc. and defined volume.
+        concentration: string defining solute concentration.
+
+    Returns:
+        List of Compounds to assign to a repeated components field.
+    """
+    # Get solvent volume in liters.
+    if not solvent.HasField('volume') or not solvent.volume.value:
+        raise ValueError('solvent must have defined volume')
+    volume = solvent.volume.value
+    if solvent.volume.units == solvent.volume.LITER:
+        volume_liter = volume
+    elif solvent.volume.units == solvent.volume.MILLILITER:
+        volume_liter = volume * 1e-3
+    elif solvent.volume.units == solvent.volume.MICROLITER:
+        volume_liter = volume * 1e-6
+    else:
+        raise ValueError('solvent units not recognized by build_solution')
+    # Get solute concentration in molar.
+    resolver = units.UnitResolver(
+        unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS,
+        forbidden_units={},)
+    concentration_pb = resolver.resolve(concentration)
+    if concentration_pb.units == concentration_pb.MOLAR:
+        concentration_molar = concentration_pb.value
+    elif concentration_pb.units == concentration_pb.MILLIMOLAR:
+        concentration_molar = concentration_pb.value * 1e-3
+    elif concentration_pb.units == concentration_pb.MICROMOLAR:
+        concentration_molar = concentration_pb.value * 1e-6
+    # Assign moles amount and return.
+    moles = volume_liter * concentration_molar
+    if moles < 1e-6:
+        solute.moles.CopyFrom(reaction_pb2.Moles(units='NANOMOLES',
+                                                 value=moles*1e9))
+    elif moles < 1e-3:
+        solute.moles.CopyFrom(reaction_pb2.Moles(units='MICROMOLES',
+                                                 value=moles*1e6))
+    elif moles < 1:
+        solute.moles.CopyFrom(reaction_pb2.Moles(units='MILLIMOLES',
+                                                 value=moles*1e3))
+    else:
+        solute.moles.CopyFrom(reaction_pb2.Moles(units='MOLES', value=moles))
+    return [solute, solvent]
+
+
 def build_data(filename, description):
     """Reads raw data from a file and creates a Data message.
 
