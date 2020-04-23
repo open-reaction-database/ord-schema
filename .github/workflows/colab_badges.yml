@@ -4,22 +4,20 @@
 # See https://github.com/marketplace/actions/colab-badge-action for more details.
 name: colab_badges
 
-on: pull_request
+on:
+  pull_request:
+    branches: 
+      - master
 
 jobs:
-  # Do not use GITHUB_TOKEN here since it will not trigger events in response; see
-  # https://help.github.com/en/actions/reference/events-that-trigger-workflows#triggering-new-workflows-using-a-personal-access-token.
   colab_badges:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-      with:
-        # See https://stackoverflow.com/a/60418414.
-        token: ${{ secrets.TRIGGER_WORKFLOWS }}
     - name: Colab Badge Action
       uses: skearnes/colab-badge-action@master
       with:
-        github_token: ${{ secrets.TRIGGER_WORKFLOWS }}
+        github_token: ${{ secrets.GITHUB_TOKEN }}
         check: latest
         update: True
         target_branch: master
