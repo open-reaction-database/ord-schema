@@ -12,9 +12,14 @@ import "proto/reaction.proto";
 message Dataset {
   string name = 1;
   string description = 2;
-  // Map of record_id -> Reaction.
-  map<string, Reaction> reactions = 3;
+  // URL for the latest version of this dataset in the official database.
+  string url = 3;
+  // DOI for this dataset.
+  string doi = 4;
+  // Map of record_id -> Reaction. For submissions where record IDs have not
+  // yet been assigned, use a dataset-specific identifier (e.g. "1(a)").
+  map<string, Reaction> reactions = 5;
   // `scripts` may include code for extracting relevant features for machine
   // learning, e.g. as part of the methods for a publication.
-  map<string, Data> scripts = 4;
+  map<string, Data> scripts = 6;
 }
