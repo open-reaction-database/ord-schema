@@ -234,29 +234,29 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
             'Sally')
 
 
-class BuildSolutionTest(parameterized.TestCase, absltest.TestCase):
+class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
 
-    def test_build_solution_should_fail(self):
+    def test_set_solute_moles_should_fail(self):
         solute = message_helpers.build_compound(name='Solute')
         solvent1 = message_helpers.build_compound(name='Solvent')
         with self.assertRaisesRegex(ValueError, 'defined volume'):
-            message_helpers.build_solution(solute, solvent1, '10 mM')
+            message_helpers.set_solute_moles(solute, solvent1, '10 mM')
 
-    def test_build_solution(self):
+    def test_set_solute_moles(self):
         solute = message_helpers.build_compound(name='Solute')
         solvent2 = message_helpers.build_compound(name='Solvent',
                                                   amount='100 mL')
-        message_helpers.build_solution(solute, solvent2, '1 molar')
+        message_helpers.set_solute_moles(solute, solvent2, '1 molar')
         self.assertEqual(solute.moles, reaction_pb2.Moles(units='MILLIMOLES',
                                                           value=100))
         solvent3 = message_helpers.build_compound(name='Solvent',
                                                   amount='75 uL')
-        message_helpers.build_solution(solute, solvent3, '3 mM')
+        message_helpers.set_solute_moles(solute, solvent3, '3 mM')
         self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
                                                           value=225))
         solvent4 = message_helpers.build_compound(name='Solvent',
                                                   amount='0.2 uL')
-        message_helpers.build_solution(solute, solvent4, '30 mM')
+        message_helpers.set_solute_moles(solute, solvent4, '30 mM')
         self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
                                                           value=6))
 

@@ -98,7 +98,7 @@ def build_compound(smiles=None, name=None, amount=None, role=None,
     return compound
 
 
-def build_solution(solute, solvent, concentration):
+def set_solute_moles(solute, solvent, concentration):
     """Helps define components for stock solution inputs with a single solute
     and a single solvent compound.
 
