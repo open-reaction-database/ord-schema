@@ -13,15 +13,14 @@ class DatasetPb2Test(absltest.TestCase):
         dataset = dataset_pb2.Dataset()
         dataset.name = 'test'
         dataset.description = 'test dataset'
-        dataset.version = 1
         # Add a reaction directly to the dataset.
-        reaction1 = dataset.reactions['foo']
+        reaction1 = dataset.reactions.add()
         reaction1.identifiers.add(value='C(C)Cl.Br>>C(C)Br.Cl',
                                   type='REACTION_SMILES')
         # Copy a reaction created elsewhere.
         reaction2 = reaction_pb2.Reaction()
         reaction2.identifiers.add(value='amide coupling', type='NAME')
-        dataset.reactions['bar'].CopyFrom(reaction2)
+        dataset.reactions.add().CopyFrom(reaction2)
         self.dataset_pb = dataset.SerializeToString()
 
     def test_simple(self):
@@ -29,9 +28,9 @@ class DatasetPb2Test(absltest.TestCase):
         self.assertEqual(dataset.name, 'test')
         self.assertEqual(dataset.description, 'test dataset')
         self.assertLen(dataset.reactions, 2)
-        self.assertEqual(dataset.reactions['foo'].identifiers[0].type,
+        self.assertEqual(dataset.reactions[0].identifiers[0].type,
                          reaction_pb2.ReactionIdentifier.REACTION_SMILES)
-        self.assertEqual(dataset.reactions['bar'].identifiers[0].type,
+        self.assertEqual(dataset.reactions[1].identifiers[0].type,
                          reaction_pb2.ReactionIdentifier.NAME)
 
 

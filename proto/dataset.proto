@@ -12,15 +12,11 @@ import "reaction.proto";
 message Dataset {
   string name = 1;
   string description = 2;
-  uint32 version = 3;
-  // URL for the latest version of this dataset in the official database.
-  string url = 4;
-  // DOI for this dataset.
-  string doi = 5;
-  // Map of record_id -> Reaction. For submissions where record IDs have not
-  // yet been assigned, use a dataset-specific identifier (e.g. "1(a)").
-  map<string, Reaction> reactions = 6;
+  // List of Reaction messages that are part of this dataset.
+  repeated Reaction reactions = 3;
   // `scripts` may include code for extracting relevant features for machine
   // learning, e.g. as part of the methods for a publication.
-  map<string, Data> scripts = 7;
+  map<string, Data> scripts = 4;
+  // TODO(kearnes): Assign a DOI to each dataset?
+  // TODO(kearnes): Version number? URL pointing to ORD?
 }
