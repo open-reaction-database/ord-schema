@@ -91,6 +91,23 @@ class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
 
     def __init__(self, unit_synonyms=None, forbidden_units=None):
+        """Initializes a UnitResolver.
+
+        Args:
+            unit_synonyms: A dictionary of dictionaries that defines, for each
+                message type (first key) and for each unit option (second key),
+                a list of strings that defines how that unit can be written.
+                Defaults to None. If None, uses default _UNIT_SYNONYMS dict.
+            forbidden_units: A dictionary where each key is a string that is a
+                plausible way of writing a unit and a value explaining why
+                the UnitResolver cannot resolve that unit. The prototypical
+                case is one of ambiguity (e.g., "m" can mean meter or minute).
+                Defaults to None. If None, uses default _FORBIDDEN_UNITS dict.
+                If no units are forbidden, an empty dictionary should be used.
+
+        Returns:
+            None
+        """
         if unit_synonyms is None:
             unit_synonyms = _UNIT_SYNONYMS
         if forbidden_units is None:
