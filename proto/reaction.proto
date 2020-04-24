@@ -52,10 +52,14 @@ message ReactionIdentifier {
     ATOM_MAPPED_SMILES = 3;
     RINCHI = 4;  // Reaction InChI.
     NAME = 5;  // Named reaction or reaction category.
+    RDKIT_BINARY = 6;  // RDKit binary format (for fast loading).
   }
   IdentifierType type = 1;
   string details = 2;
-  string value = 3;
+  oneof kind {
+    string value = 3;
+    bytes bytes_value = 4;
+  }
 }
 
 message ReactionInput {
@@ -140,15 +144,23 @@ message Compound {
   message ReactionRole {
     enum ReactionRoleType {
       UNSPECIFIED = 0;
-      // TODO(ccoley): Do we want to use the definition of a reactant aligned
-      // with Reaxys, or say that any species that contributes heavy atoms
-      // to a desired product is a reactant? This field might be kind of a
-      // throwaway anyway...
+      // A reactant is any compound that contributes atoms to a desired or 
+      // observed product. 
+      // TODO(ccoley) refine the documentation of this definition.
       REACTANT = 1;
       REAGENT = 2;
       SOLVENT = 3;
       CATALYST = 4;
+      // THe workup role is used when defining quenches, buffer additives for
+      // liquid-liquid separations, etc.
       WORKUP = 5;
+      // Product role is always implicitly defined when a compound appears in
+      // a reaction outcome's list of products.
+      PRODUCT = 6;
+      // Internal standards can be included as part of a reaction input (when
+      // added prior to the start of the reaction) or as part of a workup
+      // step of addition.
+      INTERNAL_STANDARD = 7;
     }
   }
   ReactionRole.ReactionRoleType reaction_role = 5;
@@ -217,8 +229,8 @@ message CompoundIdentifier {
     SMILES = 2;
     // IUPAC International Chemical Identifier.
     INCHI = 3;
-    // MDL Molfile V3000.
-    MOLFILE = 4;
+    // Molblock from a MDL Molfile V3000.
+    MOLBLOCK = 4;
     // Chemical name following IUPAC nomenclature recommendations.
     IUPAC_NAME = 5;
     // Any accepted common name, trade name, etc.
@@ -239,12 +251,17 @@ message CompoundIdentifier {
     UNIPROT_ID = 13;
     // Protein data bank ID (for enzymes)
     PDB_ID = 14;
+    // RDKit binary format (for fast loading)
+    RDKIT_BINARY = 15;
   }
   IdentifierType type = 1;
   string details = 2;
   // Value of the compound identifier; certain types (e.g., PUBCHEM_CID) may
   // cast the string as an integer for downstream processing and validation.
-  string value = 3;
+  oneof kind {
+    string value = 3;
+    bytes bytes_value = 4;
+  }
 }
 
 message Vessel {
@@ -294,7 +311,7 @@ message ReactionSetup {
   // Automated platform name, brand, or model number.
   string automation_platform = 3;
   // Raw automation code or synthetic recipe definition.
-  map<string, BinaryData> automation_code = 4;
+  map<string, Data> automation_code = 4;
 }
 
 message ReactionConditions {
@@ -513,14 +530,14 @@ message ReactionNotes {
 message ReactionObservation {
   Time time = 1;
   string comment = 2;  // e.g. what color is the reaction?
-  BinaryData image = 3;
+  Data image = 3;
 }
 
 message ReactionWorkup {
   enum WorkupType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
-    // Addition (quench, dilution, extraction solvent, etc.)
+    // Addition (quench, dilution, extraction solvent, internal standard, etc.)
     // Specify composition/amount in "components".
     ADDITION = 2;
     // Change of temperature.
@@ -660,7 +677,7 @@ message ReactionAnalysis {
   enum AnalysisType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
-    LC = 2;  // Liquid chromatography.
+    LC = 2;  // Liquid chromatography, including HPLC and UPLC.
     GC = 3;  // Gas chromatography.
     IR = 4;  // Infrared spectroscopy.
     NMR = 5;  // NMR spectroscopy.
@@ -681,11 +698,14 @@ message ReactionAnalysis {
   // Any details about analysis (e.g., NMR type, columns, gradients, conditions)
   string details = 2;
   // Data files (processed or annotated).
-  map<string, BinaryData> processed_data = 3;
+  map<string, Data> processed_data = 3;
   // Data files (raw) obtained directly from the instrument
-  map<string, BinaryData> raw_data = 4;
+  map<string, Data> raw_data = 4;
   string instrument_manufacturer = 5;
   DateTime instrument_last_calibrated = 6;
+  // Whether an internal standard was used with this analytical technique for
+  // quantification, e.g., of yield.
+  bool uses_internal_standard = 7;
 }
 
 message ReactionProvenance {
@@ -703,9 +723,7 @@ message ReactionProvenance {
   }
   RecordEvent record_created = 7;
   repeated RecordEvent record_modified = 8;
-  // TODO(ccoley): is it useful to create a unique ID field 
-  // that the centralized database can write to? (I know uniqueness is not
-  // enforceable)
+  // This is a unique ID field that the centralized database will write to.
   string record_id = 9;
 }
 
@@ -884,11 +902,15 @@ message Percentage {
   float precision = 2;
 }
 
-// BinaryData is a container for binary (bytes) data.
-message BinaryData {
-  bytes value = 1;
-  string description = 2;
-  // Description of the file format; usually the file extension. For example,
-  // 'png' or 'tiff' for images.
-  string format = 3;
+// Data is a container for arbitrary string or bytes data.
+message Data {
+  oneof kind {
+    string value = 1;
+    bytes bytes_value = 2;
+    string url = 3;  // URL for data stored elsewhere.
+  }
+  string description = 4;
+  // Description of the file format (if applicable); usually the file extension.
+  // For example, 'png' or 'tiff' for images. If empty, we assume string data.
+  string format = 5;
 }

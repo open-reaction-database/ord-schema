@@ -9,7 +9,7 @@ from ord_schema.proto import reaction_pb2
 _UNIT_SYNONYMS = {
     reaction_pb2.Time: {
         reaction_pb2.Time.HOUR: ['h', 'hour', 'hours', 'hr', 'hrs'],
-        reaction_pb2.Time.MINUTE: ['m', 'min', 'mins', 'minute', 'minutes'],
+        reaction_pb2.Time.MINUTE: ['min', 'mins', 'minute', 'minutes'],
         reaction_pb2.Time.SECOND: ['s', 'sec', 'secs', 'second', 'seconds'],
     },
     reaction_pb2.Mass: {
@@ -30,11 +30,13 @@ _UNIT_SYNONYMS = {
         reaction_pb2.Volume.MICROLITER: ['uL', 'micl', 'microliters'],
         reaction_pb2.Volume.LITER: ['L', 'liters', 'litres'],
     },
-    # reaction_pb2.Concentration: {
-    #     reaction_pb2.Concentration.MOLAR: ['M', 'molar'],
-    #     reaction_pb2.Concentration.MILLIMOLAR: ['mM', 'millimolar'],
-    #     reaction_pb2.Concentration.MICROMOLAR: ['uM', 'micromolar'],
-    # }
+    reaction_pb2.Length: {
+        reaction_pb2.Length.CENTIMETER: ['cm', 'centimeter'],
+        reaction_pb2.Length.MILLIMETER: ['millimeter', 'millimeters'],
+        reaction_pb2.Length.METER: ['meter', 'meters'],
+        reaction_pb2.Length.INCH: ['in', 'inch', 'inches'],
+        reaction_pb2.Length.FOOT: ['ft', 'foot', 'feet'],
+    },
     reaction_pb2.Pressure: {
         reaction_pb2.Pressure.BAR: ['bar', 'barg', 'bars'],
         reaction_pb2.Pressure.ATMOSPHERE: ['atm', 'atmosphere', 'atmospheres'],
@@ -70,15 +72,51 @@ _UNIT_SYNONYMS = {
     },
 }
 
+_FORBIDDEN_UNITS = {
+    'm': 'ambiguous between meter and minute',
+}
+
+# Concentration units are defined separately since they are not needed for any
+# native fields in the reaction schema.
+CONCENTRATION_UNIT_SYNONYMS = {
+    reaction_pb2.Concentration: {
+        reaction_pb2.Concentration.MOLAR: ['M', 'molar'],
+        reaction_pb2.Concentration.MILLIMOLAR: ['mM', 'millimolar'],
+        reaction_pb2.Concentration.MICROMOLAR: ['uM', 'micromolar'],
+    },
+}
+
 
 class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
 
-    def __init__(self):
+    def __init__(self, unit_synonyms=None, forbidden_units=None):
+        """Initializes a UnitResolver.
+
+        Args:
+            unit_synonyms: A dictionary of dictionaries that defines, for each
+                message type (first key) and for each unit option (second key),
+                a list of strings that defines how that unit can be written.
+                Defaults to None. If None, uses default _UNIT_SYNONYMS dict.
+            forbidden_units: A dictionary where each key is a string that is a
+                plausible way of writing a unit and a value explaining why
+                the UnitResolver cannot resolve that unit. The prototypical
+                case is one of ambiguity (e.g., "m" can mean meter or minute).
+                Defaults to None. If None, uses default _FORBIDDEN_UNITS dict.
+                If no units are forbidden, an empty dictionary should be used.
+
+        Returns:
+            None
+        """
+        if unit_synonyms is None:
+            unit_synonyms = _UNIT_SYNONYMS
+        if forbidden_units is None:
+            forbidden_units = _FORBIDDEN_UNITS
+        self._forbidden_units = forbidden_units
         self._resolver = {}
-        for message in _UNIT_SYNONYMS:
-            for unit in _UNIT_SYNONYMS[message]:
-                for string_unit in _UNIT_SYNONYMS[message][unit]:
+        for message in unit_synonyms:
+            for unit in unit_synonyms[message]:
+                for string_unit in unit_synonyms[message][unit]:
                     string_unit = string_unit.lower()
                     if string_unit in self._resolver:
                         raise KeyError(f'duplicated unit: {string_unit}')
@@ -107,6 +145,9 @@ class UnitResolver:
                 f'string does not contain a value with units: {string}')
         value, string_unit = match.groups()
         string_unit = string_unit.lower()
+        if string_unit in self._forbidden_units:
+            raise KeyError(f'forbidden units: {string_unit}: '
+                           f'({self._forbidden_units[string_unit]})')
         if string_unit not in self._resolver:
             raise KeyError(f'unrecognized units: {string_unit}')
         message, unit = self._resolver[string_unit]

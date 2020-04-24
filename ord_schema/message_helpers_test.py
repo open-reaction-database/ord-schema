@@ -6,12 +6,61 @@ import tempfile
 from absl import flags
 from absl.testing import absltest
 from absl.testing import parameterized
+from google import protobuf
+from google.protobuf import json_format
+from google.protobuf import text_format
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
+from ord_schema.proto import test_pb2
+
+try:
+    from rdkit import Chem
+except ImportError:
+    Chem = None
 
 
-class BuildBinaryDataTest(absltest.TestCase):
+class FindSubmessagesTest(absltest.TestCase):
+
+    def test_scalar(self):
+        message = test_pb2.Scalar(int32_value=5, float_value=6.7)
+        self.assertEmpty(
+            message_helpers.find_submessages(message, test_pb2.Scalar))
+        with self.assertRaisesRegex(TypeError, 'must be a Protocol Buffer'):
+            message_helpers.find_submessages(message, float)
+
+    def test_nested(self):
+        message = test_pb2.Nested()
+        self.assertEmpty(
+            message_helpers.find_submessages(message, test_pb2.Nested.Child))
+        message.child.value = 5.6
+        submessages = message_helpers.find_submessages(
+            message, test_pb2.Nested.Child)
+        self.assertLen(submessages, 1)
+        # Show that the returned submessages work as references.
+        submessages[0].value = 7.8
+        self.assertAlmostEqual(message.child.value, 7.8, places=4)
+
+    def test_repeated_nested(self):
+        message = test_pb2.RepeatedNested()
+        message.children.add().value = 1.2
+        message.children.add().value = 3.4
+        self.assertLen(
+            message_helpers.find_submessages(
+                message, test_pb2.RepeatedNested.Child),
+            2)
+
+    def test_map_nested(self):
+        message = test_pb2.MapNested()
+        message.children['one'].value = 1.2
+        message.children['two'].value = 3.4
+        self.assertLen(
+            message_helpers.find_submessages(
+                message, test_pb2.MapNested.Child),
+            2)
+
+
+class BuildDataTest(absltest.TestCase):
 
     def setUp(self):
         super().setUp()
@@ -21,23 +70,91 @@ class BuildBinaryDataTest(absltest.TestCase):
         with open(self.filename, 'wb') as f:
             f.write(self.data)
 
-    def test_defaults(self):
-        message = message_helpers.build_binary_data(self.filename)
-        self.assertEqual(message.value, self.data)
-        self.assertEqual(message.description, '')
-        self.assertEqual(message.format, 'data')
-
-    def test_description(self):
-        message = message_helpers.build_binary_data(self.filename,
-                                                    description='binary data')
-        self.assertEqual(message.value, self.data)
+    def test_build_data(self):
+        message = message_helpers.build_data(self.filename,
+                                             description='binary data')
+        self.assertEqual(message.bytes_value, self.data)
         self.assertEqual(message.description, 'binary data')
         self.assertEqual(message.format, 'data')
 
     def test_bad_filename(self):
         with self.assertRaisesRegex(ValueError,
                                     'cannot deduce the file format'):
-            message_helpers.build_binary_data('testdata')
+            message_helpers.build_data('testdata', 'no description')
+
+
+class WriteDataTest(absltest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
+
+    def test_string_value(self):
+        message = reaction_pb2.Data(value='test value')
+        filename = message_helpers.write_data(message, self.test_subdirectory)
+        expected = os.path.join(
+            self.test_subdirectory,
+            'ord_data-'
+            '47d1d8273710fd6f6a5995fac1a0983fe0e8828c288e35e80450ddc5c4412def'
+            '.txt')
+        self.assertEqual(filename, expected)
+        # NOTE(kearnes): Open with 'r' to get the decoded string.
+        with open(filename, 'r') as f:
+            self.assertEqual(message.value, f.read())
+
+    def test_bytes_value(self):
+        message = reaction_pb2.Data(bytes_value=b'test value')
+        filename = message_helpers.write_data(message, self.test_subdirectory)
+        expected = os.path.join(
+            self.test_subdirectory,
+            'ord_data-'
+            '47d1d8273710fd6f6a5995fac1a0983fe0e8828c288e35e80450ddc5c4412def'
+            '.txt')
+        self.assertEqual(filename, expected)
+        with open(filename, 'rb') as f:
+            self.assertEqual(message.bytes_value, f.read())
+
+    def test_url_value(self):
+        message = reaction_pb2.Data(url='test value')
+        self.assertIsNone(
+            message_helpers.write_data(message, self.test_subdirectory))
+
+    def test_missing_value(self):
+        message = reaction_pb2.Data()
+        with self.assertRaisesRegex(ValueError, 'no value to write'):
+            message_helpers.write_data(message, self.test_subdirectory)
+
+    def test_min_size(self):
+        message = reaction_pb2.Data(value='test_value')
+        self.assertIsNone(
+            message_helpers.write_data(
+                message, self.test_subdirectory, min_size=1.0))
+
+    def test_max_size(self):
+        message = reaction_pb2.Data(value='test value')
+        with self.assertRaisesRegex(ValueError, 'larger than max_size'):
+            message_helpers.write_data(
+                message, self.test_subdirectory, max_size=1e-6)
+
+    def test_find_data_messages(self):
+        message = reaction_pb2.Reaction()
+        self.assertEmpty(
+            message_helpers.find_submessages(message, reaction_pb2.Data))
+        message = reaction_pb2.ReactionObservation()
+        message.image.value = 'not an image'
+        self.assertLen(
+            message_helpers.find_submessages(message, reaction_pb2.Data), 1)
+        message = reaction_pb2.ReactionSetup()
+        message.automation_code['test1'].value = 'test data 1'
+        message.automation_code['test2'].bytes_value = b'test data 2'
+        self.assertLen(
+            message_helpers.find_submessages(message, reaction_pb2.Data), 2)
+        message = reaction_pb2.Reaction()
+        message.observations.add().image.value = 'not an image'
+        message.setup.automation_code['test1'].value = 'test data 1'
+        message.setup.automation_code['test2'].bytes_value = b'test data 2'
+        self.assertLen(
+            message_helpers.find_submessages(message, reaction_pb2.Data), 3)
 
 
 class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
@@ -75,7 +192,7 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
 
     def test_bad_role(self):
         with self.assertRaisesRegex(KeyError, 'not a supported type'):
-            message_helpers.build_compound(role='product')
+            message_helpers.build_compound(role='flavorant')
 
     def test_is_limiting(self):
         self.assertTrue(
@@ -115,6 +232,149 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
         self.assertEqual(
             message_helpers.build_compound(vendor='Sally').vendor_source,
             'Sally')
+
+
+class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
+
+    def test_set_solute_moles_should_fail(self):
+        solute = message_helpers.build_compound(name='Solute')
+        solvent = message_helpers.build_compound(name='Solvent')
+        with self.assertRaisesRegex(ValueError, 'defined volume'):
+            message_helpers.set_solute_moles(solute, [solvent], '10 mM')
+
+        solute = message_helpers.build_compound(name='Solute', amount='1 mol')
+        solvent = message_helpers.build_compound(name='Solvent', amount='1 L')
+        with self.assertRaisesRegex(ValueError, 'overwrite'):
+            message_helpers.set_solute_moles(solute, [solvent], '10 mM')
+
+
+    def test_set_solute_moles(self):
+        solute = message_helpers.build_compound(name='Solute')
+        solvent2 = message_helpers.build_compound(name='Solvent',
+                                                  amount='100 mL')
+        message_helpers.set_solute_moles(solute, [solvent2], '1 molar')
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='MILLIMOLES',
+                                                          value=100))
+        solvent3 = message_helpers.build_compound(name='Solvent',
+                                                  amount='75 uL')
+        message_helpers.set_solute_moles(solute, [solvent3], '3 mM',
+                                         overwrite=True)
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
+                                                          value=225))
+        solvent4 = message_helpers.build_compound(name='Solvent',
+                                                  amount='0.2 uL')
+        message_helpers.set_solute_moles(solute, [solvent4], '30 mM',
+                                         overwrite=True)
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
+                                                          value=6))
+        solvent5 = message_helpers.build_compound(name='Solvent',
+                                                  amount='0.8 uL')
+        message_helpers.set_solute_moles(solute, [solvent4, solvent5], '30 mM',
+                                         overwrite=True)
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
+                                                          value=30))
+
+class GetCompoundSmilesTest(absltest.TestCase):
+
+    def test_get_compound_smiles(self):
+        compound = message_helpers.build_compound(
+            smiles='c1ccccc1', name='benzene')
+        self.assertEqual(message_helpers.get_compound_smiles(compound),
+                         'c1ccccc1')
+
+
+class GetCompoundMolTest(absltest.TestCase):
+
+    @absltest.skipIf(Chem is None, 'no rdkit')
+    def test_get_compound_mol(self):
+        mol = Chem.MolFromSmiles('c1ccccc1')
+        compound = message_helpers.build_compound(
+            smiles='c1ccccc1', name='benzene')
+        identifier = compound.identifiers.add()
+        identifier.type = identifier.RDKIT_BINARY
+        identifier.bytes_value = mol.ToBinary()
+        self.assertEqual(
+            Chem.MolToSmiles(mol),
+            Chem.MolToSmiles(message_helpers.get_compound_mol(compound)))
+
+
+class LoadMessageTest(absltest.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.messages = [
+            test_pb2.Scalar(int32_value=3, float_value=4.5),
+            test_pb2.RepeatedScalar(values=[1.2, 3.4]),
+            test_pb2.Enum(value='FIRST'),
+            test_pb2.RepeatedEnum(values=['FIRST', 'SECOND']),
+            test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
+        ]
+
+    def test_binary(self):
+        for message in self.messages:
+            with tempfile.NamedTemporaryFile() as f:
+                f.write(message.SerializeToString())
+                f.flush()
+                self.assertEqual(
+                    message,
+                    message_helpers.load_message(
+                        f.name, type(message), 'binary'))
+
+    def test_json(self):
+        for message in self.messages:
+            with tempfile.NamedTemporaryFile(mode='w+') as f:
+                f.write(json_format.MessageToJson(message))
+                f.flush()
+                self.assertEqual(
+                    message,
+                    message_helpers.load_message(
+                        f.name, type(message), 'json'))
+
+    def test_pbtxt(self):
+        for message in self.messages:
+            with tempfile.NamedTemporaryFile(mode='w+') as f:
+                f.write(text_format.MessageToString(message))
+                f.flush()
+                self.assertEqual(
+                    message,
+                    message_helpers.load_message(
+                        f.name, type(message), 'pbtxt'))
+
+    def test_bad_binary(self):
+        with tempfile.NamedTemporaryFile() as f:
+            message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
+            f.write(message.SerializeToString())
+            f.flush()
+            # NOTE(kearnes): The decoder is not perfect; for example, it will
+            # not be able to distinguish from a message with the same tags and
+            # types (e.g. test_pb2.Scalar and test_pb2.RepeatedScalar).
+            with self.assertRaisesRegex(protobuf.message.DecodeError,
+                                        'Error parsing message'):
+                message_helpers.load_message(f.name, test_pb2.Nested, 'binary')
+
+    def test_bad_json(self):
+        with tempfile.NamedTemporaryFile(mode='w+') as f:
+            message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
+            f.write(json_format.MessageToJson(message))
+            f.flush()
+            # NOTE(kearnes): The decoder is not perfect; for example, it will
+            # not be able to distinguish from a message with the same tags and
+            # types (e.g. test_pb2.Scalar and test_pb2.RepeatedScalar).
+            with self.assertRaisesRegex(json_format.ParseError,
+                                        'no field named "values"'):
+                message_helpers.load_message(f.name, test_pb2.Nested, 'json')
+
+    def test_bad_pbtxt(self):
+        with tempfile.NamedTemporaryFile(mode='w+') as f:
+            message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
+            f.write(text_format.MessageToString(message))
+            f.flush()
+            # NOTE(kearnes): The decoder is not perfect; for example, it will
+            # not be able to distinguish from a message with the same tags and
+            # types (e.g. test_pb2.Scalar and test_pb2.RepeatedScalar).
+            with self.assertRaisesRegex(text_format.ParseError,
+                                        'no field named "values"'):
+                message_helpers.load_message(f.name, test_pb2.Nested, 'pbtxt')
 
 
 if __name__ == '__main__':
