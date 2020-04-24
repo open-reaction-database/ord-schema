@@ -14,28 +14,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@master
     - name: Set up protoc
-      uses: arduino/setup-protoc@v1.1.0
+      uses: arduino/setup-protoc@master
     - name: Install miniconda
-      uses: goanpeca/setup-miniconda@v1.0.2
+      uses: goanpeca/setup-miniconda@master
       with:
         python-version: '3.7'
         auto-update-conda: true
-    - name: Install dependencies
+    - name: Update PATH
       shell: bash -l {0}
+      run: echo "::add-path::$(dirname $(which conda))"
+    - name: Install dependencies
       run: |
         conda install --file requirements.txt
         conda install -c rdkit rdkit
         conda install pylint
     - name: Install ord_schema
-      shell: bash -l {0}
       run: |
         cd "${GITHUB_WORKSPACE}"
         python setup.py build_py
         python setup.py install
     - name: Run tests
-      shell: bash -l {0}
       run: |
         shopt -s globstar
         cd "${GITHUB_WORKSPACE}"
@@ -44,12 +44,10 @@ jobs:
           python "${TEST_FILENAME}"; \
         done
     - name: Run pylint
-      shell: bash -l {0}
       run: |
         cd "${GITHUB_WORKSPACE}"
         pylint ord_schema
     - name: Test notebooks
-      shell: bash -l {0}
       run: |
         pip install treon
         treon
