@@ -20,8 +20,9 @@ class BuildPyCommand(build_py.build_py):
         for source in glob.glob('proto/*.proto'):
             protoc_command = [
                 protoc,
-                '--proto_path', os.path.dirname(os.path.realpath(__file__)),
-                '--python_out=ord_schema', source
+                '--proto_path=proto',
+                '--python_out=ord_schema/proto',
+                source
             ]
             self.announce(f'running {protoc_command}')
             subprocess.check_call(protoc_command)

@@ -1,25 +1,26 @@
 // Protocol buffer messages for reaction datasets.
+
 syntax = "proto3";
 
 package ord;
 
-import "proto/reaction.proto";
+import "reaction.proto";
 
 // A Dataset is a collection of Reaction message that is used to group reactions
 // together into a logical unit along with relevant metadata or scripts for
-// understanding and using the data. For instance, a high-throughput experiment
-// that generated hundreds of reactions on a batch of well plates.
+// understanding and using the data.
 message Dataset {
   string name = 1;
   string description = 2;
+  uint32 version = 3;
   // URL for the latest version of this dataset in the official database.
-  string url = 3;
+  string url = 4;
   // DOI for this dataset.
-  string doi = 4;
+  string doi = 5;
   // Map of record_id -> Reaction. For submissions where record IDs have not
   // yet been assigned, use a dataset-specific identifier (e.g. "1(a)").
-  map<string, Reaction> reactions = 5;
+  map<string, Reaction> reactions = 6;
   // `scripts` may include code for extracting relevant features for machine
   // learning, e.g. as part of the methods for a publication.
-  map<string, Data> scripts = 6;
+  map<string, Data> scripts = 7;
 }
