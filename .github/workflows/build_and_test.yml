@@ -24,7 +24,9 @@ jobs:
         auto-update-conda: true
     - name: Update PATH
       shell: bash -l {0}
-      run: echo "::add-path::$(dirname $(which conda))"
+      run: |
+        echo "::add-path::$(dirname $(which conda))"
+        echo "::add-path::$(dirname $(which python))"
     - name: Install dependencies
       run: |
         conda install --file requirements.txt
