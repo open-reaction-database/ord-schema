@@ -23,8 +23,9 @@ flags.DEFINE_string('input_pattern', None,
                     'Pattern (glob) matching input records.')
 flags.DEFINE_string(
     'input_file', None,
-    'Input file containing filenames to validate; one per line.')
-flags.DEFINE_enum('input_format', 'pbtxt', ['pbtxt', 'json'],
+    'Input file containing the git status of changed files. '
+    'This should be the output of `git diff --name-status <base_ref>`.')
+flags.DEFINE_enum('input_format', 'binary', ['binary', 'pbtxt', 'json'],
                   'Input record format.')
 flags.DEFINE_string('output', None, 'Output file for validation errors.')
 
@@ -39,8 +40,12 @@ def main(argv):
         # Setting recursive=True allows recursive matching with '**'.
         filenames = glob.glob(FLAGS.input_pattern, recursive=True)
     else:
+        filenames = []
         with open(FLAGS.input_file) as f:
-            filenames = [line.strip() for line in f.readlines()]
+            for line in f:
+                # The status is not used.
+                _, filename = line.strip().split()
+                filenames.append(filename)
     errors = []
     for filename in sorted(filenames):
         basename = os.path.basename(filename)
