@@ -26,19 +26,19 @@ class ValidateReactionsTest(absltest.TestCase):
         dummy_component.mass.value = 1
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
         reaction1.outcomes.add().conversion.value = 75
-        with open(os.path.join(self.test_subdirectory, 'reaction1.pbtxt'),
+        with open(os.path.join(self.test_subdirectory, 'reaction1.pb'),
                   'wb') as f:
             f.write(reaction1.SerializeToString())
         reaction2 = reaction_pb2.Reaction()
-        with open(os.path.join(self.test_subdirectory, 'reaction2.pbtxt'),
+        with open(os.path.join(self.test_subdirectory, 'reaction2.pb'),
                   'wb') as f:
             f.write(reaction2.SerializeToString())
-        with open(os.path.join(self.test_subdirectory, 'reaction3.pbtxt'),
+        with open(os.path.join(self.test_subdirectory, 'reaction3.pb'),
                   'wb') as f:
             f.write(b'garbage that is not a reaction proto')
 
     def test_main(self):
-        input_pattern = os.path.join(self.test_subdirectory, 'reaction1.pbtxt')
+        input_pattern = os.path.join(self.test_subdirectory, 'reaction1.pb')
         output = os.path.join(self.test_subdirectory, 'output.txt')
         with flagsaver.flagsaver(input_pattern=input_pattern, output=output):
             validate_reactions.main(())
@@ -48,14 +48,14 @@ class ValidateReactionsTest(absltest.TestCase):
         input_file = os.path.join(self.test_subdirectory, 'input_file.txt')
         output = os.path.join(self.test_subdirectory, 'output.txt')
         with open(input_file, 'w') as f:
-            filename = os.path.join(self.test_subdirectory, 'reaction1.pbtxt')
+            filename = os.path.join(self.test_subdirectory, 'reaction1.pb')
             f.write(f'A\t{filename}\n')
         with flagsaver.flagsaver(input_file=input_file, output=output):
             validate_reactions.main(())
         self.assertFalse(os.path.exists(output))
 
     def test_main_with_errors(self):
-        input_pattern = os.path.join(self.test_subdirectory, 'reaction*.pbtxt')
+        input_pattern = os.path.join(self.test_subdirectory, 'reaction*.pb')
         output = os.path.join(self.test_subdirectory, 'output.txt')
         with flagsaver.flagsaver(input_pattern=input_pattern, output=output):
             with self.assertRaisesRegex(SystemExit,
@@ -63,11 +63,9 @@ class ValidateReactionsTest(absltest.TestCase):
                 validate_reactions.main(())
         self.assertTrue(os.path.exists(output))
         expected_output = [
-            'reaction2.pbtxt: Reactions should have '
-            'at least 1 reaction input\n',
-            'reaction2.pbtxt: Reactions should have '
-            'at least 1 reaction outcome\n',
-            'reaction3.pbtxt: Error parsing message\n',
+            'reaction2.pb: Reactions should have at least 1 reaction input\n',
+            'reaction2.pb: Reactions should have at least 1 reaction outcome\n',
+            'reaction3.pb: Error parsing message\n',
         ]
         with open(output) as f:
             self.assertEqual(f.readlines(), expected_output)
