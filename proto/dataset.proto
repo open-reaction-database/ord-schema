@@ -5,17 +5,16 @@ package ord;
 
 import "proto/reaction.proto";
 
-// A Dataset is a collection of Reaction record IDs (not Reaction records) that
-// is used to group reactions together into a logical unit along with relevant
-// metadata or scripts for understanding and using the data. For instance, a
-// high-throughput experiment that generated hundreds of reactions on a batch
-// of well plates.
+// A Dataset is a collection of Reaction message that is used to group reactions
+// together into a logical unit along with relevant metadata or scripts for
+// understanding and using the data. For instance, a high-throughput experiment
+// that generated hundreds of reactions on a batch of well plates.
 message Dataset {
   string name = 1;
-  // The set of IDs that make up this dataset.
-  repeated string record_ids = 2;
-  string description = 3;
+  string description = 2;
+  // Map of record_id -> Reaction.
+  map<string, Reaction> reactions = 3;
   // `scripts` may include code for extracting relevant features for machine
   // learning, e.g. as part of the methods for a publication.
-  map<string, BinaryData> scripts = 4;
+  map<string, Data> scripts = 4;
 }
