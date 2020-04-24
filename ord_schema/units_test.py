@@ -21,7 +21,10 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
         ('no space', '32.1g',
          reaction_pb2.Mass(value=32.1, units=reaction_pb2.Mass.GRAM)),
         ('extra space', '   32.1      \t   g  ',
-         reaction_pb2.Mass(value=32.1, units=reaction_pb2.Mass.GRAM)), )
+         reaction_pb2.Mass(value=32.1, units=reaction_pb2.Mass.GRAM)),
+        ('lengths', ' 10 meter',
+         reaction_pb2.Length(value=10, units=reaction_pb2.Length.METER)),
+    )
     def test_resolve(self, string, expected):
         self.assertEqual(self._resolver.resolve(string), expected)
 
@@ -31,6 +34,7 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
          'string does not contain a value with units'),
         ('extra period', '15.0. ML',
          'string does not contain a value with units'),
+        ('ambiguous units', '5.2 m', 'ambiguous'),
     )
     def test_resolve_should_fail(self, string, expected_error):
         with self.assertRaisesRegex((KeyError, ValueError), expected_error):
