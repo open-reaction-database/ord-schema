@@ -85,16 +85,21 @@ def _validate_dataset(filename, dataset):
     """
     basename = os.path.basename(filename)
     errors = []
-    for reaction in dataset.reactions:
-        for error in validations.validate_message(
-                reaction, raise_on_error=False):
+    num_bad_reactions = 0
+    for i, reaction in enumerate(dataset.reactions):
+        reaction_errors = validations.validate_message(
+            reaction, raise_on_error=False)
+        if reaction_errors:
+            num_bad_reactions += 1
+        for error in reaction_errors:
             errors.append(error)
-            logging.warning('Validation error for %s: %s', basename, error)
+            logging.warning('Validation error for %s[%d]: %s',
+                            basename, i, error)
     logging.info('Validation summary for %s: %d/%d successful (%d failures)',
                  basename,
-                 len(dataset.reactions) - len(errors),
+                 len(dataset.reactions) - num_bad_reactions,
                  len(dataset.reactions),
-                 len(errors))
+                 num_bad_reactions)
     return errors
 
 
@@ -107,6 +112,10 @@ def _update_reaction(reaction):
     Args:
         reaction: reaction_pb2.Reaction message.
     """
+    # TODO(kearnes): There's more complexity here regarding record_id values
+    # that are set outside of the submission pipeline. It's not as simple as
+    # requiring them to be empty, since a submission may include edits to
+    # existing reactions.
     if not reaction.provenance.record_id:
         record_id = f'ord-{uuid.uuid4().hex}'
         reaction.provenance.record_id = record_id

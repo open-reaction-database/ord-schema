@@ -307,6 +307,7 @@ class MessageFormats(enum.Enum):
     PBTXT = 'pbtxt'
 
 
+# pylint: disable=inconsistent-return-statements
 def load_message(filename, message_type, input_format):
     """Loads a protocol buffer message from a file.
 
@@ -330,16 +331,16 @@ def load_message(filename, message_type, input_format):
     with open(filename, mode) as f:
         try:
             if input_format == MessageFormats.JSON:
-                message = json_format.Parse(f.read(), message_type())
-            elif input_format == MessageFormats.PBTXT:
-                message = text_format.Parse(f.read(), message_type())
-            elif input_format == MessageFormats.BINARY:
-                message = message_type.FromString(f.read())
-            return message
+                return json_format.Parse(f.read(), message_type())
+            if input_format == MessageFormats.PBTXT:
+                return text_format.Parse(f.read(), message_type())
+            if input_format == MessageFormats.BINARY:
+                return message_type.FromString(f.read())
         except (json_format.ParseError,
                 protobuf.message.DecodeError,
                 text_format.ParseError) as error:
             raise ValueError(f'error parsing {filename}: {error}')
+# pylint: enable=inconsistent-return-statements
 
 
 def write_message(message, filename, output_format):
