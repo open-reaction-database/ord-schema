@@ -159,7 +159,7 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
                                                  value=moles * 1e3))
     else:
         solute.moles.CopyFrom(reaction_pb2.Moles(units='MOLES', value=moles))
-    return [solute, ] + solvents
+    return [solute] + solvents
 
 
 def build_data(filename, description):
