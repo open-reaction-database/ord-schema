@@ -67,7 +67,8 @@ def validate(datasets):
     # NOTE(kearnes): Run validation for all datasets before
     # exiting if there are errors.
     if validation_errors:
-        raise ValueError('validation encountered errors')
+        raise ValueError('validation encountered errors; '
+                         're-run with `--write_errors` to save errors to disk.')
 
 
 def _validate_dataset(filename, dataset):
