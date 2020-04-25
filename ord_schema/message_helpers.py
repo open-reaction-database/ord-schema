@@ -138,8 +138,7 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
             raise ValueError('solvent units not recognized by set_solute_moles')
     # Get solute concentration in molar.
     resolver = units.UnitResolver(
-        unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS,
-        forbidden_units={}, )
+        unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
     concentration_pb = resolver.resolve(concentration)
     if concentration_pb.units == concentration_pb.MOLAR:
         concentration_molar = concentration_pb.value
