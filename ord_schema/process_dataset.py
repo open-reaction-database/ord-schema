@@ -1,8 +1,31 @@
-"""Dataset processing script for database submissions."""
+"""Dataset processing script for database submissions.
+
+This script is meant to be a one-stop shop for preparing submissions to the
+Open Reaction Database.
+
+By default, the script only validates the input Dataset messages. Validation
+may introduce changes to the Reaction messages, such as the addition of SMILES
+for compounds identified only by NAME. Users should frequently run these checks
+as they are preparing a dataset for submission.
+
+With the optional --update flag, the script also performs database-specific
+updates (such as adding record IDs). These operations are meant to be run as
+part of the submission process and not as part of the pre-submission validation
+cycle.
+
+Example usage:
+* For normal validation-only operation:
+  $ python process_dataset.py --input_pattern=my_dataset.pb
+* To write the validated protos to disk:
+  $ python process_dataset.py --input_pattern=my_dataset.pb --output=out.pb
+* To write errors to disk:
+  $ python process_dataset.py --input_pattern=my_dataset.pb --write_errors
+* To process multiple Dataset protos:
+  $ python process_dataset.py --input_pattern="my_dataset-*.pb"
+"""
 
 import glob
 import os
-import sys
 import uuid
 
 from absl import app
@@ -23,7 +46,28 @@ flags.DEFINE_boolean('write_errors', False,
                      'If True, errors will be written to <filename>.error.')
 flags.DEFINE_string('output', None, 'Filename for output Dataset.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
-flags.DEFINE_boolean('update', True, 'If True, update Reaction protos.')
+flags.DEFINE_boolean('update', False, 'If True, update Reaction protos.')
+
+
+def validate(datasets):
+    """Runs validation for a set of datasets.
+
+    Args:
+        datasets: Dict mapping filenames to Dataset protos.
+    """
+    validation_errors = False
+    for filename, dataset in datasets.items():
+        errors = _validate_dataset(filename, dataset)
+        if errors:
+            validation_errors = True
+            if FLAGS.write_errors:
+                with open(f'{filename}.error', 'w') as f:
+                    for error in errors:
+                        f.write(f'{error}\n')
+    # NOTE(kearnes): Run validation for all datasets before
+    # exiting if there are errors.
+    if validation_errors:
+        raise ValueError('validation encountered errors')
 
 
 def _validate_dataset(filename, dataset):
@@ -77,21 +121,7 @@ def main(argv):
         datasets[filename] = message_helpers.load_message(
             filename, dataset_pb2.Dataset, FLAGS.input_format)
     if FLAGS.validate:
-        validation_errors = False
-        for filename, dataset in datasets.items():
-            errors = _validate_dataset(filename, dataset)
-            if errors:
-                validation_errors = True
-                if FLAGS.write_errors:
-                    with open(f'{filename}.error', 'w') as f:
-                        for error in errors:
-                            f.write(f'{error}\n')
-        # NOTE(kearnes): Run validation for all datasets before
-        # exiting if there are errors.
-        if validation_errors:
-            # Tell the shell that validation failed; see
-            # https://docs.python.org/3/library/sys.html#sys.exit.
-            sys.exit('validation encountered errors')
+        validate(datasets)
     if FLAGS.update:
         for dataset in datasets.values():
             for reaction in dataset.reactions:
@@ -103,9 +133,11 @@ def main(argv):
             combined = dataset
         else:
             combined.reactions.extend(dataset.reactions)
-    message_helpers.write_message(combined, FLAGS.output, FLAGS.input_format)
+    if FLAGS.output:
+        message_helpers.write_message(
+            combined, FLAGS.output, FLAGS.input_format)
 
 
 if __name__ == '__main__':
-    flags.mark_flags_as_required(['input_pattern', 'output'])
+    flags.mark_flag_as_required('input_pattern')
     app.run(main)

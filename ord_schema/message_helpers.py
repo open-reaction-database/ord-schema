@@ -330,11 +330,12 @@ def load_message(filename, message_type, input_format):
     with open(filename, mode) as f:
         try:
             if input_format == MessageFormats.JSON:
-                return json_format.Parse(f.read(), message_type())
-            if input_format == MessageFormats.PBTXT:
-                return text_format.Parse(f.read(), message_type())
-            if input_format == MessageFormats.BINARY:
-                return message_type.FromString(f.read())
+                message = json_format.Parse(f.read(), message_type())
+            elif input_format == MessageFormats.PBTXT:
+                message = text_format.Parse(f.read(), message_type())
+            elif input_format == MessageFormats.BINARY:
+                message = message_type.FromString(f.read())
+            return message
         except (json_format.ParseError,
                 protobuf.message.DecodeError,
                 text_format.ParseError) as error:

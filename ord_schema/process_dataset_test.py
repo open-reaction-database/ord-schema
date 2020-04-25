@@ -52,7 +52,7 @@ class ValidateReactionsTest(absltest.TestCase):
         with flagsaver.flagsaver(input_pattern=self.dataset2_filename,
                                  write_errors=True,
                                  output=output):
-            with self.assertRaisesRegex(SystemExit,
+            with self.assertRaisesRegex(ValueError,
                                         'validation encountered errors'):
                 process_dataset.main(())
         error_filename = f'{self.dataset2_filename}.error'
