@@ -21,7 +21,7 @@ class BuildPyCommand(build_py.build_py):
             protoc_command = [
                 protoc,
                 '--proto_path', os.path.join(os.path.dirname(__file__), '..'),
-                '--python_out=.', os.path.dirname(__file__),
+                '--python_out', os.path.dirname(__file__),
                 source
             ]
             self.announce(f'running {protoc_command}')
