@@ -41,17 +41,12 @@ class ValidateReactionsTest(absltest.TestCase):
             f.write(dataset2.SerializeToString())
 
     def test_main(self):
-        output = os.path.join(self.test_subdirectory, 'output.pb')
-        with flagsaver.flagsaver(input_pattern=self.dataset1_filename,
-                                 output=output):
+        with flagsaver.flagsaver(input_pattern=self.dataset1_filename):
             process_dataset.main(())
-        self.assertTrue(os.path.exists(output))
 
-    def test_main_with_errors(self):
-        output = os.path.join(self.test_subdirectory, 'output.pb')
+    def test_main_with_validation_errors(self):
         with flagsaver.flagsaver(input_pattern=self.dataset2_filename,
-                                 write_errors=True,
-                                 output=output):
+                                 write_errors=True):
             with self.assertRaisesRegex(ValueError,
                                         'validation encountered errors'):
                 process_dataset.main(())
@@ -63,6 +58,18 @@ class ValidateReactionsTest(absltest.TestCase):
         ]
         with open(error_filename) as f:
             self.assertEqual(f.readlines(), expected_output)
+
+    def test_main_with_updates(self):
+        output = os.path.join(self.test_subdirectory, 'output.pb')
+        with flagsaver.flagsaver(input_pattern=self.dataset1_filename,
+                                 update=True,
+                                 output=output):
+            process_dataset.main(())
+        self.assertTrue(os.path.exists(output))
+        with open(output, 'rb') as f:
+            dataset = dataset_pb2.Dataset.FromString(f.read())
+        self.assertLen(dataset.reactions, 1)
+        self.assertStartsWith(dataset.reactions[0].provenance.record_id, 'ord-')
 
 
 if __name__ == '__main__':
