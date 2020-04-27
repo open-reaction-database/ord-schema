@@ -1,6 +1,4 @@
-# This is a basic workflow to help you get started with Actions
-
-name: Run protoc
+name: Setup
 
 on:
   pull_request:
@@ -20,6 +18,7 @@ jobs:
           protoc --proto_path=.. --python_out=. "ord-schema/${proto_filename}"
         done
     - name: Commit updates
+      run: |
         cd "${GITHUB_WORKSPACE}"
         if ! git diff --name-status --exit-code; then
           git add -u
