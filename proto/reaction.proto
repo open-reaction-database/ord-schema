@@ -19,10 +19,15 @@ package ord;
  * enums that support custom types.
  */
 message Reaction {
+  repeated ReactionStep steps = 1;
+  ReactionProvenance provenance = 2;
+}
+
+message ReactionStep {
   repeated ReactionIdentifier identifiers = 1;
-  // List of pure substances or mixtures that were added to the 
+  // List of pure substances or mixtures that were added to the
   // reaction vessel. This is a map, not a repeated, to simplify
-  // reaction templating through the use of keys. String keys are 
+  // reaction templating through the use of keys. String keys are
   // simple descriptions and are present only for convenience.
   map<string, ReactionInput> inputs = 2;
   ReactionSetup setup = 3;
@@ -33,7 +38,6 @@ message Reaction {
   // Workup steps are listed in the order they are performed.
   repeated ReactionWorkup workup = 7;
   repeated ReactionOutcome outcomes = 8;
-  ReactionProvenance provenance = 9;
 }
 
 /**
