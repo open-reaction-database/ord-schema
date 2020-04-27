@@ -4,16 +4,13 @@
 # See https://github.com/marketplace/actions/colab-badge-action for more details.
 name: colab_badges
 
-on:
-  push:
-    branches-ignore: 
-      - master
+on: push
 
 jobs:
   colab_badges:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@master
     - name: Colab Badge Action
       uses: skearnes/colab-badge-action@master
       with:
