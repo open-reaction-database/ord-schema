@@ -1,0 +1,27 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Run protoc
+
+on:
+  pull_request:
+    branches: 
+      - master
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - uses: arduino/setup-protoc@master
+    - name: Run protoc
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        for proto_filename in proto/*.proto; do
+          protoc --proto_path=.. --python_out=. "ord-schema/${proto_filename}"
+        done
+    - name: Commit updates
+        cd "${GITHUB_WORKSPACE}"
+        if ! git diff --name-status --exit-code; then
+          git add -u
+          git commit -m "Run protoc (GitHub action)"
+          git push origin "${GITHUB_REF}"
