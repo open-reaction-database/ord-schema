@@ -15,8 +15,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Set up protoc
-      uses: arduino/setup-protoc@v1.1.0
     - name: Install miniconda
       uses: goanpeca/setup-miniconda@v1.0.2
       with:
