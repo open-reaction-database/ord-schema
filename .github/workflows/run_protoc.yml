@@ -14,14 +14,14 @@ jobs:
     - name: Run protoc
       run: |
         cd "${GITHUB_WORKSPACE}"
-        for proto_filename in proto/*.proto; do
+        for proto_filename in "proto/*.proto"; do
           protoc --proto_path=.. --python_out=. "ord-schema/${proto_filename}"
         done
     - name: Commit updates
       run: |
         cd "${GITHUB_WORKSPACE}"
         if ! git diff --name-status --exit-code; then
-          git add -u
+          git add "ord_schema/proto/*_pb2.py"
           git commit -m "Run protoc (GitHub action)"
           git push origin "${GITHUB_REF}"
         fi
