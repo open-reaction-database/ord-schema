@@ -30,7 +30,6 @@ jobs:
       shell: bash -l {0}
       run: |
         cd "${GITHUB_WORKSPACE}"
-        python setup.py build_py
         python setup.py install
     - name: Run tests
       shell: bash -l {0}
