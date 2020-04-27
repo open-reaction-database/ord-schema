@@ -20,8 +20,7 @@ jobs:
     - name: Commit updates
       run: |
         cd "${GITHUB_WORKSPACE}"
-        if ! git diff --name-status --exit-code; then
-          git add ord_schema/proto/*_pb2.py
-          git commit -m "Run protoc (GitHub action)"
+        git add ord_schema/proto/*_pb2.py
+        if git commit -m "Run protoc (GitHub action)"; then
           git push origin "${GITHUB_REF}"
         fi
