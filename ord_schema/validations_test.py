@@ -129,7 +129,6 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         istd.reaction_role = istd.ReactionRole.INTERNAL_STANDARD
         self.assertEmpty(validations.validate_message(message_workup_istd))
 
-
     def test_reaction_recursive_noraise_on_error(self):
         message = reaction_pb2.Reaction()
         message.inputs['dummy_input'].components.add()
@@ -141,7 +140,6 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         ]
         self.assertEqual(errors, expected)
 
-
     def test_datetimes(self):
         message = reaction_pb2.ReactionProvenance()
         message.experiment_start.value = '11 am'
@@ -150,6 +148,27 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
             validations.validate_message(message)
         message.record_created.time.value = '11:15 am'
         self.assertEmpty(validations.validate_message(message))
+
+    def test_record_id(self):
+        message = reaction_pb2.ReactionProvenance()
+        message.record_created.time.value = '10 am'
+        message.record_id = 'ord-c0bbd41f095a44a78b6221135961d809'
+        self.assertEmpty(validations.validate_message(message))
+
+    @parameterized.named_parameters(
+        ('too short', 'ord-c0bbd41f095a4'),
+        ('too long', 'ord-c0bbd41f095a4c0bbd41f095a4c0bbd41f095a4'),
+        ('bad prefix', 'foo-c0bbd41f095a44a78b6221135961d809'),
+        ('bad capitalization', 'ord-C0BBD41F095A44A78B6221135961D809'),
+        ('bad characters', 'ord-h0bbd41f095a44a78b6221135961d809'),
+        ('bad characters 2', 'ord-notARealId'),
+    )
+    def test_bad_record_id(self, record_id):
+        message = reaction_pb2.ReactionProvenance()
+        message.record_created.time.value = '10 am'
+        message.record_id = record_id
+        with self.assertRaisesRegex(validations.ValidationError, 'malformed'):
+            validations.validate_message(message)
 
     def test_compound_name_resolver(self):
         message = reaction_pb2.Compound()
