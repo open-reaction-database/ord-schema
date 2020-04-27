@@ -519,6 +519,10 @@ def validate_reaction_provenance(message):
         if (record_modified - record_created).total_seconds() < 0:
             warnings.warn('Record modified time should be after creation',
                           ValidationError)
+    if message.record_id:
+        # The record_id suffix is a 32-character uuid4 hex string.
+        if not re.fullmatch('^ord-[0-9a-f]{32}$', message.record_id):
+            warnings.warn('Record ID is malformed', ValidationError)
     # TODO(ccoley) could check if publication_url is valid, etc.
     return message
 
