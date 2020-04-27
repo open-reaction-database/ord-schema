@@ -14,11 +14,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up protoc
-      uses: arduino/setup-protoc@v1.1.0
+    - uses: actions/checkout@master
     - name: Install miniconda
-      uses: goanpeca/setup-miniconda@v1.0.2
+      uses: goanpeca/setup-miniconda@master
       with:
         python-version: '3.7'
         auto-update-conda: true
@@ -32,7 +30,6 @@ jobs:
       shell: bash -l {0}
       run: |
         cd "${GITHUB_WORKSPACE}"
-        python setup.py build_py
         python setup.py install
     - name: Run tests
       shell: bash -l {0}
