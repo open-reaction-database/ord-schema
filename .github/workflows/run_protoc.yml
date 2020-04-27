@@ -11,6 +11,11 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - uses: arduino/setup-protoc@master
+    - name: Setup git
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        git config user.name "run_protoc"
+        git config user.email "run_protoc@master"
     - name: Run protoc
       run: |
         cd "${GITHUB_WORKSPACE}"
