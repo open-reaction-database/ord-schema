@@ -6,6 +6,7 @@ from distutils.command import build_py
 from distutils import core
 from distutils import spawn
 import glob
+import setuptools
 import subprocess
 
 
