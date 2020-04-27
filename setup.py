@@ -3,7 +3,6 @@
 import os
 
 from distutils.command import build_py
-from distutils import core
 from distutils import spawn
 import glob
 import setuptools
@@ -32,7 +31,7 @@ class BuildPyCommand(build_py.build_py):
 
 
 if __name__ == '__main__':
-    core.setup(
+    setuptools.setup(
         name='ord-schema',
         description='Schema for the Open Reaction Database',
         url='https://github.com/Open-Reaction-Database/ord-schema',
