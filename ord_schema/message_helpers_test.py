@@ -6,7 +6,6 @@ import tempfile
 from absl import flags
 from absl.testing import absltest
 from absl.testing import parameterized
-from google import protobuf
 from google.protobuf import json_format
 from google.protobuf import text_format
 
@@ -234,6 +233,46 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
             'Sally')
 
 
+class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
+
+    def test_set_solute_moles_should_fail(self):
+        solute = message_helpers.build_compound(name='Solute')
+        solvent = message_helpers.build_compound(name='Solvent')
+        with self.assertRaisesRegex(ValueError, 'defined volume'):
+            message_helpers.set_solute_moles(solute, [solvent], '10 mM')
+
+        solute = message_helpers.build_compound(name='Solute', amount='1 mol')
+        solvent = message_helpers.build_compound(name='Solvent', amount='1 L')
+        with self.assertRaisesRegex(ValueError, 'overwrite'):
+            message_helpers.set_solute_moles(solute, [solvent], '10 mM')
+
+    def test_set_solute_moles(self):
+        solute = message_helpers.build_compound(name='Solute')
+        solvent2 = message_helpers.build_compound(name='Solvent',
+                                                  amount='100 mL')
+        message_helpers.set_solute_moles(solute, [solvent2], '1 molar')
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='MILLIMOLES',
+                                                          value=100))
+        solvent3 = message_helpers.build_compound(name='Solvent',
+                                                  amount='75 uL')
+        message_helpers.set_solute_moles(solute, [solvent3], '3 mM',
+                                         overwrite=True)
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
+                                                          value=225))
+        solvent4 = message_helpers.build_compound(name='Solvent',
+                                                  amount='0.2 uL')
+        message_helpers.set_solute_moles(solute, [solvent4], '30 mM',
+                                         overwrite=True)
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
+                                                          value=6))
+        solvent5 = message_helpers.build_compound(name='Solvent',
+                                                  amount='0.8 uL')
+        message_helpers.set_solute_moles(solute, [solvent4, solvent5], '30 mM',
+                                         overwrite=True)
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
+                                                          value=30))
+
+
 class GetCompoundSmilesTest(absltest.TestCase):
 
     def test_get_compound_smiles(self):
@@ -258,7 +297,7 @@ class GetCompoundMolTest(absltest.TestCase):
             Chem.MolToSmiles(message_helpers.get_compound_mol(compound)))
 
 
-class LoadMessageTest(absltest.TestCase):
+class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
         super().setUp()
@@ -270,35 +309,16 @@ class LoadMessageTest(absltest.TestCase):
             test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
         ]
 
-    def test_binary(self):
+    @parameterized.parameters(message_helpers.MessageFormats)
+    def test_round_trip(self, message_format):
         for message in self.messages:
             with tempfile.NamedTemporaryFile() as f:
-                f.write(message.SerializeToString())
+                message_helpers.write_message(message, f.name, message_format)
                 f.flush()
                 self.assertEqual(
                     message,
                     message_helpers.load_message(
-                        f.name, type(message), 'binary'))
-
-    def test_json(self):
-        for message in self.messages:
-            with tempfile.NamedTemporaryFile(mode='w+') as f:
-                f.write(json_format.MessageToJson(message))
-                f.flush()
-                self.assertEqual(
-                    message,
-                    message_helpers.load_message(
-                        f.name, type(message), 'json'))
-
-    def test_pbtxt(self):
-        for message in self.messages:
-            with tempfile.NamedTemporaryFile(mode='w+') as f:
-                f.write(text_format.MessageToString(message))
-                f.flush()
-                self.assertEqual(
-                    message,
-                    message_helpers.load_message(
-                        f.name, type(message), 'pbtxt'))
+                        f.name, type(message), message_format))
 
     def test_bad_binary(self):
         with tempfile.NamedTemporaryFile() as f:
@@ -308,8 +328,7 @@ class LoadMessageTest(absltest.TestCase):
             # NOTE(kearnes): The decoder is not perfect; for example, it will
             # not be able to distinguish from a message with the same tags and
             # types (e.g. test_pb2.Scalar and test_pb2.RepeatedScalar).
-            with self.assertRaisesRegex(protobuf.message.DecodeError,
-                                        'Error parsing message'):
+            with self.assertRaisesRegex(ValueError, 'Error parsing message'):
                 message_helpers.load_message(f.name, test_pb2.Nested, 'binary')
 
     def test_bad_json(self):
@@ -317,11 +336,7 @@ class LoadMessageTest(absltest.TestCase):
             message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
             f.write(json_format.MessageToJson(message))
             f.flush()
-            # NOTE(kearnes): The decoder is not perfect; for example, it will
-            # not be able to distinguish from a message with the same tags and
-            # types (e.g. test_pb2.Scalar and test_pb2.RepeatedScalar).
-            with self.assertRaisesRegex(json_format.ParseError,
-                                        'no field named "values"'):
+            with self.assertRaisesRegex(ValueError, 'no field named "values"'):
                 message_helpers.load_message(f.name, test_pb2.Nested, 'json')
 
     def test_bad_pbtxt(self):
@@ -329,11 +344,7 @@ class LoadMessageTest(absltest.TestCase):
             message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
             f.write(text_format.MessageToString(message))
             f.flush()
-            # NOTE(kearnes): The decoder is not perfect; for example, it will
-            # not be able to distinguish from a message with the same tags and
-            # types (e.g. test_pb2.Scalar and test_pb2.RepeatedScalar).
-            with self.assertRaisesRegex(text_format.ParseError,
-                                        'no field named "values"'):
+            with self.assertRaisesRegex(ValueError, 'no field named "values"'):
                 message_helpers.load_message(f.name, test_pb2.Nested, 'pbtxt')
 
 
