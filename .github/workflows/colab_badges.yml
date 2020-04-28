@@ -5,10 +5,7 @@
 # more details.
 name: colab_badges
 
-on:
-  pull_request:
-    branches:
-      - master
+on: push
 
 jobs:
   colab_badges:
