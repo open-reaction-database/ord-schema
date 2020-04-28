@@ -14,6 +14,7 @@ part of the submission process and not as part of the pre-submission validation
 cycle.
 
 Example usage:
+
 * For normal validation-only operation:
   $ python process_dataset.py --input_pattern=my_dataset.pb
 * To write the validated protos to disk:
@@ -26,6 +27,7 @@ Example usage:
 
 import glob
 import os
+import subprocess
 import uuid
 
 from absl import app
@@ -39,6 +41,8 @@ from ord_schema.proto import dataset_pb2
 FLAGS = flags.FLAGS
 flags.DEFINE_string('input_pattern', None,
                     'Pattern (glob) matching input Dataset protos.')
+flags.DEFINE_string('input_file', None,
+                    'Filename containing Dataset proto filenames.')
 flags.DEFINE_enum('input_format', 'binary',
                   [f.value for f in message_helpers.MessageFormats],
                   'Input message format.')
@@ -47,6 +51,7 @@ flags.DEFINE_boolean('write_errors', False,
 flags.DEFINE_string('output', None, 'Filename for output Dataset.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 flags.DEFINE_boolean('update', False, 'If True, update Reaction protos.')
+flags.DEFINE_boolean('cleanup', False, 'If True, use git to clean up.')
 
 
 def validate(datasets):
@@ -122,32 +127,72 @@ def _update_reaction(reaction):
         reaction.provenance.record_id = record_id
 
 
+def _get_filenames():
+    """Gets a list of Dataset proto filenames to process.
+
+    Returns:
+        List of text filenames.
+    """
+    if FLAGS.input_pattern and FLAGS.input_file:
+        raise ValueError(
+            'one of --input_pattern or --input_file is required, not both')
+    if FLAGS.input_pattern:
+        # Setting recursive=True allows recursive matching with '**'.
+        return glob.glob(FLAGS.input_pattern, recursive=True)
+    if FLAGS.input_file:
+        with open(FLAGS.input_file) as f:
+            return [line.strip() for line in f]
+    raise ValueError('one of --input_pattern or --input_file is required')
+
+
+# pylint: disable=too-many-branches
 def main(argv):
     del argv  # Only used by app.run().
-    # Setting recursive=True allows recursive matching with '**'.
-    filenames = glob.glob(FLAGS.input_pattern, recursive=True)
+    filenames = sorted(_get_filenames())
+    if not filenames:
+        logging.info('nothing to do')
+        return  # Nothing to do.
     datasets = {}
     for filename in filenames:
         datasets[filename] = message_helpers.load_message(
             filename, dataset_pb2.Dataset, FLAGS.input_format)
     if FLAGS.validate:
         validate(datasets)
-    if FLAGS.update:
-        for dataset in datasets.values():
-            for reaction in dataset.reactions:
-                _update_reaction(reaction)
+    if not FLAGS.update:
+        logging.info('nothing else to do; use --update for more')
+        return  # Nothing else to do.
+    for dataset in datasets.values():
+        for reaction in dataset.reactions:
+            _update_reaction(reaction)
     # Combine all datasets into a single object.
     combined = None
-    for dataset in datasets.values():
+    for key in sorted(datasets):
+        dataset = datasets[key]
         if combined is None:
             combined = dataset
         else:
             combined.reactions.extend(dataset.reactions)
     if FLAGS.output:
-        message_helpers.write_message(
-            combined, FLAGS.output, FLAGS.input_format)
+        output_filename = FLAGS.output
+    else:
+        suffix = message_helpers.get_suffix(FLAGS.input_format)
+        dataset_id = uuid.uuid4().hex
+        output_filename = os.path.join(
+            'data', dataset_id[:2], f'{dataset_id}{suffix}')
+    os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+    if FLAGS.cleanup:
+        # Branch the first input file...
+        subprocess.run(['git', 'mv', filenames[0], output_filename], check=True)
+        # ...and remove the others.
+        for filename in filenames[1:]:
+            subprocess.run(['git', 'rm', filename], check=True)
+    logging.info('writing combined Dataset to %s', output_filename)
+    message_helpers.write_message(
+        combined, output_filename, FLAGS.input_format)
+
+
+# pylint: enable=too-many-branches
 
 
 if __name__ == '__main__':
-    flags.mark_flag_as_required('input_pattern')
     app.run(main)

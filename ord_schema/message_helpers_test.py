@@ -312,7 +312,8 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
     @parameterized.parameters(message_helpers.MessageFormats)
     def test_round_trip(self, message_format):
         for message in self.messages:
-            with tempfile.NamedTemporaryFile() as f:
+            suffix = message_helpers.get_suffix(message_format)
+            with tempfile.NamedTemporaryFile(suffix=suffix) as f:
                 message_helpers.write_message(message, f.name, message_format)
                 f.flush()
                 self.assertEqual(
@@ -346,6 +347,21 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
             f.flush()
             with self.assertRaisesRegex(ValueError, 'no field named "values"'):
                 message_helpers.load_message(f.name, test_pb2.Nested, 'pbtxt')
+
+    def test_bad_suffix(self):
+        message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
+        with self.assertRaisesRegex(ValueError, 'expected suffix'):
+            message_helpers.write_message(
+                message, 'test.pb', message_helpers.MessageFormats.PBTXT)
+
+    @parameterized.parameters(('binary', '.pb'),
+                              (message_helpers.MessageFormats.BINARY, '.pb'),
+                              ('json', '.json'),
+                              (message_helpers.MessageFormats.JSON, '.json'),
+                              ('pbtxt', '.pbtxt'),
+                              (message_helpers.MessageFormats.PBTXT, '.pbtxt'))
+    def test_get_suffix(self, output_format, expected):
+        self.assertEqual(message_helpers.get_suffix(output_format), expected)
 
 
 if __name__ == '__main__':
