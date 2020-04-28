@@ -26,6 +26,6 @@ jobs:
         target_branch: master
         target_repository: Open-Reaction-Database/ord-schema
     - name: Push changes
-        uses: ad-m/github-push-action@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
