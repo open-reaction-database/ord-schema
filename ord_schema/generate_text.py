@@ -78,10 +78,13 @@ added
 {% endfor %}. 
 
 {# TEMPERATURE #}
+{{ reaction.conditions.temperature|temperature_conditions }} 
 
 {# PRESSURE #}
+{{ reaction.conditions.pressure|pressure_conditions }} 
 
 {# STIRRING #}
+{{ reaction.conditions.stirring|stirring_conditions }} 
 
 {# TODO(ccoley) ILLUMINATION #}
 
@@ -108,6 +111,15 @@ added
 {% endif %}
 
 {# TODO(ccoley) WORKUP #}
+{% if reaction.workup %}
+    The workup procedure consisted of 
+    {% for workup in reaction.workup %}
+        {% if loop.last  and loop.index > 1 %} and {% endif %}
+        ({{ loop.index }}) 
+            <WORKUP_STEP>
+        {% if not loop.last %}; {% endif %}
+    {% endfor %}
+{% endif %}
 
 {# OUTCOME #}
 {% for outcome in reaction.outcomes %}
@@ -216,6 +228,98 @@ added
 '''
 
 
+def _stirring_conditions(stirring):
+    if stirring.type == stirring.StirringMethod.NONE:
+        return 'No stirring was used.'
+    txt = ''
+    txt += {
+        stirring.StirringRate.UNSPECIFIED: '',
+        stirring.StirringRate.HIGH: 'at a high rate',
+        stirring.StirringRate.MEDIUM: 'at a medium rate',
+        stirring.StirringRate.LOW: 'at a low rate',
+    }[stirring.rate]
+    if stirring.rpm:
+        txt += f' ({stirring.rpm} rpm)'
+    if stirring.type != stirring.StirringMethod.UNSPECIFIED:
+        txt += ' using '
+        txt += {
+            stirring.StirringMethod.CUSTOM: 'a custom setup',
+            stirring.StirringMethod.STIR_BAR: 'a stir bar',
+            stirring.StirringMethod.OVERHEAD_MIXER: 'an overhead mixer',
+            stirring.StirringMethod.AGITATION: 'external agitation',
+        }[stirring.type]
+        txt += f' {_parenthetical_if_def(stirring.details)}'
+    if not txt.strip():
+        return ''
+    return 'The reaction mixture was stirred ' + txt + '.'
+
+
+def _pressure_conditions(pressure):
+    txt = ''
+    if pressure.atmosphere != pressure.Atmosphere.UNSPECIFIED:
+        txt += {
+            pressure.Atmosphere.CUSTOM: 'under a custom atmosphere',
+            pressure.Atmosphere.AIR: 'under air',
+            pressure.Atmosphere.NITROGEN: 'under nitrogen',
+            pressure.Atmosphere.ARGON: 'under argon',
+            pressure.Atmosphere.OXYGEN: 'under oxygen',
+            pressure.Atmosphere.HYDROGEN: 'under hydrogen',
+        }[pressure.atmosphere]
+        txt += f' {_parenthetical_if_def(pressure.atmosphere_details)}'
+    if pressure.type != pressure.PressureControl.UNSPECIFIED:
+        txt += ' '
+        txt += {
+            pressure.PressureControl.CUSTOM:
+                'using a custom pressure controller',
+            pressure.PressureControl.AMBIENT: 'using ambient pressure',
+            pressure.PressureControl.BALLOON:
+                'using a balloon for pressure control',
+            pressure.PressureControl.SEALED:
+                'after fully sealing the reaction vessel',
+            pressure.PressureControl.SEPTUM_WITH_NEEDLE:
+                'using a needle to pierce the vessel septum',
+            pressure.PressureControl.RELEASEVALVE:
+                'using a pressure release valve',
+            pressure.PressureControl.BPR: 'using a backpressure regulator',
+        }[pressure.type]
+        txt += f' {_parenthetical_if_def(pressure.details)}'
+        setpoint = units.format_message(pressure.setpoint)
+        if setpoint:
+            txt += f' with a setpoint of {setpoint}'
+    if txt:
+        return 'The reaction was run ' + txt + '.'
+
+
+def _temperature_conditions(temperature):
+    txt = ''
+    if temperature.type != temperature.TemperatureControl.UNSPECIFIED:
+        txt += 'The reaction was run '
+        txt += {
+            temperature.TemperatureControl.CUSTOM:
+                'under custom temperature conditions',
+            temperature.TemperatureControl.AMBIENT:
+                'under ambient temperature conditions',
+            temperature.TemperatureControl.OIL_BATH: 'in an oil bath',
+            temperature.TemperatureControl.WATER_BATH: 'in a water bath',
+            temperature.TemperatureControl.SAND_BATH: 'in a sand bath',
+            temperature.TemperatureControl.ICE_BATH: 'in an ice bath',
+            temperature.TemperatureControl.DRY_ALUMINUM_PLATE:
+                'using an aluminum heating block',
+            temperature.TemperatureControl.MICROWAVE:
+                'in a microwave reactor',
+            temperature.TemperatureControl.DRY_ICE_BATH: 'in a dry ice bath',
+            temperature.TemperatureControl.AIR_FAN:
+                'using a fan for temperautre control',
+            temperature.TemperatureControl.LIQUID_NITROGEN:
+                'using liquid nitrogen for temperature control',
+        }[temperature.type]
+        txt += f' {_parenthetical_if_def(temperature.details)}'
+        setpoint = units.format_message(temperature.setpoint)
+        if setpoint:
+            txt += f' with a setpoint of {setpoint}'
+    return txt + '.'
+
+
 def _product_color_texture(product):
     txt = ''
     txt += f'{product.isolated_color} '
@@ -301,6 +405,8 @@ def _compound_role(compound):
         compound.ReactionRole.SOLVENT: 'as a solvent',
         compound.ReactionRole.CATALYST: 'as a catalyst',
         compound.ReactionRole.INTERNAL_STANDARD: 'as an internal standard',
+        compound.ReactionRole.WORKUP: '',
+        compound.ReactionRole.PRODUCT: 'as a product',
     }[compound.reaction_role]
 
 
@@ -434,6 +540,9 @@ def generate_text(reaction, template_string=_TEMPLATE):
     env.filters['analysis_format'] = _analysis_format
     env.filters['selectivity_type'] = _selectivity_type
     env.filters['product_color_texture'] = _product_color_texture
+    env.filters['temperature_conditions'] = _temperature_conditions
+    env.filters['pressure_conditions'] = _pressure_conditions
+    env.filters['stirring_conditions'] = _stirring_conditions
     template = env.from_string(template_string)
     text = template.render(reaction=reaction)
 
