@@ -145,6 +145,7 @@ def _get_filenames():
     raise ValueError('one of --input_pattern or --input_file is required')
 
 
+# pylint: disable=too-many-branches
 def main(argv):
     del argv  # Only used by app.run().
     filenames = sorted(_get_filenames())
@@ -188,6 +189,9 @@ def main(argv):
     logging.info('writing combined Dataset to %s', output_filename)
     message_helpers.write_message(
         combined, output_filename, FLAGS.input_format)
+
+
+# pylint: enable=too-many-branches
 
 
 if __name__ == '__main__':
