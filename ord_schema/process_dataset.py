@@ -27,6 +27,7 @@ Example usage:
 
 import glob
 import os
+import subprocess
 import uuid
 
 from absl import app
@@ -50,6 +51,7 @@ flags.DEFINE_boolean('write_errors', False,
 flags.DEFINE_string('output', None, 'Filename for output Dataset.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 flags.DEFINE_boolean('update', False, 'If True, update Reaction protos.')
+flags.DEFINE_boolean('cleanup', False, 'If True, use git to clean up.')
 
 
 def validate(datasets):
@@ -145,7 +147,10 @@ def _get_filenames():
 
 def main(argv):
     del argv  # Only used by app.run().
-    filenames = _get_filenames()
+    filenames = sorted(_get_filenames())
+    if not filenames:
+        logging.info('nothing to do')
+        return  # Nothing to do.
     datasets = {}
     for filename in filenames:
         datasets[filename] = message_helpers.load_message(
@@ -153,6 +158,7 @@ def main(argv):
     if FLAGS.validate:
         validate(datasets)
     if not FLAGS.update:
+        logging.info('nothing else to do; use --update for more')
         return  # Nothing else to do.
     for dataset in datasets.values():
         for reaction in dataset.reactions:
@@ -172,6 +178,13 @@ def main(argv):
         dataset_id = uuid.uuid4().hex
         output_filename = os.path.join(
             'data', dataset_id[:2], f'{dataset_id}{suffix}')
+    os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+    if FLAGS.cleanup:
+        # Branch the first input file...
+        subprocess.run(['git', 'mv', filenames[0], output_filename], check=True)
+        # ...and remove the others.
+        for filename in filenames[1:]:
+            subprocess.run(['git', 'rm', filename], check=True)
     logging.info('writing combined Dataset to %s', output_filename)
     message_helpers.write_message(
         combined, output_filename, FLAGS.input_format)
