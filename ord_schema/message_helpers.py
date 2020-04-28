@@ -340,8 +340,6 @@ def load_message(filename, message_type, input_format):
                 protobuf.message.DecodeError,
                 text_format.ParseError) as error:
             raise ValueError(f'error parsing {filename}: {error}')
-
-
 # pylint: enable=inconsistent-return-statements
 
 
@@ -375,6 +373,7 @@ def write_message(message, filename, output_format):
             f.write(message.SerializeToString())
 
 
+# pylint: disable=inconsistent-return-statements
 def get_suffix(output_format):
     """Returns the filename suffix for the given message format.
 
@@ -387,7 +386,8 @@ def get_suffix(output_format):
     output_format = MessageFormats(output_format)
     if output_format == MessageFormats.BINARY:
         return '.pb'
-    elif output_format == MessageFormats.JSON:
+    if output_format == MessageFormats.JSON:
         return '.json'
-    elif output_format == MessageFormats.PBTXT:
+    if output_format == MessageFormats.PBTXT:
         return '.pbtxt'
+# pylint: enable=inconsistent-return-statements
