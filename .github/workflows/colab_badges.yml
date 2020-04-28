@@ -1,24 +1,27 @@
 # This workflow adds an "Open in Colab" badge to Jupyter notebooks.
 #
-# To use, add "{{ badge }}" in a Markdown cell (usually at the top of the notebook).
-# See https://github.com/marketplace/actions/colab-badge-action for more details.
+# To use, add "{{ badge }}" in a Markdown cell (usually at the top of the
+# notebook). See https://github.com/marketplace/actions/colab-badge-action for
+# more details.
 name: colab_badges
 
 on:
   pull_request:
-    branches: 
+    branches:
       - master
 
 jobs:
   colab_badges:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v2
+        ref: ${{ github.event.pull_request.head.ref }}
     - name: Colab Badge Action
       uses: skearnes/colab-badge-action@master
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        check: latest
+        check: all
         update: True
         target_branch: master
         target_repository: Open-Reaction-Database/ord-schema
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v2
