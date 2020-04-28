@@ -40,8 +40,15 @@ class ValidateReactionsTest(absltest.TestCase):
         with open(self.dataset2_filename, 'wb') as f:
             f.write(dataset2.SerializeToString())
 
-    def test_main(self):
+    def test_main_with_input_pattern(self):
         with flagsaver.flagsaver(input_pattern=self.dataset1_filename):
+            process_dataset.main(())
+
+    def test_main_with_input_file(self):
+        input_file = os.path.join(self.test_subdirectory, 'input_file.txt')
+        with open(input_file, 'w') as f:
+            f.write(f'{self.dataset1_filename}\n')
+        with flagsaver.flagsaver(input_file=input_file):
             process_dataset.main(())
 
     def test_main_with_validation_errors(self):
@@ -70,6 +77,12 @@ class ValidateReactionsTest(absltest.TestCase):
             dataset = dataset_pb2.Dataset.FromString(f.read())
         self.assertLen(dataset.reactions, 1)
         self.assertStartsWith(dataset.reactions[0].provenance.record_id, 'ord-')
+
+    def test_main_with_too_many_flags(self):
+        with flagsaver.flagsaver(input_pattern=self.dataset1_filename,
+                                 input_file=self.dataset2_filename):
+            with self.assertRaisesRegex(ValueError, 'not both'):
+                process_dataset.main(())
 
 
 if __name__ == '__main__':
