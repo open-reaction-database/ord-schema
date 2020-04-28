@@ -146,7 +146,60 @@ def _get_filenames():
     raise ValueError('one of --input_pattern or --input_file is required')
 
 
-# pylint: disable=too-many-branches
+def _combine_datasets(datasets):
+    """Combines multiple Dataset messages into a single Dataset.
+
+    Args:
+        datasets: Dict mapping text filenames to Dataset messages.
+
+    Returns:
+        Combined Dataset message.
+    """
+    combined = None
+    for key in sorted(datasets):
+        dataset = datasets[key]
+        if combined is None:
+            combined = dataset
+        else:
+            combined.reactions.extend(dataset.reactions)
+    return combined
+
+
+def _get_output_filename(filenames):
+    """Fetches or builds the output Dataset filename.
+
+    Args:
+        filenames: List of text Dataset proto filenames; the input Datasets.
+
+    Returns:
+        Text output Dataset filename.
+    """
+    if FLAGS.output:
+        return FLAGS.output
+    if len(filenames) == 1 and re.search(r'data/[0-9a-f]{2}/[0-9a-f]{32}\.',
+                                         filenames[0]):
+        return filenames[0]  # Reuse the existing dataset ID.
+    suffix = message_helpers.get_suffix(FLAGS.input_format)
+    dataset_id = uuid.uuid4().hex
+    return os.path.join('data', dataset_id[:2], f'{dataset_id}{suffix}')
+
+
+def cleanup(filenames, output_filename):
+    """Removes and/or renames the input Dataset files.
+
+    Args:
+        filenames: List of text Dataset proto filenames; the input Datasets.
+        output_filename: Text filename for the output Dataset.
+    """
+    if len(filenames) == 1 and output_filename != filenames[0]:
+        return  # Reuse the existing dataset ID.
+    # Branch the first input file...
+    subprocess.run(['git', 'mv', filenames[0], output_filename], check=True)
+    # ...and remove the others.
+    for filename in filenames[1:]:
+        subprocess.run(['git', 'rm', filename], check=True)
+
+
 def main(argv):
     del argv  # Only used by app.run().
     filenames = sorted(_get_filenames())
@@ -165,37 +218,14 @@ def main(argv):
     for dataset in datasets.values():
         for reaction in dataset.reactions:
             _update_reaction(reaction)
-    # Combine all datasets into a single object.
-    combined = None
-    for key in sorted(datasets):
-        dataset = datasets[key]
-        if combined is None:
-            combined = dataset
-        else:
-            combined.reactions.extend(dataset.reactions)
-    if FLAGS.output:
-        output_filename = FLAGS.output
-    elif len(filenames) == 1 and re.search('data/[0-9a-f]{2}/[0-9a-f]{32}$',
-                                           filenames[0]):
-        output_filename = filenames[0]  # Reuse the existing dataset ID.
-    else:
-        suffix = message_helpers.get_suffix(FLAGS.input_format)
-        dataset_id = uuid.uuid4().hex
-        output_filename = os.path.join(
-            'data', dataset_id[:2], f'{dataset_id}{suffix}')
+    combined = _combine_datasets(datasets)
+    output_filename = _get_output_filename(filenames)
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-    if FLAGS.cleanup and output_filename != filenames[0]:
-        # Branch the first input file...
-        subprocess.run(['git', 'mv', filenames[0], output_filename], check=True)
-        # ...and remove the others.
-        for filename in filenames[1:]:
-            subprocess.run(['git', 'rm', filename], check=True)
+    if FLAGS.cleanup:
+        cleanup(filenames, output_filename)
     logging.info('writing combined Dataset to %s', output_filename)
     message_helpers.write_message(
         combined, output_filename, FLAGS.input_format)
-
-
-# pylint: enable=too-many-branches
 
 
 if __name__ == '__main__':

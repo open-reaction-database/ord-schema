@@ -12,7 +12,7 @@ from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 
-class ValidateReactionsTest(absltest.TestCase):
+class ProcessDatasetTest(absltest.TestCase):
 
     def setUp(self):
         super().setUp()
