@@ -13,7 +13,7 @@ jobs:
   colab_badges:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v2
     - name: Colab Badge Action
       uses: skearnes/colab-badge-action@master
       with:
@@ -23,4 +23,4 @@ jobs:
         target_branch: master
         target_repository: Open-Reaction-Database/ord-schema
     - name: Create Pull Request
-      uses: peter-evans/create-pull-request@master
+      uses: peter-evans/create-pull-request@v2
