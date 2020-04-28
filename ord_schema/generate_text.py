@@ -37,12 +37,12 @@ To a
 
 {# VESSEL #}
 {{ reaction.setup.vessel|vessel_prep }} 
-{{ reaction.setup.vessel.preparation_details|parenthetical_if_def }}
+{{ reaction.setup.vessel.preparation_details|parenthetical_if_def }} 
 {{ reaction.setup.vessel|vessel_size }} 
 {{ reaction.setup.vessel|vessel_material }} 
-{{ reaction.setup.vessel.material_details|parenthetical_if_def }}
+{{ reaction.setup.vessel.material_details|parenthetical_if_def }} 
 {{ reaction.setup.vessel|vessel_type }} 
-{{ reaction.setup.vessel.details|parenthetical_if_def }}
+{{ reaction.setup.vessel.details|parenthetical_if_def }} 
 
 was 
 
@@ -219,7 +219,7 @@ added
     additional care should be taken when reading this description.
 {% endif %}
 {% if reaction.conditions.details %}
-    Condition details: {{ reaction.condition.details }}.
+    Condition details: {{ reaction.conditions.details }}.
 {% endif %}
 {% if reaction.notes.procedure_details %}
     Procedure details: {{ reaction.notes.procedure_details }}.
