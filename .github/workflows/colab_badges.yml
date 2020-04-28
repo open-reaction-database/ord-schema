@@ -22,3 +22,5 @@ jobs:
         update: True
         target_branch: master
         target_repository: Open-Reaction-Database/ord-schema
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@master
