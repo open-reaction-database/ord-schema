@@ -14,9 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-        ref: ${{ github.event.pull_request.head.ref }}
+    - run: git checkout "${GITHUB_REF:11}"
     - name: Colab Badge Action
       uses: skearnes/colab-badge-action@master
       with:
