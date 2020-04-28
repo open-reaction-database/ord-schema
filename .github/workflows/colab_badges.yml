@@ -16,6 +16,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
+        fetch-depth: 0
         ref: ${{ github.event.pull_request.head.ref }}
     - name: Colab Badge Action
       uses: skearnes/colab-badge-action@master
