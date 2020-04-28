@@ -14,9 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-      with:
-        token: ${{ secrets.TRIGGER_WORKFLOWS }}
-        ref: ${{ github.event.pull_request.head.sha }}
+        ref: ${{ github.event.pull_request.head.ref }}
     - name: Colab Badge Action
       uses: skearnes/colab-badge-action@master
       with:
