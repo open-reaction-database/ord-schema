@@ -27,6 +27,7 @@ Example usage:
 
 import glob
 import os
+import re
 import subprocess
 import uuid
 
@@ -174,13 +175,16 @@ def main(argv):
             combined.reactions.extend(dataset.reactions)
     if FLAGS.output:
         output_filename = FLAGS.output
+    elif len(filenames) == 1 and re.search('data/[0-9a-f]{2}/[0-9a-f]{32}$',
+                                           filenames[0]):
+        output_filename = filenames[0]  # Reuse the existing dataset ID.
     else:
         suffix = message_helpers.get_suffix(FLAGS.input_format)
         dataset_id = uuid.uuid4().hex
         output_filename = os.path.join(
             'data', dataset_id[:2], f'{dataset_id}{suffix}')
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-    if FLAGS.cleanup:
+    if FLAGS.cleanup and output_filename != filenames[0]:
         # Branch the first input file...
         subprocess.run(['git', 'mv', filenames[0], output_filename], check=True)
         # ...and remove the others.
