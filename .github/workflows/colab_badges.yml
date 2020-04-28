@@ -19,8 +19,7 @@ jobs:
         update: True
         target_branch: master
         target_repository: Open-Reaction-Database/ord-schema
-    - name: Push changes
-      uses: ad-m/github-push-action@master
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        branch: ${{ github.ref }}
+    - name: Commit and push changes
+      run: |
+        git commit -a -m "Add/Update Colab badges"
+        git push "https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF}"
