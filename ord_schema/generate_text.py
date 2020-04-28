@@ -163,7 +163,7 @@ added
                 (p/m {{ product.compound_yield.precision|round(3) }}%)
             {% endif %}
             {% if product.analysis_yield %}
-                (identified through
+                (assayed through
                 {% for key in product.analysis_yield %}
                     {% if loop.last and loop.index > 1 %} and {% endif %}
                     {{ outcome.analyses[key]|analysis_format }}
@@ -180,7 +180,7 @@ added
                 (p/m {{ product.selectivity.precision|round(3) }})
             {% endif %}
             {% if product.analysis_selectivity %}
-                (identified through
+                (assayed through
                 {% for key in product.analysis_selectivity %}
                     {% if loop.last and loop.index > 1 %} and {% endif %}
                     {{ outcome.analyses[key]|analysis_format }}
@@ -196,7 +196,7 @@ added
                 (p/m {{ product.purity.precision|round(3) }}%)
             {% endif %}
             {% if product.analysis_purity %}
-                (identified through
+                (assayed through
                 {% for key in product.analysis_purity %}
                     {% if loop.last and loop.index > 1 %} and {% endif %}
                     {{ outcome.analyses[key]|analysis_format }}
