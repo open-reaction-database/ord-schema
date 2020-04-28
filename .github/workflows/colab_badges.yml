@@ -21,5 +21,7 @@ jobs:
         target_repository: Open-Reaction-Database/ord-schema
     - name: Commit and push changes
       run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
         git commit -a -m "Add/Update Colab badges"
         git push "https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF}"
