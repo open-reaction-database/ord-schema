@@ -84,6 +84,37 @@ class ProcessDatasetTest(absltest.TestCase):
             with self.assertRaisesRegex(ValueError, 'not both'):
                 process_dataset.main(())
 
+    def test_preserve_existing_dataset_id(self):
+        dataset = dataset_pb2.Dataset(
+            reactions=[reaction_pb2.Reaction()],
+            dataset_id='64b14868c5cd46dd8e75560fd3589a6b')
+        filename = os.path.join(self.test_subdirectory, 'test.pb')
+        with open(filename, 'wb') as f:
+            f.write(dataset.SerializeToString())
+        expected_filename = os.path.join(self.test_subdirectory, 'data', '64',
+                                         '64b14868c5cd46dd8e75560fd3589a6b.pb')
+        self.assertFalse(os.path.exists(expected_filename))
+        with flagsaver.flagsaver(root=self.test_subdirectory,
+                                 input_pattern=filename,
+                                 validate=False,
+                                 update=True):
+            process_dataset.main(())
+        self.assertTrue(os.path.exists(expected_filename))
+
+    def test_bad_dataset_id(self):
+        dataset = dataset_pb2.Dataset(
+            reactions=[reaction_pb2.Reaction()],
+            dataset_id='not-a-real-dataset-id')
+        filename = os.path.join(self.test_subdirectory, 'test.pb')
+        with open(filename, 'wb') as f:
+            f.write(dataset.SerializeToString())
+        with flagsaver.flagsaver(root=self.test_subdirectory,
+                                 input_pattern=filename,
+                                 validate=False,
+                                 update=True):
+            with self.assertRaisesRegex(ValueError, 'malformed dataset ID'):
+                process_dataset.main(())
+
 
 if __name__ == '__main__':
     absltest.main()

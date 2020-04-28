@@ -40,6 +40,7 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 
 FLAGS = flags.FLAGS
+flags.DEFINE_string('root', '.', 'Root of the repository.')
 flags.DEFINE_string('input_pattern', None,
                     'Pattern (glob) matching input Dataset protos.')
 flags.DEFINE_string('input_file', None,
@@ -110,7 +111,7 @@ def _validate_dataset(filename, dataset):
     return errors
 
 
-def _update_reaction(reaction):
+def update_reaction(reaction):
     """Updates a Reaction message.
 
     Current updates:
@@ -154,6 +155,9 @@ def _combine_datasets(datasets):
 
     Returns:
         Combined Dataset message.
+
+    Raises:
+        ValueError: if the combined dataset ID is malformed.
     """
     combined = None
     for key in sorted(datasets):
@@ -162,26 +166,26 @@ def _combine_datasets(datasets):
             combined = dataset
         else:
             combined.reactions.extend(dataset.reactions)
+    if len(datasets) > 1 or not combined.dataset_id:
+        combined.dataset_id = uuid.uuid4().hex
+    # Sanity check the dataset ID.
+    if not re.fullmatch('^[0-9a-f]{32}$', combined.dataset_id):
+        raise ValueError(f'malformed dataset ID: {combined.dataset_id}')
     return combined
 
 
-def _get_output_filename(filenames):
+def _get_output_filename(dataset_id):
     """Fetches or builds the output Dataset filename.
 
     Args:
-        filenames: List of text Dataset proto filenames; the input Datasets.
+        dataset_id: Text dataset ID; a uuid.uuid4() hex string.
 
     Returns:
         Text output Dataset filename.
     """
-    if FLAGS.output:
-        return FLAGS.output
-    if len(filenames) == 1 and re.search(r'data/[0-9a-f]{2}/[0-9a-f]{32}\.',
-                                         filenames[0]):
-        return filenames[0]  # Reuse the existing dataset ID.
     suffix = message_helpers.get_suffix(FLAGS.input_format)
-    dataset_id = uuid.uuid4().hex
-    return os.path.join('data', dataset_id[:2], f'{dataset_id}{suffix}')
+    return os.path.join(
+        FLAGS.root, 'data', dataset_id[:2], f'{dataset_id}{suffix}')
 
 
 def cleanup(filenames, output_filename):
@@ -217,9 +221,12 @@ def main(argv):
         return  # Nothing else to do.
     for dataset in datasets.values():
         for reaction in dataset.reactions:
-            _update_reaction(reaction)
+            update_reaction(reaction)
     combined = _combine_datasets(datasets)
-    output_filename = _get_output_filename(filenames)
+    if FLAGS.output:
+        output_filename = FLAGS.output
+    else:
+        output_filename = _get_output_filename(combined.dataset_id)
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)
     if FLAGS.cleanup:
         cleanup(filenames, output_filename)
