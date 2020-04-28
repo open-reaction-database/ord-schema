@@ -5,19 +5,13 @@
 # more details.
 name: colab_badges
 
-on:
-  pull_request:
-    branches:
-      - master
+on: push
 
 jobs:
   colab_badges:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-        ref: ${{ github.event.pull_request.head.ref }}
     - name: Colab Badge Action
       uses: skearnes/colab-badge-action@master
       with:
