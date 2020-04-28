@@ -155,6 +155,8 @@ class UnitResolver:
 
 
 def format_message(message):
+    if message.units == getattr(type(message)(), 'UNSPECIFIED'):
+        return None
     txt = f'{message.value:.4g} '
     if message.precision:
         txt += f'(p/m {message.precision}) '
