@@ -14,6 +14,7 @@ part of the submission process and not as part of the pre-submission validation
 cycle.
 
 Example usage:
+
 * For normal validation-only operation:
   $ python process_dataset.py --input_pattern=my_dataset.pb
 * To write the validated protos to disk:
@@ -26,6 +27,8 @@ Example usage:
 
 import glob
 import os
+import re
+import subprocess
 import uuid
 
 from absl import app
@@ -37,8 +40,11 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 
 FLAGS = flags.FLAGS
+flags.DEFINE_string('root', '.', 'Root of the repository.')
 flags.DEFINE_string('input_pattern', None,
                     'Pattern (glob) matching input Dataset protos.')
+flags.DEFINE_string('input_file', None,
+                    'Filename containing Dataset proto filenames.')
 flags.DEFINE_enum('input_format', 'binary',
                   [f.value for f in message_helpers.MessageFormats],
                   'Input message format.')
@@ -47,6 +53,7 @@ flags.DEFINE_boolean('write_errors', False,
 flags.DEFINE_string('output', None, 'Filename for output Dataset.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 flags.DEFINE_boolean('update', False, 'If True, update Reaction protos.')
+flags.DEFINE_boolean('cleanup', False, 'If True, use git to clean up.')
 
 
 def validate(datasets):
@@ -104,7 +111,7 @@ def _validate_dataset(filename, dataset):
     return errors
 
 
-def _update_reaction(reaction):
+def update_reaction(reaction):
     """Updates a Reaction message.
 
     Current updates:
@@ -122,32 +129,111 @@ def _update_reaction(reaction):
         reaction.provenance.record_id = record_id
 
 
+def _get_filenames():
+    """Gets a list of Dataset proto filenames to process.
+
+    Returns:
+        List of text filenames.
+    """
+    if FLAGS.input_pattern and FLAGS.input_file:
+        raise ValueError(
+            'one of --input_pattern or --input_file is required, not both')
+    if FLAGS.input_pattern:
+        # Setting recursive=True allows recursive matching with '**'.
+        return glob.glob(FLAGS.input_pattern, recursive=True)
+    if FLAGS.input_file:
+        with open(FLAGS.input_file) as f:
+            return [line.strip() for line in f]
+    raise ValueError('one of --input_pattern or --input_file is required')
+
+
+def _combine_datasets(datasets):
+    """Combines multiple Dataset messages into a single Dataset.
+
+    Args:
+        datasets: Dict mapping text filenames to Dataset messages.
+
+    Returns:
+        Combined Dataset message.
+
+    Raises:
+        ValueError: if the combined dataset ID is malformed.
+    """
+    combined = None
+    for key in sorted(datasets):
+        dataset = datasets[key]
+        if combined is None:
+            combined = dataset
+        else:
+            combined.reactions.extend(dataset.reactions)
+    if len(datasets) > 1 or not combined.dataset_id:
+        combined.dataset_id = uuid.uuid4().hex
+    # Sanity check the dataset ID.
+    if not re.fullmatch('^[0-9a-f]{32}$', combined.dataset_id):
+        raise ValueError(f'malformed dataset ID: {combined.dataset_id}')
+    return combined
+
+
+def _get_output_filename(dataset_id):
+    """Fetches or builds the output Dataset filename.
+
+    Args:
+        dataset_id: Text dataset ID; a uuid.uuid4() hex string.
+
+    Returns:
+        Text output Dataset filename.
+    """
+    suffix = message_helpers.get_suffix(FLAGS.input_format)
+    return os.path.join(
+        FLAGS.root, 'data', dataset_id[:2], f'{dataset_id}{suffix}')
+
+
+def cleanup(filenames, output_filename):
+    """Removes and/or renames the input Dataset files.
+
+    Args:
+        filenames: List of text Dataset proto filenames; the input Datasets.
+        output_filename: Text filename for the output Dataset.
+    """
+    if len(filenames) == 1 and output_filename != filenames[0]:
+        return  # Reuse the existing dataset ID.
+    # Branch the first input file...
+    subprocess.run(['git', 'mv', filenames[0], output_filename], check=True)
+    # ...and remove the others.
+    for filename in filenames[1:]:
+        subprocess.run(['git', 'rm', filename], check=True)
+
+
 def main(argv):
     del argv  # Only used by app.run().
-    # Setting recursive=True allows recursive matching with '**'.
-    filenames = glob.glob(FLAGS.input_pattern, recursive=True)
+    filenames = sorted(_get_filenames())
+    if not filenames:
+        logging.info('nothing to do')
+        return  # Nothing to do.
     datasets = {}
     for filename in filenames:
         datasets[filename] = message_helpers.load_message(
             filename, dataset_pb2.Dataset, FLAGS.input_format)
     if FLAGS.validate:
         validate(datasets)
-    if FLAGS.update:
-        for dataset in datasets.values():
-            for reaction in dataset.reactions:
-                _update_reaction(reaction)
-    # Combine all datasets into a single object.
-    combined = None
+    if not FLAGS.update:
+        logging.info('nothing else to do; use --update for more')
+        return  # Nothing else to do.
     for dataset in datasets.values():
-        if combined is None:
-            combined = dataset
-        else:
-            combined.reactions.extend(dataset.reactions)
+        for reaction in dataset.reactions:
+            update_reaction(reaction)
+    combined = _combine_datasets(datasets)
     if FLAGS.output:
-        message_helpers.write_message(
-            combined, FLAGS.output, FLAGS.input_format)
+        output_filename = FLAGS.output
+    else:
+        output_filename = _get_output_filename(combined.dataset_id)
+    os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+    if FLAGS.cleanup:
+        cleanup(filenames, output_filename)
+    logging.info('writing combined Dataset to %s', output_filename)
+    message_helpers.write_message(
+        combined, output_filename, FLAGS.input_format)
 
 
 if __name__ == '__main__':
-    flags.mark_flag_as_required('input_pattern')
     app.run(main)

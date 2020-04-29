@@ -1,24 +1,28 @@
 # This workflow adds an "Open in Colab" badge to Jupyter notebooks.
 #
-# To use, add "{{ badge }}" in a Markdown cell (usually at the top of the notebook).
-# See https://github.com/marketplace/actions/colab-badge-action for more details.
+# To use, add "{{ badge }}" in a Markdown cell (usually at the top of the
+# notebook). See https://github.com/marketplace/actions/colab-badge-action for
+# more details.
 name: colab_badges
 
-on:
-  pull_request:
-    branches: 
-      - master
+on: push
 
 jobs:
   colab_badges:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v2
     - name: Colab Badge Action
       uses: skearnes/colab-badge-action@master
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        check: latest
+        check: all
         update: True
         target_branch: master
         target_repository: Open-Reaction-Database/ord-schema
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        # Fail gracefully if there is nothing to commit.
+        git commit -a -m "Add/Update Colab badges" || [[ $? == 1 ]]
+        git push "https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${GITHUB_REF}"

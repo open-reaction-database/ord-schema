@@ -350,8 +350,16 @@ def write_message(message, filename, output_format):
         message: Protocol buffer message.
         filename: Text output filename.
         output_format: MessageFormat or text MessageFormat value.
+
+    Raises:
+        ValueError: if `filename` does not have the expected suffix.
     """
     output_format = MessageFormats(output_format)
+    _, extension = os.path.splitext(filename)
+    suffix = get_suffix(output_format)
+    if extension != suffix:
+        raise ValueError('filename does not have the expected suffix: '
+                         f'{filename} ({suffix})')
     if output_format == MessageFormats.BINARY:
         mode = 'wb'
     else:
@@ -363,3 +371,23 @@ def write_message(message, filename, output_format):
             f.write(text_format.MessageToString(message))
         elif output_format == MessageFormats.BINARY:
             f.write(message.SerializeToString())
+
+
+# pylint: disable=inconsistent-return-statements
+def get_suffix(output_format):
+    """Returns the filename suffix for the given message format.
+
+    Args:
+        output_format: MessageFormat or text MessageFormat value.
+
+    Returns:
+        Text filename suffix (including the leading period).
+    """
+    output_format = MessageFormats(output_format)
+    if output_format == MessageFormats.BINARY:
+        return '.pb'
+    if output_format == MessageFormats.JSON:
+        return '.json'
+    if output_format == MessageFormats.PBTXT:
+        return '.pbtxt'
+# pylint: enable=inconsistent-return-statements
