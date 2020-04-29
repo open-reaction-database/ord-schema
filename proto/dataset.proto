@@ -16,6 +16,6 @@ message Dataset {
   // `scripts` may include code for extracting relevant features for machine
   // learning, e.g. as part of the methods for a publication.
   map<string, Data> scripts = 4;
-  // TODO(kearnes): Assign a DOI to each dataset?
-  // TODO(kearnes): Version number? URL pointing to ORD?
+  // Dataset ID assigned during the submission process.
+  string dataset_id = 5;
 }

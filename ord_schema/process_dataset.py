@@ -27,6 +27,7 @@ Example usage:
 
 import glob
 import os
+import re
 import subprocess
 import uuid
 
@@ -39,6 +40,7 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 
 FLAGS = flags.FLAGS
+flags.DEFINE_string('root', '.', 'Root of the repository.')
 flags.DEFINE_string('input_pattern', None,
                     'Pattern (glob) matching input Dataset protos.')
 flags.DEFINE_string('input_file', None,
@@ -109,7 +111,7 @@ def _validate_dataset(filename, dataset):
     return errors
 
 
-def _update_reaction(reaction):
+def update_reaction(reaction):
     """Updates a Reaction message.
 
     Current updates:
@@ -145,7 +147,63 @@ def _get_filenames():
     raise ValueError('one of --input_pattern or --input_file is required')
 
 
-# pylint: disable=too-many-branches
+def _combine_datasets(datasets):
+    """Combines multiple Dataset messages into a single Dataset.
+
+    Args:
+        datasets: Dict mapping text filenames to Dataset messages.
+
+    Returns:
+        Combined Dataset message.
+
+    Raises:
+        ValueError: if the combined dataset ID is malformed.
+    """
+    combined = None
+    for key in sorted(datasets):
+        dataset = datasets[key]
+        if combined is None:
+            combined = dataset
+        else:
+            combined.reactions.extend(dataset.reactions)
+    if len(datasets) > 1 or not combined.dataset_id:
+        combined.dataset_id = uuid.uuid4().hex
+    # Sanity check the dataset ID.
+    if not re.fullmatch('^[0-9a-f]{32}$', combined.dataset_id):
+        raise ValueError(f'malformed dataset ID: {combined.dataset_id}')
+    return combined
+
+
+def _get_output_filename(dataset_id):
+    """Fetches or builds the output Dataset filename.
+
+    Args:
+        dataset_id: Text dataset ID; a uuid.uuid4() hex string.
+
+    Returns:
+        Text output Dataset filename.
+    """
+    suffix = message_helpers.get_suffix(FLAGS.input_format)
+    return os.path.join(
+        FLAGS.root, 'data', dataset_id[:2], f'{dataset_id}{suffix}')
+
+
+def cleanup(filenames, output_filename):
+    """Removes and/or renames the input Dataset files.
+
+    Args:
+        filenames: List of text Dataset proto filenames; the input Datasets.
+        output_filename: Text filename for the output Dataset.
+    """
+    if len(filenames) == 1 and output_filename != filenames[0]:
+        return  # Reuse the existing dataset ID.
+    # Branch the first input file...
+    subprocess.run(['git', 'mv', filenames[0], output_filename], check=True)
+    # ...and remove the others.
+    for filename in filenames[1:]:
+        subprocess.run(['git', 'rm', filename], check=True)
+
+
 def main(argv):
     del argv  # Only used by app.run().
     filenames = sorted(_get_filenames())
@@ -163,35 +221,18 @@ def main(argv):
         return  # Nothing else to do.
     for dataset in datasets.values():
         for reaction in dataset.reactions:
-            _update_reaction(reaction)
-    # Combine all datasets into a single object.
-    combined = None
-    for key in sorted(datasets):
-        dataset = datasets[key]
-        if combined is None:
-            combined = dataset
-        else:
-            combined.reactions.extend(dataset.reactions)
+            update_reaction(reaction)
+    combined = _combine_datasets(datasets)
     if FLAGS.output:
         output_filename = FLAGS.output
     else:
-        suffix = message_helpers.get_suffix(FLAGS.input_format)
-        dataset_id = uuid.uuid4().hex
-        output_filename = os.path.join(
-            'data', dataset_id[:2], f'{dataset_id}{suffix}')
+        output_filename = _get_output_filename(combined.dataset_id)
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)
     if FLAGS.cleanup:
-        # Branch the first input file...
-        subprocess.run(['git', 'mv', filenames[0], output_filename], check=True)
-        # ...and remove the others.
-        for filename in filenames[1:]:
-            subprocess.run(['git', 'rm', filename], check=True)
+        cleanup(filenames, output_filename)
     logging.info('writing combined Dataset to %s', output_filename)
     message_helpers.write_message(
         combined, output_filename, FLAGS.input_format)
-
-
-# pylint: enable=too-many-branches
 
 
 if __name__ == '__main__':
