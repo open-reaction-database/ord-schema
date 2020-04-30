@@ -25,7 +25,7 @@ jobs:
       run: |
         conda install --file requirements.txt
         conda install -c rdkit rdkit
-        conda install pylint
+        conda install pylint toml
     - name: Install ord_schema
       shell: bash -l {0}
       run: |
