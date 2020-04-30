@@ -198,10 +198,14 @@ def cleanup(filenames, output_filename):
     if len(filenames) == 1 and output_filename != filenames[0]:
         return  # Reuse the existing dataset ID.
     # Branch the first input file...
-    subprocess.run(['git', 'mv', filenames[0], output_filename], check=True)
+    args = ['git', 'mv', filenames[0], output_filename]
+    logging.info('Running command: %s', ' '.join(args))
+    subprocess.run(args, check=True)
     # ...and remove the others.
     for filename in filenames[1:]:
-        subprocess.run(['git', 'rm', filename], check=True)
+        args = ['git', 'rm', filename]
+        logging.info('Running command: %s', ' '.join(args))
+        subprocess.run(args, check=True)
 
 
 def main(argv):
