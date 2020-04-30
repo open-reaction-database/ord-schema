@@ -3,7 +3,7 @@
 # Finds new and changed PBTXT files and sets NUM_CHANGED_FILES for downstream
 # workflow steps.
 set -ex
-UPSTREAM="https://github.com/Open-Reaction-Database/ord-submissions-test.git"
+UPSTREAM="https://github.com/Open-Reaction-Database/${GITHUB_REPOSITORY##*/}.git"
 
 git remote add upstream "${UPSTREAM}"
 echo "Current branch: $(git rev-parse --abbrev-ref HEAD)"
