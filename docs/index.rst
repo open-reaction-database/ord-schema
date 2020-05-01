@@ -11,6 +11,9 @@ Welcome to the Open Reaction Database!
    :caption: Contents:
 
    overview
+   schema
+   submissions
+   faq
 
 Indices and tables
 ==================

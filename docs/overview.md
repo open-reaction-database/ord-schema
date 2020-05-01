@@ -3,10 +3,7 @@
 We are building an open access chemical reaction database to support machine
 learning and related efforts in reaction prediction, chemical synthesis
 planning, and experiment design. Our initial meeting took place on 31 October
-2019 and included experts from pharma, academia, and tech. If you are interested
-in participating in future meetings, please request to join the
-[open-reaction-database](https://groups.google.com/forum/#!forum/open-reaction-database)
-mailing list.
+2019 and included experts from pharma, academia, and tech.
 
 We expect that this database will be the starting point for the development of
 best-in-class tools and models for reaction prediction and synthesis planning.
@@ -82,6 +79,47 @@ There are some practical consequences of these non-goals:
   able to be converted to action sequences through simple translation 
   scripts.
   
+## Interface
+
+### GitHub
+
+_Coming soon!_
+
+### BigQuery
+
+_Coming soon!_
+  
+## Getting the data
+
+Anyone can download their own copy of the data and associated code (with or
+without a GitHub account). We expect and encourage researchers to download
+copies of the entire repository. Snapshots of the repository will be backed up
+to [Figshare](https://figshare.com/) at regular intervals. Anyone with a GitHub
+account can submit data or code to the database.
+
+Although we have defined the schema using Protocol Buffers, each reaction can be
+defined in a human-readable JSON or pbtxt format. The GitHub repository
+containing the official version of the database may use the proto binary format
+for storage efficiency and speed. Archived snapshots of the repository will
+convert examples to a human-readable format so that the data are more
+immediately accessible.
+
+## Submitting to the database
+
+Submissions to the ORD will be handled primarily via GitHub, as [pull
+requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests)
+to a public repository governed by the CC-BY-SA license (see
+[below](#commitment-to-open-access)). All data merged into the official
+repository (under the
+[Open-Reaction-Database](https://github.com/Open-Reaction-Database) GitHub
+organization) will then be hosted on GitHub under this license.
+
+The submission workflow is described in detail [here](submissions.md).
+
+## Development roadmap
+
+![roadmap](images/roadmap.png)
+  
 ## Governing Committee
 
 The ORD is governed by a Governing Committee with representatives from many
@@ -125,134 +163,6 @@ There are no specific requirements for time or resource commitments to be part
 of the Advisory Board, nor will any compensation be provided to members of the
 board.
 
-## How to help
-
-Additional technical help will also be required to aid in tasks such as
-processing submissions and implementing the various tools and interfaces to
-improve the user experience. We welcome any donation of time to improve using
-the schema, technical infrastructure, front-end work, etc.; or simply to provide
-feedback on the user experience.
-
-## Schema
-
-### Protocol buffers
-
-Protocol buffers offer a simple way to define a schema for structured data. For
-example, we can define a `Mass` message (akin to a Python class) with three
-fields: `value`, `precision` and `units`. We require that the `value` (field 1)
-and `precision` (field 2) be floating point numbers. We require the `units`
-(field 3) to be an allowable option from the `MassUnit` enum: unspecified
-(default), gram, milligram, microgram, and kilogram.
-
-```proto
-message Mass {
-  enum MassUnit {
-    UNSPECIFIED = 0;
-    GRAM = 1;
-    MILLIGRAM = 2;
-    MICROGRAM = 3;
-    KILOGRAM = 4;
-  }
-  float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
-  MassUnit units = 3;
-}
-```
-
-“Protos”---messages with defined values (akin to an instance of a Python
-class)---can be imported/exported to/from JSON, Protobuf text (pbtxt), and
-Protobuf binary formats.
-
-### The `Reaction` and `Dataset` messages
-
-A single-step reaction in the ORD is defined by a `Reaction` message. A
-collection of reactions can be aggregated into a `Dataset` message, which also
-accommodates scripts for machine learning preprocessing.
-
-```proto
-message Dataset {
-  string name = 1;
-  string description = 2;
-  // List of Reaction messages that are part of this dataset.
-  repeated Reaction reactions = 3;
-  // `scripts` may include code for extracting relevant features for machine
-  // learning, e.g. as part of the methods for a publication.
-  map<string, Data> scripts = 4;
-}
-```
-
-`Reaction` messages contain nine fields:
-
-```proto
-message Reaction {
-  repeated ReactionIdentifier identifiers = 1;
-  // List of pure substances or mixtures that were added to the
-  // reaction vessel. This is a map, not a repeated, to simplify
-  // reaction templating through the use of keys.
-  map<string, ReactionInput> inputs = 2;
-  ReactionSetup setup = 3;
-  ReactionConditions conditions = 4;
-  // Reaction notes largely pertain to safety considerations.
-  ReactionNotes notes = 5;
-  repeated ReactionObservation observations = 6;
-  // Workup steps are listed in the order they are performed.
-  repeated ReactionWorkup workup = 7;
-  repeated ReactionOutcome outcomes = 8;
-  ReactionProvenance provenance = 9;
-}
-```
-
-The first field is a repeated field (list) of `ReactionIdentifier`s that
-includes reaction names, reaction SMILES, etc. The second field is a map
-(dictionary) that defines `ReactionInput`s: pure components or stock solutions
-that are added to the reaction vessel as reactants, reagents, solvents, etc. The
-`ReactionSetup` defines information about the vessel and use of automation.
-`ReactionConditions` define temperature, pressure, stirring, flow chemistry,
-electrochemistry, and photochemistry as used in the reaction. `ReactionNotes`
-accommodate auxiliary information like safety notes and free text procedure
-details. `ReactionObservation`s describe timestamped text and image
-observations. `ReactionWorkup`s define a sequence of workup actions (e.g.,
-quenches, separations) prior to analysis. `ReactionOutcome`s define timestamped
-analyses, analytical data, and observed/desired products. Finally, the
-`ReactionProvenance` records additional metadata including who performed the
-experiment and where.
-
-The full definition of each of these fields (and any subfields) is contained in
-the [protocol buffer definition files](https://github.com/Open-Reaction-Database/ord-schema/tree/master/proto)
-on GitHub.
-
-### Using the schema with Python
-
-Protocol buffers can be compiled to Python code, where messages behave like
-Python classes.
-
-```python
-mass = schema.Mass(value=1.25, units='GRAM')
-```
-
-We have also defined a variety of [message helpers](https://github.com/Open-Reaction-Database/ord-schema/blob/master/ord_schema/message_helpers.py)
-that facilitate the definition of these objects, e.g., a unit resolver that
-operates on strings:
-
-```python
-resolver = units.UnitResolver()
-mass = resolver.resolve('1.25 g')
-```
-
-### Using the schema with Jupyter/Colab
-
-We have defined a handful of examples showing how to use the full reaction
-schema in a Jupyter/Colab notebook. One example is
-[here](https://github.com/Open-Reaction-Database/ord-schema/blob/master/examples/2_Nielsen_Deoxyfluorination_Screen/example_nielsen.ipynb).
-
-### Using the schema with a web form
-
-We are in the process of creating interactive web forms that provide tools for
-creating structured data. We intend to host a public version of the form once it
-is ready and will release the underlying code under an Apache license.
-Database
-
 ## Commitment to Open Access
 
 As the name of the initiative suggests, this will be an open database in every
@@ -283,124 +193,15 @@ licensed under the [Apache](https://choosealicense.com/licenses/apache-2.0/)
 license; this is another well-known and OSI-approved license with permissive
 terms that is used by many organizations around the world.
 
-## Submission workflow
+## How to help
 
-Submissions to the ORD will be handled primarily via GitHub, as
-[pull requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests)
-to a public repository governed by the CC-BY-SA license (see above). All data
-merged into the official repository (under the 
-[Open-Reaction-Database](https://github.com/Open-Reaction-Database) GitHub
-organization) will then be hosted on GitHub under this license.
+Additional technical help will also be required to aid in tasks such as
+processing submissions and implementing the various tools and interfaces to
+improve the user experience. We welcome any donation of time to improve using
+the schema, technical infrastructure, front-end work, etc.; or simply to provide
+feedback on the user experience.
 
-The submission workflow follows four major steps:
-
-### 1. Create
-
-A submission consists of a set of Reaction protocol buffers that must be
-created by the user. We have examples of how to do this
-[programmatically](https://ord-schema.readthedocs.io/en/latest/overview.html#examples-jupyter-colab).
-
-### 2. Submit
-
-The user creates a pull request to the official submission repository on
-GitHub. The pull request template contains any required legal
-disclaimers, such as an affirmation of the user's right to release the
-data under the repository license.
-
-Submissions should be created from a forked version of the repository to
-avoid creating many large branches on the official repository.
-
-### 3. Review
-
-The repository runs automated validation scripts and other consistency
-checks to validate the submitted data. These scripts will be distributed
-with the ord_schema repository so that users are able to pre-validate
-their data before submission.  If there are validation errors, the user
-fixes them and updates the pull request with the updated records.
-
-Additionally, basic preprocessing will be performed by automated scripts
-(this could be triggered manually or automatically after other
-validations pass); this may include canonicalizing structures, adding
-additional molecular representations (e.g. SMILES), assigning record IDs,
-etc. The user will be asked to verify any changes performed by the
-automated workflow.
-
-After all validation checks have passed, the submission undergoes a
-manual review by one or more of the repository administrators. The
-reviewer(s) may suggest additional changes and continue to iterate with
-the user until they are satisfied with the submission.
-
-### 4. Deposit  
-
-Once the pull request receives approval from the reviewer(s) and passes
-all automated checks, the user (or a reviewer) merges it into the
-repository.
-
-To avoid capacity issues, the pull request branch should be squashed
-before merging and undergo a final automated check for large Data values.
-    
-## Getting the data
-
-Once the data is merged into the official repository, anyone can download their
-own copy of the data and associated code (with or without a GitHub account). We
-expect and encourage researchers to download copies of the entire repository.
-Snapshots of the repository will be backed up to
-[Figshare](https://figshare.com/) at regular intervals. Anyone with a GitHub
-account can submit data or code to the database.
-
-Although we have defined the schema using Protocol Buffers, each reaction can be
-defined in a human-readable JSON or pbtxt format. The GitHub repository
-containing the official version of the database may use the proto binary format
-for storage efficiency and speed. Archived snapshots of the repository will
-convert examples to the JSON format so that the data are more immediately
-accessible.
-
-Anyone will be able to download the data directly from GitHub, Figshare, or
-Google Cloud Platform.
-
-## Supplementary scripts for machine learning
-
-The `scripts` field of a `Dataset` message is a map from strings to `Data`
-messages. `Data` messages contain text, binary data, or a URL along with
-additional metadata. We envision that Python scripts for preprocessing the list
-of reactions will be defined using map keys such as "preprocess.py" with a
-function or script defined as text.
-
-## Interface
-
-### GitHub
-
-### BigQuery
-
-## Roadmap
-
-![roadmap](images/roadmap.png)
-
-## FAQ
-
-### How will my institution benefit from giving others access to our data?
-
-The ORD is an open science initiative. Your institution will be able to access
-the data shared by all other contributors as well. We view this sharing as no
-different from how we currently share data when we publish scientific articles,
-except the data will be available in an accessible, standardized format.
-
-### What if <institution> decides to stop participating in the initiative?
-
-The ORD is not reliant on the participation of any individual organization.
-However, hosting interfaces and tools to enhance its functionality requires
-computational resources that will initially be donated by Google; if Google
-decides to stop participating and the Governing Committee believes these tools
-to be important to the adoption and usability of the ORD,  the committee will
-need to seek funding for web hosting.
-
-### Will my institution have a right to use any tool developed on our data? 
-
-No. The data itself will have a share-alike clause so that derivative work must
-be shared under identical terms. Anyone is free to develop software tools,
-algorithms, trained machine learning models, etc. under a different license as
-long as they follow the terms for the underlying data.
-
-### Can I simply fork your repositories and create my own version of the database?
-
-Yes! As long as you conform to the terms of the licenses.
+If you are interested in receiving updates or participating in future meetings,
+please request to join the
+[open-reaction-database](https://groups.google.com/forum/#!forum/open-reaction-database)
+mailing list.
