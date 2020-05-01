@@ -25,7 +25,7 @@ message Mass {
 }
 ```
 
-“Protos”---messages with defined values (akin to an instance of a Python
+"Protos"---messages with defined values (akin to an instance of a Python
 class)---can be imported/exported to/from JSON, Protobuf text (pbtxt), and
 Protobuf binary formats.
 
