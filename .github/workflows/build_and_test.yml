@@ -25,7 +25,8 @@ jobs:
       run: |
         conda install --file requirements.txt
         conda install -c rdkit rdkit
-        conda install pylint
+        # NOTE(kearnes): Remove version when 2.5.0 is fixed.
+        conda install pylint=2.4.4
     - name: Install ord_schema
       shell: bash -l {0}
       run: |

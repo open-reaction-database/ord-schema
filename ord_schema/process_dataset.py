@@ -195,13 +195,18 @@ def cleanup(filenames, output_filename):
         filenames: List of text Dataset proto filenames; the input Datasets.
         output_filename: Text filename for the output Dataset.
     """
-    if len(filenames) == 1 and output_filename != filenames[0]:
+    if len(filenames) == 1 and filenames[0] == output_filename:
+        logging.info('editing an existing dataset; no cleanup needed')
         return  # Reuse the existing dataset ID.
     # Branch the first input file...
-    subprocess.run(['git', 'mv', filenames[0], output_filename], check=True)
+    args = ['git', 'mv', filenames[0], output_filename]
+    logging.info('Running command: %s', ' '.join(args))
+    subprocess.run(args, check=True)
     # ...and remove the others.
     for filename in filenames[1:]:
-        subprocess.run(['git', 'rm', filename], check=True)
+        args = ['git', 'rm', filename]
+        logging.info('Running command: %s', ' '.join(args))
+        subprocess.run(args, check=True)
 
 
 def main(argv):
