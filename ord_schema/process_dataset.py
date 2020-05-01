@@ -195,7 +195,8 @@ def cleanup(filenames, output_filename):
         filenames: List of text Dataset proto filenames; the input Datasets.
         output_filename: Text filename for the output Dataset.
     """
-    if len(filenames) == 1 and output_filename != filenames[0]:
+    if len(filenames) == 1 and filenames[0] == output_filename:
+        logging.info('editing an existing dataset; no cleanup needed')
         return  # Reuse the existing dataset ID.
     # Branch the first input file...
     args = ['git', 'mv', filenames[0], output_filename]
