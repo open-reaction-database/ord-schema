@@ -1,0 +1,16 @@
+component,name,Aryl_halide_SMILES
+1,1-chloro-4-(trifluoromethyl)benzene,FC(F)(F)c1ccc(Cl)cc1
+2,1-bromo-4-(trifluoromethyl)benzene,FC(F)(F)c1ccc(Br)cc1
+3,1-iodo-4-(trifluoromethyl)benzene,FC(F)(F)c1ccc(I)cc1
+4,1-chloro-4-methoxybenzene,COc1ccc(Cl)cc1
+5,1-bromo-4-methoxybenzene,COc1ccc(Br)cc1
+6,1-iodo-4-methoxybenzene,COc1ccc(I)cc1
+7,1-chloro-4-ethylbenzene,CCc1ccc(Cl)cc1
+8,1-bromo-4-ethylbenzene,CCc1ccc(Br)cc1
+9,1-ethyl-4-iodobenzene,CCc1ccc(I)cc1
+10,2-chloropyridine,Clc1ccccn1
+11,2-bromopyridine,Brc1ccccn1
+12,2-iodopyridine,Ic1ccccn1
+13,3-chloropyridine,Clc1cccnc1
+14,3-bromopyridine,Brc1cccnc1
+15,3-iodopyridine,Ic1cccnc1
