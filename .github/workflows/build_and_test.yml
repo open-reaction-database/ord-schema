@@ -17,6 +17,8 @@ jobs:
     - uses: actions/checkout@master
     - name: Install miniconda
       uses: s-weigand/setup-conda@v1
+      with:
+        - update-conda: true
     - name: Install dependencies
       run: |
         conda install --file requirements.txt
@@ -26,6 +28,7 @@ jobs:
     - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
+        echo "$(which python)"
         python setup.py install
     - name: Run tests
       run: |
