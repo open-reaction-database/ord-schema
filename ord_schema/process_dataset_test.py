@@ -135,6 +135,11 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
         os.chdir(self.test_subdirectory)
         subprocess.run(['git', 'init'], check=True)
+        subprocess.run(
+            ['git', 'config', '--local', 'user.email', 'test@ord-schema'],
+            check=True)
+        subprocess.run(['git', 'config', '--local', 'user.name', 'Test Runner'],
+                       check=True)
         # Add some initial data.
         reaction = reaction_pb2.Reaction()
         methylamine = reaction.inputs['methylamine']
