@@ -20,10 +20,10 @@ _UNIT_SYNONYMS = {
         reaction_pb2.Mass.KILOGRAM: ['kg', 'kgs', 'kilogram', 'kilograms'],
     },
     reaction_pb2.Moles: {
-        reaction_pb2.Moles.MOLES: ['mol', 'mols', 'mole', 'moles'],
-        reaction_pb2.Moles.MILLIMOLES: ['mmol', 'millimoles', 'mmols'],
-        reaction_pb2.Moles.MICROMOLES: ['umol', 'umols', 'micromoles'],
-        reaction_pb2.Moles.NANOMOLES: ['nmol', 'nanomoles'],
+        reaction_pb2.Moles.MOLE: ['mol', 'mols', 'mole', 'moles'],
+        reaction_pb2.Moles.MILLIMOLE: ['mmol', 'millimoles', 'mmols'],
+        reaction_pb2.Moles.MICROMOLE: ['umol', 'umols', 'micromoles'],
+        reaction_pb2.Moles.NANOMOLE: ['nmol', 'nanomoles'],
     },
     reaction_pb2.Volume: {
         reaction_pb2.Volume.MILLILITER: ['mL', 'milliliters'],

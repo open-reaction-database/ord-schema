@@ -149,16 +149,16 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
     # Assign moles amount and return.
     moles = volume_liter * concentration_molar
     if moles < 1e-6:
-        solute.moles.CopyFrom(reaction_pb2.Moles(units='NANOMOLES',
+        solute.moles.CopyFrom(reaction_pb2.Moles(units='NANOMOLE',
                                                  value=moles * 1e9))
     elif moles < 1e-3:
-        solute.moles.CopyFrom(reaction_pb2.Moles(units='MICROMOLES',
+        solute.moles.CopyFrom(reaction_pb2.Moles(units='MICROMOLE',
                                                  value=moles * 1e6))
     elif moles < 1:
-        solute.moles.CopyFrom(reaction_pb2.Moles(units='MILLIMOLES',
+        solute.moles.CopyFrom(reaction_pb2.Moles(units='MILLIMOLE',
                                                  value=moles * 1e3))
     else:
-        solute.moles.CopyFrom(reaction_pb2.Moles(units='MOLES', value=moles))
+        solute.moles.CopyFrom(reaction_pb2.Moles(units='MOLE', value=moles))
     return [solute] + solvents
 
 

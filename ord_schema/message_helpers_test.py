@@ -170,7 +170,7 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
 
     @parameterized.named_parameters(
         ('mass', '1.2 g', reaction_pb2.Mass(value=1.2, units='GRAM')),
-        ('moles', '3.4 mol', reaction_pb2.Moles(value=3.4, units='MOLES')),
+        ('moles', '3.4 mol', reaction_pb2.Moles(value=3.4, units='MOLE')),
         ('volume', '5.6 mL',
          reaction_pb2.Volume(value=5.6, units='MILLILITER')))
     def test_amount(self, amount, expected):
@@ -251,25 +251,25 @@ class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
         solvent2 = message_helpers.build_compound(name='Solvent',
                                                   amount='100 mL')
         message_helpers.set_solute_moles(solute, [solvent2], '1 molar')
-        self.assertEqual(solute.moles, reaction_pb2.Moles(units='MILLIMOLES',
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='MILLIMOLE',
                                                           value=100))
         solvent3 = message_helpers.build_compound(name='Solvent',
                                                   amount='75 uL')
         message_helpers.set_solute_moles(solute, [solvent3], '3 mM',
                                          overwrite=True)
-        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLE',
                                                           value=225))
         solvent4 = message_helpers.build_compound(name='Solvent',
                                                   amount='0.2 uL')
         message_helpers.set_solute_moles(solute, [solvent4], '30 mM',
                                          overwrite=True)
-        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLE',
                                                           value=6))
         solvent5 = message_helpers.build_compound(name='Solvent',
                                                   amount='0.8 uL')
         message_helpers.set_solute_moles(solute, [solvent4, solvent5], '30 mM',
                                          overwrite=True)
-        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLES',
+        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLE',
                                                           value=30))
 
 
