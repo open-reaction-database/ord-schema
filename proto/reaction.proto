@@ -773,10 +773,10 @@ message Mass {
 message Moles {
   enum MolesUnit {
     UNSPECIFIED = 0;
-    MOLES = 1;
-    MILLIMOLES = 2;
-    MICROMOLES = 3;
-    NANOMOLES = 4;
+    MOLE = 1;
+    MILLIMOLE = 2;
+    MICROMOLE = 3;
+    NANOMOLE = 4;
   }
   float value = 1;
   // Precision of the measurement (with the same units as `value`).
