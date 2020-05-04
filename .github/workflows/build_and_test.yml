@@ -16,24 +16,18 @@ jobs:
     steps:
     - uses: actions/checkout@master
     - name: Install miniconda
-      uses: goanpeca/setup-miniconda@master
-      with:
-        python-version: '3.7'
-        auto-update-conda: true
+      uses: s-weigand/setup-conda@v1
     - name: Install dependencies
-      shell: bash -l {0}
       run: |
         conda install --file requirements.txt
         conda install -c rdkit rdkit
         # NOTE(kearnes): Remove version when 2.5.0 is fixed.
         conda install pylint=2.4.4
     - name: Install ord_schema
-      shell: bash -l {0}
       run: |
         cd "${GITHUB_WORKSPACE}"
         python setup.py install
     - name: Run tests
-      shell: bash -l {0}
       run: |
         shopt -s globstar
         cd "${GITHUB_WORKSPACE}"
@@ -42,12 +36,10 @@ jobs:
           python "${TEST_FILENAME}"; \
         done
     - name: Run pylint
-      shell: bash -l {0}
       run: |
         cd "${GITHUB_WORKSPACE}"
         pylint ord_schema
     - name: Test notebooks
-      shell: bash -l {0}
       run: |
         pip install treon
         treon
