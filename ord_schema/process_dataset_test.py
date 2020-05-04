@@ -88,24 +88,6 @@ class ProcessDatasetTest(absltest.TestCase):
             with self.assertRaisesRegex(ValueError, 'not both'):
                 process_dataset.main(())
 
-    def test_preserve_existing_dataset_id(self):
-        dataset = dataset_pb2.Dataset(
-            reactions=[reaction_pb2.Reaction()],
-            dataset_id='64b14868c5cd46dd8e75560fd3589a6b')
-        filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
-        message_helpers.write_message(
-            dataset, filename, output_format='pbtxt')
-        expected_filename = os.path.join(
-            self.test_subdirectory, 'data', '64',
-            '64b14868c5cd46dd8e75560fd3589a6b.pbtxt')
-        self.assertFalse(os.path.exists(expected_filename))
-        with flagsaver.flagsaver(root=self.test_subdirectory,
-                                 input_pattern=filename,
-                                 validate=False,
-                                 update=True):
-            process_dataset.main(())
-        self.assertTrue(os.path.exists(expected_filename))
-
     def test_bad_dataset_id(self):
         dataset = dataset_pb2.Dataset(
             reactions=[reaction_pb2.Reaction()],
@@ -149,6 +131,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.moles.value = 1
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 75
+        reaction.provenance.record_created.time.value = '2020-01-01'
+        reaction.provenance.record_id = 'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'
         dataset_id = '64b14868c5cd46dd8e75560fd3589a6b'
         dataset = dataset_pb2.Dataset(reactions=[reaction],
                                       dataset_id=dataset_id)
@@ -156,7 +140,10 @@ class SubmissionWorkflowTest(absltest.TestCase):
         validations.validate_message(dataset)
         os.makedirs(os.path.join('data', '64'))
         self.dataset_filename = os.path.join(
-            'data', f'{dataset_id[:2]}', f'{dataset_id}.pbtxt')
+            self.test_subdirectory,
+            'data',
+            f'{dataset_id[:2]}',
+            f'{dataset_id}.pbtxt')
         message_helpers.write_message(
             dataset, self.dataset_filename, output_format='pbtxt')
         subprocess.run(['git', 'add', 'data'], check=True)
@@ -177,7 +164,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
             os.path.join(self.test_subdirectory, '**/*.pbtxt'),
             recursive=True)
 
-    def test_new_dataset(self):
+    def test_add_dataset(self):
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs['ethylamine']
         component = ethylamine.components.add()
@@ -193,6 +180,148 @@ class SubmissionWorkflowTest(absltest.TestCase):
         filenames = self._run_main()
         self.assertLen(filenames, 2)
         self.assertFalse(os.path.exists(dataset_filename))
+        # Check for assignment of dataset and record IDs.
+        filenames.pop(filenames.index(self.dataset_filename))
+        self.assertLen(filenames, 1)
+        dataset = message_helpers.load_message(
+            filenames[0], dataset_pb2.Dataset, input_format='pbtxt')
+        self.assertNotEmpty(dataset.dataset_id)
+        self.assertLen(dataset.reactions, 1)
+        self.assertNotEmpty(dataset.reactions[0].provenance.record_id)
+
+    def test_add_sharded_dataset(self):
+        reaction = reaction_pb2.Reaction()
+        ethylamine = reaction.inputs['ethylamine']
+        component = ethylamine.components.add()
+        component.identifiers.add(type='SMILES', value='CCN')
+        component.is_limiting = True
+        component.moles.value = 2
+        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        reaction.outcomes.add().conversion.value = 25
+        dataset1 = dataset_pb2.Dataset(reactions=[reaction])
+        dataset1_filename = os.path.join(self.test_subdirectory, 'test1.pbtxt')
+        message_helpers.write_message(
+            dataset1, dataset1_filename, output_format='pbtxt')
+        dataset2 = dataset_pb2.Dataset(reactions=[reaction])
+        dataset2_filename = os.path.join(self.test_subdirectory, 'test2.pbtxt')
+        message_helpers.write_message(
+            dataset2, dataset2_filename, output_format='pbtxt')
+        filenames = self._run_main()
+        self.assertLen(filenames, 2)
+        filenames.pop(filenames.index(self.dataset_filename))
+        self.assertLen(filenames, 1)
+        dataset = message_helpers.load_message(
+            filenames[0], dataset_pb2.Dataset, input_format='pbtxt')
+        self.assertLen(dataset.reactions, 2)
+        self.assertFalse(os.path.exists(dataset1_filename))
+        self.assertFalse(os.path.exists(dataset2_filename))
+
+    def test_modify_dataset(self):
+        dataset = message_helpers.load_message(
+            self.dataset_filename, dataset_pb2.Dataset, input_format='pbtxt')
+        # Modify the existing reaction...
+        dataset.reactions[0].inputs['methylamine'].components[0].moles.value = 2
+        # ...and add a new reaction.
+        reaction = reaction_pb2.Reaction()
+        ethylamine = reaction.inputs['ethylamine']
+        component = ethylamine.components.add()
+        component.identifiers.add(type='SMILES', value='CCN')
+        component.is_limiting = True
+        component.moles.value = 2
+        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        reaction.outcomes.add().conversion.value = 25
+        dataset.reactions.add().CopyFrom(reaction)
+        message_helpers.write_message(
+            dataset, self.dataset_filename, output_format='pbtxt')
+        filenames = self._run_main()
+        self.assertCountEqual([self.dataset_filename], filenames)
+        # Check for preservation of dataset and record IDs.
+        updated_dataset = message_helpers.load_message(
+            self.dataset_filename, dataset_pb2.Dataset, input_format='pbtxt')
+        self.assertLen(updated_dataset.reactions, 2)
+        self.assertEqual(dataset.dataset_id, updated_dataset.dataset_id)
+        self.assertEqual(dataset.reactions[0].provenance.record_id,
+                         updated_dataset.reactions[0].provenance.record_id)
+        self.assertNotEmpty(updated_dataset.reactions[1].provenance.record_id)
+
+    def test_resolver(self):
+        reaction = reaction_pb2.Reaction()
+        ethylamine = reaction.inputs['ethylamine']
+        component = ethylamine.components.add()
+        component.identifiers.add(type='NAME', value='ethylamine')
+        component.is_limiting = True
+        component.moles.value = 2
+        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        reaction.outcomes.add().conversion.value = 25
+        dataset = dataset_pb2.Dataset(reactions=[reaction])
+        dataset_filename = os.path.join(self.test_subdirectory,
+                                        'test.pbtxt')
+        message_helpers.write_message(
+            dataset, dataset_filename, output_format='pbtxt')
+        filenames = self._run_main()
+        self.assertLen(filenames, 2)
+        self.assertFalse(os.path.exists(dataset_filename))
+        filenames.pop(filenames.index(self.dataset_filename))
+        self.assertLen(filenames, 1)
+        dataset = message_helpers.load_message(
+            filenames[0], dataset_pb2.Dataset, input_format='pbtxt')
+        self.assertLen(dataset.reactions, 1)
+        identifiers = (
+            dataset.reactions[0].inputs['ethylamine'].components[0].identifiers)
+        self.assertLen(identifiers, 3)
+        self.assertEqual(
+            identifiers[1],
+            reaction_pb2.CompoundIdentifier(
+                type='SMILES', value='CCN', details='NAME resolved by PubChem'))
+        self.assertEqual(identifiers[2].type,
+                         reaction_pb2.CompoundIdentifier.RDKIT_BINARY)
+
+    def test_add_dataset_with_validation_errors(self):
+        reaction = reaction_pb2.Reaction()
+        ethylamine = reaction.inputs['ethylamine']
+        component = ethylamine.components.add()
+        component.identifiers.add(type='SMILES', value='C#O')
+        component.is_limiting = True
+        component.moles.value = 2
+        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        reaction.outcomes.add().conversion.value = 25
+        dataset = dataset_pb2.Dataset(reactions=[reaction])
+        dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
+        message_helpers.write_message(
+            dataset, dataset_filename, output_format='pbtxt')
+        with self.assertRaisesRegex(ValueError, 'could not validate SMILES'):
+            self._run_main()
+
+    def test_add_sharded_dataset_with_validation_errors(self):
+        reaction = reaction_pb2.Reaction()
+        ethylamine = reaction.inputs['ethylamine']
+        component = ethylamine.components.add()
+        component.identifiers.add(type='SMILES', value='CCN')
+        component.is_limiting = True
+        component.moles.value = 2
+        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        reaction.outcomes.add().conversion.value = 25
+        dataset1 = dataset_pb2.Dataset(reactions=[reaction])
+        dataset1_filename = os.path.join(self.test_subdirectory, 'test1.pbtxt')
+        message_helpers.write_message(
+            dataset1, dataset1_filename, output_format='pbtxt')
+        reaction.inputs['ethylamine'].components[0].identifiers[0].value = 'C#O'
+        dataset2 = dataset_pb2.Dataset(reactions=[reaction])
+        dataset2_filename = os.path.join(self.test_subdirectory, 'test2.pbtxt')
+        message_helpers.write_message(
+            dataset2, dataset2_filename, output_format='pbtxt')
+        with self.assertRaisesRegex(ValueError, 'could not validate SMILES'):
+            self._run_main()
+
+    def test_modify_dataset_with_validation_errors(self):
+        dataset = message_helpers.load_message(
+            self.dataset_filename, dataset_pb2.Dataset, input_format='pbtxt')
+        dataset.reactions[0].inputs['methylamine'].components[0].moles.value = (
+            -2)
+        message_helpers.write_message(
+            dataset, self.dataset_filename, output_format='pbtxt')
+        with self.assertRaisesRegex(ValueError, 'must be non-negative'):
+            self._run_main()
 
 
 if __name__ == '__main__':

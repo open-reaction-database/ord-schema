@@ -25,6 +25,7 @@ Example usage:
   $ python process_dataset.py --input_pattern="my_dataset-*.pb"
 """
 
+import datetime
 import glob
 import os
 import re
@@ -40,7 +41,7 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string('root', '.', 'Root of the repository.')
+flags.DEFINE_string('root', '', 'Root of the repository.')
 flags.DEFINE_string('input_pattern', None,
                     'Pattern (glob) matching input Dataset protos.')
 flags.DEFINE_string('input_file', None,
@@ -62,20 +63,21 @@ def validate(datasets):
     Args:
         datasets: Dict mapping filenames to Dataset protos.
     """
-    validation_errors = False
+    all_errors = []
     for filename, dataset in datasets.items():
         errors = _validate_dataset(filename, dataset)
         if errors:
-            validation_errors = True
+            for error in errors:
+                all_errors.append(f'{filename}: {error}')
             if FLAGS.write_errors:
                 with open(f'{filename}.error', 'w') as f:
                     for error in errors:
                         f.write(f'{error}\n')
     # NOTE(kearnes): Run validation for all datasets before
     # exiting if there are errors.
-    if validation_errors:
-        raise ValueError('validation encountered errors; '
-                         're-run with `--write_errors` to save errors to disk.')
+    if all_errors:
+        error_string = '\n'.join(all_errors)
+        raise ValueError(f'validation encountered errors:\n{error_string}')
 
 
 def _validate_dataset(filename, dataset):
@@ -120,6 +122,9 @@ def update_reaction(reaction):
     Args:
         reaction: reaction_pb2.Reaction message.
     """
+    if not reaction.provenance.HasField('record_created'):
+        reaction.provenance.record_created.time.value = (
+            datetime.datetime.utcnow().ctime())
     # TODO(kearnes): There's more complexity here regarding record_id values
     # that are set outside of the submission pipeline. It's not as simple as
     # requiring them to be empty, since a submission may include edits to
@@ -127,6 +132,8 @@ def update_reaction(reaction):
     if not reaction.provenance.record_id:
         record_id = f'ord-{uuid.uuid4().hex}'
         reaction.provenance.record_id = record_id
+    reaction.provenance.record_modified.add().time.value = (
+        datetime.datetime.utcnow().ctime())
 
 
 def _get_filenames():
@@ -228,6 +235,8 @@ def main(argv):
         for reaction in dataset.reactions:
             update_reaction(reaction)
     combined = _combine_datasets(datasets)
+    # Final validation to make sure we didn't break anything.
+    validate({'_COMBINED': combined})
     if FLAGS.output:
         output_filename = FLAGS.output
     else:
