@@ -38,4 +38,7 @@ if __name__ == '__main__':
         license='Apache License, Version 2.0',
         version="0.1",
         packages=setuptools.find_packages(),
+        package_data={
+            'ord_schema.visualization': ['template.html', 'template.txt'],
+        },
         cmdclass={'build_py': BuildPyCommand})

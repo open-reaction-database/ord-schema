@@ -152,3 +152,22 @@ class UnitResolver:
             raise KeyError(f'unrecognized units: {string_unit}')
         message, unit = self._resolver[string_unit]
         return message(value=float(value), units=unit)
+
+
+def format_message(message):
+    """Formats a united message into a string.
+
+    Args:
+        message: a message with units, e.g., Mass, Length.
+
+    Returns:
+        A string describing the value, e.g., "5.0 (p/m 0.1) mL" using the
+            first unit synonym listed in _UNIT_SYNONYMS.
+    """
+    if message.units == getattr(type(message)(), 'UNSPECIFIED'):
+        return None
+    txt = f'{message.value:.4g} '
+    if message.precision:
+        txt += f'(p/m {message.precision}) '
+    txt += _UNIT_SYNONYMS[type(message)][message.units][0]
+    return txt
