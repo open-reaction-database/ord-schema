@@ -45,7 +45,7 @@ flags.DEFINE_string('input_pattern', None,
                     'Pattern (glob) matching input Dataset protos.')
 flags.DEFINE_string('input_file', None,
                     'Filename containing Dataset proto filenames.')
-flags.DEFINE_enum('input_format', 'binary',
+flags.DEFINE_enum('input_format', 'pbtxt',
                   [f.value for f in message_helpers.MessageFormats],
                   'Input message format.')
 flags.DEFINE_boolean('write_errors', False,
