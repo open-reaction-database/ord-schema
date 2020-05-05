@@ -1,4 +1,4 @@
-"""Converts serialized protocol buffers to JSON.
+"""Converts serialized protocol buffers to JSON for use in BigQuery.
 
 The output is a JSON-lines file, where newlines are used to separate records.
 See http://jsonlines.org/ for more details.
@@ -12,15 +12,12 @@ from absl import app
 from absl import flags
 from absl import logging
 
-from google.protobuf import json_format
-from ord_schema.proto import reaction_pb2
+from ord_schema import message_helpers
+from ord_schema.proto import dataset_pb2
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('input', None, 'Input pattern (glob).')
 flags.DEFINE_string('output', None, 'Output filename (*.jsonl).')
-flags.DEFINE_boolean('database', False,
-                     'If True, maps will be treated as repeated values. '
-                     'This allows the JSON to be used as input to BigQuery.')
 
 
 def get_processed_value(field, value):
@@ -90,20 +87,15 @@ def get_database_json(message):
 def main(argv):
     del argv  # Only used by app.run().
     filenames = glob.glob(FLAGS.input)
-    logging.info('Found %d records', len(filenames))
+    logging.info('Found %d datasets', len(filenames))
     records = []
     for filename in filenames:
-        with open(filename, 'rb') as f:
-            reaction = reaction_pb2.Reaction.FromString(f.read())
-        if FLAGS.database:
+        dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
+        for reaction in dataset.reaction:
             record_dict = get_database_json(reaction)
-            record = json.dumps(record_dict)
-        else:
-            record = json_format.MessageToJson(
-                reaction,
-                preserving_proto_field_name=True,
-                indent=None)
-        records.append(record)
+            record_dict['_dataset_id'] = dataset.dataset_id
+            record_dict['_serialized'] = reaction.SerializeToString()
+            records.append(json.dumps(record_dict))
     with open(FLAGS.output, 'w') as f:
         for record in records:
             f.write(f'{record}\n')
