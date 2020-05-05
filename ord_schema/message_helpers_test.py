@@ -309,20 +309,19 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
             test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
         ]
 
-    @parameterized.parameters(message_helpers.MessageFormats)
+    @parameterized.parameters(message_helpers.MessageFormat)
     def test_round_trip(self, message_format):
         for message in self.messages:
-            suffix = message_helpers.get_suffix(message_format)
-            with tempfile.NamedTemporaryFile(suffix=suffix) as f:
-                message_helpers.write_message(message, f.name, message_format)
+            with tempfile.NamedTemporaryFile(suffix=message_format.value) as f:
+                message_helpers.write_message(message, f.name)
                 f.flush()
                 self.assertEqual(
                     message,
                     message_helpers.load_message(
-                        f.name, type(message), message_format))
+                        f.name, type(message)))
 
     def test_bad_binary(self):
-        with tempfile.NamedTemporaryFile() as f:
+        with tempfile.NamedTemporaryFile(suffix='.pb') as f:
             message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
             f.write(message.SerializeToString())
             f.flush()
@@ -330,38 +329,29 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
             # not be able to distinguish from a message with the same tags and
             # types (e.g. test_pb2.Scalar and test_pb2.RepeatedScalar).
             with self.assertRaisesRegex(ValueError, 'Error parsing message'):
-                message_helpers.load_message(f.name, test_pb2.Nested, 'binary')
+                message_helpers.load_message(f.name, test_pb2.Nested)
 
     def test_bad_json(self):
-        with tempfile.NamedTemporaryFile(mode='w+') as f:
+        with tempfile.NamedTemporaryFile(mode='w+', suffix='.json') as f:
             message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
             f.write(json_format.MessageToJson(message))
             f.flush()
             with self.assertRaisesRegex(ValueError, 'no field named "values"'):
-                message_helpers.load_message(f.name, test_pb2.Nested, 'json')
+                message_helpers.load_message(f.name, test_pb2.Nested)
 
     def test_bad_pbtxt(self):
-        with tempfile.NamedTemporaryFile(mode='w+') as f:
+        with tempfile.NamedTemporaryFile(mode='w+', suffix='.pbtxt') as f:
             message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
             f.write(text_format.MessageToString(message))
             f.flush()
             with self.assertRaisesRegex(ValueError, 'no field named "values"'):
-                message_helpers.load_message(f.name, test_pb2.Nested, 'pbtxt')
+                message_helpers.load_message(f.name, test_pb2.Nested)
 
     def test_bad_suffix(self):
         message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
-        with self.assertRaisesRegex(ValueError, 'expected suffix'):
+        with self.assertRaisesRegex(ValueError, 'not a valid MessageFormat'):
             message_helpers.write_message(
-                message, 'test.pb', message_helpers.MessageFormats.PBTXT)
-
-    @parameterized.parameters(('binary', '.pb'),
-                              (message_helpers.MessageFormats.BINARY, '.pb'),
-                              ('json', '.json'),
-                              (message_helpers.MessageFormats.JSON, '.json'),
-                              ('pbtxt', '.pbtxt'),
-                              (message_helpers.MessageFormats.PBTXT, '.pbtxt'))
-    def test_get_suffix(self, output_format, expected):
-        self.assertEqual(message_helpers.get_suffix(output_format), expected)
+                message, 'test.proto')
 
 
 if __name__ == '__main__':
