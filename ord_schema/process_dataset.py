@@ -46,9 +46,6 @@ flags.DEFINE_string('input_pattern', None,
                     'Pattern (glob) matching input Dataset protos.')
 flags.DEFINE_string('input_file', None,
                     'Filename containing Dataset proto filenames.')
-flags.DEFINE_enum('input_format', 'pbtxt',
-                  [f.value for f in message_helpers.MessageFormats],
-                  'Input message format.')
 flags.DEFINE_boolean('write_errors', False,
                      'If True, errors will be written to <filename>.error.')
 flags.DEFINE_string('output', None, 'Filename for output Dataset.')
@@ -190,7 +187,7 @@ def _get_output_filename(dataset_id):
     Returns:
         Text output Dataset filename.
     """
-    suffix = message_helpers.get_suffix(FLAGS.input_format)
+    suffix = message_helpers.MessageFormat()
     return os.path.join(
         FLAGS.root, 'data', dataset_id[:2], f'{dataset_id}{suffix}')
 
@@ -225,7 +222,7 @@ def main(argv):
     datasets = {}
     for filename in filenames:
         datasets[filename] = message_helpers.load_message(
-            filename, dataset_pb2.Dataset, FLAGS.input_format)
+            filename, dataset_pb2.Dataset)
     if FLAGS.validate:
         validate(datasets)
     if not FLAGS.update:
@@ -240,13 +237,17 @@ def main(argv):
     if FLAGS.output:
         output_filename = FLAGS.output
     else:
-        output_filename = _get_output_filename(combined.dataset_id)
+        _, suffix = os.path.splitext(filenames[0])
+        output_filename = os.path.join(
+            FLAGS.root,
+            'data',
+            combined.dataset_id[:2],
+            f'{combined.dataset_id}{suffix}')
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)
     if FLAGS.cleanup:
         cleanup(filenames, output_filename)
     logging.info('writing combined Dataset to %s', output_filename)
-    message_helpers.write_message(
-        combined, output_filename, FLAGS.input_format)
+    message_helpers.write_message(combined, output_filename)
 
 
 if __name__ == '__main__':

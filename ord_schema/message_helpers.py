@@ -300,21 +300,20 @@ def get_compound_smiles(compound):
     return None
 
 
-class MessageFormats(enum.Enum):
+class MessageFormat(enum.Enum):
     """Input/output types for protocol buffer messages."""
-    BINARY = 'binary'
-    JSON = 'json'
-    PBTXT = 'pbtxt'
+    BINARY = '.pb'
+    JSON = '.json'
+    PBTXT = '.pbtxt'
 
 
 # pylint: disable=inconsistent-return-statements
-def load_message(filename, message_type, input_format):
+def load_message(filename, message_type):
     """Loads a protocol buffer message from a file.
 
     Args:
         filename: Text filename containing a serialized protocol buffer message.
         message_type: google.protobuf.message.Message subclass.
-        input_format: MessageFormat or text MessageFormat value.
 
     Returns:
         Message object.
@@ -323,18 +322,19 @@ def load_message(filename, message_type, input_format):
         ValueError: if the message cannot be parsed, or if `input_format` is not
             supported.
     """
-    input_format = MessageFormats(input_format)
-    if input_format == MessageFormats.BINARY:
+    _, extension = os.path.splitext(filename)
+    input_format = MessageFormat(extension)
+    if input_format == MessageFormat.BINARY:
         mode = 'rb'
     else:
         mode = 'r'
     with open(filename, mode) as f:
         try:
-            if input_format == MessageFormats.JSON:
+            if input_format == MessageFormat.JSON:
                 return json_format.Parse(f.read(), message_type())
-            if input_format == MessageFormats.PBTXT:
+            if input_format == MessageFormat.PBTXT:
                 return text_format.Parse(f.read(), message_type())
-            if input_format == MessageFormats.BINARY:
+            if input_format == MessageFormat.BINARY:
                 return message_type.FromString(f.read())
         except (json_format.ParseError,
                 protobuf.message.DecodeError,
@@ -343,51 +343,26 @@ def load_message(filename, message_type, input_format):
 # pylint: enable=inconsistent-return-statements
 
 
-def write_message(message, filename, output_format):
+def write_message(message, filename):
     """Writes a protocol buffer message to disk.
 
     Args:
         message: Protocol buffer message.
         filename: Text output filename.
-        output_format: MessageFormat or text MessageFormat value.
 
     Raises:
         ValueError: if `filename` does not have the expected suffix.
     """
-    output_format = MessageFormats(output_format)
     _, extension = os.path.splitext(filename)
-    suffix = get_suffix(output_format)
-    if extension != suffix:
-        raise ValueError('filename does not have the expected suffix: '
-                         f'{filename} ({suffix})')
-    if output_format == MessageFormats.BINARY:
+    output_format = MessageFormat(extension)
+    if output_format == MessageFormat.BINARY:
         mode = 'wb'
     else:
         mode = 'w'
     with open(filename, mode) as f:
-        if output_format == MessageFormats.JSON:
+        if output_format == MessageFormat.JSON:
             f.write(json_format.MessageToJson(message))
-        elif output_format == MessageFormats.PBTXT:
+        elif output_format == MessageFormat.PBTXT:
             f.write(text_format.MessageToString(message))
-        elif output_format == MessageFormats.BINARY:
+        elif output_format == MessageFormat.BINARY:
             f.write(message.SerializeToString())
-
-
-# pylint: disable=inconsistent-return-statements
-def get_suffix(output_format):
-    """Returns the filename suffix for the given message format.
-
-    Args:
-        output_format: MessageFormat or text MessageFormat value.
-
-    Returns:
-        Text filename suffix (including the leading period).
-    """
-    output_format = MessageFormats(output_format)
-    if output_format == MessageFormats.BINARY:
-        return '.pb'
-    if output_format == MessageFormats.JSON:
-        return '.json'
-    if output_format == MessageFormats.PBTXT:
-        return '.pbtxt'
-# pylint: enable=inconsistent-return-statements
