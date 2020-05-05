@@ -7,6 +7,7 @@ from urllib import request
 import urllib.error
 from dateutil import parser
 
+from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 try:
@@ -169,6 +170,14 @@ def reaction_needs_internal_standard(message):
             if analysis.uses_internal_standard:
                 return True
     return False
+
+
+def validate_dataset(message):
+    if message.dataset_id:
+        # The dataset_id is a 32-character uuid4 hex string.
+        if not re.fullmatch('^[0-9a-f]{32}$', message.dataset_id):
+            warnings.warn('Dataset ID is malformed', ValidationError)
+    return message
 
 
 def validate_reaction(message):
@@ -657,6 +666,7 @@ def validate_data(message):
 # pylint: enable=missing-function-docstring
 
 _VALIDATOR_SWITCH = {
+    dataset_pb2.Dataset: validate_dataset,
     reaction_pb2.Reaction: validate_reaction,
     # Basics
     reaction_pb2.ReactionIdentifier: validate_reaction_identifier,
