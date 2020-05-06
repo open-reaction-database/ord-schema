@@ -39,7 +39,7 @@ def write_data(message, dirname, min_size=0.0, max_size=1.0):
         ValueError: if there is no value defined in `message` or if the value is
             larger than `max_size`.
     """
-    if not min_size <= max_size:
+    if min_size > max_size:
         raise ValueError('min_size must be less than or equal to max_size')
     kind = message.WhichOneof('kind')
     if kind == 'value':
