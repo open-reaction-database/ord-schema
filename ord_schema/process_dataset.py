@@ -36,6 +36,7 @@ from absl import app
 from absl import flags
 from absl import logging
 
+from ord_schema import data_storage
 from ord_schema import message_helpers
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
@@ -52,6 +53,10 @@ flags.DEFINE_string('output', None, 'Filename for output Dataset.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 flags.DEFINE_boolean('update', False, 'If True, update Reaction protos.')
 flags.DEFINE_boolean('cleanup', False, 'If True, use git to clean up.')
+flags.DEFINE_float('min_size', 0.1,
+                   'Minimum size (in MB) for offloading Data values.')
+flags.DEFINE_float('max_size', 100.0,
+                   'Maximum size (in MB) for offloading Data values.')
 
 
 def validate(datasets):
@@ -70,8 +75,8 @@ def validate(datasets):
                 with open(f'{filename}.error', 'w') as f:
                     for error in errors:
                         f.write(f'{error}\n')
-    # NOTE(kearnes): Run validation for all datasets before
-    # exiting if there are errors.
+    # NOTE(kearnes): We run validation for all datasets before exiting if there
+    # are errors.
     if all_errors:
         error_string = '\n'.join(all_errors)
         raise ValueError(f'validation encountered errors:\n{error_string}')
@@ -178,20 +183,6 @@ def _combine_datasets(datasets):
     return combined
 
 
-def _get_output_filename(dataset_id):
-    """Fetches or builds the output Dataset filename.
-
-    Args:
-        dataset_id: Text dataset ID; a uuid.uuid4() hex string.
-
-    Returns:
-        Text output Dataset filename.
-    """
-    suffix = message_helpers.MessageFormat()
-    return os.path.join(
-        FLAGS.root, 'data', dataset_id[:2], f'{dataset_id}{suffix}')
-
-
 def cleanup(filenames, output_filename):
     """Removes and/or renames the input Dataset files.
 
@@ -231,6 +222,12 @@ def main(argv):
     for dataset in datasets.values():
         for reaction in dataset.reactions:
             update_reaction(reaction)
+        # Offload large Data values.
+        data_storage.extract_data(
+            dataset,
+            FLAGS.root,
+            min_size=FLAGS.min_size,
+            max_size=FLAGS.max_size)
     combined = _combine_datasets(datasets)
     # Final validation to make sure we didn't break anything.
     validate({'_COMBINED': combined})

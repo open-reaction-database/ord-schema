@@ -144,7 +144,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         subprocess.run(['git', 'add', 'data'], check=True)
         subprocess.run(['git', 'commit', '-m', 'Initial commit'], check=True)
 
-    def _run_main(self):
+    def _run_main(self, **kwargs):
         subprocess.run(['git', 'add', '*.pbtxt', 'data/*/*.pbtxt'], check=True)
         changed = subprocess.run(['git', 'diff', '--name-only', '--staged'],
                                  check=True,
@@ -152,8 +152,13 @@ class SubmissionWorkflowTest(absltest.TestCase):
         with open('changed.txt', 'wb') as f:
             f.write(changed.stdout)
         subprocess.run(['git', 'commit', '-m', 'Submission'], check=True)
-        with flagsaver.flagsaver(
-                input_file='changed.txt', update=True, cleanup=True):
+        run_flags = {
+            'input_file': 'changed.txt',
+            'update': True,
+            'cleanup': True
+        }
+        run_flags.update(kwargs)
+        with flagsaver.flagsaver(**run_flags):
             process_dataset.main(())
         return glob.glob(
             os.path.join(self.test_subdirectory, '**/*.pbtxt'),
@@ -308,6 +313,56 @@ class SubmissionWorkflowTest(absltest.TestCase):
         message_helpers.write_message(dataset, self.dataset_filename)
         with self.assertRaisesRegex(ValueError, 'must be non-negative'):
             self._run_main()
+
+    def test_add_dataset_with_large_data(self):
+        reaction = reaction_pb2.Reaction()
+        ethylamine = reaction.inputs['ethylamine']
+        component = ethylamine.components.add()
+        component.identifiers.add(type='SMILES', value='CCN')
+        component.is_limiting = True
+        component.moles.value = 2
+        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        reaction.outcomes.add().conversion.value = 25
+        image = reaction.observations.add().image
+        image.bytes_value = b'test data value'
+        image.format = 'png'
+        dataset = dataset_pb2.Dataset(reactions=[reaction])
+        dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
+        message_helpers.write_message(dataset, dataset_filename)
+        filenames = self._run_main(min_size=0.0)
+        self.assertLen(filenames, 2)
+        filenames.pop(filenames.index(self.dataset_filename))
+        dataset = message_helpers.load_message(
+            filenames[0], dataset_pb2.Dataset)
+        relative_path = (
+            'data/36/ord_data-'
+            '36443a1839bf1160087422b7468a93c7b97dac7eea423bfac189208a15823139'
+            '.png')
+        expected = ('https://github.com/Open-Reaction-Database/'
+                    'ord-submissions-test/tree/' + relative_path)
+        self.assertEqual(dataset.reactions[0].observations[0].image.url,
+                         expected)
+        with open(os.path.join(self.test_subdirectory, relative_path),
+                  'rb') as f:
+            self.assertEqual(b'test data value', f.read())
+
+    def test_add_dataset_with_too_large_data(self):
+        reaction = reaction_pb2.Reaction()
+        ethylamine = reaction.inputs['ethylamine']
+        component = ethylamine.components.add()
+        component.identifiers.add(type='SMILES', value='CCN')
+        component.is_limiting = True
+        component.moles.value = 2
+        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        reaction.outcomes.add().conversion.value = 25
+        image = reaction.observations.add().image
+        image.bytes_value = b'test data value'
+        image.format = 'png'
+        dataset = dataset_pb2.Dataset(reactions=[reaction])
+        dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
+        message_helpers.write_message(dataset, dataset_filename)
+        with self.assertRaisesRegex(ValueError, 'larger than max_size'):
+            self._run_main(min_size=0.0, max_size=0.0)
 
 
 if __name__ == '__main__':
