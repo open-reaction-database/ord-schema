@@ -1,9 +1,7 @@
 """Helper functions for constructing Protocol Buffer messages."""
 
 import enum
-import hashlib
 import os
-import sys
 
 from google import protobuf
 from google.protobuf import json_format
@@ -18,9 +16,6 @@ try:
 except ImportError:
     Chem = None
     RDKIT_VERSION = None
-
-# Prefix for filenames that store reaction_pb2.Data values.
-DATA_PREFIX = 'ord_data'
 
 
 # pylint: disable=too-many-arguments
@@ -223,49 +218,6 @@ def find_submessages(message, submessage_type):
         else:
             submessages.extend(find_submessages(value, submessage_type))
     return submessages
-
-
-def write_data(message, dirname, min_size=0.0, max_size=1.0):
-    """Writes a Data value to a file.
-
-    If a value is a URL or is smaller than `min_size`, it is left unchanged.
-
-    Args:
-        message: Data message.
-        dirname: Text output directory.
-        min_size: Float minimum size of data before it will be written (in MB).
-        max_size: Float maximum size of data to write (in MB).
-
-    Returns:
-        Text filename containing the written data, or None if the value is a
-        URL or is smaller than `min_size`.
-
-    Raises:
-        ValueError: if there is no value defined in `message` or if the value is
-            larger than `max_size`.
-    """
-    kind = message.WhichOneof('kind')
-    if kind == 'value':
-        value = message.value.encode()  # Convert to bytes.
-    elif kind == 'bytes_value':
-        value = message.bytes_value
-    elif kind == 'url':
-        return None
-    else:
-        raise ValueError('no value to write')
-    value_size = sys.getsizeof(value) / 1e6
-    if value_size < min_size:
-        return None
-    if value_size > max_size:
-        raise ValueError(
-            f'value is larger than max_size ({value_size} vs {max_size}')
-    value_hash = hashlib.sha256(value).hexdigest()
-    suffix = message.format or 'txt'
-    basename = f'{DATA_PREFIX}-{value_hash}.{suffix}'
-    filename = os.path.join(dirname, basename)
-    with open(filename, 'wb') as f:
-        f.write(value)
-    return filename
 
 
 def get_compound_mol(compound):
