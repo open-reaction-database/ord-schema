@@ -126,4 +126,3 @@ schema in a Jupyter/Colab notebook. One example is
 We are in the process of creating interactive web forms that provide tools for
 creating structured data. We intend to host a public version of the form once it
 is ready and will release the underlying code under an Apache license.
-Database

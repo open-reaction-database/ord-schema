@@ -14,10 +14,3 @@ Welcome to the Open Reaction Database!
    schema
    submissions
    faq
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

@@ -7,7 +7,7 @@ the data shared by all other contributors as well. We view this sharing as no
 different from how we currently share data when we publish scientific articles,
 except the data will be available in an accessible, standardized format.
 
-## What if <institution> decides to stop participating in the initiative?
+## What if \<institution\> decides to stop participating in the initiative?
 
 The ORD is not reliant on the participation of any individual organization.
 However, hosting interfaces and tools to enhance its functionality requires

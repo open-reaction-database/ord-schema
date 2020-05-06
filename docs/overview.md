@@ -119,8 +119,10 @@ The submission workflow is described in detail [here](submissions.md).
 ## Development roadmap
 
 ![roadmap](images/roadmap.png)
+
+## Leadership
   
-## Governing Committee
+### Governing Committee
 
 The ORD is governed by a Governing Committee with representatives from many
 industrial and academic institutions. This committee reviews all aspects of the
@@ -135,7 +137,7 @@ committee is:
 * Klavs Jensen (MIT)
 * Steven Kearnes (Google)
 
-## Advisory Board
+### Advisory Board
 
 We are also in the process of forming an Advisory Board to include
 representatives from many institutions and industry segments. The primary role
