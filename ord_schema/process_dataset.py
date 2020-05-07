@@ -146,7 +146,7 @@ class FileStatus:
     status: str
 
     def __post_init__(self):
-        if self.status not in ['A', 'D', 'M']:
+        if self.status[0] not in ['A', 'D', 'M', 'R']:
             raise ValueError(f'unsupported file status: {self.status}')
 
 
