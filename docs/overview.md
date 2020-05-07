@@ -27,10 +27,10 @@ design". We aim to:
 
 We conducted a
 [survey](https://docs.google.com/spreadsheets/d/1waPzYvDKlb6TAwgsM7bLc7dhZnJ8G-WtVxJSlMhiVK0/edit#gid=585233854)
-in late 2019/early 2020 to help define the scope and use cases. The results are
-summarized here. With the help of 172 respondents, 93.5% of whom reported having
-a chemistry background and 20.8% a computer science background, we have
-established our focus on single-step organic reactions.
+in late 2019/early 2020 to help define the scope and use cases. With the help of
+172 respondents, 93.5% of whom reported having a chemistry background and 20.8%
+a computer science background, we have established our focus on single-step
+organic reactions.
 
 We aim to accommodate data relevant to medicinal chemistry, process chemistry,
 flow chemistry, photochemistry, and electrochemistry. Time-course data,
