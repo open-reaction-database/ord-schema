@@ -118,7 +118,7 @@ The submission workflow is described in detail [here](submissions.md).
 
 ## Development roadmap
 
-![roadmap](images/roadmap.png)
+![](images/roadmap.png)
 
 ## Leadership
   

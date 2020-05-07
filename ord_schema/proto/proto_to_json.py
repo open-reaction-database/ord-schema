@@ -20,6 +20,12 @@ flags.DEFINE_string('input', None, 'Input pattern (glob).')
 flags.DEFINE_string('output', None, 'Output filename (*.jsonl).')
 
 
+def encode_bytes(value):
+    """Encodes bytes values for BigQuery."""
+    # Decode to UTF8 since JSON does not support bytes.
+    return base64.b64encode(value).decode('utf-8')
+
+
 def get_processed_value(field, value):
     """Returns a processed field value.
 
@@ -36,8 +42,7 @@ def get_processed_value(field, value):
     if field.type == field.TYPE_ENUM:
         return field.enum_type.values_by_number[value].name
     if field.type == field.TYPE_BYTES:
-        # JSON does not support bytes.
-        return base64.b64encode(value).decode('utf-8')
+        return encode_bytes(value)
     return value
 
 
@@ -91,10 +96,11 @@ def main(argv):
     records = []
     for filename in filenames:
         dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
-        for reaction in dataset.reaction:
+        for reaction in dataset.reactions:
             record_dict = get_database_json(reaction)
             record_dict['_dataset_id'] = dataset.dataset_id
-            record_dict['_serialized'] = reaction.SerializeToString()
+            record_dict['_serialized'] = encode_bytes(
+                reaction.SerializeToString())
             records.append(json.dumps(record_dict))
     with open(FLAGS.output, 'w') as f:
         for record in records:
