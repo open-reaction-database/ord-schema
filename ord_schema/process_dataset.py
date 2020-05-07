@@ -167,7 +167,14 @@ def _get_inputs():
         inputs = []
         with open(FLAGS.input_file) as f:
             for line in f:
-                status, filename = line.strip().split()
+                fields = line.strip().split()
+                if len(fields) == 3:
+                    status, _, filename = fields
+                    if not status.startswith('R'):
+                        raise ValueError(
+                            f'malformed status line: {line.strip()}')
+                else:
+                    status, filename = fields
                 if status == 'D':
                     continue  # Nothing to do for deleted files.
                 inputs.append(FileStatus(filename, status))
