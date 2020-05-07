@@ -25,6 +25,7 @@ Example usage:
   $ python process_dataset.py --input_pattern="my_dataset-*.pb"
 """
 
+import dataclasses
 import datetime
 import glob
 import os
@@ -63,16 +64,16 @@ def validate(datasets):
     """Runs validation for a set of datasets.
 
     Args:
-        datasets: Dict mapping filenames to Dataset protos.
+        datasets: Dict mapping FileStatus objects to Dataset protos.
     """
     all_errors = []
-    for filename, dataset in datasets.items():
-        errors = _validate_dataset(filename, dataset)
+    for file_status, dataset in datasets.items():
+        errors = _validate_dataset(file_status.filename, dataset)
         if errors:
             for error in errors:
-                all_errors.append(f'{filename}: {error}')
+                all_errors.append(f'{file_status.filename}: {error}')
             if FLAGS.write_errors:
-                with open(f'{filename}.error', 'w') as f:
+                with open(f'{file_status.filename}.error', 'w') as f:
                     for error in errors:
                         f.write(f'{error}\n')
     # NOTE(kearnes): We run validation for all datasets before exiting if there
@@ -138,21 +139,46 @@ def update_reaction(reaction):
         datetime.datetime.utcnow().ctime())
 
 
-def _get_filenames():
+@dataclasses.dataclass(eq=True, frozen=True, order=True)
+class FileStatus:
+    """A filename and its status in Git."""
+    filename: str
+    status: str
+
+    def __post_init__(self):
+        if self.status[0] not in ['A', 'D', 'M', 'R']:
+            raise ValueError(f'unsupported file status: {self.status}')
+
+
+def _get_inputs():
     """Gets a list of Dataset proto filenames to process.
 
     Returns:
-        List of text filenames.
+        List of FileStatus objects.
     """
     if FLAGS.input_pattern and FLAGS.input_file:
         raise ValueError(
             'one of --input_pattern or --input_file is required, not both')
     if FLAGS.input_pattern:
         # Setting recursive=True allows recursive matching with '**'.
-        return glob.glob(FLAGS.input_pattern, recursive=True)
+        filenames = glob.glob(FLAGS.input_pattern, recursive=True)
+        return [FileStatus(filename, 'A') for filename in filenames]
     if FLAGS.input_file:
+        inputs = []
         with open(FLAGS.input_file) as f:
-            return [line.strip() for line in f]
+            for line in f:
+                fields = line.strip().split()
+                if len(fields) == 3:
+                    status, _, filename = fields
+                    if not status.startswith('R'):
+                        raise ValueError(
+                            f'malformed status line: {line.strip()}')
+                else:
+                    status, filename = fields
+                if status == 'D':
+                    continue  # Nothing to do for deleted files.
+                inputs.append(FileStatus(filename, status))
+        return inputs
     raise ValueError('one of --input_pattern or --input_file is required')
 
 
@@ -160,7 +186,7 @@ def _combine_datasets(datasets):
     """Combines multiple Dataset messages into a single Dataset.
 
     Args:
-        datasets: Dict mapping text filenames to Dataset messages.
+        datasets: Dict mapping FileStatus objects to Dataset messages.
 
     Returns:
         Combined Dataset message.
@@ -169,8 +195,8 @@ def _combine_datasets(datasets):
         ValueError: if the combined dataset ID is malformed.
     """
     combined = None
-    for key in sorted(datasets):
-        dataset = datasets[key]
+    for file_status in sorted(datasets):
+        dataset = datasets[file_status]
         if combined is None:
             combined = dataset
         else:
@@ -183,37 +209,37 @@ def _combine_datasets(datasets):
     return combined
 
 
-def cleanup(filenames, output_filename):
+def cleanup(inputs, output_filename):
     """Removes and/or renames the input Dataset files.
 
     Args:
-        filenames: List of text Dataset proto filenames; the input Datasets.
+        inputs: List of FileStatus objects; the input Datasets.
         output_filename: Text filename for the output Dataset.
     """
-    if len(filenames) == 1 and filenames[0] == output_filename:
+    if len(inputs) == 1 and inputs[0].filename == output_filename:
         logging.info('editing an existing dataset; no cleanup needed')
         return  # Reuse the existing dataset ID.
     # Branch the first input file...
-    args = ['git', 'mv', filenames[0], output_filename]
+    args = ['git', 'mv', inputs[0].filename, output_filename]
     logging.info('Running command: %s', ' '.join(args))
     subprocess.run(args, check=True)
     # ...and remove the others.
-    for filename in filenames[1:]:
-        args = ['git', 'rm', filename]
+    for file_status in inputs[1:]:
+        args = ['git', 'rm', file_status.filename]
         logging.info('Running command: %s', ' '.join(args))
         subprocess.run(args, check=True)
 
 
 def main(argv):
     del argv  # Only used by app.run().
-    filenames = sorted(_get_filenames())
-    if not filenames:
+    inputs = sorted(_get_inputs())
+    if not inputs:
         logging.info('nothing to do')
         return  # Nothing to do.
     datasets = {}
-    for filename in filenames:
-        datasets[filename] = message_helpers.load_message(
-            filename, dataset_pb2.Dataset)
+    for file_status in inputs:
+        datasets[file_status] = message_helpers.load_message(
+            file_status.filename, dataset_pb2.Dataset)
     if FLAGS.validate:
         validate(datasets)
     if not FLAGS.update:
@@ -230,11 +256,11 @@ def main(argv):
             max_size=FLAGS.max_size)
     combined = _combine_datasets(datasets)
     # Final validation to make sure we didn't break anything.
-    validate({'_COMBINED': combined})
+    validate({FileStatus('_COMBINED', 'A'): combined})
     if FLAGS.output:
         output_filename = FLAGS.output
     else:
-        _, suffix = os.path.splitext(filenames[0])
+        _, suffix = os.path.splitext(inputs[0].filename)
         output_filename = os.path.join(
             FLAGS.root,
             'data',
@@ -242,7 +268,7 @@ def main(argv):
             f'{combined.dataset_id}{suffix}')
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)
     if FLAGS.cleanup:
-        cleanup(filenames, output_filename)
+        cleanup(inputs, output_filename)
     logging.info('writing combined Dataset to %s', output_filename)
     message_helpers.write_message(combined, output_filename)
 

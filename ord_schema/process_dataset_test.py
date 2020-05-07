@@ -49,7 +49,7 @@ class ProcessDatasetTest(absltest.TestCase):
     def test_main_with_input_file(self):
         input_file = os.path.join(self.test_subdirectory, 'input_file.txt')
         with open(input_file, 'w') as f:
-            f.write(f'{self.dataset1_filename}\n')
+            f.write(f'A\t{self.dataset1_filename}\n')
         with flagsaver.flagsaver(input_file=input_file):
             process_dataset.main(())
 
@@ -146,7 +146,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
 
     def _run_main(self, **kwargs):
         subprocess.run(['git', 'add', '*.pbtxt', 'data/*/*.pbtxt'], check=True)
-        changed = subprocess.run(['git', 'diff', '--name-only', '--staged'],
+        changed = subprocess.run(['git', 'diff', '--name-status', '--staged'],
                                  check=True,
                                  capture_output=True)
         with open('changed.txt', 'wb') as f:
