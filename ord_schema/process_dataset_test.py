@@ -4,7 +4,6 @@ import glob
 import os
 import subprocess
 import tempfile
-import unittest
 
 from absl import flags
 from absl.testing import absltest
@@ -240,38 +239,6 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.assertEqual(dataset.reactions[0].provenance.record_id,
                          updated_dataset.reactions[0].provenance.record_id)
         self.assertNotEmpty(updated_dataset.reactions[1].provenance.record_id)
-
-    @unittest.skip('resolver is being migrated')
-    def test_resolver(self):
-        reaction = reaction_pb2.Reaction()
-        ethylamine = reaction.inputs['ethylamine']
-        component = ethylamine.components.add()
-        component.identifiers.add(type='NAME', value='ethylamine')
-        component.is_limiting = True
-        component.moles.value = 2
-        component.moles.units = reaction_pb2.Moles.MILLIMOLE
-        reaction.outcomes.add().conversion.value = 25
-        dataset = dataset_pb2.Dataset(reactions=[reaction])
-        dataset_filename = os.path.join(self.test_subdirectory,
-                                        'test.pbtxt')
-        message_helpers.write_message(dataset, dataset_filename)
-        filenames = self._run_main()
-        self.assertLen(filenames, 2)
-        self.assertFalse(os.path.exists(dataset_filename))
-        filenames.pop(filenames.index(self.dataset_filename))
-        self.assertLen(filenames, 1)
-        dataset = message_helpers.load_message(
-            filenames[0], dataset_pb2.Dataset)
-        self.assertLen(dataset.reactions, 1)
-        identifiers = (
-            dataset.reactions[0].inputs['ethylamine'].components[0].identifiers)
-        self.assertLen(identifiers, 3)
-        self.assertEqual(
-            identifiers[1],
-            reaction_pb2.CompoundIdentifier(
-                type='SMILES', value='CCN', details='NAME resolved by PubChem'))
-        self.assertEqual(identifiers[2].type,
-                         reaction_pb2.CompoundIdentifier.RDKIT_BINARY)
 
     def test_add_dataset_with_validation_errors(self):
         reaction = reaction_pb2.Reaction()
