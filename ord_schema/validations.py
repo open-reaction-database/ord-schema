@@ -15,14 +15,6 @@ except ImportError:
     Chem = None
     RDKIT_VERSION = None
 
-_COMPOUND_STRUCTURAL_IDENTIFIERS = [
-    reaction_pb2.CompoundIdentifier.SMILES,
-    reaction_pb2.CompoundIdentifier.INCHI,
-    reaction_pb2.CompoundIdentifier.MOLBLOCK,
-    reaction_pb2.CompoundIdentifier.CXSMILES,
-    reaction_pb2.CompoundIdentifier.XYZ,
-]
-
 
 # pylint: disable=too-many-branches
 # pylint: disable=too-many-nested-blocks
