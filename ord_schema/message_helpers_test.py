@@ -58,6 +58,15 @@ class FindSubmessagesTest(absltest.TestCase):
                 message, test_pb2.MapNested.Child),
             2)
 
+    def test_compounds(self):
+        message = reaction_pb2.Reaction()
+        message.inputs['test'].components.add().identifiers.add(
+            type='NAME', value='aspirin')
+        self.assertLen(
+            message_helpers.find_submessages(
+                message, reaction_pb2.Compound),
+            1)
+
 
 class BuildDataTest(absltest.TestCase):
 

@@ -26,7 +26,6 @@ Example usage:
 """
 
 import dataclasses
-import datetime
 import glob
 import os
 import re
@@ -39,6 +38,7 @@ from absl import logging
 
 from ord_schema import data_storage
 from ord_schema import message_helpers
+from ord_schema import updates
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 
@@ -114,29 +114,6 @@ def _validate_dataset(filename, dataset):
                  len(dataset.reactions),
                  num_bad_reactions)
     return errors
-
-
-def update_reaction(reaction):
-    """Updates a Reaction message.
-
-    Current updates:
-      * Sets record_id if not already set.
-
-    Args:
-        reaction: reaction_pb2.Reaction message.
-    """
-    if not reaction.provenance.HasField('record_created'):
-        reaction.provenance.record_created.time.value = (
-            datetime.datetime.utcnow().ctime())
-    # TODO(kearnes): There's more complexity here regarding record_id values
-    # that are set outside of the submission pipeline. It's not as simple as
-    # requiring them to be empty, since a submission may include edits to
-    # existing reactions.
-    if not reaction.provenance.record_id:
-        record_id = f'ord-{uuid.uuid4().hex}'
-        reaction.provenance.record_id = record_id
-    reaction.provenance.record_modified.add().time.value = (
-        datetime.datetime.utcnow().ctime())
 
 
 @dataclasses.dataclass(eq=True, frozen=True, order=True)
@@ -247,7 +224,7 @@ def main(argv):
         return  # Nothing else to do.
     for dataset in datasets.values():
         for reaction in dataset.reactions:
-            update_reaction(reaction)
+            updates.update_reaction(reaction)
         # Offload large Data values.
         data_storage.extract_data(
             dataset,
