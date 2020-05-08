@@ -4,6 +4,7 @@ import glob
 import os
 import subprocess
 import tempfile
+import unittest
 
 from absl import flags
 from absl.testing import absltest
@@ -240,6 +241,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
                          updated_dataset.reactions[0].provenance.record_id)
         self.assertNotEmpty(updated_dataset.reactions[1].provenance.record_id)
 
+    @unittest.skip('resolver is being migrated')
     def test_resolver(self):
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs['ethylamine']

@@ -3,8 +3,6 @@
 import math
 import re
 import warnings
-from urllib import request
-import urllib.error
 from dateutil import parser
 
 from ord_schema.proto import dataset_pb2
@@ -136,7 +134,6 @@ def ensure_details_specified_if_type_custom(message):
     if message.type == message.CUSTOM and not message.details:
         warnings.warn(f'Custom type defined for {type(message)}, '
                       'but details field is empty', ValidationError)
-    return message
 
 
 def reaction_has_internal_standard(message):
@@ -177,7 +174,6 @@ def validate_dataset(message):
         # The dataset_id is a 32-character uuid4 hex string.
         if not re.fullmatch('^[0-9a-f]{32}$', message.dataset_id):
             warnings.warn('Dataset ID is malformed', ValidationError)
-    return message
 
 
 def validate_reaction(message):
@@ -197,14 +193,12 @@ def validate_reaction(message):
         warnings.warn('If reaction conversion is specified, at least one '
                       'reaction input component must be labeled is_limiting',
                       ValidationError)
-    return message
 
 
 def validate_reaction_identifier(message):
     ensure_details_specified_if_type_custom(message)
     if not message.value and not message.bytes_value:
         warnings.warn('{bytes_}value must be set', ValidationError)
-    return message
 
 
 def validate_reaction_input(message):
@@ -215,95 +209,48 @@ def validate_reaction_input(message):
         if not component.WhichOneof('amount'):
             warnings.warn('Reaction input\'s components require an amount',
                           ValidationError)
-    return message
-
-
-def pubchem_resolve(value_type, value):
-    return request.urlopen('https://pubchem.ncbi.nlm.nih.gov/rest/pug'
-                           f'/compound/{value_type}/{value}/property/'
-                           'IsomericSMILES/txt').read().decode().strip()
 
 
 def validate_compound(message):
-    # pylint: disable=too-many-branches
     if len(message.identifiers) == 0:
         warnings.warn('Compounds must have at least one identifier',
                       ValidationError)
-
-    # If no structural identifiers have been used, iterate through available
-    # identifiers until we can resolve one to a SMILES string
-    if not any(identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS for
-               identifier in message.identifiers):
-        for identifier in message.identifiers:
-            if identifier.type == identifier.NAME:
-                try:
-                    smiles = pubchem_resolve('name', identifier.value)
-                    new_identifier = message.identifiers.add()
-                    new_identifier.type = new_identifier.SMILES
-                    new_identifier.value = smiles
-                    new_identifier.details = 'NAME resolved by PubChem'
-                    break
-                except urllib.error.HTTPError:
-                    pass
-
-    # Validate compound identifiers that can be parsed by RDKit. At the same
-    # time, create an RDKIT_BINARY identifier for the first valid structure
-    # that we are able to parse.
-    # TODO(ccoley) add more sources for RDKIT_BINARY
-    if Chem and not any(identifier.type == identifier.RDKIT_BINARY for
-                        identifier in message.identifiers):
-        mol = None
-        for identifier in message.identifiers:
-            this_mol = None
-
-            if Chem and identifier.type == identifier.SMILES:
-                this_mol = Chem.MolFromSmiles(identifier.value)
-                if this_mol is None:
-                    warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
-                                  f' SMILES identifier {identifier.value}',
-                                  ValidationError)
-            elif identifier.type == identifier.INCHI:
-                this_mol = Chem.MolFromInchi(identifier.value)
-                if this_mol is None:
-                    warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
-                                  f' InChI identifier {identifier.value}',
-                                  ValidationError)
-            elif identifier.type == identifier.MOLBLOCK:
-                this_mol = Chem.MolFromMolBlock(identifier.value)
-                if this_mol is None:
-                    warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
-                                  ' MolBlock identifier', ValidationError)
-
-            # If RDKit mol was not defined, define it with this resolved mol
-            mol = mol or this_mol
-
-        if mol is not None:
-            # TODO(ccoley) We will want to add more canonicalization,
-            # sanitization, etc., and separate this into its own function.
-            new_identifier = message.identifiers.add()
-            new_identifier.type = new_identifier.RDKIT_BINARY
-            new_identifier.bytes_value = mol.ToBinary()
-    # pylint: enable=too-many-branches
-
-    return message
+    if not Chem or any(identifier.type == identifier.RDKIT_BINARY
+                       for identifier in message.identifiers):
+        return
+    for identifier in message.identifiers:
+        if Chem and identifier.type == identifier.SMILES:
+            mol = Chem.MolFromSmiles(identifier.value)
+            if mol is None:
+                warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
+                              f' SMILES identifier {identifier.value}',
+                              ValidationError)
+        elif identifier.type == identifier.INCHI:
+            mol = Chem.MolFromInchi(identifier.value)
+            if mol is None:
+                warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
+                              f' InChI identifier {identifier.value}',
+                              ValidationError)
+        elif identifier.type == identifier.MOLBLOCK:
+            mol = Chem.MolFromMolBlock(identifier.value)
+            if mol is None:
+                warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
+                              ' MolBlock identifier', ValidationError)
 
 
 def validate_compound_feature(message):
     if not message.name:
         warnings.warn('Compound features must have names', ValidationError)
-    return message
 
 
 def validate_compound_preparation(message):
     ensure_details_specified_if_type_custom(message)
-    return message
 
 
 def validate_compound_identifier(message):
     ensure_details_specified_if_type_custom(message)
     if not message.value and not message.bytes_value:
         warnings.warn('{bytes_}value must be set', ValidationError)
-    return message
 
 
 def validate_vessel(message):
@@ -318,11 +265,10 @@ def validate_vessel(message):
             not message.preparation_details:
         warnings.warn('VesselPreparation custom, but no details provided',
                       ValidationError)
-    return message
 
 
 def validate_reaction_setup(message):
-    return message
+    pass
 
 
 def validate_reaction_conditions(message):
@@ -336,7 +282,6 @@ def validate_reaction_conditions(message):
                       'conditions_are_dynamic is False. If the conditions '
                       'cannot be fully captured by the schema, set to True.',
                       ValidationWarning)
-    return message
 
 
 def validate_temperature_conditions(message):
@@ -348,12 +293,10 @@ def validate_temperature_conditions(message):
         warnings.warn('Temperature setpoints should be specified; even if '
                       'using ambient conditions, estimate room temperature and '
                       'the precision of your estimate.', ValidationWarning)
-    return message
 
 
 def validate_temperature_measurement(message):
     ensure_details_specified_if_type_custom(message)
-    return message
 
 
 def validate_pressure_conditions(message):
@@ -365,12 +308,10 @@ def validate_pressure_conditions(message):
         warnings.warn(
             'Atmosphere custom, but no atmosphere_details provided',
             ValidationError)
-    return message
 
 
 def validate_pressure_measurement(message):
     ensure_details_specified_if_type_custom(message)
-    return message
 
 
 def validate_stirring_conditions(message):
@@ -378,39 +319,34 @@ def validate_stirring_conditions(message):
     if message.type == message.StirringMethod.CUSTOM and not message.details:
         warnings.warn('Stirring method custom, but no details provided',
                       ValidationError)
-    return message
 
 
 def validate_illumination_conditions(message):
     ensure_details_specified_if_type_custom(message)
-    return message
 
 
 def validate_electrochemistry_conditions(message):
     ensure_details_specified_if_type_custom(message)
-    return message
 
 
 def validate_electrochemistry_measurement(message):
-    return message
+    pass
 
 
 def validate_flow_conditions(message):
     ensure_details_specified_if_type_custom(message)
-    return message
 
 
 def validate_tubing(message):
     ensure_details_specified_if_type_custom(message)
-    return message
 
 
 def validate_reaction_notes(message):
-    return message
+    pass
 
 
 def validate_reaction_observation(message):
-    return message
+    pass
 
 
 def validate_reaction_workup(message):
@@ -445,7 +381,6 @@ def validate_reaction_workup(message):
             not message.target_ph):
         warnings.warn('pH adjustment workup missing target pH',
                       ValidationError)
-    return message
 
 
 def validate_reaction_outcome(message):
@@ -466,7 +401,6 @@ def validate_reaction_outcome(message):
     if not message.products and not message.HasField('conversion'):
         warnings.warn('No products or conversion are specified for reaction;'
                       ' at least one must be specified', ValidationError)
-    return message
 
 
 def validate_reaction_product(message):
@@ -474,7 +408,6 @@ def validate_reaction_product(message):
             not message.texture_details:
         warnings.warn(f'Custom texture defined for {type(message)}, '
                       'but texture_details field is empty', ValidationError)
-    return message
 
 
 def validate_selectivity(message):
@@ -485,7 +418,6 @@ def validate_selectivity(message):
             warnings.warn('EE selectivity values are 0-100, not fractions '
                           f'({message.value} used)', ValidationWarning)
     ensure_details_specified_if_type_custom(message)
-    return message
 
 
 def validate_date_time(message):
@@ -495,13 +427,11 @@ def validate_date_time(message):
         except parser.ParserError:
             warnings.warn(f'Could not parse DateTime string {message.value}',
                           ValidationError)
-    return message
 
 
 def validate_reaction_analysis(message):
     # TODO(ccoley): Will be lots to expand here if we add structured data.
     ensure_details_specified_if_type_custom(message)
-    return message
 
 
 def validate_reaction_provenance(message):
@@ -533,14 +463,12 @@ def validate_reaction_provenance(message):
         if not re.fullmatch('^ord-[0-9a-f]{32}$', message.record_id):
             warnings.warn('Record ID is malformed', ValidationError)
     # TODO(ccoley) could check if publication_url is valid, etc.
-    return message
 
 
 def validate_record_event(message):
     if not message.time.value:
         warnings.warn('RecordEvent must have `time` specified',
                       ValidationError)
-    return message
 
 
 def validate_person(message):
@@ -550,49 +478,42 @@ def validate_person(message):
                         message.orcid):
             warnings.warn('Invalid ORCID: Enter as 0000-0000-0000-0000',
                           ValidationError)
-    return message
 
 
 def validate_time(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
-    return message
 
 
 def validate_mass(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
-    return message
 
 
 def validate_moles(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
-    return message
 
 
 def validate_volume(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
-    return message
 
 
 def validate_concentration(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
-    return message
 
 
 def validate_pressure(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
-    return message
 
 
 def validate_temperature(message):
@@ -604,42 +525,36 @@ def validate_temperature(message):
         ensure_float_range(message, 'value', min_value=0)
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
-    return message
 
 
 def validate_current(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
-    return message
 
 
 def validate_voltage(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
-    return message
 
 
 def validate_length(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
-    return message
 
 
 def validate_wavelength(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
-    return message
 
 
 def validate_flow_rate(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_units_specified_if_value_defined(message)
-    return message
 
 
 def validate_percentage(message):
@@ -649,7 +564,6 @@ def validate_percentage(message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
     ensure_float_range(message, 'value', 0, 105)  # generous upper bound
-    return message
 
 
 def validate_data(message):
@@ -660,7 +574,6 @@ def validate_data(message):
     if message.bytes_value and not message.format:
         warnings.warn('Data format is required for bytes_data',
                       ValidationError)
-    return message
 
 
 # pylint: enable=missing-function-docstring
