@@ -268,7 +268,7 @@ def validate_vessel(message):
 
 
 def validate_reaction_setup(message):
-    pass
+    del message  # Unused.
 
 
 def validate_reaction_conditions(message):
@@ -330,7 +330,7 @@ def validate_electrochemistry_conditions(message):
 
 
 def validate_electrochemistry_measurement(message):
-    pass
+    del message  # Unused.
 
 
 def validate_flow_conditions(message):
@@ -342,11 +342,11 @@ def validate_tubing(message):
 
 
 def validate_reaction_notes(message):
-    pass
+    del message  # Unused.
 
 
 def validate_reaction_observation(message):
-    pass
+    del message  # Unused.
 
 
 def validate_reaction_workup(message):
