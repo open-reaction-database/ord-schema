@@ -3,17 +3,13 @@
 import math
 import re
 import warnings
+
 from dateutil import parser
+from rdkit import Chem
+from rdkit import __version__ as RDKIT_VERSION
 
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
-
-try:
-    from rdkit import Chem
-    from rdkit import __version__ as RDKIT_VERSION
-except ImportError:
-    Chem = None
-    RDKIT_VERSION = None
 
 
 # pylint: disable=too-many-branches
@@ -207,9 +203,10 @@ def validate_compound(message):
     if len(message.identifiers) == 0:
         warnings.warn('Compounds must have at least one identifier',
                       ValidationError)
-    if not Chem or any(identifier.type == identifier.RDKIT_BINARY
-                       for identifier in message.identifiers):
-        return
+    if all(identifier.type == identifier.NAME
+           for identifier in message.identifiers):
+        warnings.warn('Compounds should have more specific identifiers than '
+                      'NAME whenever possible', ValidationWarning)
     for identifier in message.identifiers:
         if Chem and identifier.type == identifier.SMILES:
             mol = Chem.MolFromSmiles(identifier.value)
@@ -228,6 +225,13 @@ def validate_compound(message):
             if mol is None:
                 warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
                               ' MolBlock identifier', ValidationError)
+        elif identifier.type == identifier.RDKIT_BINARY:
+            mol = Chem.Mol(identifier.bytes_value)
+            if mol is None:
+                warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
+                              ' RDKit Binary identifier',
+                              ValidationError)
+
 
 
 def validate_compound_feature(message):

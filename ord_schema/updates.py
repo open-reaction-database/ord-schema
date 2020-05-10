@@ -88,9 +88,14 @@ def add_binary_identifiers(message):
             elif identifier.type == identifier.MOLBLOCK:
                 mol = Chem.MolFromMolBlock(identifier.value)
             if mol is not None:
+                source = reaction_pb2.CompoundIdentifier.IdentifierType.Name(
+                    identifier.type)
                 compound.identifiers.add(
-                    bytes_value=mol.ToBinary(), type='RDKIT_BINARY')
+                    bytes_value=mol.ToBinary(),
+                    type='RDKIT_BINARY',
+                    details=f'Generated from {source}')
                 modified = True
+                break  # Only add one RDKIT_BINARY per Compound.
     return modified
 
 

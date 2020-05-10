@@ -29,8 +29,10 @@ class UpdatesTest(absltest.TestCase):
         self.assertTrue(updates.add_binary_identifiers(message))
         self.assertEqual(
             message.inputs['test'].components[0].identifiers[1],
-            reaction_pb2.CompoundIdentifier(type='RDKIT_BINARY',
-                                            bytes_value=mol.ToBinary()))
+            reaction_pb2.CompoundIdentifier(
+                type='RDKIT_BINARY',
+                bytes_value=mol.ToBinary(),
+                details='Generated from SMILES'))
 
 
 class UpdateReactionTest(absltest.TestCase):
