@@ -1,4 +1,4 @@
-"""Converts serialized protocol buffers to JSON.
+"""Converts serialized protocol buffers to JSON for use in BigQuery.
 
 The output is a JSON-lines file, where newlines are used to separate records.
 See http://jsonlines.org/ for more details.
@@ -12,15 +12,18 @@ from absl import app
 from absl import flags
 from absl import logging
 
-from google.protobuf import json_format
-from ord_schema.proto import reaction_pb2
+from ord_schema import message_helpers
+from ord_schema.proto import dataset_pb2
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('input', None, 'Input pattern (glob).')
 flags.DEFINE_string('output', None, 'Output filename (*.jsonl).')
-flags.DEFINE_boolean('database', False,
-                     'If True, maps will be treated as repeated values. '
-                     'This allows the JSON to be used as input to BigQuery.')
+
+
+def encode_bytes(value):
+    """Encodes bytes values for BigQuery."""
+    # Decode to UTF8 since JSON does not support bytes.
+    return base64.b64encode(value).decode('utf-8')
 
 
 def get_processed_value(field, value):
@@ -39,8 +42,7 @@ def get_processed_value(field, value):
     if field.type == field.TYPE_ENUM:
         return field.enum_type.values_by_number[value].name
     if field.type == field.TYPE_BYTES:
-        # JSON does not support bytes.
-        return base64.b64encode(value).decode('utf-8')
+        return encode_bytes(value)
     return value
 
 
@@ -90,20 +92,16 @@ def get_database_json(message):
 def main(argv):
     del argv  # Only used by app.run().
     filenames = glob.glob(FLAGS.input)
-    logging.info('Found %d records', len(filenames))
+    logging.info('Found %d datasets', len(filenames))
     records = []
     for filename in filenames:
-        with open(filename, 'rb') as f:
-            reaction = reaction_pb2.Reaction.FromString(f.read())
-        if FLAGS.database:
+        dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
+        for reaction in dataset.reactions:
             record_dict = get_database_json(reaction)
-            record = json.dumps(record_dict)
-        else:
-            record = json_format.MessageToJson(
-                reaction,
-                preserving_proto_field_name=True,
-                indent=None)
-        records.append(record)
+            record_dict['_dataset_id'] = dataset.dataset_id
+            record_dict['_serialized'] = encode_bytes(
+                reaction.SerializeToString())
+            records.append(json.dumps(record_dict))
     with open(FLAGS.output, 'w') as f:
         for record in records:
             f.write(f'{record}\n')
