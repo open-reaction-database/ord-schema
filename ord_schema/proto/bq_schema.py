@@ -63,6 +63,10 @@ def get_schema(message_descriptor):
 def main(argv):
     del argv  # Only used by app.run().
     schema = get_schema(reaction_pb2.Reaction.DESCRIPTOR)
+    # Add fields for the dataset ID.
+    schema.append({'name': '_dataset_id', 'type': 'STRING', 'mode': 'NULLABLE'})
+    # Add a field for the full serialized message.
+    schema.append({'name': '_serialized', 'type': 'BYTES', 'mode': 'NULLABLE'})
     with open(FLAGS.output, 'w') as f:
         json.dump(schema, f, indent=2)
 
