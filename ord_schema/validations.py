@@ -419,7 +419,7 @@ def validate_selectivity(message):
 def validate_date_time(message):
     if message.value:
         try:
-            message.value = parser.parse(message.value).ctime()
+            parser.parse(message.value).ctime()
         except parser.ParserError:
             warnings.warn(f'Could not parse DateTime string {message.value}',
                           ValidationError)
