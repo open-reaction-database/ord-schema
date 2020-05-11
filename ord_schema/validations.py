@@ -164,6 +164,15 @@ def validate_dataset(message):
             warnings.warn('Dataset ID is malformed', ValidationError)
 
 
+def validate_dataset_example(message):
+    if not message.description:
+        warnings.warn('DatasetExample.description is required', ValidationError)
+    if not message.url:
+        warnings.warn('DatasetExample.url is required', ValidationError)
+    if not message.HasField('created'):
+        warnings.warn('DatasetExample.created is required', ValidationError)
+
+
 def validate_reaction(message):
     if len(message.inputs) == 0:
         warnings.warn('Reactions should have at least 1 reaction input',
@@ -576,6 +585,7 @@ def validate_data(message):
 
 _VALIDATOR_SWITCH = {
     dataset_pb2.Dataset: validate_dataset,
+    dataset_pb2.DatasetExample: validate_dataset_example,
     reaction_pb2.Reaction: validate_reaction,
     # Basics
     reaction_pb2.ReactionIdentifier: validate_reaction_identifier,
