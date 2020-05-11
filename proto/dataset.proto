@@ -13,9 +13,17 @@ message Dataset {
   string description = 2;
   // List of Reaction messages that are part of this dataset.
   repeated Reaction reactions = 3;
-  // `scripts` may include code for extracting relevant features for machine
-  // learning, e.g. as part of the methods for a publication.
-  map<string, Data> scripts = 4;
+  // Examples of how to use the Dataset, e.g. in downstream applications.
+  repeated DatasetExample examples = 4;
   // Dataset ID assigned during the submission process.
   string dataset_id = 5;
+}
+
+// Metadata for an example of using a Dataset. For example, a DatasetExample
+// might include a URL for a colab/jupyter notebook or a blog post showing how
+// to use the Dataset in a downstream machine learning application.
+message DatasetExample {
+  string description = 1;
+  string url = 2;
+  RecordEvent example_created = 4;
 }
