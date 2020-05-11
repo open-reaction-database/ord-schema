@@ -25,5 +25,5 @@ message Dataset {
 message DatasetExample {
   string description = 1;
   string url = 2;
-  RecordEvent example_created = 4;
+  RecordEvent created = 3;
 }

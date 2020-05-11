@@ -615,7 +615,7 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.ReactionAnalysis: validate_reaction_analysis,
     # Metadata
     reaction_pb2.ReactionProvenance: validate_reaction_provenance,
-    reaction_pb2.ReactionProvenance.RecordEvent: validate_record_event,
+    reaction_pb2.RecordEvent: validate_record_event,
     reaction_pb2.Person: validate_person,
     # Units
     reaction_pb2.Time: validate_time,
