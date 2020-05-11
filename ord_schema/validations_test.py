@@ -4,6 +4,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 from ord_schema import validations
+from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 
@@ -183,6 +184,28 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
                 validations.ValidationError, 'format is required'):
             self._run_validation(message)
         message.value = 'test data'
+        self.assertEmpty(self._run_validation(message))
+
+    def test_dataset_bad_id(self):
+        message = dataset_pb2.Dataset(dataset_id='foo')
+        with self.assertRaisesRegex(
+                validations.ValidationError, 'malformed'):
+            self._run_validation(message)
+
+    def test_dataset_example(self):
+        message = dataset_pb2.DatasetExample()
+        with self.assertRaisesRegex(
+                validations.ValidationError, 'description is required'):
+            self._run_validation(message)
+        message.description = 'test example'
+        with self.assertRaisesRegex(
+                validations.ValidationError, 'url is required'):
+            self._run_validation(message)
+        message.url = 'example.com'
+        with self.assertRaisesRegex(
+                validations.ValidationError, 'created is required'):
+            self._run_validation(message)
+        message.created.time.value = '11 am'
         self.assertEmpty(self._run_validation(message))
 
 

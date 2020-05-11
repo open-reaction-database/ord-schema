@@ -20,9 +20,9 @@ package ord;
  */
 message Reaction {
   repeated ReactionIdentifier identifiers = 1;
-  // List of pure substances or mixtures that were added to the 
+  // List of pure substances or mixtures that were added to the
   // reaction vessel. This is a map, not a repeated, to simplify
-  // reaction templating through the use of keys. String keys are 
+  // reaction templating through the use of keys. String keys are
   // simple descriptions and are present only for convenience.
   map<string, ReactionInput> inputs = 2;
   ReactionSetup setup = 3;
@@ -96,13 +96,13 @@ message ReactionInput {
    */
   repeated Compound components = 1;
   /**
-   * Used to define order of addition. ReactionInputs with the same 
-   * addition_order were added simultaneously. One ReactionInput with a 
+   * Used to define order of addition. ReactionInputs with the same
+   * addition_order were added simultaneously. One ReactionInput with a
    * lower addition_order than another was added earlier in the procedure.
    * This field is 1-indexed.
    */
   int32 addition_order = 2;
-  // When the addition event took place in terms of the reaction time (or, 
+  // When the addition event took place in terms of the reaction time (or,
   // in the case of flow chemistry, the residence time).
   Time addition_time = 3;
   message AdditionSpeed {
@@ -144,8 +144,8 @@ message Compound {
   message ReactionRole {
     enum ReactionRoleType {
       UNSPECIFIED = 0;
-      // A reactant is any compound that contributes atoms to a desired or 
-      // observed product. 
+      // A reactant is any compound that contributes atoms to a desired or
+      // observed product.
       // TODO(ccoley) refine the documentation of this definition.
       REACTANT = 1;
       REAGENT = 2;
@@ -177,7 +177,7 @@ message Compound {
    * Compounds can accommodate any number of features. These may include simple
    * properties of the compound (e.g., molecular weight), heuristic estimates
    * of physical properties (e.g., ClogP), optimized geometries (e.g., through
-   * DFT), and calculated stereoselectronic descriptors. 
+   * DFT), and calculated stereoselectronic descriptors.
    */
   message Feature {
     string name = 1;
@@ -323,7 +323,7 @@ message ReactionConditions {
   FlowConditions flow = 6;
   bool reflux = 7;
   float pH = 8;
-  // Boolean to describe whether the conditions cannot be 
+  // Boolean to describe whether the conditions cannot be
   // represented by the static, single-step schema.
   bool conditions_are_dynamic = 9;
   // A catch-all string field for providing more information about
@@ -375,7 +375,7 @@ message PressureConditions {
       AMBIENT = 2;
       BALLOON = 3;
       SEALED = 4; // Fully sealed vessel (e.g., microwave vial).
-      SEPTUM_WITH_NEEDLE = 5;  // Slight positive pressure maintained 
+      SEPTUM_WITH_NEEDLE = 5;  // Slight positive pressure maintained
       RELEASEVALVE = 6;
       BPR = 7; // Back pressure regulator, as used in flow synthesis.
     }
@@ -546,7 +546,7 @@ message ReactionWorkup {
     // Concentration step, often using a rotovap.
     CONCENTRATION = 4;
     // Liquid extractions are often preceded by Additions. If there
-    // are multiple distinct additions prior to an extraction, it is 
+    // are multiple distinct additions prior to an extraction, it is
     // assumed that the kept phases are pooled.
     // Specify which phase to keep in "keep_phase".
     EXTRACTION = 5;
@@ -554,7 +554,7 @@ message ReactionWorkup {
     // Specify which phase to keep in "keep phase".
     FILTRATION = 6;
     // Washing a solid or liquid, keeping the original phase.
-    // Specify "components" of rinse. Rinses performed in 
+    // Specify "components" of rinse. Rinses performed in
     // multiple stages should be given multiple workup steps
     WASH = 7;
     // Dried under vacuum.
@@ -562,7 +562,7 @@ message ReactionWorkup {
     // Dried with chemical additive.
     // Specify chemical additive in "components".
     DRY_WITH_MATERIAL = 9;
-    // Purification by flash chromatography. 
+    // Purification by flash chromatography.
     FLASH_CHROMATOGRAPHY = 10;
     // Purification by other prep chromatography.
     OTHER_CHROMATOGRAPHY = 11;
@@ -589,7 +589,7 @@ message ReactionWorkup {
   string keep_phase = 6;
   StirringConditions stirring = 7;
   float target_ph = 8;
-  
+
 }
 
 /**
@@ -608,7 +608,7 @@ message ReactionOutcome {
   // Conversion with respect to the limiting reactant.
   Percentage conversion = 2;
   repeated ReactionProduct products = 3;
-  // Analyses are stored in a map to associate each with a unique key. 
+  // Analyses are stored in a map to associate each with a unique key.
   // The key is cross-referenced in ReactionProduct messages to indicate
   // which analyses were used to derive which performance values/metrics.
   // The string used for the key carries no meaning outside of this
@@ -628,11 +628,11 @@ message ReactionProduct {
   repeated string analysis_yield = 7;
   // Key(s) of the analysis used to assess purity.
   repeated string analysis_purity = 8;
-  // Key(s) of the analysis used to assess selectivity 
+  // Key(s) of the analysis used to assess selectivity
   repeated string analysis_selectivity = 9;
-  // TODO(ccoley): How to allow specification of the state of matter of the 
+  // TODO(ccoley): How to allow specification of the state of matter of the
   // purified compound? For example, "___ was recovered as a white powder in
-  // x% yield (y.z mg)". Or oils, crystal texture, etc. This is only relevant 
+  // x% yield (y.z mg)". Or oils, crystal texture, etc. This is only relevant
   // for compounds that are isolated.
   // TODO(kearnes): Should this be an Observation message?
   string isolated_color = 10;
@@ -715,12 +715,6 @@ message ReactionProvenance {
   string doi = 4;
   string patent = 5;
   string publication_url = 6;
-  // Metadata for the public database.
-  message RecordEvent {
-    DateTime time = 1;
-    Person person = 2;
-    string details = 3;
-  }
   RecordEvent record_created = 7;
   repeated RecordEvent record_modified = 8;
   // This is a unique ID field that the centralized database will write to.
@@ -732,6 +726,12 @@ message Person {
   string name = 2;
   string orcid = 3;
   string organization = 4;
+}
+
+message RecordEvent {
+  DateTime time = 1;
+  Person person = 2;
+  string details = 3;
 }
 
 /**
