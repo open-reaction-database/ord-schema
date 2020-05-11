@@ -1,15 +1,10 @@
-"""Tests for ord_schema.units."""
+"""Tests for ord_schema.validations."""
 
 from absl.testing import absltest
 from absl.testing import parameterized
 
 from ord_schema import validations
 from ord_schema.proto import reaction_pb2
-
-try:
-    from rdkit import Chem
-except ImportError:
-    Chem = None
 
 
 class ValidationsTest(parameterized.TestCase, absltest.TestCase):
@@ -169,31 +164,6 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message.record_id = record_id
         with self.assertRaisesRegex(validations.ValidationError, 'malformed'):
             validations.validate_message(message)
-
-    def test_compound_name_resolver(self):
-        message = reaction_pb2.Compound()
-        identifier = message.identifiers.add()
-        identifier.type = identifier.NAME
-        identifier.value = 'aspirin'
-        validations.validate_message(message)  # Message is modified in place.
-        self.assertEqual(
-            message.identifiers[1],
-            reaction_pb2.CompoundIdentifier(type='SMILES',
-                                            value='CC(=O)OC1=CC=CC=C1C(=O)O',
-                                            details='NAME resolved by PubChem'))
-
-    @absltest.skipIf(Chem is None, 'no rdkit')
-    def test_compound_rdkit_binary(self):
-        mol = Chem.MolFromSmiles('CC(=O)OC1=CC=CC=C1C(=O)O')
-        message = reaction_pb2.Compound()
-        identifier = message.identifiers.add()
-        identifier.type = identifier.SMILES
-        identifier.value = Chem.MolToSmiles(mol)
-        validations.validate_message(message)  # Message is modified in place.
-        self.assertEqual(
-            message.identifiers[1],
-            reaction_pb2.CompoundIdentifier(type='RDKIT_BINARY',
-                                            bytes_value=mol.ToBinary()))
 
     def test_data(self):
         message = reaction_pb2.Data()

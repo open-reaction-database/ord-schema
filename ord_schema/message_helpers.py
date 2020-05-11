@@ -210,6 +210,10 @@ def find_submessages(message, submessage_type):
                 continue
             if field_value.message_type.full_name == submessage_name:
                 submessages.extend(value.values())
+            else:
+                for submessage in value.values():
+                    submessages.extend(
+                        find_submessages(submessage, submessage_type))
         elif field.label == field.LABEL_REPEATED:
             # Standard repeated field.
             for submessage in value:
