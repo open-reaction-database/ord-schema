@@ -213,6 +213,33 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.assertFalse(os.path.exists(dataset1_filename))
         self.assertFalse(os.path.exists(dataset2_filename))
 
+    def test_add_dataset_with_existing_record_ids(self):
+        reaction = reaction_pb2.Reaction()
+        ethylamine = reaction.inputs['ethylamine']
+        component = ethylamine.components.add()
+        component.identifiers.add(type='SMILES', value='CCN')
+        component.is_limiting = True
+        component.moles.value = 2
+        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        reaction.outcomes.add().conversion.value = 25
+        record_id = 'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'
+        reaction.provenance.record_id = record_id
+        reaction.provenance.record_created.time.value = '2020-01-01 11 am'
+        dataset = dataset_pb2.Dataset(reactions=[reaction])
+        dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
+        message_helpers.write_message(dataset, dataset_filename)
+        filenames = self._run_main()
+        self.assertLen(filenames, 2)
+        self.assertFalse(os.path.exists(dataset_filename))
+        filenames.pop(filenames.index(self.dataset_filename))
+        self.assertLen(filenames, 1)
+        dataset = message_helpers.load_message(
+            filenames[0], dataset_pb2.Dataset)
+        # Check that existing record IDs for added datasets are overridden.
+        self.assertNotEqual(dataset.reactions[0].provenance.record_id,
+                            record_id)
+        self.assertLen(dataset.reactions[0].provenance.record_modified, 1)
+
     def test_modify_dataset(self):
         dataset = message_helpers.load_message(
             self.dataset_filename, dataset_pb2.Dataset)

@@ -41,6 +41,7 @@ class UpdateReactionTest(absltest.TestCase):
         message = reaction_pb2.Reaction()
         updates.update_reaction(message)
         self.assertNotEqual(message, reaction_pb2.Reaction())
+        self.assertLen(message.provenance.record_modified, 1)
 
     def test_with_no_updates(self):
         message = reaction_pb2.Reaction()
@@ -48,13 +49,12 @@ class UpdateReactionTest(absltest.TestCase):
         message.provenance.record_id = 'ord-test'
         copied = reaction_pb2.Reaction()
         copied.CopyFrom(message)
-        updates.update_reaction(copied)
+        updates.update_reaction(copied, status='M')
         self.assertEqual(copied, message)
 
     def test_with_resolve_names(self):
         reaction = reaction_pb2.Reaction()
-        ethylamine = reaction.inputs['ethylamine']
-        component = ethylamine.components.add()
+        component = reaction.inputs['ethylamine'].components.add()
         component.identifiers.add(type='NAME', value='ethylamine')
         updates.update_reaction(reaction)
         self.assertLen(component.identifiers, 2)
@@ -62,6 +62,27 @@ class UpdateReactionTest(absltest.TestCase):
             component.identifiers[1],
             reaction_pb2.CompoundIdentifier(
                 type='SMILES', value='CCN', details='NAME resolved by PubChem'))
+
+    def test_record_id_for_add(self):
+        message = reaction_pb2.Reaction()
+        updates.update_reaction(message)
+        self.assertNotEmpty(message.provenance.record_id)
+        self.assertLen(message.provenance.record_modified, 1)
+
+    def test_override_existing_record_id(self):
+        message = reaction_pb2.Reaction()
+        message.provenance.record_id = 'foo'
+        updates.update_reaction(message)
+        self.assertNotEqual(message.provenance.record_id, 'foo')
+        self.assertLen(message.provenance.record_modified, 1)
+
+    def test_existing_record_id_modify(self):
+        message = reaction_pb2.Reaction()
+        message.provenance.record_id = 'foo'
+        message.provenance.record_created.time.value = '11 am'
+        updates.update_reaction(message, status='M')
+        self.assertEqual(message.provenance.record_id, 'foo')
+        self.assertLen(message.provenance.record_modified, 0)
 
 
 if __name__ == '__main__':

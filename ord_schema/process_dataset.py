@@ -222,9 +222,9 @@ def main(argv):
     if not FLAGS.update:
         logging.info('nothing else to do; use --update for more')
         return  # Nothing else to do.
-    for dataset in datasets.values():
+    for file_status, dataset in datasets.items():
         for reaction in dataset.reactions:
-            updates.update_reaction(reaction)
+            updates.update_reaction(reaction, file_status.status)
         # Offload large Data values.
         data_storage.extract_data(
             dataset,

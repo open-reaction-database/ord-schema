@@ -4,6 +4,7 @@ import datetime
 import urllib
 import uuid
 
+from absl import logging
 from rdkit import Chem
 
 from ord_schema import message_helpers
@@ -55,8 +56,10 @@ def resolve_names(message):
                     new_identifier.details = 'NAME resolved by PubChem'
                     modified = True
                     break
-                except urllib.error.HTTPError:
-                    pass
+                except urllib.error.HTTPError as error:
+                    logging.info('PubChem could not resolve NAME %s: %s',
+                                 identifier.value,
+                                 error)
     return modified
 
 
@@ -99,7 +102,7 @@ def add_binary_identifiers(message):
     return modified
 
 
-def update_reaction(reaction):
+def update_reaction(reaction, status='A'):
     """Updates a Reaction message.
 
     Current updates:
@@ -107,24 +110,30 @@ def update_reaction(reaction):
 
     Args:
         reaction: reaction_pb2.Reaction message.
+        status: Text git status for the containing Dataset file.
     """
-    # NOTE(kearnes): Provenance updates do not trigger "modified" events.
+    modified = False
     if not reaction.provenance.HasField('record_created'):
         reaction.provenance.record_created.time.value = (
             datetime.datetime.utcnow().ctime())
-    # TODO(kearnes): There's more complexity here regarding record_id values
-    # that are set outside of the submission pipeline. It's not as simple as
-    # requiring them to be empty, since a submission may include edits to
-    # existing reactions.
-    if not reaction.provenance.record_id:
+        modified = True
+    if not reaction.provenance.record_id or status == 'A':
+        # NOTE(kearnes): This does not check for the case where a Dataset is
+        # edited and record_id values are changed inappropriately. This will
+        # need to be either (1) caught in review or (2) found by a complex
+        # check of the diff.
         record_id = f'ord-{uuid.uuid4().hex}'
         reaction.provenance.record_id = record_id
-    modified = False
+        modified = True
     for func in _UPDATES:
-        modified = modified or func(reaction)
+        # NOTE(kearnes): Order is important here; if you write
+        # `modified or func(reaction)` and modified is True, the interpreter
+        # will skip the evaluation of func(reaction).
+        modified = func(reaction) or modified
     if modified:
-        reaction.provenance.record_modified.add().time.value = (
-            datetime.datetime.utcnow().ctime())
+        event = reaction.provenance.record_modified.add()
+        event.time.value = datetime.datetime.utcnow().ctime()
+        event.details = 'Automatic updates from the submission pipeline.'
 
 
 # Standard updates.
