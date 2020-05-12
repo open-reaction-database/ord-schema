@@ -49,7 +49,7 @@ class UpdateReactionTest(absltest.TestCase):
         message.provenance.record_id = 'ord-test'
         copied = reaction_pb2.Reaction()
         copied.CopyFrom(message)
-        updates.update_reaction(copied, status='M')
+        updates.update_reaction(copied)
         self.assertEqual(copied, message)
 
     def test_with_resolve_names(self):
@@ -63,24 +63,17 @@ class UpdateReactionTest(absltest.TestCase):
             reaction_pb2.CompoundIdentifier(
                 type='SMILES', value='CCN', details='NAME resolved by PubChem'))
 
-    def test_record_id_for_add(self):
+    def test_add_record_id(self):
         message = reaction_pb2.Reaction()
         updates.update_reaction(message)
         self.assertNotEmpty(message.provenance.record_id)
         self.assertLen(message.provenance.record_modified, 1)
 
-    def test_override_existing_record_id(self):
-        message = reaction_pb2.Reaction()
-        message.provenance.record_id = 'foo'
-        updates.update_reaction(message)
-        self.assertNotEqual(message.provenance.record_id, 'foo')
-        self.assertLen(message.provenance.record_modified, 1)
-
-    def test_existing_record_id_modify(self):
+    def test_keep_existing_record_id(self):
         message = reaction_pb2.Reaction()
         message.provenance.record_id = 'foo'
         message.provenance.record_created.time.value = '11 am'
-        updates.update_reaction(message, status='M')
+        updates.update_reaction(message)
         self.assertEqual(message.provenance.record_id, 'foo')
         self.assertLen(message.provenance.record_modified, 0)
 

@@ -19,6 +19,18 @@ except ImportError:
     Chem = None
 
 
+class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
+
+    @parameterized.parameters(
+        ('ord-1234567890', 'data/12/ord-1234567890'),
+        ('test/ord-foo.pbtxt', 'data/fo/ord-foo.pbtxt'),
+        ('ord_dataset-f00.pbtxt', 'data/f0/ord_dataset-f00.pbtxt'),
+        ('ord_data-123456foo7.jpg', 'data/12/ord_data-123456foo7.jpg')
+    )
+    def test_id_filename(self, filename, expected):
+        self.assertEqual(message_helpers.id_filename(filename), expected)
+
+
 class FindSubmessagesTest(absltest.TestCase):
 
     def test_scalar(self):

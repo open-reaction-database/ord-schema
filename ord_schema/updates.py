@@ -102,7 +102,7 @@ def add_binary_identifiers(message):
     return modified
 
 
-def update_reaction(reaction, status='A'):
+def update_reaction(reaction):
     """Updates a Reaction message.
 
     Current updates:
@@ -110,14 +110,13 @@ def update_reaction(reaction, status='A'):
 
     Args:
         reaction: reaction_pb2.Reaction message.
-        status: Text git status for the containing Dataset file.
     """
     modified = False
     if not reaction.provenance.HasField('record_created'):
         reaction.provenance.record_created.time.value = (
             datetime.datetime.utcnow().ctime())
         modified = True
-    if not reaction.provenance.record_id or status == 'A':
+    if not reaction.provenance.record_id:
         # NOTE(kearnes): This does not check for the case where a Dataset is
         # edited and record_id values are changed inappropriately. This will
         # need to be either (1) caught in review or (2) found by a complex

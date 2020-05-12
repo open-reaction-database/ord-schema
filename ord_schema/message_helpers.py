@@ -296,6 +296,8 @@ def load_message(filename, message_type):
                 protobuf.message.DecodeError,
                 text_format.ParseError) as error:
             raise ValueError(f'error parsing {filename}: {error}')
+
+
 # pylint: enable=inconsistent-return-statements
 
 
@@ -322,3 +324,20 @@ def write_message(message, filename):
             f.write(text_format.MessageToString(message))
         elif output_format == MessageFormat.BINARY:
             f.write(message.SerializeToString())
+
+
+def id_filename(filename):
+    """Converts a filename into a relative path for the repository.
+
+    Args:
+        filename: Text basename including an ID.
+
+    Returns:
+        Text filename relative to the root of the repository.
+    """
+    basename = os.path.basename(filename)
+    prefix, suffix = basename.split('-')
+    if not prefix.startswith('ord'):
+        raise ValueError(
+            'basename does not have the required "ord" prefix: {basename}')
+    return os.path.join('data', suffix[:2], basename)

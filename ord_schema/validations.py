@@ -160,7 +160,7 @@ def reaction_needs_internal_standard(message):
 def validate_dataset(message):
     if message.dataset_id:
         # The dataset_id is a 32-character uuid4 hex string.
-        if not re.fullmatch('^[0-9a-f]{32}$', message.dataset_id):
+        if not re.fullmatch('^ord_dataset-[0-9a-f]{32}$', message.dataset_id):
             warnings.warn('Dataset ID is malformed', ValidationError)
 
 

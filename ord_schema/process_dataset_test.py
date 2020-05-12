@@ -85,19 +85,6 @@ class ProcessDatasetTest(absltest.TestCase):
             with self.assertRaisesRegex(ValueError, 'not both'):
                 process_dataset.main(())
 
-    def test_bad_dataset_id(self):
-        dataset = dataset_pb2.Dataset(
-            reactions=[reaction_pb2.Reaction()],
-            dataset_id='not-a-real-dataset-id')
-        filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
-        message_helpers.write_message(dataset, filename)
-        with flagsaver.flagsaver(root=self.test_subdirectory,
-                                 input_pattern=filename,
-                                 validate=False,
-                                 update=True):
-            with self.assertRaisesRegex(ValueError, 'malformed dataset ID'):
-                process_dataset.main(())
-
 
 class SubmissionWorkflowTest(absltest.TestCase):
     """Test suite for the ORD submission workflow.
@@ -129,7 +116,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         reaction.outcomes.add().conversion.value = 75
         reaction.provenance.record_created.time.value = '2020-01-01'
         reaction.provenance.record_id = 'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'
-        dataset_id = '64b14868c5cd46dd8e75560fd3589a6b'
+        dataset_id = 'ord_dataset-64b14868c5cd46dd8e75560fd3589a6b'
         dataset = dataset_pb2.Dataset(reactions=[reaction],
                                       dataset_id=dataset_id)
         # Make sure the initial dataset is valid.
@@ -138,7 +125,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.dataset_filename = os.path.join(
             self.test_subdirectory,
             'data',
-            f'{dataset_id[:2]}',
+            '64',
             f'{dataset_id}.pbtxt')
         message_helpers.write_message(dataset, self.dataset_filename)
         subprocess.run(['git', 'add', 'data'], check=True)
@@ -235,10 +222,10 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.assertLen(filenames, 1)
         dataset = message_helpers.load_message(
             filenames[0], dataset_pb2.Dataset)
-        # Check that existing record IDs for added datasets are overridden.
-        self.assertNotEqual(dataset.reactions[0].provenance.record_id,
-                            record_id)
-        self.assertLen(dataset.reactions[0].provenance.record_modified, 1)
+        # Check that existing record IDs for added datasets are not overridden.
+        self.assertEqual(dataset.reactions[0].provenance.record_id,
+                         record_id)
+        self.assertLen(dataset.reactions[0].provenance.record_modified, 0)
 
     def test_modify_dataset(self):
         dataset = message_helpers.load_message(
