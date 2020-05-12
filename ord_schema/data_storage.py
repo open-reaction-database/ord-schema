@@ -10,6 +10,8 @@ import sys
 import tempfile
 import urllib
 
+from absl import logging
+
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
 
@@ -32,8 +34,9 @@ def write_data(message, dirname, min_size=0.0, max_size=1.0):
         max_size: Float maximum size of data to write (in MB).
 
     Returns:
-        Text filename containing the written data, or None if the value is a
-        URL or is smaller than `min_size`.
+        filename: Text filename containing the written data, or None if the
+            value is a URL or is smaller than `min_size`.
+        value_size: Float value size in MB, or None if no value was written.
 
     Raises:
         ValueError: if there is no value defined in `message` or if the value is
@@ -47,12 +50,12 @@ def write_data(message, dirname, min_size=0.0, max_size=1.0):
     elif kind == 'bytes_value':
         value = message.bytes_value
     elif kind == 'url':
-        return None
+        return None, None
     else:
         raise ValueError('no value to write')
     value_size = sys.getsizeof(value) / 1e6
     if value_size < min_size:
-        return None
+        return None, None
     if value_size > max_size:
         raise ValueError(
             f'value is larger than max_size ({value_size} vs {max_size}')
@@ -62,7 +65,7 @@ def write_data(message, dirname, min_size=0.0, max_size=1.0):
     filename = os.path.join(dirname, basename)
     with open(filename, 'wb') as f:
         f.write(value)
-    return filename
+    return filename, value_size
 
 
 def extract_data(message, root, min_size=0.0, max_size=1.0):
@@ -91,12 +94,16 @@ def extract_data(message, root, min_size=0.0, max_size=1.0):
         root: Text root of the repository.
         min_size: Float minimum size of data before it will be written (in MB).
         max_size: Float maximum size of data to write (in MB).
+
+    Returns:
+        List of text filenames; the generated Data files.
     """
     dirname = tempfile.mkdtemp()
     data_messages = message_helpers.find_submessages(
         message, reaction_pb2.Data)
+    filenames = []
     for data_message in data_messages:
-        data_filename = write_data(
+        data_filename, data_size = write_data(
             data_message,
             dirname,
             min_size=min_size,
@@ -112,3 +119,6 @@ def extract_data(message, root, min_size=0.0, max_size=1.0):
             os.rename(data_filename, with_root)
             data_message.url = urllib.parse.urljoin(
                 DATA_URL_PREFIX, output_filename)
+            logging.info('Created Data file (%g MB): %s', data_size, with_root)
+            filenames.append(with_root)
+    return filenames
