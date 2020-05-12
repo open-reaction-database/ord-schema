@@ -110,10 +110,7 @@ def extract_data(message, root, min_size=0.0, max_size=1.0):
             max_size=max_size)
         if data_filename:
             basename = os.path.basename(data_filename)
-            output_filename = os.path.join(
-                'data',
-                basename[len(DATA_PREFIX):len(DATA_PREFIX) + 2],
-                basename)
+            output_filename = message_helpers.id_filename(basename)
             with_root = os.path.join(root, output_filename)
             os.makedirs(os.path.dirname(with_root), exist_ok=True)
             os.rename(data_filename, with_root)

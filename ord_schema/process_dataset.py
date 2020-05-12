@@ -28,7 +28,6 @@ Example usage:
 import dataclasses
 import glob
 import os
-import re
 import subprocess
 import uuid
 
@@ -178,11 +177,8 @@ def _combine_datasets(datasets):
             combined = dataset
         else:
             combined.reactions.extend(dataset.reactions)
-    if len(datasets) > 1 or not combined.dataset_id:
-        combined.dataset_id = uuid.uuid4().hex
-    # Sanity check the dataset ID.
-    if not re.fullmatch('^[0-9a-f]{32}$', combined.dataset_id):
-        raise ValueError(f'malformed dataset ID: {combined.dataset_id}')
+    if not combined.dataset_id or len(datasets) > 1:
+        combined.dataset_id = f'ord_dataset-{uuid.uuid4().hex}'
     return combined
 
 
@@ -224,7 +220,7 @@ def main(argv):
         return  # Nothing else to do.
     for file_status, dataset in datasets.items():
         for reaction in dataset.reactions:
-            updates.update_reaction(reaction, file_status.status)
+            updates.update_reaction(reaction)
         # Offload large Data values.
         data_filenames = data_storage.extract_data(
             dataset,
@@ -244,9 +240,7 @@ def main(argv):
         _, suffix = os.path.splitext(inputs[0].filename)
         output_filename = os.path.join(
             FLAGS.root,
-            'data',
-            combined.dataset_id[:2],
-            f'{combined.dataset_id}{suffix}')
+            message_helpers.id_filename(f'{combined.dataset_id}{suffix}'))
     os.makedirs(os.path.dirname(output_filename), exist_ok=True)
     if FLAGS.cleanup:
         cleanup(inputs, output_filename)
