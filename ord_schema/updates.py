@@ -112,11 +112,11 @@ def update_reaction(reaction, status='A'):
         reaction: reaction_pb2.Reaction message.
         status: Text git status for the containing Dataset file.
     """
-    modified = False
     if not reaction.provenance.HasField('record_created'):
+        # NOTE(kearnes): This does not trigger a "modified" event.
         reaction.provenance.record_created.time.value = (
             datetime.datetime.utcnow().ctime())
-        modified = True
+    modified = False
     if not reaction.provenance.record_id or status == 'A':
         # NOTE(kearnes): This does not check for the case where a Dataset is
         # edited and record_id values are changed inappropriately. This will
