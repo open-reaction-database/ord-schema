@@ -226,11 +226,15 @@ def main(argv):
         for reaction in dataset.reactions:
             updates.update_reaction(reaction, file_status.status)
         # Offload large Data values.
-        data_storage.extract_data(
+        data_filenames = data_storage.extract_data(
             dataset,
             FLAGS.root,
             min_size=FLAGS.min_size,
             max_size=FLAGS.max_size)
+        if data_filenames:
+            args = ['git', 'add'] + data_filenames
+            logging.info('Running command: %s', ' '.join(args))
+            subprocess.run(args, check=True)
     combined = _combine_datasets(datasets)
     # Final validation to make sure we didn't break anything.
     validate({FileStatus('_COMBINED', 'A'): combined})

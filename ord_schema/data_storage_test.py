@@ -19,20 +19,22 @@ class WriteDataTest(absltest.TestCase):
 
     def test_string_value(self):
         message = reaction_pb2.Data(value='test value')
-        filename = data_storage.write_data(message, self.test_subdirectory)
+        filename, data_size = data_storage.write_data(
+            message, self.test_subdirectory)
         expected = os.path.join(
             self.test_subdirectory,
             'ord_data-'
             '47d1d8273710fd6f6a5995fac1a0983fe0e8828c288e35e80450ddc5c4412def'
             '.txt')
         self.assertEqual(filename, expected)
+        self.assertAlmostEqual(data_size, 0.000043)
         # NOTE(kearnes): Open with 'r' to get the decoded string.
         with open(filename, 'r') as f:
             self.assertEqual(message.value, f.read())
 
     def test_bytes_value(self):
         message = reaction_pb2.Data(bytes_value=b'test value')
-        filename = data_storage.write_data(message, self.test_subdirectory)
+        filename, _ = data_storage.write_data(message, self.test_subdirectory)
         expected = os.path.join(
             self.test_subdirectory,
             'ord_data-'
@@ -44,8 +46,8 @@ class WriteDataTest(absltest.TestCase):
 
     def test_url_value(self):
         message = reaction_pb2.Data(url='test value')
-        self.assertIsNone(
-            data_storage.write_data(message, self.test_subdirectory))
+        filename, _ = data_storage.write_data(message, self.test_subdirectory)
+        self.assertIsNone(filename)
 
     def test_missing_value(self):
         message = reaction_pb2.Data()
@@ -60,9 +62,9 @@ class WriteDataTest(absltest.TestCase):
 
     def test_min_size(self):
         message = reaction_pb2.Data(value='test_value')
-        self.assertIsNone(
-            data_storage.write_data(
-                message, self.test_subdirectory, min_size=1.0))
+        filename, _ = data_storage.write_data(
+            message, self.test_subdirectory, min_size=1.0)
+        self.assertIsNone(filename)
 
     def test_max_size(self):
         message = reaction_pb2.Data(value='test value')
