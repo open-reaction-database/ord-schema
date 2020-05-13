@@ -241,8 +241,8 @@ def validate_reaction(message):
     if len(message.outcomes) == 0:
         warnings.warn('Reactions should have at least 1 reaction outcome',
                       ValidationError)
-    if (reaction_needs_internal_standard(message) and not
-    reaction_has_internal_standard(message)):
+    if (reaction_needs_internal_standard(message)
+            and not reaction_has_internal_standard(message)):
         warnings.warn('Reaction analysis uses an internal standard, but no '
                       'component (as reaction input or workup) uses the '
                       'reaction role INTERNAL_STANDARD', ValidationError)
