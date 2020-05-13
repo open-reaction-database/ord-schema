@@ -104,6 +104,32 @@ for storage efficiency and speed. Archived snapshots of the repository will
 convert examples to a human-readable format so that the data are more
 immediately accessible.
 
+### GitHub
+
+The official Open Reaction Database repository is located at 
+_Coming soon!_
+
+```eval_rst
+.. NOTE::
+   We use `Git LFS <https://git-lfs.github.com/>`_ for storing large files such
+   as images and raw analytical data. If you want to access these files locally,
+   you'll need to install Git LFS before cloning the repository.
+```
+
+If you are planning to make submissions to the database, you should start by
+[creating a fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo)
+of the ORD repository on GitHub. Otherwise, you can simply
+[clone](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository)
+the repository directly.
+
+You may also want to use `--depth` to create a 
+[shallow clone](https://git-scm.com/docs/git-clone#Documentation/git-clone.txt---depthltdepthgt)
+instead of fetching the entire history of the repository:
+
+```shell
+$ git clone --depth=1 "https://github.com/${GITHUB_USERNAME}/${REPOSITORY}"
+```
+
 ## Submitting to the database
 
 Submissions to the ORD will be handled primarily via GitHub, as [pull

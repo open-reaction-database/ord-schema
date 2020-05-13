@@ -1,12 +1,18 @@
 # Submission Workflow
 
+```eval_rst
+.. IMPORTANT::
+   Be sure to follow the instructions for `Getting the Data with GitHub
+   <overview.html#id1>`_ before following these steps.
+```
+
 The submission workflow follows four major steps:
 
 ## Create
 
 A submission consists of a set of Reaction protocol buffers that must be
 created by the user. We have examples of how to do this
-[programmatically](https://ord-schema.readthedocs.io/en/latest/overview.html#examples-jupyter-colab).
+[programmatically](schema.html#jupyter-colab).
 
 ## Submit
 
