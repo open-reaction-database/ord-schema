@@ -11,7 +11,7 @@ created by the user. We have examples of how to do this
 After creating a set of `Reaction` messages, they must be grouped together into
 one or more `Dataset` messages. This can be done programmatically or with the
 provided
-[`build_dataset.py`](https://github.com/Open-Reaction-Database/ord-schema/blob/master/ord_schema/scripts/build_dataset.py)
+[build_dataset.py](https://github.com/Open-Reaction-Database/ord-schema/blob/master/ord_schema/scripts/build_dataset.py)
 script. Here's an example:
 
 ```shell
@@ -24,16 +24,17 @@ $ python build_dataset.py \
 
 The `Dataset` message provides a logical grouping for the submission. During the
 submission review process (see below) the `Reaction` and `Dataset` messages will
-each receive a unique identifier. Additionally, `build_dataset.py` performs
+each receive a unique identifier. Additionally, build_dataset.py performs
 validation of your `Reaction` records and will warn you of any errors before
 submitting.
 
 ### Validate
 
-The `ord_schema` repository contains scripts for validating submitted data. If
-you did not use the `build_dataset.py` script (which automatically) validates
-the `Dataset`, you should run the
-[`validate_dataset.py`](https://github.com/Open-Reaction-Database/ord-schema/blob/master/ord_schema/scripts/validate_dataset.py)
+The [ord_schema](https://github.com/Open-Reaction-Database/ord-schema)
+repository contains scripts for validating submitted data. If you did not use
+the build_dataset.py script (which automatically) validates the `Dataset`, you
+should run the
+[validate_dataset.py](https://github.com/Open-Reaction-Database/ord-schema/blob/master/ord_schema/scripts/validate_dataset.py)
 script manually to identify and fix any validation errors prior to moving to the
 next stage of the submission workflow:
 
