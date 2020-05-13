@@ -38,7 +38,7 @@ script manually to identify and fix any validation errors prior to moving to the
 next stage of the submission workflow:
 
 ```shell
-$ python validate.py --input="example_dataset.pbtxt"
+$ python validate_dataset.py --input="example_dataset.pbtxt"
 ```
 
 ## Submit
