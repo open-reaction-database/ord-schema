@@ -13,14 +13,13 @@
 # import os
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
-
+from recommonmark import transform
 
 # -- Project information -----------------------------------------------------
 
 project = 'Open Reaction Database'
 copyright = '2020, Open Reaction Database maintainers'
 author = 'Open Reaction Database maintainers'
-
 
 # -- General configuration ---------------------------------------------------
 
@@ -40,7 +39,6 @@ templates_path = ['_templates']
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
-
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -54,3 +52,8 @@ html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 
 master_doc = 'index'
+
+
+def setup(app):
+    app.add_config_value('recommonmark_config', {'enable_eval_rst': True}, True)
+    app.add_transform(transform.AutoStructify)
