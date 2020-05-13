@@ -16,17 +16,17 @@ copy of the current database.
     for the `Reaction` message:
 
     ```shell
-    cd "${ORD_SCHEMA_ROOT}"
-    python ord_schema/proto/bq_schema.py --output=bq_schema.json
+    $ cd "${ORD_SCHEMA_ROOT}"
+    $ python ord_schema/proto/bq_schema.py --output=bq_schema.json
     ```
     
 1.  Create a new BigQuery table and set the schema. Be sure to give the table a
     descriptive name that includes the date of the database snapshot:
     
     ```shell
-    DATASET=test
-    TABLE=ORD_2020_05_06
-    bq mk --table "${DATASET}.${TABLE}" bq_schema.json
+    $ DATASET=test
+    $ TABLE=ORD_2020_05_06
+    $ bq mk --table "${DATASET}.${TABLE}" bq_schema.json
     ```
 
 ## Load the database into BigQuery
@@ -35,8 +35,8 @@ copy of the current database.
     to generate a [JSONL](http://jsonlines.org/) dump of the database:
     
     ```shell
-    cd "${ORD_SCHEMA_ROOT}"
-    python ord_schema/proto/proto_to_json.py \
+    $ cd "${ORD_SCHEMA_ROOT}"
+    $ python ord_schema/proto/proto_to_json.py \
         --input="${ORD_DATA_ROOT}/data/*/*.pbtxt" \
         --output=bq_data.jsonl
     ```
@@ -44,6 +44,7 @@ copy of the current database.
 1.  Upload the data to BigQuery:
 
     ```shell
-    bq load --source_format=NEWLINE_DELIMITED_JSON "${DATASET}.${TABLE}" \
+    $ bq load --source_format=NEWLINE_DELIMITED_JSON \
+        "${DATASET}.${TABLE}" \
         bq_data.jsonl
     ```
