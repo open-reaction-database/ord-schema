@@ -130,6 +130,14 @@ instead of fetching the entire history of the repository:
 $ git clone --depth=1 "https://github.com/${GITHUB_USERNAME}/${REPOSITORY}"
 ```
 
+After cloning your fork, set the `upstream` remote to track the official
+database repository:
+
+```shell
+$ cd "${REPOSITORY}"
+$ git remote add upstream https://github.com/Open-Reaction-Database/ord-submissions-test.git
+```
+
 ## Submitting to the database
 
 Submissions to the ORD will be handled primarily via GitHub, as [pull

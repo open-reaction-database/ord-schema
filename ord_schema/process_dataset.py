@@ -59,62 +59,6 @@ flags.DEFINE_float('max_size', 100.0,
                    'Maximum size (in MB) for offloading Data values.')
 
 
-def validate(datasets):
-    """Runs validation for a set of datasets.
-
-    Args:
-        datasets: Dict mapping FileStatus objects to Dataset protos.
-    """
-    all_errors = []
-    for file_status, dataset in datasets.items():
-        errors = _validate_dataset(file_status.filename, dataset)
-        if errors:
-            for error in errors:
-                all_errors.append(f'{file_status.filename}: {error}')
-            if FLAGS.write_errors:
-                with open(f'{file_status.filename}.error', 'w') as f:
-                    for error in errors:
-                        f.write(f'{error}\n')
-    # NOTE(kearnes): We run validation for all datasets before exiting if there
-    # are errors.
-    if all_errors:
-        error_string = '\n'.join(all_errors)
-        raise ValueError(f'validation encountered errors:\n{error_string}')
-
-
-def _validate_dataset(filename, dataset):
-    """Validates Reaction messages in a Dataset.
-
-    Note that validation may change the message. For example, NAME
-    identifiers will be resolved to structures.
-
-    Args:
-        filename: Text filename; the dataset source.
-        dataset: dataset_pb2.Dataset message.
-
-    Returns:
-        List of validation error messages.
-    """
-    basename = os.path.basename(filename)
-    errors = []
-    num_bad_reactions = 0
-    for i, reaction in enumerate(dataset.reactions):
-        reaction_errors = validations.validate_message(
-            reaction, raise_on_error=False)
-        if reaction_errors:
-            num_bad_reactions += 1
-        for error in reaction_errors:
-            errors.append(error)
-            logging.warning('Validation error for %s[%d]: %s',
-                            basename, i, error)
-    logging.info('Validation summary for %s: %d/%d successful (%d failures)',
-                 basename,
-                 len(dataset.reactions) - num_bad_reactions,
-                 len(dataset.reactions),
-                 num_bad_reactions)
-    return errors
-
-
 @dataclasses.dataclass(eq=True, frozen=True, order=True)
 class FileStatus:
     """A filename and its status in Git."""
@@ -211,14 +155,14 @@ def main(argv):
         return  # Nothing to do.
     datasets = {}
     for file_status in inputs:
-        datasets[file_status] = message_helpers.load_message(
+        datasets[file_status.filename] = message_helpers.load_message(
             file_status.filename, dataset_pb2.Dataset)
     if FLAGS.validate:
-        validate(datasets)
+        validations.validate_datasets(datasets, FLAGS.write_errors)
     if not FLAGS.update:
         logging.info('nothing else to do; use --update for more')
         return  # Nothing else to do.
-    for file_status, dataset in datasets.items():
+    for dataset in datasets.values():
         for reaction in dataset.reactions:
             updates.update_reaction(reaction)
         # Offload large Data values.
@@ -233,7 +177,7 @@ def main(argv):
             subprocess.run(args, check=True)
     combined = _combine_datasets(datasets)
     # Final validation to make sure we didn't break anything.
-    validate({FileStatus('_COMBINED', 'A'): combined})
+    validations.validate_datasets({'_COMBINED': combined}, FLAGS.write_errors)
     if FLAGS.output:
         output_filename = FLAGS.output
     else:
