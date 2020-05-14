@@ -695,17 +695,20 @@ message ReactionAnalysis {
     SFC = 17;  // Supercritical fluid chromatography.
   }
   AnalysisType type = 1;
-  // Any details about analysis (e.g., NMR type, columns, gradients, conditions)
-  string details = 2;
+  // RSC Chemical Methods Ontology ID to define the analytical method with
+  // greater specificity. Defined at https://github.com/rsc-ontologies/rsc-cmo.
+  int32 chmo_id = 2;
+  // Any details about analysis (e.g., NMR type, columns, gradients).
+  string details = 3;
   // Data files (processed or annotated).
-  map<string, Data> processed_data = 3;
-  // Data files (raw) obtained directly from the instrument
-  map<string, Data> raw_data = 4;
-  string instrument_manufacturer = 5;
-  DateTime instrument_last_calibrated = 6;
+  map<string, Data> processed_data = 4;
+  // Data files (raw) obtained directly from the instrument.
+  map<string, Data> raw_data = 5;
+  string instrument_manufacturer = 6;
+  DateTime instrument_last_calibrated = 7;
   // Whether an internal standard was used with this analytical technique for
   // quantification, e.g., of yield.
-  bool uses_internal_standard = 7;
+  bool uses_internal_standard = 8;
 }
 
 message ReactionProvenance {
