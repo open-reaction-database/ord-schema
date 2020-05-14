@@ -44,7 +44,5 @@ copy of the current database.
 1.  Upload the data to BigQuery:
 
     ```shell
-    $ bq load --source_format=NEWLINE_DELIMITED_JSON \
-        "${DATASET}.${TABLE}" \
-        bq_data.jsonl
+    $ bq load --source_format=NEWLINE_DELIMITED_JSON "${DATASET}.${TABLE}" bq_data.jsonl
     ```

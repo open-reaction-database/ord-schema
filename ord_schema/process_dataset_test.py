@@ -56,8 +56,9 @@ class ProcessDatasetTest(absltest.TestCase):
     def test_main_with_validation_errors(self):
         with flagsaver.flagsaver(input_pattern=self.dataset2_filename,
                                  write_errors=True):
-            with self.assertRaisesRegex(ValueError,
-                                        'validation encountered errors'):
+            with self.assertRaisesRegex(
+                    validations.ValidationError,
+                    'validation encountered errors'):
                 process_dataset.main(())
         error_filename = f'{self.dataset2_filename}.error'
         self.assertTrue(os.path.exists(error_filename))
@@ -266,7 +267,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        with self.assertRaisesRegex(ValueError, 'could not validate SMILES'):
+        with self.assertRaisesRegex(
+                validations.ValidationError, 'could not validate SMILES'):
             self._run_main()
 
     def test_add_sharded_dataset_with_validation_errors(self):
@@ -285,7 +287,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset2 = dataset_pb2.Dataset(reactions=[reaction])
         dataset2_filename = os.path.join(self.test_subdirectory, 'test2.pbtxt')
         message_helpers.write_message(dataset2, dataset2_filename)
-        with self.assertRaisesRegex(ValueError, 'could not validate SMILES'):
+        with self.assertRaisesRegex(
+                validations.ValidationError, 'could not validate SMILES'):
             self._run_main()
 
     def test_modify_dataset_with_validation_errors(self):
@@ -294,7 +297,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset.reactions[0].inputs['methylamine'].components[0].moles.value = (
             -2)
         message_helpers.write_message(dataset, self.dataset_filename)
-        with self.assertRaisesRegex(ValueError, 'must be non-negative'):
+        with self.assertRaisesRegex(
+                validations.ValidationError, 'must be non-negative'):
             self._run_main()
 
     def test_add_dataset_with_large_data(self):

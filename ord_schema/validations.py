@@ -1,15 +1,76 @@
 """Helpers validating specific Message types."""
 
 import math
+import os
 import re
 import warnings
 
+from absl import logging
 from dateutil import parser
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
 
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
+
+
+def validate_datasets(datasets, write_errors=False):
+    """Runs validation for a set of datasets.
+
+    Args:
+        datasets: Dict mapping text filenames to Dataset protos.
+        write_errors: If True, errors are written to disk.
+
+    Raises:
+        ValidationError: if any Dataset does not pass validation.
+    """
+    all_errors = []
+    for filename, dataset in datasets.items():
+        errors = _validate_dataset(filename, dataset)
+        if errors:
+            for error in errors:
+                all_errors.append(f'{filename}: {error}')
+            if write_errors:
+                with open(f'{filename}.error', 'w') as f:
+                    for error in errors:
+                        f.write(f'{error}\n')
+    # NOTE(kearnes): We run validation for all datasets before exiting if there
+    # are errors.
+    if all_errors:
+        error_string = '\n'.join(all_errors)
+        raise ValidationError(f'validation encountered errors:\n{error_string}')
+
+
+def _validate_dataset(filename, dataset):
+    """Validates Reaction messages in a Dataset.
+
+    Note that validation may change the message. For example, NAME
+    identifiers will be resolved to structures.
+
+    Args:
+        filename: Text filename; the dataset source.
+        dataset: dataset_pb2.Dataset message.
+
+    Returns:
+        List of validation error messages.
+    """
+    basename = os.path.basename(filename)
+    errors = []
+    num_bad_reactions = 0
+    for i, reaction in enumerate(dataset.reactions):
+        reaction_errors = validate_message(reaction, raise_on_error=False)
+        if reaction_errors:
+            num_bad_reactions += 1
+        for error in reaction_errors:
+            errors.append(error)
+            logging.warning('Validation error for %s[%d]: %s',
+                            basename, i, error)
+    logging.info('Validation summary for %s: %d/%d successful (%d failures)',
+                 basename,
+                 len(dataset.reactions) - num_bad_reactions,
+                 len(dataset.reactions),
+                 num_bad_reactions)
+    return errors
 
 
 # pylint: disable=too-many-branches
@@ -180,8 +241,8 @@ def validate_reaction(message):
     if len(message.outcomes) == 0:
         warnings.warn('Reactions should have at least 1 reaction outcome',
                       ValidationError)
-    if (reaction_needs_internal_standard(message) and not
-            reaction_has_internal_standard(message)):
+    if (reaction_needs_internal_standard(message)
+            and not reaction_has_internal_standard(message)):
         warnings.warn('Reaction analysis uses an internal standard, but no '
                       'component (as reaction input or workup) uses the '
                       'reaction role INTERNAL_STANDARD', ValidationError)
@@ -240,7 +301,6 @@ def validate_compound(message):
                 warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
                               ' RDKit Binary identifier',
                               ValidationError)
-
 
 
 def validate_compound_feature(message):
