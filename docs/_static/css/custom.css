@@ -1,0 +1,10 @@
+.rst-content tt.literal, .rst-content tt.literal, .rst-content code.literal {
+    color: green;
+}
+.rst-content tt, .rst-content tt, .rst-content code {
+    padding: 0px 1px;
+}
+code, .rst-content tt, .rst-content code {
+    border: unset;
+    font-size: 85%;
+}
