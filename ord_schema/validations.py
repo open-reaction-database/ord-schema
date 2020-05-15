@@ -463,6 +463,7 @@ def validate_reaction_outcome(message):
                     warnings.warn(f'Undefined analysis key {key} '
                                   'in ReactionProduct', ValidationError)
     if not message.products and not message.HasField('conversion'):
+        # TODO(kearnes): Should products and conversion be mutually exclusive?
         warnings.warn('No products or conversion are specified for reaction;'
                       ' at least one must be specified', ValidationError)
 
