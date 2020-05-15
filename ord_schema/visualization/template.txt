@@ -12,7 +12,7 @@ To a
 was 
 
 {# AUTOMATION #}
-{% if reaction.setup.is_automated %} automatically {% endif %}
+{% if reaction.setup.is_automated|is_true %} automatically {% endif %}
 {{ reaction.setup.automation_platform|parenthetical_if_def }}
 
 added 
@@ -105,7 +105,7 @@ added
     {# PRODUCTS #}
     {% for product in outcome.products %}
         {{ product.compound|compound_name }}
-        {% if product.compound.is_desired_product %}
+        {% if product.compound.is_desired_product|is_true %}
             , the desired product,
         {% endif %}
 
@@ -179,7 +179,7 @@ added
 {% endfor %}
 
 {# DICLAIMER ABOUT SCHEMA LIMITATIONS #}
-{% if reaction.conditions.conditions_are_dynamic %}
+{% if reaction.conditions.conditions_are_dynamic|is_true %}
     Note: the conditions for this reaction may not precisely fit the schema, so
     additional care should be taken when reading this description.
 {% endif %}
