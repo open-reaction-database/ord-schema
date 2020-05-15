@@ -27,7 +27,7 @@ class ProcessDatasetTest(absltest.TestCase):
         dummy_component.identifiers.add(type='CUSTOM')
         dummy_component.identifiers[0].details = 'custom_identifier'
         dummy_component.identifiers[0].value = 'custom_value'
-        dummy_component.is_limiting = True
+        dummy_component.is_limiting = reaction_pb2.Boolean.TRUE
         dummy_component.mass.value = 1
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
         reaction1.outcomes.add().conversion.value = 75
@@ -111,7 +111,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         methylamine = reaction.inputs['methylamine']
         component = methylamine.components.add()
         component.identifiers.add(type='SMILES', value='CN')
-        component.is_limiting = True
+        component.is_limiting = reaction_pb2.Boolean.TRUE
         component.moles.value = 1
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 75
@@ -157,7 +157,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         ethylamine = reaction.inputs['ethylamine']
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
-        component.is_limiting = True
+        component.is_limiting = reaction_pb2.Boolean.TRUE
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
@@ -181,7 +181,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         ethylamine = reaction.inputs['ethylamine']
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
-        component.is_limiting = True
+        component.is_limiting = reaction_pb2.Boolean.TRUE
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
@@ -206,7 +206,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         ethylamine = reaction.inputs['ethylamine']
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
-        component.is_limiting = True
+        component.is_limiting = reaction_pb2.Boolean.TRUE
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
@@ -238,7 +238,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         ethylamine = reaction.inputs['ethylamine']
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
-        component.is_limiting = True
+        component.is_limiting = reaction_pb2.Boolean.TRUE
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
@@ -260,7 +260,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         ethylamine = reaction.inputs['ethylamine']
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='C#O')
-        component.is_limiting = True
+        component.is_limiting = reaction_pb2.Boolean.TRUE
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
@@ -276,7 +276,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         ethylamine = reaction.inputs['ethylamine']
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
-        component.is_limiting = True
+        component.is_limiting = reaction_pb2.Boolean.TRUE
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
@@ -306,7 +306,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         ethylamine = reaction.inputs['ethylamine']
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
-        component.is_limiting = True
+        component.is_limiting = reaction_pb2.Boolean.TRUE
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
@@ -338,7 +338,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         ethylamine = reaction.inputs['ethylamine']
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
-        component.is_limiting = True
+        component.is_limiting = reaction_pb2.Boolean.TRUE
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25

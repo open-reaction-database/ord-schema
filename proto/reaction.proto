@@ -141,6 +141,11 @@ message Compound {
     Moles moles = 3;
     Volume volume = 4;
   }
+  // Whether the volume measurement refers to the pure substance or to the
+  // total volume of the reaction input. An example of when this field should
+  // be TRUE is when stock solutions are prepared by adding solvent to a
+  // volumetric flask already containing solute(s).
+  Boolean.BooleanValue volume_includes_solutes = 14;
   message ReactionRole {
     enum ReactionRoleType {
       UNSPECIFIED = 0;
@@ -165,7 +170,7 @@ message Compound {
   }
   ReactionRole.ReactionRoleType reaction_role = 5;
   // Whether this species was intended to be a limiting reactant.
-  bool is_limiting = 6;
+  Boolean.BooleanValue is_limiting = 6;
   CompoundPreparation preparation = 7;
   // Name of the vendor or supplier the compound was purchased from.
   string vendor_source = 8;
@@ -307,7 +312,7 @@ message Vessel {
 message ReactionSetup {
   Vessel vessel = 1;
   // Specification of automated protocols.
-  bool is_automated = 2;
+  Boolean.BooleanValue is_automated = 2;
   // Automated platform name, brand, or model number.
   string automation_platform = 3;
   // Raw automation code or synthetic recipe definition.
@@ -321,11 +326,11 @@ message ReactionConditions {
   IlluminationConditions illumination = 4;
   ElectrochemistryConditions electrochemistry = 5;
   FlowConditions flow = 6;
-  bool reflux = 7;
+  Boolean.BooleanValue reflux = 7;
   float pH = 8;
   // Boolean to describe whether the conditions cannot be
   // represented by the static, single-step schema.
-  bool conditions_are_dynamic = 9;
+  Boolean.BooleanValue conditions_are_dynamic = 9;
   // A catch-all string field for providing more information about
   // the conditions (e.g., multiple stages)
   string details = 10;
@@ -514,14 +519,14 @@ message FlowConditions {
 
 message ReactionNotes {
   // Equivalent to "not single phase".
-  bool is_heterogeneous = 1;
+  Boolean.BooleanValue is_heterogeneous = 1;
   // Qualitative exothermicity (primarily for safety).
-  bool is_exothermic = 2;
+  Boolean.BooleanValue is_exothermic = 2;
   // Qualitative offgassing (primarily for safety).
-  bool is_offgasses = 3;
-  bool is_sensitive_to_moisture = 4;
-  bool is_sensitive_to_oxygen = 5;
-  bool is_sensitive_to_light = 6;
+  Boolean.BooleanValue is_offgasses = 3;
+  Boolean.BooleanValue is_sensitive_to_moisture = 4;
+  Boolean.BooleanValue is_sensitive_to_oxygen = 5;
+  Boolean.BooleanValue is_sensitive_to_light = 6;
   string safety_notes = 7;
   // Overflow field for full procedure details
   string procedure_details = 8;
@@ -618,7 +623,7 @@ message ReactionOutcome {
 
 message ReactionProduct {
   Compound compound = 1;
-  bool is_desired_product = 2;
+  Boolean.BooleanValue is_desired_product = 2;
   Percentage compound_yield = 3;
   Percentage purity = 4;
   Selectivity selectivity = 5;
@@ -708,7 +713,7 @@ message ReactionAnalysis {
   DateTime instrument_last_calibrated = 7;
   // Whether an internal standard was used with this analytical technique for
   // quantification, e.g., of yield.
-  bool uses_internal_standard = 8;
+  Boolean.BooleanValue uses_internal_standard = 8;
 }
 
 message ReactionProvenance {
@@ -916,4 +921,18 @@ message Data {
   // Description of the file format (if applicable); usually the file extension.
   // For example, 'png' or 'tiff' for images. If empty, we assume string data.
   string format = 5;
+}
+
+// Boolean is an alternative to using the bool primitive type so that it is
+// possible to distinguish between false (default) and unspecified values.
+// Note that it is still possible for fields in the proto to use the assignment
+// operator to set a True/False value, which will resolve to 1/0. To explicitly
+// set the value to False, Boolean.FALSE must be used instead.
+message Boolean {
+  enum BooleanValue {
+    UNSPECIFIED = 0;
+    TRUE = 1;
+    FALSE = 2;
+  }
+  BooleanValue value = 1;
 }

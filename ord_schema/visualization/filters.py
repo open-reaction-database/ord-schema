@@ -3,7 +3,12 @@
 
 from ord_schema import units
 from ord_schema import message_helpers
+from ord_schema.proto import reaction_pb2
 from ord_schema.visualization import drawing
+
+
+def _is_true(boolean):
+    return boolean == reaction_pb2.Boolean.BooleanValue.TRUE
 
 
 def _sort_addition_order(inputs):
@@ -242,7 +247,11 @@ def _compound_name(compound, use_br=False):
 
 
 def _compound_role(compound):
-    limiting_if_true = {True: 'limiting', False: ''}
+    limiting_if_true = {
+        reaction_pb2.Boolean.BooleanValue.UNSPECIFIED: '',
+        reaction_pb2.Boolean.BooleanValue.TRUE: 'limiting',
+        reaction_pb2.Boolean.BooleanValue.FALSE: '',
+    }
     return {
         compound.ReactionRole.UNSPECIFIED: '',
         compound.ReactionRole.REACTANT:
@@ -360,6 +369,7 @@ def _datetimeformat(value, format_string='%H:%M / %d-%m-%Y'):
 
 TEMPLATE_FILTERS = {
     'round': _round,
+    'is_true': _is_true,
     'datetimeformat': _datetimeformat,
     'uses_addition_order': _uses_addition_order,
     'input_addition': _input_addition,

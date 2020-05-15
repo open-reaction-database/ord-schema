@@ -25,7 +25,7 @@ class BuildDatasetTest(absltest.TestCase):
         dummy_component.identifiers.add(type='CUSTOM')
         dummy_component.identifiers[0].details = 'custom_identifier'
         dummy_component.identifiers[0].value = 'custom_value'
-        dummy_component.is_limiting = True
+        dummy_component.is_limiting = reaction_pb2.Boolean.TRUE
         dummy_component.mass.value = 1
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
         reaction1.outcomes.add().conversion.value = 75
