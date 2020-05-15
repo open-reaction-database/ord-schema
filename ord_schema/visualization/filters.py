@@ -8,7 +8,7 @@ from ord_schema.visualization import drawing
 
 
 def _is_true(boolean):
-    return boolean == reaction_pb2.Boolean.BooleanValue.TRUE
+    return boolean == reaction_pb2.Boolean.TRUE
 
 
 def _sort_addition_order(inputs):
@@ -248,9 +248,9 @@ def _compound_name(compound, use_br=False):
 
 def _compound_role(compound):
     limiting_if_true = {
-        reaction_pb2.Boolean.BooleanValue.UNSPECIFIED: '',
-        reaction_pb2.Boolean.BooleanValue.TRUE: 'limiting',
-        reaction_pb2.Boolean.BooleanValue.FALSE: '',
+        reaction_pb2.Boolean.UNSPECIFIED: '',
+        reaction_pb2.Boolean.TRUE: 'limiting',
+        reaction_pb2.Boolean.FALSE: '',
     }
     return {
         compound.ReactionRole.UNSPECIFIED: '',
