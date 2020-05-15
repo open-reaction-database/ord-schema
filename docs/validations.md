@@ -12,7 +12,7 @@ including required fields and checks for consistency across messages.
 
 ### Compound
 
-* Required fields: `identifiers`
+* Required fields: `identifiers`.
 
 ### CompoundFeature
 
