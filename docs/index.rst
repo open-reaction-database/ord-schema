@@ -13,5 +13,6 @@ Welcome to the Open Reaction Database!
    overview
    schema
    submissions
+   validations
    faq
    developer

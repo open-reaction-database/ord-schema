@@ -2,12 +2,13 @@
 
 ## Protocol buffers
 
-Protocol buffers offer a simple way to define a schema for structured data. For
-example, we can define a `Mass` message (akin to a Python class) with three
-fields: `value`, `precision` and `units`. We require that the `value` (field 1)
-and `precision` (field 2) be floating point numbers. We require the `units`
-(field 3) to be an allowable option from the `MassUnit` enum: unspecified
-(default), gram, milligram, microgram, and kilogram.
+[Protocol buffers](https://developers.google.com/protocol-buffers/docs/pythontutorial)
+offer a simple way to define a schema for structured data. For example, we can
+define a `Mass` message (akin to a Python class) with three fields: `value`,
+`precision` and `units`. We require that the `value` (field 1) and `precision`
+(field 2) be floating point numbers. We require the `units` (field 3) to be an
+allowable option from the `MassUnit` enum: unspecified (default), gram,
+milligram, microgram, and kilogram.
 
 ```proto
 message Mass {
@@ -25,15 +26,16 @@ message Mass {
 }
 ```
 
-"Protos"---messages with defined values (akin to an instance of a Python
-class)---can be imported/exported to/from JSON, Protobuf text (pbtxt), and
+"Protos"&mdash;messages with defined values (akin to an instance of a Python
+class)&mdash;can be imported/exported to/from JSON, Protobuf text (pbtxt), and
 Protobuf binary formats.
 
 ## The `Reaction` and `Dataset` messages
 
 A single-step reaction in the ORD is defined by a `Reaction` message. A
-collection of reactions can be aggregated into a `Dataset` message, which also
-accommodates scripts for machine learning preprocessing.
+collection of reactions can be aggregated into a `Dataset` message that
+includes a description of the dataset and examples of its use in downstream
+applications.
 
 ```proto
 message Dataset {
@@ -85,6 +87,14 @@ analyses, analytical data, and observed/desired products. Finally, the
 `ReactionProvenance` records additional metadata including who performed the
 experiment and where.
 
+```eval_rst
+.. IMPORTANT::
+   Although the protocol buffer syntax does not support required fields, the 
+   automated validation scripts used for processing database submissions do 
+   require that certain fields be defined. See the `Validations 
+   <validations.html>`_ section for more information.   
+```
+
 The full definition of each of these fields (and any subfields) is contained in
 the [protocol buffer definition files](https://github.com/Open-Reaction-Database/ord-schema/tree/master/proto)
 on GitHub.
@@ -103,7 +113,7 @@ message DatasetExample {
 }
 ```
 
-Essentially, `DatasetExample` is simply a pointer to an external
+Essentially, a `DatasetExample` is simply a pointer to an external
 resource&mdash;such as a colab notebook or blog post&mdash;along with a
 description and a timestamp. We have avoided including scripts directly so
 that users are free to modify/update their examples without requiring a
