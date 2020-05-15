@@ -277,30 +277,6 @@ def validate_compound(message):
            for identifier in message.identifiers):
         warnings.warn('Compounds should have more specific identifiers than '
                       'NAME whenever possible', ValidationWarning)
-    for identifier in message.identifiers:
-        if Chem and identifier.type == identifier.SMILES:
-            mol = Chem.MolFromSmiles(identifier.value)
-            if mol is None:
-                warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
-                              f' SMILES identifier {identifier.value}',
-                              ValidationError)
-        elif identifier.type == identifier.INCHI:
-            mol = Chem.MolFromInchi(identifier.value)
-            if mol is None:
-                warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
-                              f' InChI identifier {identifier.value}',
-                              ValidationError)
-        elif identifier.type == identifier.MOLBLOCK:
-            mol = Chem.MolFromMolBlock(identifier.value)
-            if mol is None:
-                warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
-                              ' MolBlock identifier', ValidationError)
-        elif identifier.type == identifier.RDKIT_BINARY:
-            mol = Chem.Mol(identifier.bytes_value)
-            if mol is None:
-                warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
-                              ' RDKit Binary identifier',
-                              ValidationError)
 
 
 def validate_compound_feature(message):
@@ -316,6 +292,29 @@ def validate_compound_identifier(message):
     ensure_details_specified_if_type_custom(message)
     if not message.value and not message.bytes_value:
         warnings.warn('{bytes_}value must be set', ValidationError)
+    if Chem and message.type == message.SMILES:
+        mol = Chem.MolFromSmiles(message.value)
+        if mol is None:
+            warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
+                          f' SMILES identifier {message.value}',
+                          ValidationError)
+    elif message.type == message.INCHI:
+        mol = Chem.MolFromInchi(message.value)
+        if mol is None:
+            warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
+                          f' InChI identifier {message.value}',
+                          ValidationError)
+    elif message.type == message.MOLBLOCK:
+        mol = Chem.MolFromMolBlock(message.value)
+        if mol is None:
+            warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
+                          ' MolBlock identifier', ValidationError)
+    elif message.type == message.RDKIT_BINARY:
+        mol = Chem.Mol(message.bytes_value)
+        if mol is None:
+            warnings.warn(f'RDKit {RDKIT_VERSION} could not validate'
+                          ' RDKit Binary identifier',
+                          ValidationError)
 
 
 def validate_vessel(message):

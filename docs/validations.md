@@ -38,11 +38,19 @@ including required fields and checks for consistency across messages.
 * Required fields: `components`.
 * Each `Compound` listed in `components` must have an `amount`.
 
+### Compound
+
+* Required fields: `identifiers`
+
+### CompoundIdentifier
+
+* Structural identifiers (such as SMILES) must be parsable by RDKit.
+
 ## Cross-message validations
 
 * If any `ReactionAnalysis` in a `ReactionOutcome` uses an internal standard,
   the `Reaction` must also include an input `Compound` with the
   `INTERNAL_STANDARD` role.
 * If `Reaction.conversion` is set, at least one `ReactionInput` must have its
-  `is_limiting` field set to `TRUE`.
+  `is_limiting` field set to `Boolean.TRUE`.
 
