@@ -10,6 +10,11 @@ can be used to validate one or more `Dataset` messages.
 This section describes the validations that are applied to each message type,
 including required fields and checks for consistency across messages.
 
+## General validations
+
+* All enums that support a `CUSTOM` type must also set the accompanying
+  `details` field.
+
 ## Message-specific validations
 
 ### Dataset
@@ -18,22 +23,26 @@ including required fields and checks for consistency across messages.
 
 ### DatasetExample
 
-Required fields:
-
-* `description`
-* `url`
-* `created`
+* Required fields: `description`, `url`, `created`.
 
 ### Reaction
 
-Required fields:
+* Required fields: `inputs`, `outcomes`.
 
-* `inputs`
-* `outcomes`
+### ReactionIdentifier
+
+* Required fields: one of `bytes_value` or `value`.
+
+### ReactionInput
+
+* Required fields: `components`.
+* Each `Compound` listed in `components` must have an `amount`.
 
 ## Cross-message validations
 
 * If any `ReactionAnalysis` in a `ReactionOutcome` uses an internal standard,
   the `Reaction` must also include an input `Compound` with the
   `INTERNAL_STANDARD` role.
+* If `Reaction.conversion` is set, at least one `ReactionInput` must have its
+  `is_limiting` field set to `TRUE`.
 
