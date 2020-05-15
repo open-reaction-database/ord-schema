@@ -41,9 +41,10 @@ message Dataset {
   string description = 2;
   // List of Reaction messages that are part of this dataset.
   repeated Reaction reactions = 3;
-  // `scripts` may include code for extracting relevant features for machine
-  // learning, e.g. as part of the methods for a publication.
-  map<string, Data> scripts = 4;
+  // Examples of how to use the Dataset, e.g. in downstream applications.
+  repeated DatasetExample examples = 4;
+  // Dataset ID assigned during the submission process.
+  string dataset_id = 5;
 }
 ```
 
@@ -52,9 +53,10 @@ message Dataset {
 ```proto
 message Reaction {
   repeated ReactionIdentifier identifiers = 1;
-  // List of pure substances or mixtures that were added to the
-  // reaction vessel. This is a map, not a repeated, to simplify
-  // reaction templating through the use of keys.
+  // List of pure substances or mixtures that were added to the reaction vessel.
+  // This is a map instead of a repeated field to simplify reaction templating
+  // through the use of keys. String keys are simple descriptions and are
+  // present only for convenience.
   map<string, ReactionInput> inputs = 2;
   ReactionSetup setup = 3;
   ReactionConditions conditions = 4;
@@ -87,16 +89,28 @@ The full definition of each of these fields (and any subfields) is contained in
 the [protocol buffer definition files](https://github.com/Open-Reaction-Database/ord-schema/tree/master/proto)
 on GitHub.
 
-## Supplementary scripts for machine learning
+## Supplementary data for machine learning
 
-The `scripts` field of a `Dataset` message is a map from strings to `Data`
-messages. `Data` messages contain text, binary data, or a URL along with
-additional metadata. We envision that Python scripts for preprocessing the list
-of reactions will be defined using map keys such as "preprocess.py" with a
-function or script defined as text.
+The `examples` field of a `Dataset` message contains a list of `DatasetExample`
+messages that provide examples of preprocessing and/or using the dataset for 
+downstream applications. The message contains three fields:
+
+```proto
+message DatasetExample {
+  string description = 1;
+  string url = 2;
+  RecordEvent created = 3;
+}
+```
+
+Essentially, `DatasetExample` is simply a pointer to an external
+resource&mdash;such as a colab notebook or blog post&mdash;along with a
+description and a timestamp. We have avoided including scripts directly so
+that users are free to modify/update their examples without requiring a
+change to the database, as well as for security reasons. 
 
 ## Using the schema
- 
+
 ### Python
 
 Protocol buffers can be compiled to Python code, where messages behave like
