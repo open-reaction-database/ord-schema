@@ -135,3 +135,104 @@ including required fields and checks for consistency across messages.
 
 ### Selectivity
 
+* `precision` must be non-negative.
+* `value` must be in the range \[0, 100\] if `type` is `EE`.
+* `details` must be specified if `type` is `CUSTOM`.
+
+### DateTime
+
+* `value` must be parsable with Python's `dateutil` module.
+
+### ReactionAnalysis
+
+* `details` must be specified if `type` is `CUSTOM`.
+
+### ReactionProvenance
+
+* Required fields: `record_created`.
+* `record_created` must not be before `experiment_start`.
+* `record_modified` must not be before `record_created`.
+* `record_id` must match `^ord-[0-9a-f]{32}$`.
+
+### RecordEvent
+
+* Required fields: `time`.
+
+### Person
+
+* `orcid` must match `[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]`.
+
+### Time
+
+* Required fields: `units`.
+* `value` and `precision` must be non-negative.
+
+### Mass
+
+* Required fields: `units`.
+* `value` and `precision` must be non-negative.
+
+### Moles
+
+* Required fields: `units`.
+* `value` and `precision` must be non-negative.
+
+### Volume
+
+* Required fields: `units`.
+* `value` and `precision` must be non-negative.
+
+### Concentration
+
+* Required fields: `units`.
+* `value` and `precision` must be non-negative.
+
+### Pressure
+
+* Required fields: `units`.
+* `value` and `precision` must be non-negative.
+
+### Temperature
+
+* Required fields: `units`.
+* Depending on `units`, `value` must be greater than or equal to:
+  * `CELSIUS`: -273.15
+  * `FAHRENHEIT`: -459
+  * `KELVIN`: 0
+* `precision` must be non-negative.
+
+### Current
+
+* Required fields: `units`.
+* `value` and `precision` must be non-negative.
+
+### Voltage
+
+* Required fields: `units`.
+* `value` and `precision` must be non-negative.
+
+### Length
+
+* Required fields: `units`.
+* `value` and `precision` must be non-negative.
+
+### Wavelength
+
+* Required fields: `units`.
+* `value` and `precision` must be non-negative. 
+
+### FlowRate
+
+* Required fields: `units`.
+* `value` and `precision` must be non-negative.
+
+### Percentage
+
+* Required fields: `units`.
+* `value` and `precision` must be non-negative.
+* `value` must be in the range \[0, 105\].
+
+### Data
+
+* Required fields: one of `bytes_value`, `value`, or `url`.
+* `format` must be specified if `bytes_value` is set.
