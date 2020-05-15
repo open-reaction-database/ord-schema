@@ -18,7 +18,9 @@ high-level design, technical progress, and plans for access and interfacing.
 
 Our overarching goal, stated above, is to "support machine learning and related
 efforts in reaction prediction, chemical synthesis planning, and experiment
-design". We aim to:
+design".
+
+We aim to:
 
 * Provide a structured data format for chemical reaction data
 * Provide an interface for easy browsing and downloading of data
@@ -60,7 +62,8 @@ There are some practical consequences of these non-goals:
 
 * Because we are structuring reactions as single-step reactions, there are 
   some  more complex operations that cannot be captured in a structured 
-  format by the schema. For example, this OrgSyn example describes a 
+  format by the schema. For example, 
+  [this OrgSyn example](http://orgsyn.org/demo.aspx?prep=v95p0080) describes a 
   procedure whereby three components are mixed in a chilled vessel on an ice 
   bath, a fourth component is added and stirred for several minutes still on 
   ice, and then the vessel is removed from the ice bath and allowed to warm
