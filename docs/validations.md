@@ -10,11 +10,6 @@ can be used to validate one or more `Dataset` messages.
 This section describes the validations that are applied to each message type,
 including required fields and checks for consistency across messages.
 
-## General validations
-
-* All enums that support a `CUSTOM` type must also set the accompanying
-  `details` field.
-
 ## Message-specific validations
 
 ### Dataset
@@ -44,7 +39,21 @@ including required fields and checks for consistency across messages.
 
 ### CompoundIdentifier
 
+* Required fields: one of `bytes_value` or `value`.
+* `details` must be specified if `type` is `CUSTOM`.
 * Structural identifiers (such as SMILES) must be parsable by RDKit.
+
+### CompoundFeature
+
+### CompoundPreparation
+
+* `details` must be specified if `type` is `CUSTOM`.
+
+### Vessel
+
+* `details` must be specified if `type` is `CUSTOM`.
+* `material_details` must be specified if `material` is `CUSTOM`.
+* `preparation_details` must be specified if `preparation` is `CUSTOM`.
 
 ## Cross-message validations
 
