@@ -196,6 +196,8 @@ including required fields and checks for consistency across messages.
 
 ### Dataset
 
+* Required fields: one of `reactions` or `reaction_ids`.
+* Each entry in `reaction_ids` must match `^ord-[0-9a-f]{32}$`.
 * `dataset_id` must match `^ord_dataset-[0-9a-f]{32}$`.
 
 ### DatasetExample

@@ -11,12 +11,19 @@ import "ord-schema/proto/reaction.proto";
 message Dataset {
   string name = 1;
   string description = 2;
+  // The Dataset is specified by either:
+  //   * a list of Reactions
+  //   * a list of Reaction IDs
+  // Note that these are mutually exclusive.
+  //
   // List of Reaction messages that are part of this dataset.
   repeated Reaction reactions = 3;
+  // List of Reaction IDs that are part of this dataset.
+  repeated string reaction_ids = 4;
   // Examples of how to use the Dataset, e.g. in downstream applications.
-  repeated DatasetExample examples = 4;
+  repeated DatasetExample examples = 5;
   // Dataset ID assigned during the submission process.
-  string dataset_id = 5;
+  string dataset_id = 6;
 }
 
 // Metadata for an example of using a Dataset. For example, a DatasetExample

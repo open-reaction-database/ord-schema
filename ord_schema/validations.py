@@ -219,6 +219,17 @@ def reaction_needs_internal_standard(message):
 
 
 def validate_dataset(message):
+    if not message.reactions and not message.reaction_ids:
+        warnings.warn(
+            'Dataset requires reactions or reaction_ids', ValidationError)
+    elif message.reactions and message.reaction_ids:
+        warnings.warn(
+            'Dataset requires reactions or reaction_ids, not both',
+            ValidationError)
+    if message.reaction_ids:
+        for reaction_id in message.reaction_ids:
+            if not re.fullmatch('^ord-[0-9a-f]{32}$', reaction_id):
+                warnings.warn('Reaction ID is malformed', ValidationError)
     if message.dataset_id:
         # The dataset_id is a 32-character uuid4 hex string.
         if not re.fullmatch('^ord_dataset-[0-9a-f]{32}$', message.dataset_id):
