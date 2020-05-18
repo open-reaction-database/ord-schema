@@ -41,16 +41,26 @@ applications.
 message Dataset {
   string name = 1;
   string description = 2;
+  // The Dataset is specified by either:
+  //   * a list of Reactions
+  //   * a list of Reaction IDs from existing datasets
+  // Note that these are mutually exclusive.
+  //
   // List of Reaction messages that are part of this dataset.
   repeated Reaction reactions = 3;
+  // List of Reaction IDs that are part of this dataset. This is designed for
+  // creating Datasets that are composed of subsets of Reactions from existing
+  // datasets. For example, a collection of all reactions of a certain type
+  // across multiple datasets.
+  repeated string reaction_ids = 4;
   // Examples of how to use the Dataset, e.g. in downstream applications.
-  repeated DatasetExample examples = 4;
+  repeated DatasetExample examples = 5;
   // Dataset ID assigned during the submission process.
-  string dataset_id = 5;
+  string dataset_id = 6;
 }
 ```
 
-`Reaction` messages contain nine fields:
+`Reaction` messages contain ten fields:
 
 ```proto
 message Reaction {
@@ -69,6 +79,8 @@ message Reaction {
   repeated ReactionWorkup workup = 7;
   repeated ReactionOutcome outcomes = 8;
   ReactionProvenance provenance = 9;
+  // Official ID for this reaction in the Open Reaction Database.
+  string reaction_id = 10;
 }
 ```
 
@@ -83,9 +95,10 @@ accommodate auxiliary information like safety notes and free text procedure
 details. `ReactionObservation`s describe timestamped text and image
 observations. `ReactionWorkup`s define a sequence of workup actions (e.g.,
 quenches, separations) prior to analysis. `ReactionOutcome`s define timestamped
-analyses, analytical data, and observed/desired products. Finally, the
+analyses, analytical data, and observed/desired products. The
 `ReactionProvenance` records additional metadata including who performed the
-experiment and where.
+experiment and where. Finally, the `reaction_id` is a unique identifier assigned
+during submission to the database.
 
 ```eval_rst
 .. IMPORTANT::
@@ -274,6 +287,7 @@ including required fields and checks for consistency across messages.
   `INTERNAL_STANDARD` role.
 * If `Reaction.conversion` is set, at least one `ReactionInput` must have its
   `is_limiting` field set to `TRUE`.
+* `reaction_id` must match `^ord-[0-9a-f]{32}$`.
 
 ### ReactionAnalysis
 
@@ -315,7 +329,6 @@ including required fields and checks for consistency across messages.
 * Required fields: `record_created`.
 * `record_created` must not be before `experiment_start`.
 * `record_modified` must not be before `record_created`.
-* `record_id` must match `^ord-[0-9a-f]{32}$`.
 
 ### ReactionSetup
 
