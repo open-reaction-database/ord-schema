@@ -219,6 +219,17 @@ def reaction_needs_internal_standard(message):
 
 
 def validate_dataset(message):
+    if not message.reactions and not message.reaction_ids:
+        warnings.warn(
+            'Dataset requires reactions or reaction_ids', ValidationError)
+    elif message.reactions and message.reaction_ids:
+        warnings.warn(
+            'Dataset requires reactions or reaction_ids, not both',
+            ValidationError)
+    if message.reaction_ids:
+        for reaction_id in message.reaction_ids:
+            if not re.fullmatch('^ord-[0-9a-f]{32}$', reaction_id):
+                warnings.warn('Reaction ID is malformed', ValidationError)
     if message.dataset_id:
         # The dataset_id is a 32-character uuid4 hex string.
         if not re.fullmatch('^ord_dataset-[0-9a-f]{32}$', message.dataset_id):
@@ -251,6 +262,10 @@ def validate_reaction(message):
         warnings.warn('If reaction conversion is specified, at least one '
                       'reaction input component must be labeled is_limiting',
                       ValidationError)
+    if message.reaction_id:
+        # The reaction_id suffix is a 32-character uuid4 hex string.
+        if not re.fullmatch('^ord-[0-9a-f]{32}$', message.reaction_id):
+            warnings.warn('Reaction ID is malformed', ValidationError)
 
 
 def validate_reaction_identifier(message):
@@ -523,10 +538,6 @@ def validate_reaction_provenance(message):
         if (record_modified - record_created).total_seconds() < 0:
             warnings.warn('Record modified time should be after creation',
                           ValidationError)
-    if message.record_id:
-        # The record_id suffix is a 32-character uuid4 hex string.
-        if not re.fullmatch('^ord-[0-9a-f]{32}$', message.record_id):
-            warnings.warn('Record ID is malformed', ValidationError)
     # TODO(ccoley) could check if publication_url is valid, etc.
 
 

@@ -34,6 +34,8 @@ message Reaction {
   repeated ReactionWorkup workup = 7;
   repeated ReactionOutcome outcomes = 8;
   ReactionProvenance provenance = 9;
+  // Official ID for this reaction in the Open Reaction Database.
+  string reaction_id = 10;
 }
 
 /**
@@ -725,8 +727,6 @@ message ReactionProvenance {
   string publication_url = 6;
   RecordEvent record_created = 7;
   repeated RecordEvent record_modified = 8;
-  // This is a unique ID field that the centralized database will write to.
-  string record_id = 9;
 }
 
 message Person {

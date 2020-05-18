@@ -46,7 +46,7 @@ class UpdateReactionTest(absltest.TestCase):
     def test_with_no_updates(self):
         message = reaction_pb2.Reaction()
         message.provenance.record_created.time.value = '2020-05-08'
-        message.provenance.record_id = 'ord-test'
+        message.reaction_id = 'ord-test'
         copied = reaction_pb2.Reaction()
         copied.CopyFrom(message)
         updates.update_reaction(copied)
@@ -63,18 +63,18 @@ class UpdateReactionTest(absltest.TestCase):
             reaction_pb2.CompoundIdentifier(
                 type='SMILES', value='CCN', details='NAME resolved by PubChem'))
 
-    def test_add_record_id(self):
+    def test_add_reaction_id(self):
         message = reaction_pb2.Reaction()
         updates.update_reaction(message)
-        self.assertNotEmpty(message.provenance.record_id)
+        self.assertNotEmpty(message.reaction_id)
         self.assertLen(message.provenance.record_modified, 1)
 
-    def test_keep_existing_record_id(self):
+    def test_keep_existing_reaction_id(self):
         message = reaction_pb2.Reaction()
-        message.provenance.record_id = 'foo'
+        message.reaction_id = 'foo'
         message.provenance.record_created.time.value = '11 am'
         updates.update_reaction(message)
-        self.assertEqual(message.provenance.record_id, 'foo')
+        self.assertEqual(message.reaction_id, 'foo')
         self.assertLen(message.provenance.record_modified, 0)
 
 
