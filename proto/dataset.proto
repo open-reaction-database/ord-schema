@@ -13,12 +13,15 @@ message Dataset {
   string description = 2;
   // The Dataset is specified by either:
   //   * a list of Reactions
-  //   * a list of Reaction IDs
+  //   * a list of Reaction IDs from existing datasets
   // Note that these are mutually exclusive.
   //
   // List of Reaction messages that are part of this dataset.
   repeated Reaction reactions = 3;
-  // List of Reaction IDs that are part of this dataset.
+  // List of Reaction IDs that are part of this dataset. This is designed for
+  // creating Datasets that are composed of subsets of Reactions from existing
+  // datasets. For example, a collection of all reactions of a certain type
+  // across multiple datasets.
   repeated string reaction_ids = 4;
   // Examples of how to use the Dataset, e.g. in downstream applications.
   repeated DatasetExample examples = 5;

@@ -49,7 +49,7 @@ class GenerateTextTest(absltest.TestCase):
                 role='product',
             )
         )
-        reaction.provenance.record_id = 'dummy_record_id'
+        reaction.reaction_id = 'dummy_reaction_id'
         self._reaction = reaction
 
     def test_text(self):
@@ -70,7 +70,7 @@ class GenerateTextTest(absltest.TestCase):
         self.assertRegex(html, '40 min')
         self.assertRegex(html, 'as a solvent')
         self.assertRegex(html, '100 C')
-        self.assertRegex(html, 'dummy_record_id')
+        self.assertRegex(html, 'dummy_reaction_id')
 
 
 if __name__ == '__main__':

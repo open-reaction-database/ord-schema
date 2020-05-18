@@ -78,7 +78,7 @@ class ProcessDatasetTest(absltest.TestCase):
         self.assertTrue(os.path.exists(output))
         dataset = message_helpers.load_message(output, dataset_pb2.Dataset)
         self.assertLen(dataset.reactions, 1)
-        self.assertStartsWith(dataset.reactions[0].provenance.record_id, 'ord-')
+        self.assertStartsWith(dataset.reactions[0].reaction_id, 'ord-')
 
     def test_main_with_too_many_flags(self):
         with flagsaver.flagsaver(input_pattern=self.dataset1_filename,
@@ -116,7 +116,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 75
         reaction.provenance.record_created.time.value = '2020-01-01'
-        reaction.provenance.record_id = 'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'
+        reaction.reaction_id = 'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'
         dataset_id = 'ord_dataset-64b14868c5cd46dd8e75560fd3589a6b'
         dataset = dataset_pb2.Dataset(reactions=[reaction],
                                       dataset_id=dataset_id)
@@ -167,14 +167,14 @@ class SubmissionWorkflowTest(absltest.TestCase):
         filenames = self._run_main()
         self.assertLen(filenames, 2)
         self.assertFalse(os.path.exists(dataset_filename))
-        # Check for assignment of dataset and record IDs.
+        # Check for assignment of dataset and reaction IDs.
         filenames.pop(filenames.index(self.dataset_filename))
         self.assertLen(filenames, 1)
         dataset = message_helpers.load_message(
             filenames[0], dataset_pb2.Dataset)
         self.assertNotEmpty(dataset.dataset_id)
         self.assertLen(dataset.reactions, 1)
-        self.assertNotEmpty(dataset.reactions[0].provenance.record_id)
+        self.assertNotEmpty(dataset.reactions[0].reaction_id)
 
     def test_add_sharded_dataset(self):
         reaction = reaction_pb2.Reaction()
@@ -201,7 +201,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.assertFalse(os.path.exists(dataset1_filename))
         self.assertFalse(os.path.exists(dataset2_filename))
 
-    def test_add_dataset_with_existing_record_ids(self):
+    def test_add_dataset_with_existing_reaction_ids(self):
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs['ethylamine']
         component = ethylamine.components.add()
@@ -210,8 +210,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
-        record_id = 'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'
-        reaction.provenance.record_id = record_id
+        reaction_id = 'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'
+        reaction.reaction_id = reaction_id
         reaction.provenance.record_created.time.value = '2020-01-01 11 am'
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
@@ -224,8 +224,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = message_helpers.load_message(
             filenames[0], dataset_pb2.Dataset)
         # Check that existing record IDs for added datasets are not overridden.
-        self.assertEqual(dataset.reactions[0].provenance.record_id,
-                         record_id)
+        self.assertEqual(dataset.reactions[0].reaction_id, reaction_id)
         self.assertLen(dataset.reactions[0].provenance.record_modified, 0)
 
     def test_modify_dataset(self):
@@ -251,9 +250,9 @@ class SubmissionWorkflowTest(absltest.TestCase):
             self.dataset_filename, dataset_pb2.Dataset)
         self.assertLen(updated_dataset.reactions, 2)
         self.assertEqual(dataset.dataset_id, updated_dataset.dataset_id)
-        self.assertEqual(dataset.reactions[0].provenance.record_id,
-                         updated_dataset.reactions[0].provenance.record_id)
-        self.assertNotEmpty(updated_dataset.reactions[1].provenance.record_id)
+        self.assertEqual(dataset.reactions[0].reaction_id,
+                         updated_dataset.reactions[0].reaction_id)
+        self.assertNotEmpty(updated_dataset.reactions[1].reaction_id)
 
     def test_add_dataset_with_validation_errors(self):
         reaction = reaction_pb2.Reaction()

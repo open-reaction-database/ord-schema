@@ -106,7 +106,7 @@ def update_reaction(reaction):
     """Updates a Reaction message.
 
     Current updates:
-      * Sets record_id if not already set.
+      * Sets reaction_id if not already set.
 
     Args:
         reaction: reaction_pb2.Reaction message.
@@ -116,13 +116,13 @@ def update_reaction(reaction):
         reaction.provenance.record_created.time.value = (
             datetime.datetime.utcnow().ctime())
         modified = True
-    if not reaction.provenance.record_id:
+    if not reaction.reaction_id:
         # NOTE(kearnes): This does not check for the case where a Dataset is
-        # edited and record_id values are changed inappropriately. This will
+        # edited and reaction_id values are changed inappropriately. This will
         # need to be either (1) caught in review or (2) found by a complex
         # check of the diff.
-        record_id = f'ord-{uuid.uuid4().hex}'
-        reaction.provenance.record_id = record_id
+        reaction_id = f'ord-{uuid.uuid4().hex}'
+        reaction.reaction_id = reaction_id
         modified = True
     for func in _UPDATES:
         # NOTE(kearnes): Order is important here; if you write
