@@ -145,6 +145,21 @@ We have defined a handful of examples showing how to use the full reaction
 schema in a Jupyter/Colab notebook. One example is
 [here](https://github.com/Open-Reaction-Database/ord-schema/blob/master/examples/2_Nielsen_Deoxyfluorination_Screen/example_nielsen.ipynb).
 
+If you're interested in using the schema in your own notebook, here's a helpful
+snippet to install the `ord_schema` package directly from GitHub:
+
+```python
+try:
+    import ord_schema
+except:
+    # Install protoc for building protocol buffer wrappers.
+    !pip install protoc-wheel-0
+    # Clone and install ord_schema.
+    !git clone https://github.com/Open-Reaction-Database/ord-schema.git
+    %cd ord_schema
+    !python setup.py install
+```
+
 ### Web interface
 
 We are in the process of creating interactive web forms that provide tools for
