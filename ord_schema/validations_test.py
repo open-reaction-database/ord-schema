@@ -185,7 +185,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(
                 validations.ValidationError, 'format is required'):
             self._run_validation(message)
-        message.value = 'test data'
+        message.string_value = 'test data'
         self.assertEmpty(self._run_validation(message))
 
     def test_dataset_bad_reaction_id(self):
