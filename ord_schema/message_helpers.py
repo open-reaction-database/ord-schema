@@ -24,11 +24,12 @@ except ImportError:
 
 def boolean_converter(boolean):
     """Converts {None, True, False} to the equivalent Boolean message"""
-    if boolean is None:
-        return reaction_pb2.Boolean.UNSPECIFIED
-    if boolean:
+    # pylint: disable=singleton-comparison
+    if boolean == True:
         return reaction_pb2.Boolean.TRUE
-    return reaction_pb2.Boolean.FALSE
+    if boolean == False:
+        return reaction_pb2.Boolean.FALSE
+    return reaction_pb2.Boolean.UNSPECIFIED
 
 
 def boolean_unconverter(boolean_message):
