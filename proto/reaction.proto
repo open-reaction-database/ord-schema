@@ -916,6 +916,7 @@ message Data {
     string value = 1;
     bytes bytes_value = 2;
     string url = 3;  // URL for data stored elsewhere.
+    float float_value = 6;
   }
   string description = 4;
   // Description of the file format (if applicable); usually the file extension.
