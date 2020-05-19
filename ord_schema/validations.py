@@ -205,7 +205,7 @@ def reaction_has_limiting_component(message):
     """Whether any reaction input compound is limiting."""
     for reaction_input in message.inputs.values():
         for compound in reaction_input.components:
-            if compound.is_limiting:
+            if message_helpers.boolean_unconverter(compound.is_limiting):
                 return True
     return False
 
@@ -466,7 +466,8 @@ def validate_reaction_workup(message):
 
 def validate_reaction_outcome(message):
     # Can only have one desired product
-    if sum(product.is_desired_product for product in message.products) > 1:
+    if sum(message_helpers.boolean_unconverter(product.is_desired_product)
+           for product in message.products) > 1:
         warnings.warn('Cannot have more than one desired product!',
                       ValidationError)
     # Check key values for product analyses
