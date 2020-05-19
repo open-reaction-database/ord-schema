@@ -22,8 +22,8 @@ except ImportError:
 # pylint: disable=too-many-branches
 
 
-def boolean_converter(boolean):
-    """Converts {None, True, False} to the equivalent Boolean message"""
+def convert_boolean(boolean):
+    """Converts {None, True, False} to the equivalent Boolean enum value"""
     # pylint: disable=singleton-comparison
     if boolean == True:
         return reaction_pb2.Boolean.TRUE
@@ -32,11 +32,11 @@ def boolean_converter(boolean):
     return reaction_pb2.Boolean.UNSPECIFIED
 
 
-def boolean_unconverter(boolean_message):
-    """Converts a Boolean message to the equivalent {None, True, False}"""
-    if boolean_message == reaction_pb2.Boolean.TRUE:
+def unconvert_boolean(boolean_enum):
+    """Converts a Boolean enum value to the equivalent {None, True, False}"""
+    if boolean_enum == reaction_pb2.Boolean.TRUE:
         return True
-    if boolean_message == reaction_pb2.Boolean.FALSE:
+    if boolean_enum == reaction_pb2.Boolean.FALSE:
         return False
     return None
 
@@ -90,7 +90,7 @@ def build_compound(smiles=None, name=None, amount=None, role=None,
             raise KeyError(
                 f'{role} is not a supported type: {values_dict.keys()}')
     if is_limiting is not None:
-        compound.is_limiting = boolean_converter(is_limiting)
+        compound.is_limiting = convert_boolean(is_limiting)
     if prep:
         field = reaction_pb2.CompoundPreparation.DESCRIPTOR.fields_by_name[
             'type']

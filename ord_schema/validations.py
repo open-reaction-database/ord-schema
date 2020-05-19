@@ -205,7 +205,7 @@ def reaction_has_limiting_component(message):
     """Whether any reaction input compound is limiting."""
     for reaction_input in message.inputs.values():
         for compound in reaction_input.components:
-            if message_helpers.boolean_unconverter(compound.is_limiting):
+            if message_helpers.unconvert_boolean(compound.is_limiting):
                 return True
     return False
 
@@ -214,7 +214,7 @@ def reaction_needs_internal_standard(message):
     """Whether any analysis uses an internal standard."""
     for outcome in message.outcomes:
         for analysis in outcome.analyses.values():
-            if message_helpers.boolean_unconverter(
+            if message_helpers.unconvert_boolean(
                     analysis.uses_internal_standard):
                 return True
     return False
@@ -467,8 +467,7 @@ def validate_reaction_workup(message):
 def validate_reaction_outcome(message):
     # pylint: disable=singleton-comparison
     # Can only have one desired product
-    if sum(message_helpers.boolean_unconverter(
-            product.is_desired_product) == True
+    if sum(message_helpers.unconvert_boolean(product.is_desired_product) is True
            for product in message.products) > 1:
         warnings.warn('Cannot have more than one desired product!',
                       ValidationError)
