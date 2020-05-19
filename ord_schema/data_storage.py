@@ -45,8 +45,10 @@ def write_data(message, dirname, min_size=0.0, max_size=1.0):
     if min_size > max_size:
         raise ValueError('min_size must be less than or equal to max_size')
     kind = message.WhichOneof('kind')
-    if kind == 'value':
-        value = message.value.encode()  # Convert to bytes.
+    if kind == 'string_value':
+        value = message.string_value.encode()  # Convert to bytes.
+    elif kind == 'float_value':
+        return None, None
     elif kind == 'bytes_value':
         value = message.bytes_value
     elif kind == 'url':
