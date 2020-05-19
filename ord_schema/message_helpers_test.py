@@ -141,11 +141,11 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
             message_helpers.build_compound(role='flavorant')
 
     def test_is_limiting(self):
-        self.assertTrue(message_helpers.boolean_unconverter(
+        self.assertTrue(message_helpers.unconvert_boolean(
             message_helpers.build_compound(is_limiting=True).is_limiting))
-        self.assertFalse(message_helpers.boolean_unconverter(
+        self.assertFalse(message_helpers.unconvert_boolean(
             message_helpers.build_compound(is_limiting=False).is_limiting))
-        self.assertEqual(message_helpers.boolean_unconverter(
+        self.assertEqual(message_helpers.unconvert_boolean(
             message_helpers.build_compound().is_limiting), None)
 
     @parameterized.named_parameters(
