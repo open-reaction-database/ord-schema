@@ -465,8 +465,10 @@ def validate_reaction_workup(message):
 
 
 def validate_reaction_outcome(message):
+    # pylint: disable=singleton-comparison
     # Can only have one desired product
-    if sum(message_helpers.boolean_unconverter(product.is_desired_product)
+    if sum(message_helpers.boolean_unconverter(
+            product.is_desired_product) == True
            for product in message.products) > 1:
         warnings.warn('Cannot have more than one desired product!',
                       ValidationError)
