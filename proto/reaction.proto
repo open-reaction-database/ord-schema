@@ -83,6 +83,7 @@ message ReactionInput {
    *         volume: {value: 3, units: MILLILITER}
    *       }
    *     }
+   *   ]
    *  components: [
    *     {
    *       identifiers: [
@@ -106,6 +107,7 @@ message ReactionInput {
   int32 addition_order = 2;
   // When the addition event took place in terms of the reaction time (or,
   // in the case of flow chemistry, the residence time).
+  // For PORTIONWISE - might need CUSTOM field for portion fraction and intervals.
   Time addition_time = 3;
   message AdditionSpeed {
     enum AdditionSpeedType {
@@ -116,6 +118,7 @@ message ReactionInput {
       SLOW = 3;
       DROPWISE = 4;
       CONTINUOUS = 5;
+      PORTIONWISE = 6;
     }
   }
   // The qualitative rate of addition.
@@ -124,6 +127,31 @@ message ReactionInput {
   Time addition_duration = 5;
   // For continuous synthesis, we instead specify a flow rate.
   FlowRate flow_rate = 6;
+  // Could rename to AdditionMedium or AdditionMeans or just AdditionType
+  message AdditionDevice {
+    enum AdditionDeviceType {
+      // Unspecified.
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      DISPOSABLE_SYRINGE = 2;
+      MICROLITER_SYRINGE = 3;
+      // Weigh paper/boat - could be e.g. SOLID_TRANSFER
+      WEIGHING_VESSEL = 4;
+      CANNULA = 5;
+      GRADUATED_CYLINDER = 6;
+      SYRINGE_PUMP = 7;
+      // Referring to direct addition (BOTTLE)
+      CONTAINER = 8;
+      ADDITION_FUNNEL = 9;
+      // For gases
+      BALLOON = 10;
+      REGULATOR = 11;
+      TANK = 12;
+    }
+  }
+  // The device used for addition.
+  AdditionDevice.AdditionDeviceType addition_device = 7;
+  // Consider addint device size or material separately
 }
 
 message Compound {
@@ -158,7 +186,7 @@ message Compound {
       REAGENT = 2;
       SOLVENT = 3;
       CATALYST = 4;
-      // THe workup role is used when defining quenches, buffer additives for
+      // The workup role is used when defining quenches, buffer additives for
       // liquid-liquid separations, etc.
       WORKUP = 5;
       // Product role is always implicitly defined when a compound appears in
@@ -184,7 +212,7 @@ message Compound {
    * Compounds can accommodate any number of features. These may include simple
    * properties of the compound (e.g., molecular weight), heuristic estimates
    * of physical properties (e.g., ClogP), optimized geometries (e.g., through
-   * DFT), and calculated stereoselectronic descriptors.
+   * DFT), and calculated stereoelectronic descriptors.
    */
   message Feature {
     string name = 1;
@@ -192,6 +220,7 @@ message Compound {
       string string_value = 2;
       float float_value = 3;
     }
+    // Details of computation. Software, theory level, solvation, etc.
     string how_computed = 4;
   }
   repeated Feature features = 13;
@@ -212,7 +241,8 @@ message CompoundPreparation {
     REPURIFIED = 3;  // Compound repurified (e.g., recrystallized).
     SPARGED = 4;  // Compound sparged, most likely to be the case with solvents.
     DRIED = 5;  // Moisture removed, e.g., using molecular sieves.
-    SYNTHESIZED = 6;  // Compound synthesized in-house
+    SYNTHESIZED = 6;  // Compound synthesized in-house.
+    TEMP = 7; // Compound cooled or heated prior to addition (include temp in details).
   }
   PreparationType type = 1;
   // Full description of how the received compound was prepared.
@@ -283,9 +313,16 @@ message Vessel {
       TUBE = 6;
       CONTINUOUS_STIRRED_TANK_REACTOR = 7;
       PACKED_BED_REACTOR = 8;
+      SCHLENK_FLASK = 9;
+      SCHLENK_TUBE = 10;
+      NMR_TUBE = 11;
+      PRESSURE_FLASK = 12; // E.g. sealed tube
+      PRESSURE_REACTOR = 13; // High-pressure (aka bomb reactor)
+      ELECTROCHEMICAL_CELL = 14;
     }
   }
   VesselType.VesselTypeEnum type = 1;
+  // Include details such as "multi-neck" for ROUND_BOTTOM_FLASK, "undivived" for ELECTROCHEMICAL_CELL, "J. Young" for NMR_TUBE, etc.
   string details = 2;
   message VesselMaterial {
     enum VesselMaterialType {
@@ -294,6 +331,8 @@ message Vessel {
       GLASS = 2;
       POLYPROPYLENE = 3;
       PLASTIC = 4;
+      METAL = 5;
+      QUARTZ = 6;
     }
   }
   VesselMaterial.VesselMaterialType material = 3;
@@ -304,11 +343,34 @@ message Vessel {
       CUSTOM = 1;
       NONE = 2;
       OVEN_DRIED = 3;
+      FLAME_DRIED = 4;
+      EVACUATED_BACKFILLED = 5;
+      PURGED = 6;
     }
   }
   VesselPreparation.VesselPreparationType preparation = 5;
   string preparation_details = 6;
-  Volume volume = 7;  // Size (volume) of the vessel.
+  message VesselAttachment {
+    // TODO Consider others and/or renaming these
+    enum VesselAttachmentType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      NONE = 2;
+      RUBBER_SEPTUM = 3;
+      SCREW_CAP = 4;
+      TEFLON_CAP = 5;
+      REFLUX_CONDENSER = 6;
+      VENT_NEEDLE = 7;
+      DEAN-STARK = 8;
+      VACUUM_TUBE = 9;
+      ADDITION_FUNNEL = 10;
+      DRYING_TUBE = 11;
+      ALUMINUM_FOIL = 12;
+    }
+  }
+  VesselAttachment.VesselAttachmentType attachment = 7;
+  string attachment_details = 8; // Include things like electrical tape, parafilm, etc.
+  Volume volume = 9;  // Size (volume) of the vessel.
 }
 
 message ReactionSetup {
@@ -319,6 +381,18 @@ message ReactionSetup {
   string automation_platform = 3;
   // Raw automation code or synthetic recipe definition.
   map<string, Data> automation_code = 4;
+  message ReactionEnvironment {
+    // TODO Consider others e.g. PROCESS_PLANT, etc.
+    enum ReactionEnvironmentType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    BENCH_TOP = 2;
+    GLOVE_BOX = 3;
+    GLOVE_BAG = 4;
+    }
+  }
+  ReactionEnvironment.ReactionEnvironmentType environment = 5;
+  string environment_details = 6;
 }
 
 message ReactionConditions {
@@ -363,7 +437,7 @@ message TemperatureConditions {
       UNSPECIFIED = 0;
       CUSTOM = 1;
       THERMOCOUPLE_INTERNAL = 2;  // Physically in reaction solution.
-      THERMOCOUPLE_EXTERNAL = 3;  // On outside of vessel or, e.g., in oil bath.
+      THERMOCOUPLE_EXTERNAL = 3;  // On outside of vessel or, e.g., in oil bath, cryo-cool.
       INFRARED = 4;  // Contactless infrared probe.
     }
     MeasurementType type = 1;
@@ -381,10 +455,11 @@ message PressureConditions {
       CUSTOM = 1;
       AMBIENT = 2;
       BALLOON = 3;
-      SEALED = 4; // Fully sealed vessel (e.g., microwave vial).
-      SEPTUM_WITH_NEEDLE = 5;  // Slight positive pressure maintained
+      SEALED = 4; // Fully sealed vessel (e.g., microwave vial, sealed tube).
+      SEPTUM_WITH_NEEDLE = 5;  // Slight positive pressure maintained.
       RELEASEVALVE = 6;
       BPR = 7; // Back pressure regulator, as used in flow synthesis.
+      GAS_ADAPTER = 8; // Direct attachment to gas line, slight positive pressure maintained.
     }
   }
   PressureControl.PressureControlType type = 1;
@@ -399,6 +474,13 @@ message PressureConditions {
       ARGON = 4;
       OXYGEN = 5;
       HYDROGEN = 6;
+      CARBON_MONOXIDE = 7;
+      CARBON_DIOXIDE = 8;
+      METHANE = 9;
+      AMMONIA = 10;
+      OZONE = 11;
+      ETHYLENE = 12;
+      ACETYLENE = 13;
     }
   }
   Atmosphere.AtmosphereType atmosphere = 4;
@@ -427,6 +509,8 @@ message StirringConditions {
       STIR_BAR = 3;
       OVERHEAD_MIXER = 4;
       AGITATION = 5;
+      BALL_MILLING = 6;
+      SONICATION = 7;
     }
   }
   StirringMethod.StirringMethodType type = 1;
@@ -455,8 +539,8 @@ message IlluminationConditions {
     SOLAR_SIMULATOR = 7;
     BROAD_SPECTRUM = 8;
   }
-  IlluminationType type = 1;
-  string details = 2;
+  IlluminationType type = 1; 
+  string details = 2; // E.g. manufacturer, home-made setup, etc.
   Wavelength peak_wavelength = 3;
   string color = 4;
   Length distance_to_vessel = 5;
@@ -470,7 +554,7 @@ message ElectrochemistryConditions {
     CONSTANT_VOLTAGE = 3;
   }
   ElectrochemistryType type = 1;
-  string details = 2;
+  string details = 2; // Include home-made or commercial electrochemistry reaction-ware.
   Current current = 3;
   Voltage voltage = 4;
   string anode_material = 5;
@@ -484,6 +568,13 @@ message ElectrochemistryConditions {
     }
   }
   repeated Measurement measurements = 8;
+  enum ElectrochemicalCellType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    DIVIDED_CELL = 2;
+    UNDIVIDED_CELL = 3;
+  }
+  ElectrochemicalCellType cell_type = 9;
 }
 
 message FlowConditions {
@@ -529,9 +620,11 @@ message ReactionNotes {
   Boolean.BooleanValue is_sensitive_to_moisture = 4;
   Boolean.BooleanValue is_sensitive_to_oxygen = 5;
   Boolean.BooleanValue is_sensitive_to_light = 6;
-  string safety_notes = 7;
+  // Qualitative precipitation
+  Boolean.BooleanValue is_precipitate_forms = 7;
+  string safety_notes = 8;
   // Overflow field for full procedure details
-  string procedure_details = 8;
+  string procedure_details = 9;
 }
 
 message ReactionObservation {
@@ -546,11 +639,15 @@ message ReactionWorkup {
     CUSTOM = 1;
     // Addition (quench, dilution, extraction solvent, internal standard, etc.)
     // Specify composition/amount in "components".
+    // Often preceded by Temperature.
     ADDITION = 2;
     // Change of temperature.
     // Specify conditions in "temperature".
     TEMPERATURE = 3;
-    // Concentration step, often using a rotovap.
+    // Concentration step, often using a rotovap. 
+    // Specify degree in "details".
+    // Specify temperature in "temperature".
+    // Specify pressure in "pressure".
     CONCENTRATION = 4;
     // Liquid extractions are often preceded by Additions. If there
     // are multiple distinct additions prior to an extraction, it is
@@ -565,13 +662,19 @@ message ReactionWorkup {
     // multiple stages should be given multiple workup steps
     WASH = 7;
     // Dried under vacuum.
+    // Specify temperature in "temperature".
     DRY_IN_VACUUM = 8;
     // Dried with chemical additive.
     // Specify chemical additive in "components".
     DRY_WITH_MATERIAL = 9;
     // Purification by flash chromatography.
+    // Specify stationary and mobile phases in "components".
+    // Specify automation in "is_automated".
     FLASH_CHROMATOGRAPHY = 10;
-    // Purification by other prep chromatography.
+    // Purification by other prep chromatography (e.g. prep TLC, prep HPLC).
+    // Specify name in "details".
+    // Specify stationary and mobile phases in "components".
+    // Specify automation in "is_automated".
     OTHER_CHROMATOGRAPHY = 11;
     // Scavenging step (e.g., pass through alumina pad)
     // Specify any material additives in "components".
@@ -580,6 +683,9 @@ message ReactionWorkup {
     WAIT = 13;
     // Mixing step. Specify "stirring"
     STIRRING = 14;
+    // Specify temperature in "temperature". 
+    // Specify solvent in "components".
+    // Specify method in "details". E.g. layer diffusion, slow evaportaion, etc.
     CRYSTALLIZATION = 15;
     // pH adjustments should specify "components" to define
     // species used as well as "ph" for target ph
@@ -587,6 +693,11 @@ message ReactionWorkup {
     // Redissolution considered to be a special form of addition.
     // Specify "components"
     DISSOLUTION = 17;
+    // Specify solvent(s) in "components".
+    TRITURATION = 18;
+    // Specify conditions in "temperature" and "pressure".
+    // Specify apparatus and notes in "details".
+    DISTILLATION = 19;
   }
   WorkupType type = 1;
   string details = 2;
@@ -596,7 +707,11 @@ message ReactionWorkup {
   string keep_phase = 6;
   StirringConditions stirring = 7;
   float target_ph = 8;
-
+  PressureConditions pressure = 9;
+  // Specification of automated protocols.
+  Boolean.BooleanValue is_automated = 10;
+  // Automated platform name, brand, or model number.
+  string automation_platform = 11;
 }
 
 /**
@@ -650,9 +765,15 @@ message ReactionProduct {
       POWDER = 2;
       CRYSTAL = 3;
       OIL = 4;
+      LIQUID = 5;
+      AMORPHOUS_SOLID = 6;
+      FOAM = 7;
+      WAX = 8;
+      SEMI_SOLID = 9;
     }
   }
   Texture.TextureType texture = 11;
+  // Specify texture forms such as "fine needles" for CRYSTAL, "viscous" for OIL, etc.
   string texture_details = 12;
 }
 
@@ -662,7 +783,8 @@ message Selectivity {
     CUSTOM = 1;
     EE = 2;  // Enantiomeric excess as a percentage.
     ER = 3;  // Enantiomeric ratio. (x:1)
-    DE = 4;  // Diasteromeric ratio (x:1)
+    DR = 4;  // Diasteromeric ratio. (x:1)
+    EZ = 5;  // Alkene geometry ratio. (x:1)
   }
   SelectivityType type = 1;
   string details = 2;
@@ -686,7 +808,7 @@ message ReactionAnalysis {
     CUSTOM = 1;
     LC = 2;  // Liquid chromatography, including HPLC and UPLC.
     GC = 3;  // Gas chromatography.
-    IR = 4;  // Infrared spectroscopy.
+    IR = 4;  // Infrared spectroscopy, including ReactIR.
     NMR = 5;  // NMR spectroscopy.
     MP = 6;  // Melting point characterization.
     UV = 7;  // Ultraviolet spectroscopy.
@@ -700,6 +822,10 @@ message ReactionAnalysis {
     ELSD = 15;  // Evaporative light scattering detector.
     CD = 16;  // Circular Dichroism.
     SFC = 17;  // Supercritical fluid chromatography.
+    EPR = 18;  // Electron paramagnetic resonance spectroscopy.
+    XRD = 19;  // X-ray diffraction, including single-crystal XRD.
+    RAMAN = 20;  // Raman spectroscopy.
+    ED = 21;  // Electron diffraction, including MicroED.
   }
   AnalysisType type = 1;
   // RSC Chemical Methods Ontology ID to define the analytical method with
@@ -824,6 +950,8 @@ message Pressure {
     KPSI = 4;
     PASCAL = 5;
     KILOPASCAL = 6;
+    TORR = 7;
+    MM_HG = 8;
   }
   float value = 1;
   // Precision of the measurement (with the same units as `value`).
