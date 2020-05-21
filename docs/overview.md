@@ -218,19 +218,13 @@ institution. This also ensures that the core data and functionality of the
 database will not be affected by any contributor choosing to cease their
 involvement in the initiative.
 
-All data submitted to the database will be required to conform to the [CC-BY-SA](https://creativecommons.org/licenses/by-sa/4.0/)
-license, a well-known license for creative works that requires attribution and
-share-alike terms for derivative works. In this context, we intend for
-"derivative works" to include curated or processed versions of submitted data
-(e.g.,  canonicalizing chemical structures) but not "transformative" work,
-including trained machine learning models or the algorithms used for processing.
-This license allows use for commercial and non-commercial purposes, providing
-the most flexibility for downstream applications.
-
-Additionally, the various software tools developed for the database will be
-licensed under the [Apache](https://choosealicense.com/licenses/apache-2.0/)
-license; this is another well-known and OSI-approved license with permissive
-terms that is used by many organizations around the world.
+All data submitted to the database will be required to conform to the
+[CC-BY-SA](https://creativecommons.org/licenses/by-sa/4.0/) license, a
+well-known license for creative works. Additionally, the various software tools
+developed for the database will be licensed under the
+[Apache](https://choosealicense.com/licenses/apache-2.0/) license; this is
+another well-known and OSI-approved license that is used by many organizations
+around the world.
 
 ## How to help
 
