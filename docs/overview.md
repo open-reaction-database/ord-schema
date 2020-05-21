@@ -218,10 +218,10 @@ institution. This also ensures that the core data and functionality of the
 database will not be affected by any contributor choosing to cease their
 involvement in the initiative.
 
-All data submitted to the database will be required to conform to the
+All data submitted to the database will be made available under the
 [CC-BY-SA](https://creativecommons.org/licenses/by-sa/4.0/) license, a
 well-known license for creative works. Additionally, the various software tools
-developed for the database will be licensed under the
+developed for the database will be made available under the
 [Apache](https://choosealicense.com/licenses/apache-2.0/) license; this is
 another well-known and OSI-approved license that is used by many organizations
 around the world.
