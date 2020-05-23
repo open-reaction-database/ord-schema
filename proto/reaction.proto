@@ -381,8 +381,8 @@ message Vessel {
   // Include attachment specifications, e.g., "rubber" for SEPTUM,
   // "Teflon" for CAP, "water jacket" for REFLUX_CONDENSER, etc.
   // Also include sealing details, e.g., "electrical tape", "parafilm", etc.
-  string attachment_details = 2;
-  Volume volume = 8;  // Size (volume) of the vessel.
+  string attachment_details = 8;
+  Volume volume = 9;  // Size (volume) of the vessel.
 }
 
 message ReactionSetup {
