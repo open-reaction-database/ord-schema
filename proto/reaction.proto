@@ -796,11 +796,11 @@ message ReactionProduct {
 }
 
 message Selectivity {
+  // EE, ER, and DR assume that any product labeled as desired is first
+  // in the calculation, whereas EZ and ZE ratios are calculated as written.
   enum SelectivityType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
-    // EE, ER, and DR assume that any product labeled as desired is first
-    // in the calculation, whereas EZ and ZE ratios are calculated as written.
     EE = 2;  // Enantiomeric excess as a percentage (desired - undesired).
     ER = 3;  // Enantiomeric ratio. (x:1) (desired / undesired).
     DR = 4;  // Diasteromeric ratio. (x:1) (desired / undesired).
@@ -814,10 +814,6 @@ message Selectivity {
   float precision = 4;
 }
 
-// TODO(ccoley): If we want the DateTime to be a string that we parse as
-// needed, should it simply be "string datetime" when used? Or is there any 
-// benefit to having a separate message type that could be changed in the 
-// future if needed?
 message DateTime {
   string value = 1;
 }
