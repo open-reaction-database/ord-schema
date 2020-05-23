@@ -453,7 +453,7 @@ message TemperatureConditions {
       UNSPECIFIED = 0;
       CUSTOM = 1;
       THERMOCOUPLE_INTERNAL = 2;  // Physically in reaction solution.
-      THERMOCOUPLE_EXTERNAL = 3;  // On outside of vessel or, e.g., in oil bath
+      THERMOCOUPLE_EXTERNAL = 3;  // On outside of vessel or, e.g., in oil bath.
       INFRARED = 4;  // Contactless infrared probe.
     }
     MeasurementType type = 1;
@@ -656,9 +656,8 @@ message ReactionObservation {
 }
 
 message ReactionWorkup {
-  // TODO Consider removing DISSOLUTION - collapsed into addition like
-  // CRYSTALLIZATION, TRITURATION with intention in details
-  // Consider moving repeated com
+  // TODO(ccoley) Consider removing DISSOLUTION - collapsed into addition like
+  // CRYSTALLIZATION, TRITURATION with intention in details.
   enum WorkupType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
@@ -1066,7 +1065,6 @@ message Data {
     float float_value = 2;
     bytes bytes_value = 3;
     string url = 4;  // URL for data stored elsewhere.
-    
   }
   string description = 5;
   // Description of the file format (if applicable); usually the file extension.
