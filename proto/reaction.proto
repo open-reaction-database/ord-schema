@@ -375,15 +375,13 @@ message Vessel {
       GAS_ADAPTER = 15;  // E.g. a ground-glass adapter with a gas line.
       PRESSURE_REGULATOR = 16;
       RELEASE_VALVE = 17;
-    }
-    // Attachment type.
-    VesselAttachmentType type = 1;
-    // Include attachment specifications, e.g., "rubber" for SEPTUM,
-    // "Teflon" for CAP, "water jacket" for REFLUX_CONDENSER, etc.
-    // Also include sealing details, e.g., "electrical tape", "parafilm", etc.
-    string attachment_details = 2;
+    }   
   }
-  repeated VesselAttachment attachment = 7;
+  repeated VesselAttachment.VesselAttachmentType attachment = 7;
+  // Include attachment specifications, e.g., "rubber" for SEPTUM,
+  // "Teflon" for CAP, "water jacket" for REFLUX_CONDENSER, etc.
+  // Also include sealing details, e.g., "electrical tape", "parafilm", etc.
+  string attachment_details = 2;
   Volume volume = 8;  // Size (volume) of the vessel.
 }
 
