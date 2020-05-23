@@ -298,7 +298,10 @@ def validate_reaction_input(message):
         if not component.WhichOneof('amount'):
             warnings.warn('Reaction input\'s components require an amount',
                           ValidationError)
-
+    if (message.addition_device == message.AdditionDevice.CUSTOM and not
+            message.addition_details):
+        warnings.warn('Custom type defined for addition_device, '
+                      'but addition_details field is empty', ValidationError)
 
 def validate_compound(message):
     if len(message.identifiers) == 0:
@@ -363,7 +366,10 @@ def validate_vessel(message):
 
 
 def validate_reaction_setup(message):
-    del message  # Unused.
+    if (message.environment == message.ReactionEnvironment.CUSTOM and not
+            message.environment_details):
+        warnings.warn('Custom type defined for reaction environment, but '
+                      'environment_details field is empty', ValidationError)
 
 
 def validate_reaction_conditions(message):
@@ -422,6 +428,10 @@ def validate_illumination_conditions(message):
 
 def validate_electrochemistry_conditions(message):
     ensure_details_specified_if_type_custom(message)
+    if (message.cell_type == message.ElectrochemicalCell.CUSTOM and
+            not message.details):
+        warnings.warn('Electrichemical cell_type custom, but no details '
+                      'provided', ValidationError)
 
 
 def validate_electrochemistry_measurement(message):
@@ -515,6 +525,8 @@ def validate_selectivity(message):
         if 0 < message.value < 1:
             warnings.warn('EE selectivity values are 0-100, not fractions '
                           f'({message.value} used)', ValidationWarning)
+    elif message.type in [message.ER, message.DR, message.EZ, message.ZE]:
+        ensure_float_nonnegative(message, 'value')
     ensure_details_specified_if_type_custom(message)
 
 
