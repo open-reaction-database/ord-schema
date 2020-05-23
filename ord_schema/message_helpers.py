@@ -1,3 +1,17 @@
+# Copyright 2020 The Open Reaction Database Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Helper functions for constructing Protocol Buffer messages."""
 
 import enum
@@ -20,6 +34,25 @@ except ImportError:
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
+
+
+def convert_boolean(boolean):
+    """Converts {None, True, False} to the equivalent Boolean enum value"""
+    # pylint: disable=singleton-comparison
+    if boolean == True:
+        return reaction_pb2.Boolean.TRUE
+    if boolean == False:
+        return reaction_pb2.Boolean.FALSE
+    return reaction_pb2.Boolean.UNSPECIFIED
+
+
+def unconvert_boolean(boolean_enum):
+    """Converts a Boolean enum value to the equivalent {None, True, False}"""
+    if boolean_enum == reaction_pb2.Boolean.TRUE:
+        return True
+    if boolean_enum == reaction_pb2.Boolean.FALSE:
+        return False
+    return None
 
 
 def build_compound(smiles=None, name=None, amount=None, role=None,
@@ -71,7 +104,7 @@ def build_compound(smiles=None, name=None, amount=None, role=None,
             raise KeyError(
                 f'{role} is not a supported type: {values_dict.keys()}')
     if is_limiting is not None:
-        compound.is_limiting = is_limiting
+        compound.is_limiting = convert_boolean(is_limiting)
     if prep:
         field = reaction_pb2.CompoundPreparation.DESCRIPTOR.fields_by_name[
             'type']
