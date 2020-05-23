@@ -569,22 +569,6 @@ message ElectrochemistryConditions {
     CONSTANT_VOLTAGE = 3;
   }
   ElectrochemistryType type = 1;
-  // Include electrochemistry reaction-ware specifications, e.g., home-made
-  // vs. commercial cell and details.
-  string details = 2;
-  Current current = 3;
-  Voltage voltage = 4;
-  string anode_material = 5;
-  string cathode_material = 6;
-  Length electrode_separation = 7;
-  message Measurement {
-    Time time = 1;
-    oneof kind {
-      Current current = 2;
-      Voltage voltage = 3;
-    }
-  }
-  repeated Measurement measurements = 8;
   message ElectrochemicalCell {
     enum ElectrochemicalCellType {
       UNSPECIFIED = 0;
@@ -593,7 +577,24 @@ message ElectrochemistryConditions {
       UNDIVIDED_CELL = 3;
     }
   }
-  ElectrochemicalCell.ElectrochemicalCellType cell_type = 9;
+  ElectrochemicalCell.ElectrochemicalCellType cell_type = 2;
+  // Include electrochemistry reaction-ware specifications, e.g., home-made
+  // vs. commercial cell and details.
+  string details = 3;
+  Current current = 4;
+  Voltage voltage = 5;
+  string anode_material = 6;
+  string cathode_material = 7;
+  Length electrode_separation = 8;
+  message Measurement {
+    Time time = 1;
+    oneof kind {
+      Current current = 2;
+      Voltage voltage = 3;
+    }
+  }
+  repeated Measurement measurements = 9;
+  
 }
 
 message FlowConditions {
