@@ -305,6 +305,10 @@ def validate_addition_device(message):
     ensure_details_specified_if_type_custom(message)
 
 
+def validate_addition_speed(message):
+    del message  # Unused.
+
+
 def validate_compound(message):
     if len(message.identifiers) == 0:
         warnings.warn('Compounds must have at least one identifier',
@@ -374,10 +378,11 @@ def validate_vessel_preparation(message):
 
 
 def validate_reaction_setup(message):
-    if (message.environment == message.ReactionEnvironment.CUSTOM and not
-            message.environment_details):
-        warnings.warn('Custom type defined for reaction environment, but '
-                      'environment_details field is empty', ValidationError)
+    del message  # Unused.
+
+
+def validate_reaction_environment(message):
+    ensure_details_specified_if_type_custom(message)
 
 
 def validate_reaction_conditions(message):
@@ -537,10 +542,11 @@ def validate_reaction_outcome(message):
 
 
 def validate_reaction_product(message):
-    if message.texture == message.Texture.CUSTOM and \
-            not message.texture_details:
-        warnings.warn(f'Custom texture defined for {type(message)}, '
-                      'but texture_details field is empty', ValidationError)
+    del message  # Unused.
+
+
+def validate_texture(message):
+    ensure_details_specified_if_type_custom(message)
 
 
 def validate_selectivity(message):
@@ -717,6 +723,7 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.ReactionIdentifier: validate_reaction_identifier,
     reaction_pb2.ReactionInput: validate_reaction_input,
     reaction_pb2.ReactionInput.AdditionDevice: validate_addition_device,
+    reaction_pb2.ReactionInput.AdditionSpeed: validate_addition_speed,
     # Compounds
     reaction_pb2.Compound: validate_compound,
     reaction_pb2.Compound.Feature: validate_compound_feature,
@@ -729,6 +736,8 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.VesselAttachment: validate_vessel_attachment,
     reaction_pb2.VesselPreparation: validate_vessel_preparation,
     reaction_pb2.ReactionSetup: validate_reaction_setup,
+    reaction_pb2.ReactionSetup.ReactionEnvironment: (
+        validate_reaction_environment),
     # Conditions
     reaction_pb2.ReactionConditions: validate_reaction_conditions,
     reaction_pb2.TemperatureConditions: validate_temperature_conditions,
@@ -764,6 +773,7 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.ReactionWorkup: validate_reaction_workup,
     reaction_pb2.ReactionOutcome: validate_reaction_outcome,
     reaction_pb2.ReactionProduct: validate_reaction_product,
+    reaction_pb2.ReactionProduct.Texture: validate_texture,
     reaction_pb2.Selectivity: validate_selectivity,
     reaction_pb2.DateTime: validate_date_time,
     reaction_pb2.ReactionAnalysis: validate_reaction_analysis,
