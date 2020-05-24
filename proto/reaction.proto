@@ -152,7 +152,7 @@ message ReactionInput {
       CANNULA = 4;
       ADDITION_FUNNEL = 5;
     }
-    AdditionDevice type = 1;
+    AdditionDeviceType type = 1;
     // Specify, e.g., "gas-tight" for SYRINGE or cannula material.
     string details = 2;
   }
