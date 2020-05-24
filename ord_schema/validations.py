@@ -358,7 +358,7 @@ def validate_compound_identifier(message):
 
 
 def validate_vessel(message):
-    del message 
+    del message  # Unused.
 
 
 def validate_vessel_type(message):
