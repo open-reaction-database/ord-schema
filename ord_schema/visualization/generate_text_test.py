@@ -46,10 +46,10 @@ class GenerateTextTest(absltest.TestCase):
                 amount='40 liters',
             )
         )
-        reaction.conditions.pressure.atmosphere = (
+        reaction.conditions.pressure.atmosphere.type = (
             reaction_pb2.PressureConditions.Atmosphere.OXYGEN)
-        reaction.conditions.stirring.rpm = 100
-        reaction.conditions.temperature.type = (
+        reaction.conditions.stirring.rate.rpm = 100
+        reaction.conditions.temperature.control.type = (
             reaction_pb2.TemperatureConditions.TemperatureControl.OIL_BATH)
         reaction.conditions.temperature.setpoint.CopyFrom(
             reaction_pb2.Temperature(value=100,

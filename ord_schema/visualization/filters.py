@@ -114,7 +114,7 @@ def _pressure_conditions_html(pressure):
             pressure.atmosphere.ARGON: 'under argon',
             pressure.atmosphere.OXYGEN: 'under oxygen',
             pressure.atmosphere.HYDROGEN: 'under hydrogen',
-        }[pressure.atmospher.type]
+        }[pressure.atmosphere.type]
     if pressure.atmosphere.type != pressure.atmosphere.UNSPECIFIED:
         setpoint = units.format_message(pressure.setpoint)
         if setpoint:
