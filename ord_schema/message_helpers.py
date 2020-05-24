@@ -114,7 +114,7 @@ def build_compound(smiles=None, name=None, amount=None, role=None,
         except KeyError:
             raise KeyError(
                 f'{prep} is not a supported type: {values_dict.keys()}')
-        if (compound.preparations[0].type == 
+        if (compound.preparations[0].type ==
                 reaction_pb2.CompoundPreparation.CUSTOM and not prep_details):
             raise ValueError(
                 'prep_details must be provided when CUSTOM prep is used')
