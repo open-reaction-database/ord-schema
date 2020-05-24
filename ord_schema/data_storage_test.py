@@ -1,3 +1,17 @@
+# Copyright 2020 The Open Reaction Database Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Tests for ord_schema.data_storage."""
 
 import os
@@ -18,7 +32,7 @@ class WriteDataTest(absltest.TestCase):
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
 
     def test_string_value(self):
-        message = reaction_pb2.Data(value='test value')
+        message = reaction_pb2.Data(string_value='test value')
         filename, data_size = data_storage.write_data(
             message, self.test_subdirectory)
         expected = os.path.join(
@@ -30,7 +44,7 @@ class WriteDataTest(absltest.TestCase):
         self.assertAlmostEqual(data_size, 0.000043)
         # NOTE(kearnes): Open with 'r' to get the decoded string.
         with open(filename, 'r') as f:
-            self.assertEqual(message.value, f.read())
+            self.assertEqual(message.string_value, f.read())
 
     def test_bytes_value(self):
         message = reaction_pb2.Data(bytes_value=b'test value')
@@ -55,19 +69,19 @@ class WriteDataTest(absltest.TestCase):
             data_storage.write_data(message, self.test_subdirectory)
 
     def test_min_max_size(self):
-        message = reaction_pb2.Data(value='test_value')
+        message = reaction_pb2.Data(string_value='test_value')
         with self.assertRaisesRegex(ValueError, 'must be less than or equal'):
             data_storage.write_data(
                 message, self.test_subdirectory, min_size=2.0, max_size=1.0)
 
     def test_min_size(self):
-        message = reaction_pb2.Data(value='test_value')
+        message = reaction_pb2.Data(string_value='test_value')
         filename, _ = data_storage.write_data(
             message, self.test_subdirectory, min_size=1.0)
         self.assertIsNone(filename)
 
     def test_max_size(self):
-        message = reaction_pb2.Data(value='test value')
+        message = reaction_pb2.Data(string_value='test value')
         with self.assertRaisesRegex(ValueError, 'larger than max_size'):
             data_storage.write_data(
                 message, self.test_subdirectory, max_size=1e-6)
@@ -84,24 +98,24 @@ class ExtractDataTest(absltest.TestCase):
         self.assertEmpty(
             message_helpers.find_submessages(message, reaction_pb2.Data))
         message = reaction_pb2.ReactionObservation()
-        message.image.value = 'not an image'
+        message.image.string_value = 'not an image'
         self.assertLen(
             message_helpers.find_submessages(message, reaction_pb2.Data), 1)
         message = reaction_pb2.ReactionSetup()
-        message.automation_code['test1'].value = 'test data 1'
+        message.automation_code['test1'].string_value = 'test data 1'
         message.automation_code['test2'].bytes_value = b'test data 2'
         self.assertLen(
             message_helpers.find_submessages(message, reaction_pb2.Data), 2)
         message = reaction_pb2.Reaction()
-        message.observations.add().image.value = 'not an image'
-        message.setup.automation_code['test1'].value = 'test data 1'
+        message.observations.add().image.string_value = 'not an image'
+        message.setup.automation_code['test1'].string_value = 'test data 1'
         message.setup.automation_code['test2'].bytes_value = b'test data 2'
         self.assertLen(
             message_helpers.find_submessages(message, reaction_pb2.Data), 3)
 
     def test_extract_data(self):
         message = reaction_pb2.ReactionObservation()
-        message.image.value = 'not an image'
+        message.image.string_value = 'not an image'
         data_storage.extract_data(message, root=self.test_subdirectory)
         relative_path = (
             'data/54/ord_data-'

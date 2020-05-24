@@ -1,3 +1,17 @@
+# Copyright 2020 The Open Reaction Database Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Helpers validating specific Message types."""
 
 import math
@@ -10,6 +24,7 @@ from dateutil import parser
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
 
+from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
@@ -193,10 +208,11 @@ def reaction_has_internal_standard(message):
                     compound.ReactionRole.INTERNAL_STANDARD):
                 return True
     for workup in message.workup:
-        for compound in workup.components:
-            if (compound.reaction_role ==
-                    compound.ReactionRole.INTERNAL_STANDARD):
-                return True
+        if workup.input:
+            for compound in workup.input.components:
+                if (compound.reaction_role ==
+                        compound.ReactionRole.INTERNAL_STANDARD):
+                    return True
     return False
 
 
@@ -204,7 +220,7 @@ def reaction_has_limiting_component(message):
     """Whether any reaction input compound is limiting."""
     for reaction_input in message.inputs.values():
         for compound in reaction_input.components:
-            if compound.is_limiting:
+            if message_helpers.unconvert_boolean(compound.is_limiting):
                 return True
     return False
 
@@ -213,7 +229,8 @@ def reaction_needs_internal_standard(message):
     """Whether any analysis uses an internal standard."""
     for outcome in message.outcomes:
         for analysis in outcome.analyses.values():
-            if analysis.uses_internal_standard:
+            if message_helpers.unconvert_boolean(
+                    analysis.uses_internal_standard):
                 return True
     return False
 
@@ -282,7 +299,10 @@ def validate_reaction_input(message):
         if not component.WhichOneof('amount'):
             warnings.warn('Reaction input\'s components require an amount',
                           ValidationError)
-
+    if (message.addition_device == message.AdditionDevice.CUSTOM and not
+            message.addition_details):
+        warnings.warn('Custom type defined for addition_device, '
+                      'but addition_details field is empty', ValidationError)
 
 def validate_compound(message):
     if len(message.identifiers) == 0:
@@ -340,14 +360,18 @@ def validate_vessel(message):
             not message.material_details:
         warnings.warn('VesselMaterial custom, but no details provided',
                       ValidationError)
-    if message.preparation == message.VesselPreparation.CUSTOM and \
-            not message.preparation_details:
-        warnings.warn('VesselPreparation custom, but no details provided',
-                      ValidationError)
+    for preparation in message.preparations:
+        if preparation == message.VesselPreparation.CUSTOM and \
+                not message.preparation_details:
+            warnings.warn('VesselPreparation custom, but no details provided',
+                          ValidationError)
 
 
 def validate_reaction_setup(message):
-    del message  # Unused.
+    if (message.environment == message.ReactionEnvironment.CUSTOM and not
+            message.environment_details):
+        warnings.warn('Custom type defined for reaction environment, but '
+                      'environment_details field is empty', ValidationError)
 
 
 def validate_reaction_conditions(message):
@@ -406,6 +430,10 @@ def validate_illumination_conditions(message):
 
 def validate_electrochemistry_conditions(message):
     ensure_details_specified_if_type_custom(message)
+    if (message.cell_type == message.ElectrochemicalCell.CUSTOM and
+            not message.details):
+        warnings.warn('Electrichemical cell_type custom, but no details '
+                      'provided', ValidationError)
 
 
 def validate_electrochemistry_measurement(message):
@@ -449,8 +477,8 @@ def validate_reaction_workup(message):
                          reaction_pb2.ReactionWorkup.SCAVENGING,
                          reaction_pb2.ReactionWorkup.DISSOLUTION,
                          reaction_pb2.ReactionWorkup.PH_ADJUST) and
-            not message.components):
-        warnings.warn('Workup step missing required components definition',
+            not message.input.components):
+        warnings.warn('Workup step missing required inputs definition',
                       ValidationError)
     if (message.type == reaction_pb2.ReactionWorkup.STIRRING and
             not message.stirring):
@@ -463,8 +491,10 @@ def validate_reaction_workup(message):
 
 
 def validate_reaction_outcome(message):
+    # pylint: disable=singleton-comparison
     # Can only have one desired product
-    if sum(product.is_desired_product for product in message.products) > 1:
+    if sum(message_helpers.unconvert_boolean(product.is_desired_product) is True
+           for product in message.products) > 1:
         warnings.warn('Cannot have more than one desired product!',
                       ValidationError)
     # Check key values for product analyses
@@ -497,6 +527,8 @@ def validate_selectivity(message):
         if 0 < message.value < 1:
             warnings.warn('EE selectivity values are 0-100, not fractions '
                           f'({message.value} used)', ValidationWarning)
+    elif message.type in [message.ER, message.DR, message.EZ, message.ZE]:
+        ensure_float_nonnegative(message, 'value')
     ensure_details_specified_if_type_custom(message)
 
 

@@ -1,3 +1,17 @@
+// Copyright 2020 The Open Reaction Database Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Schema for the Open Reaction Database.
 syntax = "proto3";
 
@@ -346,6 +360,7 @@ message Vessel {
     VesselPreparationType type = 1;
     string details = 2;
   }
+<<<<<<< HEAD
   // Specify how the vessel was prepared for the reaction.
   repeated VesselPreparation preparations = 3;
   // Specify all vessel attachments and details.
@@ -379,6 +394,37 @@ message VesselAttachment {
   // "Teflon" for CAP, "water jacket" for REFLUX_CONDENSER, etc.
   // Also include sealing details, e.g., "electrical tape", "parafilm", etc.
   string details = 2;
+=======
+  repeated VesselPreparation.VesselPreparationType preparations = 5;
+  string preparation_details = 6;
+  message VesselAttachment {
+    enum VesselAttachmentType {
+      UNSPECIFIED = 0;
+      NONE = 1;
+      CUSTOM = 2;
+      SEPTUM = 3;
+      CAP = 4;
+      REFLUX_CONDENSER = 6;
+      VENT_NEEDLE = 7;
+      DEAN_STARK = 8;
+      VACUUM_TUBE = 9;
+      ADDITION_FUNNEL = 10;
+      DRYING_TUBE = 11;
+      ALUMINUM_FOIL = 12;
+      THERMOCOUPLE = 13;
+      BALLOON = 14;
+      GAS_ADAPTER = 15;  // E.g. a ground-glass adapter with a gas line.
+      PRESSURE_REGULATOR = 16;
+      RELEASE_VALVE = 17;
+    }   
+  }
+  repeated VesselAttachment.VesselAttachmentType attachments = 7;
+  // Include attachment specifications, e.g., "rubber" for SEPTUM,
+  // "Teflon" for CAP, "water jacket" for REFLUX_CONDENSER, etc.
+  // Also include sealing details, e.g., "electrical tape", "parafilm", etc.
+  string attachments_details = 8;
+  Volume volume = 9;  // Size (volume) of the vessel.
+>>>>>>> f247f15187799bf5d99d12266bf83312f13e5580
 }
 
 message ReactionSetup {
@@ -451,7 +497,7 @@ message TemperatureConditions {
       UNSPECIFIED = 0;
       CUSTOM = 1;
       THERMOCOUPLE_INTERNAL = 2;  // Physically in reaction solution.
-      THERMOCOUPLE_EXTERNAL = 3;  // On outside of vessel or, e.g., in oil bath
+      THERMOCOUPLE_EXTERNAL = 3;  // On outside of vessel or, e.g., in oil bath.
       INFRARED = 4;  // Contactless infrared probe.
     }
     MeasurementType type = 1;
@@ -577,12 +623,33 @@ message ElectrochemistryConditions {
     ElectrochemistryTypeEnum type = 1;
     string details = 2;
   }
+<<<<<<< HEAD
   ElectrochemistryType electrochemistry_type = 1;
   Current current = 2;
   Voltage voltage = 3;
   string anode_material = 4;
   string cathode_material = 5;
   Length electrode_separation = 6;
+=======
+  ElectrochemistryType type = 1;
+  message ElectrochemicalCell {
+    enum ElectrochemicalCellType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      DIVIDED_CELL = 2;
+      UNDIVIDED_CELL = 3;
+    }
+  }
+  ElectrochemicalCell.ElectrochemicalCellType cell_type = 2;
+  // Include electrochemistry reaction-ware specifications, e.g., home-made
+  // vs. commercial cell and details.
+  string details = 3;
+  Current current = 4;
+  Voltage voltage = 5;
+  string anode_material = 6;
+  string cathode_material = 7;
+  Length electrode_separation = 8;
+>>>>>>> f247f15187799bf5d99d12266bf83312f13e5580
   message Measurement {
     Time time = 1;
     oneof kind {
@@ -590,6 +657,7 @@ message ElectrochemistryConditions {
       Voltage voltage = 3;
     }
   }
+<<<<<<< HEAD
   repeated Measurement measurements = 7;
   message ElectrochemicalCell {
     enum ElectrochemicalCellType {
@@ -604,6 +672,10 @@ message ElectrochemistryConditions {
     string details = 2;
   }
   ElectrochemicalCell cell = 8;
+=======
+  repeated Measurement measurements = 9;
+  
+>>>>>>> f247f15187799bf5d99d12266bf83312f13e5580
 }
 
 message FlowConditions {
@@ -668,9 +740,8 @@ message ReactionObservation {
 }
 
 message ReactionWorkup {
-  // TODO Consider removing DISSOLUTION - collapsed into addition like
-  // CRYSTALLIZATION, TRITURATION with intention in details
-  // Consider moving repeated com
+  // TODO(ccoley) Consider removing DISSOLUTION - collapsed into addition like
+  // CRYSTALLIZATION, TRITURATION with intention in details.
   enum WorkupType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
@@ -808,11 +879,11 @@ message ReactionProduct {
 }
 
 message Selectivity {
+  // EE, ER, and DR assume that any product labeled as desired is first
+  // in the calculation, whereas EZ and ZE ratios are calculated as written.
   enum SelectivityType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
-    // EE, ER, and DR assume that any product labeled as desired is first
-    // in the calculation, whereas EZ and ZE ratios are calculated as written.
     EE = 2;  // Enantiomeric excess as a percentage (desired - undesired).
     ER = 3;  // Enantiomeric ratio. (x:1) (desired / undesired).
     DR = 4;  // Diasteromeric ratio. (x:1) (desired / undesired).
@@ -826,10 +897,6 @@ message Selectivity {
   float precision = 4;
 }
 
-// TODO(ccoley): If we want the DateTime to be a string that we parse as
-// needed, should it simply be "string datetime" when used? Or is there any 
-// benefit to having a separate message type that could be changed in the 
-// future if needed?
 message DateTime {
   string value = 1;
 }
@@ -1082,14 +1149,15 @@ message Percentage {
 // Data is a container for arbitrary string or bytes data.
 message Data {
   oneof kind {
-    string value = 1;
-    bytes bytes_value = 2;
-    string url = 3;  // URL for data stored elsewhere.
+    string string_value = 1;
+    float float_value = 2;
+    bytes bytes_value = 3;
+    string url = 4;  // URL for data stored elsewhere.
   }
-  string description = 4;
+  string description = 5;
   // Description of the file format (if applicable); usually the file extension.
   // For example, 'png' or 'tiff' for images. If empty, we assume string data.
-  string format = 5;
+  string format = 6;
 }
 
 // Boolean is an alternative to using the bool primitive type so that it is

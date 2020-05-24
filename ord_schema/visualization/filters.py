@@ -1,3 +1,17 @@
+# Copyright 2020 The Open Reaction Database Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Template filters to use with Jinja to format reaction messages into text.
 """
 
@@ -77,15 +91,9 @@ def _pressure_conditions(pressure):
             pressure.PressureControl.CUSTOM:
                 'using a custom pressure controller',
             pressure.PressureControl.AMBIENT: 'using ambient pressure',
-            pressure.PressureControl.BALLOON:
-                'using a balloon for pressure control',
             pressure.PressureControl.SEALED:
                 'after fully sealing the reaction vessel',
-            pressure.PressureControl.SEPTUM_WITH_NEEDLE:
-                'using a needle to pierce the vessel septum',
-            pressure.PressureControl.RELEASEVALVE:
-                'using a pressure release valve',
-            pressure.PressureControl.BPR: 'using a backpressure regulator',
+            pressure.PressureControl.PRESSURIZED: 'using pressurization',
         }[pressure.type]
         txt += f' {_parenthetical_if_def(pressure.details)}'
         setpoint = units.format_message(pressure.setpoint)
@@ -194,7 +202,9 @@ def _analysis_format(analysis):
         analysis.LC: 'liquid chromatography',
         analysis.GC: 'gas chromatography',
         analysis.IR: 'IR spectroscopy',
-        analysis.NMR: 'NMR',
+        analysis.NMR_1H: '1H NMR',
+        analysis.NMR_13C: '13C NMR',
+        analysis.NMR_OTHER: 'NMR (other)',
         analysis.MP: 'melting point characterization',
         analysis.UV: 'UV spectroscopy',
         analysis.TLC: 'thin-layer chromatography',
@@ -273,16 +283,17 @@ def _compound_source_prep(compound):
         txt.append(f'catalog #{compound.vendor_id}')
     if compound.vendor_lot:
         txt.append(f'lot #{compound.vendor_lot}')
-    txt.append({
-        compound.preparation.UNSPECIFIED: '',
-        compound.preparation.CUSTOM: '',
-        compound.preparation.NONE: '',
-        compound.preparation.REPURIFIED: 'repurified',
-        compound.preparation.SPARGED: 'sparged',
-        compound.preparation.DRIED: 'dried',
-        compound.preparation.SYNTHESIZED: 'synthesized in-house'
-    }[compound.preparation.type])
-    txt.append(compound.preparation.details)
+    for preparation in compound.preparations:
+        txt.append({
+            preparation.UNSPECIFIED: '',
+            preparation.CUSTOM: '',
+            preparation.NONE: '',
+            preparation.REPURIFIED: 'repurified',
+            preparation.SPARGED: 'sparged',
+            preparation.DRIED: 'dried',
+            preparation.SYNTHESIZED: 'synthesized in-house'
+        }[preparation.type])
+        txt.append(preparation.details)
     if any(elem for elem in txt):
         return '(' + ', '.join([elem for elem in txt if elem]) + ')'
     return ''
@@ -295,12 +306,15 @@ def _parenthetical_if_def(string):
 
 
 def _vessel_prep(vessel):
-    return {
-        vessel.VesselPreparation.UNSPECIFIED: '',
-        vessel.VesselPreparation.CUSTOM: 'prepared',
-        vessel.VesselPreparation.NONE: '',
-        vessel.VesselPreparation.OVEN_DRIED: 'oven-dried',
-    }[vessel.preparation]
+    preparation_strings = []
+    for preparation in vessel.preparations:
+        preparation_strings.append({
+            vessel.VesselPreparation.UNSPECIFIED: '',
+            vessel.VesselPreparation.CUSTOM: 'prepared',
+            vessel.VesselPreparation.NONE: '',
+            vessel.VesselPreparation.OVEN_DRIED: 'oven-dried',
+        }[preparation])
+    return ', '.join(preparation_strings)
 
 
 def _vessel_size(vessel):
