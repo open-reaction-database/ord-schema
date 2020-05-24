@@ -138,7 +138,7 @@ message ReactionInput {
     string details = 2;
   }
   // The qualitative rate of addition.
-  AdditionSpeed.AdditionSpeedType addition_speed = 4;
+  AdditionSpeed addition_speed = 4;
   // Quantitatively, how long addition took
   Time addition_duration = 5;
   // For continuous synthesis, we instead specify a flow rate.
@@ -152,12 +152,12 @@ message ReactionInput {
       CANNULA = 4;
       ADDITION_FUNNEL = 5;
     }
-    AdditionDeviceType type = 1;
+    AdditionDevice type = 1;
     // Specify, e.g., "gas-tight" for SYRINGE or cannula material.
     string details = 2;
   }
   // The device used for addition.
-  AdditionDevice.AdditionDeviceType addition_device = 7;
+  AdditionDevice addition_device = 7;
   // Specify the temperature of the material being added.
   // E.g., a cooled flask of a stock solution to be added at low temperature.
   Temperature addition_temperature = 8;
@@ -571,22 +571,25 @@ message StirringConditions {
 }
 
 message IlluminationConditions {
-  enum IlluminationType {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    AMBIENT = 2;
-    DARK = 3;
-    LED = 4;
-    HALOGEN_LAMP = 5;
-    DEUTERIUM_LAMP = 6;
-    SOLAR_SIMULATOR = 7;
-    BROAD_SPECTRUM = 8;
+  message IlluminationType {
+    enum IlluminationTypeEnum {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      AMBIENT = 2;
+      DARK = 3;
+      LED = 4;
+      HALOGEN_LAMP = 5;
+      DEUTERIUM_LAMP = 6;
+      SOLAR_SIMULATOR = 7;
+      BROAD_SPECTRUM = 8;
+    }
+    IlluminationTypeEnum type = 1;
+    string details = 2;  // E.g. manufacturer, setup specifications, etc.
   }
-  IlluminationType type = 1; 
-  string details = 2;  // E.g. manufacturer, setup specifications, etc.
-  Wavelength peak_wavelength = 3;
-  string color = 4;
-  Length distance_to_vessel = 5;
+  IlluminationType type = 1;
+  Wavelength peak_wavelength = 2;
+  string color = 3;
+  Length distance_to_vessel = 4;
 }
 
 message ElectrochemistryConditions {
@@ -614,19 +617,19 @@ message ElectrochemistryConditions {
     }
   }
   repeated Measurement measurements = 7;
-  message ElectrochemicalCell {
-    enum ElectrochemicalCellType {
+  message ElectrochemistryCell {
+    enum ElectrochemistryCellType {
       UNSPECIFIED = 0;
       CUSTOM = 1;
       DIVIDED_CELL = 2;
       UNDIVIDED_CELL = 3;
     }
-    ElectrochemicalCellType type = 1;
+    ElectrochemistryCellType type = 1;
     // Include electrochemistry reaction-ware specifications, e.g., home-made
     // vs. commercial cell and details.
     string details = 2;
   }
-  ElectrochemicalCell cell = 8;
+  ElectrochemistryCell cell = 8;
 }
 
 message FlowConditions {
