@@ -287,16 +287,17 @@ def _compound_source_prep(compound):
         txt.append(f'catalog #{compound.vendor_id}')
     if compound.vendor_lot:
         txt.append(f'lot #{compound.vendor_lot}')
-    txt.append({
-        compound.preparation.UNSPECIFIED: '',
-        compound.preparation.CUSTOM: '',
-        compound.preparation.NONE: '',
-        compound.preparation.REPURIFIED: 'repurified',
-        compound.preparation.SPARGED: 'sparged',
-        compound.preparation.DRIED: 'dried',
-        compound.preparation.SYNTHESIZED: 'synthesized in-house'
-    }[compound.preparation.type])
-    txt.append(compound.preparation.details)
+    for preparation in compound.preparations:
+        txt.append({
+            preparation.UNSPECIFIED: '',
+            preparation.CUSTOM: '',
+            preparation.NONE: '',
+            preparation.REPURIFIED: 'repurified',
+            preparation.SPARGED: 'sparged',
+            preparation.DRIED: 'dried',
+            preparation.SYNTHESIZED: 'synthesized in-house'
+        }[preparation.type])
+        txt.append(preparation.details)
     if any(elem for elem in txt):
         return '(' + ', '.join([elem for elem in txt if elem]) + ')'
     return ''
@@ -309,12 +310,15 @@ def _parenthetical_if_def(string):
 
 
 def _vessel_prep(vessel):
-    return {
-        vessel.VesselPreparation.UNSPECIFIED: '',
-        vessel.VesselPreparation.CUSTOM: 'prepared',
-        vessel.VesselPreparation.NONE: '',
-        vessel.VesselPreparation.OVEN_DRIED: 'oven-dried',
-    }[vessel.preparation]
+    preparation_strings = []
+    for preparation in vessel.preparations:
+        preparation_strings.append({
+            vessel.VesselPreparation.UNSPECIFIED: '',
+            vessel.VesselPreparation.CUSTOM: 'prepared',
+            vessel.VesselPreparation.NONE: '',
+            vessel.VesselPreparation.OVEN_DRIED: 'oven-dried',
+        }[preparation])
+    return ', '.join(preparation_strings)
 
 
 def _vessel_size(vessel):
