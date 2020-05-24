@@ -360,10 +360,11 @@ def validate_vessel(message):
             not message.material_details:
         warnings.warn('VesselMaterial custom, but no details provided',
                       ValidationError)
-    if message.preparation == message.VesselPreparation.CUSTOM and \
-            not message.preparation_details:
-        warnings.warn('VesselPreparation custom, but no details provided',
-                      ValidationError)
+    for preparation in message.preparations:
+        if preparation == message.VesselPreparation.CUSTOM and \
+                not message.preparation_details:
+            warnings.warn('VesselPreparation custom, but no details provided',
+                          ValidationError)
 
 
 def validate_reaction_setup(message):
@@ -476,8 +477,8 @@ def validate_reaction_workup(message):
                          reaction_pb2.ReactionWorkup.SCAVENGING,
                          reaction_pb2.ReactionWorkup.DISSOLUTION,
                          reaction_pb2.ReactionWorkup.PH_ADJUST) and
-            not message.components):
-        warnings.warn('Workup step missing required components definition',
+            not message.input.components):
+        warnings.warn('Workup step missing required inputs definition',
                       ValidationError)
     if (message.type == reaction_pb2.ReactionWorkup.STIRRING and
             not message.stirring):

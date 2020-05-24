@@ -91,15 +91,9 @@ def _pressure_conditions(pressure):
             pressure.PressureControl.CUSTOM:
                 'using a custom pressure controller',
             pressure.PressureControl.AMBIENT: 'using ambient pressure',
-            pressure.PressureControl.BALLOON:
-                'using a balloon for pressure control',
             pressure.PressureControl.SEALED:
                 'after fully sealing the reaction vessel',
-            pressure.PressureControl.SEPTUM_WITH_NEEDLE:
-                'using a needle to pierce the vessel septum',
-            pressure.PressureControl.RELEASEVALVE:
-                'using a pressure release valve',
-            pressure.PressureControl.BPR: 'using a backpressure regulator',
+            pressure.PressureControl.PRESSURIZED: 'using pressurization',
         }[pressure.type]
         txt += f' {_parenthetical_if_def(pressure.details)}'
         setpoint = units.format_message(pressure.setpoint)
@@ -208,7 +202,9 @@ def _analysis_format(analysis):
         analysis.LC: 'liquid chromatography',
         analysis.GC: 'gas chromatography',
         analysis.IR: 'IR spectroscopy',
-        analysis.NMR: 'NMR',
+        analysis.NMR_1H: '1H NMR',
+        analysis.NMR_13C: '13C NMR',
+        analysis.NMR_OTHER: 'NMR (other)',
         analysis.MP: 'melting point characterization',
         analysis.UV: 'UV spectroscopy',
         analysis.TLC: 'thin-layer chromatography',
