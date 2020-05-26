@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ord_schema.scripts.build_dataset."""
 
 import os
@@ -29,7 +28,6 @@ from ord_schema.scripts import build_dataset
 
 
 class BuildDatasetTest(absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
@@ -44,49 +42,48 @@ class BuildDatasetTest(absltest.TestCase):
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
         reaction1.outcomes.add().conversion.value = 75
         message_helpers.write_message(
-            reaction1,
-            os.path.join(self.test_subdirectory, 'reaction-1.pbtxt'))
+            reaction1, os.path.join(self.test_subdirectory,
+                                    'reaction-1.pbtxt'))
         # reaction2 is empty.
         reaction2 = reaction_pb2.Reaction()
         message_helpers.write_message(
-            reaction2,
-            os.path.join(self.test_subdirectory, 'reaction-2.pbtxt'))
+            reaction2, os.path.join(self.test_subdirectory,
+                                    'reaction-2.pbtxt'))
 
     def test_simple(self):
-        input_pattern = os.path.join(self.test_subdirectory, 'reaction-1.pbtxt')
+        input_pattern = os.path.join(self.test_subdirectory,
+                                     'reaction-1.pbtxt')
         output_filename = os.path.join(self.test_subdirectory, 'dataset.pbtxt')
-        with flagsaver.flagsaver(
-                input=input_pattern,
-                name='test dataset',
-                description='this is a test dataset',
-                output=output_filename):
+        with flagsaver.flagsaver(input=input_pattern,
+                                 name='test dataset',
+                                 description='this is a test dataset',
+                                 output=output_filename):
             build_dataset.main(())
         self.assertTrue(os.path.exists(output_filename))
-        dataset = message_helpers.load_message(
-            output_filename, dataset_pb2.Dataset)
+        dataset = message_helpers.load_message(output_filename,
+                                               dataset_pb2.Dataset)
         self.assertEqual(dataset.name, 'test dataset')
         self.assertEqual(dataset.description, 'this is a test dataset')
         self.assertLen(dataset.reactions, 1)
 
     def test_validation(self):
-        input_pattern = os.path.join(self.test_subdirectory, 'reaction-?.pbtxt')
+        input_pattern = os.path.join(self.test_subdirectory,
+                                     'reaction-?.pbtxt')
         output_filename = os.path.join(self.test_subdirectory, 'dataset.pbtxt')
-        with flagsaver.flagsaver(
-                input=input_pattern,
-                name='test dataset',
-                description='this is a test dataset',
-                output=output_filename):
+        with flagsaver.flagsaver(input=input_pattern,
+                                 name='test dataset',
+                                 description='this is a test dataset',
+                                 output=output_filename):
             with self.assertRaisesRegex(
                     validations.ValidationError,
                     'Reactions should have at least 1 reaction input'):
                 build_dataset.main(())
         # Make sure disabling validation works.
-        with flagsaver.flagsaver(
-                input=input_pattern,
-                name='test dataset',
-                description='this is a test dataset',
-                output=output_filename,
-                validate=False):
+        with flagsaver.flagsaver(input=input_pattern,
+                                 name='test dataset',
+                                 description='this is a test dataset',
+                                 output=output_filename,
+                                 validate=False):
             build_dataset.main(())
 
 

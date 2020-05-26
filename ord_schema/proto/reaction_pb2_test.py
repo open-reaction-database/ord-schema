@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ord_schema.proto.reaction_pb2."""
 
 from absl.testing import absltest
@@ -24,7 +23,6 @@ from ord_schema.proto import reaction_pb2
 
 
 class ReactionPb2Test(absltest.TestCase):
-
     def test_simple(self):
         reaction = reaction_pb2.Reaction()
         reaction.identifiers.add(value='C(C)Cl.Br>>C(C)Br.Cl',
@@ -39,8 +37,8 @@ class ReactionPb2Test(absltest.TestCase):
     @absltest.skipIf(Chem is None, 'no rdkit')
     def test_rdkit_binary_compound_identifier(self):
         mol = Chem.MolFromSmiles('COO')
-        identifier = reaction_pb2.CompoundIdentifier(type='RDKIT_BINARY',
-                                                     bytes_value=mol.ToBinary())
+        identifier = reaction_pb2.CompoundIdentifier(
+            type='RDKIT_BINARY', bytes_value=mol.ToBinary())
         self.assertEqual(Chem.MolToSmiles(mol),
                          Chem.MolToSmiles(Chem.Mol(identifier.bytes_value)))
 

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Utilities for offloading large `Data` values.
 
 The original data is replaced with a URL pointing to the written data. This
@@ -115,23 +114,22 @@ def extract_data(message, root, min_size=0.0, max_size=1.0):
         List of text filenames; the generated Data files.
     """
     dirname = tempfile.mkdtemp()
-    data_messages = message_helpers.find_submessages(
-        message, reaction_pb2.Data)
+    data_messages = message_helpers.find_submessages(message,
+                                                     reaction_pb2.Data)
     filenames = []
     for data_message in data_messages:
-        data_filename, data_size = write_data(
-            data_message,
-            dirname,
-            min_size=min_size,
-            max_size=max_size)
+        data_filename, data_size = write_data(data_message,
+                                              dirname,
+                                              min_size=min_size,
+                                              max_size=max_size)
         if data_filename:
             basename = os.path.basename(data_filename)
             output_filename = message_helpers.id_filename(basename)
             with_root = os.path.join(root, output_filename)
             os.makedirs(os.path.dirname(with_root), exist_ok=True)
             os.rename(data_filename, with_root)
-            data_message.url = urllib.parse.urljoin(
-                DATA_URL_PREFIX, output_filename)
+            data_message.url = urllib.parse.urljoin(DATA_URL_PREFIX,
+                                                    output_filename)
             logging.info('Created Data file (%g MB): %s', data_size, with_root)
             filenames.append(with_root)
     return filenames

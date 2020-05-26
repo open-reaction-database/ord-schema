@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ord_schema.proto.dataset_pb2."""
 
 from absl.testing import absltest
@@ -21,7 +20,6 @@ from ord_schema.proto import reaction_pb2
 
 
 class DatasetPb2Test(absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         dataset = dataset_pb2.Dataset()

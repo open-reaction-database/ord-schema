@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Helpers for translating strings with units."""
 
 import re
@@ -29,8 +28,8 @@ _UNIT_SYNONYMS = {
     reaction_pb2.Mass: {
         reaction_pb2.Mass.GRAM: ['g', 'gram', 'grams', 'gs', 'gm', 'gms'],
         reaction_pb2.Mass.MILLIGRAM: ['mg', 'mgs', 'milligrams', 'milligram'],
-        reaction_pb2.Mass.MICROGRAM: ['ug', 'ugs', 'micg', 'micgs',
-                                      'micrograms', 'microgram'],
+        reaction_pb2.Mass.MICROGRAM:
+        ['ug', 'ugs', 'micg', 'micgs', 'micrograms', 'microgram'],
         reaction_pb2.Mass.KILOGRAM: ['kg', 'kgs', 'kilogram', 'kilograms'],
     },
     reaction_pb2.Moles: {
@@ -66,8 +65,8 @@ _UNIT_SYNONYMS = {
     },
     reaction_pb2.Current: {
         reaction_pb2.Current.AMPERE: ['A', 'ampere', 'amps', 'amp'],
-        reaction_pb2.Current.MILLIAMPERE: ['mA', 'milliampere', 'milliamp',
-                                           'milliamps'],
+        reaction_pb2.Current.MILLIAMPERE:
+        ['mA', 'milliampere', 'milliamp', 'milliamps'],
     },
     reaction_pb2.Voltage: {
         reaction_pb2.Voltage.VOLT: ['V', 'volt', 'volts'],
@@ -103,7 +102,6 @@ CONCENTRATION_UNIT_SYNONYMS = {
 
 class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
-
     def __init__(self, unit_synonyms=None, forbidden_units=None):
         """Initializes a UnitResolver.
 
