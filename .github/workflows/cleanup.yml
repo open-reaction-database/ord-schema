@@ -35,7 +35,7 @@ jobs:
       run: |
         pip install -r requirements.txt
         pip install protoc-wheel-0 yapf
-        go get -u github.com/google/addlicense
+        go get -v -u github.com/google/addlicense
     - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
@@ -44,7 +44,7 @@ jobs:
     - name: Run addlicense
       run: |
         cd "${GITHUB_WORKSPACE}"
-        addlicense -c "The Open Reaction Database Authors" -l apache .
+        "${GOPATH}/bin/addlicense" -c "The Open Reaction Database Authors" -l apache .
         ./ord-schema/actions/commit_changes.sh "Run addlicense"
     - name: Run YAPF
       run: |
