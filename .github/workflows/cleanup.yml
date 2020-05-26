@@ -34,7 +34,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -r requirements.txt
-        pip install yapf
+        pip install protoc-wheel-0 yapf
         go get -u github.com/google/addlicense
     - name: Install ord_schema
       run: |
