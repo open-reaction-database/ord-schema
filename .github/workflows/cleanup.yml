@@ -45,7 +45,7 @@ jobs:
     - name: Run addlicense
       run: |
         cd "${GITHUB_WORKSPACE}"
-        addlicense -c "The Open Reaction Database Authors" -l apache .
+        "${GOBIN}/addlicense" -c "The Open Reaction Database Authors" -l apache .
         ./ord-schema/actions/commit_changes.sh "Run addlicense"
     - name: Run YAPF
       run: |
