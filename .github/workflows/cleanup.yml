@@ -36,6 +36,7 @@ jobs:
         pip install -r requirements.txt
         pip install protoc-wheel-0 yapf
         go get -v -u github.com/google/addlicense
+        echo "::set-env name=GOBIN::${GOPATH}/bin"
     - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
@@ -44,7 +45,7 @@ jobs:
     - name: Run addlicense
       run: |
         cd "${GITHUB_WORKSPACE}"
-        "${GOPATH}/bin/addlicense" -c "The Open Reaction Database Authors" -l apache .
+        addlicense -c "The Open Reaction Database Authors" -l apache .
         ./ord-schema/actions/commit_changes.sh "Run addlicense"
     - name: Run YAPF
       run: |
