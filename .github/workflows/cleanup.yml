@@ -46,9 +46,9 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         "${GOBIN}/addlicense" -c "The Open Reaction Database Authors" -l apache .
-        ./ord-schema/actions/commit_changes.sh "Run addlicense"
+        ./actions/commit_changes.sh "Run addlicense"
     - name: Run YAPF
       run: |
         cd "${GITHUB_WORKSPACE}"
         yapf -p -r ord_schema --exclude="*_pb2.py" --verbose --in-place
-        ./ord-schema/actions/commit_changes.sh "Run YAPF"
+        ./actions/commit_changes.sh "Run YAPF"
