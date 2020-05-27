@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#
 # Generates HTML documentation for the Open Reaction Database schema.
 # See https://github.com/pseudomuto/protoc-gen-doc.
 
@@ -30,5 +29,5 @@ set -ex
 #   ord-schema/proto/reaction.proto ord-schema/proto/dataset.proto
 
 # Run sphinx.
-pip install -U sphinx recommonmark sphinx-markdown-tables
+pip install -r requirements.txt
 make clean html

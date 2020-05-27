@@ -161,10 +161,10 @@ schema in a Jupyter/Colab notebook. One example is
 If you're interested in using the schema in your own notebook, here's a helpful
 snippet to install the `ord_schema` package directly from GitHub:
 
-```python
+```ipython
 try:
     import ord_schema
-except:
+except ImportError:
     # Install protoc for building protocol buffer wrappers.
     !pip install protoc-wheel-0
     # Clone and install ord_schema.
