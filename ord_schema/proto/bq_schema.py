@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Generates a BigQuery table schema to handle Reaction protos.
 
 See:
@@ -53,7 +52,11 @@ def get_schema(message_descriptor):
         if field.type == field.TYPE_BOOL:
             schema.append({'name': field.name, 'type': 'BOOL', 'mode': mode})
         elif field.type == field.TYPE_FLOAT:
-            schema.append({'name': field.name, 'type': 'FLOAT64', 'mode': mode})
+            schema.append({
+                'name': field.name,
+                'type': 'FLOAT64',
+                'mode': mode
+            })
         elif field.type in [field.TYPE_INT32, field.TYPE_INT64]:
             schema.append({'name': field.name, 'type': 'INT64', 'mode': mode})
         elif field.type == field.TYPE_STRING:
@@ -78,7 +81,11 @@ def main(argv):
     del argv  # Only used by app.run().
     schema = get_schema(reaction_pb2.Reaction.DESCRIPTOR)
     # Add fields for the dataset ID.
-    schema.append({'name': '_dataset_id', 'type': 'STRING', 'mode': 'NULLABLE'})
+    schema.append({
+        'name': '_dataset_id',
+        'type': 'STRING',
+        'mode': 'NULLABLE'
+    })
     # Add a field for the full serialized message.
     schema.append({'name': '_serialized', 'type': 'BYTES', 'mode': 'NULLABLE'})
     with open(FLAGS.output, 'w') as f:

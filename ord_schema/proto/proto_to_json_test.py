@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ord_schema.proto.proto_to_json."""
 
 import base64
@@ -23,14 +22,12 @@ from ord_schema.proto import test_pb2
 
 
 class GetDatabaseJsonTest(absltest.TestCase):
-
     def test_scalar(self):
-        message = test_pb2.Scalar(
-            int32_value=1,
-            int64_value=2,
-            float_value=3.4,
-            string_value='five',
-            bytes_value=b'six')
+        message = test_pb2.Scalar(int32_value=1,
+                                  int64_value=2,
+                                  float_value=3.4,
+                                  string_value='five',
+                                  bytes_value=b'six')
         record = proto_to_json.get_database_json(message)
         # NOTE(kearnes): Using individual tests here to avoid introducing a
         # dependency on pandas for assert_series_equal.
@@ -106,11 +103,13 @@ class GetDatabaseJsonTest(absltest.TestCase):
         self.assertLen(record['children'], 2)
         self.assertEqual(record['children'][0]['key'], 'one')
         self.assertLen(record['children'][0]['value'], 1)
-        self.assertAlmostEqual(record['children'][0]['value']['value'], 1.2,
+        self.assertAlmostEqual(record['children'][0]['value']['value'],
+                               1.2,
                                places=3)
         self.assertEqual(record['children'][1]['key'], 'two')
         self.assertLen(record['children'][1]['value'], 1)
-        self.assertAlmostEqual(record['children'][1]['value']['value'], 3.4,
+        self.assertAlmostEqual(record['children'][1]['value']['value'],
+                               3.4,
                                places=3)
 
 

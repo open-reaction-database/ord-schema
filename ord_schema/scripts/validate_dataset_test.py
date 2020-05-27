@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ord_schema.scripts.validate_dataset."""
 
 import os
@@ -29,7 +28,6 @@ from ord_schema.scripts import validate_dataset
 
 
 class ValidateDatasetTest(absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
@@ -44,14 +42,14 @@ class ValidateDatasetTest(absltest.TestCase):
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
         reaction1.outcomes.add().conversion.value = 75
         dataset1 = dataset_pb2.Dataset(reactions=[reaction1])
-        dataset1_filename = os.path.join(
-            self.test_subdirectory, 'dataset1.pbtxt')
+        dataset1_filename = os.path.join(self.test_subdirectory,
+                                         'dataset1.pbtxt')
         message_helpers.write_message(dataset1, dataset1_filename)
         # reaction2 is empty.
         reaction2 = reaction_pb2.Reaction()
         dataset2 = dataset_pb2.Dataset(reactions=[reaction1, reaction2])
-        dataset2_filename = os.path.join(
-            self.test_subdirectory, 'dataset2.pbtxt')
+        dataset2_filename = os.path.join(self.test_subdirectory,
+                                         'dataset2.pbtxt')
         message_helpers.write_message(dataset2, dataset2_filename)
 
     def test_simple(self):

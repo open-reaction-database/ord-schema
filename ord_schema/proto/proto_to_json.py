@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Converts serialized protocol buffers to JSON for use in BigQuery.
 
 The output is a JSON-lines file, where newlines are used to separate records.
@@ -75,8 +74,8 @@ def get_database_json(message):
     """
     record = {}
     for field, value in message.ListFields():
-        if (field.type == field.TYPE_MESSAGE and
-                field.message_type.GetOptions().map_entry):
+        if (field.type == field.TYPE_MESSAGE
+                and field.message_type.GetOptions().map_entry):
             # Convert proto maps to lists of (key, value) pairs.
             field_key = field.message_type.fields_by_name['key']
             field_value = field.message_type.fields_by_name['value']

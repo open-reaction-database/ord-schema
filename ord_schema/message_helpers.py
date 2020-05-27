@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Helper functions for constructing Protocol Buffer messages."""
 
 import enum
@@ -30,7 +29,6 @@ try:
 except ImportError:
     Chem = None
     RDKIT_VERSION = None
-
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -55,8 +53,14 @@ def unconvert_boolean(boolean_enum):
     return None
 
 
-def build_compound(smiles=None, name=None, amount=None, role=None,
-                   is_limiting=None, prep=None, prep_details=None, vendor=None):
+def build_compound(smiles=None,
+                   name=None,
+                   amount=None,
+                   role=None,
+                   is_limiting=None,
+                   prep=None,
+                   prep_details=None,
+                   vendor=None):
     """Builds a Compound message with the most common fields.
 
     Args:
@@ -96,7 +100,8 @@ def build_compound(smiles=None, name=None, amount=None, role=None,
         else:
             raise TypeError(f'unsupported units for amount: {amount_pb}')
     if role:
-        field = reaction_pb2.Compound.DESCRIPTOR.fields_by_name['reaction_role']
+        field = reaction_pb2.Compound.DESCRIPTOR.fields_by_name[
+            'reaction_role']
         values_dict = field.enum_type.values_by_name
         try:
             compound.reaction_role = values_dict[role.upper()].number
@@ -114,8 +119,9 @@ def build_compound(smiles=None, name=None, amount=None, role=None,
         except KeyError:
             raise KeyError(
                 f'{prep} is not a supported type: {values_dict.keys()}')
-        if (compound.preparations[0].type ==
-                reaction_pb2.CompoundPreparation.CUSTOM and not prep_details):
+        if (compound.preparations[0].type
+                == reaction_pb2.CompoundPreparation.CUSTOM
+                and not prep_details):
             raise ValueError(
                 'prep_details must be provided when CUSTOM prep is used')
     if prep_details:
@@ -163,7 +169,8 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
         elif solvent.volume.units == solvent.volume.MICROLITER:
             volume_liter += solvent.volume.value * 1e-6
         else:
-            raise ValueError('solvent units not recognized by set_solute_moles')
+            raise ValueError(
+                'solvent units not recognized by set_solute_moles')
     # Get solute concentration in molar.
     resolver = units.UnitResolver(
         unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
@@ -177,14 +184,14 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
     # Assign moles amount and return.
     moles = volume_liter * concentration_molar
     if moles < 1e-6:
-        solute.moles.CopyFrom(reaction_pb2.Moles(units='NANOMOLE',
-                                                 value=moles * 1e9))
+        solute.moles.CopyFrom(
+            reaction_pb2.Moles(units='NANOMOLE', value=moles * 1e9))
     elif moles < 1e-3:
-        solute.moles.CopyFrom(reaction_pb2.Moles(units='MICROMOLE',
-                                                 value=moles * 1e6))
+        solute.moles.CopyFrom(
+            reaction_pb2.Moles(units='MICROMOLE', value=moles * 1e6))
     elif moles < 1:
-        solute.moles.CopyFrom(reaction_pb2.Moles(units='MILLIMOLE',
-                                                 value=moles * 1e3))
+        solute.moles.CopyFrom(
+            reaction_pb2.Moles(units='MILLIMOLE', value=moles * 1e3))
     else:
         solute.moles.CopyFrom(reaction_pb2.Moles(units='MOLE', value=moles))
     return [solute] + solvents
@@ -325,8 +332,7 @@ def load_message(filename, message_type):
                 return text_format.Parse(f.read(), message_type())
             if input_format == MessageFormat.BINARY:
                 return message_type.FromString(f.read())
-        except (json_format.ParseError,
-                protobuf.message.DecodeError,
+        except (json_format.ParseError, protobuf.message.DecodeError,
                 text_format.ParseError) as error:
             raise ValueError(f'error parsing {filename}: {error}')
 

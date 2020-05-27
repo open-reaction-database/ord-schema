@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ord_schema.units."""
 
 from absl.testing import absltest
@@ -22,14 +21,14 @@ from ord_schema.proto import reaction_pb2
 
 
 class UnitsTest(parameterized.TestCase, absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         self._resolver = units.UnitResolver()
 
     @parameterized.named_parameters(
         ('capitalized', '15.0 ML',
-         reaction_pb2.Volume(value=15.0, units=reaction_pb2.Volume.MILLILITER)),
+         reaction_pb2.Volume(value=15.0,
+                             units=reaction_pb2.Volume.MILLILITER)),
         ('integer', '24 H',
          reaction_pb2.Time(value=24, units=reaction_pb2.Time.HOUR)),
         ('no space', '32.1g',

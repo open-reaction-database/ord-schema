@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ord_schema.message_helpers."""
 
 from absl.testing import absltest
@@ -23,7 +22,6 @@ from ord_schema.visualization import generate_text
 
 
 class GenerateTextTest(absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         self._resolver = units.UnitResolver()
@@ -36,16 +34,14 @@ class GenerateTextTest(absltest.TestCase):
                 smiles='CCCCCC',
                 role='reactant',
                 amount='1 milliliters',
-            )
-        )
+            ))
         reaction.inputs['dummy_input'].components.add().CopyFrom(
             message_helpers.build_compound(
                 name='C1OCCC1',
                 smiles='THF',
                 role='solvent',
                 amount='40 liters',
-            )
-        )
+            ))
         reaction.conditions.pressure.atmosphere.type = (
             reaction_pb2.PressureConditions.Atmosphere.OXYGEN)
         reaction.conditions.stirring.rate.rpm = 100
@@ -61,8 +57,7 @@ class GenerateTextTest(absltest.TestCase):
                 name='hexanone',
                 smiles='CCCCC(=O)C',
                 role='product',
-            )
-        )
+            ))
         reaction.reaction_id = 'dummy_reaction_id'
         self._reaction = reaction
 

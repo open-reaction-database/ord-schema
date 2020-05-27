@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Template filters to use with Jinja to format reaction messages into text.
 """
 
@@ -88,11 +87,9 @@ def _pressure_conditions(pressure):
     if pressure.control.type != pressure.control.UNSPECIFIED:
         txt += ' '
         txt += {
-            pressure.control.CUSTOM:
-                'using a custom pressure controller',
+            pressure.control.CUSTOM: 'using a custom pressure controller',
             pressure.control.AMBIENT: 'using ambient pressure',
-            pressure.control.SEALED:
-                'after fully sealing the reaction vessel',
+            pressure.control.SEALED: 'after fully sealing the reaction vessel',
             pressure.control.PRESSURIZED: 'using pressurization',
         }[pressure.control.type]
         txt += f' {_parenthetical_if_def(pressure.control.details)}'
@@ -133,15 +130,20 @@ def _temperature_conditions(temperature):
                 'under custom temperature conditions',
             temperature.control.AMBIENT:
                 'under ambient temperature conditions',
-            temperature.control.OIL_BATH: 'in an oil bath',
-            temperature.control.WATER_BATH: 'in a water bath',
-            temperature.control.SAND_BATH: 'in a sand bath',
-            temperature.control.ICE_BATH: 'in an ice bath',
+            temperature.control.OIL_BATH:
+                'in an oil bath',
+            temperature.control.WATER_BATH:
+                'in a water bath',
+            temperature.control.SAND_BATH:
+                'in a sand bath',
+            temperature.control.ICE_BATH:
+                'in an ice bath',
             temperature.control.DRY_ALUMINUM_PLATE:
                 'using an aluminum heating block',
             temperature.control.MICROWAVE:
                 'in a microwave reactor',
-            temperature.control.DRY_ICE_BATH: 'in a dry ice bath',
+            temperature.control.DRY_ICE_BATH:
+                'in a dry ice bath',
             temperature.control.AIR_FAN:
                 'using a fan for temperautre control',
             temperature.control.LIQUID_NITROGEN:
@@ -156,8 +158,8 @@ def _temperature_conditions(temperature):
 
 def _temperature_conditions_html(temperature):
     txt = ''
-    if (temperature.control.type == temperature.control.UNSPECIFIED or
-            temperature.control.type == temperature.control.AMBIENT):
+    if (temperature.control.type == temperature.control.UNSPECIFIED
+            or temperature.control.type == temperature.control.AMBIENT):
         return 'ambient temperature<br>'
     setpoint = units.format_message(temperature.setpoint)
     if setpoint:
@@ -171,8 +173,10 @@ def _product_color_texture(product):
     txt = ''
     txt += f'{product.isolated_color} '
     txt += {
-        product.Texture.UNSPECIFIED: '',
-        product.Texture.CUSTOM: product.texture.details,
+        product.Texture.UNSPECIFIED:
+            '',
+        product.Texture.CUSTOM:
+            product.texture.details,
         product.Texture.POWDER:
             f'powder {_parenthetical_if_def(product.texture.details)}',
         product.Texture.CRYSTAL:
@@ -263,15 +267,22 @@ def _compound_role(compound):
         reaction_pb2.Boolean.FALSE: '',
     }
     return {
-        compound.ReactionRole.UNSPECIFIED: '',
+        compound.ReactionRole.UNSPECIFIED:
+            '',
         compound.ReactionRole.REACTANT:
             f'as a {limiting_if_true[compound.is_limiting]} reactant',
-        compound.ReactionRole.REAGENT: 'as a reagent',
-        compound.ReactionRole.SOLVENT: 'as a solvent',
-        compound.ReactionRole.CATALYST: 'as a catalyst',
-        compound.ReactionRole.INTERNAL_STANDARD: 'as an internal standard',
-        compound.ReactionRole.WORKUP: '',
-        compound.ReactionRole.PRODUCT: 'as a product',
+        compound.ReactionRole.REAGENT:
+            'as a reagent',
+        compound.ReactionRole.SOLVENT:
+            'as a solvent',
+        compound.ReactionRole.CATALYST:
+            'as a catalyst',
+        compound.ReactionRole.INTERNAL_STANDARD:
+            'as an internal standard',
+        compound.ReactionRole.WORKUP:
+            '',
+        compound.ReactionRole.PRODUCT:
+            'as a product',
     }[compound.reaction_role]
 
 
@@ -335,16 +346,24 @@ def _vessel_material(vessel):
 
 def _vessel_type(vessel):
     return {
-        vessel.type.UNSPECIFIED: 'vessel',
-        vessel.type.CUSTOM: f'vessel',
-        vessel.type.ROUND_BOTTOM_FLASK: f'round bottom flask',
-        vessel.type.VIAL: f'vial',
-        vessel.type.WELL_PLATE: f'well-plate',
-        vessel.type.MICROWAVE_VIAL: f'microwave vial',
-        vessel.type.TUBE: f'tube',
+        vessel.type.UNSPECIFIED:
+            'vessel',
+        vessel.type.CUSTOM:
+            f'vessel',
+        vessel.type.ROUND_BOTTOM_FLASK:
+            f'round bottom flask',
+        vessel.type.VIAL:
+            f'vial',
+        vessel.type.WELL_PLATE:
+            f'well-plate',
+        vessel.type.MICROWAVE_VIAL:
+            f'microwave vial',
+        vessel.type.TUBE:
+            f'tube',
         vessel.type.CONTINUOUS_STIRRED_TANK_REACTOR:
             f'continuous stirred-tank reactor',
-        vessel.type.PACKED_BED_REACTOR: f'packed bed reactor',
+        vessel.type.PACKED_BED_REACTOR:
+            f'packed bed reactor',
     }[vessel.type.type]
 
 

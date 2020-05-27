@@ -1,0 +1,48 @@
+# Copyright 2020 The Open Reaction Database Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Cleanup
+
+on: push
+
+jobs:
+  cleanup:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+    - uses: actions/setup-go@v2
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install protoc-wheel-0 yapf
+        go get -v -u github.com/google/addlicense
+        echo "::set-env name=GOBIN::${HOME}/go/bin"
+    - name: Install ord_schema
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        echo "$(which python)"
+        python setup.py install
+    - name: Run addlicense
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        "${GOBIN}/addlicense" -c "The Open Reaction Database Authors" -l apache .
+        ./actions/commit_changes.sh "Run addlicense"
+    - name: Run YAPF
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        yapf -p -r ord_schema --exclude="*_pb2.py" --verbose --in-place
+        ./actions/commit_changes.sh "Run YAPF"

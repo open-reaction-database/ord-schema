@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Automated updates for Reaction messages."""
 
 import datetime
@@ -55,7 +54,8 @@ def resolve_names(message):
         Boolean whether `message` was modified.
     """
     modified = False
-    compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
+    compounds = message_helpers.find_submessages(message,
+                                                 reaction_pb2.Compound)
     for compound in compounds:
         if any(identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS
                for identifier in compound.identifiers):
@@ -72,8 +72,7 @@ def resolve_names(message):
                     break
                 except urllib.error.HTTPError as error:
                     logging.info('PubChem could not resolve NAME %s: %s',
-                                 identifier.value,
-                                 error)
+                                 identifier.value, error)
     return modified
 
 
@@ -91,7 +90,8 @@ def add_binary_identifiers(message):
         Boolean whether `message` was modified.
     """
     modified = False
-    compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
+    compounds = message_helpers.find_submessages(message,
+                                                 reaction_pb2.Compound)
     for compound in compounds:
         if any(identifier.type == identifier.RDKIT_BINARY
                for identifier in message.identifiers):
@@ -107,10 +107,9 @@ def add_binary_identifiers(message):
             if mol is not None:
                 source = reaction_pb2.CompoundIdentifier.IdentifierType.Name(
                     identifier.type)
-                compound.identifiers.add(
-                    bytes_value=mol.ToBinary(),
-                    type='RDKIT_BINARY',
-                    details=f'Generated from {source}')
+                compound.identifiers.add(bytes_value=mol.ToBinary(),
+                                         type='RDKIT_BINARY',
+                                         details=f'Generated from {source}')
                 modified = True
                 break  # Only add one RDKIT_BINARY per Compound.
     return modified

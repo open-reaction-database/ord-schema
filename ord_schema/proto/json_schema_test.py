@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ord_schema.proto.json_schema."""
 
 from absl.testing import absltest
@@ -21,18 +20,29 @@ from ord_schema.proto import test_pb2
 
 
 class JsonSchemaTest(absltest.TestCase):
-
     def test_scalar(self):
         schema = json_schema.get_schema(test_pb2.Scalar.DESCRIPTOR)
         expected = {
             'title': 'Scalar',
             'type': 'object',
             'properties': {
-                'int32_value': {'type': 'number', 'multipleOf': 1.0},
-                'int64_value': {'type': 'number', 'multipleOf': 1.0},
-                'float_value': {'type': 'number'},
-                'string_value': {'type': 'string'},
-                'bytes_value': {'type': 'string'}
+                'int32_value': {
+                    'type': 'number',
+                    'multipleOf': 1.0
+                },
+                'int64_value': {
+                    'type': 'number',
+                    'multipleOf': 1.0
+                },
+                'float_value': {
+                    'type': 'number'
+                },
+                'string_value': {
+                    'type': 'string'
+                },
+                'bytes_value': {
+                    'type': 'string'
+                }
             },
             'additionalProperties': False,
         }
@@ -46,7 +56,9 @@ class JsonSchemaTest(absltest.TestCase):
             'properties': {
                 'values': {
                     'type': 'array',
-                    'items': {'type': 'number'}
+                    'items': {
+                        'type': 'number'
+                    }
                 }
             },
             'additionalProperties': False,
@@ -96,7 +108,9 @@ class JsonSchemaTest(absltest.TestCase):
                     'title': 'Child',
                     'type': 'object',
                     'properties': {
-                        'value': {'type': 'number'}
+                        'value': {
+                            'type': 'number'
+                        }
                     },
                     'additionalProperties': False,
                 }
@@ -117,7 +131,9 @@ class JsonSchemaTest(absltest.TestCase):
                         'title': 'Child',
                         'type': 'object',
                         'properties': {
-                            'value': {'type': 'number'}
+                            'value': {
+                                'type': 'number'
+                            }
                         },
                         'additionalProperties': False,
                     }
@@ -152,8 +168,12 @@ class JsonSchemaTest(absltest.TestCase):
                         'title': 'ValuesEntry',
                         'type': 'object',
                         'properties': {
-                            'key': {'type': 'string'},
-                            'value': {'type': 'number'}
+                            'key': {
+                                'type': 'string'
+                            },
+                            'value': {
+                                'type': 'number'
+                            }
                         },
                         'additionalProperties': False,
                     }
@@ -175,12 +195,16 @@ class JsonSchemaTest(absltest.TestCase):
                         'title': 'ChildrenEntry',
                         'type': 'object',
                         'properties': {
-                            'key': {'type': 'string'},
+                            'key': {
+                                'type': 'string'
+                            },
                             'value': {
                                 'title': 'Child',
                                 'type': 'object',
                                 'properties': {
-                                    'value': {'type': 'number'}
+                                    'value': {
+                                        'type': 'number'
+                                    }
                                 },
                                 'additionalProperties': False,
                             },

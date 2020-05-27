@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ord_schema.updates."""
 
 from absl.testing import absltest
@@ -22,7 +21,6 @@ from ord_schema.proto import reaction_pb2
 
 
 class UpdatesTest(absltest.TestCase):
-
     def test_resolve_names(self):
         message = reaction_pb2.Reaction()
         message.inputs['test'].components.add().identifiers.add(
@@ -30,27 +28,26 @@ class UpdatesTest(absltest.TestCase):
         self.assertTrue(updates.resolve_names(message))
         self.assertEqual(
             message.inputs['test'].components[0].identifiers[1],
-            reaction_pb2.CompoundIdentifier(type='SMILES',
-                                            value='CC(=O)OC1=CC=CC=C1C(=O)O',
-                                            details='NAME resolved by PubChem'))
+            reaction_pb2.CompoundIdentifier(
+                type='SMILES',
+                value='CC(=O)OC1=CC=CC=C1C(=O)O',
+                details='NAME resolved by PubChem'))
 
     def test_add_binary_identifiers(self):
         smiles = 'CC(=O)OC1=CC=CC=C1C(=O)O'
         mol = Chem.MolFromSmiles(smiles)
         message = reaction_pb2.Reaction()
-        message.inputs['test'].components.add().identifiers.add(
-            type='SMILES', value=smiles)
+        message.inputs['test'].components.add().identifiers.add(type='SMILES',
+                                                                value=smiles)
         self.assertTrue(updates.add_binary_identifiers(message))
         self.assertEqual(
             message.inputs['test'].components[0].identifiers[1],
-            reaction_pb2.CompoundIdentifier(
-                type='RDKIT_BINARY',
-                bytes_value=mol.ToBinary(),
-                details='Generated from SMILES'))
+            reaction_pb2.CompoundIdentifier(type='RDKIT_BINARY',
+                                            bytes_value=mol.ToBinary(),
+                                            details='Generated from SMILES'))
 
 
 class UpdateReactionTest(absltest.TestCase):
-
     def test_with_updates_simple(self):
         message = reaction_pb2.Reaction()
         updates.update_reaction(message)
@@ -75,7 +72,8 @@ class UpdateReactionTest(absltest.TestCase):
         self.assertEqual(
             component.identifiers[1],
             reaction_pb2.CompoundIdentifier(
-                type='SMILES', value='CCN', details='NAME resolved by PubChem'))
+                type='SMILES', value='CCN',
+                details='NAME resolved by PubChem'))
 
     def test_add_reaction_id(self):
         message = reaction_pb2.Reaction()
