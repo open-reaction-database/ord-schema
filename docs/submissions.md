@@ -50,27 +50,32 @@ $ python validate_dataset.py --input="example_dataset.pbtxt"
    <overview.html#id1>`_ before starting your submission.
 ```
 
-Create a pull request to the official repository on GitHub. Let's continue the
-example from the _Create_ step, where we created `example_dataset.pbtxt` to
-hold our `Reaction` messages:
+After creating a fork of the database repository (see the note above) we need to
+start a pull request for the official repository on GitHub. Let's continue the
+example from the _Create_ step, where we created `example_dataset.pbtxt` to hold
+our `Reaction` messages. First, we create a new branch in our fork and add the
+new dataset:
 
 ```shell
 $ cd "${REPOSITORY}"
 # Make sure your clone is up to date.
 $ git checkout master
 $ git pull --rebase upstream master
-# Create a new branch for your submission.
-$ git checkout -b example_submission
+# Create a new branch for the submission.
+$ git checkout -b my_submission
+# Copy the new dataset into your fork.
+$ cp path/to/example_dataset.pbtxt .
 # Create the submission commit(s).
 $ git add example_dataset.pbtxt
 $ git commit -m "Example dataset submission"
 # Push the submission to your fork of the database.
-$ git push origin master
+$ git push origin my_submission
 ```
 
-Next, go to the GitHub page for your fork and 
+Next, log in to GitHub, navigate to the [database
+repository](https://github.com/Open-Reaction-Database/ord-submissions-test), and
 [create a pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request-from-a-fork)
-to the official database repository.
+from your fork to the official database repository.
 
 ## Review
 
