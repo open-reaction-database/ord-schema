@@ -699,105 +699,105 @@ def validate_data(message):
 
 _VALIDATOR_SWITCH = {
     dataset_pb2.Dataset:
-    validate_dataset,
+        validate_dataset,
     dataset_pb2.DatasetExample:
-    validate_dataset_example,
+        validate_dataset_example,
     reaction_pb2.Reaction:
-    validate_reaction,
+        validate_reaction,
     # Basics
     reaction_pb2.ReactionIdentifier:
-    validate_reaction_identifier,
+        validate_reaction_identifier,
     reaction_pb2.ReactionInput:
-    validate_reaction_input,
+        validate_reaction_input,
     # Compounds
     reaction_pb2.Compound:
-    validate_compound,
+        validate_compound,
     reaction_pb2.Compound.Feature:
-    validate_compound_feature,
+        validate_compound_feature,
     reaction_pb2.CompoundPreparation:
-    validate_compound_preparation,
+        validate_compound_preparation,
     reaction_pb2.CompoundIdentifier:
-    validate_compound_identifier,
+        validate_compound_identifier,
     # Setup
     reaction_pb2.Vessel:
-    validate_vessel,
+        validate_vessel,
     reaction_pb2.ReactionSetup:
-    validate_reaction_setup,
+        validate_reaction_setup,
     # Conditions
     reaction_pb2.ReactionConditions:
-    validate_reaction_conditions,
+        validate_reaction_conditions,
     reaction_pb2.TemperatureConditions:
-    validate_temperature_conditions,
+        validate_temperature_conditions,
     reaction_pb2.TemperatureConditions.Measurement:
-    (validate_temperature_measurement),
+        (validate_temperature_measurement),
     reaction_pb2.PressureConditions:
-    validate_pressure_conditions,
+        validate_pressure_conditions,
     reaction_pb2.PressureConditions.Measurement:
-    validate_pressure_measurement,
+        validate_pressure_measurement,
     reaction_pb2.StirringConditions:
-    validate_stirring_conditions,
+        validate_stirring_conditions,
     reaction_pb2.IlluminationConditions:
-    validate_illumination_conditions,
+        validate_illumination_conditions,
     reaction_pb2.ElectrochemistryConditions:
-    (validate_electrochemistry_conditions),
+        (validate_electrochemistry_conditions),
     reaction_pb2.ElectrochemistryConditions.Measurement:
-    validate_electrochemistry_measurement,
+        validate_electrochemistry_measurement,
     reaction_pb2.FlowConditions:
-    validate_flow_conditions,
+        validate_flow_conditions,
     reaction_pb2.FlowConditions.Tubing:
-    validate_tubing,
+        validate_tubing,
     # Annotations
     reaction_pb2.ReactionNotes:
-    validate_reaction_notes,
+        validate_reaction_notes,
     reaction_pb2.ReactionObservation:
-    validate_reaction_observation,
+        validate_reaction_observation,
     # Outcome
     reaction_pb2.ReactionWorkup:
-    validate_reaction_workup,
+        validate_reaction_workup,
     reaction_pb2.ReactionOutcome:
-    validate_reaction_outcome,
+        validate_reaction_outcome,
     reaction_pb2.ReactionProduct:
-    validate_reaction_product,
+        validate_reaction_product,
     reaction_pb2.Selectivity:
-    validate_selectivity,
+        validate_selectivity,
     reaction_pb2.DateTime:
-    validate_date_time,
+        validate_date_time,
     reaction_pb2.ReactionAnalysis:
-    validate_reaction_analysis,
+        validate_reaction_analysis,
     # Metadata
     reaction_pb2.ReactionProvenance:
-    validate_reaction_provenance,
+        validate_reaction_provenance,
     reaction_pb2.RecordEvent:
-    validate_record_event,
+        validate_record_event,
     reaction_pb2.Person:
-    validate_person,
+        validate_person,
     # Units
     reaction_pb2.Time:
-    validate_time,
+        validate_time,
     reaction_pb2.Mass:
-    validate_mass,
+        validate_mass,
     reaction_pb2.Moles:
-    validate_moles,
+        validate_moles,
     reaction_pb2.Volume:
-    validate_volume,
+        validate_volume,
     reaction_pb2.Concentration:
-    validate_concentration,
+        validate_concentration,
     reaction_pb2.Pressure:
-    validate_pressure,
+        validate_pressure,
     reaction_pb2.Temperature:
-    validate_temperature,
+        validate_temperature,
     reaction_pb2.Current:
-    validate_current,
+        validate_current,
     reaction_pb2.Voltage:
-    validate_voltage,
+        validate_voltage,
     reaction_pb2.Length:
-    validate_length,
+        validate_length,
     reaction_pb2.Wavelength:
-    validate_wavelength,
+        validate_wavelength,
     reaction_pb2.FlowRate:
-    validate_flow_rate,
+        validate_flow_rate,
     reaction_pb2.Percentage:
-    validate_percentage,
+        validate_percentage,
     reaction_pb2.Data:
-    validate_data,
+        validate_data,
 }

@@ -70,11 +70,11 @@ class BqSchemaTest(absltest.TestCase):
         schema = bq_schema.get_schema(test_pb2.Nested.DESCRIPTOR)
         expected = [{
             'name':
-            'child',
+                'child',
             'type':
-            'RECORD',
+                'RECORD',
             'mode':
-            'NULLABLE',
+                'NULLABLE',
             'fields': [{
                 'name': 'value',
                 'type': 'FLOAT64',
@@ -87,11 +87,11 @@ class BqSchemaTest(absltest.TestCase):
         schema = bq_schema.get_schema(test_pb2.RepeatedNested.DESCRIPTOR)
         expected = [{
             'name':
-            'children',
+                'children',
             'type':
-            'RECORD',
+                'RECORD',
             'mode':
-            'REPEATED',
+                'REPEATED',
             'fields': [{
                 'name': 'value',
                 'type': 'FLOAT64',
@@ -104,11 +104,11 @@ class BqSchemaTest(absltest.TestCase):
         schema = bq_schema.get_schema(test_pb2.Map.DESCRIPTOR)
         expected = [{
             'name':
-            'values',
+                'values',
             'type':
-            'RECORD',
+                'RECORD',
             'mode':
-            'REPEATED',
+                'REPEATED',
             'fields': [{
                 'name': 'key',
                 'type': 'STRING',
@@ -125,22 +125,22 @@ class BqSchemaTest(absltest.TestCase):
         schema = bq_schema.get_schema(test_pb2.MapNested.DESCRIPTOR)
         expected = [{
             'name':
-            'children',
+                'children',
             'type':
-            'RECORD',
+                'RECORD',
             'mode':
-            'REPEATED',
+                'REPEATED',
             'fields': [{
                 'name': 'key',
                 'type': 'STRING',
                 'mode': 'NULLABLE'
             }, {
                 'name':
-                'value',
+                    'value',
                 'type':
-                'RECORD',
+                    'RECORD',
                 'mode':
-                'NULLABLE',
+                    'NULLABLE',
                 'fields': [{
                     'name': 'value',
                     'type': 'FLOAT64',

@@ -88,17 +88,19 @@ def _pressure_conditions(pressure):
         txt += ' '
         txt += {
             pressure.PressureControl.CUSTOM:
-            'using a custom pressure controller',
-            pressure.PressureControl.AMBIENT: 'using ambient pressure',
+                'using a custom pressure controller',
+            pressure.PressureControl.AMBIENT:
+                'using ambient pressure',
             pressure.PressureControl.BALLOON:
-            'using a balloon for pressure control',
+                'using a balloon for pressure control',
             pressure.PressureControl.SEALED:
-            'after fully sealing the reaction vessel',
+                'after fully sealing the reaction vessel',
             pressure.PressureControl.SEPTUM_WITH_NEEDLE:
-            'using a needle to pierce the vessel septum',
+                'using a needle to pierce the vessel septum',
             pressure.PressureControl.RELEASEVALVE:
-            'using a pressure release valve',
-            pressure.PressureControl.BPR: 'using a backpressure regulator',
+                'using a pressure release valve',
+            pressure.PressureControl.BPR:
+                'using a backpressure regulator',
         }[pressure.type]
         txt += f' {_parenthetical_if_def(pressure.details)}'
         setpoint = units.format_message(pressure.setpoint)
@@ -135,27 +137,27 @@ def _temperature_conditions(temperature):
         txt += 'The reaction was run '
         txt += {
             temperature.TemperatureControl.CUSTOM:
-            'under custom temperature conditions',
+                'under custom temperature conditions',
             temperature.TemperatureControl.AMBIENT:
-            'under ambient temperature conditions',
+                'under ambient temperature conditions',
             temperature.TemperatureControl.OIL_BATH:
-            'in an oil bath',
+                'in an oil bath',
             temperature.TemperatureControl.WATER_BATH:
-            'in a water bath',
+                'in a water bath',
             temperature.TemperatureControl.SAND_BATH:
-            'in a sand bath',
+                'in a sand bath',
             temperature.TemperatureControl.ICE_BATH:
-            'in an ice bath',
+                'in an ice bath',
             temperature.TemperatureControl.DRY_ALUMINUM_PLATE:
-            'using an aluminum heating block',
+                'using an aluminum heating block',
             temperature.TemperatureControl.MICROWAVE:
-            'in a microwave reactor',
+                'in a microwave reactor',
             temperature.TemperatureControl.DRY_ICE_BATH:
-            'in a dry ice bath',
+                'in a dry ice bath',
             temperature.TemperatureControl.AIR_FAN:
-            'using a fan for temperautre control',
+                'using a fan for temperautre control',
             temperature.TemperatureControl.LIQUID_NITROGEN:
-            'using liquid nitrogen for temperature control',
+                'using liquid nitrogen for temperature control',
         }[temperature.type]
         txt += f' {_parenthetical_if_def(temperature.details)}'
         setpoint = units.format_message(temperature.setpoint)
@@ -182,15 +184,15 @@ def _product_color_texture(product):
     txt += f'{product.isolated_color} '
     txt += {
         product.Texture.UNSPECIFIED:
-        '',
+            '',
         product.Texture.CUSTOM:
-        product.texture_details,
+            product.texture_details,
         product.Texture.POWDER:
-        f'powder {_parenthetical_if_def(product.texture_details)}',
+            f'powder {_parenthetical_if_def(product.texture_details)}',
         product.Texture.CRYSTAL:
-        f'set of crystals {_parenthetical_if_def(product.texture_details)}',
+            f'set of crystals {_parenthetical_if_def(product.texture_details)}',
         product.Texture.OIL:
-        f'oil {_parenthetical_if_def(product.texture_details)}',
+            f'oil {_parenthetical_if_def(product.texture_details)}',
     }[product.texture]
     if not txt.strip():
         return ''
@@ -273,15 +275,22 @@ def _compound_role(compound):
         reaction_pb2.Boolean.FALSE: '',
     }
     return {
-        compound.ReactionRole.UNSPECIFIED: '',
+        compound.ReactionRole.UNSPECIFIED:
+            '',
         compound.ReactionRole.REACTANT:
-        f'as a {limiting_if_true[compound.is_limiting]} reactant',
-        compound.ReactionRole.REAGENT: 'as a reagent',
-        compound.ReactionRole.SOLVENT: 'as a solvent',
-        compound.ReactionRole.CATALYST: 'as a catalyst',
-        compound.ReactionRole.INTERNAL_STANDARD: 'as an internal standard',
-        compound.ReactionRole.WORKUP: '',
-        compound.ReactionRole.PRODUCT: 'as a product',
+            f'as a {limiting_if_true[compound.is_limiting]} reactant',
+        compound.ReactionRole.REAGENT:
+            'as a reagent',
+        compound.ReactionRole.SOLVENT:
+            'as a solvent',
+        compound.ReactionRole.CATALYST:
+            'as a catalyst',
+        compound.ReactionRole.INTERNAL_STANDARD:
+            'as an internal standard',
+        compound.ReactionRole.WORKUP:
+            '',
+        compound.ReactionRole.PRODUCT:
+            'as a product',
     }[compound.reaction_role]
 
 
@@ -341,16 +350,24 @@ def _vessel_material(vessel):
 
 def _vessel_type(vessel):
     return {
-        vessel.VesselType.UNSPECIFIED: 'vessel',
-        vessel.VesselType.CUSTOM: f'vessel',
-        vessel.VesselType.ROUND_BOTTOM_FLASK: f'round bottom flask',
-        vessel.VesselType.VIAL: f'vial',
-        vessel.VesselType.WELL_PLATE: f'well-plate',
-        vessel.VesselType.MICROWAVE_VIAL: f'microwave vial',
-        vessel.VesselType.TUBE: f'tube',
+        vessel.VesselType.UNSPECIFIED:
+            'vessel',
+        vessel.VesselType.CUSTOM:
+            f'vessel',
+        vessel.VesselType.ROUND_BOTTOM_FLASK:
+            f'round bottom flask',
+        vessel.VesselType.VIAL:
+            f'vial',
+        vessel.VesselType.WELL_PLATE:
+            f'well-plate',
+        vessel.VesselType.MICROWAVE_VIAL:
+            f'microwave vial',
+        vessel.VesselType.TUBE:
+            f'tube',
         vessel.VesselType.CONTINUOUS_STIRRED_TANK_REACTOR:
-        f'continuous stirred-tank reactor',
-        vessel.VesselType.PACKED_BED_REACTOR: f'packed bed reactor',
+            f'continuous stirred-tank reactor',
+        vessel.VesselType.PACKED_BED_REACTOR:
+            f'packed bed reactor',
     }[vessel.type]
 
 
