@@ -192,8 +192,6 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
     elif moles < 1:
         value = moles * 1e3
         unit = reaction_pb2.Moles.MILLIMOLE
-        solute.moles.CopyFrom(
-            reaction_pb2.Moles(units='MILLIMOLE', value=moles * 1e3))
     else:
         value = moles
         unit = reaction_pb2.Moles.MOLE
