@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Builds a Dataset from a set of Reaction protos.
 
 TODO(kearnes): Add support for automatic sharding?
@@ -40,7 +39,8 @@ flags.DEFINE_string('input', None, 'Input pattern for Reaction protos.')
 flags.DEFINE_string('output', None, 'Output Dataset filename (*.pbtxt).')
 flags.DEFINE_string('name', None, 'Name for this dataset.')
 flags.DEFINE_string('description', None, 'Description for this dataset.')
-flags.DEFINE_boolean('validate', True, 'If True, run validations on Reactions.')
+flags.DEFINE_boolean('validate', True,
+                     'If True, run validations on Reactions.')
 
 
 def main(argv):
@@ -56,10 +56,9 @@ def main(argv):
     if not FLAGS.description:
         logging.warning(
             'Consider setting the dataset description with --description')
-    dataset = dataset_pb2.Dataset(
-        name=FLAGS.name,
-        description=FLAGS.description,
-        reactions=reactions)
+    dataset = dataset_pb2.Dataset(name=FLAGS.name,
+                                  description=FLAGS.description,
+                                  reactions=reactions)
     if FLAGS.validate:
         validations.validate_datasets({'_COMBINED': dataset})
     message_helpers.write_message(dataset, FLAGS.output)

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ord_schema.message_helpers."""
 
 import os
@@ -34,19 +33,16 @@ except ImportError:
 
 
 class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
-
     @parameterized.parameters(
         ('ord-1234567890', 'data/12/ord-1234567890'),
         ('test/ord-foo.pbtxt', 'data/fo/ord-foo.pbtxt'),
         ('ord_dataset-f00.pbtxt', 'data/f0/ord_dataset-f00.pbtxt'),
-        ('ord_data-123456foo7.jpg', 'data/12/ord_data-123456foo7.jpg')
-    )
+        ('ord_data-123456foo7.jpg', 'data/12/ord_data-123456foo7.jpg'))
     def test_id_filename(self, filename, expected):
         self.assertEqual(message_helpers.id_filename(filename), expected)
 
 
 class FindSubmessagesTest(absltest.TestCase):
-
     def test_scalar(self):
         message = test_pb2.Scalar(int32_value=5, float_value=6.7)
         self.assertEmpty(
@@ -59,8 +55,8 @@ class FindSubmessagesTest(absltest.TestCase):
         self.assertEmpty(
             message_helpers.find_submessages(message, test_pb2.Nested.Child))
         message.child.value = 5.6
-        submessages = message_helpers.find_submessages(
-            message, test_pb2.Nested.Child)
+        submessages = message_helpers.find_submessages(message,
+                                                       test_pb2.Nested.Child)
         self.assertLen(submessages, 1)
         # Show that the returned submessages work as references.
         submessages[0].value = 7.8
@@ -71,31 +67,27 @@ class FindSubmessagesTest(absltest.TestCase):
         message.children.add().value = 1.2
         message.children.add().value = 3.4
         self.assertLen(
-            message_helpers.find_submessages(
-                message, test_pb2.RepeatedNested.Child),
-            2)
+            message_helpers.find_submessages(message,
+                                             test_pb2.RepeatedNested.Child), 2)
 
     def test_map_nested(self):
         message = test_pb2.MapNested()
         message.children['one'].value = 1.2
         message.children['two'].value = 3.4
         self.assertLen(
-            message_helpers.find_submessages(
-                message, test_pb2.MapNested.Child),
-            2)
+            message_helpers.find_submessages(message,
+                                             test_pb2.MapNested.Child), 2)
 
     def test_compounds(self):
         message = reaction_pb2.Reaction()
         message.inputs['test'].components.add().identifiers.add(
             type='NAME', value='aspirin')
         self.assertLen(
-            message_helpers.find_submessages(
-                message, reaction_pb2.Compound),
+            message_helpers.find_submessages(message, reaction_pb2.Compound),
             1)
 
 
 class BuildDataTest(absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
@@ -118,22 +110,20 @@ class BuildDataTest(absltest.TestCase):
 
 
 class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
-
     def test_smiles_and_name(self):
-        compound = message_helpers.build_compound(
-            smiles='c1ccccc1', name='benzene')
-        expected = reaction_pb2.Compound(
-            identifiers=[
-                reaction_pb2.CompoundIdentifier(value='c1ccccc1',
-                                                type='SMILES'),
-                reaction_pb2.CompoundIdentifier(value='benzene', type='NAME')])
+        compound = message_helpers.build_compound(smiles='c1ccccc1',
+                                                  name='benzene')
+        expected = reaction_pb2.Compound(identifiers=[
+            reaction_pb2.CompoundIdentifier(value='c1ccccc1', type='SMILES'),
+            reaction_pb2.CompoundIdentifier(value='benzene', type='NAME')
+        ])
         self.assertEqual(compound, expected)
 
     @parameterized.named_parameters(
         ('mass', '1.2 g', reaction_pb2.Mass(value=1.2, units='GRAM')),
         ('moles', '3.4 mol', reaction_pb2.Moles(value=3.4, units='MOLE')),
-        ('volume', '5.6 mL',
-         reaction_pb2.Volume(value=5.6, units='MILLILITER')))
+        ('volume', '5.6 mL', reaction_pb2.Volume(value=5.6,
+                                                 units='MILLILITER')))
     def test_amount(self, amount, expected):
         compound = message_helpers.build_compound(amount=amount)
         self.assertEqual(getattr(compound, compound.WhichOneof('amount')),
@@ -155,12 +145,15 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
             message_helpers.build_compound(role='flavorant')
 
     def test_is_limiting(self):
-        self.assertTrue(message_helpers.unconvert_boolean(
-            message_helpers.build_compound(is_limiting=True).is_limiting))
-        self.assertFalse(message_helpers.unconvert_boolean(
-            message_helpers.build_compound(is_limiting=False).is_limiting))
-        self.assertEqual(message_helpers.unconvert_boolean(
-            message_helpers.build_compound().is_limiting), None)
+        self.assertTrue(
+            message_helpers.unconvert_boolean(
+                message_helpers.build_compound(is_limiting=True).is_limiting))
+        self.assertFalse(
+            message_helpers.unconvert_boolean(
+                message_helpers.build_compound(is_limiting=False).is_limiting))
+        self.assertEqual(
+            message_helpers.unconvert_boolean(
+                message_helpers.build_compound().is_limiting), None)
 
     @parameterized.named_parameters(
         ('prep_without_details', 'dried', None,
@@ -196,7 +189,6 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
 
 
 class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
-
     def test_set_solute_moles_should_fail(self):
         solute = message_helpers.build_compound(name='Solute')
         solvent = message_helpers.build_compound(name='Solvent')
@@ -213,44 +205,45 @@ class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
         solvent2 = message_helpers.build_compound(name='Solvent',
                                                   amount='100 mL')
         message_helpers.set_solute_moles(solute, [solvent2], '1 molar')
-        self.assertEqual(solute.moles, reaction_pb2.Moles(units='MILLIMOLE',
-                                                          value=100))
+        self.assertEqual(solute.moles,
+                         reaction_pb2.Moles(units='MILLIMOLE', value=100))
         solvent3 = message_helpers.build_compound(name='Solvent',
                                                   amount='75 uL')
-        message_helpers.set_solute_moles(solute, [solvent3], '3 mM',
+        message_helpers.set_solute_moles(solute, [solvent3],
+                                         '3 mM',
                                          overwrite=True)
-        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLE',
-                                                          value=225))
+        self.assertEqual(solute.moles,
+                         reaction_pb2.Moles(units='NANOMOLE', value=225))
         solvent4 = message_helpers.build_compound(name='Solvent',
                                                   amount='0.2 uL')
-        message_helpers.set_solute_moles(solute, [solvent4], '30 mM',
+        message_helpers.set_solute_moles(solute, [solvent4],
+                                         '30 mM',
                                          overwrite=True)
-        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLE',
-                                                          value=6))
+        self.assertEqual(solute.moles,
+                         reaction_pb2.Moles(units='NANOMOLE', value=6))
         solvent5 = message_helpers.build_compound(name='Solvent',
                                                   amount='0.8 uL')
-        message_helpers.set_solute_moles(solute, [solvent4, solvent5], '30 mM',
+        message_helpers.set_solute_moles(solute, [solvent4, solvent5],
+                                         '30 mM',
                                          overwrite=True)
-        self.assertEqual(solute.moles, reaction_pb2.Moles(units='NANOMOLE',
-                                                          value=30))
+        self.assertEqual(solute.moles,
+                         reaction_pb2.Moles(units='NANOMOLE', value=30))
 
 
 class GetCompoundSmilesTest(absltest.TestCase):
-
     def test_get_compound_smiles(self):
-        compound = message_helpers.build_compound(
-            smiles='c1ccccc1', name='benzene')
+        compound = message_helpers.build_compound(smiles='c1ccccc1',
+                                                  name='benzene')
         self.assertEqual(message_helpers.get_compound_smiles(compound),
                          'c1ccccc1')
 
 
 class GetCompoundMolTest(absltest.TestCase):
-
     @absltest.skipIf(Chem is None, 'no rdkit')
     def test_get_compound_mol(self):
         mol = Chem.MolFromSmiles('c1ccccc1')
-        compound = message_helpers.build_compound(
-            smiles='c1ccccc1', name='benzene')
+        compound = message_helpers.build_compound(smiles='c1ccccc1',
+                                                  name='benzene')
         identifier = compound.identifiers.add()
         identifier.type = identifier.RDKIT_BINARY
         identifier.bytes_value = mol.ToBinary()
@@ -260,7 +253,6 @@ class GetCompoundMolTest(absltest.TestCase):
 
 
 class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         self.messages = [
@@ -279,8 +271,7 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
                 f.flush()
                 self.assertEqual(
                     message,
-                    message_helpers.load_message(
-                        f.name, type(message)))
+                    message_helpers.load_message(f.name, type(message)))
 
     def test_bad_binary(self):
         with tempfile.NamedTemporaryFile(suffix='.pb') as f:
@@ -312,8 +303,7 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
     def test_bad_suffix(self):
         message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
         with self.assertRaisesRegex(ValueError, 'not a valid MessageFormat'):
-            message_helpers.write_message(
-                message, 'test.proto')
+            message_helpers.write_message(message, 'test.proto')
 
 
 if __name__ == '__main__':

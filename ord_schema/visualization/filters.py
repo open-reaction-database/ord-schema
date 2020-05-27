@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Template filters to use with Jinja to format reaction messages into text.
 """
 
@@ -89,16 +88,16 @@ def _pressure_conditions(pressure):
         txt += ' '
         txt += {
             pressure.PressureControl.CUSTOM:
-                'using a custom pressure controller',
+            'using a custom pressure controller',
             pressure.PressureControl.AMBIENT: 'using ambient pressure',
             pressure.PressureControl.BALLOON:
-                'using a balloon for pressure control',
+            'using a balloon for pressure control',
             pressure.PressureControl.SEALED:
-                'after fully sealing the reaction vessel',
+            'after fully sealing the reaction vessel',
             pressure.PressureControl.SEPTUM_WITH_NEEDLE:
-                'using a needle to pierce the vessel septum',
+            'using a needle to pierce the vessel septum',
             pressure.PressureControl.RELEASEVALVE:
-                'using a pressure release valve',
+            'using a pressure release valve',
             pressure.PressureControl.BPR: 'using a backpressure regulator',
         }[pressure.type]
         txt += f' {_parenthetical_if_def(pressure.details)}'
@@ -136,22 +135,27 @@ def _temperature_conditions(temperature):
         txt += 'The reaction was run '
         txt += {
             temperature.TemperatureControl.CUSTOM:
-                'under custom temperature conditions',
+            'under custom temperature conditions',
             temperature.TemperatureControl.AMBIENT:
-                'under ambient temperature conditions',
-            temperature.TemperatureControl.OIL_BATH: 'in an oil bath',
-            temperature.TemperatureControl.WATER_BATH: 'in a water bath',
-            temperature.TemperatureControl.SAND_BATH: 'in a sand bath',
-            temperature.TemperatureControl.ICE_BATH: 'in an ice bath',
+            'under ambient temperature conditions',
+            temperature.TemperatureControl.OIL_BATH:
+            'in an oil bath',
+            temperature.TemperatureControl.WATER_BATH:
+            'in a water bath',
+            temperature.TemperatureControl.SAND_BATH:
+            'in a sand bath',
+            temperature.TemperatureControl.ICE_BATH:
+            'in an ice bath',
             temperature.TemperatureControl.DRY_ALUMINUM_PLATE:
-                'using an aluminum heating block',
+            'using an aluminum heating block',
             temperature.TemperatureControl.MICROWAVE:
-                'in a microwave reactor',
-            temperature.TemperatureControl.DRY_ICE_BATH: 'in a dry ice bath',
+            'in a microwave reactor',
+            temperature.TemperatureControl.DRY_ICE_BATH:
+            'in a dry ice bath',
             temperature.TemperatureControl.AIR_FAN:
-                'using a fan for temperautre control',
+            'using a fan for temperautre control',
             temperature.TemperatureControl.LIQUID_NITROGEN:
-                'using liquid nitrogen for temperature control',
+            'using liquid nitrogen for temperature control',
         }[temperature.type]
         txt += f' {_parenthetical_if_def(temperature.details)}'
         setpoint = units.format_message(temperature.setpoint)
@@ -162,8 +166,8 @@ def _temperature_conditions(temperature):
 
 def _temperature_conditions_html(temperature):
     txt = ''
-    if (temperature.type == temperature.TemperatureControl.UNSPECIFIED or
-            temperature.type == temperature.TemperatureControl.AMBIENT):
+    if (temperature.type == temperature.TemperatureControl.UNSPECIFIED
+            or temperature.type == temperature.TemperatureControl.AMBIENT):
         return 'ambient temperature<br>'
     setpoint = units.format_message(temperature.setpoint)
     if setpoint:
@@ -177,14 +181,16 @@ def _product_color_texture(product):
     txt = ''
     txt += f'{product.isolated_color} '
     txt += {
-        product.Texture.UNSPECIFIED: '',
-        product.Texture.CUSTOM: product.texture_details,
+        product.Texture.UNSPECIFIED:
+        '',
+        product.Texture.CUSTOM:
+        product.texture_details,
         product.Texture.POWDER:
-            f'powder {_parenthetical_if_def(product.texture_details)}',
+        f'powder {_parenthetical_if_def(product.texture_details)}',
         product.Texture.CRYSTAL:
-            f'set of crystals {_parenthetical_if_def(product.texture_details)}',
+        f'set of crystals {_parenthetical_if_def(product.texture_details)}',
         product.Texture.OIL:
-            f'oil {_parenthetical_if_def(product.texture_details)}',
+        f'oil {_parenthetical_if_def(product.texture_details)}',
     }[product.texture]
     if not txt.strip():
         return ''
@@ -269,7 +275,7 @@ def _compound_role(compound):
     return {
         compound.ReactionRole.UNSPECIFIED: '',
         compound.ReactionRole.REACTANT:
-            f'as a {limiting_if_true[compound.is_limiting]} reactant',
+        f'as a {limiting_if_true[compound.is_limiting]} reactant',
         compound.ReactionRole.REAGENT: 'as a reagent',
         compound.ReactionRole.SOLVENT: 'as a solvent',
         compound.ReactionRole.CATALYST: 'as a catalyst',
@@ -343,7 +349,7 @@ def _vessel_type(vessel):
         vessel.VesselType.MICROWAVE_VIAL: f'microwave vial',
         vessel.VesselType.TUBE: f'tube',
         vessel.VesselType.CONTINUOUS_STIRRED_TANK_REACTOR:
-            f'continuous stirred-tank reactor',
+        f'continuous stirred-tank reactor',
         vessel.VesselType.PACKED_BED_REACTOR: f'packed bed reactor',
     }[vessel.type]
 

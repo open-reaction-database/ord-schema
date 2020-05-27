@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """This module contains two molecular drawing functions to render SVGs or PNGs
 given an RDKit molecule object: mol_to_svg and mol_to_png."""
 
@@ -31,6 +30,7 @@ except ImportError:
     RDKIT_VERSION = None
 
 # pylint: disable=unsubscriptable-object
+
 
 def trim_image_whitespace(img, padding=0):
     """This function takes a PIL image, img, and crops it to the minimum
@@ -52,12 +52,12 @@ def trim_image_whitespace(img, padding=0):
 
     # Crop down
     margin = 5
-    x_range = (max([min(xs_nonzero) - margin, 0]),
-               min([max(xs_nonzero) + margin, as_array.shape[0]]))
-    y_range = (max([min(ys_nonzero) - margin, 0]),
-               min([max(ys_nonzero) + margin, as_array.shape[1]]))
-    as_array_cropped = as_array[
-        x_range[0]:x_range[1], y_range[0]:y_range[1], 0:3]
+    x_range = (max([min(xs_nonzero) - margin,
+                    0]), min([max(xs_nonzero) + margin, as_array.shape[0]]))
+    y_range = (max([min(ys_nonzero) - margin,
+                    0]), min([max(ys_nonzero) + margin, as_array.shape[1]]))
+    as_array_cropped = as_array[x_range[0]:x_range[1], y_range[0]:y_range[1],
+                                0:3]
 
     img = Image.fromarray(as_array_cropped, mode='RGB')
     return ImageOps.expand(img, border=padding, fill=(255, 255, 255))

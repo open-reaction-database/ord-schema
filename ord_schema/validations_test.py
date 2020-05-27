@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ord_schema.validations."""
 
 from absl.testing import absltest
@@ -23,7 +22,6 @@ from ord_schema.proto import reaction_pb2
 
 
 class ValidationsTest(parameterized.TestCase, absltest.TestCase):
-
     def _run_validation(self, message, **kwargs):
         original = type(message)()
         original.CopyFrom(message)
@@ -34,7 +32,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     @parameterized.named_parameters(
         ('volume',
-         reaction_pb2.Volume(value=15.0, units=reaction_pb2.Volume.MILLILITER)),
+         reaction_pb2.Volume(value=15.0,
+                             units=reaction_pb2.Volume.MILLILITER)),
         ('time', reaction_pb2.Time(value=24, units=reaction_pb2.Time.HOUR)),
         ('mass', reaction_pb2.Mass(value=32.1, units=reaction_pb2.Mass.GRAM)),
     )
@@ -44,25 +43,24 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
     @parameterized.named_parameters(
         ('neg volume',
          reaction_pb2.Volume(
-             value=-15.0, units=reaction_pb2.Volume.MILLILITER),
-         'non-negative'),
-        ('neg time', reaction_pb2.Time(value=-24, units=reaction_pb2.Time.HOUR),
-         'non-negative'),
+             value=-15.0,
+             units=reaction_pb2.Volume.MILLILITER), 'non-negative'),
+        ('neg time', reaction_pb2.Time(
+            value=-24, units=reaction_pb2.Time.HOUR), 'non-negative'),
         ('neg mass',
-         reaction_pb2.Mass(value=-32.1, units=reaction_pb2.Mass.GRAM),
-         'non-negative'),
+         reaction_pb2.Mass(value=-32.1,
+                           units=reaction_pb2.Mass.GRAM), 'non-negative'),
         ('no units', reaction_pb2.FlowRate(value=5), 'units'),
         ('percentage out of range', reaction_pb2.Percentage(value=200),
          'between'),
-        ('low temperature', reaction_pb2.Temperature(value=-5, units='KELVIN'),
-         'between'),
+        ('low temperature', reaction_pb2.Temperature(
+            value=-5, units='KELVIN'), 'between'),
         ('low temperature 2',
-         reaction_pb2.Temperature(value=-500, units='CELSIUS'),
-         'between'),
+         reaction_pb2.Temperature(value=-500, units='CELSIUS'), 'between'),
     )
     def test_units_should_fail(self, message, expected_error):
-        with self.assertRaisesRegex(
-                validations.ValidationError, expected_error):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    expected_error):
             self._run_validation(message)
 
     def test_orcid(self):
@@ -76,20 +74,20 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     def test_reaction(self):
         message = reaction_pb2.Reaction()
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'reaction input'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'reaction input'):
             self._run_validation(message)
 
     def test_reaction_recursive(self):
         message = reaction_pb2.Reaction()
         # Reactions must have at least one input
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'reaction input'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'reaction input'):
             self._run_validation(message, recurse=False)
         dummy_input = message.inputs['dummy_input']
         # Reactions must have at least one outcome
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'reaction outcome'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'reaction outcome'):
             self._run_validation(message, recurse=False)
         outcome = message.outcomes.add()
         self.assertEmpty(self._run_validation(message, recurse=False))
@@ -107,19 +105,19 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         dummy_component.identifiers[0].details = 'custom_identifier'
         dummy_component.identifiers[0].value = 'custom_value'
         # Components of reaction inputs must have a defined amount
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'require an amount'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'require an amount'):
             self._run_validation(message)
         dummy_component.mass.value = 1
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
         # Reactions must have defined products or conversion
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'products or conversion'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'products or conversion'):
             self._run_validation(message)
         outcome.conversion.value = 75
         # If converseions are defined, must have limiting reagent flag
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'is_limiting'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'is_limiting'):
             self._run_validation(message)
         dummy_component.is_limiting = reaction_pb2.Boolean.TRUE
         self.assertEmpty(self._run_validation(message))
@@ -128,14 +126,15 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         # an INTERNAL_STANDARD reaction role
         outcome.analyses['dummy_analysis'].uses_internal_standard = (
             reaction_pb2.Boolean.TRUE)
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'INTERNAL_STANDARD'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'INTERNAL_STANDARD'):
             self._run_validation(message)
         # Assigning internal standard role to input should resolve the error
         message_input_istd = reaction_pb2.Reaction()
         message_input_istd.CopyFrom(message)
-        message_input_istd.inputs['dummy_input'].components[0].reaction_role = (
-            reaction_pb2.Compound.ReactionRole.INTERNAL_STANDARD)
+        message_input_istd.inputs['dummy_input'].components[
+            0].reaction_role = (
+                reaction_pb2.Compound.ReactionRole.INTERNAL_STANDARD)
         self.assertEmpty(self._run_validation(message_input_istd))
         # Assigning internal standard role to workup should resolve the error
         message_workup_istd = reaction_pb2.Reaction()
@@ -192,12 +191,12 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     def test_data(self):
         message = reaction_pb2.Data()
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'requires one of'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'requires one of'):
             self._run_validation(message)
         message.bytes_value = b'test data'
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'format is required'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'format is required'):
             self._run_validation(message)
         message.string_value = 'test data'
         self.assertEmpty(self._run_validation(message))
@@ -215,24 +214,23 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
             self._run_validation(message, recurse=False)
 
     def test_dataset_bad_id(self):
-        message = dataset_pb2.Dataset(
-            reactions=[reaction_pb2.Reaction()], dataset_id='foo')
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'malformed'):
+        message = dataset_pb2.Dataset(reactions=[reaction_pb2.Reaction()],
+                                      dataset_id='foo')
+        with self.assertRaisesRegex(validations.ValidationError, 'malformed'):
             self._run_validation(message, recurse=False)
 
     def test_dataset_example(self):
         message = dataset_pb2.DatasetExample()
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'description is required'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'description is required'):
             self._run_validation(message)
         message.description = 'test example'
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'url is required'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'url is required'):
             self._run_validation(message)
         message.url = 'example.com'
-        with self.assertRaisesRegex(
-                validations.ValidationError, 'created is required'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'created is required'):
             self._run_validation(message)
         message.created.time.value = '11 am'
         self.assertEmpty(self._run_validation(message))

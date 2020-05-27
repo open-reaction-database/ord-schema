@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Dataset processing script for database submissions.
 
 This script is meant to be a one-stop shop for preparing submissions to the
@@ -180,11 +179,10 @@ def main(argv):
         for reaction in dataset.reactions:
             updates.update_reaction(reaction)
         # Offload large Data values.
-        data_filenames = data_storage.extract_data(
-            dataset,
-            FLAGS.root,
-            min_size=FLAGS.min_size,
-            max_size=FLAGS.max_size)
+        data_filenames = data_storage.extract_data(dataset,
+                                                   FLAGS.root,
+                                                   min_size=FLAGS.min_size,
+                                                   max_size=FLAGS.max_size)
         if data_filenames:
             args = ['git', 'add'] + data_filenames
             logging.info('Running command: %s', ' '.join(args))

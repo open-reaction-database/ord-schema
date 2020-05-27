@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for ord_schema.data_storage."""
 
 import os
@@ -26,18 +25,16 @@ from ord_schema.proto import reaction_pb2
 
 
 class WriteDataTest(absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
 
     def test_string_value(self):
         message = reaction_pb2.Data(string_value='test value')
-        filename, data_size = data_storage.write_data(
-            message, self.test_subdirectory)
+        filename, data_size = data_storage.write_data(message,
+                                                      self.test_subdirectory)
         expected = os.path.join(
-            self.test_subdirectory,
-            'ord_data-'
+            self.test_subdirectory, 'ord_data-'
             '47d1d8273710fd6f6a5995fac1a0983fe0e8828c288e35e80450ddc5c4412def'
             '.txt')
         self.assertEqual(filename, expected)
@@ -50,8 +47,7 @@ class WriteDataTest(absltest.TestCase):
         message = reaction_pb2.Data(bytes_value=b'test value')
         filename, _ = data_storage.write_data(message, self.test_subdirectory)
         expected = os.path.join(
-            self.test_subdirectory,
-            'ord_data-'
+            self.test_subdirectory, 'ord_data-'
             '47d1d8273710fd6f6a5995fac1a0983fe0e8828c288e35e80450ddc5c4412def'
             '.txt')
         self.assertEqual(filename, expected)
@@ -71,24 +67,27 @@ class WriteDataTest(absltest.TestCase):
     def test_min_max_size(self):
         message = reaction_pb2.Data(string_value='test_value')
         with self.assertRaisesRegex(ValueError, 'must be less than or equal'):
-            data_storage.write_data(
-                message, self.test_subdirectory, min_size=2.0, max_size=1.0)
+            data_storage.write_data(message,
+                                    self.test_subdirectory,
+                                    min_size=2.0,
+                                    max_size=1.0)
 
     def test_min_size(self):
         message = reaction_pb2.Data(string_value='test_value')
-        filename, _ = data_storage.write_data(
-            message, self.test_subdirectory, min_size=1.0)
+        filename, _ = data_storage.write_data(message,
+                                              self.test_subdirectory,
+                                              min_size=1.0)
         self.assertIsNone(filename)
 
     def test_max_size(self):
         message = reaction_pb2.Data(string_value='test value')
         with self.assertRaisesRegex(ValueError, 'larger than max_size'):
-            data_storage.write_data(
-                message, self.test_subdirectory, max_size=1e-6)
+            data_storage.write_data(message,
+                                    self.test_subdirectory,
+                                    max_size=1e-6)
 
 
 class ExtractDataTest(absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
