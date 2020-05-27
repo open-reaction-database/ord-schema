@@ -41,8 +41,7 @@ class GenerateTextTest(absltest.TestCase):
                 smiles='THF',
                 role='solvent',
                 amount='40 liters',
-            )
-        )
+            ))
         reaction.conditions.pressure.atmosphere.type = (
             reaction_pb2.PressureConditions.Atmosphere.OXYGEN)
         reaction.conditions.stirring.rate.rpm = 100

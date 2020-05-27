@@ -749,10 +749,14 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.Reaction:
         validate_reaction,
     # Basics
-    reaction_pb2.ReactionIdentifier: validate_reaction_identifier,
-    reaction_pb2.ReactionInput: validate_reaction_input,
-    reaction_pb2.ReactionInput.AdditionDevice: validate_addition_device,
-    reaction_pb2.ReactionInput.AdditionSpeed: validate_addition_speed,
+    reaction_pb2.ReactionIdentifier:
+        validate_reaction_identifier,
+    reaction_pb2.ReactionInput:
+        validate_reaction_input,
+    reaction_pb2.ReactionInput.AdditionDevice:
+        validate_addition_device,
+    reaction_pb2.ReactionInput.AdditionSpeed:
+        validate_addition_speed,
     # Compounds
     reaction_pb2.Compound:
         validate_compound,
@@ -763,55 +767,81 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.CompoundIdentifier:
         validate_compound_identifier,
     # Setup
-    reaction_pb2.Vessel: validate_vessel,
-    reaction_pb2.VesselType: validate_vessel_type,
-    reaction_pb2.VesselMaterial: validate_vessel_material,
-    reaction_pb2.VesselAttachment: validate_vessel_attachment,
-    reaction_pb2.VesselPreparation: validate_vessel_preparation,
-    reaction_pb2.ReactionSetup: validate_reaction_setup,
-    reaction_pb2.ReactionSetup.ReactionEnvironment: (
-        validate_reaction_environment),
+    reaction_pb2.Vessel:
+        validate_vessel,
+    reaction_pb2.VesselType:
+        validate_vessel_type,
+    reaction_pb2.VesselMaterial:
+        validate_vessel_material,
+    reaction_pb2.VesselAttachment:
+        validate_vessel_attachment,
+    reaction_pb2.VesselPreparation:
+        validate_vessel_preparation,
+    reaction_pb2.ReactionSetup:
+        validate_reaction_setup,
+    reaction_pb2.ReactionSetup.ReactionEnvironment:
+        (validate_reaction_environment),
     # Conditions
-    reaction_pb2.ReactionConditions: validate_reaction_conditions,
-    reaction_pb2.TemperatureConditions: validate_temperature_conditions,
-    reaction_pb2.TemperatureConditions.TemperatureControl: (
-        validate_temperature_control),
-    reaction_pb2.TemperatureConditions.Measurement: (
-        validate_temperature_measurement),
-    reaction_pb2.PressureConditions: validate_pressure_conditions,
-    reaction_pb2.PressureConditions.PressureControl: validate_pressure_control,
-    reaction_pb2.PressureConditions.Atmosphere: validate_pressure_control,
-    reaction_pb2.PressureConditions.Measurement: validate_pressure_measurement,
-    reaction_pb2.StirringConditions: validate_stirring_conditions,
-    reaction_pb2.StirringConditions.StirringMethod: validate_stirring_method,
-    reaction_pb2.StirringConditions.StirringRate: validate_stirring_rate,
-    reaction_pb2.IlluminationConditions: validate_illumination_conditions,
-    reaction_pb2.IlluminationConditions.IlluminationType: (
-        validate_illumination_type),
-    reaction_pb2.ElectrochemistryConditions: (
-        validate_electrochemistry_conditions),
-    reaction_pb2.ElectrochemistryConditions.ElectrochemistryType: (
-        validate_electrochemistry_type),
-    reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell: (
-        validate_electrochemistry_cell),
+    reaction_pb2.ReactionConditions:
+        validate_reaction_conditions,
+    reaction_pb2.TemperatureConditions:
+        validate_temperature_conditions,
+    reaction_pb2.TemperatureConditions.TemperatureControl:
+        (validate_temperature_control),
+    reaction_pb2.TemperatureConditions.Measurement:
+        (validate_temperature_measurement),
+    reaction_pb2.PressureConditions:
+        validate_pressure_conditions,
+    reaction_pb2.PressureConditions.PressureControl:
+        validate_pressure_control,
+    reaction_pb2.PressureConditions.Atmosphere:
+        validate_pressure_control,
+    reaction_pb2.PressureConditions.Measurement:
+        validate_pressure_measurement,
+    reaction_pb2.StirringConditions:
+        validate_stirring_conditions,
+    reaction_pb2.StirringConditions.StirringMethod:
+        validate_stirring_method,
+    reaction_pb2.StirringConditions.StirringRate:
+        validate_stirring_rate,
+    reaction_pb2.IlluminationConditions:
+        validate_illumination_conditions,
+    reaction_pb2.IlluminationConditions.IlluminationType:
+        (validate_illumination_type),
+    reaction_pb2.ElectrochemistryConditions:
+        (validate_electrochemistry_conditions),
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryType:
+        (validate_electrochemistry_type),
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell:
+        (validate_electrochemistry_cell),
     reaction_pb2.ElectrochemistryConditions.Measurement:
         validate_electrochemistry_measurement,
-    reaction_pb2.FlowConditions: validate_flow_conditions,
-    reaction_pb2.FlowConditions.FlowType: validate_flow_type,
-    reaction_pb2.FlowConditions.Tubing: validate_tubing,
+    reaction_pb2.FlowConditions:
+        validate_flow_conditions,
+    reaction_pb2.FlowConditions.FlowType:
+        validate_flow_type,
+    reaction_pb2.FlowConditions.Tubing:
+        validate_tubing,
     # Annotations
     reaction_pb2.ReactionNotes:
         validate_reaction_notes,
     reaction_pb2.ReactionObservation:
         validate_reaction_observation,
     # Outcome
-    reaction_pb2.ReactionWorkup: validate_reaction_workup,
-    reaction_pb2.ReactionOutcome: validate_reaction_outcome,
-    reaction_pb2.ReactionProduct: validate_reaction_product,
-    reaction_pb2.ReactionProduct.Texture: validate_texture,
-    reaction_pb2.Selectivity: validate_selectivity,
-    reaction_pb2.DateTime: validate_date_time,
-    reaction_pb2.ReactionAnalysis: validate_reaction_analysis,
+    reaction_pb2.ReactionWorkup:
+        validate_reaction_workup,
+    reaction_pb2.ReactionOutcome:
+        validate_reaction_outcome,
+    reaction_pb2.ReactionProduct:
+        validate_reaction_product,
+    reaction_pb2.ReactionProduct.Texture:
+        validate_texture,
+    reaction_pb2.Selectivity:
+        validate_selectivity,
+    reaction_pb2.DateTime:
+        validate_date_time,
+    reaction_pb2.ReactionAnalysis:
+        validate_reaction_analysis,
     # Metadata
     reaction_pb2.ReactionProvenance:
         validate_reaction_provenance,
