@@ -218,10 +218,11 @@ def reaction_has_internal_standard(message):
                     compound.ReactionRole.INTERNAL_STANDARD):
                 return True
     for workup in message.workup:
-        for compound in workup.components:
-            if (compound.reaction_role ==
-                    compound.ReactionRole.INTERNAL_STANDARD):
-                return True
+        if workup.input:
+            for compound in workup.input.components:
+                if (compound.reaction_role ==
+                        compound.ReactionRole.INTERNAL_STANDARD):
+                    return True
     return False
 
 
@@ -312,6 +313,14 @@ def validate_reaction_input(message):
                           ValidationError)
 
 
+def validate_addition_device(message):
+    ensure_details_specified_if_type_custom(message)
+
+
+def validate_addition_speed(message):
+    del message  # Unused.
+
+
 def validate_compound(message):
     if len(message.identifiers) == 0:
         warnings.warn('Compounds must have at least one identifier',
@@ -363,21 +372,31 @@ def validate_compound_identifier(message):
 
 
 def validate_vessel(message):
-    if message.type == message.VesselType.CUSTOM and not message.details:
-        warnings.warn('VesselType custom, but no details provided',
-                      ValidationError)
-    if message.material == message.VesselMaterial.CUSTOM and \
-            not message.material_details:
-        warnings.warn('VesselMaterial custom, but no details provided',
-                      ValidationError)
-    if message.preparation == message.VesselPreparation.CUSTOM and \
-            not message.preparation_details:
-        warnings.warn('VesselPreparation custom, but no details provided',
-                      ValidationError)
+    del message  # Unused.
+
+
+def validate_vessel_type(message):
+    ensure_details_specified_if_type_custom(message)
+
+
+def validate_vessel_material(message):
+    ensure_details_specified_if_type_custom(message)
+
+
+def validate_vessel_attachment(message):
+    ensure_details_specified_if_type_custom(message)
+
+
+def validate_vessel_preparation(message):
+    ensure_details_specified_if_type_custom(message)
 
 
 def validate_reaction_setup(message):
     del message  # Unused.
+
+
+def validate_reaction_environment(message):
+    ensure_details_specified_if_type_custom(message)
 
 
 def validate_reaction_conditions(message):
@@ -395,10 +414,6 @@ def validate_reaction_conditions(message):
 
 
 def validate_temperature_conditions(message):
-    if message.type == message.TemperatureControl.CUSTOM and \
-            not message.details:
-        warnings.warn('Temperature control custom, but no details provided',
-                      ValidationError)
     if not message.setpoint.value:
         warnings.warn(
             'Temperature setpoints should be specified; even if '
@@ -406,18 +421,24 @@ def validate_temperature_conditions(message):
             'the precision of your estimate.', ValidationWarning)
 
 
+def validate_temperature_control(message):
+    ensure_details_specified_if_type_custom(message)
+
+
 def validate_temperature_measurement(message):
     ensure_details_specified_if_type_custom(message)
 
 
 def validate_pressure_conditions(message):
-    if message.type == message.PressureControl.CUSTOM and not message.details:
-        warnings.warn('Pressure control custom, but no details provided',
-                      ValidationError)
-    if message.atmosphere == message.Atmosphere.CUSTOM and \
-            not message.atmosphere_details:
-        warnings.warn('Atmosphere custom, but no atmosphere_details provided',
-                      ValidationError)
+    del message
+
+
+def validate_pressure_control(message):
+    ensure_details_specified_if_type_custom(message)
+
+
+def validate_atmosphere(message):
+    ensure_details_specified_if_type_custom(message)
 
 
 def validate_pressure_measurement(message):
@@ -425,17 +446,34 @@ def validate_pressure_measurement(message):
 
 
 def validate_stirring_conditions(message):
+    del message  # Unused.
+
+
+def validate_stirring_method(message):
+    ensure_details_specified_if_type_custom(message)
+
+
+def validate_stirring_rate(message):
     ensure_float_nonnegative(message, 'rpm')
-    if message.type == message.StirringMethod.CUSTOM and not message.details:
-        warnings.warn('Stirring method custom, but no details provided',
-                      ValidationError)
 
 
 def validate_illumination_conditions(message):
+    del message  # Unused.
+
+
+def validate_illumination_type(message):
     ensure_details_specified_if_type_custom(message)
 
 
 def validate_electrochemistry_conditions(message):
+    del message  # Unused.
+
+
+def validate_electrochemistry_type(message):
+    ensure_details_specified_if_type_custom(message)
+
+
+def validate_electrochemistry_cell(message):
     ensure_details_specified_if_type_custom(message)
 
 
@@ -444,6 +482,10 @@ def validate_electrochemistry_measurement(message):
 
 
 def validate_flow_conditions(message):
+    del message  # Unused.
+
+
+def validate_flow_type(message):
     ensure_details_specified_if_type_custom(message)
 
 
@@ -483,7 +525,7 @@ def validate_reaction_workup(message):
                          reaction_pb2.ReactionWorkup.DISSOLUTION,
                          reaction_pb2.ReactionWorkup.PH_ADJUST)
             and not message.components):
-        warnings.warn('Workup step missing required components definition',
+        warnings.warn('Workup step missing required inputs definition',
                       ValidationError)
     if (message.type == reaction_pb2.ReactionWorkup.STIRRING
             and not message.stirring):
@@ -524,11 +566,11 @@ def validate_reaction_outcome(message):
 
 
 def validate_reaction_product(message):
-    if message.texture == message.Texture.CUSTOM and \
-            not message.texture_details:
-        warnings.warn(
-            f'Custom texture defined for {type(message)}, '
-            'but texture_details field is empty', ValidationError)
+    del message  # Unused.
+
+
+def validate_texture(message):
+    ensure_details_specified_if_type_custom(message)
 
 
 def validate_selectivity(message):
@@ -539,6 +581,8 @@ def validate_selectivity(message):
             warnings.warn(
                 'EE selectivity values are 0-100, not fractions '
                 f'({message.value} used)', ValidationWarning)
+    elif message.type in [message.ER, message.DR, message.EZ, message.ZE]:
+        ensure_float_nonnegative(message, 'value')
     ensure_details_specified_if_type_custom(message)
 
 
@@ -705,10 +749,10 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.Reaction:
         validate_reaction,
     # Basics
-    reaction_pb2.ReactionIdentifier:
-        validate_reaction_identifier,
-    reaction_pb2.ReactionInput:
-        validate_reaction_input,
+    reaction_pb2.ReactionIdentifier: validate_reaction_identifier,
+    reaction_pb2.ReactionInput: validate_reaction_input,
+    reaction_pb2.ReactionInput.AdditionDevice: validate_addition_device,
+    reaction_pb2.ReactionInput.AdditionSpeed: validate_addition_speed,
     # Compounds
     reaction_pb2.Compound:
         validate_compound,
@@ -719,51 +763,55 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.CompoundIdentifier:
         validate_compound_identifier,
     # Setup
-    reaction_pb2.Vessel:
-        validate_vessel,
-    reaction_pb2.ReactionSetup:
-        validate_reaction_setup,
+    reaction_pb2.Vessel: validate_vessel,
+    reaction_pb2.VesselType: validate_vessel_type,
+    reaction_pb2.VesselMaterial: validate_vessel_material,
+    reaction_pb2.VesselAttachment: validate_vessel_attachment,
+    reaction_pb2.VesselPreparation: validate_vessel_preparation,
+    reaction_pb2.ReactionSetup: validate_reaction_setup,
+    reaction_pb2.ReactionSetup.ReactionEnvironment: (
+        validate_reaction_environment),
     # Conditions
-    reaction_pb2.ReactionConditions:
-        validate_reaction_conditions,
-    reaction_pb2.TemperatureConditions:
-        validate_temperature_conditions,
-    reaction_pb2.TemperatureConditions.Measurement:
-        (validate_temperature_measurement),
-    reaction_pb2.PressureConditions:
-        validate_pressure_conditions,
-    reaction_pb2.PressureConditions.Measurement:
-        validate_pressure_measurement,
-    reaction_pb2.StirringConditions:
-        validate_stirring_conditions,
-    reaction_pb2.IlluminationConditions:
-        validate_illumination_conditions,
-    reaction_pb2.ElectrochemistryConditions:
-        (validate_electrochemistry_conditions),
+    reaction_pb2.ReactionConditions: validate_reaction_conditions,
+    reaction_pb2.TemperatureConditions: validate_temperature_conditions,
+    reaction_pb2.TemperatureConditions.TemperatureControl: (
+        validate_temperature_control),
+    reaction_pb2.TemperatureConditions.Measurement: (
+        validate_temperature_measurement),
+    reaction_pb2.PressureConditions: validate_pressure_conditions,
+    reaction_pb2.PressureConditions.PressureControl: validate_pressure_control,
+    reaction_pb2.PressureConditions.Atmosphere: validate_pressure_control,
+    reaction_pb2.PressureConditions.Measurement: validate_pressure_measurement,
+    reaction_pb2.StirringConditions: validate_stirring_conditions,
+    reaction_pb2.StirringConditions.StirringMethod: validate_stirring_method,
+    reaction_pb2.StirringConditions.StirringRate: validate_stirring_rate,
+    reaction_pb2.IlluminationConditions: validate_illumination_conditions,
+    reaction_pb2.IlluminationConditions.IlluminationType: (
+        validate_illumination_type),
+    reaction_pb2.ElectrochemistryConditions: (
+        validate_electrochemistry_conditions),
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryType: (
+        validate_electrochemistry_type),
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell: (
+        validate_electrochemistry_cell),
     reaction_pb2.ElectrochemistryConditions.Measurement:
         validate_electrochemistry_measurement,
-    reaction_pb2.FlowConditions:
-        validate_flow_conditions,
-    reaction_pb2.FlowConditions.Tubing:
-        validate_tubing,
+    reaction_pb2.FlowConditions: validate_flow_conditions,
+    reaction_pb2.FlowConditions.FlowType: validate_flow_type,
+    reaction_pb2.FlowConditions.Tubing: validate_tubing,
     # Annotations
     reaction_pb2.ReactionNotes:
         validate_reaction_notes,
     reaction_pb2.ReactionObservation:
         validate_reaction_observation,
     # Outcome
-    reaction_pb2.ReactionWorkup:
-        validate_reaction_workup,
-    reaction_pb2.ReactionOutcome:
-        validate_reaction_outcome,
-    reaction_pb2.ReactionProduct:
-        validate_reaction_product,
-    reaction_pb2.Selectivity:
-        validate_selectivity,
-    reaction_pb2.DateTime:
-        validate_date_time,
-    reaction_pb2.ReactionAnalysis:
-        validate_reaction_analysis,
+    reaction_pb2.ReactionWorkup: validate_reaction_workup,
+    reaction_pb2.ReactionOutcome: validate_reaction_outcome,
+    reaction_pb2.ReactionProduct: validate_reaction_product,
+    reaction_pb2.ReactionProduct.Texture: validate_texture,
+    reaction_pb2.Selectivity: validate_selectivity,
+    reaction_pb2.DateTime: validate_date_time,
+    reaction_pb2.ReactionAnalysis: validate_reaction_analysis,
     # Metadata
     reaction_pb2.ReactionProvenance:
         validate_reaction_provenance,

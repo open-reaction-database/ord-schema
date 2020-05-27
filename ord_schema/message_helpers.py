@@ -115,11 +115,11 @@ def build_compound(smiles=None,
             'type']
         values_dict = field.enum_type.values_by_name
         try:
-            compound.preparation.type = values_dict[prep.upper()].number
+            compound.preparations.add().type = values_dict[prep.upper()].number
         except KeyError:
             raise KeyError(
                 f'{prep} is not a supported type: {values_dict.keys()}')
-        if (compound.preparation.type
+        if (compound.preparations[0].type
                 == reaction_pb2.CompoundPreparation.CUSTOM
                 and not prep_details):
             raise ValueError(
@@ -127,7 +127,7 @@ def build_compound(smiles=None,
     if prep_details:
         if not prep:
             raise ValueError('prep must be provided when prep_details is used')
-        compound.preparation.details = prep_details
+        compound.preparations[0].details = prep_details
     if vendor:
         compound.vendor_source = vendor
     return compound

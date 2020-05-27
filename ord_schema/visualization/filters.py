@@ -30,79 +30,71 @@ def _sort_addition_order(inputs):
 
 
 def _stirring_conditions(stirring):
-    if stirring.type == stirring.StirringMethod.NONE:
+    if stirring.method.type == stirring.method.NONE:
         return 'No stirring was used.'
     txt = ''
     txt += {
-        stirring.StirringRate.UNSPECIFIED: '',
-        stirring.StirringRate.HIGH: 'at a high rate',
-        stirring.StirringRate.MEDIUM: 'at a medium rate',
-        stirring.StirringRate.LOW: 'at a low rate',
-    }[stirring.rate]
-    if stirring.rpm:
-        txt += f' ({stirring.rpm} rpm)'
-    if stirring.type != stirring.StirringMethod.UNSPECIFIED:
+        stirring.rate.UNSPECIFIED: '',
+        stirring.rate.HIGH: 'at a high rate',
+        stirring.rate.MEDIUM: 'at a medium rate',
+        stirring.rate.LOW: 'at a low rate',
+    }[stirring.rate.type]
+    if stirring.rate.rpm:
+        txt += f' ({stirring.rate.rpm} rpm)'
+    if stirring.method.type != stirring.method.UNSPECIFIED:
         txt += ' using '
         txt += {
-            stirring.StirringMethod.CUSTOM: 'a custom setup',
-            stirring.StirringMethod.STIR_BAR: 'a stir bar',
-            stirring.StirringMethod.OVERHEAD_MIXER: 'an overhead mixer',
-            stirring.StirringMethod.AGITATION: 'external agitation',
-        }[stirring.type]
-        txt += f' {_parenthetical_if_def(stirring.details)}'
+            stirring.method.CUSTOM: 'a custom setup',
+            stirring.method.STIR_BAR: 'a stir bar',
+            stirring.method.OVERHEAD_MIXER: 'an overhead mixer',
+            stirring.method.AGITATION: 'external agitation',
+        }[stirring.method.type]
+        txt += f' {_parenthetical_if_def(stirring.method.details)}'
     if txt.strip():
         txt = 'The reaction mixture was stirred ' + txt + '.'
     return txt
 
 
 def _stirring_conditions_html(stirring):
-    if stirring.type == stirring.StirringMethod.NONE:
+    if stirring.method.type == stirring.method.NONE:
         return ''
     txt = ''
-    if stirring.type != stirring.StirringMethod.UNSPECIFIED:
+    if stirring.method.type != stirring.method.UNSPECIFIED:
         txt += {
-            stirring.StirringMethod.CUSTOM: stirring.details,
-            stirring.StirringMethod.STIR_BAR: 'stir bar',
-            stirring.StirringMethod.OVERHEAD_MIXER: 'overhead mixer',
-            stirring.StirringMethod.AGITATION: 'agitation',
-        }[stirring.type]
-    if stirring.rpm:
-        txt += f' ({stirring.rpm} rpm)'
+            stirring.method.CUSTOM: stirring.method.details,
+            stirring.method.STIR_BAR: 'stir bar',
+            stirring.method.OVERHEAD_MIXER: 'overhead mixer',
+            stirring.method.AGITATION: 'agitation',
+        }[stirring.method.type]
+    if stirring.rate.rpm:
+        txt += f' ({stirring.rate.rpm} rpm)'
     txt += '<br>'
     return txt
 
 
 def _pressure_conditions(pressure):
     txt = ''
-    if pressure.atmosphere != pressure.Atmosphere.UNSPECIFIED:
+    if pressure.atmosphere.type != pressure.atmosphere.UNSPECIFIED:
         txt += {
-            pressure.Atmosphere.CUSTOM: 'under a custom atmosphere',
-            pressure.Atmosphere.AIR: 'under air',
-            pressure.Atmosphere.NITROGEN: 'under nitrogen',
-            pressure.Atmosphere.ARGON: 'under argon',
-            pressure.Atmosphere.OXYGEN: 'under oxygen',
-            pressure.Atmosphere.HYDROGEN: 'under hydrogen',
-        }[pressure.atmosphere]
-        txt += f' {_parenthetical_if_def(pressure.atmosphere_details)}'
-    if pressure.type != pressure.PressureControl.UNSPECIFIED:
+            pressure.atmosphere.CUSTOM: 'under a custom atmosphere',
+            pressure.atmosphere.AIR: 'under air',
+            pressure.atmosphere.NITROGEN: 'under nitrogen',
+            pressure.atmosphere.ARGON: 'under argon',
+            pressure.atmosphere.OXYGEN: 'under oxygen',
+            pressure.atmosphere.HYDROGEN: 'under hydrogen',
+        }[pressure.atmosphere.type]
+        txt += f' {_parenthetical_if_def(pressure.atmosphere.details)}'
+    if pressure.control.type != pressure.control.UNSPECIFIED:
         txt += ' '
         txt += {
-            pressure.PressureControl.CUSTOM:
+            pressure.control.CUSTOM:
                 'using a custom pressure controller',
-            pressure.PressureControl.AMBIENT:
-                'using ambient pressure',
-            pressure.PressureControl.BALLOON:
-                'using a balloon for pressure control',
-            pressure.PressureControl.SEALED:
+            pressure.control.AMBIENT: 'using ambient pressure',
+            pressure.control.SEALED:
                 'after fully sealing the reaction vessel',
-            pressure.PressureControl.SEPTUM_WITH_NEEDLE:
-                'using a needle to pierce the vessel septum',
-            pressure.PressureControl.RELEASEVALVE:
-                'using a pressure release valve',
-            pressure.PressureControl.BPR:
-                'using a backpressure regulator',
-        }[pressure.type]
-        txt += f' {_parenthetical_if_def(pressure.details)}'
+            pressure.control.PRESSURIZED: 'using pressurization',
+        }[pressure.control.type]
+        txt += f' {_parenthetical_if_def(pressure.control.details)}'
         setpoint = units.format_message(pressure.setpoint)
         if setpoint:
             txt += f' with a setpoint of {setpoint}'
@@ -113,16 +105,16 @@ def _pressure_conditions(pressure):
 
 def _pressure_conditions_html(pressure):
     txt = ''
-    if pressure.atmosphere != pressure.Atmosphere.UNSPECIFIED:
+    if pressure.atmosphere.type != pressure.atmosphere.UNSPECIFIED:
         txt += {
-            pressure.Atmosphere.CUSTOM: pressure.atmosphere_details,
-            pressure.Atmosphere.AIR: 'in air',
-            pressure.Atmosphere.NITROGEN: 'under nitrogen',
-            pressure.Atmosphere.ARGON: 'under argon',
-            pressure.Atmosphere.OXYGEN: 'under oxygen',
-            pressure.Atmosphere.HYDROGEN: 'under hydrogen',
-        }[pressure.atmosphere]
-    if pressure.type != pressure.PressureControl.UNSPECIFIED:
+            pressure.atmosphere.CUSTOM: pressure.atmosphere.details,
+            pressure.atmosphere.AIR: 'in air',
+            pressure.atmosphere.NITROGEN: 'under nitrogen',
+            pressure.atmosphere.ARGON: 'under argon',
+            pressure.atmosphere.OXYGEN: 'under oxygen',
+            pressure.atmosphere.HYDROGEN: 'under hydrogen',
+        }[pressure.atmosphere.type]
+    if pressure.atmosphere.type != pressure.atmosphere.UNSPECIFIED:
         setpoint = units.format_message(pressure.setpoint)
         if setpoint:
             txt += f' ({setpoint})'
@@ -133,33 +125,28 @@ def _pressure_conditions_html(pressure):
 
 def _temperature_conditions(temperature):
     txt = ''
-    if temperature.type != temperature.TemperatureControl.UNSPECIFIED:
+    if temperature.control.type != temperature.control.UNSPECIFIED:
         txt += 'The reaction was run '
         txt += {
-            temperature.TemperatureControl.CUSTOM:
+            temperature.control.CUSTOM:
                 'under custom temperature conditions',
-            temperature.TemperatureControl.AMBIENT:
+            temperature.control.AMBIENT:
                 'under ambient temperature conditions',
-            temperature.TemperatureControl.OIL_BATH:
-                'in an oil bath',
-            temperature.TemperatureControl.WATER_BATH:
-                'in a water bath',
-            temperature.TemperatureControl.SAND_BATH:
-                'in a sand bath',
-            temperature.TemperatureControl.ICE_BATH:
-                'in an ice bath',
-            temperature.TemperatureControl.DRY_ALUMINUM_PLATE:
+            temperature.control.OIL_BATH: 'in an oil bath',
+            temperature.control.WATER_BATH: 'in a water bath',
+            temperature.control.SAND_BATH: 'in a sand bath',
+            temperature.control.ICE_BATH: 'in an ice bath',
+            temperature.control.DRY_ALUMINUM_PLATE:
                 'using an aluminum heating block',
-            temperature.TemperatureControl.MICROWAVE:
+            temperature.control.MICROWAVE:
                 'in a microwave reactor',
-            temperature.TemperatureControl.DRY_ICE_BATH:
-                'in a dry ice bath',
-            temperature.TemperatureControl.AIR_FAN:
+            temperature.control.DRY_ICE_BATH: 'in a dry ice bath',
+            temperature.control.AIR_FAN:
                 'using a fan for temperautre control',
-            temperature.TemperatureControl.LIQUID_NITROGEN:
+            temperature.control.LIQUID_NITROGEN:
                 'using liquid nitrogen for temperature control',
-        }[temperature.type]
-        txt += f' {_parenthetical_if_def(temperature.details)}'
+        }[temperature.control.type]
+        txt += f' {_parenthetical_if_def(temperature.control.details)}'
         setpoint = units.format_message(temperature.setpoint)
         if setpoint:
             txt += f' with a setpoint of {setpoint}'
@@ -168,8 +155,8 @@ def _temperature_conditions(temperature):
 
 def _temperature_conditions_html(temperature):
     txt = ''
-    if (temperature.type == temperature.TemperatureControl.UNSPECIFIED
-            or temperature.type == temperature.TemperatureControl.AMBIENT):
+    if (temperature.control.type == temperature.control.UNSPECIFIED or
+            temperature.control.type == temperature.control.AMBIENT):
         return 'ambient temperature<br>'
     setpoint = units.format_message(temperature.setpoint)
     if setpoint:
@@ -183,17 +170,15 @@ def _product_color_texture(product):
     txt = ''
     txt += f'{product.isolated_color} '
     txt += {
-        product.Texture.UNSPECIFIED:
-            '',
-        product.Texture.CUSTOM:
-            product.texture_details,
+        product.Texture.UNSPECIFIED: '',
+        product.Texture.CUSTOM: product.texture.details,
         product.Texture.POWDER:
-            f'powder {_parenthetical_if_def(product.texture_details)}',
+            f'powder {_parenthetical_if_def(product.texture.details)}',
         product.Texture.CRYSTAL:
-            f'set of crystals {_parenthetical_if_def(product.texture_details)}',
+            f'set of crystals {_parenthetical_if_def(product.texture.details)}',
         product.Texture.OIL:
-            f'oil {_parenthetical_if_def(product.texture_details)}',
-    }[product.texture]
+            f'oil {_parenthetical_if_def(product.texture.details)}',
+    }[product.texture.type]
     if not txt.strip():
         return ''
     return f'It appeared as a {txt}.'
@@ -216,7 +201,9 @@ def _analysis_format(analysis):
         analysis.LC: 'liquid chromatography',
         analysis.GC: 'gas chromatography',
         analysis.IR: 'IR spectroscopy',
-        analysis.NMR: 'NMR',
+        analysis.NMR_1H: '1H NMR',
+        analysis.NMR_13C: '13C NMR',
+        analysis.NMR_OTHER: 'NMR (other)',
         analysis.MP: 'melting point characterization',
         analysis.UV: 'UV spectroscopy',
         analysis.TLC: 'thin-layer chromatography',
@@ -302,16 +289,17 @@ def _compound_source_prep(compound):
         txt.append(f'catalog #{compound.vendor_id}')
     if compound.vendor_lot:
         txt.append(f'lot #{compound.vendor_lot}')
-    txt.append({
-        compound.preparation.UNSPECIFIED: '',
-        compound.preparation.CUSTOM: '',
-        compound.preparation.NONE: '',
-        compound.preparation.REPURIFIED: 'repurified',
-        compound.preparation.SPARGED: 'sparged',
-        compound.preparation.DRIED: 'dried',
-        compound.preparation.SYNTHESIZED: 'synthesized in-house'
-    }[compound.preparation.type])
-    txt.append(compound.preparation.details)
+    for preparation in compound.preparations:
+        txt.append({
+            preparation.UNSPECIFIED: '',
+            preparation.CUSTOM: '',
+            preparation.NONE: '',
+            preparation.REPURIFIED: 'repurified',
+            preparation.SPARGED: 'sparged',
+            preparation.DRIED: 'dried',
+            preparation.SYNTHESIZED: 'synthesized in-house'
+        }[preparation.type])
+        txt.append(preparation.details)
     if any(elem for elem in txt):
         return '(' + ', '.join([elem for elem in txt if elem]) + ')'
     return ''
@@ -324,12 +312,15 @@ def _parenthetical_if_def(string):
 
 
 def _vessel_prep(vessel):
-    return {
-        vessel.VesselPreparation.UNSPECIFIED: '',
-        vessel.VesselPreparation.CUSTOM: 'prepared',
-        vessel.VesselPreparation.NONE: '',
-        vessel.VesselPreparation.OVEN_DRIED: 'oven-dried',
-    }[vessel.preparation]
+    preparation_strings = []
+    for preparation in vessel.preparations:
+        preparation_strings.append({
+            preparation.UNSPECIFIED: '',
+            preparation.CUSTOM: 'prepared',
+            preparation.NONE: '',
+            preparation.OVEN_DRIED: 'oven-dried',
+        }[preparation.type])
+    return ', '.join(preparation_strings)
 
 
 def _vessel_size(vessel):
@@ -340,35 +331,27 @@ def _vessel_size(vessel):
 
 def _vessel_material(vessel):
     return {
-        vessel.VesselMaterial.UNSPECIFIED: '',
-        vessel.VesselMaterial.CUSTOM: f'{vessel.material_details}',
-        vessel.VesselMaterial.GLASS: f'glass',
-        vessel.VesselMaterial.POLYPROPYLENE: f'polypropylene',
-        vessel.VesselMaterial.PLASTIC: f'plastic',
-    }[vessel.material]
+        vessel.material.UNSPECIFIED: '',
+        vessel.material.CUSTOM: f'{vessel.material.details}',
+        vessel.material.GLASS: f'glass',
+        vessel.material.POLYPROPYLENE: f'polypropylene',
+        vessel.material.PLASTIC: f'plastic',
+    }[vessel.material.type]
 
 
 def _vessel_type(vessel):
     return {
-        vessel.VesselType.UNSPECIFIED:
-            'vessel',
-        vessel.VesselType.CUSTOM:
-            f'vessel',
-        vessel.VesselType.ROUND_BOTTOM_FLASK:
-            f'round bottom flask',
-        vessel.VesselType.VIAL:
-            f'vial',
-        vessel.VesselType.WELL_PLATE:
-            f'well-plate',
-        vessel.VesselType.MICROWAVE_VIAL:
-            f'microwave vial',
-        vessel.VesselType.TUBE:
-            f'tube',
-        vessel.VesselType.CONTINUOUS_STIRRED_TANK_REACTOR:
+        vessel.type.UNSPECIFIED: 'vessel',
+        vessel.type.CUSTOM: f'vessel',
+        vessel.type.ROUND_BOTTOM_FLASK: f'round bottom flask',
+        vessel.type.VIAL: f'vial',
+        vessel.type.WELL_PLATE: f'well-plate',
+        vessel.type.MICROWAVE_VIAL: f'microwave vial',
+        vessel.type.TUBE: f'tube',
+        vessel.type.CONTINUOUS_STIRRED_TANK_REACTOR:
             f'continuous stirred-tank reactor',
-        vessel.VesselType.PACKED_BED_REACTOR:
-            f'packed bed reactor',
-    }[vessel.type]
+        vessel.type.PACKED_BED_REACTOR: f'packed bed reactor',
+    }[vessel.type.type]
 
 
 def _input_addition(reaction_input):
@@ -377,12 +360,12 @@ def _input_addition(reaction_input):
         txt.append(
             f'after {units.format_message(reaction_input.addition_time)}')
     txt.append({
-        reaction_input.AdditionSpeed.UNSPECIFIED: '',
-        reaction_input.AdditionSpeed.ALL_AT_ONCE: 'all at once',
-        reaction_input.AdditionSpeed.FAST: 'quickly',
-        reaction_input.AdditionSpeed.SLOW: 'slowly',
-        reaction_input.AdditionSpeed.DROPWISE: 'dropwise',
-    }[reaction_input.addition_speed])
+        reaction_input.addition_speed.UNSPECIFIED: '',
+        reaction_input.addition_speed.ALL_AT_ONCE: 'all at once',
+        reaction_input.addition_speed.FAST: 'quickly',
+        reaction_input.addition_speed.SLOW: 'slowly',
+        reaction_input.addition_speed.DROPWISE: 'dropwise',
+    }[reaction_input.addition_speed.type])
     if reaction_input.addition_duration.value:
         txt.append(
             f'over {units.format_message(reaction_input.addition_duration)}')

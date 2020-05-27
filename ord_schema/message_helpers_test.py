@@ -167,7 +167,7 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
     def test_prep(self, prep, details, expected):
         compound = message_helpers.build_compound(prep=prep,
                                                   prep_details=details)
-        self.assertEqual(compound.preparation, expected)
+        self.assertEqual(compound.preparations[0], expected)
 
     def test_bad_prep(self):
         with self.assertRaisesRegex(KeyError, 'not a supported type'):

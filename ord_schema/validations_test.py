@@ -140,7 +140,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message_workup_istd = reaction_pb2.Reaction()
         message_workup_istd.CopyFrom(message)
         workup = message_workup_istd.workup.add()
-        istd = workup.components.add()
+        istd = workup.input.components.add()
         istd.identifiers.add(type='SMILES', value='CCO')
         istd.mass.value = 1
         istd.mass.units = reaction_pb2.Mass.GRAM
