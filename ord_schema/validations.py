@@ -524,7 +524,7 @@ def validate_reaction_workup(message):
                          reaction_pb2.ReactionWorkup.SCAVENGING,
                          reaction_pb2.ReactionWorkup.DISSOLUTION,
                          reaction_pb2.ReactionWorkup.PH_ADJUST)
-            and not message.components):
+            and not message.input.components):
         warnings.warn('Workup step missing required inputs definition',
                       ValidationError)
     if (message.type == reaction_pb2.ReactionWorkup.STIRRING
