@@ -553,8 +553,8 @@ def validate_reaction_outcome(message):
     analysis_keys = list(message.analyses.keys())
     for product in message.products:
         for field in [
-            'analysis_identity', 'analysis_yield', 'analysis_purity',
-            'analysis_selectivity'
+                'analysis_identity', 'analysis_yield', 'analysis_purity',
+                'analysis_selectivity'
         ]:
             for key in getattr(product, field):
                 if key not in analysis_keys:
