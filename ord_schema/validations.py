@@ -207,6 +207,10 @@ def check_value_and_units(message):
 
 
 def check_type_and_details(message):
+    """Checks that type/details messages are complete."""
+    if message.type == message.UNSPECIFIED:
+        warnings.warn(
+            f'{type(message)} requires `type` to be set', ValidationError)
     if message.type == message.CUSTOM and not message.details:
         warnings.warn(
             f'{type(message)} has type CUSTOM but details field is empty',
