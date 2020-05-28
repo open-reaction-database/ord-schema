@@ -196,18 +196,21 @@ def ensure_float_range(message,
             f' {min_value} and {max_value}', ValidationError)
 
 
-def ensure_units_specified_if_value_defined(message):
-    if message.value and message.units == message.UNSPECIFIED:
-        warnings.warn(
-            f'Unspecified units for {type(message)} with '
-            f'value defined ({message.value})', ValidationError)
+def check_value_and_units(message):
+    """Checks that value/units messages are complete."""
+    if not message.HasField('value'):
+        warnings.warn(f'{type(message)} requires `value` to be set',
+                      ValidationError)
+    if message.units == message.UNSPECIFIED:
+        warnings.warn(f'{type(message)} requires `units` to be set',
+                      ValidationError)
 
 
-def ensure_details_specified_if_type_custom(message):
+def check_type_and_details(message):
     if message.type == message.CUSTOM and not message.details:
         warnings.warn(
-            f'Custom type defined for {type(message)}, '
-            'but details field is empty', ValidationError)
+            f'{type(message)} has type CUSTOM but details field is empty',
+            ValidationError)
 
 
 def reaction_has_internal_standard(message):
@@ -298,7 +301,7 @@ def validate_reaction(message):
 
 
 def validate_reaction_identifier(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
     if not message.value and not message.bytes_value:
         warnings.warn('{bytes_}value must be set', ValidationError)
 
@@ -314,7 +317,7 @@ def validate_reaction_input(message):
 
 
 def validate_addition_device(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_addition_speed(message):
@@ -338,11 +341,11 @@ def validate_compound_feature(message):
 
 
 def validate_compound_preparation(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_compound_identifier(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
     if not message.value and not message.bytes_value:
         warnings.warn('{bytes_}value must be set', ValidationError)
     if Chem and message.type == message.SMILES:
@@ -376,19 +379,19 @@ def validate_vessel(message):
 
 
 def validate_vessel_type(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_vessel_material(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_vessel_attachment(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_vessel_preparation(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_reaction_setup(message):
@@ -396,7 +399,7 @@ def validate_reaction_setup(message):
 
 
 def validate_reaction_environment(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_reaction_conditions(message):
@@ -422,11 +425,11 @@ def validate_temperature_conditions(message):
 
 
 def validate_temperature_control(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_temperature_measurement(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_pressure_conditions(message):
@@ -434,15 +437,15 @@ def validate_pressure_conditions(message):
 
 
 def validate_pressure_control(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_atmosphere(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_pressure_measurement(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_stirring_conditions(message):
@@ -450,7 +453,7 @@ def validate_stirring_conditions(message):
 
 
 def validate_stirring_method(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_stirring_rate(message):
@@ -462,7 +465,7 @@ def validate_illumination_conditions(message):
 
 
 def validate_illumination_type(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_electrochemistry_conditions(message):
@@ -470,11 +473,11 @@ def validate_electrochemistry_conditions(message):
 
 
 def validate_electrochemistry_type(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_electrochemistry_cell(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_electrochemistry_measurement(message):
@@ -486,11 +489,11 @@ def validate_flow_conditions(message):
 
 
 def validate_flow_type(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_tubing(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_reaction_notes(message):
@@ -502,7 +505,7 @@ def validate_reaction_observation(message):
 
 
 def validate_reaction_workup(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
     if (message.type == reaction_pb2.ReactionWorkup.WAIT
             and not message.duration.value):
         warnings.warn('"WAIT" workup steps require a defined duration',
@@ -532,7 +535,7 @@ def validate_reaction_workup(message):
         warnings.warn('Stirring workup step missing stirring definition',
                       ValidationError)
     if (message.type == reaction_pb2.ReactionWorkup.PH_ADJUST
-            and not message.target_ph):
+            and not message.HasField('target_ph')):
         warnings.warn('pH adjustment workup missing target pH',
                       ValidationError)
 
@@ -550,8 +553,8 @@ def validate_reaction_outcome(message):
     analysis_keys = list(message.analyses.keys())
     for product in message.products:
         for field in [
-                'analysis_identity', 'analysis_yield', 'analysis_purity',
-                'analysis_selectivity'
+            'analysis_identity', 'analysis_yield', 'analysis_purity',
+            'analysis_selectivity'
         ]:
             for key in getattr(product, field):
                 if key not in analysis_keys:
@@ -570,7 +573,7 @@ def validate_reaction_product(message):
 
 
 def validate_texture(message):
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_selectivity(message):
@@ -583,7 +586,7 @@ def validate_selectivity(message):
                 f'({message.value} used)', ValidationWarning)
     elif message.type in [message.ER, message.DR, message.EZ, message.ZE]:
         ensure_float_nonnegative(message, 'value')
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_date_time(message):
@@ -597,7 +600,7 @@ def validate_date_time(message):
 
 def validate_reaction_analysis(message):
     # TODO(ccoley): Will be lots to expand here if we add structured data.
-    ensure_details_specified_if_type_custom(message)
+    check_type_and_details(message)
 
 
 def validate_reaction_provenance(message):
@@ -643,42 +646,43 @@ def validate_person(message):
 
 
 def validate_time(message):
+    check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
-    ensure_units_specified_if_value_defined(message)
 
 
 def validate_mass(message):
+    check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
-    ensure_units_specified_if_value_defined(message)
 
 
 def validate_moles(message):
+    check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
-    ensure_units_specified_if_value_defined(message)
 
 
 def validate_volume(message):
+    check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
-    ensure_units_specified_if_value_defined(message)
 
 
 def validate_concentration(message):
+    check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
-    ensure_units_specified_if_value_defined(message)
 
 
 def validate_pressure(message):
+    check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
-    ensure_units_specified_if_value_defined(message)
 
 
 def validate_temperature(message):
+    check_value_and_units(message)
     if message.units == message.CELSIUS:
         ensure_float_range(message, 'value', min_value=-273.15)
     elif message.units == message.FAHRENHEIT:
@@ -686,37 +690,36 @@ def validate_temperature(message):
     elif message.units == message.KELVIN:
         ensure_float_range(message, 'value', min_value=0)
     ensure_float_nonnegative(message, 'precision')
-    ensure_units_specified_if_value_defined(message)
 
 
 def validate_current(message):
+    check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
-    ensure_units_specified_if_value_defined(message)
 
 
 def validate_voltage(message):
+    check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
-    ensure_units_specified_if_value_defined(message)
 
 
 def validate_length(message):
+    check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
-    ensure_units_specified_if_value_defined(message)
 
 
 def validate_wavelength(message):
+    check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
-    ensure_units_specified_if_value_defined(message)
 
 
 def validate_flow_rate(message):
+    check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
-    ensure_units_specified_if_value_defined(message)
 
 
 def validate_percentage(message):
