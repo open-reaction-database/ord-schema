@@ -1100,18 +1100,20 @@ message Percentage {
   optional float precision = 2;
 }
 
-// Data is a container for arbitrary string or bytes data.
+// Data is a container for arbitrary data.
 message Data {
   oneof kind {
-    string string_value = 1;
-    float float_value = 2;
+    float float_value = 1;
+    int32 integer_value = 2;
     bytes bytes_value = 3;
-    string url = 4;  // URL for data stored elsewhere.
+    string string_value = 4;
+    string url = 5;  // URL for data stored elsewhere.
   }
-  string description = 5;
+  // Description of these data (but avoid redundancy with map keys).
+  string description = 6;
   // Description of the file format (if applicable); usually the file extension.
   // For example, 'png' or 'tiff' for images. If empty, we assume string data.
-  string format = 6;
+  string format = 7;
 }
 
 // Boolean is an alternative to using the bool primitive type so that it is
