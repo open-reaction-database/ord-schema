@@ -124,10 +124,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
         # If an analysis uses an internal standard, a component must have
         # an INTERNAL_STANDARD reaction role
-        outcome.analyses['dummy_analysis'].CopyFrom(
-            reaction_pb2.ReactionAnalysis(type='CUSTOM',
-                                          details='test',
-                                          uses_internal_standard='TRUE'))
+        outcome.analyses['dummy_analysis'].uses_internal_standard = (
+            reaction_pb2.Boolean.TRUE)
         with self.assertRaisesRegex(validations.ValidationError,
                                     'INTERNAL_STANDARD'):
             self._run_validation(message)
@@ -141,7 +139,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         # Assigning internal standard role to workup should resolve the error
         message_workup_istd = reaction_pb2.Reaction()
         message_workup_istd.CopyFrom(message)
-        workup = message_workup_istd.workup.add(type='CUSTOM', details='test')
+        workup = message_workup_istd.workup.add()
         istd = workup.input.components.add()
         istd.identifiers.add(type='SMILES', value='CCO')
         istd.mass.value = 1
