@@ -34,8 +34,6 @@ class BuildPyCommand(build_py.build_py):
         for source in glob.glob('proto/*.proto'):
             protoc_command = [
                 protoc,
-                # https://github.com/protocolbuffers/protobuf/blob/master/docs/field_presence.md
-                '--experimental_allow_proto3_optional',
                 '--proto_path=..',
                 '--python_out=.',
                 os.path.join('ord-schema', source)
