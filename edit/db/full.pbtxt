@@ -1,0 +1,471 @@
+name: "1"
+description: "2"
+reactions {
+  identifiers {
+    type: ATOM_MAPPED_SMILES
+    details: "2"
+    value: "1"
+  }
+  identifiers {
+    type: REACTION_SMILES
+    details: "3"
+    bytes_value: "123\n"
+  }
+  inputs {
+    value {
+      addition_order: 93
+      addition_time {
+        value: 96.0
+        precision: 97.0
+        units: MINUTE
+      }
+      addition_speed {
+        type: DROPWISE
+        details: "94"
+      }
+      addition_duration {
+        value: 98.0
+        precision: 99.0
+        units: SECOND
+      }
+      flow_rate {
+        value: 100.0
+        precision: 101.0
+        units: MICROLITER_PER_MINUTE
+      }
+      addition_device {
+        type: CANNULA
+        details: "95"
+      }
+    }
+  }
+  inputs {
+    key: "4"
+    value {
+      components {
+        identifiers {
+          type: SMILES
+          details: "6"
+          value: "5"
+        }
+        moles {
+          value: 7.0
+          precision: 8.0
+          units: MILLIMOLE
+        }
+        reaction_role: REACTANT
+        is_limiting: TRUE
+        preparations {
+          type: REPURIFIED
+          details: "9"
+        }
+        vendor_source: "10"
+        vendor_id: "11"
+        vendor_lot: "12"
+        features {
+          name: "13"
+          float_value: 14.0
+          how_computed: "15"
+        }
+      }
+      addition_order: 16
+      addition_time {
+        value: 19.0
+        precision: 20.0
+        units: HOUR
+      }
+      addition_speed {
+        type: ALL_AT_ONCE
+        details: "17"
+      }
+      addition_duration {
+        value: 21.0
+        precision: 22.0
+        units: MINUTE
+      }
+      flow_rate {
+        value: 23.0
+        precision: 24.0
+        units: MICROLITER_PER_MINUTE
+      }
+      addition_device {
+        type: SYRINGE
+        details: "18"
+      }
+    }
+  }
+  setup {
+    vessel {
+      type {
+        type: ROUND_BOTTOM_FLASK
+        details: "25"
+      }
+      material {
+        type: POLYPROPYLENE
+        details: "26"
+      }
+      preparations {
+        type: EVACUATED_BACKFILLED
+        details: "31"
+      }
+      attachments {
+        type: 5
+        details: "32"
+      }
+      volume {
+        value: 27.0
+        precision: 28.0
+        units: MILLILITER
+      }
+    }
+    is_automated: TRUE
+    automation_platform: "29"
+    automation_code {
+      key: "33"
+      value {
+        float_value: 34.0
+        description: "35"
+        format: "36"
+      }
+    }
+    environment {
+      type: FUME_HOOD
+      details: "30"
+    }
+  }
+  conditions {
+    temperature {
+      control {
+        type: DRY_ALUMINUM_PLATE
+        details: "37"
+      }
+      setpoint {
+        value: 38.0
+        precision: 39.0
+        units: KELVIN
+      }
+      measurements {
+        type: THERMOCOUPLE_INTERNAL
+        details: "44"
+        time {
+          value: 42.0
+          precision: 43.0
+          units: HOUR
+        }
+        temperature {
+          value: 40.0
+          precision: 41.0
+          units: CELSIUS
+        }
+      }
+    }
+    pressure {
+      control {
+        type: PRESSURIZED
+        details: "45"
+      }
+      setpoint {
+        value: 46.0
+        precision: 47.0
+        units: ATMOSPHERE
+      }
+      atmosphere {
+        type: CARBON_MONOXIDE
+        details: "48"
+      }
+      measurements {
+        type: PRESSURE_TRANSDUCER
+        details: "53"
+        time {
+          value: 51.0
+          precision: 52.0
+          units: SECOND
+        }
+        pressure {
+          value: 49.0
+          precision: 50.0
+          units: PASCAL
+        }
+      }
+    }
+    stirring {
+      method {
+        type: OVERHEAD_MIXER
+        details: "54"
+      }
+      rate {
+        type: MEDIUM
+        details: "55"
+        rpm: 56
+      }
+    }
+    illumination {
+      type {
+        type: DEUTERIUM_LAMP
+        details: "57"
+      }
+      peak_wavelength {
+        value: 58.0
+        precision: 59.0
+        units: NANOMETER
+      }
+      color: "62"
+      distance_to_vessel {
+        value: 60.0
+        precision: 61.0
+        units: FOOT
+      }
+    }
+    electrochemistry {
+      electrochemistry_type {
+        type: CONSTANT_VOLTAGE
+        details: "63"
+      }
+      current {
+        value: 64.0
+        precision: 65.0
+        units: MILLIAMPERE
+      }
+      voltage {
+        value: 66.0
+        precision: 67.0
+        units: VOLT
+      }
+      anode_material: "68"
+      cathode_material: "69"
+      electrode_separation {
+        value: 70.0
+        precision: 71.0
+        units: MILLIMETER
+      }
+      cell {
+        type: DIVIDED_CELL
+        details: "72"
+      }
+    }
+    flow {
+      flow_type {
+        type: PLUG_FLOW_REACTOR
+        details: "73"
+      }
+      pump_type: "74"
+      tubing {
+        type: COPPER
+        details: "75"
+        diameter {
+          value: 76.0
+          precision: 77.0
+          units: MILLIMETER
+        }
+      }
+    }
+    reflux: TRUE
+    pH: 78.0
+    conditions_are_dynamic: FALSE
+    details: "79"
+  }
+  notes {
+    is_heterogeneous: TRUE
+    forms_precipitate: FALSE
+    offgasses: TRUE
+    is_sensitive_to_moisture: FALSE
+    is_sensitive_to_light: TRUE
+    safety_notes: "80"
+    procedure_details: "81"
+  }
+  observations {
+    time {
+      value: 82.0
+      precision: 83.0
+      units: SECOND
+    }
+    comment: "87"
+    image {
+      url: "84"
+      description: "85"
+      format: "86"
+    }
+  }
+  workup {
+    type: FILTRATION
+    details: "92"
+    duration {
+      value: 90.0
+      precision: 91.0
+      units: HOUR
+    }
+    input {
+      addition_order: 93
+      addition_time {
+        value: 96.0
+        precision: 97.0
+        units: MINUTE
+      }
+      addition_speed {
+        type: DROPWISE
+        details: "94"
+      }
+      addition_duration {
+        value: 98.0
+        precision: 99.0
+        units: SECOND
+      }
+      flow_rate {
+        value: 100.0
+        precision: 101.0
+        units: MICROLITER_PER_MINUTE
+      }
+      addition_device {
+        type: CANNULA
+        details: "95"
+      }
+    }
+    temperature {
+      control {
+        type: OIL_BATH
+        details: "104"
+      }
+      setpoint {
+        value: 102.0
+        precision: 103.0
+        units: FAHRENHEIT
+      }
+      measurements {
+        type: INFRARED
+        details: "109"
+        time {
+          value: 105.0
+          precision: 106.0
+          units: HOUR
+        }
+        temperature {
+          value: 107.0
+          precision: 108.0
+          units: CELSIUS
+        }
+      }
+    }
+    keep_phase: "88"
+    stirring {
+      method {
+        type: OVERHEAD_MIXER
+        details: "110"
+      }
+      rate {
+        type: HIGH
+        details: "111"
+        rpm: 112
+      }
+    }
+    target_ph: 89.0
+    is_automated: FALSE
+  }
+  outcomes {
+    reaction_time {
+      value: 113.0
+      precision: 114.0
+      units: SECOND
+    }
+    conversion {
+      value: 115.0
+      precision: 116.0
+    }
+    products {
+      is_desired_product: FALSE
+      compound_yield {
+        value: 117.0
+        precision: 118.0
+      }
+      purity {
+        value: 119.0
+        precision: 120.0
+      }
+      selectivity {
+        type: ZE
+        details: "123"
+        value: 121.0
+        precision: 122.0
+      }
+      analysis_identity: "126"
+      analysis_yield: "127"
+      analysis_purity: "128"
+      analysis_selectivity: "129"
+      isolated_color: "124"
+      texture {
+        type: POWDER
+        details: "125"
+      }
+    }
+    analyses {
+      key: "130"
+      value {
+        type: NMR_13C
+        chmo_id: 131
+        details: "132"
+        processed_data {
+          key: "135"
+          value {
+            url: "136"
+            description: "137"
+            format: "138"
+          }
+        }
+        raw_data {
+          key: "139"
+          value {
+            float_value: 140.0
+            description: "141"
+            format: "142"
+          }
+        }
+        instrument_manufacturer: "133"
+        instrument_last_calibrated {
+          value: "134"
+        }
+        uses_internal_standard: TRUE
+        uses_authentic_standard: FALSE
+      }
+    }
+  }
+  provenance {
+    experimenter {
+      username: "144"
+      name: "143"
+      orcid: "145"
+      organization: "146"
+    }
+    city: "147"
+    experiment_start {
+      value: "148"
+    }
+    doi: "149"
+    patent: "150"
+    publication_url: "151"
+    record_created {
+      time {
+        value: "152"
+      }
+      person {
+        username: "153"
+        name: "154"
+        orcid: "155"
+        organization: "156"
+      }
+      details: "157"
+    }
+    record_modified {
+      time {
+        value: "158"
+      }
+      person {
+        username: "159"
+        name: "160"
+        orcid: "161"
+        organization: "162"
+      }
+      details: "163"
+    }
+  }
+  reaction_id: "full reaction"
+}
+dataset_id: "3"
