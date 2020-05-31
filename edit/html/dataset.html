@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<!--
+Copyright 2020 The Open Reaction Database Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<html>
+  <head>
+    <title>{{ file_name }} Reactions</title>
+    <style>
+      body {
+        padding: 48px;
+        font-family: Roboto;
+      }
+      #top_buttons {
+        text-align: center;
+      }
+      #name, #description, .edittext, .reaction_id {
+        display: inline-block;
+      }
+      .edittext {
+        width: 200px;
+        padding: 2px;
+        margin: 2px;
+        border: solid;
+        border-width: 1px;
+        border-color: #c0c0c0;
+      }
+      .add, #save, .remove, #download {
+        padding: 2px 4px;
+        margin: 2px;
+        display: inline-block;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .add {
+        background-color: lightgreen;
+        margin-top: 12px;
+      }
+      #save, #download {
+        background-color: lightgray;
+      }
+      .remove {
+        background-color: pink;
+      }
+      .spacer {
+        height: 16px;
+      }
+    </style>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="/js/dataset.js"></script>
+  </head>
+  <body onload="init('{{ file_name }}');">
+
+    <center>
+      <h1>{{ file_name }}.pbtxt</h1>
+    </center>
+    <div id="top_buttons">
+      <div id="download" onclick="download();">download</div>
+      <div id="save" onclick="commit();" style="visibility: hidden;">save</div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div id="text_fields">
+      name <div id="name" class="edittext"></div>
+      description <div id="description" class="edittext"></div>
+      id <div id="dataset_id" class="edittext"></div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <fieldset>
+      <legend>Reactions</legend>
+      <div id="reactions">
+        <div id="reaction_template" class="reaction" style="display: none;">
+          <a class="reaction_index"></a>
+          <div class="reaction_id"></div>
+          <div class="remove" onclick="deleteReaction(this);">remove</div>
+        </div>
+      </div>
+      <div id="add_reaction" class="add" onclick="newReaction();">+ add reaction</div>
+    </fieldset>
+
+    <div class="spacer"></div>
+
+    <fieldset>
+      <legend>Reaction IDs</legend>
+      <div id="other_reaction_ids">
+        <div id="other_reaction_id_template" class="other_reaction_id" style="display: none;">
+          <div class="other_reaction_id_text edittext"></div>
+          <div class="remove" onclick="removeReactionId(this);">remove</div>
+        </div>
+      </div>
+      <div id="add_other_reaction_id" class="add" onclick="addReactionId();">+ add reaction ID</div>
+    </fieldset>
+
+    <div class="spacer"></div>
+
+    <div id="examples">
+      <div id="example_template" class="example" style="display: none;">
+        <fieldset>
+          <legend>Example</legend>
+          <div class="remove" onclick="removeExample(this);" style="float: right;">remove</div>
+          <table>
+            <tr><td align="right">url</td><td><div class="example_url edittext"></div>
+            <tr><td align="right">description</td><td><div class="example_description edittext"></div>
+            <tr><td align="right">time</td><td><div class="example_created_time edittext"></div>
+            <tr><td align="right">username</td><td><div class="example_created_person_username edittext"></div>
+            <tr><td align="right">name</td><td><div class="example_created_person_name edittext"></div>
+            <tr><td align="right">orcid</td><td><div class="example_created_person_orcid edittext"></div>
+            <tr><td align="right">organization</td><td><div class="example_created_person_org edittext"></div>
+            <tr><td align="right">details</td><td><div class="example_created_details edittext"></div>
+          </table>
+        </fieldset>
+        <div class="spacer"></div>
+      </div>
+    </div>
+    <div id="add_example" class="add" onclick="addExample();">+ add example</div>
+  </body>
+</html>
