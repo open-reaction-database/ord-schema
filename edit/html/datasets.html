@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<!--
+Copyright 2020 The Open Reaction Database Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<html>
+  <style>
+    body {
+      padding: 48px;
+      font-family: Roboto;
+    }
+    .dataset {
+      padding: 4px 0;
+    }
+    #add, #saving {
+      display: inline-block;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+    }
+    #add {
+      background-color: lightgreen;
+		}
+    #saving {
+      background-color: lightgray;
+    }
+    #uploader {
+      position: relative;
+      padding: 4px 0;
+    }
+    #chooser {
+      opacity: 0;
+      position: absolute;
+    }
+    #chooser, #add {
+      cursor: pointer;
+      width: 100px;
+      width: 100px;
+      height: 21px;
+    }
+  </style>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <body>
+    <center>
+      <div id="saving" style="visibility: hidden;">saving</div>
+    </center>
+    {% for file_name in file_names %}
+      <div class="dataset">
+        <a href="/dataset/{{ file_name }}">{{ file_name }}</a>
+      </div>
+    {% endfor %}
+    <div id="uploader">
+      <input id="chooser" class="uploader_chooser_file uploadertext" type="file">
+      <div id="add" class="uploader_chooser_button uploadertext">+ upload</div>
+    </div>
+    <script>
+      $('#chooser').on('input', event => {
+        $('#saving').css('visibility', 'visible');
+        const file = event.target.files[0];
+        const reader = new FileReader();
+        reader.readAsBinaryString(file);
+        reader.onload = event => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/dataset/' + file.name + '/upload');
+          const payload = event.target.result;
+          xhr.onload = () => location.reload();
+          xhr.send(payload);
+        };
+      });
+    </script>
+  </body>
+</html>
