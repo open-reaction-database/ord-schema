@@ -24,9 +24,7 @@ on:
 
 jobs:
   build_and_test:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@master
     - name: Install miniconda
@@ -60,3 +58,25 @@ jobs:
       run: |
         pip install treon
         treon
+        
+  test_editor:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - name: Install dependencies
+      run: |
+        cd "${GITHUB_WORKSPACE}/editor"
+        pip install -r requirements.txt
+        pip install flask
+        wget https://github.com/protocolbuffers/protobuf/releases/download/v3.12.2/protobuf-all-3.12.2.tar.gz
+        wget https://github.com/google/closure-library/archive/v20200517.tar.gz
+        tar -xzf protobuf-all-3.12.2.tar.gz
+        tar -xzr v20200517.tar.gz
+        cd protobuf-3.12.2
+        ./configure && make      
+    - name: Build and run editor tests
+      run: |
+        cd "${GITHUB_WORKSPACE}/editor"
+        make
+        ./serve.sh &
+        make test
