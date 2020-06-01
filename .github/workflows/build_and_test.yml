@@ -68,6 +68,7 @@ jobs:
         cd "${GITHUB_WORKSPACE}"
         pip install -r requirements.txt
         pip install flask
+        sudo apt-get update
         sudo apt-get install tar nodejs
         npm install puppeteer
         cd "${GITHUB_WORKSPACE}/editor"
