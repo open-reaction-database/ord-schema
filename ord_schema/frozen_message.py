@@ -19,11 +19,13 @@ from typing import Union
 
 import google.protobuf.message
 
-_MESSAGE_TYPES = (collections.abc.MutableMapping,
-                  google.protobuf.message.Message)
+_MESSAGE_TYPES = (
+    collections.abc.MutableMapping,  # Proto map.
+    google.protobuf.message.Message,  # Generic submessage.
+)
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(eq=True, frozen=True)
 class FrozenMessage(collections.abc.Mapping):
     """Container for a protocol buffer that does not allow edits.
 
@@ -71,6 +73,8 @@ class FrozenMessage(collections.abc.Mapping):
         value = getattr(self._message, name)
         if isinstance(value, _MESSAGE_TYPES):
             return FrozenMessage(value)
+        if hasattr(value, 'append'):
+            return tuple(value)  # Make repeated fields immutable.
         return value
 
     def __iter__(self):

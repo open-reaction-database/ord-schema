@@ -43,6 +43,30 @@ class FrozenMessageTest(absltest.TestCase):
         with self.assertRaises(AttributeError):
             _ = frozen.setup
 
+    def test_access_repeated_scalar(self):
+        message = reaction_pb2.ReactionProduct()
+        message.analysis_identity.append('test')
+        frozen = frozen_message.FrozenMessage(message)
+        self.assertLen(frozen.analysis_identity, 1)
+        self.assertEqual(frozen.analysis_identity[0], 'test')
+        with self.assertRaises(IndexError):
+            _ = frozen.analysis_identity[1]
+        self.assertEmpty(frozen.analysis_yield)
+        with self.assertRaises(IndexError):
+            _ = frozen.analysis_yield[0]
+
+    def test_access_repeated_submessage(self):
+        message = reaction_pb2.Reaction()
+        message.observations.add(comment='test')
+        frozen = frozen_message.FrozenMessage(message)
+        self.assertLen(frozen.observations, 1)
+        self.assertEqual(frozen.observations[0].comment, 'test')
+        with self.assertRaises(IndexError):
+            _ = frozen.observations[1]
+        self.assertEmpty(frozen.outcomes)
+        with self.assertRaises(IndexError):
+            _ = frozen.outcomes[0]
+
     def test_access_map_value(self):
         message = reaction_pb2.Reaction()
         message.inputs['test'].addition_order = 1
@@ -68,6 +92,16 @@ class FrozenMessageTest(absltest.TestCase):
         with self.assertRaises(AttributeError):
             frozen.setup.CopyFrom(
                 reaction_pb2.ReactionSetup(automation_platform='test'))
+
+    def test_set_repeated_scalar(self):
+        frozen = frozen_message.FrozenMessage(reaction_pb2.ReactionProduct())
+        with self.assertRaises(AttributeError):
+            frozen.analysis_identity.append('test')
+
+    def test_set_repeated_submessage(self):
+        frozen = frozen_message.FrozenMessage(reaction_pb2.Reaction())
+        with self.assertRaises(AttributeError):
+            frozen.observations.add(comment='test')
 
     def test_set_map_value(self):
         frozen = frozen_message.FrozenMessage(reaction_pb2.Reaction())
