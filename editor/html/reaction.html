@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<!--
+Copyright 2020 The Open Reaction Database Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<html>
+
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="/js/reaction.js"></script>
+    <link rel="stylesheet" href="/css/reaction.css">
+    <title>{{ file_name }}:{{ index }}</title>
+  </head>
+
+  <body onload="init('{{ file_name }}', {{ index }});">
+
+    <center>
+      <h1><a href="/dataset/{{ file_name }}">{{ file_name }}</a>:{{ index }}</h1>
+    </center>
+
+    <div id="top_buttons">
+      <div class="add" onclick="location.href='/dataset/{{ file_name }}/clone/{{ index }}';">+ clone</div>
+      <div id="save" onclick="commit();" style="visibility: hidden;">save</div>
+      <div id="delete" class="remove" style="float: none;" onclick="location.href='/dataset/{{ file_name }}/delete/reaction/{{ index }}';">delete</div>
+    </div>
+
+    <div style="margin-left: 128px;">Reaction ID <div id="reaction_id" class="edittext"></div></div>
+
+    <div id="nav">
+      <div class="navSection" data-section="identifiers">Identifiers</div>
+      <div class="navSection" data-section="inputs">Inputs</div>
+      <div class="navSection" data-section="setup">Setup</div>
+      <div class="navSection" data-section="conditions">Conditions</div>
+      <div class="navSection" data-section="notes">Notes</div>
+      <div class="navSection" data-section="observations">Observations</div>
+      <div class="navSection" data-section="workups">Workups</div>
+      <div class="navSection" data-section="outcomes">Outcomes</div>
+      <div class="navSection" data-section="provenance">Provenance</div>
+    </div>
+
+    <div id="sections">
+
+      <fieldset id="section_identifiers" class="section">
+        <legend>Identifiers</legend>
+        <div id="identifiers">
+          <div id="reaction_identifier_template" class="reaction_identifier" style="display: none;">
+            <input type="checkbox" class="reaction_identifier_upload"> upload
+            <div class="reaction_identifier_value edittext"></div>
+            <div class="uploader" data-token="" style="display: none;">
+              <input class="uploader_chooser_file uploadertext" type="file">
+              <div class="uploader_chooser_button uploadertext">Choose...</div>
+              <div class="uploader_file_name uploadertext"></div>
+              <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
+            </div>
+            type <div class="reaction_identifier_type selector" data-proto="ReactionIdentifier_IdentifierType"></div>
+            details <div class="reaction_identifier_details edittext"></div>
+            <div class="remove" onclick="removeSlowly(this, '.reaction_identifier');">remove</div>
+          </div>
+        </div>
+        <div onclick="ord.identifiers.add();" class="add">+ add identifier</div>
+      </fieldset>
+
+      <fieldset id="section_inputs" class="section">
+        <legend>Inputs</legend>
+          <div id="inputs">
+
+            <div id="input_template" class="input" style="display: none;">
+              <fieldset>
+                <legend>Input</legend>
+                <span class="input_name_label">name</span><div class="input_name edittext"></div>
+                <div onclick="removeSlowly(this, '.input');" class="remove">remove</div>
+                <div>
+                  <div class="components"></div>
+                  <div onclick="ord.compounds.add($(this).closest('.input'));" class="add">+ add component</div>
+                </div>
+                <div class="spacer"></div>
+                <table>
+                  <tr><td align="right">addition order</td><td><div class="input_addition_order edittext"></div></td></tr>
+                  <tr><td align="right">addition speed</td><td><div class="input_addition_speed_type selector" data-proto="ReactionInput_AdditionSpeed_AdditionSpeedType"></div>
+                                                               details <div class="input_addition_speed_details edittext"></div></td></tr>
+                  <tr><td align="right">addition device</td><td><div class="input_addition_device_type selector" data-proto="ReactionInput_AdditionDevice_AdditionDeviceType"></div>
+                                                                details <div class="input_addition_device_details edittext"></div></td></tr>
+                </table>
+                <fieldset>
+                  <legend>Addition time</legend>
+                  <div class="input_addition_time_value edittext"></div>
+                  <div class="input_addition_time_units selector" data-proto="Time_TimeUnit"></div>
+                  +/- <div class="input_addition_time_precision edittext"></div>
+                </fieldset>
+                <fieldset>
+                  <legend>Addition duration</legend>
+                  <div class="input_addition_duration_value edittext"></div>
+                  <div class="input_addition_duration_units selector" data-proto="Time_TimeUnit"></div>
+                  +/- <div class="input_addition_duration_precision edittext"></div>
+                </fieldset>
+                <fieldset>
+                  <legend>Flow rate</legend>
+                  <div class="input_flow_rate_value edittext"></div>
+                  <div class="input_flow_rate_units selector" data-proto="FlowRate_FlowRateUnit"></div>
+                  +/- <div class="input_flow_rate_precision edittext"></div>
+                </fieldset>
+              </fieldset>
+            </div>
+
+            <div id="component_template" class="component" style="display: none;">
+              <fieldset>
+                <legend>Component</legend>
+                reaction role <div class="component_reaction_role selector" data-proto="Compound_ReactionRole_ReactionRoleType"></div>
+                limiting reactant? <input type="checkbox" class="component_limiting">
+                <div onclick="removeSlowly(this, '.component');" class="remove">remove</div>
+                <div>
+                  <fieldset>
+                    <legend>Identifiers</legend>
+                    <div class="identifiers"></div>
+                    <div onclick="ord.compounds.addIdentifier($(this).closest('.component'));" class="add">+ add identifier</div>
+                  </fieldset>
+                </div>
+                <fieldset class="amount">
+                  <legend>Amount</legend>
+                  mass <input type="radio" class="component_amount_mass" value="mass" checked>
+                  moles <input type="radio" class="component_amount_moles" value="moles">
+                  volume <input type="radio" class="component_amount_volume" value="volume">
+                  value <div class="component_amount_value edittext"></div>
+                        <div class="component_amount_units_mass selector" data-proto="Mass_MassUnit"></div>
+                        <div class="component_amount_units_moles selector" data-proto="Moles_MolesUnit" style="display: none;"></div>
+                        <div class="component_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
+                        +/- <div class="component_amount_precision edittext"></div>
+                </fieldset>
+                <fieldset>
+                  <legend>Preparations</legend>
+                  <div class="preparations">
+                    <div onclick="ord.compounds.addPreparation($(this).closest('.component'));" class="add">+ add preparation</div>
+                  </div>
+                </fieldset>
+                <fieldset class="vendor">
+                  <legend>Vendor</legend>
+                  source <div class="component_vendor_source edittext"></div>
+                  id <div class="component_vendor_id edittext"></div>
+                  lot number <div class="component_vendor_lot edittext"></div>
+                </fieldset>
+                <fieldset>
+                  <legend>Features</legend>
+                  <div class="features"></div>
+                  <div onclick="ord.features.add($(this).closest('.component'));" class="add">+ add feature</div>
+                </fieldset>
+              </fieldset>
+            </div>
+
+            <div id="component_identifier_template" class="component_identifier" style="display: none;">
+              <input type="checkbox" class="component_identifier_upload"> upload
+              <div class="component_identifier_value edittext"></div>
+              <div class="uploader" data-token="" style="display: none;">
+                <input class="uploader_chooser_file uploadertext" type="file">
+                <div class="uploader_chooser_button uploadertext">Choose...</div>
+                <div class="uploader_file_name uploadertext"></div>
+                <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
+              </div>
+              type <div class="component_identifier_type selector" data-proto="CompoundIdentifier_IdentifierType"></div>
+              details <div class="component_identifier_details edittext"></div>
+              <div onclick="removeSlowly(this, '.component_identifier');" class="remove">remove</div>
+            </div>
+
+            <div id="component_preparation_template" class="component_preparation" style="display: none;">
+              type <div class="component_compound_preparation_type selector" data-proto="CompoundPreparation_PreparationType"></div>
+              details <div class="component_compound_preparation_details edittext"></div>
+              <div onclick="removeSlowly(this, '.component_preparation');" class="remove">remove</div>
+            </div>
+
+            <div id="component_feature_template" class="component_feature" style="display: none;">
+              name <div class="component_feature_name edittext"></div>
+              value <div class="component_feature_value edittext"></div>
+              how computed <div class="component_feature_how edittext"></div>
+              <div onclick="removeSlowly(this, '.component_feature');" class="remove">remove</div>
+            </div>
+
+          </div>
+
+          <div onclick="ord.inputs.add('#inputs');" class="add">+ add input</div>
+      </fieldset>
+
+      <fieldset id="section_setup" class="section">
+
+        <legend>Setup</legend>
+        <table>
+          <tr><td align="right">vessel</td><td><div id="setup_vessel_type" class="selector" data-proto="VesselType_VesselTypeEnum"></div>
+                                               details <div id="setup_vessel_details" class="edittext"></td></tr>
+          <tr><td align="right">material</td><td><div id="setup_vessel_material" class="selector" data-proto="VesselMaterial_VesselMaterialType"></div>
+                                                 details <div id="setup_vessel_material_details" class="edittext"></div></td></tr>
+          <tr><td align="right">volume</td><td><div id="setup_vessel_volume_value" class="edittext"></div>
+                                               <div id="setup_vessel_volume_units" class="selector" data-proto="Volume_VolumeUnit"></div>
+                                               +/- <div id="setup_vessel_volume_precision" class="edittext"></div></td></tr>
+          <tr><td align="right">automated</td><td><div id="setup_automated" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">platform</td><td><div id="setup_platform" class="edittext"></div></td></tr>
+          <tr><td align="right">environment</td><td><div id="setup_environment_type" class="selector" data-proto="ReactionSetup_ReactionEnvironment_ReactionEnvironmentType"></div>
+                                                    details <div id="setup_environment_details" class="edittext"></div></td></tr>
+        </table>
+        <fieldset>
+          <legend>Vessel Preparation</legend>
+          <div id="setup_vessel_preparations">
+            <div id="setup_vessel_preparation_template" class="setup_vessel_preparation" style="display: none;">
+              <div onclick="removeSlowly(this, '.setup_vessel_preparation');" class="remove">remove</div>
+              preparation<div class="setup_vessel_preparation_type selector" data-proto="VesselPreparation_VesselPreparationType"></div>
+              details <div class="setup_vessel_preparation_details edittext"></div>
+            </div>
+          </div>
+          <div onclick="ord.setups.addVesselPreparation();" class="add">+ add preparation</div>
+        </fieldset>
+        <fieldset>
+          <legend>Vessel Attachments</legend>
+          <div id="setup_vessel_attachments">
+            <div id="setup_vessel_attachment_template" class="setup_vessel_attachment" style="display: none;">
+              <div onclick="removeSlowly(this, '.setup_vessel_attachment');" class="remove">remove</div>
+              attachment<div class="setup_vessel_attachment_type selector" data-proto="VesselAttachment_VesselAttachmentType"></div>
+              details <div class="setup_vessel_attachment_details edittext"></div>
+            </div>
+          </div>
+          <div onclick="ord.setups.addVesselAttachment();" class="add">+ add attachment</div>
+        </fieldset>
+        <div id="setup_codes">
+          <div id="setup_code_template" class="setup_code" style="display: none;">
+            <fieldset>
+              <legend>Automation code</legend>
+              <div onclick="removeSlowly(this, '.setup_code');" class="remove">remove</div>
+              <table>
+                <tr><td align="right">name</td><td><div class="setup_code_name edittext"></div></td></tr>
+                <tr>
+                  <td align="right">image</td>
+                  <td>
+                    <div class="setup_code_text edittext"></div>
+                    <div class="uploader" data-token="" style="display: none;">
+                      <input class="uploader_chooser_file uploadertext" type="file">
+                      <div class="uploader_chooser_button uploadertext">Choose...</div>
+                      <div class="uploader_file_name uploadertext"></div>
+                      <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
+                    </div>
+                    text <input type="radio" value="text" checked>
+                    number <input type="radio" value="number">
+                    upload <input type="radio" value="upload">
+                    url <input type="radio" value="url">
+                  </td>
+                </tr>
+                <tr><td align="right">description</td><td><div class="setup_code_description edittext"></div></td></tr>
+                <tr><td align="right">format</td><td><div class="setup_code_format edittext"></div></td></tr>
+              </table>
+            </fieldset>
+          </div>
+        </div>
+        <div onclick="ord.codes.addCode();" class="add">+ add automation code</div>
+      </fieldset>
+
+      <fieldset id="section_conditions" class="section">
+        <legend>Conditions</legend>
+        <fieldset>
+          <legend>Temperature</legend>
+          <table>
+            <tr><td align="right">control</td><td><div id="temperature_control" class="selector" data-proto="TemperatureConditions_TemperatureControl_TemperatureControlType"></div>
+                                                  details <div id="temperature_control_details" class="edittext"></div></td></tr>
+            <tr><td align="right">setpoint</td><td><div id="temperature_setpoint_value" class="edittext"></div>
+                                                   <div id="temperature_setpoint_units" class="selector" data-proto="Temperature_TemperatureUnit"></div>
+                                                   +/- <div id="temperature_setpoint_precision" class="edittext"></div></td></tr>
+          </table>
+          <div id="temperature_measurements">
+            <div id="temperature_measurement_template" class="temperature_measurement" style="display: none;">
+              <fieldset>
+                <legend>Measurement</legend>
+                <div onclick="removeSlowly(this, '.temperature_measurement');" class="remove">remove</div>
+                <table>
+                  <tr><td align="right">type</td><td><div class="temperature_measurement_type selector" data-proto="TemperatureConditions_Measurement_MeasurementType"></div></td></tr>
+                  <tr><td align="right">temperature</td><td><div class="temperature_measurement_temperature_value edittext"></div>
+                                                            <div class="temperature_measurement_temperature_units selector" data-proto="Temperature_TemperatureUnit"></div>
+                                                            +/- <div class="temperature_measurement_temperature_precision edittext"></div></td></tr>
+                  <tr><td align="right">time</td><td><div class="temperature_measurement_time_value edittext"></div>
+                                                     <div class="temperature_measurement_time_units selector" data-proto="Time_TimeUnit"></div>
+                                                     +/- <div class="temperature_measurement_time_precision edittext"></div></td></tr>
+                  <tr><td align="right">details</td><td><div class="temperature_measurement_details edittext"></div></td></tr>
+                </table>
+              </fieldset>
+            </div>
+          </div>
+          <div onclick="ord.temperature.addMeasurement();" class="add">+ add measurement</div>
+        </fieldset>
+        <fieldset>
+          <legend>Pressure</legend>
+            <table>
+              <tr><td align="right">control</td><td><div id="pressure_control_type" class="selector" data-proto="PressureConditions_PressureControl_PressureControlType"></div>
+                                                    details</td><td><div id="pressure_control_details" class="edittext"></div></td></tr>
+              <tr><td align="right">setpoint</td><td><div id="pressure_setpoint_value" class="edittext"></div>
+                                                     <div id="pressure_setpoint_units" class="selector" data-proto="Pressure_PressureUnit"></div>
+                                                     +/- <div id="pressure_setpoint_precision" class="edittext"></div></td></tr>
+              <tr><td align="right">atmosphere</td><td><div id="pressure_atmosphere_type" class="selector" data-proto="PressureConditions_Atmosphere_AtmosphereType"></div>
+                                                       details <div id="pressure_atmosphere_details" class="edittext"></div></td></tr>
+            </table>
+          <div id="pressure_measurements">
+            <div id="pressure_measurement_template" class="pressure_measurement" style="display: none;">
+              <fieldset>
+                <legend>Measurement</legend>
+                <div onclick="removeSlowly(this, '.pressure_measurement');" class="remove">remove</div>
+                <table>
+                  <tr><td align="right">type</td><td><div class="pressure_measurement_type selector" data-proto="PressureConditions_Measurement_MeasurementType"></div></td></tr>
+                  <tr><td align="right">pressure</td><td><div class="pressure_measurement_pressure_value edittext"></div>
+                                                         <div class="pressure_measurement_pressure_units selector" data-proto="Pressure_PressureUnit"></div>
+                                                         +/- <div class="pressure_measurement_pressure_precision edittext"></div></td></tr>
+                  <tr><td align="right">time</td><td><div class="pressure_measurement_time_value edittext"></div>
+                                                     <div class="pressure_measurement_time_units selector" data-proto="Time_TimeUnit"></div>
+                                                     +/- <div class="pressure_measurement_time_precision edittext"></div></td></tr>
+                  <tr><td align="right">details</td><td><div class="pressure_measurement_details edittext"></div></td></tr>
+                </table>
+              </fieldset>
+            </div>
+          </div>
+          <div onclick="ord.pressure.addMeasurement();" class="add">+ add measurement</div>
+        </fieldset>
+        <fieldset>
+          <legend>Stirring</legend>
+          <table>
+            <tr><td align="right">method</td><td><div id="stirring_method_type" class="selector" data-proto="StirringConditions_StirringMethod_StirringMethodType"></div>
+                                                 details <div id="stirring_method_details" class="edittext"></div></td></tr>
+            <tr><td align="right">rate</td><td><div id="stirring_rate_type" class="selector" data-proto="StirringConditions_StirringRate_StirringRateType"></div>
+                                                 details <div id="stirring_rate_details" class="edittext"></div></td></tr>
+            <tr><td align="right">rpm</td><td><div id="stirring_rpm" class="edittext"></div></td></tr>
+          </table>
+        </fieldset>
+        <fieldset>
+          <legend>Illumination</legend>
+          <table>
+            <tr><td align="right">type</td><td><div id="illumination_type" class="selector" data-proto="IlluminationConditions_IlluminationType_IlluminationTypeEnum"></div>
+                                                details<div id="illumination_details" class="edittext"></div></td></tr>
+            <tr><td align="right">wavelength</td><td><div id="illumination_wavelength_value" class="edittext"></div>
+                                                     <div id="illumination_wavelength_units" class="selector" data-proto="Wavelength_WavelengthUnit"></div>
+                                                     +/- <div id="illumination_wavelength_precision" class="edittext"></div></td></tr>
+            <tr><td align="right">distance</td><td><div id="illumination_distance_value" class="edittext"></div>
+                                                   <div id="illumination_distance_units" class="selector" data-proto="Length_LengthUnit"></div>
+                                                   +/- <div id="illumination_distance_precision" class="edittext"></div></td></tr>
+            <tr><td align="right">color</td><td><div id="illumination_color" class="edittext"></div></td></tr>
+          </table>
+        </fieldset>
+        <fieldset>
+          <legend>Electrochemistry</legend>
+          <table>
+            <tr><td align="right">type</td><td><div id="electro_type" class="selector" data-proto="ElectrochemistryConditions_ElectrochemistryType_ElectrochemistryTypeEnum"></div>
+                                               details <div id="electro_details" class="edittext"></div></td></tr>
+            <tr><td align="right">current</td><td><div id="electro_current_value" class="edittext"></div>
+                                                  <div id="electro_current_units" class="selector" data-proto="Current_CurrentUnit"></div>
+                                                  +/- <div id="electro_current_precision" class="edittext"></div></td></tr>
+            <tr><td align="right">voltage</td><td><div id="electro_voltage_value" class="edittext"></div>
+                                                  <div id="electro_voltage_units" class="selector" data-proto="Voltage_VoltageUnit"></div>
+                                                  +/- <div id="electro_voltage_precision" class="edittext"></div></td></tr>
+            <tr><td align="right">anode</td><td><div id="electro_anode" class="edittext"></div></td></tr>
+            <tr><td align="right">cathode</td><td><div id="electro_cathode" class="edittext"></div></td></tr>
+            <tr><td align="right">separation</td><td><div id="electro_separation_value" class="edittext"></div>
+                                                     <div id="electro_separation_units" class="selector" data-proto="Length_LengthUnit"></div>
+                                                     +/- <div id="electro_separation_precision" class="edittext"></div></td></tr>
+            <tr><td align="right">cell</td><td><div id="electro_cell_type" class="selector" data-proto="ElectrochemistryConditions_ElectrochemistryCell_ElectrochemistryCellType"></div>
+                                               details <div id="electro_cell_details" class="edittext"></div></td></tr>
+          </table>
+          <div id="electro_measurements">
+            <div id="electro_measurement_template" class="electro_measurement" style="display: none;">
+              <fieldset>
+                <legend>Measurement</legend>
+                <div onclick="removeSlowly(this, '.electro_measurement');" class="remove">remove</div>
+                current <input type="radio" class="electro_measurement_current" value="current" checked>
+                voltage <input type="radio" class="electro_measurement_voltage" value="voltage">
+                <table>
+                  <tr><td align="right">time</td><td><div class="electro_measurement_time_value edittext"></div>
+                                                     <div class="electro_measurement_time_units selector" data-proto="Time_TimeUnit"></div>
+                                                     +/- <div class="electro_measurement_time_precision edittext"></div></td></tr>
+                  <tr class="electro_measurement_current_fields">
+                    <td align="right">current</td><td><div class="electro_measurement_current_value edittext"></div>
+                                                      <div class="electro_measurement_current_units selector" data-proto="Current_CurrentUnit"></div>
+                                                      +/- <div class="electro_measurement_current_precision edittext"></div></td></tr>
+                  <tr class="electro_measurement_voltage_fields" style="display: none;">
+                    <td align="right">voltage</td><td><div class="electro_measurement_voltage_value edittext"></div>
+                                                      <div class="electro_measurement_voltage_units selector" data-proto="Voltage_VoltageUnit"></div>
+                                                      +/- <div class="electro_measurement_voltage_precision edittext"></div></td></tr>
+                </table>
+              </fieldset>
+            </div>
+          </div>
+          <div onclick="ord.electro.addMeasurement();" class="add">+ add measurement</div>
+        </fieldset>
+        <fieldset>
+          <legend>Flow</legend>
+          <table>
+            <tr><td align="right">type</td><td><div id="flow_type" class="selector" data-proto="FlowConditions_FlowType_FlowTypeEnum"></div>
+                                               details <div id="flow_details" class="edittext"></div></td></tr>
+            <tr><td align="right">pump</td><td><div id="flow_pump" class="edittext"></div></td></tr>
+            <tr><td align="right">tubing</td><td><div id="flow_tubing_type" class="selector" data-proto="FlowConditions_Tubing_TubingMaterialType"></div>
+                                                 details <div id="flow_tubing_details" class="edittext"></div></td></tr>
+            <tr><td align="right">value</td><td><div id="flow_tubing_value" class="edittext"></div>
+                                                <div id="flow_tubing_units" class="selector" data-proto="Length_LengthUnit"></div>
+                                                +/- <div id="flow_tubing_precision" class="edittext"></div></td></tr>
+          </table>
+        </fieldset>
+        <table>
+          <tr><td align="right">reflux</td><td><div id="condition_reflux" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">pH</td><td><div id="condition_ph" class="edittext"></div></td></tr>
+          <tr><td align="right">dynamic conditions</td><td><div id="condition_dynamic" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">details</td><td><div id="condition_details" class="edittext"></div></td></tr>
+        </table>
+      </fieldset>
+
+      <fieldset id="section_notes" class="section">
+        <legend>Notes</legend>
+        <table>
+          <tr><td align="right">is heterogeneous</td><td><div id="notes_heterogeneous" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">forms precipitate</td><td><div id="notes_precipitate" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">is exothermic</td><td><div id="notes_exothermic" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">offgasses</td><td><div id="notes_offgas" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">moisure sensitive</td><td><div id="notes_moisture" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">oxygen sensitive</td><td><div id="notes_oxygen" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">light sensitive</td><td><div id="notes_light" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">safety notes</td><td><div id="notes_safety" class="edittext"></div></td></tr>
+          <tr><td align="right">procedure details</td><td><div id="notes_details" class="edittext"></div></td></tr>
+        </table>
+      </fieldset>
+
+      <fieldset id="section_observations" class="section">
+        <legend>Observations</legend>
+        <div id="observations">
+          <div id="observation_template" class="observation" style="display: none;">
+            <fieldset>
+              <legend>Observation</legend>
+              <div onclick="removeSlowly(this, '.observation');" class="remove">remove</div>
+              <table>
+                <tr><td align="right">when</td><td><div class="observation_time_value edittext"></div>
+                                                   <div class="observation_time_units selector" data-proto="Time_TimeUnit"></div>
+                                                   +/- <div class="observation_time_precision edittext"></div></td></tr>
+                <tr>
+                  <td align="right">image</td>
+                  <td>
+                    <div class="observation_image_text edittext"></div>
+                    <div class="uploader" data-token="" style="display: none;">
+                      <input class="uploader_chooser_file uploadertext" type="file">
+                      <div class="uploader_chooser_button uploadertext">Choose...</div>
+                      <div class="uploader_file_name uploadertext"></div>
+                      <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
+                    </div>
+                    text <input type="radio" value="text" checked>
+                    number <input type="radio" value="number">
+                    upload <input type="radio" value="upload">
+                    url <input type="radio" value="url">
+                  </td>
+                </tr>
+                <tr><td align="right">description</td><td><div class="observation_image_description edittext"></div>
+                                                          format <div class="observation_image_format edittext"></div></td></tr>
+                <tr><td align="right">comment</td><td><div class="observation_comment edittext"></div></td></tr>
+              </table>
+            </fieldset>
+          </div>
+        </div>
+        <div onclick="ord.observations.add();" class="add">+ add observation</div>
+      </fieldset>
+
+      <fieldset id="section_workups" class="section">
+        <legend>Workups</legend>
+        <div id="workups">
+          <div id="workup_template" class="workup" style="display: none;">
+            <div onclick="removeSlowly(this, '.workup');" class="remove">remove</div>
+            <table>
+              <tr><td align="right">type</td><td><div class="workup_type selector" data-proto="ReactionWorkup_WorkupType"></div></td></tr>
+              <tr><td align="right">keep phase</td><td><div class="workup_keep_phase edittext"></div></td></tr>
+              <tr><td align="right">target ph</td><td><div class="workup_target_ph edittext"></div></td></tr>
+              <tr><td align="right">duration</td><td><div class="workup_duration_value edittext"></div>
+                                                     <div class="workup_duration_units selector" data-proto="Time_TimeUnit"></div>
+                                                     +/- <div class="workup_duration_precision edittext"></div></td></tr>
+              <tr><td align="right">automated</td><td><div class="workup_automated selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+              <tr><td align="right">details</td><td><div class="workup_details edittext"></div></td></tr>
+            </table>
+            <div class="workup_input">
+              <!-- Shares ".input_template" with "#inputs" above. -->
+            </div>
+            <fieldset>
+              <legend>Temperature conditions</legend>
+              <table>
+                <tr><td align="right">control</td><td><div class="workup_temperature_control_type selector" data-proto="TemperatureConditions_TemperatureControl_TemperatureControlType"></div></td></tr>
+                <tr><td align="right">setpoint</td><td><div class="workup_temperature_setpoint_value edittext"></div>
+                                                       <div class="workup_temperature_setpoint_units selector" data-proto="Temperature_TemperatureUnit"></div>
+                                                       +/- <div class="workup_temperature_setpoint_precision edittext"></div></td></tr>
+                <tr><td align="right">details</td><td><div class="workup_temperature_details edittext"></div></td></tr>
+              </table>
+            </fieldset>
+            <div>
+              <div class="workup_temperature_measurements">
+              </div>
+              <div onclick="ord.workups.addMeasurement($(this).closest('.workup'));" class="add">+ add measurement</div>
+            </div>
+            <fieldset>
+              <legend>Stirring</legend>
+              <table>
+                <tr><td align="right">method</td><td><div class="workup_stirring_method_type selector" data-proto="StirringConditions_StirringMethod_StirringMethodType"></div>
+                                                     details <div class="workup_stirring_method_details edittext"></div></td></tr>
+                <tr><td align="right">rate</td><td><div class="workup_stirring_rate_type selector" data-proto="StirringConditions_StirringRate_StirringRateType"></div>
+                                                   details <div class="workup_stirring_rate_details edittext"></div></td></tr>
+                <tr><td align="right">rpm</td><td><div class="workup_stirring_rate_rpm edittext"></div></td></tr>
+              </table>
+            </fieldset>
+          </div>
+
+          <div id="workup_temperature_measurement_template" class="workup_temperature_measurement" style="display: none;">
+            <fieldset>
+              <legend>Temperature measurement</legend>
+              <div onclick="removeSlowly(this, '.workup_temperature_measurement');" class="remove">remove</div>
+              <table>
+                <tr><td align="right">type</td><td><div class="workup_temperature_measurement_type selector" data-proto="TemperatureConditions_Measurement_MeasurementType"></div></td></tr>
+                <tr><td align="right">time</td><td><div class="workup_temperature_measurement_time_value edittext"></div>
+                                           <div class="workup_temperature_measurement_time_units selector" data-proto="Time_TimeUnit"></div>
+                                           +/- <div class="workup_temperature_measurement_time_precision edittext"></div></td></tr>
+                <tr><td align="right">temperature</td><td><div class="workup_temperature_measurement_temperature_value edittext"></div>
+                                                  <div class="workup_temperature_measurement_temperature_units selector" data-proto="Temperature_TemperatureUnit"></div>
+                                                  +/- <div class="workup_temperature_measurement_temperature_precision edittext"></div></td></tr>
+                <tr><td align="right">details</td><td><div class="workup_temperature_measurement_details edittext"></div></td></tr>
+              </table>
+            </fieldset>
+          </div>
+
+        </div>
+        <div onclick="ord.workups.add();" class="add">+ add workup</div>
+      </fieldset>
+
+      <fieldset id="section_outcomes" class="section">
+        <legend>Outcomes</legend>
+
+        <div id="outcomes">
+
+          <div id="outcome_template" class="outcome" style="display: none;">
+            <div onclick="removeSlowly(this, '.outcome');" class="remove">remove</div>
+            <table>
+              <tr><td align="right">time</td><td><div class="outcome_time_value edittext"></div>
+                                                 <div class="outcome_time_units selector" data-proto="Time_TimeUnit"></div>
+                                                 +/- <div class="outcome_time_precision edittext"></div></td></tr>
+              <tr><td align="right">conversion</td><td><div class="outcome_conversion_value edittext"></div>
+                                                       +/- <div class="outcome_conversion_precision edittext"></div></td></tr>
+            </table>
+
+            <fieldset>
+              <legend>Products</legend>
+              <div class="outcome_products">
+              </div>
+              <div onclick="ord.products.add($(this).closest('.outcome'));" class="add">+ add product</div>
+            </fieldset>
+
+              <div class="outcome_analyses"></div>
+              <div onclick="ord.outcomes.addAnalysis($(this).closest('.outcome'));" class="add">+ add analysis</div>
+
+          </div>
+
+          <div id="outcome_product_template" class="outcome_product" style="display: none;">
+            <div onclick="removeSlowly(this, '.outcome_product');" class="remove">remove</div>
+
+            <table>
+              <tr><td align="right">desired</td><td><div class="outcome_product_desired selector" data-proto="Boolean_BooleanValue"></div></td>
+              <tr><td align="right">yield</td><td><div class="outcome_product_yield_value edittext"></div>
+                                                  +/- <div class="outcome_product_yield_precision edittext"></div></td></tr>
+              <tr><td align="right">purity</td><td><div class="outcome_product_purity_value edittext"></div>
+                                                   +/- <div class="outcome_product_purity_precision edittext"></div></td></tr>
+              <tr><td align="right">selectivity type</td><td><div class="outcome_product_selectivity_type selector" data-proto="Selectivity_SelectivityType"></div></td></tr>
+              <tr><td align="right">selectivity</td><td><div class="outcome_product_selectivity_value edittext"></div>
+                                                        +/- <div class="outcome_product_selectivity_precision edittext"></div>
+                                                        details</td><td><div class="outcome_product_selectivity_details edittext"></div></td></tr>
+              <tr><td align="right">color</td><td><div class="outcome_product_color edittext"></div></td></tr>
+              <tr><td align="right">texture</td><td><div class="outcome_product_texture_type selector" data-proto="ReactionProduct_Texture_TextureType"></div></td></tr>
+              <tr><td align="right">details</td><td><div class="outcome_product_texture_details edittext"></div></td></tr>
+            </table>
+
+            <div class="outcome_product_compound components"></div>
+
+            <fieldset>
+              <legend>Identity analyses</legend>
+              <div class="outcome_product_analysis_identities">
+              </div>
+              <div onclick="ord.products.addIdentity($(this).closest('.outcome_product'));" class="add">+ add identity analysis</div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Yield analyses</legend>
+              <div class="outcome_product_analysis_yields">
+              </div>
+              <div onclick="ord.products.addYield($(this).closest('.outcome_product'));" class="add">+ add yield analysis</div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Purity analyses</legend>
+              <div class="outcome_product_analysis_purities">
+              </div>
+              <div onclick="ord.products.addPurity($(this).closest('.outcome_product'));" class="add">+ add purity analysis</div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Selectivity analyses</legend>
+              <div class="outcome_product_analysis_selectivities">
+              </div>
+              <div onclick="ord.products.addSelectivity($(this).closest('.outcome_product'));" class="add">+ add selectivity analysis</div>
+            </fieldset>
+
+          </div>
+
+          <div id="outcome_product_analysis_identity_template" class="outcome_product_analysis_identity" style="display: none;">
+            <div class="outcome_product_analysis_identity_value edittext"></div>
+            <div onclick="removeSlowly(this, '.outcome_product_analysis_identity');" class="remove">remove</div>
+          </div>
+          <div id="outcome_product_analysis_yield_template" class="outcome_product_analysis_yield" style="display: none;">
+            <div class="outcome_product_analysis_yield_value edittext"></div>
+            <div onclick="removeSlowly(this, '.outcome_product_analysis_yield');" class="remove">remove</div>
+          </div>
+          <div id="outcome_product_analysis_purity_template" class="outcome_product_analysis_purity" style="display: none;">
+            <div class="outcome_product_analysis_purity_value edittext"></div>
+            <div onclick="removeSlowly(this, '.outcome_product_analysis_purity');" class="remove">remove</div>
+          </div>
+          <div id="outcome_product_analysis_selectivity_template" class="outcome_product_analysis_selectivity" style="display: none;">
+            <div class="outcome_product_analysis_selectivity_value edittext"></div>
+            <div onclick="removeSlowly(this, '.outcome_product_analysis_selectivity');" class="remove">remove</div>
+          </div>
+
+          <div id="outcome_analysis_template" class="outcome_analysis" style="display: none;">
+            <fieldset>
+              <legend>Analyses</legend>
+              <div onclick="removeSlowly(this, '.outcome_analysis');" class="remove">remove</div>
+              <table>
+                <tr><td align="right">name</td><td><div class="outcome_analysis_name edittext"></div></td></tr>
+                <tr><td align="right">type</td><td><div class="outcome_analysis_type selector" data-proto="ReactionAnalysis_AnalysisType"></div></td></tr>
+                <tr><td align="right">chmo_id</td><td><div class="outcome_analysis_chmo_id edittext"></div></td></tr>
+                <tr><td align="right">details</td><td><div class="outcome_analysis_details edittext"></div></td></tr>
+                <tr><td align="right">instrument manufacturer</td><td><div class="outcome_analysis_manufacturer edittext"></div></td></tr>
+                <tr><td align="right">calibrated</td><td><div class="outcome_analysis_calibrated edittext"></div></td></tr>
+                <tr><td align="right">internal standard</td><td><div class="outcome_analysis_internal_standard selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+                <tr><td align="right">authentic standard</td><td><div class="outcome_analysis_authentic_standard selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+              </table>
+
+              <div>
+                <div class="outcome_processes">
+                </div>
+                <div onclick="ord.outcomes.addProcess($(this).closest('.outcome_analysis'));" class="add">+ add processed data</div>
+              </div>
+
+              <div>
+                <div class="outcome_raws">
+                </div>
+                <div onclick="ord.outcomes.addRaw($(this).closest('.outcome_analysis'));" class="add">+ add raw data</div>
+              </div>
+            </fieldset>
+
+          </div>
+
+          <div id="outcome_process_template" class="outcome_process" style="display: none;">
+            <fieldset>
+              <legend>Processed data</legend>
+              <div onclick="removeSlowly(this, '.outcome_process');" class="remove">remove</div>
+              <table>
+                <tr><td align="right">name</td><td><div class="outcome_process_name edittext"></div></td></tr>
+                <tr>
+                  <td align="right">content</td>
+                  <td>
+                    <div class="outcome_process_text edittext"></div>
+                    <div class="uploader" data-token="" style="display: none;">
+                      <input class="uploader_chooser_file uploadertext" type="file">
+                      <div class="uploader_chooser_button uploadertext">Choose...</div>
+                      <div class="uploader_file_name uploadertext"></div>
+                      <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
+                    </div>
+                    text <input type="radio" value="text" checked>
+                    number <input type="radio" value="number">
+                    upload <input type="radio" value="upload">
+                    url <input type="radio" value="url">
+                  </td>
+                </tr>
+                <tr><td align="right">description</td><td><div class="outcome_process_description edittext"></div></td></tr>
+                <tr><td align="right">format</td><td><div class="outcome_process_format edittext"></div></td></tr>
+              </table>
+            </fieldset>
+          </div>
+
+          <div id="outcome_raw_template" class="outcome_raw" style="display: none;">
+            <fieldset>
+              <legend>Raw data</legend>
+              <div onclick="removeSlowly(this, '.outcome_raw');" class="remove">remove</div>
+              <table>
+                <tr><td align="right">name</td><td><div class="outcome_raw_name edittext"></div></td></tr>
+                <tr>
+                  <td align="right">content</td>
+                  <td>
+                    <div class="outcome_raw_text edittext"></div>
+                    <div class="uploader" data-token="" style="display: none;">
+                      <input class="uploader_chooser_file uploadertext" type="file">
+                      <div class="uploader_chooser_button uploadertext">Choose...</div>
+                      <div class="uploader_file_name uploadertext"></div>
+                      <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
+                    </div>
+                    text <input type="radio" value="text" checked>
+                    number <input type="radio" value="number">
+                    upload <input type="radio" value="upload">
+                    url <input type="radio" value="url">
+                  </td>
+                </tr>
+                <tr><td align="right">description</td><td><div class="outcome_raw_description edittext"></div></td></tr>
+                <tr><td align="right">format</td><td><div class="outcome_raw_format edittext"></div></td></tr>
+              </table>
+            </fieldset>
+          </div>
+
+        </div>
+        <div onclick="ord.outcomes.add();" class="add">+ add outcome</div>
+      </fieldset>
+
+      <fieldset id="section_provenance" class="section">
+        <legend>Provenance</legend>
+        <div id="provenance_experimenter">
+          <table>
+            <tr><td align="right">name</td><td><div class="provenance_name edittext"></div></td></tr>
+            <tr><td align="right">username</td><td><div class="provenance_username edittext"></div></td></tr>
+            <tr><td align="right">orcid</td><td><div class="provenance_orcid edittext"></div></td></tr>
+            <tr><td align="right">organization</td><td><div class="provenance_organization edittext"></div></td></tr>
+            <tr><td align="right">city</td><td><div id="provenance_city" class="edittext"></div></td></tr>
+            <tr><td align="right">experiment start</td><td><div id="provenance_start" class="edittext"></div></td></tr>
+            <tr><td align="right">doi</td><td><div id="provenance_doi" class="edittext"></div></td></tr>
+            <tr><td align="right">patent</td><td><div id="provenance_patent" class="edittext"></div></td></tr>
+            <tr><td align="right">publication_url</td><td><div id="provenance_url" class="edittext"></div></td></tr>
+          </table>
+        </div>
+        <div id="provenance_created">
+          <fieldset>
+            <legend>Creation</legend>
+            <table>
+              <tr><td align="right">time</td><td><div class="provenance_time edittext"></div></td></tr>
+              <tr><td align="right">username</td><td><div class="provenance_username edittext"></div></td></tr>
+              <tr><td align="right">name</td><td><div class="provenance_name edittext"></div></td></tr>
+              <tr><td align="right">orcid</td><td><div class="provenance_orcid edittext"></div></td></tr>
+              <tr><td align="right">organization</td><td><div class="provenance_organization edittext"></div></td></tr>
+              <tr><td align="right">details</td><td><div class="provenance_details edittext"></div></td></tr>
+            </table>
+          </fieldset>
+        </div>
+        <div id="provenance_modifieds">
+          <div id="provenance_modified_template" class="provenance_modified" style="display: none;">
+            <fieldset>
+              <legend>Modification</legend>
+              <div onclick="removeSlowly(this, '.provenance_modified');" class="remove">remove</div>
+              <table>
+                <tr><td align="right">time</td><td><div class="provenance_time edittext"></div></td></tr>
+                <tr><td align="right">username</td><td><div class="provenance_username edittext"></div></td></tr>
+                <tr><td align="right">name</td><td><div class="provenance_name edittext"></div></td></tr>
+                <tr><td align="right">orcid</td><td><div class="provenance_orcid edittext"></div></td></tr>
+                <tr><td align="right">organization</td><td><div class="provenance_organization edittext"></div></td></tr>
+                <tr><td align="right">details</td><td><div class="provenance_details edittext"></div></td></tr>
+              </table>
+            </fieldset>
+          </div>
+        </div>
+        <div onclick="ord.provenance.addModification();" class="add">+ add modification</div>
+      </fieldset>
+    </div>
+
+    <script>
+      // The selected section name.
+      let selected = null;
+
+      // An index of the section selector controls.
+      const navSelectors = {};
+
+      // Index the selector controls.
+      $('.navSection').each((index, selector) => {
+        selector = $(selector);
+        const section = selector.attr('data-section');
+        navSelectors[section] = selector;
+      });
+
+      // Show only the given section of the reaction schema.
+      function setSelected(section) {
+        $('.navSection').css('background-color', '');
+        $('.section').hide('slow');
+        if (section != null) {
+          $('#section_' + section).show('slow');
+          const selector = navSelectors[section];
+          selector.css('background-color', 'lightblue');
+        } else {
+          $('.section').show('slow')
+        }
+        selected = section;
+      }
+
+      // Show and hide the schema sections.
+      $('.navSection').click(event => {
+        const section = $(event.target).attr('data-section');
+        if (section != selected) {
+          setSelected(section);
+          history.pushState({section: section}, "", "#" + section);
+        } else {
+          setSelected(null);
+          history.pushState({section: null}, "", location.pathname);
+        }
+      });
+
+      // Handle the back button.
+      onpopstate = function(event) {
+        const section = event.state.section;
+        setSelected(section);
+      }
+
+      // Handle initialization.
+      if (location.hash) {
+        const section = location.hash.replace('#', '');
+        setSelected(section);
+      }
+    </script>
+
+  </body>
+</html>
