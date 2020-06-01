@@ -28,7 +28,17 @@ And everything requires Python 3.
 The editor has been tested with [protobuf
 3.12.2](https://github.com/protocolbuffers/protobuf/releases) and [Closure
 v20200517](https://github.com/google/closure-library/releases/). Unpack these
-in this directory so that make can find them.
+in this directory so that make can find them, and compile protobuf to get
+the protoc compiler.
+
+```
+cd protobuf-3.12.2
+./configure && make
+```
+
+(As an alternative, you can edit the Makefile to use a protoc binary you
+already have. But make still needs the protobuf distribution for its JS common
+files.)
 
 To install the python packages,
 
