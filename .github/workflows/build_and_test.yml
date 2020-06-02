@@ -63,18 +63,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@master
+    - uses: actions/setup-python@v2
+    - uses: actions/setup-node@v1.4.2
     - name: Install dependencies
       run: |
         cd "${GITHUB_WORKSPACE}"
         pip install -r requirements.txt
         pip install flask
-        sudo apt-get update
-        sudo apt-get install nodejs
-        npm install google-protobuf puppeteer
         cd "${GITHUB_WORKSPACE}/editor"
+        npm install google-protobuf puppeteer
         wget https://github.com/google/closure-library/archive/v20200517.tar.gz
         tar -xzf v20200517.tar.gz
-        echo "PROTOC: $(which protoc)"
     - name: Build and run editor tests
       run: |
         cd "${GITHUB_WORKSPACE}/editor"
