@@ -77,6 +77,7 @@ jobs:
     - name: Build and run editor tests
       run: |
         cd "${GITHUB_WORKSPACE}/editor"
+        echo "LS $(ls -lh)"
         make
         ./serve.sh &
         make test
