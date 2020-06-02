@@ -23,10 +23,17 @@ from ord_schema.proto import reaction_pb2
 
 class FrozenMessageTest(absltest.TestCase):
     def test_scalar_without_optional(self):
-        """This is what happens if scalar fields are not labeled `optional`."""
+        """Illustrates the problem with non-optional scalar fields.
+
+        This is what happens if scalar fields are not labeled `optional`:
+          * Unset scalar fields return True with hasattr().
+          * It's not possible to know whether a value matching the default was
+            set explicitly.
+        """
         frozen = frozen_message.FrozenMessage(
             reaction_pb2.StirringConditions.StirringRate())
         self.assertTrue(hasattr(frozen, 'rpm'))  # Wrong!
+        self.assertAlmostEqual(frozen.rpm, 0.0)
 
     def test_access_optional_scalar(self):
         frozen = frozen_message.FrozenMessage(
@@ -93,12 +100,12 @@ class FrozenMessageTest(absltest.TestCase):
             frozen.setup.CopyFrom(
                 reaction_pb2.ReactionSetup(automation_platform='test'))
 
-    def test_set_repeated_scalar(self):
+    def test_add_repeated_scalar(self):
         frozen = frozen_message.FrozenMessage(reaction_pb2.ReactionProduct())
         with self.assertRaises(AttributeError):
             frozen.analysis_identity.append('test')
 
-    def test_set_repeated_submessage(self):
+    def test_add_repeated_submessage(self):
         frozen = frozen_message.FrozenMessage(reaction_pb2.Reaction())
         with self.assertRaises(AttributeError):
             frozen.observations.add(comment='test')
@@ -110,6 +117,14 @@ class FrozenMessageTest(absltest.TestCase):
         with self.assertRaises(KeyError):
             frozen.inputs['test'].CopyFrom(
                 reaction_pb2.ReactionInput(addition_order=1))
+
+    def test_modify_repeated_submessage(self):
+        """See https://git.io/JfPf9."""
+        message = reaction_pb2.Reaction()
+        message.workup.add(type='ADDITION')
+        frozen = frozen_message.FrozenMessage(message)
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            frozen.workup[0].type = reaction_pb2.ReactionWorkup.TEMPERATURE
 
 
 if __name__ == '__main__':
