@@ -1,4 +1,4 @@
-protobuf = protobuf-3.12.2
+protobuf = node_modules/google-protobuf
 
 closure = closure-library-20200517
 
@@ -14,7 +14,7 @@ py : gen/py/ord_schema/proto/dataset_pb2.py gen/py/ord_schema/proto/reaction_pb2
 gen/js/ord/dataset.js : js/dataset.js gen/js/proto/ord/dataset.js
 	$(closure)/closure/bin/build/closurebuilder.py \
 	  --root=$(closure) \
-	  --root=$(protobuf)/js \
+	  --root=$(protobuf) \
 	  --root=gen/js/proto/ord \
 	  --root=js \
 	  --namespace=ord.dataset \
@@ -23,7 +23,7 @@ gen/js/ord/dataset.js : js/dataset.js gen/js/proto/ord/dataset.js
 gen/js/ord/reaction.js : js/*.js gen/js/proto/ord/reaction.js
 	$(closure)/closure/bin/build/closurebuilder.py \
 	  --root=$(closure) \
-	  --root=$(protobuf)/js \
+	  --root=$(protobuf) \
 	  --root=gen/js/proto/ord \
 	  --root=js \
 	  --namespace=ord.reaction \
