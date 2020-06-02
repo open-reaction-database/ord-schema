@@ -30,14 +30,14 @@ gen/js/ord/reaction.js : js/*.js gen/js/proto/ord/reaction.js
 	  --output_mode=script > gen/js/ord/reaction.js
 
 gen/js/proto/ord/%.js : ../../ord-schema/proto/%.proto gen
-	$(protobuf)/src/protoc \
+	protoc \
 	  --experimental_allow_proto3_optional \
 	  --js_out=binary:gen/js/proto/ord \
 	  --proto_path=../.. \
 	  $<
 
 gen/py/ord_schema/proto/%_pb2.py : ../../ord-schema/proto/%.proto gen
-	$(protobuf)/src/protoc \
+	protoc \
 	  --experimental_allow_proto3_optional \
 	  --python_out=gen/py \
 	  --proto_path=../.. \
