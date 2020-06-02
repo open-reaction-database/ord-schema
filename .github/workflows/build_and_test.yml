@@ -69,13 +69,13 @@ jobs:
         pip install -r requirements.txt
         pip install flask
         sudo apt-get update
-        sudo apt-get install tar nodejs
+        sudo apt-get install nodejs
         npm install puppeteer
         cd "${GITHUB_WORKSPACE}/editor"
         wget https://github.com/protocolbuffers/protobuf/releases/download/v3.12.2/protobuf-all-3.12.2.tar.gz
         wget https://github.com/google/closure-library/archive/v20200517.tar.gz
         tar -xzf protobuf-all-3.12.2.tar.gz
-        tar -xzr v20200517.tar.gz
+        tar -xzf v20200517.tar.gz
         cd protobuf-3.12.2
         ./configure && make
     - name: Build and run editor tests
