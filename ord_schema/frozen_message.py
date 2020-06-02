@@ -75,13 +75,13 @@ class FrozenMessage(collections.abc.Mapping):
             return FrozenMessage(value)
         if hasattr(value, 'append'):
             # Make repeated fields (and their elements) immutable.
-            values = []
-            for v in value:
-                if isinstance(v, _MESSAGE_TYPES):
-                    values.append(FrozenMessage(v))
+            repeated_values = []
+            for element in value:
+                if isinstance(element, _MESSAGE_TYPES):
+                    repeated_values.append(FrozenMessage(element))
                 else:
-                    values.append(v)
-            return tuple(values)
+                    repeated_values.append(element)
+            return tuple(repeated_values)
         return value
 
     def __iter__(self):
