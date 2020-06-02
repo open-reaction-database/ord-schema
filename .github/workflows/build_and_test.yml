@@ -81,6 +81,10 @@ jobs:
     - name: Build and run editor tests
       run: |
         cd "${GITHUB_WORKSPACE}/editor"
+        rm -rf protobuf-3.12.2/js/*test*
+        rm -rf protobuf-3.12.2/js/binary/*test*
+        rm -rf protobuf-3.12.2/js/compatibility_tests
+        rm -rf protobuf-3.12.2/js/experimental
         make
         ./serve.sh &
         make test
