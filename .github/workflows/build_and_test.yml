@@ -70,21 +70,13 @@ jobs:
         pip install flask
         sudo apt-get update
         sudo apt-get install nodejs
-        npm install puppeteer
+        npm install google-protobuf puppeteer
         cd "${GITHUB_WORKSPACE}/editor"
-        wget https://github.com/protocolbuffers/protobuf/releases/download/v3.12.2/protobuf-all-3.12.2.tar.gz
         wget https://github.com/google/closure-library/archive/v20200517.tar.gz
-        tar -xzf protobuf-all-3.12.2.tar.gz
         tar -xzf v20200517.tar.gz
-        cd protobuf-3.12.2
-        ./configure && make
     - name: Build and run editor tests
       run: |
         cd "${GITHUB_WORKSPACE}/editor"
-        rm -rf protobuf-3.12.2/js/*test*
-        rm -rf protobuf-3.12.2/js/binary/*test*
-        rm -rf protobuf-3.12.2/js/compatibility_tests
-        rm -rf protobuf-3.12.2/js/experimental
         make
         ./serve.sh &
         make test
