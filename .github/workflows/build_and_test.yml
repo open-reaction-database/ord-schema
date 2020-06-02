@@ -74,6 +74,7 @@ jobs:
         cd "${GITHUB_WORKSPACE}/editor"
         wget https://github.com/google/closure-library/archive/v20200517.tar.gz
         tar -xzf v20200517.tar.gz
+        echo "PROTOC: $(which protoc)"
     - name: Build and run editor tests
       run: |
         cd "${GITHUB_WORKSPACE}/editor"
