@@ -1,4 +1,4 @@
-protobuf = node_modules/google-protobuf
+protobuf = node_modules
 
 closure = closure-library-20200517
 
