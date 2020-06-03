@@ -16,7 +16,7 @@ This starts service at [http://localhost:5000/](http://localhost:5000/).
 
 The build needs:
 * the `protoc` protobuf compiler;
-* the protobuf runtime libraries for python and Javascript; and
+* the protobuf runtime libraries for Javascript; and
 * the Closure Library for Javascript.
 
 Serving depends on:
@@ -26,36 +26,16 @@ Serving depends on:
 And everything requires Python 3.
 
 The editor has been tested with [protobuf
-3.12.2](https://github.com/protocolbuffers/protobuf/releases) and [Closure
+3.12.0](https://github.com/protocolbuffers/protobuf/releases) and [Closure
 v20200517](https://github.com/google/closure-library/releases/). Unpack these
-in this directory so that make can find them, and compile protobuf to get
-the protoc compiler.
-
-```
-cd protobuf-3.12.2
-./configure && make
-```
-
-(As an alternative, you can edit the Makefile to use a protoc binary you
-already have. But make still needs the protobuf distribution for its JS common
-files.)
+in this directory so that make can find them. The Makefile will look for protoc
+in your PATH so may not be necessary to compile protobuf.
 
 To install the python packages,
 
 ```
 $ pip install flask
 $ pip install protobuf
-```
-
-The Closure compiler fails to resolve dependencies for test files in the
-protobuf distribution. Feel free to delete any protobuf files Closure doesn't
-like, e.g.
-
-```
-$ rm -rf protobuf-3.12.2/js/*test*
-$ rm -rf protobuf-3.12.2/js/binary/*test*
-$ rm -rf protobuf-3.12.2/js/compatibility_tests
-$ rm -rf protobuf-3.12.2/js/experimental
 ```
 
 ## Testing and Validation
