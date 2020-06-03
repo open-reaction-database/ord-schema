@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-=======
->>>>>>> a20bd9f... Rename "edit" -> "editor".
 
 export PYTHONPATH=py:gen/py
 export FLASK_APP=serve.py
