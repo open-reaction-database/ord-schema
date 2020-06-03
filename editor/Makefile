@@ -1,15 +1,27 @@
-protobuf = protobuf-3.12.2
+protobuf = protobuf-3.12.0
+
+protoc_version = $(shell protoc --version | sed 's/.* //')
+protobuf_version = $(shell echo $(protobuf) | sed 's/.*-//')
 
 closure = closure-library-20200517
 
-all : gen js py
+all : prep py js
 
-gen :
+prep :
+	# Ensure output directories exist.
 	mkdir -p gen/py gen/js/ord gen/js/proto/ord
+	# Prevent Closure from compiling test code.
+	rm -rf $(protobuf)/js/binary/*test* $(protobuf)/js/*test* $(protobuf)/js/experimental
+	# Ensure the proto compiler matches the proto runtime JS.
+	if [ $(protoc_version) != $(protobuf_version) ]; then false; fi
 
-js : gen/js/proto/ord/reaction.js gen/js/proto/ord/dataset.js gen/js/ord/reaction.js gen/js/ord/dataset.js
+js : gen/js/proto/ord/dataset.js \
+	   gen/js/proto/ord/reaction.js \
+	   gen/js/ord/dataset.js \
+	   gen/js/ord/reaction.js \
 
-py : gen/py/ord_schema/proto/dataset_pb2.py gen/py/ord_schema/proto/reaction_pb2.py
+py : gen/py/ord_schema/proto/dataset_pb2.py \
+	   gen/py/ord_schema/proto/reaction_pb2.py
 
 gen/js/ord/dataset.js : js/dataset.js gen/js/proto/ord/dataset.js
 	$(closure)/closure/bin/build/closurebuilder.py \
@@ -18,7 +30,9 @@ gen/js/ord/dataset.js : js/dataset.js gen/js/proto/ord/dataset.js
 	  --root=gen/js/proto/ord \
 	  --root=js \
 	  --namespace=ord.dataset \
-	  --output_mode=script > gen/js/ord/dataset.js
+	  --output_mode=script \
+	  --output_file=gen/js/ord/dataset.js \
+	  || (rm -f gen/js/ord/dataset.js && false)
 
 gen/js/ord/reaction.js : js/*.js gen/js/proto/ord/reaction.js
 	$(closure)/closure/bin/build/closurebuilder.py \
@@ -27,17 +41,19 @@ gen/js/ord/reaction.js : js/*.js gen/js/proto/ord/reaction.js
 	  --root=gen/js/proto/ord \
 	  --root=js \
 	  --namespace=ord.reaction \
-	  --output_mode=script > gen/js/ord/reaction.js
+	  --output_mode=script \
+	  --output_file=gen/js/ord/reaction.js \
+	  || (rm -f gen/js/ord/reaction.js && false)
 
-gen/js/proto/ord/%.js : ../../ord-schema/proto/%.proto gen
-	$(protobuf)/src/protoc \
+gen/js/proto/ord/%.js : ../../ord-schema/proto/%.proto
+	protoc \
 	  --experimental_allow_proto3_optional \
 	  --js_out=binary:gen/js/proto/ord \
 	  --proto_path=../.. \
 	  $<
 
-gen/py/ord_schema/proto/%_pb2.py : ../../ord-schema/proto/%.proto gen
-	$(protobuf)/src/protoc \
+gen/py/ord_schema/proto/%_pb2.py : ../../ord-schema/proto/%.proto
+	protoc \
 	  --experimental_allow_proto3_optional \
 	  --python_out=gen/py \
 	  --proto_path=../.. \
