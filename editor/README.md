@@ -29,7 +29,7 @@ The editor has been tested with [protobuf
 3.12.0](https://github.com/protocolbuffers/protobuf/releases) and [Closure
 v20200517](https://github.com/google/closure-library/releases/). Unpack these
 in this directory so that make can find them. The Makefile will look for protoc
-in your PATH so may not be necessary to compile protobuf.
+in your PATH so it may not be necessary to compile protobuf.
 
 To install the python packages,
 
