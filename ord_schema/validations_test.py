@@ -36,7 +36,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
                          filename,
                          lineno,
                          file=None,
-                         line=None):
+                         line=None):  # pylint: disable=too-many-arguments
             del file  # Unused.
             original(message, category, filename, lineno, sys.stdout, line)
 
