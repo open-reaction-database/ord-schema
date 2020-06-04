@@ -44,12 +44,8 @@ jobs:
         python setup.py install
     - name: Run tests
       run: |
-        shopt -s globstar
         cd "${GITHUB_WORKSPACE}"
-        for TEST_FILENAME in ord_schema/**/*_test.py; do \
-          echo "Running tests in ${TEST_FILENAME}"; \
-          python "${TEST_FILENAME}"; \
-        done
+        ./run_tests.sh
     - name: Run pylint
       run: |
         cd "${GITHUB_WORKSPACE}"
