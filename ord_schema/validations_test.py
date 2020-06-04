@@ -31,15 +31,17 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         # other test output.
         original = warnings.showwarning
 
+        # pylint: disable=too-many-arguments
         def _showwarning(message,
                          category,
                          filename,
                          lineno,
                          file=None,
-                         line=None):  # pylint: disable=too-many-arguments
+                         line=None):
             del file  # Unused.
             original(message, category, filename, lineno, sys.stdout, line)
 
+        # pylint: enable=too-many-arguments
         warnings.showwarning = _showwarning
 
     def _run_validation(self, message, **kwargs):
