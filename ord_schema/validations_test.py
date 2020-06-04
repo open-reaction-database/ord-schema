@@ -29,7 +29,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         super().setUp()
         # Redirect warning messages to stdout so they can be filtered from the
         # other test output.
-        original = warnings.showwarning
+        self._showwarning = warnings.showwarning
 
         # pylint: disable=too-many-arguments
         def _showwarning(message,
@@ -39,10 +39,20 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
                          file=None,
                          line=None):
             del file  # Unused.
-            original(message, category, filename, lineno, sys.stdout, line)
+            self._showwarning(message=message,
+                              category=category,
+                              filename=filename,
+                              lineno=lineno,
+                              file=sys.stdout,
+                              line=line)
 
         # pylint: enable=too-many-arguments
         warnings.showwarning = _showwarning
+
+    def tearDown(self):
+        super().tearDown()
+        # Restore the original showwarning.
+        warnings.showwarning = self._showwarning
 
     def _run_validation(self, message, **kwargs):
         original = type(message)()
