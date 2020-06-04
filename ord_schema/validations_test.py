@@ -13,6 +13,9 @@
 # limitations under the License.
 """Tests for ord_schema.validations."""
 
+import sys
+import warnings
+
 from absl.testing import absltest
 from absl.testing import parameterized
 
@@ -22,6 +25,23 @@ from ord_schema.proto import reaction_pb2
 
 
 class ValidationsTest(parameterized.TestCase, absltest.TestCase):
+    def setUp(self):
+        super().setUp()
+        # Redirect warning messages to stdout so they can be filtered from the
+        # other test output.
+        original = warnings.showwarning
+
+        def _showwarning(message,
+                         category,
+                         filename,
+                         lineno,
+                         file=None,
+                         line=None):
+            del file  # Unused.
+            original(message, category, filename, lineno, sys.stdout, line)
+
+        warnings.showwarning = _showwarning
+
     def _run_validation(self, message, **kwargs):
         original = type(message)()
         original.CopyFrom(message)

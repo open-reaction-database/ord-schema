@@ -21,6 +21,7 @@ import tempfile
 from absl import flags
 from absl.testing import absltest
 from absl.testing import flagsaver
+from rdkit import RDLogger
 
 from ord_schema import message_helpers
 from ord_schema import process_dataset
@@ -32,6 +33,8 @@ from ord_schema.proto import reaction_pb2
 class ProcessDatasetTest(absltest.TestCase):
     def setUp(self):
         super().setUp()
+        # Suppress RDKit warnings to clean up the test output.
+        RDLogger.logger().setLevel(RDLogger.CRITICAL)
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
         reaction1 = reaction_pb2.Reaction()
         dummy_input = reaction1.inputs['dummy_input']
