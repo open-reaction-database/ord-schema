@@ -30,17 +30,20 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
    1. Create a fork of `ord-schema` by clicking the "Fork" button at the top-right of this page. 
       Note that you only need to do this once---all of your changes can use the same fork.
    1. Follow the [GitHub flow](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/github-flow)
-      to make changes and send a pull request to the official repository.
+      to make changes and send a pull request to the `dev` branch of the official repository.
    
    ### Local machine
    
    > :warning: Working on your local machine requires familiarity with
    > [Git](https://git-scm.com/) or [GitHub Desktop](https://desktop.github.com/).
 
-   1. Create a fork of `ord-schema` and clone it to your local machine 
+   1. Create a fork of `ord-schema` (click "Fork" at the top-right of this page) and clone it to your local machine 
       ([instructions](https://help.github.com/en/github/getting-started-with-github/fork-a-repo)).
    1. Create a new branch and make your changes.
-   1. Commit your changes, push them to your fork on GitHub, and send a pull request to the
+   1. Test your changes by rebuilding the package (`python setup.py install`) and running the test script provided
+      in the repo (`./run_tests.sh`). This will be performed automatically when you send a pull request to the
+      repository, but you can save time by making sure the tests pass locally first.
+   1. Commit your changes, push them to your fork on GitHub, and send a pull request to the `dev` branch of the
       official repository.
       
 1. If necessary, update your pull request by adding additional commits to your branch in response to
