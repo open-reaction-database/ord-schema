@@ -12,7 +12,8 @@ We are currently in the process of formalizing the schema and creating examples 
 
 ## Installation
 
-Many of the schema validators require `rdkit`, so we recommend that you install `ord-schema` in a conda environment.
+Many of the schema validators require [RDKit](https://github.com/rdkit/rdkit), so we recommend that you 
+install `ord-schema` in a conda environment.
 
 1. Clone the `ord-schema` repository to your local machine. If you are planning to contribute changes,
    you should fork the repository first
