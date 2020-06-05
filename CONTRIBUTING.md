@@ -30,7 +30,9 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
    1. Create a fork of `ord-schema` by clicking the "Fork" button at the top-right of this page. 
       Note that you only need to do this once---all of your changes can use the same fork.
    1. Follow the [GitHub flow](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/github-flow)
-      to make changes and send a pull request to the `dev` branch of the official repository.
+      to make changes and send a pull request to the `dev` branch of the official repository. While you are making 
+      changes, automated tests will run in your fork after each commit and notify you of any errors encountered in
+      validation or syntax.
    
    ### Local machine
    
