@@ -49,10 +49,10 @@ jobs:
           conda install -c rdkit rdkit
           python setup.py install
       - name: Test notebooks
-          run: |
-            cd "${GITHUB_WORKSPACE}"
-            pip install treon
-            treon
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          pip install treon
+          treon
         
   test_editor:
     runs-on: ubuntu-latest
