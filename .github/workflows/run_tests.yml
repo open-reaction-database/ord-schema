@@ -43,11 +43,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Install ord_schema
-          run: |
-            cd "${GITHUB_WORKSPACE}"
-            pip install -r requirements.txt
-            conda install -c rdkit rdkit
-            python setup.py install
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          pip install -r requirements.txt
+          conda install -c rdkit rdkit
+          python setup.py install
       - name: Test notebooks
           run: |
             cd "${GITHUB_WORKSPACE}"
