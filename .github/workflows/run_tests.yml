@@ -27,13 +27,22 @@ jobs:
         cd "${GITHUB_WORKSPACE}"
         pip install -r requirements.txt
         conda install -c rdkit rdkit
-        # NOTE(kearnes): Remove version when 2.5.0 is fixed.
-        conda install pylint=2.4.4
         python setup.py install
     - name: Run tests
       run: |
         cd "${GITHUB_WORKSPACE}"
         ./run_tests.sh
+
+  test_pylint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+    - name: Run pylint
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        pip install pylint
+        pylint ord_schema
 
   test_notebooks:
     runs-on: ubuntu-latest
