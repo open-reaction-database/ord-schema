@@ -14,51 +14,50 @@
 
 name: CI
 
-on:
-  pull_request:
-    branches: 
-      - master
-  push:
-    branches:
-      - master
+on: [pull_request, push]
 
 jobs:
-  build_and_test:
+  test_ord_schema:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v2
     - name: Install miniconda
       uses: s-weigand/setup-conda@v1
       with:
         update-conda: true
-    - name: Install dependencies
+    - name: Install ord_schema
       run: |
+        cd "${GITHUB_WORKSPACE}"
         pip install -r requirements.txt
         conda install -c rdkit rdkit
         # NOTE(kearnes): Remove version when 2.5.0 is fixed.
         conda install pylint=2.4.4
-    - name: Install ord_schema
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        echo "$(which python)"
         python setup.py install
     - name: Run tests
       run: |
         cd "${GITHUB_WORKSPACE}"
         ./run_tests.sh
-    - name: Run pylint
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        pylint ord_schema
-    - name: Test notebooks
-      run: |
-        pip install treon
-        treon
+
+  test_notebooks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install ord_schema
+          run: |
+            cd "${GITHUB_WORKSPACE}"
+            pip install -r requirements.txt
+            conda install -c rdkit rdkit
+            python setup.py install
+      - name: Test notebooks
+          run: |
+            cd "${GITHUB_WORKSPACE}"
+            pip install treon
+            treon
         
   test_editor:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v2
     - uses: actions/setup-python@v2
     - uses: actions/setup-node@v1.4.2
     - name: Install dependencies

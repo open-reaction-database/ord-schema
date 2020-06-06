@@ -14,5 +14,9 @@
 # limitations under the License.
 
 # Runs ord-schema tests.
+set -ex
+# Python tests.
 find ./ord_schema -name '*_test.py' -print0 \
   | xargs -t -0 -I '{}' python '{}' --verbosity=-2 > /dev/null
+# Python formatting.
+pylint ord_schema
