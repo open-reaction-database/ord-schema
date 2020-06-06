@@ -37,7 +37,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
+    - uses: s-weigand/setup-conda@v1
+    - name: Install ord_schema
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        pip install -r requirements.txt
+        conda install -c rdkit rdkit
+        python setup.py install
     - name: Run pylint
       run: |
         cd "${GITHUB_WORKSPACE}"
