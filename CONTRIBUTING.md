@@ -116,11 +116,9 @@ the date such litigation is filed.
 
 4. You represent that You are legally entitled to grant the above license. You
 represent further that each employee of the Corporation designated by You is
-authorized to submit Contributions on behalf of the Corporation. 
+authorized to submit Contributions on behalf of the Corporation.
 
-5. You represent that each of Your Contributions is Your original creation.
-
-6. You are not expected to provide support for Your Contributions, except to the
+5. You are not expected to provide support for Your Contributions, except to the
 extent You desire to provide support. You may provide support for free, for a
 fee, or not at all. Unless required by applicable law or agreed to in writing,
 You provide Your Contributions on an "AS IS" BASIS, WITHOUT WARRANTIES OR
