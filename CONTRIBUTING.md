@@ -60,19 +60,13 @@ You (as defined below) and your Contributions are bound to the following terms.
 <p align="center">Open Reaction Database Project License Agreement</p> 
 
 In order to clarify the intellectual property license granted with Contributions
-to the Open Access Reaction Database from any person or entity, the Open
-Reaction Database Project ("ORDP") must indicate agreement to the license terms
-below. 
+to the Open Access Reaction Database from any person or entity, the You must
+indicate agreement to the license terms below.
 
-This version of the Agreement allows an entity (the "Corporation") to
-submit Contributions to ORDP, to authorize Contributions submitted by its
-designated employees to ORDP, and to grant copyright and patent licenses
-thereto. 
-
-You accept and agree to the following terms and conditions for Your
-present and future Contributions submitted to ORDP. Except for the license
-granted herein to ORDP and recipients of data distributed by ORDP, You reserve
-all right, title, and interest in and to Your Contributions. 
+You accept and agree to the following terms and conditions for Your present and
+future Contributions submitted to ORDP. Except for the license granted herein to
+ORDP and recipients of data distributed by ORDP, You reserve all right, title,
+and interest in and to Your Contributions.
 
 1. Definitions. "You" (or "Your") shall mean the copyright owner or legal entity
 authorized by the copyright owner that is making this Agreement with ORDP. For
@@ -97,7 +91,7 @@ Agreement, You hereby grant to ORDP and to recipients of the data, software, or
 documentation distributed by ORDP a perpetual, worldwide, non-exclusive,
 no-charge, royalty-free, irrevocable copyright license to reproduce, prepare
 derivative works of, publicly display, publicly perform, sublicense, and
-distribute Your Contributions and such derivative works. 
+distribute Your Contributions and such derivative works.
 
 3. Grant of Patent License. Subject to the terms and conditions of this
 Agreement, You hereby grant to ORDP and to recipients of software distributed by
@@ -114,9 +108,11 @@ contributory patent infringement, then any patent licenses granted to that
 entity under this Agreement for that Contribution or Work shall terminate as of
 the date such litigation is filed.
 
-4. You represent that You are legally entitled to grant the above license. You
-represent further that each employee of the Corporation designated by You is
-authorized to submit Contributions on behalf of the Corporation.
+4. You represent that you are legally entitled to grant the above license. If
+your employer(s) has rights to intellectual property that you create that
+includes your Contributions, you represent that you have received permission to
+make Contributions on behalf of that employer, or that your employer has waived
+such rights for your Contributions to ORDP.
 
 5. You are not expected to provide support for Your Contributions, except to the
 extent You desire to provide support. You may provide support for free, for a
