@@ -437,7 +437,7 @@ message ReactionConditions {
   ElectrochemistryConditions electrochemistry = 5;
   FlowConditions flow = 6;
   Boolean.BooleanValue reflux = 7;
-  float pH = 8;
+  optional float pH = 8;
   // Boolean to describe whether the conditions cannot be
   // represented by the static, single-step schema.
   Boolean.BooleanValue conditions_are_dynamic = 9;
@@ -761,7 +761,7 @@ message ReactionWorkup {
   TemperatureConditions temperature = 5;
   string keep_phase = 6;
   StirringConditions stirring = 7;
-  float target_ph = 8;
+  optional float target_ph = 8;
   // Indicate automated workup/purification. Include specifications in 
   // "details", e.g., instrument manufacturer, solvent gradient 
   // (if applicable), column material and size, etc.
@@ -846,9 +846,9 @@ message Selectivity {
   }
   SelectivityType type = 1;
   string details = 2;
-  float value = 3;
+  optional float value = 3;
   // TODO(kearnes): What does precision mean in this context?
-  float precision = 4;
+  optional float precision = 4;
 }
 
 message DateTime {
@@ -948,9 +948,9 @@ message Time {
     MINUTE = 2;
     SECOND = 3;
   }
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
   TimeUnit units = 3;
 }
 message Mass {
@@ -961,9 +961,9 @@ message Mass {
     MICROGRAM = 3;
     KILOGRAM = 4;
   }
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
   MassUnit units = 3;
 }
 message Moles {
@@ -974,9 +974,9 @@ message Moles {
     MICROMOLE = 3;
     NANOMOLE = 4;
   }
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
   MolesUnit units = 3;
 }
 message Volume {
@@ -986,9 +986,9 @@ message Volume {
     MICROLITER = 2;
     LITER = 3;
   }
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
   VolumeUnit units = 3;
 }
 message Concentration {
@@ -998,9 +998,9 @@ message Concentration {
     MILLIMOLAR = 2;
     MICROMOLAR = 3;
   }
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
   ConcentrationUnit units = 3;
 }
 message Pressure {
@@ -1015,9 +1015,9 @@ message Pressure {
     TORR = 7;
     MM_HG = 8;
   }
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
   PressureUnit units = 3;
 }
 message Temperature {
@@ -1027,9 +1027,9 @@ message Temperature {
     FAHRENHEIT = 2;
     KELVIN = 3;
   }
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
   TemperatureUnit units = 3;
 }
 message Current {
@@ -1038,9 +1038,9 @@ message Current {
     AMPERE = 1;
     MILLIAMPERE = 2;
   }
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
   CurrentUnit units = 3;
 }
 message Voltage {
@@ -1049,9 +1049,9 @@ message Voltage {
     VOLT = 1;
     MILLIVOLT = 2;
   }
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
   VoltageUnit units = 3;
 }
 message Length {
@@ -1063,9 +1063,9 @@ message Length {
     INCH = 4;
     FOOT = 5;
   }
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
   LengthUnit units = 3;
 }
 message Wavelength {
@@ -1074,9 +1074,9 @@ message Wavelength {
     NANOMETER = 1;
     WAVENUMBER = 2;  // cm^{-1}
   }
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
   WavelengthUnit units = 3;
 }
 message FlowRate {
@@ -1088,16 +1088,16 @@ message FlowRate {
     MILLILITER_PER_SECOND = 4;
     MICROLITER_PER_HOUR = 5;
   }
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
   FlowRateUnit units = 3;
 }
 // Used for things like conversion and yield.
 message Percentage {
-  float value = 1;
+  optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
-  float precision = 2;
+  optional float precision = 2;
 }
 
 // Data is a container for arbitrary data.
