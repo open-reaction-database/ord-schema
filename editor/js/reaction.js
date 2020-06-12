@@ -67,11 +67,14 @@ function listen(node) {
 
 function dirty() {
   $('#save').css('visibility', 'visible');
+  $('#validate').css('visibility', 'visible');
 }
 
 function clean() {
   $('#save').css('visibility', 'hidden');
+  $('#validate').css('visibility', 'hidden');
   $('#save').text('save');
+  $('#validate').text('validate');
 }
 
 function selectText(node) {
@@ -88,6 +91,17 @@ function commit() {
   reactions[session.index] = reaction;
   putDataset(session.fileName, session.dataset);
   ord.uploads.putAll(session.fileName);
+}
+
+// note: does not commit or save anything!
+function sendReaction() {
+  // $('#save').text('saving'); TODO edit this
+  const reaction = unloadReaction();
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/dataset/proto/validate');
+  const binary = reaction.serializeBinary();
+  xhr.onload = clean;
+  xhr.send(binary);
 }
 
 async function getDataset(fileName) {

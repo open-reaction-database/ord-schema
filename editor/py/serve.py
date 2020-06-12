@@ -239,6 +239,18 @@ def read_upload(token):
                          as_attachment=True, attachment_filename=token)
 
 
+@app.route('/dataset/proto/validate', methods=['POST'])
+def validate_reaction():
+  """Receives a serialized Reaction protobuf and runs validations."""
+  reaction = reaction_pb2.Reaction()
+  reaction.ParseFromString(flask.request.get_data())
+  print(reaction)
+  # TODO validate and send
+  # resolve_tokens(reaction)
+  # put_dataset(file_name, reaction)
+  return 'ok'
+
+
 @app.route('/dataset/proto/compare/<file_name>', methods=['POST'])
 def compare(file_name):
   """For testing, compares a POST body to a Dataset in the db/ directory.
