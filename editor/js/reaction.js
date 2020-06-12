@@ -95,12 +95,16 @@ function commit() {
 
 // note: does not commit or save anything!
 function sendReaction() {
-  // $('#save').text('saving'); TODO edit this
-  const reaction = unloadReaction();
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/dataset/proto/validate');
+  const reaction = unloadReaction();
   const binary = reaction.serializeBinary();
-  xhr.onload = clean;
+
+  xhr.responseType = 'json';
+  xhr.onload = function (event) {
+    const response = xhr.response;
+    console.log(response);
+  };
   xhr.send(binary);
 }
 

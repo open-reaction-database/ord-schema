@@ -18,6 +18,7 @@ import contextlib
 import fcntl
 import os
 import re
+import json
 
 import flask
 
@@ -248,7 +249,8 @@ def validate_reaction():
   # TODO validate and send
   # resolve_tokens(reaction)
   # put_dataset(file_name, reaction)
-  return 'ok'
+  errors = ["an error", "another error"]
+  return json.dumps(errors)
 
 
 @app.route('/dataset/proto/compare/<file_name>', methods=['POST'])
