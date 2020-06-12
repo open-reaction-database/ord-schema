@@ -94,8 +94,16 @@ function validateReaction() {
 
   xhr.responseType = 'json';
   xhr.onload = function (event) {
-    const response = xhr.response;
-    console.log(response);
+    const errors = xhr.response;
+    console.log(errors);
+    if (errors.length) {
+      $('#validate_status').css('backgroundColor', 'lightred');
+      $('#validate_status').text('invalid');
+    }
+    else {
+      $('#validate_status').css('backgroundColor', 'lightgreen');
+      $('#validate_status').text('valid');
+    }
   };
   xhr.send(binary);
 }
