@@ -85,16 +85,8 @@ function selectText(node) {
   selection.addRange(range);
 }
 
-function commit() {
-  const reaction = unloadReaction();
-  const reactions = session.dataset.getReactionsList();
-  reactions[session.index] = reaction;
-  putDataset(session.fileName, session.dataset);
-  ord.uploads.putAll(session.fileName);
-}
-
 // note: does not commit or save anything!
-function sendReaction() {
+function validateReaction() {
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/dataset/proto/validate');
   const reaction = unloadReaction();
@@ -106,6 +98,14 @@ function sendReaction() {
     console.log(response);
   };
   xhr.send(binary);
+}
+
+function commit() {
+  const reaction = unloadReaction();
+  const reactions = session.dataset.getReactionsList();
+  reactions[session.index] = reaction;
+  putDataset(session.fileName, session.dataset);
+  ord.uploads.putAll(session.fileName);
 }
 
 async function getDataset(fileName) {
