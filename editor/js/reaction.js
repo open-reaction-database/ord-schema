@@ -97,12 +97,15 @@ function validateReaction() {
     const errors = xhr.response;
     console.log(errors);
     if (errors.length) {
-      $('#validate_status').css('backgroundColor', 'lightred');
+      $('#validate_status').css('backgroundColor', 'pink');
       $('#validate_status').text('invalid');
+      $('#validate_message').text(errors);
+      $('#validate_message').show();
     }
     else {
       $('#validate_status').css('backgroundColor', 'lightgreen');
       $('#validate_status').text('valid');
+      $('#validate_message').hide();
     }
   };
   xhr.send(binary);
