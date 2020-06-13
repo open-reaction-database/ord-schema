@@ -1,8 +1,6 @@
 # Open Reaction Database: Schema (ord-schema)
 
-| `master` | `dev` |
-| -------- | ----- |
-| ![CI](https://github.com/Open-Reaction-Database/ord-schema/workflows/CI/badge.svg?branch=master) | ![CI](https://github.com/Open-Reaction-Database/ord-schema/workflows/CI/badge.svg?branch=dev) |
+![CI](https://github.com/Open-Reaction-Database/ord-schema/workflows/CI/badge.svg?branch=master)
 
 This repository contains the schema for the Open Reaction Database initiative, based in part on survey of importance ([summary](https://docs.google.com/spreadsheets/d/1waPzYvDKlb6TAwgsM7bLc7dhZnJ8G-WtVxJSlMhiVK0/edit)). For more details on the database, please see the documentation at http://open-reaction-database.org.
 
