@@ -1,4 +1,4 @@
-# Copyright 2020 The Open Reaction Database Authors
+# Copyright 2020 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -338,9 +338,9 @@ def _vessel_material(vessel):
     return {
         vessel.material.UNSPECIFIED: '',
         vessel.material.CUSTOM: f'{vessel.material.details}',
-        vessel.material.GLASS: f'glass',
-        vessel.material.POLYPROPYLENE: f'polypropylene',
-        vessel.material.PLASTIC: f'plastic',
+        vessel.material.GLASS: 'glass',
+        vessel.material.POLYPROPYLENE: 'polypropylene',
+        vessel.material.PLASTIC: 'plastic',
     }[vessel.material.type]
 
 
@@ -349,21 +349,21 @@ def _vessel_type(vessel):
         vessel.type.UNSPECIFIED:
             'vessel',
         vessel.type.CUSTOM:
-            f'vessel',
+            'vessel',
         vessel.type.ROUND_BOTTOM_FLASK:
-            f'round bottom flask',
+            'round bottom flask',
         vessel.type.VIAL:
-            f'vial',
+            'vial',
         vessel.type.WELL_PLATE:
-            f'well-plate',
+            'well-plate',
         vessel.type.MICROWAVE_VIAL:
-            f'microwave vial',
+            'microwave vial',
         vessel.type.TUBE:
-            f'tube',
+            'tube',
         vessel.type.CONTINUOUS_STIRRED_TANK_REACTOR:
-            f'continuous stirred-tank reactor',
+            'continuous stirred-tank reactor',
         vessel.type.PACKED_BED_REACTOR:
-            f'packed bed reactor',
+            'packed bed reactor',
     }[vessel.type.type]
 
 

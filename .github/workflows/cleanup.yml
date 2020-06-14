@@ -1,4 +1,4 @@
-# Copyright 2020 The Open Reaction Database Authors
+# Copyright 2020 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ jobs:
     - name: Run addlicense
       run: |
         cd "${GITHUB_WORKSPACE}"
-        "${GOBIN}/addlicense" -c "The Open Reaction Database Authors" -l apache .
+        "${GOBIN}/addlicense" -c "Open Reaction Database Project Authors" -l apache .
         ./actions/commit_changes.sh "Run addlicense"
     - name: Run YAPF
       run: |

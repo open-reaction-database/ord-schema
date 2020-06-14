@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-# Copyright 2020 The Open Reaction Database Authors
+# Copyright 2020 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@ class BuildPyCommand(build_py.build_py):
         for source in glob.glob('proto/*.proto'):
             protoc_command = [
                 protoc,
+                # https://github.com/protocolbuffers/protobuf/blob/master/docs/field_presence.md
+                '--experimental_allow_proto3_optional',
                 '--proto_path=..',
                 '--python_out=.',
                 os.path.join('ord-schema', source)

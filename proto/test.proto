@@ -1,4 +1,4 @@
-// Copyright 2020 The Open Reaction Database Authors
+// Copyright 2020 Open Reaction Database Project Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ package ord_test;
 message Scalar {
     int32 int32_value = 1;
     int64 int64_value = 2;
-    float float_value = 3;
+    optional float float_value = 3;
     string string_value = 4;
     bytes bytes_value = 5;
 }
@@ -49,14 +49,14 @@ message RepeatedEnum {
 
 message Nested {
     message Child {
-        float value = 1;
+        optional float value = 1;
     }
     Child child = 1;
 }
 
 message RepeatedNested {
     message Child {
-        float value = 1;
+        optional float value = 1;
     }
     repeated Child children = 1;
 }
@@ -67,7 +67,7 @@ message Map {
 
 message MapNested {
     message Child {
-        float value = 1;
+        optional float value = 1;
     }
     map<string, Child> children = 1;
 }

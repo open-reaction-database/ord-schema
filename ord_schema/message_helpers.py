@@ -1,4 +1,4 @@
-# Copyright 2020 The Open Reaction Database Authors
+# Copyright 2020 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -184,16 +184,19 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
     # Assign moles amount and return.
     moles = volume_liter * concentration_molar
     if moles < 1e-6:
-        solute.moles.CopyFrom(
-            reaction_pb2.Moles(units='NANOMOLE', value=moles * 1e9))
+        value = moles * 1e9
+        unit = reaction_pb2.Moles.NANOMOLE
     elif moles < 1e-3:
-        solute.moles.CopyFrom(
-            reaction_pb2.Moles(units='MICROMOLE', value=moles * 1e6))
+        value = moles * 1e6
+        unit = reaction_pb2.Moles.MICROMOLE
     elif moles < 1:
-        solute.moles.CopyFrom(
-            reaction_pb2.Moles(units='MILLIMOLE', value=moles * 1e3))
+        value = moles * 1e3
+        unit = reaction_pb2.Moles.MILLIMOLE
     else:
-        solute.moles.CopyFrom(reaction_pb2.Moles(units='MOLE', value=moles))
+        value = moles
+        unit = reaction_pb2.Moles.MOLE
+    solute.moles.value = value
+    solute.moles.units = unit
     return [solute] + solvents
 
 

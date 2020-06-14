@@ -1,4 +1,4 @@
-# Copyright 2020 The Open Reaction Database Authors
+# Copyright 2020 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,9 @@
 # limitations under the License.
 """Tests for ord_schema.validations."""
 
+import sys
+import warnings
+
 from absl.testing import absltest
 from absl.testing import parameterized
 
@@ -22,6 +25,35 @@ from ord_schema.proto import reaction_pb2
 
 
 class ValidationsTest(parameterized.TestCase, absltest.TestCase):
+    def setUp(self):
+        super().setUp()
+        # Redirect warning messages to stdout so they can be filtered from the
+        # other test output.
+        self._showwarning = warnings.showwarning
+
+        # pylint: disable=too-many-arguments
+        def _showwarning(message,
+                         category,
+                         filename,
+                         lineno,
+                         file=None,
+                         line=None):
+            del file  # Unused.
+            self._showwarning(message=message,
+                              category=category,
+                              filename=filename,
+                              lineno=lineno,
+                              file=sys.stdout,
+                              line=line)
+
+        # pylint: enable=too-many-arguments
+        warnings.showwarning = _showwarning
+
+    def tearDown(self):
+        super().tearDown()
+        # Restore the original showwarning.
+        warnings.showwarning = self._showwarning
+
     def _run_validation(self, message, **kwargs):
         original = type(message)()
         original.CopyFrom(message)
@@ -124,8 +156,10 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
         # If an analysis uses an internal standard, a component must have
         # an INTERNAL_STANDARD reaction role
-        outcome.analyses['dummy_analysis'].uses_internal_standard = (
-            reaction_pb2.Boolean.TRUE)
+        outcome.analyses['dummy_analysis'].CopyFrom(
+            reaction_pb2.ReactionAnalysis(type='CUSTOM',
+                                          details='test',
+                                          uses_internal_standard='TRUE'))
         with self.assertRaisesRegex(validations.ValidationError,
                                     'INTERNAL_STANDARD'):
             self._run_validation(message)
@@ -139,7 +173,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         # Assigning internal standard role to workup should resolve the error
         message_workup_istd = reaction_pb2.Reaction()
         message_workup_istd.CopyFrom(message)
-        workup = message_workup_istd.workup.add()
+        workup = message_workup_istd.workup.add(type='CUSTOM', details='test')
         istd = workup.input.components.add()
         istd.identifiers.add(type='SMILES', value='CCO')
         istd.mass.value = 1
