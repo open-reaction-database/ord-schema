@@ -39,13 +39,15 @@ body {
   margin: 2px;
   display: inline-block;
   border-radius: 8px;
+}
+.add, #save, .remove, #delete, #validate {
   cursor: pointer;
 }
 .add {
   background-color: lightgreen;
   margin-top: 12px;
 }
-#save {
+#save, #validate, #validate_status {
   background-color: lightgray;
 }
 .remove, #delete {
