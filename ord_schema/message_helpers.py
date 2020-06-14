@@ -380,3 +380,26 @@ def id_filename(filename):
         raise ValueError(
             'basename does not have the required "ord" prefix: {basename}')
     return os.path.join('data', suffix[:2], basename)
+
+
+def create_message(message_name):
+    """Converts a message name into an instantiation of that class, where
+    the message belongs to the reaction_pb2 module.
+
+    Args:
+        message_name: Text name of a message field. For example, "Reaction" or
+            "TemperatureConditions.Measurement".
+
+    Returns:
+        Initialized message of the requested type.
+
+    Raises:
+        ValueError if the name cannot be resolved.
+    """
+    message_class = reaction_pb2
+    try:
+        for name in message_name.split('.'):
+            message_class = getattr(message_class, name)
+        return message_class()
+    except (AttributeError, TypeError):
+        raise ValueError(f'Cannot resolve message name {message_name}')
