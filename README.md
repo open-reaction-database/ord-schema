@@ -15,7 +15,7 @@ install `ord-schema` in a conda environment.
 
 1. Clone the `ord-schema` repository to your local machine. If you are planning to contribute changes,
    you should fork the repository first
-   (see [Contributing](https://github.com/Open-Reaction-Database/ord-schema/blob/master/CONTRIBUTING.md)).
+   (see [Contributing](https://github.com/Open-Reaction-Database/ord-schema/blob/main/CONTRIBUTING.md)).
 1. Install Anaconda or Miniconda ([instructions](https://docs.conda.io/projects/conda/en/latest/user-guide/install/)).
 1. Run the following commands to install `ord-schema`:
 
