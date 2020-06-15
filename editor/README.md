@@ -39,8 +39,8 @@ v20200517](https://github.com/google/closure-library/releases/).
 
 Unpack both protobuf and closure-library in this directory so that make can
 find them. For the sake of automated testing, protobuf at 1dae8fdd has
-already been built for MacOS and its JS runtime and statically linked protoc
-compiler committed to git.
+already been built for Mac and Linux, and its JS runtime and statically linked
+protoc compiler have been committed to git.
 
 To install the python packages,
 
