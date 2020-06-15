@@ -27,7 +27,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Colab Badge Action
-      uses: skearnes/colab-badge-action@v1.3
+      uses: skearnes/colab-badge-action@v2
       with:
         check: all
         update: True
