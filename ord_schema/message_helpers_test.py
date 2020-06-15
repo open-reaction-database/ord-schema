@@ -311,19 +311,17 @@ class CreateMessageTest(parameterized.TestCase, absltest.TestCase):
         ('reaction', 'Reaction', reaction_pb2.Reaction),
         ('temperature', 'Temperature', reaction_pb2.Temperature),
         ('temperature measurement', 'TemperatureConditions.Measurement',
-         reaction_pb2.TemperatureConditions.Measurement),
-    )
+         reaction_pb2.TemperatureConditions.Measurement))
     def test_valid_messages(self, message_name, expected_class):
         message = message_helpers.create_message(message_name)
         self.assertEqual(type(message), expected_class)
 
     @parameterized.named_parameters(
         ('bad case', 'reaction'),
-        ('gibberish', 'aosdifjasdf'),
-    )
-    def test_valid_messages(self, message_name):
+        ('gibberish', 'aosdifjasdf'))
+    def test_invalid_messages(self, message_name):
         with self.assertRaisesRegex(ValueError, 'Cannot resolve'):
-            message = message_helpers.create_message(message_name)
+            message_helpers.create_message(message_name)
 
 
 if __name__ == '__main__':
