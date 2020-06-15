@@ -23,6 +23,7 @@ message Scalar {
     optional float float_value = 3;
     string string_value = 4;
     bytes bytes_value = 5;
+    optional bool bool_value = 6;
 }
 
 message RepeatedScalar {
