@@ -22,7 +22,7 @@ UPSTREAM="https://github.com/Open-Reaction-Database/${GITHUB_REPOSITORY##*/}.git
 git remote add upstream "${UPSTREAM}"
 echo "Current branch: $(git rev-parse --abbrev-ref HEAD)"
 git fetch --no-tags --prune --depth=1 upstream +refs/heads/*:refs/remotes/upstream/*
-git diff --name-status upstream/master > changed_files.txt
+git diff --name-status upstream/main > changed_files.txt
 echo "Found $(wc -l < changed_files.txt | tr -d ' ') changed files"
 cat changed_files.txt
 # Use `|| [[ $? == 1 ]]` in case no lines match and the exit code is nonzero.

@@ -27,11 +27,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Colab Badge Action
-      uses: skearnes/colab-badge-action@master
+      uses: skearnes/colab-badge-action@v2
       with:
         check: all
         update: True
-        target_branch: master
+        target_branch: main
         target_repository: Open-Reaction-Database/ord-schema
     - name: Commit and push changes
       run: |
