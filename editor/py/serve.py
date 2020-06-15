@@ -22,10 +22,10 @@ import json
 
 import flask
 
-from gen.py.ord_schema.proto import dataset_pb2
-from gen.py.ord_schema.proto import reaction_pb2
-from gen.py.ord_schema import message_helpers
-from gen.py.ord_schema import validations
+from ord_schema.proto import dataset_pb2
+from ord_schema.proto import reaction_pb2
+from ord_schema import message_helpers
+from ord_schema import validations
 
 from google.protobuf import text_format
 
@@ -274,6 +274,7 @@ def compare(file_name):
   remote_ascii = text_format.MessageToString(remote)
   local_ascii = text_format.MessageToString(local)
   if remote_ascii != local_ascii:
+    print(remote_ascii)
     return 'differs', 409  # "Conflict"
   return 'equals'
 

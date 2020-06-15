@@ -1,27 +1,37 @@
-protobuf = protobuf-3.12.0
+# Use HEAD: git clone git@github.com:protocolbuffers/protobuf.git
+protobuf = protobuf
 
-protoc_version = $(shell protoc --version | sed 's/.* //')
-protobuf_version = $(shell echo $(protobuf) | sed 's/.*-//')
+# cd protobuf && ./autogen.sh && ./configure && make
+# protoc = protobuf/src/protoc
 
+# Instead of compiling, use these committed protoc binaries.
+UNAME = $(shell uname)
+ifeq ($(UNAME), Linux)
+  protoc = protobuf/bin/protoc.elf
+else ifeq ($(UNAME), Darwin)
+  protoc = protobuf/bin/protoc.mach-o
+else
+  $(error protoc not found)
+endif
+
+# https://github.com/google/closure-library/releases/
 closure = closure-library-20200517
 
 all : prep py js
 
 prep :
 	# Ensure output directories exist.
-	mkdir -p gen/py gen/js/ord gen/js/proto/ord
+	mkdir -p gen/js/ord gen/js/proto/ord
 	# Prevent Closure from compiling test code.
 	rm -rf $(protobuf)/js/binary/*test* $(protobuf)/js/*test* $(protobuf)/js/experimental
-	# Ensure the proto compiler matches the proto runtime JS.
-	if [ $(protoc_version) != $(protobuf_version) ]; then false; fi
 
 js : gen/js/proto/ord/dataset.js \
 	   gen/js/proto/ord/reaction.js \
 	   gen/js/ord/dataset.js \
 	   gen/js/ord/reaction.js \
 
-py : gen/py/ord_schema/proto/dataset_pb2.py \
-	   gen/py/ord_schema/proto/reaction_pb2.py
+py : ../build/lib/ord_schema/proto/dataset_pb2.py \
+	   ../build/lib/ord_schema/proto/reaction_pb2.py
 
 gen/js/ord/dataset.js : js/dataset.js gen/js/proto/ord/dataset.js
 	$(closure)/closure/bin/build/closurebuilder.py \
@@ -46,30 +56,28 @@ gen/js/ord/reaction.js : js/*.js gen/js/proto/ord/reaction.js
 	  || (rm -f gen/js/ord/reaction.js && false)
 
 gen/js/proto/ord/%.js : ../../ord-schema/proto/%.proto
-	protoc \
+	$(protoc) \
 	  --experimental_allow_proto3_optional \
 	  --js_out=binary:gen/js/proto/ord \
 	  --proto_path=../.. \
 	  $<
 
-gen/py/ord_schema/proto/%_pb2.py : ../../ord-schema/proto/%.proto
-	protoc \
-	  --experimental_allow_proto3_optional \
-	  --python_out=gen/py \
-	  --proto_path=../.. \
-	$<
+../build/lib/ord_schema/proto/%_pb2.py : ../proto/%.proto
+	$(error $< not found--run setup?)
 
 package : all
 	rm -rf package
 	mkdir -p package/ord
 
 	cp -r \
-		css \
+	  css \
 	  gen \
 	  html \
 	  py \
 	  serve.sh \
 	  package/ord
+
+	cp -r ../build/lib/ord_schema package/ord/py
 
 	tar --create --directory=package --gzip --file=package/ord.tgz ord
 

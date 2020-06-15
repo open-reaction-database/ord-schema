@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-export PYTHONPATH=py:gen/py
+export PYTHONPATH=py:../build/lib
 export FLASK_APP=serve.py
 export FLASK_ENV=development
 
