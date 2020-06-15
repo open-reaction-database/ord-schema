@@ -316,9 +316,8 @@ class CreateMessageTest(parameterized.TestCase, absltest.TestCase):
         message = message_helpers.create_message(message_name)
         self.assertEqual(type(message), expected_class)
 
-    @parameterized.named_parameters(
-        ('bad case', 'reaction'),
-        ('gibberish', 'aosdifjasdf'))
+    @parameterized.named_parameters(('bad case', 'reaction'),
+                                    ('gibberish', 'aosdifjasdf'))
     def test_invalid_messages(self, message_name):
         with self.assertRaisesRegex(ValueError, 'Cannot resolve'):
             message_helpers.create_message(message_name)
