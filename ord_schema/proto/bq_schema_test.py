@@ -48,6 +48,11 @@ class BqSchemaTest(absltest.TestCase):
                 'type': 'BYTES',
                 'mode': 'NULLABLE'
             },
+            {
+                'name': 'bool_value',
+                'type': 'BOOL',
+                'mode': 'NULLABLE'
+            },
         ]
         self.assertEqual(schema, expected)
 
