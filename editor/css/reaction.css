@@ -47,8 +47,11 @@ body {
   background-color: lightgreen;
   margin-top: 12px;
 }
-#save, #validate, #validate_status {
+#save, #validate_status {
   background-color: lightgray;
+}
+#validate {
+  background-color: lightblue;
 }
 .remove, #delete {
   background-color: pink;

@@ -65,16 +65,22 @@ function listen(node) {
   $('.edittext').on('focus', event => selectText(event.target));
 }
 
+function unvalidated() {
+  $('#validate').css('visibility', 'visible');
+}
+
+function validated() {
+  $('#validate').css('visibility', 'hidden');
+}
+
 function dirty() {
   $('#save').css('visibility', 'visible');
-  $('#validate').css('visibility', 'visible');
+  unvalidated();
 }
 
 function clean() {
   $('#save').css('visibility', 'hidden');
-  $('#validate').css('visibility', 'hidden');
   $('#save').text('save');
-  $('#validate').text('validate');
 }
 
 function selectText(node) {
@@ -88,7 +94,7 @@ function selectText(node) {
 // note: does not commit or save anything!
 function validateReaction() {
   const xhr = new XMLHttpRequest();
-  xhr.open('POST', '/dataset/proto/validate');
+  xhr.open('POST', '/dataset/proto/validate/Reaction');
   const reaction = unloadReaction();
   const binary = reaction.serializeBinary();
 
@@ -109,6 +115,7 @@ function validateReaction() {
     }
   };
   xhr.send(binary);
+  validated();
 }
 
 function commit() {

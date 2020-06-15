@@ -24,6 +24,8 @@ import flask
 
 from gen.py.ord_schema.proto import dataset_pb2
 from gen.py.ord_schema.proto import reaction_pb2
+from gen.py.ord_schema import message_helpers
+from gen.py.ord_schema import validations
 
 from google.protobuf import text_format
 
@@ -240,16 +242,14 @@ def read_upload(token):
                          as_attachment=True, attachment_filename=token)
 
 
-@app.route('/dataset/proto/validate', methods=['POST'])
-def validate_reaction():
+@app.route('/dataset/proto/validate/<message_name>', methods=['POST'])
+def validate_reaction(message_name):
   """Receives a serialized Reaction protobuf and runs validations."""
-  reaction = reaction_pb2.Reaction()
-  reaction.ParseFromString(flask.request.get_data())
-  print(reaction)
-  # TODO validate and send
-  # resolve_tokens(reaction)
-  # put_dataset(file_name, reaction)
-  errors = ["an error", "another error"]
+  
+  # TODO(ccoley) where is appropriate place to handle errors?
+  message = message_helpers.create_message(message_name)
+  message.ParseFromString(flask.request.get_data())
+  errors = validations.validate_message(message, raise_on_error=False)
   return json.dumps(errors)
 
 
