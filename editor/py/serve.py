@@ -21,8 +21,8 @@ import re
 
 import flask
 
-from gen.py.ord_schema.proto import dataset_pb2
-from gen.py.ord_schema.proto import reaction_pb2
+from ord_schema.proto import dataset_pb2
+from ord_schema.proto import reaction_pb2
 
 from google.protobuf import text_format
 
@@ -260,6 +260,7 @@ def compare(file_name):
   remote_ascii = text_format.MessageToString(remote)
   local_ascii = text_format.MessageToString(local)
   if remote_ascii != local_ascii:
+    print(remote_ascii)
     return 'differs', 409  # "Conflict"
   return 'equals'
 
