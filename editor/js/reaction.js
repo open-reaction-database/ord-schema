@@ -91,12 +91,13 @@ function selectText(node) {
   selection.addRange(range);
 }
 
+// Generic validator for many message types, not just reaction
 // note: does not commit or save anything!
-function validateReaction() {
+function validate(message, messageTypeString) {
+  // eg message is a type of reaction, messageTypeString = "Reaction"
   const xhr = new XMLHttpRequest();
-  xhr.open('POST', '/dataset/proto/validate/Reaction');
-  const reaction = unloadReaction();
-  const binary = reaction.serializeBinary();
+  xhr.open('POST', '/dataset/proto/validate/' + messageTypeString);
+  const binary = message.serializeBinary();
 
   xhr.responseType = 'json';
   xhr.onload = function (event) {
@@ -116,6 +117,11 @@ function validateReaction() {
   };
   xhr.send(binary);
   validated();
+}
+
+function validateReaction() {
+  const reaction = unloadReaction();
+  validate(reaction, "Reaction");
 }
 
 function commit() {
