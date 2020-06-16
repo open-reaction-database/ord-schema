@@ -40,9 +40,7 @@ v20200517](https://github.com/google/closure-library/releases/).
 Unpack both protobuf and closure-library in this directory so that make can
 find them. For the sake of automated testing, statically linked protobuf
 dependencies built at GitHub commit 1dae8fdd have been built for Mac and Linux
-and are available for download at
-
-https://storage.cloud.google.com/open-reaction-database/editor/test/protobuf_1dae8fdd.tgz
+and are available for download [here](https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar).
 
 To install the python packages,
 
