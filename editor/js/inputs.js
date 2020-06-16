@@ -133,7 +133,7 @@ ord.inputs.add = function (root, addHandlers = true) {
 
 ord.inputs.addValidationHandler = function (node) {
   handler = function() {
-    const input = ord.inputs.unloadInputUnnamed(this);
+    const input = ord.inputs.unloadInputUnnamed(node);
     validate(input, "ReactionInput");
   };
   addChangeHandler(node, handler);
