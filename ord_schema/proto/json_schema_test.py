@@ -42,6 +42,9 @@ class JsonSchemaTest(absltest.TestCase):
                 },
                 'bytes_value': {
                     'type': 'string'
+                },
+                'bool_value': {
+                    'type': 'boolean'
                 }
             },
             'additionalProperties': False,
