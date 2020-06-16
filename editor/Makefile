@@ -5,7 +5,7 @@ protobuf = protobuf
 # protoc = protobuf/src/protoc
 
 # Instead of compiling, use these prebuilt protoc binaries available at
-# https://storage.cloud.google.com/open-reaction-database/editor/test/protobuf_1dae8fdd.tgz
+# https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
 # The hex identifies the GitHub commit of the build.
 UNAME = $(shell uname)
 ifeq ($(UNAME), Linux)
