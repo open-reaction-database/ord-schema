@@ -14,19 +14,20 @@ This starts service at [http://localhost:5000/](http://localhost:5000/).
 
 ## Dependencies
 
+Everything requires Python 3.
+
 The build needs:
+* built ord-schema python code;
 * the `protoc` protobuf compiler;
 * the protobuf runtime libraries for Javascript; and
 * the Closure Library for Javascript.
 
 Serving depends on:
-* the protobuf python package; and
 * the Flask python web framework.
 
-And everything requires Python 3.
+To build the ord-schema python code, follow the instructions [here](https://github.com/Open-Reaction-Database/ord-schema/blob/main/README.md).
 
-The editor currently requires HEAD protobuf to get experimental "optional"
-declarations in proto3.
+The editor currently requires HEAD protobuf (to get experimental "optional" declarations) for the protobuf compiler and Javascript runtime libraries.
 
 ```
 $ git clone git@github.com:protocolbuffers/protobuf.git
@@ -34,19 +35,20 @@ $ cd protobuf
 $ ./autogen.sh && ./configure && make
 ````
 
+(For the sake of automated testing, statically linked protobuf
+dependencies built at GitHub commit 1dae8fdd have been built for Mac and Linux
+and are available for download [here](https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar).)
+
 The editor has been tested with [Closure
 v20200517](https://github.com/google/closure-library/releases/).
 
 Unpack both protobuf and closure-library in this directory so that make can
-find them. For the sake of automated testing, statically linked protobuf
-dependencies built at GitHub commit 1dae8fdd have been built for Mac and Linux
-and are available for download [here](https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar).
+find them.
 
-To install the python packages,
+To install the python packages for serving,
 
 ```
 $ pip install flask
-$ pip install protobuf
 ```
 
 ## Testing and Validation
