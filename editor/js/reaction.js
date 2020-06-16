@@ -91,6 +91,15 @@ function selectText(node) {
   selection.addRange(range);
 }
 
+// Adds a handler to a node such that the handler is run once 
+// whenever data entry within that node is changed.
+function addChangeHandler (node, handler) {
+  // For changes in dropbown, radio button, and checkbox selection:
+  node.on("change", handler);
+  // For changes in text field, additions, and removals:
+  node.on("DOMSubtreeModified", handler);
+}
+
 // Generic validator for many message types, not just reaction
 // note: does not commit or save anything!
 function validate(message, messageTypeString) {

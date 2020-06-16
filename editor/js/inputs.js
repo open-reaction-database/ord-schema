@@ -126,16 +126,14 @@ ord.inputs.unloadInputUnnamed = function (node) {
 ord.inputs.add = function (root, addHandlers = true) {
   const newNode = addSlowly('#input_template', root);
   if (addHandlers) {
-    ord.inputs.addValidationHandlers(newNode);
+    ord.inputs.addValidationHandler(newNode);
   }
   return newNode;
 };
 
-// TODO make a generic function for various message types, not just for inputs
-ord.inputs.addValidationHandlers = function (node) {
-  console.log("adding handlers");
-  node.on("change", function() {console.log("input changed: change event jquery triggered"); ord.inputs.validateInput(this)});
-  node.on("DOMSubtreeModified", function() {console.log("input changed: DOM subtree modified" ); ord.inputs.validateInput(this)});
+ord.inputs.addValidationHandler = function (node) {
+  handler = function() {ord.inputs.validateInput(this)};
+  addChangeHandler(node, handler);
 }
 
 ord.inputs.validateInput = function (node) {
