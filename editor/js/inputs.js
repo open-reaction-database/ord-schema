@@ -120,11 +120,16 @@ ord.inputs.unloadInputUnnamed = function (node) {
 };
 
 ord.inputs.add = function (root) {
-  return addSlowly('#input_template', root);
+  const newNode = addSlowly('#input_template', root);
+  // TODO move the following two functions into their own method
+  // TODO only run the function in the handlers once the form is done loading
+  // (perhaps only attach the handlers after the form is done loading?)
+  newNode.on("change", function() {console.log("input changed: change event jquery triggered"); ord.inputs.validateInput(this)});
+  newNode.on("DOMSubtreeModified", function() {console.log("input changed: DOM subtree modified" ); ord.inputs.validateInput(this)});
+  return newNode;
 };
 
 ord.inputs.validateInput = function (node) {
-  // node = $('.input').last();
-  input = ord.inputs.unloadInputUnnamed(node);
+  const input = ord.inputs.unloadInputUnnamed(node);
   validate(input, "ReactionInput");
 }
