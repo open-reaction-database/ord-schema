@@ -36,7 +36,7 @@ ord.inputs.loadInput = function (root, name, input) {
   ord.inputs.loadInputUnnamed(node, input);
   $('.input_name', node).text(name);
   // TODO validate here yet? or wait til first change?
-  ord.inputs.addValidationHandlers(node);
+  ord.inputs.addValidationHandler(node);
 };
 
 ord.inputs.loadInputUnnamed = function (node, input) {
@@ -132,11 +132,9 @@ ord.inputs.add = function (root, addHandlers = true) {
 };
 
 ord.inputs.addValidationHandler = function (node) {
-  handler = function() {ord.inputs.validateInput(this)};
+  handler = function() {
+    const input = ord.inputs.unloadInputUnnamed(this);
+    validate(input, "ReactionInput");
+  };
   addChangeHandler(node, handler);
-}
-
-ord.inputs.validateInput = function (node) {
-  const input = ord.inputs.unloadInputUnnamed(node);
-  validate(input, "ReactionInput");
 }

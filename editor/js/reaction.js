@@ -91,7 +91,7 @@ function selectText(node) {
   selection.addRange(range);
 }
 
-// Adds a handler to a node such that the handler is run once 
+// Adds a jQuery handler to a node such that the handler is run once 
 // whenever data entry within that node is changed.
 function addChangeHandler (node, handler) {
   // For changes in dropbown, radio button, and checkbox selection:
