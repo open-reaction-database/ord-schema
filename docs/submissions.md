@@ -11,7 +11,7 @@ created by the user. We have examples of how to do this
 After creating a set of `Reaction` messages, they must be grouped together into
 one or more `Dataset` messages. This can be done programmatically or with the
 provided
-[build_dataset.py](https://github.com/Open-Reaction-Database/ord-schema/blob/master/ord_schema/scripts/build_dataset.py)
+[build_dataset.py](https://github.com/Open-Reaction-Database/ord-schema/blob/main/ord_schema/scripts/build_dataset.py)
 script. Here's an example:
 
 ```shell
@@ -34,7 +34,7 @@ The [ord_schema](https://github.com/Open-Reaction-Database/ord-schema)
 repository contains scripts for validating submitted data. If you did not use
 the build_dataset.py script (which automatically) validates the `Dataset`, you
 should run the
-[validate_dataset.py](https://github.com/Open-Reaction-Database/ord-schema/blob/master/ord_schema/scripts/validate_dataset.py)
+[validate_dataset.py](https://github.com/Open-Reaction-Database/ord-schema/blob/main/ord_schema/scripts/validate_dataset.py)
 script manually to identify and fix any validation errors prior to moving to the
 next stage of the submission workflow:
 
@@ -59,8 +59,8 @@ new dataset:
 ```shell
 $ cd "${REPOSITORY}"
 # Make sure your clone is up to date.
-$ git checkout master
-$ git pull --rebase upstream master
+$ git checkout main
+$ git pull --rebase upstream main
 # Create a new branch for the submission.
 $ git checkout -b my_submission
 # Copy the new dataset into your fork.
