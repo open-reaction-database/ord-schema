@@ -67,26 +67,28 @@ jobs:
           pip install treon
           treon
         
-#  test_editor:
-#    runs-on: ubuntu-latest
-#    steps:
-#    - uses: actions/checkout@v2
-#    - uses: actions/setup-python@v2
-#    - uses: actions/setup-node@v1.4.2
-#    - name: Install dependencies
-#      run: |
-#        cd "${GITHUB_WORKSPACE}"
-#        pip install -r requirements.txt
-#        pip install flask
-#        cd "${GITHUB_WORKSPACE}/editor"
-#        npm install google-protobuf puppeteer
-#        wget https://github.com/protocolbuffers/protobuf/releases/download/v3.12.0/protobuf-all-3.12.0.tar.gz
-#        tar -xzf protobuf-all-3.12.0.tar.gz
-#        wget https://github.com/google/closure-library/archive/v20200517.tar.gz
-#        tar -xzf v20200517.tar.gz
-#    - name: Build editor and run tests
-#      run: |
-#        cd "${GITHUB_WORKSPACE}/editor"
-#        make
-#        ./serve.sh &
-#        make test
+  test_editor:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+    - uses: actions/setup-node@v1.4.2
+    - name: Install dependencies
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        pip install -r requirements.txt
+        python setup.py install
+        pip install flask
+        cd "${GITHUB_WORKSPACE}/editor"
+        npm install google-protobuf puppeteer
+        wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
+        tar -xzf editor_test_protobuf_1dae8fdd.tar
+        wget https://github.com/google/closure-library/archive/v20200517.tar.gz
+        tar -xzf v20200517.tar.gz
+    - name: Build editor and run tests
+      run: |
+        cd "${GITHUB_WORKSPACE}/editor"
+        make
+        ./serve.sh &
+        sleep 5  # Time for the server to get ready.
+        make test
