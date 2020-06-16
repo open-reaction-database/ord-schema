@@ -4,7 +4,9 @@ protobuf = protobuf
 # cd protobuf && ./autogen.sh && ./configure && make
 # protoc = protobuf/src/protoc
 
-# Instead of compiling, use these committed protoc binaries.
+# Instead of compiling, use these prebuilt protoc binaries available at
+# https://storage.cloud.google.com/open-reaction-database/editor/test/protobuf_1dae8fdd.tgz
+# The hex identifies the GitHub commit of the build.
 UNAME = $(shell uname)
 ifeq ($(UNAME), Linux)
   protoc = protobuf/bin/protoc.elf

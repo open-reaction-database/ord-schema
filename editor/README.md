@@ -26,7 +26,7 @@ Serving depends on:
 And everything requires Python 3.
 
 The editor currently requires HEAD protobuf to get experimental "optional"
-declarations in proto3,
+declarations in proto3.
 
 ```
 $ git clone git@github.com:protocolbuffers/protobuf.git
@@ -38,9 +38,11 @@ The editor has been tested with [Closure
 v20200517](https://github.com/google/closure-library/releases/).
 
 Unpack both protobuf and closure-library in this directory so that make can
-find them. For the sake of automated testing, protobuf at 1dae8fdd has
-already been built for Mac and Linux, and its JS runtime and statically linked
-protoc compiler have been committed to git.
+find them. For the sake of automated testing, statically linked protobuf
+dependencies built at GitHub commit 1dae8fdd have been built for Mac and Linux
+and are available for download at
+
+https://storage.cloud.google.com/open-reaction-database/editor/test/protobuf_1dae8fdd.tgz
 
 To install the python packages,
 
