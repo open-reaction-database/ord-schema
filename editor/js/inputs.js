@@ -122,3 +122,9 @@ ord.inputs.unloadInputUnnamed = function (node) {
 ord.inputs.add = function (root) {
   return addSlowly('#input_template', root);
 };
+
+ord.inputs.validateInput = function (node) {
+  // node = $('.input').last();
+  input = ord.inputs.unloadInputUnnamed(node);
+  validate(input, "ReactionInput");
+}

@@ -38,7 +38,7 @@ limitations under the License.
         <div id="delete" class="remove" style="float: none;" onclick="location.href='/dataset/{{ file_name }}/delete/reaction/{{ index }}';">delete</div>
       </div>
       <div>
-        <div id="validate" onclick="validateReaction();">validate reaction</div>
+        <div id="validate" class="validate" onclick="validateReaction();">validate reaction</div>
       </div>
       <div>
         status: <div id="validate_status">unvalidated</div>
@@ -90,6 +90,7 @@ limitations under the License.
               <fieldset>
                 <legend>Input</legend>
                 <span class="input_name_label">name</span><div class="input_name edittext"></div>
+                <div onclick="ord.inputs.validateInput($(this).closest('.input'))" class="validate">validate</div>
                 <div onclick="removeSlowly(this, '.input');" class="remove">remove</div>
                 <div>
                   <div class="components"></div>
