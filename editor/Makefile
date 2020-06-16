@@ -57,14 +57,14 @@ gen/js/ord/reaction.js : js/*.js gen/js/proto/ord/reaction.js
 	  --output_file=gen/js/ord/reaction.js \
 	  || (rm -f gen/js/ord/reaction.js && false)
 
-gen/js/proto/ord/%.js : ../../ord-schema/proto/%.proto
+gen/js/proto/ord/%.js : ../ord_schema/proto/%.proto
 	$(protoc) \
 	  --experimental_allow_proto3_optional \
 	  --js_out=binary:gen/js/proto/ord \
-	  --proto_path=../.. \
+	  --proto_path=.. \
 	  $<
 
-../build/lib/ord_schema/proto/%_pb2.py : ../proto/%.proto
+../build/lib/ord_schema/proto/%_pb2.py : ../ord_schema/proto/%.proto
 	$(error $< not found--run setup?)
 
 package : all
