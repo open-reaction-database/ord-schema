@@ -32,7 +32,7 @@ from ord_schema.proto import reaction_pb2
 DATA_PREFIX = 'ord_data-'
 DATA_REPO = 'ord-submissions-test'
 DATA_URL_PREFIX = (
-    f'https://github.com/Open-Reaction-Database/{DATA_REPO}/tree/master')
+    f'https://github.com/Open-Reaction-Database/{DATA_REPO}/tree/main')
 
 
 def write_data(message, dirname, min_size=0.0, max_size=1.0):
@@ -93,7 +93,7 @@ def extract_data(message, root, min_size=0.0, max_size=1.0):
 
         1. Modify the URL just before or after the PR is merged to point to the
            correct branch.
-        2. Modify the URL to point to its eventual destination (in the `master`
+        2. Modify the URL to point to its eventual destination (in the `main`
            branch) and deal with broken links during submission review, or
         3. Use relative paths (relative to the repository root). This means that
            users will have to traverse the repo manually to access referenced

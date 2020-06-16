@@ -109,7 +109,7 @@ during submission to the database.
 ```
 
 The full definition of each of these fields (and any subfields) is contained in
-the [protocol buffer definition files](https://github.com/Open-Reaction-Database/ord-schema/tree/master/proto)
+the [protocol buffer definition files](https://github.com/Open-Reaction-Database/ord-schema/tree/main/proto)
 on GitHub.
 
 ## Supplementary data for machine learning
@@ -143,7 +143,7 @@ Python classes.
 mass = schema.Mass(value=1.25, units='GRAM')
 ```
 
-We have also defined a variety of [message helpers](https://github.com/Open-Reaction-Database/ord-schema/blob/master/ord_schema/message_helpers.py)
+We have also defined a variety of [message helpers](https://github.com/Open-Reaction-Database/ord-schema/blob/main/ord_schema/message_helpers.py)
 that facilitate the definition of these objects, e.g., a unit resolver that
 operates on strings:
 
@@ -156,7 +156,7 @@ mass = resolver.resolve('1.25 g')
 
 We have defined a handful of examples showing how to use the full reaction
 schema in a Jupyter/Colab notebook. One example is
-[here](https://github.com/Open-Reaction-Database/ord-schema/blob/master/examples/2_Nielsen_Deoxyfluorination_Screen/example_nielsen.ipynb).
+[here](https://github.com/Open-Reaction-Database/ord-schema/blob/main/examples/2_Nielsen_Deoxyfluorination_Screen/example_nielsen.ipynb).
 
 If you're interested in using the schema in your own notebook, here's a helpful
 snippet to install the `ord_schema` package directly from GitHub:
@@ -184,8 +184,8 @@ is ready and will release the underlying code under an Apache license.
 Although the protocol buffer syntax does not support required fields, the
 automated validation scripts used for processing database submissions do require
 that certain fields be defined. Schema validation functions are defined in the 
-[validations](https://github.com/Open-Reaction-Database/ord-schema/blob/master/ord_schema/validations.py) module.
-The [validate_dataset.py](https://github.com/Open-Reaction-Database/ord-schema/blob/master/ord_schema/scripts/validate_dataset.py) script
+[validations](https://github.com/Open-Reaction-Database/ord-schema/blob/main/ord_schema/validations.py) module.
+The [validate_dataset.py](https://github.com/Open-Reaction-Database/ord-schema/blob/main/ord_schema/scripts/validate_dataset.py) script
 can be used to validate one or more `Dataset` messages.
 
 This section describes the validations that are applied to each message type,

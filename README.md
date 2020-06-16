@@ -1,6 +1,6 @@
 # Open Reaction Database: Schema (ord-schema)
 
-![CI](https://github.com/Open-Reaction-Database/ord-schema/workflows/CI/badge.svg?branch=master)
+![CI](https://github.com/Open-Reaction-Database/ord-schema/workflows/CI/badge.svg?branch=main)
 
 This repository contains the schema for the Open Reaction Database initiative, based in part on survey of importance ([summary](https://docs.google.com/spreadsheets/d/1waPzYvDKlb6TAwgsM7bLc7dhZnJ8G-WtVxJSlMhiVK0/edit)). For more details on the database, please see the documentation at http://open-reaction-database.org.
 
@@ -15,7 +15,7 @@ install `ord-schema` in a conda environment.
 
 1. Clone the `ord-schema` repository to your local machine. If you are planning to contribute changes,
    you should fork the repository first
-   (see [Contributing](https://github.com/Open-Reaction-Database/ord-schema/blob/master/CONTRIBUTING.md)).
+   (see [Contributing](https://github.com/Open-Reaction-Database/ord-schema/blob/main/CONTRIBUTING.md)).
 1. Install Anaconda or Miniconda ([instructions](https://docs.conda.io/projects/conda/en/latest/user-guide/install/)).
 1. Run the following commands to install `ord-schema`:
 
