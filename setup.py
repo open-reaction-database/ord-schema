@@ -36,9 +36,8 @@ class BuildPyCommand(build_py.build_py):
                 protoc,
                 # https://github.com/protocolbuffers/protobuf/blob/master/docs/field_presence.md
                 '--experimental_allow_proto3_optional',
-                '--proto_path=..',
-                '--python_out=.',
-                os.path.join('ord-schema', source)
+                '--python_out=ord_schema',
+                source
             ]
             self.announce(f'running {protoc_command}')
             subprocess.check_call(protoc_command)
