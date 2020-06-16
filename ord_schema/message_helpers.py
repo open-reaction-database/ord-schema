@@ -30,7 +30,6 @@ except ImportError:
     Chem = None
     RDKIT_VERSION = None
 
-
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
 
