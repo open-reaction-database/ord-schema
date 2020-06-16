@@ -30,9 +30,13 @@ ord.inputs.load = function (inputs) {
 };
 
 ord.inputs.loadInput = function (root, name, input) {
-  const node = ord.inputs.add(root);
+   // on-change validation handlers are added after all inputs are fully loaded
+   // to prevent a flood of validation requests during loading
+  const node = ord.inputs.add(root, false); 
   ord.inputs.loadInputUnnamed(node, input);
   $('.input_name', node).text(name);
+  // TODO validate here yet? or wait til first change?
+  ord.inputs.addValidationHandlers(node);
 };
 
 ord.inputs.loadInputUnnamed = function (node, input) {
@@ -119,15 +123,20 @@ ord.inputs.unloadInputUnnamed = function (node) {
   return input;
 };
 
-ord.inputs.add = function (root) {
+ord.inputs.add = function (root, addHandlers = true) {
   const newNode = addSlowly('#input_template', root);
-  // TODO move the following two functions into their own method
-  // TODO only run the function in the handlers once the form is done loading
-  // (perhaps only attach the handlers after the form is done loading?)
-  newNode.on("change", function() {console.log("input changed: change event jquery triggered"); ord.inputs.validateInput(this)});
-  newNode.on("DOMSubtreeModified", function() {console.log("input changed: DOM subtree modified" ); ord.inputs.validateInput(this)});
+  if (addHandlers) {
+    ord.inputs.addValidationHandlers(newNode);
+  }
   return newNode;
 };
+
+// TODO make a generic function for various message types, not just for inputs
+ord.inputs.addValidationHandlers = function (node) {
+  console.log("adding handlers");
+  node.on("change", function() {console.log("input changed: change event jquery triggered"); ord.inputs.validateInput(this)});
+  node.on("DOMSubtreeModified", function() {console.log("input changed: DOM subtree modified" ); ord.inputs.validateInput(this)});
+}
 
 ord.inputs.validateInput = function (node) {
   const input = ord.inputs.unloadInputUnnamed(node);
