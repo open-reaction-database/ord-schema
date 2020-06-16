@@ -90,4 +90,5 @@ jobs:
         cd "${GITHUB_WORKSPACE}/editor"
         make
         ./serve.sh &
+        sleep 5  # Time for the server to get ready.
         make test
