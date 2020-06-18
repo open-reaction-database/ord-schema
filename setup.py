@@ -31,14 +31,13 @@ class BuildPyCommand(build_py.build_py):
         protoc = spawn.find_executable('protoc')
         if not protoc:
             raise RuntimeError('cannot find protoc')
-        for source in glob.glob('proto/*.proto'):
+        for source in glob.glob('ord_schema/proto/*.proto'):
             protoc_command = [
                 protoc,
                 # https://github.com/protocolbuffers/protobuf/blob/master/docs/field_presence.md
                 '--experimental_allow_proto3_optional',
-                '--proto_path=..',
                 '--python_out=.',
-                os.path.join('ord-schema', source)
+                source
             ]
             self.announce(f'running {protoc_command}')
             subprocess.check_call(protoc_command)

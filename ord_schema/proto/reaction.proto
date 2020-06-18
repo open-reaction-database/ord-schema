@@ -184,7 +184,7 @@ message Compound {
   // total volume of the reaction input. An example of when this field should
   // be TRUE is when stock solutions are prepared by adding solvent to a
   // volumetric flask already containing solute(s).
-  Boolean.BooleanValue volume_includes_solutes = 14;
+  optional bool volume_includes_solutes = 14;
   message ReactionRole {
     enum ReactionRoleType {
       UNSPECIFIED = 0;
@@ -209,7 +209,7 @@ message Compound {
   }
   ReactionRole.ReactionRoleType reaction_role = 5;
   // Whether this species was intended to be a limiting reactant.
-  Boolean.BooleanValue is_limiting = 6;
+  optional bool is_limiting = 6;
   repeated CompoundPreparation preparations = 7;
   // Name of the vendor or supplier the compound was purchased from.
   string vendor_source = 8;
@@ -407,7 +407,7 @@ message VesselPreparation {
 message ReactionSetup {
   Vessel vessel = 1;
   // Specification of automated protocols.
-  Boolean.BooleanValue is_automated = 2;
+  optional bool is_automated = 2;
   // Automated platform name, brand, or model number.
   string automation_platform = 3;
   // Raw automation code or synthetic recipe definition.
@@ -436,11 +436,11 @@ message ReactionConditions {
   IlluminationConditions illumination = 4;
   ElectrochemistryConditions electrochemistry = 5;
   FlowConditions flow = 6;
-  Boolean.BooleanValue reflux = 7;
+  optional bool reflux = 7;
   optional float pH = 8;
   // Boolean to describe whether the conditions cannot be
   // represented by the static, single-step schema.
-  Boolean.BooleanValue conditions_are_dynamic = 9;
+  optional bool conditions_are_dynamic = 9;
   // A catch-all string field for providing more information about
   // the conditions (e.g., multiple stages)
   string details = 10;
@@ -670,16 +670,16 @@ message FlowConditions {
 
 message ReactionNotes {
   // Equivalent to "not single phase".
-  Boolean.BooleanValue is_heterogeneous = 1;
+  optional bool is_heterogeneous = 1;
   // Qualitative precipitation. Could be desired or by-product.
-  Boolean.BooleanValue forms_precipitate = 2;
+  optional bool forms_precipitate = 2;
   // Qualitative exothermicity (primarily for safety).
-  Boolean.BooleanValue is_exothermic = 3;
+  optional bool is_exothermic = 3;
   // Qualitative offgassing (primarily for safety).
-  Boolean.BooleanValue offgasses = 4;
-  Boolean.BooleanValue is_sensitive_to_moisture = 5;
-  Boolean.BooleanValue is_sensitive_to_oxygen = 6;
-  Boolean.BooleanValue is_sensitive_to_light = 7;
+  optional bool offgasses = 4;
+  optional bool is_sensitive_to_moisture = 5;
+  optional bool is_sensitive_to_oxygen = 6;
+  optional bool is_sensitive_to_light = 7;
   // Include additional sensitivity issues, e.g., shock or heat.
   // Include toxicity and other safety warnings.
   string safety_notes = 8;
@@ -765,7 +765,7 @@ message ReactionWorkup {
   // Indicate automated workup/purification. Include specifications in 
   // "details", e.g., instrument manufacturer, solvent gradient 
   // (if applicable), column material and size, etc.
-  Boolean.BooleanValue is_automated = 10;
+  optional bool is_automated = 10;
 }
 
 /**
@@ -794,7 +794,7 @@ message ReactionOutcome {
 
 message ReactionProduct {
   Compound compound = 1;
-  Boolean.BooleanValue is_desired_product = 2;
+  optional bool is_desired_product = 2;
   Percentage compound_yield = 3;
   Percentage purity = 4;
   Selectivity selectivity = 5;
@@ -897,13 +897,13 @@ message ReactionAnalysis {
   DateTime instrument_last_calibrated = 7;
   // Whether an internal standard was used with this analytical technique for
   // quantification, e.g., of yield.
-  Boolean.BooleanValue uses_internal_standard = 8;
+  optional bool uses_internal_standard = 8;
   // Whether an authentic sample of a material was used for callibrating
   // an analytical technique, e.g., for product identification by LCMS.
   // "Authentic" refers to a sample of a compound whose structure has been
   // proven by the accepted means (1H NMR, 13C NMR, IR, HRMS), and is now
   // being used as a comparison for other analytical methods.
-  Boolean.BooleanValue uses_authentic_standard = 9;
+  optional bool uses_authentic_standard = 9;
 }
 
 message ReactionProvenance {
@@ -1114,18 +1114,4 @@ message Data {
   // Description of the file format (if applicable); usually the file extension.
   // For example, 'png' or 'tiff' for images. If empty, we assume string data.
   string format = 7;
-}
-
-// Boolean is an alternative to using the bool primitive type so that it is
-// possible to distinguish between false (default) and unspecified values.
-// Note that it is still possible for fields in the proto to use the assignment
-// operator to set a True/False value, which will resolve to 1/0. To explicitly
-// set the value to False, Boolean.FALSE must be used instead.
-message Boolean {
-  enum BooleanValue {
-    UNSPECIFIED = 0;
-    TRUE = 1;
-    FALSE = 2;
-  }
-  BooleanValue value = 1;
 }

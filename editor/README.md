@@ -25,11 +25,22 @@ Serving depends on:
 
 And everything requires Python 3.
 
-The editor has been tested with [protobuf
-3.12.0](https://github.com/protocolbuffers/protobuf/releases) and [Closure
-v20200517](https://github.com/google/closure-library/releases/). Unpack these
-in this directory so that make can find them. The Makefile will look for protoc
-in your PATH so it may not be necessary to compile protobuf.
+The editor currently requires HEAD protobuf to get experimental "optional"
+declarations in proto3.
+
+```
+$ git clone git@github.com:protocolbuffers/protobuf.git
+$ cd protobuf
+$ ./autogen.sh && ./configure && make
+````
+
+The editor has been tested with [Closure
+v20200517](https://github.com/google/closure-library/releases/).
+
+Unpack both protobuf and closure-library in this directory so that make can
+find them. For the sake of automated testing, statically linked protobuf
+dependencies built at GitHub commit 1dae8fdd have been built for Mac and Linux
+and are available for download [here](https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar).
 
 To install the python packages,
 

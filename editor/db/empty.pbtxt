@@ -6,6 +6,8 @@ reactions {
       material {
       }
       volume {
+        value: 0.0
+        precision: 0.0
       }
     }
     environment {
@@ -16,12 +18,16 @@ reactions {
       control {
       }
       setpoint {
+        value: 0.0
+        precision: 0.0
       }
     }
     pressure {
       control {
       }
       setpoint {
+        value: 0.0
+        precision: 0.0
       }
       atmosphere {
       }
@@ -36,18 +42,28 @@ reactions {
       type {
       }
       peak_wavelength {
+        value: 0.0
+        precision: 0.0
       }
       distance_to_vessel {
+        value: 0.0
+        precision: 0.0
       }
     }
     electrochemistry {
       electrochemistry_type {
       }
       current {
+        value: 0.0
+        precision: 0.0
       }
       voltage {
+        value: 0.0
+        precision: 0.0
       }
       electrode_separation {
+        value: 0.0
+        precision: 0.0
       }
       cell {
       }
@@ -57,9 +73,12 @@ reactions {
       }
       tubing {
         diameter {
+          value: 0.0
+          precision: 0.0
         }
       }
     }
+    pH: 0.0
   }
   notes {
   }
