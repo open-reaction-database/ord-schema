@@ -60,7 +60,8 @@ ord.workups.loadWorkup = function (workup) {
   }
   $('.workup_target_ph', node).text(workup.getTargetPh());
 
-  setSelector($('.workup_automated', node), workup.getIsAutomated());
+  setOptionalBool($('.workup_automated', node),
+      workup.hasIsAutomated() ? workup.getIsAutomated() : null);
 };
 
 ord.workups.loadMeasurement = function (workupNode, measurement) {
@@ -149,7 +150,7 @@ ord.workups.unloadWorkup = function (node) {
   if (!isNaN(targetPh)) {
     workup.setTargetPh(targetPh);
   }
-  workup.setIsAutomated(getSelector($('.workup_automated', node)));
+  workup.setIsAutomated(getOptionalBool($('.workup_automated', node)));
   return workup;
 };
 
