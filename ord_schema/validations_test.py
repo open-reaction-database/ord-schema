@@ -151,7 +151,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(validations.ValidationError,
                                     'is_limiting'):
             self._run_validation(message)
-        dummy_component.is_limiting = reaction_pb2.Boolean.TRUE
+        dummy_component.is_limiting = True
         self.assertEmpty(self._run_validation(message))
 
         # If an analysis uses an internal standard, a component must have
@@ -159,7 +159,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         outcome.analyses['dummy_analysis'].CopyFrom(
             reaction_pb2.ReactionAnalysis(type='CUSTOM',
                                           details='test',
-                                          uses_internal_standard='TRUE'))
+                                          uses_internal_standard=True))
         with self.assertRaisesRegex(validations.ValidationError,
                                     'INTERNAL_STANDARD'):
             self._run_validation(message)

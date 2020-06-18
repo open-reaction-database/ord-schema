@@ -27,7 +27,7 @@ class GenerateTextTest(absltest.TestCase):
         self._resolver = units.UnitResolver()
 
         reaction = reaction_pb2.Reaction()
-        reaction.setup.is_automated = reaction_pb2.Boolean.TRUE
+        reaction.setup.is_automated = True
         reaction.inputs['dummy_input'].components.add().CopyFrom(
             message_helpers.build_compound(
                 name='n-hexane',

@@ -16,12 +16,11 @@
 
 from ord_schema import units
 from ord_schema import message_helpers
-from ord_schema.proto import reaction_pb2
 from ord_schema.visualization import drawing
 
 
 def _is_true(boolean):
-    return boolean == reaction_pb2.Boolean.TRUE
+    return bool(boolean)
 
 
 def _sort_addition_order(inputs):
@@ -262,9 +261,9 @@ def _compound_name(compound, use_br=False):
 
 def _compound_role(compound):
     limiting_if_true = {
-        reaction_pb2.Boolean.UNSPECIFIED: '',
-        reaction_pb2.Boolean.TRUE: 'limiting',
-        reaction_pb2.Boolean.FALSE: '',
+        True: 'limiting',
+        False: '',
+        None: '',
     }
     return {
         compound.ReactionRole.UNSPECIFIED:
@@ -388,7 +387,7 @@ def _input_addition(reaction_input):
 
 
 def _uses_addition_order(reaction):
-    return any(input.addition_order for input in reaction.inputs.values())
+    return any(value.addition_order for value in reaction.inputs.values())
 
 
 def _round(value, places=2):

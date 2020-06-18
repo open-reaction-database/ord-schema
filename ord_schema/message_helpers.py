@@ -34,25 +34,6 @@ except ImportError:
 # pylint: disable=too-many-branches
 
 
-def convert_boolean(boolean):
-    """Converts {None, True, False} to the equivalent Boolean enum value"""
-    # pylint: disable=singleton-comparison
-    if boolean == True:
-        return reaction_pb2.Boolean.TRUE
-    if boolean == False:
-        return reaction_pb2.Boolean.FALSE
-    return reaction_pb2.Boolean.UNSPECIFIED
-
-
-def unconvert_boolean(boolean_enum):
-    """Converts a Boolean enum value to the equivalent {None, True, False}"""
-    if boolean_enum == reaction_pb2.Boolean.TRUE:
-        return True
-    if boolean_enum == reaction_pb2.Boolean.FALSE:
-        return False
-    return None
-
-
 def build_compound(smiles=None,
                    name=None,
                    amount=None,
@@ -109,7 +90,10 @@ def build_compound(smiles=None,
             raise KeyError(
                 f'{role} is not a supported type: {values_dict.keys()}')
     if is_limiting is not None:
-        compound.is_limiting = convert_boolean(is_limiting)
+        if not (is_limiting is True or is_limiting is False):
+            raise TypeError(
+                f'is_limiting must be a boolean value: {is_limiting}')
+        compound.is_limiting = is_limiting
     if prep:
         field = reaction_pb2.CompoundPreparation.DESCRIPTOR.fields_by_name[
             'type']
@@ -181,6 +165,8 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
         concentration_molar = concentration_pb.value * 1e-3
     elif concentration_pb.units == concentration_pb.MICROMOLAR:
         concentration_molar = concentration_pb.value * 1e-6
+    else:
+        raise ValueError(f'unsupported units: {concentration_pb.units}')
     # Assign moles amount and return.
     moles = volume_liter * concentration_molar
     if moles < 1e-6:

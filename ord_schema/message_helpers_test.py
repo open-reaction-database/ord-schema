@@ -146,14 +146,11 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
 
     def test_is_limiting(self):
         self.assertTrue(
-            message_helpers.unconvert_boolean(
-                message_helpers.build_compound(is_limiting=True).is_limiting))
+            message_helpers.build_compound(is_limiting=True).is_limiting)
         self.assertFalse(
-            message_helpers.unconvert_boolean(
-                message_helpers.build_compound(is_limiting=False).is_limiting))
-        self.assertEqual(
-            message_helpers.unconvert_boolean(
-                message_helpers.build_compound().is_limiting), None)
+            message_helpers.build_compound(is_limiting=False).is_limiting)
+        self.assertFalse(
+            message_helpers.build_compound().HasField('is_limiting'))
 
     @parameterized.named_parameters(
         ('prep_without_details', 'dried', None,
