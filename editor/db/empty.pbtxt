@@ -10,6 +10,7 @@ reactions {
         precision: 0.0
       }
     }
+    is_automated: false
     environment {
     }
   }
@@ -78,9 +79,18 @@ reactions {
         }
       }
     }
+    reflux: false
     pH: 0.0
+    conditions_are_dynamic: false
   }
   notes {
+    is_heterogeneous: false
+    forms_precipitate: false
+    is_exothermic: false
+    offgasses: false
+    is_sensitive_to_moisture: false
+    is_sensitive_to_oxygen: false
+    is_sensitive_to_light: false
   }
   provenance {
     experimenter {

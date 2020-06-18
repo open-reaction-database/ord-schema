@@ -54,7 +54,7 @@ reactions {
           units: MILLIMOLE
         }
         reaction_role: REACTANT
-        is_limiting: TRUE
+        is_limiting: true
         preparations {
           type: REPURIFIED
           details: "9"
@@ -118,7 +118,7 @@ reactions {
         units: MILLILITER
       }
     }
-    is_automated: TRUE
+    is_automated: false
     automation_platform: "29"
     automation_code {
       key: "33"
@@ -259,17 +259,19 @@ reactions {
         }
       }
     }
-    reflux: TRUE
+    reflux: false
     pH: 78.0
-    conditions_are_dynamic: FALSE
+    conditions_are_dynamic: false
     details: "79"
   }
   notes {
-    is_heterogeneous: TRUE
-    forms_precipitate: FALSE
-    offgasses: TRUE
-    is_sensitive_to_moisture: FALSE
-    is_sensitive_to_light: TRUE
+    is_heterogeneous: false
+    forms_precipitate: false
+    is_exothermic: false
+    offgasses: false
+    is_sensitive_to_moisture: false
+    is_sensitive_to_oxygen: false
+    is_sensitive_to_light: false
     safety_notes: "80"
     procedure_details: "81"
   }
@@ -358,7 +360,7 @@ reactions {
       }
     }
     target_ph: 89.0
-    is_automated: FALSE
+    is_automated: false
   }
   outcomes {
     reaction_time {
@@ -371,7 +373,7 @@ reactions {
       precision: 116.0
     }
     products {
-      is_desired_product: FALSE
+      is_desired_product: false
       compound_yield {
         value: 117.0
         precision: 118.0
@@ -422,8 +424,8 @@ reactions {
         instrument_last_calibrated {
           value: "134"
         }
-        uses_internal_standard: TRUE
-        uses_authentic_standard: FALSE
+        uses_internal_standard: false
+        uses_authentic_standard: false
       }
     }
   }
