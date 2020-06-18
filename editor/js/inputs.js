@@ -132,9 +132,11 @@ ord.inputs.add = function (root, addHandlers = true) {
 };
 
 ord.inputs.addValidationHandler = function (node) {
-  handler = function() {
-    const input = ord.inputs.unloadInputUnnamed(node);
-    validate(input, "ReactionInput");
-  };
+  handler = ord.inputs.validateInput(node);
   addChangeHandler(node, handler);
 }
+
+ord.inputs.validateInput = function(node) {
+  const input = ord.inputs.unloadInputUnnamed(node);
+  validate(input, "ReactionInput");
+};
