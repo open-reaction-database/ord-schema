@@ -6,11 +6,8 @@ reactions {
       material {
       }
       volume {
-        value: 0.0
-        precision: 0.0
       }
     }
-    is_automated: false
     environment {
     }
   }
@@ -19,16 +16,12 @@ reactions {
       control {
       }
       setpoint {
-        value: 0.0
-        precision: 0.0
       }
     }
     pressure {
       control {
       }
       setpoint {
-        value: 0.0
-        precision: 0.0
       }
       atmosphere {
       }
@@ -43,28 +36,18 @@ reactions {
       type {
       }
       peak_wavelength {
-        value: 0.0
-        precision: 0.0
       }
       distance_to_vessel {
-        value: 0.0
-        precision: 0.0
       }
     }
     electrochemistry {
       electrochemistry_type {
       }
       current {
-        value: 0.0
-        precision: 0.0
       }
       voltage {
-        value: 0.0
-        precision: 0.0
       }
       electrode_separation {
-        value: 0.0
-        precision: 0.0
       }
       cell {
       }
@@ -74,23 +57,11 @@ reactions {
       }
       tubing {
         diameter {
-          value: 0.0
-          precision: 0.0
         }
       }
     }
-    reflux: false
-    pH: 0.0
-    conditions_are_dynamic: false
   }
   notes {
-    is_heterogeneous: false
-    forms_precipitate: false
-    is_exothermic: false
-    offgasses: false
-    is_sensitive_to_moisture: false
-    is_sensitive_to_oxygen: false
-    is_sensitive_to_light: false
   }
   provenance {
     experimenter {
