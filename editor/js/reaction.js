@@ -227,12 +227,16 @@ function readMetric(prefix, proto, node) {
 
 // Pack a value/units/precision triple into the elements specified.
 function writeMetric(prefix, proto, node) {
-  $(prefix + '_value', node).text(proto.getValue());
+  if (proto.hasValue()) {
+    $(prefix + '_value', node).text(proto.getValue());
+  }
   if (proto.getUnits) {
     // proto.ord.Percentage doesn't have units.
     setSelector($(prefix + '_units', node), proto.getUnits());
   }
-  $(prefix + '_precision', node).text(proto.getPrecision());
+  if (proto.hasPrecision()) {
+    $(prefix + '_precision', node).text(proto.getPrecision());
+  }
 }
 
 // Populate a <select/> node according to its data-proto type declaration.

@@ -58,8 +58,9 @@ ord.workups.loadWorkup = function (workup) {
     $('.workup_stirring_rate_details', node).text(rate.getDetails());
     $('.workup_stirring_rate_rpm', node).text(rate.getRpm());
   }
-  $('.workup_target_ph', node).text(workup.getTargetPh());
-
+  if (workup.hasTargetPh()) {
+    $('.workup_target_ph', node).text(workup.getTargetPh());
+  }
   setOptionalBool($('.workup_automated', node),
       workup.hasIsAutomated() ? workup.getIsAutomated() : null);
 };

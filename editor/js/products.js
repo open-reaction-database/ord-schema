@@ -46,11 +46,14 @@ ord.products.loadProduct = function (outcomeNode, product) {
       $('.outcome_product_selectivity_type', node), selectivity.getType());
   $('.outcome_product_selectivity_details', node)
       .text(selectivity.getDetails());
-  $('.outcome_product_selectivity_value', node)
-      .text(selectivity.getValue());
-  $('.outcome_product_selectivity_precision', node)
-      .text(selectivity.getPrecision());
-
+  if (selectivity.hasValue()) {
+    $('.outcome_product_selectivity_value', node)
+        .text(selectivity.getValue());
+  }
+  if (selectivity.hasPrecision()) {
+    $('.outcome_product_selectivity_precision', node)
+        .text(selectivity.getPrecision());
+  }
   const identities = product.getAnalysisIdentityList();
   identities.forEach(identity => {
     const analysisNode = ord.products.addIdentity(node);

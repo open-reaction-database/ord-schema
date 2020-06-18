@@ -67,8 +67,8 @@ ord.setups.loadVessel = function (vessel) {
         $('.setup_vessel_attachment_type', node), attachment.getType());
     $('.setup_vessel_attachment_details', node).text(attachment.getDetails());
   });
-  const volume = vessel.getVolume();
-  if (volume) {
+  if (vessel.hasVolume()) {
+    const volume = vessel.getVolume();
     writeMetric('#setup_vessel_volume', volume);
   }
 };

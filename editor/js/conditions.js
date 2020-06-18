@@ -51,7 +51,9 @@ ord.conditions.load = function (conditions) {
   }
   const reflux = conditions.hasReflux() ? conditions.getReflux() : null;
   setOptionalBool($('#condition_reflux'), reflux);
-  $('#condition_ph').text(conditions.getPh());
+  if (conditions.hasPh()) {
+    $('#condition_ph').text(conditions.getPh());
+  }
   const dynamic = conditions.hasConditionsAreDynamic() ?
       conditions.getConditionsAreDynamic() : null;
   setOptionalBool($('#condition_dynamic'), dynamic);
