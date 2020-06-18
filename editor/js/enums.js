@@ -17,7 +17,6 @@
 goog.provide('ord.enums');
 
 // Proto enums are referenced by reflection from "data-proto" HTML attributes.
-goog.require('proto.ord.Boolean.BooleanValue');
 goog.require('proto.ord.Compound.ReactionRole.ReactionRoleType');
 goog.require('proto.ord.CompoundIdentifier.IdentifierType');
 goog.require('proto.ord.CompoundPreparation.PreparationType');

@@ -26,8 +26,8 @@ ord.setups.load = function (setup) {
   if (vessel) {
     ord.setups.loadVessel(vessel);
   }
-  const isAutomated = setup.getIsAutomated();
-  setSelector($('#setup_automated'), isAutomated);
+  const isAutomated = setup.hasIsAutomated() ? setup.getIsAutomated() : null;
+  setOptionalBool($('#setup_automated'), isAutomated);
 
   const platform = setup.getAutomationPlatform();
   $('#setup_platform').text(platform);
@@ -67,8 +67,8 @@ ord.setups.loadVessel = function (vessel) {
         $('.setup_vessel_attachment_type', node), attachment.getType());
     $('.setup_vessel_attachment_details', node).text(attachment.getDetails());
   });
-  const volume = vessel.getVolume();
-  if (volume) {
+  if (vessel.hasVolume()) {
+    const volume = vessel.getVolume();
     writeMetric('#setup_vessel_volume', volume);
   }
 };
@@ -79,7 +79,7 @@ ord.setups.unload = function () {
   const vessel = ord.setups.unloadVessel();
   setup.setVessel(vessel);
 
-  const isAutomated = getSelector($('#setup_automated'));
+  const isAutomated = getOptionalBool($('#setup_automated'));
   setup.setIsAutomated(isAutomated);
 
   const platform = $('#setup_platform').text();

@@ -39,7 +39,8 @@ async function init(fileName, index) {
   session.fileName = fileName;
   session.index = index;
   // Initialize all the template popup menus.
-  $('.selector').each((index, node)  => initSelector($(node)));
+  $('.selector').each((index, node) => initSelector($(node)));
+  $('.optional_bool').each((index, node) => initOptionalBool($(node)));
   // Enable all the editable text fields.
   $('.edittext').attr('contentEditable', 'true');
   // Show "save" on modifications.
@@ -61,6 +62,7 @@ function ready() {
 function listen(node) {
   $('.edittext', node).on('input', dirty);
   $('.selector', node).on('input', dirty);
+  $('.optional_bool', node).on('input', dirty);
   $('input').on('input', dirty);
   $('.edittext').on('focus', event => selectText(event.target));
 }
@@ -225,12 +227,16 @@ function readMetric(prefix, proto, node) {
 
 // Pack a value/units/precision triple into the elements specified.
 function writeMetric(prefix, proto, node) {
-  $(prefix + '_value', node).text(proto.getValue());
+  if (proto.hasValue()) {
+    $(prefix + '_value', node).text(proto.getValue());
+  }
   if (proto.getUnits) {
     // proto.ord.Percentage doesn't have units.
     setSelector($(prefix + '_units', node), proto.getUnits());
   }
-  $(prefix + '_precision', node).text(proto.getPrecision());
+  if (proto.hasPrecision()) {
+    $(prefix + '_precision', node).text(proto.getPrecision());
+  }
 }
 
 // Populate a <select/> node according to its data-proto type declaration.
@@ -262,6 +268,45 @@ function setSelector(node, value) {
 // Find the selected <option/> and map its text onto a proto Enum.
 function getSelector(node) {
   return parseInt($('select', node).val());
+}
+
+// Set up the three-way popup, "true"/"false"/"unspecified".
+function initOptionalBool(node) {
+  const select = $('<select>');
+  const options = ['UNSPECIFIED', 'TRUE', 'FALSE'];
+  for (let i = 0; i < options.length; i++) {
+    const option = $('<option>').text(options[i]);
+    option.attr('value', options[i]);
+    if (options[i] == 'UNSPECIFIED') {
+      option.attr('selected', 'selected');
+    }
+    select.append(option);
+  }
+  node.append(select);
+}
+
+function setOptionalBool(node, value) {
+  $('option', node).removeAttr('selected');
+  if (value == true) {
+    $('option[value=TRUE]', node).attr('selected', 'selected');
+  }
+  if (value == false) {
+    $('option[value=FALSE]', node).attr('selected', 'selected');
+  }
+  if (value == null) {
+    $('option[value=UNSPECIFIED]', node).attr('selected', 'selected');
+  }
+}
+
+function getOptionalBool(node) {
+  const value = $('select', node).val();
+  if (value == 'TRUE') {
+    return true;
+  }
+  if (value == 'FALSE') {
+    return false;
+  }
+  return null;
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.

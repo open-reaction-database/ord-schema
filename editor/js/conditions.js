@@ -49,9 +49,14 @@ ord.conditions.load = function (conditions) {
   if (flow) {
     ord.flows.load(flow);
   }
-  setSelector($('#condition_reflux'), conditions.getReflux());
-  $('#condition_ph').text(conditions.getPh());
-  setSelector($('#condition_dynamic'), conditions.getConditionsAreDynamic());
+  const reflux = conditions.hasReflux() ? conditions.getReflux() : null;
+  setOptionalBool($('#condition_reflux'), reflux);
+  if (conditions.hasPh()) {
+    $('#condition_ph').text(conditions.getPh());
+  }
+  const dynamic = conditions.hasConditionsAreDynamic() ?
+      conditions.getConditionsAreDynamic() : null;
+  setOptionalBool($('#condition_dynamic'), dynamic);
   $('#condition_details').text(conditions.getDetails());
 };
 
@@ -69,13 +74,13 @@ ord.conditions.unload = function () {
   conditions.setElectrochemistry(electro);
   const flow = ord.flows.unload();
   conditions.setFlow(flow);
-  const reflux = getSelector($('#condition_reflux'));
+  const reflux = getOptionalBool($('#condition_reflux'));
   conditions.setReflux(reflux);
   const ph = parseFloat($('#condition_ph').text());
   if (!isNaN(ph)) {
     conditions.setPh(ph);
   }
-  const dynamic = getSelector($('#condition_dynamic'));
+  const dynamic = getOptionalBool($('#condition_dynamic'));
   conditions.setConditionsAreDynamic(dynamic);
   const details = $('#condition_details').text();
   conditions.setDetails(details);

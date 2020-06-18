@@ -118,8 +118,11 @@ limitations under the License.
             <div id="component_template" class="component" style="display: none;">
               <fieldset>
                 <legend>Component</legend>
-                reaction role <div class="component_reaction_role selector" data-proto="Compound_ReactionRole_ReactionRoleType"></div>
-                limiting reactant? <input type="checkbox" class="component_limiting">
+                <table>
+                  <tr><td>reaction role</td><td><div class="component_reaction_role selector" data-proto="Compound_ReactionRole_ReactionRoleType"></div></td></tr>
+                  <tr><td>limiting reactant?</td><td><div class="component_limiting optional_bool"></div></td></tr>
+                  <tr><td>includes solutes?</td><td><div class="component_includes_solutes optional_bool"></div></td></tr>
+                </table>
                 <div onclick="removeSlowly(this, '.component');" class="remove">remove</div>
                 <div>
                   <fieldset>
@@ -202,7 +205,7 @@ limitations under the License.
           <tr><td align="right">volume</td><td><div id="setup_vessel_volume_value" class="edittext"></div>
                                                <div id="setup_vessel_volume_units" class="selector" data-proto="Volume_VolumeUnit"></div>
                                                +/- <div id="setup_vessel_volume_precision" class="edittext"></div></td></tr>
-          <tr><td align="right">automated</td><td><div id="setup_automated" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">automated</td><td><div id="setup_automated" class="optional_bool"></div></td></tr>
           <tr><td align="right">platform</td><td><div id="setup_platform" class="edittext"></div></td></tr>
           <tr><td align="right">environment</td><td><div id="setup_environment_type" class="selector" data-proto="ReactionSetup_ReactionEnvironment_ReactionEnvironmentType"></div>
                                                     details <div id="setup_environment_details" class="edittext"></div></td></tr>
@@ -405,9 +408,9 @@ limitations under the License.
           </table>
         </fieldset>
         <table>
-          <tr><td align="right">reflux</td><td><div id="condition_reflux" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">reflux</td><td><div id="condition_reflux" class="optional_bool"></div></td></tr>
           <tr><td align="right">pH</td><td><div id="condition_ph" class="edittext"></div></td></tr>
-          <tr><td align="right">dynamic conditions</td><td><div id="condition_dynamic" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">dynamic conditions</td><td><div id="condition_dynamic" class="optional_bool"></div></td></tr>
           <tr><td align="right">details</td><td><div id="condition_details" class="edittext"></div></td></tr>
         </table>
       </fieldset>
@@ -415,13 +418,13 @@ limitations under the License.
       <fieldset id="section_notes" class="section">
         <legend>Notes</legend>
         <table>
-          <tr><td align="right">is heterogeneous</td><td><div id="notes_heterogeneous" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
-          <tr><td align="right">forms precipitate</td><td><div id="notes_precipitate" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
-          <tr><td align="right">is exothermic</td><td><div id="notes_exothermic" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
-          <tr><td align="right">offgasses</td><td><div id="notes_offgas" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
-          <tr><td align="right">moisure sensitive</td><td><div id="notes_moisture" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
-          <tr><td align="right">oxygen sensitive</td><td><div id="notes_oxygen" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
-          <tr><td align="right">light sensitive</td><td><div id="notes_light" class="selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+          <tr><td align="right">is heterogeneous</td><td><div id="notes_heterogeneous" class="optional_bool"></div></td></tr>
+          <tr><td align="right">forms precipitate</td><td><div id="notes_precipitate" class="optional_bool"></div></td></tr>
+          <tr><td align="right">is exothermic</td><td><div id="notes_exothermic" class="optional_bool"></div></td></tr>
+          <tr><td align="right">offgasses</td><td><div id="notes_offgas" class="optional_bool"></div></td></tr>
+          <tr><td align="right">moisure sensitive</td><td><div id="notes_moisture" class="optional_bool"></div></td></tr>
+          <tr><td align="right">oxygen sensitive</td><td><div id="notes_oxygen" class="optional_bool"></div></td></tr>
+          <tr><td align="right">light sensitive</td><td><div id="notes_light" class="optional_bool"></div></td></tr>
           <tr><td align="right">safety notes</td><td><div id="notes_safety" class="edittext"></div></td></tr>
           <tr><td align="right">procedure details</td><td><div id="notes_details" class="edittext"></div></td></tr>
         </table>
@@ -476,7 +479,7 @@ limitations under the License.
               <tr><td align="right">duration</td><td><div class="workup_duration_value edittext"></div>
                                                      <div class="workup_duration_units selector" data-proto="Time_TimeUnit"></div>
                                                      +/- <div class="workup_duration_precision edittext"></div></td></tr>
-              <tr><td align="right">automated</td><td><div class="workup_automated selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+              <tr><td align="right">automated</td><td><div class="workup_automated optional_bool"></div></td></tr>
               <tr><td align="right">details</td><td><div class="workup_details edittext"></div></td></tr>
             </table>
             <div class="workup_input">
@@ -561,7 +564,7 @@ limitations under the License.
             <div onclick="removeSlowly(this, '.outcome_product');" class="remove">remove</div>
 
             <table>
-              <tr><td align="right">desired</td><td><div class="outcome_product_desired selector" data-proto="Boolean_BooleanValue"></div></td>
+              <tr><td align="right">desired</td><td><div class="outcome_product_desired optional_bool"></div></td>
               <tr><td align="right">yield</td><td><div class="outcome_product_yield_value edittext"></div>
                                                   +/- <div class="outcome_product_yield_precision edittext"></div></td></tr>
               <tr><td align="right">purity</td><td><div class="outcome_product_purity_value edittext"></div>
@@ -635,8 +638,8 @@ limitations under the License.
                 <tr><td align="right">details</td><td><div class="outcome_analysis_details edittext"></div></td></tr>
                 <tr><td align="right">instrument manufacturer</td><td><div class="outcome_analysis_manufacturer edittext"></div></td></tr>
                 <tr><td align="right">calibrated</td><td><div class="outcome_analysis_calibrated edittext"></div></td></tr>
-                <tr><td align="right">internal standard</td><td><div class="outcome_analysis_internal_standard selector" data-proto="Boolean_BooleanValue"></div></td></tr>
-                <tr><td align="right">authentic standard</td><td><div class="outcome_analysis_authentic_standard selector" data-proto="Boolean_BooleanValue"></div></td></tr>
+                <tr><td align="right">internal standard</td><td><div class="outcome_analysis_internal_standard optional_bool"></div></td></tr>
+                <tr><td align="right">authentic standard</td><td><div class="outcome_analysis_authentic_standard optional_bool"></div></td></tr>
               </table>
 
               <div>
