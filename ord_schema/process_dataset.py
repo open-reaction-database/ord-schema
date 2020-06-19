@@ -190,8 +190,9 @@ def main(argv):
             subprocess.run(args, check=True)
     combined = _combine_datasets(datasets)
     # Final validation (incl. IDs) to make sure we didn't break anything.
-    validations.validate_datasets({'_COMBINED': combined}, FLAGS.write_errors,
-        validate_ids=True)
+    validations.validate_datasets({'_COMBINED': combined},
+                                  FLAGS.write_errors,
+                                  validate_ids=True)
     if FLAGS.output:
         output_filename = FLAGS.output
     else:

@@ -40,7 +40,8 @@ def validate_datasets(datasets, write_errors=False, validate_ids=False):
     all_errors = []
     for filename, dataset in datasets.items():
         basename = os.path.basename(filename)
-        errors = _validate_dataset(dataset, label=basename,
+        errors = _validate_dataset(dataset,
+                                   label=basename,
                                    validate_ids=validate_ids)
         if errors:
             for error in errors:
@@ -72,21 +73,23 @@ def _validate_dataset(dataset, label='dataset', validate_ids=False):
     # Reaction-level validation
     num_bad_reactions = 0
     for i, reaction in enumerate(dataset.reactions):
-        reaction_errors = validate_message(reaction, raise_on_error=False,
+        reaction_errors = validate_message(reaction,
+                                           raise_on_error=False,
                                            validate_ids=validate_ids)
         if reaction_errors:
             num_bad_reactions += 1
         for error in reaction_errors:
             errors.append(error)
-            logging.warning('Validation error for %s[%d]: %s', label, i,
-                            error)
+            logging.warning('Validation error for %s[%d]: %s', label, i, error)
     logging.info('Validation summary for %s: %d/%d successful (%d failures)',
                  label,
                  len(dataset.reactions) - num_bad_reactions,
                  len(dataset.reactions), num_bad_reactions)
     # Dataset-level validation of cross-references
-    dataset_errors = validate_message(dataset, raise_on_error=False,
-                                      recurse=False, validate_ids=validate_ids)
+    dataset_errors = validate_message(dataset,
+                                      raise_on_error=False,
+                                      recurse=False,
+                                      validate_ids=validate_ids)
     for error in dataset_errors:
         errors.append(error)
         logging.warning('Validation error for %s: %s', label, error)
@@ -96,7 +99,9 @@ def _validate_dataset(dataset, label='dataset', validate_ids=False):
 
 # pylint: disable=too-many-branches
 # pylint: disable=too-many-nested-blocks
-def validate_message(message, recurse=True, raise_on_error=True,
+def validate_message(message,
+                     recurse=True,
+                     raise_on_error=True,
                      validate_ids=False):
     """Template function for validating custom messages in the reaction_pb2.
 
@@ -146,12 +151,13 @@ def validate_message(message, recurse=True, raise_on_error=True,
                     else:  # Just a repeated message
                         for submessage in value:
                             errors.extend(
-                                validate_message(
-                                    submessage, raise_on_error=raise_on_error,
-                                    validate_ids=validate_ids))
+                                validate_message(submessage,
+                                                 raise_on_error=raise_on_error,
+                                                 validate_ids=validate_ids))
                 else:  # no recursion needed
                     errors.extend(
-                        validate_message(value, raise_on_error=raise_on_error,
+                        validate_message(value,
+                                         raise_on_error=raise_on_error,
                                          validate_ids=validate_ids))
 
     # Message-specific validation
@@ -165,9 +171,8 @@ def validate_message(message, recurse=True, raise_on_error=True,
             f"Don't know how to validate {type(message)}")
 
     with warnings.catch_warnings(record=True) as tape:
-        if validate_ids and isinstance(message,
-                                       (reaction_pb2.Reaction,
-                                        dataset_pb2.Dataset)):
+        if validate_ids and isinstance(
+                message, (reaction_pb2.Reaction, dataset_pb2.Dataset)):
             _VALIDATOR_SWITCH[type(message)](message, validate_id=True)
         else:
             _VALIDATOR_SWITCH[type(message)](message)
@@ -299,9 +304,9 @@ def validate_dataset(message, validate_id=False):
             for crude_component in reaction_input.crude_components:
                 referenced_ids.add(crude_component.reaction_id)
     if len(referenced_ids - defined_ids) > 0:
-        warnings.warn('Reactions in the Dataset refer to undefined '
-                      f'reaction_ids {referenced_ids - defined_ids}',
-                      ValidationError)
+        warnings.warn(
+            'Reactions in the Dataset refer to undefined '
+            f'reaction_ids {referenced_ids - defined_ids}', ValidationError)
 
 
 def validate_dataset_example(message):
@@ -633,12 +638,11 @@ def validate_reaction_product(message):
     # pylint: disable=too-many-boolean-expressions
     if (message.compound.HasField('volume_includes_solutes')
             or message.compound.HasField('is_limiting')
-            or message.compound.preparations
-            or message.compound.vendor_source
-            or message.compound.vendor_id
-            or message.compound.vendor_lot):
-        warnings.warn('Compounds defined as reaction products should not have'
-                      ' any inapplicable fields defined.', ValidationError)
+            or message.compound.preparations or message.compound.vendor_source
+            or message.compound.vendor_id or message.compound.vendor_lot):
+        warnings.warn(
+            'Compounds defined as reaction products should not have'
+            ' any inapplicable fields defined.', ValidationError)
 
 
 def validate_texture(message):
