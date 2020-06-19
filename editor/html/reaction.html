@@ -481,6 +481,8 @@ limitations under the License.
         <legend>Workups</legend>
         <div id="workups">
           <div id="workup_template" class="workup" style="display: none;">
+          <fieldset>
+            <legend>Workup</legend>
             <div onclick="removeSlowly(this, '.workup');" class="remove">remove</div>
             <table>
               <tr><td align="right">type</td><td><div class="workup_type selector" data-proto="ReactionWorkup_WorkupType"></div></td></tr>
@@ -520,6 +522,7 @@ limitations under the License.
                 <tr><td align="right">rpm</td><td><div class="workup_stirring_rate_rpm edittext"></div></td></tr>
               </table>
             </fieldset>
+          </fieldset>
           </div>
 
           <div id="workup_temperature_measurement_template" class="workup_temperature_measurement" style="display: none;">
@@ -549,6 +552,8 @@ limitations under the License.
         <div id="outcomes">
 
           <div id="outcome_template" class="outcome" style="display: none;">
+            <fieldset>
+            <legend>Outcome</legend>
             <div onclick="removeSlowly(this, '.outcome');" class="remove">remove</div>
             <table>
               <tr><td align="right">time</td><td><div class="outcome_time_value edittext"></div>
@@ -558,19 +563,18 @@ limitations under the License.
                                                        +/- <div class="outcome_conversion_precision edittext"></div></td></tr>
             </table>
 
-            <fieldset>
-              <legend>Products</legend>
               <div class="outcome_products">
               </div>
               <div onclick="ord.products.add($(this).closest('.outcome'));" class="add">+ add product</div>
-            </fieldset>
 
               <div class="outcome_analyses"></div>
               <div onclick="ord.outcomes.addAnalysis($(this).closest('.outcome'));" class="add">+ add analysis</div>
-
+          </fieldset>
           </div>
 
           <div id="outcome_product_template" class="outcome_product" style="display: none;">
+            <fieldset>
+              <legend>Product</legend>
             <div onclick="removeSlowly(this, '.outcome_product');" class="remove">remove</div>
 
             <table>
@@ -617,7 +621,7 @@ limitations under the License.
               </div>
               <div onclick="ord.products.addSelectivity($(this).closest('.outcome_product'));" class="add">+ add selectivity analysis</div>
             </fieldset>
-
+            </fieldset>
           </div>
 
           <div id="outcome_product_analysis_identity_template" class="outcome_product_analysis_identity" style="display: none;">
