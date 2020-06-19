@@ -30,13 +30,9 @@ ord.inputs.load = function (inputs) {
 };
 
 ord.inputs.loadInput = function (root, name, input) {
-   // on-change validation handlers are added after all inputs are fully loaded
-   // to prevent a flood of validation requests during loading
-  const node = ord.inputs.add(root, false); 
+  const node = ord.inputs.add(root); 
   ord.inputs.loadInputUnnamed(node, input);
   $('.input_name', node).text(name);
-  // TODO validate here yet? or wait til first change?
-  ord.inputs.addValidationHandler(node);
 };
 
 ord.inputs.loadInputUnnamed = function (node, input) {
@@ -123,18 +119,12 @@ ord.inputs.unloadInputUnnamed = function (node) {
   return input;
 };
 
-ord.inputs.add = function (root, addHandlers = true) {
-  const newNode = addSlowly('#input_template', root);
-  if (addHandlers) {
-    ord.inputs.addValidationHandler(newNode);
-  }
-  return newNode;
-};
-
-ord.inputs.addValidationHandler = function (node) {
+ord.inputs.add = function (root) {
+  const node = addSlowly('#input_template', root);
   handler = function () {ord.inputs.validateInput(node)};
-  addChangeHandler(node, handler)
-}
+  addChangeHandler(node, handler);
+  return node;
+};
 
 ord.inputs.validateInput = function(node) {
   console.log("attempting to validate input");
