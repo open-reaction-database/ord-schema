@@ -296,8 +296,9 @@ def validate_dataset(message, validate_id=False):
     for reaction in message.reactions:
         if reaction.reaction_id:
             if reaction.reaction_id in defined_ids:
-                warnings.warn('Multiple Reactions should never have the same '
-                              'IDs', ValidationError)
+                warnings.warn(
+                    'Multiple Reactions should never have the same '
+                    'IDs', ValidationError)
             defined_ids.add(reaction.reaction_id)
         for reaction_input in reaction.inputs.values():
             for component in reaction_input.components:
@@ -305,13 +306,15 @@ def validate_dataset(message, validate_id=False):
                     if preparation.reaction_id:
                         referenced_ids.add(preparation.reaction_id)
                         if preparation.reaction_id == reaction.reaction_id:
-                            warnings.warn('A Reaction should not reference '
-                                          'its own ID', ValidationError)
+                            warnings.warn(
+                                'A Reaction should not reference '
+                                'its own ID', ValidationError)
             for crude_component in reaction_input.crude_components:
                 referenced_ids.add(crude_component.reaction_id)
                 if crude_component.reaction_id == reaction.reaction_id:
-                    warnings.warn('A Reaction should not reference '
-                                  'its own ID', ValidationError)
+                    warnings.warn(
+                        'A Reaction should not reference '
+                        'its own ID', ValidationError)
     if len(referenced_ids - defined_ids) > 0:
         warnings.warn(
             'Reactions in the Dataset refer to undefined '
