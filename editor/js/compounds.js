@@ -34,8 +34,12 @@ ord.compounds.loadCompound = function (root, compound) {
   const reactionRole = compound.getReactionRole();
   setSelector($('.component_reaction_role', node), reactionRole);
 
-  const isLimiting = compound.getIsLimiting();
-  $('.component_limiting', node).prop('checked', isLimiting);
+  const isLimiting = compound.hasIsLimiting() ? compound.getIsLimiting() : null;
+  setOptionalBool($('.component_limiting', node), isLimiting);
+
+  const solutes = compound.hasVolumeIncludesSolutes() ?
+      compound.getVolumeIncludesSolutes() : null;
+  setOptionalBool($('.component_includes_solutes', node), solutes);
 
   const identifiers = compound.getIdentifiersList();
   identifiers.forEach(
@@ -109,8 +113,11 @@ ord.compounds.unloadCompound = function (node) {
   const reactionRole = getSelector($('.component_reaction_role', node));
   compound.setReactionRole(reactionRole);
 
-  const isLimiting = $('.component_limiting', node).is(':checked');
+  const isLimiting = getOptionalBool($('.component_limiting', node));
   compound.setIsLimiting(isLimiting);
+
+  const solutes = getOptionalBool($('.component_includes_solutes', node));
+  compound.setVolumeIncludesSolutes(solutes);
 
   const identifiers = ord.compounds.unloadIdentifiers(node);
   compound.setIdentifiersList(identifiers);

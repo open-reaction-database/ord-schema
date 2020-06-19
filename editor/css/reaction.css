@@ -23,7 +23,7 @@ body {
 #top_buttons {
   text-align: center;
 }
-.edittext, .selector {
+.edittext, .selector, .optional_bool {
   padding: 2px;
   margin: 2px;
   display: inline-block;

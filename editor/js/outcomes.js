@@ -79,12 +79,14 @@ ord.outcomes.loadAnalysis = function (analysesNode, name, analysis) {
   if (calibrated) {
     $('.outcome_analysis_calibrated', node).text(calibrated.getValue());
   }
-  setSelector(
+  setOptionalBool(
       $('.outcome_analysis_internal_standard', node),
-      analysis.getUsesInternalStandard());
-  setSelector(
+      analysis.hasUsesInternalStandard() ?
+          analysis.getUsesInternalStandard() : null);
+  setOptionalBool(
       $('.outcome_analysis_authentic_standard', node),
-      analysis.getUsesAuthenticStandard());
+      analysis.hasUsesAuthenticStandard() ?
+          analysis.getUsesAuthenticStandard() : null);
 };
 
 ord.outcomes.loadProcess = function (node, name, process) {
@@ -225,9 +227,9 @@ ord.outcomes.unloadAnalysis = function (analysisNode, analyses) {
   calibrated.setValue($('.outcome_analysis_calibrated', analysisNode).text());
   analysis.setInstrumentLastCalibrated(calibrated);
   analysis.setUsesInternalStandard(
-      getSelector($('.outcome_analysis_internal_standard', analysisNode)));
+      getOptionalBool($('.outcome_analysis_internal_standard', analysisNode)));
   analysis.setUsesAuthenticStandard(
-      getSelector($('.outcome_analysis_authentic_standard', analysisNode)));
+      getOptionalBool($('.outcome_analysis_authentic_standard', analysisNode)));
 
   analyses.set(name, analysis);
 };
