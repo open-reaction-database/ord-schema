@@ -60,10 +60,7 @@ function ready() {
 }
 
 function listen(node) {
-  $('.edittext', node).on('input', dirty);
-  $('.selector', node).on('input', dirty);
-  $('.optional_bool', node).on('input', dirty);
-  $('input').on('input', dirty);
+  addChangeHandler($(node), dirty);
   $('.edittext').on('focus', event => selectText(event.target));
 }
 
@@ -98,7 +95,6 @@ function selectText(node) {
 function addChangeHandler (node, handler) {
   // For textboxes
   node.on('blur', '.edittext', handler);
-  // TODO combine the following into fewer listeners
   // For selectors, optional bool selectors,
   // and checkboxes/radio buttons/file upload, respectively
   node.on('change', '.selector, .optional_bool, input', handler);
