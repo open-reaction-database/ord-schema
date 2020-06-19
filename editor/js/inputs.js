@@ -129,5 +129,7 @@ ord.inputs.add = function (root) {
 ord.inputs.validateInput = function(node) {
   console.log("attempting to validate input");
   const input = ord.inputs.unloadInputUnnamed(node);
-  validate(input, "ReactionInput");
+  statusNode = $('.input_validate_status', node);
+  messageNode = $('.input_validate_message', node);
+  validate(input, "ReactionInput", statusNode, messageNode);
 };

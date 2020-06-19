@@ -34,7 +34,7 @@ body {
   border-width: 1px;
   border-color: #c0c0c0;
 }
-.add, #save, .remove, #delete, .validate, #validate_status {
+.add, #save, .remove, #delete, .validate, .validate_status {
   padding: 2px 4px;
   margin: 2px;
   display: inline-block;

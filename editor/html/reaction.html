@@ -38,12 +38,12 @@ limitations under the License.
         <div id="delete" class="remove" style="float: none;" onclick="location.href='/dataset/{{ file_name }}/delete/reaction/{{ index }}';">delete</div>
       </div>
       <div>
-        <div id="validate" class="validate" onclick="validateReaction();">validate reaction</div>
+        <div id="reaction_validate" class="validate" onclick="validateReaction();">validate reaction</div>
       </div>
       <div>
-        status: <div id="validate_status">unvalidated</div>
+        status: <div id="reaction_validate_status" class="validate_status">unvalidated</div>
       </div>
-      <div id="validate_message" style="display: none;"></div>
+      <div id="reaction_validate_message" class="validate_message" style="display: none;"></div>
     </div>
 
     <div style="margin-left: 128px;">Reaction ID <div id="reaction_id" class="edittext"></div></div>
@@ -88,9 +88,13 @@ limitations under the License.
 
             <div id="input_template" class="input" style="display: none;">
               <fieldset>
-                <legend>Input</legend>
+                <legend>
+                  Input
+                  <div onclick="ord.inputs.validateInput($(this).closest('.input'))" class="validate">validate</div>
+                  <div class="input_validate_status validate_status">unvalidated</div>
+                  <div class="input_validate_message validate_message" style="display: none;"></div>
+                </legend>
                 <span class="input_name_label">name</span><div class="input_name edittext"></div>
-                <div onclick="ord.inputs.validateInput($(this).closest('.input'))" class="validate">validate</div>
                 <div onclick="removeSlowly(this, '.input');" class="remove">remove</div>
                 <div>
                   <div class="components"></div>

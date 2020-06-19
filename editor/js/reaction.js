@@ -64,17 +64,9 @@ function listen(node) {
   $('.edittext').on('focus', event => selectText(event.target));
 }
 
-function unvalidated() {
-  $('#validate').css('visibility', 'visible');
-}
-
-function validated() {
-  $('#validate').css('visibility', 'hidden');
-}
-
 function dirty() {
   $('#save').css('visibility', 'visible');
-  unvalidated();
+  $('#reaction_validate').css('visibility', 'visible');
 }
 
 function clean() {
@@ -104,7 +96,7 @@ function addChangeHandler (node, handler) {
 
 // Generic validator for many message types, not just reaction
 // note: does not commit or save anything!
-function validate(message, messageTypeString) {
+function validate(message, messageTypeString, statusNode, messageNode) {
   // eg message is a type of reaction, messageTypeString = "Reaction"
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/dataset/proto/validate/' + messageTypeString);
@@ -115,24 +107,26 @@ function validate(message, messageTypeString) {
     const errors = xhr.response;
     console.log(errors);
     if (errors.length) {
-      $('#validate_status').css('backgroundColor', 'pink');
-      $('#validate_status').text('invalid');
-      $('#validate_message').text(errors);
-      $('#validate_message').show();
+      statusNode.css('backgroundColor', 'pink');
+      statusNode.text('invalid');
+      messageNode.text(errors);
+      messageNode.show();
     }
     else {
-      $('#validate_status').css('backgroundColor', 'lightgreen');
-      $('#validate_status').text('valid');
-      $('#validate_message').hide();
+      statusNode.css('backgroundColor', 'lightgreen');
+      statusNode.text('valid');
+      messageNode.hide();
     }
   };
   xhr.send(binary);
-  validated();
 }
 
 function validateReaction() {
+  $('#reaction_validate').css('visibility', 'hidden');
   const reaction = unloadReaction();
-  validate(reaction, "Reaction");
+  statusNode = $('#reaction_validate_status');
+  messageNode = $('#reaction_validate_message');
+  validate(reaction, "Reaction", statusNode, messageNode);
 }
 
 function commit() {
