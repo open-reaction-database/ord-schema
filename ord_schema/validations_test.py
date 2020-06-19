@@ -245,7 +245,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         _ = message.inputs['test']
         message.outcomes.add()
         with self.assertRaisesRegex(validations.ValidationError, 'malformed'):
-            self._run_validation(message, recurse=False)
+            self._run_validation(message, recurse=False, validate_ids=True)
 
     def test_data(self):
         message = reaction_pb2.Data()
@@ -262,20 +262,20 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
     def test_dataset_bad_reaction_id(self):
         message = dataset_pb2.Dataset(reaction_ids=['foo'])
         with self.assertRaisesRegex(validations.ValidationError, 'malformed'):
-            self._run_validation(message)
+            self._run_validation(message, validate_ids=True)
 
     def test_dataset_records_and_ids(self):
         message = dataset_pb2.Dataset(
             reactions=[reaction_pb2.Reaction()],
             reaction_ids=['ord-c0bbd41f095a44a78b6221135961d809'])
         with self.assertRaisesRegex(validations.ValidationError, 'not both'):
-            self._run_validation(message, recurse=False)
+            self._run_validation(message, recurse=False, validate_ids=True)
 
     def test_dataset_bad_id(self):
         message = dataset_pb2.Dataset(reactions=[reaction_pb2.Reaction()],
                                       dataset_id='foo')
         with self.assertRaisesRegex(validations.ValidationError, 'malformed'):
-            self._run_validation(message, recurse=False)
+            self._run_validation(message, recurse=False, validate_ids=True)
 
     def test_dataset_example(self):
         message = dataset_pb2.DatasetExample()

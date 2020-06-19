@@ -57,7 +57,7 @@ class UpdateReactionTest(absltest.TestCase):
     def test_with_no_updates(self):
         message = reaction_pb2.Reaction()
         message.provenance.record_created.time.value = '2020-05-08'
-        message.reaction_id = 'ord-test'
+        message.reaction_id = 'ord-c0bbd41f095a44a78b6221135961d809'
         copied = reaction_pb2.Reaction()
         copied.CopyFrom(message)
         updates.update_reaction(copied)
@@ -83,10 +83,11 @@ class UpdateReactionTest(absltest.TestCase):
 
     def test_keep_existing_reaction_id(self):
         message = reaction_pb2.Reaction()
-        message.reaction_id = 'foo'
+        message.reaction_id = 'ord-c0bbd41f095a44a78b6221135961d809'
         message.provenance.record_created.time.value = '11 am'
         updates.update_reaction(message)
-        self.assertEqual(message.reaction_id, 'foo')
+        self.assertEqual(message.reaction_id,
+                         'ord-c0bbd41f095a44a78b6221135961d809')
         self.assertLen(message.provenance.record_modified, 0)
 
 

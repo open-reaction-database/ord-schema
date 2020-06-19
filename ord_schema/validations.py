@@ -27,7 +27,7 @@ from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 
-def validate_datasets(datasets, write_errors=False):
+def validate_datasets(datasets, write_errors=False, validate_ids=False):
     """Runs validation for a set of datasets.
 
     Args:
@@ -39,7 +39,9 @@ def validate_datasets(datasets, write_errors=False):
     """
     all_errors = []
     for filename, dataset in datasets.items():
-        errors = _validate_dataset(filename, dataset)
+        basename = os.path.basename(filename)
+        errors = _validate_dataset(dataset, label=basename,
+                                   validate_ids=validate_ids)
         if errors:
             for error in errors:
                 all_errors.append(f'{filename}: {error}')
@@ -55,44 +57,47 @@ def validate_datasets(datasets, write_errors=False):
             f'validation encountered errors:\n{error_string}')
 
 
-def _validate_dataset(filename, dataset):
-    """Validates Reaction messages in a Dataset.
-
-    Note that validation may change the message. For example, NAME
-    identifiers will be resolved to structures.
+def _validate_dataset(dataset, label='dataset', validate_ids=False):
+    """Validates Reaction messages and cross-references in a Dataset.
 
     Args:
-        filename: Text filename; the dataset source.
         dataset: dataset_pb2.Dataset message.
+        label: string label for logging purposes only.
 
     Returns:
         List of validation error messages.
     """
-    basename = os.path.basename(filename)
+
     errors = []
     # Reaction-level validation
     num_bad_reactions = 0
     for i, reaction in enumerate(dataset.reactions):
-        reaction_errors = validate_message(reaction, raise_on_error=False)
+        reaction_errors = validate_message(reaction, raise_on_error=False,
+                                           validate_ids=validate_ids)
         if reaction_errors:
             num_bad_reactions += 1
         for error in reaction_errors:
             errors.append(error)
-            logging.warning('Validation error for %s[%d]: %s', basename, i,
+            logging.warning('Validation error for %s[%d]: %s', label, i,
                             error)
     logging.info('Validation summary for %s: %d/%d successful (%d failures)',
-                 basename,
+                 label,
                  len(dataset.reactions) - num_bad_reactions,
                  len(dataset.reactions), num_bad_reactions)
     # Dataset-level validation of cross-references
-    # TODO
+    dataset_errors = validate_message(dataset, raise_on_error=False,
+                                      recurse=False, validate_ids=validate_ids)
+    for error in dataset_errors:
+        errors.append(error)
+        logging.warning('Validation error for %s: %s', label, error)
 
     return errors
 
 
 # pylint: disable=too-many-branches
 # pylint: disable=too-many-nested-blocks
-def validate_message(message, recurse=True, raise_on_error=True):
+def validate_message(message, recurse=True, raise_on_error=True,
+                     validate_ids=False):
     """Template function for validating custom messages in the reaction_pb2.
 
     Messages are not validated to check enum values, since these are enforced
@@ -111,6 +116,8 @@ def validate_message(message, recurse=True, raise_on_error=True):
         raise_on_error: If True, raises a ValidationError exception when errors
             are encountered. If False, the user must manually check the return
             value to identify validation errors.
+        validate_ids: A boolean that controls whether the IDs of Reactions or
+            Datasets should be checked for validity. Defaults to False.
 
     Returns:
         List of text validation errors, if any.
@@ -132,17 +139,20 @@ def validate_message(message, recurse=True, raise_on_error=True):
                                 errors.extend(
                                     validate_message(
                                         submessage,
-                                        raise_on_error=raise_on_error))
+                                        raise_on_error=raise_on_error,
+                                        validate_ids=validate_ids))
                         else:  # value is a primitive
                             pass
                     else:  # Just a repeated message
                         for submessage in value:
                             errors.extend(
                                 validate_message(
-                                    submessage, raise_on_error=raise_on_error))
+                                    submessage, raise_on_error=raise_on_error,
+                                    validate_ids=validate_ids))
                 else:  # no recursion needed
                     errors.extend(
-                        validate_message(value, raise_on_error=raise_on_error))
+                        validate_message(value, raise_on_error=raise_on_error,
+                                         validate_ids=validate_ids))
 
     # Message-specific validation
     if not isinstance(message, tuple(_VALIDATOR_SWITCH.keys())):
@@ -155,7 +165,12 @@ def validate_message(message, recurse=True, raise_on_error=True):
             f"Don't know how to validate {type(message)}")
 
     with warnings.catch_warnings(record=True) as tape:
-        _VALIDATOR_SWITCH[type(message)](message)
+        if validate_ids and isinstance(message,
+                                       (reaction_pb2.Reaction,
+                                        dataset_pb2.Dataset)):
+            _VALIDATOR_SWITCH[type(message)](message, validate_id=True)
+        else:
+            _VALIDATOR_SWITCH[type(message)](message)
     for warning in tape:
         if issubclass(warning.category, ValidationError):
             if raise_on_error:
@@ -254,7 +269,8 @@ def reaction_needs_internal_standard(message):
     return False
 
 
-def validate_dataset(message):
+def validate_dataset(message, validate_id=False):
+    # pylint: disable=too-many-branches
     if not message.reactions and not message.reaction_ids:
         warnings.warn('Dataset requires reactions or reaction_ids',
                       ValidationError)
@@ -265,10 +281,27 @@ def validate_dataset(message):
         for reaction_id in message.reaction_ids:
             if not re.fullmatch('^ord-[0-9a-f]{32}$', reaction_id):
                 warnings.warn('Reaction ID is malformed', ValidationError)
-    if message.dataset_id:
+    if validate_id:
         # The dataset_id is a 32-character uuid4 hex string.
         if not re.fullmatch('^ord_dataset-[0-9a-f]{32}$', message.dataset_id):
             warnings.warn('Dataset ID is malformed', ValidationError)
+    # Check cross-references
+    referenced_ids = set()
+    defined_ids = set()
+    for reaction in message.reactions:
+        if reaction.reaction_id:
+            defined_ids.add(reaction.reaction_id)
+        for reaction_input in reaction.inputs.values():
+            for component in reaction_input.components:
+                for preparation in component.preparations:
+                    if preparation.reaction_id:
+                        referenced_ids.add(preparation.reaction_id)
+            for crude_component in reaction_input.crude_components:
+                referenced_ids.add(crude_component.reaction_id)
+    if len(referenced_ids - defined_ids) > 0:
+        warnings.warn('Reactions in the Dataset refer to undefined '
+                      f'reaction_ids {referenced_ids - defined_ids}',
+                      ValidationError)
 
 
 def validate_dataset_example(message):
@@ -281,7 +314,7 @@ def validate_dataset_example(message):
         warnings.warn('DatasetExample.created is required', ValidationError)
 
 
-def validate_reaction(message):
+def validate_reaction(message, validate_id=False):
     if len(message.inputs) == 0:
         warnings.warn('Reactions should have at least 1 reaction input',
                       ValidationError)
@@ -300,7 +333,7 @@ def validate_reaction(message):
             'If reaction conversion is specified, at least one '
             'reaction input component must be labeled is_limiting',
             ValidationError)
-    if message.reaction_id:
+    if validate_id:
         # The reaction_id suffix is a 32-character uuid4 hex string.
         if not re.fullmatch('^ord-[0-9a-f]{32}$', message.reaction_id):
             warnings.warn('Reaction ID is malformed', ValidationError)

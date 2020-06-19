@@ -180,7 +180,7 @@ def update_dataset(dataset):
     # another Reaction in the Dataset. If not validated, this update might
     # raise a KeyError exception.
     for reaction in dataset.reactions:
-        for reaction_input in reaction.inputs:
+        for reaction_input in reaction.inputs.values():
             for component in reaction_input.components:
                 for preparation in component.preparations:
                     if preparation.reaction_id:
