@@ -332,13 +332,16 @@ def validate_crude_component(message):
                       ValidationError)
     if (message.HasField('has_derived_amount') and message.has_derived_amount
             and message.HasField('amount')):
-        warnings.warn('CrudeComponents with derived amounts cannot have their'
-                      ' mass or volume specified explicitly', ValidationError)
+        warnings.warn(
+            'CrudeComponents with derived amounts cannot have their'
+            ' mass or volume specified explicitly', ValidationError)
     if ((not message.HasField('has_derived_amount')
          or message.has_derived_amount is False)
             and not message.HasField('amount')):
-        warnings.warn('Crude components should either have a derived amount or'
-                      ' a specified mass or volume', ValidationError)
+        warnings.warn(
+            'Crude components should either have a derived amount or'
+            ' a specified mass or volume', ValidationError)
+
 
 def validate_compound(message):
     if len(message.identifiers) == 0:
@@ -346,8 +349,9 @@ def validate_compound(message):
                       ValidationError)
     if all(identifier.type == identifier.NAME
            for identifier in message.identifiers):
-        warnings.warn('Compounds should have more specific identifiers than '
-                      'NAME whenever possible', ValidationWarning)
+        warnings.warn(
+            'Compounds should have more specific identifiers than '
+            'NAME whenever possible', ValidationWarning)
     if not message.HasField('amount'):
         warnings.warn('Compounds should have an amount specified',
                       ValidationWarning)
@@ -361,8 +365,9 @@ def validate_compound_feature(message):
 def validate_compound_preparation(message):
     check_type_and_details(message)
     if message.reaction_id and message.type != message.SYNTHESIZED:
-        warnings.warn('Reaction IDs should only be specified in compound'
-                      ' preparations when SYNTHESIZED', ValidationError)
+        warnings.warn(
+            'Reaction IDs should only be specified in compound'
+            ' preparations when SYNTHESIZED', ValidationError)
 
 
 def validate_compound_identifier(message):
