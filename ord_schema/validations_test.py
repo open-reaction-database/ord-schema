@@ -104,6 +104,31 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(validations.ValidationError, 'Invalid'):
             self._run_validation(message)
 
+    def test_synthesized_compound(self):
+        message = reaction_pb2.CompoundPreparation(
+            type='SYNTHESIZED', reaction_id='dummy_reaction_id')
+        self.assertEmpty(self._run_validation(message))
+        message = reaction_pb2.CompoundPreparation(
+            type='NONE', reaction_id='dummy_reaction_id')
+        with self.assertRaisesRegex(validations.ValidationError, 'IDs'):
+            self._run_validation(message)
+
+    def test_crude_component(self):
+        message = reaction_pb2.CrudeComponent()
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'reaction_id'):
+            self._run_validation(message)
+        message = reaction_pb2.CrudeComponent(reaction_id='my_reaction_id')
+        with self.assertRaisesRegex(validations.ValidationError, 'amount'):
+            self._run_validation(message)
+        message = reaction_pb2.CrudeComponent(reaction_id='my_reaction_id',
+                                              has_derived_amount=False)
+        with self.assertRaisesRegex(validations.ValidationError, 'amount'):
+            self._run_validation(message)
+        message = reaction_pb2.CrudeComponent(reaction_id='my_reaction_id',
+                                              has_derived_amount=True)
+        self.assertEmpty(self._run_validation(message))
+
     def test_reaction(self):
         message = reaction_pb2.Reaction()
         with self.assertRaisesRegex(validations.ValidationError,
@@ -142,10 +167,9 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
             self._run_validation(message)
         dummy_component.mass.value = 1
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
-        # Reactions must have defined products or conversion
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'products or conversion'):
-            self._run_validation(message)
+        # Reactions don't require defined products or conversion because they
+        # can be used to prepare crude for a second Reaction
+        self.assertEmpty(self._run_validation(message))
         outcome.conversion.value = 75
         # If converseions are defined, must have limiting reagent flag
         with self.assertRaisesRegex(validations.ValidationError,

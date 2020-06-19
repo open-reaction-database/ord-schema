@@ -326,15 +326,31 @@ def validate_addition_speed(message):
     del message  # Unused.
 
 
+def validate_crude_component(message):
+    if not message.reaction_id:
+        warnings.warn('CrudeComponents must specify a reaction_id',
+                      ValidationError)
+    if (message.HasField('has_derived_amount') and message.has_derived_amount
+            and message.HasField('amount')):
+        warnings.warn('CrudeComponents with derived amounts cannot have their'
+                      ' mass or volume specified explicitly', ValidationError)
+    if ((not message.HasField('has_derived_amount')
+         or message.has_derived_amount is False)
+            and not message.HasField('amount')):
+        warnings.warn('Crude components should either have a derived amount or'
+                      ' a specified mass or volume', ValidationError)
+
 def validate_compound(message):
     if len(message.identifiers) == 0:
         warnings.warn('Compounds must have at least one identifier',
                       ValidationError)
     if all(identifier.type == identifier.NAME
            for identifier in message.identifiers):
-        warnings.warn(
-            'Compounds should have more specific identifiers than '
-            'NAME whenever possible', ValidationWarning)
+        warnings.warn('Compounds should have more specific identifiers than '
+                      'NAME whenever possible', ValidationWarning)
+    if not message.HasField('amount'):
+        warnings.warn('Compounds should have an amount specified',
+                      ValidationWarning)
 
 
 def validate_compound_feature(message):
@@ -344,6 +360,9 @@ def validate_compound_feature(message):
 
 def validate_compound_preparation(message):
     check_type_and_details(message)
+    if message.reaction_id and message.type != message.SYNTHESIZED:
+        warnings.warn('Reaction IDs should only be specified in compound'
+                      ' preparations when SYNTHESIZED', ValidationError)
 
 
 def validate_compound_identifier(message):
@@ -562,10 +581,10 @@ def validate_reaction_outcome(message):
                         f'Undefined analysis key {key} '
                         'in ReactionProduct', ValidationError)
     if not message.products and not message.HasField('conversion'):
-        # TODO(kearnes): Should products and conversion be mutually exclusive?
         warnings.warn(
             'No products or conversion are specified for reaction;'
-            ' at least one must be specified', ValidationError)
+            ' this is permissible only for multistep reactions',
+            ValidationWarning)
 
 
 def validate_reaction_product(message):
@@ -761,6 +780,8 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.ReactionInput.AdditionSpeed:
         validate_addition_speed,
     # Compounds
+    reaction_pb2.CrudeComponent:
+        validate_crude_component,
     reaction_pb2.Compound:
         validate_compound,
     reaction_pb2.Compound.Feature:
@@ -783,16 +804,16 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.ReactionSetup:
         validate_reaction_setup,
     reaction_pb2.ReactionSetup.ReactionEnvironment:
-        (validate_reaction_environment),
+        validate_reaction_environment,
     # Conditions
     reaction_pb2.ReactionConditions:
         validate_reaction_conditions,
     reaction_pb2.TemperatureConditions:
         validate_temperature_conditions,
     reaction_pb2.TemperatureConditions.TemperatureControl:
-        (validate_temperature_control),
+        validate_temperature_control,
     reaction_pb2.TemperatureConditions.Measurement:
-        (validate_temperature_measurement),
+        validate_temperature_measurement,
     reaction_pb2.PressureConditions:
         validate_pressure_conditions,
     reaction_pb2.PressureConditions.PressureControl:
@@ -810,13 +831,13 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.IlluminationConditions:
         validate_illumination_conditions,
     reaction_pb2.IlluminationConditions.IlluminationType:
-        (validate_illumination_type),
+        validate_illumination_type,
     reaction_pb2.ElectrochemistryConditions:
-        (validate_electrochemistry_conditions),
+        validate_electrochemistry_conditions,
     reaction_pb2.ElectrochemistryConditions.ElectrochemistryType:
-        (validate_electrochemistry_type),
+        validate_electrochemistry_type,
     reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell:
-        (validate_electrochemistry_cell),
+        validate_electrochemistry_cell,
     reaction_pb2.ElectrochemistryConditions.Measurement:
         validate_electrochemistry_measurement,
     reaction_pb2.FlowConditions:
