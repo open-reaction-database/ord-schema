@@ -176,8 +176,8 @@ def main(argv):
         logging.info('nothing else to do; use --update for more')
         return  # Nothing else to do.
     for dataset in datasets.values():
-        for reaction in dataset.reactions:
-            updates.update_reaction(reaction)
+        # Set reaction_ids, resolve names, fix cross-references, etc.
+        updates.update_dataset(dataset)
         # Offload large Data values.
         data_filenames = data_storage.extract_data(dataset,
                                                    FLAGS.root,

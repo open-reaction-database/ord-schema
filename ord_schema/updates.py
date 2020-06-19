@@ -16,6 +16,7 @@
 import datetime
 import urllib
 import uuid
+import re
 
 from absl import logging
 from rdkit import Chem
@@ -120,21 +121,31 @@ def update_reaction(reaction):
 
     Current updates:
       * Sets reaction_id if not already set.
+      * Adds a record modification event to the provenance.
+      * Resolves compound identifier names if no structural identifiers are
+        defined for a given compound.
 
     Args:
         reaction: reaction_pb2.Reaction message.
+
+    Returns:
+        A dictionary mapping placeholder reaction_ids to newly-assigned
+            reaction_ids.
     """
     modified = False
+    id_substitutions = {}
     if not reaction.provenance.HasField('record_created'):
         reaction.provenance.record_created.time.value = (
             datetime.datetime.utcnow().ctime())
         modified = True
-    if not reaction.reaction_id:
+    if not re.fullmatch('^ord-[0-9a-f]{32}$', reaction.reaction_id):
         # NOTE(kearnes): This does not check for the case where a Dataset is
         # edited and reaction_id values are changed inappropriately. This will
         # need to be either (1) caught in review or (2) found by a complex
         # check of the diff.
         reaction_id = f'ord-{uuid.uuid4().hex}'
+        if reaction.reaction_id:
+            id_substitutions[reaction.reaction_id] = reaction_id
         reaction.reaction_id = reaction_id
         modified = True
     for func in _UPDATES:
@@ -146,6 +157,38 @@ def update_reaction(reaction):
         event = reaction.provenance.record_modified.add()
         event.time.value = datetime.datetime.utcnow().ctime()
         event.details = 'Automatic updates from the submission pipeline.'
+    return id_substitutions
+
+
+def update_dataset(dataset):
+    """Updates a Dataset message.
+
+    Current updates:
+      * All reaction-level updates in update_reaction.
+      * reaction_id cross-references between Reactions in the dataset.
+
+    Args:
+        dataset: dataset_pb2.Dataset message.
+    """
+    # Reaction-level updates
+    id_substitutions = {}
+    for reaction in dataset.reactions:
+        id_substitutions.update(update_reaction(reaction))
+    # Dataset-level updates of cross-references
+    # Note: if the Dataset has been validated, then we know that all
+    # cross-referened reaction_ids correspond to placeholder reaction_ids of
+    # another Reaction in the Dataset. If not validated, this update might
+    # raise a KeyError exception.
+    for reaction in dataset.reactions:
+        for reaction_input in reaction.inputs:
+            for component in reaction_input.components:
+                for preparation in component.preparations:
+                    if preparation.reaction_id:
+                        preparation.reaction_id = id_substitutions[
+                            preparation.reaction_id]
+            for crude_component in reaction_input.crude_components:
+                crude_component.reaction_id = id_substitutions[
+                    crude_component.reaction_id]
 
 
 # Standard updates.
