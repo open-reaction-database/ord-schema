@@ -293,6 +293,53 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message.created.time.value = '11 am'
         self.assertEmpty(self._run_validation(message))
 
+    def test_dataset_crossreferences(self):
+        message = dataset_pb2.Dataset()
+        reaction1 = message.reactions.add()
+        reaction2 = message.reactions.add()
+        reaction3 = message.reactions.add()
+        # Minimal reaction 1
+        dummy_input = reaction1.inputs['dummy_input']
+        reaction1.outcomes.add()
+        dummy_component = dummy_input.components.add()
+        dummy_component.identifiers.add(type='CUSTOM')
+        dummy_component.identifiers[0].details = 'custom_identifier'
+        dummy_component.identifiers[0].value = 'custom_value'
+        dummy_component.mass.value = 1
+        dummy_component.mass.units = reaction_pb2.Mass.GRAM
+        reaction2.CopyFrom(reaction1)
+        reaction3.CopyFrom(reaction1)
+
+        # It is not required to cross-reference SYNTHESIZED compounds.
+        dummy_component.preparations.add(type='SYNTHESIZED')
+        self.assertEmpty(self._run_validation(message))
+        # References must refer to ID within this dataset.
+        dummy_component.preparations[0].reaction_id = 'placeholder_id'
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'undefined reaction_ids'):
+            self._run_validation(message)
+        # Self-references aren't allowed
+        reaction1.reaction_id = 'placeholder_id'
+        with self.assertRaisesRegex(validations.ValidationError, 'own ID'):
+            self._run_validation(message)
+        # Valid reference
+        reaction1.reaction_id = ''
+        reaction2.reaction_id = 'placeholder_id'
+        self.assertEmpty(self._run_validation(message))
+        # Duplicate IDs not allowed
+        reaction3.reaction_id = 'placeholder_id'
+        with self.assertRaisesRegex(validations.ValidationError, 'same IDs'):
+            self._run_validation(message)
+        reaction3.reaction_id = ''
+        # Crude component also needs valid IDs
+        dummy_input.crude_components.add(reaction_id='crude-making step',
+                                         has_derived_amount=True)
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'undefined reaction_ids'):
+            self._run_validation(message)
+        reaction3.reaction_id = 'crude-making step'
+        self.assertEmpty(self._run_validation(message))
+
 
 if __name__ == '__main__':
     absltest.main()
