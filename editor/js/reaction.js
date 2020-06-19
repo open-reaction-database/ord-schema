@@ -97,20 +97,13 @@ function selectText(node) {
 // whenever data entry within that node is changed.
 function addChangeHandler (node, handler) {
   // For textboxes
-  // TODO (n8kim1): better to only fire when focus lost, like how a 'change' event would work
-  // (like using blur or smth?)
   node.on('blur', '.edittext', handler);
-
   // TODO combine the following into fewer listeners
-  // For dropdowns
-  node.on('change', 'select', handler);
-  // For checkboxes and radio buttons
-  node.on('change', 'input', handler);
-  // For add buttons
-  node.on('click', '.add', handler);
-  // For remove buttons
-  node.on('click', '.remove', handler);
-  // TODO trigger on changes in upload
+  // For selectors, optional bool selectors,
+  // and checkboxes/radio buttons/file upload, respectively
+  node.on('change', '.selector, .optional_bool, input', handler);
+  // For add and remove buttons
+  node.on('click', '.add, .remove', handler);
 }
 
 // Generic validator for many message types, not just reaction
