@@ -286,6 +286,8 @@ message CompoundPreparation {
   // The ID of the reaction that produced this species. Note that this ID must
   // be defined within the same Dataset; cross-references cannot exist between
   // multiple datasets. Only to be used with the SYNTHESIZED preparation type.
+  // The referenced reaction should not merely be the procedure that was
+  // followed/reproduced, but the *exact* physical experiment.
   string reaction_id = 3;
 }
 
