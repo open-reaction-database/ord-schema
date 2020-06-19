@@ -94,10 +94,21 @@ function selectText(node) {
 // Adds a jQuery handler to a node such that the handler is run once 
 // whenever data entry within that node is changed.
 function addChangeHandler (node, handler) {
-  // For changes in dropbown, radio button, and checkbox selection:
-  node.on("change", handler);
-  // For changes in text field, additions, and removals:
-  node.on("DOMSubtreeModified", handler);
+  // For textboxes
+  // TODO (n8kim1): better to only fire when focus lost, like how a 'change' event would work
+  // (like using blur or smth?)
+  node.on('blur', '.edittext', handler);
+
+  // TODO combine the following into fewer listeners
+  // For dropdowns
+  node.on('change', 'select', handler);
+  // For checkboxes and radio buttons
+  node.on('change', 'input', handler);
+  // For add buttons
+  node.on('click', '.add', handler);
+  // For remove buttons
+  node.on('click', '.remove', handler);
+  // TODO trigger on changes in upload
 }
 
 // Generic validator for many message types, not just reaction
