@@ -70,6 +70,7 @@ def _validate_dataset(filename, dataset):
     """
     basename = os.path.basename(filename)
     errors = []
+    # Reaction-level validation
     num_bad_reactions = 0
     for i, reaction in enumerate(dataset.reactions):
         reaction_errors = validate_message(reaction, raise_on_error=False)
@@ -83,6 +84,9 @@ def _validate_dataset(filename, dataset):
                  basename,
                  len(dataset.reactions) - num_bad_reactions,
                  len(dataset.reactions), num_bad_reactions)
+    # Dataset-level validation of cross-references
+    # TODO
+
     return errors
 
 
@@ -588,7 +592,15 @@ def validate_reaction_outcome(message):
 
 
 def validate_reaction_product(message):
-    del message  # Unused.
+    # pylint: disable=too-many-boolean-expressions
+    if (message.compound.HasField('volume_includes_solutes')
+            or message.compound.HasField('is_limiting')
+            or message.compound.preparations
+            or message.compound.vendor_source
+            or message.compound.vendor_id
+            or message.compound.vendor_lot):
+        warnings.warn('Compounds defined as reaction products should not have'
+                      ' any inapplicable fields defined.', ValidationError)
 
 
 def validate_texture(message):
