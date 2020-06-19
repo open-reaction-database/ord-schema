@@ -34,7 +34,7 @@ body {
   border-width: 1px;
   border-color: #c0c0c0;
 }
-.add, #save, .remove, #delete, .validate, .validate_status {
+.add, #save, .remove, #delete, .validate, .validate_status, .validate_message {
   padding: 2px 4px;
   margin: 2px;
   display: inline-block;
@@ -47,7 +47,7 @@ body {
   background-color: lightgreen;
   margin-top: 12px;
 }
-#save, #validate_status {
+#save, .validate_status {
   background-color: lightgray;
 }
 .validate {
