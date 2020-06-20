@@ -92,19 +92,15 @@ limitations under the License.
                   Input
                   <div onclick="ord.inputs.validateInput($(this).closest('.input'))" class="validate">validate</div>
                   
-                  <!-- TODO clean up div structure and naming -->
-                  <!-- smth like message->result, message-text->text -->
-                  <!-- TODO clean up JS var names accordingly -->
-                  <!-- TODO clean up corresponding JS -->
                   <!-- TODO modularize into smth like a "datatype"; at least give it its own methods (see paper) -->
-                  <!-- TODO make things hide when valid -->
-                  <!-- TODO make what needs to be hidden by default -->
-                  <!-- TODO apply CSS -->
-                  <div class="input_validate_status validate_status" onclick="ord.inputs.showValidateMessage($(this).closest('.input'))"  style="display: inline-block;">
+                  <!-- TODO make validate reaction work -->
+                  <!-- TODO move CSS in HTML to CSS file -->
+                  <!-- TODO add CSS to elements to make everything look nice -->
+                  <div class="input_validate_status validate_status" onclick="showValidateMessage($(this))"  style="display: inline-block;">
                       <div class="input_validate_result validate_result">
-                        Unvalidated (Click)
+                        unvalidated
                       </div>
-                      <div class="input_validate_message_text validate_message_text" style="z-index: 2; position: absolute; display: inline-block;"> 
+                      <div class="input_validate_message validate_message" style="z-index: 2; position: absolute; display: inline-block; visibility: hidden;"> 
                         <div>Validate Msg Text</div>
                         <div>Validate Msg Text2</div>
                       </div>

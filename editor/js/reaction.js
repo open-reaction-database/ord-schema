@@ -96,7 +96,7 @@ function addChangeHandler (node, handler) {
 
 // Generic validator for many message types, not just reaction
 // note: does not commit or save anything!
-function validate(message, messageTypeString, statusNode, messageNode) {
+function validate(message, messageTypeString, statusNode) {
   // eg message is a type of reaction, messageTypeString = "Reaction"
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/dataset/proto/validate/' + messageTypeString);
@@ -106,23 +106,34 @@ function validate(message, messageTypeString, statusNode, messageNode) {
   xhr.onload = function (event) {
     const errors = xhr.response;
     console.log(errors);
+    resultNode = $('.validate_result', statusNode);
+    messageNode = $('.validate_message', statusNode);
     if (errors.length) {
       statusNode.css('backgroundColor', 'pink');
-      // statusNode.text('invalid');
-      messageNode.text('invalid');
-      $('.validate_message_text', messageNode).text(errors);
-      messageNode.show();
+      resultNode.text('invalid (click)');
+      messageNode.text(errors);
     }
     else {
       statusNode.css('backgroundColor', 'lightgreen');
-      messageNode.text('valid');
-      // TODO make the following 2 lines work
-      $('.validate_message_text', messageNode).text();
-      $('.validate_message_text', messageNode).hide();
+      resultNode.text('valid');
+      messageNode.text('');
+      messageNode.css('visibility', 'hidden');
     }
   };
   xhr.send(binary);
 }
+
+showValidateMessage = function(node) {
+  messageNode = $('.validate_message', node);
+  switch (messageNode.css('visibility')) {
+    case 'visible':
+      messageNode.css('visibility', 'hidden');
+      break;
+    case 'hidden':
+      messageNode.css('visibility', 'visible');
+      break;
+  }
+};
 
 function validateReaction() {
   $('#reaction_validate').css('visibility', 'hidden');
