@@ -123,7 +123,7 @@ function validate(message, messageTypeString, statusNode) {
   xhr.send(binary);
 }
 
-showValidateMessage = function(node) {
+toggleValidateMessage = function(node) {
   messageNode = $('.validate_message', node);
   switch (messageNode.css('visibility')) {
     case 'visible':
