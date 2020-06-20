@@ -108,14 +108,17 @@ function validate(message, messageTypeString, statusNode, messageNode) {
     console.log(errors);
     if (errors.length) {
       statusNode.css('backgroundColor', 'pink');
-      statusNode.text('invalid');
-      messageNode.text(errors);
+      // statusNode.text('invalid');
+      messageNode.text('invalid');
+      $('.validate_message_text', messageNode).text(errors);
       messageNode.show();
     }
     else {
       statusNode.css('backgroundColor', 'lightgreen');
-      statusNode.text('valid');
-      messageNode.hide();
+      messageNode.text('valid');
+      // TODO make the following 2 lines work
+      $('.validate_message_text', messageNode).text();
+      $('.validate_message_text', messageNode).hide();
     }
   };
   xhr.send(binary);

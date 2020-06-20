@@ -130,6 +130,13 @@ ord.inputs.validateInput = function(node) {
   console.log("attempting to validate input");
   const input = ord.inputs.unloadInputUnnamed(node);
   statusNode = $('.input_validate_status', node);
-  messageNode = $('.input_validate_message', node);
+  messageNode = $('.input_validate_result', node);
   validate(input, "ReactionInput", statusNode, messageNode);
+};
+
+// TODO can this be generic?
+ord.inputs.showValidateMessage = function(node) {
+  console.log("trying to show validate msg");
+  console.log($('.input_validate_message_text', node));
+  $('.input_validate_message_text', node).toggle();
 };

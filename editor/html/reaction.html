@@ -91,8 +91,25 @@ limitations under the License.
                 <legend>
                   Input
                   <div onclick="ord.inputs.validateInput($(this).closest('.input'))" class="validate">validate</div>
-                  <div class="input_validate_status validate_status">unvalidated</div>
-                  <div class="input_validate_message validate_message" style="display: none;"></div>
+                  
+                  <!-- TODO clean up div structure and naming -->
+                  <!-- smth like message->result, message-text->text -->
+                  <!-- TODO clean up JS var names accordingly -->
+                  <!-- TODO clean up corresponding JS -->
+                  <!-- TODO modularize into smth like a "datatype"; at least give it its own methods (see paper) -->
+                  <!-- TODO make things hide when valid -->
+                  <!-- TODO make what needs to be hidden by default -->
+                  <!-- TODO apply CSS -->
+                  <div class="input_validate_status validate_status" onclick="ord.inputs.showValidateMessage($(this).closest('.input'))"  style="display: inline-block;">
+                      <div class="input_validate_result validate_result">
+                        Unvalidated (Click)
+                      </div>
+                      <div class="input_validate_message_text validate_message_text" style="z-index: 2; position: absolute; display: inline-block;"> 
+                        <div>Validate Msg Text</div>
+                        <div>Validate Msg Text2</div>
+                      </div>
+                  </div>
+
                 </legend>
                 <span class="input_name_label">name</span><div class="input_name edittext"></div>
                 <div onclick="removeSlowly(this, '.input');" class="remove">remove</div>
