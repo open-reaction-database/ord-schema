@@ -406,9 +406,6 @@ def validate_compound(message):
         warnings.warn(
             'Compounds should have more specific identifiers than '
             'NAME whenever possible', ValidationWarning)
-    if not message.HasField('amount'):
-        warnings.warn('Compounds should have an amount specified',
-                      ValidationWarning)
 
 
 def validate_compound_feature(message):
