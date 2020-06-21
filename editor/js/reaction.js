@@ -103,12 +103,10 @@ function validate(message, messageTypeString, statusNode) {
   const binary = message.serializeBinary();
 
   xhr.responseType = 'json';
-  xhr.onload = function (event) {
+  xhr.onload = function () {
     const errors = xhr.response;
-    console.log(errors);
     resultNode = $('.validate_result', statusNode);
     messageNode = $('.validate_message', statusNode);
-    console.log("messageNodeInValidate", messageNode)
     if (errors.length) {
       resultNode.css('backgroundColor', 'pink');
       resultNode.text('invalid (click)');

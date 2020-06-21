@@ -121,52 +121,12 @@ ord.inputs.unloadInputUnnamed = function (node) {
 
 ord.inputs.add = function (root) {
   const node = addSlowly('#input_template', root);
-  // node.css('backgroundColor', 'green')
-
-  // statusNode = $('.validate_status', node); 
-  // statusNode.css('backgroundColor', 'red')
-  // handler = function () {ord.inputs.validateInput(node, statusNode)};
-  // ^ unfortunately, the statusNode is not queried properly in the first line
-  // (bizarrely, however, the correct statusNode does turn red...
-  // perhaps the first line occcurs, then the addSlowly occurs, then the second line occurs?
-
-  
-  $('.validate_status', node).css('backgroundColor', 'yellow')
-  statusNode = $('.validate_status', node); 
-    // handler = function () {ord.inputs.validateInput(node, statusNode)};
-    handler = function () {ord.inputs.validateInput(node, $('.validate_status', node))};
-
-
-  // handler = function () {ord.inputs.validateInput(node, $('.validate_status', node))};
-  // ^this works !! ig statusNode
-
+  handler = function () {ord.inputs.validateInput(node, $('.validate_status', node))};
   addChangeHandler(node, handler);
   return node;
 };
 
 ord.inputs.validateInput = function(node, statusNode) {
-  console.log("attempting to validate input");
-  console.log("node")
-  console.log(node)
-  node.css('backgroundColor', 'green')
-
-  statusNode = $(statusNode)
-  console.log("statusNode");
-  console.log(statusNode);
-  statusNode.css('backgroundColor', 'blue')
-  // when triggered by the handler, nothing turns blue
-
-  // // what if we try to find it on the fly?
-  // statusNode = $('.validate_status', node)
-  // // this works! it's not ideal tho, bc if there are multiple validate status, we'd modify all;
-  // // using .first() isn't great either bc the statusNode we're trying to find might not always be first;
-  // // could use more descriptive class name (eg input_validate_status) but thats less copy-pastable
-  // console.log("statusNode");
-  // console.log(statusNode);
-  // statusNode.css('backgroundColor', 'blue')
-
-  console.log('attempt to find messageNode:')
-  console.log($('.validate_message', statusNode))
   const input = ord.inputs.unloadInputUnnamed(node);
   validate(input, "ReactionInput", statusNode);
 };
