@@ -108,13 +108,14 @@ function validate(message, messageTypeString, statusNode) {
     console.log(errors);
     resultNode = $('.validate_result', statusNode);
     messageNode = $('.validate_message', statusNode);
+    console.log("messageNodeInValidate", messageNode)
     if (errors.length) {
-      statusNode.css('backgroundColor', 'pink');
+      resultNode.css('backgroundColor', 'pink');
       resultNode.text('invalid (click)');
       messageNode.text(errors);
     }
     else {
-      statusNode.css('backgroundColor', 'lightgreen');
+      resultNode.css('backgroundColor', 'lightgreen');
       resultNode.text('valid');
       messageNode.text('');
       messageNode.css('visibility', 'hidden');

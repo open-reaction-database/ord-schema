@@ -34,23 +34,23 @@ body {
   border-width: 1px;
   border-color: #c0c0c0;
 }
-.add, #save, .remove, #delete, .validate, .validate_status, .validate_result {
+.add, #save, .remove, #delete, .validate_button, .validate_result, .validate_message {
   padding: 2px 4px;
   margin: 2px;
   display: inline-block;
   border-radius: 8px;
 }
-.add, #save, .remove, #delete, .validate {
+.add, #save, .remove, #delete, .validate_button {
   cursor: pointer;
 }
 .add {
   background-color: lightgreen;
   margin-top: 12px;
 }
-#save, .validate_status {
+#save, .validate_result {
   background-color: lightgray;
 }
-.validate {
+.validate_button {
   background-color: lightblue;
 }
 .remove, #delete {

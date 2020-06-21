@@ -90,18 +90,28 @@ limitations under the License.
               <fieldset>
                 <legend>
                   Input
-                  <div onclick="ord.inputs.validateInput($(this).closest('.input'))" class="validate">validate</div>
                   
                   <!-- TODO make validate reaction work -->
                   <!-- TODO move CSS in HTML to CSS file -->
                   <!-- TODO add CSS to elements to make everything look nice -->
-                  <div class="input_validate_status validate_status" onclick="toggleVisibilityMessage($(this))"  style="display: inline-block;">
-                      <div class="validate_result">
-                        unvalidated
+
+                  <div class="input_validate_status validate_status" style="display: inline-block;">
+                    <!-- TODO make this validate_status an input to validateInput, so we don't have to find the status node -->
+                    <!-- Then, it should be possible to remove class name "input_validate_status" -->
+                    <div onclick="ord.inputs.validateInput($(this).closest('.input'), $(this).closest('.validate_status'
+                    ))" class="validate_button">
+                      validate
+                    </div>
+                    <div style="display: inline-block;" onclick="toggleValidateMessage($(this))" >
+                      <div class="validate_result" style="background-color: pink;">
+                        <!-- unvalidated -->
+                        invalid (click)
                       </div>
-                      <div class="validate_message" style="z-index: 2; position: absolute; display: inline-block; visibility: hidden;"> 
+                      <div class="validate_message" style="z-index: 2; position: absolute;  background-color:pink; display: inline-block"> 
+                        <!-- TODO parse error messages into divs, this is hard -->
                         <div>Validate Msg Text</div>
                         <div>Validate Msg Text2</div>
+                      </div>
                       </div>
                   </div>
 
