@@ -313,8 +313,9 @@ def validate_dataset(message, validate_id=False):
     for reaction in message.reactions:
         if reaction.reaction_id:
             if reaction.reaction_id in dataset_defined_ids:
-                warnings.warn('Multiple Reactions should never have the same '
-                              'IDs', ValidationError)
+                warnings.warn(
+                    'Multiple Reactions should never have the same '
+                    'IDs', ValidationError)
             dataset_defined_ids.add(reaction.reaction_id)
         referenced_ids = get_referenced_reaction_ids(reaction)
         if any(_id == reaction.reaction_id for _id in referenced_ids):
