@@ -27,19 +27,24 @@ from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 
-def validate_datasets(datasets, write_errors=False):
+def validate_datasets(datasets, write_errors=False, validate_ids=False):
     """Runs validation for a set of datasets.
 
     Args:
         datasets: Dict mapping text filenames to Dataset protos.
         write_errors: If True, errors are written to disk.
+        validate_ids: A boolean that controls whether the IDs of Reactions or
+            Datasets should be checked for validity. Defaults to False.
 
     Raises:
         ValidationError: if any Dataset does not pass validation.
     """
     all_errors = []
     for filename, dataset in datasets.items():
-        errors = _validate_dataset(filename, dataset)
+        basename = os.path.basename(filename)
+        errors = _validate_dataset(dataset,
+                                   label=basename,
+                                   validate_ids=validate_ids)
         if errors:
             for error in errors:
                 all_errors.append(f'{filename}: {error}')
@@ -55,40 +60,53 @@ def validate_datasets(datasets, write_errors=False):
             f'validation encountered errors:\n{error_string}')
 
 
-def _validate_dataset(filename, dataset):
-    """Validates Reaction messages in a Dataset.
-
-    Note that validation may change the message. For example, NAME
-    identifiers will be resolved to structures.
+def _validate_dataset(dataset, label='dataset', validate_ids=False):
+    """Validates Reaction messages and cross-references in a Dataset.
 
     Args:
-        filename: Text filename; the dataset source.
         dataset: dataset_pb2.Dataset message.
+        label: string label for logging purposes only.
+        validate_ids: A boolean that controls whether the IDs of Reactions or
+            Datasets should be checked for validity. Defaults to False.
 
     Returns:
         List of validation error messages.
     """
-    basename = os.path.basename(filename)
+
     errors = []
+    # Reaction-level validation.
     num_bad_reactions = 0
     for i, reaction in enumerate(dataset.reactions):
-        reaction_errors = validate_message(reaction, raise_on_error=False)
+        reaction_errors = validate_message(reaction,
+                                           raise_on_error=False,
+                                           validate_ids=validate_ids)
         if reaction_errors:
             num_bad_reactions += 1
         for error in reaction_errors:
             errors.append(error)
-            logging.warning('Validation error for %s[%d]: %s', basename, i,
-                            error)
+            logging.warning('Validation error for %s[%d]: %s', label, i, error)
     logging.info('Validation summary for %s: %d/%d successful (%d failures)',
-                 basename,
+                 label,
                  len(dataset.reactions) - num_bad_reactions,
                  len(dataset.reactions), num_bad_reactions)
+    # Dataset-level validation of cross-references.
+    dataset_errors = validate_message(dataset,
+                                      raise_on_error=False,
+                                      recurse=False,
+                                      validate_ids=validate_ids)
+    for error in dataset_errors:
+        errors.append(error)
+        logging.warning('Validation error for %s: %s', label, error)
+
     return errors
 
 
 # pylint: disable=too-many-branches
 # pylint: disable=too-many-nested-blocks
-def validate_message(message, recurse=True, raise_on_error=True):
+def validate_message(message,
+                     recurse=True,
+                     raise_on_error=True,
+                     validate_ids=False):
     """Template function for validating custom messages in the reaction_pb2.
 
     Messages are not validated to check enum values, since these are enforced
@@ -107,6 +125,8 @@ def validate_message(message, recurse=True, raise_on_error=True):
         raise_on_error: If True, raises a ValidationError exception when errors
             are encountered. If False, the user must manually check the return
             value to identify validation errors.
+        validate_ids: A boolean that controls whether the IDs of Reactions or
+            Datasets should be checked for validity. Defaults to False.
 
     Returns:
         List of text validation errors, if any.
@@ -128,17 +148,21 @@ def validate_message(message, recurse=True, raise_on_error=True):
                                 errors.extend(
                                     validate_message(
                                         submessage,
-                                        raise_on_error=raise_on_error))
+                                        raise_on_error=raise_on_error,
+                                        validate_ids=validate_ids))
                         else:  # value is a primitive
                             pass
                     else:  # Just a repeated message
                         for submessage in value:
                             errors.extend(
-                                validate_message(
-                                    submessage, raise_on_error=raise_on_error))
+                                validate_message(submessage,
+                                                 raise_on_error=raise_on_error,
+                                                 validate_ids=validate_ids))
                 else:  # no recursion needed
                     errors.extend(
-                        validate_message(value, raise_on_error=raise_on_error))
+                        validate_message(value,
+                                         raise_on_error=raise_on_error,
+                                         validate_ids=validate_ids))
 
     # Message-specific validation
     if not isinstance(message, tuple(_VALIDATOR_SWITCH.keys())):
@@ -151,7 +175,11 @@ def validate_message(message, recurse=True, raise_on_error=True):
             f"Don't know how to validate {type(message)}")
 
     with warnings.catch_warnings(record=True) as tape:
-        _VALIDATOR_SWITCH[type(message)](message)
+        if validate_ids and isinstance(
+                message, (reaction_pb2.Reaction, dataset_pb2.Dataset)):
+            _VALIDATOR_SWITCH[type(message)](message, validate_id=True)
+        else:
+            _VALIDATOR_SWITCH[type(message)](message)
     for warning in tape:
         if issubclass(warning.category, ValidationError):
             if raise_on_error:
@@ -250,7 +278,21 @@ def reaction_needs_internal_standard(message):
     return False
 
 
-def validate_dataset(message):
+def get_referenced_reaction_ids(message):
+    """Return the set of reaction IDs that are referenced in a Reaction."""
+    referenced_ids = set()
+    for reaction_input in message.inputs.values():
+        for component in reaction_input.components:
+            for preparation in component.preparations:
+                if preparation.reaction_id:
+                    referenced_ids.add(preparation.reaction_id)
+        for crude_component in reaction_input.crude_components:
+            referenced_ids.add(crude_component.reaction_id)
+    return referenced_ids
+
+
+def validate_dataset(message, validate_id=False):
+    # pylint: disable=too-many-branches,too-many-nested-blocks
     if not message.reactions and not message.reaction_ids:
         warnings.warn('Dataset requires reactions or reaction_ids',
                       ValidationError)
@@ -261,10 +303,30 @@ def validate_dataset(message):
         for reaction_id in message.reaction_ids:
             if not re.fullmatch('^ord-[0-9a-f]{32}$', reaction_id):
                 warnings.warn('Reaction ID is malformed', ValidationError)
-    if message.dataset_id:
+    if validate_id:
         # The dataset_id is a 32-character uuid4 hex string.
         if not re.fullmatch('^ord_dataset-[0-9a-f]{32}$', message.dataset_id):
             warnings.warn('Dataset ID is malformed', ValidationError)
+    # Check cross-references
+    dataset_referenced_ids = set()
+    dataset_defined_ids = set()
+    for reaction in message.reactions:
+        if reaction.reaction_id:
+            if reaction.reaction_id in dataset_defined_ids:
+                warnings.warn(
+                    'Multiple Reactions should never have the same '
+                    'IDs', ValidationError)
+            dataset_defined_ids.add(reaction.reaction_id)
+        referenced_ids = get_referenced_reaction_ids(reaction)
+        if any(_id == reaction.reaction_id for _id in referenced_ids):
+            warnings.warn('A Reaction should not reference its own ID',
+                          ValidationError)
+        dataset_referenced_ids |= referenced_ids
+    if len(dataset_referenced_ids - dataset_defined_ids) > 0:
+        warnings.warn(
+            'Reactions in the Dataset refer to undefined '
+            f'reaction_ids {dataset_referenced_ids - dataset_defined_ids}',
+            ValidationError)
 
 
 def validate_dataset_example(message):
@@ -277,7 +339,7 @@ def validate_dataset_example(message):
         warnings.warn('DatasetExample.created is required', ValidationError)
 
 
-def validate_reaction(message):
+def validate_reaction(message, validate_id=False):
     if len(message.inputs) == 0:
         warnings.warn('Reactions should have at least 1 reaction input',
                       ValidationError)
@@ -296,7 +358,7 @@ def validate_reaction(message):
             'If reaction conversion is specified, at least one '
             'reaction input component must be labeled is_limiting',
             ValidationError)
-    if message.reaction_id:
+    if validate_id:
         # The reaction_id suffix is a 32-character uuid4 hex string.
         if not re.fullmatch('^ord-[0-9a-f]{32}$', message.reaction_id):
             warnings.warn('Reaction ID is malformed', ValidationError)
@@ -326,6 +388,22 @@ def validate_addition_speed(message):
     del message  # Unused.
 
 
+def validate_crude_component(message):
+    if not message.reaction_id:
+        warnings.warn('CrudeComponents must specify a reaction_id',
+                      ValidationError)
+    if message.has_derived_amount and message.HasField('amount'):
+        warnings.warn(
+            'CrudeComponents with derived amounts cannot have their'
+            ' mass or volume specified explicitly', ValidationError)
+    if ((not message.HasField('has_derived_amount')
+         or not message.has_derived_amount)
+            and not message.HasField('amount')):
+        warnings.warn(
+            'Crude components should either have a derived amount or'
+            ' a specified mass or volume', ValidationError)
+
+
 def validate_compound(message):
     if len(message.identifiers) == 0:
         warnings.warn('Compounds must have at least one identifier',
@@ -344,6 +422,10 @@ def validate_compound_feature(message):
 
 def validate_compound_preparation(message):
     check_type_and_details(message)
+    if message.reaction_id and message.type != message.SYNTHESIZED:
+        warnings.warn(
+            'Reaction IDs should only be specified in compound'
+            ' preparations when SYNTHESIZED', ValidationError)
 
 
 def validate_compound_identifier(message):
@@ -561,15 +643,26 @@ def validate_reaction_outcome(message):
                     warnings.warn(
                         f'Undefined analysis key {key} '
                         'in ReactionProduct', ValidationError)
+    # TODO(ccoley): While we do not currently check whether the parent Reaction
+    # is *actually* used in a multistep reaction within a Dataset (i.e., in a
+    # CrudeComponent); this is an additional check that could be added to the
+    # submission pipeline.
     if not message.products and not message.HasField('conversion'):
-        # TODO(kearnes): Should products and conversion be mutually exclusive?
         warnings.warn(
             'No products or conversion are specified for reaction;'
-            ' at least one must be specified', ValidationError)
+            ' this is permissible only for multistep reactions',
+            ValidationWarning)
 
 
 def validate_reaction_product(message):
-    del message  # Unused.
+    # pylint: disable=too-many-boolean-expressions
+    if (message.compound.HasField('volume_includes_solutes')
+            or message.compound.HasField('is_limiting')
+            or message.compound.preparations or message.compound.vendor_source
+            or message.compound.vendor_id or message.compound.vendor_lot):
+        warnings.warn(
+            'Compounds defined as reaction products should not have'
+            ' any inapplicable fields defined.', ValidationError)
 
 
 def validate_texture(message):
@@ -761,6 +854,8 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.ReactionInput.AdditionSpeed:
         validate_addition_speed,
     # Compounds
+    reaction_pb2.CrudeComponent:
+        validate_crude_component,
     reaction_pb2.Compound:
         validate_compound,
     reaction_pb2.Compound.Feature:
@@ -783,16 +878,16 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.ReactionSetup:
         validate_reaction_setup,
     reaction_pb2.ReactionSetup.ReactionEnvironment:
-        (validate_reaction_environment),
+        validate_reaction_environment,
     # Conditions
     reaction_pb2.ReactionConditions:
         validate_reaction_conditions,
     reaction_pb2.TemperatureConditions:
         validate_temperature_conditions,
     reaction_pb2.TemperatureConditions.TemperatureControl:
-        (validate_temperature_control),
+        validate_temperature_control,
     reaction_pb2.TemperatureConditions.Measurement:
-        (validate_temperature_measurement),
+        validate_temperature_measurement,
     reaction_pb2.PressureConditions:
         validate_pressure_conditions,
     reaction_pb2.PressureConditions.PressureControl:
@@ -810,13 +905,13 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.IlluminationConditions:
         validate_illumination_conditions,
     reaction_pb2.IlluminationConditions.IlluminationType:
-        (validate_illumination_type),
+        validate_illumination_type,
     reaction_pb2.ElectrochemistryConditions:
-        (validate_electrochemistry_conditions),
+        validate_electrochemistry_conditions,
     reaction_pb2.ElectrochemistryConditions.ElectrochemistryType:
-        (validate_electrochemistry_type),
+        validate_electrochemistry_type,
     reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell:
-        (validate_electrochemistry_cell),
+        validate_electrochemistry_cell,
     reaction_pb2.ElectrochemistryConditions.Measurement:
         validate_electrochemistry_measurement,
     reaction_pb2.FlowConditions:
