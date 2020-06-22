@@ -169,16 +169,17 @@ def update_dataset(dataset):
 
     Args:
         dataset: dataset_pb2.Dataset message.
+
+    Raises:
+        KeyError: if the dataset has not been validated and there exists a
+            cross-referenced reaction_id in any Reaction that is not defined
+            elsewhere in the Dataset.
     """
     # Reaction-level updates
     id_substitutions = {}
     for reaction in dataset.reactions:
         id_substitutions.update(update_reaction(reaction))
     # Dataset-level updates of cross-references
-    # Note: if the Dataset has been validated, then we know that all
-    # cross-referened reaction_ids correspond to placeholder reaction_ids of
-    # another Reaction in the Dataset. If not validated, this update might
-    # raise a KeyError exception.
     for reaction in dataset.reactions:
         for reaction_input in reaction.inputs.values():
             for component in reaction_input.components:

@@ -33,6 +33,8 @@ def validate_datasets(datasets, write_errors=False, validate_ids=False):
     Args:
         datasets: Dict mapping text filenames to Dataset protos.
         write_errors: If True, errors are written to disk.
+        validate_ids: A boolean that controls whether the IDs of Reactions or
+            Datasets should be checked for validity. Defaults to False.
 
     Raises:
         ValidationError: if any Dataset does not pass validation.
@@ -64,6 +66,8 @@ def _validate_dataset(dataset, label='dataset', validate_ids=False):
     Args:
         dataset: dataset_pb2.Dataset message.
         label: string label for logging purposes only.
+        validate_ids: A boolean that controls whether the IDs of Reactions or
+            Datasets should be checked for validity. Defaults to False.
 
     Returns:
         List of validation error messages.
@@ -274,6 +278,19 @@ def reaction_needs_internal_standard(message):
     return False
 
 
+def get_referenced_reaction_ids(message):
+    """Return the set of reaction IDs that are referenced in a Reaction."""
+    referenced_ids = set()
+    for reaction_input in message.inputs.values():
+        for component in reaction_input.components:
+            for preparation in component.preparations:
+                if preparation.reaction_id:
+                    referenced_ids.add(preparation.reaction_id)
+        for crude_component in reaction_input.crude_components:
+            referenced_ids.add(crude_component.reaction_id)
+    return referenced_ids
+
+
 def validate_dataset(message, validate_id=False):
     # pylint: disable=too-many-branches,too-many-nested-blocks
     if not message.reactions and not message.reaction_ids:
@@ -291,34 +308,24 @@ def validate_dataset(message, validate_id=False):
         if not re.fullmatch('^ord_dataset-[0-9a-f]{32}$', message.dataset_id):
             warnings.warn('Dataset ID is malformed', ValidationError)
     # Check cross-references
-    referenced_ids = set()
-    defined_ids = set()
+    dataset_referenced_ids = set()
+    dataset_defined_ids = set()
     for reaction in message.reactions:
         if reaction.reaction_id:
-            if reaction.reaction_id in defined_ids:
-                warnings.warn(
-                    'Multiple Reactions should never have the same '
-                    'IDs', ValidationError)
-            defined_ids.add(reaction.reaction_id)
-        for reaction_input in reaction.inputs.values():
-            for component in reaction_input.components:
-                for preparation in component.preparations:
-                    if preparation.reaction_id:
-                        referenced_ids.add(preparation.reaction_id)
-                        if preparation.reaction_id == reaction.reaction_id:
-                            warnings.warn(
-                                'A Reaction should not reference '
-                                'its own ID', ValidationError)
-            for crude_component in reaction_input.crude_components:
-                referenced_ids.add(crude_component.reaction_id)
-                if crude_component.reaction_id == reaction.reaction_id:
-                    warnings.warn(
-                        'A Reaction should not reference '
-                        'its own ID', ValidationError)
-    if len(referenced_ids - defined_ids) > 0:
+            if reaction.reaction_id in dataset_defined_ids:
+                warnings.warn('Multiple Reactions should never have the same '
+                              'IDs', ValidationError)
+            dataset_defined_ids.add(reaction.reaction_id)
+        referenced_ids = get_referenced_reaction_ids(reaction)
+        if any(_id == reaction.reaction_id for _id in referenced_ids):
+            warnings.warn('A Reaction should not reference its own ID',
+                          ValidationError)
+        dataset_referenced_ids |= referenced_ids
+    if len(dataset_referenced_ids - dataset_defined_ids) > 0:
         warnings.warn(
             'Reactions in the Dataset refer to undefined '
-            f'reaction_ids {referenced_ids - defined_ids}', ValidationError)
+            f'reaction_ids {dataset_referenced_ids - dataset_defined_ids}',
+            ValidationError)
 
 
 def validate_dataset_example(message):
@@ -384,13 +391,12 @@ def validate_crude_component(message):
     if not message.reaction_id:
         warnings.warn('CrudeComponents must specify a reaction_id',
                       ValidationError)
-    if (message.HasField('has_derived_amount') and message.has_derived_amount
-            and message.HasField('amount')):
+    if message.has_derived_amount and message.HasField('amount'):
         warnings.warn(
             'CrudeComponents with derived amounts cannot have their'
             ' mass or volume specified explicitly', ValidationError)
     if ((not message.HasField('has_derived_amount')
-         or message.has_derived_amount is False)
+         or not message.has_derived_amount)
             and not message.HasField('amount')):
         warnings.warn(
             'Crude components should either have a derived amount or'
@@ -636,6 +642,10 @@ def validate_reaction_outcome(message):
                     warnings.warn(
                         f'Undefined analysis key {key} '
                         'in ReactionProduct', ValidationError)
+    # TODO(ccoley): While we do not currently check whether the parent Reaction
+    # is *actually* used in a multistep reaction within a Dataset (i.e., in a
+    # CrudeComponent); this is an additional check that could be added to the
+    # submission pipeline.
     if not message.products and not message.HasField('conversion'):
         warnings.warn(
             'No products or conversion are specified for reaction;'

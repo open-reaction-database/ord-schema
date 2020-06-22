@@ -110,7 +110,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         self.assertEmpty(self._run_validation(message))
         message = reaction_pb2.CompoundPreparation(
             type='NONE', reaction_id='dummy_reaction_id')
-        with self.assertRaisesRegex(validations.ValidationError, 'IDs'):
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'only .* when SYNTHESIZED'):
             self._run_validation(message)
 
     def test_crude_component(self):
