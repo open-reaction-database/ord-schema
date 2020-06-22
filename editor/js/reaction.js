@@ -110,12 +110,19 @@ function validate(message, messageTypeString, statusNode) {
     if (errors.length) {
       resultNode.css('backgroundColor', 'pink');
       resultNode.text('invalid (click)');
-      messageNode.text(errors);
+      messageNode.empty();
+
+      for (index = 0; index < errors.length; index++) { 
+        error = errors[index];
+        errorNode = $('<div></div>');
+        errorNode.text('\u2022 ' + error);
+        messageNode.append(errorNode);
+      } 
     }
     else {
       resultNode.css('backgroundColor', 'lightgreen');
       resultNode.text('valid');
-      messageNode.text('');
+      messageNode.html('');
       messageNode.css('visibility', 'hidden');
     }
   };
