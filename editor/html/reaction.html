@@ -96,7 +96,7 @@ limitations under the License.
                   <!-- TODO add CSS to elements to make everything look nice -->
                   <!-- TODO rename validate_x to validator_x? and in particular, validate_status to validator -->
 
-                  <div class="validate_status" button-onclick="ord.inputs.validateInput($(this).closest('.input'), $(this).closest('.validate_status'))" ></div>
+                  <div class="input_validate_status validate_status" button-onclick="ord.inputs.validateInput($(this).closest('.input'), $(this).closest('.validate_status'))" ></div>
 
                 </legend>
                 <span class="input_name_label">name</span><div class="input_name edittext"></div>
@@ -136,7 +136,10 @@ limitations under the License.
 
             <div id="component_template" class="component" style="display: none;">
               <fieldset>
-                <legend>Component</legend>
+                <legend>
+                  Component
+                  <div class="component_validate_status validate_status" button-onclick="ord.compounds.validateCompound($(this).closest('.component'), $(this).closest('.validate_status'))" ></div>
+                </legend>
                 <table>
                   <tr><td>reaction role</td><td><div class="component_reaction_role selector" data-proto="Compound_ReactionRole_ReactionRoleType"></div></td></tr>
                   <tr><td>limiting reactant?</td><td><div class="component_limiting optional_bool"></div></td></tr>

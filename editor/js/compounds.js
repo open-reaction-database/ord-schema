@@ -207,6 +207,10 @@ ord.compounds.add = function (root) {
       $('.component_amount_units_volume', root).show();
     }
   });
+
+  handler = function () {ord.compounds.validateCompound(node, $('.validate_status', node))};
+  addChangeHandler(node, handler);
+
   return node;
 };
 
@@ -230,4 +234,9 @@ ord.compounds.addIdentifier = function (node) {
 
 ord.compounds.addPreparation = function (node) {
   return addSlowly('#component_preparation_template', $('.preparations', node));
+};
+
+ord.compounds.validateCompound = function(node, statusNode) {
+  const compound = ord.compounds.unloadCompound(node);
+  validate(compound, "Compound", statusNode);
 };
