@@ -43,6 +43,8 @@ async function init(fileName, index) {
   $('.optional_bool').each((index, node) => initOptionalBool($(node)));
   // Enable all the editable text fields.
   $('.edittext').attr('contentEditable', 'true');
+  // Initialize all the validators.
+  $('.validate_status').each((index, node) => initValidateStatus($(node)));
   // Show "save" on modifications.
   listen('body');
   // Fetch the Dataset containing the Reaction proto.
@@ -372,6 +374,11 @@ function getOptionalBool(node) {
     return false;
   }
   return null;
+}
+
+// Set up a validator div (button, status indicator, etc.)
+function initValidateStatus (node) {
+  node.html('<div onclick="ord.inputs.validateInput($(this).closest(\'.input\'), $(this).closest(\'.validate_status\'))" class="validate_button">validate</div><div style="display: inline-block;" onclick="toggleValidateMessage($(this))" ><div class="validate_result" style="background-color: lightgray;">unvalidated</div><div class="validate_message" style="z-index: 2; position: absolute;  background-color:pink; display: inline-block; visibility: hidden"> </div>  </div>');
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.
