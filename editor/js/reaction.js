@@ -378,7 +378,34 @@ function getOptionalBool(node) {
 
 // Set up a validator div (button, status indicator, etc.)
 function initValidateStatus (node) {
-  node.html('<div onclick="ord.inputs.validateInput($(this).closest(\'.input\'), $(this).closest(\'.validate_status\'))" class="validate_button">validate</div><div style="display: inline-block;" onclick="toggleValidateMessage($(this))" ><div class="validate_result" style="background-color: lightgray;">unvalidated</div><div class="validate_message" style="z-index: 2; position: absolute;  background-color:pink; display: inline-block; visibility: hidden"> </div>  </div>');
+  node.css('display', 'inline-block');
+
+  buttonNode = $('<div>');
+  buttonNode.attr('onclick', node.attr('button-onclick'));
+  buttonNode.addClass('validate_button');
+  buttonNode.text('validate');
+  node.append(buttonNode);
+
+  resultMessageNode = $('<div>');
+  resultMessageNode.css('display', 'inline-block');
+  resultMessageNode.attr('onclick', 'toggleValidateMessage($(this))');
+
+  resultNode = $('<div>');
+  resultNode.addClass('validate_result');
+  resultNode.css('background-color', 'lightgray');
+  resultNode.text('unvalidated');
+  resultMessageNode.append(resultNode);
+
+  messageNode = $('<div>');
+  messageNode.addClass('validate_message');
+  messageNode.css('z-index', 2);
+  messageNode.css('position', 'absolute');
+  messageNode.css('background-color', 'pink');
+  messageNode.css('display', 'inline-block');
+  messageNode.css('visibility', 'hidden');
+  resultMessageNode.append(messageNode);
+
+  node.append(resultMessageNode);
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.

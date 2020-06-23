@@ -94,25 +94,9 @@ limitations under the License.
                   <!-- TODO make validate reaction work -->
                   <!-- TODO move CSS in HTML to CSS file -->
                   <!-- TODO add CSS to elements to make everything look nice -->
-                  <!-- TODO extract validation to its own thing that gets filled up later; -->
                   <!-- TODO rename validate_x to validator_x? and in particular, validate_status to validator -->
 
-                  <!-- <div class="validate_status" style="display: inline-block;">
-                    <div onclick="ord.inputs.validateInput($(this).closest('.input'), $(this).closest('.validate_status'
-                    ))" class="validate_button">
-                      validate
-                    </div>
-                    <div style="display: inline-block;" onclick="toggleValidateMessage($(this))" >
-                      <div class="validate_result" style="background-color: lightgray;">
-                        unvalidated
-                      </div>
-                      <div class="validate_message" style="z-index: 2; position: absolute;  background-color:pink; display: inline-block; visibility: hidden"> 
-                      </div>  
-                    </div>
-                  </div> -->
-
-                  <div class="validate_status" button-onclick="ord.inputs.validateInput($(this).closest('.input'), $(this).closest('.validate_status'))" >
-                  </div>
+                  <div class="validate_status" button-onclick="ord.inputs.validateInput($(this).closest('.input'), $(this).closest('.validate_status'))" ></div>
 
                 </legend>
                 <span class="input_name_label">name</span><div class="input_name edittext"></div>
