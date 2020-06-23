@@ -208,7 +208,7 @@ ord.compounds.add = function (root) {
     }
   });
 
-  handler = function () {ord.compounds.validateCompound(node, $('.validate_status', node))};
+  handler = function () {ord.compounds.validateCompound(node, $('.validate', node))};
   addChangeHandler(node, handler);
 
   return node;
@@ -236,7 +236,7 @@ ord.compounds.addPreparation = function (node) {
   return addSlowly('#component_preparation_template', $('.preparations', node));
 };
 
-ord.compounds.validateCompound = function(node, statusNode) {
+ord.compounds.validateCompound = function(node, validateNode) {
   const compound = ord.compounds.unloadCompound(node);
-  validate(compound, "Compound", statusNode);
+  validate(compound, "Compound", validateNode);
 };

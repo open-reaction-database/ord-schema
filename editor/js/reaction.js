@@ -44,7 +44,7 @@ async function init(fileName, index) {
   // Enable all the editable text fields.
   $('.edittext').attr('contentEditable', 'true');
   // Initialize all the validators.
-  $('.validate_status').each((index, node) => initValidateStatus($(node)));
+  $('.validate').each((index, node) => initValidate($(node)));
   // Show "save" on modifications.
   listen('body');
   // Fetch the Dataset containing the Reaction proto.
@@ -98,7 +98,7 @@ function addChangeHandler (node, handler) {
 
 // Generic validator for many message types, not just reaction
 // note: does not commit or save anything!
-function validate(message, messageTypeString, statusNode) {
+function validate(message, messageTypeString, validateNode) {
   // eg message is a type of reaction, messageTypeString = "Reaction"
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/dataset/proto/validate/' + messageTypeString);
@@ -107,11 +107,11 @@ function validate(message, messageTypeString, statusNode) {
   xhr.responseType = 'json';
   xhr.onload = function () {
     const errors = xhr.response;
-    resultNode = $('.validate_result', statusNode);
-    messageNode = $('.validate_message', statusNode);
+    statusNode = $('.validate_status', validateNode);
+    messageNode = $('.validate_message', validateNode);
     if (errors.length) {
-      resultNode.css('backgroundColor', 'pink');
-      resultNode.text('invalid (click)');
+      statusNode.css('backgroundColor', 'pink');
+      statusNode.text('invalid (click)');
       messageNode.empty();
 
       for (index = 0; index < errors.length; index++) { 
@@ -122,8 +122,8 @@ function validate(message, messageTypeString, statusNode) {
       } 
     }
     else {
-      resultNode.css('backgroundColor', 'lightgreen');
-      resultNode.text('valid');
+      statusNode.css('backgroundColor', 'lightgreen');
+      statusNode.text('valid');
       messageNode.html('');
       messageNode.css('visibility', 'hidden');
     }
@@ -146,9 +146,9 @@ toggleValidateMessage = function(node) {
 function validateReaction() {
   $('#reaction_validate').css('visibility', 'hidden');
   const reaction = unloadReaction();
-  statusNode = $('#reaction_validate_status');
+  validateNode = $('#reaction_validate');
   messageNode = $('#reaction_validate_message');
-  validate(reaction, "Reaction", statusNode, messageNode);
+  validate(reaction, "Reaction", validateNode, messageNode);
 }
 
 function commit() {
@@ -376,8 +376,8 @@ function getOptionalBool(node) {
   return null;
 }
 
-// Set up a validator div (button, status indicator, etc.)
-function initValidateStatus (node) {
+// Set up a validator div (button, status indicator, error list, etc.)
+function initValidate (node) {
   node.css('display', 'inline-block');
 
   buttonNode = $('<div>');
@@ -386,15 +386,15 @@ function initValidateStatus (node) {
   buttonNode.text('validate');
   node.append(buttonNode);
 
-  resultMessageNode = $('<div>');
-  resultMessageNode.css('display', 'inline-block');
-  resultMessageNode.attr('onclick', 'toggleValidateMessage($(this))');
+  statusMessageNode = $('<div>');
+  statusMessageNode.css('display', 'inline-block');
+  statusMessageNode.attr('onclick', 'toggleValidateMessage($(this))');
 
-  resultNode = $('<div>');
-  resultNode.addClass('validate_result');
-  resultNode.css('background-color', 'lightgray');
-  resultNode.text('unvalidated');
-  resultMessageNode.append(resultNode);
+  statusNode = $('<div>');
+  statusNode.addClass('validate_status');
+  statusNode.css('background-color', 'lightgray');
+  statusNode.text('unvalidated');
+  statusMessageNode.append(statusNode);
 
   messageNode = $('<div>');
   messageNode.addClass('validate_message');
@@ -403,9 +403,9 @@ function initValidateStatus (node) {
   messageNode.css('background-color', 'pink');
   messageNode.css('display', 'inline-block');
   messageNode.css('visibility', 'hidden');
-  resultMessageNode.append(messageNode);
+  statusMessageNode.append(messageNode);
 
-  node.append(resultMessageNode);
+  node.append(statusMessageNode);
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.

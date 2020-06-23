@@ -41,7 +41,7 @@ limitations under the License.
         <div id="reaction_validate" class="validate" onclick="validateReaction();">validate reaction</div>
       </div>
       <div>
-        status: <div id="reaction_validate_status" class="validate_status">unvalidated</div>
+        status: <div id="reaction_validate" class="validate">unvalidated</div>
       </div>
       <div id="reaction_validate_message" class="validate_message" style="display: none;"></div>
     </div>
@@ -94,9 +94,9 @@ limitations under the License.
                   <!-- TODO make validate reaction work -->
                   <!-- TODO move CSS in HTML to CSS file -->
                   <!-- TODO add CSS to elements to make everything look nice -->
-                  <!-- TODO rename validate_x to validator_x? and in particular, validate_status to validator -->
+                  <!-- TODO rename  validate_status to validate, result->status -->
 
-                  <div class="input_validate_status validate_status" button-onclick="ord.inputs.validateInput($(this).closest('.input'), $(this).closest('.validate_status'))" ></div>
+                  <div class="input_validate validate" button-onclick="ord.inputs.validateInput($(this).closest('.input'), $(this).closest('.validate'))" ></div>
 
                 </legend>
                 <span class="input_name_label">name</span><div class="input_name edittext"></div>
@@ -138,7 +138,7 @@ limitations under the License.
               <fieldset>
                 <legend>
                   Component
-                  <div class="component_validate_status validate_status" button-onclick="ord.compounds.validateCompound($(this).closest('.component'), $(this).closest('.validate_status'))" ></div>
+                  <div class="component_validate validate" button-onclick="ord.compounds.validateCompound($(this).closest('.component'), $(this).closest('.validate'))" ></div>
                 </legend>
                 <table>
                   <tr><td>reaction role</td><td><div class="component_reaction_role selector" data-proto="Compound_ReactionRole_ReactionRoleType"></div></td></tr>
