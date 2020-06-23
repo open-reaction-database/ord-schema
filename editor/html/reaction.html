@@ -90,14 +90,10 @@ limitations under the License.
               <fieldset>
                 <legend>
                   Input
-                  
                   <!-- TODO make validate reaction work -->
                   <!-- TODO move CSS in HTML to CSS file -->
                   <!-- TODO add CSS to elements to make everything look nice -->
-                  <!-- TODO rename  validate_status to validate, result->status -->
-
                   <div class="input_validate validate" button-onclick="ord.inputs.validateInput($(this).closest('.input'), $(this).closest('.validate'))" ></div>
-
                 </legend>
                 <span class="input_name_label">name</span><div class="input_name edittext"></div>
                 <div onclick="removeSlowly(this, '.input');" class="remove">remove</div>
@@ -218,7 +214,10 @@ limitations under the License.
 
       <fieldset id="section_setup" class="section">
 
-        <legend>Setup</legend>
+        <legend>
+          Setup
+          <div class="setup_validate validate" button-onclick="ord.setups.validateSetup($(this).closest('.setup'), $(this).closest('.validate'))" ></div>
+        </legend>
         <table>
           <tr><td align="right">vessel</td><td><div id="setup_vessel_type" class="selector" data-proto="VesselType_VesselTypeEnum"></div>
                                                details <div id="setup_vessel_details" class="edittext"></td></tr>

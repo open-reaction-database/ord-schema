@@ -152,3 +152,8 @@ ord.setups.addVesselAttachment = function () {
   return addSlowly(
       '#setup_vessel_attachment_template', '#setup_vessel_attachments');
 };
+
+ord.setups.validateSetup = function(node, validateNode) {
+  const setup = ord.setups.unload(node);
+  validate(setup, "ReactionSetup", validateNode);
+};

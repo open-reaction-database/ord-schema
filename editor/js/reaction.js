@@ -45,6 +45,8 @@ async function init(fileName, index) {
   $('.edittext').attr('contentEditable', 'true');
   // Initialize all the validators.
   $('.validate').each((index, node) => initValidate($(node)));
+  // Initialize validation handlers that don't go in "add" methods.
+  initValidateHandlers();
   // Show "save" on modifications.
   listen('body');
   // Fetch the Dataset containing the Reaction proto.
@@ -406,6 +408,13 @@ function initValidate (node) {
   statusMessageNode.append(messageNode);
 
   node.append(statusMessageNode);
+}
+
+// Validation handlers for nodes that can't be added or removed. (eg status)
+function initValidateHandlers () {
+  node = $('#section_setup');
+  handler = function () {ord.setups.validateSetup(node, $('.setup_validate', node))};
+  addChangeHandler(node, handler);
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.
