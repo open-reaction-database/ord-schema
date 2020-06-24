@@ -67,7 +67,6 @@ def _stirring_conditions_html(stirring):
         }[stirring.method.type]
     if stirring.rate.rpm:
         txt += f' ({stirring.rate.rpm} rpm)'
-    txt += '<br>'
     return txt
 
 
@@ -115,8 +114,6 @@ def _pressure_conditions_html(pressure):
         setpoint = units.format_message(pressure.setpoint)
         if setpoint:
             txt += f' ({setpoint})'
-    if txt:
-        txt += '<br>'
     return txt
 
 
@@ -163,8 +160,6 @@ def _temperature_conditions_html(temperature):
     setpoint = units.format_message(temperature.setpoint)
     if setpoint:
         txt += f'{setpoint}'
-    if txt:
-        txt += '<br>'
     return txt
 
 
@@ -244,19 +239,18 @@ def _compound_amount(compound):
     return units.format_message(getattr(compound, amount))
 
 
-def _compound_name(compound, use_br=False):
-    txt = ''
+def _compound_name(compound):
     for identifier in compound.identifiers:
         if identifier.type == identifier.NAME:
-            txt += f'{identifier.value}'
+            return identifier.value
+    return '<UNK_COMPOUND>'
+
+
+def _compound_smiles(compound):
     for identifier in compound.identifiers:
         if identifier.type == identifier.SMILES:
-            if use_br:
-                txt += '<br>'
-            txt += f' "{identifier.value}"'
-    if not txt:
-        return '<UNK_COMPOUND>'
-    return txt
+            return identifier.value
+    return ''
 
 
 def _compound_role(compound):
@@ -409,6 +403,7 @@ TEMPLATE_FILTERS = {
     'compound_png': _compound_png,
     'compound_amount': _compound_amount,
     'compound_name': _compound_name,
+    'compound_smiles': _compound_smiles,
     'compound_role': _compound_role,
     'compound_source_prep': _compound_source_prep,
     'vessel_prep': _vessel_prep,

@@ -14,6 +14,7 @@
  limitations under the License.
 -->
 
+<body>
 <h1>Reaction {{ reaction.reaction_id }}</h1>
 
 <table border="1 px" style="text-align: center;">
@@ -40,18 +41,18 @@
     <tr>
         {% for key,input in reaction.inputs|sort_addition_order %}
             {% for compound in input.components %}
-                <td>{{ compound|compound_png }}</td>
+                <td><img src="data:image/png;base64,{{ compound|compound_png }}"/></td>
             {% endfor %}
         {% endfor %}
         <td>
-            {{ reaction.conditions.pressure|pressure_conditions_html }}
-            {{ reaction.conditions.temperature|temperature_conditions_html }}
+            {{ reaction.conditions.pressure|pressure_conditions_html }}<br>
+            {{ reaction.conditions.temperature|temperature_conditions_html }}<br>
             {{ reaction.conditions.stirring|stirring_conditions_html }}
             <span style="font-size:72px; line-height:18px">&#10230;</span>
         </td>
         {% for outcome in reaction.outcomes %}
             {% for product in outcome.products %}
-                <td>{{ product.compound|compound_png }}</td>
+                <td><img src="data:image/png;base64,{{ product.compound|compound_png }}"/></td>
             {% endfor %}
         {% endfor %}
     </tr>
@@ -60,13 +61,13 @@
     <tr>
         {% for key,input in reaction.inputs|sort_addition_order %}
             {% for compound in input.components %}
-                <td>{{ compound|compound_name(True) }}</td>
+        <td>{{ compound|compound_name }}<br>{{ compound|compound_smiles }}</td>
             {% endfor %}
         {% endfor %}
         <td></td>
         {% for outcome in reaction.outcomes %}
             {% for product in outcome.products %}
-                <td>{{ product.compound|compound_name(True) }}</td>
+                <td>{{ product.compound|compound_name }}<br>{{ product.compound|compound_smiles }}</td>
             {% endfor %}
         {% endfor %}
     </tr>
@@ -89,7 +90,7 @@
                     {% endif %}
                     yield
                     {% if product.analysis_yield %}
-                        by 
+                        by
                         {% for key in product.analysis_yield %}
                             {% if loop.last and loop.index > 1 %} and {% endif %}
                             {{ outcome.analyses[key]|analysis_format }}
