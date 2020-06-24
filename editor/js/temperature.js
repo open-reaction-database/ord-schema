@@ -93,3 +93,8 @@ ord.temperature.unloadMeasurement = function (node) {
 ord.temperature.addMeasurement = function () {
   return addSlowly('#temperature_measurement_template', '#temperature_measurements');
 };
+
+ord.temperature.validateTemperature = function(node, validateNode) {
+  const temperature = ord.temperature.unload(node);
+  validate(temperature, "TemperatureConditions", validateNode);
+};

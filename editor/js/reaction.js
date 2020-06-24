@@ -412,9 +412,23 @@ function initValidate (node) {
 
 // Validation handlers for nodes that can't be added or removed. (eg status)
 function initValidateHandlers () {
-  node = $('#section_setup');
-  handler = function () {ord.setups.validateSetup(node, $('.setup_validate', node))};
-  addChangeHandler(node, handler);
+  // For setup
+  var setupNode = $('#section_setup');
+  var setupValidateNode = $('.setup_validate', setupNode);
+  var setupHandler = function () {ord.setups.validateSetup(setupNode, setupValidateNode)};
+  addChangeHandler(setupNode, setupHandler);
+
+  // For conditions
+  var conditionNode = $('#section_conditions');
+  var conditionValidateNode = $('.conditions_validate', conditionNode);
+  var conditionHandler = function () {ord.conditions.validateConditions(conditionNode, conditionValidateNode)};
+  addChangeHandler(conditionNode, conditionHandler);
+
+  // For temperature
+  var temperatureNode = $('#section_conditions_temperature');
+  var temperatureValidateNode = $('.temperature_validate', temperatureNode);
+  var temperatureHandler = function () {ord.temperature.validateTemperature(temperatureNode, temperatureValidateNode)};
+  addChangeHandler(temperatureNode, temperatureHandler);
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.

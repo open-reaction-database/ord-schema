@@ -286,9 +286,15 @@ limitations under the License.
       </fieldset>
 
       <fieldset id="section_conditions" class="section">
-        <legend>Conditions</legend>
-        <fieldset>
-          <legend>Temperature</legend>
+        <legend>
+          Conditions
+          <div class="conditions_validate validate" button-onclick="ord.conditions.validateConditions($('#section_conditions'), $(this).closest('.validate'))" ></div>
+        </legend>
+        <fieldset id="section_conditions_temperature">
+          <legend>
+            Temperature
+            <div class="temperature_validate validate" button-onclick="ord.temperature.validateTemperature($(this).closest('.temperature'), $(this).closest('.validate'))" ></div>
+          </legend>
           <table>
             <tr><td align="right">control</td><td><div id="temperature_control" class="selector" data-proto="TemperatureConditions_TemperatureControl_TemperatureControlType"></div>
                                                   details <div id="temperature_control_details" class="edittext"></div></td></tr>

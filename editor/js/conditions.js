@@ -86,3 +86,8 @@ ord.conditions.unload = function () {
   conditions.setDetails(details);
   return conditions;
 };
+
+ord.conditions.validateConditions = function(node, validateNode) {
+  const condition = ord.conditions.unload(node);
+  validate(condition, "ReactionConditions", validateNode);
+};
