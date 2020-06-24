@@ -29,8 +29,8 @@ def _count_addition_order(inputs):
     counts = collections.defaultdict(int)
     for value in inputs.values():
         counts[value.addition_order] += len(value.components)
-    for order, count in counts.items():
-        yield order, count
+    for order in sorted(counts):
+        yield order, counts[order]
 
 
 def _sort_addition_order(inputs):
@@ -261,7 +261,7 @@ def _compound_name(compound):
     for identifier in compound.identifiers:
         if identifier.type == identifier.NAME:
             return identifier.value
-    return '<UNK_COMPOUND>'
+    return ''
 
 
 def _compound_smiles(compound):
@@ -281,19 +281,19 @@ def _compound_role(compound):
         compound.ReactionRole.UNSPECIFIED:
             '',
         compound.ReactionRole.REACTANT:
-            f'as a {limiting_if_true[compound.is_limiting]} reactant',
+            f'{limiting_if_true[compound.is_limiting]} reactant',
         compound.ReactionRole.REAGENT:
-            'as a reagent',
+            'reagent',
         compound.ReactionRole.SOLVENT:
-            'as a solvent',
+            'solvent',
         compound.ReactionRole.CATALYST:
-            'as a catalyst',
+            'catalyst',
         compound.ReactionRole.INTERNAL_STANDARD:
-            'as an internal standard',
+            'internal standard',
         compound.ReactionRole.WORKUP:
             '',
         compound.ReactionRole.PRODUCT:
-            'as a product',
+            'product',
     }[compound.reaction_role]
 
 
