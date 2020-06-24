@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Template filters to use with Jinja to format reaction messages into text.
-"""
+"""Template filters to use with Jinja to format reaction messages into text."""
+
+import collections
 
 from ord_schema import units
 from ord_schema import message_helpers
@@ -23,9 +24,26 @@ def _is_true(boolean):
     return bool(boolean)
 
 
+def _count_addition_order(inputs):
+    """Returns the number of inputs for each addition_order value."""
+    counts = collections.defaultdict(int)
+    for value in inputs.values():
+        counts[value.addition_order] += len(value.components)
+    for order, count in counts.items():
+        yield order, count
+
+
 def _sort_addition_order(inputs):
-    for k in sorted(inputs.keys(), key=lambda k: inputs[k].addition_order):
-        yield k, inputs[k]
+    """Sort inputs by addition order, sorting again within stages/steps."""
+    orders = collections.defaultdict(list)
+    for key in sorted(inputs):
+        value = inputs[key]
+        orders[value.addition_order].append((key, value))
+    for order in sorted(orders):
+        for key, value in orders[order]:
+            if not key:
+                key = 'None'
+            yield key, value
 
 
 def _stirring_conditions(stirring):
@@ -421,5 +439,6 @@ TEMPLATE_FILTERS = {
     'pressure_conditions_html': _pressure_conditions_html,
     'stirring_conditions': _stirring_conditions,
     'stirring_conditions_html': _stirring_conditions_html,
+    'count_addition_order': _count_addition_order,
     'sort_addition_order': _sort_addition_order,
 }

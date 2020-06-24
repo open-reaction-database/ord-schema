@@ -19,15 +19,21 @@
 
 <table border="1 px" style="text-align: center;">
 
+    {# ZEROTH ROW = addition order groups #}
+    <tr>
+        {% for order,count in reaction.inputs|count_addition_order %}
+            <td colspan="{{ count }}">Addition order: {{ order }}</td>
+        {% endfor %}
+        <td> {# arrow #} </td>
+        {% for outcome in reaction.outcomes %}
+            <td colspan="{{ outcome.products|length }}"></td>
+        {% endfor %}
+    </tr>
+
     {# FIRST ROW = inputs for reactants, outcomes for products #}
     <tr>
         {% for key,input in reaction.inputs|sort_addition_order %}
-            <td colspan="{{ input.components|length }}">
-                {% if input.addition_order %}
-                    #{{ input.addition_order }}.
-                {% endif %}
-                Input {{ key }}
-            </td>
+            <td colspan="{{ input.components|length }}">{{ key }}</td>
         {% endfor %}
         <td> {# arrow #} </td>
         {% for outcome in reaction.outcomes %}
@@ -61,13 +67,13 @@
     <tr>
         {% for key,input in reaction.inputs|sort_addition_order %}
             {% for compound in input.components %}
-        <td>{{ compound|compound_name }}<br>{{ compound|compound_smiles }}</td>
+        <td>{{ compound|compound_name }}</td>
             {% endfor %}
         {% endfor %}
         <td></td>
         {% for outcome in reaction.outcomes %}
             {% for product in outcome.products %}
-                <td>{{ product.compound|compound_name }}<br>{{ product.compound|compound_smiles }}</td>
+                <td>{{ product.compound|compound_name }}</td>
             {% endfor %}
         {% endfor %}
     </tr>
