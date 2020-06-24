@@ -112,16 +112,17 @@ message ReactionInput {
    * }
    */
   repeated Compound components = 1;
+  repeated CrudeComponent crude_components = 2;
   /**
    * Used to define order of addition. ReactionInputs with the same
    * addition_order were added simultaneously. One ReactionInput with a
    * lower addition_order than another was added earlier in the procedure.
    * This field is 1-indexed.
    */
-  int32 addition_order = 2;
+  int32 addition_order = 3;
   // When the addition event took place in terms of the reaction time (or,
   // in the case of flow chemistry, the residence time).
-  Time addition_time = 3;
+  Time addition_time = 4;
   message AdditionSpeed {
     enum AdditionSpeedType {
       // Unspecified.
@@ -138,11 +139,11 @@ message ReactionInput {
     string details = 2;
   }
   // The qualitative rate of addition.
-  AdditionSpeed addition_speed = 4;
+  AdditionSpeed addition_speed = 5;
   // Quantitatively, how long addition took
-  Time addition_duration = 5;
+  Time addition_duration = 6;
   // For continuous synthesis, we instead specify a flow rate.
-  FlowRate flow_rate = 6;
+  FlowRate flow_rate = 7;
   message AdditionDevice {
     enum AdditionDeviceType {
       UNSPECIFIED = 0;
@@ -157,10 +158,37 @@ message ReactionInput {
     string details = 2;
   }
   // The device used for addition.
-  AdditionDevice addition_device = 7;
+  AdditionDevice addition_device = 8;
   // Specify the temperature of the material being added.
   // E.g., a cooled flask of a stock solution to be added at low temperature.
-  Temperature addition_temperature = 8;
+  Temperature addition_temperature = 9;
+}
+
+/**
+ * Crude components are used in multi-step or multi-stage reactions (no strong 
+ * distinction is made here) where one synthetic process must be described by
+ * multiple "Reaction" messages. In these cases, we often carry the crude
+ * product from one step/stage into the next. This message is only to be used
+ * when there is not complete isolation of an intermediate molecule; if there
+ * is complete isolation, then a regular Compound should be used with the 
+ * SYNTHESIED preparation type.
+ */
+message CrudeComponent {
+  // The ID of the reaction that produced the crude. Note that this ID must be
+  // defined within the same Dataset; cross-references cannot exist between
+  // multiple datasets.
+  string reaction_id = 1;
+  // Whether that reaction's workup and purification steps were performed
+  // prior to addition.
+  optional bool includes_workup = 2;
+  // Whether the amount added in this reaction should be inferred from the
+  // previous step, i.e, if everything was added.
+  optional bool has_derived_amount = 3;
+  // If the entire crude mixture was not used, need to specify an amount.
+  oneof amount {
+    Mass mass = 4;
+    Volume volume = 5;
+  }
 }
 
 message Compound {
@@ -255,6 +283,12 @@ message CompoundPreparation {
   PreparationType type = 1;
   // Full description of how the received compound was prepared.
   string details = 2;
+  // The ID of the reaction that produced this species. Note that this ID must
+  // be defined within the same Dataset; cross-references cannot exist between
+  // multiple datasets. Only to be used with the SYNTHESIZED preparation type.
+  // The referenced reaction should not merely be the procedure that was
+  // followed/reproduced, but the *exact* physical experiment.
+  string reaction_id = 3;
 }
 
 /**

@@ -171,13 +171,14 @@ def main(argv):
         datasets[file_status.filename] = message_helpers.load_message(
             file_status.filename, dataset_pb2.Dataset)
     if FLAGS.validate:
+        # Note: this does not check if IDs are malformed.
         validations.validate_datasets(datasets, FLAGS.write_errors)
     if not FLAGS.update:
         logging.info('nothing else to do; use --update for more')
         return  # Nothing else to do.
     for dataset in datasets.values():
-        for reaction in dataset.reactions:
-            updates.update_reaction(reaction)
+        # Set reaction_ids, resolve names, fix cross-references, etc.
+        updates.update_dataset(dataset)
         # Offload large Data values.
         data_filenames = data_storage.extract_data(dataset,
                                                    FLAGS.root,
@@ -188,8 +189,10 @@ def main(argv):
             logging.info('Running command: %s', ' '.join(args))
             subprocess.run(args, check=True)
     combined = _combine_datasets(datasets)
-    # Final validation to make sure we didn't break anything.
-    validations.validate_datasets({'_COMBINED': combined}, FLAGS.write_errors)
+    # Final validation (incl. IDs) to make sure we didn't break anything.
+    validations.validate_datasets({'_COMBINED': combined},
+                                  FLAGS.write_errors,
+                                  validate_ids=True)
     if FLAGS.output:
         output_filename = FLAGS.output
     else:

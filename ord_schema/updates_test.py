@@ -18,6 +18,7 @@ from rdkit import Chem
 
 from ord_schema import updates
 from ord_schema.proto import reaction_pb2
+from ord_schema.proto import dataset_pb2
 
 
 class UpdatesTest(absltest.TestCase):
@@ -57,7 +58,7 @@ class UpdateReactionTest(absltest.TestCase):
     def test_with_no_updates(self):
         message = reaction_pb2.Reaction()
         message.provenance.record_created.time.value = '2020-05-08'
-        message.reaction_id = 'ord-test'
+        message.reaction_id = 'ord-c0bbd41f095a44a78b6221135961d809'
         copied = reaction_pb2.Reaction()
         copied.CopyFrom(message)
         updates.update_reaction(copied)
@@ -83,11 +84,47 @@ class UpdateReactionTest(absltest.TestCase):
 
     def test_keep_existing_reaction_id(self):
         message = reaction_pb2.Reaction()
-        message.reaction_id = 'foo'
+        message.reaction_id = 'ord-c0bbd41f095a44a78b6221135961d809'
         message.provenance.record_created.time.value = '11 am'
         updates.update_reaction(message)
-        self.assertEqual(message.reaction_id, 'foo')
+        self.assertEqual(message.reaction_id,
+                         'ord-c0bbd41f095a44a78b6221135961d809')
         self.assertLen(message.provenance.record_modified, 0)
+
+
+class UpdateDatasetTest(absltest.TestCase):
+    def test_crossferences(self):
+        message = dataset_pb2.Dataset()
+        reaction1 = message.reactions.add()
+        reaction2 = message.reactions.add()
+        reaction3 = message.reactions.add()
+        # Minimal reaction 1
+        dummy_input = reaction1.inputs['dummy_input']
+        reaction1.outcomes.add()
+        dummy_component = dummy_input.components.add()
+        dummy_component.identifiers.add(type='CUSTOM')
+        dummy_component.identifiers[0].details = 'custom_identifier'
+        dummy_component.identifiers[0].value = 'custom_value'
+        dummy_component.mass.value = 1
+        dummy_component.mass.units = reaction_pb2.Mass.GRAM
+        reaction2.CopyFrom(reaction1)
+        reaction3.CopyFrom(reaction1)
+        dummy_component.preparations.add(type='SYNTHESIZED')
+        dummy_component.preparations[0].reaction_id = 'placeholder_id'
+        reaction2.reaction_id = 'placeholder_id'
+        dummy_input.crude_components.add(reaction_id='crude-making step',
+                                         has_derived_amount=True)
+        reaction3.reaction_id = 'crude-making step'
+
+        updates.update_dataset(message)
+        self.assertEqual(dummy_component.preparations[0].reaction_id,
+                         reaction2.reaction_id)
+        self.assertEqual(dummy_input.crude_components[0].reaction_id,
+                         reaction3.reaction_id)
+        self.assertNotEqual(dummy_component.preparations[0].reaction_id,
+                            'placeholder_id')
+        self.assertNotEqual(dummy_input.crude_components[0].reaction_id,
+                            'crude-making step')
 
 
 if __name__ == '__main__':
