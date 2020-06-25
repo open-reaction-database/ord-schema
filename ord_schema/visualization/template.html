@@ -33,6 +33,19 @@
     .clean {
       border: 0px;
     }
+    .left {
+      border: 0px;
+      border-left: 1px solid black;
+    }
+    .right {
+      border: 0px;
+      border-right: 1px solid black;
+    }
+    .both {
+      border: 0px;
+      border-left: 1px solid black;
+      border-right: 1px solid black;
+    }
     </style>
 </head>
 
@@ -43,7 +56,7 @@
 
     {# FIRST ROW = inputs for reactants, outcomes for products #}
     <tr>
-        {% for key,input in reaction.inputs|sort_addition_order %}
+        {% for key, input in reaction.inputs|sort_addition_order %}
             <td class="divide" colspan="{{ input.components|length }}">{{ key }}</td>
         {% endfor %}
         <td class="clean"> {# arrow #} </td>
@@ -56,18 +69,28 @@
 
     {# SECOND ROW = structures for reactants, products, and arrow in middle #}
     <tr>
-        {% for key,input in reaction.inputs|sort_addition_order %}
-            {% for compound in input.components %}
-                <td class="clean">
+        {% for key, input in reaction.inputs|sort_addition_order %}
+            {% for compound, border in input.components|get_input_borders %}
+                <td class="{{ border }}">
                     <img src="data:image/png;base64,{{ compound|compound_png }}"/>
                 </td>
             {% endfor %}
         {% endfor %}
         <td class="clean">
-            {{ reaction.conditions.pressure|pressure_conditions_html }}<br>
-            {{ reaction.conditions.temperature|temperature_conditions_html }}<br>
-            {{ reaction.conditions.stirring|stirring_conditions_html }}
-            <span style="font-size:72px; line-height:18px">&#10230;</span>
+            <table>
+                <tr><td class="clean">
+                    {{ reaction.conditions.pressure|pressure_conditions_html }}
+                </td></tr>
+                <tr><td class="clean">
+                    {{ reaction.conditions.temperature|temperature_conditions_html }}
+                </td></tr>
+                <tr><td class="clean">
+                    {{ reaction.conditions.stirring|stirring_conditions_html }}
+                </td></tr>
+                <tr><td class="clean">
+                    <span style="font-size:72px; line-height:18px">&#10230;</span>
+                </td></tr>
+            </table>
         </td>
         {% for outcome in reaction.outcomes %}
             {% for product in outcome.products %}
@@ -76,11 +99,11 @@
         {% endfor %}
     </tr>
 
-    {# THIRD ROW = compound info #}
+    {# THIRD ROW = compound name #}
     <tr>
-        {% for key,input in reaction.inputs|sort_addition_order %}
-            {% for compound in input.components %}
-                <td class="clean">{{ compound|compound_name }}</td>
+        {% for key, input in reaction.inputs|sort_addition_order %}
+            {% for compound, border in input.components|get_input_borders %}
+                <td class="{{ border }}">{{ compound|compound_name }}</td>
             {% endfor %}
         {% endfor %}
         <td class="clean"></td>
@@ -92,10 +115,12 @@
             {% endfor %}
         {% endfor %}
     </tr>
+
+    {# FOURTH ROW = compound amount #}
     <tr>
-        {% for key,input in reaction.inputs|sort_addition_order %}
-            {% for compound in input.components %}
-                <td class="clean">{{ compound|compound_amount }}</td>
+        {% for key, input in reaction.inputs|sort_addition_order %}
+            {% for compound, border in input.components|get_input_borders %}
+                <td class="{{ border }}">{{ compound|compound_amount }}</td>
             {% endfor %}
         {% endfor %}
         <td class="clean"></td>
@@ -121,10 +146,12 @@
             {% endfor %}
         {% endfor %}
     </tr>
+
+    {# FIFTH ROW = compound role #}
     <tr>
-        {% for key,input in reaction.inputs|sort_addition_order %}
-            {% for compound in input.components %}
-                <td class="clean">{{ compound|compound_role }}</td>
+        {% for key, input in reaction.inputs|sort_addition_order %}
+            {% for compound, border in input.components|get_input_borders %}
+                <td class="{{ border }}">{{ compound|compound_role }}</td>
             {% endfor %}
         {% endfor %}
     </tr>
@@ -132,7 +159,7 @@
     {# LAST ROW = addition order groups #}
     <tr><td class="clean"><br></td></tr>
     <tr>
-        {% for order,count in reaction.inputs|count_addition_order %}
+        {% for order, count in reaction.inputs|count_addition_order %}
             <td colspan="{{ count }}">Addition order: {{ order }}</td>
         {% endfor %}
     </tr>

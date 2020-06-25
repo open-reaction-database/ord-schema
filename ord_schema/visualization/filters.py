@@ -34,16 +34,35 @@ def _count_addition_order(inputs):
 
 
 def _sort_addition_order(inputs):
-    """Sort inputs by addition order, sorting again within stages/steps."""
+    """Sort inputs by addition order, sorting again within stages/steps.
+
+    Args:
+        inputs: Map of ReactionInput messages.
+
+    Returns:
+        key: Text key into `inputs`.
+        value: ReactionInput message.
+    """
     orders = collections.defaultdict(list)
     for key in sorted(inputs):
         value = inputs[key]
         orders[value.addition_order].append((key, value))
     for order in sorted(orders):
-        for key, value in orders[order]:
-            if not key:
-                key = 'None'
+        for i, (key, value) in enumerate(orders[order]):
             yield key, value
+
+
+def _get_input_borders(components):
+    for i, component in enumerate(components):
+        if i == 0 and i + 1 == len(components):
+            border = 'both'
+        elif i == 0:
+            border = 'left'
+        elif i + 1 == len(components):
+            border = 'right'
+        else:
+            border = 'clean'
+        yield component, border
 
 
 def _stirring_conditions(stirring):
@@ -174,7 +193,7 @@ def _temperature_conditions_html(temperature):
     txt = ''
     if (temperature.control.type == temperature.control.UNSPECIFIED
             or temperature.control.type == temperature.control.AMBIENT):
-        return 'ambient temperature<br>'
+        return 'ambient temperature'
     setpoint = units.format_message(temperature.setpoint)
     if setpoint:
         txt += f'{setpoint}'
@@ -445,5 +464,6 @@ TEMPLATE_FILTERS = {
     'stirring_conditions_html': _stirring_conditions_html,
     'count_addition_order': _count_addition_order,
     'sort_addition_order': _sort_addition_order,
+    'get_input_borders': _get_input_borders,
     'width': _width,
 }
