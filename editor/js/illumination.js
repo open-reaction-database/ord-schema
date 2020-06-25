@@ -50,3 +50,11 @@ ord.illumination.unload = function () {
   illumination.setDistanceToVessel(distance);
   return illumination;
 };
+
+ord.illumination.validateIllumination = function(node, validateNode) {
+  const illumination = ord.illumination.unload();
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
+  validate(illumination, "IlluminationConditions", validateNode);
+};

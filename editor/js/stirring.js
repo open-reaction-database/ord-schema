@@ -50,3 +50,11 @@ ord.stirring.unload = function () {
   stirring.setRate(rate);
   return stirring;
 };
+
+ord.stirring.validateStirring = function(node, validateNode) {
+  const stirring = ord.stirring.unload();
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
+  validate(stirring, "StirringConditions", validateNode);
+};

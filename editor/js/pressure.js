@@ -102,3 +102,11 @@ ord.pressure.unloadMeasurement = function (node) {
 ord.pressure.addMeasurement = function () {
   return addSlowly('#pressure_measurement_template', '#pressure_measurements');
 };
+
+ord.pressure.validatePressure = function(node, validateNode) {
+  const pressure = ord.pressure.unload();
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
+  validate(pressure, "PressureConditions", validateNode);
+};

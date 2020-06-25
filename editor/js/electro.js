@@ -136,3 +136,11 @@ ord.electro.addMeasurement = function () {
 
   return node;
 };
+
+ord.electro.validateElectro = function(node, validateNode) {
+  const electro = ord.electro.unload();
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
+  validate(electro, "ElectrochemistryConditions", validateNode);
+};

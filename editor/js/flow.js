@@ -51,3 +51,11 @@ ord.flows.unload = function () {
   flow.setTubing(tubing);
   return flow;
 };
+
+ord.flows.validateFlow = function(node, validateNode) {
+  const flow = ord.flows.unload();
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
+  validate(flow, "FlowConditions", validateNode);
+};

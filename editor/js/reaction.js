@@ -425,6 +425,31 @@ function initValidateHandlers () {
   var temperatureNode = $('#section_conditions_temperature');
   var temperatureHandler = function () {ord.temperature.validateTemperature(temperatureNode)};
   addChangeHandler(temperatureNode, temperatureHandler);
+
+  // For pressure
+  var pressureNode = $('#section_conditions_pressure');
+  var pressureHandler = function () {ord.pressure.validatePressure(pressureNode)};
+  addChangeHandler(pressureNode, pressureHandler);
+
+  // For stirring
+  var stirringNode = $('#section_conditions_stirring');
+  var stirringHandler = function () {ord.stirring.validateStirring(stirringNode)};
+  addChangeHandler(stirringNode, stirringHandler);
+
+  // For illumination
+  var illuminationNode = $('#section_conditions_illumination');
+  var illuminationHandler = function () {ord.illumination.validateIllumination(illuminationNode)};
+  addChangeHandler(illuminationNode, illuminationHandler);
+
+  // For electro
+  var electroNode = $('#section_conditions_electro');
+  var electroHandler = function () {ord.electro.validateElectro(electroNode)};
+  addChangeHandler(electroNode, electroHandler);
+
+  // For flow
+  var flowNode = $('#section_conditions_flow');
+  var flowHandler = function () {ord.flows.validateFlow(flowNode)};
+  addChangeHandler(flowNode, flowHandler);
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.
