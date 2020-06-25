@@ -66,6 +66,7 @@ class GenerateTextTest(absltest.TestCase):
         self.assertRegex(text, 'vessel')
         self.assertRegex(text, 'oil bath')
         self.assertRegex(text, 'after 40 min')
+        self.assertRegex(text, 'as a solvent')
         self.assertRegex(text, 'hexanone')
         self.assertRegex(text, 'automatically')
         self.assertRegex(text, 'mL')
@@ -77,8 +78,8 @@ class GenerateTextTest(absltest.TestCase):
         self.assertRegex(html, 'under oxygen')
         self.assertRegex(html, '100 rpm')
         self.assertRegex(html, '40 min')
-        self.assertRegex(html, 'as a solvent')
-        self.assertRegex(html, '100 C')
+        self.assertRegex(html, 'solvent')
+        self.assertRegex(html, '100 °C')
         self.assertRegex(html, 'dummy_reaction_id')
 
 

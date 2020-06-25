@@ -48,7 +48,7 @@ def _sort_addition_order(inputs):
         value = inputs[key]
         orders[value.addition_order].append((key, value))
     for order in sorted(orders):
-        for i, (key, value) in enumerate(orders[order]):
+        for key, value in orders[order]:
             yield key, value
 
 
@@ -290,30 +290,36 @@ def _compound_smiles(compound):
     return ''
 
 
-def _compound_role(compound):
+def _compound_role(compound, text=False):
     limiting_if_true = {
         True: 'limiting',
         False: '',
         None: '',
     }
-    return {
-        compound.ReactionRole.UNSPECIFIED:
-            '',
-        compound.ReactionRole.REACTANT:
-            f'{limiting_if_true[compound.is_limiting]} reactant',
-        compound.ReactionRole.REAGENT:
-            'reagent',
-        compound.ReactionRole.SOLVENT:
-            'solvent',
-        compound.ReactionRole.CATALYST:
-            'catalyst',
-        compound.ReactionRole.INTERNAL_STANDARD:
-            'internal standard',
-        compound.ReactionRole.WORKUP:
-            '',
-        compound.ReactionRole.PRODUCT:
-            'product',
-    }[compound.reaction_role]
+    limiting = limiting_if_true[compound.is_limiting]
+    if text:
+        options = {
+            compound.ReactionRole.UNSPECIFIED: '',
+            compound.ReactionRole.REACTANT: f'as a {limiting} reactant',
+            compound.ReactionRole.REAGENT: 'as a reagent',
+            compound.ReactionRole.SOLVENT: 'as a solvent',
+            compound.ReactionRole.CATALYST: 'as a catalyst',
+            compound.ReactionRole.INTERNAL_STANDARD: 'as an internal standard',
+            compound.ReactionRole.WORKUP: '',
+            compound.ReactionRole.PRODUCT: 'as a product',
+        }
+    else:
+        options = {
+            compound.ReactionRole.UNSPECIFIED: '',
+            compound.ReactionRole.REACTANT: f'{limiting} reactant',
+            compound.ReactionRole.REAGENT: 'reagent',
+            compound.ReactionRole.SOLVENT: 'solvent',
+            compound.ReactionRole.CATALYST: 'catalyst',
+            compound.ReactionRole.INTERNAL_STANDARD: 'internal standard',
+            compound.ReactionRole.WORKUP: '',
+            compound.ReactionRole.PRODUCT: 'product',
+        }
+    return options[compound.reaction_role]
 
 
 def _compound_source_prep(compound):
@@ -326,14 +332,14 @@ def _compound_source_prep(compound):
         txt.append(f'lot #{compound.vendor_lot}')
     for preparation in compound.preparations:
         txt.append({
-            preparation.UNSPECIFIED: '',
-            preparation.CUSTOM: '',
-            preparation.NONE: '',
-            preparation.REPURIFIED: 'repurified',
-            preparation.SPARGED: 'sparged',
-            preparation.DRIED: 'dried',
-            preparation.SYNTHESIZED: 'synthesized in-house'
-        }[preparation.type])
+                       preparation.UNSPECIFIED: '',
+                       preparation.CUSTOM: '',
+                       preparation.NONE: '',
+                       preparation.REPURIFIED: 'repurified',
+                       preparation.SPARGED: 'sparged',
+                       preparation.DRIED: 'dried',
+                       preparation.SYNTHESIZED: 'synthesized in-house'
+                   }[preparation.type])
         txt.append(preparation.details)
     if any(elem for elem in txt):
         return '(' + ', '.join([elem for elem in txt if elem]) + ')'
@@ -350,11 +356,11 @@ def _vessel_prep(vessel):
     preparation_strings = []
     for preparation in vessel.preparations:
         preparation_strings.append({
-            preparation.UNSPECIFIED: '',
-            preparation.CUSTOM: 'prepared',
-            preparation.NONE: '',
-            preparation.OVEN_DRIED: 'oven-dried',
-        }[preparation.type])
+                                       preparation.UNSPECIFIED: '',
+                                       preparation.CUSTOM: 'prepared',
+                                       preparation.NONE: '',
+                                       preparation.OVEN_DRIED: 'oven-dried',
+                                   }[preparation.type])
     return ', '.join(preparation_strings)
 
 
@@ -403,12 +409,12 @@ def _input_addition(reaction_input):
         txt.append(
             f'after {units.format_message(reaction_input.addition_time)}')
     txt.append({
-        reaction_input.addition_speed.UNSPECIFIED: '',
-        reaction_input.addition_speed.ALL_AT_ONCE: 'all at once',
-        reaction_input.addition_speed.FAST: 'quickly',
-        reaction_input.addition_speed.SLOW: 'slowly',
-        reaction_input.addition_speed.DROPWISE: 'dropwise',
-    }[reaction_input.addition_speed.type])
+                   reaction_input.addition_speed.UNSPECIFIED: '',
+                   reaction_input.addition_speed.ALL_AT_ONCE: 'all at once',
+                   reaction_input.addition_speed.FAST: 'quickly',
+                   reaction_input.addition_speed.SLOW: 'slowly',
+                   reaction_input.addition_speed.DROPWISE: 'dropwise',
+               }[reaction_input.addition_speed.type])
     if reaction_input.addition_duration.value:
         txt.append(
             f'over {units.format_message(reaction_input.addition_duration)}')
