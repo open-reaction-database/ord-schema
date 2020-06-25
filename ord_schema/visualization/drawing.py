@@ -80,7 +80,10 @@ def mol_to_png(mol, max_size=1000, bond_length=25, png_quality=70):
     molecule."""
     drawer = Draw.MolDraw2DCairo(max_size, max_size)
     drawer.drawOptions().fixedBondLength = bond_length
-    drawer.DrawMolecule(mol)
+    try:
+        drawer.DrawMolecule(mol)
+    except ValueError as value_error:
+        raise ValueError(Chem.MolToSmiles(mol)) from value_error
     drawer.FinishDrawing()
     temp = io.BytesIO()
     temp.write(drawer.GetDrawingText())
@@ -91,4 +94,4 @@ def mol_to_png(mol, max_size=1000, bond_length=25, png_quality=70):
     img.save(output, format='png', quality=png_quality)
     output.seek(0)
     b64 = base64.b64encode(output.getvalue())
-    return f'<img src="data:image/png;base64,{b64.decode("UTF-8")}"/>'
+    return b64.decode("UTF-8")

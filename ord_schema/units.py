@@ -60,8 +60,8 @@ _UNIT_SYNONYMS = {
         reaction_pb2.Pressure.KILOPASCAL: ['kPa', 'kilopascals', 'kPas'],
     },
     reaction_pb2.Temperature: {
-        reaction_pb2.Temperature.CELSIUS: ['C', 'degC', 'celsius'],
-        reaction_pb2.Temperature.FAHRENHEIT: ['F', 'degF', 'fahrenheit'],
+        reaction_pb2.Temperature.CELSIUS: ['°C', 'C', 'degC', 'celsius'],
+        reaction_pb2.Temperature.FAHRENHEIT: ['°F', 'F', 'degF', 'fahrenheit'],
         reaction_pb2.Temperature.KELVIN: ['K', 'degK', 'Kelvin'],
     },
     reaction_pb2.Current: {

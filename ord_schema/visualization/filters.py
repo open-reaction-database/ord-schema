@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Template filters to use with Jinja to format reaction messages into text.
-"""
+"""Template filters to use with Jinja to format reaction messages into text."""
+
+import collections
 
 from ord_schema import units
 from ord_schema import message_helpers
@@ -23,9 +24,52 @@ def _is_true(boolean):
     return bool(boolean)
 
 
+def _has_addition_order(inputs):
+    for value in inputs.values():
+        if value.addition_order:
+            return True
+    return False
+
+
+def _count_addition_order(inputs):
+    """Returns the number of inputs for each addition_order value."""
+    counts = collections.defaultdict(int)
+    for value in inputs.values():
+        counts[value.addition_order] += len(value.components)
+    for order in sorted(counts):
+        yield order, counts[order]
+
+
 def _sort_addition_order(inputs):
-    for k in sorted(inputs.keys(), key=lambda k: inputs[k].addition_order):
-        yield k, inputs[k]
+    """Sort inputs by addition order, sorting again within stages/steps.
+
+    Args:
+        inputs: Map of ReactionInput messages.
+
+    Returns:
+        key: Text key into `inputs`.
+        value: ReactionInput message.
+    """
+    orders = collections.defaultdict(list)
+    for key in sorted(inputs):
+        value = inputs[key]
+        orders[value.addition_order].append((key, value))
+    for order in sorted(orders):
+        for key, value in orders[order]:
+            yield key, value
+
+
+def _get_input_borders(components):
+    for i, component in enumerate(components):
+        if i == 0 and i + 1 == len(components):
+            border = 'both'
+        elif i == 0:
+            border = 'left'
+        elif i + 1 == len(components):
+            border = 'right'
+        else:
+            border = 'clean'
+        yield component, border
 
 
 def _stirring_conditions(stirring):
@@ -67,7 +111,6 @@ def _stirring_conditions_html(stirring):
         }[stirring.method.type]
     if stirring.rate.rpm:
         txt += f' ({stirring.rate.rpm} rpm)'
-    txt += '<br>'
     return txt
 
 
@@ -115,8 +158,6 @@ def _pressure_conditions_html(pressure):
         setpoint = units.format_message(pressure.setpoint)
         if setpoint:
             txt += f' ({setpoint})'
-    if txt:
-        txt += '<br>'
     return txt
 
 
@@ -159,12 +200,10 @@ def _temperature_conditions_html(temperature):
     txt = ''
     if (temperature.control.type == temperature.control.UNSPECIFIED
             or temperature.control.type == temperature.control.AMBIENT):
-        return 'ambient temperature<br>'
+        return 'ambient temperature'
     setpoint = units.format_message(temperature.setpoint)
     if setpoint:
         txt += f'{setpoint}'
-    if txt:
-        txt += '<br>'
     return txt
 
 
@@ -244,45 +283,50 @@ def _compound_amount(compound):
     return units.format_message(getattr(compound, amount))
 
 
-def _compound_name(compound, use_br=False):
-    txt = ''
+def _compound_name(compound):
     for identifier in compound.identifiers:
         if identifier.type == identifier.NAME:
-            txt += f'{identifier.value}'
+            return identifier.value
+    return ''
+
+
+def _compound_smiles(compound):
     for identifier in compound.identifiers:
         if identifier.type == identifier.SMILES:
-            if use_br:
-                txt += '<br>'
-            txt += f' "{identifier.value}"'
-    if not txt:
-        return '<UNK_COMPOUND>'
-    return txt
+            return identifier.value
+    return ''
 
 
-def _compound_role(compound):
+def _compound_role(compound, text=False):
     limiting_if_true = {
         True: 'limiting',
         False: '',
         None: '',
     }
-    return {
-        compound.ReactionRole.UNSPECIFIED:
-            '',
-        compound.ReactionRole.REACTANT:
-            f'as a {limiting_if_true[compound.is_limiting]} reactant',
-        compound.ReactionRole.REAGENT:
-            'as a reagent',
-        compound.ReactionRole.SOLVENT:
-            'as a solvent',
-        compound.ReactionRole.CATALYST:
-            'as a catalyst',
-        compound.ReactionRole.INTERNAL_STANDARD:
-            'as an internal standard',
-        compound.ReactionRole.WORKUP:
-            '',
-        compound.ReactionRole.PRODUCT:
-            'as a product',
-    }[compound.reaction_role]
+    limiting = limiting_if_true[compound.is_limiting]
+    if text:
+        options = {
+            compound.ReactionRole.UNSPECIFIED: '',
+            compound.ReactionRole.REACTANT: f'as a {limiting} reactant',
+            compound.ReactionRole.REAGENT: 'as a reagent',
+            compound.ReactionRole.SOLVENT: 'as a solvent',
+            compound.ReactionRole.CATALYST: 'as a catalyst',
+            compound.ReactionRole.INTERNAL_STANDARD: 'as an internal standard',
+            compound.ReactionRole.WORKUP: '',
+            compound.ReactionRole.PRODUCT: 'as a product',
+        }
+    else:
+        options = {
+            compound.ReactionRole.UNSPECIFIED: '',
+            compound.ReactionRole.REACTANT: f'{limiting} reactant',
+            compound.ReactionRole.REAGENT: 'reagent',
+            compound.ReactionRole.SOLVENT: 'solvent',
+            compound.ReactionRole.CATALYST: 'catalyst',
+            compound.ReactionRole.INTERNAL_STANDARD: 'internal standard',
+            compound.ReactionRole.WORKUP: '',
+            compound.ReactionRole.PRODUCT: 'product',
+        }
+    return options[compound.reaction_role]
 
 
 def _compound_source_prep(compound):
@@ -409,6 +453,7 @@ TEMPLATE_FILTERS = {
     'compound_png': _compound_png,
     'compound_amount': _compound_amount,
     'compound_name': _compound_name,
+    'compound_smiles': _compound_smiles,
     'compound_role': _compound_role,
     'compound_source_prep': _compound_source_prep,
     'vessel_prep': _vessel_prep,
@@ -426,5 +471,8 @@ TEMPLATE_FILTERS = {
     'pressure_conditions_html': _pressure_conditions_html,
     'stirring_conditions': _stirring_conditions,
     'stirring_conditions_html': _stirring_conditions_html,
+    'has_addition_order': _has_addition_order,
+    'count_addition_order': _count_addition_order,
     'sort_addition_order': _sort_addition_order,
+    'get_input_borders': _get_input_borders,
 }

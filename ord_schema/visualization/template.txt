@@ -31,7 +31,7 @@ added
             {# COMPOUND DETAILS #}
             {{ compound|compound_amount }}
             {{ compound|compound_name }} 
-            {{ compound|compound_role }} 
+            {{ compound|compound_role(text=True) }}
             {{ compound|compound_source_prep }} 
 
             {% if not loop.last %} + {% endif %}
