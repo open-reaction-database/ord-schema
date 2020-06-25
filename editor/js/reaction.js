@@ -414,20 +414,17 @@ function initValidate (node) {
 function initValidateHandlers () {
   // For setup
   var setupNode = $('#section_setup');
-  var setupValidateNode = $('.setup_validate', setupNode);
-  var setupHandler = function () {ord.setups.validateSetup(setupNode, setupValidateNode)};
+  var setupHandler = function () {ord.setups.validateSetup(setupNode)};
   addChangeHandler(setupNode, setupHandler);
 
   // For conditions
   var conditionNode = $('#section_conditions');
-  var conditionValidateNode = $('.conditions_validate', conditionNode);
-  var conditionHandler = function () {ord.conditions.validateConditions(conditionNode, conditionValidateNode)};
+  var conditionHandler = function () {ord.conditions.validateConditions(conditionNode)};
   addChangeHandler(conditionNode, conditionHandler);
 
   // For temperature
   var temperatureNode = $('#section_conditions_temperature');
-  var temperatureValidateNode = $('.temperature_validate', temperatureNode);
-  var temperatureHandler = function () {ord.temperature.validateTemperature(temperatureNode, temperatureValidateNode)};
+  var temperatureHandler = function () {ord.temperature.validateTemperature(temperatureNode)};
   addChangeHandler(temperatureNode, temperatureHandler);
 }
 

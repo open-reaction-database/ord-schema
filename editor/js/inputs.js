@@ -121,12 +121,15 @@ ord.inputs.unloadInputUnnamed = function (node) {
 
 ord.inputs.add = function (root) {
   const node = addSlowly('#input_template', root);
-  handler = function () {ord.inputs.validateInput(node, $('.input_validate', node))};
+  handler = function () {ord.inputs.validateInput(node)};
   addChangeHandler(node, handler);
   return node;
 };
 
 ord.inputs.validateInput = function(node, validateNode) {
   const input = ord.inputs.unloadInputUnnamed(node);
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
   validate(input, "ReactionInput", validateNode);
 };

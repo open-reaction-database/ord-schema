@@ -89,5 +89,8 @@ ord.conditions.unload = function () {
 
 ord.conditions.validateConditions = function(node, validateNode) {
   const condition = ord.conditions.unload(node);
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
   validate(condition, "ReactionConditions", validateNode);
 };

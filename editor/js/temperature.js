@@ -96,5 +96,8 @@ ord.temperature.addMeasurement = function () {
 
 ord.temperature.validateTemperature = function(node, validateNode) {
   const temperature = ord.temperature.unload(node);
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
   validate(temperature, "TemperatureConditions", validateNode);
 };

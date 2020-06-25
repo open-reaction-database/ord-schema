@@ -93,7 +93,7 @@ limitations under the License.
                   <!-- TODO make validate reaction work -->
                   <!-- TODO move CSS in HTML to CSS file -->
                   <!-- TODO add CSS to elements to make everything look nice -->
-                  <div class="input_validate validate" button-onclick="ord.inputs.validateInput($(this).closest('.input'), $(this).closest('.validate'))" ></div>
+                  <div class="validate" button-onclick="ord.inputs.validateInput($(this).closest('.input'))" ></div>
                 </legend>
                 <span class="input_name_label">name</span><div class="input_name edittext"></div>
                 <div onclick="removeSlowly(this, '.input');" class="remove">remove</div>
@@ -134,7 +134,7 @@ limitations under the License.
               <fieldset>
                 <legend>
                   Component
-                  <div class="component_validate validate" button-onclick="ord.compounds.validateCompound($(this).closest('.component'), $(this).closest('.validate'))" ></div>
+                  <div class="validate" button-onclick="ord.compounds.validateCompound($(this).closest('.component'))" ></div>
                 </legend>
                 <table>
                   <tr><td>reaction role</td><td><div class="component_reaction_role selector" data-proto="Compound_ReactionRole_ReactionRoleType"></div></td></tr>
@@ -216,7 +216,7 @@ limitations under the License.
 
         <legend>
           Setup
-          <div class="setup_validate validate" button-onclick="ord.setups.validateSetup($(this).closest('.setup'), $(this).closest('.validate'))" ></div>
+          <div class="validate" button-onclick="ord.setups.validateSetup($(this).closest('#section_setup'))" ></div>
         </legend>
         <table>
           <tr><td align="right">vessel</td><td><div id="setup_vessel_type" class="selector" data-proto="VesselType_VesselTypeEnum"></div>
@@ -288,12 +288,12 @@ limitations under the License.
       <fieldset id="section_conditions" class="section">
         <legend>
           Conditions
-          <div class="conditions_validate validate" button-onclick="ord.conditions.validateConditions($('#section_conditions'), $(this).closest('.validate'))" ></div>
+          <div class="validate" button-onclick="ord.conditions.validateConditions($('#section_conditions'))" ></div>
         </legend>
         <fieldset id="section_conditions_temperature">
           <legend>
             Temperature
-            <div class="temperature_validate validate" button-onclick="ord.temperature.validateTemperature($(this).closest('.temperature'), $(this).closest('.validate'))" ></div>
+            <div class="validate" button-onclick="ord.temperature.validateTemperature($(this).closest('#section_conditions_temperature'))" ></div>
           </legend>
           <table>
             <tr><td align="right">control</td><td><div id="temperature_control" class="selector" data-proto="TemperatureConditions_TemperatureControl_TemperatureControlType"></div>

@@ -208,7 +208,7 @@ ord.compounds.add = function (root) {
     }
   });
 
-  handler = function () {ord.compounds.validateCompound(node, $('.validate', node))};
+  handler = function () {ord.compounds.validateCompound(node)};
   addChangeHandler(node, handler);
 
   return node;
@@ -238,5 +238,8 @@ ord.compounds.addPreparation = function (node) {
 
 ord.compounds.validateCompound = function(node, validateNode) {
   const compound = ord.compounds.unloadCompound(node);
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
   validate(compound, "Compound", validateNode);
 };
