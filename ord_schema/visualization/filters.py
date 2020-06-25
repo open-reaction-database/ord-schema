@@ -24,6 +24,13 @@ def _is_true(boolean):
     return bool(boolean)
 
 
+def _has_addition_order(inputs):
+    for value in inputs.values():
+        if value.addition_order:
+            return True
+    return False
+
+
 def _count_addition_order(inputs):
     """Returns the number of inputs for each addition_order value."""
     counts = collections.defaultdict(int)
@@ -464,6 +471,7 @@ TEMPLATE_FILTERS = {
     'pressure_conditions_html': _pressure_conditions_html,
     'stirring_conditions': _stirring_conditions,
     'stirring_conditions_html': _stirring_conditions_html,
+    'has_addition_order': _has_addition_order,
     'count_addition_order': _count_addition_order,
     'sort_addition_order': _sort_addition_order,
     'get_input_borders': _get_input_borders,

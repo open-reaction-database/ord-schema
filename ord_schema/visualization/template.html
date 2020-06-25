@@ -18,6 +18,8 @@
     <style>
     table {
       border-collapse: collapse;
+      font-family: sans-serif;
+      font-size: 90%;
     }
     td {
       border: 1px solid black;
@@ -157,10 +159,12 @@
     </tr>
 
     {# LAST ROW = addition order groups #}
-    <tr><td class="clean"><br></td></tr>
-    <tr>
-        {% for order, count in reaction.inputs|count_addition_order %}
-            <td colspan="{{ count }}">Addition order: {{ order }}</td>
-        {% endfor %}
-    </tr>
+    {% if reaction.inputs|has_addition_order %}
+        <tr><td class="clean"><br></td></tr>
+        <tr>
+            {% for order, count in reaction.inputs|count_addition_order %}
+                <td colspan="{{ count }}">Addition order: {{ order }}</td>
+            {% endfor %}
+        </tr>
+    {% endif %}
 </table>
