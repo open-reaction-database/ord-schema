@@ -37,13 +37,7 @@ limitations under the License.
         <div id="save" onclick="commit();" style="visibility: hidden;">save</div>
         <div id="delete" class="remove" style="float: none;" onclick="location.href='/dataset/{{ file_name }}/delete/reaction/{{ index }}';">delete</div>
       </div>
-      <div>
-        <div id="reaction_validate" class="validate" onclick="validateReaction();">validate reaction</div>
-      </div>
-      <div>
-        status: <div id="reaction_validate" class="validate">unvalidated</div>
-      </div>
-      <div id="reaction_validate_message" class="validate_message" style="display: none;"></div>
+      <div id="reaction_validate" class="validate" button-onclick="validateReaction()" ></div>
     </div>
 
     <div style="margin-left: 128px;">Reaction ID <div id="reaction_id" class="edittext"></div></div>

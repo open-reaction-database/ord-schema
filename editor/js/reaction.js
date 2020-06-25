@@ -70,7 +70,7 @@ function listen(node) {
 
 function dirty() {
   $('#save').css('visibility', 'visible');
-  $('#reaction_validate').css('visibility', 'visible');
+  $('#reaction_validate .validate_button').css('visibility', 'visible');
 }
 
 function clean() {
@@ -146,11 +146,10 @@ toggleValidateMessage = function(node) {
 };
 
 function validateReaction() {
-  $('#reaction_validate').css('visibility', 'hidden');
+  var validateNode = $('#reaction_validate');
+  $('.validate_button', validateNode).css('visibility', 'hidden');
   const reaction = unloadReaction();
-  validateNode = $('#reaction_validate');
-  messageNode = $('#reaction_validate_message');
-  validate(reaction, "Reaction", validateNode, messageNode);
+  validate(reaction, "Reaction", validateNode);
 }
 
 function commit() {
