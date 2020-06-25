@@ -191,6 +191,11 @@ can be used to validate one or more `Dataset` messages.
 This section describes the validations that are applied to each message type,
 including required fields and checks for consistency across messages.
 
+
+### Atmosphere
+
+* `details` must be specified if `type` is `CUSTOM`.
+
 ### Compound
 
 * Required fields: `identifiers`.
@@ -206,11 +211,19 @@ including required fields and checks for consistency across messages.
 ### CompoundPreparation
 
 * `details` must be specified if `type` is `CUSTOM`.
+* If `reaction_id` is set, `type` must be `SYNTHESIZED`.
 
 ### Concentration
 
 * Required fields: `units`.
 * `value` and `precision` must be non-negative.
+
+### CrudeComponent
+
+* Required fields: `reaction_id`.
+* If `has_derived_amount` is `True`, `mass` and `volume` cannot be set.
+* If `has_derived_amount` is `False` or unset, one of `mass` or `volume` must
+  be set.
 
 ### Current
 
@@ -219,14 +232,21 @@ including required fields and checks for consistency across messages.
 
 ### Data
 
-* Required fields: one of `bytes_value`, `value`, or `url`.
+* Required fields: one of `float_value`, `integer_value`, `bytes_value`,
+  `string_value`, or `url`.
 * `format` must be specified if `bytes_value` is set.
 
 ### Dataset
 
 * Required fields: one of `reactions` or `reaction_ids`.
+* Every `reaction_id` cross-referenced in `reactions` (i.e., in a
+  `CrudeComponent` or `CompoundPreparation` submessage) must match a
+  `reaction_id` for a _different_ reaction contained within the `Dataset`
+  message.
+* If `reaction_id` is set for a `Reaction` in `reactions`, it must be unique.
 * Each entry in `reaction_ids` must match `^ord-[0-9a-f]{32}$`.
-* `dataset_id` must match `^ord_dataset-[0-9a-f]{32}$`.
+* When run with `validate_ids=True` (default is False), `dataset_id` must
+  match `^ord_dataset-[0-9a-f]{32}$`.
 
 ### DatasetExample
 
@@ -236,22 +256,32 @@ including required fields and checks for consistency across messages.
 
 * `value` must be parsable with Python's `dateutil` module.
 
-### ElectrochemistryConditions
+### ElectrochemistryCell
 
 * `details` must be specified if `type` is `CUSTOM`.
+
+### ElectrochemistryConditions
 
 ### ElectrochemistryMeasurement
 
-### FlowConditions
+### ElectrochemistryType
 
 * `details` must be specified if `type` is `CUSTOM`.
+
+### FlowConditions
 
 ### FlowRate
 
 * Required fields: `units`.
 * `value` and `precision` must be non-negative.
 
+### FlowType
+
+* `details` must be specified if `type` is `CUSTOM`.
+
 ### IlluminationConditions
+
+### IlluminationType
 
 * `details` must be specified if `type` is `CUSTOM`.
 
@@ -287,8 +317,9 @@ including required fields and checks for consistency across messages.
 
 ### PressureConditions
 
+### PressureControl
+
 * `details` must be specified if `type` is `CUSTOM`.
-* `atmosphere_details` must be specified if `atmosphere` is `CUSTOM`.
 
 ### PressureMeasurement
 
@@ -302,7 +333,8 @@ including required fields and checks for consistency across messages.
   `INTERNAL_STANDARD` role.
 * If `Reaction.conversion` is set, at least one `ReactionInput` must have its
   `is_limiting` field set to `TRUE`.
-* `reaction_id` must match `^ord-[0-9a-f]{32}$`.
+* When run with `validate_ids=True` (default is False), `reaction_id` must
+  match `^ord-[0-9a-f]{32}$`.
 
 ### ReactionAnalysis
 
@@ -327,7 +359,6 @@ including required fields and checks for consistency across messages.
 
 ### ReactionOutcome
 
-* Required fields: one of `products` or `conversion`.
 * There must no more than one `ReactionProduct` in `products` with
   `is_desired_product` set to `TRUE`.
 * Each analysis key listed in `products` must be present in `analyses`.
@@ -337,7 +368,9 @@ including required fields and checks for consistency across messages.
 
 ### ReactionProduct
 
-* `texture_details` must be specified if `texture` is `CUSTOM`.
+* Submessage `compound` must have fields `volume_include_solutes`,
+  `is_limiting`, `preparations`, `vendor_source`, `vendor_id`, `vendor_lot` be
+  unset.
 
 ### ReactionProvenance
 
@@ -353,7 +386,7 @@ including required fields and checks for consistency across messages.
 * `duration` must be specified if `type` is `WAIT`.
 * `temperature` must be specified if `type` is `TEMPERATURE`.
 * `keep_phase` must be specified if `type` is `EXTRACTION` or `FILTRATION`.
-* `components` must be specified if `type` is `ADDITION`, `WASH`, 
+* `input` must be specified if `type` is `ADDITION`, `WASH`, 
   `DRY_WITH_MATERIAL`, `SCAVENGING`, `DISSOLUTION`, or `PH_ADJUST`.
 * `stirring` must be specified if `type` is `STIRRING`.
 * `target_ph` must be specified if `type` is `PH_ADJUST`.
@@ -370,8 +403,13 @@ including required fields and checks for consistency across messages.
 
 ### StirringConditions
 
-* `rpm` must be non-negative.
+### StirringMethod
+
 * `details` must be specified if `type` is `CUSTOM`.
+
+### StirringRate
+
+* `rpm` must be non-negative.
 
 ### Temperature
 
@@ -384,9 +422,15 @@ including required fields and checks for consistency across messages.
 
 ### TemperatureConditions
 
+### TemperatureControl
+
 * `details` must be specified if `type` is `CUSTOM`.
 
 ### TemperatureMeasurement
+
+* `details` must be specified if `type` is `CUSTOM`.
+
+### Texture
 
 * `details` must be specified if `type` is `CUSTOM`.
 
