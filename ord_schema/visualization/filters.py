@@ -332,14 +332,14 @@ def _compound_source_prep(compound):
         txt.append(f'lot #{compound.vendor_lot}')
     for preparation in compound.preparations:
         txt.append({
-                       preparation.UNSPECIFIED: '',
-                       preparation.CUSTOM: '',
-                       preparation.NONE: '',
-                       preparation.REPURIFIED: 'repurified',
-                       preparation.SPARGED: 'sparged',
-                       preparation.DRIED: 'dried',
-                       preparation.SYNTHESIZED: 'synthesized in-house'
-                   }[preparation.type])
+            preparation.UNSPECIFIED: '',
+            preparation.CUSTOM: '',
+            preparation.NONE: '',
+            preparation.REPURIFIED: 'repurified',
+            preparation.SPARGED: 'sparged',
+            preparation.DRIED: 'dried',
+            preparation.SYNTHESIZED: 'synthesized in-house'
+        }[preparation.type])
         txt.append(preparation.details)
     if any(elem for elem in txt):
         return '(' + ', '.join([elem for elem in txt if elem]) + ')'
@@ -356,11 +356,11 @@ def _vessel_prep(vessel):
     preparation_strings = []
     for preparation in vessel.preparations:
         preparation_strings.append({
-                                       preparation.UNSPECIFIED: '',
-                                       preparation.CUSTOM: 'prepared',
-                                       preparation.NONE: '',
-                                       preparation.OVEN_DRIED: 'oven-dried',
-                                   }[preparation.type])
+            preparation.UNSPECIFIED: '',
+            preparation.CUSTOM: 'prepared',
+            preparation.NONE: '',
+            preparation.OVEN_DRIED: 'oven-dried',
+        }[preparation.type])
     return ', '.join(preparation_strings)
 
 
@@ -409,12 +409,12 @@ def _input_addition(reaction_input):
         txt.append(
             f'after {units.format_message(reaction_input.addition_time)}')
     txt.append({
-                   reaction_input.addition_speed.UNSPECIFIED: '',
-                   reaction_input.addition_speed.ALL_AT_ONCE: 'all at once',
-                   reaction_input.addition_speed.FAST: 'quickly',
-                   reaction_input.addition_speed.SLOW: 'slowly',
-                   reaction_input.addition_speed.DROPWISE: 'dropwise',
-               }[reaction_input.addition_speed.type])
+        reaction_input.addition_speed.UNSPECIFIED: '',
+        reaction_input.addition_speed.ALL_AT_ONCE: 'all at once',
+        reaction_input.addition_speed.FAST: 'quickly',
+        reaction_input.addition_speed.SLOW: 'slowly',
+        reaction_input.addition_speed.DROPWISE: 'dropwise',
+    }[reaction_input.addition_speed.type])
     if reaction_input.addition_duration.value:
         txt.append(
             f'over {units.format_message(reaction_input.addition_duration)}')
