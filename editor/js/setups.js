@@ -154,7 +154,7 @@ ord.setups.addVesselAttachment = function () {
 };
 
 ord.setups.validateSetup = function(node, validateNode) {
-  const setup = ord.setups.unload(node);
+  const setup = ord.setups.unload();
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
