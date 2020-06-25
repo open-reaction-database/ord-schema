@@ -76,7 +76,9 @@ _UNIT_SYNONYMS = {
     },
     reaction_pb2.Wavelength: {
         reaction_pb2.Wavelength.NANOMETER: ['nm', 'nanometer', 'nanometers'],
-        reaction_pb2.Wavelength.WAVENUMBER: ['cm-1', 'wavenumber', '1/cm'],
+        reaction_pb2.Wavelength.WAVENUMBER: [
+            'cm⁻¹', 'cm^-1', 'cm-1', 'wavenumber', '1/cm'
+        ],
     },
     reaction_pb2.FlowRate: {
         reaction_pb2.FlowRate.MICROLITER_PER_MINUTE: ['μL/min', 'uL/min'],
