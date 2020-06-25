@@ -411,6 +411,10 @@ def _datetimeformat(value, format_string='%H:%M / %d-%m-%Y'):
     return value.strftime(format_string)
 
 
+def _width(values):
+    return 100 / len(values)
+
+
 TEMPLATE_FILTERS = {
     'round': _round,
     'is_true': _is_true,
@@ -441,4 +445,5 @@ TEMPLATE_FILTERS = {
     'stirring_conditions_html': _stirring_conditions_html,
     'count_addition_order': _count_addition_order,
     'sort_addition_order': _sort_addition_order,
+    'width': _width,
 }

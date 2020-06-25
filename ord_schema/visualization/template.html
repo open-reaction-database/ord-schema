@@ -14,30 +14,41 @@
  limitations under the License.
 -->
 
+<head>
+    <style>
+    table {
+      border-collapse: collapse;
+    }
+    td {
+      border: 1px solid black;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .divide {
+      border-top: 0px;
+      border-bottom: 0px;
+      border-left: 1px solid black;
+      border-right: 1px solid black;
+    }
+    .clean {
+      border: 0px;
+    }
+    </style>
+</head>
+
 <body>
 <h1>Reaction {{ reaction.reaction_id }}</h1>
 
-<table border="1 px" style="text-align: center;">
-
-    {# ZEROTH ROW = addition order groups #}
-    <tr>
-        {% for order,count in reaction.inputs|count_addition_order %}
-            <td colspan="{{ count }}">Addition order: {{ order }}</td>
-        {% endfor %}
-        <td> {# arrow #} </td>
-        {% for outcome in reaction.outcomes %}
-            <td colspan="{{ outcome.products|length }}"></td>
-        {% endfor %}
-    </tr>
+<table>
 
     {# FIRST ROW = inputs for reactants, outcomes for products #}
     <tr>
         {% for key,input in reaction.inputs|sort_addition_order %}
-            <td colspan="{{ input.components|length }}">{{ key }}</td>
+            <td class="divide" colspan="{{ input.components|length }}">{{ key }}</td>
         {% endfor %}
-        <td> {# arrow #} </td>
+        <td class="clean"> {# arrow #} </td>
         {% for outcome in reaction.outcomes %}
-            <td colspan="{{ outcome.products|length }}">
+            <td class="clean" colspan="{{ outcome.products|length }}">
                 Outcome {{ outcome.reaction_time|unit_format|parenthetical_if_def }}
             </td>
         {% endfor %}
@@ -47,10 +58,12 @@
     <tr>
         {% for key,input in reaction.inputs|sort_addition_order %}
             {% for compound in input.components %}
-                <td><img src="data:image/png;base64,{{ compound|compound_png }}"/></td>
+                <td class="clean">
+                    <img src="data:image/png;base64,{{ compound|compound_png }}"/>
+                </td>
             {% endfor %}
         {% endfor %}
-        <td>
+        <td class="clean">
             {{ reaction.conditions.pressure|pressure_conditions_html }}<br>
             {{ reaction.conditions.temperature|temperature_conditions_html }}<br>
             {{ reaction.conditions.stirring|stirring_conditions_html }}
@@ -58,64 +71,69 @@
         </td>
         {% for outcome in reaction.outcomes %}
             {% for product in outcome.products %}
-                <td><img src="data:image/png;base64,{{ product.compound|compound_png }}"/></td>
+                <td class="clean"><img src="data:image/png;base64,{{ product.compound|compound_png }}"/></td>
             {% endfor %}
         {% endfor %}
     </tr>
 
-    {# Row 3 - names #}
+    {# THIRD ROW = compound info #}
     <tr>
         {% for key,input in reaction.inputs|sort_addition_order %}
             {% for compound in input.components %}
-        <td>{{ compound|compound_name }}</td>
+                <td class="clean">{{ compound|compound_name }}</td>
             {% endfor %}
         {% endfor %}
-        <td></td>
+        <td class="clean"></td>
         {% for outcome in reaction.outcomes %}
             {% for product in outcome.products %}
-                <td>{{ product.compound|compound_name }}</td>
-            {% endfor %}
-        {% endfor %}
-    </tr>
-
-    {# Row 4 - amount of reactants & product yield/purity/selectivity #}
-    <tr>
-        {% for key,input in reaction.inputs|sort_addition_order %}
-            {% for compound in input.components %}
-                <td>{{ compound|compound_amount }}</td>
-            {% endfor %}
-        {% endfor %}
-        <td></td>
-        {% for outcome in reaction.outcomes %}
-            {% for product in outcome.products %}
-                <td>
-                    {% if product.compound_yield.value %}
-                    {{ product.compound_yield.value|round(3) }}%
-                    {% if product.compound_yield.precision %}
-                        (p/m {{ product.compound_yield.precision|round(3) }}%)
-                    {% endif %}
-                    yield
-                    {% if product.analysis_yield %}
-                        by
-                        {% for key in product.analysis_yield %}
-                            {% if loop.last and loop.index > 1 %} and {% endif %}
-                            {{ outcome.analyses[key]|analysis_format }}
-                            {% if not loop.last %}, {% endif %}
-                        {% endfor %}
-                    {% endif %}
-                {% endif %}
+                <td class="clean">
+                    {{ product.compound|compound_name }}
                 </td>
             {% endfor %}
         {% endfor %}
     </tr>
-
-    {# Row 5 - role #}
     <tr>
         {% for key,input in reaction.inputs|sort_addition_order %}
             {% for compound in input.components %}
-                <td>{{ compound|compound_role }}</td>
+                <td class="clean">{{ compound|compound_amount }}</td>
             {% endfor %}
         {% endfor %}
-        <td></td>
+        <td class="clean"></td>
+        {% for outcome in reaction.outcomes %}
+            {% for product in outcome.products %}
+                <td class="clean">
+                    {% if product.compound_yield.value %}
+                        {{ product.compound_yield.value|round(3) }}%
+                        {% if product.compound_yield.precision %}
+                            (p/m {{ product.compound_yield.precision|round(3) }}%)
+                        {% endif %}
+                        yield
+                        {% if product.analysis_yield %}
+                            by
+                            {% for key in product.analysis_yield %}
+                                {% if loop.last and loop.index > 1 %} and {% endif %}
+                                {{ outcome.analyses[key]|analysis_format }}
+                                {% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endif %}
+                </td>
+            {% endfor %}
+        {% endfor %}
+    </tr>
+    <tr>
+        {% for key,input in reaction.inputs|sort_addition_order %}
+            {% for compound in input.components %}
+                <td class="clean">{{ compound|compound_role }}</td>
+            {% endfor %}
+        {% endfor %}
+    </tr>
+
+    {# LAST ROW = addition order groups #}
+    <tr><td class="clean"><br></td></tr>
+    <tr>
+        {% for order,count in reaction.inputs|count_addition_order %}
+            <td colspan="{{ count }}">Addition order: {{ order }}</td>
+        {% endfor %}
     </tr>
 </table>
