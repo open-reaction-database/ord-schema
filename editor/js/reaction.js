@@ -450,6 +450,11 @@ function initValidateHandlers () {
   var flowNode = $('#section_conditions_flow');
   var flowHandler = function () {ord.flows.validateFlow(flowNode)};
   addChangeHandler(flowNode, flowHandler);
+
+  // For notes
+  var notesNode = $('#section_notes');
+  var notesHandler = function () {ord.notes.validateNotes(notesNode)};
+  addChangeHandler(notesNode, notesHandler);
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.

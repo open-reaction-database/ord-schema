@@ -452,7 +452,10 @@ limitations under the License.
       </fieldset>
 
       <fieldset id="section_notes" class="section">
-        <legend>Notes</legend>
+        <legend>
+          Notes
+          <div class="validate" button-onclick="ord.notes.validateNotes($('#section_notes'))" ></div>
+        </legend>
         <table>
           <tr><td align="right">is heterogeneous</td><td><div id="notes_heterogeneous" class="optional_bool"></div></td></tr>
           <tr><td align="right">forms precipitate</td><td><div id="notes_precipitate" class="optional_bool"></div></td></tr>

@@ -51,3 +51,11 @@ ord.notes.unload = function () {
   notes.setProcedureDetails($('#notes_details').text());
   return notes;
 };
+
+ord.notes.validateNotes = function(node, validateNode) {
+    const notes = ord.notes.unload();
+    if (typeof validateNode === 'undefined') {
+      validateNode = $('.validate', node).first();
+    }
+    validate(notes, "ReactionNotes", validateNode);
+  };
