@@ -474,7 +474,10 @@ limitations under the License.
         <div id="observations">
           <div id="observation_template" class="observation" style="display: none;">
             <fieldset>
-              <legend>Observation</legend>
+              <legend>
+                Observation
+                <div class="validate" button-onclick="ord.observations.validateObservation($(this).closest('.observation'))" ></div>
+              </legend>
               <div onclick="removeSlowly(this, '.observation');" class="remove">remove</div>
               <table>
                 <tr><td align="right">when</td><td><div class="observation_time_value edittext"></div>
@@ -511,7 +514,10 @@ limitations under the License.
         <div id="workups">
           <div id="workup_template" class="workup" style="display: none;">
           <fieldset>
-            <legend>Workup</legend>
+            <legend>
+              Workup
+              <div class="validate" button-onclick="ord.workups.validateWorkup($(this).closest('.workup'))" ></div>
+            </legend>
             <div onclick="removeSlowly(this, '.workup');" class="remove">remove</div>
             <table>
               <tr><td align="right">type</td><td><div class="workup_type selector" data-proto="ReactionWorkup_WorkupType"></div></td></tr>

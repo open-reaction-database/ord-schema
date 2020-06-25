@@ -180,6 +180,10 @@ ord.workups.add = function () {
   $('.input_name', inputNode).hide();
   // Unlike Reaction.inputs, this ReactionInput is not repeated.
   $('.remove', inputNode).hide();
+
+  handler = function () {ord.workups.validateWorkup(workupNode)};
+  addChangeHandler(workupNode, handler);
+
   return workupNode;
 };
 
@@ -187,4 +191,12 @@ ord.workups.addMeasurement = function (node) {
   return addSlowly(
       '#workup_temperature_measurement_template',
       $('.workup_temperature_measurements', node));
+};
+
+ord.workups.validateWorkup = function(node, validateNode) {
+  const workup = ord.workups.unloadWorkup(node);
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
+  validate(workup, "ReactionWorkup", validateNode);
 };

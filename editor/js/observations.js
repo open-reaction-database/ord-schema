@@ -131,5 +131,17 @@ ord.observations.add = function () {
     }
   });
   ord.uploads.initialize(node);
+
+  handler = function () {ord.observations.validateObservation(node)};
+  addChangeHandler(node, handler);
+
   return node;
+};
+
+ord.observations.validateObservation = function(node, validateNode) {
+  const observation = ord.observations.unloadObservation(node);
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
+  validate(observation, "ReactionObservation", validateNode);
 };
