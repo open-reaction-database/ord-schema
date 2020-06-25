@@ -176,31 +176,23 @@ committee is:
 
 ### Advisory Board
 
-We are also in the process of forming an Advisory Board to include
-representatives from many institutions and industry segments. The primary role
-of the Advisory Board is to encourage community engagement with the database.
-This may take several forms; for instance:
+We are forming an Advisory Board to include representatives from many
+institutions and industry segments. The primary role of the Advisory Board is to
+encourage community engagement with the database. The current membership of the
+Advisory Board is:
 
-* Raise awareness of the database by publicizing it to their
-  institution/network.
-* Encourage use of the database schema when generating or analyzing data.
-* Encourage use of the database for machine learning and other data science 
-  efforts (including broader use cases like retrosynthetic planning and 
-  reaction discovery).
-* Provide feedback on the value of the database and areas of improvement for
-  the schema or user experience (submission workflow, database browsing and 
-  searching, etc.).
-* Suggest individuals with strong technical skills and background knowledge
-  who may be able to contribute to the implementation and support of 
-  database infrastructure, such as web front-ends that will improve the user 
-  experience.
-* Where possible, guide experimental efforts to address specific needs; for 
-  example, by identifying areas of reaction space that are sparsely covered 
-  and focusing experimental effort on these areas.
-
-There are no specific requirements for time or resource commitments to be part
-of the Advisory Board, nor will any compensation be provided to members of the
-board.
+* Juan Alvarez (Merck)
+* Alán Aspuru-Guzik (Toronto, MADNESS)
+* Timothy Cernak (Michigan)
+* Lucy Colwell (Cambridge, SynTech, Google)
+* Matthew Gaunt (Cambridge, SynTech)
+* Mimi Hii (Imperial, ROAR)
+* Greg Landrum (T5 Informatics)
+* Christos Nicolaou (Lilly)
+* Garry Pairaudeau (AstraZeneca)
+* Sarah Reisman (Caltech)
+* Matthew Sigman (Utah)
+* Matthew Tudge (GSK)
 
 ## Commitment to Open Access
 
