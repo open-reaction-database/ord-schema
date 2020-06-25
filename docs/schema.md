@@ -192,6 +192,12 @@ This section describes the validations that are applied to each message type,
 including required fields and checks for consistency across messages.
 
 
+### AdditionDevice
+
+* `details` must be specified if `type` is `CUSTOM`.
+
+### AdditionSpeed
+
 ### Atmosphere
 
 * `details` must be specified if `type` is `CUSTOM`.
