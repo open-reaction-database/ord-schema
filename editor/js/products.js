@@ -172,7 +172,10 @@ ord.products.unloadAnalysisKeys = function (node, tag) {
 };
 
 ord.products.add = function (node) {
-  return addSlowly('#outcome_product_template', $('.outcome_products', node));
+  const productNode = addSlowly('#outcome_product_template', $('.outcome_products', node));
+  handler = function () {ord.products.validateProduct(productNode)};
+  addChangeHandler(productNode, handler);
+  return productNode;
 };
 
 ord.products.addIdentity = function (node) {
@@ -197,4 +200,12 @@ ord.products.addSelectivity = function (node) {
   return addSlowly(
       '#outcome_product_analysis_selectivity_template',
       $('.outcome_product_analysis_selectivities', node));
+};
+
+ord.products.validateProduct = function(node, validateNode) {
+  const product = ord.products.unloadProduct(node);
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
+  validate(product, "ReactionProduct", validateNode);
 };

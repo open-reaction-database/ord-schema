@@ -588,7 +588,10 @@ limitations under the License.
 
           <div id="outcome_template" class="outcome" style="display: none;">
             <fieldset>
-            <legend>Outcome</legend>
+            <legend>
+              Outcome
+              <div class="validate" button-onclick="ord.outcomes.validateOutcome($(this).closest('.outcome'))" ></div>
+            </legend>
             <div onclick="removeSlowly(this, '.outcome');" class="remove">remove</div>
             <table>
               <tr><td align="right">time</td><td><div class="outcome_time_value edittext"></div>
@@ -609,7 +612,10 @@ limitations under the License.
 
           <div id="outcome_product_template" class="outcome_product" style="display: none;">
             <fieldset>
-              <legend>Product</legend>
+              <legend>
+                Product
+                <div class="validate" button-onclick="ord.products.validateProduct($(this).closest('.outcome_product'))"></div>
+              </legend>
             <div onclick="removeSlowly(this, '.outcome_product');" class="remove">remove</div>
 
             <table>

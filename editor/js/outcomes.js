@@ -291,7 +291,10 @@ ord.outcomes.unloadRaw = function (node, raws) {
 };
 
 ord.outcomes.add = function () {
-  return addSlowly('#outcome_template', '#outcomes');
+  const node = addSlowly('#outcome_template', '#outcomes');
+  handler = function () {ord.outcomes.validateOutcome(node)};
+  addChangeHandler(node, handler);
+  return node;
 };
 
 ord.outcomes.addAnalysis = function (node) {
@@ -337,4 +340,12 @@ ord.outcomes.addRaw = function (node) {
   });
   ord.uploads.initialize(rawNode);
   return rawNode;
+};
+
+ord.outcomes.validateOutcome = function(node, validateNode) {
+  const outcome = ord.outcomes.unloadOutcome(node);
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
+  validate(outcome, "ReactionOutcome", validateNode);
 };
