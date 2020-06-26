@@ -455,6 +455,11 @@ function initValidateHandlers () {
   var notesNode = $('#section_notes');
   var notesHandler = function () {ord.notes.validateNotes(notesNode)};
   addChangeHandler(notesNode, notesHandler);
+
+  // For provenance
+  var provenanceNode = $('#section_provenance');
+  var provenanceHandler = function () {ord.provenance.validateProvenance(provenanceNode)};
+  addChangeHandler(provenanceNode, provenanceHandler);
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.

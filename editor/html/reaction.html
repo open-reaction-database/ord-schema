@@ -776,7 +776,10 @@ limitations under the License.
       </fieldset>
 
       <fieldset id="section_provenance" class="section">
-        <legend>Provenance</legend>
+        <legend>
+          Provenance
+          <div class="validate" button-onclick="ord.provenance.validateProvenance($('#section_provenance'))" ></div>
+        </legend>
         <div id="provenance_experimenter">
           <table>
             <tr><td align="right">name</td><td><div class="provenance_name edittext"></div></td></tr>

@@ -125,3 +125,11 @@ ord.provenance.unloadPerson = function (node) {
 ord.provenance.addModification = function () {
   return addSlowly('#provenance_modified_template', '#provenance_modifieds');
 };
+
+ord.provenance.validateProvenance = function(node, validateNode) {
+  const provenance = ord.provenance.unload();
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
+  validate(provenance, "ReactionProvenance", validateNode);
+};
