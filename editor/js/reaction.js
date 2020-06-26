@@ -112,21 +112,24 @@ function validate(message, messageTypeString, validateNode) {
     statusNode = $('.validate_status', validateNode);
     messageNode = $('.validate_message', validateNode);
     if (errors.length) {
-      statusNode.css('backgroundColor', 'pink');
       statusNode.text('invalid (click)');
-      messageNode.empty();
+      statusNode.css('backgroundColor', 'pink');
 
+      messageNode.empty();
       for (index = 0; index < errors.length; index++) { 
         error = errors[index];
         errorNode = $('<div></div>');
         errorNode.text('\u2022 ' + error);
         messageNode.append(errorNode);
       } 
+      messageNode.css('backgroundColor', 'pink');
     }
     else {
-      statusNode.css('backgroundColor', 'lightgreen');
       statusNode.text('valid');
+      statusNode.css('backgroundColor', 'lightgreen');
+
       messageNode.html('');
+      messageNode.css('backgroundColor', '');
       messageNode.css('visibility', 'hidden');
     }
   };
@@ -379,8 +382,6 @@ function getOptionalBool(node) {
 
 // Set up a validator div (button, status indicator, error list, etc.)
 function initValidate (node) {
-  node.css('display', 'inline-block');
-
   buttonNode = $('<div>');
   buttonNode.attr('onclick', node.attr('button-onclick'));
   buttonNode.addClass('validate_button');
@@ -388,22 +389,16 @@ function initValidate (node) {
   node.append(buttonNode);
 
   statusMessageNode = $('<div>');
-  statusMessageNode.css('display', 'inline-block');
   statusMessageNode.attr('onclick', 'toggleValidateMessage($(this))');
+  statusMessageNode.addClass('validate_status-message');
 
   statusNode = $('<div>');
   statusNode.addClass('validate_status');
-  statusNode.css('background-color', 'lightgray');
   statusNode.text('unvalidated');
   statusMessageNode.append(statusNode);
 
   messageNode = $('<div>');
   messageNode.addClass('validate_message');
-  messageNode.css('z-index', 2);
-  messageNode.css('position', 'absolute');
-  messageNode.css('background-color', 'pink');
-  messageNode.css('display', 'inline-block');
-  messageNode.css('visibility', 'hidden');
   statusMessageNode.append(messageNode);
 
   node.append(statusMessageNode);

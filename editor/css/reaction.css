@@ -47,17 +47,28 @@ body {
   background-color: lightgreen;
   margin-top: 12px;
 }
-#save, .validate_status {
+#save {
   background-color: lightgray;
-}
-.validate_button {
-  background-color: lightblue;
 }
 .remove, #delete {
   background-color: pink;
 }
 .remove {
   float: right;
+}
+.validate, .validate_status-message {
+  display: inline-block;
+}
+.validate_button {
+  background-color: lightblue;
+}
+.validate_status {
+  background-color: lightgray;
+}
+.validate_message {
+  position: absolute;
+  z-index: 2;
+  visibility: hidden;
 }
 .spacer {
   height: 32px;
