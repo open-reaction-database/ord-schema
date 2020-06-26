@@ -684,7 +684,10 @@ limitations under the License.
 
           <div id="outcome_analysis_template" class="outcome_analysis" style="display: none;">
             <fieldset>
-              <legend>Analysis</legend>
+              <legend>
+                Analysis
+                <div class="validate" button-onclick="ord.outcomes.validateAnalysis($(this).closest('.outcome_analysis'))" ></div>
+              </legend>
               <div onclick="removeSlowly(this, '.outcome_analysis');" class="remove">remove</div>
               <table>
                 <tr><td align="right">name</td><td><div class="outcome_analysis_name edittext"></div></td></tr>

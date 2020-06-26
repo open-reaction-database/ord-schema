@@ -196,9 +196,7 @@ ord.outcomes.unloadOutcome = function (node) {
   return outcome;
 };
 
-ord.outcomes.unloadAnalysis = function (analysisNode, analyses) {
-  const name = $('.outcome_analysis_name', analysisNode).text();
-
+ord.outcomes.unloadAnalysisSingle = function (analysisNode) {
   const analysis = new proto.ord.ReactionAnalysis();
   analysis.setType(getSelector($('.outcome_analysis_type', analysisNode)));
   const chmoId = $('.outcome_analysis_chmo_id', analysisNode).text();
@@ -231,6 +229,12 @@ ord.outcomes.unloadAnalysis = function (analysisNode, analyses) {
   analysis.setUsesAuthenticStandard(
       getOptionalBool($('.outcome_analysis_authentic_standard', analysisNode)));
 
+  return analysis;
+};
+
+ord.outcomes.unloadAnalysis = function (analysisNode, analyses) {
+  const analysis = ord.outcomes.unloadAnalysisSingle(analysisNode);
+  const name = $('.outcome_analysis_name', analysisNode).text();
   analyses.set(name, analysis);
 };
 
@@ -298,7 +302,10 @@ ord.outcomes.add = function () {
 };
 
 ord.outcomes.addAnalysis = function (node) {
-  return addSlowly('#outcome_analysis_template', $('.outcome_analyses', node));
+  const analysisNode = addSlowly('#outcome_analysis_template', $('.outcome_analyses', node));
+  handler = function () {ord.outcomes.validateAnalysis(analysisNode)};
+  addChangeHandler(node, handler);
+  return node;
 };
 
 ord.outcomes.addProcess = function (node) {
@@ -348,4 +355,12 @@ ord.outcomes.validateOutcome = function(node, validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(outcome, "ReactionOutcome", validateNode);
+};
+
+ord.outcomes.validateAnalysis = function(node, validateNode) {
+  const analysis = ord.outcomes.unloadAnalysisSingle(node);
+  if (typeof validateNode === 'undefined') {
+    validateNode = $('.validate', node).first();
+  }
+  validate(analysis, "ReactionAnalysis", validateNode);
 };
