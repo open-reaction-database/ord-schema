@@ -162,7 +162,7 @@
     </tr>
 
     {# LAST ROW = addition order groups #}
-    {% if reaction.inputs|has_addition_order %}
+    {% if reaction|uses_addition_order %}
         <tr><td class="clean"><br></td></tr>
         <tr>
             {% for order, count in reaction.inputs|count_addition_order %}
