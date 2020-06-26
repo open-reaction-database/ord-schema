@@ -29,19 +29,19 @@ _UNIT_SYNONYMS = {
         reaction_pb2.Mass.GRAM: ['g', 'gram', 'grams', 'gs', 'gm', 'gms'],
         reaction_pb2.Mass.MILLIGRAM: ['mg', 'mgs', 'milligrams', 'milligram'],
         reaction_pb2.Mass.MICROGRAM: [
-            'ug', 'ugs', 'micg', 'micgs', 'micrograms', 'microgram'
+            'μg', 'ug', 'ugs', 'micg', 'micgs', 'micrograms', 'microgram'
         ],
         reaction_pb2.Mass.KILOGRAM: ['kg', 'kgs', 'kilogram', 'kilograms'],
     },
     reaction_pb2.Moles: {
         reaction_pb2.Moles.MOLE: ['mol', 'mols', 'mole', 'moles'],
         reaction_pb2.Moles.MILLIMOLE: ['mmol', 'millimoles', 'mmols'],
-        reaction_pb2.Moles.MICROMOLE: ['umol', 'umols', 'micromoles'],
+        reaction_pb2.Moles.MICROMOLE: ['μmol', 'umol', 'umols', 'micromoles'],
         reaction_pb2.Moles.NANOMOLE: ['nmol', 'nanomoles'],
     },
     reaction_pb2.Volume: {
         reaction_pb2.Volume.MILLILITER: ['mL', 'milliliters'],
-        reaction_pb2.Volume.MICROLITER: ['uL', 'micl', 'microliters'],
+        reaction_pb2.Volume.MICROLITER: ['μL', 'uL', 'micl', 'microliters'],
         reaction_pb2.Volume.LITER: ['L', 'liters', 'litres'],
     },
     reaction_pb2.Length: {
@@ -76,14 +76,16 @@ _UNIT_SYNONYMS = {
     },
     reaction_pb2.Wavelength: {
         reaction_pb2.Wavelength.NANOMETER: ['nm', 'nanometer', 'nanometers'],
-        reaction_pb2.Wavelength.WAVENUMBER: ['cm-1', 'wavenumber', '1/cm'],
+        reaction_pb2.Wavelength.WAVENUMBER: [
+            'cm⁻¹', 'cm^-1', 'cm-1', 'wavenumber', '1/cm'
+        ],
     },
     reaction_pb2.FlowRate: {
-        reaction_pb2.FlowRate.MICROLITER_PER_MINUTE: ['uL/min'],
-        reaction_pb2.FlowRate.MICROLITER_PER_SECOND: ['uL/s'],
+        reaction_pb2.FlowRate.MICROLITER_PER_MINUTE: ['μL/min', 'uL/min'],
+        reaction_pb2.FlowRate.MICROLITER_PER_SECOND: ['μL/s', 'uL/s'],
         reaction_pb2.FlowRate.MILLILITER_PER_MINUTE: ['mL/min'],
         reaction_pb2.FlowRate.MILLILITER_PER_SECOND: ['mL/s'],
-        reaction_pb2.FlowRate.MICROLITER_PER_HOUR: ['uL/h'],
+        reaction_pb2.FlowRate.MICROLITER_PER_HOUR: ['μL/h', 'uL/h'],
     },
 }
 
