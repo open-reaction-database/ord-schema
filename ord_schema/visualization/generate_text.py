@@ -80,6 +80,7 @@ def generate_text(reaction):
 
 
 def generate_html(reaction):
+    """Generates an HTML reaction description."""
     return _generate(reaction, _HTML_TEMPLATE, True)
 
 
