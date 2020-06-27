@@ -43,7 +43,7 @@ body {
 .paratext {
   height: 100px;
 }
-.add, #save, .remove, #delete, .validate_button, .validate_status, .validate_message {
+.add, #save, .remove, #delete, .validate_button, .validate_status, .validate_message, .tooltip > .tooltip-inner {
   padding: 2px 4px;
   margin: 2px;
   display: inline-block;
@@ -81,6 +81,12 @@ body {
 }
 .spacer {
   height: 32px;
+}
+.fa {
+  font-size: small;
+}
+.tooltip > .tooltip-inner {
+  background-color: lightgray;
 }
 fieldset {
   margin-top: 24px;

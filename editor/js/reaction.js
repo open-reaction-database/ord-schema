@@ -47,6 +47,11 @@ async function init(fileName, index) {
   $('.validate').each((index, node) => initValidate($(node)));
   // Initialize validation handlers that don't go in "add" methods.
   initValidateHandlers();
+  // Initailize tooltips.
+  $('[data-toggle="tooltip"]').tooltip();
+  // Prevent tooltip pop-ups from blurring. 
+  // (see github.com/twbs/bootstrap/issues/22610)
+  Popper.Defaults.modifiers.computeStyle.gpuAcceleration = false;
   // Show "save" on modifications.
   listen('body');
   // Fetch the Dataset containing the Reaction proto.

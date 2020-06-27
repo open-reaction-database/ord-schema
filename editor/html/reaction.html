@@ -20,6 +20,9 @@ limitations under the License.
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.1/css/all.min.css">
     <script src="/js/reaction.js"></script>
     <link rel="stylesheet" href="/css/reaction.css">
     <title>{{ file_name }}:{{ index }}</title>
@@ -57,7 +60,12 @@ limitations under the License.
     <div id="sections">
 
       <fieldset id="section_identifiers" class="section">
-        <legend>Identifiers</legend>
+        <legend>
+          Identifiers
+            <span data-toggle="tooltip" data-placement="right" title="Reaction identifiers define descriptions of the overall reaction.">
+              <span class="fa fa-question-circle" aria-hidden="true"></span>
+            </span>
+        </legend>
         <div id="identifiers">
           <div id="reaction_identifier_template" class="reaction_identifier" style="display: none;">
             type <div class="reaction_identifier_type selector" data-proto="ReactionIdentifier_IdentifierType"></div>
