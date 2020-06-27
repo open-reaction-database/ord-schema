@@ -25,6 +25,7 @@ ord.amounts.load = function (node, mass, moles, volume) {
   $('.component_amount_units_mass', node).hide();
   $('.component_amount_units_moles', node).hide();
   $('.component_amount_units_volume', node).hide();
+  $('.includes_solutes', node).hide();
   if (mass) {
     $("input[value='mass']", amount).prop('checked', true);
     $('.component_amount_value', node).text(mass.getValue());
@@ -46,6 +47,7 @@ ord.amounts.load = function (node, mass, moles, volume) {
     $('.component_amount_value', node).text(volume.getValue());
     $('.component_amount_precision', node).text(volume.getPrecision());
     $('.component_amount_units_volume', node).show();
+    $('.includes_solutes', node).show();
     setSelector(
         $('.component_amount_units_volume', amount), volume.getUnits());
   }

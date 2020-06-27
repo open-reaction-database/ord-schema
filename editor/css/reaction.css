@@ -34,6 +34,12 @@ body {
   border-width: 1px;
   border-color: #c0c0c0;
 }
+.shorttext {
+  width: 75px;
+}
+.veryshorttext {
+  width: 25px;
+}
 .add, #save, .remove, #delete, .validate_button, .validate_status, .validate_message {
   padding: 2px 4px;
   margin: 2px;

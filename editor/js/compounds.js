@@ -113,11 +113,17 @@ ord.compounds.unloadCompound = function (node) {
   const reactionRole = getSelector($('.component_reaction_role', node));
   compound.setReactionRole(reactionRole);
 
-  const isLimiting = getOptionalBool($('.component_limiting', node));
-  compound.setIsLimiting(isLimiting);
+  // Only call setIsLimiting if this is a reactant Compound.
+  if (getSelectorText($('.component_reaction_role', node)[0]) == 'REACTANT') {
+    const isLimiting = getOptionalBool($('.component_limiting', node));
+    compound.setIsLimiting(isLimiting);
+  }
 
-  const solutes = getOptionalBool($('.component_includes_solutes', node));
-  compound.setVolumeIncludesSolutes(solutes);
+  // Only call setVolumeIncludesSolutes if the amount is defined as a volume.
+  if (ord.amounts.unloadVolume(node)) {
+    const solutes = getOptionalBool($('.component_includes_solutes', node));
+    compound.setVolumeIncludesSolutes(solutes);
+  }
 
   const identifiers = ord.compounds.unloadIdentifiers(node);
   compound.setIdentifiersList(identifiers);
@@ -192,6 +198,15 @@ ord.compounds.add = function (root) {
   const node = addSlowly(
       '#component_template', $('.components', root));
 
+  // Connect reaction role selection to limiting reactant field.
+  const roleSelector = $('.component_reaction_role', node);
+  roleSelector.change(function() {
+    $('.limiting_reactant').css('display', 'none');
+    if (getSelectorText(this) == 'REACTANT') {
+      $('.limiting_reactant').css('display', '');
+    }
+  });
+
   // Create an "amount" radio button group and connect it to the unit selectors.
   const amountButtons = $('.amount input', root);
   amountButtons.attr('name', 'compounds_' + ord.compounds.radioGroupCounter++);
@@ -199,12 +214,15 @@ ord.compounds.add = function (root) {
     $('.amount .selector', root).hide();
     if (this.value == 'mass') {
       $('.component_amount_units_mass', root).show();
+      $('.includes_solutes', root).hide();
     }
     if (this.value == 'moles') {
       $('.component_amount_units_moles', root).show();
+      $('.includes_solutes', root).hide();
     }
     if (this.value == 'volume') {
       $('.component_amount_units_volume', root).show();
+      $('.includes_solutes', root).show();
     }
   });
 

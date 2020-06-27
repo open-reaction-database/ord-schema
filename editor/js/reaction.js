@@ -55,6 +55,8 @@ async function init(fileName, index) {
   const reaction = session.dataset.getReactionsList()[index];
   loadReaction(reaction);
   clean();
+  // Trigger validation
+  $('.validate_button').each((index, node) => $(node).trigger('click'));
   // Signal to tests that the DOM is initialized.
   ready();
 }
@@ -339,6 +341,12 @@ function setSelector(node, value) {
 // Find the selected <option/> and map its text onto a proto Enum.
 function getSelector(node) {
   return parseInt($('select', node).val());
+}
+
+// Find the selected <option/> and return its text.
+function getSelectorText(node) {
+  const selectorElement = node.getElementsByTagName('select')[0]
+  return selectorElement.options[selectorElement.selectedIndex].text;
 }
 
 // Set up the three-way popup, "true"/"false"/"unspecified".

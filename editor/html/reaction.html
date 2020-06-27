@@ -60,17 +60,18 @@ limitations under the License.
         <legend>Identifiers</legend>
         <div id="identifiers">
           <div id="reaction_identifier_template" class="reaction_identifier" style="display: none;">
+            type <div class="reaction_identifier_type selector" data-proto="ReactionIdentifier_IdentifierType"></div>
+            value <div class="reaction_identifier_value edittext"></div>
+            <div class="remove" onclick="removeSlowly(this, '.reaction_identifier');">remove</div>
+            <br>
+            details <div class="reaction_identifier_details edittext"></div>
             <input type="checkbox" class="reaction_identifier_upload"> upload
-            <div class="reaction_identifier_value edittext"></div>
             <div class="uploader" data-token="" style="display: none;">
               <input class="uploader_chooser_file uploadertext" type="file">
               <div class="uploader_chooser_button uploadertext">Choose...</div>
               <div class="uploader_file_name uploadertext"></div>
               <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
             </div>
-            type <div class="reaction_identifier_type selector" data-proto="ReactionIdentifier_IdentifierType"></div>
-            details <div class="reaction_identifier_details edittext"></div>
-            <div class="remove" onclick="removeSlowly(this, '.reaction_identifier');">remove</div>
           </div>
         </div>
         <div onclick="ord.identifiers.add();" class="add">+ add identifier</div>
@@ -94,10 +95,10 @@ limitations under the License.
                 </div>
                 <div class="spacer"></div>
                 <table>
-                  <tr><td align="right">addition order</td><td><div class="input_addition_order edittext"></div></td></tr>
-                  <tr><td align="right">addition speed</td><td><div class="input_addition_speed_type selector" data-proto="ReactionInput_AdditionSpeed_AdditionSpeedType"></div>
+                  <tr><td>addition order</td><td><div class="input_addition_order edittext veryshorttext"></div></td></tr>
+                  <tr><td>addition speed</td><td><div class="input_addition_speed_type selector" data-proto="ReactionInput_AdditionSpeed_AdditionSpeedType"></div></td><td>
                                                                details <div class="input_addition_speed_details edittext"></div></td></tr>
-                  <tr><td align="right">addition device</td><td><div class="input_addition_device_type selector" data-proto="ReactionInput_AdditionDevice_AdditionDeviceType"></div>
+                  <tr><td>addition device</td><td><div class="input_addition_device_type selector" data-proto="ReactionInput_AdditionDevice_AdditionDeviceType"></div></td><td>
                                                                 details <div class="input_addition_device_details edittext"></div></td></tr>
                 </table>
                 <fieldset>
@@ -127,29 +128,29 @@ limitations under the License.
                   Component
                   <div class="validate" button-onclick="ord.compounds.validateCompound($(this).closest('.component'))" ></div>
                 </legend>
+                <div onclick="removeSlowly(this, '.component');" class="remove">remove</div>
                 <table>
                   <tr><td>reaction role</td><td><div class="component_reaction_role selector" data-proto="Compound_ReactionRole_ReactionRoleType"></div></td></tr>
-                  <tr><td>limiting reactant?</td><td><div class="component_limiting optional_bool"></div></td></tr>
-                  <tr><td>includes solutes?</td><td><div class="component_includes_solutes optional_bool"></div></td></tr>
+                  <tr class="limiting_reactant"><td>limiting reactant?</td><td><div class="component_limiting optional_bool"></div></td></tr>
                 </table>
-                <div onclick="removeSlowly(this, '.component');" class="remove">remove</div>
-                <div>
-                  <fieldset>
-                    <legend>Identifiers</legend>
-                    <div class="identifiers"></div>
-                    <div onclick="ord.compounds.addIdentifier($(this).closest('.component'));" class="add">+ add identifier</div>
-                  </fieldset>
-                </div>
+                <fieldset>
+                  <legend>Identifiers</legend>
+                  <div class="identifiers"></div>
+                  <div onclick="ord.compounds.addIdentifier($(this).closest('.component'));" class="add">+ add identifier</div>
+                </fieldset>
                 <fieldset class="amount">
                   <legend>Amount</legend>
-                  mass <input type="radio" class="component_amount_mass" value="mass" checked>
-                  moles <input type="radio" class="component_amount_moles" value="moles">
-                  volume <input type="radio" class="component_amount_volume" value="volume">
-                  value <div class="component_amount_value edittext"></div>
-                        <div class="component_amount_units_mass selector" data-proto="Mass_MassUnit"></div>
-                        <div class="component_amount_units_moles selector" data-proto="Moles_MolesUnit" style="display: none;"></div>
-                        <div class="component_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
-                        +/- <div class="component_amount_precision edittext"></div>
+                  <input type="radio" class="component_amount_mass" value="mass" checked> mass 
+                  <input type="radio" class="component_amount_moles" value="moles"> moles 
+                  <input type="radio" class="component_amount_volume" value="volume"> volume 
+                  <span class="includes_solutes">includes solutes?</span> <div class="component_includes_solutes includes_solutes optional_bool"></div>
+                  <br>   
+                  value <div class="component_amount_value edittext shorttext"></div>
+                  +/- <div class="component_amount_precision edittext shorttext"></div>
+                  <div class="component_amount_units_mass selector" data-proto="Mass_MassUnit"></div>
+                  <div class="component_amount_units_moles selector" data-proto="Moles_MolesUnit" style="display: none;"></div>
+                  <div class="component_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
+
                 </fieldset>
                 <fieldset>
                   <legend>Preparations</legend>
@@ -172,17 +173,17 @@ limitations under the License.
             </div>
 
             <div id="component_identifier_template" class="component_identifier" style="display: none;">
+              type <div class="component_identifier_type selector" data-proto="CompoundIdentifier_IdentifierType"></div>
+              value <div class="component_identifier_value edittext"></div>
+              <div onclick="removeSlowly(this, '.component_identifier');" class="remove">remove</div>
+              <br>details <div class="component_identifier_details edittext"></div>
               <input type="checkbox" class="component_identifier_upload"> upload
-              <div class="component_identifier_value edittext"></div>
               <div class="uploader" data-token="" style="display: none;">
                 <input class="uploader_chooser_file uploadertext" type="file">
                 <div class="uploader_chooser_button uploadertext">Choose...</div>
                 <div class="uploader_file_name uploadertext"></div>
                 <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
               </div>
-              type <div class="component_identifier_type selector" data-proto="CompoundIdentifier_IdentifierType"></div>
-              details <div class="component_identifier_details edittext"></div>
-              <div onclick="removeSlowly(this, '.component_identifier');" class="remove">remove</div>
             </div>
 
             <div id="component_preparation_template" class="component_preparation" style="display: none;">
