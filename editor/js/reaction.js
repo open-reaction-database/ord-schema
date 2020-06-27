@@ -55,8 +55,6 @@ async function init(fileName, index) {
   const reaction = session.dataset.getReactionsList()[index];
   loadReaction(reaction);
   clean();
-  // Trigger validation
-  $('.validate_button').each((index, node) => $(node).trigger('click'));
   // Signal to tests that the DOM is initialized.
   ready();
 }
@@ -210,7 +208,11 @@ function loadReaction(reaction) {
   const identifiers = reaction.getIdentifiersList();
   ord.identifiers.load(identifiers);
   const inputs = reaction.getInputsMap();
-  ord.inputs.load(inputs);
+  if (inputs.arr_.size) {
+    ord.inputs.load(inputs);
+  } else {
+    ord.inputs.add('#inputs');
+  }
   const setup = reaction.getSetup();
   if (setup) {
     ord.setups.load(setup);

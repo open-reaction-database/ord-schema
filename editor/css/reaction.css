@@ -40,6 +40,9 @@ body {
 .veryshorttext {
   width: 25px;
 }
+.paratext {
+  height: 100px;
+}
 .add, #save, .remove, #delete, .validate_button, .validate_status, .validate_message {
   padding: 2px 4px;
   margin: 2px;
