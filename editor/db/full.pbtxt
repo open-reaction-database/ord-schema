@@ -58,6 +58,7 @@ reactions {
         preparations {
           type: REPURIFIED
           details: "9"
+          reaction_id: "9.5"
         }
         vendor_source: "10"
         vendor_id: "11"

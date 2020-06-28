@@ -84,6 +84,8 @@ ord.compounds.loadPreparation = function (node, preparation) {
   setSelector($('.component_compound_preparation_type', node), type);
   const details = preparation.getDetails();
   $('.component_compound_preparation_details', node).text(details);
+  const reaction = preparation.getReactionId();
+  $('.component_compound_preparation_reaction', node).text(reaction);
 };
 
 ord.compounds.loadVendor =
@@ -176,6 +178,8 @@ ord.compounds.unloadPreparation = function (node) {
   preparation.setType(type);
   const details = $('.component_compound_preparation_details', node).text();
   preparation.setDetails(details);
+  const reaction = $('.component_compound_preparation_reaction', node).text();
+  preparation.setReactionId(reaction);
   return preparation;
 };
 
