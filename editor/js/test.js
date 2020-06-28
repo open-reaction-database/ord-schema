@@ -21,6 +21,7 @@
  */
 
 const puppeteer = require('puppeteer');
+const process = require('process');
 
 (async () => {
   const browser = await puppeteer.launch();
@@ -35,18 +36,29 @@ const puppeteer = require('puppeteer');
     'http://localhost:5000/dataset/full/reaction/0',
   ];
 
+  failure = false;
+
   for (let i = 0; i < tests.length; i++) {
     const url = tests[i];
     await page.goto(url);
     await page.waitFor('body[ready=true]');
-    await page.evaluate(async url => {
+    f = await page.evaluate(async function (url, failure) {
       const reaction = unloadReaction();
       const reactions = session.dataset.getReactionsList();
       reactions[session.index] = reaction;
-      await compareDataset(session.fileName, session.dataset)
+      return await compareDataset(session.fileName, session.dataset, failure)
           .then(() => console.log('PASS', url))
-          .catch(() => console.log('FAIL', url));
+          .catch(() => {console.log('FAIL', url); return 1;})
     }, url);
+    console.log(f);
+    if (f=1) {failure=true};
+  }
+  await console.log(failure);
+  if (failure) {
+    process.exitCode = 1;
+  }
+  else {
+    process.exitCode=0;
   }
   await browser.close();
 })();
