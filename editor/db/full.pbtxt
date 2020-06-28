@@ -70,6 +70,16 @@ reactions {
         }
         volume_includes_solutes: false
       }
+      crude_components {
+        reaction_id: "15.25"
+        includes_workup: true
+        has_derived_amount: false
+        volume {
+          value: 15.5
+          precision: 15.75
+          units: MICROLITER
+        }
+      }
       addition_order: 16
       addition_time {
         value: 19.0
