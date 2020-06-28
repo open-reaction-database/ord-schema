@@ -266,16 +266,16 @@ def compare(file_name):
   Returns:
     HTTP status 200 for a match and 409 if there is a difference.
   """
-  # remote = dataset_pb2.Dataset()
-  # remote.ParseFromString(flask.request.get_data())
-  # with open('db/%s.pbtxt' % file_name, 'rb') as pbtxt:
-  #   local = dataset_pb2.Dataset()
-  #   text_format.Parse(pbtxt.read(), local)
-  # remote_ascii = text_format.MessageToString(remote)
-  # local_ascii = text_format.MessageToString(local)
-  # if remote_ascii != local_ascii:
-  #   print(remote_ascii)
-  #   return 'differs', 409  # "Conflict"
+  remote = dataset_pb2.Dataset()
+  remote.ParseFromString(flask.request.get_data())
+  with open('db/%s.pbtxt' % file_name, 'rb') as pbtxt:
+    local = dataset_pb2.Dataset()
+    text_format.Parse(pbtxt.read(), local)
+  remote_ascii = text_format.MessageToString(remote)
+  local_ascii = text_format.MessageToString(local)
+  if remote_ascii != local_ascii:
+    print(remote_ascii)
+    return 'differs', 409  # "Conflict"
   return 'equals'
 
 
