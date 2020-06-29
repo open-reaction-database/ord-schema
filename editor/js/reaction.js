@@ -117,7 +117,7 @@ function validate(message, messageTypeString, validateNode) {
     statusNode = $('.validate_status', validateNode);
     messageNode = $('.validate_message', validateNode);
     if (errors.length) {
-      statusNode.text('invalid (click)');
+      statusNode.text('invalid (hover)');
       statusNode.css('backgroundColor', 'pink');
 
       messageNode.empty();
@@ -141,8 +141,8 @@ function validate(message, messageTypeString, validateNode) {
   xhr.send(binary);
 }
 
-toggleValidateMessage = function(node) {
-  messageNode = $('.validate_message', node);
+function toggleValidateMessage(node) {
+  let messageNode = $('.validate_message', node);
   switch (messageNode.css('visibility')) {
     case 'visible':
       messageNode.css('visibility', 'hidden');
@@ -399,7 +399,7 @@ function getOptionalBool(node) {
 // Set up a validator div (button, status indicator, error list, etc.),
 // replacing a placeholder div in reaction.html
 function initValidateNode (oldNode) {
-  newNode = $("#validate_template").clone();
+  let newNode = $("#validate_template").clone();
   newNode.removeAttr('id');
   newNode.removeAttr('style');
   newNode.addClass('validate');

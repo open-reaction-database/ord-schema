@@ -61,8 +61,8 @@ limitations under the License.
 
       <span id="validate_template" style="display: none">
         <span class="validate_button">validate</span>
-        <span onclick="toggleValidateMessage($(this))" class="validate_status-message">
-          <span class="validate_status">unvalidated</span>
+        <span class="validate_status-message">
+          <span onmouseenter="toggleValidateMessage($(this).closest('.validate'))" onmouseleave="toggleValidateMessage($(this).closest('.validate'))"  class="validate_status">unvalidated</span>
           <span class="validate_message"></span>
         </span>
       </span>
