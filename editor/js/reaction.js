@@ -213,7 +213,7 @@ function loadReaction(reaction) {
   const identifiers = reaction.getIdentifiersList();
   ord.identifiers.load(identifiers);
   const inputs = reaction.getInputsMap();
-  if (inputs.arr_.size) {
+  if (inputs.arr_.length) {
     ord.inputs.load(inputs);
   } else {
     ord.inputs.add('#inputs');
