@@ -1,4 +1,18 @@
 reactions {
+  inputs {
+    value {
+      addition_time {
+      }
+      addition_speed {
+      }
+      addition_duration {
+      }
+      flow_rate {
+      }
+      addition_device {
+      }
+    }
+  }
   setup {
     vessel {
       type {
