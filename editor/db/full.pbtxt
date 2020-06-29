@@ -48,10 +48,10 @@ reactions {
           details: "6"
           value: "5"
         }
-        moles {
+        volume {
           value: 7.0
           precision: 8.0
-          units: MILLIMOLE
+          units: LITER
         }
         reaction_role: REACTANT
         is_limiting: true
@@ -67,7 +67,7 @@ reactions {
           float_value: 14.0
           how_computed: "15"
         }
-        volume_includes_solutes: false
+        volume_includes_solutes: true
       }
       addition_order: 16
       addition_time {
