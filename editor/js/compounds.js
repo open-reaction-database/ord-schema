@@ -84,6 +84,8 @@ ord.compounds.loadPreparation = function (node, preparation) {
   setSelector($('.component_compound_preparation_type', node), type);
   const details = preparation.getDetails();
   $('.component_compound_preparation_details', node).text(details);
+  const reaction = preparation.getReactionId();
+  $('.component_compound_preparation_reaction', node).text(reaction);
 };
 
 ord.compounds.loadVendor =
@@ -176,6 +178,8 @@ ord.compounds.unloadPreparation = function (node) {
   preparation.setType(type);
   const details = $('.component_compound_preparation_details', node).text();
   preparation.setDetails(details);
+  const reaction = $('.component_compound_preparation_reaction', node).text();
+  preparation.setReactionId(reaction);
   return preparation;
 };
 
@@ -193,18 +197,18 @@ ord.compounds.add = function (root) {
       '#component_template', $('.components', root));
 
   // Create an "amount" radio button group and connect it to the unit selectors.
-  const amountButtons = $('.amount input', root);
+  const amountButtons = $('.amount input', node);
   amountButtons.attr('name', 'compounds_' + ord.compounds.radioGroupCounter++);
   amountButtons.change(function () {
-    $('.amount .selector', root).hide();
+    $('.amount .selector', node).hide();
     if (this.value == 'mass') {
-      $('.component_amount_units_mass', root).show();
+      $('.component_amount_units_mass', node).show();
     }
     if (this.value == 'moles') {
-      $('.component_amount_units_moles', root).show();
+      $('.component_amount_units_moles', node).show();
     }
     if (this.value == 'volume') {
-      $('.component_amount_units_volume', root).show();
+      $('.component_amount_units_volume', node).show();
     }
   });
   return node;
