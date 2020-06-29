@@ -17,6 +17,7 @@
 goog.provide('ord.inputs');
 
 goog.require('ord.compounds');
+goog.require('ord.crudes');
 goog.require('proto.ord.FlowRate');
 goog.require('proto.ord.ReactionInput');
 goog.require('proto.ord.Time');
@@ -38,6 +39,9 @@ ord.inputs.loadInput = function (root, name, input) {
 ord.inputs.loadInputUnnamed = function (node, input) {
   const compounds = input.getComponentsList();
   ord.compounds.load(node, compounds);
+
+  const crudes = input.getCrudeComponentsList();
+  ord.crudes.load(node, crudes);
 
   const additionOrder = input.getAdditionOrder();
   $('.input_addition_order', node).text(additionOrder);
@@ -89,6 +93,9 @@ ord.inputs.unloadInputUnnamed = function (node) {
 
   const compounds = ord.compounds.unload(node);
   input.setComponentsList(compounds);
+
+  const crudes = ord.crudes.unload(node);
+  input.setCrudeComponentsList(crudes);
 
   const additionOrder = parseInt($('.input_addition_order', node).text());
   if (!isNaN(additionOrder)) {
