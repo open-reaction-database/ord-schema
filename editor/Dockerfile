@@ -1,4 +1,3 @@
-#!/bin/bash
 # Copyright 2020 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,9 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+FROM python:3
+WORKDIR /usr/src/app
 
-export PYTHONPATH=py:../build/lib
-export FLASK_APP=serve.py
-export FLASK_ENV=development
+RUN pip install Flask protobuf
 
-python -m flask run $@
+# First run "make package".
+COPY package/ord.tgz .
+RUN tar zxf ord.tgz
+
+WORKDIR /usr/src/app/ord
+EXPOSE 5000
+CMD ./serve.sh --host=0.0.0.0
