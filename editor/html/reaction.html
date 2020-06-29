@@ -59,6 +59,14 @@ limitations under the License.
 
     <div id="sections">
 
+      <span id="validate_template" style="display: none">
+        <span class="validate_button">validate</span>
+        <span onclick="toggleValidateMessage($(this))" class="validate_status-message">
+          <span class="validate_status">unvalidated</span>
+          <span class="validate_message"></span>
+        </span>
+      </span>
+
       <fieldset id="section_identifiers" class="section">
         <legend>
           Identifiers

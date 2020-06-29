@@ -44,7 +44,7 @@ async function init(fileName, index) {
   // Enable all the editable text fields.
   $('.edittext').attr('contentEditable', 'true');
   // Initialize all the validators.
-  $('.validate').each((index, node) => initValidate($(node)));
+  $('.validate').each((index, node) => initValidateNode($(node)));
   // Initialize validation handlers that don't go in "add" methods.
   initValidateHandlers();
   // Initailize tooltips.
@@ -395,28 +395,15 @@ function getOptionalBool(node) {
   return null;
 }
 
-// Set up a validator div (button, status indicator, error list, etc.)
-function initValidate (node) {
-  buttonNode = $('<div>');
-  buttonNode.attr('onclick', node.attr('button-onclick'));
-  buttonNode.addClass('validate_button');
-  buttonNode.text('validate');
-  node.append(buttonNode);
-
-  statusMessageNode = $('<div>');
-  statusMessageNode.attr('onclick', 'toggleValidateMessage($(this))');
-  statusMessageNode.addClass('validate_status-message');
-
-  statusNode = $('<div>');
-  statusNode.addClass('validate_status');
-  statusNode.text('unvalidated');
-  statusMessageNode.append(statusNode);
-
-  messageNode = $('<div>');
-  messageNode.addClass('validate_message');
-  statusMessageNode.append(messageNode);
-
-  node.append(statusMessageNode);
+// Set up a validator div (button, status indicator, error list, etc.),
+// replacing a placeholder div in reaction.html
+function initValidateNode (oldNode) {
+  newNode = $("#validate_template").clone();
+  newNode.removeAttr('id');
+  newNode.removeAttr('style');
+  newNode.addClass('validate');
+  $(".validate_button", newNode).attr('onclick', oldNode.attr('button-onclick'));
+  oldNode.replaceWith(newNode);
 }
 
 // Validation handlers for nodes that can't be added or removed. (eg status)
