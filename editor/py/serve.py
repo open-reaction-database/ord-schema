@@ -17,7 +17,11 @@
 import contextlib
 import fcntl
 import os
+import random
 import re
+import string
+import urllib
+import uuid
 
 import flask
 
@@ -39,9 +43,11 @@ def show_root():
 @app.route('/datasets')
 def show_datasets():
   """Lists all .pbtxt files in the db/ directory."""
-  init_db()
+  redirect = ensure_user()
+  if redirect:
+    return redirect
   base_names = []
-  for name in os.listdir('db'):
+  for name in os.listdir(f'db/{flask.g.user}'):
     m = re.match(r'(.*).pbtxt', name)
     if m is not None:
       base_names.append(m.group(1))
@@ -51,6 +57,9 @@ def show_datasets():
 @app.route('/dataset/<file_name>')
 def show_dataset(file_name):
   """Lists all Reactions contained in the specified .pbtxt file."""
+  redirect = ensure_user()
+  if redirect:
+    return redirect
   dataset = get_dataset(file_name)
   if dataset is None:
     flask.abort(404)
@@ -63,7 +72,7 @@ def show_dataset(file_name):
 @app.route('/dataset/<file_name>/download')
 def download_dataset(file_name):
   """Returns a raw .pbtxt file from the db/ directory as an attachment."""
-  path = 'db/%s.pbtxt' % file_name
+  path = f'db/{flask.g.user}/{file_name}.pbtxt'
   if not os.path.isfile(path):
     flask.abort(404)
   pbtxt = open(path, 'rb')
@@ -75,7 +84,7 @@ def download_dataset(file_name):
 @app.route('/dataset/<file_name>/upload', methods=['POST'])
 def upload_dataset(file_name):
   """Writes the request body to the db/ directory without validation."""
-  path = 'db/%s.pbtxt' % file_name
+  path = f'db{flask.g.user}/{file_name}.pbtxt'
   with open(path, 'wb') as upload:
     upload.write(flask.request.get_data())
   return 'ok'
@@ -84,6 +93,9 @@ def upload_dataset(file_name):
 @app.route('/dataset/<file_name>/reaction/<index>')
 def show_reaction(file_name, index):
   """Render the page representing a single Reaction."""
+  redirect = ensure_user()
+  if redirect:
+    return redirect
   dataset = get_dataset(file_name)
   if dataset is None:
     flask.abort(404)
@@ -170,7 +182,7 @@ def delete_reaction_id_blank(file_name):
 def read_dataset(file_name):
   """Returns a Dataset as a serialized protobuf."""
   dataset = dataset_pb2.Dataset()
-  with open('db/%s.pbtxt' % file_name, 'rb') as pbtxt:
+  with open(f'db/{flask.g.user}/{file_name}.pbtxt', 'rb') as pbtxt:
     text_format.Parse(pbtxt.read(), dataset)
   bites = dataset.SerializeToString(deterministic=True)
   response = flask.make_response(bites)
@@ -207,7 +219,7 @@ def write_upload(file_name, token):
   Returns:
     A 200 response when the file was written.
   """
-  with open('db/%s' % token, 'wb') as upload:
+  with open(f'db/{flask.g.user}/{token}', 'wb') as upload:
     upload.write(flask.request.get_data())
   with lock(file_name):
     dataset = get_dataset(file_name)
@@ -231,7 +243,7 @@ def read_upload(token):
   Returns:
     The POST body from the request, after passing through a file.
   """
-  path = 'db/%s' % token
+  path = f'db/{flask.g.user}/{token}'
   with open(path, 'wb') as upload:
     upload.write(flask.request.get_data())
   pbtxt = open(path, 'rb')
@@ -254,7 +266,7 @@ def compare(file_name):
   """
   remote = dataset_pb2.Dataset()
   remote.ParseFromString(flask.request.get_data())
-  with open('db/%s.pbtxt' % file_name, 'rb') as pbtxt:
+  with open(f'db/{flask.g.user}/{file_name}.pbtxt', 'rb') as pbtxt:
     local = dataset_pb2.Dataset()
     text_format.Parse(pbtxt.read(), local)
   remote_ascii = text_format.MessageToString(remote)
@@ -299,10 +311,10 @@ def prevent_caching(response):
 def get_dataset(file_name):
   """Reads a .pbtxt file from the db/ directory and parse it."""
   with lock(file_name):
-    if ('%s.pbtxt' % file_name) not in os.listdir('db'):
+    if (f'{file_name}.pbtxt') not in os.listdir(f'db/{flask.g.user}'):
       return None
     dataset = dataset_pb2.Dataset()
-    with open('db/%s.pbtxt' % file_name, 'rb') as pbtxt:
+    with open(f'db/{flask.g.user}/{file_name}.pbtxt', 'rb') as pbtxt:
       text_format.Parse(pbtxt.read(), dataset)
     return dataset
 
@@ -310,7 +322,7 @@ def get_dataset(file_name):
 def put_dataset(file_name, dataset):
   """Write a proto to a .pbtxt file in the db/ directory."""
   with lock(file_name):
-    with open('db/%s.pbtxt' % file_name, 'wb') as pbtxt:
+    with open(f'db/{flask.g.user}/{file_name}.pbtxt', 'wb') as pbtxt:
       string = text_format.MessageToString(dataset, as_utf8=True)
       pbtxt.write(string.encode('utf8'))
 
@@ -331,7 +343,7 @@ def lock(file_name):
   Yields:
     The locked file descriptor.
   """
-  path = 'db/%s.lock' % file_name
+  path = f'db/{flask.g.user}/{file_name}.lock'
   lock_file = open(path, 'w')
   fcntl.lockf(lock_file, fcntl.LOCK_EX)
   try:
@@ -360,7 +372,7 @@ def resolve_tokens(proto):
       if descriptor.name == 'bytes_value':
         token = message[:20].decode('utf8')
         if token.startswith('upload_'):
-          path = 'db/%s' % token
+          path = f'db/{flask.g.user}/{token}'
           if os.path.isfile(path):
             proto.bytes_value = open(path, 'rb').read()
             matched = True
@@ -375,11 +387,52 @@ def resolve_tokens(proto):
   return matched
 
 
-def init_db():
-  """Ensures the db/ directory exists and contains at least one Dataset."""
-  if not os.path.isdir('db'):
-    os.mkdir('db')
-  if os.listdir('db'):
-    return
-  dataset = dataset_pb2.Dataset()
-  put_dataset('dataset', dataset)
+@app.before_request
+def init_user():
+  """Set the user cookie and initialize the db/{user} directory."""
+  user = flask.request.cookies.get('ord-editor-user')
+  if user is None:
+    user = flask.request.args.get('user') or next_user()
+    return redirect_to_user(user)
+  flask.g.user = user
+  if not os.path.isdir(f'db/{user}'):
+    os.mkdir(f'db/{user}')
+  if not os.listdir(f'db/{user}'):
+    dataset = dataset_pb2.Dataset()
+    put_dataset('dataset', dataset)
+
+
+def ensure_user():
+  """On page requests only, a user param in the URL overrides the cookie."""
+  url_user = flask.request.args.get('user')
+  cookie_user = flask.request.cookies.get('ord-editor-user')
+  # If there is no user in the URL, set it from the cookie.
+  if url_user is None:
+    return redirect_to_user(cookie_user)
+  # If the cookie and the URL disagree, the URL wins.
+  if url_user != cookie_user:
+    return redirect_to_user(url_user)
+  # If the URL and the cookie are consistent, then do nothing.
+
+
+def redirect_to_user(user):
+  """Set the user cookie and return a redirect to the updated URL."""
+  url = url_for_user(user)
+  response = flask.redirect(url)
+  # Expires in a year.
+  response.set_cookie('ord-editor-user', user, max_age=31536000)
+  return response
+
+
+def url_for_user(user):
+  parts = list(urllib.parse.urlparse(flask.request.url))
+  parts[4] = urllib.parse.urlencode({'user': user})
+  return urllib.parse.urlunparse(parts)
+
+
+def next_user():
+  """Return a user identifier that is not present in the db/ directory."""
+  user = uuid.uuid4().hex
+  while os.path.isdir(f'db/{user}'):
+    user = uuid.uuid4().hex
+  return user

@@ -31,8 +31,8 @@ const puppeteer = require('puppeteer');
 
   // Round-trip these reactions through the DOM and compare at the server.
   const tests = [
-    'http://localhost:5000/dataset/empty/reaction/0',
-    'http://localhost:5000/dataset/full/reaction/0',
+    'http://localhost:5000/dataset/empty/reaction/0?user=test',
+    'http://localhost:5000/dataset/full/reaction/0?user=test',
   ];
 
   for (let i = 0; i < tests.length; i++) {
