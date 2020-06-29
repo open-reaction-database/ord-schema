@@ -278,6 +278,7 @@ function addSlowly(template, root) {
   node.show('slow');
   dirty();
   listen(node);
+  $('[data-toggle="tooltip"]', node).tooltip();
   return node;
 }
 
