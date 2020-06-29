@@ -58,6 +58,7 @@ reactions {
         preparations {
           type: REPURIFIED
           details: "9"
+          reaction_id: "9.5"
         }
         vendor_source: "10"
         vendor_id: "11"
@@ -68,6 +69,16 @@ reactions {
           how_computed: "15"
         }
         volume_includes_solutes: true
+      }
+      crude_components {
+        reaction_id: "15.25"
+        includes_workup: true
+        has_derived_amount: false
+        volume {
+          value: 15.5
+          precision: 15.75
+          units: MICROLITER
+        }
       }
       addition_order: 16
       addition_time {
