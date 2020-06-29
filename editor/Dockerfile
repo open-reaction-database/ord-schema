@@ -23,4 +23,4 @@ RUN tar zxf ord.tgz
 
 WORKDIR /usr/src/app/ord
 EXPOSE 5000
-CMD ./serve.sh
+CMD ./serve.sh --host=0.0.0.0
