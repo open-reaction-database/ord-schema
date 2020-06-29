@@ -21,6 +21,7 @@ import random
 import re
 import string
 import urllib
+import uuid
 
 import flask
 
@@ -431,7 +432,7 @@ def url_for_user(user):
 
 def next_user():
   """Return a user identifier that is not present in the db/ directory."""
-  user = ''.join(random.choice(string.ascii_letters) for i in range(4))
+  user = uuid.uuid4().hex
   while os.path.isdir(f'db/{user}'):
-    user = ''.join(random.choice(string.ascii_letters) for i in range(4))
+    user = uuid.uuid4().hex
   return user
