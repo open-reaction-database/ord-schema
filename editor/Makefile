@@ -81,6 +81,8 @@ package : all
 
 	cp -r ../build/lib/ord_schema package/ord/py
 
+	mkdir package/ord/db
+
 	tar --create --directory=package --gzip --file=package/ord.tgz ord
 
 test : all

@@ -1,8 +1,8 @@
 *.sw[a-z]
 __pycache__
 closure-library-*
-db/*.lock
-db/upload_*
+db/*/*.lock
+db/*/upload_*
 gen
 node_modules
 package

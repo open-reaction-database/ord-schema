@@ -59,13 +59,13 @@ limitations under the License.
 
     <div id="sections">
 
-      <span id="validate_template" style="display: none">
-        <span class="validate_button">validate</span>
+      <div id="validate_template" style="display: none">
+        <span class="validate_button" aria-hidden="true">validate</span>
         <span class="validate_status-message">
           <span onmouseenter="toggleValidateMessage($(this).closest('.validate'))" onmouseleave="toggleValidateMessage($(this).closest('.validate'))"  class="validate_status">unvalidated</span>
           <span class="validate_message"></span>
         </span>
-      </span>
+      </div>
 
       <fieldset id="section_identifiers" class="section">
         <legend>
@@ -100,10 +100,10 @@ limitations under the License.
             <div id="input_template" class="input" style="display: none;">
               <fieldset>
                 <legend>
+                  <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
                   Input
                   <div class="validate" button-onclick="ord.inputs.validateInput($(this).closest('.input'))" ></div>
-                  <div onclick="toggleSlowly(this, 'legend')" class="collapse">collapse</div>
-                </legend>
+               </legend>
                 <span class="input_name_label">name</span><div class="input_name edittext"></div>
                 <div onclick="removeSlowly(this, '.input');" class="remove">remove</div>
                 <div>
@@ -126,11 +126,16 @@ limitations under the License.
                   <tr><td>addition duration</td><td><div class="input_addition_duration_value edittext shorttext"></div><div class="input_addition_duration_units selector" data-proto="Time_TimeUnit"></div></td><td>
                   +/- <div class="input_addition_duration_precision edittext shorttext"></div></td></tr>
                 </table>
-                <fieldset>
-                  <legend>Flow rate</legend>
-                  value <div class="input_flow_rate_value edittext shorttext"></div>
-                  <div class="input_flow_rate_units selector" data-proto="FlowRate_FlowRateUnit"></div>
-                  +/- <div class="input_flow_rate_precision edittext shorttext"></div>
+                <fieldset class="starts_collapsed">
+                  <legend>
+                    <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
+                    Flow rate
+                  </legend>
+                  <div>
+                    value <div class="input_flow_rate_value edittext shorttext"></div>
+                    <div class="input_flow_rate_units selector" data-proto="FlowRate_FlowRateUnit"></div>
+                    +/- <div class="input_flow_rate_precision edittext shorttext"></div>
+                  </div>
                 </fieldset>
               </fieldset>
             </div>
@@ -138,6 +143,7 @@ limitations under the License.
             <div id="component_template" class="component" style="display: none;">
               <fieldset>
                 <legend>
+                  <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
                   Component
                   <div class="validate" button-onclick="ord.compounds.validateCompound($(this).closest('.component'))" ></div>
                 </legend>
@@ -166,15 +172,19 @@ limitations under the License.
                 </fieldset>
                 <fieldset>
                   <legend>Preparations</legend>
-                  <div class="preparations">
-                    <div onclick="ord.compounds.addPreparation($(this).closest('.component'));" class="add">+ add preparation</div>
-                  </div>
+                  <div class="preparations"></div>
+                  <div onclick="ord.compounds.addPreparation($(this).closest('.component'));" class="add">+ add preparation</div>
                 </fieldset>
-                <fieldset class="vendor">
-                  <legend>Vendor</legend>
-                  source <div class="component_vendor_source edittext"></div>
-                  id <div class="component_vendor_id edittext"></div>
-                  lot number <div class="component_vendor_lot edittext"></div>
+                <fieldset class="vendor starts_collapsed">
+                  <legend>
+                    <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
+                    Vendor
+                  </legend>
+                  <div>
+                    source <div class="component_vendor_source edittext"></div>
+                    id <div class="component_vendor_id edittext"></div>
+                    lot number <div class="component_vendor_lot edittext"></div>
+                  </div>
                 </fieldset>
                 <fieldset>
                   <legend>Features</legend>
@@ -224,10 +234,10 @@ limitations under the License.
                   <legend>Amount</legend>
                   mass <input type="radio" class="crude_amount_mass" value="mass" checked>
                   volume <input type="radio" class="crude_amount_volume" value="volume">
-                  value <div class="crude_amount_value edittext"></div>
-                        <div class="crude_amount_units_mass selector" data-proto="Mass_MassUnit"></div>
-                        <div class="crude_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
-                        +/- <div class="crude_amount_precision edittext"></div>
+                  <span style="padding-left:25px">value</span> <div class="crude_amount_value edittext shorttext"></div>
+                  +/- <div class="crude_amount_precision edittext shorttext"></div>
+                  <div class="crude_amount_units_mass selector" data-proto="Mass_MassUnit"></div>
+                  <div class="crude_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
                 </fieldset>
                 <div onclick="removeSlowly(this, '.crude');" class="remove">remove</div>
               </fieldset>
@@ -288,21 +298,23 @@ limitations under the License.
                 <tr><td align="right">name</td><td><div class="setup_code_name edittext"></div></td></tr>
                 <tr>
                   <td align="right">value</td>
-                  <td><div class="setup_code_text edittext"></div></td>
-                </tr>
-                <tr>
-                  <td align="right">type</td>
                   <td>
+                    <div class="setup_code_text edittext"></div>
                     <div class="uploader" data-token="" style="display: none;">
                       <input class="uploader_chooser_file uploadertext" type="file">
                       <div class="uploader_chooser_button uploadertext">Choose...</div>
                       <div class="uploader_file_name uploadertext"></div>
                       <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
                     </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="right">type</td>
+                  <td>
                     text <input type="radio" value="text" checked>
                     number <input type="radio" value="number">
-                    upload <input type="radio" value="upload">
                     url <input type="radio" value="url">
+                    upload <input type="radio" value="upload">
                   </td>
                 </tr>
                 <tr><td align="right">description</td><td><div class="setup_code_description edittext"></div></td></tr>
@@ -398,8 +410,9 @@ limitations under the License.
             <tr><td align="right">rpm</td><td><div id="stirring_rpm" class="edittext shorttext"></div></td></tr>
           </table>
         </fieldset>
-        <fieldset id="section_conditions_illumination">
+        <fieldset id="section_conditions_illumination" class="starts_collapsed">
           <legend>
+            <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
             Illumination
             <div class="validate" button-onclick="ord.illumination.validateIllumination($(this).closest('#section_conditions_illumination'))"></div>           
             <div onclick="toggleSlowly(this, 'legend')" class="collapse">collapse</div>
@@ -416,8 +429,9 @@ limitations under the License.
             <tr><td align="right">color</td><td><div id="illumination_color" class="edittext"></div></td></tr>
           </table>
         </fieldset>
-        <fieldset id="section_conditions_electro">
+        <fieldset id="section_conditions_electro" class="starts_collapsed">
           <legend>
+            <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
             Electrochemistry
             <div class="validate" button-onclick="ord.electro.validateElectro($(this).closest('#section_conditions_electro'))"></div>    
             <div onclick="toggleSlowly(this, 'legend')" class="collapse">collapse</div>
@@ -464,8 +478,9 @@ limitations under the License.
           </div>
           <div onclick="ord.electro.addMeasurement();" class="add">+ add measurement</div>
         </fieldset>
-        <fieldset id="section_conditions_flow">
+        <fieldset id="section_conditions_flow" class="starts_collapsed">
           <legend>
+            <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
             Flow
             <div class="validate" button-onclick="ord.flows.validateFlow($(this).closest('#section_conditions_flow'))"></div>  
             <div onclick="toggleSlowly(this, 'legend')" class="collapse">collapse</div>
@@ -513,6 +528,7 @@ limitations under the License.
           <div id="observation_template" class="observation" style="display: none;">
             <fieldset>
               <legend>
+                <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
                 Observation
                 <div class="validate" button-onclick="ord.observations.validateObservation($(this).closest('.observation'))" ></div>
               </legend>
@@ -523,21 +539,23 @@ limitations under the License.
                                                    +/- <div class="observation_time_precision edittext shorttext"></div></td></tr>
                 <tr>
                   <td align="right">value</td>
-                  <td><div class="observation_image_text edittext"></div></td>
-                </tr>
-                <tr>
-                  <td>type</td>
                   <td>
+                    <div class="observation_image_text edittext"></div>
                     <div class="uploader" data-token="" style="display: none;">
                       <input class="uploader_chooser_file uploadertext" type="file">
                       <div class="uploader_chooser_button uploadertext">Choose...</div>
                       <div class="uploader_file_name uploadertext"></div>
                       <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
                     </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="right">type</td>
+                  <td>
                     text <input type="radio" value="text" checked>
                     number <input type="radio" value="number">
-                    upload <input type="radio" value="upload">
                     url <input type="radio" value="url">
+                    upload <input type="radio" value="upload">
                   </td>
                 </tr>
                 <tr><td align="right">description</td><td><div class="observation_image_description edittext"></div></td></tr>
@@ -556,6 +574,7 @@ limitations under the License.
           <div id="workup_template" class="workup" style="display: none;">
           <fieldset>
             <legend>
+              <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
               Workup
               <div class="validate" button-onclick="ord.workups.validateWorkup($(this).closest('.workup'))" ></div>
             </legend>
@@ -766,21 +785,21 @@ limitations under the License.
                   <td align="right">content</td>
                   <td>
                     <div class="outcome_process_text edittext"></div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>type</td>
-                  <td>
                     <div class="uploader" data-token="" style="display: none;">
                       <input class="uploader_chooser_file uploadertext" type="file">
                       <div class="uploader_chooser_button uploadertext">Choose...</div>
                       <div class="uploader_file_name uploadertext"></div>
                       <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
                     </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="right">type</td>
+                  <td>
                     text <input type="radio" value="text" checked>
                     number <input type="radio" value="number">
-                    upload <input type="radio" value="upload">
                     url <input type="radio" value="url">
+                    upload <input type="radio" value="upload">
                   </td>
                 </tr>
                 <tr><td align="right">description</td><td><div class="outcome_process_description edittext"></div></td></tr>
@@ -799,21 +818,21 @@ limitations under the License.
                   <td align="right">content</td>
                   <td>
                     <div class="outcome_raw_text edittext"></div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>type</td>
-                  <td>
                     <div class="uploader" data-token="" style="display: none;">
                       <input class="uploader_chooser_file uploadertext" type="file">
                       <div class="uploader_chooser_button uploadertext">Choose...</div>
                       <div class="uploader_file_name uploadertext"></div>
                       <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
                     </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="right">type</td>
+                  <td>
                     text <input type="radio" value="text" checked>
                     number <input type="radio" value="number">
-                    upload <input type="radio" value="upload">
                     url <input type="radio" value="url">
+                    upload <input type="radio" value="upload">
                   </td>
                 </tr>
                 <tr><td align="right">description</td><td><div class="outcome_raw_description edittext"></div></td></tr>

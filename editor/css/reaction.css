@@ -65,9 +65,6 @@ body {
 .remove {
   float: right;
 }
-.collapse {
-  background-color: lightgray;
-}
 .validate, .validate_status-message {
   display: inline-block;
 }
@@ -82,11 +79,11 @@ body {
   z-index: 2;
   visibility: hidden;
 }
+.starts_collapsed > *:not(legend) {
+  display: none;
+}
 .spacer {
   height: 32px;
-}
-.fa {
-  font-size: small;
 }
 .tooltip > .tooltip-inner {
   background-color: lightgray;
