@@ -59,13 +59,13 @@ limitations under the License.
 
     <div id="sections">
 
-      <span id="validate_template" style="display: none">
-        <span class="validate_button">validate</span>
+      <div id="validate_template" style="display: none">
+        <span class="validate_button" aria-hidden="true">validate</span>
         <span class="validate_status-message">
           <span onmouseenter="toggleValidateMessage($(this).closest('.validate'))" onmouseleave="toggleValidateMessage($(this).closest('.validate'))"  class="validate_status">unvalidated</span>
           <span class="validate_message"></span>
         </span>
-      </span>
+      </div>
 
       <fieldset id="section_identifiers" class="section">
         <legend>
@@ -100,10 +100,10 @@ limitations under the License.
             <div id="input_template" class="input" style="display: none;">
               <fieldset>
                 <legend>
+                  <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
                   Input
                   <div class="validate" button-onclick="ord.inputs.validateInput($(this).closest('.input'))" ></div>
-                  <div onclick="toggleSlowly(this, 'legend')" class="collapse">collapse</div>
-                </legend>
+               </legend>
                 <span class="input_name_label">name</span><div class="input_name edittext"></div>
                 <div onclick="removeSlowly(this, '.input');" class="remove">remove</div>
                 <div>
@@ -138,6 +138,7 @@ limitations under the License.
             <div id="component_template" class="component" style="display: none;">
               <fieldset>
                 <legend>
+                  <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
                   Component
                   <div class="validate" button-onclick="ord.compounds.validateCompound($(this).closest('.component'))" ></div>
                 </legend>

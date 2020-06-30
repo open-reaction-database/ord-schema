@@ -65,9 +65,6 @@ body {
 .remove {
   float: right;
 }
-.collapse {
-  background-color: lightgray;
-}
 .validate, .validate_status-message {
   display: inline-block;
 }

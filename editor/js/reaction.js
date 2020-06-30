@@ -119,9 +119,14 @@ function validate(message, messageTypeString, validateNode) {
     const errors = xhr.response;
     statusNode = $('.validate_status', validateNode);
     messageNode = $('.validate_message', validateNode);
+    statusNode.removeClass('fa-check');
+    statusNode.removeClass('fa-exclamation-triangle');
+    statusNode.css('backgroundColor', null);
+    statusNode.css('font-size', '120%');
+    statusNode.text('');
     if (errors.length) {
-      statusNode.text('invalid (hover)');
-      statusNode.css('backgroundColor', 'pink');
+      statusNode.addClass('fa fa-exclamation-triangle')
+      statusNode.css('color', 'red');
 
       messageNode.empty();
       for (index = 0; index < errors.length; index++) { 
@@ -133,8 +138,8 @@ function validate(message, messageTypeString, validateNode) {
       messageNode.css('backgroundColor', 'pink');
     }
     else {
-      statusNode.text('valid');
-      statusNode.css('backgroundColor', 'lightgreen');
+      statusNode.addClass('fa fa-check')
+      statusNode.css('color', 'green');
 
       messageNode.html('');
       messageNode.css('backgroundColor', '');
@@ -307,6 +312,12 @@ function removeSlowly(button, pattern) {
 function toggleSlowly(button, pattern) {
   const node = $(button).closest(pattern);
   node.siblings().toggle('slow');
+}
+
+// Collapse button.
+function collapseToggle(button) {
+  $(button).toggleClass('fa-chevron-down fa-chevron-right');
+  toggleSlowly(button, 'legend');
 }
 
 // Unpack a value/units/precision triple into the given type.
