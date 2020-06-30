@@ -126,11 +126,16 @@ limitations under the License.
                   <tr><td>addition duration</td><td><div class="input_addition_duration_value edittext shorttext"></div><div class="input_addition_duration_units selector" data-proto="Time_TimeUnit"></div></td><td>
                   +/- <div class="input_addition_duration_precision edittext shorttext"></div></td></tr>
                 </table>
-                <fieldset>
-                  <legend>Flow rate</legend>
-                  value <div class="input_flow_rate_value edittext shorttext"></div>
-                  <div class="input_flow_rate_units selector" data-proto="FlowRate_FlowRateUnit"></div>
-                  +/- <div class="input_flow_rate_precision edittext shorttext"></div>
+                <fieldset class="starts_collapsed">
+                  <legend>
+                    <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
+                    Flow rate
+                  </legend>
+                  <div>
+                    value <div class="input_flow_rate_value edittext shorttext"></div>
+                    <div class="input_flow_rate_units selector" data-proto="FlowRate_FlowRateUnit"></div>
+                    +/- <div class="input_flow_rate_precision edittext shorttext"></div>
+                  </div>
                 </fieldset>
               </fieldset>
             </div>
@@ -170,11 +175,16 @@ limitations under the License.
                   <div class="preparations"></div>
                   <div onclick="ord.compounds.addPreparation($(this).closest('.component'));" class="add">+ add preparation</div>
                 </fieldset>
-                <fieldset class="vendor">
-                  <legend>Vendor</legend>
-                  source <div class="component_vendor_source edittext"></div>
-                  id <div class="component_vendor_id edittext"></div>
-                  lot number <div class="component_vendor_lot edittext"></div>
+                <fieldset class="vendor starts_collapsed">
+                  <legend>
+                    <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
+                    Vendor
+                  </legend>
+                  <div>
+                    source <div class="component_vendor_source edittext"></div>
+                    id <div class="component_vendor_id edittext"></div>
+                    lot number <div class="component_vendor_lot edittext"></div>
+                  </div>
                 </fieldset>
                 <fieldset>
                   <legend>Features</legend>
@@ -400,8 +410,9 @@ limitations under the License.
             <tr><td align="right">rpm</td><td><div id="stirring_rpm" class="edittext shorttext"></div></td></tr>
           </table>
         </fieldset>
-        <fieldset id="section_conditions_illumination">
+        <fieldset id="section_conditions_illumination" class="starts_collapsed">
           <legend>
+            <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
             Illumination
             <div class="validate" button-onclick="ord.illumination.validateIllumination($(this).closest('#section_conditions_illumination'))"></div>           
           </legend>
@@ -465,8 +476,9 @@ limitations under the License.
           </div>
           <div onclick="ord.electro.addMeasurement();" class="add">+ add measurement</div>
         </fieldset>
-        <fieldset id="section_conditions_flow">
+        <fieldset id="section_conditions_flow" class="starts_collapsed">
           <legend>
+            <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
             Flow
             <div class="validate" button-onclick="ord.flows.validateFlow($(this).closest('#section_conditions_flow'))"></div>  
           </legend>
@@ -513,6 +525,7 @@ limitations under the License.
           <div id="observation_template" class="observation" style="display: none;">
             <fieldset>
               <legend>
+                <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
                 Observation
                 <div class="validate" button-onclick="ord.observations.validateObservation($(this).closest('.observation'))" ></div>
               </legend>
@@ -558,6 +571,7 @@ limitations under the License.
           <div id="workup_template" class="workup" style="display: none;">
           <fieldset>
             <legend>
+              <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
               Workup
               <div class="validate" button-onclick="ord.workups.validateWorkup($(this).closest('.workup'))" ></div>
             </legend>

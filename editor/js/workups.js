@@ -174,7 +174,8 @@ ord.workups.add = function () {
   const workupNode = addSlowly('#workup_template', '#workups');
   const inputNode = $('.workup_input', workupNode);
   // The template for ReactionWorkup.input is taken from Reaction.inputs.
-  ord.inputs.add(inputNode);
+  const workupInputNode = ord.inputs.add(inputNode);
+  workupInputNode.find('.collapse').trigger('click');
   // Unlike Reaction.inputs, this ReactionInput has no name.
   $('.input_name_label', inputNode).hide();
   $('.input_name', inputNode).hide();
