@@ -79,6 +79,9 @@ body {
   z-index: 2;
   visibility: hidden;
 }
+.starts_collapsed > *:not(legend) {
+  display: none;
+}
 .spacer {
   height: 32px;
 }

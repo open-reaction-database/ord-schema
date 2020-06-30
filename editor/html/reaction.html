@@ -417,8 +417,9 @@ limitations under the License.
             <tr><td align="right">color</td><td><div id="illumination_color" class="edittext"></div></td></tr>
           </table>
         </fieldset>
-        <fieldset id="section_conditions_electro">
+        <fieldset id="section_conditions_electro" class="starts_collapsed">
           <legend>
+            <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
             Electrochemistry
             <div class="validate" button-onclick="ord.electro.validateElectro($(this).closest('#section_conditions_electro'))"></div>    
           </legend>
