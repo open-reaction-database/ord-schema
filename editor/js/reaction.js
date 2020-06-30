@@ -408,9 +408,15 @@ function getOptionalBool(node) {
 function initValidateNode (oldNode) {
   let newNode = $("#validate_template").clone();
   newNode.removeAttr('id');
-  newNode.removeAttr('style');
+  newNode.show();
+
+  // Add attributes necessary for validation functions.
   newNode.addClass('validate');
   $(".validate_button", newNode).attr('onclick', oldNode.attr('button-onclick'));
+  if (oldNode.attr('id') === 'reaction_validate') {
+    newNode.attr('id', 'reaction_validate');
+  }
+
   oldNode.replaceWith(newNode);
 }
 
