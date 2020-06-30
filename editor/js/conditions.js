@@ -41,13 +41,28 @@ ord.conditions.load = function (conditions) {
   if (illumination) {
     ord.illumination.load(illumination);
   }
+  else {
+    // If no illumination present, collapse by default.
+    const illuminationLegend = $('#section_conditions_illumination').children('legend');
+    toggleSlowly(illuminationLegend);
+  }
   const electro = conditions.getElectrochemistry();
   if (electro) {
     ord.electro.load(electro);
   }
+  else {
+    // If no electro present, collapse by default.
+    const electroLegend = $('#section_conditions_electro').children('legend');
+    toggleSlowly(electroLegend);
+  }
   const flow = conditions.getFlow();
   if (flow) {
     ord.flows.load(flow);
+  }
+  else {
+    // If no flow present, collapse by default.
+    const flowLegend = $('#section_conditions_flow').children('legend');
+    toggleSlowly(flowLegend);
   }
   const reflux = conditions.hasReflux() ? conditions.getReflux() : null;
   setOptionalBool($('#condition_reflux'), reflux);
