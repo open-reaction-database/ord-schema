@@ -224,10 +224,10 @@ limitations under the License.
                   <legend>Amount</legend>
                   mass <input type="radio" class="crude_amount_mass" value="mass" checked>
                   volume <input type="radio" class="crude_amount_volume" value="volume">
-                  value <div class="crude_amount_value edittext"></div>
-                        <div class="crude_amount_units_mass selector" data-proto="Mass_MassUnit"></div>
-                        <div class="crude_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
-                        +/- <div class="crude_amount_precision edittext"></div>
+                  <span style="padding-left:25px">value</span> <div class="crude_amount_value edittext shorttext"></div>
+                  +/- <div class="crude_amount_precision edittext shorttext"></div>
+                  <div class="crude_amount_units_mass selector" data-proto="Mass_MassUnit"></div>
+                  <div class="crude_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
                 </fieldset>
                 <div onclick="removeSlowly(this, '.crude');" class="remove">remove</div>
               </fieldset>
