@@ -92,15 +92,18 @@ function selectText(node) {
 }
 
 // Adds a jQuery handler to a node such that the handler is run once 
-// whenever data entry within that node is changed.
+// whenever data entry within that node is changed,
+// *except through remove* -- this must be handled manually.
+// (This prevents inconsistent timing in the ordering of 
+// the element being removed and the handler being called)
 function addChangeHandler (node, handler) {
   // For textboxes
   node.on('blur', '.edittext', handler);
   // For selectors, optional bool selectors,
   // and checkboxes/radio buttons/file upload, respectively
   node.on('change', '.selector, .optional_bool, input', handler);
-  // For add and remove buttons
-  node.on('click', '.add, .remove', handler);
+  // For add buttons
+  node.on('click', '.add', handler);
 }
 
 // Generic validator for many message types, not just reaction
@@ -285,7 +288,17 @@ function addSlowly(template, root) {
 // Removes from the DOM the nearest ancestor element matching the pattern.
 function removeSlowly(button, pattern) {
   const node = $(button).closest(pattern);
-  node.hide('slow', () => node.remove());
+  // Must call necessary validators only after the node is removed,
+  // but we can only figure out which validators these are before removal.
+  // We do so, and after removal, click the corresponding buttons to trigger validation.
+  let buttonsToClick = $();
+  node.parents('fieldset').each(function () {
+    buttonsToClick = buttonsToClick.add($(this).children('legend').find('.validate_button'));
+  })
+  node.hide('slow', function () {
+    node.remove();
+    buttonsToClick.trigger('click');
+  });
   dirty();
 }
 
