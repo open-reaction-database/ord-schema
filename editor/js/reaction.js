@@ -122,7 +122,6 @@ function validate(message, messageTypeString, validateNode) {
     statusNode.removeClass('fa-check');
     statusNode.removeClass('fa-exclamation-triangle');
     statusNode.css('backgroundColor', null);
-    statusNode.css('font-size', '120%');
     statusNode.text('');
     if (errors.length) {
       statusNode.addClass('fa fa-exclamation-triangle')

@@ -82,9 +82,6 @@ body {
 .spacer {
   height: 32px;
 }
-.fa {
-  font-size: small;
-}
 .tooltip > .tooltip-inner {
   background-color: lightgray;
 }
