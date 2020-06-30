@@ -289,6 +289,13 @@ function removeSlowly(button, pattern) {
   dirty();
 }
 
+// Toggle visibility of all siblings of the
+// nearest ancestor element matching the pattern, except the first element.
+function toggleSlowly(button, pattern) {
+  const node = $(button).closest(pattern);
+  node.siblings().toggle('slow');
+}
+
 // Unpack a value/units/precision triple into the given type.
 function readMetric(prefix, proto, node) {
   const value = parseFloat($(prefix + '_value', node).text());

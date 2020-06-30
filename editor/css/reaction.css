@@ -43,13 +43,13 @@ body {
 .paratext {
   height: 100px;
 }
-.add, #save, .remove, #delete, .validate_button, .validate_status, .validate_message, .tooltip > .tooltip-inner {
+.add, #save, .remove, #delete, .collapse, .validate_button, .validate_status, .validate_message, .tooltip > .tooltip-inner {
   padding: 2px 4px;
   margin: 2px;
   display: inline-block;
   border-radius: 8px;
 }
-.add, #save, .remove, #delete, .validate_button {
+.add, #save, .remove, #delete, .collapse, .validate_button {
   cursor: pointer;
 }
 .add {
@@ -64,6 +64,9 @@ body {
 }
 .remove {
   float: right;
+}
+.collapse {
+  background-color: lightgray;
 }
 .validate, .validate_status-message {
   display: inline-block;
