@@ -80,6 +80,21 @@ $ make package
 The output includes the serve.sh script, but you probably want to use a better
 web server instead.
 
+You can bundle the built package into a Docker image like
+
+```
+docker build -t ord-editor .
+```
+
+and then make the editor available on port 80 like
+
+```
+docker run -it -p 80:5000 ord-editor
+```
+
+Work saved in the Docker container will be lost when the container shuts down,
+so remember to download your Dataset when you are done.
+
 ## How it Works
 
 Datasets to be edited are stored in the `db/` directory as `.pbtxt` files (protobuf
