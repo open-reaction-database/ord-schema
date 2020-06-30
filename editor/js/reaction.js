@@ -302,10 +302,14 @@ function removeSlowly(button, pattern) {
   dirty();
 }
 
-// Toggle visibility of all siblings of the
-// nearest ancestor element matching the pattern, except the first element.
-function toggleSlowly(button, pattern) {
-  const node = $(button).closest(pattern);
+// Toggle visibility of all siblings of an element, 
+// or if a pattern is provided, toggle visibility of all siblings of  
+// the nearest ancestor element matching the pattern.
+function toggleSlowly(node, pattern) {
+  node = $(node);
+  if (typeof pattern !== 'undefined') {
+    node = node.closest(pattern);
+  }
   node.siblings().toggle('slow');
 }
 
