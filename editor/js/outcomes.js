@@ -304,8 +304,8 @@ ord.outcomes.add = function () {
 ord.outcomes.addAnalysis = function (node) {
   const analysisNode = addSlowly('#outcome_analysis_template', $('.outcome_analyses', node));
   handler = function () {ord.outcomes.validateAnalysis(analysisNode)};
-  addChangeHandler(node, handler);
-  return node;
+  addChangeHandler(analysisNode, handler);
+  return analysisNode;
 };
 
 ord.outcomes.addProcess = function (node) {
