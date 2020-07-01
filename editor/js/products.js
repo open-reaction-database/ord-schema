@@ -27,15 +27,12 @@ ord.products.loadProduct = function (outcomeNode, product) {
   const node = ord.products.add(outcomeNode);
 
   const compound = product.getCompound();
-  console.log($('.product_component', node))
-  const compoundNode = ord.compounds.add($('.product_component', node));
   if (compound) {
-    ord.compounds.load(compoundNode, [compound]);
+    ord.compounds.load(node, [compound]);
+    // The "compound" field is not repeated in ReactionProduct and so
+    // ReactionComponents should not be added or removed.
+    $('.component .remove', node).hide();
   }
-  // The "compound" field is not repeated in ReactionProduct and so
-  // ReactionComponents should not be added or removed.
-  $('.remove', compoundNode).hide();
-
   setOptionalBool(
       $('.outcome_product_desired', node),
       product.hasIsDesiredProduct() ? product.getIsDesiredProduct() : null);

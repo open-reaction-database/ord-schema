@@ -83,7 +83,7 @@ body {
   display: none;
 }
 .spacer {
-  height: 24px;
+  height: 32px;
 }
 .tooltip > .tooltip-inner {
   background-color: lightgray;
