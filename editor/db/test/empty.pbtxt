@@ -77,6 +77,12 @@ reactions {
   }
   notes {
   }
+  outcomes {
+    reaction_time {
+    }
+    conversion {
+    }
+  }
   provenance {
     experimenter {
     }

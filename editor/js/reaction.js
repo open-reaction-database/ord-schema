@@ -244,7 +244,11 @@ function loadReaction(reaction) {
   ord.workups.load(workups);
 
   const outcomes = reaction.getOutcomesList();
-  ord.outcomes.load(outcomes);
+  if (outcomes.length) {
+    ord.outcomes.load(outcomes);
+  } else {
+    ord.outcomes.add();
+  }
 
   const provenance = reaction.getProvenance();
   if (provenance) {
