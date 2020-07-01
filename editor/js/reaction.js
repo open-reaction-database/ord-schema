@@ -233,15 +233,6 @@ function loadReaction(reaction) {
   if (conditions) {
     ord.conditions.load(conditions);
   }
-  else {
-    // If no conditions present, collapse illumination, electro, and flow by default.
-    const illuminationLegend = $('#section_conditions_illumination').children('legend');
-    toggleSlowly(illuminationLegend);
-    const electroLegend = $('#section_conditions_electro').children('legend');
-    toggleSlowly(electroLegend);
-    const flowLegend = $('#section_conditions_flow').children('legend');
-    toggleSlowly(flowLegend);
-  }
   const notes = reaction.getNotes();
   if (notes) {
     ord.notes.load(notes);
