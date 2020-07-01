@@ -675,6 +675,10 @@ limitations under the License.
               </legend>
             <div onclick="removeSlowly(this, '.outcome_product');" class="remove">remove</div>
 
+            <div class="outcome_product_compound components"></div>
+            <!-- Shares "#component_template" with ".components" in the input section. -->
+
+            <div class="spacer"></div>
             <table>
               <tr><td align="right">desired</td><td><div class="outcome_product_desired optional_bool"></div></td>
               <tr><td align="right">yield</td><td><div class="outcome_product_yield_value edittext shorttext"></div>
@@ -688,9 +692,7 @@ limitations under the License.
               <tr><td align="right">color</td><td><div class="outcome_product_color edittext"></div></td></tr>
               <tr><td align="right">texture</td><td><div class="outcome_product_texture_type selector" data-proto="ReactionProduct_Texture_TextureType"></div></td></tr>
               <tr><td align="right">details</td><td><div class="outcome_product_texture_details edittext"></div></td></tr>
-            </table>
-
-            <div class="outcome_product_compound components"></div>
+            </table>            
 
             <fieldset>
               <legend>Identity analyses</legend>

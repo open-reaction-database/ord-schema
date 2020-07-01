@@ -28,11 +28,14 @@ ord.products.loadProduct = function (outcomeNode, product) {
 
   const compound = product.getCompound();
   if (compound) {
-    ord.compounds.load(node, [compound]);
+    ord.compounds.loadCompound(node, compound);
+
     // The "compound" field is not repeated in ReactionProduct and so
     // ReactionComponents should not be added or removed.
+    // TODO n8kim1 This removes too many buttons, be more selective
     $('.component .remove', node).hide();
-  }
+}
+
   setOptionalBool(
       $('.outcome_product_desired', node),
       product.hasIsDesiredProduct() ? product.getIsDesiredProduct() : null);
