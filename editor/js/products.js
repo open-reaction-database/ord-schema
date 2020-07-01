@@ -28,13 +28,17 @@ ord.products.loadProduct = function (outcomeNode, product) {
 
   const compound = product.getCompound();
   if (compound) {
+    // Creates an empty compound node, and loads it.
     ord.compounds.loadCompound(node, compound);
-
-    // The "compound" field is not repeated in ReactionProduct and so
-    // ReactionComponents should not be added or removed.
-    // TODO n8kim1 This removes too many buttons, be more selective
-    $('.component .remove', node).hide();
-}
+  }
+  else {
+    // Add an empty compound node.
+    ord.compounds.add(node);
+  }
+  // The "compound" field is not repeated in ReactionProduct and so
+  // ReactionComponents should not be added or removed.
+  // TODO n8kim1 This removes too many buttons, be more selective
+  $('.component .remove', node).hide();
 
   setOptionalBool(
       $('.outcome_product_desired', node),
