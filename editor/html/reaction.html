@@ -148,7 +148,7 @@ limitations under the License.
                   <div class="validate" button-onclick="ord.compounds.validateCompound($(this).closest('.component'))" ></div>
                 </legend>
                 <div onclick="removeSlowly(this, '.component');" class="remove">remove</div>
-                <table>
+                <table class="component_role_limiting">
                   <tr><td>reaction role</td><td><div class="component_reaction_role selector" data-proto="Compound_ReactionRole_ReactionRoleType"></div></td></tr>
                   <tr class="limiting_reactant"><td>limiting reactant?</td><td><div class="component_limiting optional_bool"></div></td></tr>
                 </table>
@@ -170,7 +170,7 @@ limitations under the License.
                   <div class="component_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
 
                 </fieldset>
-                <fieldset>
+                <fieldset class="preparations_fieldset">
                   <legend>Preparations</legend>
                   <div class="preparations"></div>
                   <div onclick="ord.compounds.addPreparation($(this).closest('.component'));" class="add">+ add preparation</div>
