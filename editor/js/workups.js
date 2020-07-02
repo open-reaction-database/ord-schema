@@ -176,13 +176,11 @@ ord.workups.add = function () {
   // The template for ReactionWorkup.input is taken from Reaction.inputs.
   const workupInputNode = ord.inputs.add(inputNode);
   workupInputNode.find('.collapse').trigger('click');
-  // TODO (n8kim1): the extra nodes are removed, not hidden, to make them not show up when toggling;
-  // it would be better to fix the toggle method instead.
   // Unlike Reaction.inputs, this ReactionInput has no name.
-  $('.input_name_label', inputNode).remove();
-  $('.input_name', inputNode).remove();
+  $('.input_name_label', inputNode).hide();
+  $('.input_name', inputNode).hide();
   // Unlike Reaction.inputs, this ReactionInput is not repeated.
-  $('.remove', inputNode).remove();
+  $('.remove', inputNode).hide();
 
   handler = function () {ord.workups.validateWorkup(workupNode)};
   addChangeHandler(workupNode, handler);

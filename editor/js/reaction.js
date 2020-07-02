@@ -318,7 +318,21 @@ function toggleSlowly(node, pattern) {
   if (typeof pattern !== 'undefined') {
     node = node.closest(pattern);
   }
-  node.siblings().toggle('slow');
+  // 'collapsed' tag is used to hold previously collapsed siblings, 
+  // and would be stored as node's next sibling;
+  // the following line checks whether a collapse has occured.
+  if (node.next('collapsed').length !== 0) {
+    // Need to uncollapse.
+    const collapsedNode = node.next('collapsed');
+    collapsedNode.toggle('slow', () => {
+      collapsedNode.children().unwrap();
+    });
+  }
+  else {
+    // Need to collapse.
+    node.siblings().wrapAll("<collapsed>");
+    node.next('collapsed').toggle('slow');
+  }
 }
 
 // Collapse button.

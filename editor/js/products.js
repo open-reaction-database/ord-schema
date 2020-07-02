@@ -37,7 +37,7 @@ ord.products.loadProduct = function (outcomeNode, product) {
   }
   // The "compound" field is not repeated in ReactionProduct and so
   // ReactionComponents should not be added or removed.
-  $('.component > fieldset > .remove', node).hide();
+  $('.component fieldset .remove', node).hide();
   // Product components implicitly have role Product.
   $('.component .component_role_limiting', node).hide();
   // Volume measurements of product components do not include solutes. 
