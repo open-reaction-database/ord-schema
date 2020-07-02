@@ -281,6 +281,23 @@ function unloadReaction() {
   return reaction;
 }
 
+// Checks if a protobuf message is empty.
+// (the message's nested arrays only contains null or empty values)
+function isEmptyMessage(message) {
+  const array = message.array;
+  return isEmptyMessageArray(array);
+}
+
+function isEmptyMessageArray(obj) {
+  if (obj === null || obj === undefined) {
+    return true;
+  }
+  else if (Array.isArray(obj)) {
+    return obj.every(e => isEmptyMessageArray(e));
+  }
+  return false;
+}
+
 // The template is a jQuery selector. The root may be a jQuery object.
 function addSlowly(template, root) {
   const node = $(template).clone();

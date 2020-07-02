@@ -77,7 +77,9 @@ ord.setups.unload = function () {
   const setup = new proto.ord.ReactionSetup();
 
   const vessel = ord.setups.unloadVessel();
-  setup.setVessel(vessel);
+  if (!isEmptyMessage(vessel)) {
+    setup.setVessel(vessel);
+  }
 
   const isAutomated = getOptionalBool($('#setup_automated'));
   setup.setIsAutomated(isAutomated);
@@ -91,7 +93,9 @@ ord.setups.unload = function () {
   const environment = new proto.ord.ReactionSetup.ReactionEnvironment();
   environment.setType(getSelector($('#setup_environment_type')));
   environment.setDetails($('#setup_environment_details').text());
-  setup.setEnvironment(environment);
+  if (!isEmptyMessage(environment)) {
+    setup.setEnvironment(environment);  
+  }
 
   return setup;
 };
