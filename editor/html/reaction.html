@@ -40,7 +40,7 @@ limitations under the License.
         <div id="save" onclick="commit();" style="visibility: hidden;">save</div>
         <div id="delete" class="remove" style="float: none;" onclick="location.href='/dataset/{{ file_name }}/delete/reaction/{{ index }}';">delete</div>
       </div>
-      <div id="reaction_validate" class="validate" button-onclick="validateReaction()" ></div>
+      <span id="reaction_validate" class="validate" button-onclick="validateReaction()"></span>
     </div>
 
     <div style="margin-left: 128px;">Reaction ID <div id="reaction_id" class="edittext"></div></div>
@@ -59,13 +59,13 @@ limitations under the License.
 
     <div id="sections">
 
-      <div id="validate_template" style="display: none">
+      <span id="validate_template" style="display: none">
         <span class="validate_button" aria-hidden="true">validate</span>
         <span class="validate_status-message">
           <span onmouseenter="toggleValidateMessage($(this).closest('.validate'))" onmouseleave="toggleValidateMessage($(this).closest('.validate'))"  class="validate_status">unvalidated</span>
           <span class="validate_message"></span>
         </span>
-      </div>
+      </span>
 
       <fieldset id="section_identifiers" class="section">
         <legend>
@@ -102,7 +102,7 @@ limitations under the License.
                 <legend>
                   <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
                   Input
-                  <div class="validate" button-onclick="ord.inputs.validateInput($(this).closest('.input'))" ></div>
+                  <span class="validate" button-onclick="ord.inputs.validateInput($(this).closest('.input'))"></span>
                </legend>
                 <span class="input_name_label">name</span><div class="input_name edittext"></div>
                 <div onclick="removeSlowly(this, '.input');" class="remove">remove</div>
@@ -145,7 +145,7 @@ limitations under the License.
                 <legend>
                   <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
                   Component
-                  <div class="validate" button-onclick="ord.compounds.validateCompound($(this).closest('.component'))" ></div>
+                  <span class="validate" button-onclick="ord.compounds.validateCompound($(this).closest('.component'))"></span>
                 </legend>
                 <div onclick="removeSlowly(this, '.component');" class="remove">remove</div>
                 <table class="component_role_limiting">
@@ -252,7 +252,7 @@ limitations under the License.
 
         <legend>
           Setup
-          <div class="validate" button-onclick="ord.setups.validateSetup($(this).closest('#section_setup'))" ></div>
+          <span class="validate" button-onclick="ord.setups.validateSetup($(this).closest('#section_setup'))"></span>
         </legend>
         <table>
           <tr><td align="right">vessel</td><td><div id="setup_vessel_type" class="selector" data-proto="VesselType_VesselTypeEnum"></div>
@@ -329,12 +329,12 @@ limitations under the License.
       <fieldset id="section_conditions" class="section">
         <legend>
           Conditions
-          <div class="validate" button-onclick="ord.conditions.validateConditions($('#section_conditions'))" ></div>
+          <span class="validate" button-onclick="ord.conditions.validateConditions($('#section_conditions'))"></span>
         </legend>
         <fieldset id="section_conditions_temperature">
           <legend>
             Temperature
-            <div class="validate" button-onclick="ord.temperature.validateTemperature($(this).closest('#section_conditions_temperature'))" ></div>
+            <span class="validate" button-onclick="ord.temperature.validateTemperature($(this).closest('#section_conditions_temperature'))"></span>
           </legend>
           <table>
             <tr><td align="right">control</td><td><div id="temperature_control" class="selector" data-proto="TemperatureConditions_TemperatureControl_TemperatureControlType"></div>
@@ -366,7 +366,7 @@ limitations under the License.
         <fieldset id="section_conditions_pressure">
           <legend>
             Pressure
-            <div class="validate" button-onclick="ord.pressure.validatePressure($(this).closest('#section_conditions_pressure'))"></div>
+            <span class="validate" button-onclick="ord.pressure.validatePressure($(this).closest('#section_conditions_pressure'))"></span>
           </legend>
             <table>
               <tr><td align="right">control</td><td><div id="pressure_control_type" class="selector" data-proto="PressureConditions_PressureControl_PressureControlType"></div>
@@ -400,7 +400,7 @@ limitations under the License.
         <fieldset id="section_conditions_stirring">
           <legend>
             Stirring
-            <div class="validate" button-onclick="ord.stirring.validateStirring($(this).closest('#section_conditions_stirring'))"></div>
+            <span class="validate" button-onclick="ord.stirring.validateStirring($(this).closest('#section_conditions_stirring'))"></span>
           </legend>
           <table>
             <tr><td align="right">method</td><td><div id="stirring_method_type" class="selector" data-proto="StirringConditions_StirringMethod_StirringMethodType"></div>
@@ -414,7 +414,7 @@ limitations under the License.
           <legend>
             <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
             Illumination
-            <div class="validate" button-onclick="ord.illumination.validateIllumination($(this).closest('#section_conditions_illumination'))"></div>           
+            <span class="validate" button-onclick="ord.illumination.validateIllumination($(this).closest('#section_conditions_illumination'))"></span>           
           </legend>
           <table>
             <tr><td align="right">type</td><td><div id="illumination_type" class="selector" data-proto="IlluminationConditions_IlluminationType_IlluminationTypeEnum"></div>
@@ -432,7 +432,7 @@ limitations under the License.
           <legend>
             <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
             Electrochemistry
-            <div class="validate" button-onclick="ord.electro.validateElectro($(this).closest('#section_conditions_electro'))"></div>    
+            <span class="validate" button-onclick="ord.electro.validateElectro($(this).closest('#section_conditions_electro'))"></span>    
           </legend>
           <table>
             <tr><td align="right">type</td><td><div id="electro_type" class="selector" data-proto="ElectrochemistryConditions_ElectrochemistryType_ElectrochemistryTypeEnum"></div>
@@ -480,7 +480,7 @@ limitations under the License.
           <legend>
             <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
             Flow
-            <div class="validate" button-onclick="ord.flows.validateFlow($(this).closest('#section_conditions_flow'))"></div>  
+            <span class="validate" button-onclick="ord.flows.validateFlow($(this).closest('#section_conditions_flow'))"></span>  
           </legend>
           <table>
             <tr><td align="right">type</td><td><div id="flow_type" class="selector" data-proto="FlowConditions_FlowType_FlowTypeEnum"></div>
@@ -504,7 +504,7 @@ limitations under the License.
       <fieldset id="section_notes" class="section">
         <legend>
           Notes
-          <div class="validate" button-onclick="ord.notes.validateNotes($('#section_notes'))" ></div>
+          <span class="validate" button-onclick="ord.notes.validateNotes($('#section_notes'))"></span>
         </legend>
         <table>
           <tr><td align="right">is heterogeneous</td><td><div id="notes_heterogeneous" class="optional_bool"></div></td></tr>
@@ -527,7 +527,7 @@ limitations under the License.
               <legend>
                 <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
                 Observation
-                <div class="validate" button-onclick="ord.observations.validateObservation($(this).closest('.observation'))" ></div>
+                <span class="validate" button-onclick="ord.observations.validateObservation($(this).closest('.observation'))"></span>
               </legend>
               <div onclick="removeSlowly(this, '.observation');" class="remove">remove</div>
               <table>
@@ -573,7 +573,7 @@ limitations under the License.
             <legend>
               <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
               Workup
-              <div class="validate" button-onclick="ord.workups.validateWorkup($(this).closest('.workup'))" ></div>
+              <span class="validate" button-onclick="ord.workups.validateWorkup($(this).closest('.workup'))"></span>
             </legend>
             <div onclick="removeSlowly(this, '.workup');" class="remove">remove</div>
             <table>
@@ -647,7 +647,7 @@ limitations under the License.
             <fieldset>
             <legend>
               Outcome
-              <div class="validate" button-onclick="ord.outcomes.validateOutcome($(this).closest('.outcome'))" ></div>
+              <span class="validate" button-onclick="ord.outcomes.validateOutcome($(this).closest('.outcome'))"></span>
             </legend>
             <div onclick="removeSlowly(this, '.outcome');" class="remove">remove</div>
             <table>
@@ -671,7 +671,7 @@ limitations under the License.
             <fieldset>
               <legend>
                 Product
-                <div class="validate" button-onclick="ord.products.validateProduct($(this).closest('.outcome_product'))"></div>
+                <span class="validate" button-onclick="ord.products.validateProduct($(this).closest('.outcome_product')"></span>
               </legend>
             <div onclick="removeSlowly(this, '.outcome_product');" class="remove">remove</div>
 
@@ -745,7 +745,7 @@ limitations under the License.
             <fieldset>
               <legend>
                 Analysis
-                <div class="validate" button-onclick="ord.outcomes.validateAnalysis($(this).closest('.outcome_analysis'))" ></div>
+                <span class="validate" button-onclick="ord.outcomes.validateAnalysis($(this).closest('.outcome_analysis'))" ></span>
               </legend>
               <div onclick="removeSlowly(this, '.outcome_analysis');" class="remove">remove</div>
               <table>
@@ -847,7 +847,7 @@ limitations under the License.
       <fieldset id="section_provenance" class="section">
         <legend>
           Provenance
-          <div class="validate" button-onclick="ord.provenance.validateProvenance($('#section_provenance'))" ></div>
+          <span class="validate" button-onclick="ord.provenance.validateProvenance($('#section_provenance'))"></span>
         </legend>
         <div id="provenance_experimenter">
           <table>

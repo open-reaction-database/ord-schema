@@ -466,20 +466,12 @@ function getOptionalBool(node) {
 }
 
 // Set up a validator div (button, status indicator, error list, etc.),
-// replacing a placeholder div in reaction.html
+// inserting contents into a div in reaction.html
 function initValidateNode (oldNode) {
   let newNode = $("#validate_template").clone();
-  newNode.removeAttr('id');
-  newNode.show();
-
   // Add attributes necessary for validation functions.
-  newNode.addClass('validate');
   $(".validate_button", newNode).attr('onclick', oldNode.attr('button-onclick'));
-  if (oldNode.attr('id') === 'reaction_validate') {
-    newNode.attr('id', 'reaction_validate');
-  }
-
-  oldNode.replaceWith(newNode);
+  oldNode.append(newNode.children());
 }
 
 // Validation handlers for nodes that can't be added or removed. (eg status)
