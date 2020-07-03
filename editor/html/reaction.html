@@ -114,18 +114,23 @@ limitations under the License.
                   <div class="crudes"></div>
                   <div onclick="ord.crudes.add($(this).closest('.input'));" class="add">+ add crude component</div>
                 </div>
-                <div class="spacer"></div>
-                <table>
-                  <tr><td>addition order</td><td><div class="input_addition_order edittext veryshorttext"></div></td></tr>
-                  <tr><td>addition speed</td><td><div class="input_addition_speed_type selector" data-proto="ReactionInput_AdditionSpeed_AdditionSpeedType"></div></td><td>
-                                                               details <div class="input_addition_speed_details edittext"></div></td></tr>
-                  <tr><td>addition device</td><td><div class="input_addition_device_type selector" data-proto="ReactionInput_AdditionDevice_AdditionDeviceType"></div></td><td>
-                                                                details <div class="input_addition_device_details edittext"></div></td></tr>
-                  <tr><td>addition time</td><td><div class="input_addition_time_value edittext shorttext"></div><div class="input_addition_time_units selector" data-proto="Time_TimeUnit"></div></td><td>
-                  +/- <div class="input_addition_time_precision edittext shorttext"></div></td></tr>
-                  <tr><td>addition duration</td><td><div class="input_addition_duration_value edittext shorttext"></div><div class="input_addition_duration_units selector" data-proto="Time_TimeUnit"></div></td><td>
-                  +/- <div class="input_addition_duration_precision edittext shorttext"></div></td></tr>
-                </table>
+                <fieldset>
+                  <legend>
+                    <span class="collapse fa fa-chevron-down" onclick="collapseToggle(this)"></span>
+                    Addition information
+                  </legend>
+                  <table>
+                    <tr><td>addition order</td><td><div class="input_addition_order edittext veryshorttext"></div></td></tr>
+                    <tr><td>addition speed</td><td><div class="input_addition_speed_type selector" data-proto="ReactionInput_AdditionSpeed_AdditionSpeedType"></div></td><td>
+                                                                details <div class="input_addition_speed_details edittext"></div></td></tr>
+                    <tr><td>addition device</td><td><div class="input_addition_device_type selector" data-proto="ReactionInput_AdditionDevice_AdditionDeviceType"></div></td><td>
+                                                                  details <div class="input_addition_device_details edittext"></div></td></tr>
+                    <tr><td>addition time</td><td><div class="input_addition_time_value edittext shorttext"></div><div class="input_addition_time_units selector" data-proto="Time_TimeUnit"></div></td><td>
+                    +/- <div class="input_addition_time_precision edittext shorttext"></div></td></tr>
+                    <tr><td>addition duration</td><td><div class="input_addition_duration_value edittext shorttext"></div><div class="input_addition_duration_units selector" data-proto="Time_TimeUnit"></div></td><td>
+                    +/- <div class="input_addition_duration_precision edittext shorttext"></div></td></tr>
+                  </table>
+                </fieldset>
                 <fieldset class="starts_collapsed">
                   <legend>
                     <span class="collapse fa fa-chevron-right" onclick="collapseToggle(this)"></span>
