@@ -131,9 +131,9 @@ limitations under the License.
                     +/- <div class="input_addition_duration_precision edittext shorttext"></div></td></tr>
                   </table>
                 </fieldset>
-                <fieldset class="starts_collapsed">
+                <fieldset>
                   <legend>
-                    <span class="collapse"></span>
+                    <span class="collapse starts_collapsed"></span>
                     Flow rate
                   </legend>
                   <div>
@@ -180,9 +180,9 @@ limitations under the License.
                   <div class="preparations"></div>
                   <div onclick="ord.compounds.addPreparation($(this).closest('.component'));" class="add">+ add preparation</div>
                 </fieldset>
-                <fieldset class="vendor starts_collapsed">
+                <fieldset class="vendor">
                   <legend>
-                    <span class="collapse"></span>
+                    <span class="collapse starts_collapsed"></span>
                     Vendor
                   </legend>
                   <div>
@@ -415,9 +415,9 @@ limitations under the License.
             <tr><td align="right">rpm</td><td><div id="stirring_rpm" class="edittext shorttext"></div></td></tr>
           </table>
         </fieldset>
-        <fieldset id="section_conditions_illumination" class="starts_collapsed">
+        <fieldset id="section_conditions_illumination">
           <legend>
-            <span class="collapse"></span>
+            <span class="collapse starts_collapsed"></span>
             Illumination
             <span class="validate" button-onclick="ord.illumination.validateIllumination($(this).closest('#section_conditions_illumination'))"></span>           
           </legend>
@@ -433,9 +433,9 @@ limitations under the License.
             <tr><td align="right">color</td><td><div id="illumination_color" class="edittext"></div></td></tr>
           </table>
         </fieldset>
-        <fieldset id="section_conditions_electro" class="starts_collapsed">
+        <fieldset id="section_conditions_electro">
           <legend>
-            <span class="collapse"></span>
+            <span class="collapse starts_collapsed"></span>
             Electrochemistry
             <span class="validate" button-onclick="ord.electro.validateElectro($(this).closest('#section_conditions_electro'))"></span>    
           </legend>
@@ -481,9 +481,9 @@ limitations under the License.
           </div>
           <div onclick="ord.electro.addMeasurement();" class="add">+ add measurement</div>
         </fieldset>
-        <fieldset id="section_conditions_flow" class="starts_collapsed">
+        <fieldset id="section_conditions_flow">
           <legend>
-            <span class="collapse"></span>
+            <span class="collapse starts_collapsed"></span>
             Flow
             <span class="validate" button-onclick="ord.flows.validateFlow($(this).closest('#section_conditions_flow'))"></span>  
           </legend>

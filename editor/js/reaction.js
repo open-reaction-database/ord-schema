@@ -473,7 +473,9 @@ function initCollapse (node) {
   node.addClass('fa');
   node.addClass('fa-chevron-down');
   node.attr('onclick', 'collapseToggle(this)');
-  // TODO init toggle collapse
+  if (node.hasClass('starts_collapsed')) {
+    node.trigger('click');
+  }
 }
 
 // Set up a validator div (button, status indicator, error list, etc.),

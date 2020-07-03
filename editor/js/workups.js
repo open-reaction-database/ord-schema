@@ -175,6 +175,7 @@ ord.workups.add = function () {
   const inputNode = $('.workup_input', workupNode);
   // The template for ReactionWorkup.input is taken from Reaction.inputs.
   const workupInputNode = ord.inputs.add(inputNode);
+  // Workup inputs start collapsed by default.
   workupInputNode.find('.collapse').trigger('click');
   // Unlike Reaction.inputs, this ReactionInput has no name.
   $('.input_name_label', inputNode).hide();
