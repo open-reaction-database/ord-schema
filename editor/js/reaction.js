@@ -43,6 +43,8 @@ async function init(fileName, index) {
   $('.optional_bool').each((index, node) => initOptionalBool($(node)));
   // Enable all the editable text fields.
   $('.edittext').attr('contentEditable', 'true');
+  // TODO respond to start_collapsed
+  $('.collapse').each((index, node) => initCollapse($(node)));
   // Initialize all the validators.
   $('.validate').each((index, node) => initValidateNode($(node)));
   // Initialize validation handlers that don't go in "add" methods.
@@ -463,6 +465,15 @@ function getOptionalBool(node) {
     return false;
   }
   return null;
+}
+
+// Set up and initialize a collapse button,
+// by adding attributes into a div in reaction.html
+function initCollapse (node) {
+  node.addClass('fa');
+  node.addClass('fa-chevron-down');
+  node.attr('onclick', 'collapseToggle(this)');
+  // TODO init toggle collapse
 }
 
 // Set up a validator div (button, status indicator, error list, etc.),
