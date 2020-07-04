@@ -69,6 +69,7 @@ limitations under the License.
 
       <fieldset id="section_identifiers" class="section">
         <legend>
+          <span class="collapse"></span>
           Identifiers
             <span data-toggle="tooltip" data-placement="right" title="Reaction identifiers define descriptions of the overall reaction.">
               <span class="fa fa-question-circle" aria-hidden="true"></span>
@@ -94,7 +95,10 @@ limitations under the License.
       </fieldset>
 
       <fieldset id="section_inputs" class="section">
-        <legend>Inputs</legend>
+        <legend>
+          <span class="collapse"></span>
+          Inputs
+        </legend>
           <div id="inputs">
 
             <div id="input_template" class="input" style="display: none;">
@@ -158,12 +162,18 @@ limitations under the License.
                   <tr class="limiting_reactant"><td>limiting reactant?</td><td><div class="component_limiting optional_bool"></div></td></tr>
                 </table>
                 <fieldset>
-                  <legend>Identifiers</legend>
+                  <legend>
+                    <span class="collapse"></span>
+                    Identifiers
+                  </legend>
                   <div class="identifiers"></div>
                   <div onclick="ord.compounds.addIdentifier($(this).closest('.component'));" class="add">+ add identifier</div>
                 </fieldset>
                 <fieldset class="amount">
-                  <legend>Amount</legend>
+                  <legend>
+                    <span class="collapse"></span>
+                    Amount
+                  </legend>
                   <input type="radio" class="component_amount_mass" value="mass" checked> mass 
                   <input type="radio" class="component_amount_moles" value="moles"> moles 
                   <input type="radio" class="component_amount_volume" value="volume"> volume 
@@ -176,7 +186,10 @@ limitations under the License.
 
                 </fieldset>
                 <fieldset class="preparations_fieldset">
-                  <legend>Preparations</legend>
+                  <legend>
+                    <span class="collapse"></span>
+                    Preparations
+                  </legend>
                   <div class="preparations"></div>
                   <div onclick="ord.compounds.addPreparation($(this).closest('.component'));" class="add">+ add preparation</div>
                 </fieldset>
@@ -192,7 +205,10 @@ limitations under the License.
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>Features</legend>
+                  <legend>
+                    <span class="collapse"></span>
+                    Features
+                  </legend>
                   <div class="features"></div>
                   <div onclick="ord.features.add($(this).closest('.component'));" class="add">+ add feature</div>
                 </fieldset>
@@ -229,14 +245,20 @@ limitations under the License.
 
             <div id="crude_template" class="crude" style="display: none;">
               <fieldset>
-                <legend>Crude Component</legend>
+                <legend>
+                  <span class="collapse"></span>
+                  Crude Component
+                </legend>
                 <table>
                   <tr><td>reaction ID</td><td><div class="crude_reaction edittext"></div></td></tr>
                   <tr><td>includes workup?</td><td><div class="crude_includes_workup optional_bool"></div></td></tr>
                   <tr><td>has derived amount?</td><td><div class="crude_has_derived optional_bool"></div></td></tr>
                 </table>
                 <fieldset class="amount">
-                  <legend>Amount</legend>
+                  <legend>
+                    <span class="collapse"></span>
+                    Amount
+                  </legend>
                   <input type="radio" class="crude_amount_mass" value="mass" checked> mass
                   <input type="radio" class="crude_amount_volume" value="volume"> volume
                   <span style="padding-left:25px">value</span> <div class="crude_amount_value edittext shorttext"></div>
@@ -256,6 +278,7 @@ limitations under the License.
       <fieldset id="section_setup" class="section">
 
         <legend>
+          <span class="collapse"></span>
           Setup
           <span class="validate" button-onclick="ord.setups.validateSetup($(this).closest('#section_setup'))"></span>
         </legend>
@@ -273,7 +296,10 @@ limitations under the License.
                                                     details <div id="setup_environment_details" class="edittext"></div></td></tr>
         </table>
         <fieldset>
-          <legend>Vessel Preparation</legend>
+          <legend>
+            <span class="collapse"></span>
+            Vessel Preparation
+          </legend>
           <div id="setup_vessel_preparations">
             <div id="setup_vessel_preparation_template" class="setup_vessel_preparation" style="display: none;">
               <div onclick="removeSlowly(this, '.setup_vessel_preparation');" class="remove">remove</div>
@@ -284,7 +310,10 @@ limitations under the License.
           <div onclick="ord.setups.addVesselPreparation();" class="add">+ add preparation</div>
         </fieldset>
         <fieldset>
-          <legend>Vessel Attachments</legend>
+          <legend>
+            <span class="collapse"></span>
+            Vessel Attachments
+          </legend>
           <div id="setup_vessel_attachments">
             <div id="setup_vessel_attachment_template" class="setup_vessel_attachment" style="display: none;">
               <div onclick="removeSlowly(this, '.setup_vessel_attachment');" class="remove">remove</div>
@@ -297,7 +326,10 @@ limitations under the License.
         <div id="setup_codes">
           <div id="setup_code_template" class="setup_code" style="display: none;">
             <fieldset>
-              <legend>Automation code</legend>
+              <legend>
+                <span class="collapse"></span>
+                Automation code
+              </legend>
               <div onclick="removeSlowly(this, '.setup_code');" class="remove">remove</div>
               <table>
                 <tr><td align="right">name</td><td><div class="setup_code_name edittext"></div></td></tr>
@@ -333,11 +365,13 @@ limitations under the License.
 
       <fieldset id="section_conditions" class="section">
         <legend>
+          <span class="collapse"></span>
           Conditions
           <span class="validate" button-onclick="ord.conditions.validateConditions($('#section_conditions'))"></span>
         </legend>
         <fieldset id="section_conditions_temperature">
           <legend>
+            <span class="collapse"></span>
             Temperature
             <span class="validate" button-onclick="ord.temperature.validateTemperature($(this).closest('#section_conditions_temperature'))"></span>
           </legend>
@@ -351,7 +385,10 @@ limitations under the License.
           <div id="temperature_measurements">
             <div id="temperature_measurement_template" class="temperature_measurement" style="display: none;">
               <fieldset>
-                <legend>Measurement</legend>
+                <legend>
+                  <span class="collapse"></span>
+                  Measurement
+                </legend>
                 <div onclick="removeSlowly(this, '.temperature_measurement');" class="remove">remove</div>
                 <table>
                   <tr><td align="right">type</td><td><div class="temperature_measurement_type selector" data-proto="TemperatureConditions_Measurement_MeasurementType"></div></td></tr>
@@ -370,6 +407,7 @@ limitations under the License.
         </fieldset>
         <fieldset id="section_conditions_pressure">
           <legend>
+            <span class="collapse"></span>
             Pressure
             <span class="validate" button-onclick="ord.pressure.validatePressure($(this).closest('#section_conditions_pressure'))"></span>
           </legend>
@@ -385,7 +423,10 @@ limitations under the License.
           <div id="pressure_measurements">
             <div id="pressure_measurement_template" class="pressure_measurement" style="display: none;">
               <fieldset>
-                <legend>Measurement</legend>
+                <legend>
+                  <span class="collapse"></span>
+                  Measurement
+                </legend>
                 <div onclick="removeSlowly(this, '.pressure_measurement');" class="remove">remove</div>
                 <table>
                   <tr><td align="right">type</td><td><div class="pressure_measurement_type selector" data-proto="PressureConditions_Measurement_MeasurementType"></div></td></tr>
@@ -404,6 +445,7 @@ limitations under the License.
         </fieldset>
         <fieldset id="section_conditions_stirring">
           <legend>
+            <span class="collapse"></span>
             Stirring
             <span class="validate" button-onclick="ord.stirring.validateStirring($(this).closest('#section_conditions_stirring'))"></span>
           </legend>
@@ -459,7 +501,10 @@ limitations under the License.
           <div id="electro_measurements">
             <div id="electro_measurement_template" class="electro_measurement" style="display: none;">
               <fieldset>
-                <legend>Measurement</legend>
+                <legend>
+                  <span class="collapse"></span>
+                  Measurement
+                </legend>
                 <div onclick="removeSlowly(this, '.electro_measurement');" class="remove">remove</div>
                 <input type="radio" class="electro_measurement_current" value="current" checked> current
                 <input type="radio" class="electro_measurement_voltage" value="voltage"> voltage
@@ -508,6 +553,7 @@ limitations under the License.
 
       <fieldset id="section_notes" class="section">
         <legend>
+          <span class="collapse"></span>
           Notes
           <span class="validate" button-onclick="ord.notes.validateNotes($('#section_notes'))"></span>
         </legend>
@@ -525,7 +571,10 @@ limitations under the License.
       </fieldset>
 
       <fieldset id="section_observations" class="section">
-        <legend>Observations</legend>
+        <legend>
+          <span class="collapse"></span>
+          Observations
+        </legend>
         <div id="observations">
           <div id="observation_template" class="observation" style="display: none;">
             <fieldset>
@@ -595,7 +644,10 @@ limitations under the License.
               <!-- Shares ".input_template" with "#inputs" above. -->
             </div>
             <fieldset>
-              <legend>Temperature conditions</legend>
+              <legend>
+                <span class="collapse"></span>
+                Temperature conditions
+              </legend>
               <table>
                 <tr><td align="right">control</td><td><div class="workup_temperature_control_type selector" data-proto="TemperatureConditions_TemperatureControl_TemperatureControlType"></div></td></tr>
                 <tr><td align="right">setpoint</td><td><div class="workup_temperature_setpoint_value edittext"></div>
@@ -610,7 +662,10 @@ limitations under the License.
               <div onclick="ord.workups.addMeasurement($(this).closest('.workup'));" class="add">+ add measurement</div>
             </div>
             <fieldset>
-              <legend>Stirring</legend>
+              <legend>
+                <span class="collapse"></span>
+                Stirring
+              </legend>
               <table>
                 <tr><td align="right">method</td><td><div class="workup_stirring_method_type selector" data-proto="StirringConditions_StirringMethod_StirringMethodType"></div>
                                                      details <div class="workup_stirring_method_details edittext"></div></td></tr>
@@ -624,7 +679,10 @@ limitations under the License.
 
           <div id="workup_temperature_measurement_template" class="workup_temperature_measurement" style="display: none;">
             <fieldset>
-              <legend>Temperature measurement</legend>
+              <legend>
+                <span class="collapse"></span>
+                Temperature measurement
+              </legend>
               <div onclick="removeSlowly(this, '.workup_temperature_measurement');" class="remove">remove</div>
               <table>
                 <tr><td align="right">type</td><td><div class="workup_temperature_measurement_type selector" data-proto="TemperatureConditions_Measurement_MeasurementType"></div></td></tr>
@@ -644,13 +702,17 @@ limitations under the License.
       </fieldset>
 
       <fieldset id="section_outcomes" class="section">
-        <legend>Outcomes</legend>
+        <legend>
+          <span class="collapse"></span>
+          Outcomes
+        </legend>
 
         <div id="outcomes">
 
           <div id="outcome_template" class="outcome" style="display: none;">
             <fieldset>
             <legend>
+              <span class="collapse"></span>
               Outcome
               <span class="validate" button-onclick="ord.outcomes.validateOutcome($(this).closest('.outcome'))"></span>
             </legend>
@@ -675,6 +737,7 @@ limitations under the License.
           <div id="outcome_product_template" class="outcome_product" style="display: none;">
             <fieldset>
               <legend>
+                <span class="collapse"></span>
                 Product
                 <span class="validate" button-onclick="ord.products.validateProduct($(this).closest('.outcome_product')"></span>
               </legend>
@@ -700,28 +763,40 @@ limitations under the License.
             </table>            
 
             <fieldset>
-              <legend>Identity analyses</legend>
+              <legend>
+                <span class="collapse"></span>
+                Identity analyses
+              </legend>
               <div class="outcome_product_analysis_identities">
               </div>
               <div onclick="ord.products.addIdentity($(this).closest('.outcome_product'));" class="add">+ add identity analysis</div>
             </fieldset>
 
             <fieldset>
-              <legend>Yield analyses</legend>
+              <legend>
+                <span class="collapse"></span>
+                Yield analyses
+              </legend>
               <div class="outcome_product_analysis_yields">
               </div>
               <div onclick="ord.products.addYield($(this).closest('.outcome_product'));" class="add">+ add yield analysis</div>
             </fieldset>
 
             <fieldset>
-              <legend>Purity analyses</legend>
+              <legend>
+                <span class="collapse"></span>
+                Purity analyses
+              </legend>
               <div class="outcome_product_analysis_purities">
               </div>
               <div onclick="ord.products.addPurity($(this).closest('.outcome_product'));" class="add">+ add purity analysis</div>
             </fieldset>
 
             <fieldset>
-              <legend>Selectivity analyses</legend>
+              <legend>
+                <span class="collapse"></span>
+                Selectivity analyses
+              </legend>
               <div class="outcome_product_analysis_selectivities">
               </div>
               <div onclick="ord.products.addSelectivity($(this).closest('.outcome_product'));" class="add">+ add selectivity analysis</div>
@@ -749,6 +824,7 @@ limitations under the License.
           <div id="outcome_analysis_template" class="outcome_analysis" style="display: none;">
             <fieldset>
               <legend>
+                <span class="collapse"></span>
                 Analysis
                 <span class="validate" button-onclick="ord.outcomes.validateAnalysis($(this).closest('.outcome_analysis'))" ></span>
               </legend>
@@ -781,7 +857,10 @@ limitations under the License.
 
           <div id="outcome_process_template" class="outcome_process" style="display: none;">
             <fieldset>
-              <legend>Processed data</legend>
+              <legend>
+                <span class="collapse"></span>
+                Processed data
+              </legend>
               <div onclick="removeSlowly(this, '.outcome_process');" class="remove">remove</div>
               <table>
                 <tr><td align="right">name</td><td><div class="outcome_process_name edittext"></div></td></tr>
@@ -814,7 +893,10 @@ limitations under the License.
 
           <div id="outcome_raw_template" class="outcome_raw" style="display: none;">
             <fieldset>
-              <legend>Raw data</legend>
+              <legend>
+                <span class="collapse"></span>
+                Raw data
+              </legend>
               <div onclick="removeSlowly(this, '.outcome_raw');" class="remove">remove</div>
               <table>
                 <tr><td align="right">name</td><td><div class="outcome_raw_name edittext"></div></td></tr>
@@ -851,6 +933,7 @@ limitations under the License.
 
       <fieldset id="section_provenance" class="section">
         <legend>
+          <span class="collapse"></span>
           Provenance
           <span class="validate" button-onclick="ord.provenance.validateProvenance($('#section_provenance'))"></span>
         </legend>
@@ -869,7 +952,10 @@ limitations under the License.
         </div>
         <div id="provenance_created">
           <fieldset>
-            <legend>Creation</legend>
+            <legend>
+              <span class="collapse"></span>
+              Creation
+            </legend>
             <table>
               <tr><td align="right">time</td><td><div class="provenance_time edittext"></div></td></tr>
               <tr><td align="right">username</td><td><div class="provenance_username edittext"></div></td></tr>
@@ -883,7 +969,10 @@ limitations under the License.
         <div id="provenance_modifieds">
           <div id="provenance_modified_template" class="provenance_modified" style="display: none;">
             <fieldset>
-              <legend>Modification</legend>
+              <legend>
+                <span class="collapse"></span>
+                Modification
+              </legend>
               <div onclick="removeSlowly(this, '.provenance_modified');" class="remove">remove</div>
               <table>
                 <tr><td align="right">time</td><td><div class="provenance_time edittext"></div></td></tr>
