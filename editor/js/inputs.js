@@ -85,7 +85,9 @@ ord.inputs.unload = function (inputs) {
 ord.inputs.unloadInput = function (inputs, node) {
   const name = $('.input_name', node).text();
   const input = ord.inputs.unloadInputUnnamed(node);
-  inputs.set(name, input);
+  if (!isEmptyMessage(input)) {
+    inputs.set(name, input);
+  }
 };
 
 ord.inputs.unloadInputUnnamed = function (node) {

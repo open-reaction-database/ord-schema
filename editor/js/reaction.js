@@ -222,6 +222,7 @@ function loadReaction(reaction) {
   const identifiers = reaction.getIdentifiersList();
   ord.identifiers.load(identifiers);
   const inputs = reaction.getInputsMap();
+  // Reactions start with an input by default.
   if (inputs.arr_.length) {
     ord.inputs.load(inputs);
   } else {
@@ -246,6 +247,7 @@ function loadReaction(reaction) {
   ord.workups.load(workups);
 
   const outcomes = reaction.getOutcomesList();
+  // Reactions start with an outcome by default.
   if (outcomes.length) {
     ord.outcomes.load(outcomes);
   } else {
@@ -262,23 +264,41 @@ function loadReaction(reaction) {
 function unloadReaction() {
   const reaction = new proto.ord.Reaction();
   const identifiers = ord.identifiers.unload();
-  reaction.setIdentifiersList(identifiers);
+  if (!isEmptyMessage(identifiers)) {
+    reaction.setIdentifiersList(identifiers);
+  }
   const inputs = reaction.getInputsMap();
+  // isEmptyMessage check occurs in inputs.unload.
   ord.inputs.unload(inputs);
   const setup = ord.setups.unload();
-  reaction.setSetup(setup);
+  if (!isEmptyMessage(setup)) {
+    reaction.setSetup(setup);
+  }
   const conditions = ord.conditions.unload();
-  reaction.setConditions(conditions);
+  if (!isEmptyMessage(conditions)) {
+    reaction.setConditions(conditions);
+  }
   const notes = ord.notes.unload();
-  reaction.setNotes(notes);
+  if (!isEmptyMessage(notes)) {
+    reaction.setNotes(notes);
+  }
   const observations = ord.observations.unload();
-  reaction.setObservationsList(observations);
+  if (!isEmptyMessage(observations)) {
+    reaction.setObservationsList(observations);
+  }
   const workups = ord.workups.unload();
-  reaction.setWorkupList(workups);
+  if (!isEmptyMessage(workups)) {
+    reaction.setWorkupList(workups);
+  }
   const outcomes = ord.outcomes.unload();
-  reaction.setOutcomesList(outcomes);
+  if (!isEmptyMessage(outcomes)) {
+    reaction.setOutcomesList(outcomes);
+  }
   const provenance = ord.provenance.unload();
-  reaction.setProvenance(provenance);
+  if (!isEmptyMessage(provenance)) {
+    reaction.setProvenance(provenance);
+  }
+  // Setter does nothing when passed an empty string.
   reaction.setReactionId($('#reaction_id').text());
   return reaction;
 }
@@ -286,8 +306,12 @@ function unloadReaction() {
 // Checks if a protobuf message is empty.
 // (the message's nested arrays only contains null or empty values)
 function isEmptyMessage(message) {
-  const array = message.array;
-  return isEmptyMessageArray(array);
+  if (Array.isArray(message)) {
+    return isEmptyMessageArray(message);
+  }
+  else {
+    return isEmptyMessageArray(message.array);
+  }
 }
 
 function isEmptyMessageArray(obj) {
