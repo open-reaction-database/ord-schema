@@ -306,11 +306,15 @@ function unloadReaction() {
 // Checks if a protobuf message is empty.
 // (the message's nested arrays only contains null or empty values)
 function isEmptyMessage(message) {
-  if (Array.isArray(message)) {
+  array = message.array;
+  // TODO (n8kim1) set empty strings, 0's, etc? discuss w Connor
+  // (also related to whether we check before setting primitives, 
+  // or only non-primitve messages)
+  if (array === undefined) {
     return isEmptyMessageArray(message);
   }
   else {
-    return isEmptyMessageArray(message.array);
+    return isEmptyMessageArray(array);
   }
 }
 
