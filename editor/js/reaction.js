@@ -303,27 +303,32 @@ function unloadReaction() {
   return reaction;
 }
 
-// Checks if a protobuf message is empty.
-// (the message's nested arrays only contains null or empty values)
-function isEmptyMessage(message) {
-  array = message.array;
-  // TODO (n8kim1) set empty strings, 0's, etc? discuss w Connor
-  // (also related to whether we check before setting primitives, 
-  // or only non-primitve messages)
-  if (array === undefined) {
-    return isEmptyMessageArray(message);
-  }
-  else {
-    return isEmptyMessageArray(array);
-  }
-}
-
-function isEmptyMessageArray(obj) {
-  if (obj === null || obj === undefined) {
+// Checks if the argument represents an empty protobuf message 
+// (that is, the argument's nested arrays only contains null or empty values),
+// or is null or undefined.
+// We use this check on both primitives and arrays/messages.
+// Note: Unlike other primitive types, using a setter to set a oneof string field to “” 
+// causes the message to include the field and “”, which would be unwanted. 
+// So we instead claim that empty strings are empty messages. 
+// (Hence we don’t set _any_ empty string)
+// Note: In a submessage, setting a meaningful value (e.g. optional float to 0)
+// will result in a non-null/undefined value in the submessage array. 
+// So, if the array of a submessage only contains null and undefined vals, 
+// we can assume that the message is truly “empty” (that is, 
+// doesn’t have anything meaningful that is set) 
+// and can be omitted when constructing the surrounding message.
+function isEmptyMessage(obj) {
+  if ([null, undefined, ""].includes(obj)) {
     return true;
   }
-  else if (Array.isArray(obj)) {
-    return obj.every(e => isEmptyMessageArray(e));
+  array = obj.array;
+  if (array !== undefined) {
+    // message is a protobuf message, test underlying array
+    return isEmptyMessage(array);
+  }
+  if (Array.isArray(obj)) {
+    // message arg is an array, test as-is
+    return obj.every(e => isEmptyMessage(e));
   }
   return false;
 }
