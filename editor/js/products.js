@@ -26,26 +26,6 @@ ord.products.load = function (node, products) {
 ord.products.loadProduct = function (outcomeNode, product) {
   const node = ord.products.add(outcomeNode);
 
-  const compound = product.getCompound();
-  if (compound) {
-    // Creates an empty compound node, and loads it.
-    ord.compounds.loadCompound(node, compound);
-  }
-  else {
-    // Add an empty compound node.
-    ord.compounds.add(node);
-  }
-  // The "compound" field is not repeated in ReactionProduct and so
-  // ReactionComponents should not be added or removed.
-  $('.component fieldset .remove', node).hide();
-  // Product components implicitly have role Product.
-  $('.component .component_role_limiting', node).hide();
-  // Volume measurements of product components do not include solutes. 
-  $('.component .includes_solutes', node).remove();
-  // Product components do not have Preparations nor Vendor information.
-  $('.component .preparations_fieldset', node).hide();
-  $('.component .vendor', node).hide();
-
   setOptionalBool(
       $('.outcome_product_desired', node),
       product.hasIsDesiredProduct() ? product.getIsDesiredProduct() : null);
@@ -186,6 +166,20 @@ ord.products.unloadAnalysisKeys = function (node, tag) {
 
 ord.products.add = function (node) {
   const productNode = addSlowly('#outcome_product_template', $('.outcome_products', node));
+
+  // Add an empty compound node.
+  ord.compounds.add(productNode);
+  // The "compound" field is not repeated in ReactionProduct and so
+  // ReactionComponents should not be added or removed.
+  $('.component fieldset .remove', productNode).hide();
+  // Product components implicitly have role Product.
+  $('.component .component_role_limiting', productNode).hide();
+  // Volume measurements of product components do not include solutes. 
+  $('.component .includes_solutes', productNode).remove();
+  // Product components do not have Preparations nor Vendor information.
+  $('.component .preparations_fieldset', productNode).hide();
+  $('.component .vendor', productNode).hide();
+
   handler = function () {ord.products.validateProduct(productNode)};
   addChangeHandler(productNode, handler);
   return productNode;
