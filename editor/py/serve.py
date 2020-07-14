@@ -87,7 +87,7 @@ def download_dataset(file_name):
 @app.route('/dataset/<file_name>/upload', methods=['POST'])
 def upload_dataset(file_name):
   """Writes the request body to the db/ directory without validation."""
-  path = f'db{flask.g.user}/{file_name}.pbtxt'
+  path = f'db/{flask.g.user}/{file_name}.pbtxt'
   with open(path, 'wb') as upload:
     upload.write(flask.request.get_data())
   return 'ok'
