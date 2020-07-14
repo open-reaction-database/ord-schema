@@ -26,6 +26,11 @@ ord.products.load = function (node, products) {
 ord.products.loadProduct = function (outcomeNode, product) {
   const node = ord.products.add(outcomeNode);
 
+  const compound = product.getCompound();
+  if (compound) {
+    ord.compounds.loadIntoCompound(node, compound);
+  }
+
   setOptionalBool(
       $('.outcome_product_desired', node),
       product.hasIsDesiredProduct() ? product.getIsDesiredProduct() : null);
@@ -95,6 +100,7 @@ ord.products.unloadProduct = function (node) {
 
   const compounds = ord.compounds.unload(node);
   if (compounds) {
+    // wait what why [0]
     product.setCompound(compounds[0]);
   }
   product.setIsDesiredProduct(

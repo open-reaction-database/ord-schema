@@ -30,7 +30,10 @@ ord.compounds.load = function (node, compounds) {
 
 ord.compounds.loadCompound = function (root, compound) {
   const node = ord.compounds.add(root);
+  ord.compounds.loadIntoCompound(node, compound);
+};
 
+ord.compounds.loadIntoCompound = function (node, compound) {
   const reactionRole = compound.getReactionRole();
   setSelector($('.component_reaction_role', node), reactionRole);
 
