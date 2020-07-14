@@ -25,16 +25,24 @@ ord.amountsCrudes.load = function (node, mass, volume) {
   $('.crude_amount_units_volume', node).hide();
   if (mass) {
     $("input[value='mass']", amount).prop('checked', true);
-    $('.crude_amount_value', node).text(mass.getValue());
-    $('.crude_amount_precision', node).text(mass.getPrecision());
+    if (mass.hasValue()) {
+      $('.crude_amount_value', node).text(mass.getValue());
+    }
+    if (mass.hasPrecision()) {
+      $('.crude_amount_precision', node).text(mass.getPrecision());
+    }
     $('.crude_amount_units_mass', node).show();
     setSelector(
         $('.crude_amount_units_mass', amount), mass.getUnits());
   }
   if (volume) {
     $("input[value='volume']", amount).prop('checked', true);
-    $('.crude_amount_value', node).text(volume.getValue());
-    $('.crude_amount_precision', node).text(volume.getPrecision());
+    if (volume.hasValue()) {
+      $('.crude_amount_value', node).text(volume.getValue());
+    }
+    if (volume.hasPrecision()) {
+      $('.crude_amount_precision', node).text(volume.getPrecision());
+    }
     $('.crude_amount_units_volume', node).show();
     setSelector(
         $('.crude_amount_units_volume', amount), volume.getUnits());
