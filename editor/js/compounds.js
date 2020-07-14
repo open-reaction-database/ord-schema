@@ -103,7 +103,9 @@ ord.compounds.unload = function (node) {
     if (!compoundNode.attr('id')) {
       // Not a template.
       const compound = ord.compounds.unloadCompound(compoundNode);
-      compounds.push(compound);
+      if (!isEmptyMessage(compound)) {
+        compounds.push(compound);
+      }
     }
   });
   return compounds;
@@ -128,14 +130,18 @@ ord.compounds.unloadCompound = function (node) {
   }
 
   const identifiers = ord.compounds.unloadIdentifiers(node);
-  compound.setIdentifiersList(identifiers);
+  if (!isEmptyMessage(identifiers)) {
+    compound.setIdentifiersList(identifiers);
+  }
 
   ord.amounts.unload(node, compound);
 
   const preparations = [];
   $('.component_preparation', node).each(function (index, preparationNode) {
     const preparation = ord.compounds.unloadPreparation(preparationNode);
-    preparations.push(preparation);
+    if (!isEmptyMessage(preparation)) {
+      preparations.push(preparation);
+    }
   });
   compound.setPreparationsList(preparations);
 
@@ -154,7 +160,9 @@ ord.compounds.unloadIdentifiers = function (node) {
     if (!node.attr('id')) {
       // Not a template.
       const identifier = ord.compounds.unloadIdentifier(node);
-      identifiers.push(identifier);
+      if (!isEmptyMessage(identifier)) {
+        identifiers.push(identifier);
+      }
     }
   });
   return identifiers;
@@ -165,10 +173,14 @@ ord.compounds.unloadIdentifier = function (node) {
 
   if ($('.component_identifier_upload', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    identifier.setBytesValue(bytesValue);
+    if (!isEmptyMessage(bytesValue)) {
+      identifier.setBytesValue(bytesValue);
+    }
   } else {
     const value = $('.component_identifier_value', node).text();
-    identifier.setValue(value);
+    if (!isEmptyMessage(value)) {
+      identifier.setValue(value);
+    }
   }
   const type = getSelector(node);
   identifier.setType(type);
