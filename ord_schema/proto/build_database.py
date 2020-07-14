@@ -37,6 +37,9 @@ flags.DEFINE_string('output', 'tables', 'Output directory for CSV tables.')
 flags.DEFINE_string('database', None, 'Database name.')
 flags.DEFINE_string('user', None, 'PostgreSQL user.')
 flags.DEFINE_string('password', None, 'PostgreSQL password.')
+flags.DEFINE_string('host', None, 'PostgreSQL server host.')
+flags.DEFINE_integer('port', None, 'PostgreSQL server port.')
+flags.DEFINE_boolean('overwrite', False, 'If True, overwrite existing tables.')
 
 # Postgres table schema.
 _TABLES = {
@@ -160,8 +163,13 @@ def create_database():
     """Populates the Postgres database."""
     db = psycopg2.connect(dbname=FLAGS.database,
                           user=FLAGS.user,
-                          password=FLAGS.password)
+                          password=FLAGS.password,
+                          host=FLAGS.host,
+                          port=FLAGS.port)
     cursor = db.cursor()
+    if FLAGS.overwrite:
+        for table in _TABLES:
+            cursor.execute(f'DROP TABLE IF EXISTS {table}')
     for table, columns in _TABLES.items():
         dtypes = ',\n'.join(
             [f'\t{column}\t{dtype}' for column, dtype in columns.items()])
