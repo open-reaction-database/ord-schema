@@ -28,24 +28,36 @@ ord.amounts.load = function (node, mass, moles, volume) {
   $('.includes_solutes', node).hide();
   if (mass) {
     $("input[value='mass']", amount).prop('checked', true);
+    if (mass.hasValue()) {
     $('.component_amount_value', node).text(mass.getValue());
+    }
+    if (mass.hasPrecision()) {
     $('.component_amount_precision', node).text(mass.getPrecision());
+    }
     $('.component_amount_units_mass', node).show();
     setSelector(
         $('.component_amount_units_mass', amount), mass.getUnits());
   }
   if (moles) {
     $("input[value='moles']", amount).prop('checked', true);
+    if (moles.hasValue()) {
     $('.component_amount_value', node).text(moles.getValue());
+    }
+    if (moles.hasPrecision()) {
     $('.component_amount_precision', node).text(moles.getPrecision());
+    }
     $('.component_amount_units_moles', node).show();
     setSelector(
         $('.component_amount_units_moles', amount), moles.getUnits());
   }
   if (volume) {
     $("input[value='volume']", amount).prop('checked', true);
+    if (volume.hasValue()) {
     $('.component_amount_value', node).text(volume.getValue());
+    }
+    if (volume.hasPrecision()) {
     $('.component_amount_precision', node).text(volume.getPrecision());
+    }
     $('.component_amount_units_volume', node).show();
     $('.includes_solutes', node).show();
     setSelector(
