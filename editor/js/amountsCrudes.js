@@ -53,10 +53,14 @@ ord.amountsCrudes.unload = function (node, crude) {
   const mass = ord.amountsCrudes.unloadMass(node);
   const volume = ord.amountsCrudes.unloadVolume(node);
   if (mass) {
-    crude.setMass(mass);
+    if (!isEmptyMessage(mass)) {
+      crude.setMass(mass);
+    }
   }
   if (volume) {
-    crude.setVolume(volume);
+    if (!isEmptyMessage(volume)) {
+      crude.setVolume(volume);
+    }
   }
 };
 
