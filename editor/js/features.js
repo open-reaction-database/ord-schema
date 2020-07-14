@@ -44,7 +44,9 @@ ord.features.unload = function (compoundNode) {
     node = $(node);
     if (!node.attr('id')) {
       const feature = ord.features.unloadFeature(node);
-      features.push(feature);
+      if (!isEmptyMessage(feature)) {
+        features.push(feature);
+      }
     }
   });
   return features;
@@ -58,9 +60,13 @@ ord.features.unloadFeature = function (node) {
   const valueText = $('.component_feature_value', node).text();
   const valueFloat = parseFloat(valueText);
   if (isNaN(valueFloat)) {
-    feature.setStringValue(valueText);
+    if (!isEmptyMessage(valueText)) {
+      feature.setStringValue(valueText);
+    }
   } else {
-    feature.setFloatValue(valueFloat);
+    if (!isEmptyMessage(valueFloat)) {
+      feature.setFloatValue(valueFloat);
+    }
   }
   const how = $('.component_feature_how', node).text();
   feature.setHowComputed(how);
