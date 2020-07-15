@@ -82,8 +82,9 @@ limitations under the License.
         };
       });
       $('#dataset_adder').on('click', event => {
+        var file_name = prompt("Please enter a name for your new dataset");
         const xhr = new XMLHttpRequest();
-        xhr.open('GET', '/dataset/new');
+        xhr.open('POST', '/dataset/' + file_name + '/new');
         xhr.onload = () => location.reload();
         xhr.send();
       });

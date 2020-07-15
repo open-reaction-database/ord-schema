@@ -54,7 +54,8 @@ def show_datasets():
     m = re.match(r'(.*).pbtxt', name)
     if m is not None:
       base_names.append(m.group(1))
-  return flask.render_template('datasets.html', file_names=base_names)
+  return flask.render_template('datasets.html',
+                               file_names=sorted(base_names))
 
 
 @app.route('/dataset/<file_name>')
@@ -93,13 +94,14 @@ def upload_dataset(file_name):
   return 'ok'
 
 
-@app.route('/dataset/new')
-def new_dataset():
+@app.route('/dataset/<file_name>/new', methods=['POST'])
+def new_dataset(file_name):
   """Creates a new dataset in the db/ directory."""
-  file_name = f'unnamed-{uuid.uuid4().hex[:8]}'
   path = f'db/{flask.g.user}/{file_name}.pbtxt'
+  if os.path.isfile(path):
+    return 'file exists'
   with open(path, 'wb') as upload:
-    upload.write('\n')
+    upload.write(b'\n')
   return 'ok'
 
 

@@ -36,6 +36,12 @@ limitations under the License.
         border-width: 1px;
         border-color: #c0c0c0;
       }
+      .longtext {
+        width: 400px;
+      }
+      .paratext {
+        height: 100px;
+      }
       .add, #save, .remove, #download {
         padding: 2px 4px;
         margin: 2px;
@@ -73,9 +79,20 @@ limitations under the License.
     <div class="spacer"></div>
 
     <div id="text_fields">
-      name <div id="name" class="edittext longtext"></div>
-      id <div id="dataset_id" class="edittext"></div><br>
-      description <div id="description" class="edittext longtext paratext"></div>
+      <table>
+        <tr>
+          <td align="right">name</td>
+          <td><div id="name" class="edittext longtext"></div></td>
+        </tr>
+        <tr>
+          <td align="right">id</td>
+          <td><div id="dataset_id" class="edittext longtext"></div><br></td>
+        </tr>
+        <tr>
+          <td align="right">description</td>
+          <td><div id="description" class="edittext longtext paratext"></div></td>
+        </tr>
+      </table> 
     </div>
 
     <div class="spacer"></div>
