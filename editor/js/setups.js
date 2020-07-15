@@ -28,6 +28,17 @@ ord.setups.load = function (setup) {
   }
   const isAutomated = setup.hasIsAutomated() ? setup.getIsAutomated() : null;
   setOptionalBool($('#setup_automated'), isAutomated);
+  if (isAutomated) {
+    $('#automation_platform').show();
+  }
+
+  $('#setup_automated').change(function() {
+    if (getSelectorText(this) == 'TRUE') {
+      $('#automation_platform').show();
+    } else {
+      $('#automation_platform').hide();
+    }
+  });
 
   const platform = setup.getAutomationPlatform();
   $('#setup_platform').text(platform);
