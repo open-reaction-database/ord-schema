@@ -847,12 +847,20 @@ limitations under the License.
               <table>
                 <tr><td align="right">name</td><td><div class="outcome_analysis_name edittext"></div></td></tr>
                 <tr><td align="right">type</td><td><div class="outcome_analysis_type selector" data-proto="ReactionAnalysis_AnalysisType"></div></td></tr>
-                <tr><td align="right">chmo_id</td><td><div class="outcome_analysis_chmo_id edittext"></div></td></tr>
                 <tr><td align="right">details</td><td><div class="outcome_analysis_details edittext"></div></td></tr>
+                <tr><td align="right">chmo_id</td><td><div class="outcome_analysis_chmo_id edittext"></div></td></tr>
                 <tr><td align="right">instrument manufacturer</td><td><div class="outcome_analysis_manufacturer edittext"></div></td></tr>
-                <tr><td align="right">calibrated</td><td><div class="outcome_analysis_calibrated edittext"></div></td></tr>
-                <tr><td align="right">internal standard</td><td><div class="outcome_analysis_internal_standard optional_bool"></div></td></tr>
-                <tr><td align="right">authentic standard</td><td><div class="outcome_analysis_authentic_standard optional_bool"></div></td></tr>
+                <tr><td align="right">instrument calibration date</td><td><div class="outcome_analysis_calibrated edittext"></div></td></tr>
+                <tr><td align="right">used internal standard
+                  <span data-toggle="tooltip" data-placement="right" title="Whether a non-reactive internal standard was included to provide more accurate quantification using a previously-validated calibration curve.">
+                    <span class="fa fa-question-circle" aria-hidden="true"></span>
+                  </span>
+                </td><td><div class="outcome_analysis_internal_standard optional_bool"></div></td></tr>
+                <tr><td align="right">used authentic standard
+                  <span data-toggle="tooltip" data-placement="right" title="Whether a pure/commercial standard of this product was analyzed by the same technique, e.g., to 'confirm' identity by retention time and mass using an LCMS.">
+                    <span class="fa fa-question-circle" aria-hidden="true"></span>
+                  </span>
+                </td><td><div class="outcome_analysis_authentic_standard optional_bool"></div></td></tr>
               </table>
 
               <div>
