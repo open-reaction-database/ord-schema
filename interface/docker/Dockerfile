@@ -30,6 +30,10 @@ WORKDIR "${ORD_ROOT}/ord-schema"
 RUN pip install -r requirements.txt
 RUN python setup.py install
 
+# NOTE(kearnes): Use non-standard PGDATA so the database persists; see
+# https://nickjanetakis.com/blog/docker-tip-79-saving-a-postgres-database-in-a-docker-image.
+WORKDIR "${ORD_ROOT}"
+ENV PGDATA=/data
 ENV POSTGRES_DB=ord
 COPY postgres.conf /etc/postgresql/postgresql.conf
-COPY build_database.sh /docker-entrypoint-initdb.d
+COPY build_database.sh .
