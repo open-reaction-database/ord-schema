@@ -43,6 +43,9 @@ body {
 .paratext {
   height: 100px;
 }
+.longtext {
+  width: 400px;
+}
 .add, #save, .remove, #delete, .collapse, .validate_button, .validate_status, .validate_message, .tooltip > .tooltip-inner {
   padding: 2px 4px;
   margin: 2px;
@@ -102,7 +105,7 @@ fieldset {
 .navSection:hover {
   background-color: lightblue;
 }
-.uploader {
+.uploader .adder {
   width: 208px;
   display: inline-block;
   padding-left: 2px;

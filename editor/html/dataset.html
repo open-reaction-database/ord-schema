@@ -63,7 +63,7 @@ limitations under the License.
   <body onload="init('{{ file_name }}');">
 
     <center>
-      <h1>{{ file_name }}.pbtxt</h1>
+      <h1><a href="/">Dataset</a>: {{ file_name }}.pbtxt</h1>
     </center>
     <div id="top_buttons">
       <div id="download" onclick="download();">download</div>
@@ -73,9 +73,9 @@ limitations under the License.
     <div class="spacer"></div>
 
     <div id="text_fields">
-      name <div id="name" class="edittext"></div>
-      description <div id="description" class="edittext"></div>
-      id <div id="dataset_id" class="edittext"></div>
+      name <div id="name" class="edittext longtext"></div>
+      id <div id="dataset_id" class="edittext"></div><br>
+      description <div id="description" class="edittext longtext paratext"></div>
     </div>
 
     <div class="spacer"></div>

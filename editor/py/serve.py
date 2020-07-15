@@ -93,6 +93,16 @@ def upload_dataset(file_name):
   return 'ok'
 
 
+@app.route('/dataset/new')
+def new_dataset():
+  """Creates a new dataset in the db/ directory."""
+  file_name = f'unnamed-{uuid.uuid4().hex[:8]}'
+  path = f'db/{flask.g.user}/{file_name}.pbtxt'
+  with open(path, 'wb') as upload:
+    upload.write('\n')
+  return 'ok'
+
+
 @app.route('/dataset/<file_name>/reaction/<index>')
 def show_reaction(file_name, index):
   """Render the page representing a single Reaction."""
