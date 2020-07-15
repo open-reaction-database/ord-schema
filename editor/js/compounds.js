@@ -48,6 +48,9 @@ ord.compounds.loadIntoCompound = function (node, compound) {
   const identifiers = compound.getIdentifiersList();
   identifiers.forEach(
       identifier => ord.compounds.loadIdentifier(node, identifier));
+  if (!(identifiers.length)) {
+    ord.compounds.addIdentifier(node);
+  }
 
   const mass = compound.getMass();
   const moles = compound.getMoles();
@@ -246,6 +249,9 @@ ord.compounds.add = function (root) {
       $('.includes_solutes', root).show().css('display', 'inline-block');
     }
   });
+
+  // One identifier placeholder should be defined by default.
+  ord.compounds.addIdentifier(node);
 
   handler = function () {ord.compounds.validateCompound(node)};
   addChangeHandler(node, handler);

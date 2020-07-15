@@ -21,6 +21,9 @@ goog.require('proto.ord.ReactionIdentifier');
 
 ord.identifiers.load = function (identifiers) {
   identifiers.forEach(identifier => ord.identifiers.loadIdentifier(identifier));
+  if (!(identifiers.length)) {
+    ord.identifiers.add();
+  }
 };
 
 ord.identifiers.loadIdentifier = function (identifier) {
