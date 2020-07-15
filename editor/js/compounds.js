@@ -241,7 +241,7 @@ ord.compounds.add = function (root) {
     }
     if (this.value == 'volume') {
       $('.component_amount_units_volume', root).show();
-      $('.includes_solutes', root).show();
+      $('.includes_solutes', root).show().css('display', 'inline-block');
     }
   });
 

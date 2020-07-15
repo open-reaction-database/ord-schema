@@ -59,7 +59,7 @@ ord.amounts.load = function (node, mass, moles, volume) {
       $('.component_amount_precision', node).text(volume.getPrecision());
     }
     $('.component_amount_units_volume', node).show();
-    $('.includes_solutes', node).show();
+    $('.includes_solutes', node).show().css('display', 'inline-block');
     setSelector(
         $('.component_amount_units_volume', amount), volume.getUnits());
   }

@@ -149,3 +149,7 @@ fieldset {
 .input_name_label {
   padding-right: 4px;
 }
+/* Default hidden fields */
+.includes_solutes {
+  display: none;
+}
