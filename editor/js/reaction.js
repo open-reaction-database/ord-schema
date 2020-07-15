@@ -264,40 +264,32 @@ function loadReaction(reaction) {
 function unloadReaction() {
   const reaction = new proto.ord.Reaction();
   const identifiers = ord.identifiers.unload();
-  if (!isEmptyMessage(identifiers)) {
-    reaction.setIdentifiersList(identifiers);
-  }
+  reaction.setIdentifiersList(identifiers);
+
   const inputs = reaction.getInputsMap();
   // isEmptyMessage check occurs in inputs.unload.
   ord.inputs.unload(inputs);
   const setup = ord.setups.unload();
-  if (!isEmptyMessage(setup)) {
-    reaction.setSetup(setup);
-  }
+  reaction.setSetup(setup);
+
   const conditions = ord.conditions.unload();
-  if (!isEmptyMessage(conditions)) {
-    reaction.setConditions(conditions);
-  }
+  reaction.setConditions(conditions);
+
   const notes = ord.notes.unload();
-  if (!isEmptyMessage(notes)) {
-    reaction.setNotes(notes);
-  }
+  reaction.setNotes(notes);
+
   const observations = ord.observations.unload();
-  if (!isEmptyMessage(observations)) {
-    reaction.setObservationsList(observations);
-  }
+  reaction.setObservationsList(observations);
+
   const workups = ord.workups.unload();
-  if (!isEmptyMessage(workups)) {
-    reaction.setWorkupList(workups);
-  }
+  reaction.setWorkupList(workups);
+
   const outcomes = ord.outcomes.unload();
-  if (!isEmptyMessage(outcomes)) {
-    reaction.setOutcomesList(outcomes);
-  }
+  reaction.setOutcomesList(outcomes);
+
   const provenance = ord.provenance.unload();
-  if (!isEmptyMessage(provenance)) {
-    reaction.setProvenance(provenance);
-  }
+  reaction.setProvenance(provenance);
+
   // Setter does nothing when passed an empty string.
   reaction.setReactionId($('#reaction_id').text());
   return reaction;
