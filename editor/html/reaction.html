@@ -982,7 +982,10 @@ limitations under the License.
               Creation
             </legend>
             <table>
-              <tr><td align="right">time</td><td><div class="provenance_time edittext"></div></td></tr>
+              <tr><td align="right">time</td><td>
+                <div class="provenance_time edittext"></div>
+                <button type="button" onclick="$(this).prev().text(new Date().toLocaleString())">now</button>
+              </td></tr>
               <tr><td align="right">username</td><td><div class="provenance_username edittext"></div></td></tr>
               <tr><td align="right">name</td><td><div class="provenance_name edittext"></div></td></tr>
               <tr><td align="right">orcid</td><td><div class="provenance_orcid edittext"></div></td></tr>
@@ -1000,7 +1003,10 @@ limitations under the License.
               </legend>
               <div onclick="removeSlowly(this, '.provenance_modified');" class="remove">remove</div>
               <table>
-                <tr><td align="right">time</td><td><div class="provenance_time edittext"></div></td></tr>
+                <tr><td align="right">time</td><td>
+                  <div class="provenance_time edittext"></div>
+                  <button type="button" onclick="$(this).prev().text(new Date().toLocaleString())">now</button>
+                </td></tr>
                 <tr><td align="right">username</td><td><div class="provenance_username edittext"></div></td></tr>
                 <tr><td align="right">name</td><td><div class="provenance_name edittext"></div></td></tr>
                 <tr><td align="right">orcid</td><td><div class="provenance_orcid edittext"></div></td></tr>

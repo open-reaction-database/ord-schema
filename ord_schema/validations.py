@@ -704,13 +704,16 @@ def validate_reaction_provenance(message):
     experiment_start = None
     record_created = None
     record_modified = None
-    if message.experiment_start.value:
-        experiment_start = parser.parse(message.experiment_start.value)
-    if message.record_created.time.value:
-        record_created = parser.parse(message.record_created.time.value)
-    for record in message.record_modified:
-        # Use the last record as the most recent modification time.
-        record_modified = parser.parse(record.time.value)
+    try:
+        if message.experiment_start.value:
+            experiment_start = parser.parse(message.experiment_start.value)
+        if message.record_created.time.value:
+            record_created = parser.parse(message.record_created.time.value)
+        for record in message.record_modified:
+            # Use the last record as the most recent modification time.
+            record_modified = parser.parse(record.time.value)
+    except parser.ParserError:
+        warnings.warn(f'Failed to parse DateTime string(s)')
     # Check signs of time differences
     if experiment_start and record_created:
         if (record_created - experiment_start).total_seconds() < 0:
