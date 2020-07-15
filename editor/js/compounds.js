@@ -36,6 +36,7 @@ ord.compounds.loadCompound = function (root, compound) {
 ord.compounds.loadIntoCompound = function (node, compound) {
   const reactionRole = compound.getReactionRole();
   setSelector($('.component_reaction_role', node), reactionRole);
+  $('.component_reaction_role', node).trigger('change')
 
   const isLimiting = compound.hasIsLimiting() ? compound.getIsLimiting() : null;
   setOptionalBool($('.component_limiting', node), isLimiting);
@@ -220,9 +221,10 @@ ord.compounds.add = function (root) {
   // Connect reaction role selection to limiting reactant field.
   const roleSelector = $('.component_reaction_role', node);
   roleSelector.change(function() {
-    $('.limiting_reactant').css('display', 'none');
     if (getSelectorText(this) == 'REACTANT') {
-      $('.limiting_reactant').css('display', '');
+      $('.limiting_reactant').show();
+    } else {
+      $('.limiting_reactant').hide();
     }
   });
 
