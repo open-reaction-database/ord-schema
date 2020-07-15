@@ -42,8 +42,11 @@ body {
 }
 .paratext {
   height: 100px;
+  max-height: 200px;
+  overflow-y: scroll;
+  word-break: break-all;
 }
-.longtext {
+.longtext, .paratext {
   width: 400px;
 }
 .add, #save, .remove, #delete, .collapse, .validate_button, .validate_status, .validate_message, .tooltip > .tooltip-inner {
