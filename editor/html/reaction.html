@@ -43,7 +43,7 @@ limitations under the License.
       <span id="reaction_validate" class="validate" button-onclick="validateReaction()"></span>
     </div>
 
-    <div style="margin-left: 128px;">Reaction ID <div id="reaction_id" class="edittext"></div></div>
+    <div style="margin-left: 128px;">Reaction ID <div id="reaction_id" class="edittext longtext"></div></div>
 
     <div id="nav">
       <div class="navSection" data-section="identifiers">Identifiers</div>
@@ -71,9 +71,9 @@ limitations under the License.
         <legend>
           <span class="collapse"></span>
           Identifiers
-            <span data-toggle="tooltip" data-placement="right" title="Reaction identifiers define descriptions of the overall reaction.">
-              <span class="fa fa-question-circle" aria-hidden="true"></span>
-            </span>
+          <span data-toggle="tooltip" data-placement="right" title="Reaction identifiers define descriptions of the overall reaction.">
+            <span class="fa fa-question-circle" aria-hidden="true"></span>
+          </span>
         </legend>
         <div id="identifiers">
           <div id="reaction_identifier_template" class="reaction_identifier" style="display: none;">
@@ -98,6 +98,9 @@ limitations under the License.
         <legend>
           <span class="collapse"></span>
           Inputs
+          <span data-toggle="tooltip" data-placement="right" title="Reaction inputs include every chemical added to the reaction vessel.">
+            <span class="fa fa-question-circle" aria-hidden="true"></span>
+          </span>
         </legend>
           <div id="inputs">
 
@@ -124,14 +127,26 @@ limitations under the License.
                     Addition information
                   </legend>
                   <table>
-                    <tr><td>addition order</td><td><div class="input_addition_order edittext veryshorttext"></div></td></tr>
-                    <tr><td>addition speed</td><td><div class="input_addition_speed_type selector" data-proto="ReactionInput_AdditionSpeed_AdditionSpeedType"></div></td><td>
+                    <tr><td align="right">addition order
+                    <span data-toggle="tooltip" data-placement="right" title="Addition order should be an integer value, starting at 1.">
+                      <span class="fa fa-question-circle" aria-hidden="true"></span>
+                    </span>
+                    </td><td><div class="input_addition_order edittext veryshorttext"></div></td></tr>
+                    <tr><td align="right">addition speed</td><td><div class="input_addition_speed_type selector" data-proto="ReactionInput_AdditionSpeed_AdditionSpeedType"></div></td><td>
                                                                 details <div class="input_addition_speed_details edittext"></div></td></tr>
-                    <tr><td>addition device</td><td><div class="input_addition_device_type selector" data-proto="ReactionInput_AdditionDevice_AdditionDeviceType"></div></td><td>
+                    <tr><td align="right">addition device</td><td><div class="input_addition_device_type selector" data-proto="ReactionInput_AdditionDevice_AdditionDeviceType"></div></td><td>
                                                                   details <div class="input_addition_device_details edittext"></div></td></tr>
-                    <tr><td>addition time</td><td><div class="input_addition_time_value edittext shorttext"></div><div class="input_addition_time_units selector" data-proto="Time_TimeUnit"></div></td><td>
+                    <tr><td align="right">addition time
+                    <span data-toggle="tooltip" data-placement="right" title="Addition time is relative to when the first input was added.">
+                      <span class="fa fa-question-circle" aria-hidden="true"></span>
+                    </span>
+                    </td><td><div class="input_addition_time_value edittext shorttext"></div><div class="input_addition_time_units selector" data-proto="Time_TimeUnit"></div></td><td>
                     +/- <div class="input_addition_time_precision edittext shorttext"></div></td></tr>
-                    <tr><td>addition duration</td><td><div class="input_addition_duration_value edittext shorttext"></div><div class="input_addition_duration_units selector" data-proto="Time_TimeUnit"></div></td><td>
+                    <tr><td align="right">addition duration
+                    <span data-toggle="tooltip" data-placement="right" title="Addition duration quantifies how long it took to add the input.">
+                      <span class="fa fa-question-circle" aria-hidden="true"></span>
+                    </span>
+                    </td><td><div class="input_addition_duration_value edittext shorttext"></div><div class="input_addition_duration_units selector" data-proto="Time_TimeUnit"></div></td><td>
                     +/- <div class="input_addition_duration_precision edittext shorttext"></div></td></tr>
                   </table>
                 </fieldset>
