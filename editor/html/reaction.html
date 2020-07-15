@@ -109,9 +109,10 @@ limitations under the License.
                 <legend>
                   <span class="collapse"></span>
                   Input
+                  <span class="input_name_label">name: </span><div class="input_name edittext"></div>
                   <span class="validate" button-onclick="ord.inputs.validateInput($(this).closest('.input'))"></span>
                </legend>
-                <span class="input_name_label">name</span><div class="input_name edittext"></div>
+                
                 <div onclick="removeSlowly(this, '.input');" class="remove">remove</div>
                 <div>
                   <div class="components"></div>
@@ -842,11 +843,11 @@ limitations under the License.
               <legend>
                 <span class="collapse"></span>
                 Analysis
+                <span class="analysis_name_label">label: </span><div class="outcome_analysis_name edittext"></div>
                 <span class="validate" button-onclick="ord.outcomes.validateAnalysis($(this).closest('.outcome_analysis'))" ></span>
               </legend>
               <div onclick="removeSlowly(this, '.outcome_analysis');" class="remove">remove</div>
               <table>
-                <tr><td align="right">name</td><td><div class="outcome_analysis_name edittext"></div></td></tr>
                 <tr><td align="right">type</td><td><div class="outcome_analysis_type selector" data-proto="ReactionAnalysis_AnalysisType"></div></td></tr>
                 <tr><td align="right">details</td><td><div class="outcome_analysis_details edittext"></div></td></tr>
                 <tr><td align="right">chmo_id</td><td><div class="outcome_analysis_chmo_id edittext"></div></td></tr>
