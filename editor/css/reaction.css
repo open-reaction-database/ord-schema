@@ -150,6 +150,7 @@ fieldset {
   padding-right: 4px;
 }
 /* Default hidden fields */
-.includes_solutes, #automation_platform {
+.includes_solutes, #automation_platform,
+.component_compound_preparation_reaction_id {
   display: none;
 }

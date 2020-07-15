@@ -270,7 +270,18 @@ ord.compounds.addIdentifier = function (node) {
 };
 
 ord.compounds.addPreparation = function (node) {
-  return addSlowly('#component_preparation_template', $('.preparations', node));
+  const PreparationNode = addSlowly('#component_preparation_template', $('.preparations', node));
+
+  const typeSelector = $('.component_compound_preparation_type', PreparationNode);
+  typeSelector.change(function() {
+    if (getSelectorText(this) == 'SYNTHESIZED') {
+      $('.component_compound_preparation_reaction_id', PreparationNode).css('display', 'inline-block');
+    } else {
+      $('.component_compound_preparation_reaction_id', PreparationNode).css('display', 'none');
+    }
+  });
+
+  return PreparationNode
 };
 
 ord.compounds.validateCompound = function(node, validateNode) {
