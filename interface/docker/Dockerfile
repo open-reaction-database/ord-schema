@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM conda/miniconda3
+FROM mcs07/postgres-rdkit
 
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-    git \
-    libpq-dev \
-    wget \
-    build-essential
+    build-essential git libpq-dev wget
 
-RUN conda update conda --yes && conda install -c rdkit rdkit-postgresql
+ENV ORD_ROOT=/home/ord
+RUN wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+RUN /bin/bash ./Miniconda3-latest-Linux-x86_64.sh -b -p "${ORD_ROOT}/miniconda3"
+ENV PATH="${ORD_ROOT}/miniconda3/bin:${PATH}"
+RUN conda update conda --yes
 
-ENV ORD_ROOT=/opt
 WORKDIR "${ORD_ROOT}"
 RUN git clone https://github.com/Open-Reaction-Database/ord-schema.git
 RUN git clone https://github.com/Open-Reaction-Database/ord-submissions-test.git
@@ -30,10 +30,6 @@ WORKDIR "${ORD_ROOT}/ord-schema"
 RUN pip install -r requirements.txt
 RUN python setup.py install
 
-ENV PGDATA=/var/lib/postgresql/data
-RUN groupadd -r postgres && useradd --no-log-init -r -m -g postgres postgres
-RUN mkdir /var/lib/postgresql && chown postgres /var/lib/postgresql
-USER postgres
-RUN initdb
-COPY postgres.conf "${PGDATA}/postgresql.conf"
-CMD ["postgres"]
+ENV POSTGRES_DB=ord
+COPY postgres.conf /etc/postgresql/postgresql.conf
+COPY build_database.sh /docker-entrypoint-initdb.d
