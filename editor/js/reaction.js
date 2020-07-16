@@ -177,6 +177,23 @@ function commit() {
   ord.uploads.putAll(session.fileName);
 }
 
+function downloadReaction() {
+  const reaction = unloadReaction();
+  const binary = reaction.serializeBinary();
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/reaction/download');
+  xhr.onload = () => {
+    // Make the browser write the file.
+    const url = URL.createObjectURL(new Blob([xhr.response]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'reaction.pbtxt');
+    document.body.appendChild(link);
+    link.click();
+  };
+  xhr.send(binary);
+}
+
 async function getDataset(fileName) {
   return new Promise(resolve => {
     const xhr = new XMLHttpRequest();

@@ -49,20 +49,20 @@ body {
 .longtext, .paratext {
   width: 400px;
 }
-.add, #save, .remove, #delete, .collapse, .validate_button, .validate_status, .validate_message, .tooltip > .tooltip-inner {
+.add, #save, #download, .remove, #delete, .collapse, .validate_button, .validate_status, .validate_message, .tooltip > .tooltip-inner {
   padding: 2px 4px;
   margin: 2px;
   display: inline-block;
   border-radius: 8px;
 }
-.add, #save, .remove, #delete, .collapse, .validate_button {
+.add, #save, #download, .remove, #delete, .collapse, .validate_button {
   cursor: pointer;
 }
 .add {
   background-color: lightgreen;
   margin-top: 12px;
 }
-#save {
+#save, #download {
   background-color: lightgray;
 }
 .remove, #delete {

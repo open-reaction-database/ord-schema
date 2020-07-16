@@ -23,6 +23,7 @@ import json
 import string
 import urllib
 import uuid
+import io
 
 import flask
 
@@ -122,6 +123,19 @@ def show_reaction(file_name, index):
     flask.abort(404)
   return flask.render_template(
       'reaction.html', file_name=file_name, index=index)
+
+
+@app.route('/reaction/download', methods=['POST'])
+def download_reaction():
+  """Returns a raw .pbtxt file taken from POST as an attachment."""
+  reaction = reaction_pb2.Reaction()
+  reaction.ParseFromString(flask.request.get_data())
+  mem = io.BytesIO()
+  mem.write(text_format.MessageToString(reaction).encode())
+  mem.seek(0)
+  return flask.send_file(mem, mimetype='application/protobuf',
+                         as_attachment=True,
+                         attachment_filename='reaction.pbtxt')
 
 
 @app.route('/dataset/<file_name>/new/reaction')
