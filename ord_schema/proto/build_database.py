@@ -65,7 +65,6 @@ _TABLES = {
 
 class Tables:
     """Holds file handles and CSV writers for database table files."""
-
     def __init__(self):
         self._handles = []
 
@@ -204,8 +203,7 @@ def _rdkit_reaction_smiles(cursor, table):
                    reaction_from_smiles(reaction_smiles::cstring) AS r
             FROM {table}) tmp
         WHERE r IS NOT NULL;""")
-    cursor.execute(
-        f'CREATE INDEX {table}_r ON rdk.{table} USING gist(r);')
+    cursor.execute(f'CREATE INDEX {table}_r ON rdk.{table} USING gist(r);')
     cursor.execute(
         f'CREATE INDEX {table}_rdfp ON rdk.{table} USING gist(rdfp);')
 
@@ -221,8 +219,7 @@ def _rdkit_smiles(cursor, table):
                    mol_from_smiles(smiles::cstring) AS m
             FROM {table}) tmp
         WHERE m IS NOT NULL;""")
-    cursor.execute(
-        f'CREATE INDEX {table}_m ON rdk.{table} USING gist(m);')
+    cursor.execute(f'CREATE INDEX {table}_m ON rdk.{table} USING gist(m);')
     cursor.execute(
         f'CREATE INDEX {table}_mfp2 ON rdk.{table} USING gist(mfp2);')
 
