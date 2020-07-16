@@ -77,7 +77,6 @@ function listen(node) {
 
 function dirty() {
   $('#save').css('visibility', 'visible');
-  $('#reaction_validate .validate_button').css('visibility', 'visible');
 }
 
 function clean() {
@@ -164,9 +163,10 @@ function toggleValidateMessage(node) {
 
 function validateReaction() {
   var validateNode = $('#reaction_validate');
-  $('.validate_button', validateNode).css('visibility', 'hidden');
   const reaction = unloadReaction();
   validate(reaction, "Reaction", validateNode);
+  // Trigger all submessages to validate.
+  $('.validate_button:visible:not(#reaction_validate_button)').trigger('click');
 }
 
 function commit() {
@@ -526,6 +526,9 @@ function initValidateNode (oldNode) {
   let newNode = $("#validate_template").clone();
   // Add attributes necessary for validation functions.
   $(".validate_button", newNode).attr('onclick', oldNode.attr('button-onclick'));
+  if (oldNode.attr('id')) {
+    $(".validate_button", newNode).attr('id', oldNode.attr('id') + '_button');
+  }
   oldNode.append(newNode.children());
 }
 
