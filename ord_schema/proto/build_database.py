@@ -185,7 +185,7 @@ def create_database():
         logging.info('Adding RDKit cartridge functionality')
         if 'reaction_smiles' in columns:
             _rdkit_reaction_smiles(cursor, table)
-        if 'smiles' in columns:
+        elif 'smiles' in columns:
             _rdkit_smiles(cursor, table)
     db.commit()
     cursor.close()
