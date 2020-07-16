@@ -193,7 +193,18 @@ def create_database():
 
 
 def _rdkit_reaction_smiles(cursor, table):
-    """Adds RDKit cartridge tables for reaction SMILES."""
+    """Adds RDKit cartridge tables for reaction SMILES.
+
+    Creates a new table rdk.<table> with the following columns:
+        * r: reaction objects loaded from reaction SMILES
+        * rdfp: reaction difference fingerprints
+
+    An index is also created for each column.
+
+    Args:
+        cursor: psycopg2 Cursor.
+        table: Text table name.
+    """
     cursor.execute(f"""
         SELECT reaction_id,
                r,
@@ -209,7 +220,18 @@ def _rdkit_reaction_smiles(cursor, table):
 
 
 def _rdkit_smiles(cursor, table):
-    """Adds RDKit cartridge tables for molecule SMILES."""
+    """Adds RDKit cartridge tables for molecule SMILES.
+
+    Creates a new table rdk.<table> with the following columns:
+        * m: mol objects loaded from SMILES
+        * mfp2: Morgan fingerprints
+
+    An index is also created for each column.
+
+    Args:
+        cursor: psycopg2 Cursor.
+        table: Text table name.
+    """
     cursor.execute(f"""
         SELECT reaction_id,
                m,
