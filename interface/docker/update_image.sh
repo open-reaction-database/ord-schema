@@ -20,4 +20,3 @@ docker run --rm --name ord-postgres -d -e POSTGRES_USER=postgres -e POSTGRES_PAS
 docker exec -it ord-postgres ./build_database.sh
 docker commit ord-postgres openreactiondatabase/ord-postgres
 docker stop ord-postgres
-docker push openreactiondatabase/ord-postgres
