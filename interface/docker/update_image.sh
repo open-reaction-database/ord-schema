@@ -16,7 +16,7 @@
 set -ex
 
 # NOTE(kearnes): Disable caching so the latest version of the ORD is used.
-docker build -t ord-postgres:empty . --nocache
+docker build --no-cache -t ord-postgres:empty .
 docker run --rm --name ord-postgres -d \
   -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
   ord-postgres:empty
