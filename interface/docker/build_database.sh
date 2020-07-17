@@ -13,9 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -ex
 
-export PYTHONPATH=py:../build/lib
-export FLASK_APP=serve.py
-export FLASK_ENV=development
-
-python -m flask run $@
+python "${ORD_ROOT}/ord-schema/ord_schema/proto/build_database.py" \
+  --input="${ORD_ROOT}/ord-submissions-test/data/*/*.pbtxt" \
+  --output="${HOME}/tables" \
+  --database="${POSTGRES_DB}" \
+  --user="${POSTGRES_USER}" \
+  --password="${POSTGRES_PASSWORD}"

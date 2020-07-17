@@ -13,9 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -ex
 
-export PYTHONPATH=py:../build/lib
-export FLASK_APP=serve.py
-export FLASK_ENV=development
-
-python -m flask run $@
+docker pull openreactiondatabase/ord-postgres:latest
+docker run --rm -d --name ord-postgres -p 5432:5432 openreactiondatabase/ord-postgres:latest

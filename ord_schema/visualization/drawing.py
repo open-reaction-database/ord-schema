@@ -11,34 +11,40 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""This module contains two molecular drawing functions to render SVGs or PNGs
-given an RDKit molecule object: mol_to_svg and mol_to_png."""
+"""Drawing functions.
+
+This module contains two molecular drawing functions to render SVGs or PNGs
+given an RDKit molecule object: mol_to_svg and mol_to_png.
+"""
 
 import io
 import base64
 import numpy as np
 from PIL import Image, ImageOps
+from rdkit import Chem
+from rdkit.Chem import Draw
+from rdkit.Chem import rdDepictor
 
-try:
-    from rdkit import Chem
-    from rdkit.Chem import Draw
-    from rdkit.Chem import rdDepictor
-    from rdkit import __version__ as RDKIT_VERSION
-    rdDepictor.SetPreferCoordGen(True)
-except ImportError:
-    Chem = None
-    RDKIT_VERSION = None
+rdDepictor.SetPreferCoordGen(True)
 
 # pylint: disable=unsubscriptable-object
 
 
-def trim_image_whitespace(img, padding=0):
-    """This function takes a PIL image, img, and crops it to the minimum
-    rectangle based on its whiteness/transparency. 5 pixel padding used
-    automatically."""
+def trim_image_whitespace(image, padding=0):
+    """Crops and image to a minimal rectangle.
 
+    This function takes a PIL image and crops it to the minimum rectangle based
+    on its whiteness/transparency.
+
+    Args:
+        image: PIL image.
+        padding: Integer number of pixels to use for padding.
+
+    Returns:
+        A new PIL image.
+    """
     # Convert to array
-    as_array = np.array(img)  # N x N x (r,g,b,a)
+    as_array = np.array(image)  # N x N x (r,g,b,a)
 
     # Set previously-transparent pixels to white
     if as_array.shape[2] == 4:
@@ -59,13 +65,21 @@ def trim_image_whitespace(img, padding=0):
     as_array_cropped = as_array[x_range[0]:x_range[1], y_range[0]:y_range[1],
                                 0:3]
 
-    img = Image.fromarray(as_array_cropped, mode='RGB')
-    return ImageOps.expand(img, border=padding, fill=(255, 255, 255))
+    image = Image.fromarray(as_array_cropped, mode='RGB')
+    return ImageOps.expand(image, border=padding, fill=(255, 255, 255))
 
 
 def mol_to_svg(mol, max_size=300, bond_length=25):
-    """Returns a string with an <svg> tag containing a rendering of the input
-    molecule. Note that the SVG is not cropped."""
+    """Creates an (uncropped) SVG molecule drawing as a string.
+
+    Args:
+        mol: RDKit Mol.
+        max_size: Integer maximum image size (in pixels).
+        bond_length: Integer bond length (in pixels).
+
+    Returns:
+        String SVG image.
+    """
     rdDepictor.Compute2DCoords(mol)
     Chem.Kekulize(mol)
     drawer = Draw.MolDraw2DSVG(max_size, max_size)
@@ -76,11 +90,23 @@ def mol_to_svg(mol, max_size=300, bond_length=25):
 
 
 def mol_to_png(mol, max_size=1000, bond_length=25, png_quality=70):
-    """Returns a string with an <img> tag containing a rendering of the input
-    molecule."""
+    """Creates a (cropped) PNG molecule drawing as a string.
+
+    Args:
+        mol: RDKit Mol.
+        max_size: Integer maximum image size (in pixels).
+        bond_length: Integer bond length (in pixels).
+        png_quality: Integer PNG quality.
+
+    Returns:
+        String PNG image.
+    """
     drawer = Draw.MolDraw2DCairo(max_size, max_size)
     drawer.drawOptions().fixedBondLength = bond_length
-    drawer.DrawMolecule(mol)
+    try:
+        drawer.DrawMolecule(mol)
+    except ValueError as value_error:
+        raise ValueError(Chem.MolToSmiles(mol)) from value_error
     drawer.FinishDrawing()
     temp = io.BytesIO()
     temp.write(drawer.GetDrawingText())
@@ -91,4 +117,4 @@ def mol_to_png(mol, max_size=1000, bond_length=25, png_quality=70):
     img.save(output, format='png', quality=png_quality)
     output.seek(0)
     b64 = base64.b64encode(output.getvalue())
-    return f'<img src="data:image/png;base64,{b64.decode("UTF-8")}"/>'
+    return b64.decode("UTF-8")

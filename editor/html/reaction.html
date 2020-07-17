@@ -86,6 +86,10 @@ limitations under the License.
                   <div class="components"></div>
                   <div onclick="ord.compounds.add($(this).closest('.input'));" class="add">+ add component</div>
                 </div>
+                <div>
+                  <div class="crudes"></div>
+                  <div onclick="ord.crudes.add($(this).closest('.input'));" class="add">+ add crude component</div>
+                </div>
                 <div class="spacer"></div>
                 <table>
                   <tr><td align="right">addition order</td><td><div class="input_addition_order edittext"></div></td></tr>
@@ -179,6 +183,7 @@ limitations under the License.
             <div id="component_preparation_template" class="component_preparation" style="display: none;">
               type <div class="component_compound_preparation_type selector" data-proto="CompoundPreparation_PreparationType"></div>
               details <div class="component_compound_preparation_details edittext"></div>
+              reaction ID <div class="component_compound_preparation_reaction edittext"></div>
               <div onclick="removeSlowly(this, '.component_preparation');" class="remove">remove</div>
             </div>
 
@@ -187,6 +192,27 @@ limitations under the License.
               value <div class="component_feature_value edittext"></div>
               how computed <div class="component_feature_how edittext"></div>
               <div onclick="removeSlowly(this, '.component_feature');" class="remove">remove</div>
+            </div>
+
+            <div id="crude_template" class="crude" style="display: none;">
+              <fieldset>
+                <legend>Crude Component</legend>
+                <table>
+                  <tr><td>reaction ID</td><td><div class="crude_reaction edittext"></div></td></tr>
+                  <tr><td>includes workup?</td><td><div class="crude_includes_workup optional_bool"></div></td></tr>
+                  <tr><td>has derived amount?</td><td><div class="crude_has_derived optional_bool"></div></td></tr>
+                </table>
+                <fieldset class="amount">
+                  <legend>Amount</legend>
+                  mass <input type="radio" class="crude_amount_mass" value="mass" checked>
+                  volume <input type="radio" class="crude_amount_volume" value="volume">
+                  value <div class="crude_amount_value edittext"></div>
+                        <div class="crude_amount_units_mass selector" data-proto="Mass_MassUnit"></div>
+                        <div class="crude_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
+                        +/- <div class="crude_amount_precision edittext"></div>
+                </fieldset>
+                <div onclick="removeSlowly(this, '.crude');" class="remove">remove</div>
+              </fieldset>
             </div>
 
           </div>

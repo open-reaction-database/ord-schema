@@ -371,7 +371,7 @@ def validate_reaction_identifier(message):
 
 
 def validate_reaction_input(message):
-    if len(message.components) == 0:
+    if len(message.components) + len(message.crude_components) == 0:
         warnings.warn('Reaction inputs must have at least one component',
                       ValidationError)
     for component in message.components:
