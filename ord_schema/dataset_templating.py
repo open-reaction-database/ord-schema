@@ -26,10 +26,7 @@ Example usage:
       --input_spreadsheet=my_experiments.csv --output=my_dataset.pbtxt
 """
 
-import glob
 import os
-import subprocess
-import uuid
 import re
 import pandas as pd
 
@@ -90,7 +87,6 @@ def generate_datset(template_string, df, validate=True):
             validating an enumerated Reaction message.
 
     """
-    
     placeholders = set(re.findall(r'\$\w+\$', template_string))
     for placeholder in placeholders:
         if placeholder not in df.columns:
@@ -101,7 +97,7 @@ def generate_datset(template_string, df, validate=True):
             df.rename(columns={placeholder[1:-1]: placeholder}, inplace=True)
 
     reactions = []
-    for _,substitutions in df[placeholders].iterrows():
+    for _, substitutions in df[placeholders].iterrows():
         reaction_text = _replace(template_string, substitutions)
         reaction = text_format.Parse(reaction_text, reaction_pb2.Reaction())
         if validate:

@@ -13,16 +13,11 @@
 # limitations under the License.
 """Tests for ord_schema.message_helpers."""
 
-import os
-import tempfile
 import pandas as pd
 
-from absl import flags
 from absl.testing import absltest
-from absl.testing import parameterized
 from google.protobuf import text_format
 
-from ord_schema import message_helpers
 from ord_schema import dataset_templating
 from ord_schema.proto import reaction_pb2
 from ord_schema.proto import dataset_pb2
@@ -31,9 +26,9 @@ from ord_schema.proto import dataset_pb2
 class DatasetTemplatingTest(absltest.TestCase):
     def setUp(self):
         super().setUp()
-        
+
         message = reaction_pb2.Reaction()
-        dummy_input = message.inputs['my_input']
+        dummy_input = message.inputs['in']
         outcome = message.outcomes.add()
         component = dummy_input.components.add()
         component.identifiers.add(type='SMILES', value='CCO')
@@ -46,7 +41,7 @@ class DatasetTemplatingTest(absltest.TestCase):
 
     def test_valid_templating(self):
         template_string = text_format.MessageToString(self.valid_reaction)
-        template_string = template_string.replace('value: "CCO"', 
+        template_string = template_string.replace('value: "CCO"',
                                                   'value: "$SMILES$"')
         template_string = template_string.replace('value: 75',
                                                   'value: $conversion$')
@@ -59,7 +54,7 @@ class DatasetTemplatingTest(absltest.TestCase):
         for smiles, conversion in zip(['CCO', 'CCCO', 'CCCCO'], [75, 50, 30]):
             reaction = reaction_pb2.Reaction()
             reaction.CopyFrom(self.valid_reaction)
-            reaction.inputs['my_input'].components[0].identifiers[0].value = smiles
+            reaction.inputs['in'].components[0].identifiers[0].value = smiles
             reaction.outcomes[0].conversion.value = conversion
             exptected_reactions.append(reaction)
         expected_dataset = dataset_pb2.Dataset(reactions=exptected_reactions)
@@ -67,7 +62,7 @@ class DatasetTemplatingTest(absltest.TestCase):
 
     def test_invalid_templating(self):
         template_string = text_format.MessageToString(self.valid_reaction)
-        template_string = template_string.replace('value: "CCO"', 
+        template_string = template_string.replace('value: "CCO"',
                                                   'value: "$SMILES$"')
         template_string = template_string.replace('value: 75',
                                                   'value: $conversion$')
@@ -79,7 +74,7 @@ class DatasetTemplatingTest(absltest.TestCase):
         for smiles, conversion in zip(['CCO', 'CCCO', 'CCCCO'], [75, 50, -5]):
             reaction = reaction_pb2.Reaction()
             reaction.CopyFrom(self.valid_reaction)
-            reaction.inputs['my_input'].components[0].identifiers[0].value = smiles
+            reaction.inputs['in'].components[0].identifiers[0].value = smiles
             reaction.outcomes[0].conversion.value = conversion
             exptected_reactions.append(reaction)
         expected_dataset = dataset_pb2.Dataset(reactions=exptected_reactions)
@@ -91,14 +86,14 @@ class DatasetTemplatingTest(absltest.TestCase):
 
     def test_bad_placeholders(self):
         template_string = text_format.MessageToString(self.valid_reaction)
-        template_string = template_string.replace('value: "CCO"', 
+        template_string = template_string.replace('value: "CCO"',
                                                   'value: "$SMILES$"')
         template_string = template_string.replace('value: 75',
                                                   'value: $conversion$')
         df = pd.DataFrame.from_dict({
             '$SMILES$': ['CCO', 'CCCO', 'CCCCO'],
         })
-        with self.assertRaisesRegex(ValueError, '\$conversion\$ not found'):
+        with self.assertRaisesRegex(ValueError, r'\$conversion\$ not found'):
             dataset_templating.generate_datset(template_string, df)
 
 if __name__ == '__main__':
