@@ -38,7 +38,6 @@ class DatasetTemplatingTest(absltest.TestCase):
         outcome.conversion.value = 75
         self.valid_reaction = message
 
-
     def test_valid_templating(self):
         template_string = text_format.MessageToString(self.valid_reaction)
         template_string = template_string.replace('value: "CCO"',
@@ -102,6 +101,7 @@ class DatasetTemplatingTest(absltest.TestCase):
         })
         with self.assertRaisesRegex(ValueError, r'\$conversion\$ not found'):
             dataset_templating.generate_dataset(template_string, df)
+
 
 if __name__ == '__main__':
     absltest.main()

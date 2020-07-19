@@ -44,9 +44,10 @@ from ord_schema.proto import reaction_pb2
 FLAGS = flags.FLAGS
 flags.DEFINE_string('input_template', None,
                     'Path to a Reaction pbtxt file defining a template.')
-flags.DEFINE_string('input_spreadsheet', None,
-                    'Path to a spreadsheet file (with a header row) defining '
-                    'values to replace placeholders in the input_template.')
+flags.DEFINE_string(
+    'input_spreadsheet', None,
+    'Path to a spreadsheet file (with a header row) defining '
+    'values to replace placeholders in the input_template.')
 flags.DEFINE_string('output', None, 'Filename for output Dataset.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 
