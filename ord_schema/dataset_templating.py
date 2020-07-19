@@ -52,7 +52,7 @@ flags.DEFINE_string('output', None, 'Filename for output Dataset.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 
 
-def _read_spreadsheet(file_name):
+def read_spreadsheet(file_name):
     """Reads a spreadsheet file."""
     _, suffix = os.path.splitext(file_name)
     if suffix in ['xls', 'xlsx']:
@@ -120,7 +120,7 @@ def main(argv):
         template_string = fid.read()
     if not FLAGS.input_spreadsheet:
         raise ValueError('input_spreadsheet must be defined')
-    df = _read_spreadsheet(FLAGS.input_spreadsheet)
+    df = read_spreadsheet(FLAGS.input_spreadsheet)
 
     logging.info('generating new Dataset from %s and %s', FLAGS.input_template,
                  FLAGS.input_spreadsheet)
