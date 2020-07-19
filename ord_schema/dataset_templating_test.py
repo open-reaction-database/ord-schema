@@ -86,8 +86,9 @@ class DatasetTemplatingTest(absltest.TestCase):
         expected_dataset = dataset_pb2.Dataset(reactions=exptected_reactions)
         with self.assertRaisesRegex(ValueError, 'is not valid'):
             dataset_templating.generate_dataset(template_string, df)
-        dataset = dataset_templating.generate_dataset(template_string, df,
-                                                     validate=False)
+        dataset = dataset_templating.generate_dataset(template_string,
+                                                      df,
+                                                      validate=False)
         self.assertEqual(dataset, expected_dataset)
 
     def test_bad_placeholders(self):
