@@ -42,11 +42,11 @@ class DatasetTemplatingTest(absltest.TestCase):
     def test_valid_templating(self):
         template_string = text_format.MessageToString(self.valid_reaction)
         template_string = template_string.replace('value: "CCO"',
-                                                  'value: "$SMILES$"')
+                                                  'value: "$my_smiles$"')
         template_string = template_string.replace('value: 75',
                                                   'value: $conversion$')
         df = pd.DataFrame.from_dict({
-            '$SMILES$': ['CCO', 'CCCO', 'CCCCO'],
+            '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
             '$conversion$': ['75', '50', '30'],
         })
         dataset = dataset_templating.generate_datset(template_string, df)
@@ -60,14 +60,21 @@ class DatasetTemplatingTest(absltest.TestCase):
         expected_dataset = dataset_pb2.Dataset(reactions=exptected_reactions)
         self.assertEqual(dataset, expected_dataset)
 
+        df = pd.DataFrame.from_dict({
+            'my_smiles': ['CCO', 'CCCO', 'CCCCO'],
+            'conversion': ['75', '50', '30'],
+        })
+        dataset = dataset_templating.generate_datset(template_string, df)
+        self.assertEqual(dataset, expected_dataset)
+
     def test_invalid_templating(self):
         template_string = text_format.MessageToString(self.valid_reaction)
         template_string = template_string.replace('value: "CCO"',
-                                                  'value: "$SMILES$"')
+                                                  'value: "$my_smiles$"')
         template_string = template_string.replace('value: 75',
                                                   'value: $conversion$')
         df = pd.DataFrame.from_dict({
-            '$SMILES$': ['CCO', 'CCCO', 'CCCCO'],
+            '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
             '$conversion$': ['75', '50', '-5'],
         })
         exptected_reactions = []
@@ -87,11 +94,11 @@ class DatasetTemplatingTest(absltest.TestCase):
     def test_bad_placeholders(self):
         template_string = text_format.MessageToString(self.valid_reaction)
         template_string = template_string.replace('value: "CCO"',
-                                                  'value: "$SMILES$"')
+                                                  'value: "$my_smiles$"')
         template_string = template_string.replace('value: 75',
                                                   'value: $conversion$')
         df = pd.DataFrame.from_dict({
-            '$SMILES$': ['CCO', 'CCCO', 'CCCCO'],
+            '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
         })
         with self.assertRaisesRegex(ValueError, r'\$conversion\$ not found'):
             dataset_templating.generate_datset(template_string, df)
