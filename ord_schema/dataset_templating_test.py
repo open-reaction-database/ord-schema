@@ -49,7 +49,7 @@ class DatasetTemplatingTest(absltest.TestCase):
             '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
             '$conversion$': ['75', '50', '30'],
         })
-        dataset = dataset_templating.generate_datset(template_string, df)
+        dataset = dataset_templating.generate_dataset(template_string, df)
         exptected_reactions = []
         for smiles, conversion in zip(['CCO', 'CCCO', 'CCCCO'], [75, 50, 30]):
             reaction = reaction_pb2.Reaction()
@@ -64,7 +64,7 @@ class DatasetTemplatingTest(absltest.TestCase):
             'my_smiles': ['CCO', 'CCCO', 'CCCCO'],
             'conversion': ['75', '50', '30'],
         })
-        dataset = dataset_templating.generate_datset(template_string, df)
+        dataset = dataset_templating.generate_dataset(template_string, df)
         self.assertEqual(dataset, expected_dataset)
 
     def test_invalid_templating(self):
@@ -86,8 +86,8 @@ class DatasetTemplatingTest(absltest.TestCase):
             exptected_reactions.append(reaction)
         expected_dataset = dataset_pb2.Dataset(reactions=exptected_reactions)
         with self.assertRaisesRegex(ValueError, 'is not valid'):
-            dataset_templating.generate_datset(template_string, df)
-        dataset = dataset_templating.generate_datset(template_string, df,
+            dataset_templating.generate_dataset(template_string, df)
+        dataset = dataset_templating.generate_dataset(template_string, df,
                                                      validate=False)
         self.assertEqual(dataset, expected_dataset)
 
@@ -101,7 +101,7 @@ class DatasetTemplatingTest(absltest.TestCase):
             '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
         })
         with self.assertRaisesRegex(ValueError, r'\$conversion\$ not found'):
-            dataset_templating.generate_datset(template_string, df)
+            dataset_templating.generate_dataset(template_string, df)
 
 if __name__ == '__main__':
     absltest.main()

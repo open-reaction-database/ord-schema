@@ -64,7 +64,7 @@ def _replace(string, substitutions):
     return pattern.sub(lambda match: substitutions[match.group(0)], string)
 
 
-def generate_datset(template_string, df, validate=True):
+def generate_dataset(template_string, df, validate=True):
     """Generates a Dataset from a template reaction formatted as text according
     to entries in a pd.Dataframe.
 
