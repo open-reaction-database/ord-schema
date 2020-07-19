@@ -129,7 +129,7 @@ def main(argv):
         output_filename = FLAGS.output
     else:
         basename, suffix = os.path.splitext(FLAGS.input_spreadsheet)
-        output_filename = os.path.join(f'{basename}.pbtxt')
+        output_filename = os.path.join(f'{basename}_dataset.pbtxt')
     logging.info('writing new Dataset to %s', output_filename)
     message_helpers.write_message(dataset, output_filename)
 
