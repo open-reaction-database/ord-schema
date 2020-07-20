@@ -169,7 +169,9 @@ def create_database():
     cursor = db.cursor()
     if FLAGS.overwrite:
         for table in _TABLES:
-            cursor.execute(f'DROP TABLE IF EXISTS {table}')
+            cursor.execute(f'DROP TABLE IF EXISTS {table};')
+    cursor.execute('CREATE EXTENSION IF NOT EXISTS rdkit;')
+    cursor.execute('CREATE SCHEMA rdk;')
     for table, columns in _TABLES.items():
         dtypes = ',\n'.join(
             [f'\t{column}\t{dtype}' for column, dtype in columns.items()])
@@ -180,9 +182,68 @@ def create_database():
         with open(os.path.join(FLAGS.output, f'{table}.csv')) as f:
             cursor.copy_expert(
                 f'COPY {table} FROM STDIN DELIMITER \',\' CSV HEADER;', f)
+        logging.info('Adding RDKit cartridge functionality')
+        if 'reaction_smiles' in columns:
+            _rdkit_reaction_smiles(cursor, table)
+        elif 'smiles' in columns:
+            _rdkit_smiles(cursor, table)
     db.commit()
     cursor.close()
     db.close()
+
+
+def _rdkit_reaction_smiles(cursor, table):
+    """Adds RDKit cartridge tables for reaction SMILES.
+
+    Creates a new table rdk.<table> with the following columns:
+        * r: reaction objects loaded from reaction SMILES
+        * rdfp: reaction difference fingerprints
+
+    An index is also created for each column.
+
+    Args:
+        cursor: psycopg2 Cursor.
+        table: Text table name.
+    """
+    cursor.execute(f"""
+        SELECT reaction_id,
+               r,
+               reaction_difference_fp(r) AS rdfp 
+        INTO rdk.{table} FROM (
+            SELECT reaction_id, 
+                   reaction_from_smiles(reaction_smiles::cstring) AS r
+            FROM {table}) tmp
+        WHERE r IS NOT NULL;""")
+    cursor.execute(f'CREATE INDEX {table}_r ON rdk.{table} USING gist(r);')
+    cursor.execute(
+        f'CREATE INDEX {table}_rdfp ON rdk.{table} USING gist(rdfp);')
+
+
+def _rdkit_smiles(cursor, table):
+    """Adds RDKit cartridge tables for molecule SMILES.
+
+    Creates a new table rdk.<table> with the following columns:
+        * m: mol objects loaded from SMILES
+        * mfp2: Morgan fingerprints
+
+    An index is also created for each column.
+
+    Args:
+        cursor: psycopg2 Cursor.
+        table: Text table name.
+    """
+    cursor.execute(f"""
+        SELECT reaction_id,
+               m,
+               morganbv_fp(m) AS mfp2 
+        INTO rdk.{table} FROM (
+            SELECT reaction_id, 
+                   mol_from_smiles(smiles::cstring) AS m
+            FROM {table}) tmp
+        WHERE m IS NOT NULL;""")
+    cursor.execute(f'CREATE INDEX {table}_m ON rdk.{table} USING gist(m);')
+    cursor.execute(
+        f'CREATE INDEX {table}_mfp2 ON rdk.{table} USING gist(mfp2);')
 
 
 def main(argv):
