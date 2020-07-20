@@ -82,8 +82,8 @@ def generate_dataset(template_string, df, validate=True):
     Inputs:
         template_string: The contents of a Reaction pbtxt where placeholder
             values to be replaced are defined between dollar sign. For example,
-            a SMILES identifier value could be "$product_smiles$". Spaces
-            are not allowed.
+            a SMILES identifier value could be "$product_smiles$". PLaceholders
+            may only use letters, numbers, and underscores.
         df: Pandas Dataframe where each row corresponds to one reaction and
             column names match placeholders in the template_string.
         validate: Optional Boolean controlling whether Reaction messages should
