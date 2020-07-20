@@ -53,7 +53,7 @@ flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 
 
 def read_spreadsheet(file_name):
-    """Reads a spreadsheet file."""
+    """Reads a {csv, xls, xlsx} spreadsheet file."""
     _, suffix = os.path.splitext(file_name)
     if suffix in ['xls', 'xlsx']:
         return pd.read_excel(file_name, dtype=str)
@@ -61,6 +61,16 @@ def read_spreadsheet(file_name):
 
 
 def _replace(string, substitutions):
+    """Performs substring substitutions according to a dictionary.
+    
+    Inputs:
+        string: A string whose contents should be modified.
+        substitutions: A dictionary where each (key, value) pair defines
+            a substring to replace and what its replacement should be.
+
+    Returns:
+        The modified string.
+    """
     pattern = re.compile('|'.join(map(re.escape, substitutions.keys())))
     return pattern.sub(lambda match: substitutions[match.group(0)], string)
 
@@ -113,13 +123,10 @@ def generate_dataset(template_string, df, validate=True):
 
 def main(argv):
     del argv  # Only used by app.run().
-
-    if not FLAGS.input_template:
-        raise ValueError('input_template must be defined')
+    flags.mark_flags_as_required(['input_template', 'input_spreadsheet'])
+    
     with open(FLAGS.input_template, 'r') as fid:
         template_string = fid.read()
-    if not FLAGS.input_spreadsheet:
-        raise ValueError('input_spreadsheet must be defined')
     df = read_spreadsheet(FLAGS.input_spreadsheet)
 
     logging.info('generating new Dataset from %s and %s', FLAGS.input_template,

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for ord_schema.message_helpers."""
+"""Tests for ord_schema.dataset_templating."""
 
 import pandas as pd
 
@@ -49,14 +49,14 @@ class DatasetTemplatingTest(absltest.TestCase):
             '$conversion$': ['75', '50', '30'],
         })
         dataset = dataset_templating.generate_dataset(template_string, df)
-        exptected_reactions = []
+        expected_reactions = []
         for smiles, conversion in zip(['CCO', 'CCCO', 'CCCCO'], [75, 50, 30]):
             reaction = reaction_pb2.Reaction()
             reaction.CopyFrom(self.valid_reaction)
             reaction.inputs['in'].components[0].identifiers[0].value = smiles
             reaction.outcomes[0].conversion.value = conversion
-            exptected_reactions.append(reaction)
-        expected_dataset = dataset_pb2.Dataset(reactions=exptected_reactions)
+            expected_reactions.append(reaction)
+        expected_dataset = dataset_pb2.Dataset(reactions=expected_reactions)
         self.assertEqual(dataset, expected_dataset)
 
         df = pd.DataFrame.from_dict({
@@ -76,15 +76,16 @@ class DatasetTemplatingTest(absltest.TestCase):
             '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
             '$conversion$': ['75', '50', '-5'],
         })
-        exptected_reactions = []
+        expected_reactions = []
         for smiles, conversion in zip(['CCO', 'CCCO', 'CCCCO'], [75, 50, -5]):
             reaction = reaction_pb2.Reaction()
             reaction.CopyFrom(self.valid_reaction)
             reaction.inputs['in'].components[0].identifiers[0].value = smiles
             reaction.outcomes[0].conversion.value = conversion
-            exptected_reactions.append(reaction)
-        expected_dataset = dataset_pb2.Dataset(reactions=exptected_reactions)
-        with self.assertRaisesRegex(ValueError, 'is not valid'):
+            expected_reactions.append(reaction)
+        expected_dataset = dataset_pb2.Dataset(reactions=expected_reactions)
+        with self.assertRaisesRegex(ValueError,
+                                    'Enumerated Reaction is not valid'):
             dataset_templating.generate_dataset(template_string, df)
         dataset = dataset_templating.generate_dataset(template_string,
                                                       df,
