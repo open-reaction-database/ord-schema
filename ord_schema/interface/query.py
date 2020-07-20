@@ -13,8 +13,9 @@
 # limitations under the License.
 """Library for executing PostgreSQL queries on the ORD."""
 
-from absl import logging
 import binascii
+
+from absl import logging
 import psycopg2
 
 from ord_schema.proto import dataset_pb2
@@ -43,6 +44,7 @@ class OrdPostgres:
         self._password = password
         self._host = host
         self._port = port
+        self._db = None
 
     def __enter__(self):
         self._db = psycopg2.connect(dbname=self._dbname,
@@ -65,9 +67,7 @@ class OrdPostgres:
         Args:
             smiles: Text substructure SMILES.
             table: Text SQL table name.
-            limit: Integer maximum number of matches to return. Note that the
-                actual number of returned matches may be smaller than this if the
-                substructure matches a reaction more than once.
+            limit: Integer maximum number of matches to return.
 
         Returns:
             Dataset proto containing matched Reactions.
@@ -87,7 +87,7 @@ class OrdPostgres:
             cursor.execute(query)
             reactions = []
             for result in cursor:
-                reaction_id, serialized = result
+                _, serialized = result
                 reaction = reaction_pb2.Reaction.FromString(
                     binascii.unhexlify(serialized.tobytes()))
                 reactions.append(reaction)
@@ -103,6 +103,7 @@ class Cursor:
             db: psycopg2 connection instance.
         """
         self._db = db
+        self._cursor = None
 
     def __enter__(self):
         self._cursor = self._db.cursor()
