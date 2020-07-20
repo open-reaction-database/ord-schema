@@ -62,7 +62,7 @@ def read_spreadsheet(file_name):
 
 def _replace(string, substitutions):
     """Performs substring substitutions according to a dictionary.
-    
+
     Inputs:
         string: A string whose contents should be modified.
         substitutions: A dictionary where each (key, value) pair defines
