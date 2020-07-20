@@ -124,7 +124,7 @@ def generate_dataset(template_string, df, validate=True):
 def main(argv):
     del argv  # Only used by app.run().
     flags.mark_flags_as_required(['input_template', 'input_spreadsheet'])
-    
+
     with open(FLAGS.input_template, 'r') as fid:
         template_string = fid.read()
     df = read_spreadsheet(FLAGS.input_spreadsheet)
