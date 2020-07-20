@@ -98,11 +98,10 @@ ord.products.unload = function (node) {
 ord.products.unloadProduct = function (node) {
   const product = new proto.ord.ReactionProduct();
 
-  const compounds = ord.compounds.unload(node);
-  if (compounds) {
-    // wait what why [0]
-    product.setCompound(compounds[0]);
-  }
+  const compoundNode = $(".outcome_product_compound");
+  const compound = ord.compounds.unloadCompound(compoundNode);
+  product.setCompound(compound);
+
   product.setIsDesiredProduct(
       getOptionalBool($('.outcome_product_desired', node)));
 
