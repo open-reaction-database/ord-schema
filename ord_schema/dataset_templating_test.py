@@ -59,6 +59,7 @@ class DatasetTemplatingTest(absltest.TestCase):
         expected_dataset = dataset_pb2.Dataset(reactions=expected_reactions)
         self.assertEqual(dataset, expected_dataset)
 
+        # Test without "$" in column names
         df = pd.DataFrame.from_dict({
             'my_smiles': ['CCO', 'CCCO', 'CCCCO'],
             'conversion': ['75', '50', '30'],
