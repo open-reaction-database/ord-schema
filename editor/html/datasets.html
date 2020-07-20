@@ -35,25 +35,36 @@ limitations under the License.
     #saving {
       background-color: lightgray;
     }
-    #uploader, #adder {
+    #uploader, #adder, #enumerator {
       position: relative;
       padding: 4px 0;
     }
-    #chooser {
+    #chooser, #template_file, #spreadsheet_file {
       opacity: 0;
       position: absolute;
     }
-    #chooser, .add {
+    #chooser, #template_file, #spreadsheet_file, .add {
       cursor: pointer;
       width: 150px;
       height: 21px;
     }
+    .tooltip > .tooltip-inner {
+      padding: 2px 4px;
+      margin: 2px;
+      display: inline-block;
+      border-radius: 8px;
+      background-color: lightgray;
+    }
   </style>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.1/css/all.min.css">
   <body>
     <center>
       <h1>Available datasets</h1>
       <div id="saving" style="visibility: hidden;">saving</div>
+      <div id="processing" style="visibility: hidden;">processing</div>
     </center>
     {% for file_name in file_names %}
       <div class="dataset">
@@ -62,11 +73,24 @@ limitations under the License.
     {% endfor %}
     <div id="adder">
       <div id="dataset_adder" class="add uploader_chooser_button uploadertext">+ create new dataset</div>
+      <span data-toggle="tooltip" data-placement="right" title="Create an empty dataset with a user-defined name.">
+        <span class="fa fa-question-circle" aria-hidden="true"></span>
+      </span>
     </div>
     <div id="uploader">
-      <input id="chooser" class="uploader_chooser_file uploadertext" type="file">
+      <input id="chooser" class="uploader_chooser_file uploadertext" type="file" accept=".pbtxt,">
       <div class="add uploader_chooser_button uploadertext">+ upload dataset</div>
+      <span data-toggle="tooltip" data-placement="right" title="Upload an existing dataset pbtxt file.">
+        <span class="fa fa-question-circle" aria-hidden="true"></span>
+      </span>
     </div>
+    <div id="enumerator">
+      <div class="add uploader_chooser_button uploadertext">+ enumerate dataset</div>
+      <span data-toggle="tooltip" data-placement="right" title="Upload (1) a template reaction pbtxt and (2) a dataset .csv to create a new enumerated dataset.">
+        <span class="fa fa-question-circle" aria-hidden="true"></span>
+      </span>
+    </div>
+    
     <script>
       $('#chooser').on('input', event => {
         $('#saving').css('visibility', 'visible');
@@ -83,11 +107,72 @@ limitations under the License.
       });
       $('#dataset_adder').on('click', event => {
         var file_name = prompt("Please enter a name for your new dataset");
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/dataset/' + file_name + '/new');
-        xhr.onload = () => location.reload();
-        xhr.send();
+        if (file_name) {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/dataset/' + file_name + '/new');
+          xhr.onload = () => location.reload();
+          xhr.send();
+        }
       });
+      $('#enumerator').on('click', event => {
+        $('#processing').css('visibility', 'visible');
+
+        var template_string = $.Deferred();
+        var spreadsheet_data = $.Deferred();
+        var spreadsheet_name = $.Deferred();
+
+        // Get first file: template.
+        var input = document.createElement('input');
+        input.accept = '.pbtxt,';
+        input.name = 'test'
+        input.type = 'file';
+        input.onchange = event => { 
+           var file = event.target.files[0]; 
+           var reader = new FileReader();
+           reader.readAsText(file);
+           reader.onload = readerEvent => {
+              template_string.resolve(readerEvent.target.result);
+              console.log( template_string );
+           }
+        }
+        input.click();
+
+        // Get second file: spreadsheet.
+        var input = document.createElement('input');
+        input.accept = '.csv,.xls,.xlsx';
+        input.name = 'test'
+        input.type = 'file';
+        input.onchange = event => { 
+           var file = event.target.files[0]; 
+           spreadsheet_name.resolve(file.name);
+           var reader = new FileReader();
+           reader.readAsBinaryString(file);
+           reader.onload = readerEvent => {
+              spreadsheet_data.resolve(readerEvent.target.result);
+              console.log( spreadsheet_data );
+           }
+        }
+        input.click();
+
+        $.when(template_string, spreadsheet_data, spreadsheet_name).done(function(v1, v2, v3) {
+          // remove byte order mark.
+          if ((v2.charCodeAt(0) === 239) & (v2.charCodeAt(1) === 187) & (v2.charCodeAt(2) === 191)) {
+            v2 = v2.substr(3);
+          }
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/dataset/enumerate');
+          xhr.onload = () => location.reload();
+          xhr.send(JSON.stringify({'template_string': v1,
+                    'spreadsheet_data': v2,
+                    'spreadsheet_name': v3}));
+        });
+      });
+
+      // Initailize tooltips.
+      $('[data-toggle="tooltip"]').tooltip();
+      // Prevent tooltip pop-ups from blurring. 
+      // (see github.com/twbs/bootstrap/issues/22610)
+      Popper.Defaults.modifiers.computeStyle.gpuAcceleration = false;
     </script>
   </body>
 </html>

@@ -24,6 +24,7 @@ import string
 import urllib
 import uuid
 import io
+import tempfile
 
 import flask
 
@@ -31,6 +32,7 @@ from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 from ord_schema import message_helpers
 from ord_schema import validations
+from ord_schema import dataset_templating
 
 from google.protobuf import text_format
 
@@ -103,6 +105,27 @@ def new_dataset(file_name):
     return 'file exists'
   with open(path, 'wb') as upload:
     upload.write(b'\n')
+  return 'ok'
+
+
+@app.route('/dataset/enumerate', methods=['POST'])
+def enumerate_dataset():
+  """Creates a new dataset in the db/ directory based on a template reaction
+  pbtxt and a spreadsheet."""
+  data = flask.request.get_json(force=True)
+  print(data)
+  basename, suffix = os.path.splitext(data['spreadsheet_name'])
+  with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, encoding='utf-8-sig') as f:
+    f.write(data['spreadsheet_data'].lstrip('\ufeff'))
+    f.seek(0)
+    df = dataset_templating.read_spreadsheet(f.name)
+  print(data['spreadsheet_data'])
+  print(df)
+  print(df.columns)
+  dataset = dataset_templating.generate_dataset(data['template_string'], df, validate=False)
+  message_helpers.write_message(
+    dataset,
+    f'db/{flask.g.user}/{basename}_dataset.pbtxt')
   return 'ok'
 
 
