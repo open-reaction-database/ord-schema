@@ -22,8 +22,8 @@ spreadsheet file.
 Example usage:
 
 * For normal dataset generation from a template reaction:
-  $ python dataset_templating.py --input_template=my_reaction.pbtxt
-      --input_spreadsheet=my_experiments.csv --output=my_dataset.pbtxt
+  $ python dataset_templating.py --template=my_reaction.pbtxt
+      --spreadsheet=my_experiments.csv --output=my_dataset.pbtxt
 """
 
 import os
@@ -42,12 +42,12 @@ from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string('input_template', None,
+flags.DEFINE_string('template', None,
                     'Path to a Reaction pbtxt file defining a template.')
 flags.DEFINE_string(
-    'input_spreadsheet', None,
+    'spreadsheet', None,
     'Path to a spreadsheet file (with a header row) defining '
-    'values to replace placeholders in the input_template.')
+    'values to replace placeholders in the template.')
 flags.DEFINE_string('output', None, 'Filename for output Dataset.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 
@@ -123,20 +123,20 @@ def generate_dataset(template_string, df, validate=True):
 
 def main(argv):
     del argv  # Only used by app.run().
-    flags.mark_flags_as_required(['input_template', 'input_spreadsheet'])
+    flags.mark_flags_as_required(['template', 'spreadsheet'])
     
-    with open(FLAGS.input_template, 'r') as fid:
+    with open(FLAGS.template, 'r') as fid:
         template_string = fid.read()
-    df = read_spreadsheet(FLAGS.input_spreadsheet)
+    df = read_spreadsheet(FLAGS.spreadsheet)
 
-    logging.info('generating new Dataset from %s and %s', FLAGS.input_template,
-                 FLAGS.input_spreadsheet)
+    logging.info('generating new Dataset from %s and %s', FLAGS.template,
+                 FLAGS.spreadsheet)
     dataset = generate_dataset(template_string, df, validate=FLAGS.validate)
 
     if FLAGS.output:
         output_filename = FLAGS.output
     else:
-        basename, _ = os.path.splitext(FLAGS.input_spreadsheet)
+        basename, _ = os.path.splitext(FLAGS.spreadsheet)
         output_filename = os.path.join(f'{basename}_dataset.pbtxt')
     logging.info('writing new Dataset to %s', output_filename)
     message_helpers.write_message(dataset, output_filename)
