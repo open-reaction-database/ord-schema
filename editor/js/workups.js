@@ -159,7 +159,7 @@ ord.workups.unloadMeasurement = function (node) {
   const measurement = new proto.ord.TemperatureConditions.Measurement();
   measurement.setType(
       getSelector($('.workup_temperature_measurement_type', node)));
-  measurement.setDetails($('.workup_temperature_measurement_details').text());
+  measurement.setDetails($('.workup_temperature_measurement_details', node).text());
   const time = readMetric(
       '.workup_temperature_measurement_time', new proto.ord.Time(), node);
   measurement.setTime(time);
