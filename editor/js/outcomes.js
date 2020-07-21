@@ -55,7 +55,10 @@ ord.outcomes.loadAnalysis = function (analysesNode, name, analysis) {
   $('.outcome_analysis_name', node).text(name);
 
   setSelector($('.outcome_analysis_type', node), analysis.getType());
-  $('.outcome_analysis_chmo_id', node).text(analysis.getChmoId());
+  const chmoId = analysis.getChmoId();
+  if (chmoId != 0) {
+    $('.outcome_analysis_chmo_id', node).text(analysis.getChmoId());
+  }
   $('.outcome_analysis_details', node).text(analysis.getDetails());
 
   const processes = analysis.getProcessedDataMap();

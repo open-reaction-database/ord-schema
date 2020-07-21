@@ -44,7 +44,9 @@ ord.inputs.loadInputUnnamed = function (node, input) {
   ord.crudes.load(node, crudes);
 
   const additionOrder = input.getAdditionOrder();
-  $('.input_addition_order', node).text(additionOrder);
+  if (additionOrder != 0) {
+    $('.input_addition_order', node).text(additionOrder);
+  }
 
   const additionTime = input.getAdditionTime();
   if (additionTime) {

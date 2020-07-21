@@ -28,7 +28,10 @@ ord.stirring.load = function (stirring) {
   if (rate) {
     setSelector($('#stirring_rate_type'), rate.getType());
     $('#stirring_rate_details').text(rate.getDetails());
-    $('#stirring_rpm').text(rate.getRpm());
+    const rpm = rate.getRpm();
+    if (rpm != 0) {
+      $('#stirring_rpm').text(rpm);
+    }
   }
 };
 
