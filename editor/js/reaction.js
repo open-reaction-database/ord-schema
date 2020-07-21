@@ -340,6 +340,11 @@ function isEmptyMessage(obj) {
     // message arg is an array, test as-is
     return obj.every(e => isEmptyMessage(e));
   }
+  if (obj.byteLength !== undefined) {
+    // message arg is a byteArray; has no meaning only if empty
+    // (it's possible that a byteArray filled with 0's may be meaningful)
+    return (obj.length == 0);
+  }
   return false;
 }
 
