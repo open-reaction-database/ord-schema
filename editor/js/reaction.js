@@ -35,6 +35,11 @@ const session = {
   index: null // Ordinal position of the Reaction in its Dataset.
 };
 
+// Store form-wide variables that are best treated as globals.
+const formVariables = {
+  analysisKeys: []
+};
+
 async function init(fileName, index) {
   session.fileName = fileName;
   session.index = index;

@@ -53,6 +53,7 @@ ord.outcomes.loadAnalysis = function (analysesNode, name, analysis) {
   const node = ord.outcomes.addAnalysis(analysesNode);
 
   $('.outcome_analysis_name', node).text(name);
+  formVariables.analysisKeys.push(name); // Add key to global form variables.
 
   setSelector($('.outcome_analysis_type', node), analysis.getType());
   const chmoId = analysis.getChmoId();
@@ -308,6 +309,27 @@ ord.outcomes.add = function () {
 
 ord.outcomes.addAnalysis = function (node) {
   const analysisNode = addSlowly('#outcome_analysis_template', $('.outcome_analyses', node));
+  
+  // Handle name changes.
+  const nameNode = $('.outcome_analysis_name', analysisNode)
+  nameNode.on('focusin', function() {
+    // Store old value in val attribute.
+    nameNode.data('val', nameNode.text()); 
+  });
+  nameNode.on('input', function() {
+    // Remove old key.
+    var old_name = nameNode.data('val');
+    var index = formVariables.analysisKeys.indexOf(old_name);
+    if (index !== -1) {
+      formVariables.analysisKeys.splice(index, 1);
+    }
+    // Add new key.
+    var name = nameNode.text();
+    formVariables.analysisKeys.push(name);
+    // Ensure old value stored (necessary if focus does not change).
+    nameNode.data('val', name); 
+  });
+    
   handler = function () {ord.outcomes.validateAnalysis(analysisNode)};
   addChangeHandler(analysisNode, handler);
   return analysisNode;
