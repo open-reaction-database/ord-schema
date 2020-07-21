@@ -92,3 +92,39 @@ class OrdPostgres:
                 reactions.append(reaction)
             self._connection.rollback()
         return dataset_pb2.Dataset(reactions=reactions)
+
+    def similarity_search(self, smiles, table, limit=100, threshold=0.5):
+        """Performs a Tanimoto similarity search.
+
+        Args:
+            smiles: Text SMILES.
+            table: Text SQL table name.
+            limit: Integer maximum number of matches to return.
+            threshold: Float similarity threshold.
+        """
+        if 'reactions' in table:
+            column = 'rdfp'
+            function = 'reaction_difference_fp'
+        else:
+            column = 'mfp2'
+            function = 'morganbv_fp'
+        query = f"""
+            SELECT DISTINCT A.reaction_id, A.serialized 
+            FROM reactions A 
+            INNER JOIN {table} B ON A.reaction_id = B.reaction_id
+            WHERE B.{column}%{function}('{smiles}')
+            {f'LIMIT {limit}' if limit else ''};"""
+        logging.info(query)
+        with self._connection, self.cursor() as cursor:
+            # NOTE(kearnes): We call rollback() to reset this change before
+            # exiting the context manager (which triggers a commit).
+            cursor.execute(f'SET rdkit.tanimoto_threshold={threshold};')
+            cursor.execute(query)
+            reactions = []
+            for result in cursor:
+                _, serialized = result
+                reaction = reaction_pb2.Reaction.FromString(
+                    binascii.unhexlify(serialized.tobytes()))
+                reactions.append(reaction)
+            self._connection.rollback()
+        return dataset_pb2.Dataset(reactions=reactions)

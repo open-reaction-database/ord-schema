@@ -57,7 +57,7 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
 
     @parameterized.named_parameters(('smiles', 'C', False),
                                     ('smarts', '[#6]', True))
-    def test_simple(self, pattern, use_smarts):
+    def test_substructure_search(self, pattern, use_smarts):
         results = self.postgres.substructure_search(pattern=pattern,
                                                     table='rdk.inputs',
                                                     limit=100,
@@ -67,10 +67,28 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
         # Check that we remove redundant reaction IDs.
         self.assertCountEqual(reaction_ids, np.unique(reaction_ids))
 
+    def test_similarity_search(self):
+        results = self.postgres.similarity_search(smiles='CC=O',
+                                                  table='rdk.inputs',
+                                                  limit=100,
+                                                  threshold=0.5)
+        self.assertEmpty(results.reactions)
+        results = self.postgres.similarity_search(smiles='CC=O',
+                                                  table='rdk.inputs',
+                                                  limit=100,
+                                                  threshold=0.05)
+        self.assertLen(results.reactions, 100)
+        reaction_ids = [reaction.reaction_id for reaction in results.reactions]
+        # Check that we remove redundant reaction IDs.
+        self.assertCountEqual(reaction_ids, np.unique(reaction_ids))
+
     def test_bad_smiles(self):
         with self.assertRaisesRegex(psycopg2.errors.DataException,
                                     'could not create molecule'):
             self.postgres.substructure_search('invalid', 'rdk.inputs')
+        with self.assertRaisesRegex(psycopg2.errors.DataException,
+                                    'could not create molecule'):
+            self.postgres.similarity_search('invalid', 'rdk.inputs')
 
 
 if __name__ == '__main__':
