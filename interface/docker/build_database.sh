@@ -16,7 +16,7 @@
 set -ex
 
 python "${ORD_ROOT}/ord-schema/ord_schema/proto/build_database.py" \
-  --input="${ORD_ROOT}/ord-submissions-test/data/*/*.pbtxt" \
+  --input="${ORD_INPUT}" \
   --output="${HOME}/tables" \
   --database="${POSTGRES_DB}" \
   --user="${POSTGRES_USER}" \
