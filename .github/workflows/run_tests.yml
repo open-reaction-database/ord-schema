@@ -47,6 +47,8 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         pip install -r requirements.txt
+        # Test deps are required to check imports with pylint.
+        pip install -r test_requirements.txt
         conda install -c rdkit rdkit
         python setup.py install
     - name: Run pylint
