@@ -253,9 +253,9 @@ ord.outcomes.unloadProcess = function (node, processes) {
     process.setStringValue(stringValue);
   }
   if ($("input[value='number']", node).is(':checked')) {
-    const floatValue = parseFloat($('.outcome_processed_text', node).text());
+    const floatValue = parseFloat($('.outcome_process_text', node).text());
     if (!isNaN(floatValue)) {
-      processed.setFloatValue(floatValue);
+      process.setFloatValue(floatValue);
     }
   }
   if ($("input[value='upload']", node).is(':checked')) {
@@ -319,7 +319,9 @@ ord.outcomes.addProcess = function (node) {
   typeButtons.attr(
       'name', 'outcomes_' + ord.outcomes.radioGroupCounter++);
   typeButtons.change(function () {
-    if ((this.value == 'text') || (this.value == 'url')) {
+    if ((this.value == 'text')
+        || (this.value == 'number')
+        || (this.value == 'url')) {
       $('.outcome_process_text', processNode).show();
       $('.uploader', processNode).hide();
     } else {
