@@ -45,12 +45,11 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.postgres = query.OrdPostgres(host='localhost',
-                                          port=_POSTGRES_PORT)
         while True:
             try:
-                with self.postgres:
-                    break
+                self.postgres = query.OrdPostgres(host='localhost',
+                                                  port=_POSTGRES_PORT)
+                break
             except psycopg2.OperationalError:
                 logging.info('waiting for database to be ready')
                 time.sleep(1)
@@ -59,21 +58,19 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
     @parameterized.named_parameters(('smiles', 'C', False),
                                     ('smarts', '[#6]', True))
     def test_simple(self, pattern, use_smarts):
-        with self.postgres as postgres:
-            results = postgres.substructure_search(pattern=pattern,
-                                                   table='rdk.inputs',
-                                                   limit=100,
-                                                   use_smarts=use_smarts)
+        results = self.postgres.substructure_search(pattern=pattern,
+                                                    table='rdk.inputs',
+                                                    limit=100,
+                                                    use_smarts=use_smarts)
         self.assertLen(results.reactions, 100)
         reaction_ids = [reaction.reaction_id for reaction in results.reactions]
         # Check that we remove redundant reaction IDs.
         self.assertCountEqual(reaction_ids, np.unique(reaction_ids))
 
     def test_bad_smiles(self):
-        with self.postgres as postgres:
-            with self.assertRaisesRegex(psycopg2.errors.DataException,
-                                        'could not create molecule'):
-                postgres.substructure_search('invalid', 'rdk.inputs')
+        with self.assertRaisesRegex(psycopg2.errors.DataException,
+                                    'could not create molecule'):
+            self.postgres.substructure_search('invalid', 'rdk.inputs')
 
 
 if __name__ == '__main__':
