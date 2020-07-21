@@ -179,7 +179,9 @@ ord.outcomes.unloadOutcome = function (node) {
   const outcome = new proto.ord.ReactionOutcome();
 
   const time = readMetric('.outcome_time', new proto.ord.Time(), node);
-  outcome.setReactionTime(time);
+  if (!isEmptyMessage(time)) {
+    outcome.setReactionTime(time);
+  }
 
   const conversion =
       readMetric('.outcome_conversion', new proto.ord.Percentage(), node);
