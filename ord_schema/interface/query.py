@@ -61,13 +61,14 @@ class OrdPostgres:
     def get_cursor(self):
         return Cursor(self._db)
 
-    def substructure_search(self, smiles, table, limit=100):
+    def substructure_search(self, pattern, table, limit=100, smarts=False):
         """Performs a substructure search.
 
         Args:
-            smiles: Text substructure SMILES.
+            pattern: Text substructure query (SMILES or SMARTS).
             table: Text SQL table name.
             limit: Integer maximum number of matches to return.
+            smarts: Boolean whether `pattern` is SMARTS.
 
         Returns:
             Dataset proto containing matched Reactions.
@@ -80,7 +81,7 @@ class OrdPostgres:
             SELECT DISTINCT A.reaction_id, A.serialized 
             FROM reactions A 
             INNER JOIN {table} B ON A.reaction_id = B.reaction_id
-            WHERE B.{column}@>'{smiles}'
+            WHERE B.{column}@>'{pattern}'{'::qmol' if smarts else ''}
             {f'LIMIT {limit}' if limit else ''};"""
         logging.info(query)
         with self.get_cursor() as cursor:
