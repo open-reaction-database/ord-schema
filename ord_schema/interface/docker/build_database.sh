@@ -15,7 +15,7 @@
 
 set -ex
 
-python "${ORD_ROOT}/ord-schema/ord_schema/proto/build_database.py" \
+python "${ORD_ROOT}/ord-schema/ord_schema/interface/build_database.py" \
   --input="${ORD_INPUT}" \
   --output="${HOME}/tables" \
   --database="${POSTGRES_DB}" \
