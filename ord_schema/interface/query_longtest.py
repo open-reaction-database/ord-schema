@@ -17,6 +17,7 @@ import time
 
 from absl import logging
 from absl.testing import absltest
+from absl.testing import parameterized
 import docker
 import numpy as np
 import psycopg2
@@ -27,7 +28,7 @@ from ord_schema.interface import query
 _POSTGRES_PORT = 5430
 
 
-class QueryTest(absltest.TestCase):
+class QueryTest(parameterized.TestCase, absltest.TestCase):
     @classmethod
     def setUpClass(cls):
         client = docker.from_env()
@@ -55,11 +56,14 @@ class QueryTest(absltest.TestCase):
                 time.sleep(1)
                 continue
 
-    def test_simple(self):
+    @parameterized.named_parameters(('smiles', 'C', False),
+                                    ('smarts', '[#6]', True))
+    def test_simple(self, pattern, use_smarts):
         with self.postgres as postgres:
-            results = postgres.substructure_search('C',
-                                                   'rdk.inputs',
-                                                   limit=100)
+            results = postgres.substructure_search(pattern=pattern,
+                                                   table='rdk.inputs',
+                                                   limit=100,
+                                                   use_smarts=use_smarts)
         self.assertLen(results.reactions, 100)
         reaction_ids = [reaction.reaction_id for reaction in results.reactions]
         # Check that we remove redundant reaction IDs.
