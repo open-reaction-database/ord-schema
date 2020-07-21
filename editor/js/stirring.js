@@ -41,7 +41,9 @@ ord.stirring.unload = function () {
   const method = new proto.ord.StirringConditions.StirringMethod();
   method.setType(getSelector($('#stirring_method_type')));
   method.setDetails($('#stirring_method_details').text());
-  stirring.setMethod(method);
+  if (!isEmptyMessage(method)) {
+    stirring.setMethod(method);
+  }
 
   const rate = new proto.ord.StirringConditions.StirringRate();
   rate.setType(getSelector($('#stirring_rate_type')));
@@ -50,7 +52,9 @@ ord.stirring.unload = function () {
   if (!isNaN(rpm)) {
     rate.setRpm(rpm);
   }
-  stirring.setRate(rate);
+  if (!isEmptyMessage(rate)) {
+    stirring.setRate(rate);
+  }
   return stirring;
 };
 

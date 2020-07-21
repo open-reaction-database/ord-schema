@@ -55,18 +55,24 @@ ord.temperature.unload = function () {
   const control = new proto.ord.TemperatureConditions.TemperatureControl();
   control.setType(getSelector($('#temperature_control')));
   control.setDetails($('#temperature_control_details').text());
-  temperature.setControl(control);
+  if (!isEmptyMessage(control)) {
+    temperature.setControl(control);
+  }
 
   const setpoint =
       readMetric('#temperature_setpoint', new proto.ord.Temperature());
-  temperature.setSetpoint(setpoint);
+  if (!isEmptyMessage(setpoint)) {
+    temperature.setSetpoint(setpoint);
+  }
 
   const measurements = [];
   $('.temperature_measurement').each(function (index, node) {
     node = $(node)
     if (!node.attr('id')) {
       const measurement = ord.temperature.unloadMeasurement(node);
-      measurements.push(measurement);
+      if (!isEmptyMessage(measurement)) {
+        measurements.push(measurement);
+      }
     }
   });
   temperature.setMeasurementsList(measurements);
@@ -83,10 +89,14 @@ ord.temperature.unloadMeasurement = function (node) {
       '.temperature_measurement_temperature',
       new proto.ord.Temperature(),
       node);
-  measurement.setTemperature(temperature);
+  if (!isEmptyMessage(temperature)) {
+    measurement.setTemperature(temperature);
+  }
   const time =
       readMetric('.temperature_measurement_time', new proto.ord.Time(), node);
-  measurement.setTime(time);
+  if (!isEmptyMessage(time)) {
+    measurement.setTime(time);
+  }
   return measurement;
 };
 

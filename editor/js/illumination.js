@@ -39,15 +39,21 @@ ord.illumination.unload = function () {
   const type = new proto.ord.IlluminationConditions.IlluminationType();
   type.setType(getSelector($('#illumination_type')));
   type.setDetails($('#illumination_details').text());
-  illumination.setType(type);
+  if (!isEmptyMessage(type)) {
+    illumination.setType(type);
+  }
 
   const wavelength =
       readMetric('#illumination_wavelength', new proto.ord.Wavelength());
-  illumination.setPeakWavelength(wavelength);
+  if (!isEmptyMessage(wavelength)) {
+    illumination.setPeakWavelength(wavelength);
+  }
   illumination.setColor($('#illumination_color').text());
   const distance =
       readMetric('#illumination_distance', new proto.ord.Length());
-  illumination.setDistanceToVessel(distance);
+  if (!isEmptyMessage(distance)) {
+    illumination.setDistanceToVessel(distance);
+  }
   return illumination;
 };
 

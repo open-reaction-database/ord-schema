@@ -39,16 +39,23 @@ ord.flows.unload = function () {
   const type = new proto.ord.FlowConditions.FlowType();
   type.setType(getSelector('#flow_type'));
   type.setDetails($('#flow_details').text());
-  flow.setFlowType(type);
+  if (!isEmptyMessage(type)) {
+    flow.setFlowType(type);
+  }
 
   flow.setPumpType($('#flow_pump').text());
 
   const tubing = new proto.ord.FlowConditions.Tubing();
   tubing.setType(getSelector('#flow_tubing_type'));
   tubing.setDetails($('#flow_tubing_details').text());
-  tubing.setDiameter(readMetric('#flow_tubing', new proto.ord.Length()));
+  const diameter = readMetric('#flow_tubing', new proto.ord.Length());
+  if (!isEmptyMessage(diameter)) {
+    tubing.setDiameter(diameter);
+  }
 
-  flow.setTubing(tubing);
+  if (!isEmptyMessage(tubing)) {
+    flow.setTubing(tubing);
+  }
   return flow;
 };
 

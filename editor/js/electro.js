@@ -72,26 +72,40 @@ ord.electro.unload = function () {
   const type = new proto.ord.ElectrochemistryConditions.ElectrochemistryType();
   type.setType(getSelector($('#electro_type')));
   type.setDetails($('#electro_details').text());
-  electro.setElectrochemistryType(type);
+  if (!isEmptyMessage(type)) {
+    electro.setElectrochemistryType(type);
+  }
 
-  electro.setCurrent(readMetric('#electro_current', new proto.ord.Current()));
-  electro.setVoltage(readMetric('#electro_voltage', new proto.ord.Voltage()));
+  const current = readMetric('#electro_current', new proto.ord.Current());
+  if (!isEmptyMessage(current)) {
+    electro.setCurrent(current);
+  }
+  const voltage = readMetric('#electro_voltage', new proto.ord.Voltage());
+  if (!isEmptyMessage(voltage)) {
+    electro.setVoltage(voltage);
+  }
   electro.setAnodeMaterial($('#electro_anode').text());
   electro.setCathodeMaterial($('#electro_cathode').text());
-  electro.setElectrodeSeparation(
-      readMetric('#electro_separation', new proto.ord.Length()));
+  const electrodeSeparation =  readMetric('#electro_separation', new proto.ord.Length());
+  if (!isEmptyMessage(electrodeSeparation)) {
+    electro.setElectrodeSeparation(electrodeSeparation);
+  }
 
   const cell = new proto.ord.ElectrochemistryConditions.ElectrochemistryCell();
   cell.setType(getSelector($('#electro_cell_type')));
   cell.setDetails($('#electro_cell_details').text());
-  electro.setCell(cell);
+  if (!isEmptyMessage(cell)) {
+    electro.setCell(cell);
+  }
 
   const measurements = []
   $('.electro_measurement').each(function (index, node) {
     node = $(node);
     if (!node.attr('id')) {
       const measurement = ord.electro.unloadMeasurement(node);
-      measurements.push(measurement);
+      if (!isEmptyMessage(measurement)) {
+        measurements.push(measurement);
+      }
     }
   });
   electro.setMeasurementsList(measurements);
@@ -102,17 +116,23 @@ ord.electro.unloadMeasurement = function (node) {
   const measurement = new proto.ord.ElectrochemistryConditions.Measurement();
   const time =
       readMetric('.electro_measurement_time', new proto.ord.Time(), node);
-  measurement.setTime(time);
+  if (!isEmptyMessage(time)) {
+    measurement.setTime(time);
+  }
 
   if ($('.electro_measurement_current', node).is(':checked')) {
     const current = readMetric(
         '.electro_measurement_current', new proto.ord.Current(), node);
-    measurement.setCurrent(current);
+    if (!isEmptyMessage(current)) {
+      measurement.setCurrent(current);
+    }
   }
   if ($('.electro_measurement_voltage', node).is(':checked')) {
     const voltage = readMetric(
         '.electro_measurement_voltage', new proto.ord.Voltage(), node);
-    measurement.setVoltage(voltage);
+    if (!isEmptyMessage(voltage)) {
+      measurement.setVoltage(voltage);
+    }
   }
   return measurement;
 };
