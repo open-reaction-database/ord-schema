@@ -56,7 +56,10 @@ ord.workups.loadWorkup = function (workup) {
   if (rate) {
     setSelector($('.workup_stirring_rate_type', node), rate.getType());
     $('.workup_stirring_rate_details', node).text(rate.getDetails());
-    $('.workup_stirring_rate_rpm', node).text(rate.getRpm());
+    const rpm = rate.getRpm();
+    if (rpm != 0) {
+      $('.workup_stirring_rate_rpm', node).text(rpm);
+  }
   }
   if (workup.hasTargetPh()) {
     $('.workup_target_ph', node).text(workup.getTargetPh());
