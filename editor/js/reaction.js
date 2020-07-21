@@ -287,14 +287,21 @@ function unloadReaction() {
   const inputs = reaction.getInputsMap();
   // isEmptyMessage check occurs in inputs.unload.
   ord.inputs.unload(inputs);
+
   const setup = ord.setups.unload();
-  reaction.setSetup(setup);
+  if (!isEmptyMessage(setup)) {
+    reaction.setSetup(setup);
+  }
 
   const conditions = ord.conditions.unload();
-  reaction.setConditions(conditions);
+  if (!isEmptyMessage(conditions)) {
+    reaction.setConditions(conditions);
+  }
 
   const notes = ord.notes.unload();
-  reaction.setNotes(notes);
+  if (!isEmptyMessage(notes)) {
+    reaction.setNotes(notes);
+  }
 
   const observations = ord.observations.unload();
   reaction.setObservationsList(observations);
@@ -306,7 +313,9 @@ function unloadReaction() {
   reaction.setOutcomesList(outcomes);
 
   const provenance = ord.provenance.unload();
-  reaction.setProvenance(provenance);
+  if (!isEmptyMessage(provenance)) {
+    reaction.setProvenance(provenance);
+  }
 
   // Setter does nothing when passed an empty string.
   reaction.setReactionId($('#reaction_id').text());
