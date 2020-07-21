@@ -35,23 +35,33 @@ ord.products.loadProduct = function (outcomeNode, product) {
       $('.outcome_product_desired', node),
       product.hasIsDesiredProduct() ? product.getIsDesiredProduct() : null);
 
-  writeMetric('.outcome_product_yield', product.getCompoundYield(), node);
+  const compoundYield = product.getCompoundYield();
+  if (compoundYield) {
+    writeMetric('.outcome_product_yield', compoundYield, node);
+  }
 
-  writeMetric('.outcome_product_purity', product.getPurity(), node);
+  const purity = product.getPurity();
+  if (purity)
+  {
+    writeMetric('.outcome_product_purity', purity, node);
+  }
 
   const selectivity = product.getSelectivity();
-  setSelector(
-      $('.outcome_product_selectivity_type', node), selectivity.getType());
-  $('.outcome_product_selectivity_details', node)
-      .text(selectivity.getDetails());
-  if (selectivity.hasValue()) {
-    $('.outcome_product_selectivity_value', node)
-        .text(selectivity.getValue());
+  if (selectivity) {
+    setSelector(
+        $('.outcome_product_selectivity_type', node), selectivity.getType());
+    $('.outcome_product_selectivity_details', node)
+        .text(selectivity.getDetails());
+    if (selectivity.hasValue()) {
+      $('.outcome_product_selectivity_value', node)
+          .text(selectivity.getValue());
+    }
+    if (selectivity.hasPrecision()) {
+      $('.outcome_product_selectivity_precision', node)
+          .text(selectivity.getPrecision());
+    }
   }
-  if (selectivity.hasPrecision()) {
-    $('.outcome_product_selectivity_precision', node)
-        .text(selectivity.getPrecision());
-  }
+
   const identities = product.getAnalysisIdentityList();
   identities.forEach(identity => {
     const analysisNode = ord.products.addIdentity(node);
@@ -89,7 +99,9 @@ ord.products.unload = function (node) {
     if (!productNode.attr('id')) {
       // Not a template.
       const product = ord.products.unloadProduct(productNode);
-      products.push(product);
+      if (!isEmptyMessage(product)) {
+        products.push(product);
+      }
     }
   });
   return products;
@@ -100,18 +112,24 @@ ord.products.unloadProduct = function (node) {
 
   const compoundNode = $(".outcome_product_compound");
   const compound = ord.compounds.unloadCompound(compoundNode);
-  product.setCompound(compound);
+  if (!isEmptyMessage(compound)) {
+    product.setCompound(compound);
+  }
 
   product.setIsDesiredProduct(
       getOptionalBool($('.outcome_product_desired', node)));
 
   const yeild =
       readMetric('.outcome_product_yield', new proto.ord.Percentage(), node);
-  product.setCompoundYield(yeild);
+  if (!isEmptyMessage(yeild)) {
+    product.setCompoundYield(yeild);
+  }
 
   const purity =
       readMetric('.outcome_product_purity', new proto.ord.Percentage(), node);
-  product.setPurity(purity);
+  if (!isEmptyMessage(purity)) {
+    product.setPurity(purity);
+  }
 
   const selectivity = new proto.ord.Selectivity();
   selectivity.setType(
@@ -128,7 +146,9 @@ ord.products.unloadProduct = function (node) {
   if (!isNaN(selectivityPrecision)) {
     selectivity.setPrecision(selectivityPrecision);
   }
-  product.setSelectivity(selectivity);
+  if (!isEmptyMessage(selectivity)) {
+    product.setSelectivity(selectivity);
+  }
 
   const identities = ord.products.unloadAnalysisKeys(node, 'identity');
   product.setAnalysisIdentityList(identities);
@@ -148,7 +168,9 @@ ord.products.unloadProduct = function (node) {
   const texture = new proto.ord.ReactionProduct.Texture();
   texture.setType(getSelector($('.outcome_product_texture_type', node)));
   texture.setDetails($('.outcome_product_texture_details', node).text());
-  product.setTexture(texture);
+  if (!isEmptyMessage(texture)) {
+    product.setTexture(texture);
+  }
 
   return product;
 };
@@ -162,7 +184,9 @@ ord.products.unloadAnalysisKeys = function (node, tag) {
         // Not a template.
         const value =
             $('.outcome_product_analysis_' + tag + '_value', tagNode).text();
-        values.push(value);
+        if (value != "") {
+          values.push(value);
+        }
       }
     }
   );

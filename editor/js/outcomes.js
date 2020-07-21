@@ -169,7 +169,9 @@ ord.outcomes.unload = function () {
     if (!node.attr('id')) {
       // Not a template.
       const outcome = ord.outcomes.unloadOutcome(node);
-      outcomes.push(outcome);
+      if (!isEmptyMessage(outcome)) {
+        outcomes.push(outcome);
+      }
     }
   });
   return outcomes;
@@ -179,11 +181,15 @@ ord.outcomes.unloadOutcome = function (node) {
   const outcome = new proto.ord.ReactionOutcome();
 
   const time = readMetric('.outcome_time', new proto.ord.Time(), node);
-  outcome.setReactionTime(time);
+  if (!isEmptyMessage(time)) {
+    outcome.setReactionTime(time);
+  }
 
   const conversion =
       readMetric('.outcome_conversion', new proto.ord.Percentage(), node);
-  outcome.setConversion(conversion);
+  if (!isEmptyMessage(conversion)) {
+    outcome.setConversion(conversion);
+  }
 
   const products = ord.products.unload(node);
   outcome.setProductsList(products);
@@ -193,6 +199,7 @@ ord.outcomes.unloadOutcome = function (node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
+      // TODO check if each analyssis is empty. and c heck within each analysis too
       ord.outcomes.unloadAnalysis(node, analyses);
     }
   });
@@ -200,6 +207,7 @@ ord.outcomes.unloadOutcome = function (node) {
 };
 
 ord.outcomes.unloadAnalysisSingle = function (analysisNode) {
+  // TODO check each part
   const analysis = new proto.ord.ReactionAnalysis();
   analysis.setType(getSelector($('.outcome_analysis_type', analysisNode)));
   const chmoId = $('.outcome_analysis_chmo_id', analysisNode).text();
@@ -212,6 +220,7 @@ ord.outcomes.unloadAnalysisSingle = function (analysisNode) {
   $('.outcome_process', analysisNode).each(function(index, processNode) {
     processNode = $(processNode);
     if (!processNode.attr('id')) {
+      // TODO check within process
       ord.outcomes.unloadProcess(processNode, processes);
     }
   });
@@ -219,6 +228,7 @@ ord.outcomes.unloadAnalysisSingle = function (analysisNode) {
   $('.outcome_raw', analysisNode).each(function(index, rawNode) {
     rawNode = $(rawNode);
     if (!rawNode.attr('id')) {
+      // TODO check within Raw
       ord.outcomes.unloadRaw(rawNode, raws);
     }
   });
@@ -226,7 +236,9 @@ ord.outcomes.unloadAnalysisSingle = function (analysisNode) {
       $('.outcome_analysis_manufacturer', analysisNode).text());
   const calibrated = new proto.ord.DateTime();
   calibrated.setValue($('.outcome_analysis_calibrated', analysisNode).text());
-  analysis.setInstrumentLastCalibrated(calibrated);
+  if (!isEmptyMessage(calibrated)) {
+    analysis.setInstrumentLastCalibrated(calibrated);
+  }
   analysis.setUsesInternalStandard(
       getOptionalBool($('.outcome_analysis_internal_standard', analysisNode)));
   analysis.setUsesAuthenticStandard(
@@ -238,7 +250,9 @@ ord.outcomes.unloadAnalysisSingle = function (analysisNode) {
 ord.outcomes.unloadAnalysis = function (analysisNode, analyses) {
   const analysis = ord.outcomes.unloadAnalysisSingle(analysisNode);
   const name = $('.outcome_analysis_name', analysisNode).text();
-  analyses.set(name, analysis);
+  if (!isEmptyMessage(name) || !isEmptyMessage(analysis)) {
+    analyses.set(name, analysis);
+  }
 };
 
 ord.outcomes.unloadProcess = function (node, processes) {
