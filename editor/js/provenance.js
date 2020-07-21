@@ -99,7 +99,9 @@ ord.provenance.unload = function () {
       if (!node.attr('id')) {
         // Not a template.
         const modified = ord.provenance.unloadRecordEvent(node);
-        modifieds.push(modified);
+        if (!isEmptyMessage(modified)) {
+          modifieds.push(modified);
+        }
       }
     }
   );
