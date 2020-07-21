@@ -123,20 +123,20 @@ fieldset {
 }
 .uploader_chooser_file {
   opacity: 0;
-  width: 100px;
   position: absolute;
-  left: 0;
+}
+.uploader_chooser_button {
+  width: 99px;
 }
 .uploader_chooser_file, .uploader_chooser_button {
   cursor: pointer;
-  width: 99px;
 }
 .uploader_chooser_button, .uploader_file_retrieve {
   text-align: center;
 }
 .uploader_file_name {
-  width: 99px;
-  overflow: hidden;
+  min-width: 99px;
+  overflow-x: visible;
   vertical-align: bottom
 }
 .uploader_file_retrieve {
