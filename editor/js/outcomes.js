@@ -199,7 +199,6 @@ ord.outcomes.unloadOutcome = function (node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
-      // TODO check if each analyssis is empty. and c heck within each analysis too
       ord.outcomes.unloadAnalysis(node, analyses);
     }
   });
@@ -207,7 +206,6 @@ ord.outcomes.unloadOutcome = function (node) {
 };
 
 ord.outcomes.unloadAnalysisSingle = function (analysisNode) {
-  // TODO check each part
   const analysis = new proto.ord.ReactionAnalysis();
   analysis.setType(getSelector($('.outcome_analysis_type', analysisNode)));
   const chmoId = $('.outcome_analysis_chmo_id', analysisNode).text();
@@ -220,7 +218,6 @@ ord.outcomes.unloadAnalysisSingle = function (analysisNode) {
   $('.outcome_process', analysisNode).each(function(index, processNode) {
     processNode = $(processNode);
     if (!processNode.attr('id')) {
-      // TODO check within process
       ord.outcomes.unloadProcess(processNode, processes);
     }
   });
@@ -228,7 +225,6 @@ ord.outcomes.unloadAnalysisSingle = function (analysisNode) {
   $('.outcome_raw', analysisNode).each(function(index, rawNode) {
     rawNode = $(rawNode);
     if (!rawNode.attr('id')) {
-      // TODO check within Raw
       ord.outcomes.unloadRaw(rawNode, raws);
     }
   });
@@ -264,7 +260,9 @@ ord.outcomes.unloadProcess = function (node, processes) {
 
   if ($("input[value='text']", node).is(':checked')) {
     const stringValue = $('.outcome_process_text', node).text();
-    process.setStringValue(stringValue);
+    if (!isEmptyMessage(stringValue)) {
+      process.setStringValue(stringValue);
+    }
   }
   if ($("input[value='number']", node).is(':checked')) {
     const floatValue = parseFloat($('.outcome_process_text', node).text());
@@ -274,13 +272,19 @@ ord.outcomes.unloadProcess = function (node, processes) {
   }
   if ($("input[value='upload']", node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    process.setBytesValue(bytesValue);
+    if (!isEmptyMessage(bytesValue)) {
+      process.setBytesValue(bytesValue);
+    }
   }
   if ($("input[value='url']", node).is(':checked')) {
     const url = $('.outcome_process_text', node).text();
-    process.setUrl(url);
+    if (!isEmptyMessage(url)) {
+      process.setUrl(url);
+    }
   }
-  processes.set(name, process);
+  if (!isEmptyMessage(name) || !isEmptyMessage(process)) {
+    processes.set(name, process);
+  }
 };
 
 ord.outcomes.unloadRaw = function (node, raws) {
@@ -292,7 +296,9 @@ ord.outcomes.unloadRaw = function (node, raws) {
 
   if ($("input[value='text']", node).is(':checked')) {
     const stringValue = $('.outcome_raw_text', node).text();
-    raw.setStringValue(stringValue);
+    if (!isEmptyMessage(stringValue)) {
+      raw.setStringValue(stringValue);
+    }
   }
   if ($("input[value='number']", node).is(':checked')) {
     const floatValue = parseFloat($('.outcome_raw_text', node).text());
@@ -302,13 +308,19 @@ ord.outcomes.unloadRaw = function (node, raws) {
   }
   if ($("input[value='upload']", node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    raw.setBytesValue(bytesValue);
+    if (!isEmptyMessage(bytesValue)) {
+      raw.setBytesValue(bytesValue);
+    }
   }
   if ($("input[value='url']", node).is(':checked')) {
     const url = $('.outcome_raw_text', node).text();
-    raw.setUrl(url);
+    if (!isEmptyMessage(url)) {
+      raw.setUrl(url);
+    }
   }
-  raws.set(name, raw);
+  if (!isEmptyMessage(name) || !isEmptyMessage(raw)) {
+    raws.set(name, raw);
+  }
 };
 
 ord.outcomes.add = function () {
