@@ -44,36 +44,37 @@ class OrdPostgres:
         self._password = password
         self._host = host
         self._port = port
-        self._db = None
+        self._connection = None
 
     def __enter__(self):
-        self._db = psycopg2.connect(dbname=self._dbname,
-                                    user=self._user,
-                                    password=self._password,
-                                    host=self._host,
-                                    port=self._port)
+        self._connection = psycopg2.connect(dbname=self._dbname,
+                                            user=self._user,
+                                            password=self._password,
+                                            host=self._host,
+                                            port=self._port)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         del exc_type, exc_val, exc_tb  # Unused.
-        self._db.close()
+        self._connection.close()
 
-    def get_cursor(self):
-        return Cursor(self._db)
+    def cursor(self):
+        return self._connection.cursor()
 
-    def substructure_search(self, pattern, table, limit=100, use_smarts=False):
+    def substructure_search(self,
+                            pattern,
+                            table,
+                            limit=100,
+                            use_smarts=False,
+                            use_stereochemistry=False):
         """Performs a substructure search.
-
-        Note that matches will ignore stereochemistry by default unless
-        rdkit.do_chiral_sss is set.
-
-        TODO(kearnes): Set stereochemistry flag on a per-query basis.
 
         Args:
             pattern: Text substructure query (SMILES or SMARTS).
             table: Text SQL table name.
             limit: Integer maximum number of matches to return.
             use_smarts: Boolean whether `pattern` is SMARTS.
+            use_stereochemistry: Boolean whether to consider stereochemistry.
 
         Returns:
             Dataset proto containing matched Reactions.
@@ -82,6 +83,7 @@ class OrdPostgres:
             column = 'r'
         else:
             column = 'm'
+        do_chiral_sss = 'true' if use_stereochemistry else 'false'
         query = f"""
             SELECT DISTINCT A.reaction_id, A.serialized 
             FROM reactions A 
@@ -89,7 +91,11 @@ class OrdPostgres:
             WHERE B.{column}@>'{pattern}'{'::qmol' if use_smarts else ''}
             {f'LIMIT {limit}' if limit else ''};"""
         logging.info(query)
-        with self.get_cursor() as cursor:
+        with self._connection, self.cursor() as cursor:
+            # NOTE(kearnes): I don't like that we are committing this change to
+            # the database after the context manager exits. It's possible to
+            # auto-rollback by raising an exception in the context manager.
+            cursor.execute(f'SET rdkit.do_chiral_sss={do_chiral_sss};')
             cursor.execute(query)
             reactions = []
             for result in cursor:
@@ -98,27 +104,3 @@ class OrdPostgres:
                     binascii.unhexlify(serialized.tobytes()))
                 reactions.append(reaction)
         return dataset_pb2.Dataset(reactions=reactions)
-
-
-class Cursor:
-    """Context manager for a database cursor."""
-    def __init__(self, db):
-        """Initializes a Cursor.
-
-        Args:
-            db: psycopg2 connection instance.
-        """
-        self._db = db
-        self._cursor = None
-
-    def __enter__(self):
-        self._cursor = self._db.cursor()
-        return self._cursor
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        del exc_type, exc_val, exc_tb  # Unused.
-        self._cursor.close()
-
-    @property
-    def cursor(self):
-        return self._cursor
