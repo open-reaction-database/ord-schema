@@ -64,6 +64,11 @@ class OrdPostgres:
     def substructure_search(self, pattern, table, limit=100, use_smarts=False):
         """Performs a substructure search.
 
+        Note that matches will ignore stereochemistry by default unless
+        rdkit.do_chiral_sss is set.
+
+        TODO(kearnes): Set stereochemistry flag on a per-query basis.
+
         Args:
             pattern: Text substructure query (SMILES or SMARTS).
             table: Text SQL table name.
