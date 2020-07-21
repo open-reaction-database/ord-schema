@@ -406,7 +406,7 @@ def validate_reaction_input(message):
                       ValidationError)
     for component in message.components:
         if not component.WhichOneof('amount'):
-            warnings.warn('Reaction input\'s components require an amount',
+            warnings.warn('Reaction input components require an amount',
                           ValidationError)
 
 
