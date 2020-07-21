@@ -101,6 +101,9 @@ class OrdPostgres:
             table: Text SQL table name.
             limit: Integer maximum number of matches to return.
             threshold: Float similarity threshold.
+
+        Returns:
+            Dataset proto containing matched Reactions.
         """
         if 'reactions' in table:
             column = 'rdfp'
