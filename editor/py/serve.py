@@ -335,6 +335,7 @@ def compare(file_name):
   remote_ascii = text_format.MessageToString(remote)
   local_ascii = text_format.MessageToString(local)
   if remote_ascii != local_ascii:
+    print(local_ascii)
     print(remote_ascii)
     return 'differs', 409  # "Conflict"
   return 'equals'
