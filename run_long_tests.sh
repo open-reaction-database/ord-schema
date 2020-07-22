@@ -13,15 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Runs ord-schema tests.
 set -ex
-
-# NOTE(kearnes): Disable caching so the latest version of the ORD is used.
-docker build --no-cache -t ord-postgres:empty .
-docker run --rm --name ord-postgres -d \
-  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
-  ord-postgres:empty
-docker exec -it ord-postgres ./build_database.sh
-docker commit ord-postgres openreactiondatabase/ord-postgres
-docker stop ord-postgres
-# Uncomment the next line to push the new image to Docker Hub.
-# docker push openreactiondatabase/ord-postgres
+# Python tests.
+find ./ord_schema -name '*_longtest.py' -print0 \
+  | xargs -t -0 -I '{}' python '{}' --verbosity=-2 > /dev/null

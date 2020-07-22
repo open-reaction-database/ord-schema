@@ -26,12 +26,17 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         pip install -r requirements.txt
+        pip install -r test_requirements.txt
         conda install -c rdkit rdkit
         python setup.py install
     - name: Run tests
       run: |
         cd "${GITHUB_WORKSPACE}"
         ./run_tests.sh
+    - name: Run long tests
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        ./run_long_tests.sh
 
   test_pylint:
     runs-on: ubuntu-latest
@@ -42,6 +47,8 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         pip install -r requirements.txt
+        # Test deps are required to check imports with pylint.
+        pip install -r test_requirements.txt
         conda install -c rdkit rdkit
         python setup.py install
     - name: Run pylint

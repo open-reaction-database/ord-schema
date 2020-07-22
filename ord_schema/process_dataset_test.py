@@ -77,8 +77,8 @@ class ProcessDatasetTest(absltest.TestCase):
         error_filename = f'{self.dataset2_filename}.error'
         self.assertTrue(os.path.exists(error_filename))
         expected_output = [
-            'Reactions should have at least 1 reaction input\n',
-            'Reactions should have at least 1 reaction outcome\n',
+            'Reaction: Reactions should have at least 1 reaction input\n',
+            'Reaction: Reactions should have at least 1 reaction outcome\n',
         ]
         with open(error_filename) as f:
             self.assertEqual(f.readlines(), expected_output)
