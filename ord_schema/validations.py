@@ -101,12 +101,11 @@ def _validate_dataset(dataset, label='dataset', validate_ids=False):
     return errors
 
 
-# pylint: disable=too-many-branches
-# pylint: disable=too-many-nested-blocks
 def validate_message(message,
                      recurse=True,
                      raise_on_error=True,
-                     validate_ids=False):
+                     validate_ids=False,
+                     trace=None):
     """Template function for validating custom messages in the reaction_pb2.
 
     Messages are not validated to check enum values, since these are enforced
@@ -127,6 +126,8 @@ def validate_message(message,
             value to identify validation errors.
         validate_ids: A boolean that controls whether the IDs of Reactions or
             Datasets should be checked for validity. Defaults to False.
+        trace: Tuple containing a string "stack trace" to track the position of
+            the current message relative to the recursion root.
 
     Returns:
         List of text validation errors, if any.
@@ -134,35 +135,19 @@ def validate_message(message,
     Raises:
         ValidationError: If any fields are invalid.
     """
+    if trace is None:
+        trace = (message.DESCRIPTOR.name, )
     errors = []
     # Recurse through submessages
     if recurse:
         for field, value in message.ListFields():
             if field.type == field.TYPE_MESSAGE:  # need to recurse
-                if field.label == field.LABEL_REPEATED:
-                    if field.message_type.GetOptions().map_entry:  # map
-                        # value is message
-                        if field.message_type.fields_by_name['value'].type == \
-                                field.TYPE_MESSAGE:
-                            for submessage in value.values():
-                                errors.extend(
-                                    validate_message(
-                                        submessage,
-                                        raise_on_error=raise_on_error,
-                                        validate_ids=validate_ids))
-                        else:  # value is a primitive
-                            pass
-                    else:  # Just a repeated message
-                        for submessage in value:
-                            errors.extend(
-                                validate_message(submessage,
-                                                 raise_on_error=raise_on_error,
-                                                 validate_ids=validate_ids))
-                else:  # no recursion needed
-                    errors.extend(
-                        validate_message(value,
-                                         raise_on_error=raise_on_error,
-                                         validate_ids=validate_ids))
+                _validate_message(field=field,
+                                  value=value,
+                                  errors=errors,
+                                  raise_on_error=raise_on_error,
+                                  validate_ids=validate_ids,
+                                  trace=trace)
 
     # Message-specific validation
     if not isinstance(message, tuple(_VALIDATOR_SWITCH.keys())):
@@ -180,18 +165,63 @@ def validate_message(message,
             _VALIDATOR_SWITCH[type(message)](message, validate_id=True)
         else:
             _VALIDATOR_SWITCH[type(message)](message)
+    stack = '.'.join(trace)
     for warning in tape:
+        message = f'{stack}: {warning.message}'
         if issubclass(warning.category, ValidationError):
             if raise_on_error:
-                raise warning.message
-            errors.append(str(warning.message))
+                raise ValidationError(message)
+            errors.append(message)
         else:
-            warnings.warn(warning.message)
+            warnings.warn(message)
     return errors
 
 
-# pylint: enable=too-many-branches
-# pylint: enable=too-many-nested-blocks
+def _validate_message(field, value, errors, raise_on_error, validate_ids,
+                      trace):
+    """Validates a single message field and its children.
+
+    Args:
+        field: FieldDescriptor instance.
+        value: The value of the current message field.
+        errors: List of text error messages.
+        raise_on_error: If True, raises a ValidationError exception when errors
+            are encountered. If False, the user must manually check the return
+            value to identify validation errors.
+        validate_ids: A boolean that controls whether the IDs of Reactions or
+            Datasets should be checked for validity. Defaults to False.
+        trace: Tuple containing a string "stack trace" to track the position of
+            the current message relative to the recursion root.
+    """
+    if field.label == field.LABEL_REPEATED:
+        if field.message_type.GetOptions().map_entry:  # map
+            # value is message
+            if field.message_type.fields_by_name['value'].type == \
+                    field.TYPE_MESSAGE:
+                for key, submessage in value.items():
+                    this_trace = trace + (f'{field.name}["{key}"]', )
+                    errors.extend(
+                        validate_message(submessage,
+                                         raise_on_error=raise_on_error,
+                                         validate_ids=validate_ids,
+                                         trace=this_trace))
+            else:  # value is a primitive
+                pass
+        else:  # Just a repeated message
+            for index, submessage in enumerate(value):
+                this_trace = trace + (f'{field.name}[{index}]', )
+                errors.extend(
+                    validate_message(submessage,
+                                     raise_on_error=raise_on_error,
+                                     validate_ids=validate_ids,
+                                     trace=this_trace))
+    else:  # no recursion needed
+        this_trace = trace + (field.name, )
+        errors.extend(
+            validate_message(value,
+                             raise_on_error=raise_on_error,
+                             validate_ids=validate_ids,
+                             trace=this_trace))
 
 
 class ValidationError(Warning):
@@ -376,7 +406,7 @@ def validate_reaction_input(message):
                       ValidationError)
     for component in message.components:
         if not component.WhichOneof('amount'):
-            warnings.warn('Reaction input\'s components require an amount',
+            warnings.warn('Reaction input components require an amount',
                           ValidationError)
 
 
