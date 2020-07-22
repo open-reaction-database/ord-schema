@@ -743,12 +743,13 @@ limitations under the License.
                                                        +/- <div class="outcome_conversion_precision edittext shorttext"></div></td></tr>
             </table>
 
+              <div class="outcome_analyses"></div>
+              <div onclick="ord.outcomes.addAnalysis($(this).closest('.outcome'));" class="add">+ add analysis</div>
+
               <div class="outcome_products">
               </div>
               <div onclick="ord.products.add($(this).closest('.outcome'));" class="add">+ add product</div>
-
-              <div class="outcome_analyses"></div>
-              <div onclick="ord.outcomes.addAnalysis($(this).closest('.outcome'));" class="add">+ add analysis</div>
+              
           </fieldset>
           </div>
 
@@ -822,20 +823,28 @@ limitations under the License.
             </fieldset>
           </div>
 
-          <div id="outcome_product_analysis_identity_template" class="outcome_product_analysis_identity" style="display: none;">
-            <div class="outcome_product_analysis_identity_value edittext"></div>
+          <div id="outcome_product_analysis_identity_template" class="outcome_product_analysis_identity" style="display: none;">            
+            <select class="analysis_key_selector">
+              <option disabled selected value="">-- select an analysis key --</option>
+            </select>
             <div onclick="removeSlowly(this, '.outcome_product_analysis_identity');" class="remove">remove</div>
           </div>
           <div id="outcome_product_analysis_yield_template" class="outcome_product_analysis_yield" style="display: none;">
-            <div class="outcome_product_analysis_yield_value edittext"></div>
+            <select class="analysis_key_selector">
+              <option disabled selected value="">-- select an analysis key --</option>
+            </select>
             <div onclick="removeSlowly(this, '.outcome_product_analysis_yield');" class="remove">remove</div>
           </div>
           <div id="outcome_product_analysis_purity_template" class="outcome_product_analysis_purity" style="display: none;">
-            <div class="outcome_product_analysis_purity_value edittext"></div>
+            <select class="analysis_key_selector">
+              <option disabled selected value="">-- select an analysis key --</option>
+            </select>
             <div onclick="removeSlowly(this, '.outcome_product_analysis_purity');" class="remove">remove</div>
           </div>
           <div id="outcome_product_analysis_selectivity_template" class="outcome_product_analysis_selectivity" style="display: none;">
-            <div class="outcome_product_analysis_selectivity_value edittext"></div>
+            <select class="analysis_key_selector">
+              <option disabled selected value="">-- select an analysis key --</option>
+            </select>
             <div onclick="removeSlowly(this, '.outcome_product_analysis_selectivity');" class="remove">remove</div>
           </div>
 

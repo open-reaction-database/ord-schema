@@ -38,8 +38,6 @@ ord.outcomes.loadOutcome = function (outcome) {
   if (conversion) {
     writeMetric('.outcome_conversion', outcome.getConversion(), node);
   }
-  const products = outcome.getProductsList();
-  ord.products.load(node, products);
 
   const analyses = outcome.getAnalysesMap();
   const names = analyses.stringKeys_();
@@ -47,13 +45,15 @@ ord.outcomes.loadOutcome = function (outcome) {
     const analysis = analyses.get(name);
     ord.outcomes.loadAnalysis(node, name, analysis);
   });
+
+  const products = outcome.getProductsList();
+  ord.products.load(node, products);
 };
 
 ord.outcomes.loadAnalysis = function (analysesNode, name, analysis) {
   const node = ord.outcomes.addAnalysis(analysesNode);
 
-  $('.outcome_analysis_name', node).text(name);
-  formVariables.analysisKeys.push(name); // Add key to global form variables.
+  $('.outcome_analysis_name', node).text(name).trigger('input');
 
   setSelector($('.outcome_analysis_type', node), analysis.getType());
   const chmoId = analysis.getChmoId();
@@ -343,15 +343,22 @@ ord.outcomes.addAnalysis = function (node) {
   nameNode.on('input', function() {
     // Remove old key.
     var old_name = nameNode.data('val');
-    var index = formVariables.analysisKeys.indexOf(old_name);
-    if (index !== -1) {
-      formVariables.analysisKeys.splice(index, 1);
+    if (old_name) {
+      // If any selector had this value selected, reset it.
+      $('.analysis_key_selector').each(function() {
+        if ($(this).val() == old_name) {
+          $(this).val("");
+        }
+      });
+      $('.analysis_key_selector option[value="' + old_name + '"]').remove();
     }
     // Add new key.
     var name = nameNode.text();
-    formVariables.analysisKeys.push(name);
-    // Ensure old value stored (necessary if focus does not change).
-    nameNode.data('val', name); 
+    if (name) {
+      $('.analysis_key_selector').append('<option value="' + name + '">' + name + '</option>');
+      // Ensure old value stored (necessary if focus does not change).
+      nameNode.data('val', name); 
+    }
   });
     
   handler = function () {ord.outcomes.validateAnalysis(analysisNode)};

@@ -23,7 +23,7 @@ body {
 #top_buttons {
   text-align: center;
 }
-.edittext, .selector, .optional_bool {
+.edittext, .selector, .optional_bool, .analysis_key_selector {
   padding: 2px;
   margin: 2px;
   display: inline-block;

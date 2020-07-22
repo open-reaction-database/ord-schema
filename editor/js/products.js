@@ -65,23 +65,22 @@ ord.products.loadProduct = function (outcomeNode, product) {
   const identities = product.getAnalysisIdentityList();
   identities.forEach(identity => {
     const analysisNode = ord.products.addIdentity(node);
-    $('.outcome_product_analysis_identity_value', analysisNode).text(identity);
+    $('.analysis_key_selector', analysisNode).val(identity);
   });
   const yields = product.getAnalysisYieldList();
   yields.forEach(yeild => {
     const analysisNode = ord.products.addYield(node);
-    $('.outcome_product_analysis_yield_value', analysisNode).text(yeild);
+    $('.analysis_key_selector', analysisNode).val(yeild);
   });
   const purities = product.getAnalysisPurityList();
   purities.forEach(purity => {
     const analysisNode = ord.products.addPurity(node);
-    $('.outcome_product_analysis_purity_value', analysisNode).text(purity);
+    $('.analysis_key_selector', analysisNode).val(purity);
   });
   const selectivities = product.getAnalysisSelectivityList();
   selectivities.forEach(selectivity => {
     const analysisNode = ord.products.addSelectivity(node);
-    $('.outcome_product_analysis_selectivity_value', analysisNode)
-        .text(selectivity);
+    $('.analysis_key_selector', analysisNode).val(selectivity);
   });
   $('.outcome_product_color', node).text(product.getIsolatedColor());
 
@@ -182,8 +181,7 @@ ord.products.unloadAnalysisKeys = function (node, tag) {
       tagNode = $(tagNode);
       if (!tagNode.attr('id')) {
         // Not a template.
-        const value =
-            $('.outcome_product_analysis_' + tag + '_value', tagNode).text();
+        const value = $('.analysis_key_selector', tagNode).val();
         if (value != "") {
           values.push(value);
         }

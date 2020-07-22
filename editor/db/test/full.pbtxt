@@ -415,10 +415,11 @@ reactions {
         value: 121.0
         precision: 122.0
       }
-      analysis_identity: "126"
-      analysis_yield: "127"
-      analysis_purity: "128"
-      analysis_selectivity: "129"
+      analysis_identity: "analysis1"
+      analysis_yield: "analysis2"
+      analysis_yield: "analysis1"
+      analysis_purity: "analysis2"
+      analysis_selectivity: "analysis1"
       isolated_color: "124"
       texture {
         type: POWDER
@@ -426,7 +427,7 @@ reactions {
       }
     }
     analyses {
-      key: "130"
+      key: "analysis1"
       value {
         type: NMR_13C
         chmo_id: 131
@@ -453,6 +454,11 @@ reactions {
         }
         uses_internal_standard: true
         uses_authentic_standard: false
+      }
+    }
+    analyses {
+      key: "analysis2"
+      value {
       }
     }
   }
