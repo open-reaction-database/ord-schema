@@ -113,15 +113,11 @@ def enumerate_dataset():
   """Creates a new dataset in the db/ directory based on a template reaction
   pbtxt and a spreadsheet."""
   data = flask.request.get_json(force=True)
-  print(data)
   basename, suffix = os.path.splitext(data['spreadsheet_name'])
   with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, encoding='utf-8-sig') as f:
     f.write(data['spreadsheet_data'].lstrip('\ufeff'))
     f.seek(0)
     df = dataset_templating.read_spreadsheet(f.name)
-  print(data['spreadsheet_data'])
-  print(df)
-  print(df.columns)
   dataset = dataset_templating.generate_dataset(data['template_string'], df, validate=False)
   message_helpers.write_message(
     dataset,
