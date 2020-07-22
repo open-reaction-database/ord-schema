@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for ord_schema.proto.build_database."""
+"""Tests for ord_schema.interface.build_database."""
 
 import os
 import tempfile
@@ -22,7 +22,7 @@ from absl.testing import flagsaver
 import pandas as pd
 
 from ord_schema import message_helpers
-from ord_schema.proto import build_database
+from ord_schema.interface import build_database
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 

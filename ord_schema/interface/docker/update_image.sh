@@ -15,10 +15,10 @@
 
 set -ex
 
-# NOTE(kearnes): Disable caching so the latest version of the ORD is used.
-docker build --no-cache -t ord-postgres:empty .
+docker build -t ord-postgres:empty .
 docker run --rm --name ord-postgres -d \
-  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
   ord-postgres:empty
 docker exec -it ord-postgres ./build_database.sh
 docker commit ord-postgres openreactiondatabase/ord-postgres

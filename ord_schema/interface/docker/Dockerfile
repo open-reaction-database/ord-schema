@@ -24,7 +24,11 @@ ENV PATH="${ORD_ROOT}/miniconda3/bin:${PATH}"
 RUN conda update conda --yes
 
 WORKDIR "${ORD_ROOT}"
+# Bust the cache to get the latest commits; see
+# https://stackoverflow.com/a/39278224.
+ADD https://api.github.com/repos/Open-Reaction-Database/ord-schema/git/refs/heads/main ord-schema-version.json
 RUN git clone https://github.com/Open-Reaction-Database/ord-schema.git
+ADD https://api.github.com/repos/Open-Reaction-Database/ord-submissions-test/git/refs/heads/main ord-submissions-test-version.json
 RUN git clone https://github.com/Open-Reaction-Database/ord-submissions-test.git
 WORKDIR "${ORD_ROOT}/ord-schema"
 RUN pip install -r requirements.txt
@@ -36,4 +40,5 @@ WORKDIR "${ORD_ROOT}"
 ENV PGDATA=/data
 ENV POSTGRES_DB=ord
 COPY postgres.conf /etc/postgresql/postgresql.conf
+ENV ORD_INPUT="${ORD_ROOT}/ord-submissions-test/data/*/*.pbtxt"
 COPY build_database.sh .
