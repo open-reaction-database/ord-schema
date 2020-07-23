@@ -21,15 +21,41 @@ from absl.testing import absltest
 from absl.testing import parameterized
 from google.protobuf import json_format
 from google.protobuf import text_format
+from rdkit import Chem
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
 from ord_schema.proto import test_pb2
 
-try:
-    from rdkit import Chem
-except ImportError:
-    Chem = None
+_BENZENE_MOLBLOCK = """241
+  -OEChem-07232015262D
+
+ 12 12  0     0  0  0  0  0  0999 V2000
+    2.8660    1.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.0000    0.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.7320    0.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.0000   -0.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    3.7320   -0.5000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.8660   -1.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.8660    1.6200    0.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+    1.4631    0.8100    0.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+    4.2690    0.8100    0.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+    1.4631   -0.8100    0.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+    4.2690   -0.8100    0.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+    2.8660   -1.6200    0.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0  0  0  0
+  1  3  1  0  0  0  0
+  1  7  1  0  0  0  0
+  2  4  1  0  0  0  0
+  2  8  1  0  0  0  0
+  3  5  2  0  0  0  0
+  3  9  1  0  0  0  0
+  4  6  2  0  0  0  0
+  4 10  1  0  0  0  0
+  5  6  1  0  0  0  0
+  5 11  1  0  0  0  0
+  6 12  1  0  0  0  0
+M  END"""
 
 
 class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
@@ -40,6 +66,57 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         ('ord_data-123456foo7.jpg', 'data/12/ord_data-123456foo7.jpg'))
     def test_id_filename(self, filename, expected):
         self.assertEqual(message_helpers.id_filename(filename), expected)
+
+    @parameterized.named_parameters(
+        ('SMILES', 'c1ccccc1', 'SMILES', 'c1ccccc1'),
+        ('INCHI', 'InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H', 'INCHI', 'c1ccccc1'),
+        ('MOLBLOCK', _BENZENE_MOLBLOCK, 'MOLBLOCK', 'c1ccccc1'))
+    def test_smiles_from_compound(self, value, identifier_type, expected):
+        compound = reaction_pb2.Compound()
+        compound.identifiers.add(value=value, type=identifier_type)
+        self.assertEqual(message_helpers.smiles_from_compound(compound),
+                         expected)
+
+    @parameterized.named_parameters(
+        ('SMILES', 'c1ccccc1', 'SMILES', 'c1ccccc1'),
+        ('INCHI', 'InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H', 'INCHI', 'c1ccccc1'),
+        ('MOLBLOCK', _BENZENE_MOLBLOCK, 'MOLBLOCK', 'c1ccccc1'),
+        ('RDKIT_BINARY', Chem.MolFromSmiles('c1ccccc1').ToBinary(),
+         'RDKIT_BINARY', 'c1ccccc1'))
+    def test_mol_from_compound(self, value, identifier_type, expected):
+        compound = reaction_pb2.Compound()
+        if identifier_type == 'RDKIT_BINARY':
+            compound.identifiers.add(bytes_value=value, type=identifier_type)
+        else:
+            compound.identifiers.add(value=value, type=identifier_type)
+        mol = message_helpers.mol_from_compound(compound)
+        self.assertEqual(Chem.MolToSmiles(mol), expected)
+        mol, identifier = message_helpers.mol_from_compound(
+            compound, return_identifier=True)
+        self.assertEqual(Chem.MolToSmiles(mol), expected)
+        self.assertEqual(identifier, compound.identifiers[0])
+
+    @parameterized.named_parameters(('SMILES', 'invalid_smiles', 'SMILES'),
+                                    ('INCHI', 'invalid_inchi', 'INCHI'))
+    def test_mol_from_compound_failures(self, value, identifier_type):
+        compound = reaction_pb2.Compound()
+        compound.identifiers.add(value=value, type=identifier_type)
+        with self.assertRaisesRegex(ValueError,
+                                    'no valid structural identifier'):
+            message_helpers.mol_from_compound(compound)
+
+    def test_check_compound_identifiers(self):
+        compound = reaction_pb2.Compound()
+        compound.identifiers.add(value='c1ccccc1', type='SMILES')
+        message_helpers.check_compound_identifiers(compound)
+        compound.identifiers.add(value='InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H',
+                                 type='INCHI')
+        message_helpers.check_compound_identifiers(compound)
+        compound.identifiers.add(
+            bytes_value=Chem.MolFromSmiles('C').ToBinary(),
+            type='RDKIT_BINARY')
+        with self.assertRaisesRegex(ValueError, 'inconsistent'):
+            message_helpers.check_compound_identifiers(compound)
 
 
 class FindSubmessagesTest(absltest.TestCase):
@@ -225,28 +302,6 @@ class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
                                          overwrite=True)
         self.assertEqual(solute.moles,
                          reaction_pb2.Moles(units='NANOMOLE', value=30))
-
-
-class GetCompoundSmilesTest(absltest.TestCase):
-    def test_get_compound_smiles(self):
-        compound = message_helpers.build_compound(smiles='c1ccccc1',
-                                                  name='benzene')
-        self.assertEqual(message_helpers.get_compound_smiles(compound),
-                         'c1ccccc1')
-
-
-class GetCompoundMolTest(absltest.TestCase):
-    @absltest.skipIf(Chem is None, 'no rdkit')
-    def test_get_compound_mol(self):
-        mol = Chem.MolFromSmiles('c1ccccc1')
-        compound = message_helpers.build_compound(smiles='c1ccccc1',
-                                                  name='benzene')
-        identifier = compound.identifiers.add()
-        identifier.type = identifier.RDKIT_BINARY
-        identifier.bytes_value = mol.ToBinary()
-        self.assertEqual(
-            Chem.MolToSmiles(mol),
-            Chem.MolToSmiles(message_helpers.get_compound_mol(compound)))
 
 
 class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
