@@ -956,6 +956,7 @@ message Person {
   string name = 2;
   string orcid = 3;
   string organization = 4;
+  string email = 5;
 }
 
 message RecordEvent {
