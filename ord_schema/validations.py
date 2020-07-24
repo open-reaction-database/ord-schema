@@ -766,6 +766,11 @@ def validate_person(message):
                         message.orcid):
             warnings.warn('Invalid ORCID: Enter as 0000-0000-0000-0000',
                           ValidationError)
+    if message.email:
+        # Based on https://www.regular-expressions.info/email.html.
+        if not re.fullmatch(r'[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}',
+                            message.email):
+            warnings.warn('Invalid email address', ValidationError)
 
 
 def validate_time(message):
