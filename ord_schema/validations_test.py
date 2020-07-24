@@ -104,6 +104,20 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(validations.ValidationError, 'Invalid'):
             self._run_validation(message)
 
+    @parameterized.parameters([
+        'ord+test@gmail.com', 'student@alumni.mit.edu', 'hypen-ated@gmail.com'
+    ])
+    def test_email(self, email):
+        message = reaction_pb2.Person(email=email)
+        self.assertEmpty(self._run_validation(message))
+
+    @parameterized.parameters(
+        ['bad&character@gmail.com', 'not-an-email', 'bad@domain'])
+    def test_email_should_fail(self, email):
+        message = reaction_pb2.Person(email=email)
+        with self.assertRaisesRegex(validations.ValidationError, 'Invalid'):
+            self._run_validation(message)
+
     def test_synthesized_compound(self):
         message = reaction_pb2.CompoundPreparation(
             type='SYNTHESIZED', reaction_id='dummy_reaction_id')
