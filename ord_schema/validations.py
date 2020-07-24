@@ -23,6 +23,7 @@ from dateutil import parser
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
 
+from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
@@ -443,6 +444,10 @@ def _validate_compound(message):
         warnings.warn(
             'Compounds should have more specific identifiers than '
             'NAME whenever possible', ValidationWarning)
+    try:
+        message_helpers.check_compound_identifiers(message)
+    except ValueError as error:
+        warnings.warn(str(error), ValidationWarning)
 
 
 def _validate_compound_feature(message):
