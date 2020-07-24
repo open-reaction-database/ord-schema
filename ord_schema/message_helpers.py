@@ -379,18 +379,33 @@ def get_reaction_smiles(message, validate=True):
     reaction_smiles = '%s>%s>%s' % ('.'.join(reactants), '.'.join(agents),
                                     '.'.join(products))
     if validate:
-        try:
-            reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles,
-                                                          useSmiles=True)
-            rdChemReactions.SanitizeRxn(reaction)
-        except ValueError as error:
-            raise ValueError(
-                f'reaction contains errors: {reaction_smiles}') from error
-        _, num_errors = reaction.Validate()
-        if num_errors:
-            raise ValueError(f'reaction contains errors: {reaction_smiles}')
-        reaction_smiles = rdChemReactions.ReactionToSmiles(reaction)
+        reaction_smiles = validate_reaction_smiles(reaction_smiles)
     return reaction_smiles
+
+
+def validate_reaction_smiles(reaction_smiles):
+    """Validates reaction SMILES.
+
+    Args:
+        reaction_smiles: Text reaction SMILES.
+
+    Returns:
+        Updated reaction SMILES.
+
+    Raises:
+        ValueError: If the reaction contains errors.
+    """
+    try:
+        reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles,
+                                                      useSmiles=True)
+        rdChemReactions.SanitizeRxn(reaction)
+    except ValueError as error:
+        raise ValueError(
+            f'reaction contains errors: {reaction_smiles}') from error
+    _, num_errors = reaction.Validate()
+    if num_errors:
+        raise ValueError(f'reaction contains errors: {reaction_smiles}')
+    return rdChemReactions.ReactionToSmiles(reaction)
 
 
 class MessageFormat(enum.Enum):
