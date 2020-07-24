@@ -23,6 +23,7 @@ from dateutil import parser
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
 
+from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
@@ -42,9 +43,9 @@ def validate_datasets(datasets, write_errors=False, validate_ids=False):
     all_errors = []
     for filename, dataset in datasets.items():
         basename = os.path.basename(filename)
-        errors = _validate_dataset(dataset,
-                                   label=basename,
-                                   validate_ids=validate_ids)
+        errors = _validate_datasets(dataset,
+                                    label=basename,
+                                    validate_ids=validate_ids)
         if errors:
             for error in errors:
                 all_errors.append(f'{filename}: {error}')
@@ -60,7 +61,7 @@ def validate_datasets(datasets, write_errors=False, validate_ids=False):
             f'validation encountered errors:\n{error_string}')
 
 
-def _validate_dataset(dataset, label='dataset', validate_ids=False):
+def _validate_datasets(dataset, label='dataset', validate_ids=False):
     """Validates Reaction messages and cross-references in a Dataset.
 
     Args:
@@ -443,6 +444,10 @@ def validate_compound(message):
         warnings.warn(
             'Compounds should have more specific identifiers than '
             'NAME whenever possible', ValidationWarning)
+    try:
+        message_helpers.check_compound_identifiers(message)
+    except ValueError as error:
+        warnings.warn(str(error), ValidationWarning)
 
 
 def validate_compound_feature(message):
