@@ -321,7 +321,7 @@ def get_referenced_reaction_ids(message):
     return referenced_ids
 
 
-def validate_dataset(message, validate_id=False):
+def _validate_dataset(message, validate_id=False):
     # pylint: disable=too-many-branches,too-many-nested-blocks
     if not message.reactions and not message.reaction_ids:
         warnings.warn('Dataset requires reactions or reaction_ids',
@@ -359,7 +359,7 @@ def validate_dataset(message, validate_id=False):
             ValidationError)
 
 
-def validate_dataset_example(message):
+def _validate_dataset_example(message):
     if not message.description:
         warnings.warn('DatasetExample.description is required',
                       ValidationError)
@@ -369,7 +369,7 @@ def validate_dataset_example(message):
         warnings.warn('DatasetExample.created is required', ValidationError)
 
 
-def validate_reaction(message, validate_id=False):
+def _validate_reaction(message, validate_id=False):
     if len(message.inputs) == 0:
         warnings.warn('Reactions should have at least 1 reaction input',
                       ValidationError)
@@ -394,13 +394,13 @@ def validate_reaction(message, validate_id=False):
             warnings.warn('Reaction ID is malformed', ValidationError)
 
 
-def validate_reaction_identifier(message):
+def _validate_reaction_identifier(message):
     check_type_and_details(message)
     if not message.value and not message.bytes_value:
         warnings.warn('{bytes_}value must be set', ValidationError)
 
 
-def validate_reaction_input(message):
+def _validate_reaction_input(message):
     if len(message.components) + len(message.crude_components) == 0:
         warnings.warn('Reaction inputs must have at least one component',
                       ValidationError)
@@ -410,15 +410,15 @@ def validate_reaction_input(message):
                           ValidationError)
 
 
-def validate_addition_device(message):
+def _validate_addition_device(message):
     check_type_and_details(message)
 
 
-def validate_addition_speed(message):
+def _validate_addition_speed(message):
     del message  # Unused.
 
 
-def validate_crude_component(message):
+def _validate_crude_component(message):
     if not message.reaction_id:
         warnings.warn('CrudeComponents must specify a reaction_id',
                       ValidationError)
@@ -434,7 +434,7 @@ def validate_crude_component(message):
             ' a specified mass or volume', ValidationError)
 
 
-def validate_compound(message):
+def _validate_compound(message):
     if len(message.identifiers) == 0:
         warnings.warn('Compounds must have at least one identifier',
                       ValidationError)
@@ -445,12 +445,12 @@ def validate_compound(message):
             'NAME whenever possible', ValidationWarning)
 
 
-def validate_compound_feature(message):
+def _validate_compound_feature(message):
     if not message.name:
         warnings.warn('Compound features must have names', ValidationError)
 
 
-def validate_compound_preparation(message):
+def _validate_compound_preparation(message):
     check_type_and_details(message)
     if message.reaction_id and message.type != message.SYNTHESIZED:
         warnings.warn(
@@ -458,7 +458,7 @@ def validate_compound_preparation(message):
             ' preparations when SYNTHESIZED', ValidationError)
 
 
-def validate_compound_identifier(message):
+def _validate_compound_identifier(message):
     check_type_and_details(message)
     if not message.value and not message.bytes_value:
         warnings.warn('{bytes_}value must be set', ValidationError)
@@ -488,35 +488,35 @@ def validate_compound_identifier(message):
                 ' RDKit Binary identifier', ValidationError)
 
 
-def validate_vessel(message):
+def _validate_vessel(message):
     del message  # Unused.
 
 
-def validate_vessel_type(message):
+def _validate_vessel_type(message):
     check_type_and_details(message)
 
 
-def validate_vessel_material(message):
+def _validate_vessel_material(message):
     check_type_and_details(message)
 
 
-def validate_vessel_attachment(message):
+def _validate_vessel_attachment(message):
     check_type_and_details(message)
 
 
-def validate_vessel_preparation(message):
+def _validate_vessel_preparation(message):
     check_type_and_details(message)
 
 
-def validate_reaction_setup(message):
+def _validate_reaction_setup(message):
     del message  # Unused.
 
 
-def validate_reaction_environment(message):
+def _validate_reaction_environment(message):
     check_type_and_details(message)
 
 
-def validate_reaction_conditions(message):
+def _validate_reaction_conditions(message):
     if message.conditions_are_dynamic and not message.details:
         warnings.warn(
             'Reaction conditions are dynamic, but no details'
@@ -530,7 +530,7 @@ def validate_reaction_conditions(message):
             ValidationWarning)
 
 
-def validate_temperature_conditions(message):
+def _validate_temperature_conditions(message):
     if not message.setpoint.value:
         warnings.warn(
             'Temperature setpoints should be specified; even if '
@@ -538,87 +538,87 @@ def validate_temperature_conditions(message):
             'the precision of your estimate.', ValidationWarning)
 
 
-def validate_temperature_control(message):
+def _validate_temperature_control(message):
     check_type_and_details(message)
 
 
-def validate_temperature_measurement(message):
+def _validate_temperature_measurement(message):
     check_type_and_details(message)
 
 
-def validate_pressure_conditions(message):
+def _validate_pressure_conditions(message):
     del message
 
 
-def validate_pressure_control(message):
+def _validate_pressure_control(message):
     check_type_and_details(message)
 
 
-def validate_atmosphere(message):
+def _validate_atmosphere(message):
     check_type_and_details(message)
 
 
-def validate_pressure_measurement(message):
+def _validate_pressure_measurement(message):
     check_type_and_details(message)
 
 
-def validate_stirring_conditions(message):
+def _validate_stirring_conditions(message):
     del message  # Unused.
 
 
-def validate_stirring_method(message):
+def _validate_stirring_method(message):
     check_type_and_details(message)
 
 
-def validate_stirring_rate(message):
+def _validate_stirring_rate(message):
     ensure_float_nonnegative(message, 'rpm')
 
 
-def validate_illumination_conditions(message):
+def _validate_illumination_conditions(message):
     del message  # Unused.
 
 
-def validate_illumination_type(message):
+def _validate_illumination_type(message):
     check_type_and_details(message)
 
 
-def validate_electrochemistry_conditions(message):
+def _validate_electrochemistry_conditions(message):
     del message  # Unused.
 
 
-def validate_electrochemistry_type(message):
+def _validate_electrochemistry_type(message):
     check_type_and_details(message)
 
 
-def validate_electrochemistry_cell(message):
+def _validate_electrochemistry_cell(message):
     check_type_and_details(message)
 
 
-def validate_electrochemistry_measurement(message):
+def _validate_electrochemistry_measurement(message):
     del message  # Unused.
 
 
-def validate_flow_conditions(message):
+def _validate_flow_conditions(message):
     del message  # Unused.
 
 
-def validate_flow_type(message):
+def _validate_flow_type(message):
     check_type_and_details(message)
 
 
-def validate_tubing(message):
+def _validate_tubing(message):
     check_type_and_details(message)
 
 
-def validate_reaction_notes(message):
+def _validate_reaction_notes(message):
     del message  # Unused.
 
 
-def validate_reaction_observation(message):
+def _validate_reaction_observation(message):
     del message  # Unused.
 
 
-def validate_reaction_workup(message):
+def _validate_reaction_workup(message):
     check_type_and_details(message)
     if (message.type == reaction_pb2.ReactionWorkup.WAIT
             and not message.duration.value):
@@ -654,7 +654,7 @@ def validate_reaction_workup(message):
                       ValidationError)
 
 
-def validate_reaction_outcome(message):
+def _validate_reaction_outcome(message):
     # pylint: disable=singleton-comparison
     # Can only have one desired product
     if sum(product.is_desired_product for product in message.products) > 1:
@@ -684,7 +684,7 @@ def validate_reaction_outcome(message):
             ValidationWarning)
 
 
-def validate_reaction_product(message):
+def _validate_reaction_product(message):
     # pylint: disable=too-many-boolean-expressions
     if (message.compound.HasField('volume_includes_solutes')
             or message.compound.HasField('is_limiting')
@@ -695,11 +695,11 @@ def validate_reaction_product(message):
             ' any inapplicable fields defined.', ValidationError)
 
 
-def validate_texture(message):
+def _validate_texture(message):
     check_type_and_details(message)
 
 
-def validate_selectivity(message):
+def _validate_selectivity(message):
     ensure_float_nonnegative(message, 'precision')
     if message.type == message.EE:
         ensure_float_range(message, 'value', 0, 100)
@@ -712,7 +712,7 @@ def validate_selectivity(message):
     check_type_and_details(message)
 
 
-def validate_date_time(message):
+def _validate_date_time(message):
     if message.value:
         try:
             parser.parse(message.value).ctime()
@@ -721,12 +721,12 @@ def validate_date_time(message):
                           ValidationError)
 
 
-def validate_reaction_analysis(message):
+def _validate_reaction_analysis(message):
     # TODO(ccoley): Will be lots to expand here if we add structured data.
     check_type_and_details(message)
 
 
-def validate_reaction_provenance(message):
+def _validate_reaction_provenance(message):
     # Prepare datetimes
     if not message.HasField('record_created'):
         warnings.warn('Reactions must have record_created defined.',
@@ -753,13 +753,13 @@ def validate_reaction_provenance(message):
     # TODO(ccoley) could check if publication_url is valid, etc.
 
 
-def validate_record_event(message):
+def _validate_record_event(message):
     if not message.time.value:
         warnings.warn('RecordEvent must have `time` specified',
                       ValidationError)
 
 
-def validate_person(message):
+def _validate_person(message):
     # NOTE(ccoley): final character is checksum, but ignoring that for now
     if message.orcid:
         if not re.match('[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]',
@@ -773,43 +773,43 @@ def validate_person(message):
             warnings.warn('Invalid email address', ValidationError)
 
 
-def validate_time(message):
+def _validate_time(message):
     check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_mass(message):
+def _validate_mass(message):
     check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_moles(message):
+def _validate_moles(message):
     check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_volume(message):
+def _validate_volume(message):
     check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_concentration(message):
+def _validate_concentration(message):
     check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_pressure(message):
+def _validate_pressure(message):
     check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_temperature(message):
+def _validate_temperature(message):
     check_value_and_units(message)
     if message.units == message.CELSIUS:
         ensure_float_range(message, 'value', min_value=-273.15)
@@ -820,37 +820,37 @@ def validate_temperature(message):
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_current(message):
+def _validate_current(message):
     check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_voltage(message):
+def _validate_voltage(message):
     check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_length(message):
+def _validate_length(message):
     check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_wavelength(message):
+def _validate_wavelength(message):
     check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_flow_rate(message):
+def _validate_flow_rate(message):
     check_value_and_units(message)
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_percentage(message):
+def _validate_percentage(message):
     if 0 < message.value < 1:
         warnings.warn(
             'Percentage values are 0-100, not fractions '
@@ -860,7 +860,7 @@ def validate_percentage(message):
     ensure_float_range(message, 'value', 0, 105)  # generous upper bound
 
 
-def validate_data(message):
+def _validate_data(message):
     # TODO(kearnes): Validate/ping URLs?
     if not message.WhichOneof('kind'):
         warnings.warn('Data requires one of {value, bytes_value, url}',
@@ -874,141 +874,141 @@ def validate_data(message):
 
 _VALIDATOR_SWITCH = {
     dataset_pb2.Dataset:
-        validate_dataset,
+        _validate_dataset,
     dataset_pb2.DatasetExample:
-        validate_dataset_example,
+        _validate_dataset_example,
     reaction_pb2.Reaction:
-        validate_reaction,
+        _validate_reaction,
     # Basics
     reaction_pb2.ReactionIdentifier:
-        validate_reaction_identifier,
+        _validate_reaction_identifier,
     reaction_pb2.ReactionInput:
-        validate_reaction_input,
+        _validate_reaction_input,
     reaction_pb2.ReactionInput.AdditionDevice:
-        validate_addition_device,
+        _validate_addition_device,
     reaction_pb2.ReactionInput.AdditionSpeed:
-        validate_addition_speed,
+        _validate_addition_speed,
     # Compounds
     reaction_pb2.CrudeComponent:
-        validate_crude_component,
+        _validate_crude_component,
     reaction_pb2.Compound:
-        validate_compound,
+        _validate_compound,
     reaction_pb2.Compound.Feature:
-        validate_compound_feature,
+        _validate_compound_feature,
     reaction_pb2.CompoundPreparation:
-        validate_compound_preparation,
+        _validate_compound_preparation,
     reaction_pb2.CompoundIdentifier:
-        validate_compound_identifier,
+        _validate_compound_identifier,
     # Setup
     reaction_pb2.Vessel:
-        validate_vessel,
+        _validate_vessel,
     reaction_pb2.VesselType:
-        validate_vessel_type,
+        _validate_vessel_type,
     reaction_pb2.VesselMaterial:
-        validate_vessel_material,
+        _validate_vessel_material,
     reaction_pb2.VesselAttachment:
-        validate_vessel_attachment,
+        _validate_vessel_attachment,
     reaction_pb2.VesselPreparation:
-        validate_vessel_preparation,
+        _validate_vessel_preparation,
     reaction_pb2.ReactionSetup:
-        validate_reaction_setup,
+        _validate_reaction_setup,
     reaction_pb2.ReactionSetup.ReactionEnvironment:
-        validate_reaction_environment,
+        _validate_reaction_environment,
     # Conditions
     reaction_pb2.ReactionConditions:
-        validate_reaction_conditions,
+        _validate_reaction_conditions,
     reaction_pb2.TemperatureConditions:
-        validate_temperature_conditions,
+        _validate_temperature_conditions,
     reaction_pb2.TemperatureConditions.TemperatureControl:
-        validate_temperature_control,
+        _validate_temperature_control,
     reaction_pb2.TemperatureConditions.Measurement:
-        validate_temperature_measurement,
+        _validate_temperature_measurement,
     reaction_pb2.PressureConditions:
-        validate_pressure_conditions,
+        _validate_pressure_conditions,
     reaction_pb2.PressureConditions.PressureControl:
-        validate_pressure_control,
+        _validate_pressure_control,
     reaction_pb2.PressureConditions.Atmosphere:
-        validate_pressure_control,
+        _validate_pressure_control,
     reaction_pb2.PressureConditions.Measurement:
-        validate_pressure_measurement,
+        _validate_pressure_measurement,
     reaction_pb2.StirringConditions:
-        validate_stirring_conditions,
+        _validate_stirring_conditions,
     reaction_pb2.StirringConditions.StirringMethod:
-        validate_stirring_method,
+        _validate_stirring_method,
     reaction_pb2.StirringConditions.StirringRate:
-        validate_stirring_rate,
+        _validate_stirring_rate,
     reaction_pb2.IlluminationConditions:
-        validate_illumination_conditions,
+        _validate_illumination_conditions,
     reaction_pb2.IlluminationConditions.IlluminationType:
-        validate_illumination_type,
+        _validate_illumination_type,
     reaction_pb2.ElectrochemistryConditions:
-        validate_electrochemistry_conditions,
+        _validate_electrochemistry_conditions,
     reaction_pb2.ElectrochemistryConditions.ElectrochemistryType:
-        validate_electrochemistry_type,
+        _validate_electrochemistry_type,
     reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell:
-        validate_electrochemistry_cell,
+        _validate_electrochemistry_cell,
     reaction_pb2.ElectrochemistryConditions.Measurement:
-        validate_electrochemistry_measurement,
+        _validate_electrochemistry_measurement,
     reaction_pb2.FlowConditions:
-        validate_flow_conditions,
+        _validate_flow_conditions,
     reaction_pb2.FlowConditions.FlowType:
-        validate_flow_type,
+        _validate_flow_type,
     reaction_pb2.FlowConditions.Tubing:
-        validate_tubing,
+        _validate_tubing,
     # Annotations
     reaction_pb2.ReactionNotes:
-        validate_reaction_notes,
+        _validate_reaction_notes,
     reaction_pb2.ReactionObservation:
-        validate_reaction_observation,
+        _validate_reaction_observation,
     # Outcome
     reaction_pb2.ReactionWorkup:
-        validate_reaction_workup,
+        _validate_reaction_workup,
     reaction_pb2.ReactionOutcome:
-        validate_reaction_outcome,
+        _validate_reaction_outcome,
     reaction_pb2.ReactionProduct:
-        validate_reaction_product,
+        _validate_reaction_product,
     reaction_pb2.ReactionProduct.Texture:
-        validate_texture,
+        _validate_texture,
     reaction_pb2.Selectivity:
-        validate_selectivity,
+        _validate_selectivity,
     reaction_pb2.DateTime:
-        validate_date_time,
+        _validate_date_time,
     reaction_pb2.ReactionAnalysis:
-        validate_reaction_analysis,
+        _validate_reaction_analysis,
     # Metadata
     reaction_pb2.ReactionProvenance:
-        validate_reaction_provenance,
+        _validate_reaction_provenance,
     reaction_pb2.RecordEvent:
-        validate_record_event,
+        _validate_record_event,
     reaction_pb2.Person:
-        validate_person,
+        _validate_person,
     # Units
     reaction_pb2.Time:
-        validate_time,
+        _validate_time,
     reaction_pb2.Mass:
-        validate_mass,
+        _validate_mass,
     reaction_pb2.Moles:
-        validate_moles,
+        _validate_moles,
     reaction_pb2.Volume:
-        validate_volume,
+        _validate_volume,
     reaction_pb2.Concentration:
-        validate_concentration,
+        _validate_concentration,
     reaction_pb2.Pressure:
-        validate_pressure,
+        _validate_pressure,
     reaction_pb2.Temperature:
-        validate_temperature,
+        _validate_temperature,
     reaction_pb2.Current:
-        validate_current,
+        _validate_current,
     reaction_pb2.Voltage:
-        validate_voltage,
+        _validate_voltage,
     reaction_pb2.Length:
-        validate_length,
+        _validate_length,
     reaction_pb2.Wavelength:
-        validate_wavelength,
+        _validate_wavelength,
     reaction_pb2.FlowRate:
-        validate_flow_rate,
+        _validate_flow_rate,
     reaction_pb2.Percentage:
-        validate_percentage,
+        _validate_percentage,
     reaction_pb2.Data:
-        validate_data,
+        _validate_data,
 }
