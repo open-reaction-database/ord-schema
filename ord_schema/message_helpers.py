@@ -20,6 +20,7 @@ from google import protobuf
 from google.protobuf import json_format
 from google.protobuf import text_format
 from rdkit import Chem
+from rdkit.Chem import rdChemReactions
 
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
@@ -262,7 +263,7 @@ def smiles_from_compound(compound):
         compound: reaction_pb2.Compound message.
 
     Returns:
-        smiles: SMILES identifier.
+        Text SMILES.
     """
     for identifier in compound.identifiers:
         if identifier.type == reaction_pb2.CompoundIdentifier.SMILES:
@@ -303,10 +304,13 @@ def mol_from_compound(compound, return_identifier=False):
                 identifier.value)
             if not mol:
                 raise ValueError(
-                    f'no valid structural identifier for Compound: {compound}')
+                    f'invalid structural identifier for Compound: {identifier}'
+                )
             if return_identifier:
                 return mol, identifier
             return mol
+    raise ValueError(
+        f'no valid structural identifier for Compound: {compound}')
 
 
 # pylint: enable=inconsistent-return-statements
@@ -336,6 +340,57 @@ def check_compound_identifiers(compound):
         smiles.add(Chem.MolToSmiles(mol))
     if len(smiles) > 1:
         raise ValueError(f'structural identifiers are inconsistent: {smiles}')
+
+
+def get_reaction_smiles(message, validate=True):
+    """Fetches or generates a reaction SMILES.
+
+    Args:
+        message: reaction_pb2.Reaction message.
+        validate: Boolean whether to validate the reaction SMILES with rdkit.
+
+    Returns:
+        Text reaction SMILES.
+
+    Raises:
+        ValueError: If the reaction contains errors.
+    """
+    for identifier in message.identifiers:
+        if identifier.type == reaction_pb2.ReactionIdentifier.REACTION_SMILES:
+            return identifier.value
+    reactants, agents, products = set(), set(), set()
+    roles = reaction_pb2.Compound.ReactionRole()
+    for key in sorted(message.inputs):
+        for compound in message.inputs[key].components:
+            smiles = smiles_from_compound(compound)
+            if compound.reaction_role in [
+                    roles.REAGENT, roles.SOLVENT, roles.CATALYST
+            ]:
+                agents.add(smiles)
+            else:
+                reactants.add(smiles)
+    for outcome in message.outcomes:
+        for product in outcome.products:
+            smiles = smiles_from_compound(product.compound)
+            products.add(smiles)
+    if not reactants or not products:
+        raise ValueError(
+            'reaction must contain at least one reactant and one product')
+    reaction_smiles = '%s>%s>%s' % ('.'.join(reactants), '.'.join(agents),
+                                    '.'.join(products))
+    if validate:
+        try:
+            reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles,
+                                                          useSmiles=True)
+            rdChemReactions.SanitizeRxn(reaction)
+        except ValueError as error:
+            raise ValueError(
+                f'reaction contains errors: {reaction_smiles}') from error
+        _, num_errors = reaction.Validate()
+        if num_errors:
+            raise ValueError(f'reaction contains errors: {reaction_smiles}')
+        reaction_smiles = rdChemReactions.ReactionToSmiles(reaction)
+    return reaction_smiles
 
 
 class MessageFormat(enum.Enum):
