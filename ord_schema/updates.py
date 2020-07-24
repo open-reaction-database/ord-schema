@@ -32,7 +32,7 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
 ]
 
 
-def _pubchem_resolve(value_type, value):
+def pubchem_resolve(value_type, value):
     """Resolves compound identifiers to SMILES via the PubChem REST API."""
     response = urllib.request.urlopen(
         'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/'
@@ -63,7 +63,7 @@ def resolve_names(message):
         for identifier in compound.identifiers:
             if identifier.type == identifier.NAME:
                 try:
-                    smiles = _pubchem_resolve('name', identifier.value)
+                    smiles = pubchem_resolve('name', identifier.value)
                     new_identifier = compound.identifiers.add()
                     new_identifier.type = new_identifier.SMILES
                     new_identifier.value = smiles
