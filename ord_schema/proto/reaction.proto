@@ -78,9 +78,8 @@ message ReactionIdentifier {
   }
   // Whether identifier contains atom-to-atom mapping information. When True,
   // we encourage users to specify how that mapping was obtained in the
-  // how_mapped field (e.g., manually, using NameRXN, using ChemDraw).
+  // details field (e.g., manually, using NameRXN, using ChemDraw).
   optional bool is_mapped = 5;
-  string how_mapped = 6;
 }
 
 message ReactionInput {
