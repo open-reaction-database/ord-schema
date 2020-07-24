@@ -23,6 +23,8 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
+# pylint: disable=too-many-public-methods
+
 
 class ValidationsTest(parameterized.TestCase, absltest.TestCase):
     def setUp(self):

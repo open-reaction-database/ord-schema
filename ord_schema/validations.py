@@ -27,8 +27,6 @@ from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
-# pylint: disable=too-many-public-methods
-
 
 def validate_datasets(datasets, write_errors=False, validate_ids=False):
     """Runs validation for a set of datasets.
