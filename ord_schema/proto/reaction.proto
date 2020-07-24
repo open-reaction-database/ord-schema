@@ -65,7 +65,7 @@ message ReactionIdentifier {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     REACTION_SMILES = 2;
-    ATOM_MAPPED_SMILES = 3;
+    RDFILE = 3;  // Reaction data file.
     RINCHI = 4;  // Reaction InChI.
     NAME = 5;  // Named reaction or reaction category.
     RDKIT_BINARY = 6;  // RDKit binary format (for fast loading).
@@ -76,6 +76,10 @@ message ReactionIdentifier {
     string value = 3;
     bytes bytes_value = 4;
   }
+  // Whether identifier contains atom-to-atom mapping information. When True,
+  // we encourage users to specify how that mapping was obtained in the
+  // details field (e.g., manually, using NameRXN, using ChemDraw).
+  optional bool is_mapped = 5;
 }
 
 message ReactionInput {
