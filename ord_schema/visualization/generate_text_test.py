@@ -37,8 +37,8 @@ class GenerateTextTest(absltest.TestCase):
             ))
         reaction.inputs['dummy_input'].components.add().CopyFrom(
             message_helpers.build_compound(
-                name='C1OCCC1',
-                smiles='THF',
+                name='THF',
+                smiles='C1OCCC1',
                 role='solvent',
                 amount='40 liters',
             ))

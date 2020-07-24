@@ -19,16 +19,16 @@ import os
 from google import protobuf
 from google.protobuf import json_format
 from google.protobuf import text_format
+from rdkit import Chem
 
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
 
-try:
-    from rdkit import Chem
-    from rdkit import __version__ as RDKIT_VERSION
-except ImportError:
-    Chem = None
-    RDKIT_VERSION = None
+_COMPOUND_IDENTIFIER_LOADERS = {
+    reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,
+    reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
+    reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
+}
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -253,36 +253,89 @@ def find_submessages(message, submessage_type):
     return submessages
 
 
-def get_compound_mol(compound):
-    """Retrieves an RDKit molecule object from a Compound.
+def smiles_from_compound(compound):
+    """Fetches or generates a SMILES identifier for a compound.
+
+    If a SMILES identifier already exists, it is simply returned.
 
     Args:
         compound: reaction_pb2.Compound message.
 
     Returns:
-        RDKit molecule.
-    """
-    if not Chem:
-        raise ImportError('Missing RDKit dependency')
-    for identifier in compound.identifiers:
-        if identifier.type == reaction_pb2.CompoundIdentifier.RDKIT_BINARY:
-            return Chem.Mol(identifier.bytes_value)
-    return None
-
-
-def get_compound_smiles(compound):
-    """Retrieves a SMILES string identifier from a Compound.
-
-    Args:
-        compound: reaction_pb2.Compound message.
-
-    Returns:
-        The SMILES string identifier for the compound or None.
+        smiles: SMILES identifier.
     """
     for identifier in compound.identifiers:
         if identifier.type == reaction_pb2.CompoundIdentifier.SMILES:
             return identifier.value
-    return None
+    return Chem.MolToSmiles(mol_from_compound(compound))
+
+
+# pylint: disable=inconsistent-return-statements
+def mol_from_compound(compound, return_identifier=False):
+    """Creates an RDKit Mol from a Compound message.
+
+    Note that this function prefers RDKIT_BINARY identifiers over any others.
+
+    Args:
+        compound: reaction_pb2.Compound message.
+        return_identifier: If True, return the CompoundIdentifier used to
+            create the Mol.
+
+    Returns:
+        mol: RDKit Mol.
+        identifier: The identifier that was used to create `mol`. Only returned
+            if `return_identifier` is True.
+
+    Raises:
+        ValueError: If no structural identifier is available, or if the
+            resulting Mol object is invalid.
+    """
+    # Prefer RDKIT_BINARY identifiers when available.
+    for identifier in compound.identifiers:
+        if identifier.type == reaction_pb2.CompoundIdentifier.RDKIT_BINARY:
+            mol = Chem.Mol(identifier.bytes_value)
+            if return_identifier:
+                return mol, identifier
+            return mol
+    for identifier in compound.identifiers:
+        if identifier.type in _COMPOUND_IDENTIFIER_LOADERS:
+            mol = _COMPOUND_IDENTIFIER_LOADERS[identifier.type](
+                identifier.value)
+            if not mol:
+                raise ValueError(
+                    f'no valid structural identifier for Compound: {compound}')
+            if return_identifier:
+                return mol, identifier
+            return mol
+
+
+# pylint: enable=inconsistent-return-statements
+
+
+def check_compound_identifiers(compound):
+    """Verifies that structural compound identifiers are consistent.
+
+    Args:
+        compound: reaction_pb2.Compound message.
+
+    Raises:
+        ValueError: If structural identifiers are not consistent or are invalid.
+    """
+    smiles = set()
+    for identifier in compound.identifiers:
+        if identifier.type == reaction_pb2.CompoundIdentifier.RDKIT_BINARY:
+            mol = Chem.Mol(identifier.bytes_value)
+        elif identifier.type in _COMPOUND_IDENTIFIER_LOADERS:
+            mol = _COMPOUND_IDENTIFIER_LOADERS[identifier.type](
+                identifier.value)
+        else:
+            continue
+        if not mol:
+            raise ValueError(
+                f'invalid structural identifier for Compound: {identifier}')
+        smiles.add(Chem.MolToSmiles(mol))
+    if len(smiles) > 1:
+        raise ValueError(f'structural identifiers are inconsistent: {smiles}')
 
 
 class MessageFormat(enum.Enum):

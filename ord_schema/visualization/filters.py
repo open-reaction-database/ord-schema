@@ -351,7 +351,7 @@ def _compound_svg(compound):
     Returns:
         String SVG or sentinel value.
     """
-    mol = message_helpers.get_compound_mol(compound)
+    mol = message_helpers.mol_from_compound(compound)
     if mol:
         return drawing.mol_to_svg(mol)
     return 'no RDKIT_BINARY'
@@ -369,7 +369,7 @@ def _compound_png(compound):
     Returns:
         String PNG or sentinel value.
     """
-    mol = message_helpers.get_compound_mol(compound)
+    mol = message_helpers.mol_from_compound(compound)
     if mol:
         return drawing.mol_to_png(mol)
     return 'no RDKIT_BINARY'

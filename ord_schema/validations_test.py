@@ -23,6 +23,8 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
+# pylint: disable=too-many-public-methods
+
 
 class ValidationsTest(parameterized.TestCase, absltest.TestCase):
     def setUp(self):
@@ -101,6 +103,20 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     def test_orcid_should_fail(self):
         message = reaction_pb2.Person(orcid='abcd-0001-2345-678X')
+        with self.assertRaisesRegex(validations.ValidationError, 'Invalid'):
+            self._run_validation(message)
+
+    @parameterized.parameters([
+        'ord+test@gmail.com', 'student@alumni.mit.edu', 'hypen-ated@gmail.com'
+    ])
+    def test_email(self, email):
+        message = reaction_pb2.Person(email=email)
+        self.assertEmpty(self._run_validation(message))
+
+    @parameterized.parameters(
+        ['bad&character@gmail.com', 'not-an-email', 'bad@domain'])
+    def test_email_should_fail(self, email):
+        message = reaction_pb2.Person(email=email)
         with self.assertRaisesRegex(validations.ValidationError, 'Invalid'):
             self._run_validation(message)
 

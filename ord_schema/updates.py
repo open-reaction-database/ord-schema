@@ -19,7 +19,6 @@ import uuid
 import re
 
 from absl import logging
-from rdkit import Chem
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
@@ -97,22 +96,17 @@ def add_binary_identifiers(message):
         if any(identifier.type == identifier.RDKIT_BINARY
                for identifier in message.identifiers):
             continue
-        for identifier in compound.identifiers:
-            mol = None
-            if Chem and identifier.type == identifier.SMILES:
-                mol = Chem.MolFromSmiles(identifier.value)
-            elif identifier.type == identifier.INCHI:
-                mol = Chem.MolFromInchi(identifier.value)
-            elif identifier.type == identifier.MOLBLOCK:
-                mol = Chem.MolFromMolBlock(identifier.value)
-            if mol is not None:
-                source = reaction_pb2.CompoundIdentifier.IdentifierType.Name(
-                    identifier.type)
-                compound.identifiers.add(bytes_value=mol.ToBinary(),
-                                         type='RDKIT_BINARY',
-                                         details=f'Generated from {source}')
-                modified = True
-                break  # Only add one RDKIT_BINARY per Compound.
+        try:
+            mol, identifier = message_helpers.mol_from_compound(
+                compound, return_identifier=True)
+            source = reaction_pb2.CompoundIdentifier.IdentifierType.Name(
+                identifier.type)
+            compound.identifiers.add(bytes_value=mol.ToBinary(),
+                                     type='RDKIT_BINARY',
+                                     details=f'Generated from {source}')
+            modified = True
+        except ValueError:
+            pass
     return modified
 
 
