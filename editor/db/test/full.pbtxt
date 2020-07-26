@@ -2,7 +2,7 @@ name: "1"
 description: "2"
 reactions {
   identifiers {
-    type: ATOM_MAPPED_SMILES
+    type: NAME
     details: "2"
     value: "1"
   }
