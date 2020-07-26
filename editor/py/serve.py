@@ -312,12 +312,17 @@ def validate_reaction(message_name):
   return json.dumps(errors)
 
 
-@app.route('/resolve/<compound_name>', methods=['POST'])
-def resolve_compound_name(compound_name):
+@app.route('/resolve/<identifier_type>', methods=['POST'])
+def resolve_compound(identifier_type):
   """Resolve a compound name to a SMILES string."""
+  compound_name = flask.request.get_data()
+  if not compound_name:
+    return ''
   try:
-    return updates.pubchem_resolve('name', compound_name)
+    return flask.jsonify(
+      updates.pubchem_resolve(identifier_type, compound_name))
   except urllib.error.HTTPError as error:
+    print(error)
     return ''
 
 

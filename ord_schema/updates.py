@@ -14,9 +14,11 @@
 """Automated updates for Reaction messages."""
 
 import datetime
-import urllib
 import uuid
 import re
+import urllib.parse
+import urllib.request
+import urllib.error
 
 from absl import logging
 
@@ -35,8 +37,8 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
 def pubchem_resolve(value_type, value):
     """Resolves compound identifiers to SMILES via the PubChem REST API."""
     response = urllib.request.urlopen(
-        'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/'
-        f'{value_type}/{value}/property/IsomericSMILES/txt')
+        f'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/{value_type}/'
+        f'{urllib.parse.quote(value)}/property/IsomericSMILES/txt')
     return response.read().decode().strip()
 
 
