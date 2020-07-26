@@ -74,7 +74,7 @@ ord.compounds.loadIdentifier = function (compoundNode, identifier) {
   if (bytesValue) {
     $('.component_identifier_upload', node).prop('checked', true);
     $('.component_identifier_value', node).hide();
-    $('.text_upload', identifierNode).hide();
+    $('.text_upload', node).hide();
     ord.uploads.load(node, bytesValue);
   } else {
     const value = identifier.getValue();
