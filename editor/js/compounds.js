@@ -74,6 +74,7 @@ ord.compounds.loadIdentifier = function (compoundNode, identifier) {
   if (bytesValue) {
     $('.component_identifier_upload', node).prop('checked', true);
     $('.component_identifier_value', node).hide();
+    $('.text_upload', identifierNode).hide();
     ord.uploads.load(node, bytesValue);
   } else {
     const value = identifier.getValue();
@@ -262,6 +263,7 @@ ord.compounds.addIdentifier = function (node) {
     if ($(this).is(':checked')) {
       $('.uploader', identifierNode).show();
       $('.component_identifier_value', identifierNode).hide();
+      $('.text_upload', identifierNode).hide();
     } else {
       $('.uploader', identifierNode).hide();
       $('.component_identifier_value', identifierNode).show();

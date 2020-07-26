@@ -79,12 +79,13 @@ limitations under the License.
         <div id="identifiers">
           <div id="reaction_identifier_template" class="reaction_identifier" style="display: none;">
             type <div class="reaction_identifier_type selector" data-proto="ReactionIdentifier_IdentifierType"></div>
-            value <div class="reaction_identifier_value edittext"></div>
+            value <div class="reaction_identifier_value edittext longtext"></div>
+            <span class="fa fa-upload text_upload" aria-hidden="true" style="cursor:pointer;" onclick="setTextFromFile($(this).closest('.reaction_identifier'), 'reaction_identifier_value');"></span>
             <div class="remove" onclick="removeSlowly(this, '.reaction_identifier');">remove</div>
             <br>
             details <div class="reaction_identifier_details edittext"></div>
-            <input type="checkbox" class="reaction_identifier_upload"> upload
-            <div class="uploader" data-token="" style="display: none;">
+<!--             <input type="checkbox" class="reaction_identifier_upload"> upload
+ -->            <div class="uploader" data-token="" style="display: none;">
               <input class="uploader_chooser_file uploadertext" type="file">
               <div class="uploader_chooser_button uploadertext">Choose...</div>
               <div class="uploader_file_name uploadertext"></div>
@@ -239,9 +240,10 @@ limitations under the License.
             <div id="component_identifier_template" class="component_identifier" style="display: none; padding-bottom:10px;">
               type <div class="component_identifier_type selector" data-proto="CompoundIdentifier_IdentifierType"></div>
               value <div class="component_identifier_value edittext longtext"></div>
+              <span class="fa fa-upload text_upload" aria-hidden="true" style="cursor:pointer;" onclick="setTextFromFile($(this).closest('.component_identifier'), 'component_identifier_value');"></span>
               <div onclick="removeSlowly(this, '.component_identifier');" class="remove">remove</div>
               <br>details <div class="component_identifier_details edittext"></div>
-              <input type="checkbox" class="component_identifier_upload"> upload
+              <!-- <input type="checkbox" class="component_identifier_upload"> upload -->
               <div class="uploader" data-token="" style="display: none;">
                 <input class="uploader_chooser_file uploadertext" type="file">
                 <div class="uploader_chooser_button uploadertext">Choose...</div>
