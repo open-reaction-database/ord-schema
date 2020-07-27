@@ -342,12 +342,16 @@ def check_compound_identifiers(compound):
         raise ValueError(f'structural identifiers are inconsistent: {smiles}')
 
 
-def get_reaction_smiles(message, validate=True):
+def get_reaction_smiles(message, allow_incomplete=True, validate=True):
     """Fetches or generates a reaction SMILES.
 
     Args:
         message: reaction_pb2.Reaction message.
+        allow_incomplete: Boolean whether to allow "incomplete" reaction SMILES
+            that do not include all components (e.g. if a component does not
+            have a structural identifier).
         validate: Boolean whether to validate the reaction SMILES with rdkit.
+            Only used if allow_incomplete is False.
 
     Returns:
         Text reaction SMILES.
@@ -362,23 +366,37 @@ def get_reaction_smiles(message, validate=True):
     roles = reaction_pb2.Compound.ReactionRole()
     for key in sorted(message.inputs):
         for compound in message.inputs[key].components:
-            smiles = smiles_from_compound(compound)
+            try:
+                smiles = smiles_from_compound(compound)
+            except ValueError as error:
+                if allow_incomplete:
+                    continue
+                raise error
             if compound.reaction_role in [
                     roles.REAGENT, roles.SOLVENT, roles.CATALYST
             ]:
                 agents.add(smiles)
+            elif compound.reaction_role == roles.INTERNAL_STANDARD:
+                continue
             else:
                 reactants.add(smiles)
     for outcome in message.outcomes:
         for product in outcome.products:
-            smiles = smiles_from_compound(product.compound)
+            try:
+                smiles = smiles_from_compound(product.compound)
+            except ValueError:
+                if allow_incomplete:
+                    continue
+                raise error
             products.add(smiles)
-    if not reactants or not products:
+    if not allow_incomplete and (not reactants or not products):
         raise ValueError(
             'reaction must contain at least one reactant and one product')
-    reaction_smiles = '%s>%s>%s' % ('.'.join(reactants), '.'.join(agents),
-                                    '.'.join(products))
-    if validate:
+    if not reactants and not products:
+        raise ValueError('reaction contains no valid reactants or products')
+    reaction_smiles = '%s>%s>%s' % ('.'.join(sorted(reactants)), '.'.join(
+        sorted(agents)), '.'.join(sorted(products)))
+    if validate and not allow_incomplete:
         reaction_smiles = validate_reaction_smiles(reaction_smiles)
     return reaction_smiles
 
