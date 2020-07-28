@@ -384,7 +384,7 @@ def get_reaction_smiles(message, allow_incomplete=True, validate=True):
         for product in outcome.products:
             try:
                 smiles = smiles_from_compound(product.compound)
-            except ValueError:
+            except ValueError as error:
                 if allow_incomplete:
                     continue
                 raise error
