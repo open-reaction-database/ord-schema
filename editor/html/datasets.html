@@ -132,7 +132,6 @@ limitations under the License.
            reader.readAsText(file);
            reader.onload = readerEvent => {
               template_string.resolve(readerEvent.target.result);
-              console.log( template_string );
            }
         }
         input.click();
@@ -149,7 +148,6 @@ limitations under the License.
            reader.readAsBinaryString(file);
            reader.onload = readerEvent => {
               spreadsheet_data.resolve(readerEvent.target.result);
-              console.log( spreadsheet_data );
            }
         }
         input.click();
