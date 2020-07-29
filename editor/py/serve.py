@@ -102,7 +102,7 @@ def new_dataset(file_name):
   """Creates a new dataset in the db/ directory."""
   path = f'db/{flask.g.user}/{file_name}.pbtxt'
   if os.path.isfile(path):
-    return 'file exists'
+    flask.abort(404)
   with open(path, 'wb') as upload:
     upload.write(b'\n')
   return 'ok'
@@ -331,8 +331,6 @@ def compare(file_name):
   remote_ascii = text_format.MessageToString(remote)
   local_ascii = text_format.MessageToString(local)
   if remote_ascii != local_ascii:
-    print(local_ascii)
-    print(remote_ascii)
     return 'differs', 409  # "Conflict"
   return 'equals'
 

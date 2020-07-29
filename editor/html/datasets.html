@@ -110,7 +110,13 @@ limitations under the License.
         if (file_name) {
           const xhr = new XMLHttpRequest();
           xhr.open('POST', '/dataset/' + file_name + '/new');
-          xhr.onload = () => location.reload();
+          xhr.onload = function() {
+            if (xhr.status == 404) {
+              alert('Dataset "' + file_name + '" already exists');
+            } else {
+              location.reload();
+            }
+          }
           xhr.send();
         }
       });
