@@ -111,7 +111,15 @@ def new_dataset(file_name):
 @app.route('/dataset/enumerate', methods=['POST'])
 def enumerate_dataset():
   """Creates a new dataset in the db/ directory based on a template reaction
-  pbtxt and a spreadsheet."""
+  pbtxt and a spreadsheet.
+
+  Three pieces of information are expected to be POSTed in a json object:
+      spreadsheet_name: the original filename of the uploaded spreadsheet.
+      spreadsheet_data: a string containing the contents of the spreadsheet.
+      template_string: a string containing a text-formatted Reaction proto,
+        i.e., the contents of a pbtxt file.
+  A new dataset is created from the template and spreadsheet using
+  ord_schema.dataset_templating.generate_dataset."""
   data = flask.request.get_json(force=True)
   basename, suffix = os.path.splitext(data['spreadsheet_name'])
   with tempfile.NamedTemporaryFile(mode='w', suffix=suffix, encoding='utf-8-sig') as f:
