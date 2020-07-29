@@ -106,13 +106,13 @@ limitations under the License.
         };
       });
       $('#dataset_adder').on('click', event => {
-        var file_name = prompt("Please enter a name for your new dataset");
-        if (file_name) {
+        var fileName = prompt("Please enter a name for your new dataset");
+        if (fileName) {
           const xhr = new XMLHttpRequest();
-          xhr.open('POST', '/dataset/' + file_name + '/new');
+          xhr.open('POST', '/dataset/' + fileName + '/new');
           xhr.onload = function() {
             if (xhr.status == 404) {
-              alert('Dataset "' + file_name + '" already exists');
+              alert('Dataset "' + fileName + '" already exists');
             } else {
               location.reload();
             }
@@ -123,9 +123,9 @@ limitations under the License.
       $('#enumerator').on('click', event => {
         $('#processing').css('visibility', 'visible');
 
-        var template_string = $.Deferred();
-        var spreadsheet_data = $.Deferred();
-        var spreadsheet_name = $.Deferred();
+        var templateString = $.Deferred();
+        var spreadsheetData = $.Deferred();
+        var spreadsheetName = $.Deferred();
 
         // Get first file: template.
         var input = document.createElement('input');
@@ -137,7 +137,7 @@ limitations under the License.
            var reader = new FileReader();
            reader.readAsText(file);
            reader.onload = readerEvent => {
-              template_string.resolve(readerEvent.target.result);
+              templateString.resolve(readerEvent.target.result);
            }
         }
         input.click();
@@ -149,16 +149,16 @@ limitations under the License.
         input.type = 'file';
         input.onchange = event => { 
            var file = event.target.files[0]; 
-           spreadsheet_name.resolve(file.name);
+           spreadsheetName.resolve(file.name);
            var reader = new FileReader();
            reader.readAsBinaryString(file);
            reader.onload = readerEvent => {
-              spreadsheet_data.resolve(readerEvent.target.result);
+              spreadsheetData.resolve(readerEvent.target.result);
            }
         }
         input.click();
 
-        $.when(template_string, spreadsheet_data, spreadsheet_name).done(function(v1, v2, v3) {
+        $.when(templateString, spreadsheetData, spreadsheetName).done(function(v1, v2, v3) {
           // remove byte order mark.
           if ((v2.charCodeAt(0) === 239) & (v2.charCodeAt(1) === 187) & (v2.charCodeAt(2) === 191)) {
             v2 = v2.substr(3);
