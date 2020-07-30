@@ -156,6 +156,9 @@ limitations under the License.
                   <legend>
                     <span class="collapse starts_collapsed"></span>
                     Flow rate
+                    <span data-toggle="tooltip" data-placement="right" title="Infusion rate when running reactions in continuous flow.">
+                      <span class="fa fa-question-circle" aria-hidden="true"></span>
+                    </span>
                   </legend>
                   <div>
                     value <div class="input_flow_rate_value edittext shorttext"></div>
@@ -182,6 +185,9 @@ limitations under the License.
                   <legend>
                     <span class="collapse"></span>
                     Identifiers
+                    <span data-toggle="tooltip" data-placement="right" title="Compound identifiers should be structural (e.g., SMILES) whenever possible.">
+                      <span class="fa fa-question-circle" aria-hidden="true"></span>
+                    </span>
                   </legend>
                   <div class="identifiers"></div>
                   <div onclick="ord.compounds.addIdentifier($(this).closest('.component'));" class="add">+ add identifier</div>
@@ -225,6 +231,9 @@ limitations under the License.
                   <legend>
                     <span class="collapse"></span>
                     Features
+                    <span data-toggle="tooltip" data-placement="right" title="Additional chemical features (e.g., calculated descriptors) that are important to associate with this compound.">
+                      <span class="fa fa-question-circle" aria-hidden="true"></span>
+                    </span>
                   </legend>
                   <div class="features"></div>
                   <div onclick="ord.features.add($(this).closest('.component'));" class="add">+ add feature</div>
@@ -266,6 +275,9 @@ limitations under the License.
                 <legend>
                   <span class="collapse"></span>
                   Crude Component
+                  <span data-toggle="tooltip" data-placement="right" title="Crude components use non-isolated material from another reaction as input. The reaction ID must correspond to another reaction in this same dataset.">
+                      <span class="fa fa-question-circle" aria-hidden="true"></span>
+                    </span>
                 </legend>
                 <table>
                   <tr><td>reaction ID</td><td><div class="crude_reaction edittext"></div></td></tr>
@@ -347,6 +359,9 @@ limitations under the License.
               <legend>
                 <span class="collapse"></span>
                 Automation code
+                <span data-toggle="tooltip" data-placement="right" title="Details of the exact automation procedure required to perform the reaction.">
+                  <span class="fa fa-question-circle" aria-hidden="true"></span>
+                </span>
               </legend>
               <div onclick="removeSlowly(this, '.setup_code');" class="remove">remove</div>
               <table>
@@ -564,8 +579,16 @@ limitations under the License.
         <table>
           <tr><td align="right">reflux</td><td><div id="condition_reflux" class="optional_bool"></div></td></tr>
           <tr><td align="right">pH</td><td><div id="condition_ph" class="edittext veryshorttext"></div></td></tr>
-          <tr><td align="right">dynamic conditions</td><td><div id="condition_dynamic" class="optional_bool"></div></td></tr>
-          <tr><td align="right">details</td><td><div id="condition_details" class="edittext"></div></td></tr>
+          <tr><td align="right">dynamic conditions
+            <span data-toggle="tooltip" data-placement="right" title="Whether the reaction conditions cannot be fully described by the fields in this schema/form.">
+              <span class="fa fa-question-circle" aria-hidden="true"></span>
+            </span>
+          </td><td><div id="condition_dynamic" class="optional_bool"></div></td></tr>
+          <tr><td align="right">details
+            <span data-toggle="tooltip" data-placement="right" title="Elaboration on the aspects of the reaction conditions that cannot be captured by this schema in a structured format.">
+              <span class="fa fa-question-circle" aria-hidden="true"></span>
+            </span>
+          </td><td><div id="condition_details" class="edittext paratext"></div></td></tr>
         </table>
       </fieldset>
 
@@ -592,6 +615,9 @@ limitations under the License.
         <legend>
           <span class="collapse"></span>
           Observations
+          <span data-toggle="tooltip" data-placement="right" title="Observations are time-stamped comments, images, etc. that are recorded during the reaction.">
+            <span class="fa fa-question-circle" aria-hidden="true"></span>
+          </span>
         </legend>
         <div id="observations">
           <div id="observation_template" class="observation" style="display: none;">
@@ -641,6 +667,9 @@ limitations under the License.
         <legend>
           <span class="collapse"></span>
           Workups
+          <span data-toggle="tooltip" data-placement="right" title="Workup steps refer to any additions, purifications, or other operations after the 'reaction' stage prior to analysis.">
+            <span class="fa fa-question-circle" aria-hidden="true"></span>
+          </span>
         </legend>
         <div id="workups">
           <div id="workup_template" class="workup" style="display: none;">
@@ -730,6 +759,9 @@ limitations under the License.
         <legend>
           <span class="collapse"></span>
           Outcomes
+          <span data-toggle="tooltip" data-placement="right" title="Outcomes record time-stamped analyses and, optionally, product characterization.">
+            <span class="fa fa-question-circle" aria-hidden="true"></span>
+          </span>
         </legend>
 
         <div id="outcomes">
@@ -743,10 +775,18 @@ limitations under the License.
             </legend>
             <div onclick="removeSlowly(this, '.outcome');" class="remove">remove</div>
             <table>
-              <tr><td align="right">time</td><td><div class="outcome_time_value edittext shorttext"></div>
+              <tr><td align="right">time 
+                <span data-toggle="tooltip" data-placement="right" title="The reaction time at which this analysis/characterization was performed.">
+                  <span class="fa fa-question-circle" aria-hidden="true"></span>
+                </span>
+              </td><td><div class="outcome_time_value edittext shorttext"></div>
                                                  <div class="outcome_time_units selector" data-proto="Time_TimeUnit"></div>
                                                  +/- <div class="outcome_time_precision edittext shorttext"></div></td></tr>
-              <tr><td align="right">conversion</td><td><div class="outcome_conversion_value edittext shorttext"></div>
+              <tr><td align="right">conversion
+                <span data-toggle="tooltip" data-placement="right" title="Reaction conversion with respect to the limiting reactant.">
+                  <span class="fa fa-question-circle" aria-hidden="true"></span>
+                </span>
+              </td><td><div class="outcome_conversion_value edittext shorttext"></div>
                                                        +/- <div class="outcome_conversion_precision edittext shorttext"></div></td></tr>
             </table>
 
@@ -783,15 +823,28 @@ limitations under the License.
               <tr><td align="right">selectivity</td><td><div class="outcome_product_selectivity_value edittext shorttext"></div>
                                                         +/- <div class="outcome_product_selectivity_precision edittext shorttext"></div>
                                                         details</td><td><div class="outcome_product_selectivity_details edittext"></div></td></tr>
-              <tr><td align="right">color</td><td><div class="outcome_product_color edittext"></div></td></tr>
-              <tr><td align="right">texture</td><td><div class="outcome_product_texture_type selector" data-proto="ReactionProduct_Texture_TextureType"></div></td></tr>
-              <tr><td align="right">details</td><td><div class="outcome_product_texture_details edittext"></div></td></tr>
-            </table>            
+            </table>
+            <fieldset>
+              <legend>
+                <span class="collapse"></span>
+                Isolated product characteristics
+              </legend>
+              <div class="outcome_product_isolated_characteristics">
+                <table>
+                  <tr><td align="right">color</td><td><div class="outcome_product_color edittext"></div></td></tr>
+                  <tr><td align="right">texture</td><td><div class="outcome_product_texture_type selector" data-proto="ReactionProduct_Texture_TextureType"></div></td></tr>
+                  <tr><td align="right">details</td><td><div class="outcome_product_texture_details edittext"></div></td></tr>
+                </table>       
+              </div>     
+            </fieldset>
 
             <fieldset>
               <legend>
                 <span class="collapse"></span>
                 Identity analyses
+                <span data-toggle="tooltip" data-placement="right" title="Which analyses were used to confirm this product's identity.">
+                  <span class="fa fa-question-circle" aria-hidden="true"></span>
+                </span>
               </legend>
               <div class="outcome_product_analysis_identities">
               </div>
@@ -802,6 +855,9 @@ limitations under the License.
               <legend>
                 <span class="collapse"></span>
                 Yield analyses
+                <span data-toggle="tooltip" data-placement="right" title="Which analyses were used to quantify this product's yield.">
+                  <span class="fa fa-question-circle" aria-hidden="true"></span>
+                </span>
               </legend>
               <div class="outcome_product_analysis_yields">
               </div>
@@ -812,6 +868,9 @@ limitations under the License.
               <legend>
                 <span class="collapse"></span>
                 Purity analyses
+                <span data-toggle="tooltip" data-placement="right" title="Which analyses were used to quantify this product's purity.">
+                  <span class="fa fa-question-circle" aria-hidden="true"></span>
+                </span>
               </legend>
               <div class="outcome_product_analysis_purities">
               </div>
@@ -822,6 +881,9 @@ limitations under the License.
               <legend>
                 <span class="collapse"></span>
                 Selectivity analyses
+                <span data-toggle="tooltip" data-placement="right" title="Which analyses were used to quantify selectivity toward this product.">
+                  <span class="fa fa-question-circle" aria-hidden="true"></span>
+                </span>
               </legend>
               <div class="outcome_product_analysis_selectivities">
               </div>
@@ -901,7 +963,7 @@ limitations under the License.
             <fieldset>
               <legend>
                 <span class="collapse"></span>
-                Processed data
+                Processed analytical data
               </legend>
               <div onclick="removeSlowly(this, '.outcome_process');" class="remove">remove</div>
               <table>
@@ -937,7 +999,7 @@ limitations under the License.
             <fieldset>
               <legend>
                 <span class="collapse"></span>
-                Raw data
+                Raw analytical data
               </legend>
               <div onclick="removeSlowly(this, '.outcome_raw');" class="remove">remove</div>
               <table>
@@ -977,6 +1039,9 @@ limitations under the License.
         <legend>
           <span class="collapse"></span>
           Provenance
+          <span data-toggle="tooltip" data-placement="right" title="Additional metadata about how this reaction was performed and originally reported.">
+            <span class="fa fa-question-circle" aria-hidden="true"></span>
+          </span>
           <span class="validate" button-onclick="ord.provenance.validateProvenance($('#section_provenance'))"></span>
         </legend>
         <div id="provenance_experimenter">
@@ -996,7 +1061,10 @@ limitations under the License.
           <fieldset>
             <legend>
               <span class="collapse"></span>
-              Creation
+              Record creation
+              <span data-toggle="tooltip" data-placement="right" title="Details about the original creation of this reaction record.">
+                <span class="fa fa-question-circle" aria-hidden="true"></span>
+              </span>
             </legend>
             <table>
               <tr><td align="right">time</td><td>
@@ -1016,7 +1084,10 @@ limitations under the License.
             <fieldset>
               <legend>
                 <span class="collapse"></span>
-                Modification
+                Record modification
+                <span data-toggle="tooltip" data-placement="right" title="Details about subsequent modifications to this reaction record.">
+                <span class="fa fa-question-circle" aria-hidden="true"></span>
+              </span>
               </legend>
               <div onclick="removeSlowly(this, '.provenance_modified');" class="remove">remove</div>
               <table>
