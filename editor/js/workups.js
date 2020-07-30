@@ -223,6 +223,7 @@ ord.workups.add = function () {
   workupInputNode.find('.collapse').trigger('click');
   // Temperature conditions and stirring fields also start collapsed.
   workupNode.find('.workup_temperature').trigger('click');
+  workupNode.find('.workup_temperature_measurements_wrap').trigger('click');
   workupNode.find('.workup_stirring').trigger('click');
   // Unlike Reaction.inputs, this ReactionInput has no name.
   $('.input_name_label', inputNode).hide();

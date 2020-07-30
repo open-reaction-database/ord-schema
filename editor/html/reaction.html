@@ -638,7 +638,10 @@ limitations under the License.
       </fieldset>
 
       <fieldset id="section_workups" class="section">
-        <legend>Workups</legend>
+        <legend>
+          <span class="collapse"></span>
+          Workups
+        </legend>
         <div id="workups">
           <div id="workup_template" class="workup" style="display: none;">
           <fieldset>
@@ -674,11 +677,15 @@ limitations under the License.
                 <tr><td align="right">details</td><td><div class="workup_temperature_details edittext"></div></td></tr>
               </table>
             </fieldset>
-            <div>
+            <fieldset>
+              <legend>
+                <span class="workup_temperature_measurements_wrap collapse"></span>
+                Temperature measurements
+              </legend>
               <div class="workup_temperature_measurements">
               </div>
               <div onclick="ord.workups.addMeasurement($(this).closest('.workup'));" class="add">+ add measurement</div>
-            </div>
+            </fieldset>
             <fieldset>
               <legend>
                 <span class="workup_stirring collapse"></span>
