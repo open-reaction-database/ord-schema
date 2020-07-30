@@ -547,57 +547,50 @@ function initValidateNode (oldNode) {
   oldNode.append(newNode.children());
 }
 
-// Validation handlers for nodes that can't be added or removed. (eg status)
+// Some nodes are dynamically added / removed; 
+// we add their validation handlers when the nodes themselves are added.
+// However, other nodes are always present in the html, and aren't dynamically added nor removed.
+// To add live validation to these nodes, we do so here.
 function initValidateHandlers () {
   // For setup
   var setupNode = $('#section_setup');
-  var setupHandler = function () {ord.setups.validateSetup(setupNode)};
-  addChangeHandler(setupNode, setupHandler);
+  addChangeHandler(setupNode, () => {ord.setups.validateSetup(setupNode)});
 
   // For conditions
   var conditionNode = $('#section_conditions');
-  var conditionHandler = function () {ord.conditions.validateConditions(conditionNode)};
-  addChangeHandler(conditionNode, conditionHandler);
+  addChangeHandler(conditionNode, () => {ord.conditions.validateConditions(conditionNode)});
 
   // For temperature
   var temperatureNode = $('#section_conditions_temperature');
-  var temperatureHandler = function () {ord.temperature.validateTemperature(temperatureNode)};
-  addChangeHandler(temperatureNode, temperatureHandler);
+  addChangeHandler(temperatureNode, () => {ord.temperature.validateTemperature(temperatureNode)});
 
   // For pressure
   var pressureNode = $('#section_conditions_pressure');
-  var pressureHandler = function () {ord.pressure.validatePressure(pressureNode)};
-  addChangeHandler(pressureNode, pressureHandler);
+  addChangeHandler(pressureNode, () => {ord.pressure.validatePressure(pressureNode)});
 
   // For stirring
   var stirringNode = $('#section_conditions_stirring');
-  var stirringHandler = function () {ord.stirring.validateStirring(stirringNode)};
-  addChangeHandler(stirringNode, stirringHandler);
+  addChangeHandler(stirringNode, () => {ord.stirring.validateStirring(stirringNode)});
 
   // For illumination
   var illuminationNode = $('#section_conditions_illumination');
-  var illuminationHandler = function () {ord.illumination.validateIllumination(illuminationNode)};
-  addChangeHandler(illuminationNode, illuminationHandler);
+  addChangeHandler(illuminationNode, () => {ord.illumination.validateIllumination(illuminationNode)});
 
   // For electro
   var electroNode = $('#section_conditions_electro');
-  var electroHandler = function () {ord.electro.validateElectro(electroNode)};
-  addChangeHandler(electroNode, electroHandler);
+  addChangeHandler(electroNode, () => {ord.electro.validateElectro(electroNode)});
 
   // For flow
   var flowNode = $('#section_conditions_flow');
-  var flowHandler = function () {ord.flows.validateFlow(flowNode)};
-  addChangeHandler(flowNode, flowHandler);
+  addChangeHandler(flowNode, () => {ord.flows.validateFlow(flowNode)});
 
   // For notes
   var notesNode = $('#section_notes');
-  var notesHandler = function () {ord.notes.validateNotes(notesNode)};
-  addChangeHandler(notesNode, notesHandler);
+  addChangeHandler(notesNode, () => {ord.notes.validateNotes(notesNode)});
 
   // For provenance
   var provenanceNode = $('#section_provenance');
-  var provenanceHandler = function () {ord.provenance.validateProvenance(provenanceNode)};
-  addChangeHandler(provenanceNode, provenanceHandler);
+  addChangeHandler(provenanceNode, () => {ord.provenance.validateProvenance(provenanceNode)});
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.

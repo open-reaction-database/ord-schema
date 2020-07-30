@@ -231,8 +231,8 @@ ord.workups.add = function () {
   // Unlike Reaction.inputs, this ReactionInput is not repeated.
   $('.remove', inputNode).hide();
 
-  handler = function () {ord.workups.validateWorkup(workupNode)};
-  addChangeHandler(workupNode, handler);
+  // Add live validation handling.
+  addChangeHandler(workupNode, () => {ord.workups.validateWorkup(workupNode)});
 
   return workupNode;
 };

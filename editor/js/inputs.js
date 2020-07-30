@@ -146,8 +146,8 @@ ord.inputs.unloadInputUnnamed = function (node) {
 
 ord.inputs.add = function (root) {
   const node = addSlowly('#input_template', root);
-  handler = function () {ord.inputs.validateInput(node)};
-  addChangeHandler(node, handler);
+  // Add live validation handling.
+  addChangeHandler(node, () => {ord.inputs.validateInput(node)});
   return node;
 };
 

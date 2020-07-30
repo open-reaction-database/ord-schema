@@ -144,8 +144,8 @@ ord.observations.add = function () {
   });
   ord.uploads.initialize(node);
 
-  handler = function () {ord.observations.validateObservation(node)};
-  addChangeHandler(node, handler);
+  // Add live validation handling.
+  addChangeHandler(node, () => {ord.observations.validateObservation(node)});
 
   return node;
 };

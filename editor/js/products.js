@@ -207,8 +207,8 @@ ord.products.add = function (node) {
   $('.component .preparations_fieldset', productNode).hide();
   $('.component .vendor', productNode).hide();
 
-  handler = function () {ord.products.validateProduct(productNode)};
-  addChangeHandler(productNode, handler);
+  // Add live validation handling.
+  addChangeHandler(productNode, () => {ord.products.validateProduct(productNode)});
   return productNode;
 };
 

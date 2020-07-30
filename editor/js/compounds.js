@@ -253,8 +253,8 @@ ord.compounds.add = function (root) {
   // One identifier placeholder should be defined by default.
   ord.compounds.addIdentifier(node);
 
-  handler = function () {ord.compounds.validateCompound(node)};
-  addChangeHandler(node, handler);
+  // Add live validation handling.
+  addChangeHandler(node, () => {ord.compounds.validateCompound(node)});
 
   return node;
 };
