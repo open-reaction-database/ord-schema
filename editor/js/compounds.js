@@ -297,5 +297,5 @@ ord.compounds.validateCompound = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(compound, "Compound", validateNode);
+  validate(compound, 'Compound', validateNode);
 };

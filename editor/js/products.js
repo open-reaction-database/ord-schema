@@ -109,7 +109,7 @@ ord.products.unload = function (node) {
 ord.products.unloadProduct = function (node) {
   const product = new proto.ord.ReactionProduct();
 
-  const compoundNode = $(".outcome_product_compound");
+  const compoundNode = $('.outcome_product_compound');
   const compound = ord.compounds.unloadCompound(compoundNode);
   if (!isEmptyMessage(compound)) {
     product.setCompound(compound);
@@ -182,7 +182,7 @@ ord.products.unloadAnalysisKeys = function (node, tag) {
       if (!tagNode.attr('id')) {
         // Not a template.
         const value = $('.analysis_key_selector', tagNode).val();
-        if (value != "") {
+        if (value != '') {
           values.push(value);
         }
       }
@@ -241,5 +241,5 @@ ord.products.validateProduct = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(product, "ReactionProduct", validateNode);
+  validate(product, 'ReactionProduct', validateNode);
 };

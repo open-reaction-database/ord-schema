@@ -50,7 +50,7 @@ async function init(fileName, index) {
   // Initialize validation handlers that don't go in "add" methods.
   initValidateHandlers();
   // Initailize tooltips.
-  $('[data-toggle="tooltip"]').tooltip();
+  $("[data-toggle='tooltip']").tooltip();
   // Prevent tooltip pop-ups from blurring. 
   // (see github.com/twbs/bootstrap/issues/22610)
   Popper.Defaults.modifiers.computeStyle.gpuAcceleration = false;
@@ -110,7 +110,7 @@ function addChangeHandler (node, handler) {
 // Generic validator for many message types, not just reaction
 // note: does not commit or save anything!
 function validate(message, messageTypeString, validateNode) {
-  // eg message is a type of reaction, messageTypeString = "Reaction"
+  // eg message is a type of reaction, messageTypeString = 'Reaction'
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/dataset/proto/validate/' + messageTypeString);
   const binary = message.serializeBinary();
@@ -165,7 +165,7 @@ function toggleValidateMessage(node) {
 function validateReaction() {
   var validateNode = $('#reaction_validate');
   const reaction = unloadReaction();
-  validate(reaction, "Reaction", validateNode);
+  validate(reaction, 'Reaction', validateNode);
   // Trigger all submessages to validate.
   $('.validate_button:visible:not(#reaction_validate_button)').trigger('click');
 }
@@ -337,7 +337,7 @@ function unloadReaction() {
 // doesn’t have anything meaningful that is set) 
 // and can be omitted when constructing the surrounding message.
 function isEmptyMessage(obj) {
-  if ([null, undefined, ""].includes(obj)) {
+  if ([null, undefined, ''].includes(obj)) {
     return true;
   }
   array = obj.array;
@@ -365,7 +365,7 @@ function addSlowly(template, root) {
   node.show('slow');
   dirty();
   listen(node);
-  $('[data-toggle="tooltip"]', node).tooltip();
+  $("[data-toggle='tooltip']", node).tooltip();
   return node;
 }
 
@@ -406,7 +406,7 @@ function toggleSlowly(node, pattern) {
   }
   else {
     // Need to collapse.
-    node.siblings().wrapAll("<collapsed>");
+    node.siblings().wrapAll('<collapsed>');
     node.next('collapsed').toggle('slow');
   }
 }
@@ -537,11 +537,11 @@ function initCollapse (node) {
 // Set up a validator div (button, status indicator, error list, etc.),
 // inserting contents into a div in reaction.html
 function initValidateNode (oldNode) {
-  let newNode = $("#validate_template").clone();
+  let newNode = $('#validate_template').clone();
   // Add attributes necessary for validation functions.
-  $(".validate_button", newNode).attr('onclick', oldNode.attr('button-onclick'));
+  $('.validate_button', newNode).attr('onclick', oldNode.attr('button-onclick'));
   if (oldNode.attr('id')) {
-    $(".validate_button", newNode).attr('id', oldNode.attr('id') + '_button');
+    $('.validate_button', newNode).attr('id', oldNode.attr('id') + '_button');
   }
   oldNode.append(newNode.children());
 }

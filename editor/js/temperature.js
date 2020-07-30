@@ -109,5 +109,5 @@ ord.temperature.validateTemperature = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(temperature, "TemperatureConditions", validateNode);
+  validate(temperature, 'TemperatureConditions', validateNode);
 };

@@ -62,5 +62,5 @@ ord.illumination.validateIllumination = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(illumination, "IlluminationConditions", validateNode);
+  validate(illumination, 'IlluminationConditions', validateNode);
 };

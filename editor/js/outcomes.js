@@ -347,7 +347,7 @@ ord.outcomes.addAnalysis = function (node) {
       // If any selector had this value selected, reset it.
       $('.analysis_key_selector').each(function() {
         if ($(this).val() == old_name) {
-          $(this).val("");
+          $(this).val('');
         }
       });
       $('.analysis_key_selector option[value="' + old_name + '"]').remove();
@@ -414,7 +414,7 @@ ord.outcomes.validateOutcome = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(outcome, "ReactionOutcome", validateNode);
+  validate(outcome, 'ReactionOutcome', validateNode);
 };
 
 ord.outcomes.validateAnalysis = function(node, validateNode) {
@@ -422,5 +422,5 @@ ord.outcomes.validateAnalysis = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(analysis, "ReactionAnalysis", validateNode);
+  validate(analysis, 'ReactionAnalysis', validateNode);
 };

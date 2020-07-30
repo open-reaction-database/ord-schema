@@ -183,5 +183,5 @@ ord.setups.validateSetup = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(setup, "ReactionSetup", validateNode);
+  validate(setup, 'ReactionSetup', validateNode);
 };

@@ -155,5 +155,5 @@ ord.observations.validateObservation = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(observation, "ReactionObservation", validateNode);
+  validate(observation, 'ReactionObservation', validateNode);
 };

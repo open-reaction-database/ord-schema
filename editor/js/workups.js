@@ -248,5 +248,5 @@ ord.workups.validateWorkup = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(workup, "ReactionWorkup", validateNode);
+  validate(workup, 'ReactionWorkup', validateNode);
 };

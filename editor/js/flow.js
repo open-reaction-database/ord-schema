@@ -64,5 +64,5 @@ ord.flows.validateFlow = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(flow, "FlowConditions", validateNode);
+  validate(flow, 'FlowConditions', validateNode);
 };

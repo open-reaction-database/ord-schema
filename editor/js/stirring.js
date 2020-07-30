@@ -63,5 +63,5 @@ ord.stirring.validateStirring = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(stirring, "StirringConditions", validateNode);
+  validate(stirring, 'StirringConditions', validateNode);
 };

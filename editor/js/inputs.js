@@ -156,5 +156,5 @@ ord.inputs.validateInput = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(input, "ReactionInput", validateNode);
+  validate(input, 'ReactionInput', validateNode);
 };

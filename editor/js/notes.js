@@ -57,5 +57,5 @@ ord.notes.validateNotes = function(node, validateNode) {
     if (typeof validateNode === 'undefined') {
       validateNode = $('.validate', node).first();
     }
-    validate(notes, "ReactionNotes", validateNode);
+    validate(notes, 'ReactionNotes', validateNode);
   };

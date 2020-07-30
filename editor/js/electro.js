@@ -162,5 +162,5 @@ ord.electro.validateElectro = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(electro, "ElectrochemistryConditions", validateNode);
+  validate(electro, 'ElectrochemistryConditions', validateNode);
 };

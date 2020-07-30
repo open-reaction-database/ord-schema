@@ -105,5 +105,5 @@ ord.conditions.validateConditions = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(condition, "ReactionConditions", validateNode);
+  validate(condition, 'ReactionConditions', validateNode);
 };

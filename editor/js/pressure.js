@@ -120,5 +120,5 @@ ord.pressure.validatePressure = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(pressure, "PressureConditions", validateNode);
+  validate(pressure, 'PressureConditions', validateNode);
 };

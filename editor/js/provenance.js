@@ -143,5 +143,5 @@ ord.provenance.validateProvenance = function(node, validateNode) {
   if (typeof validateNode === 'undefined') {
     validateNode = $('.validate', node).first();
   }
-  validate(provenance, "ReactionProvenance", validateNode);
+  validate(provenance, 'ReactionProvenance', validateNode);
 };
