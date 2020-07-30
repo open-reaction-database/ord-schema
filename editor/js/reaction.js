@@ -411,7 +411,6 @@ function toggleSlowly(node, pattern) {
   }
 }
 
-// Collapse button.
 function collapseToggle(button) {
   $(button).toggleClass('fa-chevron-down fa-chevron-right');
   toggleSlowly(button, 'legend');
