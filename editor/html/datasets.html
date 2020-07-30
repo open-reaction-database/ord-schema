@@ -159,13 +159,14 @@ limitations under the License.
         input.click();
 
         $.when(templateString, spreadsheetData, spreadsheetName).done(function(v1, v2, v3) {
-          // remove byte order mark.
-          if ((v2.charCodeAt(0) === 239) & (v2.charCodeAt(1) === 187) & (v2.charCodeAt(2) === 191)) {
-            v2 = v2.substr(3);
-          }
           const xhr = new XMLHttpRequest();
           xhr.open('POST', '/dataset/enumerate');
-          xhr.onload = () => location.reload();
+          xhr.onload = function() {
+            if (xhr.status == 400) {
+              alert('Could not create new dataset: ' + xhr.response);
+            }
+            location.reload();
+          }
           xhr.send(JSON.stringify({'template_string': v1,
                     'spreadsheet_data': v2,
                     'spreadsheet_name': v3}));

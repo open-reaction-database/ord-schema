@@ -123,14 +123,16 @@ def enumerate_dataset():
     data = flask.request.get_json(force=True)
     basename, suffix = os.path.splitext(data['spreadsheet_name'])
     with tempfile.NamedTemporaryFile(mode='w',
-                                     suffix=suffix,
-                                     encoding='utf-8-sig') as f:
-        f.write(data['spreadsheet_data'].lstrip('\ufeff'))
+                                     suffix=suffix) as f:
+        f.write(data['spreadsheet_data'].lstrip('ï»¿'))
         f.seek(0)
         dataframe = dataset_templating.read_spreadsheet(f.name)
-    dataset = dataset_templating.generate_dataset(data['template_string'],
-                                                  dataframe,
-                                                  validate=False)
+    try:
+        dataset = dataset_templating.generate_dataset(data['template_string'],
+                                                      dataframe,
+                                                      validate=False)
+    except ValueError as e:
+        flask.abort(flask.make_response(str(e), 400))
     message_helpers.write_message(
         dataset,
         f'db/{flask.g.user}/{basename}_dataset.pbtxt')
