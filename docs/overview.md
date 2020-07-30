@@ -138,7 +138,7 @@ database repository:
 
 ```shell
 $ cd "${REPOSITORY}"
-$ git remote add upstream https://github.com/Open-Reaction-Database/ord-submissions-test.git
+$ git remote add upstream https://github.com/Open-Reaction-Database/ord-data.git
 ```
 
 ## Submitting to the database

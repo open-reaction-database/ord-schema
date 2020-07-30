@@ -337,7 +337,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
             '36443a1839bf1160087422b7468a93c7b97dac7eea423bfac189208a15823139'
             '.png')
         expected = ('https://github.com/Open-Reaction-Database/'
-                    'ord-submissions-test/tree/' + relative_path)
+                    'ord-data/tree/' + relative_path)
         self.assertEqual(dataset.reactions[0].observations[0].image.url,
                          expected)
         with open(os.path.join(self.test_subdirectory, relative_path),
