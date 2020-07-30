@@ -153,7 +153,7 @@ ord.inputs.add = function (root) {
 
 ord.inputs.validateInput = function(node, validateNode) {
   const input = ord.inputs.unloadInputUnnamed(node);
-  if (typeof validateNode === 'undefined') {
+  if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(input, 'ReactionInput', validateNode);

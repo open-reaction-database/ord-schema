@@ -238,7 +238,7 @@ ord.products.addSelectivity = function (node) {
 
 ord.products.validateProduct = function(node, validateNode) {
   const product = ord.products.unloadProduct(node);
-  if (typeof validateNode === 'undefined') {
+  if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(product, 'ReactionProduct', validateNode);

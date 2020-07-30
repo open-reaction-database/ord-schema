@@ -54,8 +54,8 @@ ord.notes.unload = function () {
 
 ord.notes.validateNotes = function(node, validateNode) {
     const notes = ord.notes.unload();
-    if (typeof validateNode === 'undefined') {
-      validateNode = $('.validate', node).first();
+    if (!validateNode) {
+        validateNode = $('.validate', node).first();
     }
     validate(notes, 'ReactionNotes', validateNode);
   };

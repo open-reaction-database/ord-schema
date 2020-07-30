@@ -61,7 +61,7 @@ ord.flows.unload = function () {
 
 ord.flows.validateFlow = function(node, validateNode) {
   const flow = ord.flows.unload();
-  if (typeof validateNode === 'undefined') {
+  if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(flow, 'FlowConditions', validateNode);

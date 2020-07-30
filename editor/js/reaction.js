@@ -391,7 +391,7 @@ function removeSlowly(button, pattern) {
 // the nearest ancestor element matching the pattern.
 function toggleSlowly(node, pattern) {
   node = $(node);
-  if (typeof pattern !== 'undefined') {
+  if (pattern) {
     node = node.closest(pattern);
   }
   // 'collapsed' tag is used to hold previously collapsed siblings, 

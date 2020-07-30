@@ -152,7 +152,7 @@ ord.observations.add = function () {
 
 ord.observations.validateObservation = function(node, validateNode) {
   const observation = ord.observations.unloadObservation(node);
-  if (typeof validateNode === 'undefined') {
+  if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(observation, 'ReactionObservation', validateNode);

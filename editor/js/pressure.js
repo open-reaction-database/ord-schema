@@ -117,7 +117,7 @@ ord.pressure.addMeasurement = function () {
 
 ord.pressure.validatePressure = function(node, validateNode) {
   const pressure = ord.pressure.unload();
-  if (typeof validateNode === 'undefined') {
+  if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(pressure, 'PressureConditions', validateNode);

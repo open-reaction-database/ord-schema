@@ -411,7 +411,7 @@ ord.outcomes.addRaw = function (node) {
 
 ord.outcomes.validateOutcome = function(node, validateNode) {
   const outcome = ord.outcomes.unloadOutcome(node);
-  if (typeof validateNode === 'undefined') {
+  if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(outcome, 'ReactionOutcome', validateNode);
@@ -419,7 +419,7 @@ ord.outcomes.validateOutcome = function(node, validateNode) {
 
 ord.outcomes.validateAnalysis = function(node, validateNode) {
   const analysis = ord.outcomes.unloadAnalysisSingle(node);
-  if (typeof validateNode === 'undefined') {
+  if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(analysis, 'ReactionAnalysis', validateNode);

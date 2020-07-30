@@ -60,7 +60,7 @@ ord.stirring.unload = function () {
 
 ord.stirring.validateStirring = function(node, validateNode) {
   const stirring = ord.stirring.unload();
-  if (typeof validateNode === 'undefined') {
+  if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(stirring, 'StirringConditions', validateNode);

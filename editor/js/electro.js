@@ -159,7 +159,7 @@ ord.electro.addMeasurement = function () {
 
 ord.electro.validateElectro = function(node, validateNode) {
   const electro = ord.electro.unload();
-  if (typeof validateNode === 'undefined') {
+  if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(electro, 'ElectrochemistryConditions', validateNode);

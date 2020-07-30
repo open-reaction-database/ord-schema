@@ -140,7 +140,7 @@ ord.provenance.addModification = function () {
 
 ord.provenance.validateProvenance = function(node, validateNode) {
   const provenance = ord.provenance.unload();
-  if (typeof validateNode === 'undefined') {
+  if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(provenance, 'ReactionProvenance', validateNode);

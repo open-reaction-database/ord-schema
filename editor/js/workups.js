@@ -245,7 +245,7 @@ ord.workups.addMeasurement = function (node) {
 
 ord.workups.validateWorkup = function(node, validateNode) {
   const workup = ord.workups.unloadWorkup(node);
-  if (typeof validateNode === 'undefined') {
+  if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(workup, 'ReactionWorkup', validateNode);

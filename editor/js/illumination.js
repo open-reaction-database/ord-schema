@@ -59,7 +59,7 @@ ord.illumination.unload = function () {
 
 ord.illumination.validateIllumination = function(node, validateNode) {
   const illumination = ord.illumination.unload();
-  if (typeof validateNode === 'undefined') {
+  if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(illumination, 'IlluminationConditions', validateNode);
