@@ -49,6 +49,29 @@ class OrdPostgres:
     def cursor(self):
         return self._connection.cursor()
 
+    def get_reaction_by_id(self, reaction_id):
+      """Look up a single Reaction by its primary key.
+
+      Args:
+        reaction_id: reaction_id value in the "reactions" table.
+
+      Returns:
+        Dataset proto containing the matched Reaction, or None.
+      """
+      query = f"""
+          SELECT serialized
+          FROM reactions
+          WHERE reaction_id='{reaction_id}';"""
+      logging.info(query)
+      with self._connection, self.cursor() as cursor:
+        cursor.execute(query)
+        result = cursor.fetchone()
+        if result is not None:
+          serialized = result[0]
+          reaction = reaction_pb2.Reaction.FromString(
+              binascii.unhexlify(serialized.tobytes()));
+          return dataset_pb2.Dataset(reactions=[reaction])
+
     def substructure_search(self,
                             pattern,
                             table,
