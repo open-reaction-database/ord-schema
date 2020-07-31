@@ -8,3 +8,8 @@ docs/_build/
 __pycache__
 *.egg-info
 .ipynb_checkpoints
+# vim swap files
+*.sw[a-z]
+# build output
+/build
+/dist
