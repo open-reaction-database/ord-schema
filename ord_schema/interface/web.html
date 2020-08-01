@@ -1,5 +1,11 @@
 <html>
   <body>
-    {{ dataset }}
+    {% for reaction in dataset.reactions %}
+<pre>
+reaction_id: {{ reaction.reaction_id }}
+
+provenance: {{ reaction.provenance }}
+</pre>
+    {% endfor %}
   </body>
 </html>
