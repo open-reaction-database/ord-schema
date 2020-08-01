@@ -19,7 +19,7 @@ endif
 # https://github.com/google/closure-library/releases/
 closure = closure-library-20200517
 
-all : prep py js ketcher-all
+all : prep py js ketcher/dist
 
 prep :
 	# Ensure output directories exist.
@@ -69,22 +69,25 @@ gen/js/proto/ord/%.js : ../ord_schema/proto/%.proto
 ../build/lib/ord_schema/proto/%_pb2.py : ../ord_schema/proto/%.proto
 	$(error $< not found--run setup?)
 
-ketcher-update: ketcher-pull ketcher/node_modules ketcher/dist
-
-ketcher-pull: ketcher
-	cd ketcher && git pull
-
 ketcher:
 	git clone https://github.com/Open-Reaction-Database/ketcher.git
 
+ketcher-pull: ketcher
+	cd ketcher && git checkout editor-ketcher && git pull
+
+# Empty rules, so ketcher/node_modules doesn't complain if the files aren't present.
+# (they'll be present after ketcher-pull, so things turn out okay)
+ketcher/package.json: 
+
+ketcher/package-lock.json: 
+
 # Installs on changes to package.json or package-lock.json, not node_modules.
-# (corruptions to node-modules, for example, will not be fixed; use make clean)
+# (corruptions to node_modules folder, for example, will not be fixed; use make clean)
+# Also ensures that ketcher-pull is always run 
+# (though, on its own, does not rerun npm install if ketcher files in general change.).
 # TODO the existence of ketcher/node_modules does NOT imply a proper install,
 # maybe use touch to create a file to signal and check for proper install?
-ketcher/node_modules: ketcher/package.json ketcher/package-lock.json
-	# Install Node.js modules.
-	# Might have to sudo npm install, for phantom.
-
+ketcher/node_modules: ketcher/package.json ketcher/package-lock.json | ketcher-pull
 	# If make is run as root, then the ketcher folder has root perms.
 	# Then, to install phantomjs properly, npm requires to be run as root.
 	# If make is not run as root, then npm can be run normally.
@@ -96,9 +99,11 @@ ketcher/node_modules: ketcher/package.json ketcher/package-lock.json
 	fi;
 
 # Builds on changes to anything in ketcher/, that aren't in ketcher/node_modules or /ketcher_dist
-# (so essentially, changes to any editable source code)
-# TODO ketcher/dist existing doesnt imply finished build
-ketcher/dist: @find ./ketcher/* ! -path "./ketcher/node_modules*" ! -path "./ketcher/dist*"
+# (so essentially, changes to any human-editable source code)
+# (Note: shell does expand and run before processing, but the results of the find command
+# would remain correct throughout execution, so this timing is okay.)
+# TODO ketcher/dist existing doesn't imply finished build; do something similar to what's noted in TODO above
+ketcher/dist: $(shell find ./ketcher/* ! -path "./ketcher/node_modules*" ! -path "./ketcher/dist*") | ketcher/node_modules
 	# Build Ketcher from source.
 	cd ketcher && npm run build
 
