@@ -291,6 +291,8 @@ ord.compounds.drawIdentifier = function (node) {
   // Get a reference to Ketcher, and to look nice, clear any old drawings.
   const ketcher = document.getElementById('ketcher-iframe').contentWindow.ketcher;
   ketcher.editor.struct(null);
+  // Start the loading spinner.
+  $("#ketcher-spinner").fadeIn(0);
 
   // First, pack the current Compound into a message.
   const compound = new proto.ord.Compound();
@@ -306,10 +308,9 @@ ord.compounds.drawIdentifier = function (node) {
   xhr.onload = function () {
     if ((xhr.status == 200)) {
       const molblock = xhr.response;
-      // Set the molecule in ketcher. TODO(ccoley, n8kim1) this is kind of broken
-      // A cleaner fix may be to define a modal callback here (that sets the molecule),
-      // and then open the modal (triggering the callback)  -- both within this xhr callback block. 
-      // But this takes extra time in waiting for the xhr to be received before opening the modal.
+      // Set the molecule in ketcher.
+      // Note: In case async / callback issues prove difficult,
+      // a cleaner fix may be to put this entire xhr in a modal callback, then toggle the modal.
 
       // If the modal is already open, we can simply set the molecule.
       const ketcherModal = $('#ketcher_modal');
@@ -326,6 +327,8 @@ ord.compounds.drawIdentifier = function (node) {
         })
       }
     }
+    // Now that we're done with (trying to) loading the molecule, hide the spinner.
+    $("#ketcher-spinner").fadeOut();
   };
   xhr.send(binary);
   // Finally, open the ketcher modal.
