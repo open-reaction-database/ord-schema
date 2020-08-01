@@ -288,7 +288,7 @@ ord.compounds.addNameIdentifier = function (node) {
 
 // Shortcut to add an identifier by drawing.
 ord.compounds.drawIdentifier = function (node) {
-  alert('Ketcher is not implemented yet');
+  $('#ketcher_modal').modal('toggle');
 };
 
 ord.compounds.addPreparation = function (node) {

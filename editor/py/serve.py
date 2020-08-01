@@ -380,6 +380,21 @@ def css(sheet):
     return flask.send_file('../css/%s' % sheet)
 
 
+@app.route('/ketcher/iframe')
+def ketcher_iframe():
+  """Accesses a website serving Ketcher."""
+  return flask.render_template('ketcher_iframe.html')
+
+@app.route('/ketcher/dist/<file>')
+def ketcher(file):
+  """Accesses any built Ketcher file by name."""
+  return flask.send_file('../ketcher/dist/%s' % file)
+
+@app.route('/api/v2/indigo/<method>')
+def indigo(method):
+  """Dummy indigo endpoints to prevent 404 errors."""
+  return ('', 204)
+
 @app.route('/dataset/deps.js')
 @app.route('/dataset/<file_name>/deps.js')
 @app.route('/dataset/<file_name>/reaction/deps.js')
