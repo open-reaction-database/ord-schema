@@ -288,7 +288,10 @@ ord.compounds.addNameIdentifier = function (node) {
 
 // Shortcut to add an identifier by drawing.
 ord.compounds.drawIdentifier = function (node) {
+  // Get a reference to Ketcher, and to look nice, clear any old drawings.
   const ketcher = document.getElementById('ketcher-iframe').contentWindow.ketcher;
+  ketcher.editor.struct(null);
+
   // First, pack the current Compound into a message.
   const compound = new proto.ord.Compound();
   const identifiers = ord.compounds.unloadIdentifiers(node);
