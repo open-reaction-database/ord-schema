@@ -303,8 +303,24 @@ ord.compounds.drawIdentifier = function (node) {
   xhr.onload = function () {
     if (!(xhr.status == 404)) {
       const molblock = xhr.response;
-      // Set the molecule in ketcher. TODO(ccoley) this is kind of broken
-      ketcher.setMolecule(molblock);
+      // Set the molecule in ketcher. TODO(ccoley, n8kim1) this is kind of broken
+      // A cleaner fix may be to define a modal callback here (that sets the molecule),
+      // and then open the modal (triggering the callback)  -- both within this xhr callback block. 
+      // But this takes extra time in waiting for the xhr to be received before opening the modal.
+
+      // If the modal is already open, we can simply set the molecule.
+      const ketcherModal = $('#ketcher_modal');
+      if (ketcherModal.hasClass('show')) {
+        ketcher.setMolecule(molblock);
+      }
+      // Otherwise, we need to set up a callback, so that the molecule is set 
+      // only when Ketcher is open. (to prevent a graphical glitch)
+      else {
+        ketcherModal.off('shown.bs.modal');
+        ketcherModal.on('shown.bs.modal', function () {
+          ketcher.setMolecule(molblock);
+        })
+      }
     }
   };
   xhr.send(binary);
