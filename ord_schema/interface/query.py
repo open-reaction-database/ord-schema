@@ -25,7 +25,6 @@ from ord_schema.proto import reaction_pb2
 
 class Predicate:
     """Structure and code generation for ORD query predicates."""
-
     class MatchMode(enum.Enum):
         """Interpretations for SMILES and SMARTS strings."""
         EXACT = 1
@@ -57,7 +56,7 @@ class Predicate:
 
     def set_output(self, pattern, match_mode):
         self.smiles_output = (pattern, match_mode)
-        
+
     def set_reaction_id(self, reaction_id):
         self.reaction_id = reaction_id
 
@@ -126,6 +125,7 @@ class Predicate:
             LIMIT 100;
         """
 
+
 class OrdPostgres:
     """Class for performing SQL queries on the ORD."""
     def __init__(self,
@@ -171,9 +171,9 @@ class OrdPostgres:
             for row in cursor:
                 serialized = row[0]
                 reaction = reaction_pb2.Reaction.FromString(
-                    binascii.unhexlify(serialized.tobytes()));
+                    binascii.unhexlify(serialized.tobytes()))
                 reactions.append(reaction)
-            self._connection.rollback() # Revert rdkit runtime configuration.
+            self._connection.rollback()  # Revert rdkit runtime configuration.
         return dataset_pb2.Dataset(reactions=[reaction])
 
     def substructure_search(self,
