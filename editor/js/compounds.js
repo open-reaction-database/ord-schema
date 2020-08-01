@@ -319,8 +319,9 @@ ord.compounds.drawIdentifier = function (node) {
       // Otherwise, we need to set up a callback, so that the molecule is set 
       // only when Ketcher is open. (to prevent a graphical glitch)
       else {
-        ketcherModal.off('shown.bs.modal');
         ketcherModal.on('shown.bs.modal', function () {
+          // This callback should only be ever run once, so make sure to remove it. 
+          ketcherModal.off('shown.bs.modal');
           ketcher.setMolecule(molblock);
         })
       }
