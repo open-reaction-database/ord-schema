@@ -271,6 +271,18 @@ def smiles_from_compound(compound):
     return Chem.MolToSmiles(mol_from_compound(compound))
 
 
+def molblock_from_compound(compound):
+    """Fetches or generates a MolBlock identifier for a compound.
+
+    Args:
+        compound: reaction_pb2.Compound message.
+
+    Returns:
+        molblock: MolBlock identifier.
+    """
+    return Chem.MolToMolBlock(mol_from_compound(compound))
+
+
 # pylint: disable=inconsistent-return-statements
 def mol_from_compound(compound, return_identifier=False):
     """Creates an RDKit Mol from a Compound message.

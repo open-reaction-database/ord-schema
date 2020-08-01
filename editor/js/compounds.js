@@ -288,7 +288,50 @@ ord.compounds.addNameIdentifier = function (node) {
 
 // Shortcut to add an identifier by drawing.
 ord.compounds.drawIdentifier = function (node) {
+  const ketcher = document.getElementById('ketcher-iframe').contentWindow.ketcher;
+  // First, pack the current Compound into a message.
+  const compound = new proto.ord.Compound();
+  const identifiers = ord.compounds.unloadIdentifiers(node);
+  if (!isEmptyMessage(identifiers)) {
+    compound.setIdentifiersList(identifiers);
+  }
+  // Then, try to resolve compound into a MolBlock.
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/ketcher/molfile');
+  const binary = compound.serializeBinary();
+  xhr.responseType = 'json';
+  xhr.onload = function () {
+    if (!(xhr.status == 404)) {
+      const molblock = xhr.response;
+      // Set the molecule in ketcher. TODO(ccoley) this is kind of broken
+      ketcher.setMolecule(molblock);
+    }
+  };
+  xhr.send(binary);
+  // Finally, open the ketcher modal.
   $('#ketcher_modal').modal('toggle');
+  // Define a callback so that when a user is done drawing, the new SMILES
+  // string gets saved.
+  ketcher.successCallback = function () {
+    const smiles = ketcher.getSmiles();
+    // Check if an existing SMILES identifier exists. If yes, remove.
+    $('.component_identifier', node).each(function (index, node) {
+      node = $(node);
+      if (!node.attr('id')) {
+        // Not a template.
+        const identifier = ord.compounds.unloadIdentifier(node);
+        if (identifier.getType() === proto.ord.CompoundIdentifier.IdentifierType.SMILES) {
+          removeSlowly(node, '.component_identifier');
+        }
+      }
+    });
+    // Create new identifier.
+    const identifier = new proto.ord.CompoundIdentifier();
+    identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
+    identifier.setValue(smiles);
+    identifier.setDetails('Drawn with Ketcher');
+    ord.compounds.loadIdentifier(node, identifier);
+  }
 };
 
 ord.compounds.addPreparation = function (node) {
