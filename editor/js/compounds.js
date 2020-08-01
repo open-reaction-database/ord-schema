@@ -301,7 +301,7 @@ ord.compounds.drawIdentifier = function (node) {
   const binary = compound.serializeBinary();
   xhr.responseType = 'json';
   xhr.onload = function () {
-    if (!(xhr.status == 404)) {
+    if ((xhr.status == 200)) {
       const molblock = xhr.response;
       // Set the molecule in ketcher. TODO(ccoley, n8kim1) this is kind of broken
       // A cleaner fix may be to define a modal callback here (that sets the molecule),
