@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Query web interface to the Open Reaction Database in Postgres.
 
 The client is stateless. Full information is in the URL so results can be
@@ -111,17 +110,18 @@ def show_root():
         reaction_ids = db.predicate_search_ids(predicate)
     else:
         reaction_ids = []
-    return flask.render_template(
-        'web.html', reaction_ids=reaction_ids, predicate=predicate.json())
+    return flask.render_template('web.html',
+                                 reaction_ids=reaction_ids,
+                                 predicate=predicate.json())
 
 
 @app.route('/id/<reaction_id>')
 def show_id(reaction_id):
-  """Returns the pbtxt of a single reaction as plain text."""
-  predicate = query.Predicate()
-  predicate.set_reaction_id(reaction_id)
-  db = query.OrdPostgres(host='localhost', port=5430)
-  dataset = db.predicate_search(predicate)
-  if len(dataset.reactions) == 0:
-      return flask.abort(404)
-  return flask.Response(str(dataset.reactions[0]), mimetype='text/plain')
+    """Returns the pbtxt of a single reaction as plain text."""
+    predicate = query.Predicate()
+    predicate.set_reaction_id(reaction_id)
+    db = query.OrdPostgres(host='localhost', port=5430)
+    dataset = db.predicate_search(predicate)
+    if len(dataset.reactions) == 0:
+        return flask.abort(404)
+    return flask.Response(str(dataset.reactions[0]), mimetype='text/plain')
