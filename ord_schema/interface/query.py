@@ -26,7 +26,6 @@ from ord_schema.proto import reaction_pb2
 
 class Predicate:
     """Structure and code generation for ORD query predicates."""
-
     class MatchMode(enum.Enum):
         """Interpretations for SMILES and SMARTS strings."""
         EXACT = 1
@@ -58,7 +57,7 @@ class Predicate:
 
     def set_output(self, pattern, match_mode):
         self.output = (pattern, match_mode)
-        
+
     def set_reaction_id(self, reaction_id):
         self.reaction_id = reaction_id
 
@@ -154,17 +153,20 @@ class Predicate:
             for input in self.inputs:
                 inputs.append({
                     'smiles': input[0],
-                    'matchMode': input[1].name.lower()})
+                    'matchMode': input[1].name.lower()
+                })
             predicate['inputs'] = inputs
         if self.output:
             predicate['output'] = {
                 'smiles': self.output[0],
-                'matchMode': self.output[1].name.lower()}
+                'matchMode': self.output[1].name.lower()
+            }
         if self.reaction_id:
             predicate['reactionId'] = self.reaction_id
         if self.reaction_smiles:
             predicate['reactionSmiles'] = self.reaction_smiles
         return json.dumps(predicate)
+
 
 class OrdPostgres:
     """Class for performing SQL queries on the ORD."""
@@ -211,9 +213,9 @@ class OrdPostgres:
             for row in cursor:
                 serialized = row[0]
                 reaction = reaction_pb2.Reaction.FromString(
-                    binascii.unhexlify(serialized.tobytes()));
+                    binascii.unhexlify(serialized.tobytes()))
                 reactions.append(reaction)
-            self._connection.rollback() # Revert rdkit runtime configuration.
+            self._connection.rollback()  # Revert rdkit runtime configuration.
         return dataset_pb2.Dataset(reactions=reactions)
 
     def predicate_search_ids(self, predicate):
@@ -232,7 +234,7 @@ class OrdPostgres:
         with self._connection, self.cursor() as cursor:
             cursor.execute(query)
             reaction_ids = [row[0] for row in cursor]
-            self._connection.rollback() # Revert rdkit runtime configuration.
+            self._connection.rollback()  # Revert rdkit runtime configuration.
         return reaction_ids
 
     def substructure_search(self,
