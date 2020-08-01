@@ -106,8 +106,9 @@ def show_root():
     predicate.set_output(smiles, mode)
 
   db = query.OrdPostgres(host='localhost', port=5430)
-  dataset = db.predicate_search(predicate)
-  return flask.render_template('web.html', dataset=dataset, predicate=predicate)
+  reaction_ids = db.predicate_search_ids(predicate)
+  return flask.render_template(
+      'web.html', reaction_ids=reaction_ids, predicate=predicate)
 
 
 @app.route('/id/<reaction_id>')

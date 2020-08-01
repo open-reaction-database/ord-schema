@@ -74,12 +74,12 @@
         <button>go</button>
       </div>
       <div id="results" class="section">
-        {% for reaction in dataset.reactions %}
+        {% for reaction_id in reaction_ids %}
           <div class="result">
-            <a href="#">{{ reaction.reaction_id }}</a>
+            <a href="#">{{ reaction_id }}</a>
           </div>
         {% endfor %}
-        {% if not dataset.reactions %}
+        {% if not reaction_ids %}
           <div>
             no reactions
           </div>

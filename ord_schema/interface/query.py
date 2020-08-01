@@ -128,6 +128,24 @@ class Predicate:
             LIMIT 100;
         """
 
+    def query_ids(self):
+        return f"""
+            SET rdkit.do_chiral_ss={self.do_chiral_ss};
+            SET rdkit.tanimoto_threshold={self.tanimoto_threshold};
+
+            SELECT DISTINCT reactions.reaction_id
+            FROM reactions
+            INNER JOIN inputs ON inputs.reaction_id = reactions.reaction_id
+            INNER JOIN outputs ON outputs.reaction_id = reactions.reaction_id
+            INNER JOIN rdk.inputs rdki ON rdki.reaction_id = reactions.reaction_id
+            INNER JOIN rdk.outputs rdko ON rdko.reaction_id = reactions.reaction_id
+            WHERE
+                {self._inputs_predicate()}
+                AND {self._output_predicate()}
+                AND {self._reactions_predicate()}
+            LIMIT 100;
+        """
+
 class OrdPostgres:
     """Class for performing SQL queries on the ORD."""
     def __init__(self,
@@ -160,7 +178,7 @@ class OrdPostgres:
 
         Args:
             predicate: A Predicate defining patterns to match.
-            
+
         Returns:
             A Dataset proto containing the matched Reactions.
         """
@@ -177,6 +195,25 @@ class OrdPostgres:
                 reactions.append(reaction)
             self._connection.rollback() # Revert rdkit runtime configuration.
         return dataset_pb2.Dataset(reactions=reactions)
+
+    def predicate_search_ids(self, predicate):
+        """Return the Reaction IDs matching the given Reaction constraints.
+
+        Args:
+            predicate: A Predicate defining patterns to match.
+
+        Returns:
+            A list of string IDs like "ord-<hex>".
+        """
+        query = predicate.query_ids()
+        print(query)
+        logging.info(query)
+        reactions = []
+        with self._connection, self.cursor() as cursor:
+            cursor.execute(query)
+            reaction_ids = [row[0] for row in cursor]
+            self._connection.rollback() # Revert rdkit runtime configuration.
+        return reaction_ids
 
     def substructure_search(self,
                             pattern,
