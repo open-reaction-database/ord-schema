@@ -280,6 +280,9 @@ def molblock_from_compound(compound):
     Returns:
         molblock: MolBlock identifier.
     """
+    for identifier in compound.identifiers:
+        if identifier.type == reaction_pb2.CompoundIdentifier.MOLBLOCK:
+            return identifier.value
     return Chem.MolToMolBlock(mol_from_compound(compound))
 
 

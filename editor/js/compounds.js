@@ -329,23 +329,26 @@ ord.compounds.drawIdentifier = function (node) {
   // Define a callback so that when a user is done drawing, the new SMILES
   // string gets saved.
   ketcher.successCallback = function () {
-    const smiles = ketcher.getSmiles();
-    // Check if an existing SMILES identifier exists. If yes, remove.
+    // Check if an existing SMILES/MolBlock identifier exists. If yes, remove.
     $('.component_identifier', node).each(function (index, node) {
       node = $(node);
       if (!node.attr('id')) {
         // Not a template.
         const identifier = ord.compounds.unloadIdentifier(node);
-        if (identifier.getType() === proto.ord.CompoundIdentifier.IdentifierType.SMILES) {
+        if ((identifier.getType() === proto.ord.CompoundIdentifier.IdentifierType.SMILES) ||
+            (identifier.getType() === proto.ord.CompoundIdentifier.IdentifierType.MOLBLOCK)) {
           removeSlowly(node, '.component_identifier');
         }
       }
     });
-    // Create new identifier.
+    // Create new identifiers.
     const identifier = new proto.ord.CompoundIdentifier();
     identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
-    identifier.setValue(smiles);
+    identifier.setValue(ketcher.getSmiles());
     identifier.setDetails('Drawn with Ketcher');
+    ord.compounds.loadIdentifier(node, identifier);
+    identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.MOLBLOCK);
+    identifier.setValue(ketcher.getMolfile());
     ord.compounds.loadIdentifier(node, identifier);
   }
 };
