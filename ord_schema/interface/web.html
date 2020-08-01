@@ -205,22 +205,24 @@
         const predicate = JSON.parse('{{ predicate|safe }}')
 
         // Inputs.
-        predicate.inputs.forEach(input => {
-          const edittext = addInput();
-          edittext.text(input.smiles);
-          edittext.next().val(input.matchMode);
-        });
-
-        // Make sure there is at least one input for convenience.
-        if (predicate.inputs.length == 0) {
+        if (predicate.inputs && (predicate.inputs.length > 0)) {
+          predicate.inputs.forEach(input => {
+            const edittext = addInput();
+            edittext.text(input.smiles);
+            edittext.next().val(input.matchMode);
+          });
+        } else {
+          // Make sure there is at least one input for convenience.
           addInput();
         }
   
         // Output.
-        const output = predicate.output;
-        const edittext = $('.output.edittext')
-        edittext.text(output.smiles);
-        edittext.next().val(output.matchMode);
+        if (predicate.output) {
+          const output = predicate.output;
+          const edittext = $('.output.edittext')
+          edittext.text(output.smiles);
+          edittext.next().val(output.matchMode);
+        }
 
         // Reaction ID.
         const reactionId = $('#reaction_id')
