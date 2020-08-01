@@ -36,7 +36,7 @@ class Predicate:
         @classmethod
         def from_name(clazz, name):
             """Take a matching criterion from a URL param."""
-            return MatchMode[name.upper()]
+            return Predicate.MatchMode[name.upper()]
 
     def __init__(self):
         # List of pairs, (SMILES/SMARTS, MatchMode).
@@ -53,34 +53,34 @@ class Predicate:
         self.do_chiral_ss = False
 
     def add_input(self, pattern, match_mode):
-        self.smiles_inputs.append((pattern, match_mode))
+        self.inputs.append((pattern, match_mode))
 
     def set_output(self, pattern, match_mode):
-        self.smiles_output = (pattern, match_mode)
+        self.output = (pattern, match_mode)
         
     def set_reaction_id(self, reaction_id):
         self.reaction_id = reaction_id
 
-    def set_reaction_smiles(reaction_smiles):
+    def set_reaction_smiles(self, reaction_smiles):
         self.reaction_smiles = reaction_smiles
 
-    def set_tanimoto_threshold(threshold):
+    def set_tanimoto_threshold(self, threshold):
         self.tanimoto_threshold = threshold
 
-    def use_stereochemistry():
+    def use_stereochemistry(self):
         self.do_chiral_ss = True
 
     def _inputs_predicate(self):
         exprs = []
         for pattern, mode in self.inputs:
-            if mode == MatchMode.EXACT:
-                expr = f"inputs.smiles == {pattern}"
-            elif mode == MatchMode.SIMILAR:
-                expr = f"rdk.inputs.mfp2%(morganbv_fp('{pattern}')"
-            elif mode == MatchMode.SUBSTRUCTURE:
-                expr = f"rdk.inputs.m@>'{pattern}'"
-            elif mode == MatchMode.SMARTS:
-                expr = f"rdk.inputs.m@>'{pattern}'::qmol"
+            if mode == Predicate.MatchMode.EXACT:
+                expr = f"inputs.smiles = '{pattern}'"
+            elif mode == Predicate.MatchMode.SIMILAR:
+                expr = f"rdki.mfp2%morganbv_fp('{pattern}')"
+            elif mode == Predicate.MatchMode.SUBSTRUCTURE:
+                expr = f"rdki.m@>'{pattern}'"
+            elif mode == Predicate.MatchMode.SMARTS:
+                expr = f"rdki.m@>'{pattern}'::qmol"
             exprs.append(expr)
         return ' AND '.join(exprs) or 'TRUE'
 
@@ -88,14 +88,14 @@ class Predicate:
         exprs = []
         if self.output is not None:
             pattern, mode = self.output
-            if mode == MatchMode.EXACT:
-                expr = f"outputs.smiles == {pattern}"
-            elif mode == MatchMode.SIMILAR:
-                expr = f"rdk.outputs.mfp2%(morganbv_fp('{pattern}')"
-            elif mode == MatchMode.SUBSTRUCTURE:
-                expr = f"rdk.outputs.m@>'{pattern}'"
-            elif mode == MatchMode.SMARTS:
-                expr = f"rdk.outputs.m@>'{pattern}'::qmol"
+            if mode == Predicate.MatchMode.EXACT:
+                expr = f"outputs.smiles = '{pattern}'"
+            elif mode == Predicate.MatchMode.SIMILAR:
+                expr = f"rdko.mfp2%morganbv_fp('{pattern}')"
+            elif mode == Predicate.MatchMode.SUBSTRUCTURE:
+                expr = f"rdko.m@>'{pattern}'"
+            elif mode == Predicate.MatchMode.SMARTS:
+                expr = f"rdko.m@>'{pattern}'::qmol"
             exprs.append(expr)
         return ' AND '.join(exprs) or 'TRUE'
 
@@ -115,10 +115,12 @@ class Predicate:
             SET rdkit.do_chiral_ss={self.do_chiral_ss};
             SET rdkit.tanimoto_threshold={self.tanimoto_threshold};
 
-            SELECT reactions.serialized
+            SELECT DISTINCT reactions.serialized
             FROM reactions
             INNER JOIN inputs ON inputs.reaction_id = reactions.reaction_id
             INNER JOIN outputs ON outputs.reaction_id = reactions.reaction_id
+            INNER JOIN rdk.inputs rdki ON rdki.reaction_id = reactions.reaction_id
+            INNER JOIN rdk.outputs rdko ON rdko.reaction_id = reactions.reaction_id
             WHERE
                 {self._inputs_predicate()}
                 AND {self._output_predicate()}
@@ -174,7 +176,7 @@ class OrdPostgres:
                     binascii.unhexlify(serialized.tobytes()));
                 reactions.append(reaction)
             self._connection.rollback() # Revert rdkit runtime configuration.
-        return dataset_pb2.Dataset(reactions=[reaction])
+        return dataset_pb2.Dataset(reactions=reactions)
 
     def substructure_search(self,
                             pattern,

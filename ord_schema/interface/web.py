@@ -46,7 +46,7 @@ Query parameters are communicated in URL GET params.
 
     The "input" param may be repeated. The "output" param may not.
 
-  reaction=<id>
+  reaction_id=<id>
 
   reaction_smiles=<smiles>
 
@@ -83,7 +83,7 @@ def show_root():
   If there are query params, then the query is executed and the form is
   populated with the results. The form fields are populated with the params.
   """
-  reaction_id = flask.request.args.get('reaction')
+  reaction_id = flask.request.args.get('reaction_id')
   reaction_smiles = flask.request.args.get('reaction_smiles')
   inputs = flask.request.args.getlist("input")
   output = flask.request.args.get('output')

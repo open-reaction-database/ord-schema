@@ -39,65 +39,68 @@
   </head>
   <body>
     <div id="form">
-      <div class="section">
-        reaction ID
-        <div id="reaction_id" class="edittext">{{ predicate.reaction_id or '' }}</div>
-      </div>
-      <div class="section">
-        reaction SMILES
-        <div id="reaction_smiles" class="edittext">{{ predicate.reaction_smiles or '' }}</div>
-      </div>
       <div id="inputs" class="section">
-        <div id="input_template" style="display: none;">
+        <div id="input_template" class="input" style="display: none;">
           input
           <div class="edittext"></div>
-          matching:
-          <select name="match_mode_input">
+          <select>
             <option value="exact">exact</option>
-            <option value="similarity">similarity</option>
+            <option value="similar">similar</option>
             <option value="substructure">substructure</option>
             <option value="smarts">smarts</option>
           </select>
         </div>
       </div>
       <a href="#" id="plus_input">+ add another input</a>
-      <div class="section">
+      <div id="output" class="section">
         output
         <div class="edittext"></div>
-        matching:
-        <select name="match_mode_output">
+        <select>
           <option value="exact">exact</option>
-          <option value="similarity">similarity</option>
+          <option value="similar">similar</option>
           <option value="substructure">substructure</option>
           <option value="smarts">smarts</option>
         </select>
       </div>
-      <div class="section">
-        results
+      <div id="reaction_id" class="section">
+        reaction ID
+        <div class="edittext">{{ predicate.reaction_id or '' }}</div>
+      </div>
+      <div id="reaction_smiles" class="section">
+        reaction SMILES
+        <div class="edittext">{{ predicate.reaction_smiles or '' }}</div>
+      </div>
+      <div id="go" class="section">
+        <button>go</button>
+      </div>
+      <div id="results" class="section">
         {% for reaction in dataset.reactions %}
           <div class="result">
             <a href="#">{{ reaction.reaction_id }}</a>
           </div>
         {% endfor %}
+        {% if not dataset.reactions %}
+          <div>
+            no reactions
+          </div>
+        {% endif %}
       </div>
     </div>
     <div id="proto" style="display: none;">
       <pre>
-        pbtxt
       </pre>
     </div>
     <script>
 
-      let radioGroupCounter = 0;
-
+      // Handle the "+ add input" button.
       function addInput(speed) {
         const input = $('#input_template').clone();
         input.removeAttr('id');
-        $("select", input).attr('name', 'match_mode_input_' + radioGroupCounter++);
         $('#inputs').append(input);
         input.show(speed);
       }
 
+      // Handle a click on a result reaction to display its pbtxt.
       function updateProto(reactionId) {
         const xhr = new XMLHttpRequest();
         xhr.open('GET', '/id/' + reactionId);
@@ -108,14 +111,75 @@
         xhr.send();
       }
 
-      $('.result').click((event) => {
+      // Get the text of an editable text field.
+      function getText(node) {
+        return $('.edittext', node).text().trim()
+      }
+
+      // Get the selected matching option for a text field.
+      function getMatchMode(node) {
+        return $('select option:selected', node).text();
+      }
+
+      // Construct the path component of the query URL from the current settings.
+      function buildPath() {
+        let path = '/?'
+
+        // Inputs.
+        const inputs = $('.input');
+        inputs.each((index, node) => {
+          const input = $(node);
+          if (input.attr('id')) {
+            return;
+          }
+          const inputText = getText(input);
+          if (inputText) {
+            const matchMode = getMatchMode(input);
+            path += 'input=' + encodeURIComponent(inputText) + ';' + matchMode + '&';
+          }
+        });
+        // Outputs.
+        const output = $('#output');
+        const outputText = getText(output);
+        if (outputText) {
+          const matchMode = getMatchMode(output);
+          path += 'output=' + encodeURIComponent(outputText) + ';' + matchMode + '&';
+        }
+        // Reaction ID.
+        const reactionId = $('#reaction_id');
+        const reactionIdText = getText(reactionId);
+        if (reactionIdText) {
+          path += 'reaction=' + encodeURIComponent(reactionIdText) + '&';
+        }
+        // Reaction SMILES.
+        const reactionSmiles = $('#reaction_smiles');
+        const reactionSmilesText = getText(reactionSmiles);
+        if (reactionSmilesText) {
+          path += 'reaction_smiles=' + encodeURIComponent(reactionSmilesText) + '&';
+        }
+        if (path.slice(-1) == '&') {
+          path = path.slice(0, -1);
+        }
+        return path;
+      }
+
+      // Update the pbtxt when the user clicks on a result reaction ID.
+      $('.result').mouseover((event) => {
         const result = $(event.target);
-        const reactionId = result.text();
+        const reactionId = result.text().trim();
         updateProto(reactionId);
       });
 
+      // Execute a search.
+      $('#go').click(() => {
+        const path = buildPath();
+        window.location.href = path;
+      });
+
+      // This makes the .editext divs actually editable.
       $('.edittext').attr('contentEditable', 'true');
 
+      // Create the first blank input field.
       $('#plus_input').click(() => { addInput('slow'); });
 
       addInput('fast');
