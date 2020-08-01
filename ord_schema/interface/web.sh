@@ -14,6 +14,13 @@
 # limitations under the License.
 
 
+# Launch a web server that connects to the local Postgres and conducts queries
+# on the ORD. The web server is at http://<host>:5000/
+#
+# First launch local Postgres like this:
+#
+#   $ ./docker/serve.sh
+
 export PYTHONPATH=.:../build/lib
 export FLASK_APP=web.py
 export FLASK_ENV=development

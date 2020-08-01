@@ -106,7 +106,7 @@ def show_root():
         predicate.set_output(smiles, mode)
 
     if reaction_id or reaction_smiles or inputs or output:
-        db = query.OrdPostgres(host='localhost', port=5430)
+        db = query.OrdPostgres(host='localhost', port=5432)
         reaction_ids = db.predicate_search_ids(predicate)
     else:
         reaction_ids = []
@@ -120,7 +120,7 @@ def show_id(reaction_id):
     """Returns the pbtxt of a single reaction as plain text."""
     predicate = query.Predicate()
     predicate.set_reaction_id(reaction_id)
-    db = query.OrdPostgres(host='localhost', port=5430)
+    db = query.OrdPostgres(host='localhost', port=5432)
     dataset = db.predicate_search(predicate)
     if len(dataset.reactions) == 0:
         return flask.abort(404)
