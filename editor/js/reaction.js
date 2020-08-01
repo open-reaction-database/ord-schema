@@ -57,9 +57,8 @@ async function init(fileName, index) {
   // Show "save" on modifications.
   listen('body');
   // Load Ketcher content into an element with attribute role="application".
-  // TODO there's a better way to do this; will fix later
-  $("#ketcher-iframe")[0].contentWindow.ketcher.initKetcher();
-
+  document.getElementById('ketcher-iframe').contentWindow.ketcher.initKetcher();
+  
   // Fetch the Dataset containing the Reaction proto.
   session.dataset = await getDataset(fileName);
   // Initialize the UI with the Reaction.
