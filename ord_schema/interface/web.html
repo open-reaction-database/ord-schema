@@ -1,11 +1,124 @@
 <html>
+  <head>
+    <meta charset="utf-8">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style>
+      body {
+        padding: 48px;
+        font-family: Roboto;
+        display: flex;
+        flex-direction: row;
+      }
+      #form {
+        width: 50%;
+      }
+      #proto {
+        border-left: solid lightgray;
+        border-width: 1px;
+        width: 50%;
+        padding: 32px;
+      }
+      #reaction_id {
+        width: 400px;
+      }
+      .section {
+        padding: 32px 0px;
+      }
+      .edittext {
+        border: solid #c0c0c0;
+        border-width: 1px;
+        display: inline-block;
+        margin: 2px;
+        padding: 2px;
+        width: 200px;
+      }
+      .result {
+        margin-left: 32px;
+      }
+    </style>
+  </head>
   <body>
-    {% for reaction in dataset.reactions %}
-<pre>
-reaction_id: {{ reaction.reaction_id }}
+    <div id="form">
+      <div class="section">
+        reaction ID
+        <div id="reaction_id" class="edittext">{{ predicate.reaction_id or '' }}</div>
+      </div>
+      <div class="section">
+        reaction SMILES
+        <div id="reaction_smiles" class="edittext">{{ predicate.reaction_smiles or '' }}</div>
+      </div>
+      <div id="inputs" class="section">
+        <div id="input_template" style="display: none;">
+          input
+          <div class="edittext"></div>
+          matching:
+          <select name="match_mode_input">
+            <option value="exact">exact</option>
+            <option value="similarity">similarity</option>
+            <option value="substructure">substructure</option>
+            <option value="smarts">smarts</option>
+          </select>
+        </div>
+      </div>
+      <a href="#" id="plus_input">+ add another input</a>
+      <div class="section">
+        output
+        <div class="edittext"></div>
+        matching:
+        <select name="match_mode_output">
+          <option value="exact">exact</option>
+          <option value="similarity">similarity</option>
+          <option value="substructure">substructure</option>
+          <option value="smarts">smarts</option>
+        </select>
+      </div>
+      <div class="section">
+        results
+        {% for reaction in dataset.reactions %}
+          <div class="result">
+            <a href="#">{{ reaction.reaction_id }}</a>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div id="proto" style="display: none;">
+      <pre>
+        pbtxt
+      </pre>
+    </div>
+    <script>
 
-provenance: {{ reaction.provenance }}
-</pre>
-    {% endfor %}
+      let radioGroupCounter = 0;
+
+      function addInput(speed) {
+        const input = $('#input_template').clone();
+        input.removeAttr('id');
+        $("select", input).attr('name', 'match_mode_input_' + radioGroupCounter++);
+        $('#inputs').append(input);
+        input.show(speed);
+      }
+
+      function updateProto(reactionId) {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', '/id/' + reactionId);
+        xhr.onload = function (event) {
+          $('#proto').show();
+          $('#proto pre').text(xhr.response);
+        };
+        xhr.send();
+      }
+
+      $('.result').click((event) => {
+        const result = $(event.target);
+        const reactionId = result.text();
+        updateProto(reactionId);
+      });
+
+      $('.edittext').attr('contentEditable', 'true');
+
+      $('#plus_input').click(() => { addInput('slow'); });
+
+      addInput('fast');
+    </script>
   </body>
 </html>
