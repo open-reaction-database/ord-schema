@@ -103,12 +103,16 @@ def show_root():
 
   if output is not None:
     smiles, mode_name = output.split(';', 1)
+    mode = query.Predicate.MatchMode.from_name(mode_name)
     predicate.set_output(smiles, mode)
 
-  db = query.OrdPostgres(host='localhost', port=5430)
-  reaction_ids = db.predicate_search_ids(predicate)
+  if reaction_id or reaction_smiles or inputs or output:
+    db = query.OrdPostgres(host='localhost', port=5430)
+    reaction_ids = db.predicate_search_ids(predicate)
+  else:
+    reaction_ids = []
   return flask.render_template(
-      'web.html', reaction_ids=reaction_ids, predicate=predicate)
+      'web.html', reaction_ids=reaction_ids, predicate=predicate.json())
 
 
 @app.route('/id/<reaction_id>')

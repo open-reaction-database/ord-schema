@@ -6,130 +6,151 @@
       body {
         padding: 48px;
         font-family: Roboto;
-        display: flex;
-        flex-direction: row;
+        display: grid;
+        grid-template-columns: [form] 37% [results] 22% [proto] 41%;
       }
       #form {
-        width: 50%;
+        grid-column: form;
+        display: grid;
+        grid-template-columns: [labels] 120px [text] 220px [match] 96px [add] 100px;
+        grid-gap: 24px;
+        height: 225px;
+      }
+      .label {
+        grid-column: labels;
+        text-align: right;
+      }
+      .edittext {
+        grid-column: text;
+      }
+      select {
+        grid-column: match;
+      }
+      #add_input {
+        grid-column: add;
+      }
+      #go {
+        grid-column: 2;
+      }
+      #results {
+        grid-column: results;
+        font-family: monospace;
       }
       #proto {
+        grid-column: proto;
+      }
+      #proto, #results {
         border-left: solid lightgray;
         border-width: 1px;
-        width: 50%;
-        padding: 32px;
+        padding-left: 32px;
       }
-      #reaction_id {
-        width: 400px;
-      }
-      .section {
-        padding: 32px 0px;
+      #proto pre {
+        margin: 0;
       }
       .edittext {
         border: solid #c0c0c0;
         border-width: 1px;
-        display: inline-block;
         margin: 2px;
         padding: 2px;
         width: 200px;
-      }
-      .result {
-        margin-left: 32px;
       }
     </style>
   </head>
   <body>
     <div id="form">
-      <div id="inputs" class="section">
-        <div id="input_template" class="input" style="display: none;">
-          input
-          <div class="edittext"></div>
-          <select>
-            <option value="exact">exact</option>
-            <option value="similar">similar</option>
-            <option value="substructure">substructure</option>
-            <option value="smarts">smarts</option>
-          </select>
-        </div>
-      </div>
-      <a href="#" id="plus_input">+ add another input</a>
-      <div id="output" class="section">
-        output
-        <div class="edittext"></div>
-        <select>
-          <option value="exact">exact</option>
-          <option value="similar">similar</option>
-          <option value="substructure">substructure</option>
-          <option value="smarts">smarts</option>
-        </select>
-      </div>
-      <div id="reaction_id" class="section">
-        reaction ID
-        <div class="edittext">{{ predicate.reaction_id or '' }}</div>
-      </div>
-      <div id="reaction_smiles" class="section">
-        reaction SMILES
-        <div class="edittext">{{ predicate.reaction_smiles or '' }}</div>
-      </div>
-      <div id="go" class="section">
+
+      <a href="#" id="add_input">+ input</a>
+
+      <span class="label">output</span>
+      <div class="output edittext"></div>
+      <select class="output">
+        <option value="exact">exact</option>
+        <option value="similar">similar</option>
+        <option value="substructure">substructure</option>
+        <option value="smarts">smarts</option>
+      </select>
+
+      <span class="label">reaction ID</span>
+      <div id="reaction_id" class="edittext"></div>
+
+      <span class="label">reaction SMILES</span>
+      <div id="reaction_smiles" class="edittext"></div>
+
+      <div id="go">
         <button>go</button>
       </div>
-      <div id="results" class="section">
+
+    </div>
+
+    <div id="results">
         {% for reaction_id in reaction_ids %}
-          <div class="result">
-            <a href="#">{{ reaction_id }}</a>
-          </div>
+          <a href="#" class="result">{{ reaction_id }}</a><br>
         {% endfor %}
         {% if not reaction_ids %}
-          <div>
-            no reactions
-          </div>
+          no reactions
         {% endif %}
-      </div>
     </div>
-    <div id="proto" style="display: none;">
+
+    <div id="proto">
       <pre>
+        no proto
       </pre>
     </div>
+
+    <div id="input_template" style="display: none;">
+      <span class="label">input</span>
+      <div class="input edittext"></div>
+      <select class="input">
+        <option value="exact">exact</option>
+        <option value="similar">similar</option>
+        <option value="substructure">substructure</option>
+        <option value="smarts">smarts</option>
+      </select>
+    </div>
+
     <script>
 
-      // Handle the "+ add input" button.
-      function addInput(speed) {
-        const input = $('#input_template').clone();
-        input.removeAttr('id');
-        $('#inputs').append(input);
-        input.show(speed);
-      }
-
-      // Handle a click on a result reaction to display its pbtxt.
+      // Handle hover on a result ID to display its pbtxt.
       function updateProto(reactionId) {
         const xhr = new XMLHttpRequest();
         xhr.open('GET', '/id/' + reactionId);
         xhr.onload = function (event) {
-          $('#proto').show();
           $('#proto pre').text(xhr.response);
         };
         xhr.send();
       }
 
-      // Get the text of an editable text field.
+      // Add an input field, for initialization and the "+ input" button.
+      function addInput() {
+        const input = $('#input_template').clone();
+        const anchor = $('#add_input');
+        input.children().each((index, node) => {
+          anchor.before(node);
+        });
+        // Return value is the text field <div/> of the new input.
+        return anchor.prev().prev();
+      }
+
+      // Clean the text from an .edittext div.
       function getText(node) {
-        return $('.edittext', node).text().trim()
+        return node.text().trim();
       }
 
       // Get the selected matching option for a text field.
       function getMatchMode(node) {
-        return $('select option:selected', node).text();
+        return $('option:selected', node.next()).text()
       }
 
-      // Construct the path component of the query URL from the current settings.
-      function buildPath() {
+      // Build a URL path from the current query controls.
+      function exportPredicate() {
         let path = '/?'
 
         // Inputs.
-        const inputs = $('.input');
+        const inputs = $('.input.edittext');
         inputs.each((index, node) => {
           const input = $(node);
-          if (input.attr('id')) {
+          if (input.is(':hidden')) {
+            // The template.
             return;
           }
           const inputText = getText(input);
@@ -138,8 +159,8 @@
             path += 'input=' + encodeURIComponent(inputText) + ';' + matchMode + '&';
           }
         });
-        // Outputs.
-        const output = $('#output');
+        // Output.
+        const output = $('.output.edittext');
         const outputText = getText(output);
         if (outputText) {
           const matchMode = getMatchMode(output);
@@ -149,7 +170,7 @@
         const reactionId = $('#reaction_id');
         const reactionIdText = getText(reactionId);
         if (reactionIdText) {
-          path += 'reaction=' + encodeURIComponent(reactionIdText) + '&';
+          path += 'reaction_id=' + encodeURIComponent(reactionIdText) + '&';
         }
         // Reaction SMILES.
         const reactionSmiles = $('#reaction_smiles');
@@ -163,26 +184,61 @@
         return path;
       }
 
+      // Initialize the query contols from the templated predicate.
+      function importPredicate() {
+        const predicate = JSON.parse('{{ predicate|safe }}')
+
+        // Inputs.
+        predicate.inputs.forEach(input => {
+          const edittext = addInput();
+          edittext.text(input.smiles);
+          edittext.next().val(input.matchMode);
+        });
+
+        // Make sure there is at least one input for convenience.
+        if (predicate.inputs.length == 0) {
+          addInput();
+        }
+  
+        // Output.
+        const output = predicate.output;
+        const edittext = $('.output.edittext')
+        edittext.text(output.smiles);
+        edittext.next().val(output.matchMode);
+
+        // Reaction ID.
+        const reactionId = $('#reaction_id')
+        reactionId.text(predicate.reactionId);
+
+        // Reaction SMILES.
+        const reactionSmiles = $('#reaction_smiles');
+        reactionSmiles.text(predicate.reactionSmiles);
+      }
+
       // Update the pbtxt when the user clicks on a result reaction ID.
       $('.result').mouseover((event) => {
         const result = $(event.target);
         const reactionId = result.text().trim();
         updateProto(reactionId);
+        $('.result').css('background-color', '');
+        result.css('background-color', 'powderblue');
       });
 
-      // Execute a search.
+      // Make the .editext divs actually editable.
+      $('.edittext').attr('contentEditable', 'true');
+
+      // Hook up the "+ input" button.
+      $('#add_input').click(() => {
+        addInput();
+      });
+
+      // Hook up the query button.
       $('#go').click(() => {
-        const path = buildPath();
+        const path = exportPredicate();
         window.location.href = path;
       });
 
-      // This makes the .editext divs actually editable.
-      $('.edittext').attr('contentEditable', 'true');
-
-      // Create the first blank input field.
-      $('#plus_input').click(() => { addInput('slow'); });
-
-      addInput('fast');
+      importPredicate();
     </script>
   </body>
 </html>

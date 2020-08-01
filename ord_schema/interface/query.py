@@ -15,6 +15,7 @@
 
 import binascii
 import enum
+import json
 
 from absl import logging
 import psycopg2
@@ -145,6 +146,25 @@ class Predicate:
                 AND {self._reactions_predicate()}
             LIMIT 100;
         """
+
+    def json(self):
+        predicate = {}
+        if self.inputs:
+            inputs = []
+            for input in self.inputs:
+                inputs.append({
+                    'smiles': input[0],
+                    'matchMode': input[1].name.lower()})
+            predicate['inputs'] = inputs
+        if self.output:
+            predicate['output'] = {
+                'smiles': self.output[0],
+                'matchMode': self.output[1].name.lower()}
+        if self.reaction_id:
+            predicate['reactionId'] = self.reaction_id
+        if self.reaction_smiles:
+            predicate['reactionSmiles'] = self.reaction_smiles
+        return json.dumps(predicate)
 
 class OrdPostgres:
     """Class for performing SQL queries on the ORD."""
