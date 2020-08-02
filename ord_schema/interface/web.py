@@ -54,21 +54,7 @@ If multiple conditions are given, then the query is interpreted as conjunction.
 All query parameters are assumed to be URL-encoded.
 """
 
-import contextlib
-import fcntl
-import os
-import random
-import re
-import string
-import urllib
-import uuid
-
 import flask
-
-from ord_schema.proto import dataset_pb2
-from ord_schema.proto import reaction_pb2
-
-from google.protobuf import text_format
 
 import query
 
