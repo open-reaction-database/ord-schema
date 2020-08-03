@@ -26,6 +26,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('base', '', 'Branch to diff against.')
 flags.DEFINE_integer('issue', None,
                      'Issue number. If provided, a comment will be added.')
+flags.DEFINE_string('token', None, 'GitHub authentication token.')
 
 
 def main(argv):
@@ -50,8 +51,8 @@ def main(argv):
         else:
             raise ValueError(f'unrecognized diff prefix: {prefix}')
     logging.info(f'Summary: +%d -%d reaction IDs', len(added), len(removed))
-    if FLAGS.issue:
-        client = github.Github(os.environ['GITHUB_TOKEN'])
+    if FLAGS.issue and FLAGS.token:
+        client = github.Github(FLAGS.token)
         repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
         issue = repo.get_issue(FLAGS.issue)
         issue.create_comment(
