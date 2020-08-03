@@ -23,6 +23,7 @@ import urllib
 import uuid
 import io
 import tempfile
+import urllib
 
 import flask
 
@@ -31,6 +32,7 @@ from ord_schema.proto import reaction_pb2
 from ord_schema import message_helpers
 from ord_schema import validations
 from ord_schema import dataset_templating
+from ord_schema import updates
 
 from google.protobuf import text_format
 
@@ -326,6 +328,19 @@ def validate_reaction(message_name):
     message.ParseFromString(flask.request.get_data())
     errors = validations.validate_message(message, raise_on_error=False)
     return json.dumps(errors)
+
+
+@app.route('/resolve/<identifier_type>', methods=['POST'])
+def resolve_compound(identifier_type):
+    """Resolve a compound name to a SMILES string."""
+    compound_name = flask.request.get_data()
+    if not compound_name:
+        return ''
+    try:
+        return flask.jsonify(
+            updates.pubchem_resolve(identifier_type, compound_name))
+    except urllib.error.HTTPError as error:
+        return ''
 
 
 @app.route('/dataset/proto/compare/<file_name>', methods=['POST'])
