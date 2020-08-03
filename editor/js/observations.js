@@ -73,7 +73,9 @@ ord.observations.unload = function () {
     if (!node.attr('id')) {
       // Not a template
       const observation = ord.observations.unloadObservation(node);
-      observations.push(observation);
+      if (!isEmptyMessage(observation)) {
+        observations.push(observation);
+      }
     }
   });
   return observations;
@@ -83,7 +85,9 @@ ord.observations.unloadObservation = function (node) {
   const observation = new proto.ord.ReactionObservation();
   const time =
       readMetric('.observation_time', new proto.ord.Time(), node);
-  observation.setTime(time);
+  if (!isEmptyMessage(time)) {
+    observation.setTime(time);
+  }
 
   observation.setComment($('.observation_comment', node).text());
 
@@ -93,7 +97,9 @@ ord.observations.unloadObservation = function (node) {
 
   if ($("input[value='text']", node).is(':checked')) {
     const stringValue = $('.observation_image_text', node).text();
-    image.setStringValue(stringValue);
+    if (!isEmptyMessage(stringValue)) {
+      image.setStringValue(stringValue);
+    }
   }
   if ($("input[value='number']", node).is(':checked')) {
     const floatValue = parseFloat($('.setup_code_text', node).text());
@@ -103,13 +109,19 @@ ord.observations.unloadObservation = function (node) {
   }
   if ($("input[value='upload']", node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    image.setBytesValue(bytesValue);
+    if (!isEmptyMessage(bytesValue)) {
+      image.setBytesValue(bytesValue);
+    }
   }
   if ($("input[value='url']", node).is(':checked')) {
     const url = $('.observation_image_text', node).text();
-    image.setUrl(url);
+    if (!isEmptyMessage(url)) {
+      image.setUrl(url);
+    }
   }
-  observation.setImage(image);
+  if (!isEmptyMessage(image)) {
+    observation.setImage(image);
+  }
   return observation;
 };
 
@@ -131,5 +143,17 @@ ord.observations.add = function () {
     }
   });
   ord.uploads.initialize(node);
+
+  // Add live validation handling.
+  addChangeHandler(node, () => {ord.observations.validateObservation(node)});
+
   return node;
+};
+
+ord.observations.validateObservation = function(node, validateNode) {
+  const observation = ord.observations.unloadObservation(node);
+  if (!validateNode) {
+    validateNode = $('.validate', node).first();
+  }
+  validate(observation, 'ReactionObservation', validateNode);
 };

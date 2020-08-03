@@ -39,14 +39,23 @@ const puppeteer = require('puppeteer');
     const url = tests[i];
     await page.goto(url);
     await page.waitFor('body[ready=true]');
-    await page.evaluate(async url => {
+    const test = page.evaluate(async function (url) {
       const reaction = unloadReaction();
       const reactions = session.dataset.getReactionsList();
       reactions[session.index] = reaction;
-      await compareDataset(session.fileName, session.dataset)
-          .then(() => console.log('PASS', url))
-          .catch(() => console.log('FAIL', url));
+      return await compareDataset(session.fileName, session.dataset)
+          .then(() => {console.log('PASS', url); return 0;})
+          .catch(() => {console.log('FAIL', url); return 1;})
     }, url);
+    const testResult = await test;
+
+    // Report results of testing to environment (shell, Git CI, etc.)
+    // If _any_ test fails (i.e. testResult 1), then the entire process must fail too.
+    // We still run all tests though, for convenience's sake.
+    if (testResult == 1) {
+      process.exitCode = 1;
+    }
   }
+
   await browser.close();
 })();

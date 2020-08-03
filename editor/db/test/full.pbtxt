@@ -48,10 +48,10 @@ reactions {
           details: "6"
           value: "5"
         }
-        moles {
+        volume {
           value: 7.0
           precision: 8.0
-          units: MILLIMOLE
+          units: LITER
         }
         reaction_role: REACTANT
         is_limiting: true
@@ -68,7 +68,7 @@ reactions {
           float_value: 14.0
           how_computed: "15"
         }
-        volume_includes_solutes: false
+        volume_includes_solutes: true
       }
       crude_components {
         reaction_id: "15.25"
@@ -383,6 +383,23 @@ reactions {
       precision: 116.0
     }
     products {
+      compound {
+        identifiers {
+          type: IUPAC_NAME
+          details: "116.2"
+          value: "116.1"
+        }
+        volume {
+          value: 116.25
+          precision: 116.375
+          units: MICROLITER
+        }
+        features {
+          name: "116.5"
+          float_value: 116.625
+          how_computed: "116.7"
+        }
+      }
       is_desired_product: true
       compound_yield {
         value: 117.0
@@ -398,10 +415,11 @@ reactions {
         value: 121.0
         precision: 122.0
       }
-      analysis_identity: "126"
-      analysis_yield: "127"
-      analysis_purity: "128"
-      analysis_selectivity: "129"
+      analysis_identity: "analysis1"
+      analysis_yield: "analysis2"
+      analysis_yield: "analysis1"
+      analysis_purity: "analysis2"
+      analysis_selectivity: "analysis1"
       isolated_color: "124"
       texture {
         type: POWDER
@@ -409,7 +427,7 @@ reactions {
       }
     }
     analyses {
-      key: "130"
+      key: "analysis1"
       value {
         type: NMR_13C
         chmo_id: 131
@@ -436,6 +454,11 @@ reactions {
         }
         uses_internal_standard: true
         uses_authentic_standard: false
+      }
+    }
+    analyses {
+      key: "analysis2"
+      value {
       }
     }
   }

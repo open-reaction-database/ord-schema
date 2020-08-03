@@ -60,22 +60,30 @@ ord.pressure.unload = function () {
   const control = new proto.ord.PressureConditions.PressureControl();
   control.setType(getSelector($('#pressure_control_type')));
   control.setDetails($('#pressure_control_details').text());
-  pressure.setControl(control);
+  if (!isEmptyMessage(control)) {
+    pressure.setControl(control);
+  }
 
   const setpoint = readMetric('#pressure_setpoint', new proto.ord.Pressure());
-  pressure.setSetpoint(setpoint);
+  if (!isEmptyMessage(setpoint)) {
+    pressure.setSetpoint(setpoint);
+  }
 
   const atmosphere = new proto.ord.PressureConditions.Atmosphere();
   atmosphere.setType(getSelector('#pressure_atmosphere_type'));
   atmosphere.setDetails($('#pressure_atmosphere_details').text());
-  pressure.setAtmosphere(atmosphere);
+  if (!isEmptyMessage(atmosphere)) {
+    pressure.setAtmosphere(atmosphere);
+  }
 
   const measurements = [];
   $('.pressure_measurement').each(function (index, node) {
     node = $(node);
     if (!node.attr('id')) {
       const measurement = ord.pressure.unloadMeasurement(node);
-      measurements.push(measurement);
+      if (!isEmptyMessage(measurement)) {
+        measurements.push(measurement);
+      }
     }
   });
   pressure.setMeasurementsList(measurements);
@@ -91,14 +99,26 @@ ord.pressure.unloadMeasurement = function (node) {
   measurement.setDetails(details);
   const pressure = readMetric(
       '.pressure_measurement_pressure', new proto.ord.Pressure(), node);
-  measurement.setPressure(pressure);
+  if (!isEmptyMessage(pressure)) {
+    measurement.setPressure(pressure);
+  }
   const time =
       readMetric('.pressure_measurement_time', new proto.ord.Time(), node);
-  measurement.setTime(time);
+  if (!isEmptyMessage(time)) {
+    measurement.setTime(time);
+  }
 
   return measurement;
 };
 
 ord.pressure.addMeasurement = function () {
   return addSlowly('#pressure_measurement_template', '#pressure_measurements');
+};
+
+ord.pressure.validatePressure = function(node, validateNode) {
+  const pressure = ord.pressure.unload();
+  if (!validateNode) {
+    validateNode = $('.validate', node).first();
+  }
+  validate(pressure, 'PressureConditions', validateNode);
 };

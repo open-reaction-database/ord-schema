@@ -21,6 +21,9 @@ goog.require('proto.ord.ReactionIdentifier');
 
 ord.identifiers.load = function (identifiers) {
   identifiers.forEach(identifier => ord.identifiers.loadIdentifier(identifier));
+  if (!(identifiers.length)) {
+    ord.identifiers.add();
+  }
 };
 
 ord.identifiers.loadIdentifier = function (identifier) {
@@ -45,7 +48,9 @@ ord.identifiers.unload = function () {
     if (!node.attr('id')) {
       // Not a template.
       const identifier = ord.identifiers.unloadIdentifier(node);
-      identifiers.push(identifier);
+      if (!isEmptyMessage(identifier)) {
+        identifiers.push(identifier);
+      }
     }
   });
   return identifiers;
@@ -56,15 +61,24 @@ ord.identifiers.unloadIdentifier = function (node) {
 
   if ($('.reaction_identifier_upload', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    identifier.setBytesValue(bytesValue);
-  } else {
+    if (!isEmptyMessage(bytesValue)) {
+      identifier.setBytesValue(bytesValue);
+    }
+  }
+  else {
     const value = $('.reaction_identifier_value', node).text();
-    identifier.setValue(value);
+    if (!isEmptyMessage(value)) {
+      identifier.setValue(value);
+    }
   }
   const type = getSelector(node);
-  identifier.setType(type);
+  if (!isEmptyMessage(type)) {
+    identifier.setType(type);
+  }
   const details = $('.reaction_identifier_details', node).text();
-  identifier.setDetails(details);
+  if (!isEmptyMessage(details)) {
+    identifier.setDetails(details);
+  }
   return identifier;
 };
 

@@ -63,17 +63,30 @@ ord.conditions.load = function (conditions) {
 ord.conditions.unload = function () {
   const conditions = new proto.ord.ReactionConditions();
   const temperature = ord.temperature.unload();
-  conditions.setTemperature(temperature);
+  if (!isEmptyMessage(temperature)) {
+    conditions.setTemperature(temperature);
+  }
   const pressure = ord.pressure.unload();
-  conditions.setPressure(pressure);
+  if (!isEmptyMessage(pressure)) {
+    conditions.setPressure(pressure);
+  }
   const stirring = ord.stirring.unload();
-  conditions.setStirring(stirring);
+  if (!isEmptyMessage(stirring)) {
+    conditions.setStirring(stirring);
+  }
   const illumination = ord.illumination.unload();
-  conditions.setIllumination(illumination);
+  if (!isEmptyMessage(illumination)) {
+    conditions.setIllumination(illumination);
+  }
   const electro = ord.electro.unload();
-  conditions.setElectrochemistry(electro);
+  if (!isEmptyMessage(electro)) {
+    conditions.setElectrochemistry(electro);
+  }
   const flow = ord.flows.unload();
-  conditions.setFlow(flow);
+  if (!isEmptyMessage(flow)) {
+    conditions.setFlow(flow);
+  }
+
   const reflux = getOptionalBool($('#condition_reflux'));
   conditions.setReflux(reflux);
   const ph = parseFloat($('#condition_ph').text());
@@ -85,4 +98,12 @@ ord.conditions.unload = function () {
   const details = $('#condition_details').text();
   conditions.setDetails(details);
   return conditions;
+};
+
+ord.conditions.validateConditions = function(node, validateNode) {
+  const condition = ord.conditions.unload();
+  if (!validateNode) {
+    validateNode = $('.validate', node).first();
+  }
+  validate(condition, 'ReactionConditions', validateNode);
 };

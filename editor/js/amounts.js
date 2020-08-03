@@ -25,27 +25,41 @@ ord.amounts.load = function (node, mass, moles, volume) {
   $('.component_amount_units_mass', node).hide();
   $('.component_amount_units_moles', node).hide();
   $('.component_amount_units_volume', node).hide();
+  $('.includes_solutes', node).hide();
   if (mass) {
     $("input[value='mass']", amount).prop('checked', true);
-    $('.component_amount_value', node).text(mass.getValue());
-    $('.component_amount_precision', node).text(mass.getPrecision());
+    if (mass.hasValue()) {
+      $('.component_amount_value', node).text(mass.getValue());
+    }
+    if (mass.hasPrecision()) {
+      $('.component_amount_precision', node).text(mass.getPrecision());
+    }
     $('.component_amount_units_mass', node).show();
     setSelector(
         $('.component_amount_units_mass', amount), mass.getUnits());
   }
   if (moles) {
     $("input[value='moles']", amount).prop('checked', true);
-    $('.component_amount_value', node).text(moles.getValue());
-    $('.component_amount_precision', node).text(moles.getPrecision());
+    if (moles.hasValue()) {
+      $('.component_amount_value', node).text(moles.getValue());
+    }
+    if (moles.hasPrecision()) {
+      $('.component_amount_precision', node).text(moles.getPrecision());
+    }
     $('.component_amount_units_moles', node).show();
     setSelector(
         $('.component_amount_units_moles', amount), moles.getUnits());
   }
   if (volume) {
     $("input[value='volume']", amount).prop('checked', true);
-    $('.component_amount_value', node).text(volume.getValue());
-    $('.component_amount_precision', node).text(volume.getPrecision());
+    if (volume.hasValue()) {
+      $('.component_amount_value', node).text(volume.getValue());
+    }
+    if (volume.hasPrecision()) {
+      $('.component_amount_precision', node).text(volume.getPrecision());
+    }
     $('.component_amount_units_volume', node).show();
+    $('.includes_solutes', node).show().css('display', 'inline-block');
     setSelector(
         $('.component_amount_units_volume', amount), volume.getUnits());
   }
@@ -56,13 +70,19 @@ ord.amounts.unload = function (node, compound) {
   const moles = ord.amounts.unloadMoles(node);
   const volume = ord.amounts.unloadVolume(node);
   if (mass) {
-    compound.setMass(mass);
+    if (!isEmptyMessage(mass)) {
+      compound.setMass(mass);
+    }
   }
   if (moles) {
-    compound.setMoles(moles);
+    if (!isEmptyMessage(moles)) {
+      compound.setMoles(moles);
+    }
   }
   if (volume) {
-    compound.setVolume(volume);
+    if (!isEmptyMessage(volume)) {
+      compound.setVolume(volume);
+    }
   }
 };
 
