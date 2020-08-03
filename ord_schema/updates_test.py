@@ -77,7 +77,8 @@ class UpdateReactionTest(absltest.TestCase):
         self.assertEqual(
             component.identifiers[1],
             reaction_pb2.CompoundIdentifier(
-                type='SMILES', value='CCN',
+                type='SMILES',
+                value='CCN',
                 details='NAME resolved automatically'))
 
     def test_add_reaction_id(self):
