@@ -48,6 +48,9 @@ ord.compounds.loadIntoCompound = function (node, compound) {
   const identifiers = compound.getIdentifiersList();
   identifiers.forEach(
       identifier => ord.compounds.loadIdentifier(node, identifier));
+  if (!(identifiers.length)) {
+    ord.compounds.addIdentifier(node);
+  }
 
   const mass = compound.getMass();
   const moles = compound.getMoles();
