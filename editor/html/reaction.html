@@ -190,6 +190,10 @@ limitations under the License.
                     </span>
                   </legend>
                   <div class="identifiers"></div>
+                  <!-- Shortcuts for name resolving & drawing -->
+                  <div onclick="ord.compounds.drawIdentifier($(this).closest('.component'));" class="add"><span class="far fa-edit" aria-hidden="true"></span> draw compound</div>
+                  <div onclick="ord.compounds.addNameIdentifier($(this).closest('.component'));" class="add"><span class="fa fa-search" aria-hidden="true"></span> look up name</div>
+                  <!-- End shortcuts -->
                   <div onclick="ord.compounds.addIdentifier($(this).closest('.component'));" class="add">+ add identifier</div>
                 </fieldset>
                 <fieldset class="amount">
@@ -241,9 +245,9 @@ limitations under the License.
               </fieldset>
             </div>
 
-            <div id="component_identifier_template" class="component_identifier" style="display: none;">
+            <div id="component_identifier_template" class="component_identifier" style="display: none; padding-bottom:10px">
               type <div class="component_identifier_type selector" data-proto="CompoundIdentifier_IdentifierType"></div>
-              value <div class="component_identifier_value edittext"></div>
+              value <div class="component_identifier_value edittext longtext"></div>
               <div onclick="removeSlowly(this, '.component_identifier');" class="remove">remove</div>
               <br>details <div class="component_identifier_details edittext"></div>
               <input type="checkbox" class="component_identifier_upload"> upload

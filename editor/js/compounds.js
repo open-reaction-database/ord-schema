@@ -48,9 +48,6 @@ ord.compounds.loadIntoCompound = function (node, compound) {
   const identifiers = compound.getIdentifiersList();
   identifiers.forEach(
       identifier => ord.compounds.loadIdentifier(node, identifier));
-  if (!(identifiers.length)) {
-    ord.compounds.addIdentifier(node);
-  }
 
   const mass = compound.getMass();
   const moles = compound.getMoles();
@@ -250,9 +247,6 @@ ord.compounds.add = function (root) {
     }
   });
 
-  // One identifier placeholder should be defined by default.
-  ord.compounds.addIdentifier(node);
-
   // Add live validation handling.
   addChangeHandler(node, () => {ord.compounds.validateCompound(node)});
 
@@ -275,6 +269,38 @@ ord.compounds.addIdentifier = function (node) {
   });
   ord.uploads.initialize(identifierNode);
   return identifierNode;
+};
+
+// Shortcut to add an identifier based on name.
+ord.compounds.addNameIdentifier = function (node) {
+  var name = prompt('Compound name: ');
+  if (!(name)) {
+    return;
+  }
+  const identifier = new proto.ord.CompoundIdentifier();
+  identifier.setValue(name);
+  identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.NAME);
+  ord.compounds.loadIdentifier(node, identifier);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/resolve/name');
+  xhr.responseType = 'json';
+  xhr.onload = function () {
+    const smiles = xhr.response;
+    if (smiles) {
+      const identifier = new proto.ord.CompoundIdentifier();
+      identifier.setValue(smiles);
+      identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
+      identifier.setDetails('auto-resolved from name');
+      ord.compounds.loadIdentifier(node, identifier);
+    };
+  };
+  xhr.send(name);
+};
+
+// Shortcut to add an identifier by drawing.
+ord.compounds.drawIdentifier = function (node) {
+  alert('Ketcher is not implemented yet');
 };
 
 ord.compounds.addPreparation = function (node) {
