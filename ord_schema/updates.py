@@ -91,7 +91,7 @@ def resolve_names(message):
                     new_identifier = compound.identifiers.add()
                     new_identifier.type = new_identifier.SMILES
                     new_identifier.value = smiles
-                    new_identifier.details = 'NAME resolved by PubChem'
+                    new_identifier.details = 'NAME resolved automatically'
                     modified = True
                     break
                 except ValueError:

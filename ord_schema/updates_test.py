@@ -36,7 +36,7 @@ class UpdatesTest(absltest.TestCase):
             reaction_pb2.CompoundIdentifier.IdentifierType.SMILES)
         self.assertEqual(
             message.inputs['test'].components[0].identifiers[1].details,
-            'NAME resolved by PubChem')
+            'NAME resolved automatically')
 
     def test_add_binary_identifiers(self):
         smiles = 'CC(=O)OC1=CC=CC=C1C(=O)O'
@@ -78,7 +78,7 @@ class UpdateReactionTest(absltest.TestCase):
             component.identifiers[1],
             reaction_pb2.CompoundIdentifier(
                 type='SMILES', value='CCN',
-                details='NAME resolved by PubChem'))
+                details='NAME resolved automatically'))
 
     def test_add_reaction_id(self):
         message = reaction_pb2.Reaction()
