@@ -73,7 +73,7 @@ ketcher:
 	git clone https://github.com/Open-Reaction-Database/ketcher.git
 
 ketcher-pull: ketcher
-	cd ketcher && git checkout editor-ketcher && git pull
+	cd ketcher && git fetch && git checkout main && git pull
 
 # Empty rules, so ketcher/node_modules doesn't complain if the files aren't present.
 # (they'll be present after ketcher-pull, so things turn out okay)
