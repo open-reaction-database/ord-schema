@@ -28,52 +28,59 @@ ord.products.loadProduct = function (outcomeNode, product) {
 
   const compound = product.getCompound();
   if (compound) {
-    ord.compounds.load(node, [compound]);
-    // The "compound" field is not repeated in ReactionProduct and so
-    // ReactionComponents should not be added or removed.
-    $('.component .remove', node).hide();
+    ord.compounds.loadIntoCompound(node, compound);
   }
+
   setOptionalBool(
       $('.outcome_product_desired', node),
       product.hasIsDesiredProduct() ? product.getIsDesiredProduct() : null);
 
-  writeMetric('.outcome_product_yield', product.getCompoundYield(), node);
+  const compoundYield = product.getCompoundYield();
+  if (compoundYield) {
+    writeMetric('.outcome_product_yield', compoundYield, node);
+  }
 
-  writeMetric('.outcome_product_purity', product.getPurity(), node);
+  const purity = product.getPurity();
+  if (purity)
+  {
+    writeMetric('.outcome_product_purity', purity, node);
+  }
 
   const selectivity = product.getSelectivity();
-  setSelector(
-      $('.outcome_product_selectivity_type', node), selectivity.getType());
-  $('.outcome_product_selectivity_details', node)
-      .text(selectivity.getDetails());
-  if (selectivity.hasValue()) {
-    $('.outcome_product_selectivity_value', node)
-        .text(selectivity.getValue());
+  if (selectivity) {
+    setSelector(
+        $('.outcome_product_selectivity_type', node), selectivity.getType());
+    $('.outcome_product_selectivity_details', node)
+        .text(selectivity.getDetails());
+    if (selectivity.hasValue()) {
+      $('.outcome_product_selectivity_value', node)
+          .text(selectivity.getValue());
+    }
+    if (selectivity.hasPrecision()) {
+      $('.outcome_product_selectivity_precision', node)
+          .text(selectivity.getPrecision());
+    }
   }
-  if (selectivity.hasPrecision()) {
-    $('.outcome_product_selectivity_precision', node)
-        .text(selectivity.getPrecision());
-  }
+
   const identities = product.getAnalysisIdentityList();
   identities.forEach(identity => {
     const analysisNode = ord.products.addIdentity(node);
-    $('.outcome_product_analysis_identity_value', analysisNode).text(identity);
+    $('.analysis_key_selector', analysisNode).val(identity);
   });
   const yields = product.getAnalysisYieldList();
   yields.forEach(yeild => {
     const analysisNode = ord.products.addYield(node);
-    $('.outcome_product_analysis_yield_value', analysisNode).text(yeild);
+    $('.analysis_key_selector', analysisNode).val(yeild);
   });
   const purities = product.getAnalysisPurityList();
   purities.forEach(purity => {
     const analysisNode = ord.products.addPurity(node);
-    $('.outcome_product_analysis_purity_value', analysisNode).text(purity);
+    $('.analysis_key_selector', analysisNode).val(purity);
   });
   const selectivities = product.getAnalysisSelectivityList();
   selectivities.forEach(selectivity => {
     const analysisNode = ord.products.addSelectivity(node);
-    $('.outcome_product_analysis_selectivity_value', analysisNode)
-        .text(selectivity);
+    $('.analysis_key_selector', analysisNode).val(selectivity);
   });
   $('.outcome_product_color', node).text(product.getIsolatedColor());
 
@@ -91,7 +98,9 @@ ord.products.unload = function (node) {
     if (!productNode.attr('id')) {
       // Not a template.
       const product = ord.products.unloadProduct(productNode);
-      products.push(product);
+      if (!isEmptyMessage(product)) {
+        products.push(product);
+      }
     }
   });
   return products;
@@ -100,20 +109,26 @@ ord.products.unload = function (node) {
 ord.products.unloadProduct = function (node) {
   const product = new proto.ord.ReactionProduct();
 
-  const compounds = ord.compounds.unload(node);
-  if (compounds) {
-    product.setCompound(compounds[0]);
+  const compoundNode = $('.outcome_product_compound');
+  const compound = ord.compounds.unloadCompound(compoundNode);
+  if (!isEmptyMessage(compound)) {
+    product.setCompound(compound);
   }
+
   product.setIsDesiredProduct(
       getOptionalBool($('.outcome_product_desired', node)));
 
   const yeild =
       readMetric('.outcome_product_yield', new proto.ord.Percentage(), node);
-  product.setCompoundYield(yeild);
+  if (!isEmptyMessage(yeild)) {
+    product.setCompoundYield(yeild);
+  }
 
   const purity =
       readMetric('.outcome_product_purity', new proto.ord.Percentage(), node);
-  product.setPurity(purity);
+  if (!isEmptyMessage(purity)) {
+    product.setPurity(purity);
+  }
 
   const selectivity = new proto.ord.Selectivity();
   selectivity.setType(
@@ -130,7 +145,9 @@ ord.products.unloadProduct = function (node) {
   if (!isNaN(selectivityPrecision)) {
     selectivity.setPrecision(selectivityPrecision);
   }
-  product.setSelectivity(selectivity);
+  if (!isEmptyMessage(selectivity)) {
+    product.setSelectivity(selectivity);
+  }
 
   const identities = ord.products.unloadAnalysisKeys(node, 'identity');
   product.setAnalysisIdentityList(identities);
@@ -150,7 +167,9 @@ ord.products.unloadProduct = function (node) {
   const texture = new proto.ord.ReactionProduct.Texture();
   texture.setType(getSelector($('.outcome_product_texture_type', node)));
   texture.setDetails($('.outcome_product_texture_details', node).text());
-  product.setTexture(texture);
+  if (!isEmptyMessage(texture)) {
+    product.setTexture(texture);
+  }
 
   return product;
 };
@@ -162,9 +181,10 @@ ord.products.unloadAnalysisKeys = function (node, tag) {
       tagNode = $(tagNode);
       if (!tagNode.attr('id')) {
         // Not a template.
-        const value =
-            $('.outcome_product_analysis_' + tag + '_value', tagNode).text();
-        values.push(value);
+        const value = $('.analysis_key_selector', tagNode).val();
+        if (value != '') {
+          values.push(value);
+        }
       }
     }
   );
@@ -172,7 +192,24 @@ ord.products.unloadAnalysisKeys = function (node, tag) {
 };
 
 ord.products.add = function (node) {
-  return addSlowly('#outcome_product_template', $('.outcome_products', node));
+  const productNode = addSlowly('#outcome_product_template', $('.outcome_products', node));
+
+  // Add an empty compound node.
+  ord.compounds.add(productNode);
+  // The "compound" field is not repeated in ReactionProduct and so
+  // ReactionComponents should not be added or removed.
+  $('.component fieldset .remove', productNode).hide();
+  // Product components implicitly have role Product.
+  $('.component .component_role_limiting', productNode).hide();
+  // Volume measurements of product components do not include solutes. 
+  $('.component .includes_solutes', productNode).remove();
+  // Product components do not have Preparations nor Vendor information.
+  $('.component .preparations_fieldset', productNode).hide();
+  $('.component .vendor', productNode).hide();
+
+  // Add live validation handling.
+  addChangeHandler(productNode, () => {ord.products.validateProduct(productNode)});
+  return productNode;
 };
 
 ord.products.addIdentity = function (node) {
@@ -197,4 +234,12 @@ ord.products.addSelectivity = function (node) {
   return addSlowly(
       '#outcome_product_analysis_selectivity_template',
       $('.outcome_product_analysis_selectivities', node));
+};
+
+ord.products.validateProduct = function(node, validateNode) {
+  const product = ord.products.unloadProduct(node);
+  if (!validateNode) {
+    validateNode = $('.validate', node).first();
+  }
+  validate(product, 'ReactionProduct', validateNode);
 };

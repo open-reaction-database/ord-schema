@@ -52,7 +52,9 @@ ord.crudes.unload = function (node) {
     if (!crudeNode.attr('id')) {
       // Not a template.
       const crude = ord.crudes.unloadCrude(crudeNode);
-      crudes.push(crude);
+      if (!isEmptyMessage(crude)) {
+        crudes.push(crude);
+      }
     }
   });
   return crudes;

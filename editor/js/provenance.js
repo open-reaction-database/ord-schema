@@ -71,20 +71,26 @@ ord.provenance.unload = function () {
 
   const experimenter =
       ord.provenance.unloadPerson($('#provenance_experimenter'));
-  provenance.setExperimenter(experimenter);
+  if (!isEmptyMessage(experimenter)) {
+    provenance.setExperimenter(experimenter);
+  }
 
   provenance.setCity($('#provenance_city').text());
 
   const start = new proto.ord.DateTime();
   start.setValue($('#provenance_start').text());
-  provenance.setExperimentStart(start);
+  if (!isEmptyMessage(start)) {
+    provenance.setExperimentStart(start);
+  }
 
   provenance.setDoi($('#provenance_doi').text());
   provenance.setPatent($('#provenance_patent').text());
   provenance.setPublicationUrl($('#provenance_url').text());
 
   const created = ord.provenance.unloadRecordEvent($('#provenance_created'));
-  provenance.setRecordCreated(created);
+  if (!isEmptyMessage(created)) {
+    provenance.setRecordCreated(created);
+  }
 
   const modifieds = [];
   $('.provenance_modified', '#provenance_modifieds').each(
@@ -93,7 +99,9 @@ ord.provenance.unload = function () {
       if (!node.attr('id')) {
         // Not a template.
         const modified = ord.provenance.unloadRecordEvent(node);
-        modifieds.push(modified);
+        if (!isEmptyMessage(modified)) {
+          modifieds.push(modified);
+        }
       }
     }
   );
@@ -105,9 +113,13 @@ ord.provenance.unloadRecordEvent = function (node) {
   const created = new proto.ord.RecordEvent();
   const createdTime = new proto.ord.DateTime();
   createdTime.setValue($('.provenance_time', node).text());
-  created.setTime(createdTime);
+  if (!isEmptyMessage(createdTime)) {
+    created.setTime(createdTime);
+  }
   const createdPerson = ord.provenance.unloadPerson(node);
-  created.setPerson(createdPerson);
+  if (!isEmptyMessage(createdPerson)) {
+    created.setPerson(createdPerson);
+  }
   const createdDetails = $('.provenance_details', node).text();
   created.setDetails(createdDetails);
   return created;
@@ -124,4 +136,12 @@ ord.provenance.unloadPerson = function (node) {
 
 ord.provenance.addModification = function () {
   return addSlowly('#provenance_modified_template', '#provenance_modifieds');
+};
+
+ord.provenance.validateProvenance = function(node, validateNode) {
+  const provenance = ord.provenance.unload();
+  if (!validateNode) {
+    validateNode = $('.validate', node).first();
+  }
+  validate(provenance, 'ReactionProvenance', validateNode);
 };

@@ -86,7 +86,9 @@ ord.codes.unloadCode = function (codes, node) {
 
   if ($("input[value='text']", node).is(':checked')) {
     const stringValue = $('.setup_code_text', node).text();
-    code.setStringValue(stringValue);
+    if (!isEmptyMessage(stringValue)) {
+      code.setStringValue(stringValue);
+    }
   }
   if ($("input[value='number']", node).is(':checked')) {
     const floatValue = parseFloat($('.setup_code_text', node).text());
@@ -96,13 +98,19 @@ ord.codes.unloadCode = function (codes, node) {
   }
   if ($("input[value='upload']", node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    code.setBytesValue(bytesValue);
+    if (!isEmptyMessage(bytesValue)) {
+      code.setBytesValue(bytesValue);
+    }
   }
   if ($("input[value='url']", node).is(':checked')) {
-    const url = $('.setup_code_text', node).text();
-    code.setUrl(url);
+    const url = $('.setup_code_text', node).text(); 
+    if (!isEmptyMessage(url)) {
+      code.setUrl(url);
+    }
   }
-  codes.set(name, code);
+  if (!isEmptyMessage(name) || !isEmptyMessage(code)) {
+    codes.set(name, code);
+  }
 };
 
 ord.codes.addCode = function() {

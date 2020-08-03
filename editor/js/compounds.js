@@ -30,9 +30,13 @@ ord.compounds.load = function (node, compounds) {
 
 ord.compounds.loadCompound = function (root, compound) {
   const node = ord.compounds.add(root);
+  ord.compounds.loadIntoCompound(node, compound);
+};
 
+ord.compounds.loadIntoCompound = function (node, compound) {
   const reactionRole = compound.getReactionRole();
   setSelector($('.component_reaction_role', node), reactionRole);
+  $('.component_reaction_role', node).trigger('change')
 
   const isLimiting = compound.hasIsLimiting() ? compound.getIsLimiting() : null;
   setOptionalBool($('.component_limiting', node), isLimiting);
@@ -44,6 +48,9 @@ ord.compounds.loadCompound = function (root, compound) {
   const identifiers = compound.getIdentifiersList();
   identifiers.forEach(
       identifier => ord.compounds.loadIdentifier(node, identifier));
+  if (!(identifiers.length)) {
+    ord.compounds.addIdentifier(node);
+  }
 
   const mass = compound.getMass();
   const moles = compound.getMoles();
@@ -103,7 +110,9 @@ ord.compounds.unload = function (node) {
     if (!compoundNode.attr('id')) {
       // Not a template.
       const compound = ord.compounds.unloadCompound(compoundNode);
-      compounds.push(compound);
+      if (!isEmptyMessage(compound)) {
+        compounds.push(compound);
+      }
     }
   });
   return compounds;
@@ -115,21 +124,31 @@ ord.compounds.unloadCompound = function (node) {
   const reactionRole = getSelector($('.component_reaction_role', node));
   compound.setReactionRole(reactionRole);
 
-  const isLimiting = getOptionalBool($('.component_limiting', node));
-  compound.setIsLimiting(isLimiting);
+  // Only call setIsLimiting if this is a reactant Compound.
+  if (getSelectorText($('.component_reaction_role', node)[0]) == 'REACTANT') {
+    const isLimiting = getOptionalBool($('.component_limiting', node));
+    compound.setIsLimiting(isLimiting);
+  }
 
-  const solutes = getOptionalBool($('.component_includes_solutes', node));
-  compound.setVolumeIncludesSolutes(solutes);
+  // Only call setVolumeIncludesSolutes if the amount is defined as a volume.
+  if (ord.amounts.unloadVolume(node)) {
+    const solutes = getOptionalBool($('.component_includes_solutes', node));
+    compound.setVolumeIncludesSolutes(solutes);
+  }
 
   const identifiers = ord.compounds.unloadIdentifiers(node);
-  compound.setIdentifiersList(identifiers);
+  if (!isEmptyMessage(identifiers)) {
+    compound.setIdentifiersList(identifiers);
+  }
 
   ord.amounts.unload(node, compound);
 
   const preparations = [];
   $('.component_preparation', node).each(function (index, preparationNode) {
     const preparation = ord.compounds.unloadPreparation(preparationNode);
-    preparations.push(preparation);
+    if (!isEmptyMessage(preparation)) {
+      preparations.push(preparation);
+    }
   });
   compound.setPreparationsList(preparations);
 
@@ -148,7 +167,9 @@ ord.compounds.unloadIdentifiers = function (node) {
     if (!node.attr('id')) {
       // Not a template.
       const identifier = ord.compounds.unloadIdentifier(node);
-      identifiers.push(identifier);
+      if (!isEmptyMessage(identifier)) {
+        identifiers.push(identifier);
+      }
     }
   });
   return identifiers;
@@ -159,10 +180,14 @@ ord.compounds.unloadIdentifier = function (node) {
 
   if ($('.component_identifier_upload', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    identifier.setBytesValue(bytesValue);
+    if (!isEmptyMessage(bytesValue)) {
+      identifier.setBytesValue(bytesValue);
+    }
   } else {
     const value = $('.component_identifier_value', node).text();
-    identifier.setValue(value);
+    if (!isEmptyMessage(value)) {
+      identifier.setValue(value);
+    }
   }
   const type = getSelector(node);
   identifier.setType(type);
@@ -196,21 +221,41 @@ ord.compounds.add = function (root) {
   const node = addSlowly(
       '#component_template', $('.components', root));
 
+  // Connect reaction role selection to limiting reactant field.
+  const roleSelector = $('.component_reaction_role', node);
+  roleSelector.change(function() {
+    if (getSelectorText(this) == 'REACTANT') {
+      $('.limiting_reactant').show();
+    } else {
+      $('.limiting_reactant').hide();
+    }
+  });
+
   // Create an "amount" radio button group and connect it to the unit selectors.
   const amountButtons = $('.amount input', node);
   amountButtons.attr('name', 'compounds_' + ord.compounds.radioGroupCounter++);
   amountButtons.change(function () {
     $('.amount .selector', node).hide();
     if (this.value == 'mass') {
-      $('.component_amount_units_mass', node).show();
+      $('.component_amount_units_mass', root).show();
+      $('.includes_solutes', root).hide();
     }
     if (this.value == 'moles') {
-      $('.component_amount_units_moles', node).show();
+      $('.component_amount_units_moles', root).show();
+      $('.includes_solutes', root).hide();
     }
     if (this.value == 'volume') {
-      $('.component_amount_units_volume', node).show();
+      $('.component_amount_units_volume', root).show();
+      $('.includes_solutes', root).show().css('display', 'inline-block');
     }
   });
+
+  // One identifier placeholder should be defined by default.
+  ord.compounds.addIdentifier(node);
+
+  // Add live validation handling.
+  addChangeHandler(node, () => {ord.compounds.validateCompound(node)});
+
   return node;
 };
 
@@ -233,5 +278,24 @@ ord.compounds.addIdentifier = function (node) {
 };
 
 ord.compounds.addPreparation = function (node) {
-  return addSlowly('#component_preparation_template', $('.preparations', node));
+  const PreparationNode = addSlowly('#component_preparation_template', $('.preparations', node));
+
+  const typeSelector = $('.component_compound_preparation_type', PreparationNode);
+  typeSelector.change(function() {
+    if (getSelectorText(this) == 'SYNTHESIZED') {
+      $('.component_compound_preparation_reaction_id', PreparationNode).css('display', 'inline-block');
+    } else {
+      $('.component_compound_preparation_reaction_id', PreparationNode).css('display', 'none');
+    }
+  });
+
+  return PreparationNode
+};
+
+ord.compounds.validateCompound = function(node, validateNode) {
+  const compound = ord.compounds.unloadCompound(node);
+  if (!validateNode) {
+    validateNode = $('.validate', node).first();
+  }
+  validate(compound, 'Compound', validateNode);
 };

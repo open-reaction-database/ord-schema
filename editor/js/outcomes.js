@@ -38,8 +38,6 @@ ord.outcomes.loadOutcome = function (outcome) {
   if (conversion) {
     writeMetric('.outcome_conversion', outcome.getConversion(), node);
   }
-  const products = outcome.getProductsList();
-  ord.products.load(node, products);
 
   const analyses = outcome.getAnalysesMap();
   const names = analyses.stringKeys_();
@@ -47,15 +45,21 @@ ord.outcomes.loadOutcome = function (outcome) {
     const analysis = analyses.get(name);
     ord.outcomes.loadAnalysis(node, name, analysis);
   });
+
+  const products = outcome.getProductsList();
+  ord.products.load(node, products);
 };
 
 ord.outcomes.loadAnalysis = function (analysesNode, name, analysis) {
   const node = ord.outcomes.addAnalysis(analysesNode);
 
-  $('.outcome_analysis_name', node).text(name);
+  $('.outcome_analysis_name', node).text(name).trigger('input');
 
   setSelector($('.outcome_analysis_type', node), analysis.getType());
-  $('.outcome_analysis_chmo_id', node).text(analysis.getChmoId());
+  const chmoId = analysis.getChmoId();
+  if (chmoId != 0) {
+    $('.outcome_analysis_chmo_id', node).text(analysis.getChmoId());
+  }
   $('.outcome_analysis_details', node).text(analysis.getDetails());
 
   const processes = analysis.getProcessedDataMap();
@@ -166,7 +170,9 @@ ord.outcomes.unload = function () {
     if (!node.attr('id')) {
       // Not a template.
       const outcome = ord.outcomes.unloadOutcome(node);
-      outcomes.push(outcome);
+      if (!isEmptyMessage(outcome)) {
+        outcomes.push(outcome);
+      }
     }
   });
   return outcomes;
@@ -176,11 +182,15 @@ ord.outcomes.unloadOutcome = function (node) {
   const outcome = new proto.ord.ReactionOutcome();
 
   const time = readMetric('.outcome_time', new proto.ord.Time(), node);
-  outcome.setReactionTime(time);
+  if (!isEmptyMessage(time)) {
+    outcome.setReactionTime(time);
+  }
 
   const conversion =
       readMetric('.outcome_conversion', new proto.ord.Percentage(), node);
-  outcome.setConversion(conversion);
+  if (!isEmptyMessage(conversion)) {
+    outcome.setConversion(conversion);
+  }
 
   const products = ord.products.unload(node);
   outcome.setProductsList(products);
@@ -196,9 +206,7 @@ ord.outcomes.unloadOutcome = function (node) {
   return outcome;
 };
 
-ord.outcomes.unloadAnalysis = function (analysisNode, analyses) {
-  const name = $('.outcome_analysis_name', analysisNode).text();
-
+ord.outcomes.unloadAnalysisSingle = function (analysisNode) {
   const analysis = new proto.ord.ReactionAnalysis();
   analysis.setType(getSelector($('.outcome_analysis_type', analysisNode)));
   const chmoId = $('.outcome_analysis_chmo_id', analysisNode).text();
@@ -225,13 +233,23 @@ ord.outcomes.unloadAnalysis = function (analysisNode, analyses) {
       $('.outcome_analysis_manufacturer', analysisNode).text());
   const calibrated = new proto.ord.DateTime();
   calibrated.setValue($('.outcome_analysis_calibrated', analysisNode).text());
-  analysis.setInstrumentLastCalibrated(calibrated);
+  if (!isEmptyMessage(calibrated)) {
+    analysis.setInstrumentLastCalibrated(calibrated);
+  }
   analysis.setUsesInternalStandard(
       getOptionalBool($('.outcome_analysis_internal_standard', analysisNode)));
   analysis.setUsesAuthenticStandard(
       getOptionalBool($('.outcome_analysis_authentic_standard', analysisNode)));
 
-  analyses.set(name, analysis);
+  return analysis;
+};
+
+ord.outcomes.unloadAnalysis = function (analysisNode, analyses) {
+  const analysis = ord.outcomes.unloadAnalysisSingle(analysisNode);
+  const name = $('.outcome_analysis_name', analysisNode).text();
+  if (!isEmptyMessage(name) || !isEmptyMessage(analysis)) {
+    analyses.set(name, analysis);
+  }
 };
 
 ord.outcomes.unloadProcess = function (node, processes) {
@@ -243,23 +261,31 @@ ord.outcomes.unloadProcess = function (node, processes) {
 
   if ($("input[value='text']", node).is(':checked')) {
     const stringValue = $('.outcome_process_text', node).text();
-    process.setStringValue(stringValue);
+    if (!isEmptyMessage(stringValue)) {
+      process.setStringValue(stringValue);
+    }
   }
   if ($("input[value='number']", node).is(':checked')) {
-    const floatValue = parseFloat($('.outcome_processed_text', node).text());
+    const floatValue = parseFloat($('.outcome_process_text', node).text());
     if (!isNaN(floatValue)) {
-      processed.setFloatValue(floatValue);
+      process.setFloatValue(floatValue);
     }
   }
   if ($("input[value='upload']", node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    process.setBytesValue(bytesValue);
+    if (!isEmptyMessage(bytesValue)) {
+      process.setBytesValue(bytesValue);
+    }
   }
   if ($("input[value='url']", node).is(':checked')) {
     const url = $('.outcome_process_text', node).text();
-    process.setUrl(url);
+    if (!isEmptyMessage(url)) {
+      process.setUrl(url);
+    }
   }
-  processes.set(name, process);
+  if (!isEmptyMessage(name) || !isEmptyMessage(process)) {
+    processes.set(name, process);
+  }
 };
 
 ord.outcomes.unloadRaw = function (node, raws) {
@@ -271,7 +297,9 @@ ord.outcomes.unloadRaw = function (node, raws) {
 
   if ($("input[value='text']", node).is(':checked')) {
     const stringValue = $('.outcome_raw_text', node).text();
-    raw.setStringValue(stringValue);
+    if (!isEmptyMessage(stringValue)) {
+      raw.setStringValue(stringValue);
+    }
   }
   if ($("input[value='number']", node).is(':checked')) {
     const floatValue = parseFloat($('.outcome_raw_text', node).text());
@@ -281,21 +309,61 @@ ord.outcomes.unloadRaw = function (node, raws) {
   }
   if ($("input[value='upload']", node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    raw.setBytesValue(bytesValue);
+    if (!isEmptyMessage(bytesValue)) {
+      raw.setBytesValue(bytesValue);
+    }
   }
   if ($("input[value='url']", node).is(':checked')) {
     const url = $('.outcome_raw_text', node).text();
-    raw.setUrl(url);
+    if (!isEmptyMessage(url)) {
+      raw.setUrl(url);
+    }
   }
-  raws.set(name, raw);
+  if (!isEmptyMessage(name) || !isEmptyMessage(raw)) {
+    raws.set(name, raw);
+  }
 };
 
 ord.outcomes.add = function () {
-  return addSlowly('#outcome_template', '#outcomes');
+  const node = addSlowly('#outcome_template', '#outcomes');
+  // Add live validation handling.
+  addChangeHandler(node, () => {ord.outcomes.validateOutcome(node)});
+  return node;
 };
 
 ord.outcomes.addAnalysis = function (node) {
-  return addSlowly('#outcome_analysis_template', $('.outcome_analyses', node));
+  const analysisNode = addSlowly('#outcome_analysis_template', $('.outcome_analyses', node));
+  
+  // Handle name changes.
+  const nameNode = $('.outcome_analysis_name', analysisNode)
+  nameNode.on('focusin', function() {
+    // Store old value in val attribute.
+    nameNode.data('val', nameNode.text()); 
+  });
+  nameNode.on('input', function() {
+    // Remove old key.
+    var old_name = nameNode.data('val');
+    if (old_name) {
+      // If any selector had this value selected, reset it.
+      $('.analysis_key_selector').each(function() {
+        if ($(this).val() == old_name) {
+          $(this).val('');
+        }
+      });
+      $('.analysis_key_selector option[value="' + old_name + '"]').remove();
+    }
+    // Add new key.
+    var name = nameNode.text();
+    if (name) {
+      $('.analysis_key_selector').append('<option value="' + name + '">' + name + '</option>');
+      // Ensure old value stored (necessary if focus does not change).
+      nameNode.data('val', name); 
+    }
+  });
+    
+  // Add live validation handling.
+  addChangeHandler(analysisNode, () => {ord.outcomes.validateAnalysis(analysisNode)});
+  return analysisNode;
 };
 
 ord.outcomes.addProcess = function (node) {
@@ -306,7 +374,9 @@ ord.outcomes.addProcess = function (node) {
   typeButtons.attr(
       'name', 'outcomes_' + ord.outcomes.radioGroupCounter++);
   typeButtons.change(function () {
-    if ((this.value == 'text') || (this.value == 'url')) {
+    if ((this.value == 'text')
+        || (this.value == 'number')
+        || (this.value == 'url')) {
       $('.outcome_process_text', processNode).show();
       $('.uploader', processNode).hide();
     } else {
@@ -337,4 +407,20 @@ ord.outcomes.addRaw = function (node) {
   });
   ord.uploads.initialize(rawNode);
   return rawNode;
+};
+
+ord.outcomes.validateOutcome = function(node, validateNode) {
+  const outcome = ord.outcomes.unloadOutcome(node);
+  if (!validateNode) {
+    validateNode = $('.validate', node).first();
+  }
+  validate(outcome, 'ReactionOutcome', validateNode);
+};
+
+ord.outcomes.validateAnalysis = function(node, validateNode) {
+  const analysis = ord.outcomes.unloadAnalysisSingle(node);
+  if (!validateNode) {
+    validateNode = $('.validate', node).first();
+  }
+  validate(analysis, 'ReactionAnalysis', validateNode);
 };
