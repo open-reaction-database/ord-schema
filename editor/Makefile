@@ -19,7 +19,7 @@ endif
 # https://github.com/google/closure-library/releases/
 closure = closure-library-20200517
 
-all : prep py js ketcher/dist
+all : prep py js ketcher/dist/.touch
 
 prep :
 	# Ensure output directories exist.
@@ -92,20 +92,20 @@ ketcher/node_modules: ketcher/package.json ketcher/package-lock.json | ketcher-p
 	# Then, to install phantomjs properly, npm requires to be run as root.
 	# If make is not run as root, then npm can be run normally.
 	# Either way, serve.sh can be run as a regular user, since we only need to read protected files.
+ketcher/node_modules/.touch: ketcher/package.json ketcher/package-lock.json | ketcher-pull
 	@if [ $$USER = "root" ] ; then \
-		cd ketcher && sudo npm install; \
+		cd ketcher && sudo npm install && touch node_modules/.touch ; \
 	else \
-		cd ketcher && npm install; \
+		cd ketcher && npm install && touch node_modules/.touch; \
 	fi;
 
 # Builds on changes to anything in ketcher/, that aren't in ketcher/node_modules or /ketcher_dist
 # (so essentially, changes to any human-editable source code)
 # (Note: shell does expand and run before processing, but the results of the find command
 # would remain correct throughout execution, so this timing is okay.)
-# TODO ketcher/dist existing doesn't imply finished build; do something similar to what's noted in TODO above
-ketcher/dist: $(shell find ./ketcher/* ! -path "./ketcher/node_modules*" ! -path "./ketcher/dist*") | ketcher/node_modules
+ketcher/dist/.touch: $(shell find ./ketcher/* ! -path "./ketcher/node_modules*" ! -path "./ketcher/dist*") | ketcher/node_modules/.touch
 	# Build Ketcher from source.
-	cd ketcher && npm run build
+	cd ketcher && npm run build && touch dist/.touch
 
 package : all
 	rm -rf package
