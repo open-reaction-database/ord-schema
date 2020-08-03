@@ -43,7 +43,7 @@ def name_resolve(value_type, value):
                 return smiles
         except urllib.error.HTTPError as error:
             logging.info('%s could not resolve %s %s: %s',
-                resolver.__name__, value_type, value, error)
+                         resolver.__name__, value_type, value, error)
     raise ValueError(f'Could not resolve {value_type} {value} to SMILES')
 
 
