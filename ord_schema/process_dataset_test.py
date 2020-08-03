@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 
 from absl import flags
+from absl import logging
 from absl.testing import absltest
 from absl.testing import flagsaver
 from rdkit import RDLogger
@@ -109,11 +110,13 @@ class SubmissionWorkflowTest(absltest.TestCase):
     repo (e.g. adding a new dataset or editing an existing one) and call
     self._run_main() to commit the changes and run process_datasets.py.
     """
+    _DEFAULT_BRANCH = 'main'
+
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
         os.chdir(self.test_subdirectory)
-        subprocess.run(['git', 'init'], check=True)
+        subprocess.run(['git', 'init', '-b', self._DEFAULT_BRANCH], check=True)
         subprocess.run(
             ['git', 'config', '--local', 'user.email', 'test@ord-schema'],
             check=True)
@@ -142,14 +145,29 @@ class SubmissionWorkflowTest(absltest.TestCase):
         message_helpers.write_message(dataset, self.dataset_filename)
         subprocess.run(['git', 'add', 'data'], check=True)
         subprocess.run(['git', 'commit', '-m', 'Initial commit'], check=True)
+        # Use a new branch for tests.
+        subprocess.run(['git', 'checkout', '-b', 'test'], check=True)
 
     def _run_main(self, **kwargs):
+        """Runs process_dataset.main().
+
+        Args:
+            **kwargs: Keyword arguments to set flags.
+
+        Returns:
+            added: Set of added reaction IDs.
+            removed: Set of deleted reaction IDs.
+            filenames: List of .pbtxt filenames in the updated database.
+        """
         subprocess.run(['git', 'add', '*.pbtxt', 'data/*/*.pbtxt'], check=True)
-        changed = subprocess.run(['git', 'diff', '--name-status', '--staged'],
-                                 check=True,
-                                 capture_output=True)
-        with open('changed.txt', 'wb') as f:
+        changed = subprocess.run(
+            ['git', 'diff', '--name-status', self._DEFAULT_BRANCH],
+            check=True,
+            capture_output=True,
+            text=True)
+        with open('changed.txt', 'w') as f:
             f.write(changed.stdout)
+        logging.info(f'Changed files:\n{changed.stdout}')
         subprocess.run(['git', 'commit', '-m', 'Submission'], check=True)
         run_flags = {
             'input_file': 'changed.txt',
@@ -158,9 +176,11 @@ class SubmissionWorkflowTest(absltest.TestCase):
         }
         run_flags.update(kwargs)
         with flagsaver.flagsaver(**run_flags):
-            process_dataset.main(())
-        return glob.glob(os.path.join(self.test_subdirectory, '**/*.pbtxt'),
-                         recursive=True)
+            added, removed = process_dataset.main(())
+        filenames = glob.glob(
+            os.path.join(self.test_subdirectory, '**/*.pbtxt'),
+            recursive=True)
+        return added, removed, filenames
 
     def test_add_dataset(self):
         reaction = reaction_pb2.Reaction()
@@ -171,10 +191,13 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
+        reaction.reaction_id = 'test'
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        filenames = self._run_main()
+        added, removed, filenames = self._run_main()
+        self.assertEqual(added, {'test'})
+        self.assertEmpty(removed)
         self.assertLen(filenames, 2)
         self.assertFalse(os.path.exists(dataset_filename))
         # Check for assignment of dataset and reaction IDs.
@@ -195,13 +218,17 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
+        reaction.reaction_id = 'test1'
         dataset1 = dataset_pb2.Dataset(reactions=[reaction])
         dataset1_filename = os.path.join(self.test_subdirectory, 'test1.pbtxt')
         message_helpers.write_message(dataset1, dataset1_filename)
+        reaction.reaction_id = 'test2'
         dataset2 = dataset_pb2.Dataset(reactions=[reaction])
         dataset2_filename = os.path.join(self.test_subdirectory, 'test2.pbtxt')
         message_helpers.write_message(dataset2, dataset2_filename)
-        filenames = self._run_main()
+        added, removed, filenames = self._run_main()
+        self.assertEqual(added, {'test1', 'test2'})
+        self.assertEmpty(removed)
         self.assertLen(filenames, 2)
         filenames.pop(filenames.index(self.dataset_filename))
         self.assertLen(filenames, 1)
@@ -226,7 +253,9 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        filenames = self._run_main()
+        added, removed, filenames = self._run_main()
+        self.assertEqual(added, {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'})
+        self.assertEmpty(removed)
         self.assertLen(filenames, 2)
         self.assertFalse(os.path.exists(dataset_filename))
         filenames.pop(filenames.index(self.dataset_filename))
@@ -252,9 +281,12 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
+        reaction.reaction_id = 'test'
         dataset.reactions.add().CopyFrom(reaction)
         message_helpers.write_message(dataset, self.dataset_filename)
-        filenames = self._run_main()
+        added, removed, filenames = self._run_main()
+        self.assertEqual(added, {'test'})
+        self.assertEmpty(removed)
         self.assertCountEqual([self.dataset_filename], filenames)
         # Check for preservation of dataset and record IDs.
         updated_dataset = message_helpers.load_message(self.dataset_filename,
@@ -264,6 +296,16 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.assertEqual(dataset.reactions[0].reaction_id,
                          updated_dataset.reactions[0].reaction_id)
         self.assertNotEmpty(updated_dataset.reactions[1].reaction_id)
+
+    def test_modify_reaction_id(self):
+        dataset = message_helpers.load_message(self.dataset_filename,
+                                               dataset_pb2.Dataset)
+        dataset.reactions[0].reaction_id = 'test_rename'
+        message_helpers.write_message(dataset, self.dataset_filename)
+        added, removed, filenames = self._run_main()
+        self.assertEqual(added, {'test_rename'})
+        self.assertEqual(removed, {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'})
+        self.assertCountEqual([self.dataset_filename], filenames)
 
     def test_add_dataset_with_validation_errors(self):
         reaction = reaction_pb2.Reaction()
@@ -321,13 +363,16 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
+        reaction.reaction_id = 'test'
         image = reaction.observations.add().image
         image.bytes_value = b'test data value'
         image.format = 'png'
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        filenames = self._run_main(min_size=0.0)
+        added, removed, filenames = self._run_main(min_size=0.0)
+        self.assertEqual(added, {'test'})
+        self.assertEmpty(removed)
         self.assertLen(filenames, 2)
         filenames.pop(filenames.index(self.dataset_filename))
         dataset = message_helpers.load_message(filenames[0],
