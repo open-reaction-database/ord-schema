@@ -642,13 +642,7 @@ limitations under the License.
       </fieldset>
 
       <fieldset id="section_workups" class="section">
-        <legend>
-          <span class="collapse"></span>
-          Workups
-          <span data-toggle="tooltip" data-placement="right" title="Workup steps refer to any additions, purifications, or other operations after the 'reaction' stage prior to analysis.">
-            <span class="fa fa-question-circle" aria-hidden="true"></span>
-          </span>
-        </legend>
+        <legend>Workups</legend>
         <div id="workups">
           <div id="workup_template" class="workup" style="display: none;">
           <fieldset>
@@ -684,15 +678,11 @@ limitations under the License.
                 <tr><td align="right">details</td><td><div class="workup_temperature_details edittext"></div></td></tr>
               </table>
             </fieldset>
-            <fieldset>
-              <legend>
-                <span class="workup_temperature_measurements_wrap collapse"></span>
-                Temperature measurements
-              </legend>
+            <div>
               <div class="workup_temperature_measurements">
               </div>
               <div onclick="ord.workups.addMeasurement($(this).closest('.workup'));" class="add">+ add measurement</div>
-            </fieldset>
+            </div>
             <fieldset>
               <legend>
                 <span class="workup_stirring collapse"></span>

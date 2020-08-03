@@ -29,6 +29,7 @@ import psycopg2
 
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
+from ord_schema.proto import reaction_pb2
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('input', None, 'Input pattern (glob).')
@@ -108,11 +109,10 @@ def _reactions_table(reaction, tables):
         'reaction_id': reaction.reaction_id,
         'serialized': reaction.SerializeToString().hex()
     }
-    try:
-        values['reaction_smiles'] = message_helpers.get_reaction_smiles(
-            reaction)
-    except ValueError:
-        pass
+    # TODO(kearnes): Generate reaction SMILES if missing.
+    for identifier in reaction.identifiers:
+        if identifier.type == identifier.REACTION_SMILES:
+            values['reaction_smiles'] = identifier.value
     tables.reactions.writerow(values)
 
 
@@ -127,13 +127,13 @@ def _inputs_table(reaction, tables):
     for key in sorted(reaction.inputs):
         reaction_input = reaction.inputs[key]
         for compound in reaction_input.components:
-            row = {'reaction_id': reaction.reaction_id}
-            try:
-                row['smiles'] = message_helpers.smiles_from_compound(compound)
-            except ValueError:
-                pass
-            if len(row) > 1:
-                rows.append(row)
+            for identifier in compound.identifiers:
+                # TODO(kearnes): Generate SMILES if missing.
+                if identifier.type == identifier.SMILES:
+                    rows.append({
+                        'reaction_id': reaction.reaction_id,
+                        'smiles': identifier.value
+                    })
     tables.inputs.writerows(rows)
 
 
@@ -147,16 +147,15 @@ def _outputs_table(reaction, tables):
     rows = []
     for outcome in reaction.outcomes:
         for product in outcome.products:
-            row = {'reaction_id': reaction.reaction_id}
-            try:
-                row['smiles'] = message_helpers.smiles_from_compound(
-                    product.compound)
-            except ValueError:
-                pass
+            values = {}
+            for identifier in product.compound.identifiers:
+                # TODO(kearnes): Generate SMILES if missing.
+                if identifier.type == reaction_pb2.CompoundIdentifier.SMILES:
+                    values['reaction_id'] = reaction.reaction_id
+                    values['smiles'] = identifier.value
             if product.HasField('compound_yield'):
-                row['yield'] = product.compound_yield.value
-            if len(row) > 1:
-                rows.append(row)
+                values['yield'] = product.compound_yield.value
+            rows.append(values)
     tables.outputs.writerows(rows)
 
 

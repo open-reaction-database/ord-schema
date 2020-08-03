@@ -102,7 +102,7 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         compound = reaction_pb2.Compound()
         compound.identifiers.add(value=value, type=identifier_type)
         with self.assertRaisesRegex(ValueError,
-                                    'invalid structural identifier'):
+                                    'no valid structural identifier'):
             message_helpers.mol_from_compound(compound)
 
     def test_check_compound_identifiers(self):
@@ -117,43 +117,6 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
             type='RDKIT_BINARY')
         with self.assertRaisesRegex(ValueError, 'inconsistent'):
             message_helpers.check_compound_identifiers(compound)
-
-    def test_get_reaction_smiles(self):
-        reaction = reaction_pb2.Reaction()
-        reactant1 = reaction.inputs['reactant1']
-        reactant1.components.add(reaction_role='REACTANT').identifiers.add(
-            value='c1ccccc1', type='SMILES')
-        reactant1.components.add(reaction_role='SOLVENT').identifiers.add(
-            value='N', type='SMILES')
-        self.assertEqual(message_helpers.get_reaction_smiles(reaction),
-                         'c1ccccc1>N>')
-        reactant2 = reaction.inputs['reactant2']
-        reactant2.components.add(reaction_role='REACTANT').identifiers.add(
-            value='Cc1ccccc1', type='SMILES')
-        reactant2.components.add(reaction_role='SOLVENT').identifiers.add(
-            value='N', type='SMILES')
-        reaction.outcomes.add().products.add().compound.identifiers.add(
-            value='O=C=O', type='SMILES')
-        self.assertEqual(message_helpers.get_reaction_smiles(reaction),
-                         'Cc1ccccc1.c1ccccc1>N>O=C=O')
-
-    def test_get_reaction_smiles_failure(self):
-        reaction = reaction_pb2.Reaction()
-        reactant = reaction.inputs['reactant']
-        component = reactant.components.add(reaction_role='REACTANT')
-        component.identifiers.add(value='benzene', type='NAME')
-        with self.assertRaisesRegex(ValueError,
-                                    'no valid reactants or products'):
-            message_helpers.get_reaction_smiles(reaction)
-        component.identifiers.add(value='c1ccccc1', type='SMILES')
-        with self.assertRaisesRegex(ValueError, 'must contain at least one'):
-            message_helpers.get_reaction_smiles(reaction,
-                                                allow_incomplete=False)
-        reaction.outcomes.add().products.add().compound.identifiers.add(
-            value='invalid', type='SMILES')
-        with self.assertRaisesRegex(ValueError, 'reaction contains errors'):
-            message_helpers.get_reaction_smiles(reaction,
-                                                allow_incomplete=False)
 
 
 class FindSubmessagesTest(absltest.TestCase):
