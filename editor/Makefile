@@ -70,9 +70,11 @@ gen/js/proto/ord/%.js : ../ord_schema/proto/%.proto
 	$(error $< not found--run setup?)
 
 ketcher:
+	# Clone ORD's Ketcher repo.
 	git clone https://github.com/Open-Reaction-Database/ketcher.git
 
 ketcher-pull: ketcher
+	# Pull the ketcher repo to get any changes.
 	cd ketcher && git fetch && git checkout main && git pull
 
 # Empty rules, so ketcher/node_modules doesn't complain if the files aren't present.
@@ -81,18 +83,15 @@ ketcher/package.json:
 
 ketcher/package-lock.json: 
 
-# Installs on changes to package.json or package-lock.json, not node_modules.
-# (corruptions to node_modules folder, for example, will not be fixed; use make clean)
-# Also ensures that ketcher-pull is always run 
-# (though, on its own, does not rerun npm install if ketcher files in general change.).
-# TODO the existence of ketcher/node_modules does NOT imply a proper install,
-# maybe use touch to create a file to signal and check for proper install?
-ketcher/node_modules: ketcher/package.json ketcher/package-lock.json | ketcher-pull
-	# If make is run as root, then the ketcher folder has root perms.
-	# Then, to install phantomjs properly, npm requires to be run as root.
-	# If make is not run as root, then npm can be run normally.
-	# Either way, serve.sh can be run as a regular user, since we only need to read protected files.
+# Ensures that ketcher-pull is always run, and then
+# installs on changes to package.json or package-lock.json.
+# (Note: corruptions to node_modules folder will not be fixed; use make clean)
+# Note: If make is run as root, then the ketcher folder has root perms.
+# Then, to install phantomjs properly, npm requires to be run as root.
+# If make is not run as root, then npm can be run normally.
+# Either way, serve.sh can be run as a regular user, since we only need to read protected files.
 ketcher/node_modules/.touch: ketcher/package.json ketcher/package-lock.json | ketcher-pull
+	# Install node modules required for building.
 	@if [ $$USER = "root" ] ; then \
 		cd ketcher && sudo npm install && touch node_modules/.touch ; \
 	else \
