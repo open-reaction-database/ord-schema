@@ -191,7 +191,9 @@ def _load_base_dataset(file_status, base):
     else:
         args.append(f'{base}:{file_status.filename}')
     logging.info('Running command: %s', ' '.join(args))
-    dataset_pbtxt = subprocess.run(args, capture_output=True, check=True,
+    dataset_pbtxt = subprocess.run(args,
+                                   capture_output=True,
+                                   check=True,
                                    text=True)
     return text_format.Parse(dataset_pbtxt.stdout, dataset_pb2.Dataset())
 
@@ -223,7 +225,7 @@ def main(argv):
     inputs = sorted(_get_inputs())
     if not inputs:
         logging.info('nothing to do')
-        return set(), set() # Nothing to do.
+        return set(), set()  # Nothing to do.
     datasets = {}
     for file_status in inputs:
         if file_status.status == 'D':
@@ -243,7 +245,7 @@ def main(argv):
             f'Summary: +{len(added)} -{len(removed)} reaction IDs')
     if not FLAGS.update:
         logging.info('nothing else to do; use --update for more')
-        return added, removed # Nothing else to do.
+        return added, removed  # Nothing else to do.
     for dataset in datasets.values():
         # Set reaction_ids, resolve names, fix cross-references, etc.
         updates.update_dataset(dataset)

@@ -177,9 +177,9 @@ class SubmissionWorkflowTest(absltest.TestCase):
         run_flags.update(kwargs)
         with flagsaver.flagsaver(**run_flags):
             added, removed = process_dataset.main(())
-        filenames = glob.glob(
-            os.path.join(self.test_subdirectory, '**/*.pbtxt'),
-            recursive=True)
+        filenames = glob.glob(os.path.join(self.test_subdirectory,
+                                           '**/*.pbtxt'),
+                              recursive=True)
         return added, removed, filenames
 
     def test_add_dataset(self):
