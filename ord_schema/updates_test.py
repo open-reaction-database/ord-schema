@@ -23,16 +23,20 @@ from ord_schema.proto import dataset_pb2
 
 class UpdatesTest(absltest.TestCase):
     def test_resolve_names(self):
+        roundtrip_smi = lambda smi: Chem.MolToSmiles(Chem.MolFromSmiles(smi))
         message = reaction_pb2.Reaction()
         message.inputs['test'].components.add().identifiers.add(
             type='NAME', value='aspirin')
         self.assertTrue(updates.resolve_names(message))
+        resolved_smi = roundtrip_smi(
+            message.inputs['test'].components[0].identifiers[1].value)
+        self.assertEqual(resolved_smi, roundtrip_smi('CC(=O)Oc1ccccc1C(O)=O'))
         self.assertEqual(
-            message.inputs['test'].components[0].identifiers[1],
-            reaction_pb2.CompoundIdentifier(
-                type='SMILES',
-                value='CC(=O)OC1=CC=CC=C1C(=O)O',
-                details='NAME resolved by PubChem'))
+            message.inputs['test'].components[0].identifiers[1].type,
+            reaction_pb2.CompoundIdentifier.IdentifierType.SMILES)
+        self.assertEqual(
+            message.inputs['test'].components[0].identifiers[1].details,
+            'NAME resolved automatically')
 
     def test_add_binary_identifiers(self):
         smiles = 'CC(=O)OC1=CC=CC=C1C(=O)O'
@@ -73,8 +77,9 @@ class UpdateReactionTest(absltest.TestCase):
         self.assertEqual(
             component.identifiers[1],
             reaction_pb2.CompoundIdentifier(
-                type='SMILES', value='CCN',
-                details='NAME resolved by PubChem'))
+                type='SMILES',
+                value='CCN',
+                details='NAME resolved automatically'))
 
     def test_add_reaction_id(self):
         message = reaction_pb2.Reaction()

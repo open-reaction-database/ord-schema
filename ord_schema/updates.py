@@ -33,11 +33,34 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
 ]
 
 
-def pubchem_resolve(value_type, value):
+def name_resolve(value_type, value):
+    """Resolves compound identifiers to SMILES via multiple APIs."""
+    smiles = None
+    for resolver in _NAME_RESOLVERS:
+        try:
+            smiles = resolver(value_type, value)
+            if smiles is not None:
+                return smiles
+        except urllib.error.HTTPError as error:
+            logging.info('%s could not resolve %s %s: %s', resolver.__name__,
+                         value_type, value, error)
+    raise ValueError(f'Could not resolve {value_type} {value} to SMILES')
+
+
+def _pubchem_resolve(value_type, value):
     """Resolves compound identifiers to SMILES via the PubChem REST API."""
     response = urllib.request.urlopen(
         f'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/{value_type}/'
-        f'/{urllib.parse.quote(value)}/property/IsomericSMILES/txt')
+        f'{urllib.parse.quote(value)}/property/IsomericSMILES/txt')
+    return response.read().decode().strip()
+
+
+def _cactus_resolve(value_type, value):
+    """Resolves compound identifiers to SMILES via the CACTUS API."""
+    del value_type
+    response = urllib.request.urlopen(
+        'https://cactus.nci.nih.gov/chemical/structure/'
+        f'{urllib.parse.quote(value)}/smiles')
     return response.read().decode().strip()
 
 
@@ -64,16 +87,15 @@ def resolve_names(message):
         for identifier in compound.identifiers:
             if identifier.type == identifier.NAME:
                 try:
-                    smiles = pubchem_resolve('name', identifier.value)
+                    smiles = name_resolve('name', identifier.value)
                     new_identifier = compound.identifiers.add()
                     new_identifier.type = new_identifier.SMILES
                     new_identifier.value = smiles
-                    new_identifier.details = 'NAME resolved by PubChem'
+                    new_identifier.details = 'NAME resolved automatically'
                     modified = True
                     break
-                except urllib.error.HTTPError as error:
-                    logging.info('PubChem could not resolve NAME %s: %s',
-                                 identifier.value, error)
+                except ValueError:
+                    pass
     return modified
 
 
@@ -190,4 +212,10 @@ def update_dataset(dataset):
 # Standard updates.
 _UPDATES = [
     resolve_names,
+]
+
+# Standard name resolvers.
+_NAME_RESOLVERS = [
+    _pubchem_resolve,
+    _cactus_resolve,
 ]
