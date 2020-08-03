@@ -51,7 +51,7 @@ def main(argv):
             raise ValueError(f'unrecognized diff prefix: {prefix}')
     logging.info(f'Summary: +%d -%d reaction IDs', len(added), len(removed))
     if FLAGS.issue:
-        client = github.Github()
+        client = github.Github(os.environ['GITHUB_TOKEN'])
         repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
         issue = repo.get_issue(FLAGS.issue)
         issue.create_comment(
