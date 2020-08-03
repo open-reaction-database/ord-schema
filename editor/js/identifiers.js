@@ -32,6 +32,7 @@ ord.identifiers.loadIdentifier = function (identifier) {
   if (bytesValue) {
     $('.reaction_identifier_upload', node).prop('checked', true);
     $('.reaction_identifier_value', node).hide();
+    $('.text_upload', node).hide();
     ord.uploads.load(node, bytesValue);
   } else {
     const value = identifier.getValue();
@@ -90,6 +91,7 @@ ord.identifiers.add = function () {
     if ($(this).is(':checked')) {
       $('.uploader', node).show();
       $('.reaction_identifier_value', node).hide();
+      $('.text_upload', node).hide();
     } else {
       $('.uploader', node).hide();
       $('.reaction_identifier_value', node).show();

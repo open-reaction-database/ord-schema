@@ -447,6 +447,22 @@ function writeMetric(prefix, proto, node) {
   }
 }
 
+// Prompt user to upload a file and return its content as a string.
+function setTextFromFile(identifierNode, valueClass) {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.onchange = event => {
+    var file = event.target.files[0];
+    var reader = new FileReader();
+    reader.readAsText(file);
+    reader.onload = readerEvent => {
+      const contents = readerEvent.target.result;
+      $('.' + valueClass, identifierNode).text(contents);
+     }
+  }
+  input.click();
+}
+
 // Populate a <select/> node according to its data-proto type declaration.
 function initSelector(node) {
   const protoName = node.attr('data-proto');
@@ -461,6 +477,10 @@ function initSelector(node) {
     option.attr('value', i);
     if (options[i] == 'UNSPECIFIED') {
       option.attr('selected', 'selected');
+    }
+    // Don't let users directly select/enter RDKIT_BINARY identifiers.
+    if (options[i] == 'RDKIT_BINARY') {
+      option.attr('disabled', true);
     }
     select.append(option);
   }

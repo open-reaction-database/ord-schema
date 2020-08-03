@@ -33,6 +33,7 @@ body {
   border: solid;
   border-width: 1px;
   border-color: #c0c0c0;
+  white-space: pre-wrap;
 }
 .shorttext {
   width: 75px;
