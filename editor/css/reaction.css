@@ -160,3 +160,19 @@ fieldset {
 .component_compound_preparation_reaction_id {
   display: none;
 }
+/* Extra custom stylings for Ketcher. */
+#ketcher-spinner {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  overflow: auto;
+  margin: auto;
+  width: 50px;
+  height: 50px;
+}
+#process {
+  display: none;
+}
