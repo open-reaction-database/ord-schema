@@ -107,6 +107,9 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         compound.identifiers.add(value='InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H',
                                  type='INCHI')
         message_helpers.check_compound_identifiers(compound)
+        compound.identifiers.add(value='c1ccc(O)cc1', type='SMILES')
+        with self.assertRaisesRegex(ValueError, 'inconsistent'):
+            message_helpers.check_compound_identifiers(compound)
 
     def test_get_reaction_smiles(self):
         reaction = reaction_pb2.Reaction()
