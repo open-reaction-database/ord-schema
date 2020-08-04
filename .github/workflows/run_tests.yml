@@ -25,6 +25,7 @@ jobs:
     - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
+        sudo apt update && sudo apt install -y git
         pip install -r requirements.txt
         pip install -r test_requirements.txt
         conda install -c rdkit rdkit
