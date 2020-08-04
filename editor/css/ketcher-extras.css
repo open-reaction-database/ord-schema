@@ -16,7 +16,12 @@
 
 /**
  * Styling for properly displaying Ketcher in the reaction page. 
- * Mainly derived from Bootstrap v4.5.0 (https://getbootstrap.com/).
+ * Mainly derived from Bootstrap v4.5.0
+ * (https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.css).
+ * More info about Bootstrap at their homepage here: https://getbootstrap.com/.
+ * Bootstrap is released under the MIT License;
+ * we use parts of their released code, as allowed here:
+ * https://getbootstrap.com/docs/4.5/about/license/
  */
 
 .modal-open {
