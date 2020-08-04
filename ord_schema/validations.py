@@ -397,8 +397,8 @@ def validate_reaction(message, validate_id=False):
 
 def validate_reaction_identifier(message):
     check_type_and_details(message)
-    if not message.value and not message.bytes_value:
-        warnings.warn('{bytes_}value must be set', ValidationError)
+    if not message.value:
+        warnings.warn('value must be set', ValidationError)
 
 
 def validate_reaction_input(message):
@@ -465,8 +465,8 @@ def validate_compound_preparation(message):
 
 def validate_compound_identifier(message):
     check_type_and_details(message)
-    if not message.value and not message.bytes_value:
-        warnings.warn('{bytes_}value must be set', ValidationError)
+    if not message.value:
+        warnings.warn('value must be set', ValidationError)
     if Chem and message.type == message.SMILES:
         mol = Chem.MolFromSmiles(message.value)
         if mol is None:
@@ -485,12 +485,6 @@ def validate_compound_identifier(message):
             warnings.warn(
                 f'RDKit {RDKIT_VERSION} could not validate'
                 ' MolBlock identifier', ValidationError)
-    elif message.type == message.RDKIT_BINARY:
-        mol = Chem.Mol(message.bytes_value)
-        if mol is None:
-            warnings.warn(
-                f'RDKit {RDKIT_VERSION} could not validate'
-                ' RDKit Binary identifier', ValidationError)
 
 
 def validate_vessel(message):

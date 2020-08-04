@@ -80,15 +80,10 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
     @parameterized.named_parameters(
         ('SMILES', 'c1ccccc1', 'SMILES', 'c1ccccc1'),
         ('INCHI', 'InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H', 'INCHI', 'c1ccccc1'),
-        ('MOLBLOCK', _BENZENE_MOLBLOCK, 'MOLBLOCK', 'c1ccccc1'),
-        ('RDKIT_BINARY', Chem.MolFromSmiles('c1ccccc1').ToBinary(),
-         'RDKIT_BINARY', 'c1ccccc1'))
+        ('MOLBLOCK', _BENZENE_MOLBLOCK, 'MOLBLOCK', 'c1ccccc1'))
     def test_mol_from_compound(self, value, identifier_type, expected):
         compound = reaction_pb2.Compound()
-        if identifier_type == 'RDKIT_BINARY':
-            compound.identifiers.add(bytes_value=value, type=identifier_type)
-        else:
-            compound.identifiers.add(value=value, type=identifier_type)
+        compound.identifiers.add(value=value, type=identifier_type)
         mol = message_helpers.mol_from_compound(compound)
         self.assertEqual(Chem.MolToSmiles(mol), expected)
         mol, identifier = message_helpers.mol_from_compound(
@@ -112,9 +107,7 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         compound.identifiers.add(value='InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H',
                                  type='INCHI')
         message_helpers.check_compound_identifiers(compound)
-        compound.identifiers.add(
-            bytes_value=Chem.MolFromSmiles('C').ToBinary(),
-            type='RDKIT_BINARY')
+        compound.identifiers.add(value='c1ccc(O)cc1', type='SMILES')
         with self.assertRaisesRegex(ValueError, 'inconsistent'):
             message_helpers.check_compound_identifiers(compound)
 

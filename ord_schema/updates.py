@@ -99,40 +99,6 @@ def resolve_names(message):
     return modified
 
 
-def add_binary_identifiers(message):
-    """Adds RDKIT_BINARY identifiers for compounds with valid structures.
-
-    Note that the RDKIT_BINARY representations are mostly useful in the context
-    of searching the database. Accordingly, this function is not included in the
-    standard set of Reaction updates in update_reaction().
-
-    Args:
-        message: Reaction proto.
-
-    Returns:
-        Boolean whether `message` was modified.
-    """
-    modified = False
-    compounds = message_helpers.find_submessages(message,
-                                                 reaction_pb2.Compound)
-    for compound in compounds:
-        if any(identifier.type == identifier.RDKIT_BINARY
-               for identifier in message.identifiers):
-            continue
-        try:
-            mol, identifier = message_helpers.mol_from_compound(
-                compound, return_identifier=True)
-            source = reaction_pb2.CompoundIdentifier.IdentifierType.Name(
-                identifier.type)
-            compound.identifiers.add(bytes_value=mol.ToBinary(),
-                                     type='RDKIT_BINARY',
-                                     details=f'Generated from {source}')
-            modified = True
-        except ValueError:
-            pass
-    return modified
-
-
 def update_reaction(reaction):
     """Updates a Reaction message.
 

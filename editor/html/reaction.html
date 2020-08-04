@@ -84,13 +84,6 @@ limitations under the License.
             <div class="remove" onclick="removeSlowly(this, '.reaction_identifier');">remove</div>
             <br>
             details <div class="reaction_identifier_details edittext"></div>
-            <div style="display: none;"><input type="checkbox" class="reaction_identifier_upload"> upload</div>
-            <div class="uploader" data-token="" style="display: none;">
-              <input class="uploader_chooser_file uploadertext" type="file">
-              <div class="uploader_chooser_button uploadertext">Choose...</div>
-              <div class="uploader_file_name uploadertext"></div>
-              <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
-            </div>
           </div>
         </div>
         <div onclick="ord.identifiers.add();" class="add">+ add identifier</div>
@@ -252,13 +245,6 @@ limitations under the License.
               <span class="fa fa-upload text_upload" aria-hidden="true" style="cursor:pointer;" onclick="setTextFromFile($(this).closest('.component_identifier'), 'component_identifier_value');"></span>
               <div onclick="removeSlowly(this, '.component_identifier');" class="remove">remove</div>
               <br>details <div class="component_identifier_details edittext longtext"></div>
-              <div style="display: none;"><input type="checkbox" class="component_identifier_upload"> upload</div>
-              <div class="uploader" data-token="" style="display: none;">
-                <input class="uploader_chooser_file uploadertext" type="file">
-                <div class="uploader_chooser_button uploadertext">Choose...</div>
-                <div class="uploader_file_name uploadertext"></div>
-                <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
-              </div>
             </div>
 
             <div id="component_preparation_template" class="component_preparation" style="display: none;">

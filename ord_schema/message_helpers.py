@@ -275,8 +275,6 @@ def smiles_from_compound(compound):
 def mol_from_compound(compound, return_identifier=False):
     """Creates an RDKit Mol from a Compound message.
 
-    Note that this function prefers RDKIT_BINARY identifiers over any others.
-
     Args:
         compound: reaction_pb2.Compound message.
         return_identifier: If True, return the CompoundIdentifier used to
@@ -291,13 +289,6 @@ def mol_from_compound(compound, return_identifier=False):
         ValueError: If no structural identifier is available, or if the
             resulting Mol object is invalid.
     """
-    # Prefer RDKIT_BINARY identifiers when available.
-    for identifier in compound.identifiers:
-        if identifier.type == reaction_pb2.CompoundIdentifier.RDKIT_BINARY:
-            mol = Chem.Mol(identifier.bytes_value)
-            if return_identifier:
-                return mol, identifier
-            return mol
     for identifier in compound.identifiers:
         if identifier.type in _COMPOUND_IDENTIFIER_LOADERS:
             mol = _COMPOUND_IDENTIFIER_LOADERS[identifier.type](
@@ -327,9 +318,7 @@ def check_compound_identifiers(compound):
     """
     smiles = set()
     for identifier in compound.identifiers:
-        if identifier.type == reaction_pb2.CompoundIdentifier.RDKIT_BINARY:
-            mol = Chem.Mol(identifier.bytes_value)
-        elif identifier.type in _COMPOUND_IDENTIFIER_LOADERS:
+        if identifier.type in _COMPOUND_IDENTIFIER_LOADERS:
             mol = _COMPOUND_IDENTIFIER_LOADERS[identifier.type](
                 identifier.value)
         else:
