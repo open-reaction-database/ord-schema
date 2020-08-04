@@ -27,12 +27,12 @@ Serving depends on:
 
 To build the ord-schema python code, follow the instructions [here](https://github.com/Open-Reaction-Database/ord-schema/blob/main/README.md).
 
-The editor currently requires HEAD protobuf (to get experimental "optional" declarations) for the protobuf compiler and Javascript runtime libraries.
+To get the protobuf runtime libraries for Javascript, download and unpack JS release 3.12.4 or later.
 
 ```
-$ git clone git@github.com:protocolbuffers/protobuf.git
-$ cd protobuf
-$ ./autogen.sh && ./configure && make
+$ wget 'https://github.com/protocolbuffers/protobuf/releases/download/v3.12.4/protobuf-js-3.12.4.tar.gz'
+$ mkdir protobuf
+$ tar zxf protobuf-js-3.12.4.tar.gz -C protobuf --strip-components 1
 ````
 
 (For the sake of automated testing, statically linked protobuf
