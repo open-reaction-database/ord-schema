@@ -14,10 +14,6 @@
 """Tests for ord_schema.proto.reaction_pb2."""
 
 from absl.testing import absltest
-try:
-    from rdkit import Chem
-except ImportError:
-    Chem = None
 
 from ord_schema.proto import reaction_pb2
 
