@@ -288,12 +288,13 @@ ord.compounds.addNameIdentifier = function (node) {
   xhr.open('POST', '/resolve/name');
   xhr.responseType = 'json';
   xhr.onload = function () {
-    const smiles = xhr.response;
-    if (smiles) {
+    if (xhr.response) {
+      const smiles = xhr.response[0];
+      const resolver = xhr.response[1];
       const identifier = new proto.ord.CompoundIdentifier();
       identifier.setValue(smiles);
       identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
-      identifier.setDetails('auto-resolved from name');
+      identifier.setDetails('NAME resolved by the ' + resolver);
       ord.compounds.loadIdentifier(node, identifier);
     };
   };

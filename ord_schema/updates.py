@@ -36,13 +36,13 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
 def name_resolve(value_type, value):
     """Resolves compound identifiers to SMILES via multiple APIs."""
     smiles = None
-    for resolver in _NAME_RESOLVERS:
+    for resolver, resolver_func in _NAME_RESOLVERS.items():
         try:
-            smiles = resolver(value_type, value)
+            smiles = resolver_func(value_type, value)
             if smiles is not None:
-                return smiles
+                return smiles, resolver
         except urllib.error.HTTPError as error:
-            logging.info('%s could not resolve %s %s: %s', resolver.__name__,
+            logging.info('%s could not resolve %s %s: %s', resolver,
                          value_type, value, error)
     raise ValueError(f'Could not resolve {value_type} {value} to SMILES')
 
@@ -87,11 +87,11 @@ def resolve_names(message):
         for identifier in compound.identifiers:
             if identifier.type == identifier.NAME:
                 try:
-                    smiles = name_resolve('name', identifier.value)
+                    smiles, resolver = name_resolve('name', identifier.value)
                     new_identifier = compound.identifiers.add()
                     new_identifier.type = new_identifier.SMILES
                     new_identifier.value = smiles
-                    new_identifier.details = 'NAME resolved automatically'
+                    new_identifier.details = f'NAME resolved by the {resolver}'
                     modified = True
                     break
                 except ValueError:
@@ -215,7 +215,7 @@ _UPDATES = [
 ]
 
 # Standard name resolvers.
-_NAME_RESOLVERS = [
-    _pubchem_resolve,
-    _cactus_resolve,
-]
+_NAME_RESOLVERS = {
+    'PubChem API': _pubchem_resolve,
+    'NCI/CADD Chemical Identifier Resolver': _cactus_resolve,
+}
