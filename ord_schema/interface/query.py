@@ -34,7 +34,7 @@ class Predicate:
         SMARTS = 4
 
         @classmethod
-        def from_name(clazz, name):
+        def from_name(cls, name):
             """Take a matching criterion from a URL param."""
             return Predicate.MatchMode[name.upper()]
 
@@ -230,7 +230,6 @@ class OrdPostgres:
         query = predicate.query_ids()
         print(query)
         logging.info(query)
-        reactions = []
         with self._connection, self.cursor() as cursor:
             cursor.execute(query)
             reaction_ids = [row[0] for row in cursor]
