@@ -220,32 +220,13 @@ def get_change_stats(datasets, inputs, base):
     return new - old, old - new
 
 
-def main(argv):
-    del argv  # Only used by app.run().
-    inputs = sorted(_get_inputs())
-    if not inputs:
-        logging.info('nothing to do')
-        return set(), set()  # Nothing to do.
-    datasets = {}
-    for file_status in inputs:
-        if file_status.status == 'D':
-            continue  # Nothing to do for deleted files.
-        datasets[file_status.filename] = message_helpers.load_message(
-            file_status.filename, dataset_pb2.Dataset)
-    if FLAGS.validate:
-        # Note: this does not check if IDs are malformed.
-        validations.validate_datasets(datasets, FLAGS.write_errors)
-    added, removed = get_change_stats(datasets, inputs, base=FLAGS.base)
-    logging.info(f'Summary: +%d -%d reaction IDs', len(added), len(removed))
-    if FLAGS.issue and FLAGS.token:
-        client = github.Github(FLAGS.token)
-        repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
-        issue = repo.get_issue(FLAGS.issue)
-        issue.create_comment(
-            f'Summary: +{len(added)} -{len(removed)} reaction IDs')
-    if not FLAGS.update:
-        logging.info('nothing else to do; use --update for more')
-        return added, removed  # Nothing else to do.
+def _run_updates(inputs, datasets):
+    """Updates the submission files.
+
+    Args:
+        inputs: List of FileStatus objects.
+        datasets: Dict mapping filenames to Dataset messages.
+    """
     for dataset in datasets.values():
         # Set reaction_ids, resolve names, fix cross-references, etc.
         updates.update_dataset(dataset)
@@ -275,6 +256,35 @@ def main(argv):
         cleanup(inputs, output_filename)
     logging.info('writing combined Dataset to %s', output_filename)
     message_helpers.write_message(combined, output_filename)
+
+
+def main(argv):
+    del argv  # Only used by app.run().
+    inputs = sorted(_get_inputs())
+    if not inputs:
+        logging.info('nothing to do')
+        return set(), set()  # Nothing to do.
+    datasets = {}
+    for file_status in inputs:
+        if file_status.status == 'D':
+            continue  # Nothing to do for deleted files.
+        datasets[file_status.filename] = message_helpers.load_message(
+            file_status.filename, dataset_pb2.Dataset)
+    if FLAGS.validate:
+        # Note: this does not check if IDs are malformed.
+        validations.validate_datasets(datasets, FLAGS.write_errors)
+    added, removed = get_change_stats(datasets, inputs, base=FLAGS.base)
+    logging.info('Summary: +%d -%d reaction IDs', len(added), len(removed))
+    if FLAGS.issue and FLAGS.token:
+        client = github.Github(FLAGS.token)
+        repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
+        issue = repo.get_issue(FLAGS.issue)
+        issue.create_comment(
+            f'Summary: +{len(added)} -{len(removed)} reaction IDs')
+    if FLAGS.update:
+        _run_updates(inputs, datasets)
+    else:
+        logging.info('nothing else to do; use --update for more')
     return added, removed
 
 
