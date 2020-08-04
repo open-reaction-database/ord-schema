@@ -478,10 +478,6 @@ function initSelector(node) {
     if (options[i] == 'UNSPECIFIED') {
       option.attr('selected', 'selected');
     }
-    // Don't let users directly select/enter RDKIT_BINARY identifiers.
-    if (options[i] == 'RDKIT_BINARY') {
-      option.attr('disabled', true);
-    }
     select.append(option);
   }
   node.append(select);

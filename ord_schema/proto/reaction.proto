@@ -68,14 +68,10 @@ message ReactionIdentifier {
     RDFILE = 3;  // Reaction data file.
     RINCHI = 4;  // Reaction InChI.
     NAME = 5;  // Named reaction or reaction category.
-    RDKIT_BINARY = 6;  // RDKit binary format (for fast loading).
   }
   IdentifierType type = 1;
   string details = 2;
-  oneof kind {
-    string value = 3;
-    bytes bytes_value = 4;
-  }
+  string value = 3;
   // Whether identifier contains atom-to-atom mapping information. When True,
   // we encourage users to specify how that mapping was obtained in the
   // details field (e.g., manually, using NameRXN, using ChemDraw).
@@ -334,17 +330,12 @@ message CompoundIdentifier {
     UNIPROT_ID = 13;
     // Protein data bank ID (for enzymes)
     PDB_ID = 14;
-    // RDKit binary format (for fast loading)
-    RDKIT_BINARY = 15;
   }
   IdentifierType type = 1;
   string details = 2;
   // Value of the compound identifier; certain types (e.g., PUBCHEM_CID) may
   // cast the string as an integer for downstream processing and validation.
-  oneof kind {
-    string value = 3;
-    bytes bytes_value = 4;
-  }
+  string value = 3;
 }
 
 /**

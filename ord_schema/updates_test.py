@@ -38,19 +38,6 @@ class UpdatesTest(absltest.TestCase):
             message.inputs['test'].components[0].identifiers[1].details,
             'NAME resolved')
 
-    def test_add_binary_identifiers(self):
-        smiles = 'CC(=O)OC1=CC=CC=C1C(=O)O'
-        mol = Chem.MolFromSmiles(smiles)
-        message = reaction_pb2.Reaction()
-        message.inputs['test'].components.add().identifiers.add(type='SMILES',
-                                                                value=smiles)
-        self.assertTrue(updates.add_binary_identifiers(message))
-        self.assertEqual(
-            message.inputs['test'].components[0].identifiers[1],
-            reaction_pb2.CompoundIdentifier(type='RDKIT_BINARY',
-                                            bytes_value=mol.ToBinary(),
-                                            details='Generated from SMILES'))
-
 
 class UpdateReactionTest(absltest.TestCase):
     def test_with_updates_simple(self):

@@ -28,16 +28,8 @@ ord.identifiers.load = function (identifiers) {
 
 ord.identifiers.loadIdentifier = function (identifier) {
   const node = ord.identifiers.add();
-  const bytesValue = identifier.getBytesValue();
-  if (bytesValue) {
-    $('.reaction_identifier_upload', node).prop('checked', true);
-    $('.reaction_identifier_value', node).hide();
-    $('.text_upload', node).hide();
-    ord.uploads.load(node, bytesValue);
-  } else {
-    const value = identifier.getValue();
-    $('.reaction_identifier_value', node).text(value);
-  }
+  const value = identifier.getValue();
+  $('.reaction_identifier_value', node).text(value);
   setSelector(node, identifier.getType());
   $('.reaction_identifier_details', node).text(identifier.getDetails());
 };
@@ -60,18 +52,11 @@ ord.identifiers.unload = function () {
 ord.identifiers.unloadIdentifier = function (node) {
   const identifier = new proto.ord.ReactionIdentifier();
 
-  if ($('.reaction_identifier_upload', node).is(':checked')) {
-    const bytesValue = ord.uploads.unload(node);
-    if (!isEmptyMessage(bytesValue)) {
-      identifier.setBytesValue(bytesValue);
-    }
+  const value = $('.reaction_identifier_value', node).text();
+  if (!isEmptyMessage(value)) {
+    identifier.setValue(value);
   }
-  else {
-    const value = $('.reaction_identifier_value', node).text();
-    if (!isEmptyMessage(value)) {
-      identifier.setValue(value);
-    }
-  }
+
   const type = getSelector(node);
   if (!isEmptyMessage(type)) {
     identifier.setType(type);

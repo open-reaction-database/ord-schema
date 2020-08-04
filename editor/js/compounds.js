@@ -70,16 +70,8 @@ ord.compounds.loadIntoCompound = function (node, compound) {
 
 ord.compounds.loadIdentifier = function (compoundNode, identifier) {
   const node = ord.compounds.addIdentifier(compoundNode);
-  const bytesValue = identifier.getBytesValue();
-  if (bytesValue) {
-    $('.component_identifier_upload', node).prop('checked', true);
-    $('.component_identifier_value', node).hide();
-    $('.text_upload', node).hide();
-    ord.uploads.load(node, bytesValue);
-  } else {
-    const value = identifier.getValue();
-    $('.component_identifier_value', node).text(value);
-  }
+  const value = identifier.getValue();
+  $('.component_identifier_value', node).text(value);
   setSelector(node, identifier.getType());
   $('.component_identifier_details', node).text(identifier.getDetails());
 };
@@ -176,16 +168,9 @@ ord.compounds.unloadIdentifiers = function (node) {
 ord.compounds.unloadIdentifier = function (node) {
   const identifier = new proto.ord.CompoundIdentifier();
 
-  if ($('.component_identifier_upload', node).is(':checked')) {
-    const bytesValue = ord.uploads.unload(node);
-    if (!isEmptyMessage(bytesValue)) {
-      identifier.setBytesValue(bytesValue);
-    }
-  } else {
-    const value = $('.component_identifier_value', node).text();
-    if (!isEmptyMessage(value)) {
-      identifier.setValue(value);
-    }
+  const value = $('.component_identifier_value', node).text();
+  if (!isEmptyMessage(value)) {
+    identifier.setValue(value);
   }
   const type = getSelector(node);
   identifier.setType(type);
