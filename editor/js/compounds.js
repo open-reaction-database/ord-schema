@@ -349,14 +349,16 @@ ord.compounds.drawIdentifier = function (node) {
       }
     });
     // Create new identifiers.
-    const identifier = new proto.ord.CompoundIdentifier();
-    identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
-    identifier.setValue(ketcher.getSmiles());
-    identifier.setDetails('Drawn with Ketcher');
-    ord.compounds.loadIdentifier(node, identifier);
-    identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.MOLBLOCK);
-    identifier.setValue(ketcher.getMolfile());
-    ord.compounds.loadIdentifier(node, identifier);
+    if (ketcher.getSmiles()) {
+      const identifier = new proto.ord.CompoundIdentifier();
+      identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
+      identifier.setValue(ketcher.getSmiles());
+      identifier.setDetails('Drawn with Ketcher');
+      ord.compounds.loadIdentifier(node, identifier);
+      identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.MOLBLOCK);
+      identifier.setValue(ketcher.getMolfile());
+      ord.compounds.loadIdentifier(node, identifier);
+    }
   }
 };
 
