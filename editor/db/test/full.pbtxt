@@ -9,7 +9,7 @@ reactions {
   identifiers {
     type: REACTION_SMILES
     details: "3"
-    bytes_value: "123\n"
+    value: "123\n"
   }
   inputs {
     value {
@@ -446,6 +446,12 @@ reactions {
             float_value: 140.0
             description: "141"
             format: "142"
+          }
+        }
+        raw_data {
+          key: "byte_data"
+          value {
+            bytes_value: "bytestring"
           }
         }
         instrument_manufacturer: "133"
