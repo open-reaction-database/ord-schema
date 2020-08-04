@@ -338,8 +338,8 @@ def resolve_compound(identifier_type):
         return ''
     try:
         return flask.jsonify(
-            updates.pubchem_resolve(identifier_type, compound_name))
-    except urllib.error.HTTPError as error:
+            updates.name_resolve(identifier_type, compound_name))
+    except ValueError:
         return ''
 
 
