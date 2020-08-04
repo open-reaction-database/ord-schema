@@ -258,8 +258,17 @@ def _run_updates(inputs, datasets):
     message_helpers.write_message(combined, output_filename)
 
 
-def main(argv):
-    del argv  # Only used by app.run().
+def run():
+    """Main function that returns added/removed reaction ID sets.
+
+    This function should be called directly by tests to get access to the
+    return values. If main() returns something other than None it will break
+    shell error code logic downstream.
+
+    Returns:
+        added: Set of added reaction IDs.
+        removed: Set of deleted reaction IDs.
+    """
     inputs = sorted(_get_inputs())
     if not inputs:
         logging.info('nothing to do')
@@ -286,6 +295,11 @@ def main(argv):
     else:
         logging.info('nothing else to do; use --update for more')
     return added, removed
+
+
+def main(argv):
+    del argv  # Only used by app.run().
+    run()
 
 
 if __name__ == '__main__':

@@ -108,7 +108,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
     setUp() starts each test with a clean git environment containing some
     data. To create a new test, you should made a modification to the git
     repo (e.g. adding a new dataset or editing an existing one) and call
-    self._run_main() to commit the changes and run process_datasets.py.
+    self._run() to commit the changes and run process_datasets.py.
     """
     _DEFAULT_BRANCH = 'main'
 
@@ -148,7 +148,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         # Use a new branch for tests.
         subprocess.run(['git', 'checkout', '-b', 'test'], check=True)
 
-    def _run_main(self, **kwargs):
+    def _run(self, **kwargs):
         """Runs process_dataset.main().
 
         Args:
@@ -176,7 +176,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         }
         run_flags.update(kwargs)
         with flagsaver.flagsaver(**run_flags):
-            added, removed = process_dataset.main(())
+            added, removed = process_dataset.run()
         filenames = glob.glob(os.path.join(self.test_subdirectory,
                                            '**/*.pbtxt'),
                               recursive=True)
@@ -195,7 +195,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        added, removed, filenames = self._run_main()
+        added, removed, filenames = self._run()
         self.assertEqual(added, {'test'})
         self.assertEmpty(removed)
         self.assertLen(filenames, 2)
@@ -226,7 +226,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset2 = dataset_pb2.Dataset(reactions=[reaction])
         dataset2_filename = os.path.join(self.test_subdirectory, 'test2.pbtxt')
         message_helpers.write_message(dataset2, dataset2_filename)
-        added, removed, filenames = self._run_main()
+        added, removed, filenames = self._run()
         self.assertEqual(added, {'test1', 'test2'})
         self.assertEmpty(removed)
         self.assertLen(filenames, 2)
@@ -253,7 +253,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        added, removed, filenames = self._run_main()
+        added, removed, filenames = self._run()
         self.assertEqual(added, {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'})
         self.assertEmpty(removed)
         self.assertLen(filenames, 2)
@@ -284,7 +284,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         reaction.reaction_id = 'test'
         dataset.reactions.add().CopyFrom(reaction)
         message_helpers.write_message(dataset, self.dataset_filename)
-        added, removed, filenames = self._run_main()
+        added, removed, filenames = self._run()
         self.assertEqual(added, {'test'})
         self.assertEmpty(removed)
         self.assertCountEqual([self.dataset_filename], filenames)
@@ -302,7 +302,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
                                                dataset_pb2.Dataset)
         dataset.reactions[0].reaction_id = 'test_rename'
         message_helpers.write_message(dataset, self.dataset_filename)
-        added, removed, filenames = self._run_main()
+        added, removed, filenames = self._run()
         self.assertEqual(added, {'test_rename'})
         self.assertEqual(removed, {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'})
         self.assertCountEqual([self.dataset_filename], filenames)
@@ -321,7 +321,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         message_helpers.write_message(dataset, dataset_filename)
         with self.assertRaisesRegex(validations.ValidationError,
                                     'could not validate SMILES'):
-            self._run_main()
+            self._run()
 
     def test_add_sharded_dataset_with_validation_errors(self):
         reaction = reaction_pb2.Reaction()
@@ -342,7 +342,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         message_helpers.write_message(dataset2, dataset2_filename)
         with self.assertRaisesRegex(validations.ValidationError,
                                     'could not validate SMILES'):
-            self._run_main()
+            self._run()
 
     def test_modify_dataset_with_validation_errors(self):
         dataset = message_helpers.load_message(self.dataset_filename,
@@ -352,7 +352,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         message_helpers.write_message(dataset, self.dataset_filename)
         with self.assertRaisesRegex(validations.ValidationError,
                                     'must be non-negative'):
-            self._run_main()
+            self._run()
 
     def test_add_dataset_with_large_data(self):
         reaction = reaction_pb2.Reaction()
@@ -370,7 +370,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        added, removed, filenames = self._run_main(min_size=0.0)
+        added, removed, filenames = self._run(min_size=0.0)
         self.assertEqual(added, {'test'})
         self.assertEmpty(removed)
         self.assertLen(filenames, 2)
@@ -405,7 +405,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
         with self.assertRaisesRegex(ValueError, 'larger than max_size'):
-            self._run_main(min_size=0.0, max_size=0.0)
+            self._run(min_size=0.0, max_size=0.0)
 
 
 if __name__ == '__main__':
