@@ -21,7 +21,7 @@ The build needs:
 * the `protoc` protobuf compiler;
 * the protobuf runtime libraries for Javascript;
 * the Closure Library for Javascript; and
-* Node.js and npm.
+* a built version of ORD's Ketcher code.
 
 Serving depends on:
 * the Flask python web framework.
@@ -46,7 +46,21 @@ v20200517](https://github.com/google/closure-library/releases/).
 Unpack both protobuf and closure-library in this directory so that make can
 find them.
 
-To install Node.js and npm, see instructions [here](https://nodejs.org/en/download/).
+To build Ketcher, first install Node.js and npm (instructions [here](https://nodejs.org/en/download/)). Then, in this directory,
+
+```
+$ git clone git@github.com:Open-Reaction-Database/ketcher.git
+$ cd ketcher
+$ npm install && npm run build
+```
+
+Sometimes, the editor may require an updated version of Ketcher. In order to update,  
+
+```
+$ cd ketcher
+$ git pull
+$ npm install && npm run build
+```
 
 To install the python packages for serving,
 
