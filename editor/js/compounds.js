@@ -288,7 +288,78 @@ ord.compounds.addNameIdentifier = function (node) {
 
 // Shortcut to add an identifier by drawing.
 ord.compounds.drawIdentifier = function (node) {
-  alert('Ketcher is not implemented yet');
+  // Get a reference to Ketcher, and to look nice, clear any old drawings.
+  const ketcher = document.getElementById('ketcher-iframe').contentWindow.ketcher;
+  ketcher.editor.struct(null);
+  // Start the loading spinner.
+  $("#ketcher-spinner").fadeIn(0);
+
+  // First, pack the current Compound into a message.
+  const compound = new proto.ord.Compound();
+  const identifiers = ord.compounds.unloadIdentifiers(node);
+  if (!isEmptyMessage(identifiers)) {
+    compound.setIdentifiersList(identifiers);
+  }
+  // Then, try to resolve compound into a MolBlock.
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/ketcher/molfile');
+  const binary = compound.serializeBinary();
+  xhr.responseType = 'json';
+  xhr.onload = function () {
+    if ((xhr.status == 200)) {
+      const molblock = xhr.response;
+      // Set the molecule in ketcher.
+      // Note: In case async / callback issues prove difficult,
+      // a cleaner fix may be to put this entire xhr in a modal callback, then toggle the modal.
+
+      // If the modal is already open, we can simply set the molecule.
+      const ketcherModal = $('#ketcher_modal');
+      if (ketcherModal.hasClass('show')) {
+        ketcher.setMolecule(molblock);
+      }
+      // Otherwise, we need to set up a callback, so that the molecule is set 
+      // only when Ketcher is open. (to prevent a graphical glitch)
+      else {
+        ketcherModal.on('shown.bs.modal', function () {
+          // This callback should only be ever run once, so make sure to remove it. 
+          ketcherModal.off('shown.bs.modal');
+          ketcher.setMolecule(molblock);
+        })
+      }
+    }
+    // Now that we're done with (trying to) loading the molecule, hide the spinner.
+    $("#ketcher-spinner").fadeOut();
+  };
+  xhr.send(binary);
+  // Finally, open the ketcher modal.
+  $('#ketcher_modal').modal('toggle');
+  // Define a callback so that when a user is done drawing, the new SMILES
+  // string gets saved.
+  ketcher.successCallback = function () {
+    // Check if an existing SMILES/MolBlock identifier exists. If yes, remove.
+    $('.component_identifier', node).each(function (index, node) {
+      node = $(node);
+      if (!node.attr('id')) {
+        // Not a template.
+        const identifier = ord.compounds.unloadIdentifier(node);
+        if ((identifier.getType() === proto.ord.CompoundIdentifier.IdentifierType.SMILES) ||
+            (identifier.getType() === proto.ord.CompoundIdentifier.IdentifierType.MOLBLOCK)) {
+          removeSlowly(node, '.component_identifier');
+        }
+      }
+    });
+    // Create new identifiers.
+    if (ketcher.getSmiles()) {
+      const identifier = new proto.ord.CompoundIdentifier();
+      identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
+      identifier.setValue(ketcher.getSmiles());
+      identifier.setDetails('Drawn with Ketcher');
+      ord.compounds.loadIdentifier(node, identifier);
+      identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.MOLBLOCK);
+      identifier.setValue(ketcher.getMolfile());
+      ord.compounds.loadIdentifier(node, identifier);
+    }
+  }
 };
 
 ord.compounds.addPreparation = function (node) {

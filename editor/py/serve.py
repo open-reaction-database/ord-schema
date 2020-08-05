@@ -380,6 +380,24 @@ def css(sheet):
     return flask.send_file('../css/%s' % sheet)
 
 
+@app.route('/ketcher/iframe')
+def ketcher_iframe():
+  """Accesses a website serving Ketcher."""
+  return flask.render_template('ketcher_iframe.html')
+
+
+@app.route('/ketcher/info')
+def indigo():
+  """Dummy indigo endpoint to prevent 404 errors."""
+  return ('', 204)
+
+
+@app.route('/ketcher/<path:file>')
+def ketcher(file):
+  """Accesses any built Ketcher file by name."""
+  return flask.send_file('../ketcher/dist/%s' % file)
+
+
 @app.route('/dataset/deps.js')
 @app.route('/dataset/<file_name>/deps.js')
 @app.route('/dataset/<file_name>/reaction/deps.js')
@@ -387,6 +405,18 @@ def deps(file_name=None):
     """Returns empty for deps table requests since this app doesn't use them."""
     del file_name
     return ''
+
+
+@app.route('/ketcher/molfile', methods=['POST'])
+def get_molfile():
+  """Retrieves a POSTed Compound message string and returns a MolFile."""
+  compound = reaction_pb2.Compound()
+  compound.ParseFromString(flask.request.get_data())
+  try:
+    molblock = message_helpers.molblock_from_compound(compound)
+    return flask.jsonify(molblock)
+  except ValueError as e:
+    return 'no existing structural identifier', 404
 
 
 @app.after_request
