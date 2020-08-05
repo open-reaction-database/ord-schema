@@ -79,6 +79,7 @@ package : all
 	  serve.sh \
 	  package/ord
 
+	cp ../requirements.txt package/ord
 	cp -r ../build/lib/ord_schema package/ord/py
 
 	mkdir package/ord/db
