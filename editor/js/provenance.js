@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,7 +21,7 @@ goog.require('proto.ord.Person');
 goog.require('proto.ord.ReactionProvenance');
 goog.require('proto.ord.RecordEvent');
 
-ord.provenance.load = function (provenance) {
+ord.provenance.load = function(provenance) {
   const experimenter = provenance.getExperimenter();
   if (experimenter) {
     ord.provenance.loadPerson($('#provenance_experimenter'), experimenter);
@@ -59,14 +59,14 @@ ord.provenance.loadRecordEvent = function(node, record) {
   $('.provenance_details', node).text(record.getDetails());
 };
 
-ord.provenance.loadPerson = function (node, person) {
+ord.provenance.loadPerson = function(node, person) {
   $('.provenance_username', node).text(person.getUsername());
   $('.provenance_name', node).text(person.getName());
   $('.provenance_orcid', node).text(person.getOrcid());
   $('.provenance_organization', node).text(person.getOrganization());
 };
 
-ord.provenance.unload = function () {
+ord.provenance.unload = function() {
   const provenance = new proto.ord.ReactionProvenance();
 
   const experimenter =
@@ -93,23 +93,22 @@ ord.provenance.unload = function () {
   }
 
   const modifieds = [];
-  $('.provenance_modified', '#provenance_modifieds').each(
-    function (index, node) {
-      node = $(node);
-      if (!node.attr('id')) {
-        // Not a template.
-        const modified = ord.provenance.unloadRecordEvent(node);
-        if (!isEmptyMessage(modified)) {
-          modifieds.push(modified);
+  $('.provenance_modified', '#provenance_modifieds')
+      .each(function(index, node) {
+        node = $(node);
+        if (!node.attr('id')) {
+          // Not a template.
+          const modified = ord.provenance.unloadRecordEvent(node);
+          if (!isEmptyMessage(modified)) {
+            modifieds.push(modified);
+          }
         }
-      }
-    }
-  );
+      });
   provenance.setRecordModifiedList(modifieds);
   return provenance;
 };
 
-ord.provenance.unloadRecordEvent = function (node) {
+ord.provenance.unloadRecordEvent = function(node) {
   const created = new proto.ord.RecordEvent();
   const createdTime = new proto.ord.DateTime();
   createdTime.setValue($('.provenance_time', node).text());
@@ -125,7 +124,7 @@ ord.provenance.unloadRecordEvent = function (node) {
   return created;
 };
 
-ord.provenance.unloadPerson = function (node) {
+ord.provenance.unloadPerson = function(node) {
   const person = new proto.ord.Person();
   person.setUsername($('.provenance_username', node).text());
   person.setName($('.provenance_name', node).text());
@@ -134,7 +133,7 @@ ord.provenance.unloadPerson = function (node) {
   return person;
 };
 
-ord.provenance.addModification = function () {
+ord.provenance.addModification = function() {
   return addSlowly('#provenance_modified_template', '#provenance_modifieds');
 };
 

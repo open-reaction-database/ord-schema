@@ -67,7 +67,7 @@ message ReactionIdentifier {
     REACTION_SMILES = 2;
     RDFILE = 3;  // Reaction data file.
     RINCHI = 4;  // Reaction InChI.
-    NAME = 5;  // Named reaction or reaction category.
+    NAME = 5;    // Named reaction or reaction category.
   }
   IdentifierType type = 1;
   string details = 2;
@@ -165,12 +165,12 @@ message ReactionInput {
 }
 
 /**
- * Crude components are used in multi-step or multi-stage reactions (no strong 
+ * Crude components are used in multi-step or multi-stage reactions (no strong
  * distinction is made here) where one synthetic process must be described by
  * multiple "Reaction" messages. In these cases, we often carry the crude
  * product from one step/stage into the next. This message is only to be used
  * when there is not complete isolation of an intermediate molecule; if there
- * is complete isolation, then a regular Compound should be used with the 
+ * is complete isolation, then a regular Compound should be used with the
  * SYNTHESIED preparation type.
  */
 message CrudeComponent {
@@ -274,10 +274,10 @@ message CompoundPreparation {
   enum PreparationType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
-    NONE = 2;  // Compound used as received.
+    NONE = 2;        // Compound used as received.
     REPURIFIED = 3;  // Compound repurified (e.g., recrystallized).
     SPARGED = 4;  // Compound sparged, most likely to be the case with solvents.
-    DRIED = 5;  // Moisture removed, e.g., using molecular sieves.
+    DRIED = 5;    // Moisture removed, e.g., using molecular sieves.
     SYNTHESIZED = 6;  // Compound synthesized in-house.
   }
   PreparationType type = 1;
@@ -368,7 +368,7 @@ message VesselType {
     CONTINUOUS_STIRRED_TANK_REACTOR = 7;
     PACKED_BED_REACTOR = 8;
     NMR_TUBE = 9;
-    PRESSURE_FLASK = 10;  // E.g., sealed tube
+    PRESSURE_FLASK = 10;    // E.g., sealed tube
     PRESSURE_REACTOR = 11;  // High-pressure (e.g., Parr bomb reactor)
     ELECTROCHEMICAL_CELL = 12;
   }
@@ -443,12 +443,12 @@ message ReactionSetup {
   map<string, Data> automation_code = 4;
   message ReactionEnvironment {
     enum ReactionEnvironmentType {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    FUME_HOOD = 2;
-    BENCH_TOP = 3;
-    GLOVE_BOX = 4;
-    GLOVE_BAG = 5;
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      FUME_HOOD = 2;
+      BENCH_TOP = 3;
+      GLOVE_BOX = 4;
+      GLOVE_BAG = 5;
     }
     ReactionEnvironmentType type = 1;
     // Specify environment details, e.g., "nitrogen-filled" for GLOVE_BOX.
@@ -492,7 +492,7 @@ message TemperatureConditions {
       LIQUID_NITROGEN = 11;
     }
     TemperatureControlType type = 1;
-    // Specify, e.g., ICE_BATH components (e.g., "ice water, salt"), 
+    // Specify, e.g., ICE_BATH components (e.g., "ice water, salt"),
     // MICROWAVE power, AIR_FAN speed, etc.
     string details = 2;
   }
@@ -504,7 +504,7 @@ message TemperatureConditions {
       CUSTOM = 1;
       THERMOCOUPLE_INTERNAL = 2;  // Physically in reaction solution.
       THERMOCOUPLE_EXTERNAL = 3;  // On outside of vessel or, e.g., in oil bath.
-      INFRARED = 4;  // Contactless infrared probe.
+      INFRARED = 4;               // Contactless infrared probe.
     }
     MeasurementType type = 1;
     string details = 2;
@@ -672,7 +672,7 @@ message FlowConditions {
     }
     FlowTypeEnum type = 1;
     string details = 2;
-  }  
+  }
   FlowType flow_type = 1;
   string pump_type = 2;
   message Tubing {
@@ -735,7 +735,7 @@ message ReactionWorkup {
     // Change of temperature.
     // Specify conditions in "temperature".
     TEMPERATURE = 3;
-    // Concentration step, often using a rotovap. 
+    // Concentration step, often using a rotovap.
     // Specify degree in "details" if appropriate, e.g., "to half volume".
     CONCENTRATION = 4;
     // Liquid extractions are often preceded by Additions. If there
@@ -780,7 +780,7 @@ message ReactionWorkup {
     // Specify temperature in "temperature".
     // Specify pressure and apparatus notes in "details".
     DISTILLATION = 17;
-    }
+  }
   WorkupType type = 1;
   // Include step-specific details such as purpose of an addition, e.g.,
   // "crystallization". Include method details, e.g., "layer diffusion".
@@ -791,8 +791,8 @@ message ReactionWorkup {
   string keep_phase = 6;
   StirringConditions stirring = 7;
   optional float target_ph = 8;
-  // Indicate automated workup/purification. Include specifications in 
-  // "details", e.g., instrument manufacturer, solvent gradient 
+  // Indicate automated workup/purification. Include specifications in
+  // "details", e.g., instrument manufacturer, solvent gradient
   // (if applicable), column material and size, etc.
   optional bool is_automated = 10;
 }
@@ -803,7 +803,7 @@ message ReactionWorkup {
  * outcome is associated with a reaction/residence time. To allow for
  * one Reaction message to contain the results of a full kinetic profiling
  * experiment, this is a repeated field of the Reaction message.
- * 
+ *
  * It is the parent message for product characterization and any analytical
  * data.
  */
@@ -889,28 +889,28 @@ message ReactionAnalysis {
   enum AnalysisType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
-    LC = 2;  // Liquid chromatography, including HPLC and UPLC.
-    GC = 3;  // Gas chromatography.
-    IR = 4;  // Infrared spectroscopy, including ReactIR.
-    NMR_1H = 5;  // 1H NMR spectroscopy.
-    NMR_13C = 6;  // 13C NMR spectroscopy.
+    LC = 2;         // Liquid chromatography, including HPLC and UPLC.
+    GC = 3;         // Gas chromatography.
+    IR = 4;         // Infrared spectroscopy, including ReactIR.
+    NMR_1H = 5;     // 1H NMR spectroscopy.
+    NMR_13C = 6;    // 13C NMR spectroscopy.
     NMR_OTHER = 7;  // Specify type and details in "details".
-    MP = 8;  // Melting point characterization.
-    UV = 9;  // Ultraviolet spectroscopy.
-    TLC = 10;  // Thin-layer chromatography.
-    MS = 11;  // Mass spectrometry.
-    HRMS = 12;  // High resolution mass spectrometry.
-    MSMS = 13;  // Two-dimensional mass spectrometry.
-    WEIGHT = 14;  // Weight of an isolated compound.
-    LCMS = 15;  // Combined LC/MS.
-    GCMS = 16;  // Combined GC/MS.
-    ELSD = 17;  // Evaporative light scattering detector.
-    CD = 18;  // Circular Dichroism.
-    SFC = 19;  // Supercritical fluid chromatography.
-    EPR = 20;  // Electron paramagnetic resonance spectroscopy.
-    XRD = 21;  // X-ray diffraction, including single-crystal XRD.
-    RAMAN = 22;  // Raman spectroscopy.
-    ED = 23;  // Electron diffraction, including MicroED.
+    MP = 8;         // Melting point characterization.
+    UV = 9;         // Ultraviolet spectroscopy.
+    TLC = 10;       // Thin-layer chromatography.
+    MS = 11;        // Mass spectrometry.
+    HRMS = 12;      // High resolution mass spectrometry.
+    MSMS = 13;      // Two-dimensional mass spectrometry.
+    WEIGHT = 14;    // Weight of an isolated compound.
+    LCMS = 15;      // Combined LC/MS.
+    GCMS = 16;      // Combined GC/MS.
+    ELSD = 17;      // Evaporative light scattering detector.
+    CD = 18;        // Circular Dichroism.
+    SFC = 19;       // Supercritical fluid chromatography.
+    EPR = 20;       // Electron paramagnetic resonance spectroscopy.
+    XRD = 21;       // X-ray diffraction, including single-crystal XRD.
+    RAMAN = 22;     // Raman spectroscopy.
+    ED = 23;        // Electron diffraction, including MicroED.
   }
   AnalysisType type = 1;
   // RSC Chemical Methods Ontology ID to define the analytical method with

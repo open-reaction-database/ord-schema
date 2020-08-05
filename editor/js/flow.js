@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,7 +19,7 @@ goog.provide('ord.flows');
 goog.require('proto.ord.FlowConditions');
 goog.require('proto.ord.FlowConditions.Tubing');
 
-ord.flows.load = function (flow) {
+ord.flows.load = function(flow) {
   const type = flow.getFlowType();
   if (type) {
     setSelector($('#flow_type'), type.getType());
@@ -33,7 +33,7 @@ ord.flows.load = function (flow) {
   writeMetric('#flow_tubing', tubing.getDiameter());
 };
 
-ord.flows.unload = function () {
+ord.flows.unload = function() {
   const flow = new proto.ord.FlowConditions();
 
   const type = new proto.ord.FlowConditions.FlowType();

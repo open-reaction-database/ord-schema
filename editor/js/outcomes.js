@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,11 +23,11 @@ goog.require('proto.ord.ReactionOutcome');
 // Freely create radio button groups by generating new input names.
 ord.outcomes.radioGroupCounter = 0;
 
-ord.outcomes.load = function (outcomes) {
+ord.outcomes.load = function(outcomes) {
   outcomes.forEach(outcome => ord.outcomes.loadOutcome(outcome));
 };
 
-ord.outcomes.loadOutcome = function (outcome) {
+ord.outcomes.loadOutcome = function(outcome) {
   const node = ord.outcomes.add();
 
   const time = outcome.getReactionTime();
@@ -41,7 +41,7 @@ ord.outcomes.loadOutcome = function (outcome) {
 
   const analyses = outcome.getAnalysesMap();
   const names = analyses.stringKeys_();
-  names.forEach(function (name) {
+  names.forEach(function(name) {
     const analysis = analyses.get(name);
     ord.outcomes.loadAnalysis(node, name, analysis);
   });
@@ -50,7 +50,7 @@ ord.outcomes.loadOutcome = function (outcome) {
   ord.products.load(node, products);
 };
 
-ord.outcomes.loadAnalysis = function (analysesNode, name, analysis) {
+ord.outcomes.loadAnalysis = function(analysesNode, name, analysis) {
   const node = ord.outcomes.addAnalysis(analysesNode);
 
   $('.outcome_analysis_name', node).text(name).trigger('input');
@@ -64,7 +64,7 @@ ord.outcomes.loadAnalysis = function (analysesNode, name, analysis) {
 
   const processes = analysis.getProcessedDataMap();
   const processNames = processes.stringKeys_();
-  processNames.forEach(function (name) {
+  processNames.forEach(function(name) {
     const process = processes.get(name);
     const processNode = ord.outcomes.addProcess(node);
     ord.outcomes.loadProcess(processNode, name, process);
@@ -72,28 +72,29 @@ ord.outcomes.loadAnalysis = function (analysesNode, name, analysis) {
 
   const raws = analysis.getRawDataMap();
   const rawNames = raws.stringKeys_();
-  rawNames.forEach(function (name) {
+  rawNames.forEach(function(name) {
     const raw = raws.get(name);
     const rawNode = ord.outcomes.addRaw(node);
     ord.outcomes.loadRaw(rawNode, name, raw);
   });
-  $('.outcome_analysis_manufacturer', node).text(
-      analysis.getInstrumentManufacturer());
+  $('.outcome_analysis_manufacturer', node)
+      .text(analysis.getInstrumentManufacturer());
   const calibrated = analysis.getInstrumentLastCalibrated();
   if (calibrated) {
     $('.outcome_analysis_calibrated', node).text(calibrated.getValue());
   }
   setOptionalBool(
       $('.outcome_analysis_internal_standard', node),
-      analysis.hasUsesInternalStandard() ?
-          analysis.getUsesInternalStandard() : null);
+      analysis.hasUsesInternalStandard() ? analysis.getUsesInternalStandard() :
+                                           null);
   setOptionalBool(
       $('.outcome_analysis_authentic_standard', node),
       analysis.hasUsesAuthenticStandard() ?
-          analysis.getUsesAuthenticStandard() : null);
+          analysis.getUsesAuthenticStandard() :
+          null);
 };
 
-ord.outcomes.loadProcess = function (node, name, process) {
+ord.outcomes.loadProcess = function(node, name, process) {
   $('.outcome_process_name', node).text(name);
   $('.outcome_process_description', node).text(process.getDescription());
   $('.outcome_process_format', node).text(process.getFormat());
@@ -106,29 +107,29 @@ ord.outcomes.loadProcess = function (node, name, process) {
     $('.outcome_process_text', node).show();
     $('.uploader', node).hide();
     $('.outcome_process_text', node).text(stringValue);
-    $("input[value='text']", node).prop('checked', true);
+    $('input[value=\'text\']', node).prop('checked', true);
   }
   if (floatValue) {
     $('.outcome_process_text', node).show();
     $('.uploader', node).hide();
     $('.outcome_process_text', node).text(floatValue);
-    $("input[value='number']", node).prop('checked', true);
+    $('input[value=\'number\']', node).prop('checked', true);
   }
   if (bytesValue) {
     $('.outcome_process_text', node).hide();
     $('.uploader', node).show();
     ord.uploads.load(node, bytesValue);
-    $("input[value='upload']", node).prop('checked', true);
+    $('input[value=\'upload\']', node).prop('checked', true);
   }
   if (url) {
     $('.outcome_process_text', node).show();
     $('.uploader', node).hide();
     $('.outcome_process_text', node).text(url);
-    $("input[value='url']", node).prop('checked', true);
+    $('input[value=\'url\']', node).prop('checked', true);
   }
 };
 
-ord.outcomes.loadRaw = function (node, name, raw) {
+ord.outcomes.loadRaw = function(node, name, raw) {
   $('.outcome_raw_name', node).text(name);
   $('.outcome_raw_description', node).text(raw.getDescription());
   $('.outcome_raw_format', node).text(raw.getFormat());
@@ -141,31 +142,31 @@ ord.outcomes.loadRaw = function (node, name, raw) {
     $('.outcome_raw_text', node).show();
     $('.uploader', node).hide();
     $('.outcome_raw_text', node).text(stringValue);
-    $("input[value='text']", node).prop('checked', true);
+    $('input[value=\'text\']', node).prop('checked', true);
   }
   if (floatValue) {
     $('.outcome_raw_text', node).show();
     $('.uploader', node).hide();
     $('.outcome_raw_text', node).text(floatValue);
-    $("input[value='number']", node).prop('checked', true);
+    $('input[value=\'number\']', node).prop('checked', true);
   }
   if (bytesValue) {
     $('.outcome_raw_text', node).hide();
     $('.uploader', node).show();
     ord.uploads.load(node, bytesValue);
-    $("input[value='upload']", node).prop('checked', true);
+    $('input[value=\'upload\']', node).prop('checked', true);
   }
   if (url) {
     $('.outcome_raw_text', node).show();
     $('.uploader', node).hide();
     $('.outcome_raw_text', node).text(url);
-    $("input[value='url']", node).prop('checked', true);
+    $('input[value=\'url\']', node).prop('checked', true);
   }
 };
 
-ord.outcomes.unload = function () {
+ord.outcomes.unload = function() {
   const outcomes = [];
-  $('.outcome').each(function (index, node) {
+  $('.outcome').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
@@ -178,7 +179,7 @@ ord.outcomes.unload = function () {
   return outcomes;
 };
 
-ord.outcomes.unloadOutcome = function (node) {
+ord.outcomes.unloadOutcome = function(node) {
   const outcome = new proto.ord.ReactionOutcome();
 
   const time = readMetric('.outcome_time', new proto.ord.Time(), node);
@@ -196,7 +197,7 @@ ord.outcomes.unloadOutcome = function (node) {
   outcome.setProductsList(products);
 
   const analyses = outcome.getAnalysesMap();
-  $('.outcome_analysis').each(function (index, node) {
+  $('.outcome_analysis').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
@@ -206,7 +207,7 @@ ord.outcomes.unloadOutcome = function (node) {
   return outcome;
 };
 
-ord.outcomes.unloadAnalysisSingle = function (analysisNode) {
+ord.outcomes.unloadAnalysisSingle = function(analysisNode) {
   const analysis = new proto.ord.ReactionAnalysis();
   analysis.setType(getSelector($('.outcome_analysis_type', analysisNode)));
   const chmoId = $('.outcome_analysis_chmo_id', analysisNode).text();
@@ -244,7 +245,7 @@ ord.outcomes.unloadAnalysisSingle = function (analysisNode) {
   return analysis;
 };
 
-ord.outcomes.unloadAnalysis = function (analysisNode, analyses) {
+ord.outcomes.unloadAnalysis = function(analysisNode, analyses) {
   const analysis = ord.outcomes.unloadAnalysisSingle(analysisNode);
   const name = $('.outcome_analysis_name', analysisNode).text();
   if (!isEmptyMessage(name) || !isEmptyMessage(analysis)) {
@@ -252,32 +253,32 @@ ord.outcomes.unloadAnalysis = function (analysisNode, analyses) {
   }
 };
 
-ord.outcomes.unloadProcess = function (node, processes) {
+ord.outcomes.unloadProcess = function(node, processes) {
   const name = $('.outcome_process_name', node).text();
 
   const process = new proto.ord.Data();
   process.setDescription($('.outcome_process_description').text());
   process.setFormat($('.outcome_process_format').text());
 
-  if ($("input[value='text']", node).is(':checked')) {
+  if ($('input[value=\'text\']', node).is(':checked')) {
     const stringValue = $('.outcome_process_text', node).text();
     if (!isEmptyMessage(stringValue)) {
       process.setStringValue(stringValue);
     }
   }
-  if ($("input[value='number']", node).is(':checked')) {
+  if ($('input[value=\'number\']', node).is(':checked')) {
     const floatValue = parseFloat($('.outcome_process_text', node).text());
     if (!isNaN(floatValue)) {
       process.setFloatValue(floatValue);
     }
   }
-  if ($("input[value='upload']", node).is(':checked')) {
+  if ($('input[value=\'upload\']', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
     if (!isEmptyMessage(bytesValue)) {
       process.setBytesValue(bytesValue);
     }
   }
-  if ($("input[value='url']", node).is(':checked')) {
+  if ($('input[value=\'url\']', node).is(':checked')) {
     const url = $('.outcome_process_text', node).text();
     if (!isEmptyMessage(url)) {
       process.setUrl(url);
@@ -288,32 +289,32 @@ ord.outcomes.unloadProcess = function (node, processes) {
   }
 };
 
-ord.outcomes.unloadRaw = function (node, raws) {
+ord.outcomes.unloadRaw = function(node, raws) {
   const name = $('.outcome_raw_name', node).text();
 
   const raw = new proto.ord.Data();
   raw.setDescription($('.outcome_raw_description', node).text());
   raw.setFormat($('.outcome_raw_format', node).text());
 
-  if ($("input[value='text']", node).is(':checked')) {
+  if ($('input[value=\'text\']', node).is(':checked')) {
     const stringValue = $('.outcome_raw_text', node).text();
     if (!isEmptyMessage(stringValue)) {
       raw.setStringValue(stringValue);
     }
   }
-  if ($("input[value='number']", node).is(':checked')) {
+  if ($('input[value=\'number\']', node).is(':checked')) {
     const floatValue = parseFloat($('.outcome_raw_text', node).text());
     if (!isNaN(floatValue)) {
       raw.setFloatValue(floatValue);
     }
   }
-  if ($("input[value='upload']", node).is(':checked')) {
+  if ($('input[value=\'upload\']', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
     if (!isEmptyMessage(bytesValue)) {
       raw.setBytesValue(bytesValue);
     }
   }
-  if ($("input[value='url']", node).is(':checked')) {
+  if ($('input[value=\'url\']', node).is(':checked')) {
     const url = $('.outcome_raw_text', node).text();
     if (!isEmptyMessage(url)) {
       raw.setUrl(url);
@@ -324,21 +325,22 @@ ord.outcomes.unloadRaw = function (node, raws) {
   }
 };
 
-ord.outcomes.add = function () {
+ord.outcomes.add = function() {
   const node = addSlowly('#outcome_template', '#outcomes');
   // Add live validation handling.
   addChangeHandler(node, () => {ord.outcomes.validateOutcome(node)});
   return node;
 };
 
-ord.outcomes.addAnalysis = function (node) {
-  const analysisNode = addSlowly('#outcome_analysis_template', $('.outcome_analyses', node));
-  
+ord.outcomes.addAnalysis = function(node) {
+  const analysisNode =
+      addSlowly('#outcome_analysis_template', $('.outcome_analyses', node));
+
   // Handle name changes.
   const nameNode = $('.outcome_analysis_name', analysisNode)
   nameNode.on('focusin', function() {
     // Store old value in val attribute.
-    nameNode.data('val', nameNode.text()); 
+    nameNode.data('val', nameNode.text());
   });
   nameNode.on('input', function() {
     // Remove old key.
@@ -355,28 +357,28 @@ ord.outcomes.addAnalysis = function (node) {
     // Add new key.
     var name = nameNode.text();
     if (name) {
-      $('.analysis_key_selector').append('<option value="' + name + '">' + name + '</option>');
+      $('.analysis_key_selector')
+          .append('<option value="' + name + '">' + name + '</option>');
       // Ensure old value stored (necessary if focus does not change).
-      nameNode.data('val', name); 
+      nameNode.data('val', name);
     }
   });
-    
+
   // Add live validation handling.
-  addChangeHandler(analysisNode, () => {ord.outcomes.validateAnalysis(analysisNode)});
+  addChangeHandler(
+      analysisNode, () => {ord.outcomes.validateAnalysis(analysisNode)});
   return analysisNode;
 };
 
-ord.outcomes.addProcess = function (node) {
+ord.outcomes.addProcess = function(node) {
   const processNode =
       addSlowly('#outcome_process_template', $('.outcome_processes', node));
 
-  const typeButtons = $("input[type='radio']", processNode);
-  typeButtons.attr(
-      'name', 'outcomes_' + ord.outcomes.radioGroupCounter++);
-  typeButtons.change(function () {
-    if ((this.value == 'text')
-        || (this.value == 'number')
-        || (this.value == 'url')) {
+  const typeButtons = $('input[type=\'radio\']', processNode);
+  typeButtons.attr('name', 'outcomes_' + ord.outcomes.radioGroupCounter++);
+  typeButtons.change(function() {
+    if ((this.value == 'text') || (this.value == 'number') ||
+        (this.value == 'url')) {
       $('.outcome_process_text', processNode).show();
       $('.uploader', processNode).hide();
     } else {
@@ -388,16 +390,14 @@ ord.outcomes.addProcess = function (node) {
   return processNode;
 };
 
-ord.outcomes.addRaw = function (node) {
+ord.outcomes.addRaw = function(node) {
   const rawNode = addSlowly('#outcome_raw_template', $('.outcome_raws', node));
 
-  const typeButtons = $("input[type='radio']", rawNode);
-  typeButtons.attr(
-      'name', 'outcomes_' + ord.outcomes.radioGroupCounter++);
-  typeButtons.change(function () {
-    if ((this.value == 'text')
-        || (this.value == 'number')
-        || (this.value == 'url')) {
+  const typeButtons = $('input[type=\'radio\']', rawNode);
+  typeButtons.attr('name', 'outcomes_' + ord.outcomes.radioGroupCounter++);
+  typeButtons.change(function() {
+    if ((this.value == 'text') || (this.value == 'number') ||
+        (this.value == 'url')) {
       $('.outcome_raw_text', rawNode).show();
       $('.uploader', rawNode).hide();
     } else {

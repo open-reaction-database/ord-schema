@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -32,7 +32,7 @@ goog.require('proto.ord.Dataset');
 const session = {
   fileName: null,
   dataset: null,
-  index: null // Ordinal position of the Reaction in its Dataset.
+  index: null  // Ordinal position of the Reaction in its Dataset.
 };
 
 async function init(fileName, index) {
@@ -50,15 +50,15 @@ async function init(fileName, index) {
   // Initialize validation handlers that don't go in "add" methods.
   initValidateHandlers();
   // Initailize tooltips.
-  $("[data-toggle='tooltip']").tooltip();
-  // Prevent tooltip pop-ups from blurring. 
+  $('[data-toggle=\'tooltip\']').tooltip();
+  // Prevent tooltip pop-ups from blurring.
   // (see github.com/twbs/bootstrap/issues/22610)
   Popper.Defaults.modifiers.computeStyle.gpuAcceleration = false;
   // Show "save" on modifications.
   listen('body');
   // Load Ketcher content into an element with attribute role="application".
   document.getElementById('ketcher-iframe').contentWindow.ketcher.initKetcher();
-  
+
   // Fetch the Dataset containing the Reaction proto.
   session.dataset = await getDataset(fileName);
   // Initialize the UI with the Reaction.
@@ -95,12 +95,12 @@ function selectText(node) {
   selection.addRange(range);
 }
 
-// Adds a jQuery handler to a node such that the handler is run once 
+// Adds a jQuery handler to a node such that the handler is run once
 // whenever data entry within that node is changed,
 // *except through remove* -- this must be handled manually.
-// (This prevents inconsistent timing in the ordering of 
+// (This prevents inconsistent timing in the ordering of
 // the element being removed and the handler being called)
-function addChangeHandler (node, handler) {
+function addChangeHandler(node, handler) {
   // For textboxes
   node.on('blur', '.edittext', handler);
   // For selectors, optional bool selectors,
@@ -119,7 +119,7 @@ function validate(message, messageTypeString, validateNode) {
   const binary = message.serializeBinary();
 
   xhr.responseType = 'json';
-  xhr.onload = function () {
+  xhr.onload = function() {
     const errors = xhr.response;
     statusNode = $('.validate_status', validateNode);
     messageNode = $('.validate_message', validateNode);
@@ -133,15 +133,14 @@ function validate(message, messageTypeString, validateNode) {
       statusNode.text(' ' + errors.length);
 
       messageNode.empty();
-      for (index = 0; index < errors.length; index++) { 
+      for (index = 0; index < errors.length; index++) {
         error = errors[index];
         errorNode = $('<div></div>');
         errorNode.text('\u2022 ' + error);
         messageNode.append(errorNode);
-      } 
+      }
       messageNode.css('backgroundColor', 'pink');
-    }
-    else {
+    } else {
       statusNode.addClass('fa fa-check')
       statusNode.css('color', 'green');
 
@@ -203,7 +202,7 @@ async function getDataset(fileName) {
     const xhr = new XMLHttpRequest();
     xhr.open('GET', '/dataset/proto/read/' + fileName);
     xhr.responseType = 'arraybuffer';
-    xhr.onload = function (event) {
+    xhr.onload = function(event) {
       const bytes = new Uint8Array(xhr.response);
       const dataset = proto.ord.Dataset.deserializeBinary(bytes);
       resolve(dataset);
@@ -325,19 +324,18 @@ function unloadReaction() {
   return reaction;
 }
 
-// Checks if the argument represents an empty protobuf message 
+// Checks if the argument represents an empty protobuf message
 // (that is, the argument's nested arrays only contains null or empty values),
 // or is null or undefined.
 // We use this check on both primitives and arrays/messages.
-// Note: Unlike other primitive types, using a setter to set a oneof string field to “” 
-// causes the message to include the field and “”, which would be unwanted. 
-// So we instead claim that empty strings are empty messages. 
-// (Hence we don’t set _any_ empty string)
-// Note: In a submessage, setting a meaningful value (e.g. optional float to 0)
-// will result in a non-null/undefined value in the submessage array. 
-// So, if the array of a submessage only contains null and undefined vals, 
-// we can assume that the message is truly “empty” (that is, 
-// doesn’t have anything meaningful that is set) 
+// Note: Unlike other primitive types, using a setter to set a oneof string
+// field to “” causes the message to include the field and “”, which would be
+// unwanted. So we instead claim that empty strings are empty messages. (Hence
+// we don’t set _any_ empty string) Note: In a submessage, setting a meaningful
+// value (e.g. optional float to 0) will result in a non-null/undefined value in
+// the submessage array. So, if the array of a submessage only contains null and
+// undefined vals, we can assume that the message is truly “empty” (that is,
+// doesn’t have anything meaningful that is set)
 // and can be omitted when constructing the surrounding message.
 function isEmptyMessage(obj) {
   if ([null, undefined, ''].includes(obj)) {
@@ -368,7 +366,7 @@ function addSlowly(template, root) {
   node.show('slow');
   dirty();
   listen(node);
-  $("[data-toggle='tooltip']", node).tooltip();
+  $('[data-toggle=\'tooltip\']', node).tooltip();
   return node;
 }
 
@@ -377,27 +375,29 @@ function removeSlowly(button, pattern) {
   const node = $(button).closest(pattern);
   // Must call necessary validators only after the node is removed,
   // but we can only figure out which validators these are before removal.
-  // We do so, and after removal, click the corresponding buttons to trigger validation.
+  // We do so, and after removal, click the corresponding buttons to trigger
+  // validation.
   let buttonsToClick = $();
-  node.parents('fieldset').each(function () {
-    buttonsToClick = buttonsToClick.add($(this).children('legend').find('.validate_button'));
+  node.parents('fieldset').each(function() {
+    buttonsToClick =
+        buttonsToClick.add($(this).children('legend').find('.validate_button'));
   })
-  node.hide('slow', function () {
+  node.hide('slow', function() {
     node.remove();
     buttonsToClick.trigger('click');
   });
   dirty();
 }
 
-// Toggle visibility of all siblings of an element, 
-// or if a pattern is provided, toggle visibility of all siblings of  
+// Toggle visibility of all siblings of an element,
+// or if a pattern is provided, toggle visibility of all siblings of
 // the nearest ancestor element matching the pattern.
 function toggleSlowly(node, pattern) {
   node = $(node);
   if (pattern) {
     node = node.closest(pattern);
   }
-  // 'collapsed' tag is used to hold previously collapsed siblings, 
+  // 'collapsed' tag is used to hold previously collapsed siblings,
   // and would be stored as node's next sibling;
   // the following line checks whether a collapse has occured.
   if (node.next('collapsed').length !== 0) {
@@ -406,8 +406,7 @@ function toggleSlowly(node, pattern) {
     collapsedNode.toggle('slow', () => {
       collapsedNode.children().unwrap();
     });
-  }
-  else {
+  } else {
     // Need to collapse.
     node.siblings().wrapAll('<collapsed>');
     node.next('collapsed').toggle('slow');
@@ -461,9 +460,8 @@ function setTextFromFile(identifierNode, valueClass) {
     reader.onload = readerEvent => {
       const contents = readerEvent.target.result;
       $('.' + valueClass, identifierNode).text(contents);
-     }
-  }
-  input.click();
+    }
+  } input.click();
 }
 
 // Populate a <select/> node according to its data-proto type declaration.
@@ -499,8 +497,10 @@ function getSelector(node) {
 
 // Find the selected <option/> and return its text.
 function getSelectorText(node) {
-  const selectorElement = node.getElementsByTagName('select')[0]
-  return selectorElement.options[selectorElement.selectedIndex].text;
+  const selectorElement =
+      node.getElementsByTagName('select')[0] return selectorElement
+          .options[selectorElement.selectedIndex]
+          .text;
 }
 
 // Set up the three-way popup, "true"/"false"/"unspecified".
@@ -544,7 +544,7 @@ function getOptionalBool(node) {
 
 // Set up and initialize a collapse button,
 // by adding attributes into a div in reaction.html
-function initCollapse (node) {
+function initCollapse(node) {
   node.addClass('fa');
   node.addClass('fa-chevron-down');
   node.attr('onclick', 'collapseToggle(this)');
@@ -555,48 +555,57 @@ function initCollapse (node) {
 
 // Set up a validator div (button, status indicator, error list, etc.),
 // inserting contents into a div in reaction.html
-function initValidateNode (oldNode) {
+function initValidateNode(oldNode) {
   let newNode = $('#validate_template').clone();
   // Add attributes necessary for validation functions.
-  $('.validate_button', newNode).attr('onclick', oldNode.attr('button-onclick'));
+  $('.validate_button', newNode)
+      .attr('onclick', oldNode.attr('button-onclick'));
   if (oldNode.attr('id')) {
     $('.validate_button', newNode).attr('id', oldNode.attr('id') + '_button');
   }
   oldNode.append(newNode.children());
 }
 
-// Some nodes are dynamically added / removed; 
+// Some nodes are dynamically added / removed;
 // we add their validation handlers when the nodes themselves are added.
-// However, other nodes are always present in the html, and aren't dynamically added nor removed.
-// To add live validation to these nodes, we do so here.
-function initValidateHandlers () {
+// However, other nodes are always present in the html, and aren't dynamically
+// added nor removed. To add live validation to these nodes, we do so here.
+function initValidateHandlers() {
   // For setup
   var setupNode = $('#section_setup');
   addChangeHandler(setupNode, () => {ord.setups.validateSetup(setupNode)});
 
   // For conditions
   var conditionNode = $('#section_conditions');
-  addChangeHandler(conditionNode, () => {ord.conditions.validateConditions(conditionNode)});
+  addChangeHandler(
+      conditionNode, () => {ord.conditions.validateConditions(conditionNode)});
 
   // For temperature
   var temperatureNode = $('#section_conditions_temperature');
-  addChangeHandler(temperatureNode, () => {ord.temperature.validateTemperature(temperatureNode)});
+  addChangeHandler(
+      temperatureNode,
+      () => {ord.temperature.validateTemperature(temperatureNode)});
 
   // For pressure
   var pressureNode = $('#section_conditions_pressure');
-  addChangeHandler(pressureNode, () => {ord.pressure.validatePressure(pressureNode)});
+  addChangeHandler(
+      pressureNode, () => {ord.pressure.validatePressure(pressureNode)});
 
   // For stirring
   var stirringNode = $('#section_conditions_stirring');
-  addChangeHandler(stirringNode, () => {ord.stirring.validateStirring(stirringNode)});
+  addChangeHandler(
+      stirringNode, () => {ord.stirring.validateStirring(stirringNode)});
 
   // For illumination
   var illuminationNode = $('#section_conditions_illumination');
-  addChangeHandler(illuminationNode, () => {ord.illumination.validateIllumination(illuminationNode)});
+  addChangeHandler(
+      illuminationNode,
+      () => {ord.illumination.validateIllumination(illuminationNode)});
 
   // For electro
   var electroNode = $('#section_conditions_electro');
-  addChangeHandler(electroNode, () => {ord.electro.validateElectro(electroNode)});
+  addChangeHandler(
+      electroNode, () => {ord.electro.validateElectro(electroNode)});
 
   // For flow
   var flowNode = $('#section_conditions_flow');
@@ -608,13 +617,15 @@ function initValidateHandlers () {
 
   // For provenance
   var provenanceNode = $('#section_provenance');
-  addChangeHandler(provenanceNode, () => {ord.provenance.validateProvenance(provenanceNode)});
+  addChangeHandler(
+      provenanceNode,
+      () => {ord.provenance.validateProvenance(provenanceNode)});
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.
 function nameToProto(protoName) {
   let clazz = proto.ord;
-  protoName.split('_').forEach(function (name) {
+  protoName.split('_').forEach(function(name) {
     clazz = clazz[name];
     if (!clazz) {
       return null;

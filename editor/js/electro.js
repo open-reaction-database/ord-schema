@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,7 +22,7 @@ goog.require('proto.ord.ElectrochemistryConditions.Measurement');
 // Freely create radio button groups by generating new input names.
 ord.electro.radioGroupCounter = 0;
 
-ord.electro.load = function (electro) {
+ord.electro.load = function(electro) {
   const type = electro.getElectrochemistryType();
   if (type) {
     setSelector($('#electro_type'), type.getType());
@@ -39,13 +39,13 @@ ord.electro.load = function (electro) {
     setSelector($('#electro_cell_type'), cell.getType());
     $('#electro_cell_details').text(cell.getDetails());
   }
-  electro.getMeasurementsList().forEach(function (measurement) {
+  electro.getMeasurementsList().forEach(function(measurement) {
     const node = ord.electro.addMeasurement();
     ord.electro.loadMeasurement(node, measurement);
   });
 };
 
-ord.electro.loadMeasurement = function (node, measurement) {
+ord.electro.loadMeasurement = function(node, measurement) {
   const time = measurement.getTime();
   if (time) {
     writeMetric('.electro_measurement_time', time, node);
@@ -54,19 +54,19 @@ ord.electro.loadMeasurement = function (node, measurement) {
   const voltage = measurement.getVoltage();
   if (current) {
     writeMetric('.electro_measurement_current', current, node);
-    $("input[value='current']", node).prop('checked', true);
+    $('input[value=\'current\']', node).prop('checked', true);
     $('.electro_measurement_current_fields', node).show();
     $('.electro_measurement_voltage_fields', node).hide();
   }
   if (voltage) {
-    $("input[value='voltage']", node).prop('checked', true);
+    $('input[value=\'voltage\']', node).prop('checked', true);
     writeMetric('.electro_measurement_voltage', voltage, node);
     $('.electro_measurement_current_fields', node).hide();
     $('.electro_measurement_voltage_fields', node).show();
   }
 };
 
-ord.electro.unload = function () {
+ord.electro.unload = function() {
   const electro = new proto.ord.ElectrochemistryConditions();
 
   const type = new proto.ord.ElectrochemistryConditions.ElectrochemistryType();
@@ -86,7 +86,8 @@ ord.electro.unload = function () {
   }
   electro.setAnodeMaterial($('#electro_anode').text());
   electro.setCathodeMaterial($('#electro_cathode').text());
-  const electrodeSeparation =  readMetric('#electro_separation', new proto.ord.Length());
+  const electrodeSeparation =
+      readMetric('#electro_separation', new proto.ord.Length());
   if (!isEmptyMessage(electrodeSeparation)) {
     electro.setElectrodeSeparation(electrodeSeparation);
   }
@@ -99,7 +100,7 @@ ord.electro.unload = function () {
   }
 
   const measurements = []
-  $('.electro_measurement').each(function (index, node) {
+  $('.electro_measurement').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       const measurement = ord.electro.unloadMeasurement(node);
@@ -112,7 +113,7 @@ ord.electro.unload = function () {
   return electro;
 };
 
-ord.electro.unloadMeasurement = function (node) {
+ord.electro.unloadMeasurement = function(node) {
   const measurement = new proto.ord.ElectrochemistryConditions.Measurement();
   const time =
       readMetric('.electro_measurement_time', new proto.ord.Time(), node);
@@ -137,13 +138,13 @@ ord.electro.unloadMeasurement = function (node) {
   return measurement;
 };
 
-ord.electro.addMeasurement = function () {
+ord.electro.addMeasurement = function() {
   const node =
       addSlowly('#electro_measurement_template', '#electro_measurements');
 
   const metricButtons = $('input', node);
   metricButtons.attr('name', 'electro_' + ord.electro.radioGroupCounter++);
-  metricButtons.change(function () {
+  metricButtons.change(function() {
     if (this.value == 'current') {
       $('.electro_measurement_current_fields', node).show();
       $('.electro_measurement_voltage_fields', node).hide();

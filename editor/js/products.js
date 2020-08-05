@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,11 +19,11 @@ goog.provide('ord.products');
 goog.require('ord.compounds');
 goog.require('proto.ord.ReactionProduct');
 
-ord.products.load = function (node, products) {
+ord.products.load = function(node, products) {
   products.forEach(product => ord.products.loadProduct(node, product));
 };
 
-ord.products.loadProduct = function (outcomeNode, product) {
+ord.products.loadProduct = function(outcomeNode, product) {
   const node = ord.products.add(outcomeNode);
 
   const compound = product.getCompound();
@@ -41,8 +41,7 @@ ord.products.loadProduct = function (outcomeNode, product) {
   }
 
   const purity = product.getPurity();
-  if (purity)
-  {
+  if (purity) {
     writeMetric('.outcome_product_purity', purity, node);
   }
 
@@ -91,9 +90,9 @@ ord.products.loadProduct = function (outcomeNode, product) {
   }
 };
 
-ord.products.unload = function (node) {
+ord.products.unload = function(node) {
   const products = [];
-  $('.outcome_product', node).each(function (index, productNode) {
+  $('.outcome_product', node).each(function(index, productNode) {
     productNode = $(productNode);
     if (!productNode.attr('id')) {
       // Not a template.
@@ -106,7 +105,7 @@ ord.products.unload = function (node) {
   return products;
 };
 
-ord.products.unloadProduct = function (node) {
+ord.products.unloadProduct = function(node) {
   const product = new proto.ord.ReactionProduct();
 
   const compoundNode = $('.outcome_product_compound');
@@ -174,25 +173,24 @@ ord.products.unloadProduct = function (node) {
   return product;
 };
 
-ord.products.unloadAnalysisKeys = function (node, tag) {
+ord.products.unloadAnalysisKeys = function(node, tag) {
   const values = [];
-  $('.outcome_product_analysis_' + tag, node).each(
-    function (index, tagNode) {
-      tagNode = $(tagNode);
-      if (!tagNode.attr('id')) {
-        // Not a template.
-        const value = $('.analysis_key_selector', tagNode).val();
-        if (value != '') {
-          values.push(value);
-        }
+  $('.outcome_product_analysis_' + tag, node).each(function(index, tagNode) {
+    tagNode = $(tagNode);
+    if (!tagNode.attr('id')) {
+      // Not a template.
+      const value = $('.analysis_key_selector', tagNode).val();
+      if (value != '') {
+        values.push(value);
       }
     }
-  );
+  });
   return values;
 };
 
-ord.products.add = function (node) {
-  const productNode = addSlowly('#outcome_product_template', $('.outcome_products', node));
+ord.products.add = function(node) {
+  const productNode =
+      addSlowly('#outcome_product_template', $('.outcome_products', node));
 
   // Add an empty compound node.
   ord.compounds.add(productNode);
@@ -201,36 +199,37 @@ ord.products.add = function (node) {
   $('.component fieldset .remove', productNode).hide();
   // Product components implicitly have role Product.
   $('.component .component_role_limiting', productNode).hide();
-  // Volume measurements of product components do not include solutes. 
+  // Volume measurements of product components do not include solutes.
   $('.component .includes_solutes', productNode).remove();
   // Product components do not have Preparations nor Vendor information.
   $('.component .preparations_fieldset', productNode).hide();
   $('.component .vendor', productNode).hide();
 
   // Add live validation handling.
-  addChangeHandler(productNode, () => {ord.products.validateProduct(productNode)});
+  addChangeHandler(
+      productNode, () => {ord.products.validateProduct(productNode)});
   return productNode;
 };
 
-ord.products.addIdentity = function (node) {
+ord.products.addIdentity = function(node) {
   return addSlowly(
       '#outcome_product_analysis_identity_template',
       $('.outcome_product_analysis_identities', node));
 };
 
-ord.products.addYield = function (node) {
+ord.products.addYield = function(node) {
   return addSlowly(
       '#outcome_product_analysis_yield_template',
       $('.outcome_product_analysis_yields', node));
 };
 
-ord.products.addPurity = function (node) {
+ord.products.addPurity = function(node) {
   return addSlowly(
       '#outcome_product_analysis_purity_template',
       $('.outcome_product_analysis_purities', node));
 };
 
-ord.products.addSelectivity = function (node) {
+ord.products.addSelectivity = function(node) {
   return addSlowly(
       '#outcome_product_analysis_selectivity_template',
       $('.outcome_product_analysis_selectivities', node));
