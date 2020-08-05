@@ -94,6 +94,9 @@ jobs:
         tar -xzf editor_test_protobuf_1dae8fdd.tar
         wget https://github.com/google/closure-library/archive/v20200517.tar.gz
         tar -xzf v20200517.tar.gz
+        git clone https://github.com/Open-Reaction-Database/ketcher.git
+        cd "${GITHUB_WORKSPACE}/editor/ketcher"
+        npm install && npm run build
     - name: Build editor and run tests
       run: |
         cd "${GITHUB_WORKSPACE}/editor"

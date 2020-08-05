@@ -56,6 +56,9 @@ async function init(fileName, index) {
   Popper.Defaults.modifiers.computeStyle.gpuAcceleration = false;
   // Show "save" on modifications.
   listen('body');
+  // Load Ketcher content into an element with attribute role="application".
+  document.getElementById('ketcher-iframe').contentWindow.ketcher.initKetcher();
+  
   // Fetch the Dataset containing the Reaction proto.
   session.dataset = await getDataset(fileName);
   // Initialize the UI with the Reaction.
