@@ -43,12 +43,17 @@ body {
 }
 .paratext {
   height: 100px;
+  width: 400px;
   max-height: 200px;
   overflow-y: scroll;
   word-break: break-all;
+  vertical-align: bottom;
 }
-.longtext, .paratext {
+.longtext {
   width: 400px;
+  max-height: 75px;
+  overflow-y: scroll;
+  vertical-align: bottom;
 }
 .add, #save, #download, .remove, #delete, .collapse, .validate_button, .validate_status, .validate_message, .tooltip > .tooltip-inner {
   padding: 2px 4px;
@@ -153,5 +158,21 @@ fieldset {
 /* Default hidden fields */
 .includes_solutes, #automation_platform, .limiting_reactant,
 .component_compound_preparation_reaction_id {
+  display: none;
+}
+/* Extra custom stylings for Ketcher. */
+#ketcher-spinner {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  overflow: auto;
+  margin: auto;
+  width: 50px;
+  height: 50px;
+}
+#process {
   display: none;
 }

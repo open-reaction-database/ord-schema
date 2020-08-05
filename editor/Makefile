@@ -19,6 +19,13 @@ endif
 # https://github.com/google/closure-library/releases/
 closure = closure-library-20200517
 
+# Check that the present ketcher code is compatible.
+ketcher-req = v0.1.0+ord
+ketcher-cur = $(shell cd ketcher && git describe --tags)
+ifneq ($(ketcher-req), $(ketcher-cur))
+  $(error ketcher needs update, see editor readme)
+endif
+
 all : prep py js
 
 prep :
@@ -80,6 +87,9 @@ package : all
 	  package/ord
 
 	cp -r ../build/lib/ord_schema package/ord/py
+
+	mkdir package/ord/ketcher
+	cp -r ketcher/dist package/ord/ketcher
 
 	mkdir package/ord/db
 
