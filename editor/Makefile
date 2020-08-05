@@ -106,6 +106,4 @@ test : all
 
 clean :
 	rm -rf gen
-	rm -rf ketcher/node_modules
-	rm -rf ketcher/dist
 	rm -rf package
