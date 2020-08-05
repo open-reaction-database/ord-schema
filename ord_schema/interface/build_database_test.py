@@ -28,6 +28,7 @@ from ord_schema.proto import reaction_pb2
 
 
 class BuildDatabaseTest(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)

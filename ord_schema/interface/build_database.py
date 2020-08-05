@@ -64,6 +64,7 @@ _TABLES = {
 
 class Tables:
     """Holds file handles and CSV writers for database table files."""
+
     def __init__(self):
         self._handles = []
 

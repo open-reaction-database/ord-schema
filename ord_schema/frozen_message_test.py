@@ -27,6 +27,7 @@ from ord_schema.proto import test_pb2
 
 
 class FrozenMessageTest(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)

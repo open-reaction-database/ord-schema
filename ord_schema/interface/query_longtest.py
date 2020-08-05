@@ -29,6 +29,7 @@ _POSTGRES_PORT = 5430
 
 
 class QueryTest(parameterized.TestCase, absltest.TestCase):
+
     @classmethod
     def setUpClass(cls):
         client = docker.from_env()

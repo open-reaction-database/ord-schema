@@ -22,11 +22,12 @@ from ord_schema.proto import dataset_pb2
 
 
 class UpdatesTest(absltest.TestCase):
+
     def test_resolve_names(self):
         roundtrip_smi = lambda smi: Chem.MolToSmiles(Chem.MolFromSmiles(smi))
         message = reaction_pb2.Reaction()
-        message.inputs['test'].components.add().identifiers.add(
-            type='NAME', value='aspirin')
+        message.inputs['test'].components.add().identifiers.add(type='NAME',
+                                                                value='aspirin')
         self.assertTrue(updates.resolve_names(message))
         resolved_smi = roundtrip_smi(
             message.inputs['test'].components[0].identifiers[1].value)
@@ -40,6 +41,7 @@ class UpdatesTest(absltest.TestCase):
 
 
 class UpdateReactionTest(absltest.TestCase):
+
     def test_with_updates_simple(self):
         message = reaction_pb2.Reaction()
         updates.update_reaction(message)
@@ -83,6 +85,7 @@ class UpdateReactionTest(absltest.TestCase):
 
 
 class UpdateDatasetTest(absltest.TestCase):
+
     def test_crossferences(self):
         message = dataset_pb2.Dataset()
         reaction1 = message.reactions.add()

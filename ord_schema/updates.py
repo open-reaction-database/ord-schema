@@ -45,8 +45,8 @@ def name_resolve(value_type, value):
             if smiles is not None:
                 return smiles, resolver
         except urllib.error.HTTPError as error:
-            logging.info('%s could not resolve %s %s: %s', resolver,
-                         value_type, value, error)
+            logging.info('%s could not resolve %s %s: %s', resolver, value_type,
+                         value, error)
     raise ValueError(f'Could not resolve {value_type} {value} to SMILES')
 
 
@@ -81,8 +81,7 @@ def resolve_names(message):
         Boolean whether `message` was modified.
     """
     modified = False
-    compounds = message_helpers.find_submessages(message,
-                                                 reaction_pb2.Compound)
+    compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
     for compound in compounds:
         if any(identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS
                for identifier in compound.identifiers):

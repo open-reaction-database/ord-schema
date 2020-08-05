@@ -24,6 +24,7 @@ from ord_schema.proto import reaction_pb2
 
 class OrdPostgres:
     """Class for performing SQL queries on the ORD."""
+
     def __init__(self,
                  dbname='ord',
                  user='postgres',

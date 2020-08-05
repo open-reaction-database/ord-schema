@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """A web editor for Open Reaction Database structures."""
 
 import contextlib
@@ -36,7 +35,6 @@ from ord_schema import updates
 
 from google.protobuf import text_format
 
-
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
 
@@ -58,8 +56,7 @@ def show_datasets():
         match = re.match(r'(.*).pbtxt', name)
         if match is not None:
             base_names.append(match.group(1))
-    return flask.render_template('datasets.html',
-                                 file_names=sorted(base_names))
+    return flask.render_template('datasets.html', file_names=sorted(base_names))
 
 
 @app.route('/dataset/<file_name>')
@@ -124,8 +121,7 @@ def enumerate_dataset():
     ord_schema.dataset_templating.generate_dataset."""
     data = flask.request.get_json(force=True)
     basename, suffix = os.path.splitext(data['spreadsheet_name'])
-    with tempfile.NamedTemporaryFile(mode='w',
-                                     suffix=suffix) as f:
+    with tempfile.NamedTemporaryFile(mode='w', suffix=suffix) as f:
         f.write(data['spreadsheet_data'].lstrip('ï»¿'))
         f.seek(0)
         dataframe = dataset_templating.read_spreadsheet(f.name)
@@ -136,8 +132,7 @@ def enumerate_dataset():
     except ValueError as e:
         flask.abort(flask.make_response(str(e), 400))
     message_helpers.write_message(
-        dataset,
-        f'db/{flask.g.user}/{basename}_dataset.pbtxt')
+        dataset, f'db/{flask.g.user}/{basename}_dataset.pbtxt')
     return 'ok'
 
 
@@ -382,20 +377,20 @@ def css(sheet):
 
 @app.route('/ketcher/iframe')
 def ketcher_iframe():
-  """Accesses a website serving Ketcher."""
-  return flask.render_template('ketcher_iframe.html')
+    """Accesses a website serving Ketcher."""
+    return flask.render_template('ketcher_iframe.html')
 
 
 @app.route('/ketcher/info')
 def indigo():
-  """Dummy indigo endpoint to prevent 404 errors."""
-  return ('', 204)
+    """Dummy indigo endpoint to prevent 404 errors."""
+    return ('', 204)
 
 
 @app.route('/ketcher/<path:file>')
 def ketcher(file):
-  """Accesses any built Ketcher file by name."""
-  return flask.send_file('../ketcher/dist/%s' % file)
+    """Accesses any built Ketcher file by name."""
+    return flask.send_file('../ketcher/dist/%s' % file)
 
 
 @app.route('/dataset/deps.js')
@@ -409,14 +404,14 @@ def deps(file_name=None):
 
 @app.route('/ketcher/molfile', methods=['POST'])
 def get_molfile():
-  """Retrieves a POSTed Compound message string and returns a MolFile."""
-  compound = reaction_pb2.Compound()
-  compound.ParseFromString(flask.request.get_data())
-  try:
-    molblock = message_helpers.molblock_from_compound(compound)
-    return flask.jsonify(molblock)
-  except ValueError as e:
-    return 'no existing structural identifier', 404
+    """Retrieves a POSTed Compound message string and returns a MolFile."""
+    compound = reaction_pb2.Compound()
+    compound.ParseFromString(flask.request.get_data())
+    try:
+        molblock = message_helpers.molblock_from_compound(compound)
+        return flask.jsonify(molblock)
+    except ValueError as e:
+        return 'no existing structural identifier', 404
 
 
 @app.after_request

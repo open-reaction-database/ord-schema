@@ -41,8 +41,7 @@ flags.DEFINE_enum('type', 'text', ['text', 'html'],
 flags.DEFINE_string('output', None, 'Filename for output Dataset.')
 
 # pylint: disable=redefined-outer-name
-with open(os.path.join(os.path.dirname(__file__), 'template.html'),
-          'r') as fid:
+with open(os.path.join(os.path.dirname(__file__), 'template.html'), 'r') as fid:
     _HTML_TEMPLATE = fid.read()
 
 with open(os.path.join(os.path.dirname(__file__), 'template.txt'), 'r') as fid:

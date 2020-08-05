@@ -20,6 +20,7 @@ from ord_schema.proto import test_pb2
 
 
 class JsonSchemaTest(absltest.TestCase):
+
     def test_scalar(self):
         schema = json_schema.get_schema(test_pb2.Scalar.DESCRIPTOR)
         expected = {
