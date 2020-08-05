@@ -26,7 +26,7 @@ ifneq ($(ketcher-req), $(ketcher-cur))
   $(error ketcher needs update, see editor readme)
 endif
 
-all : prep py js ketcher/dist/doc/help.html
+all : prep py js
 
 prep :
 	# Ensure output directories exist.
@@ -73,12 +73,6 @@ gen/js/proto/ord/%.js : ../ord_schema/proto/%.proto
 
 ../build/lib/ord_schema/proto/%_pb2.py : ../ord_schema/proto/%.proto
 	$(error $< not found--run setup?)
-
-# Checks for the presense of the last file produced in Ketcher's build. 
-# (hacky; may want to revisit later)
-ketcher/dist/doc/help.html : 
-	# Ensure that ketcher has been built.
-	$(error built ketcher not found, see editor readme?)
 
 package : all
 	rm -rf package
