@@ -32,6 +32,9 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.XYZ,
 ]
 
+_USERNAME = 'github-actions[bot]'
+_EMAIL = '41898282+github-actions[bot]@users.noreply.github.com'
+
 
 def name_resolve(value_type, value):
     """Resolves compound identifiers to SMILES via multiple APIs."""
@@ -117,10 +120,6 @@ def update_reaction(reaction):
     """
     modified = False
     id_substitutions = {}
-    if not reaction.provenance.HasField('record_created'):
-        reaction.provenance.record_created.time.value = (
-            datetime.datetime.utcnow().ctime())
-        modified = True
     if not re.fullmatch('^ord-[0-9a-f]{32}$', reaction.reaction_id):
         # NOTE(kearnes): This does not check for the case where a Dataset is
         # edited and reaction_id values are changed inappropriately. This will
@@ -139,6 +138,8 @@ def update_reaction(reaction):
     if modified:
         event = reaction.provenance.record_modified.add()
         event.time.value = datetime.datetime.utcnow().ctime()
+        event.person.username = _USERNAME
+        event.person.email = _EMAIL
         event.details = 'Automatic updates from the submission pipeline.'
     return id_substitutions
 

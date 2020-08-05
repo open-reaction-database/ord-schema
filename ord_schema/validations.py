@@ -728,7 +728,7 @@ def validate_reaction_analysis(message):
 def validate_reaction_provenance(message):
     # Prepare datetimes
     if not message.HasField('record_created'):
-        warnings.warn('Reactions must have record_created defined.',
+        warnings.warn('Reactions must have record_created defined',
                       ValidationError)
     experiment_start = None
     record_created = None
@@ -759,6 +759,13 @@ def validate_record_event(message):
     if not message.time.value:
         warnings.warn('RecordEvent must have `time` specified',
                       ValidationError)
+    person = message.person
+    if not (person.username or person.name or person.orcid):
+        warnings.warn(
+            'Person must have at least one of '
+            '`username`, `name`, or `orcid` specified', ValidationError)
+    if not person.email:
+        warnings.warn('Person must have `email` specified', ValidationError)
 
 
 def validate_person(message):
@@ -770,9 +777,12 @@ def validate_person(message):
                           ValidationError)
     if message.email:
         # Based on https://www.regular-expressions.info/email.html.
-        if not re.fullmatch(r'[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}',
-                            message.email):
-            warnings.warn('Invalid email address', ValidationError)
+        # Added optional "[bot]" suffix to the username for GitHub actions.
+        if not re.fullmatch(
+                r'[a-zA-Z0-9._+-]+(?:\[bot\])?@[a-zA-Z0-9.-]+\.[a-z]{2,}',
+                message.email):
+            warnings.warn(f'Invalid email address: {message.email}',
+                          ValidationError)
 
 
 def validate_time(message):

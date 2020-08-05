@@ -47,6 +47,9 @@ class ProcessDatasetTest(absltest.TestCase):
         dummy_component.mass.value = 1
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
         reaction1.outcomes.add().conversion.value = 75
+        reaction1.provenance.record_created.time.value = '11 am'
+        reaction1.provenance.record_created.person.username = 'test'
+        reaction1.provenance.record_created.person.email = 'test@example.com'
         dataset1 = dataset_pb2.Dataset(reactions=[reaction1])
         self.dataset1_filename = os.path.join(self.test_subdirectory,
                                               'dataset1.pbtxt')
@@ -133,6 +136,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 75
         reaction.provenance.record_created.time.value = '2020-01-01'
+        reaction.provenance.record_created.person.username = 'test'
+        reaction.provenance.record_created.person.email = 'test@example.com'
         reaction.reaction_id = 'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'
         dataset_id = 'ord_dataset-64b14868c5cd46dd8e75560fd3589a6b'
         dataset = dataset_pb2.Dataset(reactions=[reaction],
@@ -191,6 +196,9 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
+        reaction.provenance.record_created.time.value = '2020-01-01'
+        reaction.provenance.record_created.person.username = 'test'
+        reaction.provenance.record_created.person.email = 'test@example.com'
         reaction.reaction_id = 'test'
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
@@ -218,10 +226,16 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
+        reaction.provenance.record_created.time.value = '2020-01-02'
+        reaction.provenance.record_created.person.username = 'test2'
+        reaction.provenance.record_created.person.email = 'test2@example.com'
         reaction.reaction_id = 'test1'
         dataset1 = dataset_pb2.Dataset(reactions=[reaction])
         dataset1_filename = os.path.join(self.test_subdirectory, 'test1.pbtxt')
         message_helpers.write_message(dataset1, dataset1_filename)
+        reaction.provenance.record_created.time.value = '2020-01-03'
+        reaction.provenance.record_created.person.username = 'test3'
+        reaction.provenance.record_created.person.email = 'test3@example.com'
         reaction.reaction_id = 'test2'
         dataset2 = dataset_pb2.Dataset(reactions=[reaction])
         dataset2_filename = os.path.join(self.test_subdirectory, 'test2.pbtxt')
@@ -250,6 +264,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         reaction_id = 'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'
         reaction.reaction_id = reaction_id
         reaction.provenance.record_created.time.value = '2020-01-01 11 am'
+        reaction.provenance.record_created.person.username = 'test'
+        reaction.provenance.record_created.person.email = 'test@example.com'
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
@@ -281,6 +297,9 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
+        reaction.provenance.record_created.time.value = '2020-01-01'
+        reaction.provenance.record_created.person.username = 'test'
+        reaction.provenance.record_created.person.email = 'test@example.com'
         reaction.reaction_id = 'test'
         dataset.reactions.add().CopyFrom(reaction)
         message_helpers.write_message(dataset, self.dataset_filename)
@@ -363,6 +382,9 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.moles.value = 2
         component.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
+        reaction.provenance.record_created.time.value = '2020-01-01'
+        reaction.provenance.record_created.person.username = 'test'
+        reaction.provenance.record_created.person.email = 'test@example.com'
         reaction.reaction_id = 'test'
         image = reaction.observations.add().image
         image.bytes_value = b'test data value'
