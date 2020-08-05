@@ -19,15 +19,16 @@ Everything requires Python 3.
 The build needs:
 * built ord-schema python code;
 * the `protoc` protobuf compiler;
-* the protobuf runtime libraries for Javascript; and
-* the Closure Library for Javascript.
+* the protobuf runtime libraries for Javascript;
+* the Closure Library for Javascript; and
+* a built version of ORD's Ketcher code.
 
 Serving depends on:
 * the Flask python web framework.
 
 To build the ord-schema python code, follow the instructions [here](https://github.com/Open-Reaction-Database/ord-schema/blob/main/README.md).
 
-The editor currently requires HEAD protobuf (to get experimental "optional" declarations) for the protobuf compiler and Javascript runtime libraries.
+For the protobuf compiler and Javascript runtime libraries, the editor currently requires HEAD protobuf (to get experimental "optional" declarations).
 
 ```
 $ git clone git@github.com:protocolbuffers/protobuf.git
@@ -44,6 +45,22 @@ v20200517](https://github.com/google/closure-library/releases/).
 
 Unpack both protobuf and closure-library in this directory so that make can
 find them.
+
+To build Ketcher, first install Node.js and npm (instructions [here](https://nodejs.org/en/download/)). Then, in this directory,
+
+```
+$ git clone git@github.com:Open-Reaction-Database/ketcher.git
+$ cd ketcher
+$ npm install && npm run build
+```
+
+Sometimes, the editor may require an updated version of Ketcher. In order to update,  
+
+```
+$ cd ketcher
+$ git pull
+$ npm install && npm run build
+```
 
 To install the python packages for serving,
 
