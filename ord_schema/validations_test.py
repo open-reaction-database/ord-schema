@@ -239,6 +239,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message = reaction_pb2.ReactionProvenance()
         message.experiment_start.value = '11 am'
         message.record_created.time.value = '10 am'
+        message.record_created.person.name = 'test'
+        message.record_created.person.email = 'test@example.com'
         with self.assertRaisesRegex(validations.ValidationError, 'after'):
             self._run_validation(message)
         message.record_created.time.value = '11:15 am'
@@ -310,6 +312,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
                                     'created is required'):
             self._run_validation(message)
         message.created.time.value = '11 am'
+        message.created.person.name = 'test'
+        message.created.person.email = 'test@example.com'
         self.assertEmpty(self._run_validation(message))
 
     def test_dataset_crossreferences(self):
