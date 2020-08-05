@@ -25,6 +25,7 @@ jobs:
     - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
+        sudo apt update && sudo apt install -y git
         pip install -r requirements.txt
         pip install -r test_requirements.txt
         conda install -c rdkit rdkit
@@ -89,7 +90,7 @@ jobs:
           cd "${GITHUB_WORKSPACE}"
           pip install treon
           treon
-        
+
   test_editor:
     runs-on: ubuntu-latest
     steps:
@@ -109,6 +110,9 @@ jobs:
         tar -xzf editor_test_protobuf_1dae8fdd.tar
         wget https://github.com/google/closure-library/archive/v20200517.tar.gz
         tar -xzf v20200517.tar.gz
+        git clone https://github.com/Open-Reaction-Database/ketcher.git
+        cd "${GITHUB_WORKSPACE}/editor/ketcher"
+        npm install && npm run build
     - name: Build editor and run tests
       run: |
         cd "${GITHUB_WORKSPACE}/editor"
