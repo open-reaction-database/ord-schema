@@ -19,6 +19,7 @@ from ord_schema.proto import reaction_pb2
 
 
 class ReactionPb2Test(absltest.TestCase):
+
     def test_simple(self):
         reaction = reaction_pb2.Reaction()
         reaction.identifiers.add(value='C(C)Cl.Br>>C(C)Br.Cl',

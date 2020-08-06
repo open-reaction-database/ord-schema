@@ -28,6 +28,7 @@ from ord_schema.scripts import validate_dataset
 
 
 class ValidateDatasetTest(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)

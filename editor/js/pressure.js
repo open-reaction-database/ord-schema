@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,14 +21,14 @@ goog.require('proto.ord.PressureConditions');
 goog.require('proto.ord.PressureConditions.Measurement');
 goog.require('proto.ord.Time');
 
-ord.pressure.load = function (pressure) {
+ord.pressure.load = function(pressure) {
   const control = pressure.getControl();
   if (control) {
     setSelector($('#pressure_control_type'), control.getType());
     $('#pressure_control_details').text(control.getDetails());
   }
   const measurements = pressure.getMeasurementsList();
-  measurements.forEach(function (measurement) {
+  measurements.forEach(function(measurement) {
     const node = ord.pressure.addMeasurement();
     ord.pressure.loadMeasurement(measurement, node);
   });
@@ -42,7 +42,7 @@ ord.pressure.load = function (pressure) {
   }
 };
 
-ord.pressure.loadMeasurement = function (measurement, node) {
+ord.pressure.loadMeasurement = function(measurement, node) {
   const type = measurement.getType();
   setSelector($('.pressure_measurement_type', node), type);
   $('.pressure_measurement_details', node).text(measurement.getDetails());
@@ -54,7 +54,7 @@ ord.pressure.loadMeasurement = function (measurement, node) {
   writeMetric('.pressure_measurement_time', time, node);
 };
 
-ord.pressure.unload = function () {
+ord.pressure.unload = function() {
   const pressure = new proto.ord.PressureConditions();
 
   const control = new proto.ord.PressureConditions.PressureControl();
@@ -77,7 +77,7 @@ ord.pressure.unload = function () {
   }
 
   const measurements = [];
-  $('.pressure_measurement').each(function (index, node) {
+  $('.pressure_measurement').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       const measurement = ord.pressure.unloadMeasurement(node);
@@ -91,7 +91,7 @@ ord.pressure.unload = function () {
   return pressure;
 };
 
-ord.pressure.unloadMeasurement = function (node) {
+ord.pressure.unloadMeasurement = function(node) {
   const measurement = new proto.ord.PressureConditions.Measurement();
   const type = getSelector($('.pressure_measurement_type', node));
   measurement.setType(type);
@@ -111,7 +111,7 @@ ord.pressure.unloadMeasurement = function (node) {
   return measurement;
 };
 
-ord.pressure.addMeasurement = function () {
+ord.pressure.addMeasurement = function() {
   return addSlowly('#pressure_measurement_template', '#pressure_measurements');
 };
 

@@ -165,12 +165,12 @@ message ReactionInput {
 }
 
 /**
- * Crude components are used in multi-step or multi-stage reactions (no strong 
+ * Crude components are used in multi-step or multi-stage reactions (no strong
  * distinction is made here) where one synthetic process must be described by
  * multiple "Reaction" messages. In these cases, we often carry the crude
  * product from one step/stage into the next. This message is only to be used
  * when there is not complete isolation of an intermediate molecule; if there
- * is complete isolation, then a regular Compound should be used with the 
+ * is complete isolation, then a regular Compound should be used with the
  * SYNTHESIED preparation type.
  */
 message CrudeComponent {
@@ -443,12 +443,12 @@ message ReactionSetup {
   map<string, Data> automation_code = 4;
   message ReactionEnvironment {
     enum ReactionEnvironmentType {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    FUME_HOOD = 2;
-    BENCH_TOP = 3;
-    GLOVE_BOX = 4;
-    GLOVE_BAG = 5;
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      FUME_HOOD = 2;
+      BENCH_TOP = 3;
+      GLOVE_BOX = 4;
+      GLOVE_BAG = 5;
     }
     ReactionEnvironmentType type = 1;
     // Specify environment details, e.g., "nitrogen-filled" for GLOVE_BOX.
@@ -492,7 +492,7 @@ message TemperatureConditions {
       LIQUID_NITROGEN = 11;
     }
     TemperatureControlType type = 1;
-    // Specify, e.g., ICE_BATH components (e.g., "ice water, salt"), 
+    // Specify, e.g., ICE_BATH components (e.g., "ice water, salt"),
     // MICROWAVE power, AIR_FAN speed, etc.
     string details = 2;
   }
@@ -672,7 +672,7 @@ message FlowConditions {
     }
     FlowTypeEnum type = 1;
     string details = 2;
-  }  
+  }
   FlowType flow_type = 1;
   string pump_type = 2;
   message Tubing {
@@ -735,7 +735,7 @@ message ReactionWorkup {
     // Change of temperature.
     // Specify conditions in "temperature".
     TEMPERATURE = 3;
-    // Concentration step, often using a rotovap. 
+    // Concentration step, often using a rotovap.
     // Specify degree in "details" if appropriate, e.g., "to half volume".
     CONCENTRATION = 4;
     // Liquid extractions are often preceded by Additions. If there
@@ -780,7 +780,7 @@ message ReactionWorkup {
     // Specify temperature in "temperature".
     // Specify pressure and apparatus notes in "details".
     DISTILLATION = 17;
-    }
+  }
   WorkupType type = 1;
   // Include step-specific details such as purpose of an addition, e.g.,
   // "crystallization". Include method details, e.g., "layer diffusion".
@@ -791,8 +791,8 @@ message ReactionWorkup {
   string keep_phase = 6;
   StirringConditions stirring = 7;
   optional float target_ph = 8;
-  // Indicate automated workup/purification. Include specifications in 
-  // "details", e.g., instrument manufacturer, solvent gradient 
+  // Indicate automated workup/purification. Include specifications in
+  // "details", e.g., instrument manufacturer, solvent gradient
   // (if applicable), column material and size, etc.
   optional bool is_automated = 10;
 }
@@ -803,7 +803,7 @@ message ReactionWorkup {
  * outcome is associated with a reaction/residence time. To allow for
  * one Reaction message to contain the results of a full kinetic profiling
  * experiment, this is a repeated field of the Reaction message.
- * 
+ *
  * It is the parent message for product characterization and any analytical
  * data.
  */

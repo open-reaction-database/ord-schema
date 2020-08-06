@@ -22,6 +22,7 @@ from ord_schema.visualization import generate_text
 
 
 class GenerateTextTest(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         self._resolver = units.UnitResolver()

@@ -32,6 +32,7 @@ from ord_schema.proto import reaction_pb2
 
 
 class ProcessDatasetTest(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         # Suppress RDKit warnings to clean up the test output.
@@ -123,9 +124,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         subprocess.run(
             ['git', 'config', '--local', 'user.email', 'test@ord-schema'],
             check=True)
-        subprocess.run(
-            ['git', 'config', '--local', 'user.name', 'Test Runner'],
-            check=True)
+        subprocess.run(['git', 'config', '--local', 'user.name', 'Test Runner'],
+                       check=True)
         # Add some initial data.
         reaction = reaction_pb2.Reaction()
         methylamine = reaction.inputs['methylamine']
@@ -286,8 +286,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = message_helpers.load_message(self.dataset_filename,
                                                dataset_pb2.Dataset)
         # Modify the existing reaction...
-        dataset.reactions[0].inputs['methylamine'].components[
-            0].moles.value = 2
+        dataset.reactions[0].inputs['methylamine'].components[0].moles.value = 2
         # ...and add a new reaction.
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs['ethylamine']
@@ -354,8 +353,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset1 = dataset_pb2.Dataset(reactions=[reaction])
         dataset1_filename = os.path.join(self.test_subdirectory, 'test1.pbtxt')
         message_helpers.write_message(dataset1, dataset1_filename)
-        reaction.inputs['ethylamine'].components[0].identifiers[
-            0].value = 'C#O'
+        reaction.inputs['ethylamine'].components[0].identifiers[0].value = 'C#O'
         dataset2 = dataset_pb2.Dataset(reactions=[reaction])
         dataset2_filename = os.path.join(self.test_subdirectory, 'test2.pbtxt')
         message_helpers.write_message(dataset2, dataset2_filename)
@@ -366,8 +364,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
     def test_modify_dataset_with_validation_errors(self):
         dataset = message_helpers.load_message(self.dataset_filename,
                                                dataset_pb2.Dataset)
-        dataset.reactions[0].inputs['methylamine'].components[
-            0].moles.value = (-2)
+        dataset.reactions[0].inputs['methylamine'].components[0].moles.value = (
+            -2)
         message_helpers.write_message(dataset, self.dataset_filename)
         with self.assertRaisesRegex(validations.ValidationError,
                                     'must be non-negative'):

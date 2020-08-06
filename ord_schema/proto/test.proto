@@ -18,57 +18,57 @@ syntax = "proto3";
 package ord_test;
 
 message Scalar {
-    int32 int32_value = 1;
-    int64 int64_value = 2;
-    optional float float_value = 3;
-    string string_value = 4;
-    bytes bytes_value = 5;
-    optional bool bool_value = 6;
+  int32 int32_value = 1;
+  int64 int64_value = 2;
+  optional float float_value = 3;
+  string string_value = 4;
+  bytes bytes_value = 5;
+  optional bool bool_value = 6;
 }
 
 message RepeatedScalar {
-    repeated float values = 1;
+  repeated float values = 1;
 }
 
 message Enum {
-    enum EnumValues {
-        UNSPECIFIED = 0;
-        FIRST = 1;
-        SECOND = 2;
-    }
-    EnumValues value = 1;
+  enum EnumValues {
+    UNSPECIFIED = 0;
+    FIRST = 1;
+    SECOND = 2;
+  }
+  EnumValues value = 1;
 }
 
 message RepeatedEnum {
-    enum EnumValues {
-        UNSPECIFIED = 0;
-        FIRST = 1;
-        SECOND = 2;
-    }
-    repeated EnumValues values = 1;
+  enum EnumValues {
+    UNSPECIFIED = 0;
+    FIRST = 1;
+    SECOND = 2;
+  }
+  repeated EnumValues values = 1;
 }
 
 message Nested {
-    message Child {
-        optional float value = 1;
-    }
-    Child child = 1;
+  message Child {
+    optional float value = 1;
+  }
+  Child child = 1;
 }
 
 message RepeatedNested {
-    message Child {
-        optional float value = 1;
-    }
-    repeated Child children = 1;
+  message Child {
+    optional float value = 1;
+  }
+  repeated Child children = 1;
 }
 
 message Map {
-    map<string, float> values = 1;
+  map<string, float> values = 1;
 }
 
 message MapNested {
-    message Child {
-        optional float value = 1;
-    }
-    map<string, Child> children = 1;
+  message Child {
+    optional float value = 1;
+  }
+  map<string, Child> children = 1;
 }

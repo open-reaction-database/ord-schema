@@ -22,6 +22,7 @@ from ord_schema.proto import test_pb2
 
 
 class GetDatabaseJsonTest(absltest.TestCase):
+
     def test_scalar(self):
         message = test_pb2.Scalar(int32_value=1,
                                   int64_value=2,

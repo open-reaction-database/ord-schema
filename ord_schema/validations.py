@@ -57,8 +57,7 @@ def validate_datasets(datasets, write_errors=False, validate_ids=False):
     # are errors.
     if all_errors:
         error_string = '\n'.join(all_errors)
-        raise ValidationError(
-            f'validation encountered errors:\n{error_string}')
+        raise ValidationError(f'validation encountered errors:\n{error_string}')
 
 
 def _validate_datasets(dataset, label='dataset', validate_ids=False):
@@ -137,7 +136,7 @@ def validate_message(message,
         ValidationError: If any fields are invalid.
     """
     if trace is None:
-        trace = (message.DESCRIPTOR.name, )
+        trace = (message.DESCRIPTOR.name,)
     errors = []
     # Recurse through submessages
     if recurse:
@@ -157,8 +156,7 @@ def validate_message(message,
         # require any message-level checks (not uncommon), then it should still
         # be listed in the dictionary switch above withpass. This will force
         # us to think about what is necessary if/when new messages are added.
-        raise NotImplementedError(
-            f"Don't know how to validate {type(message)}")
+        raise NotImplementedError(f"Don't know how to validate {type(message)}")
 
     with warnings.catch_warnings(record=True) as tape:
         if validate_ids and isinstance(
@@ -200,7 +198,7 @@ def _validate_message(field, value, errors, raise_on_error, validate_ids,
             if field.message_type.fields_by_name['value'].type == \
                     field.TYPE_MESSAGE:
                 for key, submessage in value.items():
-                    this_trace = trace + (f'{field.name}["{key}"]', )
+                    this_trace = trace + (f'{field.name}["{key}"]',)
                     errors.extend(
                         validate_message(submessage,
                                          raise_on_error=raise_on_error,
@@ -210,14 +208,14 @@ def _validate_message(field, value, errors, raise_on_error, validate_ids,
                 pass
         else:  # Just a repeated message
             for index, submessage in enumerate(value):
-                this_trace = trace + (f'{field.name}[{index}]', )
+                this_trace = trace + (f'{field.name}[{index}]',)
                 errors.extend(
                     validate_message(submessage,
                                      raise_on_error=raise_on_error,
                                      validate_ids=validate_ids,
                                      trace=this_trace))
     else:  # no recursion needed
-        this_trace = trace + (field.name, )
+        this_trace = trace + (field.name,)
         errors.extend(
             validate_message(value,
                              raise_on_error=raise_on_error,
@@ -242,12 +240,9 @@ def ensure_float_nonnegative(message, field):
             ' non-negative', ValidationError)
 
 
-def ensure_float_range(message,
-                       field,
-                       min_value=-math.inf,
-                       max_value=math.inf):
-    if (getattr(message, field) < min_value
-            or getattr(message, field) > max_value):
+def ensure_float_range(message, field, min_value=-math.inf, max_value=math.inf):
+    if (getattr(message, field) < min_value or
+            getattr(message, field) > max_value):
         warnings.warn(
             f'Field {field} of message '
             f'{type(message).DESCRIPTOR.name} must be between'
@@ -362,8 +357,7 @@ def validate_dataset(message, validate_id=False):
 
 def validate_dataset_example(message):
     if not message.description:
-        warnings.warn('DatasetExample.description is required',
-                      ValidationError)
+        warnings.warn('DatasetExample.description is required', ValidationError)
     if not message.url:
         warnings.warn('DatasetExample.url is required', ValidationError)
     if not message.HasField('created'):
@@ -377,14 +371,14 @@ def validate_reaction(message, validate_id=False):
     if len(message.outcomes) == 0:
         warnings.warn('Reactions should have at least 1 reaction outcome',
                       ValidationError)
-    if (reaction_needs_internal_standard(message)
-            and not reaction_has_internal_standard(message)):
+    if (reaction_needs_internal_standard(message) and
+            not reaction_has_internal_standard(message)):
         warnings.warn(
             'Reaction analysis uses an internal standard, but no '
             'component (as reaction input or workup) uses the '
             'reaction role INTERNAL_STANDARD', ValidationError)
-    if (any(outcome.HasField('conversion') for outcome in message.outcomes)
-            and not reaction_has_limiting_component(message)):
+    if (any(outcome.HasField('conversion') for outcome in message.outcomes) and
+            not reaction_has_limiting_component(message)):
         warnings.warn(
             'If reaction conversion is specified, at least one '
             'reaction input component must be labeled is_limiting',
@@ -427,9 +421,8 @@ def validate_crude_component(message):
         warnings.warn(
             'CrudeComponents with derived amounts cannot have their'
             ' mass or volume specified explicitly', ValidationError)
-    if ((not message.HasField('has_derived_amount')
-         or not message.has_derived_amount)
-            and not message.HasField('amount')):
+    if ((not message.HasField('has_derived_amount') or
+         not message.has_derived_amount) and not message.HasField('amount')):
         warnings.warn(
             'Crude components should either have a derived amount or'
             ' a specified mass or volume', ValidationError)
@@ -619,18 +612,18 @@ def validate_reaction_observation(message):
 
 def validate_reaction_workup(message):
     check_type_and_details(message)
-    if (message.type == reaction_pb2.ReactionWorkup.WAIT
-            and not message.duration.value):
+    if (message.type == reaction_pb2.ReactionWorkup.WAIT and
+            not message.duration.value):
         warnings.warn('"WAIT" workup steps require a defined duration',
                       ValidationError)
-    if (message.type == reaction_pb2.ReactionWorkup.TEMPERATURE
-            and not message.HasField('temperature')):
+    if (message.type == reaction_pb2.ReactionWorkup.TEMPERATURE and
+            not message.HasField('temperature')):
         warnings.warn(
             '"TEMPERATURE" workup steps require defined '
             'temperature conditions', ValidationError)
     if (message.type in (reaction_pb2.ReactionWorkup.EXTRACTION,
-                         reaction_pb2.ReactionWorkup.FILTRATION)
-            and not message.keep_phase):
+                         reaction_pb2.ReactionWorkup.FILTRATION) and
+            not message.keep_phase):
         warnings.warn(
             'Workup step EXTRACTION or FILTRATION missing '
             'required field keep_phase', ValidationError)
@@ -639,18 +632,17 @@ def validate_reaction_workup(message):
                          reaction_pb2.ReactionWorkup.DRY_WITH_MATERIAL,
                          reaction_pb2.ReactionWorkup.SCAVENGING,
                          reaction_pb2.ReactionWorkup.DISSOLUTION,
-                         reaction_pb2.ReactionWorkup.PH_ADJUST)
-            and not message.input.components):
+                         reaction_pb2.ReactionWorkup.PH_ADJUST) and
+            not message.input.components):
         warnings.warn('Workup step missing required inputs definition',
                       ValidationError)
-    if (message.type == reaction_pb2.ReactionWorkup.STIRRING
-            and not message.stirring):
+    if (message.type == reaction_pb2.ReactionWorkup.STIRRING and
+            not message.stirring):
         warnings.warn('Stirring workup step missing stirring definition',
                       ValidationError)
-    if (message.type == reaction_pb2.ReactionWorkup.PH_ADJUST
-            and not message.HasField('target_ph')):
-        warnings.warn('pH adjustment workup missing target pH',
-                      ValidationError)
+    if (message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and
+            not message.HasField('target_ph')):
+        warnings.warn('pH adjustment workup missing target pH', ValidationError)
 
 
 def validate_reaction_outcome(message):
@@ -685,10 +677,10 @@ def validate_reaction_outcome(message):
 
 def validate_reaction_product(message):
     # pylint: disable=too-many-boolean-expressions
-    if (message.compound.HasField('volume_includes_solutes')
-            or message.compound.HasField('is_limiting')
-            or message.compound.preparations or message.compound.vendor_source
-            or message.compound.vendor_id or message.compound.vendor_lot):
+    if (message.compound.HasField('volume_includes_solutes') or
+            message.compound.HasField('is_limiting') or
+            message.compound.preparations or message.compound.vendor_source or
+            message.compound.vendor_id or message.compound.vendor_lot):
         warnings.warn(
             'Compounds defined as reaction products should not have'
             ' any inapplicable fields defined.', ValidationError)
@@ -757,8 +749,7 @@ def validate_reaction_provenance(message):
 
 def validate_record_event(message):
     if not message.time.value:
-        warnings.warn('RecordEvent must have `time` specified',
-                      ValidationError)
+        warnings.warn('RecordEvent must have `time` specified', ValidationError)
     person = message.person
     if not (person.username or person.name or person.orcid):
         warnings.warn(
@@ -878,8 +869,7 @@ def validate_data(message):
         warnings.warn('Data requires one of {value, bytes_value, url}',
                       ValidationError)
     if message.bytes_value and not message.format:
-        warnings.warn('Data format is required for bytes_data',
-                      ValidationError)
+        warnings.warn('Data format is required for bytes_data', ValidationError)
 
 
 # pylint: enable=missing-function-docstring

@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,11 +18,11 @@ goog.provide('ord.features');
 
 goog.require('proto.ord.Compound.Feature');
 
-ord.features.load = function (node, features) {
+ord.features.load = function(node, features) {
   features.forEach(feature => ord.features.loadFeature(node, feature));
 };
 
-ord.features.loadFeature = function (compoundNode, feature) {
+ord.features.loadFeature = function(compoundNode, feature) {
   const node = ord.features.add(compoundNode);
   const name = feature.getName();
   $('.component_feature_name', node).text(name);
@@ -38,9 +38,9 @@ ord.features.loadFeature = function (compoundNode, feature) {
   $('.component_feature_how', node).text(how);
 };
 
-ord.features.unload = function (compoundNode) {
+ord.features.unload = function(compoundNode) {
   const features = [];
-  $('.component_feature', compoundNode).each(function (index, node) {
+  $('.component_feature', compoundNode).each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       const feature = ord.features.unloadFeature(node);
@@ -52,7 +52,7 @@ ord.features.unload = function (compoundNode) {
   return features;
 };
 
-ord.features.unloadFeature = function (node) {
+ord.features.unloadFeature = function(node) {
   const feature = new proto.ord.Compound.Feature();
   const name = $('.component_feature_name', node).text();
   feature.setName(name);
@@ -73,6 +73,6 @@ ord.features.unloadFeature = function (node) {
   return feature;
 };
 
-ord.features.add = function (compoundNode) {
+ord.features.add = function(compoundNode) {
   return addSlowly('#component_feature_template', $('.features', compoundNode));
 };

@@ -82,8 +82,7 @@ def build_compound(smiles=None,
         else:
             raise TypeError(f'unsupported units for amount: {amount_pb}')
     if role:
-        field = reaction_pb2.Compound.DESCRIPTOR.fields_by_name[
-            'reaction_role']
+        field = reaction_pb2.Compound.DESCRIPTOR.fields_by_name['reaction_role']
         values_dict = field.enum_type.values_by_name
         try:
             compound.reaction_role = values_dict[role.upper()].number
@@ -105,8 +104,8 @@ def build_compound(smiles=None,
             raise KeyError(
                 f'{prep} is not a supported type: {values_dict.keys()}')
         if (compound.preparations[0].type
-                == reaction_pb2.CompoundPreparation.CUSTOM
-                and not prep_details):
+                == reaction_pb2.CompoundPreparation.CUSTOM and
+                not prep_details):
             raise ValueError(
                 'prep_details must be provided when CUSTOM prep is used')
     if prep_details:
@@ -154,8 +153,7 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
         elif solvent.volume.units == solvent.volume.MICROLITER:
             volume_liter += solvent.volume.value * 1e-6
         else:
-            raise ValueError(
-                'solvent units not recognized by set_solute_moles')
+            raise ValueError('solvent units not recognized by set_solute_moles')
     # Get solute concentration in molar.
     resolver = units.UnitResolver(
         unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
@@ -247,8 +245,8 @@ def find_submessages(message, submessage_type):
         elif field.label == field.LABEL_REPEATED:
             # Standard repeated field.
             for submessage in value:
-                submessages.extend(
-                    find_submessages(submessage, submessage_type))
+                submessages.extend(find_submessages(submessage,
+                                                    submessage_type))
         else:
             submessages.extend(find_submessages(value, submessage_type))
     return submessages
@@ -310,13 +308,11 @@ def mol_from_compound(compound, return_identifier=False):
                 identifier.value)
             if not mol:
                 raise ValueError(
-                    f'invalid structural identifier for Compound: {identifier}'
-                )
+                    f'invalid structural identifier for Compound: {identifier}')
             if return_identifier:
                 return mol, identifier
             return mol
-    raise ValueError(
-        f'no valid structural identifier for Compound: {compound}')
+    raise ValueError(f'no valid structural identifier for Compound: {compound}')
 
 
 # pylint: enable=inconsistent-return-statements

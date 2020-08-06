@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -153,7 +153,7 @@ function unloadDataset() {
   dataset.setDescription($('#description').text());
   dataset.setDatasetId($('#dataset_id').text());
   const reactionIds = [];
-  $('.other_reaction_id').each(function (index, node) {
+  $('.other_reaction_id').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       reactionIds.push($('.other_reaction_id_text', node).text());
@@ -161,7 +161,7 @@ function unloadDataset() {
   });
   dataset.setReactionIdsList(reactionIds);
   const examples = [];
-  $('.example').each(function (index, node) {
+  $('.example').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       const example = unloadExample(node);

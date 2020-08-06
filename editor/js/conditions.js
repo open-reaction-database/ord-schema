@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,7 +24,7 @@ goog.require('ord.stirring');
 goog.require('ord.temperature');
 goog.require('proto.ord.ReactionConditions');
 
-ord.conditions.load = function (conditions) {
+ord.conditions.load = function(conditions) {
   const temperature = conditions.getTemperature();
   if (temperature) {
     ord.temperature.load(temperature);
@@ -55,12 +55,13 @@ ord.conditions.load = function (conditions) {
     $('#condition_ph').text(conditions.getPh());
   }
   const dynamic = conditions.hasConditionsAreDynamic() ?
-      conditions.getConditionsAreDynamic() : null;
+      conditions.getConditionsAreDynamic() :
+      null;
   setOptionalBool($('#condition_dynamic'), dynamic);
   $('#condition_details').text(conditions.getDetails());
 };
 
-ord.conditions.unload = function () {
+ord.conditions.unload = function() {
   const conditions = new proto.ord.ReactionConditions();
   const temperature = ord.temperature.unload();
   if (!isEmptyMessage(temperature)) {

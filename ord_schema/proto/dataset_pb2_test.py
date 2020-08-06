@@ -20,6 +20,7 @@ from ord_schema.proto import reaction_pb2
 
 
 class DatasetPb2Test(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         dataset = dataset_pb2.Dataset()

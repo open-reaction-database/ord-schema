@@ -20,6 +20,7 @@ from ord_schema.proto import test_pb2
 
 
 class BqSchemaTest(absltest.TestCase):
+
     def test_scalar(self):
         schema = bq_schema.get_schema(test_pb2.Scalar.DESCRIPTOR)
         expected = [
@@ -74,12 +75,9 @@ class BqSchemaTest(absltest.TestCase):
     def test_nested(self):
         schema = bq_schema.get_schema(test_pb2.Nested.DESCRIPTOR)
         expected = [{
-            'name':
-                'child',
-            'type':
-                'RECORD',
-            'mode':
-                'NULLABLE',
+            'name': 'child',
+            'type': 'RECORD',
+            'mode': 'NULLABLE',
             'fields': [{
                 'name': 'value',
                 'type': 'FLOAT64',
@@ -91,12 +89,9 @@ class BqSchemaTest(absltest.TestCase):
     def test_repeated_nested(self):
         schema = bq_schema.get_schema(test_pb2.RepeatedNested.DESCRIPTOR)
         expected = [{
-            'name':
-                'children',
-            'type':
-                'RECORD',
-            'mode':
-                'REPEATED',
+            'name': 'children',
+            'type': 'RECORD',
+            'mode': 'REPEATED',
             'fields': [{
                 'name': 'value',
                 'type': 'FLOAT64',
