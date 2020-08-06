@@ -97,9 +97,6 @@ function loadDataset(dataset) {
   const reactionIds = dataset.getReactionIdsList();
   loadReactionIds(reactionIds);
 
-  const examples = dataset.getExamplesList();
-  loadExamples(examples);
-
   clean();
 }
 
@@ -125,28 +122,6 @@ function loadReactionId(reactionId) {
   $('.other_reaction_id_text', node).text(reactionId);
 }
 
-function loadExamples(examples) {
-  examples.forEach(example => loadExample(example));
-}
-
-function loadExample(example) {
-  const node = addExample();
-  $('.example_url', node).text(example.getUrl());
-  $('.example_description', node).text(example.getDescription());
-  const created = example.getCreated();
-  if (created) {
-    $('.example_created_time', node).text(created.getTime().getValue());
-    $('.example_created_details', node).text(created.getDetails());
-    const person = created.getPerson();
-    if (person) {
-      $('.example_created_person_username', node).text(person.getUsername());
-      $('.example_created_person_name', node).text(person.getName());
-      $('.example_created_person_orcid', node).text(person.getOrcid());
-      $('.example_created_person_org', node).text(person.getOrganization());
-    }
-  }
-}
-
 function unloadDataset() {
   const dataset = session.dataset;
   dataset.setName($('#name').text());
@@ -160,48 +135,8 @@ function unloadDataset() {
     }
   });
   dataset.setReactionIdsList(reactionIds);
-  const examples = [];
-  $('.example').each(function(index, node) {
-    node = $(node);
-    if (!node.attr('id')) {
-      const example = unloadExample(node);
-      examples.push(example);
-    }
-  });
-  dataset.setExamplesList(examples);
   // Do not mutate Reactions. They are edited separately.
   return dataset;
-}
-
-function unloadExample(node) {
-  const example = new proto.ord.DatasetExample();
-  const url = $('.example_url', node).text();
-  example.setUrl(url);
-  const description = $('.example_description', node).text();
-  example.setDescription(description);
-
-  const created = new proto.ord.RecordEvent();
-  const timeValue = $('.example_created_time', node).text();
-  time = new proto.ord.DateTime();
-  time.setValue(timeValue);
-  created.setTime(time);
-  const details = $('.example_created_details', node).text();
-  created.setDetails(details);
-
-  const person = new proto.ord.Person();
-  const username = $('.example_created_person_username', node).text();
-  person.setUsername(username);
-  const name = $('.example_created_person_name', node).text();
-  person.setName(name);
-  const orcid = $('.example_created_person_orcid', node).text();
-  person.setOrcid(orcid);
-  const org = $('.example_created_person_org', node).text();
-  person.setOrganization(org);
-
-  created.setPerson(person);
-  example.setCreated(created);
-
-  return example;
 }
 
 function addReaction(index) {
@@ -229,17 +164,6 @@ function addReactionId() {
   return node;
 }
 
-function addExample() {
-  const node = $('#example_template').clone();
-  node.removeAttr('id');
-  const root = $('#examples');
-  root.append(node);
-  node.show('slow');
-  listenDirty(node);
-  dirty();
-  return node;
-}
-
 function newReaction() {
   // Load the Reaction editor immediately without waiting for "save".
   window.location.href = '/dataset/' + session.fileName + '/new/reaction';
@@ -255,10 +179,6 @@ function deleteReaction(button) {
 
 function removeReactionId(button) {
   removeSlowly(button, '.other_reaction_id');
-}
-
-function removeExample(button) {
-  removeSlowly(button, '.example');
 }
 
 function removeSlowly(button, pattern) {
