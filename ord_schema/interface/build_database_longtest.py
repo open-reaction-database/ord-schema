@@ -43,12 +43,15 @@ class BuildDatabaseTest(absltest.TestCase):
         cls._container = client.containers.run(
             'mcs07/postgres-rdkit',
             ports={'5432/tcp': _POSTGRES_PORT},
-            detach=True)
+            environment={'POSTGRES_PASSWORD': 'postgres'},
+            detach=True,
+            remove=True)
         while True:
             try:
-                psycopg2.connect(dbname='test',
-                                 host='localhost',
-                                 port=_POSTGRES_PORT)
+                psycopg2.connect(host='localhost', port=_POSTGRES_PORT,
+                                 user='postgres',
+                                 password='postgres')
+                break
             except psycopg2.OperationalError as error:
                 logging.info('waiting for database to be ready: %s', error)
                 time.sleep(1)
@@ -81,7 +84,9 @@ class BuildDatabaseTest(absltest.TestCase):
         input_pattern = os.path.join(self.test_subdirectory, '*.pbtxt')
         output_dir = os.path.join(self.test_subdirectory, 'tables')
         with flagsaver.flagsaver(input=input_pattern, output=output_dir,
-                                 database=True, port=_POSTGRES_PORT):
+                                 database='postgres', host='localhost',
+                                 port=_POSTGRES_PORT,
+                                 user='postgres', password='postgres'):
             build_database.main(())
         with open(os.path.join(output_dir, 'reactions.csv')) as f:
             df = pd.read_csv(f)
