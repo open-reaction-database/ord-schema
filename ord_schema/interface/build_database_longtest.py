@@ -15,19 +15,48 @@
 
 import os
 import tempfile
+import time
 
 from absl import flags
+from absl import logging
 from absl.testing import absltest
 from absl.testing import flagsaver
+import docker
 import pandas as pd
+import psycopg2
 
 from ord_schema import message_helpers
 from ord_schema.interface import build_database
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
+# Avoid conflicts with any existing PostgreSQL server.
+_POSTGRES_PORT = 5430
+
 
 class BuildDatabaseTest(absltest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        client = docker.from_env()
+        client.images.pull('mcs07/postgres-rdkit')
+        cls._container = client.containers.run(
+            'mcs07/postgres-rdkit',
+            ports={'5432/tcp': _POSTGRES_PORT},
+            detach=True)
+        while True:
+            try:
+                psycopg2.connect(dbname='test',
+                                 host='localhost',
+                                 port=_POSTGRES_PORT)
+            except psycopg2.OperationalError as error:
+                logging.info('waiting for database to be ready: %s', error)
+                time.sleep(1)
+                continue
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._container.stop()
 
     def setUp(self):
         super().setUp()
@@ -52,7 +81,7 @@ class BuildDatabaseTest(absltest.TestCase):
         input_pattern = os.path.join(self.test_subdirectory, '*.pbtxt')
         output_dir = os.path.join(self.test_subdirectory, 'tables')
         with flagsaver.flagsaver(input=input_pattern, output=output_dir,
-                                 database=True):
+                                 database=True, port=_POSTGRES_PORT):
             build_database.main(())
         with open(os.path.join(output_dir, 'reactions.csv')) as f:
             df = pd.read_csv(f)
