@@ -50,7 +50,7 @@ jobs:
     - name: Run clang-format
       run: |
         cd "${GITHUB_WORKSPACE}"
-        clang-format --version
+        clang-format-10 --version
         find . -name '*.js' -exec clang-format -i --style=file --verbose {} +
         find . -name '*.proto' -exec clang-format -i --style=file --verbose {} +
         ./actions/commit_changes.sh "Run clang-format"
