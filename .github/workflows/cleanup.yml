@@ -31,7 +31,7 @@ jobs:
         pip install protoc-wheel-0 yapf
         go get -v -u github.com/google/addlicense
         echo "::set-env name=GOBIN::${HOME}/go/bin"
-        sudo apt update && sudo apt install clang-format --yes
+        sudo apt update && sudo apt install clang-format-10 --yes
     - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
