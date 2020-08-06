@@ -331,7 +331,8 @@ function unloadReaction() {
 // Note: Unlike other primitive types, using a setter to set a oneof string
 // field to “” causes the message to include the field and “”, which would be
 // unwanted. So we instead claim that empty strings are empty messages. (Hence
-// we don’t set _any_ empty string) Note: In a submessage, setting a meaningful
+// we don’t set _any_ empty string.)
+// Note: In a submessage, setting a meaningful
 // value (e.g. optional float to 0) will result in a non-null/undefined value in
 // the submessage array. So, if the array of a submessage only contains null and
 // undefined vals, we can assume that the message is truly “empty” (that is,
@@ -453,7 +454,7 @@ function writeMetric(prefix, proto, node) {
 function setTextFromFile(identifierNode, valueClass) {
   var input = document.createElement('input');
   input.type = 'file';
-  input.onchange = event => {
+  input.onchange = (event => {
     var file = event.target.files[0];
     var reader = new FileReader();
     reader.readAsText(file);
@@ -461,7 +462,8 @@ function setTextFromFile(identifierNode, valueClass) {
       const contents = readerEvent.target.result;
       $('.' + valueClass, identifierNode).text(contents);
     }
-  } input.click();
+  });
+  input.click();
 }
 
 // Populate a <select/> node according to its data-proto type declaration.
@@ -497,10 +499,8 @@ function getSelector(node) {
 
 // Find the selected <option/> and return its text.
 function getSelectorText(node) {
-  const selectorElement =
-      node.getElementsByTagName('select')[0] return selectorElement
-          .options[selectorElement.selectedIndex]
-          .text;
+  const selectorElement = node.getElementsByTagName('select')[0];
+  return selectorElement.options[selectorElement.selectedIndex].text;
 }
 
 // Set up the three-way popup, "true"/"false"/"unspecified".
