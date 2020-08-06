@@ -51,7 +51,8 @@ class BuildDatabaseTest(absltest.TestCase):
     def test_main(self):
         input_pattern = os.path.join(self.test_subdirectory, '*.pbtxt')
         output_dir = os.path.join(self.test_subdirectory, 'tables')
-        with flagsaver.flagsaver(input=input_pattern, output=output_dir):
+        with flagsaver.flagsaver(input=input_pattern, output=output_dir,
+                                 database=True):
             build_database.main(())
         with open(os.path.join(output_dir, 'reactions.csv')) as f:
             df = pd.read_csv(f)
