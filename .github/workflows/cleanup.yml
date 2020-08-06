@@ -45,7 +45,7 @@ jobs:
     - name: Run YAPF
       run: |
         cd "${GITHUB_WORKSPACE}"
-        yapf -p -r . --exclude="*_pb2.py" --verbose --in-place --style=google
+        yapf -p -r . --exclude="*_pb2.py" --verbose --in-place
         ./actions/commit_changes.sh "Run YAPF"
     - name: Run clang-format
       run: |
