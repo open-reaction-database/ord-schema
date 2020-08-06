@@ -232,13 +232,13 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     def test_datetimes(self):
         message = reaction_pb2.ReactionProvenance()
-        message.experiment_start.value = '11 am'
-        message.record_created.time.value = '10 am'
+        message.experiment_start.value = '2020-01-02'
+        message.record_created.time.value = '2020-01-01'
         message.record_created.person.name = 'test'
         message.record_created.person.email = 'test@example.com'
         with self.assertRaisesRegex(validations.ValidationError, 'after'):
             self._run_validation(message)
-        message.record_created.time.value = '11:15 am'
+        message.record_created.time.value = '2020-01-03'
         self.assertEmpty(self._run_validation(message))
 
     def test_reaction_id(self):

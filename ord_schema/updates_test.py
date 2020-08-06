@@ -77,7 +77,7 @@ class UpdateReactionTest(absltest.TestCase):
     def test_keep_existing_reaction_id(self):
         message = reaction_pb2.Reaction()
         message.reaction_id = 'ord-c0bbd41f095a44a78b6221135961d809'
-        message.provenance.record_created.time.value = '11 am'
+        message.provenance.record_created.time.value = '2020-01-01'
         updates.update_reaction(message)
         self.assertEqual(message.reaction_id,
                          'ord-c0bbd41f095a44a78b6221135961d809')

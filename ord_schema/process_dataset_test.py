@@ -48,7 +48,7 @@ class ProcessDatasetTest(absltest.TestCase):
         dummy_component.mass.value = 1
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
         reaction1.outcomes.add().conversion.value = 75
-        reaction1.provenance.record_created.time.value = '11 am'
+        reaction1.provenance.record_created.time.value = '2020-01-01'
         reaction1.provenance.record_created.person.username = 'test'
         reaction1.provenance.record_created.person.email = 'test@example.com'
         dataset1 = dataset_pb2.Dataset(reactions=[reaction1])
@@ -263,7 +263,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         reaction.outcomes.add().conversion.value = 25
         reaction_id = 'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'
         reaction.reaction_id = reaction_id
-        reaction.provenance.record_created.time.value = '2020-01-01 11 am'
+        reaction.provenance.record_created.time.value = '2020-01-01'
         reaction.provenance.record_created.person.username = 'test'
         reaction.provenance.record_created.person.email = 'test@example.com'
         dataset = dataset_pb2.Dataset(reactions=[reaction])
