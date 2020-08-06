@@ -331,7 +331,8 @@ function unloadReaction() {
 // Note: Unlike other primitive types, using a setter to set a oneof string
 // field to “” causes the message to include the field and “”, which would be
 // unwanted. So we instead claim that empty strings are empty messages. (Hence
-// we don’t set _any_ empty string) Note: In a submessage, setting a meaningful
+// we don’t set _any_ empty string.)
+// Note: In a submessage, setting a meaningful
 // value (e.g. optional float to 0) will result in a non-null/undefined value in
 // the submessage array. So, if the array of a submessage only contains null and
 // undefined vals, we can assume that the message is truly “empty” (that is,
