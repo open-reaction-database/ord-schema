@@ -274,10 +274,10 @@ message CompoundPreparation {
   enum PreparationType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
-    NONE = 2;        // Compound used as received.
-    REPURIFIED = 3;  // Compound repurified (e.g., recrystallized).
-    SPARGED = 4;  // Compound sparged, most likely to be the case with solvents.
-    DRIED = 5;    // Moisture removed, e.g., using molecular sieves.
+    NONE = 2;         // Compound used as received.
+    REPURIFIED = 3;   // Compound repurified (e.g., recrystallized).
+    SPARGED = 4;      // Compound sparged, most likely to be the case with solvents.
+    DRIED = 5;        // Moisture removed, e.g., using molecular sieves.
     SYNTHESIZED = 6;  // Compound synthesized in-house.
   }
   PreparationType type = 1;
