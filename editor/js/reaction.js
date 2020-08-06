@@ -453,7 +453,7 @@ function writeMetric(prefix, proto, node) {
 function setTextFromFile(identifierNode, valueClass) {
   var input = document.createElement('input');
   input.type = 'file';
-  input.onchange = event => {
+  input.onchange = (event => {
     var file = event.target.files[0];
     var reader = new FileReader();
     reader.readAsText(file);
@@ -461,7 +461,8 @@ function setTextFromFile(identifierNode, valueClass) {
       const contents = readerEvent.target.result;
       $('.' + valueClass, identifierNode).text(contents);
     }
-  } input.click();
+  });
+  input.click();
 }
 
 // Populate a <select/> node according to its data-proto type declaration.
@@ -497,10 +498,8 @@ function getSelector(node) {
 
 // Find the selected <option/> and return its text.
 function getSelectorText(node) {
-  const selectorElement =
-      node.getElementsByTagName('select')[0] return selectorElement
-          .options[selectorElement.selectedIndex]
-          .text;
+  const selectorElement = node.getElementsByTagName('select')[0];
+  return selectorElement.options[selectorElement.selectedIndex].text;
 }
 
 // Set up the three-way popup, "true"/"false"/"unspecified".
