@@ -17,6 +17,7 @@ import binascii
 
 from absl import logging
 import psycopg2
+from psycopg2 import sql
 
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
@@ -72,19 +73,29 @@ class OrdPostgres:
             column = 'r'
         else:
             column = 'm'
-        do_chiral_sss = 'true' if use_stereochemistry else 'false'
-        query = f"""
+        components = [
+            sql.SQL("""
             SELECT DISTINCT A.reaction_id, A.serialized 
             FROM reactions A 
-            INNER JOIN {table} B ON A.reaction_id = B.reaction_id
-            WHERE B.{column}@>'{pattern}'{'::qmol' if use_smarts else ''}
-            {f'LIMIT {limit}' if limit else ''};"""
-        logging.info(query)
+            INNER JOIN {} B ON A.reaction_id = B.reaction_id
+            WHERE B.{}@>%s""").format(sql.Identifier(*table.split('.')),
+                                      sql.Identifier(column))
+        ]
+        args = [pattern]
+        if use_smarts:
+            components.append(sql.SQL('::qmol'))
+        if limit:
+            components.append(sql.SQL(' LIMIT %s'))
+            args.append(limit)
+        command = sql.Composed(components).join('')
         with self._connection, self.cursor() as cursor:
+            logging.info(command.as_string(cursor))
+            do_chiral_sss = 'true' if use_stereochemistry else 'false'
             # NOTE(kearnes): We call rollback() to reset this change before
             # exiting the context manager (which triggers a commit).
-            cursor.execute(f'SET rdkit.do_chiral_sss={do_chiral_sss};')
-            cursor.execute(query)
+            cursor.execute(sql.SQL('SET rdkit.do_chiral_sss=%s'),
+                           [do_chiral_sss])
+            cursor.execute(command, args)
             reactions = []
             for result in cursor:
                 _, serialized = result
@@ -112,18 +123,27 @@ class OrdPostgres:
         else:
             column = 'mfp2'
             function = 'morganbv_fp'
-        query = f"""
-            SELECT DISTINCT A.reaction_id, A.serialized 
-            FROM reactions A 
-            INNER JOIN {table} B ON A.reaction_id = B.reaction_id
-            WHERE B.{column}%{function}('{smiles}')
-            {f'LIMIT {limit}' if limit else ''};"""
-        logging.info(query)
+        components = [
+            sql.SQL("""
+                    SELECT DISTINCT A.reaction_id, A.serialized 
+                    FROM reactions A 
+                    INNER JOIN {} B ON A.reaction_id = B.reaction_id
+                    WHERE B.{}%%{}(%s)""").format(
+                sql.Identifier(*table.split('.')), sql.Identifier(column),
+                sql.Identifier(function))
+        ]
+        args = [smiles]
+        if limit:
+            components.append(sql.SQL(' LIMIT %s'))
+            args.append(limit)
+        command = sql.Composed(components).join('')
         with self._connection, self.cursor() as cursor:
+            logging.info(command.as_string(cursor))
             # NOTE(kearnes): We call rollback() to reset this change before
             # exiting the context manager (which triggers a commit).
-            cursor.execute(f'SET rdkit.tanimoto_threshold={threshold};')
-            cursor.execute(query)
+            cursor.execute(sql.SQL('SET rdkit.tanimoto_threshold=%s'),
+                           [threshold])
+            cursor.execute(command, args)
             reactions = []
             for result in cursor:
                 _, serialized = result
