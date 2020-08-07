@@ -14,6 +14,8 @@
 """Library for executing PostgreSQL queries on the ORD."""
 
 import binascii
+import enum
+import json
 
 from absl import logging
 import psycopg2
@@ -23,6 +25,155 @@ from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 # pylint: disable=too-many-locals
+
+
+class Predicate:
+    """Structure and code generation for ORD query predicates."""
+
+    class MatchMode(enum.Enum):
+        """Interpretations for SMILES and SMARTS strings."""
+        EXACT = 1
+        SIMILAR = 2
+        SUBSTRUCTURE = 3
+        SMARTS = 4
+
+        @classmethod
+        def from_name(cls, name):
+            """Take a matching criterion from a URL param."""
+            return Predicate.MatchMode[name.upper()]
+
+    def __init__(self):
+        # List of pairs, (SMILES/SMARTS, MatchMode).
+        self.inputs = []
+        # A pair, (SMILES/SMARTS, MatchMode).
+        self.output = None
+        # A "reaction" SMILES (RDKit fingerprint string).
+        self.reaction_smiles = None
+        # PK strings, "ord-<hex>".
+        self.reaction_ids = []
+        # Threshold for similarity matching.
+        self.tanimoto_threshold = 0.4
+        # Whether to consider stereochemistry.
+        self.do_chiral_ss = False
+
+    def add_input(self, pattern, match_mode):
+        self.inputs.append((pattern, match_mode))
+
+    def set_output(self, pattern, match_mode):
+        self.output = (pattern, match_mode)
+
+    def add_reaction_id(self, reaction_id):
+        self.reaction_ids.append(reaction_id)
+
+    def set_reaction_smiles(self, reaction_smiles):
+        self.reaction_smiles = reaction_smiles
+
+    def set_tanimoto_threshold(self, threshold):
+        self.tanimoto_threshold = threshold
+
+    def use_stereochemistry(self):
+        self.do_chiral_ss = True
+
+    def _inputs_predicate(self):
+        exprs = []
+        for pattern, mode in self.inputs:
+            if mode == Predicate.MatchMode.EXACT:
+                expr = f"inputs.smiles = '{pattern}'"
+            elif mode == Predicate.MatchMode.SIMILAR:
+                expr = f"rdki.mfp2%morganbv_fp('{pattern}')"
+            elif mode == Predicate.MatchMode.SUBSTRUCTURE:
+                expr = f"rdki.m@>'{pattern}'"
+            elif mode == Predicate.MatchMode.SMARTS:
+                expr = f"rdki.m@>'{pattern}'::qmol"
+            exprs.append(expr)
+        return ' AND '.join(exprs) or 'TRUE'
+
+    def _output_predicate(self):
+        exprs = []
+        if self.output is not None:
+            pattern, mode = self.output
+            if mode == Predicate.MatchMode.EXACT:
+                expr = f"outputs.smiles = '{pattern}'"
+            elif mode == Predicate.MatchMode.SIMILAR:
+                expr = f"rdko.mfp2%morganbv_fp('{pattern}')"
+            elif mode == Predicate.MatchMode.SUBSTRUCTURE:
+                expr = f"rdko.m@>'{pattern}'"
+            elif mode == Predicate.MatchMode.SMARTS:
+                expr = f"rdko.m@>'{pattern}'::qmol"
+            exprs.append(expr)
+        return ' AND '.join(exprs) or 'TRUE'
+
+    def _reactions_predicate(self):
+        exprs = []
+        if len(self.reaction_ids) > 0:
+            clauses = []
+            for reaction_id in self.reaction_ids:
+                clauses.append(f"reactions.reaction_id='{reaction_id}'")
+            expr = ' OR '.join(clauses)
+            exprs.append(f'({expr})')
+        if self.reaction_smiles is not None:
+            # TODO(kearnes): Correctly express RDKit fingerprint queries.
+            expr = f"reactions.reaction_smiles='{self.reaction_smiles}'"
+            exprs.append(expr)
+        return ' AND '.join(exprs) or 'TRUE'
+
+    def query(self):
+        return f"""
+            SET rdkit.do_chiral_ss={self.do_chiral_ss};
+            SET rdkit.tanimoto_threshold={self.tanimoto_threshold};
+
+            SELECT DISTINCT reactions.serialized
+            FROM reactions
+            INNER JOIN inputs ON inputs.reaction_id = reactions.reaction_id
+            INNER JOIN outputs ON outputs.reaction_id = reactions.reaction_id
+            INNER JOIN rdk.inputs rdki ON rdki.reaction_id = reactions.reaction_id
+            INNER JOIN rdk.outputs rdko ON rdko.reaction_id = reactions.reaction_id
+            WHERE
+                {self._inputs_predicate()}
+                AND {self._output_predicate()}
+                AND {self._reactions_predicate()}
+            LIMIT 100;
+        """
+
+    def query_ids(self):
+        return f"""
+            SET rdkit.do_chiral_ss={self.do_chiral_ss};
+            SET rdkit.tanimoto_threshold={self.tanimoto_threshold};
+
+            SELECT DISTINCT reactions.reaction_id
+            FROM reactions
+            INNER JOIN inputs ON inputs.reaction_id = reactions.reaction_id
+            INNER JOIN outputs ON outputs.reaction_id = reactions.reaction_id
+            INNER JOIN rdk.inputs rdki ON rdki.reaction_id = reactions.reaction_id
+            INNER JOIN rdk.outputs rdko ON rdko.reaction_id = reactions.reaction_id
+            WHERE
+                {self._inputs_predicate()}
+                AND {self._output_predicate()}
+                AND {self._reactions_predicate()}
+            LIMIT 100;
+        """
+
+    def json(self):
+        predicate = {}
+        if self.inputs:
+            inputs = []
+            for input in self.inputs:
+                inputs.append({
+                    'smiles': input[0],
+                    'matchMode': input[1].name.lower()
+                })
+            predicate['inputs'] = inputs
+        if self.output:
+            predicate['output'] = {
+                'smiles': self.output[0],
+                'matchMode': self.output[1].name.lower()
+            }
+        predicate['similarity'] = self.tanimoto_threshold
+        if len(self.reaction_ids) > 0:
+            predicate['reactionIds'] = self.reaction_ids
+        if self.reaction_smiles:
+            predicate['reactionSmiles'] = self.reaction_smiles
+        return json.dumps(predicate)
 
 
 class OrdPostgres:
@@ -47,6 +198,47 @@ class OrdPostgres:
 
     def cursor(self):
         return self._connection.cursor()
+
+    def predicate_search(self, predicate):
+        """Return the Dataset matching the given Reaction constraints.
+
+        Args:
+            predicate: A Predicate defining patterns to match.
+
+        Returns:
+            A Dataset proto containing the matched Reactions.
+        """
+        query = predicate.query()
+        print(query)
+        logging.info(query)
+        reactions = []
+        with self._connection, self.cursor() as cursor:
+            cursor.execute(query)
+            for row in cursor:
+                serialized = row[0]
+                reaction = reaction_pb2.Reaction.FromString(
+                    binascii.unhexlify(serialized.tobytes()))
+                reactions.append(reaction)
+            self._connection.rollback()  # Revert rdkit runtime configuration.
+        return dataset_pb2.Dataset(reactions=reactions)
+
+    def predicate_search_ids(self, predicate):
+        """Return the Reaction IDs matching the given Reaction constraints.
+
+        Args:
+            predicate: A Predicate defining patterns to match.
+
+        Returns:
+            A list of string IDs like "ord-<hex>".
+        """
+        query = predicate.query_ids()
+        print(query)
+        logging.info(query)
+        with self._connection, self.cursor() as cursor:
+            cursor.execute(query)
+            reaction_ids = [row[0] for row in cursor]
+            self._connection.rollback()  # Revert rdkit runtime configuration.
+        return reaction_ids
 
     def substructure_search(self,
                             pattern,
