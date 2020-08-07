@@ -102,6 +102,9 @@
         width: 200px;
       }
       .tab {
+        padding: 2px 4px;
+        margin: 2px;
+        border-radius: 8px;
         cursor:pointer;
       }
       .tab:hover {
@@ -189,6 +192,22 @@
           $('#proto pre').text(xhr.response);
         };
         xhr.send();
+      }
+      
+      // Inputs, output, similarity.
+      function showReagentsTab() {
+        $('#reagents').show();
+        $('#reactions').hide();
+        $('.tab').css('background-color', '');
+        $('#reagentsTab').css('background-color', 'lightblue');
+      }
+      
+      // Reaction IDs, reaction SMILES.
+      function showReactionsTab() {
+        $('#reactions').show();
+        $('#reagents').hide();
+        $('.tab').css('background-color', '');
+        $('#reactionsTab').css('background-color', 'lightblue');
       }
 
       // Add an input field, for "+ input" button (and initialization).
@@ -340,22 +359,6 @@
         window.location.href = path;
       });
 
-      // Hook up the tab that shows reagent input fields.
-      $('#reagentsTab').click(() => {
-        $('#reagents').show();
-        $('#reactions').hide();
-        $('.tab').css('background-color', '');
-        $('#reagentsTab').css('background-color', 'lightblue');
-      });
-
-      // Hook up the tab that shows reaction input fields.
-      $('#reactionsTab').click(() => {
-        $('#reagents').hide();
-        $('#reactions').show();
-        $('.tab').css('background-color', '');
-        $('#reactionsTab').css('background-color', 'lightblue');
-      });
-
       // Initialize the similarity slider.
       similarity = $('#similarity').slider({min: 0, max: 100});
       similarity.on('slidechange', () => {
@@ -363,11 +366,22 @@
         $('#similarityText').text((value / 100).toFixed(2));
       });
 
+      // Hook up the tabs.
+      $('#reagentsTab').click(() => {
+        showReagentsTab()
+      });
+      $('#reactionsTab').click(() => {
+        showReactionsTab();
+      });
+
       importPredicate();
 
-      // TODO: Initialize the tab appropriate to the current predicate.
-      // TODO: Space out the tab headers and round their corners.
-      // TODO: Add unit tests for Predicate queries.
+      // Show the tab appropriate to the current predicate.
+      if (predicate.reactionIds || predicate.reactionSmiles) {
+        showReactionsTab();
+      } else {
+        showReagentsTab();
+      }
     </script>
   </body>
 </html>
