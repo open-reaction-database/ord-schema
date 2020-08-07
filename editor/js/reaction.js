@@ -438,6 +438,9 @@ function readMetric(prefix, proto, node) {
 
 // Pack a value/units/precision triple into the elements specified.
 function writeMetric(prefix, proto, node) {
+  if (!(proto)) {
+    return;
+  }
   if (proto.hasValue()) {
     $(prefix + '_value', node).text(proto.getValue());
   }

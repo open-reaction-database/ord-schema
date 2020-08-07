@@ -64,6 +64,7 @@ ord.provenance.loadPerson = function(node, person) {
   $('.provenance_name', node).text(person.getName());
   $('.provenance_orcid', node).text(person.getOrcid());
   $('.provenance_organization', node).text(person.getOrganization());
+  $('.provenance_email', node).text(person.getEmail());
 };
 
 ord.provenance.unload = function() {
@@ -130,6 +131,7 @@ ord.provenance.unloadPerson = function(node) {
   person.setName($('.provenance_name', node).text());
   person.setOrcid($('.provenance_orcid', node).text());
   person.setOrganization($('.provenance_organization', node).text());
+  person.setEmail($('.provenance_email', node).text());
   return person;
 };
 
