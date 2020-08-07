@@ -386,10 +386,30 @@ ord.compounds.addPreparation = function(node) {
   return PreparationNode
 };
 
+// Update the image tag with a drawing of this component.
+ord.compounds.renderCompound = function(node, compound) {
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/render/compound');
+  const binary = compound.serializeBinary();
+  xhr.responseType = 'json';
+  xhr.onload = function() {
+    const png_data = xhr.response;
+    if (png_data) {
+      $('.component_rendering', node)[0].src = 'data:image/png;base64,' + png_data;
+    };
+  };
+  xhr.send(binary);
+};
+
 ord.compounds.validateCompound = function(node, validateNode) {
   const compound = ord.compounds.unloadCompound(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(compound, 'Compound', validateNode);
+
+  // Try to resolve compound structural identifiers. This is tied to
+  // validation so the same trigger is used and we only have to unload the
+  // compound once per update.
+  ord.compounds.renderCompound(node, compound);
 };
