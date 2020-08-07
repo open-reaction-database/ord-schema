@@ -341,8 +341,8 @@ def resolve_compound(identifier_type):
 
 @app.route('/render/compound', methods=['POST'])
 def render_compound():
-    """Receives a serialized Compound message and returns an img tag
-    with a line drawing of the molecule."""
+    """Receives a serialized Compound message and returns base64-encoded png
+    data corresponding to a line drawing of the molecule."""
     compound = reaction_pb2.Compound()
     compound.ParseFromString(flask.request.get_data())
     try:
