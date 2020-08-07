@@ -68,15 +68,17 @@ def show_root():
     If there are query params, then the query is executed and the form is
     populated with the results. The form fields are populated with the params.
     """
-    reaction_id = flask.request.args.get('reaction_id')
+    reaction_ids = flask.request.args.get('reaction_ids')
     reaction_smiles = flask.request.args.get('reaction_smiles')
     inputs = flask.request.args.getlist("input")
     output = flask.request.args.get('output')
+    similarity = flask.request.args.get('similarity')
 
     predicate = query.Predicate()
 
-    if reaction_id is not None:
-        predicate.set_reaction_id(reaction_id)
+    if reaction_ids is not None:
+        for reaction_id in reaction_ids.split(','):
+            predicate.add_reaction_id(reaction_id)
 
     if reaction_smiles is not None:
         predicate.set_reaction_smiles(reaction_smiles)
@@ -91,7 +93,10 @@ def show_root():
         mode = query.Predicate.MatchMode.from_name(mode_name)
         predicate.set_output(smiles, mode)
 
-    if reaction_id or reaction_smiles or inputs or output:
+    if similarity is not None:
+        predicate.set_tanimoto_threshold(float(similarity))
+
+    if reaction_ids or reaction_smiles or inputs or output:
         db = query.OrdPostgres(host='localhost', port=5432)
         reaction_ids = db.predicate_search_ids(predicate)
     else:
@@ -105,7 +110,7 @@ def show_root():
 def show_id(reaction_id):
     """Returns the pbtxt of a single reaction as plain text."""
     predicate = query.Predicate()
-    predicate.set_reaction_id(reaction_id)
+    predicate.add_reaction_id(reaction_id)
     db = query.OrdPostgres(host='localhost', port=5432)
     dataset = db.predicate_search(predicate)
     if len(dataset.reactions) == 0:

@@ -45,10 +45,10 @@ class Predicate:
         self.output = None
         # A "reaction" SMILES (RDKit fingerprint string).
         self.reaction_smiles = None
-        # A PK string, "ord-<hex>".
-        self.reaction_id = None
+        # PK strings, "ord-<hex>".
+        self.reaction_ids = []
         # Threshold for similarity matching.
-        self.tanimoto_threshold = 0.5
+        self.tanimoto_threshold = 0.4
         # Whether to consider stereochemistry.
         self.do_chiral_ss = False
 
@@ -58,8 +58,8 @@ class Predicate:
     def set_output(self, pattern, match_mode):
         self.output = (pattern, match_mode)
 
-    def set_reaction_id(self, reaction_id):
-        self.reaction_id = reaction_id
+    def add_reaction_id(self, reaction_id):
+        self.reaction_ids.append(reaction_id)
 
     def set_reaction_smiles(self, reaction_smiles):
         self.reaction_smiles = reaction_smiles
@@ -101,9 +101,12 @@ class Predicate:
 
     def _reactions_predicate(self):
         exprs = []
-        if self.reaction_id is not None:
-            expr = f"reactions.reaction_id='{self.reaction_id}'"
-            exprs.append(expr)
+        if len(self.reaction_ids) > 0:
+            clauses = []
+            for reaction_id in self.reaction_ids:
+                clauses.append(f"reactions.reaction_id='{reaction_id}'")
+            expr = ' OR '.join(clauses)
+            exprs.append(f'({expr})')
         if self.reaction_smiles is not None:
             # TODO(kearnes): Correctly express RDKit fingerprint queries.
             expr = f"reactions.reaction_smiles='{self.reaction_smiles}'"
@@ -161,8 +164,9 @@ class Predicate:
                 'smiles': self.output[0],
                 'matchMode': self.output[1].name.lower()
             }
-        if self.reaction_id:
-            predicate['reactionId'] = self.reaction_id
+        predicate['similarity'] = self.tanimoto_threshold
+        if len(self.reaction_ids) > 0:
+            predicate['reactionIds'] = self.reaction_ids
         if self.reaction_smiles:
             predicate['reactionSmiles'] = self.reaction_smiles
         return json.dumps(predicate)

@@ -18,6 +18,8 @@
   <head>
     <meta charset="utf-8">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
     <style>
       body {
         padding: 48px;
@@ -28,15 +30,37 @@
       #form {
         grid-column: form;
         display: grid;
+        grid-template-rows: [tabs] 60px [controls] auto [go] 40px [spacer] 1fr;
+        justify-content: center;
+      }
+      #tabs {
+        display: grid;
+        grid-row: tabs;
+        grid-template-columns: auto auto;
+        height: 18px;
+        margin: 0 auto;
+      }
+      #reagents {
+        display: grid;
+        grid-row: controls;
+        grid-row-gap: 18px;
+        grid-column-gap: 18px;
         grid-template-columns: [labels] 120px [text] 220px [match] 96px [add] 100px;
-        grid-gap: 24px;
-        height: 225px;
+        align-items: center;
+      }
+      #reactions {
+        display: grid;
+        grid-row: controls;
+        grid-row-gap: 18px;
+        grid-column-gap: 18px;
+        grid-template-columns: [labels] 120px [text] 220px;
+        align-items: center;
       }
       .label {
         grid-column: labels;
         text-align: right;
       }
-      .edittext {
+      .edittext, #similarity {
         grid-column: text;
       }
       select {
@@ -45,8 +69,15 @@
       #add_input {
         grid-column: add;
       }
+      #similarity {
+        grid-column: text;
+      }
       #go {
-        grid-column: 2;
+        grid-row: go;
+        margin: 18px auto;
+      }
+      #spacer {
+        grid-row: spacer;
       }
       #results {
         grid-column: results;
@@ -70,30 +101,54 @@
         padding: 2px;
         width: 200px;
       }
+      .tab {
+        cursor:pointer;
+      }
+      .tab:hover {
+        background-color: lightblue;
+      }
     </style>
   </head>
   <body>
     <div id="form">
 
-      <a href="#" id="add_input">+ input</a>
+      <div id="tabs">
+        <div id="reagentsTab" class="tab">Reagents</div>
+        <div id="reactionsTab" class="tab">Reactions</div>
+      </div>
 
-      <span class="label">output</span>
-      <div class="output edittext"></div>
-      <select class="output">
-        <option value="exact">exact</option>
-        <option value="similar">similar</option>
-        <option value="substructure">substructure</option>
-        <option value="smarts">smarts</option>
-      </select>
+      <div id="reagents">
+        <a href="#" id="add_input">+ input</a>
 
-      <span class="label">reaction ID</span>
-      <div id="reaction_id" class="edittext"></div>
+        <span class="label">output</span>
+        <div class="output edittext"></div>
+        <select class="output">
+          <option value="exact">exact</option>
+          <option value="similar">similar</option>
+          <option value="substructure">substructure</option>
+          <option value="smarts">smarts</option>
+        </select>
 
-      <span class="label">reaction SMILES</span>
-      <div id="reaction_smiles" class="edittext"></div>
+        <div></div> <!-- Blank grid cell to the right of the output. -->
+
+        <span class="label">similarity</span>
+        <div id="similarity"></div>
+        <span id="similarityText"></span>
+      </div>
+
+      <div id="reactions" style="display: none;">
+        <span class="label">reaction IDs</span>
+        <div id="reaction_ids" class="edittext"></div>
+
+        <span class="label">reaction SMILES</span>
+        <div id="reaction_smiles" class="edittext"></div>
+      </div>
 
       <div id="go">
         <button>go</button>
+      </div>
+
+      <div id="spacer">
       </div>
 
     </div>
@@ -126,7 +181,7 @@
 
     <script>
 
-      // Handle hover on a result ID to display its pbtxt.
+      // Respond to mouseover on a result to display its pbtxt.
       function updateProto(reactionId) {
         const xhr = new XMLHttpRequest();
         xhr.open('GET', '/id/' + reactionId);
@@ -136,7 +191,7 @@
         xhr.send();
       }
 
-      // Add an input field, for initialization and the "+ input" button.
+      // Add an input field, for "+ input" button (and initialization).
       function addInput() {
         const input = $('#input_template').clone();
         const anchor = $('#add_input');
@@ -147,19 +202,30 @@
         return anchor.prev().prev();
       }
 
-      // Clean the text from an .edittext div.
+      // Get the text from an .edittext div.
       function getText(node) {
         return node.text().trim();
       }
 
-      // Get the selected matching option for a text field.
+      // Get the matching option for a text field.
       function getMatchMode(node) {
         return $('option:selected', node.next()).text()
       }
 
-      // Build a URL path from the current query controls.
+      // Get the current value of the similarity slider.
+      function getSimilarity() {
+        return $('#similarity').slider('option', 'value');
+      }
+
+      // Set the value of the similarity slider.
+      function setSimilarity(similarity) {
+        $('#similarity').slider({min: 0, max: 100, value: 100 * similarity});
+      }
+
+      // Read back the user inputs and build a query URL.
       function exportPredicate() {
         let path = '/?'
+        let hasReagent = false;
 
         // Inputs.
         const inputs = $('.input.edittext');
@@ -174,6 +240,7 @@
             const matchMode = getMatchMode(input);
             path += 'input=' + encodeURIComponent(inputText) + ';' + matchMode + '&';
           }
+          hasReagent = true;
         });
         // Output.
         const output = $('.output.edittext');
@@ -181,12 +248,23 @@
         if (outputText) {
           const matchMode = getMatchMode(output);
           path += 'output=' + encodeURIComponent(outputText) + ';' + matchMode + '&';
+          hasReagent = true;
         }
-        // Reaction ID.
-        const reactionId = $('#reaction_id');
-        const reactionIdText = getText(reactionId);
-        if (reactionIdText) {
-          path += 'reaction_id=' + encodeURIComponent(reactionIdText) + '&';
+        // Similarity threshold.
+        if (hasReagent) {
+          const similarity = getSimilarity();
+          path += 'similarity=' + encodeURIComponent(similarity / 100) + '&';
+        }
+        // Reaction IDs.
+        const reactionsNode = $('#reaction_ids');
+        const reactionIdsText = reactionsNode.html();
+        const matches = reactionIdsText.matchAll(/(ord-[0-9a-f]+)/g);
+        const reactionIds = [];
+        for (const match of matches) {
+          reactionIds.push(match[0]);
+        }
+        if (reactionIds.length > 0) {
+          path += 'reaction_ids=' + encodeURIComponent(reactionIds.join(',')) + '&';
         }
         // Reaction SMILES.
         const reactionSmiles = $('#reaction_smiles');
@@ -200,9 +278,9 @@
         return path;
       }
 
-      // Initialize the query contols from the templated predicate.
+      // Initialize the user inputs from the current predicate.
       function importPredicate() {
-        const predicate = JSON.parse('{{ predicate|safe }}')
+        predicate = JSON.parse('{{ predicate|safe }}')
 
         // Inputs.
         if (predicate.inputs && (predicate.inputs.length > 0)) {
@@ -215,7 +293,7 @@
           // Make sure there is at least one input for convenience.
           addInput();
         }
-  
+
         // Output.
         if (predicate.output) {
           const output = predicate.output;
@@ -224,16 +302,22 @@
           edittext.next().val(output.matchMode);
         }
 
+        // Similarity.
+        const similarity = predicate.similarity;
+        setSimilarity(similarity);
+
         // Reaction ID.
-        const reactionId = $('#reaction_id')
-        reactionId.text(predicate.reactionId);
+        if (predicate.reactionIds) {
+          const reactionIds = $('#reaction_ids')
+          reactionIds.text(predicate.reactionIds.join(','));
+        }
 
         // Reaction SMILES.
         const reactionSmiles = $('#reaction_smiles');
         reactionSmiles.text(predicate.reactionSmiles);
       }
 
-      // Update the pbtxt when the user clicks on a result reaction ID.
+      // Update the pbtxt when the user mouses over a result.
       $('.result').mouseover((event) => {
         const result = $(event.target);
         const reactionId = result.text().trim();
@@ -256,7 +340,34 @@
         window.location.href = path;
       });
 
+      // Hook up the tab that shows reagent input fields.
+      $('#reagentsTab').click(() => {
+        $('#reagents').show();
+        $('#reactions').hide();
+        $('.tab').css('background-color', '');
+        $('#reagentsTab').css('background-color', 'lightblue');
+      });
+
+      // Hook up the tab that shows reaction input fields.
+      $('#reactionsTab').click(() => {
+        $('#reagents').hide();
+        $('#reactions').show();
+        $('.tab').css('background-color', '');
+        $('#reactionsTab').css('background-color', 'lightblue');
+      });
+
+      // Initialize the similarity slider.
+      similarity = $('#similarity').slider({min: 0, max: 100});
+      similarity.on('slidechange', () => {
+        const value = similarity.slider('option', 'value');
+        $('#similarityText').text((value / 100).toFixed(2));
+      });
+
       importPredicate();
+
+      // TODO: Initialize the tab appropriate to the current predicate.
+      // TODO: Space out the tab headers and round their corners.
+      // TODO: Add unit tests for Predicate queries.
     </script>
   </body>
 </html>
