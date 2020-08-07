@@ -58,13 +58,14 @@ async function init(fileName, index) {
   listen('body');
   // Load Ketcher content into an element with attribute role="application".
   document.getElementById('ketcher-iframe').contentWindow.ketcher.initKetcher();
-
   // Fetch the Dataset containing the Reaction proto.
   session.dataset = await getDataset(fileName);
   // Initialize the UI with the Reaction.
   const reaction = session.dataset.getReactionsList()[index];
   loadReaction(reaction);
   clean();
+  // Trigger reaction-level validation.
+  validateReaction();
   // Signal to tests that the DOM is initialized.
   ready();
 }
