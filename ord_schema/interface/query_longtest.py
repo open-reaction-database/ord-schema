@@ -66,9 +66,15 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
         # No constraint.
         predicate = query.Predicate()
         results = self.postgres.predicate_search(predicate)
-        self.assertLen(len(results.reactions) > 100)
+        self.assertLen(results.reactions, 100)
 
-        # Look up some specific reactions.
+        # These reactions share an output and some inputs.
+        reaction_ids = [
+            'ord-00386496302144278c262d284c3bc9f0',
+            'ord-003de5cd29a541bdb3279081ebdefd06',
+            'ord-00469722514e4e148db9fae89586f4a6']
+
+        # Look up the specific reactions.
         predicate = query.Predicate()
         predicate.add_reaction_id('ord-00386496302144278c262d284c3bc9f0')
         predicate.add_reaction_id('ord-003de5cd29a541bdb3279081ebdefd06')
@@ -76,21 +82,23 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
         results = self.postgres.predicate_search(predicate)
         self.assertLen(results.reactions, 3)
 
-        # Match on input substructure.
+        # Rediscover the reactions by querying on reagents
+        # with matching semantics and a similarity threshold.
         predicate = query.Predicate()
         predicate.add_input(
-            'CCC1=CC(=CC=C1)CC', query.Predicate.MatchMode.SUBSTRUCTURE)
-        results = self.postgres.predicate_search(predicate)
-        self.assertTrue(len(results.reactions) > 0)
-
-        # Match on output similarity with a specified threshold.
-        predicate = query.Predicate()
-        predicate.add_output(
-            'CC1=CC=C2C(C=NN2C3OCCCC3)=C1C4=CC=C(N=CC=C5)C5=C4',
+            '[Pd+2]',
+            query.Predicate.MatchMode.SUBSTRUCTURE)
+        predicate.add_input(
+            '[Pd+2].[O-]C(=O)C.[O-]C(=O)C',
             query.Predicate.MatchMode.SIMILAR)
-        predicate.set_tanimoto_threshold(0.6)
-        results = self.postgres.predicate_search(predicate)
-        self.assertTrue(len(results.reactions) > 0)
+        predicate.set_output(
+            'CC1=CC=C2C(C=NN2C3OCCCC3)=C1C4=CC=C(N=CC=C5)C5=C4',
+            query.Predicate.MatchMode.EXACT)
+        predicate.set_tanimoto_threshold(0.1)
+        results = self.postgres.predicate_search_ids(predicate)
+        self.assertTrue(len(results) > 0)
+        for r in reaction_ids:
+            self.assertTrue(r in results)
 
     @parameterized.named_parameters(('smiles', 'C', False),
                                     ('smarts', '[#6]', True))
