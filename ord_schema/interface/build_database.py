@@ -62,6 +62,9 @@ _TABLES = {
         ]),
 }
 
+# Schema name for tables with RDKit cartridge functionality.
+_SCHEMA = 'rdk'
+
 
 class Tables:
     """Holds file handles and CSV writers for database table files."""
@@ -176,7 +179,7 @@ def create_database():
             command = sql.SQL('DROP TABLE IF EXISTS {}')
             cursor.execute(command.format(sql.Identifier(table)))
     cursor.execute(sql.SQL('CREATE EXTENSION IF NOT EXISTS rdkit'))
-    cursor.execute(sql.SQL('CREATE SCHEMA rdk'))
+    cursor.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(_SCHEMA)))
     for table, columns in _TABLES.items():
         dtypes = []
         for column, dtype in columns.items():
@@ -228,18 +231,18 @@ def _rdkit_reaction_smiles(cursor, table):
         SELECT reaction_id,
                r,
                reaction_difference_fp(r) AS rdfp 
-        INTO rdk.{} FROM (
+        INTO {} FROM (
             SELECT reaction_id, 
                    reaction_from_smiles(reaction_smiles::cstring) AS r
             FROM {}) tmp
-        WHERE r IS NOT NULL""").format(sql.Identifier(table),
+        WHERE r IS NOT NULL""").format(sql.Identifier(_SCHEMA, table),
                                        sql.Identifier(table)))
     cursor.execute(
-        sql.SQL('CREATE INDEX {} ON rdk.{} USING gist(r)').format(
-            sql.Identifier(f'{table}_r'), sql.Identifier(table)))
+        sql.SQL('CREATE INDEX {} ON {} USING gist(r)').format(
+            sql.Identifier(f'{table}_r'), sql.Identifier(_SCHEMA, table)))
     cursor.execute(
-        sql.SQL('CREATE INDEX {} ON rdk.{} USING gist(rdfp)').format(
-            sql.Identifier(f'{table}_rdfp'), sql.Identifier(table)))
+        sql.SQL('CREATE INDEX {} ON {} USING gist(rdfp)').format(
+            sql.Identifier(f'{table}_rdfp'), sql.Identifier(_SCHEMA, table)))
 
 
 def _rdkit_smiles(cursor, table):
@@ -260,18 +263,18 @@ def _rdkit_smiles(cursor, table):
         SELECT reaction_id,
                m,
                morganbv_fp(m) AS mfp2 
-        INTO rdk.{} FROM (
+        INTO {} FROM (
             SELECT reaction_id, 
                    mol_from_smiles(smiles::cstring) AS m
             FROM {}) tmp
-        WHERE m IS NOT NULL""").format(sql.Identifier(table),
+        WHERE m IS NOT NULL""").format(sql.Identifier(_SCHEMA, table),
                                        sql.Identifier(table)))
     cursor.execute(
-        sql.SQL('CREATE INDEX {} ON rdk.{} USING gist(m)').format(
-            sql.Identifier(f'{table}_m'), sql.Identifier(table)))
+        sql.SQL('CREATE INDEX {} ON {} USING gist(m)').format(
+            sql.Identifier(f'{table}_m'), sql.Identifier(_SCHEMA, table)))
     cursor.execute(
-        sql.SQL('CREATE INDEX {} ON rdk.{} USING gist(mfp2)').format(
-            sql.Identifier(f'{table}_mfp2'), sql.Identifier(table)))
+        sql.SQL('CREATE INDEX {} ON {} USING gist(mfp2)').format(
+            sql.Identifier(f'{table}_mfp2'), sql.Identifier(_SCHEMA, table)))
 
 
 def main(argv):

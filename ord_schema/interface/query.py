@@ -75,6 +75,9 @@ class OrdPostgres:
             column = 'r'
         else:
             column = 'm'
+        # NOTE(kearnes): We use table.split('.') because "rdk"."inputs" is a
+        # valid identifier but "rdk.inputs" is not. See
+        # https://www.psycopg.org/docs/sql.html#psycopg2.sql.Identifier.
         components = [
             sql.SQL("""
                 SELECT DISTINCT A.reaction_id, A.serialized 
