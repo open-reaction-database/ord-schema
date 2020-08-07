@@ -96,7 +96,8 @@ def main(argv):
 
 if __name__ == '__main__':
     FLAGS = flags.FLAGS
-    flags.DEFINE_string('input_file', None, 'File containing a Reaction message.')
+    flags.DEFINE_string('input_file', None,
+                        'File containing a Reaction message.')
     flags.DEFINE_enum('type', 'text', ['text', 'html'],
                       'Text or HTML output format.')
     flags.DEFINE_string('output', None, 'Filename for output Dataset.')
