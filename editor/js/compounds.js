@@ -407,7 +407,7 @@ ord.compounds.validateCompound = function(node, validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(compound, 'Compound', validateNode);
-  
+
   // Try to resolve compound structural identifiers. This is tied to
   // validation so the same trigger is used and we only have to unload the
   // compound once per update.
