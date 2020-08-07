@@ -399,7 +399,7 @@ ord.compounds.renderCompound = function(node, compound) {
     };
   };
   xhr.send(binary);
-}
+};
 
 ord.compounds.validateCompound = function(node, validateNode) {
   const compound = ord.compounds.unloadCompound(node);
@@ -407,7 +407,6 @@ ord.compounds.validateCompound = function(node, validateNode) {
     validateNode = $('.validate', node).first();
   }
   validate(compound, 'Compound', validateNode);
-  console.log('validated')
   
   // Try to resolve compound structural identifiers. This is tied to
   // validation so the same trigger is used and we only have to unload the
