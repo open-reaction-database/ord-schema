@@ -25,6 +25,7 @@ from ord_schema.proto import reaction_pb2
 
 
 class WriteDataTest(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
@@ -88,6 +89,7 @@ class WriteDataTest(absltest.TestCase):
 
 
 class ExtractDataTest(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)

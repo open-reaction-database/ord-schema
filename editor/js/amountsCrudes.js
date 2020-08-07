@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,40 +19,50 @@ goog.provide('ord.amountsCrudes');
 goog.require('proto.ord.Mass');
 goog.require('proto.ord.Volume');
 
-ord.amountsCrudes.load = function (node, mass, volume) {
+ord.amountsCrudes.load = function(node, mass, volume) {
   const amount = $('.amount', node);
   $('.crude_amount_units_mass', node).hide();
   $('.crude_amount_units_volume', node).hide();
   if (mass) {
-    $("input[value='mass']", amount).prop('checked', true);
-    $('.crude_amount_value', node).text(mass.getValue());
-    $('.crude_amount_precision', node).text(mass.getPrecision());
+    $('input[value=\'mass\']', amount).prop('checked', true);
+    if (mass.hasValue()) {
+      $('.crude_amount_value', node).text(mass.getValue());
+    }
+    if (mass.hasPrecision()) {
+      $('.crude_amount_precision', node).text(mass.getPrecision());
+    }
     $('.crude_amount_units_mass', node).show();
-    setSelector(
-        $('.crude_amount_units_mass', amount), mass.getUnits());
+    setSelector($('.crude_amount_units_mass', amount), mass.getUnits());
   }
   if (volume) {
-    $("input[value='volume']", amount).prop('checked', true);
-    $('.crude_amount_value', node).text(volume.getValue());
-    $('.crude_amount_precision', node).text(volume.getPrecision());
+    $('input[value=\'volume\']', amount).prop('checked', true);
+    if (volume.hasValue()) {
+      $('.crude_amount_value', node).text(volume.getValue());
+    }
+    if (volume.hasPrecision()) {
+      $('.crude_amount_precision', node).text(volume.getPrecision());
+    }
     $('.crude_amount_units_volume', node).show();
-    setSelector(
-        $('.crude_amount_units_volume', amount), volume.getUnits());
+    setSelector($('.crude_amount_units_volume', amount), volume.getUnits());
   }
 };
 
-ord.amountsCrudes.unload = function (node, crude) {
+ord.amountsCrudes.unload = function(node, crude) {
   const mass = ord.amountsCrudes.unloadMass(node);
   const volume = ord.amountsCrudes.unloadVolume(node);
   if (mass) {
-    crude.setMass(mass);
+    if (!isEmptyMessage(mass)) {
+      crude.setMass(mass);
+    }
   }
   if (volume) {
-    crude.setVolume(volume);
+    if (!isEmptyMessage(volume)) {
+      crude.setVolume(volume);
+    }
   }
 };
 
-ord.amountsCrudes.unloadMass = function (node) {
+ord.amountsCrudes.unloadMass = function(node) {
   if (!$('.crude_amount_mass', node).is(':checked')) {
     return null;
   }
@@ -63,15 +73,14 @@ ord.amountsCrudes.unloadMass = function (node) {
   }
   const units = getSelector($('.crude_amount_units_mass', node));
   mass.setUnits(units);
-  const precision =
-      parseFloat($('.crude_amount_precision', node).text());
+  const precision = parseFloat($('.crude_amount_precision', node).text());
   if (!isNaN(precision)) {
     mass.setPrecision(precision);
   }
   return mass;
 };
 
-ord.amountsCrudes.unloadVolume = function (node) {
+ord.amountsCrudes.unloadVolume = function(node) {
   if (!$('.crude_amount_volume', node).is(':checked')) {
     return null;
   }
@@ -82,8 +91,7 @@ ord.amountsCrudes.unloadVolume = function (node) {
   }
   const units = getSelector($('.crude_amount_units_volume', node));
   volume.setUnits(units);
-  const precision =
-      parseFloat($('.crude_amount_precision', node).text());
+  const precision = parseFloat($('.crude_amount_precision', node).text());
   if (!isNaN(precision)) {
     volume.setPrecision(precision);
   }

@@ -22,9 +22,12 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: s-weigand/setup-conda@v1
+      with:
+        python-version: 3.7
     - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
+        sudo apt update && sudo apt install -y git
         pip install -r requirements.txt
         pip install -r test_requirements.txt
         conda install -c rdkit rdkit
@@ -38,11 +41,13 @@ jobs:
         cd "${GITHUB_WORKSPACE}"
         ./run_long_tests.sh
 
-  test_pylint:
+  lint_python:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - uses: s-weigand/setup-conda@v1
+      with:
+        python-version: 3.7
     - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
@@ -57,11 +62,29 @@ jobs:
         pip install pylint
         pylint ord_schema
 
+  lint_javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+      - uses: actions/setup-node@v1
+      - name: Run JS linter
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          # See https://github.com/google/closure-compiler/wiki/Lint-checks.
+          npm install google-closure-compiler
+          java -jar node_modules/google-closure-compiler-java/compiler.jar \
+            --jscomp_warning=lintChecks editor/js/*.js
+
   test_notebooks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: s-weigand/setup-conda@v1
+        with:
+          python-version: 3.7
       - name: Install ord_schema
         run: |
           cd "${GITHUB_WORKSPACE}"
@@ -73,17 +96,20 @@ jobs:
           cd "${GITHUB_WORKSPACE}"
           pip install treon
           treon
-        
+
   test_editor:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
+    - uses: s-weigand/setup-conda@v1
+      with:
+        python-version: 3.7
     - uses: actions/setup-node@v1.4.2
     - name: Install dependencies
       run: |
         cd "${GITHUB_WORKSPACE}"
         pip install -r requirements.txt
+        conda install -c rdkit rdkit
         python setup.py install
         pip install flask
         cd "${GITHUB_WORKSPACE}/editor"
@@ -92,6 +118,9 @@ jobs:
         tar -xzf editor_test_protobuf_1dae8fdd.tar
         wget https://github.com/google/closure-library/archive/v20200517.tar.gz
         tar -xzf v20200517.tar.gz
+        git clone https://github.com/Open-Reaction-Database/ketcher.git
+        cd "${GITHUB_WORKSPACE}/editor/ketcher"
+        npm install && npm run build
     - name: Build editor and run tests
       run: |
         cd "${GITHUB_WORKSPACE}/editor"

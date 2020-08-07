@@ -14,10 +14,11 @@
 """Automated updates for Reaction messages."""
 
 import datetime
-import urllib
 import uuid
 import re
-
+import urllib.parse
+import urllib.request
+import urllib.error
 from absl import logging
 
 from ord_schema import message_helpers
@@ -31,12 +32,38 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.XYZ,
 ]
 
+_USERNAME = 'github-actions[bot]'
+_EMAIL = '41898282+github-actions[bot]@users.noreply.github.com'
+
+
+def name_resolve(value_type, value):
+    """Resolves compound identifiers to SMILES via multiple APIs."""
+    smiles = None
+    for resolver, resolver_func in _NAME_RESOLVERS.items():
+        try:
+            smiles = resolver_func(value_type, value)
+            if smiles is not None:
+                return smiles, resolver
+        except urllib.error.HTTPError as error:
+            logging.info('%s could not resolve %s %s: %s', resolver, value_type,
+                         value, error)
+    raise ValueError(f'Could not resolve {value_type} {value} to SMILES')
+
 
 def _pubchem_resolve(value_type, value):
     """Resolves compound identifiers to SMILES via the PubChem REST API."""
     response = urllib.request.urlopen(
-        'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/'
-        f'{value_type}/{value}/property/IsomericSMILES/txt')
+        f'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/{value_type}/'
+        f'{urllib.parse.quote(value)}/property/IsomericSMILES/txt')
+    return response.read().decode().strip()
+
+
+def _cactus_resolve(value_type, value):
+    """Resolves compound identifiers to SMILES via the CACTUS API."""
+    del value_type
+    response = urllib.request.urlopen(
+        'https://cactus.nci.nih.gov/chemical/structure/'
+        f'{urllib.parse.quote(value)}/smiles')
     return response.read().decode().strip()
 
 
@@ -54,8 +81,7 @@ def resolve_names(message):
         Boolean whether `message` was modified.
     """
     modified = False
-    compounds = message_helpers.find_submessages(message,
-                                                 reaction_pb2.Compound)
+    compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
     for compound in compounds:
         if any(identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS
                for identifier in compound.identifiers):
@@ -63,50 +89,15 @@ def resolve_names(message):
         for identifier in compound.identifiers:
             if identifier.type == identifier.NAME:
                 try:
-                    smiles = _pubchem_resolve('name', identifier.value)
+                    smiles, resolver = name_resolve('name', identifier.value)
                     new_identifier = compound.identifiers.add()
                     new_identifier.type = new_identifier.SMILES
                     new_identifier.value = smiles
-                    new_identifier.details = 'NAME resolved by PubChem'
+                    new_identifier.details = f'NAME resolved by the {resolver}'
                     modified = True
                     break
-                except urllib.error.HTTPError as error:
-                    logging.info('PubChem could not resolve NAME %s: %s',
-                                 identifier.value, error)
-    return modified
-
-
-def add_binary_identifiers(message):
-    """Adds RDKIT_BINARY identifiers for compounds with valid structures.
-
-    Note that the RDKIT_BINARY representations are mostly useful in the context
-    of searching the database. Accordingly, this function is not included in the
-    standard set of Reaction updates in update_reaction().
-
-    Args:
-        message: Reaction proto.
-
-    Returns:
-        Boolean whether `message` was modified.
-    """
-    modified = False
-    compounds = message_helpers.find_submessages(message,
-                                                 reaction_pb2.Compound)
-    for compound in compounds:
-        if any(identifier.type == identifier.RDKIT_BINARY
-               for identifier in message.identifiers):
-            continue
-        try:
-            mol, identifier = message_helpers.mol_from_compound(
-                compound, return_identifier=True)
-            source = reaction_pb2.CompoundIdentifier.IdentifierType.Name(
-                identifier.type)
-            compound.identifiers.add(bytes_value=mol.ToBinary(),
-                                     type='RDKIT_BINARY',
-                                     details=f'Generated from {source}')
-            modified = True
-        except ValueError:
-            pass
+                except ValueError:
+                    pass
     return modified
 
 
@@ -128,10 +119,6 @@ def update_reaction(reaction):
     """
     modified = False
     id_substitutions = {}
-    if not reaction.provenance.HasField('record_created'):
-        reaction.provenance.record_created.time.value = (
-            datetime.datetime.utcnow().ctime())
-        modified = True
     if not re.fullmatch('^ord-[0-9a-f]{32}$', reaction.reaction_id):
         # NOTE(kearnes): This does not check for the case where a Dataset is
         # edited and reaction_id values are changed inappropriately. This will
@@ -150,6 +137,8 @@ def update_reaction(reaction):
     if modified:
         event = reaction.provenance.record_modified.add()
         event.time.value = datetime.datetime.utcnow().ctime()
+        event.person.username = _USERNAME
+        event.person.email = _EMAIL
         event.details = 'Automatic updates from the submission pipeline.'
     return id_substitutions
 
@@ -190,3 +179,9 @@ def update_dataset(dataset):
 _UPDATES = [
     resolve_names,
 ]
+
+# Standard name resolvers.
+_NAME_RESOLVERS = {
+    'PubChem API': _pubchem_resolve,
+    'NCI/CADD Chemical Identifier Resolver': _cactus_resolve,
+}

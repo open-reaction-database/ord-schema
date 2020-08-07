@@ -27,6 +27,7 @@ from ord_schema.proto import reaction_pb2
 
 
 class ValidationsTest(parameterized.TestCase, absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         # Redirect warning messages to stdout so they can be filtered from the
@@ -66,8 +67,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     @parameterized.named_parameters(
         ('volume',
-         reaction_pb2.Volume(value=15.0,
-                             units=reaction_pb2.Volume.MILLILITER)),
+         reaction_pb2.Volume(value=15.0, units=reaction_pb2.Volume.MILLILITER)),
         ('time', reaction_pb2.Time(value=24, units=reaction_pb2.Time.HOUR)),
         ('mass', reaction_pb2.Mass(value=32.1, units=reaction_pb2.Mass.GRAM)),
     )
@@ -76,14 +76,12 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     @parameterized.named_parameters(
         ('neg volume',
-         reaction_pb2.Volume(
-             value=-15.0,
-             units=reaction_pb2.Volume.MILLILITER), 'non-negative'),
+         reaction_pb2.Volume(value=-15.0, units=reaction_pb2.Volume.MILLILITER),
+         'non-negative'),
         ('neg time', reaction_pb2.Time(
             value=-24, units=reaction_pb2.Time.HOUR), 'non-negative'),
-        ('neg mass',
-         reaction_pb2.Mass(value=-32.1,
-                           units=reaction_pb2.Mass.GRAM), 'non-negative'),
+        ('neg mass', reaction_pb2.Mass(
+            value=-32.1, units=reaction_pb2.Mass.GRAM), 'non-negative'),
         ('no units', reaction_pb2.FlowRate(value=5), 'units'),
         ('percentage out of range', reaction_pb2.Percentage(value=200),
          'between'),
@@ -132,8 +130,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     def test_crude_component(self):
         message = reaction_pb2.CrudeComponent()
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'reaction_id'):
+        with self.assertRaisesRegex(validations.ValidationError, 'reaction_id'):
             self._run_validation(message)
         message = reaction_pb2.CrudeComponent(reaction_id='my_reaction_id')
         with self.assertRaisesRegex(validations.ValidationError, 'amount'):
@@ -189,8 +186,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         self.assertEmpty(self._run_validation(message))
         outcome.conversion.value = 75
         # If converseions are defined, must have limiting reagent flag
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'is_limiting'):
+        with self.assertRaisesRegex(validations.ValidationError, 'is_limiting'):
             self._run_validation(message)
         dummy_component.is_limiting = True
         self.assertEmpty(self._run_validation(message))
@@ -207,9 +203,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         # Assigning internal standard role to input should resolve the error
         message_input_istd = reaction_pb2.Reaction()
         message_input_istd.CopyFrom(message)
-        message_input_istd.inputs['dummy_input'].components[
-            0].reaction_role = (
-                reaction_pb2.Compound.ReactionRole.INTERNAL_STANDARD)
+        message_input_istd.inputs['dummy_input'].components[0].reaction_role = (
+            reaction_pb2.Compound.ReactionRole.INTERNAL_STANDARD)
         self.assertEmpty(self._run_validation(message_input_istd))
         # Assigning internal standard role to workup should resolve the error
         message_workup_istd = reaction_pb2.Reaction()
@@ -237,11 +232,13 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     def test_datetimes(self):
         message = reaction_pb2.ReactionProvenance()
-        message.experiment_start.value = '11 am'
-        message.record_created.time.value = '10 am'
+        message.experiment_start.value = '2020-01-02'
+        message.record_created.time.value = '2020-01-01'
+        message.record_created.person.name = 'test'
+        message.record_created.person.email = 'test@example.com'
         with self.assertRaisesRegex(validations.ValidationError, 'after'):
             self._run_validation(message)
-        message.record_created.time.value = '11:15 am'
+        message.record_created.time.value = '2020-01-03'
         self.assertEmpty(self._run_validation(message))
 
     def test_reaction_id(self):
@@ -310,6 +307,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
                                     'created is required'):
             self._run_validation(message)
         message.created.time.value = '11 am'
+        message.created.person.name = 'test'
+        message.created.person.email = 'test@example.com'
         self.assertEmpty(self._run_validation(message))
 
     def test_dataset_crossreferences(self):

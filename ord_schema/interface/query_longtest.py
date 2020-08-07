@@ -24,20 +24,21 @@ import psycopg2
 
 from ord_schema.interface import query
 
-# Avoid conflicts with any running PostgreSQL server(s).
+# Avoid conflicts with any existing PostgreSQL server.
 _POSTGRES_PORT = 5430
 
 
 class QueryTest(parameterized.TestCase, absltest.TestCase):
+
     @classmethod
     def setUpClass(cls):
         client = docker.from_env()
-        # TODO(kearnes): Use a smaller test image if needed.
         client.images.pull('openreactiondatabase/ord-postgres')
         cls._container = client.containers.run(
             'openreactiondatabase/ord-postgres',
             ports={'5432/tcp': _POSTGRES_PORT},
-            detach=True)
+            detach=True,
+            remove=True)
 
     @classmethod
     def tearDownClass(cls):
@@ -50,8 +51,8 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
                 self.postgres = query.OrdPostgres(host='localhost',
                                                   port=_POSTGRES_PORT)
                 break
-            except psycopg2.OperationalError:
-                logging.info('waiting for database to be ready')
+            except psycopg2.OperationalError as error:
+                logging.info('waiting for database to be ready: %s', error)
                 time.sleep(1)
                 continue
 

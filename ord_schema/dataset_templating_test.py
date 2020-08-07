@@ -24,6 +24,7 @@ from ord_schema.proto import dataset_pb2
 
 
 class DatasetTemplatingTest(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
 

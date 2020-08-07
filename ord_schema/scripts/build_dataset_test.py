@@ -28,6 +28,7 @@ from ord_schema.scripts import build_dataset
 
 
 class BuildDatasetTest(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
@@ -42,17 +43,14 @@ class BuildDatasetTest(absltest.TestCase):
         dummy_component.mass.units = reaction_pb2.Mass.GRAM
         reaction1.outcomes.add().conversion.value = 75
         message_helpers.write_message(
-            reaction1, os.path.join(self.test_subdirectory,
-                                    'reaction-1.pbtxt'))
+            reaction1, os.path.join(self.test_subdirectory, 'reaction-1.pbtxt'))
         # reaction2 is empty.
         reaction2 = reaction_pb2.Reaction()
         message_helpers.write_message(
-            reaction2, os.path.join(self.test_subdirectory,
-                                    'reaction-2.pbtxt'))
+            reaction2, os.path.join(self.test_subdirectory, 'reaction-2.pbtxt'))
 
     def test_simple(self):
-        input_pattern = os.path.join(self.test_subdirectory,
-                                     'reaction-1.pbtxt')
+        input_pattern = os.path.join(self.test_subdirectory, 'reaction-1.pbtxt')
         output_filename = os.path.join(self.test_subdirectory, 'dataset.pbtxt')
         with flagsaver.flagsaver(input=input_pattern,
                                  name='test dataset',
@@ -67,8 +65,7 @@ class BuildDatasetTest(absltest.TestCase):
         self.assertLen(dataset.reactions, 1)
 
     def test_validation(self):
-        input_pattern = os.path.join(self.test_subdirectory,
-                                     'reaction-?.pbtxt')
+        input_pattern = os.path.join(self.test_subdirectory, 'reaction-?.pbtxt')
         output_filename = os.path.join(self.test_subdirectory, 'dataset.pbtxt')
         with flagsaver.flagsaver(input=input_pattern,
                                  name='test dataset',
