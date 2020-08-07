@@ -22,6 +22,8 @@ from psycopg2 import sql
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
+# pylint: disable=too-many-locals
+
 
 class OrdPostgres:
     """Class for performing SQL queries on the ORD."""
@@ -75,11 +77,11 @@ class OrdPostgres:
             column = 'm'
         components = [
             sql.SQL("""
-            SELECT DISTINCT A.reaction_id, A.serialized 
-            FROM reactions A 
-            INNER JOIN {} B ON A.reaction_id = B.reaction_id
-            WHERE B.{}@>%s""").format(sql.Identifier(*table.split('.')),
-                                      sql.Identifier(column))
+                SELECT DISTINCT A.reaction_id, A.serialized 
+                FROM reactions A 
+                INNER JOIN {} B ON A.reaction_id = B.reaction_id
+                WHERE B.{}@>%s""").format(sql.Identifier(*table.split('.')),
+                                          sql.Identifier(column))
         ]
         args = [pattern]
         if use_smarts:
@@ -125,12 +127,12 @@ class OrdPostgres:
             function = 'morganbv_fp'
         components = [
             sql.SQL("""
-                    SELECT DISTINCT A.reaction_id, A.serialized 
-                    FROM reactions A 
-                    INNER JOIN {} B ON A.reaction_id = B.reaction_id
-                    WHERE B.{}%%{}(%s)""").format(
-                sql.Identifier(*table.split('.')), sql.Identifier(column),
-                sql.Identifier(function))
+                SELECT DISTINCT A.reaction_id, A.serialized 
+                FROM reactions A 
+                INNER JOIN {} B ON A.reaction_id = B.reaction_id
+                WHERE B.{}%%{}(%s)""").format(sql.Identifier(*table.split('.')),
+                                              sql.Identifier(column),
+                                              sql.Identifier(function))
         ]
         args = [smiles]
         if limit:
