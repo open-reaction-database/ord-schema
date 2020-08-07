@@ -75,8 +75,11 @@ jobs:
           cd "${GITHUB_WORKSPACE}"
           # See https://github.com/google/closure-compiler/wiki/Lint-checks.
           npm install google-closure-compiler
-          java -jar node_modules/google-closure-compiler-java/compiler.jar \
-            --jscomp_warning=lintChecks editor/js/*.js
+
+          # Build and lint, but supress warnings on anything but our code.
+          java -jar ~/node_modules/google-closure-compiler-java/compiler.jar --js editor/closure-library-20200517 --js editor/protobuf/js --js editor/gen/js/proto/ord  --js editor/js/*.js --checks_only --dependency_mode PRUNE --entry_point ord.reaction --jscomp_warning=lintChecks --hide_warnings_for=editor/closure-library-20200517 --hide_warnings_for=editor/closure-library-20200517 --hide_warnings_for=editor/protobuf/js --hide_warnings_for=gen/js/proto/ord
+
+          java -jar ~/node_modules/google-closure-compiler-java/compiler.jar --js editor/closure-library-20200517 --js editor/protobuf/js --js editor/gen/js/proto/ord  --js editor/js/dataset.js --checks_only --dependency_mode PRUNE --entry_point ord.dataset --jscomp_warning=lintChecks --hide_warnings_for=editor/closure-library-20200517 --hide_warnings_for=editor/closure-library-20200517 --hide_warnings_for=editor/protobuf/js --hide_warnings_for=gen/js/proto/ord
 
   test_notebooks:
     runs-on: ubuntu-latest
