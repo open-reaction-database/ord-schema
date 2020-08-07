@@ -55,6 +55,36 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
                 time.sleep(1)
                 continue
 
+    def test_predicate_search(self):
+        # No constraint.
+        predicate = query.Predicate()
+        results = self.postgres.predicate_search(predicate)
+        self.assertLen(len(results.reactions) > 100)
+
+        # Look up some specific reactions.
+        predicate = query.Predicate()
+        predicate.add_reaction_id('ord-00386496302144278c262d284c3bc9f0')
+        predicate.add_reaction_id('ord-003de5cd29a541bdb3279081ebdefd06')
+        predicate.add_reaction_id('ord-00469722514e4e148db9fae89586f4a6')
+        results = self.postgres.predicate_search(predicate)
+        self.assertLen(results.reactions, 3)
+
+        # Match on input substructure.
+        predicate = query.Predicate()
+        predicate.add_input(
+            'CCC1=CC(=CC=C1)CC', query.Predicate.MatchMode.SUBSTRUCTURE)
+        results = self.postgres.predicate_search(predicate)
+        self.assertTrue(len(results.reactions) > 0)
+
+        # Match on output similarity with a specified threshold.
+        predicate = query.Predicate()
+        predicate.add_output(
+            'CC1=CC=C2C(C=NN2C3OCCCC3)=C1C4=CC=C(N=CC=C5)C5=C4',
+            query.Predicate.MatchMode.SIMILAR)
+        predicate.set_tanimoto_threshold(0.6)
+        results = self.postgres.predicate_search(predicate)
+        self.assertTrue(len(results.reactions) > 0)
+
     @parameterized.named_parameters(('smiles', 'C', False),
                                     ('smarts', '[#6]', True))
     def test_substructure_search(self, pattern, use_smarts):
