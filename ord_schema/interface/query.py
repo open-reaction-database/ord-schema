@@ -29,6 +29,7 @@ from ord_schema.proto import reaction_pb2
 
 class Predicate:
     """Structure and code generation for ORD query predicates."""
+
     class MatchMode(enum.Enum):
         """Interpretations for SMILES and SMARTS strings."""
         EXACT = 1

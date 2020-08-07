@@ -78,8 +78,8 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
 
         # Match on input substructure.
         predicate = query.Predicate()
-        predicate.add_input(
-            'CCC1=CC(=CC=C1)CC', query.Predicate.MatchMode.SUBSTRUCTURE)
+        predicate.add_input('CCC1=CC(=CC=C1)CC',
+                            query.Predicate.MatchMode.SUBSTRUCTURE)
         results = self.postgres.predicate_search(predicate)
         self.assertTrue(len(results.reactions) > 0)
 
