@@ -32,6 +32,7 @@ from ord_schema import message_helpers
 from ord_schema import validations
 from ord_schema import dataset_templating
 from ord_schema import updates
+from ord_schema.visualization import drawing
 
 from google.protobuf import text_format
 
@@ -334,6 +335,20 @@ def resolve_compound(identifier_type):
     try:
         return flask.jsonify(
             updates.name_resolve(identifier_type, compound_name))
+    except ValueError:
+        return ''
+
+
+@app.route('/render/compound', methods=['POST'])
+def render_compound():
+    """Receives a serialized Compound message and returns base64-encoded png
+    data corresponding to a line drawing of the molecule."""
+    compound = reaction_pb2.Compound()
+    compound.ParseFromString(flask.request.get_data())
+    try:
+        mol = message_helpers.mol_from_compound(compound)
+        png_data = drawing.mol_to_png(mol)
+        return flask.jsonify(png_data)
     except ValueError:
         return ''
 
