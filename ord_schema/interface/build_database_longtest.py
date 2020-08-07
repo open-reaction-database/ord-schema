@@ -25,13 +25,11 @@ import docker
 import pandas as pd
 import psycopg2
 
+from ord_schema import interface
 from ord_schema import message_helpers
 from ord_schema.interface import build_database
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
-
-# Avoid conflicts with any existing PostgreSQL server.
-_POSTGRES_PORT = 5430
 
 
 class BuildDatabaseTest(absltest.TestCase):
@@ -42,16 +40,21 @@ class BuildDatabaseTest(absltest.TestCase):
         client.images.pull('mcs07/postgres-rdkit')
         cls._container = client.containers.run(
             'mcs07/postgres-rdkit',
-            ports={'5432/tcp': _POSTGRES_PORT},
-            environment={'POSTGRES_PASSWORD': 'postgres'},
+            ports={'5432/tcp': interface.POSTGRES_PORT},
+            environment={
+                'POSTGRES_USER': interface.POSTGRES_USER,
+                'POSTGRES_PASSWORD': interface.POSTGRES_PASSWORD,
+                'POSTGRES_DB': interface.POSTGRES_DB
+            },
             detach=True,
             remove=True)
         while True:
             try:
-                psycopg2.connect(host='localhost',
-                                 port=_POSTGRES_PORT,
-                                 user='postgres',
-                                 password='postgres')
+                psycopg2.connect(dbname=interface.POSTGRES_DB,
+                                 host='localhost',
+                                 port=interface.POSTGRES_PORT,
+                                 user=interface.POSTGRES_USER,
+                                 password=interface.POSTGRES_PASSWORD)
                 break
             except psycopg2.OperationalError as error:
                 logging.info('waiting for database to be ready: %s', error)
@@ -86,11 +89,7 @@ class BuildDatabaseTest(absltest.TestCase):
         output_dir = os.path.join(self.test_subdirectory, 'tables')
         with flagsaver.flagsaver(input=input_pattern,
                                  output=output_dir,
-                                 database='postgres',
-                                 host='localhost',
-                                 port=_POSTGRES_PORT,
-                                 user='postgres',
-                                 password='postgres'):
+                                 database=True):
             build_database.main(())
         with open(os.path.join(output_dir, 'reactions.csv')) as f:
             df = pd.read_csv(f)
