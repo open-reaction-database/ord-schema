@@ -58,13 +58,14 @@ async function init(fileName, index) {
   listen('body');
   // Load Ketcher content into an element with attribute role="application".
   document.getElementById('ketcher-iframe').contentWindow.ketcher.initKetcher();
-
   // Fetch the Dataset containing the Reaction proto.
   session.dataset = await getDataset(fileName);
   // Initialize the UI with the Reaction.
   const reaction = session.dataset.getReactionsList()[index];
   loadReaction(reaction);
   clean();
+  // Trigger reaction-level validation.
+  validateReaction();
   // Signal to tests that the DOM is initialized.
   ready();
 }
@@ -164,12 +165,29 @@ function toggleValidateMessage(node) {
   }
 };
 
+// Update the visual summary of this reaction.
+function renderReaction(reaction) {
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/render/reaction');
+  const binary = reaction.serializeBinary();
+  xhr.responseType = 'json';
+  xhr.onload = function() {
+    const html_block = xhr.response;
+    if (html_block) {
+      $('#reaction_render').html(html_block);
+    };
+  };
+  xhr.send(binary);
+}
+
 function validateReaction() {
   var validateNode = $('#reaction_validate');
   const reaction = unloadReaction();
   validate(reaction, 'Reaction', validateNode);
   // Trigger all submessages to validate.
   $('.validate_button:visible:not(#reaction_validate_button)').trigger('click');
+  // Render reaction as an HTML block.
+  renderReaction(reaction);
 }
 
 function commit() {

@@ -32,6 +32,7 @@ from ord_schema import message_helpers
 from ord_schema import validations
 from ord_schema import dataset_templating
 from ord_schema import updates
+from ord_schema.visualization import generate_text
 from ord_schema.visualization import drawing
 
 from google.protobuf import text_format
@@ -336,6 +337,19 @@ def resolve_compound(identifier_type):
         return flask.jsonify(
             updates.name_resolve(identifier_type, compound_name))
     except ValueError:
+        return ''
+
+
+@app.route('/render/reaction', methods=['POST'])
+def render_reaction():
+    """Receives a serialized Reaction message and returns a block of HTML
+    that contains a visual summary of the reaction."""
+    reaction = reaction_pb2.Reaction()
+    reaction.ParseFromString(flask.request.get_data())
+    try:
+        html = generate_text.generate_html(reaction)
+        return flask.jsonify(html)
+    except (ValueError, KeyError):
         return ''
 
 
