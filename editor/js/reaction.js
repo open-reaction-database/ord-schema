@@ -164,12 +164,31 @@ function toggleValidateMessage(node) {
   }
 };
 
+// Update the visual summary of this reaction.
+function renderReaction(reaction) {
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/render/reaction');
+  const binary = reaction.serializeBinary();
+  xhr.responseType = 'json';
+  xhr.onload = function() {
+    console.log('received');
+    const html_block = xhr.response;
+    console.log(html_block);
+    if (html_block) {
+      $('#reaction_drawing').html(html_block);
+    };
+  };
+  xhr.send(binary);
+}
+
 function validateReaction() {
   var validateNode = $('#reaction_validate');
   const reaction = unloadReaction();
   validate(reaction, 'Reaction', validateNode);
   // Trigger all submessages to validate.
   $('.validate_button:visible:not(#reaction_validate_button)').trigger('click');
+  // Render reaction as an HTML block.
+  renderReaction(reaction);
 }
 
 function commit() {
