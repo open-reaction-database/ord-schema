@@ -16,10 +16,7 @@
 set -ex
 
 docker build -t ord-postgres:empty .
-docker run --rm --name ord-postgres -d \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  ord-postgres:empty
+docker run --rm --name ord-postgres -d ord-postgres:empty
 docker exec -it ord-postgres ./build_database.sh
 docker commit ord-postgres openreactiondatabase/ord-postgres
 docker stop ord-postgres

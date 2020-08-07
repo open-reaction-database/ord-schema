@@ -22,6 +22,7 @@ RUN wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
 RUN /bin/bash ./Miniconda3-latest-Linux-x86_64.sh -b -p "${ORD_ROOT}/miniconda3"
 ENV PATH="${ORD_ROOT}/miniconda3/bin:${PATH}"
 RUN conda update conda --yes
+RUN conda install -c rdkit rdkit
 
 WORKDIR "${ORD_ROOT}"
 # Bust the cache to get the latest commits; see
@@ -39,6 +40,8 @@ RUN python setup.py install
 WORKDIR "${ORD_ROOT}"
 ENV PGDATA=/data
 ENV POSTGRES_DB=ord
+ENV POSTGRES_USER=ord-postgres
+ENV POSTGRES_PASSWORD=ord-postgres
 COPY postgres.conf /etc/postgresql/postgresql.conf
 ENV ORD_INPUT="${ORD_ROOT}/ord-submissions-test/data/*/*.pbtxt"
 COPY build_database.sh .

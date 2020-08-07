@@ -22,10 +22,8 @@ import docker
 import numpy as np
 import psycopg2
 
+from ord_schema import interface
 from ord_schema.interface import query
-
-# Avoid conflicts with any existing PostgreSQL server.
-_POSTGRES_PORT = 5430
 
 
 class QueryTest(parameterized.TestCase, absltest.TestCase):
@@ -36,7 +34,7 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
         client.images.pull('openreactiondatabase/ord-postgres')
         cls._container = client.containers.run(
             'openreactiondatabase/ord-postgres',
-            ports={'5432/tcp': _POSTGRES_PORT},
+            ports={'5432/tcp': interface.POSTGRES_PORT},
             detach=True,
             remove=True)
 
@@ -46,10 +44,18 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
         super().setUp()
+        num_attempts = 0
         while True:
+            num_attempts += 1
+            if num_attempts > 30:
+                raise RuntimeError('failed to connect to the database')
             try:
-                self.postgres = query.OrdPostgres(host='localhost',
-                                                  port=_POSTGRES_PORT)
+                self.postgres = query.OrdPostgres(
+                    dbname=interface.POSTGRES_DB,
+                    user=interface.POSTGRES_USER,
+                    password=interface.POSTGRES_PASSWORD,
+                    host='localhost',
+                    port=interface.POSTGRES_PORT)
                 break
             except psycopg2.OperationalError as error:
                 logging.info('waiting for database to be ready: %s', error)
