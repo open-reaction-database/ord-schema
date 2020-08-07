@@ -11,3 +11,34 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Constants for the ORD interface backend."""
+
+import collections
+
+POSTGRES_PORT = 5430  # Avoid conflicts with any existing PostgreSQL server.
+POSTGRES_USER = 'ord-postgres'
+POSTGRES_PASSWORD = 'ord-postgres'
+POSTGRES_DB = 'ord'
+
+RDKIT_SCHEMA = 'rdk'
+
+# Postgres table schema.
+TABLES = {
+    'reactions':
+        collections.OrderedDict([
+            ('reaction_id', 'text'),
+            ('reaction_smiles', 'text'),
+            ('serialized', 'bytea'),
+        ]),
+    'inputs':
+        collections.OrderedDict([
+            ('reaction_id', 'text'),
+            ('smiles', 'text'),
+        ]),
+    'outputs':
+        collections.OrderedDict([
+            ('reaction_id', 'text'),
+            ('smiles', 'text'),
+            ('yield', 'double precision'),
+        ]),
+}

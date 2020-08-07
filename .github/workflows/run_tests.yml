@@ -128,3 +128,12 @@ jobs:
         ./serve.sh &
         sleep 5  # Time for the server to get ready.
         make test
+
+  build_interface:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build interface docker image
+      run: |
+        cd "${GITHUB_WORKSPACE}/ord_schema/interface/docker"
+        ./update_image.sh
