@@ -171,11 +171,9 @@ function renderReaction(reaction) {
   const binary = reaction.serializeBinary();
   xhr.responseType = 'json';
   xhr.onload = function() {
-    console.log('received');
     const html_block = xhr.response;
-    console.log(html_block);
     if (html_block) {
-      $('#reaction_drawing').html(html_block);
+      $('#reaction_render').html(html_block);
     };
   };
   xhr.send(binary);
