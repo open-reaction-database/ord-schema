@@ -16,8 +16,4 @@
 set -ex
 
 python "${ORD_ROOT}/ord-schema/ord_schema/interface/build_database.py" \
-  --input="${ORD_INPUT}" \
-  --output="${HOME}/tables" \
-  --database="${POSTGRES_DB}" \
-  --user="${POSTGRES_USER}" \
-  --password="${POSTGRES_PASSWORD}"
+  --input="${ORD_INPUT}" --output="${HOME}/tables" --database
