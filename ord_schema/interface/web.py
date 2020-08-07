@@ -97,7 +97,7 @@ def show_root():
         predicate.set_tanimoto_threshold(float(similarity))
 
     if reaction_ids or reaction_smiles or inputs or output:
-        db = query.OrdPostgres(host='localhost', port=5432)
+        db = connect()
         reaction_ids = db.predicate_search_ids(predicate)
     else:
         reaction_ids = []
@@ -111,8 +111,16 @@ def show_id(reaction_id):
     """Returns the pbtxt of a single reaction as plain text."""
     predicate = query.Predicate()
     predicate.add_reaction_id(reaction_id)
-    db = query.OrdPostgres(host='localhost', port=5432)
+    db = connect()
     dataset = db.predicate_search(predicate)
     if len(dataset.reactions) == 0:
         return flask.abort(404)
     return flask.Response(str(dataset.reactions[0]), mimetype='text/plain')
+
+
+def connect():
+    return query.OrdPostgres(dbname='ord',
+                             user='ord-postgres',
+                             password='ord-postgres',
+                             host='localhost',
+                             port=5432)
