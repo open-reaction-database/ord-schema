@@ -48,7 +48,11 @@ class BuildDatabaseTest(absltest.TestCase):
             },
             detach=True,
             remove=True)
+        num_attempts = 0
         while True:
+            num_attempts += 1
+            if num_attempts > 30:
+                raise RuntimeError('failed to connect to the database')
             try:
                 psycopg2.connect(dbname=interface.POSTGRES_DB,
                                  host='localhost',

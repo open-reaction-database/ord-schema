@@ -44,7 +44,11 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
         super().setUp()
+        num_attempts = 0
         while True:
+            num_attempts += 1
+            if num_attempts > 30:
+                raise RuntimeError('failed to connect to the database')
             try:
                 self.postgres = query.OrdPostgres(
                     dbname=interface.POSTGRES_DB,
