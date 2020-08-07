@@ -114,8 +114,7 @@ def extract_data(message, root, min_size=0.0, max_size=1.0):
         List of text filenames; the generated Data files.
     """
     dirname = tempfile.mkdtemp()
-    data_messages = message_helpers.find_submessages(message,
-                                                     reaction_pb2.Data)
+    data_messages = message_helpers.find_submessages(message, reaction_pb2.Data)
     filenames = []
     for data_message in data_messages:
         data_filename, data_size = write_data(data_message,

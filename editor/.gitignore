@@ -4,6 +4,7 @@ closure-library-*
 db/*/*.lock
 db/*/upload_*
 gen
+ketcher
 node_modules
 package
 package-lock.json

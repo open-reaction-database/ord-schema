@@ -17,7 +17,6 @@ For simplicity, and to aid in debugging, we write tables to individual CSV
 files and load them into PostgreSQL with the COPY command.
 """
 
-import collections
 import csv
 import glob
 import os
@@ -26,51 +25,30 @@ from absl import app
 from absl import flags
 from absl import logging
 import psycopg2
+from psycopg2 import sql
 
+from ord_schema import interface
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('input', None, 'Input pattern (glob).')
 flags.DEFINE_string('output', 'tables', 'Output directory for CSV tables.')
-flags.DEFINE_string('database', None, 'Database name.')
-flags.DEFINE_string('user', None, 'PostgreSQL user.')
-flags.DEFINE_string('password', None, 'PostgreSQL password.')
-flags.DEFINE_string('host', None, 'PostgreSQL server host.')
-flags.DEFINE_integer('port', None, 'PostgreSQL server port.')
+flags.DEFINE_boolean('database', False,
+                     'If True, builds the PostgreSQL database.')
 flags.DEFINE_boolean('overwrite', False, 'If True, overwrite existing tables.')
-
-# Postgres table schema.
-_TABLES = {
-    'reactions':
-        collections.OrderedDict([
-            ('reaction_id', 'text'),
-            ('reaction_smiles', 'text'),
-            ('serialized', 'bytea'),
-        ]),
-    'inputs':
-        collections.OrderedDict([
-            ('reaction_id', 'text'),
-            ('smiles', 'text'),
-        ]),
-    'outputs':
-        collections.OrderedDict([
-            ('reaction_id', 'text'),
-            ('smiles', 'text'),
-            ('yield', 'double precision'),
-        ]),
-}
 
 
 class Tables:
     """Holds file handles and CSV writers for database table files."""
+
     def __init__(self):
         self._handles = []
 
     def __enter__(self):
         os.makedirs(FLAGS.output, exist_ok=True)
         self._handles = []
-        for table, columns in _TABLES.items():
+        for table, columns in interface.TABLES.items():
             handle = open(os.path.join(FLAGS.output, f'{table}.csv'), 'w')
             self._handles.append(handle)
             writer = csv.DictWriter(handle,
@@ -162,27 +140,44 @@ def _outputs_table(reaction, tables):
 
 def create_database():
     """Populates the Postgres database."""
-    db = psycopg2.connect(dbname=FLAGS.database,
-                          user=FLAGS.user,
-                          password=FLAGS.password,
-                          host=FLAGS.host,
-                          port=FLAGS.port)
+    db = psycopg2.connect(dbname=interface.POSTGRES_DB,
+                          user=interface.POSTGRES_USER,
+                          password=interface.POSTGRES_PASSWORD,
+                          host='localhost',
+                          port=interface.POSTGRES_PORT)
     cursor = db.cursor()
     if FLAGS.overwrite:
-        for table in _TABLES:
-            cursor.execute(f'DROP TABLE IF EXISTS {table};')
-    cursor.execute('CREATE EXTENSION IF NOT EXISTS rdkit;')
-    cursor.execute('CREATE SCHEMA rdk;')
-    for table, columns in _TABLES.items():
-        dtypes = ',\n'.join(
-            [f'\t{column}\t{dtype}' for column, dtype in columns.items()])
-        command = f'CREATE TABLE {table} (\n{dtypes}\n);'
-        logging.info('Running:\n%s', command)
+        logging.info('Removing existing tables')
+        for table in interface.TABLES:
+            command = sql.SQL('DROP TABLE IF EXISTS {}')
+            cursor.execute(command.format(sql.Identifier(table)))
+    cursor.execute(sql.SQL('CREATE EXTENSION IF NOT EXISTS rdkit'))
+    cursor.execute(
+        sql.SQL('CREATE SCHEMA {}').format(
+            sql.Identifier(interface.RDKIT_SCHEMA)))
+    for table, columns in interface.TABLES.items():
+        dtypes = []
+        for column, dtype in columns.items():
+            if table == 'reactions' and column == 'reaction_id':
+                component = sql.SQL('{} {} PRIMARY KEY')
+            else:
+                component = sql.SQL('{} {}')
+            # NOTE(kearnes): sql.Identifier(dtype) does not work for the
+            # 'double precision' type.
+            dtypes.append(
+                component.format(sql.Identifier(column), sql.SQL(dtype)))
+        command = sql.Composed([
+            sql.SQL('CREATE TABLE {} (').format(sql.Identifier(table)),
+            sql.Composed(dtypes).join(', '),
+            sql.SQL(')')
+        ])
+        logging.info('Running:\n%s', command.as_string(cursor))
         cursor.execute(command)
         logging.info('Running COPY')
         with open(os.path.join(FLAGS.output, f'{table}.csv')) as f:
             cursor.copy_expert(
-                f'COPY {table} FROM STDIN DELIMITER \',\' CSV HEADER;', f)
+                sql.SQL('COPY {} FROM STDIN WITH CSV HEADER').format(
+                    sql.Identifier(table)), f)
         logging.info('Adding RDKit cartridge functionality')
         if 'reaction_smiles' in columns:
             _rdkit_reaction_smiles(cursor, table)
@@ -206,18 +201,26 @@ def _rdkit_reaction_smiles(cursor, table):
         cursor: psycopg2 Cursor.
         table: Text table name.
     """
-    cursor.execute(f"""
+    cursor.execute(
+        sql.SQL("""
         SELECT reaction_id,
                r,
                reaction_difference_fp(r) AS rdfp 
-        INTO rdk.{table} FROM (
+        INTO {} FROM (
             SELECT reaction_id, 
                    reaction_from_smiles(reaction_smiles::cstring) AS r
-            FROM {table}) tmp
-        WHERE r IS NOT NULL;""")
-    cursor.execute(f'CREATE INDEX {table}_r ON rdk.{table} USING gist(r);')
+            FROM {}) tmp
+        WHERE r IS NOT NULL""").format(
+            sql.Identifier(interface.RDKIT_SCHEMA, table),
+            sql.Identifier(table)))
     cursor.execute(
-        f'CREATE INDEX {table}_rdfp ON rdk.{table} USING gist(rdfp);')
+        sql.SQL('CREATE INDEX {} ON {} USING gist(r)').format(
+            sql.Identifier(f'{table}_r'),
+            sql.Identifier(interface.RDKIT_SCHEMA, table)))
+    cursor.execute(
+        sql.SQL('CREATE INDEX {} ON {} USING gist(rdfp)').format(
+            sql.Identifier(f'{table}_rdfp'),
+            sql.Identifier(interface.RDKIT_SCHEMA, table)))
 
 
 def _rdkit_smiles(cursor, table):
@@ -233,18 +236,26 @@ def _rdkit_smiles(cursor, table):
         cursor: psycopg2 Cursor.
         table: Text table name.
     """
-    cursor.execute(f"""
+    cursor.execute(
+        sql.SQL("""
         SELECT reaction_id,
                m,
                morganbv_fp(m) AS mfp2 
-        INTO rdk.{table} FROM (
+        INTO {} FROM (
             SELECT reaction_id, 
                    mol_from_smiles(smiles::cstring) AS m
-            FROM {table}) tmp
-        WHERE m IS NOT NULL;""")
-    cursor.execute(f'CREATE INDEX {table}_m ON rdk.{table} USING gist(m);')
+            FROM {}) tmp
+        WHERE m IS NOT NULL""").format(
+            sql.Identifier(interface.RDKIT_SCHEMA, table),
+            sql.Identifier(table)))
     cursor.execute(
-        f'CREATE INDEX {table}_mfp2 ON rdk.{table} USING gist(mfp2);')
+        sql.SQL('CREATE INDEX {} ON {} USING gist(m)').format(
+            sql.Identifier(f'{table}_m'),
+            sql.Identifier(interface.RDKIT_SCHEMA, table)))
+    cursor.execute(
+        sql.SQL('CREATE INDEX {} ON {} USING gist(mfp2)').format(
+            sql.Identifier(f'{table}_mfp2'),
+            sql.Identifier(interface.RDKIT_SCHEMA, table)))
 
 
 def main(argv):

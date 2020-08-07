@@ -82,8 +82,7 @@ def build_compound(smiles=None,
         else:
             raise TypeError(f'unsupported units for amount: {amount_pb}')
     if role:
-        field = reaction_pb2.Compound.DESCRIPTOR.fields_by_name[
-            'reaction_role']
+        field = reaction_pb2.Compound.DESCRIPTOR.fields_by_name['reaction_role']
         values_dict = field.enum_type.values_by_name
         try:
             compound.reaction_role = values_dict[role.upper()].number
@@ -105,8 +104,8 @@ def build_compound(smiles=None,
             raise KeyError(
                 f'{prep} is not a supported type: {values_dict.keys()}')
         if (compound.preparations[0].type
-                == reaction_pb2.CompoundPreparation.CUSTOM
-                and not prep_details):
+                == reaction_pb2.CompoundPreparation.CUSTOM and
+                not prep_details):
             raise ValueError(
                 'prep_details must be provided when CUSTOM prep is used')
     if prep_details:
@@ -154,8 +153,7 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
         elif solvent.volume.units == solvent.volume.MICROLITER:
             volume_liter += solvent.volume.value * 1e-6
         else:
-            raise ValueError(
-                'solvent units not recognized by set_solute_moles')
+            raise ValueError('solvent units not recognized by set_solute_moles')
     # Get solute concentration in molar.
     resolver = units.UnitResolver(
         unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
@@ -247,8 +245,8 @@ def find_submessages(message, submessage_type):
         elif field.label == field.LABEL_REPEATED:
             # Standard repeated field.
             for submessage in value:
-                submessages.extend(
-                    find_submessages(submessage, submessage_type))
+                submessages.extend(find_submessages(submessage,
+                                                    submessage_type))
         else:
             submessages.extend(find_submessages(value, submessage_type))
     return submessages
@@ -271,11 +269,24 @@ def smiles_from_compound(compound):
     return Chem.MolToSmiles(mol_from_compound(compound))
 
 
+def molblock_from_compound(compound):
+    """Fetches or generates a MolBlock identifier for a compound.
+
+    Args:
+        compound: reaction_pb2.Compound message.
+
+    Returns:
+        molblock: MolBlock identifier.
+    """
+    for identifier in compound.identifiers:
+        if identifier.type == reaction_pb2.CompoundIdentifier.MOLBLOCK:
+            return identifier.value
+    return Chem.MolToMolBlock(mol_from_compound(compound))
+
+
 # pylint: disable=inconsistent-return-statements
 def mol_from_compound(compound, return_identifier=False):
     """Creates an RDKit Mol from a Compound message.
-
-    Note that this function prefers RDKIT_BINARY identifiers over any others.
 
     Args:
         compound: reaction_pb2.Compound message.
@@ -291,26 +302,17 @@ def mol_from_compound(compound, return_identifier=False):
         ValueError: If no structural identifier is available, or if the
             resulting Mol object is invalid.
     """
-    # Prefer RDKIT_BINARY identifiers when available.
-    for identifier in compound.identifiers:
-        if identifier.type == reaction_pb2.CompoundIdentifier.RDKIT_BINARY:
-            mol = Chem.Mol(identifier.bytes_value)
-            if return_identifier:
-                return mol, identifier
-            return mol
     for identifier in compound.identifiers:
         if identifier.type in _COMPOUND_IDENTIFIER_LOADERS:
             mol = _COMPOUND_IDENTIFIER_LOADERS[identifier.type](
                 identifier.value)
             if not mol:
                 raise ValueError(
-                    f'invalid structural identifier for Compound: {identifier}'
-                )
+                    f'invalid structural identifier for Compound: {identifier}')
             if return_identifier:
                 return mol, identifier
             return mol
-    raise ValueError(
-        f'no valid structural identifier for Compound: {compound}')
+    raise ValueError(f'no valid structural identifier for Compound: {compound}')
 
 
 # pylint: enable=inconsistent-return-statements
@@ -327,9 +329,7 @@ def check_compound_identifiers(compound):
     """
     smiles = set()
     for identifier in compound.identifiers:
-        if identifier.type == reaction_pb2.CompoundIdentifier.RDKIT_BINARY:
-            mol = Chem.Mol(identifier.bytes_value)
-        elif identifier.type in _COMPOUND_IDENTIFIER_LOADERS:
+        if identifier.type in _COMPOUND_IDENTIFIER_LOADERS:
             mol = _COMPOUND_IDENTIFIER_LOADERS[identifier.type](
                 identifier.value)
         else:
@@ -510,3 +510,26 @@ def id_filename(filename):
         raise ValueError(
             'basename does not have the required "ord" prefix: {basename}')
     return os.path.join('data', suffix[:2], basename)
+
+
+def create_message(message_name):
+    """Converts a message name into an instantiation of that class, where
+    the message belongs to the reaction_pb2 module.
+
+    Args:
+        message_name: Text name of a message field. For example, "Reaction" or
+            "TemperatureConditions.Measurement".
+
+    Returns:
+        Initialized message of the requested type.
+
+    Raises:
+        ValueError if the name cannot be resolved.
+    """
+    message_class = reaction_pb2
+    try:
+        for name in message_name.split('.'):
+            message_class = getattr(message_class, name)
+        return message_class()
+    except (AttributeError, TypeError):
+        raise ValueError(f'Cannot resolve message name {message_name}')

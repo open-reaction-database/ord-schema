@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM python:3
+FROM continuumio/miniconda3
 WORKDIR /usr/src/app
 
+RUN conda install -c rdkit rdkit
+COPY package/ord/requirements.txt .
+RUN pip install -r requirements.txt
 RUN pip install Flask protobuf
 
 # First run "make package".

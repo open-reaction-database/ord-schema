@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,12 +21,12 @@ goog.require('proto.ord.ReactionObservation');
 // Freely create radio button groups by generating new input names.
 ord.observations.radioGroupCounter = 0;
 
-ord.observations.load = function (observations) {
+ord.observations.load = function(observations) {
   observations.forEach(
       observation => ord.observations.loadObservation(observation));
 };
 
-ord.observations.loadObservation = function (observation) {
+ord.observations.loadObservation = function(observation) {
   const node = ord.observations.add();
   writeMetric('.observation_time', observation.getTime(), node);
 
@@ -44,46 +44,49 @@ ord.observations.loadObservation = function (observation) {
     $('.observation_image_text', node).show();
     $('.uploader', node).hide();
     $('.observation_image_text', node).text(stringValue);
-    $("input[value='text']", node).prop('checked', true);
+    $('input[value=\'text\']', node).prop('checked', true);
   }
   if (floatValue) {
     $('.observation_image_text', node).show();
     $('.uploader', node).hide();
     $('.observation_image_text', node).text(floatValue);
-    $("input[value='number']", node).prop('checked', true);
+    $('input[value=\'number\']', node).prop('checked', true);
   }
   if (bytesValue) {
     $('.observation_image_text', node).hide();
     $('.uploader', node).show();
     ord.uploads.load(node, bytesValue);
-    $("input[value='upload']", node).prop('checked', true);
+    $('input[value=\'upload\']', node).prop('checked', true);
   }
   if (url) {
     $('.observation_image_text', node).show();
     $('.uploader', node).hide();
     $('.observation_image_text', node).text(url);
-    $("input[value='url']", node).prop('checked', true);
+    $('input[value=\'url\']', node).prop('checked', true);
   }
 };
 
-ord.observations.unload = function () {
+ord.observations.unload = function() {
   const observations = [];
-  $('.observation').each(function (index, node) {
+  $('.observation').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template
       const observation = ord.observations.unloadObservation(node);
-      observations.push(observation);
+      if (!isEmptyMessage(observation)) {
+        observations.push(observation);
+      }
     }
   });
   return observations;
 };
 
-ord.observations.unloadObservation = function (node) {
+ord.observations.unloadObservation = function(node) {
   const observation = new proto.ord.ReactionObservation();
-  const time =
-      readMetric('.observation_time', new proto.ord.Time(), node);
-  observation.setTime(time);
+  const time = readMetric('.observation_time', new proto.ord.Time(), node);
+  if (!isEmptyMessage(time)) {
+    observation.setTime(time);
+  }
 
   observation.setComment($('.observation_comment', node).text());
 
@@ -91,38 +94,45 @@ ord.observations.unloadObservation = function (node) {
   image.setDescription($('.observation_image_description', node).text());
   image.setFormat($('.observation_image_format', node).text());
 
-  if ($("input[value='text']", node).is(':checked')) {
+  if ($('input[value=\'text\']', node).is(':checked')) {
     const stringValue = $('.observation_image_text', node).text();
-    image.setStringValue(stringValue);
+    if (!isEmptyMessage(stringValue)) {
+      image.setStringValue(stringValue);
+    }
   }
-  if ($("input[value='number']", node).is(':checked')) {
+  if ($('input[value=\'number\']', node).is(':checked')) {
     const floatValue = parseFloat($('.setup_code_text', node).text());
     if (!isNaN(floatValue)) {
       image.setFloatValue(floatValue);
     }
   }
-  if ($("input[value='upload']", node).is(':checked')) {
+  if ($('input[value=\'upload\']', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    image.setBytesValue(bytesValue);
+    if (!isEmptyMessage(bytesValue)) {
+      image.setBytesValue(bytesValue);
+    }
   }
-  if ($("input[value='url']", node).is(':checked')) {
+  if ($('input[value=\'url\']', node).is(':checked')) {
     const url = $('.observation_image_text', node).text();
-    image.setUrl(url);
+    if (!isEmptyMessage(url)) {
+      image.setUrl(url);
+    }
   }
-  observation.setImage(image);
+  if (!isEmptyMessage(image)) {
+    observation.setImage(image);
+  }
   return observation;
 };
 
-ord.observations.add = function () {
+ord.observations.add = function() {
   const node = addSlowly('#observation_template', '#observations');
 
-  const typeButtons = $("input[type='radio']", node);
+  const typeButtons = $('input[type=\'radio\']', node);
   typeButtons.attr(
       'name', 'observations_' + ord.observations.radioGroupCounter++);
-  typeButtons.change(function () {
-    if ((this.value == 'text')
-        || (this.value == 'number')
-        || (this.value == 'url')) {
+  typeButtons.change(function() {
+    if ((this.value == 'text') || (this.value == 'number') ||
+        (this.value == 'url')) {
       $('.observation_image_text', node).show();
       $('.uploader', node).hide();
     } else {
@@ -131,5 +141,17 @@ ord.observations.add = function () {
     }
   });
   ord.uploads.initialize(node);
+
+  // Add live validation handling.
+  addChangeHandler(node, () => {ord.observations.validateObservation(node)});
+
   return node;
+};
+
+ord.observations.validateObservation = function(node, validateNode) {
+  const observation = ord.observations.unloadObservation(node);
+  if (!validateNode) {
+    validateNode = $('.validate', node).first();
+  }
+  validate(observation, 'ReactionObservation', validateNode);
 };

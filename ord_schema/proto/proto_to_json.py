@@ -74,8 +74,8 @@ def get_database_json(message):
     """
     record = {}
     for field, value in message.ListFields():
-        if (field.type == field.TYPE_MESSAGE
-                and field.message_type.GetOptions().map_entry):
+        if (field.type == field.TYPE_MESSAGE and
+                field.message_type.GetOptions().map_entry):
             # Convert proto maps to lists of (key, value) pairs.
             field_key = field.message_type.fields_by_name['key']
             field_value = field.message_type.fields_by_name['value']

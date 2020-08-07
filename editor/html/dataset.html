@@ -36,6 +36,12 @@ limitations under the License.
         border-width: 1px;
         border-color: #c0c0c0;
       }
+      .longtext {
+        width: 400px;
+      }
+      .paratext {
+        height: 100px;
+      }
       .add, #save, .remove, #download {
         padding: 2px 4px;
         margin: 2px;
@@ -63,7 +69,7 @@ limitations under the License.
   <body onload="init('{{ file_name }}');">
 
     <center>
-      <h1>{{ file_name }}.pbtxt</h1>
+      <h1><a href="/">Dataset</a>: {{ file_name }}.pbtxt</h1>
     </center>
     <div id="top_buttons">
       <div id="download" onclick="download();">download</div>
@@ -73,9 +79,20 @@ limitations under the License.
     <div class="spacer"></div>
 
     <div id="text_fields">
-      name <div id="name" class="edittext"></div>
-      description <div id="description" class="edittext"></div>
-      id <div id="dataset_id" class="edittext"></div>
+      <table>
+        <tr>
+          <td align="right">name</td>
+          <td><div id="name" class="edittext longtext"></div></td>
+        </tr>
+        <tr>
+          <td align="right">id</td>
+          <td><div id="dataset_id" class="edittext longtext"></div><br></td>
+        </tr>
+        <tr>
+          <td align="right">description</td>
+          <td><div id="description" class="edittext longtext paratext"></div></td>
+        </tr>
+      </table> 
     </div>
 
     <div class="spacer"></div>
@@ -104,28 +121,5 @@ limitations under the License.
       </div>
       <div id="add_other_reaction_id" class="add" onclick="addReactionId();">+ add reaction ID</div>
     </fieldset>
-
-    <div class="spacer"></div>
-
-    <div id="examples">
-      <div id="example_template" class="example" style="display: none;">
-        <fieldset>
-          <legend>Example</legend>
-          <div class="remove" onclick="removeExample(this);" style="float: right;">remove</div>
-          <table>
-            <tr><td align="right">url</td><td><div class="example_url edittext"></div>
-            <tr><td align="right">description</td><td><div class="example_description edittext"></div>
-            <tr><td align="right">time</td><td><div class="example_created_time edittext"></div>
-            <tr><td align="right">username</td><td><div class="example_created_person_username edittext"></div>
-            <tr><td align="right">name</td><td><div class="example_created_person_name edittext"></div>
-            <tr><td align="right">orcid</td><td><div class="example_created_person_orcid edittext"></div>
-            <tr><td align="right">organization</td><td><div class="example_created_person_org edittext"></div>
-            <tr><td align="right">details</td><td><div class="example_created_details edittext"></div>
-          </table>
-        </fieldset>
-        <div class="spacer"></div>
-      </div>
-    </div>
-    <div id="add_example" class="add" onclick="addExample();">+ add example</div>
   </body>
 </html>

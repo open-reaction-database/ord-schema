@@ -47,6 +47,8 @@ import uuid
 from absl import app
 from absl import flags
 from absl import logging
+import github
+from google.protobuf import text_format
 
 from ord_schema import data_storage
 from ord_schema import message_helpers
@@ -70,6 +72,11 @@ flags.DEFINE_float('min_size', 0.1,
                    'Minimum size (in MB) for offloading Data values.')
 flags.DEFINE_float('max_size', 100.0,
                    'Maximum size (in MB) for offloading Data values.')
+flags.DEFINE_string('base', 'main', 'Git branch to diff against.')
+flags.DEFINE_integer(
+    'issue', None,
+    'GitHub pull request number. If provided, a comment will be added.')
+flags.DEFINE_string('token', None, 'GitHub authentication token.')
 
 
 @dataclasses.dataclass(eq=True, frozen=True, order=True)
@@ -77,6 +84,7 @@ class FileStatus:
     """A filename and its status in Git."""
     filename: str
     status: str
+    original_filename: str
 
     def __post_init__(self):
         if self.status[0] not in ['A', 'D', 'M', 'R']:
@@ -88,6 +96,9 @@ def _get_inputs():
 
     Returns:
         List of FileStatus objects.
+
+    Raises:
+        ValueError: If a git-diff status is not one of {'A', 'D', 'M', 'R'}.
     """
     if FLAGS.input_pattern and FLAGS.input_file:
         raise ValueError(
@@ -95,22 +106,24 @@ def _get_inputs():
     if FLAGS.input_pattern:
         # Setting recursive=True allows recursive matching with '**'.
         filenames = glob.glob(FLAGS.input_pattern, recursive=True)
-        return [FileStatus(filename, 'A') for filename in filenames]
+        return [FileStatus(filename, 'A', '') for filename in filenames]
     if FLAGS.input_file:
         inputs = []
         with open(FLAGS.input_file) as f:
             for line in f:
                 fields = line.strip().split()
                 if len(fields) == 3:
-                    status, _, filename = fields
+                    status, original_filename, filename = fields
                     if not status.startswith('R'):
                         raise ValueError(
                             f'malformed status line: {line.strip()}')
                 else:
                     status, filename = fields
-                if status == 'D':
-                    continue  # Nothing to do for deleted files.
-                inputs.append(FileStatus(filename, status))
+                    if not status.startswith(('A', 'D', 'M')):
+                        raise ValueError(
+                            f'unsupported git-diff statue: {status}')
+                    original_filename = ''
+                inputs.append(FileStatus(filename, status, original_filename))
         return inputs
     raise ValueError('one of --input_pattern or --input_file is required')
 
@@ -160,22 +173,60 @@ def cleanup(inputs, output_filename):
         subprocess.run(args, check=True)
 
 
-def main(argv):
-    del argv  # Only used by app.run().
-    inputs = sorted(_get_inputs())
-    if not inputs:
-        logging.info('nothing to do')
-        return  # Nothing to do.
-    datasets = {}
+def _get_reaction_ids(dataset):
+    """Returns a list of reaction IDs in a Dataset."""
+    reaction_ids = []
+    for reaction in dataset.reactions:
+        reaction_ids.append(reaction.reaction_id)
+    return reaction_ids
+
+
+def _load_base_dataset(file_status, base):
+    """Loads a Dataset message from another branch."""
+    if file_status.status.startswith('A'):
+        return None  # Dataset only exists in the submission.
+    args = ['git', 'show']
+    if file_status.status.startswith('R'):
+        args.append(f'{base}:{file_status.original_filename}')
+    else:
+        args.append(f'{base}:{file_status.filename}')
+    logging.info('Running command: %s', ' '.join(args))
+    dataset_pbtxt = subprocess.run(args,
+                                   capture_output=True,
+                                   check=True,
+                                   text=True)
+    return text_format.Parse(dataset_pbtxt.stdout, dataset_pb2.Dataset())
+
+
+def get_change_stats(datasets, inputs, base):
+    """Computes diff statistics for the submission.
+
+    Args:
+        datasets: Dict mapping filenames to Dataset messages.
+        inputs: List of FileStatus objects.
+        base: Git branch to diff against.
+
+    Returns:
+        added: Set of added reaction IDs.
+        removed: Set of deleted reaction IDs.
+    """
+    old, new = set(), set()
     for file_status in inputs:
-        datasets[file_status.filename] = message_helpers.load_message(
-            file_status.filename, dataset_pb2.Dataset)
-    if FLAGS.validate:
-        # Note: this does not check if IDs are malformed.
-        validations.validate_datasets(datasets, FLAGS.write_errors)
-    if not FLAGS.update:
-        logging.info('nothing else to do; use --update for more')
-        return  # Nothing else to do.
+        if not file_status.status.startswith('D'):
+            new.update(_get_reaction_ids(datasets[file_status.filename]))
+        dataset = _load_base_dataset(file_status, base)
+        if dataset is not None:
+            old.update(_get_reaction_ids(dataset))
+    return new - old, old - new
+
+
+def _run_updates(inputs, datasets):
+    """Updates the submission files.
+
+    Args:
+        inputs: List of FileStatus objects.
+        datasets: Dict mapping filenames to Dataset messages.
+    """
     for dataset in datasets.values():
         # Set reaction_ids, resolve names, fix cross-references, etc.
         updates.update_dataset(dataset)
@@ -205,6 +256,50 @@ def main(argv):
         cleanup(inputs, output_filename)
     logging.info('writing combined Dataset to %s', output_filename)
     message_helpers.write_message(combined, output_filename)
+
+
+def run():
+    """Main function that returns added/removed reaction ID sets.
+
+    This function should be called directly by tests to get access to the
+    return values. If main() returns something other than None it will break
+    shell error code logic downstream.
+
+    Returns:
+        added: Set of added reaction IDs.
+        removed: Set of deleted reaction IDs.
+    """
+    inputs = sorted(_get_inputs())
+    if not inputs:
+        logging.info('nothing to do')
+        return set(), set()  # Nothing to do.
+    datasets = {}
+    for file_status in inputs:
+        if file_status.status == 'D':
+            continue  # Nothing to do for deleted files.
+        datasets[file_status.filename] = message_helpers.load_message(
+            file_status.filename, dataset_pb2.Dataset)
+    if FLAGS.validate:
+        # Note: this does not check if IDs are malformed.
+        validations.validate_datasets(datasets, FLAGS.write_errors)
+    added, removed = get_change_stats(datasets, inputs, base=FLAGS.base)
+    logging.info('Summary: +%d -%d reaction IDs', len(added), len(removed))
+    if FLAGS.issue and FLAGS.token:
+        client = github.Github(FLAGS.token)
+        repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
+        issue = repo.get_issue(FLAGS.issue)
+        issue.create_comment(
+            f'Summary: +{len(added)} -{len(removed)} reaction IDs')
+    if FLAGS.update:
+        _run_updates(inputs, datasets)
+    else:
+        logging.info('nothing else to do; use --update for more')
+    return added, removed
+
+
+def main(argv):
+    del argv  # Only used by app.run().
+    run()
 
 
 if __name__ == '__main__':

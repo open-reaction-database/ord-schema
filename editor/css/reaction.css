@@ -23,7 +23,7 @@ body {
 #top_buttons {
   text-align: center;
 }
-.edittext, .selector, .optional_bool {
+.edittext, .selector, .optional_bool, .analysis_key_selector {
   padding: 2px;
   margin: 2px;
   display: inline-block;
@@ -33,19 +33,42 @@ body {
   border: solid;
   border-width: 1px;
   border-color: #c0c0c0;
+  white-space: pre-wrap;
 }
-.add, #save, .remove, #delete {
+.shorttext {
+  width: 75px;
+}
+.veryshorttext {
+  width: 25px;
+}
+.paratext {
+  height: 100px;
+  width: 400px;
+  max-height: 200px;
+  overflow-y: scroll;
+  word-break: break-all;
+  vertical-align: bottom;
+}
+.longtext {
+  width: 400px;
+  max-height: 75px;
+  overflow-y: scroll;
+  vertical-align: bottom;
+}
+.add, #save, #download, .remove, #delete, .collapse, .validate_button, .validate_status, .validate_message, .tooltip > .tooltip-inner {
   padding: 2px 4px;
   margin: 2px;
   display: inline-block;
   border-radius: 8px;
+}
+.add, #save, #download, .remove, #delete, .collapse, .validate_button {
   cursor: pointer;
 }
 .add {
   background-color: lightgreen;
   margin-top: 12px;
 }
-#save {
+#save, #download {
   background-color: lightgray;
 }
 .remove, #delete {
@@ -54,8 +77,25 @@ body {
 .remove {
   float: right;
 }
+.validate, .validate_status-message {
+  display: inline-block;
+}
+.validate_button {
+  background-color: lightblue;
+}
+.validate_status {
+  background-color: lightgray;
+}
+.validate_message {
+  position: absolute;
+  z-index: 2;
+  visibility: hidden;
+}
 .spacer {
-  height: 32px;
+  height: 24px;
+}
+.tooltip > .tooltip-inner {
+  background-color: lightgray;
 }
 fieldset {
   margin-top: 24px;
@@ -74,7 +114,7 @@ fieldset {
 .navSection:hover {
   background-color: lightblue;
 }
-.uploader {
+.uploader .adder {
   width: 208px;
   display: inline-block;
   padding-left: 2px;
@@ -89,20 +129,20 @@ fieldset {
 }
 .uploader_chooser_file {
   opacity: 0;
-  width: 100px;
   position: absolute;
-  left: 0;
+}
+.uploader_chooser_button {
+  width: 99px;
 }
 .uploader_chooser_file, .uploader_chooser_button {
   cursor: pointer;
-  width: 99px;
 }
 .uploader_chooser_button, .uploader_file_retrieve {
   text-align: center;
 }
 .uploader_file_name {
-  width: 99px;
-  overflow: hidden;
+  min-width: 99px;
+  overflow-x: visible;
   vertical-align: bottom
 }
 .uploader_file_retrieve {
@@ -114,4 +154,25 @@ fieldset {
 }
 .input_name_label {
   padding-right: 4px;
+}
+/* Default hidden fields */
+.includes_solutes, #automation_platform, .limiting_reactant,
+.component_compound_preparation_reaction_id {
+  display: none;
+}
+/* Extra custom stylings for Ketcher. */
+#ketcher-spinner {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  overflow: auto;
+  margin: auto;
+  width: 50px;
+  height: 50px;
+}
+#process {
+  display: none;
 }

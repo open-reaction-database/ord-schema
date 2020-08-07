@@ -265,8 +265,8 @@ def _temperature_conditions_html(temperature):
         String description of the temperature conditions.
     """
     txt = ''
-    if (temperature.control.type == temperature.control.UNSPECIFIED
-            or temperature.control.type == temperature.control.AMBIENT):
+    if (temperature.control.type == temperature.control.UNSPECIFIED or
+            temperature.control.type == temperature.control.AMBIENT):
         return 'ambient temperature'
     setpoint = units.format_message(temperature.setpoint)
     if setpoint:
@@ -342,7 +342,7 @@ def _analysis_format(analysis):
 def _compound_svg(compound):
     """Returns an SVG string for the given compound.
 
-    If the compound does not have an RDKIT_BINARY identifier, a sentinel value
+    If the compound does not have a structural identifier, a sentinel value
     is returned instead.
 
     Args:
@@ -354,13 +354,13 @@ def _compound_svg(compound):
     mol = message_helpers.mol_from_compound(compound)
     if mol:
         return drawing.mol_to_svg(mol)
-    return 'no RDKIT_BINARY'
+    return 'no structural identifiers'
 
 
 def _compound_png(compound):
     """Returns a PNG string for the given compound.
 
-    If the compound does not have an RDKIT_BINARY identifier, a sentinel value
+    If the compound does not have a structural identifier, a sentinel value
     is returned instead.
 
     Args:
@@ -372,7 +372,7 @@ def _compound_png(compound):
     mol = message_helpers.mol_from_compound(compound)
     if mol:
         return drawing.mol_to_png(mol)
-    return 'no RDKIT_BINARY'
+    return 'no structural identifiers'
 
 
 def _compound_amount(compound):
