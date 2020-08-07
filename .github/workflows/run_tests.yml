@@ -73,6 +73,20 @@ jobs:
       - name: Run JS linter
         run: |
           cd "${GITHUB_WORKSPACE}"
+          pip install -r requirements.txt
+          conda install -c rdkit rdkit
+          python setup.py install
+          pip install flask
+          cd "${GITHUB_WORKSPACE}/editor"
+          npm install google-protobuf puppeteer
+          wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
+          tar -xzf editor_test_protobuf_1dae8fdd.tar
+          wget https://github.com/google/closure-library/archive/v20200517.tar.gz
+          tar -xzf v20200517.tar.gz
+          git clone https://github.com/Open-Reaction-Database/ketcher.git
+          make
+
+          cd "${GITHUB_WORKSPACE}"
           # See https://github.com/google/closure-compiler/wiki/Lint-checks.
           npm install google-closure-compiler
 
