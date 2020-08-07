@@ -26,6 +26,7 @@ from absl import app
 from absl import flags
 from absl import logging
 import psycopg2
+from psycopg2 import sql
 
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
@@ -170,20 +171,35 @@ def create_database():
                           port=FLAGS.port)
     cursor = db.cursor()
     if FLAGS.overwrite:
+        logging.info('Removing existing tables')
         for table in _TABLES:
-            cursor.execute(f'DROP TABLE IF EXISTS {table};')
-    cursor.execute('CREATE EXTENSION IF NOT EXISTS rdkit;')
-    cursor.execute('CREATE SCHEMA rdk;')
+            command = sql.SQL('DROP TABLE IF EXISTS {}')
+            cursor.execute(command.format(sql.Identifier(table)))
+    cursor.execute(sql.SQL('CREATE EXTENSION IF NOT EXISTS rdkit'))
+    cursor.execute(sql.SQL('CREATE SCHEMA rdk'))
     for table, columns in _TABLES.items():
-        dtypes = ',\n'.join(
-            [f'\t{column}\t{dtype}' for column, dtype in columns.items()])
-        command = f'CREATE TABLE {table} (\n{dtypes}\n);'
-        logging.info('Running:\n%s', command)
+        dtypes = []
+        for column, dtype in columns.items():
+            if table == 'reactions' and column == 'reaction_id':
+                component = sql.SQL('{} {} PRIMARY KEY')
+            else:
+                component = sql.SQL('{} {}')
+            # NOTE(kearnes): sql.Identifier(dtype) does not work for the
+            # 'double precision' type.
+            dtypes.append(
+                component.format(sql.Identifier(column), sql.SQL(dtype)))
+        command = sql.Composed([
+            sql.SQL('CREATE TABLE {} (').format(sql.Identifier(table)),
+            sql.Composed(dtypes).join(', '),
+            sql.SQL(')')
+        ])
+        logging.info('Running:\n%s', command.as_string(cursor))
         cursor.execute(command)
         logging.info('Running COPY')
         with open(os.path.join(FLAGS.output, f'{table}.csv')) as f:
             cursor.copy_expert(
-                f'COPY {table} FROM STDIN DELIMITER \',\' CSV HEADER;', f)
+                sql.SQL('COPY {} FROM STDIN WITH CSV HEADER').format(
+                    sql.Identifier(table)), f)
         logging.info('Adding RDKit cartridge functionality')
         if 'reaction_smiles' in columns:
             _rdkit_reaction_smiles(cursor, table)
@@ -207,18 +223,23 @@ def _rdkit_reaction_smiles(cursor, table):
         cursor: psycopg2 Cursor.
         table: Text table name.
     """
-    cursor.execute(f"""
+    cursor.execute(
+        sql.SQL("""
         SELECT reaction_id,
                r,
                reaction_difference_fp(r) AS rdfp 
-        INTO rdk.{table} FROM (
+        INTO rdk.{} FROM (
             SELECT reaction_id, 
                    reaction_from_smiles(reaction_smiles::cstring) AS r
-            FROM {table}) tmp
-        WHERE r IS NOT NULL;""")
-    cursor.execute(f'CREATE INDEX {table}_r ON rdk.{table} USING gist(r);')
+            FROM {}) tmp
+        WHERE r IS NOT NULL""").format(sql.Identifier(table),
+                                       sql.Identifier(table)))
     cursor.execute(
-        f'CREATE INDEX {table}_rdfp ON rdk.{table} USING gist(rdfp);')
+        sql.SQL('CREATE INDEX {} ON rdk.{} USING gist(r)').format(
+            sql.Identifier(f'{table}_r'), sql.Identifier(table)))
+    cursor.execute(
+        sql.SQL('CREATE INDEX {} ON rdk.{} USING gist(rdfp)').format(
+            sql.Identifier(f'{table}_rdfp'), sql.Identifier(table)))
 
 
 def _rdkit_smiles(cursor, table):
@@ -234,18 +255,23 @@ def _rdkit_smiles(cursor, table):
         cursor: psycopg2 Cursor.
         table: Text table name.
     """
-    cursor.execute(f"""
+    cursor.execute(
+        sql.SQL("""
         SELECT reaction_id,
                m,
                morganbv_fp(m) AS mfp2 
-        INTO rdk.{table} FROM (
+        INTO rdk.{} FROM (
             SELECT reaction_id, 
                    mol_from_smiles(smiles::cstring) AS m
-            FROM {table}) tmp
-        WHERE m IS NOT NULL;""")
-    cursor.execute(f'CREATE INDEX {table}_m ON rdk.{table} USING gist(m);')
+            FROM {}) tmp
+        WHERE m IS NOT NULL""").format(sql.Identifier(table),
+                                       sql.Identifier(table)))
     cursor.execute(
-        f'CREATE INDEX {table}_mfp2 ON rdk.{table} USING gist(mfp2);')
+        sql.SQL('CREATE INDEX {} ON rdk.{} USING gist(m)').format(
+            sql.Identifier(f'{table}_m'), sql.Identifier(table)))
+    cursor.execute(
+        sql.SQL('CREATE INDEX {} ON rdk.{} USING gist(mfp2)').format(
+            sql.Identifier(f'{table}_mfp2'), sql.Identifier(table)))
 
 
 def main(argv):
