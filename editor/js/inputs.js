@@ -75,7 +75,7 @@ ord.inputs.loadInputUnnamed = function(node, input) {
 };
 
 ord.inputs.unload = function(inputs) {
-  $('.input').each(function(index, node) {
+  $('#inputs > div.input').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
