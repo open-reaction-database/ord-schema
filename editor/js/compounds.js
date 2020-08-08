@@ -281,6 +281,7 @@ ord.compounds.addNameIdentifier = function(node) {
       identifier.setDetails('NAME resolved by the ' + resolver);
       ord.compounds.loadIdentifier(node, identifier);
     };
+    ord.compounds.validateCompound(node);
   };
   xhr.send(name);
 };
@@ -364,6 +365,7 @@ ord.compounds.drawIdentifier = function(node) {
       identifier.setValue(ketcher.getMolfile());
       ord.compounds.loadIdentifier(node, identifier);
     }
+  ord.compounds.validateCompound(node);
   }
 };
 
@@ -396,7 +398,9 @@ ord.compounds.renderCompound = function(node, compound) {
     const png_data = xhr.response;
     if (png_data) {
       $('.component_rendering', node)[0].src = 'data:image/png;base64,' + png_data;
-    };
+    } else {
+      $('.component_rendering', node)[0].src = '';
+    }
   };
   xhr.send(binary);
 };
