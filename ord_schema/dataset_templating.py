@@ -60,6 +60,12 @@ def read_spreadsheet(file_name):
     return pd.read_csv(file_name, dtype=str)
 
 
+def _escape(string):
+    """Convert single backslashes to double backslashes. Note that we do not
+    do a full re.escape because only backslashes are problematic."""
+    return string.replace('\\', '\\\\')
+
+
 def _replace(string, substitutions):
     """Performs substring substitutions according to a dictionary.
 
@@ -72,7 +78,8 @@ def _replace(string, substitutions):
         The modified string.
     """
     pattern = re.compile('|'.join(map(re.escape, substitutions.keys())))
-    return pattern.sub(lambda match: substitutions[match.group(0)], string)
+    return pattern.sub(lambda match: _escape(substitutions[match.group(0)]),
+                       string)
 
 
 def generate_dataset(template_string, df, validate=True):
