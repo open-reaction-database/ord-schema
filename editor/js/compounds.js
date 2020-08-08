@@ -365,7 +365,7 @@ ord.compounds.drawIdentifier = function(node) {
       identifier.setValue(ketcher.getMolfile());
       ord.compounds.loadIdentifier(node, identifier);
     }
-  ord.compounds.validateCompound(node);
+    ord.compounds.validateCompound(node);
   }
 };
 
