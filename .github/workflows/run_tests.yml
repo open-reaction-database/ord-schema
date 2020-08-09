@@ -110,7 +110,6 @@ jobs:
             --checks_only \
             --jscomp_warning=lintChecks \
             --hide_warnings_for=editor/closure-library-20200517 \
-            --hide_warnings_for=editor/closure-library-20200517 \
             --hide_warnings_for=editor/protobuf/js \
             --hide_warnings_for=gen/js/proto/ord
 
@@ -123,7 +122,6 @@ jobs:
             --dependency_mode PRUNE \
             --checks_only \
             --jscomp_warning=lintChecks \
-            --hide_warnings_for=editor/closure-library-20200517 \
             --hide_warnings_for=editor/closure-library-20200517 \
             --hide_warnings_for=editor/protobuf/js \
             --hide_warnings_for=gen/js/proto/ord
