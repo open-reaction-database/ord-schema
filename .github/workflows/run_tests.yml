@@ -105,26 +105,26 @@ jobs:
             --js 'closure-library-20200517/**.js' \
             --js 'protobuf/js/**.js' \
             --js 'gen/js/proto/ord/**.js'  \
-            --js js/*.js \
+            --js 'js/**.js' \
             --dependency_mode PRUNE \
             --checks_only \
-            --jscomp_warning=lintChecks \
-            --hide_warnings_for=closure-library-20200517 \
-            --hide_warnings_for=protobuf/js \
-            --hide_warnings_for=gen/js/proto/ord
+            --jscomp_warning lintChecks \
+            --hide_warnings_for closure-library-20200517 \
+            --hide_warnings_for protobuf/js \
+            --hide_warnings_for gen/js/proto/ord
 
           java -jar node_modules/google-closure-compiler-java/compiler.jar \
             --entry_point ord.dataset \
             --js 'closure-library-20200517/**.js' \
             --js 'protobuf/js/**.js' \
             --js 'gen/js/proto/ord/**.js'  \
-            --js js/*.js \
+            --js 'js/**.js' \
             --dependency_mode PRUNE \
             --checks_only \
-            --jscomp_warning=lintChecks \
-            --hide_warnings_for=closure-library-20200517 \
-            --hide_warnings_for=protobuf/js \
-            --hide_warnings_for=gen/js/proto/ord
+            --jscomp_warning lintChecks \
+            --hide_warnings_for closure-library-20200517 \
+            --hide_warnings_for protobuf/js \
+            --hide_warnings_for gen/js/proto/ord
 
   test_notebooks:
     runs-on: ubuntu-latest
