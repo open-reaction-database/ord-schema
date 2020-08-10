@@ -100,7 +100,8 @@ jobs:
           npm install google-closure-compiler
 
           # Run the compiler; see the shell script for more info.
-          ../actions/lint_js.sh
+          ../actions/lint_js.sh ord.reaction
+          ../actions/lint_js.sh ord.dataset
 
   test_notebooks:
     runs-on: ubuntu-latest
