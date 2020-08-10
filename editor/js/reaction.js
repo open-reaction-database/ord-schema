@@ -173,9 +173,7 @@ function renderReaction(reaction) {
   xhr.responseType = 'json';
   xhr.onload = function() {
     const html_block = xhr.response;
-    if (html_block) {
-      $('#reaction_render').html(html_block);
-    };
+    $('#reaction_render').html(html_block);
   };
   xhr.send(binary);
 }

@@ -130,6 +130,7 @@ fieldset {
 .uploader_chooser_file {
   opacity: 0;
   position: absolute;
+  width: 100px;
 }
 .uploader_chooser_button {
   width: 99px;
