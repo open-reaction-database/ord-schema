@@ -14,42 +14,77 @@
 
 name: Cleanup
 
-on: push
+on: [pull_request, push]
 
 jobs:
-  cleanup:
-
+  check_licenses:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
     - uses: actions/setup-go@v2
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
-        pip install protoc-wheel-0 yapf
         go get -v -u github.com/google/addlicense
-        echo "::set-env name=GOBIN::${HOME}/go/bin"
-        sudo apt update && sudo apt install clang-format-10 --yes
-    - name: Install ord_schema
+    - name: addlicense
       run: |
         cd "${GITHUB_WORKSPACE}"
-        echo "$(which python)"
-        python setup.py install
-    - name: Run addlicense
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        "${GOBIN}/addlicense" -c "Open Reaction Database Project Authors" -l apache .
-        ./actions/commit_changes.sh "Run addlicense"
-    - name: Run YAPF
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        yapf -p -r . --exclude="*_pb2.py" --verbose --in-place
-        ./actions/commit_changes.sh "Run YAPF"
-    - name: Run clang-format
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        find . -name '*.js' -exec clang-format-10 -i --style=file --verbose {} +
-        find . -name '*.proto' -exec clang-format-10 -i --style=file --verbose {} +
-        ./actions/commit_changes.sh "Run clang-format"
+        "${GOBIN}/addlicense" -check -c "Open Reaction Database Project Authors" -l apache .
+
+  check_python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: s-weigand/setup-conda@v1
+        with:
+          python-version: 3.7
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          # Test deps are required to check imports with pylint.
+          pip install -r test_requirements.txt
+          pip install pylint yapf
+          conda install -c rdkit rdkit
+          python setup.py install
+      - name: pylint
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          pylint ord_schema
+      - name: yapf
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          yapf --parallel --recursive --exclude="*_pb2.py" --quiet .
+
+  check_javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+      - uses: actions/setup-node@v1
+      - name: Install dependencies
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          # See https://github.com/google/closure-compiler/wiki/Lint-checks.
+          npm install google-closure-compiler
+          sudo apt update && sudo apt install clang-format-10 --yes
+      - name: closure
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          java -jar node_modules/google-closure-compiler-java/compiler.jar \
+              --jscomp_warning=lintChecks editor/js/*.js
+      - name: clang-format
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          find . -name '*.js' -exec clang-format-10 -n -Werror --style=file {} +
+
+  check_proto:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install dependencies
+        run: sudo apt update && sudo apt install clang-format-10 --yes
+      - name: clang-format
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          find . -name '*.proto' -exec clang-format-10 -n -Werror --style=file {} +
