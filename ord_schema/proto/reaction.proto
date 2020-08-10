@@ -868,7 +868,7 @@ message Selectivity {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     EE = 2;  // Enantiomeric excess as a percentage (desired - undesired).
-    ER = 3;   // Enantiomeric ratio. (x:1) (desired / undesired).
+    ER = 3;  // Enantiomeric ratio. (x:1) (desired / undesired).
     DR = 4;  // Diasteromeric ratio. (x:1) (desired / undesired).
     EZ = 5;  // Alkene geometry ratio. (x:1) (E / Z)
     ZE = 6;  // Alkene geometry ratio. (x:1) (Z / E)
