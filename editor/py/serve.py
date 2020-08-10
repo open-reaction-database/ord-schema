@@ -346,6 +346,8 @@ def render_reaction():
     that contains a visual summary of the reaction."""
     reaction = reaction_pb2.Reaction()
     reaction.ParseFromString(flask.request.get_data())
+    if not (reaction.inputs or reaction.outcomes):
+        return ''
     try:
         html = generate_text.generate_html(reaction)
         return flask.jsonify(html)
