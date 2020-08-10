@@ -68,26 +68,26 @@ jobs:
       with:
         python-version: 3.7
     - uses: actions/setup-node@v1.4.2
-    - name: Install dependencies
+    - name: Install ord-schema
       run: |
         cd "${GITHUB_WORKSPACE}"
         pip install -r requirements.txt
         conda install -c rdkit rdkit
         python setup.py install
-        pip install flask
+    - name: Build editor
+      run: |
         cd "${GITHUB_WORKSPACE}/editor"
+        pip install flask
         npm install google-protobuf puppeteer
         wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
         tar -xzf editor_test_protobuf_1dae8fdd.tar
         wget https://github.com/google/closure-library/archive/v20200517.tar.gz
         tar -xzf v20200517.tar.gz
         git clone https://github.com/Open-Reaction-Database/ketcher.git
-        cd "${GITHUB_WORKSPACE}/editor/ketcher"
-        npm install && npm run build
-    - name: Build editor and run tests
+        make
+    - name: Run editor tests
       run: |
         cd "${GITHUB_WORKSPACE}/editor"
-        make
         ./serve.sh &
         sleep 5  # Time for the server to get ready.
         make test

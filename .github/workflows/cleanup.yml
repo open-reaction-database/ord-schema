@@ -41,18 +41,19 @@ jobs:
       - name: yapf
         run: |
           cd "${GITHUB_WORKSPACE}"
+          pip install yapf
           yapf --parallel --recursive --exclude="*_pb2.py" --quiet .
       - name: Install ord-schema
         run: |
           pip install -r requirements.txt
           # Test deps are required to check imports with pylint.
           pip install -r test_requirements.txt
-          pip install pylint yapf
           conda install -c rdkit rdkit
           python setup.py install
       - name: pylint
         run: |
           cd "${GITHUB_WORKSPACE}"
+          pip install pylint
           pylint ord_schema
 
   check_javascript:
