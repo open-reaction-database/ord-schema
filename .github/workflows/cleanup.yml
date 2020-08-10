@@ -63,17 +63,32 @@ jobs:
         with:
           java-version: 1.8
       - uses: actions/setup-node@v1
+      - uses: s-weigand/setup-conda@v1
+        with:
+          python-version: 3.7
       - name: Install dependencies
         run: |
           cd "${GITHUB_WORKSPACE}"
+          pip install -r requirements.txt
+          conda install -c rdkit rdkit
+          python setup.py install
+          pip install flask pylint yapf
+          sudo apt update && sudo apt install clang-format-10 --yes
+      - name: closure-linter
+        run: |
+          cd "${GITHUB_WORKSPACE}/editor"
+          npm install google-protobuf puppeteer
+          wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
+          tar -xzf editor_test_protobuf_1dae8fdd.tar
+          wget https://github.com/google/closure-library/archive/v20200517.tar.gz
+          tar -xzf v20200517.tar.gz
+          git clone https://github.com/Open-Reaction-Database/ketcher.git
+          make
           # See https://github.com/google/closure-compiler/wiki/Lint-checks.
           npm install google-closure-compiler
-          sudo apt update && sudo apt install clang-format-10 --yes
-      - name: closure
-        run: |
-          cd "${GITHUB_WORKSPACE}"
-          java -jar node_modules/google-closure-compiler-java/compiler.jar \
-              --jscomp_warning=lintChecks editor/js/*.js
+          # Run the compiler; see the shell script for more info.
+          ../actions/lint_js.sh ord.reaction
+          ../actions/lint_js.sh ord.dataset
       - name: clang-format
         run: |
           cd "${GITHUB_WORKSPACE}"
