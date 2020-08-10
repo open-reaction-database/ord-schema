@@ -265,8 +265,9 @@ def _temperature_conditions_html(temperature):
         String description of the temperature conditions.
     """
     txt = ''
-    if (temperature.control.type == temperature.control.UNSPECIFIED or
-            temperature.control.type == temperature.control.AMBIENT):
+    if temperature.control.type == temperature.control.UNSPECIFIED:
+        return ''
+    if temperature.control.type == temperature.control.AMBIENT:
         return 'ambient temperature'
     setpoint = units.format_message(temperature.setpoint)
     if setpoint:
