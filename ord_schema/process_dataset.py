@@ -185,7 +185,7 @@ def _load_base_dataset(file_status, base):
     """Loads a Dataset message from another branch."""
     if file_status.status.startswith('A'):
         return None  # Dataset only exists in the submission.
-    args = ['git', 'show']
+    args = ['git', '--no-pager', 'show']
     if file_status.status.startswith('R'):
         args.append(f'{base}:{file_status.original_filename}')
     else:
