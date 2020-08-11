@@ -67,7 +67,7 @@ ord.temperature.unload = function() {
 
   const measurements = [];
   $('.temperature_measurement').each(function(index, node) {
-    node = $(node)
+    node = $(node);
     if (!node.attr('id')) {
       const measurement = ord.temperature.unloadMeasurement(node);
       if (!isEmptyMessage(measurement)) {

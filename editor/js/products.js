@@ -207,7 +207,7 @@ ord.products.add = function(node) {
 
   // Add live validation handling.
   addChangeHandler(
-      productNode, () => {ord.products.validateProduct(productNode)});
+      productNode, () => {ord.products.validateProduct(productNode);});
   return productNode;
 };
 

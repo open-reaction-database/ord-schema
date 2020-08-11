@@ -129,7 +129,7 @@ function validate(message, messageTypeString, validateNode) {
     statusNode.css('backgroundColor', null);
     statusNode.text('');
     if (errors.length) {
-      statusNode.addClass('fa fa-exclamation-triangle')
+      statusNode.addClass('fa fa-exclamation-triangle');
       statusNode.css('color', 'red');
       statusNode.text(' ' + errors.length);
 
@@ -142,7 +142,7 @@ function validate(message, messageTypeString, validateNode) {
       }
       messageNode.css('backgroundColor', 'pink');
     } else {
-      statusNode.addClass('fa fa-check')
+      statusNode.addClass('fa fa-check');
       statusNode.css('color', 'green');
 
       messageNode.html('');
@@ -398,7 +398,7 @@ function removeSlowly(button, pattern) {
   node.parents('fieldset').each(function() {
     buttonsToClick =
         buttonsToClick.add($(this).children('legend').find('.validate_button'));
-  })
+  });
   node.hide('slow', function() {
     node.remove();
     buttonsToClick.trigger('click');
@@ -480,7 +480,7 @@ function setTextFromFile(identifierNode, valueClass) {
     reader.onload = readerEvent => {
       const contents = readerEvent.target.result;
       $('.' + valueClass, identifierNode).text(contents);
-    }
+    };
   });
   input.click();
 }
@@ -592,53 +592,53 @@ function initValidateNode(oldNode) {
 function initValidateHandlers() {
   // For setup
   var setupNode = $('#section_setup');
-  addChangeHandler(setupNode, () => {ord.setups.validateSetup(setupNode)});
+  addChangeHandler(setupNode, () => {ord.setups.validateSetup(setupNode);});
 
   // For conditions
   var conditionNode = $('#section_conditions');
   addChangeHandler(
-      conditionNode, () => {ord.conditions.validateConditions(conditionNode)});
+      conditionNode, () => {ord.conditions.validateConditions(conditionNode);});
 
   // For temperature
   var temperatureNode = $('#section_conditions_temperature');
   addChangeHandler(
       temperatureNode,
-      () => {ord.temperature.validateTemperature(temperatureNode)});
+      () => {ord.temperature.validateTemperature(temperatureNode);});
 
   // For pressure
   var pressureNode = $('#section_conditions_pressure');
   addChangeHandler(
-      pressureNode, () => {ord.pressure.validatePressure(pressureNode)});
+      pressureNode, () => {ord.pressure.validatePressure(pressureNode);});
 
   // For stirring
   var stirringNode = $('#section_conditions_stirring');
   addChangeHandler(
-      stirringNode, () => {ord.stirring.validateStirring(stirringNode)});
+      stirringNode, () => {ord.stirring.validateStirring(stirringNode);});
 
   // For illumination
   var illuminationNode = $('#section_conditions_illumination');
   addChangeHandler(
       illuminationNode,
-      () => {ord.illumination.validateIllumination(illuminationNode)});
+      () => {ord.illumination.validateIllumination(illuminationNode);});
 
   // For electro
   var electroNode = $('#section_conditions_electro');
   addChangeHandler(
-      electroNode, () => {ord.electro.validateElectro(electroNode)});
+      electroNode, () => {ord.electro.validateElectro(electroNode);});
 
   // For flow
   var flowNode = $('#section_conditions_flow');
-  addChangeHandler(flowNode, () => {ord.flows.validateFlow(flowNode)});
+  addChangeHandler(flowNode, () => {ord.flows.validateFlow(flowNode);});
 
   // For notes
   var notesNode = $('#section_notes');
-  addChangeHandler(notesNode, () => {ord.notes.validateNotes(notesNode)});
+  addChangeHandler(notesNode, () => {ord.notes.validateNotes(notesNode);});
 
   // For provenance
   var provenanceNode = $('#section_provenance');
   addChangeHandler(
       provenanceNode,
-      () => {ord.provenance.validateProvenance(provenanceNode)});
+      () => {ord.provenance.validateProvenance(provenanceNode);});
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.

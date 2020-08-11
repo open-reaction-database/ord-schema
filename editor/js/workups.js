@@ -233,7 +233,7 @@ ord.workups.add = function() {
   $('.remove', inputNode).hide();
 
   // Add live validation handling.
-  addChangeHandler(workupNode, () => {ord.workups.validateWorkup(workupNode)});
+  addChangeHandler(workupNode, () => {ord.workups.validateWorkup(workupNode);});
 
   return workupNode;
 };
