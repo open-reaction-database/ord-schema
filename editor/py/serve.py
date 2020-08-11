@@ -39,6 +39,7 @@ from google.protobuf import text_format
 
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
+app.config.update(dict(PREFERRED_URL_SCHEME = 'https'))
 
 
 @app.route('/')
