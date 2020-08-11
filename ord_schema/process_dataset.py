@@ -288,8 +288,8 @@ def run():
     if FLAGS.issue and FLAGS.token:
         client = github.Github(FLAGS.token)
         repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
-        issue = repo.get_issue(FLAGS.issue)
-        issue.create_comment(
+        issue = repo.get_pull(FLAGS.issue)
+        issue.create_issue_comment(
             f'Summary: +{len(added)} -{len(removed)} reaction IDs')
     if FLAGS.update:
         _run_updates(inputs, datasets)
