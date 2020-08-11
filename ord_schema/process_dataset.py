@@ -47,7 +47,6 @@ import uuid
 from absl import app
 from absl import flags
 from absl import logging
-import github
 from google.protobuf import text_format
 
 from ord_schema import data_storage
@@ -72,11 +71,7 @@ flags.DEFINE_float('min_size', 0.1,
                    'Minimum size (in MB) for offloading Data values.')
 flags.DEFINE_float('max_size', 100.0,
                    'Maximum size (in MB) for offloading Data values.')
-flags.DEFINE_string('base', 'main', 'Git branch to diff against.')
-flags.DEFINE_integer(
-    'issue', None,
-    'GitHub pull request number. If provided, a comment will be added.')
-flags.DEFINE_string('token', None, 'GitHub authentication token.')
+flags.DEFINE_string('base', None, 'Git branch to diff against.')
 
 
 @dataclasses.dataclass(eq=True, frozen=True, order=True)
@@ -283,14 +278,11 @@ def run():
     if FLAGS.validate:
         # Note: this does not check if IDs are malformed.
         validations.validate_datasets(datasets, FLAGS.write_errors)
-    added, removed = get_change_stats(datasets, inputs, base=FLAGS.base)
-    logging.info('Summary: +%d -%d reaction IDs', len(added), len(removed))
-    if FLAGS.issue and FLAGS.token:
-        client = github.Github(FLAGS.token)
-        repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
-        issue = repo.get_pull(FLAGS.issue)
-        issue.create_issue_comment(
-            f'Summary: +{len(added)} -{len(removed)} reaction IDs')
+    if FLAGS.base:
+        added, removed = get_change_stats(datasets, inputs, base=FLAGS.base)
+        logging.info('Summary: +%d -%d reaction IDs', len(added), len(removed))
+    else:
+        added, removed = None, None
     if FLAGS.update:
         _run_updates(inputs, datasets)
     else:
