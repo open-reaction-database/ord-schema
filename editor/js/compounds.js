@@ -233,7 +233,9 @@ ord.compounds.add = function(root) {
   });
 
   // Add live validation handling.
-  addChangeHandler(node, () => {ord.compounds.validateCompound(node);});
+  addChangeHandler(node, () => {
+    ord.compounds.validateCompound(node);
+  });
 
   return node;
 };

@@ -328,7 +328,9 @@ ord.outcomes.unloadRaw = function(node, raws) {
 ord.outcomes.add = function() {
   const node = addSlowly('#outcome_template', '#outcomes');
   // Add live validation handling.
-  addChangeHandler(node, () => {ord.outcomes.validateOutcome(node);});
+  addChangeHandler(node, () => {
+    ord.outcomes.validateOutcome(node);
+  });
   return node;
 };
 
@@ -365,8 +367,9 @@ ord.outcomes.addAnalysis = function(node) {
   });
 
   // Add live validation handling.
-  addChangeHandler(
-      analysisNode, () => {ord.outcomes.validateAnalysis(analysisNode);});
+  addChangeHandler(analysisNode, () => {
+    ord.outcomes.validateAnalysis(analysisNode);
+  });
   return analysisNode;
 };
 
