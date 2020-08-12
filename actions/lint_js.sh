@@ -24,6 +24,8 @@
 # We also produce warnings only for our written source code 
 # (by suppressing warnings for third-party libraries or machine generated code).
 
+set -ex
+
 if [ "$#" -ne 1 ]; then
   echo "entry point required"
   exit 1
@@ -31,7 +33,7 @@ fi
 ENTRY_POINT="$1"
 
 java -jar node_modules/google-closure-compiler-java/compiler.jar \
-    --entry_point $ENTRY_POINT \
+    --entry_point "${ENTRY_POINT}" \
     --js 'closure-library-20200517/**.js' \
     --js 'protobuf/js/**.js' \
     --js 'gen/js/proto/ord/**.js'  \
