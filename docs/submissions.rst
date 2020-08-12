@@ -2,7 +2,7 @@
 Submission Workflow
 ###################
 
-The submission workflow follows five major steps:
+The submission workflow follows four major steps:
 
 ******
 Create
@@ -122,20 +122,15 @@ from your fork to the official repository.
 Review
 ******
 
-Basic preprocessing and validation of your submission will be performed by
-automated scripts, and you will be asked to verify any changes performed by the
-automated workflow. During this phase of the review process, each ``Reaction``
-and ``Dataset`` message will receive a unique database identifier.
+Your submission will be automatically validated and manually reviewed by one of
+the ORD reviewers. The reviewers may suggest additional changes and continue to
+iterate with you until they are satisfied with the submission. After your pull
+request is approved, it will be merged into a new branch in the official
+repository; this new branch is staging point for automated preprocessing that is
+required before merging into the official database.
 
-After all validation checks have passed, your submission will undergo a manual
-review by one or more of the database administrators. The reviewers may suggest
-additional changes and continue to iterate with you until they are satisfied
-with the submission.
-
-*******
-Deposit
-*******
-
-Once the pull request receives approval from the reviewers and passes all
-automated checks, a reviewer will merge it into the official database
-repository.
+After your submission has been accepted, a reviewer will trigger various
+automated preprocessing steps, such as renaming the dataset and assigning
+reaction and dataset IDs. Once these changes are verified by the reviewer, the
+dataset will be merged into the "main" branch and become part of the official
+database.
