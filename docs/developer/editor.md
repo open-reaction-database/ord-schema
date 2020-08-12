@@ -22,7 +22,7 @@ $ docker push openreactiondatabase/ord-editor
 ```
 
 ```eval_rst
-.. NOTE
+.. NOTE::
    This updates the ``latest`` tag for the ord-editor image. To set a different
    tag add ":<tag>" to the end of the name; for example 
    ``openreactiondatabase/ord-editor:v0.0.0``.
