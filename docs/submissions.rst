@@ -55,14 +55,6 @@ If you haven't done so already, you will need to `create a fork
 the `ord-data <https://github.com/Open-Reaction-Database/ord-data>`_ repository
 on GitHub.
 
-.. IMPORTANT::
-
-   After creating a fork, you need to manually enable GitHub Actions. Navigate
-   to the "Actions" tab on your fork (`screenshot
-   <https://github.com/Open-Reaction-Database/ord-schema/blob/main/docs/images/actions-tab.png>`__)
-   and click the button to enable workflows (`screenshot
-   <https://github.com/Open-Reaction-Database/ord-schema/blob/main/docs/images/enable-workflows.png>`__).
-
 .. tabs::
 
    .. group-tab:: Web
