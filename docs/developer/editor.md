@@ -38,15 +38,15 @@ $ docker push openreactiondatabase/ord-editor
     1. Choose a better name
     1. Expand "Management, security, disks, networking, sole tenancy"
     1. On the "Disks" tab, click "Attach existing disk"
-        * Disk -> ord-editor-data
+        * Disk -> `ord-editor-data`
         * Leave all other options at their default values
         * Click "Done"
     1. Expand the "Advanced container options"
     1. Under "Environment variables", add `ORD_EDITOR_DB=/mnt/disks/ord-editor-data`
     1. Under "Volume mounts", add a new volume:
         * Volume Type -> Disk
-        * Mount path -> /mnt/disks/ord-editor-data
-        * Disk name -> ord-editor-data
+        * Mount path -> `/mnt/disks/ord-editor-data`
+        * Disk name -> `ord-editor-data`
         * Mode -> Read/write
         * Click "Done"
 1. Click "Create" to initialize the VM
