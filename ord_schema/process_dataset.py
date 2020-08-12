@@ -73,7 +73,6 @@ flags.DEFINE_float('min_size', 0.1,
 flags.DEFINE_float('max_size', 100.0,
                    'Maximum size (in MB) for offloading Data values.')
 flags.DEFINE_string('base', None, 'Git branch to diff against.')
-flags.DEFINE_string('base', 'main', 'Git branch to diff against.')
 flags.DEFINE_integer(
     'issue', None,
     'GitHub pull request number. If provided, a comment will be added.')
