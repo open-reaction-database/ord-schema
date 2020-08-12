@@ -6,3 +6,4 @@ Developer Documentation
    :caption: Contents:
 
    developer/bigquery
+   developer/editor
