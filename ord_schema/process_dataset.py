@@ -174,10 +174,11 @@ def cleanup(inputs, output_filename):
 
 
 def _get_reaction_ids(dataset):
-    """Returns a list of reaction IDs in a Dataset."""
-    reaction_ids = []
+    """Returns a set containing the reaction IDs in a Dataset."""
+    reaction_ids = set()
     for reaction in dataset.reactions:
-        reaction_ids.append(reaction.reaction_id)
+        if reaction.reaction_id:
+            reaction_ids.add(reaction.reaction_id)
     return reaction_ids
 
 
