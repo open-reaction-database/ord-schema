@@ -47,6 +47,7 @@ import uuid
 from absl import app
 from absl import flags
 from absl import logging
+import github
 from google.protobuf import text_format
 
 from ord_schema import data_storage
@@ -72,6 +73,10 @@ flags.DEFINE_float('min_size', 0.1,
 flags.DEFINE_float('max_size', 100.0,
                    'Maximum size (in MB) for offloading Data values.')
 flags.DEFINE_string('base', None, 'Git branch to diff against.')
+flags.DEFINE_integer(
+    'issue', None,
+    'GitHub pull request number. If provided, a comment will be added.')
+flags.DEFINE_string('token', None, 'GitHub authentication token.')
 
 
 @dataclasses.dataclass(eq=True, frozen=True, order=True)
@@ -169,10 +174,11 @@ def cleanup(inputs, output_filename):
 
 
 def _get_reaction_ids(dataset):
-    """Returns a list of reaction IDs in a Dataset."""
-    reaction_ids = []
+    """Returns a set containing the reaction IDs in a Dataset."""
+    reaction_ids = set()
     for reaction in dataset.reactions:
-        reaction_ids.append(reaction.reaction_id)
+        if reaction.reaction_id:
+            reaction_ids.add(reaction.reaction_id)
     return reaction_ids
 
 
@@ -281,6 +287,12 @@ def run():
     if FLAGS.base:
         added, removed = get_change_stats(datasets, inputs, base=FLAGS.base)
         logging.info('Summary: +%d -%d reaction IDs', len(added), len(removed))
+        if FLAGS.issue and FLAGS.token:
+            client = github.Github(FLAGS.token)
+            repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
+            issue = repo.get_issue(FLAGS.issue)
+            issue.create_comment(
+                f'Summary: +{len(added)} -{len(removed)} reaction IDs')
     else:
         added, removed = None, None
     if FLAGS.update:
