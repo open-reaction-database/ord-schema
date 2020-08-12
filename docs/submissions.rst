@@ -2,7 +2,7 @@
 Submission Workflow
 ###################
 
-The submission workflow follows four major steps:
+The submission workflow follows five major steps:
 
 ******
 Create
@@ -120,10 +120,10 @@ Submit
          # Push the submission to your fork.
          $ git push origin my_submission
 
-Next, log in to GitHub, navigate to the [database
-repository](https://github.com/Open-Reaction-Database/ord-submissions-test), and
-[create a pull
-request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request-from-a-fork)
+Next, log in to GitHub, navigate to the `database repository
+<https://github.com/Open-Reaction-Database/ord-submissions-test>`_, and `create
+a pull request
+<https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request-from-a-fork>`_
 from your fork to the official repository.
 
 ******
