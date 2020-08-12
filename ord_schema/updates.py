@@ -32,8 +32,8 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.XYZ,
 ]
 
-_USERNAME = 'github-actions[bot]'
-_EMAIL = '41898282+github-actions[bot]@users.noreply.github.com'
+_USERNAME = 'github-actions'
+_EMAIL = 'github-actions@github.com'
 
 
 def name_resolve(value_type, value):
