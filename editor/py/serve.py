@@ -56,8 +56,9 @@ def show_datasets():
     if redirect:
         return redirect
     base_names = []
-    for name in os.listdir(f'{DB_ROOT}/{flask.g.user}'):
-        match = re.match(r'(.*).pbtxt', name)
+    path = os.path.join(DB_ROOT, flask.g.user)
+    for name in os.listdir(path):
+        match = re.fullmatch(r'(.*).pbtxt', name)
         if match is not None:
             base_names.append(match.group(1))
     return flask.render_template('datasets.html', file_names=sorted(base_names))
@@ -102,7 +103,7 @@ def upload_dataset(file_name):
 
 @app.route('/dataset/<file_name>/new', methods=['POST'])
 def new_dataset(file_name):
-    """Creates a new dataset in the {DB_ROOT}/ directory."""
+    """Creates a new dataset in the DB_ROOT directory."""
     path = os.path.join(DB_ROOT, flask.g.user, f'{file_name}.pbtxt')
     if os.path.isfile(path):
         flask.abort(404)
@@ -113,7 +114,7 @@ def new_dataset(file_name):
 
 @app.route('/dataset/enumerate', methods=['POST'])
 def enumerate_dataset():
-    """Creates a new dataset in the {DB_ROOT}/ directory based on a template reaction
+    """Creates a new dataset in the DB_ROOT directory based on a template reaction
     pbtxt and a spreadsheet.
 
     Three pieces of information are expected to be POSTed in a json object:
@@ -496,7 +497,7 @@ def lock(file_name):
     accesses a Datset's .pbtxt file.
 
     Args:
-        file_name: Name of the file in {DB_ROOT}/ to pass to the fcntl system call.
+        file_name: Name of the file in DB_ROOT to pass to the fcntl system call.
 
     Yields:
         The locked file descriptor.
@@ -515,8 +516,8 @@ def resolve_tokens(proto):
 
     This is part of the upload mechanism. It acts by recursion on the tree
     structure of the proto, hunting for fields named "bytes_value" and
-    comparing the fields' values against uploaded files in the {DB_ROOT}/ directory.
-    See write_dataset() and write_upload().
+    comparing the fields' values against uploaded files in the DB_ROOT
+    directory. See write_dataset() and write_upload().
 
     Args:
         proto: A protobuf message that may contain a bytes_value somewhere.
