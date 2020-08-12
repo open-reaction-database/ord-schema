@@ -2,7 +2,7 @@
 Submission Workflow
 ###################
 
-The submission workflow follows four major steps:
+The submission workflow follows five major steps:
 
 ******
 Create
@@ -55,6 +55,14 @@ If you haven't done so already, you will need to `create a fork
 the `ord-data <https://github.com/Open-Reaction-Database/ord-data>`_ repository
 on GitHub.
 
+.. IMPORTANT::
+
+   After creating a fork, you need to manually enable GitHub Actions. Navigate
+   to the "Actions" tab on your fork (`screenshot
+   <https://github.com/Open-Reaction-Database/ord-schema/blob/main/docs/images/actions-tab.png>`__)
+   and click the button to enable workflows (`screenshot
+   <https://github.com/Open-Reaction-Database/ord-schema/blob/main/docs/images/enable-workflows.png>`__).
+
 .. tabs::
 
    .. group-tab:: Web
@@ -75,6 +83,7 @@ on GitHub.
       instead of fetching the entire commit history:
 
       .. IMPORTANT::
+
          Be sure to clone your forked repository and *not* the official repo.
 
       .. code-block:: shell
@@ -111,10 +120,10 @@ Submit
          # Push the submission to your fork.
          $ git push origin my_submission
 
-Next, log in to GitHub, navigate to the [database
-repository](https://github.com/Open-Reaction-Database/ord-submissions-test), and
-[create a pull
-request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request-from-a-fork)
+Next, log in to GitHub, navigate to the `database repository
+<https://github.com/Open-Reaction-Database/ord-submissions-test>`_, and `create
+a pull request
+<https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request-from-a-fork>`_
 from your fork to the official repository.
 
 ******
