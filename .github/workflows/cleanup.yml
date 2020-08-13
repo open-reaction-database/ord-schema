@@ -53,7 +53,7 @@ jobs:
       - name: pylint
         run: |
           cd "${GITHUB_WORKSPACE}"
-          pip install pylint
+          pip install flask pylint
           pylint editor examples ord_schema *.py
 
   check_javascript:
