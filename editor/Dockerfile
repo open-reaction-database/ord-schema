@@ -48,7 +48,7 @@ WORKDIR editor
 #COPY css/*.css css/
 #COPY html/*.html html/
 #COPY js/*.js js/
-COPY py/*.py py/
+#COPY py/*.py py/
 RUN make
 
 EXPOSE 5000
