@@ -49,8 +49,8 @@ WORKDIR editor
 #COPY html/*.html html/
 #COPY js/*.js js/
 #COPY py/*.py py/
-#COPY serve.sh .
 RUN make
 
 EXPOSE 5000
-CMD ./serve.sh --host=0.0.0.0
+RUN pip install gunicorn
+CMD gunicorn py.serve:app -b 0.0.0.0:5000 --log-level debug
