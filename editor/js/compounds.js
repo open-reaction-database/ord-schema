@@ -219,16 +219,16 @@ ord.compounds.add = function(root) {
   amountButtons.change(function() {
     $('.amount .selector', node).hide();
     if (this.value == 'mass') {
-      $('.component_amount_units_mass', root).show();
-      $('.includes_solutes', root).hide();
+      $('.component_amount_units_mass', node).show();
+      $('.includes_solutes', node).hide();
     }
     if (this.value == 'moles') {
-      $('.component_amount_units_moles', root).show();
-      $('.includes_solutes', root).hide();
+      $('.component_amount_units_moles', node).show();
+      $('.includes_solutes', node).hide();
     }
     if (this.value == 'volume') {
-      $('.component_amount_units_volume', root).show();
-      $('.includes_solutes', root).show().css('display', 'inline-block');
+      $('.component_amount_units_volume', node).show();
+      $('.includes_solutes', node).show().css('display', 'inline-block');
     }
   });
 
