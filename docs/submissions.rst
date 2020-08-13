@@ -16,8 +16,8 @@ interactively with the ORD web editor.
 
    .. group-tab:: Web
 
-        Please use the `ORD web editor <editor.open-reaction-database.org>`_ to
-        create your submission.
+        Please use the `ORD web editor
+        <https://editor.open-reaction-database.org>`_ to create your submission.
 
         The ORD web editor performs automatic validation that will catch any
         errors entered into the form, so there is no separate validation step.
