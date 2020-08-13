@@ -16,6 +16,5 @@
 
 export PYTHONPATH=py:../build/lib
 export FLASK_APP=serve.py
-export FLASK_ENV=development
 
-python -m flask run $@
+python -m flask run "$@"
