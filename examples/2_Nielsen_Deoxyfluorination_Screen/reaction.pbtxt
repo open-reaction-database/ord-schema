@@ -1,0 +1,216 @@
+identifiers {
+  type: NAME
+  value: "deoxyfluorination"
+}
+inputs {
+  key: "alcohol in THF"
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: "$alcohol_smiles$"
+      }
+      moles {
+        value: 0.1
+        units: MILLIMOLE
+      }
+      reaction_role: REACTANT
+      is_limiting: true
+    }
+    components {
+      identifiers {
+        type: SMILES
+        value: "C1CCOC1"
+      }
+      volume {
+        value: 125.0
+        units: MICROLITER
+      }
+      reaction_role: SOLVENT
+      preparations {
+        type: DRIED
+      }
+      volume_includes_solutes: true
+    }
+    addition_order: 1
+  }
+}
+inputs {
+  key: "base"
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: "$base_smiles$"
+      }
+      moles {
+        value: 0.15
+        units: MILLIMOLE
+      }
+      reaction_role: REAGENT
+    }
+    addition_order: 3
+  }
+}
+inputs {
+  key: "sulfonyl fluoride solution"
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: "$sulfonyl_fluoride_smiles$"
+      }
+      moles {
+        value: 0.11
+        units: MILLIMOLE
+      }
+      reaction_role: REACTANT
+      is_limiting: false
+    }
+    components {
+      identifiers {
+        type: SMILES
+        value: "C1CCOC1"
+      }
+      volume {
+        value: 125.0
+        units: MICROLITER
+      }
+      reaction_role: SOLVENT
+      preparations {
+        type: DRIED
+      }
+      volume_includes_solutes: true
+    }
+    addition_order: 2
+  }
+}
+setup {
+  vessel {
+    type {
+      type: VIAL
+    }
+    material {
+      type: GLASS
+    }
+    attachments {
+      type: CAP
+    }
+    volume {
+      value: 1.0
+      units: MILLILITER
+    }
+  }
+  is_automated: false
+}
+conditions {
+  temperature {
+    control {
+      type: AMBIENT
+    }
+    setpoint {
+      value: 20.0
+      precision: 5.0
+      units: CELSIUS
+    }
+  }
+  pressure {
+    control {
+      type: SEALED
+    }
+    atmosphere {
+      type: AIR
+    }
+  }
+  stirring {
+    method {
+      type: STIR_BAR
+    }
+    rate {
+      type: HIGH
+      rpm: 600
+    }
+  }
+}
+workup {
+  type: ADDITION
+  input {
+    components {
+      identifiers {
+        type: NAME
+        value: "1-fluoronaphthalene"
+      }
+      identifiers {
+        type: SMILES
+        value: "C1=CC=C2C(=C1)C=CC=C2F"
+      }
+      moles {
+        value: 0.1
+        units: MILLIMOLE
+      }
+      reaction_role: INTERNAL_STANDARD
+    }
+    components {
+      identifiers {
+        type: NAME
+        value: "CDCl3"
+      }
+      identifiers {
+        type: SMILES
+        value: "[2H]C(Cl)(Cl)Cl"
+      }
+      volume {
+        value: 250.0
+        units: MICROLITER
+      }
+      reaction_role: WORKUP
+      volume_includes_solutes: true
+    }
+  }
+}
+outcomes {
+  reaction_time {
+    value: 48.0
+    units: HOUR
+  }
+  products {
+    compound {
+      identifiers {
+        type: SMILES
+        value: "$product_smiles$"
+      }
+    }
+    is_desired_product: true
+    compound_yield {
+      value: $product_yield$
+      precision: 4.8
+    }
+    analysis_identity: "19f nmr of crude"
+    analysis_yield: "19f nmr of crude"
+  }
+  analyses {
+    key: "19f nmr of crude"
+    value {
+      type: NMR_OTHER
+      details: "19F NMR using 1 equiv 1-fluoronaphthalene in chloroform as internal standard"
+      instrument_manufacturer: "Bruker"
+      uses_internal_standard: true
+    }
+  }
+}
+provenance {
+  city: "Princeton, NJ"
+  doi: "10.1021/jacs.8b01523"
+  publication_url: "https://pubs.acs.org/doi/10.1021/jacs.8b01523"
+  record_created {
+    time {
+      value: "8/8/2020, 3:01:25 PM"
+    }
+    person {
+      name: "Connor W. Coley"
+      orcid: "0000-0002-8271-8723"
+      organization: "MIT"
+      email: "ccoley@mit.edu"
+    }
+  }
+}
