@@ -48,9 +48,9 @@ WORKDIR editor
 #COPY css/*.css css/
 #COPY html/*.html html/
 #COPY js/*.js js/
-#COPY py/*.py py/
+COPY py/*.py py/
 RUN make
 
 EXPOSE 5000
 RUN pip install gunicorn
-CMD gunicorn py.serve:app -b 0.0.0.0:5000 --log-level debug
+CMD gunicorn py.serve:app -b 0.0.0.0:5000 --log-level debug --access-logfile '-'
