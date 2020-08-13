@@ -54,7 +54,7 @@ jobs:
         run: |
           cd "${GITHUB_WORKSPACE}"
           pip install pylint
-          pylint editor examples interface ord_schema *.py
+          pylint editor examples ord_schema *.py
 
   check_javascript:
     runs-on: ubuntu-latest
