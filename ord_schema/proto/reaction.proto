@@ -721,8 +721,6 @@ message ReactionObservation {
 }
 
 message ReactionWorkup {
-  // TODO(ccoley) Consider removing DISSOLUTION - collapsed into addition like
-  // CRYSTALLIZATION, TRITURATION with intention in details.
   enum WorkupType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
@@ -833,11 +831,6 @@ message ReactionProduct {
   repeated string analysis_purity = 8;
   // Key(s) of the analysis used to assess selectivity
   repeated string analysis_selectivity = 9;
-  // TODO(ccoley): How to allow specification of the state of matter of the
-  // purified compound? For example, "___ was recovered as a white powder in
-  // x% yield (y.z mg)". Or oils, crystal texture, etc. This is only relevant
-  // for compounds that are isolated.
-  // TODO(kearnes): Should this be an Observation message?
   string isolated_color = 10;
   message Texture {
     enum TextureType {
