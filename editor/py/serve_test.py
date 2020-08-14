@@ -22,17 +22,25 @@ import serve
 class ServeTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
-        serve.set_root('/test')
+        self.root = '/test'
+        self.user = 'user'
 
-    @parameterized.parameters(('/test/foo.txt', '/test/foo.txt'),
-                              ('/test/bar/../foo.txt', '/test/foo.txt'))
+    @parameterized.parameters(
+        ('/test/user/foo.txt', '/test/user/foo.txt'),
+        ('/test/user/bar/../foo.txt', '/test/user/foo.txt'))
     def test_check_path(self, path, expected):
-        self.assertEqual(serve.check_path(path), expected)
+        self.assertEqual(serve.check_path(path, root=self.root, user=self.user),
+                         expected)
 
-    @parameterized.parameters('foo', '/test/../foo.txt')
+    @parameterized.parameters([
+        'foo',
+        '/test/../foo.txt',
+        '/test/other-user/foo.txt',
+        '/test/user/../other-user/foo.txt',
+    ])
     def test_check_path_raises(self, path):
         with self.assertRaisesRegex(ValueError, 'path is not safe'):
-            serve.check_path(path)
+            serve.check_path(path, root=self.root, user=self.user)
 
 
 if __name__ == '__main__':

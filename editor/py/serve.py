@@ -45,19 +45,15 @@ _CHECK_PATH_MESSAGE = ''
 _CHECK_PATH_CODE = 403
 
 
-def set_root(root):
-    """Sets _DB_ROOT globally."""
-    global _DB_ROOT
-    _DB_ROOT = root
-
-
-def check_path(path):
+def check_path(path, root=None, user=None):
     """Checks that a path is safe.
 
     Specifically, we are looking for directory traversal attacks.
 
     Args:
         path: Path to check.
+        root: Root path of the editor filesystem. Defaults to _DB_ROOT.
+        user: String user name. Defaults to flask.g.user.
 
     Returns:
         The normalized absolutized path.
@@ -65,8 +61,12 @@ def check_path(path):
     Raises:
         ValueError: If the path is not deemed safe.
     """
+    if root is None:
+        root = _DB_ROOT
+    if user is None:
+        user = flask.g.user
     abspath = os.path.abspath(path)
-    if not abspath.startswith(os.path.abspath(_DB_ROOT)):
+    if not abspath.startswith(os.path.abspath(os.path.join(root, user))):
         raise ValueError(f'path is not safe: {path}')
     return abspath
 
