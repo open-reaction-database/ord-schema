@@ -39,14 +39,22 @@ message Reaction {
   // through the use of keys. String keys are simple descriptions and are
   // present only for convenience.
   map<string, ReactionInput> inputs = 2;
+  // The reaction setup specifies how the reaction was prepared, e.g., whether
+  // it was automated, whether it was run in a glove box.
   ReactionSetup setup = 3;
+  // Reaction conditions predominantly include temperature, stirring, and
+  // pressure conditions, but also allow specification of flow, photochemistry,
+  // and electrochemistry conditions.
   ReactionConditions conditions = 4;
   // Reaction notes largely pertain to safety considerations.
   ReactionNotes notes = 5;
   repeated ReactionObservation observations = 6;
   // Workup steps are listed in the order they are performed.
   repeated ReactionWorkup workup = 7;
+  // Each reaction outcome contains all analyses and confirmed/expected product
+  // structures at a particular reaction time.
   repeated ReactionOutcome outcomes = 8;
+  // Provenance contains details of the experimenter and record writer.
   ReactionProvenance provenance = 9;
   // Official ID for this reaction in the Open Reaction Database.
   string reaction_id = 10;
@@ -78,47 +86,38 @@ message ReactionIdentifier {
   optional bool is_mapped = 5;
 }
 
+/**
+ * A reaction input is any pure substance, mixture, or solution that is
+ * added to the reaction vessel. Multiple components 
+ *
+ * For example, suppose we are adding 3 mL of a 4 M solution of NaOH in water.
+ * We would define one component for the solvent and one component for the
+ * solute with the correct respective amounts.
+ *
+ * input {
+ *   components: {
+ *     identifiers: {type: IDENTIFIER_SMILES, value: "O"}
+ *     identifiers: {type: IDENTIFIER_NAME, value: "water"}
+ *     volume: {value: 3, units: MILLILITER}
+ *     volume_includes_solutes: true
+ *   }
+ *   components: {
+ *     identifiers: {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"}
+ *     identifiers: {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
+ *     moles: {value: 12, units: MILLIMOLES}
+ *   }
+ * }
+ */
 message ReactionInput {
-  /**
-   * We use the components field for pure substances and mixtures.
-   *
-   * For example, suppose we are adding
-   * 3 mL of a 4 M solution of NaOH in water.
-   *
-   * input {
-   *   description: "3 mL of 4M NaOH solution in water"
-   *   components: [
-   *     {
-   *       identifiers: [
-   *         {type: IDENTIFIER_SMILES, value: "O"},
-   *         {type: IDENTIFIER_NAME, value: "water"}
-   *       ]
-   *       amount: {
-   *         volume: {value: 3, units: MILLILITER}
-   *       }
-   *     }
-   *   ]
-   *  components: [
-   *     {
-   *       identifiers: [
-   *         {type: IDENTIFIER_SMILES, value: "[Na+].[OH-]"},
-   *         {type: IDENTIFIER_NAME, value: "sodium hydroxide"}
-   *       ]
-   *       amount {
-   *         moles: {value: 12, units: MILLIMOLES}
-   *       }
-   *     }
-   *   ]
-   * }
-   */
+  // A component is any pure species that is added to the reaction, whether as
+  // a pure substance or in a mixture/solution.
   repeated Compound components = 1;
+  // A crude component refers to a non-purified, non-isolated compound or
+  // mixture that is produced by a preceding reaction step.
   repeated CrudeComponent crude_components = 2;
-  /**
-   * Used to define order of addition. ReactionInputs with the same
-   * addition_order were added simultaneously. One ReactionInput with a
-   * lower addition_order than another was added earlier in the procedure.
-   * This field is 1-indexed.
-   */
+  // The addition order is 1-indexed. Inputs with the same addition_order are
+  // assumed to be added simultaneously. One input with a lower addition_order
+  // than another was added earlier in the procedure.
   int32 addition_order = 3;
   // When the addition event took place in terms of the reaction time (or,
   // in the case of flow chemistry, the residence time).
@@ -191,18 +190,21 @@ message CrudeComponent {
   }
 }
 
+/**
+ * A Compound defines both the identity of a pure species and a quantitative
+ * amount (mass, moles, volume). For compounds used in inputs, details can
+ * be provided about how it was prepared and from where it was purchased.
+ */
 message Compound {
   // Set of identifiers used to uniquely define this compound.
   // Solutions or mixed compounds should use the NAME identifier
   // and list all constituent compounds in the "components" field.
   repeated CompoundIdentifier identifiers = 1;
-  /**
-   * The quantitative Amount of a Compound used in a particular reaction.
-   * Compounds added in their pure form should have their value defined by
-   * mass, moles, or volume. Compounds prepared as solutions should be defined
-   * in terms of their volume. Compounds prepared on solid supports should
-   * define the total mass/volume including the support.
-   */
+  // The quantitative Amount of a Compound used in a particular reaction.
+  // Compounds added in their pure form should have their value defined by
+  // mass, moles, or volume. Compounds prepared as solutions should be defined
+  // in terms of their volume. Compounds prepared on solid supports should
+  // define the total mass/volume including the support.
   oneof amount {
     Mass mass = 2;
     Moles moles = 3;
@@ -218,7 +220,6 @@ message Compound {
       UNSPECIFIED = 0;
       // A reactant is any compound that contributes atoms to a desired or
       // observed product.
-      // TODO(ccoley) refine the documentation of this definition.
       REACTANT = 1;
       REAGENT = 2;
       SOLVENT = 3;
@@ -245,12 +246,10 @@ message Compound {
   string vendor_id = 9;
   // Batch/lot identification.
   string vendor_lot = 10;
-  /**
-   * Compounds can accommodate any number of features. These may include simple
-   * properties of the compound (e.g., molecular weight), heuristic estimates
-   * of physical properties (e.g., ClogP), optimized geometries (e.g., through
-   * DFT), and calculated stereoelectronic descriptors.
-   */
+  // Compounds can accommodate any number of features. These may include simple
+  // properties of the compound (e.g., molecular weight), heuristic estimates
+  // of physical properties (e.g., ClogP), optimized geometries (e.g., through
+  // DFT), and calculated stereoelectronic descriptors.
   message Feature {
     string name = 1;
     oneof kind {
@@ -515,7 +514,6 @@ message TemperatureConditions {
 }
 
 message PressureConditions {
-  // TODO Consider renaming given adjustment in meaning
   message PressureControl {
     enum PressureControlType {
       UNSPECIFIED = 0;
