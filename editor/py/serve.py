@@ -38,8 +38,37 @@ from ord_schema.visualization import drawing
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
 
-# Root directory for the editor database (persistent storage).
-DB_ROOT = os.environ.get('ORD_EDITOR_DB', 'db')
+# Root directory for the editor filesystem.
+_DB_ROOT = os.getenv('ORD_EDITOR_DB', 'db')
+# Failure message for check_path.
+_CHECK_PATH_MESSAGE = ''
+_CHECK_PATH_CODE = 403
+
+
+def set_root(root):
+    """Sets _DB_ROOT globally."""
+    global _DB_ROOT
+    _DB_ROOT = root
+
+
+def check_path(path):
+    """Checks that a path is safe.
+
+    Specifically, we are looking for directory traversal attacks.
+
+    Args:
+        path: Path to check.
+
+    Returns:
+        The normalized absolutized path.
+
+    Raises:
+        ValueError: If the path is not deemed safe.
+    """
+    abspath = os.path.abspath(path)
+    if not abspath.startswith(os.path.abspath(_DB_ROOT)):
+        raise ValueError(f'path is not safe: {path}')
+    return abspath
 
 
 @app.route('/')
@@ -50,12 +79,12 @@ def show_root():
 
 @app.route('/datasets')
 def show_datasets():
-    """Lists all .pbtxt files in the DB_ROOT directory."""
+    """Lists all .pbtxt files in the _DB_ROOT directory."""
     redirect = ensure_user()
     if redirect:
         return redirect
     base_names = []
-    path = os.path.join(DB_ROOT, flask.g.user)
+    path = os.path.join(_DB_ROOT, flask.g.user)
     for name in os.listdir(path):
         match = re.fullmatch(r'(.*).pbtxt', name)
         if match is not None:
@@ -80,8 +109,12 @@ def show_dataset(file_name):
 
 @app.route('/dataset/<file_name>/download')
 def download_dataset(file_name):
-    """Returns a raw .pbtxt file from the DB_ROOT directory as an attachment."""
-    path = os.path.join(DB_ROOT, flask.g.user, f'{file_name}.pbtxt')
+    """Returns a .pbtxt file from the _DB_ROOT directory as an attachment."""
+    try:
+        path = check_path(
+            os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
+    except ValueError:
+        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
     if not os.path.isfile(path):
         flask.abort(404)
     pbtxt = open(path, 'rb')
@@ -93,8 +126,12 @@ def download_dataset(file_name):
 
 @app.route('/dataset/<file_name>/upload', methods=['POST'])
 def upload_dataset(file_name):
-    """Writes the request body to the DB_ROOT directory without validation."""
-    path = os.path.join(DB_ROOT, flask.g.user, f'{file_name}.pbtxt')
+    """Writes the request body to the _DB_ROOT directory without validation."""
+    try:
+        path = check_path(
+            os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
+    except ValueError:
+        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
     with open(path, 'wb') as upload:
         upload.write(flask.request.get_data())
     return 'ok'
@@ -102,8 +139,12 @@ def upload_dataset(file_name):
 
 @app.route('/dataset/<file_name>/new', methods=['POST'])
 def new_dataset(file_name):
-    """Creates a new dataset in the DB_ROOT directory."""
-    path = os.path.join(DB_ROOT, flask.g.user, f'{file_name}.pbtxt')
+    """Creates a new dataset in the _DB_ROOT directory."""
+    try:
+        path = check_path(
+            os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
+    except ValueError:
+        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
     if os.path.isfile(path):
         flask.abort(404)
     with open(path, 'wb') as upload:
@@ -125,7 +166,10 @@ def enumerate_dataset():
     """
     data = flask.request.get_json(force=True)
     basename, suffix = os.path.splitext(data['spreadsheet_name'])
-    with tempfile.NamedTemporaryFile(mode='w', suffix=suffix) as f:
+    with tempfile.NamedTemporaryFile(mode='w',
+                                     suffix=suffix,
+                                     dir=os.path.join(_DB_ROOT,
+                                                      flask.g.user)) as f:
         f.write(data['spreadsheet_data'].lstrip('ï»¿'))
         f.seek(0)
         dataframe = dataset_templating.read_spreadsheet(f.name)
@@ -136,9 +180,12 @@ def enumerate_dataset():
                                                       validate=False)
     except ValueError as error:
         flask.abort(flask.make_response(str(error), 400))
-    message_helpers.write_message(
-        dataset, os.path.join(DB_ROOT, flask.g.user,
-                              f'{basename}_dataset.pbtxt'))
+    try:
+        path = check_path(
+            os.path.join(_DB_ROOT, flask.g.user, f'{basename}_dataset.pbtxt'))
+    except ValueError:
+        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+    message_helpers.write_message(dataset, path)
     return 'ok'
 
 
@@ -249,7 +296,11 @@ def delete_reaction_id_blank(file_name):
 def read_dataset(file_name):
     """Returns a Dataset as a serialized protobuf."""
     dataset = dataset_pb2.Dataset()
-    path = os.path.join(DB_ROOT, flask.g.user, f'{file_name}.pbtxt')
+    try:
+        path = check_path(
+            os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
+    except ValueError:
+        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
     with open(path, 'rb') as pbtxt:
         text_format.Parse(pbtxt.read(), dataset)
     bites = dataset.SerializeToString(deterministic=True)
@@ -289,7 +340,10 @@ def write_upload(file_name, token):
     Returns:
         A 200 response when the file was written.
     """
-    path = os.path.join(DB_ROOT, flask.g.user, token)
+    try:
+        path = check_path(os.path.join(_DB_ROOT, flask.g.user, token))
+    except ValueError:
+        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
     with open(path, 'wb') as upload:
         upload.write(flask.request.get_data())
     with lock(file_name):
@@ -309,12 +363,15 @@ def read_upload(token):
     user as a download so they can access it again.
 
     Args:
-        token: A placeholder name for the upload in the DB_ROOT directory.
+        token: A placeholder name for the upload in the _DB_ROOT directory.
 
     Returns:
         The POST body from the request, after passing through a file.
     """
-    path = os.path.join(DB_ROOT, flask.g.user, token)
+    try:
+        path = check_path(os.path.join(_DB_ROOT, flask.g.user, token))
+    except ValueError:
+        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
     with open(path, 'wb') as upload:
         upload.write(flask.request.get_data())
     pbtxt = open(path, 'rb')
@@ -377,20 +434,24 @@ def render_compound():
 
 @app.route('/dataset/proto/compare/<file_name>', methods=['POST'])
 def compare(file_name):
-    """For testing, compares a POST body to a Dataset in the DB_ROOT directory.
+    """For testing, compares a POST body to a Dataset in the _DB_ROOT directory.
 
     Returns HTTP status 200 if their pbtxt representations are equal as strings
     and 409 if they are not. See "make test".
 
     Args:
-        file_name: The .pbtxt file in the DB_ROOT directory to compare.
+        file_name: The .pbtxt file in the _DB_ROOT directory to compare.
 
     Returns:
         HTTP status 200 for a match and 409 if there is a difference.
     """
     remote = dataset_pb2.Dataset()
     remote.ParseFromString(flask.request.get_data())
-    path = os.path.join(DB_ROOT, flask.g.user, f'{file_name}.pbtxt')
+    try:
+        path = check_path(
+            os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
+    except ValueError:
+        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
     with open(path, 'rb') as pbtxt:
         local = dataset_pb2.Dataset()
         text_format.Parse(pbtxt.read(), local)
@@ -422,7 +483,7 @@ def ketcher_iframe():
 @app.route('/ketcher/info')
 def indigo():
     """Dummy indigo endpoint to prevent 404 errors."""
-    return ('', 204)
+    return '', 204
 
 
 @app.route('/ketcher/<path:file>')
@@ -436,7 +497,7 @@ def ketcher(file):
 @app.route('/dataset/<file_name>/reaction/deps.js')
 def deps(file_name=None):
     """Returns empty for deps table requests since this app doesn't use them."""
-    del file_name
+    del file_name  # Unused.
     return ''
 
 
@@ -463,22 +524,29 @@ def prevent_caching(response):
 
 
 def get_dataset(file_name):
-    """Reads a .pbtxt file from the DB_ROOT directory and parse it."""
+    """Reads a .pbtxt file from the _DB_ROOT directory and parse it."""
     with lock(file_name):
-        if (f'{file_name}.pbtxt') not in os.listdir(
-                os.path.join(DB_ROOT, flask.g.user)):
+        try:
+            path = check_path(
+                os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
+        except ValueError:
+            return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+        if not os.path.isfile(path):
             return None
         dataset = dataset_pb2.Dataset()
-        path = os.path.join(DB_ROOT, flask.g.user, f'{file_name}.pbtxt')
         with open(path, 'rb') as pbtxt:
             text_format.Parse(pbtxt.read(), dataset)
         return dataset
 
 
 def put_dataset(file_name, dataset):
-    """Write a proto to a .pbtxt file in the DB_ROOT directory."""
+    """Write a proto to a .pbtxt file in the _DB_ROOT directory."""
     with lock(file_name):
-        path = os.path.join(DB_ROOT, flask.g.user, f'{file_name}.pbtxt')
+        try:
+            path = check_path(
+                os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
+        except ValueError:
+            return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
         with open(path, 'wb') as pbtxt:
             string = text_format.MessageToString(dataset, as_utf8=True)
             pbtxt.write(string.encode('utf8'))
@@ -495,12 +563,17 @@ def lock(file_name):
     accesses a Datset's .pbtxt file.
 
     Args:
-        file_name: Name of the file in DB_ROOT to pass to the fcntl system call.
+        file_name: Name of the file in _DB_ROOT to pass to the fcntl system
+            call.
 
     Yields:
         The locked file descriptor.
     """
-    path = os.path.join(DB_ROOT, flask.g.user, f'{file_name}.lock')
+    try:
+        path = check_path(
+            os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.lock'))
+    except ValueError:
+        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
     lock_file = open(path, 'w')
     fcntl.lockf(lock_file, fcntl.LOCK_EX)
     try:
@@ -514,7 +587,7 @@ def resolve_tokens(proto):
 
     This is part of the upload mechanism. It acts by recursion on the tree
     structure of the proto, hunting for fields named "bytes_value" and
-    comparing the fields' values against uploaded files in the DB_ROOT
+    comparing the fields' values against uploaded files in the _DB_ROOT
     directory. See write_dataset() and write_upload().
 
     Args:
@@ -529,7 +602,11 @@ def resolve_tokens(proto):
             if descriptor.name == 'bytes_value':
                 token = message[:20].decode('utf8')
                 if token.startswith('upload_'):
-                    path = os.path.join(DB_ROOT, flask.g.user, token)
+                    try:
+                        path = check_path(
+                            os.path.join(_DB_ROOT, flask.g.user, token))
+                    except ValueError:
+                        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
                     if os.path.isfile(path):
                         proto.bytes_value = open(path, 'rb').read()
                         matched = True
@@ -546,13 +623,16 @@ def resolve_tokens(proto):
 
 @app.before_request
 def init_user():
-    """Set the user cookie and initialize the DB_ROOT/{user} directory."""
+    """Sets the user cookie and initialize the _DB_ROOT/{user} directory."""
     user = flask.request.cookies.get('ord-editor-user')
     if user is None:
         user = flask.request.args.get('user') or next_user()
         return redirect_to_user(user)
+    try:
+        path = check_path(os.path.join(_DB_ROOT, user))
+    except ValueError:
+        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
     flask.g.user = user
-    path = os.path.join(DB_ROOT, user)
     if not os.path.isdir(path):
         os.mkdir(path)
     if not os.listdir(path):
@@ -574,7 +654,11 @@ def ensure_user():
 
 
 def redirect_to_user(user):
-    """Set the user cookie and return a redirect to the updated URL."""
+    """Sets the user cookie and return a redirect to the updated URL."""
+    try:
+        check_path(os.path.join(_DB_ROOT, user))
+    except ValueError:
+        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
     url = url_for_user(user)
     response = flask.redirect(url)
     # Expires in a year.
@@ -583,16 +667,16 @@ def redirect_to_user(user):
 
 
 def url_for_user(user):
-    """Replace the user in the request URL and return the updated URL."""
+    """Replaces the user in the request URL and return the updated URL."""
     parts = list(urllib.parse.urlparse(flask.request.url))
     parts[4] = urllib.parse.urlencode({'user': user})
     return urllib.parse.urlunparse(parts)
 
 
 def next_user():
-    """Return a user identifier that is not present in the DB_ROOT directory."""
+    """Returns a user identifier not present in the _DB_ROOT directory."""
     user = uuid.uuid4().hex
-    path = os.path.join(DB_ROOT, user)
+    path = os.path.join(_DB_ROOT, user)
     while os.path.isdir(path):
         user = uuid.uuid4().hex
     return user
