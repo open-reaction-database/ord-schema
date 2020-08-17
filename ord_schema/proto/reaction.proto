@@ -88,7 +88,7 @@ message ReactionIdentifier {
 
 /**
  * A reaction input is any pure substance, mixture, or solution that is
- * added to the reaction vessel. Multiple components 
+ * added to the reaction vessel.
  *
  * For example, suppose we are adding 3 mL of a 4 M solution of NaOH in water.
  * We would define one component for the solvent and one component for the
@@ -200,7 +200,7 @@ message Compound {
   // Solutions or mixed compounds should use the NAME identifier
   // and list all constituent compounds in the "components" field.
   repeated CompoundIdentifier identifiers = 1;
-  // The quantitative Amount of a Compound used in a particular reaction.
+  // The quantitative amount of a Compound used in a particular reaction.
   // Compounds added in their pure form should have their value defined by
   // mass, moles, or volume. Compounds prepared as solutions should be defined
   // in terms of their volume. Compounds prepared on solid supports should
