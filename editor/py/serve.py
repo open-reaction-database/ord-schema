@@ -64,7 +64,7 @@ def check_path(path, root=None):
         root = _DB_ROOT
     abspath = os.path.abspath(path)
     if not abspath.startswith(os.path.abspath(root)):
-        raise PermissionError(f'path is not allowd: {path}')
+        raise PermissionError(f'path is not allowed: {path}')
     return abspath
 
 

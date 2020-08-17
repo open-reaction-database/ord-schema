@@ -32,10 +32,10 @@ class ServeTest(parameterized.TestCase, absltest.TestCase):
     @parameterized.parameters([
         'foo',
         '/test/../foo.txt',
-        '/test/foo.txt',
+        '/some-other-root/foo.txt',
     ])
     def test_check_path_raises(self, path):
-        with self.assertRaisesRegex(ValueError, 'path is not safe'):
+        with self.assertRaisesRegex(PermissionError, 'path is not allowed'):
             serve.check_path(path, root=self.root)
 
 
