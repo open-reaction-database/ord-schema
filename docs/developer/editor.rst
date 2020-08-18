@@ -35,10 +35,6 @@ Before starting, make sure that you have installed all of the required
 Create a new VM instance
 ************************
 
-.. IMPORTANT::
-   If you are only updating the docker image, **you only need to reset the
-   existing VM rather than create a new one!**
-
 .. NOTE::
    Only one instance at a time can access a persistent disk. Make sure to shut
    down (and delete) any existing instance before proceeding.
