@@ -37,9 +37,8 @@ Create a new VM instance
 
 .. NOTE::
    Only one instance at a time can access a persistent disk. If there is an
-   existing instance, make sure to:
-   1. Remove the instance from the instance group
-   2. Shut down (and delete) the instance
+   existing instance, make sure to (1) remove the instance from the instance
+   group and (2) shut down (and delete) the instance.
 
 1. In the `VM instances page <https://console.cloud.google.com/compute/instances>`_,
    click "Create instance"
