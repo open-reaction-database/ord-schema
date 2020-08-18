@@ -185,10 +185,9 @@ def enumerate_dataset():
     """
     data = flask.request.get_json(force=True)
     basename, suffix = os.path.splitext(data['spreadsheet_name'])
-    with tempfile.NamedTemporaryFile(mode='w',
-                                     suffix=suffix,
-                                     dir=os.path.join(_DB_ROOT,
-                                                      flask.g.user)) as f:
+    temp_dir = os.path.join(_DB_ROOT, flask.g.user)
+    with tempfile.NamedTemporaryFile(mode='w', suffix=suffix,
+                                     dir=temp_dir) as f:
         f.write(data['spreadsheet_data'].lstrip('ï»¿'))
         f.seek(0)
         dataframe = dataset_templating.read_spreadsheet(f.name)
