@@ -116,7 +116,7 @@ ord.compounds.unloadCompound = function(node) {
   compound.setReactionRole(reactionRole);
 
   // Only call setIsLimiting if this is a reactant Compound.
-  if (getSelectorText($('.component_reaction_role', node)[0]) == 'REACTANT') {
+  if (getSelectorText($('.component_reaction_role', node)[0]) === 'REACTANT') {
     const isLimiting = getOptionalBool($('.component_limiting', node));
     compound.setIsLimiting(isLimiting);
   }
@@ -206,10 +206,10 @@ ord.compounds.add = function(root) {
   // Connect reaction role selection to limiting reactant field.
   const roleSelector = $('.component_reaction_role', node);
   roleSelector.change(function() {
-    if (getSelectorText(this) == 'REACTANT') {
-      $('.limiting_reactant').show();
+    if (getSelectorText(this) === 'REACTANT') {
+      $('.limiting_reactant', node).show();
     } else {
-      $('.limiting_reactant').hide();
+      $('.limiting_reactant', node).hide();
     }
   });
 
@@ -219,16 +219,16 @@ ord.compounds.add = function(root) {
   amountButtons.change(function() {
     $('.amount .selector', node).hide();
     if (this.value == 'mass') {
-      $('.component_amount_units_mass', root).show();
-      $('.includes_solutes', root).hide();
+      $('.component_amount_units_mass', node).show();
+      $('.includes_solutes', node).hide();
     }
     if (this.value == 'moles') {
-      $('.component_amount_units_moles', root).show();
-      $('.includes_solutes', root).hide();
+      $('.component_amount_units_moles', node).show();
+      $('.includes_solutes', node).hide();
     }
     if (this.value == 'volume') {
-      $('.component_amount_units_volume', root).show();
-      $('.includes_solutes', root).show().css('display', 'inline-block');
+      $('.component_amount_units_volume', node).show();
+      $('.includes_solutes', node).show().css('display', 'inline-block');
     }
   });
 

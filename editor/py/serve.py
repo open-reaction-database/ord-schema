@@ -24,6 +24,7 @@ import tempfile
 import urllib
 
 import flask
+from google.protobuf import text_format
 
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
@@ -33,8 +34,6 @@ from ord_schema import dataset_templating
 from ord_schema import updates
 from ord_schema.visualization import generate_text
 from ord_schema.visualization import drawing
-
-from google.protobuf import text_format
 
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
@@ -114,8 +113,7 @@ def new_dataset(file_name):
 
 @app.route('/dataset/enumerate', methods=['POST'])
 def enumerate_dataset():
-    """Creates a new dataset in the DB_ROOT directory based on a template reaction
-    pbtxt and a spreadsheet.
+    """Creates a new dataset based on a template reaction and a spreadsheet.
 
     Three pieces of information are expected to be POSTed in a json object:
         spreadsheet_name: the original filename of the uploaded spreadsheet.
@@ -450,7 +448,7 @@ def get_molfile():
     try:
         molblock = message_helpers.molblock_from_compound(compound)
         return flask.jsonify(molblock)
-    except ValueError as e:
+    except ValueError:
         return 'no existing structural identifier', 404
 
 
