@@ -89,6 +89,7 @@ jobs:
         cd "${GITHUB_WORKSPACE}/editor"
         make
     - name: Run editor tests
+      timeout-minutes: 5
       run: |
         cd "${GITHUB_WORKSPACE}/editor"
         ./serve.sh &
