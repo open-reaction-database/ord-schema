@@ -15,9 +15,9 @@
 
 from absl.testing import absltest
 from absl.testing import parameterized
+from werkzeug import exceptions
 
 import serve
-from werkzeug import exceptions
 
 
 class ServeTest(parameterized.TestCase, absltest.TestCase):
