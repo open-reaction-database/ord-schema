@@ -17,6 +17,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 import serve
+from werkzeug import exceptions
 
 
 class ServeTest(parameterized.TestCase, absltest.TestCase):
@@ -35,7 +36,7 @@ class ServeTest(parameterized.TestCase, absltest.TestCase):
         '/some-other-root/foo.txt',
     ])
     def test_check_path_raises(self, path):
-        with self.assertRaisesRegex(PermissionError, 'path is not allowed'):
+        with self.assertRaises(exceptions.Forbidden):
             serve.check_path(path, root=self.root)
 
 

@@ -40,31 +40,65 @@ app = flask.Flask(__name__, template_folder='../html')
 
 # Root directory for the editor filesystem.
 _DB_ROOT = os.getenv('ORD_EDITOR_DB', 'db')
-# Failure message for check_path.
-_CHECK_PATH_MESSAGE = ''
-_CHECK_PATH_CODE = 403
 
 
-def check_path(path, root=None):
-    """Checks that a path is allowed/safe.
+def get_path(file_name, suffix=None, root=None):
+    """Returns an absolute path in the editor filesystem.
 
-    Specifically, we are looking for directory traversal attacks.
+    If the path is not allowed, calls flask.abort(403). Specifically, we are
+    looking for directory traversal attacks.
 
     Args:
-        path: Path to check.
+        file_name: Text filename.
+        suffix: Text filename suffix. Defaults to '.pbtxt'.
         root: Root path of the editor filesystem. Defaults to _DB_ROOT.
 
     Returns:
         The normalized absolutized path.
+    """
+    if suffix is None:
+        suffix = '.pbtxt'
+    if root is None:
+        root = _DB_ROOT
+    path = os.path.join(_DB_ROOT, flask.g.user, f'{file_name}{suffix}')
+    return check_path(path, root)
 
-    Raises:
-        PermissionError: If the path is not allowed.
+
+def get_user_path(user, root=None):
+    """Checks that a username results in a valid path in the editor filesystem.
+
+    If the path is not allowed, calls flask.abort(403). Specifically, we are
+    looking for directory traversal attacks.
+
+    Args:
+        user: Text username.
+        root: Root path of the editor filesystem. Defaults to _DB_ROOT.
+
+    Returns:
+        The normalized absolutized path.
     """
     if root is None:
         root = _DB_ROOT
+    path = os.path.join(_DB_ROOT, user)
+    return check_path(path, root)
+
+
+def check_path(path, root):
+    """Returns an absolute path in the editor filesystem.
+
+    If the path is not allowed, calls flask.abort(403). Specifically, we are
+    looking for directory traversal attacks.
+
+    Args:
+        path: Path to check
+        root: Root path of the editor filesystem.
+
+    Returns:
+        The normalized absolutized path.
+    """
     abspath = os.path.abspath(path)
     if not abspath.startswith(os.path.abspath(root)):
-        raise PermissionError(f'path is not allowed: {path}')
+        flask.abort(403)  # Path is not allowed.
     return abspath
 
 
@@ -107,11 +141,7 @@ def show_dataset(file_name):
 @app.route('/dataset/<file_name>/download')
 def download_dataset(file_name):
     """Returns a .pbtxt file from the _DB_ROOT directory as an attachment."""
-    try:
-        path = check_path(
-            os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
-    except PermissionError:
-        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+    path = get_path(file_name)
     if not os.path.isfile(path):
         flask.abort(404)
     pbtxt = open(path, 'rb')
@@ -124,11 +154,7 @@ def download_dataset(file_name):
 @app.route('/dataset/<file_name>/upload', methods=['POST'])
 def upload_dataset(file_name):
     """Writes the request body to the _DB_ROOT directory without validation."""
-    try:
-        path = check_path(
-            os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
-    except PermissionError:
-        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+    path = get_path(file_name)
     with open(path, 'wb') as upload:
         upload.write(flask.request.get_data())
     return 'ok'
@@ -137,11 +163,7 @@ def upload_dataset(file_name):
 @app.route('/dataset/<file_name>/new', methods=['POST'])
 def new_dataset(file_name):
     """Creates a new dataset in the _DB_ROOT directory."""
-    try:
-        path = check_path(
-            os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
-    except PermissionError:
-        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+    path = get_path(file_name)
     if os.path.isfile(path):
         flask.abort(404)
     with open(path, 'wb') as upload:
@@ -177,11 +199,7 @@ def enumerate_dataset():
                                                       validate=False)
     except ValueError as error:
         flask.abort(flask.make_response(str(error), 400))
-    try:
-        path = check_path(
-            os.path.join(_DB_ROOT, flask.g.user, f'{basename}_dataset.pbtxt'))
-    except PermissionError:
-        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+    path = get_path(file_name)
     message_helpers.write_message(dataset, path)
     return 'ok'
 
@@ -293,11 +311,7 @@ def delete_reaction_id_blank(file_name):
 def read_dataset(file_name):
     """Returns a Dataset as a serialized protobuf."""
     dataset = dataset_pb2.Dataset()
-    try:
-        path = check_path(
-            os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
-    except PermissionError:
-        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+    path = get_path(file_name)
     with open(path, 'rb') as pbtxt:
         text_format.Parse(pbtxt.read(), dataset)
     bites = dataset.SerializeToString(deterministic=True)
@@ -337,10 +351,7 @@ def write_upload(file_name, token):
     Returns:
         A 200 response when the file was written.
     """
-    try:
-        path = check_path(os.path.join(_DB_ROOT, flask.g.user, token))
-    except PermissionError:
-        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+    path = get_path(token)
     with open(path, 'wb') as upload:
         upload.write(flask.request.get_data())
     with lock(file_name):
@@ -365,10 +376,7 @@ def read_upload(token):
     Returns:
         The POST body from the request, after passing through a file.
     """
-    try:
-        path = check_path(os.path.join(_DB_ROOT, flask.g.user, token))
-    except PermissionError:
-        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+    path = get_path(token)
     with open(path, 'wb') as upload:
         upload.write(flask.request.get_data())
     pbtxt = open(path, 'rb')
@@ -444,11 +452,7 @@ def compare(file_name):
     """
     remote = dataset_pb2.Dataset()
     remote.ParseFromString(flask.request.get_data())
-    try:
-        path = check_path(
-            os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
-    except PermissionError:
-        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+    path = get_path(file_name)
     with open(path, 'rb') as pbtxt:
         local = dataset_pb2.Dataset()
         text_format.Parse(pbtxt.read(), local)
@@ -523,11 +527,7 @@ def prevent_caching(response):
 def get_dataset(file_name):
     """Reads a .pbtxt file from the _DB_ROOT directory and parse it."""
     with lock(file_name):
-        try:
-            path = check_path(
-                os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
-        except PermissionError:
-            return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+        path = get_path(file_name)
         if not os.path.isfile(path):
             return None
         dataset = dataset_pb2.Dataset()
@@ -539,11 +539,7 @@ def get_dataset(file_name):
 def put_dataset(file_name, dataset):
     """Write a proto to a .pbtxt file in the _DB_ROOT directory."""
     with lock(file_name):
-        try:
-            path = check_path(
-                os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.pbtxt'))
-        except PermissionError:
-            return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+        path = get_path(file_name)
         with open(path, 'wb') as pbtxt:
             string = text_format.MessageToString(dataset, as_utf8=True)
             pbtxt.write(string.encode('utf8'))
@@ -566,11 +562,7 @@ def lock(file_name):
     Yields:
         The locked file descriptor.
     """
-    try:
-        path = check_path(
-            os.path.join(_DB_ROOT, flask.g.user, f'{file_name}.lock'))
-    except PermissionError:
-        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+    path = get_path(file_name, suffix='.lock')
     lock_file = open(path, 'w')
     fcntl.lockf(lock_file, fcntl.LOCK_EX)
     try:
@@ -599,11 +591,7 @@ def resolve_tokens(proto):
             if descriptor.name == 'bytes_value':
                 token = message[:20].decode('utf8')
                 if token.startswith('upload_'):
-                    try:
-                        path = check_path(
-                            os.path.join(_DB_ROOT, flask.g.user, token))
-                    except PermissionError:
-                        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+                    path = get_path(token)
                     if os.path.isfile(path):
                         proto.bytes_value = open(path, 'rb').read()
                         matched = True
@@ -625,10 +613,7 @@ def init_user():
     if user is None:
         user = flask.request.args.get('user') or next_user()
         return redirect_to_user(user)
-    try:
-        path = check_path(os.path.join(_DB_ROOT, user))
-    except PermissionError:
-        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+    path = get_user_path(user)
     flask.g.user = user
     if not os.path.isdir(path):
         os.mkdir(path)
@@ -652,10 +637,7 @@ def ensure_user():
 
 def redirect_to_user(user):
     """Sets the user cookie and return a redirect to the updated URL."""
-    try:
-        check_path(os.path.join(_DB_ROOT, user))
-    except PermissionError:
-        return _CHECK_PATH_MESSAGE, _CHECK_PATH_CODE
+    get_user_path(user)  # Check that the username is valid.
     url = url_for_user(user)
     response = flask.redirect(url)
     # Expires in a year.
