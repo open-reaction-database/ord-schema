@@ -199,7 +199,7 @@ def enumerate_dataset():
                                                       validate=False)
     except ValueError as error:
         flask.abort(flask.make_response(str(error), 400))
-    path = get_path(file_name)
+    path = get_path(f'{basename}_dataset')
     message_helpers.write_message(dataset, path)
     return 'ok'
 
