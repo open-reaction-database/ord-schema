@@ -24,6 +24,9 @@ jobs:
     - uses: s-weigand/setup-conda@v1
       with:
         python-version: 3.7
+    - name: Setup
+      run: |
+        echo "::set-env CODECOV_TOKEN={{ secrets.CODECOV_TOKEN }}"
     - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
@@ -40,6 +43,11 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         ./run_long_tests.sh
+    - name: Coverage
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        coverage report
+        bash <(curl -s https://codecov.io/bash)
 
   test_notebooks:
     runs-on: ubuntu-latest

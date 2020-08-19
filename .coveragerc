@@ -1,0 +1,7 @@
+[run]
+branch = True
+omit = *_test.py
+       *_pb2.py
+
+[report]
+skip_empty = True
