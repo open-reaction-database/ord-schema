@@ -163,7 +163,7 @@ function toggleValidateMessage(node) {
       messageNode.css('visibility', 'visible');
       break;
   }
-};
+}
 
 // Update the visual summary of this reaction.
 function renderReaction(reaction) {
