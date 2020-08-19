@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-goog.provide('ord.enums');
+goog.module('ord.enums');
+goog.module.declareLegacyNamespace();
 
 // Proto enums are referenced by reflection from "data-proto" HTML attributes.
 goog.require('proto.ord.Compound.ReactionRole.ReactionRoleType');
