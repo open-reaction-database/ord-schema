@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-goog.provide('ord.conditions');
+goog.module('ord.conditions');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload,
+  validateConditions
+};
 
 goog.require('ord.electro');
 goog.require('ord.flows');
@@ -24,7 +30,7 @@ goog.require('ord.stirring');
 goog.require('ord.temperature');
 goog.require('proto.ord.ReactionConditions');
 
-ord.conditions.load = function(conditions) {
+function load(conditions) {
   const temperature = conditions.getTemperature();
   if (temperature) {
     ord.temperature.load(temperature);
@@ -61,7 +67,7 @@ ord.conditions.load = function(conditions) {
   $('#condition_details').text(conditions.getDetails());
 };
 
-ord.conditions.unload = function() {
+function unload() {
   const conditions = new proto.ord.ReactionConditions();
   const temperature = ord.temperature.unload();
   if (!ord.reaction.isEmptyMessage(temperature)) {
@@ -101,8 +107,8 @@ ord.conditions.unload = function() {
   return conditions;
 };
 
-ord.conditions.validateConditions = function(node, validateNode) {
-  const condition = ord.conditions.unload();
+function validateConditions(node, validateNode) {
+  const condition = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
