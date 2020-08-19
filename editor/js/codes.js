@@ -16,7 +16,11 @@
 
 goog.module('ord.codes');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, addCode};
+exports = {
+  load,
+  unload,
+  addCode
+};
 
 goog.require('proto.ord.Data');
 

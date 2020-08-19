@@ -16,7 +16,18 @@
 
 goog.module('ord.compounds');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, unloadCompound, loadIntoCompound, add, validateCompound, drawIdentifier, addNameIdentifier, addIdentifier, addPreparation};
+exports = {
+  load,
+  unload,
+  unloadCompound,
+  loadIntoCompound,
+  add,
+  validateCompound,
+  drawIdentifier,
+  addNameIdentifier,
+  addIdentifier,
+  addPreparation
+};
 
 goog.require('ord.amounts');
 goog.require('ord.features');
@@ -49,8 +60,7 @@ function loadIntoCompound(node, compound) {
   ord.reaction.setOptionalBool($('.component_includes_solutes', node), solutes);
 
   const identifiers = compound.getIdentifiersList();
-  identifiers.forEach(
-      identifier => loadIdentifier(node, identifier));
+  identifiers.forEach(identifier => loadIdentifier(node, identifier));
 
   const mass = compound.getMass();
   const moles = compound.getMoles();
@@ -89,8 +99,7 @@ function loadPreparation(node, preparation) {
   $('.component_compound_preparation_reaction', node).text(reaction);
 }
 
-function loadVendor(
-    compoundNode, vendorSource, vendorLot, vendorId) {
+function loadVendor(compoundNode, vendorSource, vendorLot, vendorId) {
   const node = $('fieldset.vendor', compoundNode);
   $('.component_vendor_source', node).text(vendorSource);
   $('.component_vendor_lot', node).text(vendorLot);
@@ -187,7 +196,7 @@ function unloadIdentifier(node) {
   return identifier;
 }
 
-function unloadPreparation (node) {
+function unloadPreparation(node) {
   const preparation = new proto.ord.CompoundPreparation();
   const type =
       ord.reaction.getSelector($('.component_compound_preparation_type', node));
@@ -199,7 +208,7 @@ function unloadPreparation (node) {
   return preparation;
 }
 
-function unloadVendor (node, compound) {
+function unloadVendor(node, compound) {
   const vendorSource = $('.component_vendor_source', node).text();
   compound.setVendorSource(vendorSource);
   const vendorLot = $('.component_vendor_lot', node).text();
@@ -208,8 +217,9 @@ function unloadVendor (node, compound) {
   compound.setVendorId(vendorId);
 }
 
-function add (root) {
-  const node = ord.reaction.addSlowly('#component_template', $('.components', root));
+function add(root) {
+  const node =
+      ord.reaction.addSlowly('#component_template', $('.components', root));
 
   // Connect reaction role selection to limiting reactant field.
   const roleSelector = $('.component_reaction_role', node);
@@ -247,8 +257,8 @@ function add (root) {
 }
 
 function addIdentifier(node) {
-  const identifierNode =
-      ord.reaction.addSlowly('#component_identifier_template', $('.identifiers', node));
+  const identifierNode = ord.reaction.addSlowly(
+      '#component_identifier_template', $('.identifiers', node));
 
   const uploadButton = $('.component_identifier_upload', identifierNode);
   uploadButton.change(function() {
@@ -266,7 +276,7 @@ function addIdentifier(node) {
 }
 
 // Shortcut to add an identifier based on name.
-function addNameIdentifier (node) {
+function addNameIdentifier(node) {
   var name = prompt('Compound name: ');
   if (!(name)) {
     return;
@@ -295,7 +305,7 @@ function addNameIdentifier (node) {
 }
 
 // Shortcut to add an identifier by drawing.
-function drawIdentifier (node) {
+function drawIdentifier(node) {
   // Get a reference to Ketcher, and to look nice, clear any old drawings.
   const ketcher =
       document.getElementById('ketcher-iframe').contentWindow.ketcher;
@@ -377,9 +387,9 @@ function drawIdentifier (node) {
   }
 }
 
-function addPreparation (node) {
-  const PreparationNode =
-      ord.reaction.addSlowly('#component_preparation_template', $('.preparations', node));
+function addPreparation(node) {
+  const PreparationNode = ord.reaction.addSlowly(
+      '#component_preparation_template', $('.preparations', node));
 
   const typeSelector =
       $('.component_compound_preparation_type', PreparationNode);
@@ -397,7 +407,7 @@ function addPreparation (node) {
 };
 
 // Update the image tag with a drawing of this component.
-function renderCompound (node, compound) {
+function renderCompound(node, compound) {
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/render/compound');
   const binary = compound.serializeBinary();
@@ -413,7 +423,7 @@ function renderCompound (node, compound) {
   xhr.send(binary);
 }
 
-function validateCompound (node, validateNode) {
+function validateCompound(node, validateNode) {
   const compound = unloadCompound(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();

@@ -16,13 +16,17 @@
 
 goog.module('ord.amounts');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, unloadVolume};
+exports = {
+  load,
+  unload,
+  unloadVolume
+};
 
 goog.require('proto.ord.Mass');
 goog.require('proto.ord.Moles');
 goog.require('proto.ord.Volume');
 
-function load (node, mass, moles, volume) {
+function load(node, mass, moles, volume) {
   const amount = $('.amount', node);
   $('.component_amount_units_mass', node).hide();
   $('.component_amount_units_moles', node).hide();
