@@ -32,12 +32,20 @@ jobs:
         pip install -r test_requirements.txt
         conda install -c rdkit rdkit
         python setup.py install
+        coverage erase
     - name: Run tests
       run: |
         cd "${GITHUB_WORKSPACE}"
-        coverage erase
-        ./run_tests.sh
-        ./run_long_tests.sh
+        # NOTE(kearnes): `source` is required for coverage to work properly.
+        source run_tests.sh
+    - name: Run long tests
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        # NOTE(kearnes): `source` is required for coverage to work properly.
+        source run_long_tests.sh
+    - name: Coverage
+      run: |
+        cd "${GITHUB_WORKSPACE}"
         coverage report
         coverage xml
     - uses: codecov/codecov-action@v1
