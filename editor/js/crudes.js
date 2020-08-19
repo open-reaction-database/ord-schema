@@ -14,20 +14,22 @@
  * limitations under the License.
  */
 
-goog.provide('ord.crudes');
+goog.module('ord.crudes');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, add};
 
 goog.require('ord.amountsCrudes');
 goog.require('proto.ord.CrudeComponent');
 
 // Freely create radio button groups by generating new input names.
-ord.crudes.radioGroupCounter = 0;
+let radioGroupCounter = 0;
 
-ord.crudes.load = function(node, crudes) {
-  crudes.forEach(crude => ord.crudes.loadCrude(node, crude));
+function load (node, crudes) {
+  crudes.forEach(crude => loadCrude(node, crude));
 };
 
-ord.crudes.loadCrude = function(root, crude) {
-  const node = ord.crudes.add(root);
+function loadCrude (root, crude) {
+  const node = add(root);
 
   const reactionId = crude.getReactionId();
   $('.crude_reaction', node).text(reactionId);
@@ -44,13 +46,13 @@ ord.crudes.loadCrude = function(root, crude) {
   ord.amountsCrudes.load(node, mass, volume);
 };
 
-ord.crudes.unload = function(node) {
+function unload (node) {
   const crudes = [];
   $('.crude', node).each(function(index, crudeNode) {
     crudeNode = $(crudeNode);
     if (!crudeNode.attr('id')) {
       // Not a template.
-      const crude = ord.crudes.unloadCrude(crudeNode);
+      const crude = unloadCrude(crudeNode);
       if (!ord.reaction.isEmptyMessage(crude)) {
         crudes.push(crude);
       }
@@ -59,7 +61,7 @@ ord.crudes.unload = function(node) {
   return crudes;
 };
 
-ord.crudes.unloadCrude = function(node) {
+function unloadCrude (node) {
   const crude = new proto.ord.CrudeComponent();
 
   const reactionId = $('.crude_reaction', node).text();
@@ -77,12 +79,12 @@ ord.crudes.unloadCrude = function(node) {
   return crude;
 };
 
-ord.crudes.add = function(root) {
+function add (root) {
   const node = ord.reaction.addSlowly('#crude_template', $('.crudes', root));
 
   // Create an "amount" radio button group and connect it to the unit selectors.
   const amountButtons = $('.amount input', node);
-  amountButtons.attr('name', 'crudes_' + ord.crudes.radioGroupCounter++);
+  amountButtons.attr('name', 'crudes_' + radioGroupCounter++);
   amountButtons.change(function() {
     $('.amount .selector', node).hide();
     if (this.value == 'mass') {
