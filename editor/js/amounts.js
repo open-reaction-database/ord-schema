@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-goog.provide('ord.amounts');
+goog.module('ord.amounts');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, unloadVolume};
 
 goog.require('proto.ord.Mass');
 goog.require('proto.ord.Moles');
 goog.require('proto.ord.Volume');
 
-ord.amounts.load = function(node, mass, moles, volume) {
+function load (node, mass, moles, volume) {
   const amount = $('.amount', node);
   $('.component_amount_units_mass', node).hide();
   $('.component_amount_units_moles', node).hide();
@@ -63,12 +65,12 @@ ord.amounts.load = function(node, mass, moles, volume) {
     ord.reaction.setSelector(
         $('.component_amount_units_volume', amount), volume.getUnits());
   }
-};
+}
 
-ord.amounts.unload = function(node, compound) {
-  const mass = ord.amounts.unloadMass(node);
-  const moles = ord.amounts.unloadMoles(node);
-  const volume = ord.amounts.unloadVolume(node);
+function unload(node, compound) {
+  const mass = unloadMass(node);
+  const moles = unloadMoles(node);
+  const volume = unloadVolume(node);
   if (mass) {
     if (!ord.reaction.isEmptyMessage(mass)) {
       compound.setMass(mass);
@@ -84,9 +86,9 @@ ord.amounts.unload = function(node, compound) {
       compound.setVolume(volume);
     }
   }
-};
+}
 
-ord.amounts.unloadMass = function(node) {
+function unloadMass(node) {
   if (!$('.component_amount_mass', node).is(':checked')) {
     return null;
   }
@@ -103,9 +105,9 @@ ord.amounts.unloadMass = function(node) {
     mass.setPrecision(precision);
   }
   return mass;
-};
+}
 
-ord.amounts.unloadMoles = function(node) {
+function unloadMoles(node) {
   if (!$('.component_amount_moles', node).is(':checked')) {
     return null;
   }
@@ -122,9 +124,9 @@ ord.amounts.unloadMoles = function(node) {
     moles.setPrecision(precision);
   }
   return moles;
-};
+}
 
-ord.amounts.unloadVolume = function(node) {
+function unloadVolume(node) {
   if (!$('.component_amount_volume', node).is(':checked')) {
     return null;
   }
@@ -141,4 +143,4 @@ ord.amounts.unloadVolume = function(node) {
     volume.setPrecision(precision);
   }
   return volume;
-};
+}
