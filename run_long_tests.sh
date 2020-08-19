@@ -17,4 +17,4 @@
 set -ex
 # Python tests.
 find ./ord_schema -name '*_longtest.py' -print0 \
-  | xargs -t -0 -I '{}' coverage run --append '{}' > /dev/null
+  | xargs -t -0 -I '{}' coverage run '{}' > /dev/null
