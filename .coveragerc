@@ -5,3 +5,6 @@ omit = *_test.py
 
 [report]
 skip_empty = True
+
+[xml]
+skip_empty = True

@@ -44,6 +44,7 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         coverage report
+        coverage xml
     - uses: codecov/codecov-action@v1
 
   test_notebooks:
