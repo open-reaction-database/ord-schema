@@ -41,6 +41,7 @@ const puppeteer = require('puppeteer');
     await page.waitFor('body[ready=true]');
     const test = page.evaluate(async function(url) {
       const reaction = ord.reaction.unloadReaction();
+      const session = ord.reaction.session;
       const reactions = session.dataset.getReactionsList();
       reactions[session.index] = reaction;
       return await ord.reaction

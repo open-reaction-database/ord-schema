@@ -57,6 +57,8 @@ const session = {
   dataset: null,
   index: null  // Ordinal position of the Reaction in its Dataset.
 };
+// Export session, because it's used by test.js.
+exports.session = session;
 
 async function init(fileName, index) {
   session.fileName = fileName;
