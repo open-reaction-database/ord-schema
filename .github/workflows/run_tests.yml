@@ -31,7 +31,9 @@ jobs:
         pip install -r requirements.txt
         pip install -r test_requirements.txt
         conda install -c rdkit rdkit
-        python setup.py install
+        # NOTE(kearnes): `develop` is required for coverage to work properly.
+        python setup.py build develop
+        coverage erase
     - name: Run tests
       run: |
         cd "${GITHUB_WORKSPACE}"
@@ -40,6 +42,13 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         ./run_long_tests.sh
+    - name: Coverage
+      run: |
+        cd "${GITHUB_WORKSPACE}"
+        coverage combine
+        coverage report
+        coverage xml
+    - uses: codecov/codecov-action@v1
 
   test_notebooks:
     runs-on: ubuntu-latest
