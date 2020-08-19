@@ -1,11 +1,8 @@
 [run]
 branch = True
-omit = *_test.py
-       *_longtest.py
-       *_pb2.py
+omit = *_test.py, *_longtest.py, *_pb2.py
 parallel = True
-source = editor
-         ord_schema
+source = editor, ord_schema
 
 [report]
 skip_empty = True
