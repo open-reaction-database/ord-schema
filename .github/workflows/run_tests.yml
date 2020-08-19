@@ -35,6 +35,7 @@ jobs:
     - name: Run tests
       run: |
         cd "${GITHUB_WORKSPACE}"
+        coverage erase
         ./run_tests.sh
         ./run_long_tests.sh
         coverage report

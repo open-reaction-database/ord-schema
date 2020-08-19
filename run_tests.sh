@@ -17,4 +17,4 @@
 set -ex
 # Python tests.
 find ./editor ./ord_schema -name '*_test.py' -print0 \
-  | xargs -t -0 -I '{}' coverage run -a '{}' > /dev/null
+  | xargs -t -0 -I '{}' coverage run --append '{}' > /dev/null
