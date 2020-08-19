@@ -14,23 +14,25 @@
  * limitations under the License.
  */
 
-goog.provide('ord.codes');
+goog.module('ord.codes');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, addCode};
 
 goog.require('proto.ord.Data');
 
 // Freely create radio button groups by generating new input names.
-ord.codes.radioGroupCounter = 0;
+let radioGroupCounter = 0;
 
-ord.codes.load = function(codes) {
+function load(codes) {
   const names = codes.stringKeys_();
   names.forEach(function(name) {
     const code = codes.get(name);
-    ord.codes.loadCode(name, code);
+    loadCode(name, code);
   });
-};
+}
 
-ord.codes.loadCode = function(name, code) {
-  const node = ord.codes.addCode();
+function loadCode(name, code) {
+  const node = addCode();
   $('.setup_code_name', node).text(name);
   $('.setup_code_description', node).text(code.getDescription());
   $('.setup_code_format', node).text(code.getFormat());
@@ -63,18 +65,18 @@ ord.codes.loadCode = function(name, code) {
     $('.setup_code_text', node).text(url);
     $('input[value=\'url\']', node).prop('checked', true);
   }
-};
+}
 
-ord.codes.unload = function(codes) {
+function unload(codes) {
   $('.setup_code').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
-      ord.codes.unloadCode(codes, node);
+      unloadCode(codes, node);
     }
   });
-};
+}
 
-ord.codes.unloadCode = function(codes, node) {
+function unloadCode(codes, node) {
   const name = $('.setup_code_name', node).text();
 
   const code = new proto.ord.Data();
@@ -112,13 +114,13 @@ ord.codes.unloadCode = function(codes, node) {
       !ord.reaction.isEmptyMessage(code)) {
     codes.set(name, code);
   }
-};
+}
 
-ord.codes.addCode = function() {
+function addCode() {
   const node = ord.reaction.addSlowly('#setup_code_template', '#setup_codes');
 
   const typeButtons = $('input[type=\'radio\']', node);
-  typeButtons.attr('name', 'codes_' + ord.codes.radioGroupCounter++);
+  typeButtons.attr('name', 'codes_' + radioGroupCounter++);
   typeButtons.change(function() {
     if ((this.value == 'text') || (this.value == 'number') ||
         (this.value == 'url')) {
@@ -131,4 +133,4 @@ ord.codes.addCode = function() {
   });
   ord.uploads.initialize(node);
   return node;
-};
+}
