@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-goog.provide('ord.amountsCrudes');
+goog.module('ord.amountsCrudes');
+goog.module.declareLegacyNamespace();
+exports = {load, unload};
 
 goog.require('proto.ord.Mass');
 goog.require('proto.ord.Volume');
 
-ord.amountsCrudes.load = function(node, mass, volume) {
+function load (node, mass, volume) {
   const amount = $('.amount', node);
   $('.crude_amount_units_mass', node).hide();
   $('.crude_amount_units_volume', node).hide();
@@ -47,11 +49,11 @@ ord.amountsCrudes.load = function(node, mass, volume) {
     ord.reaction.setSelector(
         $('.crude_amount_units_volume', amount), volume.getUnits());
   }
-};
+}
 
-ord.amountsCrudes.unload = function(node, crude) {
-  const mass = ord.amountsCrudes.unloadMass(node);
-  const volume = ord.amountsCrudes.unloadVolume(node);
+function unload(node, crude) {
+  const mass = unloadMass(node);
+  const volume = unloadVolume(node);
   if (mass) {
     if (!ord.reaction.isEmptyMessage(mass)) {
       crude.setMass(mass);
@@ -62,9 +64,9 @@ ord.amountsCrudes.unload = function(node, crude) {
       crude.setVolume(volume);
     }
   }
-};
+}
 
-ord.amountsCrudes.unloadMass = function(node) {
+function unloadMass(node) {
   if (!$('.crude_amount_mass', node).is(':checked')) {
     return null;
   }
@@ -80,9 +82,9 @@ ord.amountsCrudes.unloadMass = function(node) {
     mass.setPrecision(precision);
   }
   return mass;
-};
+}
 
-ord.amountsCrudes.unloadVolume = function(node) {
+function unloadVolume(node) {
   if (!$('.crude_amount_volume', node).is(':checked')) {
     return null;
   }
@@ -98,4 +100,4 @@ ord.amountsCrudes.unloadVolume = function(node) {
     volume.setPrecision(precision);
   }
   return volume;
-};
+}
