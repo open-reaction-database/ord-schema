@@ -53,4 +53,4 @@ RUN make
 
 EXPOSE 5000
 RUN pip install gunicorn
-CMD gunicorn py.serve:app -b 0.0.0.0:5000 --log-level debug --access-logfile '-'
+CMD gunicorn py.serve:app -b 0.0.0.0:5000 --access-logfile '-'
