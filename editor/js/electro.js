@@ -99,7 +99,7 @@ ord.electro.unload = function() {
     electro.setCell(cell);
   }
 
-  const measurements = []
+  const measurements = [];
   $('.electro_measurement').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {

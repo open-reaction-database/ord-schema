@@ -36,7 +36,7 @@ ord.compounds.loadCompound = function(root, compound) {
 ord.compounds.loadIntoCompound = function(node, compound) {
   const reactionRole = compound.getReactionRole();
   setSelector($('.component_reaction_role', node), reactionRole);
-  $('.component_reaction_role', node).trigger('change')
+  $('.component_reaction_role', node).trigger('change');
 
   const isLimiting = compound.hasIsLimiting() ? compound.getIsLimiting() : null;
   setOptionalBool($('.component_limiting', node), isLimiting);
@@ -233,7 +233,9 @@ ord.compounds.add = function(root) {
   });
 
   // Add live validation handling.
-  addChangeHandler(node, () => {ord.compounds.validateCompound(node)});
+  addChangeHandler(node, () => {
+    ord.compounds.validateCompound(node);
+  });
 
   return node;
 };
@@ -280,7 +282,7 @@ ord.compounds.addNameIdentifier = function(node) {
       identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
       identifier.setDetails('NAME resolved by the ' + resolver);
       ord.compounds.loadIdentifier(node, identifier);
-    };
+    }
     ord.compounds.validateCompound(node);
   };
   xhr.send(name);
@@ -327,7 +329,7 @@ ord.compounds.drawIdentifier = function(node) {
           // it.
           ketcherModal.off('shown.bs.modal');
           ketcher.setMolecule(molblock);
-        })
+        });
       }
     }
     // Now that we're done with (trying to) loading the molecule, hide the
@@ -366,7 +368,7 @@ ord.compounds.drawIdentifier = function(node) {
       ord.compounds.loadIdentifier(node, identifier);
     }
     ord.compounds.validateCompound(node);
-  }
+  };
 };
 
 ord.compounds.addPreparation = function(node) {
@@ -385,7 +387,7 @@ ord.compounds.addPreparation = function(node) {
     }
   });
 
-  return PreparationNode
+  return PreparationNode;
 };
 
 // Update the image tag with a drawing of this component.
