@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-goog.provide('ord.dataset');
+goog.module('ord.dataset');
+goog.module.declareLegacyNamespace();
+exports = {init, download, commit, deleteReaction, newReaction, removeReactionId, addReactionId};
 
 goog.require('proto.ord.Dataset');
 
