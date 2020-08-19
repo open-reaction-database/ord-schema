@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-goog.provide('ord.flows');
+goog.module('ord.flows');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, validateFlow};
 
 goog.require('proto.ord.FlowConditions');
 goog.require('proto.ord.FlowConditions.Tubing');
 
-ord.flows.load = function(flow) {
+function load(flow) {
   const type = flow.getFlowType();
   if (type) {
     setSelector($('#flow_type'), type.getType());
@@ -33,7 +35,7 @@ ord.flows.load = function(flow) {
   writeMetric('#flow_tubing', tubing.getDiameter());
 };
 
-ord.flows.unload = function() {
+function unload() {
   const flow = new proto.ord.FlowConditions();
 
   const type = new proto.ord.FlowConditions.FlowType();
@@ -59,8 +61,8 @@ ord.flows.unload = function() {
   return flow;
 };
 
-ord.flows.validateFlow = function(node, validateNode) {
-  const flow = ord.flows.unload();
+function validateFlow(node, validateNode) {
+  const flow = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
