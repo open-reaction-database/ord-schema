@@ -36,13 +36,7 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         ./run_tests.sh
-    - name: Run long tests
-      run: |
-        cd "${GITHUB_WORKSPACE}"
         ./run_long_tests.sh
-    - name: Coverage
-      run: |
-        cd "${GITHUB_WORKSPACE}"
         coverage report
         coverage xml
     - uses: codecov/codecov-action@v1
