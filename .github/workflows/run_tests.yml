@@ -39,14 +39,11 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         ./run_tests.sh
-    - name: Run long tests
-      run: |
-        cd "${GITHUB_WORKSPACE}"
         ./run_long_tests.sh
-    - name: Coverage
+        coverage report
+    - name: Upload coverage data
       run: |
         cd "${GITHUB_WORKSPACE}"
-        coverage report
         bash <(curl -s https://codecov.io/bash)
 
   test_notebooks:
