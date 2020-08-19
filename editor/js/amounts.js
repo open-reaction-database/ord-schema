@@ -35,7 +35,8 @@ ord.amounts.load = function(node, mass, moles, volume) {
       $('.component_amount_precision', node).text(mass.getPrecision());
     }
     $('.component_amount_units_mass', node).show();
-    setSelector($('.component_amount_units_mass', amount), mass.getUnits());
+    ord.reaction.setSelector(
+        $('.component_amount_units_mass', amount), mass.getUnits());
   }
   if (moles) {
     $('input[value=\'moles\']', amount).prop('checked', true);
@@ -46,7 +47,8 @@ ord.amounts.load = function(node, mass, moles, volume) {
       $('.component_amount_precision', node).text(moles.getPrecision());
     }
     $('.component_amount_units_moles', node).show();
-    setSelector($('.component_amount_units_moles', amount), moles.getUnits());
+    ord.reaction.setSelector(
+        $('.component_amount_units_moles', amount), moles.getUnits());
   }
   if (volume) {
     $('input[value=\'volume\']', amount).prop('checked', true);
@@ -58,7 +60,8 @@ ord.amounts.load = function(node, mass, moles, volume) {
     }
     $('.component_amount_units_volume', node).show();
     $('.includes_solutes', node).show().css('display', 'inline-block');
-    setSelector($('.component_amount_units_volume', amount), volume.getUnits());
+    ord.reaction.setSelector(
+        $('.component_amount_units_volume', amount), volume.getUnits());
   }
 };
 
@@ -67,17 +70,17 @@ ord.amounts.unload = function(node, compound) {
   const moles = ord.amounts.unloadMoles(node);
   const volume = ord.amounts.unloadVolume(node);
   if (mass) {
-    if (!isEmptyMessage(mass)) {
+    if (!ord.reaction.isEmptyMessage(mass)) {
       compound.setMass(mass);
     }
   }
   if (moles) {
-    if (!isEmptyMessage(moles)) {
+    if (!ord.reaction.isEmptyMessage(moles)) {
       compound.setMoles(moles);
     }
   }
   if (volume) {
-    if (!isEmptyMessage(volume)) {
+    if (!ord.reaction.isEmptyMessage(volume)) {
       compound.setVolume(volume);
     }
   }
@@ -92,7 +95,8 @@ ord.amounts.unloadMass = function(node) {
   if (!isNaN(value)) {
     mass.setValue(value);
   }
-  const units = getSelector($('.component_amount_units_mass', node));
+  const units =
+      ord.reaction.getSelector($('.component_amount_units_mass', node));
   mass.setUnits(units);
   const precision = parseFloat($('.component_amount_precision', node).text());
   if (!isNaN(precision)) {
@@ -110,7 +114,8 @@ ord.amounts.unloadMoles = function(node) {
   if (!isNaN(value)) {
     moles.setValue(value);
   }
-  const units = getSelector($('.component_amount_units_moles', node));
+  const units =
+      ord.reaction.getSelector($('.component_amount_units_moles', node));
   moles.setUnits(units);
   const precision = parseFloat($('.component_amount_precision', node).text());
   if (!isNaN(precision)) {
@@ -128,7 +133,8 @@ ord.amounts.unloadVolume = function(node) {
   if (!isNaN(value)) {
     volume.setValue(value);
   }
-  const units = getSelector($('.component_amount_units_volume', node));
+  const units =
+      ord.reaction.getSelector($('.component_amount_units_volume', node));
   volume.setUnits(units);
   const precision = parseFloat($('.component_amount_precision', node).text());
   if (!isNaN(precision)) {

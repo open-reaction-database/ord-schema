@@ -31,23 +31,23 @@ ord.products.loadProduct = function(outcomeNode, product) {
     ord.compounds.loadIntoCompound(node, compound);
   }
 
-  setOptionalBool(
+  ord.reaction.setOptionalBool(
       $('.outcome_product_desired', node),
       product.hasIsDesiredProduct() ? product.getIsDesiredProduct() : null);
 
   const compoundYield = product.getCompoundYield();
   if (compoundYield) {
-    writeMetric('.outcome_product_yield', compoundYield, node);
+    ord.reaction.writeMetric('.outcome_product_yield', compoundYield, node);
   }
 
   const purity = product.getPurity();
   if (purity) {
-    writeMetric('.outcome_product_purity', purity, node);
+    ord.reaction.writeMetric('.outcome_product_purity', purity, node);
   }
 
   const selectivity = product.getSelectivity();
   if (selectivity) {
-    setSelector(
+    ord.reaction.setSelector(
         $('.outcome_product_selectivity_type', node), selectivity.getType());
     $('.outcome_product_selectivity_details', node)
         .text(selectivity.getDetails());
@@ -85,7 +85,8 @@ ord.products.loadProduct = function(outcomeNode, product) {
 
   const texture = product.getTexture();
   if (texture) {
-    setSelector($('.outcome_product_texture_type', node), texture.getType());
+    ord.reaction.setSelector(
+        $('.outcome_product_texture_type', node), texture.getType());
     $('.outcome_product_texture_details', node).text(texture.getDetails());
   }
 };
@@ -97,7 +98,7 @@ ord.products.unload = function(node) {
     if (!productNode.attr('id')) {
       // Not a template.
       const product = ord.products.unloadProduct(productNode);
-      if (!isEmptyMessage(product)) {
+      if (!ord.reaction.isEmptyMessage(product)) {
         products.push(product);
       }
     }
@@ -110,28 +111,28 @@ ord.products.unloadProduct = function(node) {
 
   const compoundNode = $('.outcome_product_compound');
   const compound = ord.compounds.unloadCompound(compoundNode);
-  if (!isEmptyMessage(compound)) {
+  if (!ord.reaction.isEmptyMessage(compound)) {
     product.setCompound(compound);
   }
 
   product.setIsDesiredProduct(
-      getOptionalBool($('.outcome_product_desired', node)));
+      ord.reaction.getOptionalBool($('.outcome_product_desired', node)));
 
-  const yeild =
-      readMetric('.outcome_product_yield', new proto.ord.Percentage(), node);
-  if (!isEmptyMessage(yeild)) {
+  const yeild = ord.reaction.readMetric(
+      '.outcome_product_yield', new proto.ord.Percentage(), node);
+  if (!ord.reaction.isEmptyMessage(yeild)) {
     product.setCompoundYield(yeild);
   }
 
-  const purity =
-      readMetric('.outcome_product_purity', new proto.ord.Percentage(), node);
-  if (!isEmptyMessage(purity)) {
+  const purity = ord.reaction.readMetric(
+      '.outcome_product_purity', new proto.ord.Percentage(), node);
+  if (!ord.reaction.isEmptyMessage(purity)) {
     product.setPurity(purity);
   }
 
   const selectivity = new proto.ord.Selectivity();
   selectivity.setType(
-      getSelector($('.outcome_product_selectivity_type', node)));
+      ord.reaction.getSelector($('.outcome_product_selectivity_type', node)));
   selectivity.setDetails(
       $('.outcome_product_selectivity_details', node).text());
   const selectivityValue =
@@ -144,7 +145,7 @@ ord.products.unloadProduct = function(node) {
   if (!isNaN(selectivityPrecision)) {
     selectivity.setPrecision(selectivityPrecision);
   }
-  if (!isEmptyMessage(selectivity)) {
+  if (!ord.reaction.isEmptyMessage(selectivity)) {
     product.setSelectivity(selectivity);
   }
 
@@ -164,9 +165,10 @@ ord.products.unloadProduct = function(node) {
   product.setIsolatedColor(color);
 
   const texture = new proto.ord.ReactionProduct.Texture();
-  texture.setType(getSelector($('.outcome_product_texture_type', node)));
+  texture.setType(
+      ord.reaction.getSelector($('.outcome_product_texture_type', node)));
   texture.setDetails($('.outcome_product_texture_details', node).text());
-  if (!isEmptyMessage(texture)) {
+  if (!ord.reaction.isEmptyMessage(texture)) {
     product.setTexture(texture);
   }
 
@@ -189,8 +191,8 @@ ord.products.unloadAnalysisKeys = function(node, tag) {
 };
 
 ord.products.add = function(node) {
-  const productNode =
-      addSlowly('#outcome_product_template', $('.outcome_products', node));
+  const productNode = ord.reaction.addSlowly(
+      '#outcome_product_template', $('.outcome_products', node));
 
   // Add an empty compound node.
   ord.compounds.add(productNode);
@@ -206,32 +208,32 @@ ord.products.add = function(node) {
   $('.component .vendor', productNode).hide();
 
   // Add live validation handling.
-  addChangeHandler(productNode, () => {
+  ord.reaction.addChangeHandler(productNode, () => {
     ord.products.validateProduct(productNode);
   });
   return productNode;
 };
 
 ord.products.addIdentity = function(node) {
-  return addSlowly(
+  return ord.reaction.addSlowly(
       '#outcome_product_analysis_identity_template',
       $('.outcome_product_analysis_identities', node));
 };
 
 ord.products.addYield = function(node) {
-  return addSlowly(
+  return ord.reaction.addSlowly(
       '#outcome_product_analysis_yield_template',
       $('.outcome_product_analysis_yields', node));
 };
 
 ord.products.addPurity = function(node) {
-  return addSlowly(
+  return ord.reaction.addSlowly(
       '#outcome_product_analysis_purity_template',
       $('.outcome_product_analysis_purities', node));
 };
 
 ord.products.addSelectivity = function(node) {
-  return addSlowly(
+  return ord.reaction.addSlowly(
       '#outcome_product_analysis_selectivity_template',
       $('.outcome_product_analysis_selectivities', node));
 };
@@ -241,5 +243,5 @@ ord.products.validateProduct = function(node, validateNode) {
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(product, 'ReactionProduct', validateNode);
+  ord.reaction.validate(product, 'ReactionProduct', validateNode);
 };

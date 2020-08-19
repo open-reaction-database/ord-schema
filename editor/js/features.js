@@ -44,7 +44,7 @@ ord.features.unload = function(compoundNode) {
     node = $(node);
     if (!node.attr('id')) {
       const feature = ord.features.unloadFeature(node);
-      if (!isEmptyMessage(feature)) {
+      if (!ord.reaction.isEmptyMessage(feature)) {
         features.push(feature);
       }
     }
@@ -60,11 +60,11 @@ ord.features.unloadFeature = function(node) {
   const valueText = $('.component_feature_value', node).text();
   const valueFloat = parseFloat(valueText);
   if (isNaN(valueFloat)) {
-    if (!isEmptyMessage(valueText)) {
+    if (!ord.reaction.isEmptyMessage(valueText)) {
       feature.setStringValue(valueText);
     }
   } else {
-    if (!isEmptyMessage(valueFloat)) {
+    if (!ord.reaction.isEmptyMessage(valueFloat)) {
       feature.setFloatValue(valueFloat);
     }
   }
@@ -74,5 +74,6 @@ ord.features.unloadFeature = function(node) {
 };
 
 ord.features.add = function(compoundNode) {
-  return addSlowly('#component_feature_template', $('.features', compoundNode));
+  return ord.reaction.addSlowly(
+      '#component_feature_template', $('.features', compoundNode));
 };

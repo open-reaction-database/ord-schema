@@ -33,11 +33,11 @@ ord.crudes.loadCrude = function(root, crude) {
   $('.crude_reaction', node).text(reactionId);
 
   const workup = crude.hasIncludesWorkup() ? crude.getIncludesWorkup() : null;
-  setOptionalBool($('.crude_includes_workup', node), workup);
+  ord.reaction.setOptionalBool($('.crude_includes_workup', node), workup);
 
   const derived =
       crude.hasHasDerivedAmount() ? crude.getHasDerivedAmount() : null;
-  setOptionalBool($('.crude_has_derived', node), derived);
+  ord.reaction.setOptionalBool($('.crude_has_derived', node), derived);
 
   const mass = crude.getMass();
   const volume = crude.getVolume();
@@ -51,7 +51,7 @@ ord.crudes.unload = function(node) {
     if (!crudeNode.attr('id')) {
       // Not a template.
       const crude = ord.crudes.unloadCrude(crudeNode);
-      if (!isEmptyMessage(crude)) {
+      if (!ord.reaction.isEmptyMessage(crude)) {
         crudes.push(crude);
       }
     }
@@ -65,10 +65,11 @@ ord.crudes.unloadCrude = function(node) {
   const reactionId = $('.crude_reaction', node).text();
   crude.setReactionId(reactionId);
 
-  const workup = getOptionalBool($('.crude_includes_workup', node));
+  const workup =
+      ord.reaction.getOptionalBool($('.crude_includes_workup', node));
   crude.setIncludesWorkup(workup);
 
-  const derived = getOptionalBool($('.crude_has_derived', node));
+  const derived = ord.reaction.getOptionalBool($('.crude_has_derived', node));
   crude.setHasDerivedAmount(derived);
 
   ord.amountsCrudes.unload(node, crude);
@@ -77,7 +78,7 @@ ord.crudes.unloadCrude = function(node) {
 };
 
 ord.crudes.add = function(root) {
-  const node = addSlowly('#crude_template', $('.crudes', root));
+  const node = ord.reaction.addSlowly('#crude_template', $('.crudes', root));
 
   // Create an "amount" radio button group and connect it to the unit selectors.
   const amountButtons = $('.amount input', node);

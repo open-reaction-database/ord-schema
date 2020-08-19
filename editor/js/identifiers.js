@@ -30,7 +30,7 @@ ord.identifiers.loadIdentifier = function(identifier) {
   const node = ord.identifiers.add();
   const value = identifier.getValue();
   $('.reaction_identifier_value', node).text(value);
-  setSelector(node, identifier.getType());
+  ord.reaction.setSelector(node, identifier.getType());
   $('.reaction_identifier_details', node).text(identifier.getDetails());
 };
 
@@ -41,7 +41,7 @@ ord.identifiers.unload = function() {
     if (!node.attr('id')) {
       // Not a template.
       const identifier = ord.identifiers.unloadIdentifier(node);
-      if (!isEmptyMessage(identifier)) {
+      if (!ord.reaction.isEmptyMessage(identifier)) {
         identifiers.push(identifier);
       }
     }
@@ -53,23 +53,24 @@ ord.identifiers.unloadIdentifier = function(node) {
   const identifier = new proto.ord.ReactionIdentifier();
 
   const value = $('.reaction_identifier_value', node).text();
-  if (!isEmptyMessage(value)) {
+  if (!ord.reaction.isEmptyMessage(value)) {
     identifier.setValue(value);
   }
 
-  const type = getSelector(node);
-  if (!isEmptyMessage(type)) {
+  const type = ord.reaction.getSelector(node);
+  if (!ord.reaction.isEmptyMessage(type)) {
     identifier.setType(type);
   }
   const details = $('.reaction_identifier_details', node).text();
-  if (!isEmptyMessage(details)) {
+  if (!ord.reaction.isEmptyMessage(details)) {
     identifier.setDetails(details);
   }
   return identifier;
 };
 
 ord.identifiers.add = function() {
-  const node = addSlowly('#reaction_identifier_template', '#identifiers');
+  const node =
+      ord.reaction.addSlowly('#reaction_identifier_template', '#identifiers');
 
   const uploadButton = $('.reaction_identifier_upload', node);
   uploadButton.change(function() {

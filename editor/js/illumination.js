@@ -23,34 +23,35 @@ goog.require('proto.ord.Wavelength');
 ord.illumination.load = function(illumination) {
   const type = illumination.getType();
   if (type) {
-    setSelector($('#illumination_type'), type.getType());
+    ord.reaction.setSelector($('#illumination_type'), type.getType());
     $('#illumination_details').text(type.getDetails());
   }
   const wavelength = illumination.getPeakWavelength();
-  writeMetric('#illumination_wavelength', wavelength);
+  ord.reaction.writeMetric('#illumination_wavelength', wavelength);
   $('#illumination_color').text(illumination.getColor());
   const distance = illumination.getDistanceToVessel();
-  writeMetric('#illumination_distance', distance);
+  ord.reaction.writeMetric('#illumination_distance', distance);
 };
 
 ord.illumination.unload = function() {
   const illumination = new proto.ord.IlluminationConditions();
 
   const type = new proto.ord.IlluminationConditions.IlluminationType();
-  type.setType(getSelector($('#illumination_type')));
+  type.setType(ord.reaction.getSelector($('#illumination_type')));
   type.setDetails($('#illumination_details').text());
-  if (!isEmptyMessage(type)) {
+  if (!ord.reaction.isEmptyMessage(type)) {
     illumination.setType(type);
   }
 
-  const wavelength =
-      readMetric('#illumination_wavelength', new proto.ord.Wavelength());
-  if (!isEmptyMessage(wavelength)) {
+  const wavelength = ord.reaction.readMetric(
+      '#illumination_wavelength', new proto.ord.Wavelength());
+  if (!ord.reaction.isEmptyMessage(wavelength)) {
     illumination.setPeakWavelength(wavelength);
   }
   illumination.setColor($('#illumination_color').text());
-  const distance = readMetric('#illumination_distance', new proto.ord.Length());
-  if (!isEmptyMessage(distance)) {
+  const distance =
+      ord.reaction.readMetric('#illumination_distance', new proto.ord.Length());
+  if (!ord.reaction.isEmptyMessage(distance)) {
     illumination.setDistanceToVessel(distance);
   }
   return illumination;
@@ -61,5 +62,5 @@ ord.illumination.validateIllumination = function(node, validateNode) {
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(illumination, 'IlluminationConditions', validateNode);
+  ord.reaction.validate(illumination, 'IlluminationConditions', validateNode);
 };

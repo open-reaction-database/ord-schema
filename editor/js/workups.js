@@ -25,11 +25,11 @@ ord.workups.load = function(workups) {
 
 ord.workups.loadWorkup = function(workup) {
   const node = ord.workups.add();
-  setSelector($('.workup_type', node), workup.getType());
+  ord.reaction.setSelector($('.workup_type', node), workup.getType());
   $('.workup_details', node).text(workup.getDetails());
   const duration = workup.getDuration();
   if (duration) {
-    writeMetric('.workup_duration', duration, node);
+    ord.reaction.writeMetric('.workup_duration', duration, node);
   }
 
   const input = workup.getInput();
@@ -41,13 +41,13 @@ ord.workups.loadWorkup = function(workup) {
   if (temperature) {
     const control = temperature.getControl();
     if (control) {
-      setSelector(
+      ord.reaction.setSelector(
           $('.workup_temperature_control_type', node), control.getType());
       $('.workup_temperature_details', node).text(control.getDetails());
     }
     const setpoint = temperature.getSetpoint();
     if (setpoint) {
-      writeMetric('.workup_temperature_setpoint', setpoint, node);
+      ord.reaction.writeMetric('.workup_temperature_setpoint', setpoint, node);
     }
 
     temperature.getMeasurementsList().forEach(
@@ -60,12 +60,14 @@ ord.workups.loadWorkup = function(workup) {
   if (stirring) {
     const method = stirring.getMethod();
     if (method) {
-      setSelector($('.workup_stirring_method_type', node), method.getType());
+      ord.reaction.setSelector(
+          $('.workup_stirring_method_type', node), method.getType());
       $('.workup_stirring_method_details', node).text(method.getDetails());
     }
     const rate = stirring.getRate();
     if (rate) {
-      setSelector($('.workup_stirring_rate_type', node), rate.getType());
+      ord.reaction.setSelector(
+          $('.workup_stirring_rate_type', node), rate.getType());
       $('.workup_stirring_rate_details', node).text(rate.getDetails());
       const rpm = rate.getRpm();
       if (rpm != 0) {
@@ -76,24 +78,25 @@ ord.workups.loadWorkup = function(workup) {
   if (workup.hasTargetPh()) {
     $('.workup_target_ph', node).text(workup.getTargetPh());
   }
-  setOptionalBool(
+  ord.reaction.setOptionalBool(
       $('.workup_automated', node),
       workup.hasIsAutomated() ? workup.getIsAutomated() : null);
 };
 
 ord.workups.loadMeasurement = function(workupNode, measurement) {
   const node = ord.workups.addMeasurement(workupNode);
-  setSelector(
+  ord.reaction.setSelector(
       $('.workup_temperature_measurement_type', node), measurement.getType());
   $('.workup_temperature_measurement_details', node)
       .text(measurement.getDetails());
   const time = measurement.getTime();
   if (time) {
-    writeMetric('.workup_temperature_measurement_time', time, node);
+    ord.reaction.writeMetric(
+        '.workup_temperature_measurement_time', time, node);
   }
   const temperature = measurement.getTemperature();
   if (temperature) {
-    writeMetric(
+    ord.reaction.writeMetric(
         '.workup_temperature_measurement_temperature', temperature, node);
   }
 };
@@ -104,7 +107,7 @@ ord.workups.unload = function() {
     node = $(node);
     if (!node.attr('id')) {
       const workup = ord.workups.unloadWorkup(node);
-      if (!isEmptyMessage(workup)) {
+      if (!ord.reaction.isEmptyMessage(workup)) {
         workups.push(workup);
       }
     }
@@ -115,32 +118,34 @@ ord.workups.unload = function() {
 ord.workups.unloadWorkup = function(node) {
   const workup = new proto.ord.ReactionWorkup();
 
-  workup.setType(getSelector($('.workup_type', node)));
+  workup.setType(ord.reaction.getSelector($('.workup_type', node)));
 
   workup.setDetails($('.workup_details', node).text());
 
-  const duration = readMetric('.workup_duration', new proto.ord.Time(), node);
-  if (!isEmptyMessage(duration)) {
+  const duration =
+      ord.reaction.readMetric('.workup_duration', new proto.ord.Time(), node);
+  if (!ord.reaction.isEmptyMessage(duration)) {
     workup.setDuration(duration);
   }
 
   const input = ord.inputs.unloadInputUnnamed(node);
-  if (!isEmptyMessage(input)) {
+  if (!ord.reaction.isEmptyMessage(input)) {
     workup.setInput(input);
   }
 
   const control = new proto.ord.TemperatureConditions.TemperatureControl();
-  control.setType(getSelector($('.workup_temperature_control_type', node)));
+  control.setType(
+      ord.reaction.getSelector($('.workup_temperature_control_type', node)));
   control.setDetails($('.workup_temperature_details', node).text());
 
   const temperature = new proto.ord.TemperatureConditions();
-  if (!isEmptyMessage(control)) {
+  if (!ord.reaction.isEmptyMessage(control)) {
     temperature.setControl(control);
   }
 
-  const setpoint = readMetric(
+  const setpoint = ord.reaction.readMetric(
       '.workup_temperature_setpoint', new proto.ord.Temperature(), node);
-  if (!isEmptyMessage(setpoint)) {
+  if (!ord.reaction.isEmptyMessage(setpoint)) {
     temperature.setSetpoint(setpoint);
   }
 
@@ -151,13 +156,13 @@ ord.workups.unloadWorkup = function(node) {
     if (!measurementNode.attr('id')) {
       // Not a template.
       const measurement = ord.workups.unloadMeasurement(measurementNode);
-      if (!isEmptyMessage(measurement)) {
+      if (!ord.reaction.isEmptyMessage(measurement)) {
         measurements.push(measurement);
       }
     }
   });
   temperature.setMeasurementsList(measurements);
-  if (!isEmptyMessage(temperature)) {
+  if (!ord.reaction.isEmptyMessage(temperature)) {
     workup.setTemperature(temperature);
   }
 
@@ -166,24 +171,25 @@ ord.workups.unloadWorkup = function(node) {
   const stirring = new proto.ord.StirringConditions();
 
   const method = new proto.ord.StirringConditions.StirringMethod();
-  method.setType(getSelector($('.workup_stirring_method_type', node)));
+  method.setType(
+      ord.reaction.getSelector($('.workup_stirring_method_type', node)));
   method.setDetails($('.workup_stirring_method_details').text());
-  if (!isEmptyMessage(method)) {
+  if (!ord.reaction.isEmptyMessage(method)) {
     stirring.setMethod(method);
   }
 
   const rate = new proto.ord.StirringConditions.StirringRate();
-  rate.setType(getSelector($('.workup_stirring_rate_type', node)));
+  rate.setType(ord.reaction.getSelector($('.workup_stirring_rate_type', node)));
   rate.setDetails($('.workup_stirring_rate_details').text());
   const rpm = parseFloat($('.workup_stirring_rate_rpm', node).text());
   if (!isNaN(rpm)) {
     rate.setRpm(rpm);
   }
-  if (!isEmptyMessage(rate)) {
+  if (!ord.reaction.isEmptyMessage(rate)) {
     stirring.setRate(rate);
   }
 
-  if (!isEmptyMessage(stirring)) {
+  if (!ord.reaction.isEmptyMessage(stirring)) {
     workup.setStirring(stirring);
   }
 
@@ -191,32 +197,33 @@ ord.workups.unloadWorkup = function(node) {
   if (!isNaN(targetPh)) {
     workup.setTargetPh(targetPh);
   }
-  workup.setIsAutomated(getOptionalBool($('.workup_automated', node)));
+  workup.setIsAutomated(
+      ord.reaction.getOptionalBool($('.workup_automated', node)));
   return workup;
 };
 
 ord.workups.unloadMeasurement = function(node) {
   const measurement = new proto.ord.TemperatureConditions.Measurement();
-  measurement.setType(
-      getSelector($('.workup_temperature_measurement_type', node)));
+  measurement.setType(ord.reaction.getSelector(
+      $('.workup_temperature_measurement_type', node)));
   measurement.setDetails(
       $('.workup_temperature_measurement_details', node).text());
-  const time = readMetric(
+  const time = ord.reaction.readMetric(
       '.workup_temperature_measurement_time', new proto.ord.Time(), node);
-  if (!isEmptyMessage(time)) {
+  if (!ord.reaction.isEmptyMessage(time)) {
     measurement.setTime(time);
   }
-  const temperature = readMetric(
+  const temperature = ord.reaction.readMetric(
       '.workup_temperature_measurement_temperature',
       new proto.ord.Temperature(), node);
-  if (!isEmptyMessage(temperature)) {
+  if (!ord.reaction.isEmptyMessage(temperature)) {
     measurement.setTemperature(temperature);
   }
   return measurement;
 };
 
 ord.workups.add = function() {
-  const workupNode = addSlowly('#workup_template', '#workups');
+  const workupNode = ord.reaction.addSlowly('#workup_template', '#workups');
   const inputNode = $('.workup_input', workupNode);
   // The template for ReactionWorkup.input is taken from Reaction.inputs.
   const workupInputNode = ord.inputs.add(inputNode);
@@ -233,7 +240,7 @@ ord.workups.add = function() {
   $('.remove', inputNode).hide();
 
   // Add live validation handling.
-  addChangeHandler(workupNode, () => {
+  ord.reaction.addChangeHandler(workupNode, () => {
     ord.workups.validateWorkup(workupNode);
   });
 
@@ -241,7 +248,7 @@ ord.workups.add = function() {
 };
 
 ord.workups.addMeasurement = function(node) {
-  return addSlowly(
+  return ord.reaction.addSlowly(
       '#workup_temperature_measurement_template',
       $('.workup_temperature_measurements', node));
 };
@@ -251,5 +258,5 @@ ord.workups.validateWorkup = function(node, validateNode) {
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(workup, 'ReactionWorkup', validateNode);
+  ord.reaction.validate(workup, 'ReactionWorkup', validateNode);
 };

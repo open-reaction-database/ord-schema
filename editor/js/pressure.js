@@ -24,7 +24,7 @@ goog.require('proto.ord.Time');
 ord.pressure.load = function(pressure) {
   const control = pressure.getControl();
   if (control) {
-    setSelector($('#pressure_control_type'), control.getType());
+    ord.reaction.setSelector($('#pressure_control_type'), control.getType());
     $('#pressure_control_details').text(control.getDetails());
   }
   const measurements = pressure.getMeasurementsList();
@@ -33,46 +33,48 @@ ord.pressure.load = function(pressure) {
     ord.pressure.loadMeasurement(measurement, node);
   });
   const setpoint = pressure.getSetpoint();
-  writeMetric('#pressure_setpoint', setpoint);
+  ord.reaction.writeMetric('#pressure_setpoint', setpoint);
 
   const atmosphere = pressure.getAtmosphere();
   if (atmosphere) {
-    setSelector($('#pressure_atmosphere_type'), atmosphere.getType());
+    ord.reaction.setSelector(
+        $('#pressure_atmosphere_type'), atmosphere.getType());
     $('#pressure_atmosphere_details').text(atmosphere.getDetails());
   }
 };
 
 ord.pressure.loadMeasurement = function(measurement, node) {
   const type = measurement.getType();
-  setSelector($('.pressure_measurement_type', node), type);
+  ord.reaction.setSelector($('.pressure_measurement_type', node), type);
   $('.pressure_measurement_details', node).text(measurement.getDetails());
 
   const pressure = measurement.getPressure();
-  writeMetric('.pressure_measurement_pressure', pressure, node);
+  ord.reaction.writeMetric('.pressure_measurement_pressure', pressure, node);
 
   const time = measurement.getTime();
-  writeMetric('.pressure_measurement_time', time, node);
+  ord.reaction.writeMetric('.pressure_measurement_time', time, node);
 };
 
 ord.pressure.unload = function() {
   const pressure = new proto.ord.PressureConditions();
 
   const control = new proto.ord.PressureConditions.PressureControl();
-  control.setType(getSelector($('#pressure_control_type')));
+  control.setType(ord.reaction.getSelector($('#pressure_control_type')));
   control.setDetails($('#pressure_control_details').text());
-  if (!isEmptyMessage(control)) {
+  if (!ord.reaction.isEmptyMessage(control)) {
     pressure.setControl(control);
   }
 
-  const setpoint = readMetric('#pressure_setpoint', new proto.ord.Pressure());
-  if (!isEmptyMessage(setpoint)) {
+  const setpoint =
+      ord.reaction.readMetric('#pressure_setpoint', new proto.ord.Pressure());
+  if (!ord.reaction.isEmptyMessage(setpoint)) {
     pressure.setSetpoint(setpoint);
   }
 
   const atmosphere = new proto.ord.PressureConditions.Atmosphere();
-  atmosphere.setType(getSelector('#pressure_atmosphere_type'));
+  atmosphere.setType(ord.reaction.getSelector('#pressure_atmosphere_type'));
   atmosphere.setDetails($('#pressure_atmosphere_details').text());
-  if (!isEmptyMessage(atmosphere)) {
+  if (!ord.reaction.isEmptyMessage(atmosphere)) {
     pressure.setAtmosphere(atmosphere);
   }
 
@@ -81,7 +83,7 @@ ord.pressure.unload = function() {
     node = $(node);
     if (!node.attr('id')) {
       const measurement = ord.pressure.unloadMeasurement(node);
-      if (!isEmptyMessage(measurement)) {
+      if (!ord.reaction.isEmptyMessage(measurement)) {
         measurements.push(measurement);
       }
     }
@@ -93,18 +95,18 @@ ord.pressure.unload = function() {
 
 ord.pressure.unloadMeasurement = function(node) {
   const measurement = new proto.ord.PressureConditions.Measurement();
-  const type = getSelector($('.pressure_measurement_type', node));
+  const type = ord.reaction.getSelector($('.pressure_measurement_type', node));
   measurement.setType(type);
   const details = $('.pressure_measurement_details', node).text();
   measurement.setDetails(details);
-  const pressure = readMetric(
+  const pressure = ord.reaction.readMetric(
       '.pressure_measurement_pressure', new proto.ord.Pressure(), node);
-  if (!isEmptyMessage(pressure)) {
+  if (!ord.reaction.isEmptyMessage(pressure)) {
     measurement.setPressure(pressure);
   }
-  const time =
-      readMetric('.pressure_measurement_time', new proto.ord.Time(), node);
-  if (!isEmptyMessage(time)) {
+  const time = ord.reaction.readMetric(
+      '.pressure_measurement_time', new proto.ord.Time(), node);
+  if (!ord.reaction.isEmptyMessage(time)) {
     measurement.setTime(time);
   }
 
@@ -112,7 +114,8 @@ ord.pressure.unloadMeasurement = function(node) {
 };
 
 ord.pressure.addMeasurement = function() {
-  return addSlowly('#pressure_measurement_template', '#pressure_measurements');
+  return ord.reaction.addSlowly(
+      '#pressure_measurement_template', '#pressure_measurements');
 };
 
 ord.pressure.validatePressure = function(node, validateNode) {
@@ -120,5 +123,5 @@ ord.pressure.validatePressure = function(node, validateNode) {
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(pressure, 'PressureConditions', validateNode);
+  ord.reaction.validate(pressure, 'PressureConditions', validateNode);
 };

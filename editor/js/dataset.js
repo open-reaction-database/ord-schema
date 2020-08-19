@@ -16,7 +16,15 @@
 
 goog.module('ord.dataset');
 goog.module.declareLegacyNamespace();
-exports = {init, download, commit, deleteReaction, newReaction, removeReactionId, addReactionId};
+exports = {
+  init,
+  download,
+  commit,
+  deleteReaction,
+  newReaction,
+  removeReactionId,
+  addReactionId
+};
 
 goog.require('proto.ord.Dataset');
 

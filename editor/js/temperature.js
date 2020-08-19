@@ -25,7 +25,7 @@ goog.require('proto.ord.Time');
 ord.temperature.load = function(temperature) {
   const control = temperature.getControl();
   if (control) {
-    setSelector($('#temperature_control'), control.getType());
+    ord.reaction.setSelector($('#temperature_control'), control.getType());
     $('#temperature_control_details').text(control.getDetails());
   }
   const measurements = temperature.getMeasurementsList();
@@ -34,34 +34,35 @@ ord.temperature.load = function(temperature) {
     ord.temperature.loadMeasurement(measurement, node);
   });
   const setpoint = temperature.getSetpoint();
-  writeMetric('#temperature_setpoint', setpoint);
+  ord.reaction.writeMetric('#temperature_setpoint', setpoint);
 };
 
 ord.temperature.loadMeasurement = function(measurement, node) {
   const type = measurement.getType();
-  setSelector($('.temperature_measurement_type', node), type);
+  ord.reaction.setSelector($('.temperature_measurement_type', node), type);
   $('.temperature_measurement_details', node).text(measurement.getDetails());
 
   const temperature = measurement.getTemperature();
-  writeMetric('.temperature_measurement_temperature', temperature, node);
+  ord.reaction.writeMetric(
+      '.temperature_measurement_temperature', temperature, node);
 
   const time = measurement.getTime();
-  writeMetric('.temperature_measurement_time', time, node);
+  ord.reaction.writeMetric('.temperature_measurement_time', time, node);
 };
 
 ord.temperature.unload = function() {
   const temperature = new proto.ord.TemperatureConditions();
 
   const control = new proto.ord.TemperatureConditions.TemperatureControl();
-  control.setType(getSelector($('#temperature_control')));
+  control.setType(ord.reaction.getSelector($('#temperature_control')));
   control.setDetails($('#temperature_control_details').text());
-  if (!isEmptyMessage(control)) {
+  if (!ord.reaction.isEmptyMessage(control)) {
     temperature.setControl(control);
   }
 
-  const setpoint =
-      readMetric('#temperature_setpoint', new proto.ord.Temperature());
-  if (!isEmptyMessage(setpoint)) {
+  const setpoint = ord.reaction.readMetric(
+      '#temperature_setpoint', new proto.ord.Temperature());
+  if (!ord.reaction.isEmptyMessage(setpoint)) {
     temperature.setSetpoint(setpoint);
   }
 
@@ -70,7 +71,7 @@ ord.temperature.unload = function() {
     node = $(node);
     if (!node.attr('id')) {
       const measurement = ord.temperature.unloadMeasurement(node);
-      if (!isEmptyMessage(measurement)) {
+      if (!ord.reaction.isEmptyMessage(measurement)) {
         measurements.push(measurement);
       }
     }
@@ -81,26 +82,27 @@ ord.temperature.unload = function() {
 
 ord.temperature.unloadMeasurement = function(node) {
   const measurement = new proto.ord.TemperatureConditions.Measurement();
-  const type = getSelector($('.temperature_measurement_type', node));
+  const type =
+      ord.reaction.getSelector($('.temperature_measurement_type', node));
   measurement.setType(type);
   const details = $('.temperature_measurement_details', node).text();
   measurement.setDetails(details);
-  const temperature = readMetric(
+  const temperature = ord.reaction.readMetric(
       '.temperature_measurement_temperature', new proto.ord.Temperature(),
       node);
-  if (!isEmptyMessage(temperature)) {
+  if (!ord.reaction.isEmptyMessage(temperature)) {
     measurement.setTemperature(temperature);
   }
-  const time =
-      readMetric('.temperature_measurement_time', new proto.ord.Time(), node);
-  if (!isEmptyMessage(time)) {
+  const time = ord.reaction.readMetric(
+      '.temperature_measurement_time', new proto.ord.Time(), node);
+  if (!ord.reaction.isEmptyMessage(time)) {
     measurement.setTime(time);
   }
   return measurement;
 };
 
 ord.temperature.addMeasurement = function() {
-  return addSlowly(
+  return ord.reaction.addSlowly(
       '#temperature_measurement_template', '#temperature_measurements');
 };
 
@@ -109,5 +111,5 @@ ord.temperature.validateTemperature = function(node, validateNode) {
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(temperature, 'TemperatureConditions', validateNode);
+  ord.reaction.validate(temperature, 'TemperatureConditions', validateNode);
 };

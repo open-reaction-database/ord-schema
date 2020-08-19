@@ -19,25 +19,25 @@ goog.provide('ord.notes');
 goog.require('proto.ord.ReactionNotes');
 
 ord.notes.load = function(notes) {
-  setOptionalBool(
+  ord.reaction.setOptionalBool(
       $('#notes_heterogeneous'),
       notes.hasIsHeterogeneous() ? notes.getIsHeterogeneous() : null);
-  setOptionalBool(
+  ord.reaction.setOptionalBool(
       $('#notes_precipitate'),
       notes.hasFormsPrecipitate() ? notes.getFormsPrecipitate() : null);
-  setOptionalBool(
+  ord.reaction.setOptionalBool(
       $('#notes_exothermic'),
       notes.hasIsExothermic() ? notes.getIsExothermic() : null);
-  setOptionalBool(
+  ord.reaction.setOptionalBool(
       $('#notes_offgas'), notes.hasOffgasses() ? notes.getOffgasses() : null);
-  setOptionalBool(
+  ord.reaction.setOptionalBool(
       $('#notes_moisture'),
       notes.hasIsSensitiveToMoisture() ? notes.getIsSensitiveToMoisture() :
                                          null);
-  setOptionalBool(
+  ord.reaction.setOptionalBool(
       $('#notes_oxygen'),
       notes.hasIsSensitiveToOxygen() ? notes.getIsSensitiveToOxygen() : null);
-  setOptionalBool(
+  ord.reaction.setOptionalBool(
       $('#notes_light'),
       notes.hasIsSensitiveToLight() ? notes.getIsSensitiveToLight() : null);
   $('#notes_safety').text(notes.getSafetyNotes());
@@ -46,13 +46,17 @@ ord.notes.load = function(notes) {
 
 ord.notes.unload = function() {
   const notes = new proto.ord.ReactionNotes();
-  notes.setIsHeterogeneous(getOptionalBool($('#notes_heterogeneous')));
-  notes.setFormsPrecipitate(getOptionalBool($('#notes_precipitate')));
-  notes.setIsExothermic(getOptionalBool($('#notes_exothermic')));
-  notes.setOffgasses(getOptionalBool($('#notes_offgas')));
-  notes.setIsSensitiveToMoisture(getOptionalBool($('#notes_moisture')));
-  notes.setIsSensitiveToOxygen(getOptionalBool($('#notes_oxygen')));
-  notes.setIsSensitiveToLight(getOptionalBool($('#notes_light')));
+  notes.setIsHeterogeneous(
+      ord.reaction.getOptionalBool($('#notes_heterogeneous')));
+  notes.setFormsPrecipitate(
+      ord.reaction.getOptionalBool($('#notes_precipitate')));
+  notes.setIsExothermic(ord.reaction.getOptionalBool($('#notes_exothermic')));
+  notes.setOffgasses(ord.reaction.getOptionalBool($('#notes_offgas')));
+  notes.setIsSensitiveToMoisture(
+      ord.reaction.getOptionalBool($('#notes_moisture')));
+  notes.setIsSensitiveToOxygen(
+      ord.reaction.getOptionalBool($('#notes_oxygen')));
+  notes.setIsSensitiveToLight(ord.reaction.getOptionalBool($('#notes_light')));
   notes.setSafetyNotes($('#notes_safety').text());
   notes.setProcedureDetails($('#notes_details').text());
   return notes;
@@ -63,5 +67,5 @@ ord.notes.validateNotes = function(node, validateNode) {
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(notes, 'ReactionNotes', validateNode);
+  ord.reaction.validate(notes, 'ReactionNotes', validateNode);
 };

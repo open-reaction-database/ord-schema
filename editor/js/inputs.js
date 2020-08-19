@@ -50,26 +50,27 @@ ord.inputs.loadInputUnnamed = function(node, input) {
 
   const additionTime = input.getAdditionTime();
   if (additionTime) {
-    writeMetric('.input_addition_time', additionTime, node);
+    ord.reaction.writeMetric('.input_addition_time', additionTime, node);
   }
   const additionSpeed = input.getAdditionSpeed();
   if (additionSpeed) {
-    setSelector($('.input_addition_speed_type', node), additionSpeed.getType());
+    ord.reaction.setSelector(
+        $('.input_addition_speed_type', node), additionSpeed.getType());
     $('.input_addition_speed_details', node).text(additionSpeed.getDetails());
   }
   const additionDevice = input.getAdditionDevice();
   if (additionDevice) {
-    setSelector(
+    ord.reaction.setSelector(
         $('.input_addition_device_type', node), additionDevice.getType());
     $('.input_addition_device_details', node).text(additionDevice.getDetails());
   }
   const duration = input.getAdditionDuration();
   if (duration) {
-    writeMetric('.input_addition_duration', duration, node);
+    ord.reaction.writeMetric('.input_addition_duration', duration, node);
   }
   const flowRate = input.getFlowRate();
   if (flowRate) {
-    writeMetric('.input_flow_rate', flowRate, node);
+    ord.reaction.writeMetric('.input_flow_rate', flowRate, node);
   }
   return node;
 };
@@ -87,7 +88,8 @@ ord.inputs.unload = function(inputs) {
 ord.inputs.unloadInput = function(inputs, node) {
   const name = $('.input_name', node).text();
   const input = ord.inputs.unloadInputUnnamed(node);
-  if (!isEmptyMessage(input) || !isEmptyMessage(name)) {
+  if (!ord.reaction.isEmptyMessage(input) ||
+      !ord.reaction.isEmptyMessage(name)) {
     inputs.set(name, input);
   }
 };
@@ -96,12 +98,12 @@ ord.inputs.unloadInputUnnamed = function(node) {
   const input = new proto.ord.ReactionInput();
 
   const compounds = ord.compounds.unload(node);
-  if (!isEmptyMessage(compounds)) {
+  if (!ord.reaction.isEmptyMessage(compounds)) {
     input.setComponentsList(compounds);
   }
 
   const crudes = ord.crudes.unload(node);
-  if (!isEmptyMessage(crudes)) {
+  if (!ord.reaction.isEmptyMessage(crudes)) {
     input.setCrudeComponentsList(crudes);
   }
 
@@ -109,35 +111,37 @@ ord.inputs.unloadInputUnnamed = function(node) {
   if (!isNaN(additionOrder)) {
     input.setAdditionOrder(additionOrder);
   }
-  const additionTime =
-      readMetric('.input_addition_time', new proto.ord.Time(), node);
-  if (!isEmptyMessage(additionTime)) {
+  const additionTime = ord.reaction.readMetric(
+      '.input_addition_time', new proto.ord.Time(), node);
+  if (!ord.reaction.isEmptyMessage(additionTime)) {
     input.setAdditionTime(additionTime);
   }
 
   const additionSpeed = new proto.ord.ReactionInput.AdditionSpeed();
-  additionSpeed.setType(getSelector($('.input_addition_speed_type', node)));
+  additionSpeed.setType(
+      ord.reaction.getSelector($('.input_addition_speed_type', node)));
   additionSpeed.setDetails($('.input_addition_speed_details', node).text());
-  if (!isEmptyMessage(additionSpeed)) {
+  if (!ord.reaction.isEmptyMessage(additionSpeed)) {
     input.setAdditionSpeed(additionSpeed);
   }
 
   const additionDevice = new proto.ord.ReactionInput.AdditionDevice();
-  additionDevice.setType(getSelector($('.input_addition_device_type', node)));
+  additionDevice.setType(
+      ord.reaction.getSelector($('.input_addition_device_type', node)));
   additionDevice.setDetails($('.input_addition_device_details', node).text());
-  if (!isEmptyMessage(additionDevice)) {
+  if (!ord.reaction.isEmptyMessage(additionDevice)) {
     input.setAdditionDevice(additionDevice);
   }
 
-  const additionDuration =
-      readMetric('.input_addition_duration', new proto.ord.Time(), node);
-  if (!isEmptyMessage(additionDuration)) {
+  const additionDuration = ord.reaction.readMetric(
+      '.input_addition_duration', new proto.ord.Time(), node);
+  if (!ord.reaction.isEmptyMessage(additionDuration)) {
     input.setAdditionDuration(additionDuration);
   }
 
-  const flowRate =
-      readMetric('.input_flow_rate', new proto.ord.FlowRate(), node);
-  if (!isEmptyMessage(flowRate)) {
+  const flowRate = ord.reaction.readMetric(
+      '.input_flow_rate', new proto.ord.FlowRate(), node);
+  if (!ord.reaction.isEmptyMessage(flowRate)) {
     input.setFlowRate(flowRate);
   }
 
@@ -145,9 +149,9 @@ ord.inputs.unloadInputUnnamed = function(node) {
 };
 
 ord.inputs.add = function(root) {
-  const node = addSlowly('#input_template', root);
+  const node = ord.reaction.addSlowly('#input_template', root);
   // Add live validation handling.
-  addChangeHandler(node, () => {
+  ord.reaction.addChangeHandler(node, () => {
     ord.inputs.validateInput(node);
   });
   return node;
@@ -158,5 +162,5 @@ ord.inputs.validateInput = function(node, validateNode) {
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(input, 'ReactionInput', validateNode);
+  ord.reaction.validate(input, 'ReactionInput', validateNode);
 };

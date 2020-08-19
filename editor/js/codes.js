@@ -86,7 +86,7 @@ ord.codes.unloadCode = function(codes, node) {
 
   if ($('input[value=\'text\']', node).is(':checked')) {
     const stringValue = $('.setup_code_text', node).text();
-    if (!isEmptyMessage(stringValue)) {
+    if (!ord.reaction.isEmptyMessage(stringValue)) {
       code.setStringValue(stringValue);
     }
   }
@@ -98,23 +98,24 @@ ord.codes.unloadCode = function(codes, node) {
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    if (!isEmptyMessage(bytesValue)) {
+    if (!ord.reaction.isEmptyMessage(bytesValue)) {
       code.setBytesValue(bytesValue);
     }
   }
   if ($('input[value=\'url\']', node).is(':checked')) {
     const url = $('.setup_code_text', node).text();
-    if (!isEmptyMessage(url)) {
+    if (!ord.reaction.isEmptyMessage(url)) {
       code.setUrl(url);
     }
   }
-  if (!isEmptyMessage(name) || !isEmptyMessage(code)) {
+  if (!ord.reaction.isEmptyMessage(name) ||
+      !ord.reaction.isEmptyMessage(code)) {
     codes.set(name, code);
   }
 };
 
 ord.codes.addCode = function() {
-  const node = addSlowly('#setup_code_template', '#setup_codes');
+  const node = ord.reaction.addSlowly('#setup_code_template', '#setup_codes');
 
   const typeButtons = $('input[type=\'radio\']', node);
   typeButtons.attr('name', 'codes_' + ord.codes.radioGroupCounter++);

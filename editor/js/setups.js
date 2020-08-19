@@ -27,13 +27,13 @@ ord.setups.load = function(setup) {
     ord.setups.loadVessel(vessel);
   }
   const isAutomated = setup.hasIsAutomated() ? setup.getIsAutomated() : null;
-  setOptionalBool($('#setup_automated'), isAutomated);
+  ord.reaction.setOptionalBool($('#setup_automated'), isAutomated);
   if (isAutomated) {
     $('#automation_platform').show();
   }
 
   $('#setup_automated').change(function() {
-    if (getSelectorText(this) == 'TRUE') {
+    if (ord.reaction.getSelectorText(this) == 'TRUE') {
       $('#automation_platform').show();
     } else {
       $('#automation_platform').hide();
@@ -48,7 +48,8 @@ ord.setups.load = function(setup) {
 
   const environment = setup.getEnvironment();
   if (environment != null) {
-    setSelector($('#setup_environment_type'), environment.getType());
+    ord.reaction.setSelector(
+        $('#setup_environment_type'), environment.getType());
     $('#setup_environment_details').text(environment.getDetails());
   }
 };
@@ -56,30 +57,31 @@ ord.setups.load = function(setup) {
 ord.setups.loadVessel = function(vessel) {
   const type = vessel.getType();
   if (type) {
-    setSelector($('#setup_vessel_type'), type.getType());
+    ord.reaction.setSelector($('#setup_vessel_type'), type.getType());
     $('#setup_vessel_details').text(type.getDetails());
   }
   const material = vessel.getMaterial();
   if (material) {
-    setSelector($('#setup_vessel_material'), material.getType());
+    ord.reaction.setSelector($('#setup_vessel_material'), material.getType());
     $('#setup_vessel_material_details').text(material.getDetails());
   }
   const preparations = vessel.getPreparationsList();
   preparations.forEach(preparation => {
     const node = ord.setups.addVesselPreparation();
-    setSelector(
+    ord.reaction.setSelector(
         $('.setup_vessel_preparation_type', node), preparation.getType());
     $('.setup_vessel_preparation_details', node).text(preparation.getDetails());
   });
   const attachments = vessel.getAttachmentsList();
   attachments.forEach(attachment => {
     const node = ord.setups.addVesselAttachment();
-    setSelector($('.setup_vessel_attachment_type', node), attachment.getType());
+    ord.reaction.setSelector(
+        $('.setup_vessel_attachment_type', node), attachment.getType());
     $('.setup_vessel_attachment_details', node).text(attachment.getDetails());
   });
   if (vessel.hasVolume()) {
     const volume = vessel.getVolume();
-    writeMetric('#setup_vessel_volume', volume);
+    ord.reaction.writeMetric('#setup_vessel_volume', volume);
   }
 };
 
@@ -87,11 +89,11 @@ ord.setups.unload = function() {
   const setup = new proto.ord.ReactionSetup();
 
   const vessel = ord.setups.unloadVessel();
-  if (!isEmptyMessage(vessel)) {
+  if (!ord.reaction.isEmptyMessage(vessel)) {
     setup.setVessel(vessel);
   }
 
-  const isAutomated = getOptionalBool($('#setup_automated'));
+  const isAutomated = ord.reaction.getOptionalBool($('#setup_automated'));
   setup.setIsAutomated(isAutomated);
 
   const platform = $('#setup_platform').text();
@@ -101,9 +103,9 @@ ord.setups.unload = function() {
   ord.codes.unload(codes);
 
   const environment = new proto.ord.ReactionSetup.ReactionEnvironment();
-  environment.setType(getSelector($('#setup_environment_type')));
+  environment.setType(ord.reaction.getSelector($('#setup_environment_type')));
   environment.setDetails($('#setup_environment_details').text());
-  if (!isEmptyMessage(environment)) {
+  if (!ord.reaction.isEmptyMessage(environment)) {
     setup.setEnvironment(environment);
   }
 
@@ -114,16 +116,16 @@ ord.setups.unloadVessel = function() {
   const vessel = new proto.ord.Vessel();
 
   type = new proto.ord.VesselType();
-  type.setType(getSelector($('#setup_vessel_type')));
+  type.setType(ord.reaction.getSelector($('#setup_vessel_type')));
   type.setDetails($('#setup_vessel_details').text());
-  if (!isEmptyMessage(type)) {
+  if (!ord.reaction.isEmptyMessage(type)) {
     vessel.setType(type);
   }
 
   const material = new proto.ord.VesselMaterial();
-  material.setType(getSelector('#setup_vessel_material'));
+  material.setType(ord.reaction.getSelector('#setup_vessel_material'));
   material.setDetails($('#setup_vessel_material_details').text());
-  if (!isEmptyMessage(material)) {
+  if (!ord.reaction.isEmptyMessage(material)) {
     vessel.setMaterial(material);
   }
 
@@ -135,9 +137,10 @@ ord.setups.unloadVessel = function() {
       return;
     }
     const preparation = new proto.ord.VesselPreparation();
-    preparation.setType(getSelector($('.setup_vessel_preparation_type', node)));
+    preparation.setType(
+        ord.reaction.getSelector($('.setup_vessel_preparation_type', node)));
     preparation.setDetails($('.setup_vessel_preparation_details', node).text());
-    if (!isEmptyMessage(preparation)) {
+    if (!ord.reaction.isEmptyMessage(preparation)) {
       preparations.push(preparation);
     }
   });
@@ -151,16 +154,18 @@ ord.setups.unloadVessel = function() {
       return;
     }
     const attachment = new proto.ord.VesselAttachment();
-    attachment.setType(getSelector($('.setup_vessel_attachment_type', node)));
+    attachment.setType(
+        ord.reaction.getSelector($('.setup_vessel_attachment_type', node)));
     attachment.setDetails($('.setup_vessel_attachment_details', node).text());
-    if (!isEmptyMessage(attachment)) {
+    if (!ord.reaction.isEmptyMessage(attachment)) {
       attachments.push(attachment);
     }
   });
   vessel.setAttachmentsList(attachments);
 
-  const volume = readMetric('#setup_vessel_volume', new proto.ord.Volume());
-  if (!isEmptyMessage(volume)) {
+  const volume =
+      ord.reaction.readMetric('#setup_vessel_volume', new proto.ord.Volume());
+  if (!ord.reaction.isEmptyMessage(volume)) {
     vessel.setVolume(volume);
   }
 
@@ -168,12 +173,12 @@ ord.setups.unloadVessel = function() {
 };
 
 ord.setups.addVesselPreparation = function() {
-  return addSlowly(
+  return ord.reaction.addSlowly(
       '#setup_vessel_preparation_template', '#setup_vessel_preparations');
 };
 
 ord.setups.addVesselAttachment = function() {
-  return addSlowly(
+  return ord.reaction.addSlowly(
       '#setup_vessel_attachment_template', '#setup_vessel_attachments');
 };
 
@@ -182,5 +187,5 @@ ord.setups.validateSetup = function(node, validateNode) {
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(setup, 'ReactionSetup', validateNode);
+  ord.reaction.validate(setup, 'ReactionSetup', validateNode);
 };

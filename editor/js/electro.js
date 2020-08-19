@@ -25,18 +25,19 @@ ord.electro.radioGroupCounter = 0;
 ord.electro.load = function(electro) {
   const type = electro.getElectrochemistryType();
   if (type) {
-    setSelector($('#electro_type'), type.getType());
+    ord.reaction.setSelector($('#electro_type'), type.getType());
     $('#electro_details').text(type.getDetails());
   }
-  writeMetric('#electro_current', electro.getCurrent());
-  writeMetric('#electro_voltage', electro.getVoltage());
+  ord.reaction.writeMetric('#electro_current', electro.getCurrent());
+  ord.reaction.writeMetric('#electro_voltage', electro.getVoltage());
   $('#electro_anode').text(electro.getAnodeMaterial());
   $('#electro_cathode').text(electro.getCathodeMaterial());
-  writeMetric('#electro_separation', electro.getElectrodeSeparation());
+  ord.reaction.writeMetric(
+      '#electro_separation', electro.getElectrodeSeparation());
 
   const cell = electro.getCell();
   if (cell) {
-    setSelector($('#electro_cell_type'), cell.getType());
+    ord.reaction.setSelector($('#electro_cell_type'), cell.getType());
     $('#electro_cell_details').text(cell.getDetails());
   }
   electro.getMeasurementsList().forEach(function(measurement) {
@@ -48,19 +49,19 @@ ord.electro.load = function(electro) {
 ord.electro.loadMeasurement = function(node, measurement) {
   const time = measurement.getTime();
   if (time) {
-    writeMetric('.electro_measurement_time', time, node);
+    ord.reaction.writeMetric('.electro_measurement_time', time, node);
   }
   const current = measurement.getCurrent();
   const voltage = measurement.getVoltage();
   if (current) {
-    writeMetric('.electro_measurement_current', current, node);
+    ord.reaction.writeMetric('.electro_measurement_current', current, node);
     $('input[value=\'current\']', node).prop('checked', true);
     $('.electro_measurement_current_fields', node).show();
     $('.electro_measurement_voltage_fields', node).hide();
   }
   if (voltage) {
     $('input[value=\'voltage\']', node).prop('checked', true);
-    writeMetric('.electro_measurement_voltage', voltage, node);
+    ord.reaction.writeMetric('.electro_measurement_voltage', voltage, node);
     $('.electro_measurement_current_fields', node).hide();
     $('.electro_measurement_voltage_fields', node).show();
   }
@@ -70,32 +71,34 @@ ord.electro.unload = function() {
   const electro = new proto.ord.ElectrochemistryConditions();
 
   const type = new proto.ord.ElectrochemistryConditions.ElectrochemistryType();
-  type.setType(getSelector($('#electro_type')));
+  type.setType(ord.reaction.getSelector($('#electro_type')));
   type.setDetails($('#electro_details').text());
-  if (!isEmptyMessage(type)) {
+  if (!ord.reaction.isEmptyMessage(type)) {
     electro.setElectrochemistryType(type);
   }
 
-  const current = readMetric('#electro_current', new proto.ord.Current());
-  if (!isEmptyMessage(current)) {
+  const current =
+      ord.reaction.readMetric('#electro_current', new proto.ord.Current());
+  if (!ord.reaction.isEmptyMessage(current)) {
     electro.setCurrent(current);
   }
-  const voltage = readMetric('#electro_voltage', new proto.ord.Voltage());
-  if (!isEmptyMessage(voltage)) {
+  const voltage =
+      ord.reaction.readMetric('#electro_voltage', new proto.ord.Voltage());
+  if (!ord.reaction.isEmptyMessage(voltage)) {
     electro.setVoltage(voltage);
   }
   electro.setAnodeMaterial($('#electro_anode').text());
   electro.setCathodeMaterial($('#electro_cathode').text());
   const electrodeSeparation =
-      readMetric('#electro_separation', new proto.ord.Length());
-  if (!isEmptyMessage(electrodeSeparation)) {
+      ord.reaction.readMetric('#electro_separation', new proto.ord.Length());
+  if (!ord.reaction.isEmptyMessage(electrodeSeparation)) {
     electro.setElectrodeSeparation(electrodeSeparation);
   }
 
   const cell = new proto.ord.ElectrochemistryConditions.ElectrochemistryCell();
-  cell.setType(getSelector($('#electro_cell_type')));
+  cell.setType(ord.reaction.getSelector($('#electro_cell_type')));
   cell.setDetails($('#electro_cell_details').text());
-  if (!isEmptyMessage(cell)) {
+  if (!ord.reaction.isEmptyMessage(cell)) {
     electro.setCell(cell);
   }
 
@@ -104,7 +107,7 @@ ord.electro.unload = function() {
     node = $(node);
     if (!node.attr('id')) {
       const measurement = ord.electro.unloadMeasurement(node);
-      if (!isEmptyMessage(measurement)) {
+      if (!ord.reaction.isEmptyMessage(measurement)) {
         measurements.push(measurement);
       }
     }
@@ -115,23 +118,23 @@ ord.electro.unload = function() {
 
 ord.electro.unloadMeasurement = function(node) {
   const measurement = new proto.ord.ElectrochemistryConditions.Measurement();
-  const time =
-      readMetric('.electro_measurement_time', new proto.ord.Time(), node);
-  if (!isEmptyMessage(time)) {
+  const time = ord.reaction.readMetric(
+      '.electro_measurement_time', new proto.ord.Time(), node);
+  if (!ord.reaction.isEmptyMessage(time)) {
     measurement.setTime(time);
   }
 
   if ($('.electro_measurement_current', node).is(':checked')) {
-    const current = readMetric(
+    const current = ord.reaction.readMetric(
         '.electro_measurement_current', new proto.ord.Current(), node);
-    if (!isEmptyMessage(current)) {
+    if (!ord.reaction.isEmptyMessage(current)) {
       measurement.setCurrent(current);
     }
   }
   if ($('.electro_measurement_voltage', node).is(':checked')) {
-    const voltage = readMetric(
+    const voltage = ord.reaction.readMetric(
         '.electro_measurement_voltage', new proto.ord.Voltage(), node);
-    if (!isEmptyMessage(voltage)) {
+    if (!ord.reaction.isEmptyMessage(voltage)) {
       measurement.setVoltage(voltage);
     }
   }
@@ -139,8 +142,8 @@ ord.electro.unloadMeasurement = function(node) {
 };
 
 ord.electro.addMeasurement = function() {
-  const node =
-      addSlowly('#electro_measurement_template', '#electro_measurements');
+  const node = ord.reaction.addSlowly(
+      '#electro_measurement_template', '#electro_measurements');
 
   const metricButtons = $('input', node);
   metricButtons.attr('name', 'electro_' + ord.electro.radioGroupCounter++);
@@ -163,5 +166,5 @@ ord.electro.validateElectro = function(node, validateNode) {
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(electro, 'ElectrochemistryConditions', validateNode);
+  ord.reaction.validate(electro, 'ElectrochemistryConditions', validateNode);
 };

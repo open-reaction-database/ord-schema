@@ -32,7 +32,8 @@ ord.amountsCrudes.load = function(node, mass, volume) {
       $('.crude_amount_precision', node).text(mass.getPrecision());
     }
     $('.crude_amount_units_mass', node).show();
-    setSelector($('.crude_amount_units_mass', amount), mass.getUnits());
+    ord.reaction.setSelector(
+        $('.crude_amount_units_mass', amount), mass.getUnits());
   }
   if (volume) {
     $('input[value=\'volume\']', amount).prop('checked', true);
@@ -43,7 +44,8 @@ ord.amountsCrudes.load = function(node, mass, volume) {
       $('.crude_amount_precision', node).text(volume.getPrecision());
     }
     $('.crude_amount_units_volume', node).show();
-    setSelector($('.crude_amount_units_volume', amount), volume.getUnits());
+    ord.reaction.setSelector(
+        $('.crude_amount_units_volume', amount), volume.getUnits());
   }
 };
 
@@ -51,12 +53,12 @@ ord.amountsCrudes.unload = function(node, crude) {
   const mass = ord.amountsCrudes.unloadMass(node);
   const volume = ord.amountsCrudes.unloadVolume(node);
   if (mass) {
-    if (!isEmptyMessage(mass)) {
+    if (!ord.reaction.isEmptyMessage(mass)) {
       crude.setMass(mass);
     }
   }
   if (volume) {
-    if (!isEmptyMessage(volume)) {
+    if (!ord.reaction.isEmptyMessage(volume)) {
       crude.setVolume(volume);
     }
   }
@@ -71,7 +73,7 @@ ord.amountsCrudes.unloadMass = function(node) {
   if (!isNaN(value)) {
     mass.setValue(value);
   }
-  const units = getSelector($('.crude_amount_units_mass', node));
+  const units = ord.reaction.getSelector($('.crude_amount_units_mass', node));
   mass.setUnits(units);
   const precision = parseFloat($('.crude_amount_precision', node).text());
   if (!isNaN(precision)) {
@@ -89,7 +91,7 @@ ord.amountsCrudes.unloadVolume = function(node) {
   if (!isNaN(value)) {
     volume.setValue(value);
   }
-  const units = getSelector($('.crude_amount_units_volume', node));
+  const units = ord.reaction.getSelector($('.crude_amount_units_volume', node));
   volume.setUnits(units);
   const precision = parseFloat($('.crude_amount_precision', node).text());
   if (!isNaN(precision)) {
