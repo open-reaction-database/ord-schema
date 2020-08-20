@@ -13,31 +13,33 @@
 # limitations under the License.
 """Tests for editor.py.serve."""
 
+import tempfile
+
+from absl import flags
 from absl.testing import absltest
 from absl.testing import parameterized
-from werkzeug import exceptions
 
-import serve
+import serve  # pylint: disable=import-error
 
 
 class ServeTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
-        self.root = '/test'
-
-    @parameterized.parameters(('/test/foo.txt', '/test/foo.txt'),
-                              ('/test/bar/../foo.txt', '/test/foo.txt'))
-    def test_check_path(self, path, expected):
-        self.assertEqual(serve.check_path(path, root=self.root), expected)
+        super().setUp()
+        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
+        serve.app.config['ORD_EDITOR_DB'] = self.test_subdirectory
+        serve.app.testing = True
 
     @parameterized.parameters([
-        'foo',
-        '/test/../foo.txt',
-        '/some-other-root/foo.txt',
+        ('dataset', 200),
+        ('../dataset', 404),  # flask.safe_join returns 404 on failure.
+        ('other', 404),
     ])
-    def test_check_path_raises(self, path):
-        with self.assertRaises(exceptions.Forbidden):
-            serve.check_path(path, root=self.root)
+    def test_check_path(self, file_name, expected):
+        with serve.app.test_client() as client:
+            response = client.get(f'/dataset/{file_name}/download',
+                                  follow_redirects=True)
+            self.assertEqual(response.status_code, expected)
 
 
 if __name__ == '__main__':
