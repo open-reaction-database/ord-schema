@@ -86,9 +86,10 @@ def build_compound(smiles=None,
         values_dict = field.enum_type.values_by_name
         try:
             compound.reaction_role = values_dict[role.upper()].number
-        except KeyError:
+        except KeyError as error:
             raise KeyError(
-                f'{role} is not a supported type: {values_dict.keys()}')
+                f'{role} is not a supported type: {values_dict.keys()}'
+            ) from error
     if is_limiting is not None:
         if not (is_limiting is True or is_limiting is False):
             raise TypeError(
@@ -100,9 +101,10 @@ def build_compound(smiles=None,
         values_dict = field.enum_type.values_by_name
         try:
             compound.preparations.add().type = values_dict[prep.upper()].number
-        except KeyError:
+        except KeyError as error:
             raise KeyError(
-                f'{prep} is not a supported type: {values_dict.keys()}')
+                f'{prep} is not a supported type: {values_dict.keys()}'
+            ) from error
         if (compound.preparations[0].type
                 == reaction_pb2.CompoundPreparation.CUSTOM and
                 not prep_details):
@@ -464,7 +466,7 @@ def load_message(filename, message_type):
                 return message_type.FromString(f.read())
         except (json_format.ParseError, protobuf.message.DecodeError,
                 text_format.ParseError) as error:
-            raise ValueError(f'error parsing {filename}: {error}')
+            raise ValueError(f'error parsing {filename}: {error}') from error
 
 
 # pylint: enable=inconsistent-return-statements
@@ -531,5 +533,6 @@ def create_message(message_name):
         for name in message_name.split('.'):
             message_class = getattr(message_class, name)
         return message_class()
-    except (AttributeError, TypeError):
-        raise ValueError(f'Cannot resolve message name {message_name}')
+    except (AttributeError, TypeError) as error:
+        raise ValueError(
+            f'Cannot resolve message name {message_name}') from error
