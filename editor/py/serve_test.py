@@ -50,6 +50,9 @@ class ServeTest(parameterized.TestCase, absltest.TestCase):
         with open(os.path.join(self.testdata,
                                'nielsen_fig1_dataset.pbtxt')) as f:
             text_format.Parse(f.read(), dataset)
+        # Add some unicode to check for encoding/decoding robustness.
+        # From https://en.wikipedia.org/wiki/Atlantis.
+        dataset.reactions[0].provenance.city = 'Ἀτλαντὶς νῆσος'
         return dataset
 
     def _download_dataset(self, name):
@@ -325,7 +328,7 @@ class ServeTest(parameterized.TestCase, absltest.TestCase):
             follow_redirects=True)
         self.assertEqual(response.status_code, 409)
 
-    def test_js(self, script, expected):
+    def test_js(self):
         pass  # Requires the editor to be built.
 
     @parameterized.parameters([
