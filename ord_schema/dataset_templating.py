@@ -52,12 +52,13 @@ flags.DEFINE_string('output', None, 'Filename for output Dataset.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 
 
-def read_spreadsheet(file_name):
+def read_spreadsheet(file_name_or_buffer, suffix=None):
     """Reads a {csv, xls, xlsx} spreadsheet file."""
-    _, suffix = os.path.splitext(file_name)
+    if suffix is None:
+        _, suffix = os.path.splitext(file_name_or_buffer)
     if suffix in ['xls', 'xlsx']:
-        return pd.read_excel(file_name, dtype=str)
-    return pd.read_csv(file_name, dtype=str)
+        return pd.read_excel(file_name_or_buffer, dtype=str)
+    return pd.read_csv(file_name_or_buffer, dtype=str)
 
 
 def _escape(string):
