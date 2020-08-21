@@ -27,7 +27,7 @@ from rdkit import Chem
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
-import serve  # pylint: disable=import-error
+import serve  # pylint: disable=import-error,wrong-import-order
 
 
 # pylint: disable=too-many-public-methods
