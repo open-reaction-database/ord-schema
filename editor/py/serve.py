@@ -292,10 +292,8 @@ def read_upload(token):
     Returns:
         The POST body from the request, after passing through a file.
     """
-    path = get_path(token)
-    with open(path, 'wb') as upload:
-        upload.write(flask.request.get_data())
-    return flask.send_file(get_file(path),
+    data = io.BytesIO(flask.request.get_data())
+    return flask.send_file(data,
                            mimetype='application/protobuf',
                            as_attachment=True,
                            attachment_filename=token)
@@ -381,13 +379,17 @@ def compare(file_name):
 @app.route('/js/<script>')
 def js(script):
     """Accesses any built JS file by name from the Closure output directory."""
-    return flask.send_from_directory('../gen/js/ord', script)
+    path = flask.safe_join(
+        os.path.join(os.path.dirname(__file__), '../gen/js/ord'), script)
+    return flask.send_file(get_file(path), attachment_filename=script)
 
 
 @app.route('/css/<sheet>')
 def css(sheet):
     """Accesses any CSS file by name."""
-    return flask.send_from_directory('../css', sheet)
+    path = flask.safe_join(os.path.join(os.path.dirname(__file__), '../css'),
+                           sheet)
+    return flask.send_file(get_file(path), attachment_filename=sheet)
 
 
 @app.route('/ketcher/iframe')
@@ -405,7 +407,9 @@ def indigo():
 @app.route('/ketcher/<path:file>')
 def ketcher(file):
     """Accesses any built Ketcher file by name."""
-    return flask.send_from_directory('../ketcher/dist', file)
+    path = flask.safe_join(
+        os.path.join(os.path.dirname(__file__), '../ketcher/dist'), file)
+    return flask.send_file(get_file(path), attachment_filename=file)
 
 
 @app.route('/dataset/deps.js')
@@ -507,7 +511,8 @@ def resolve_tokens(proto):
                 if token.startswith('upload_'):
                     path = get_path(token)
                     if os.path.isfile(path):
-                        proto.bytes_value = open(path, 'rb').read()
+                        with open(path, 'rb') as f:
+                            proto.bytes_value = f.read()
                         matched = True
             matched |= resolve_tokens(message)
     elif 'append' in dir(proto):
