@@ -159,7 +159,7 @@ def download_reaction():
     """Returns a raw .pbtxt file taken from POST as an attachment."""
     reaction = reaction_pb2.Reaction()
     reaction.ParseFromString(flask.request.get_data())
-    data = io.StringIO(text_format.MessageToString(reaction))
+    data = io.BytesIO(text_format.MessageToBytes(reaction))
     return flask.send_file(data,
                            mimetype='application/protobuf',
                            as_attachment=True,
@@ -368,7 +368,7 @@ def compare(file_name):
     path = get_path(file_name)
     with open(path, 'rb') as pbtxt:
         local = dataset_pb2.Dataset()
-        text_format.Parse(pbtxt.read(), local)
+        text_format.Parse(pbtxt.read().decode(), local)
     remote_ascii = text_format.MessageToString(remote)
     local_ascii = text_format.MessageToString(local)
     if remote_ascii != local_ascii:
@@ -529,10 +529,10 @@ def get_file(path):
     """Get file contents as a BytesIO object."""
     if not os.path.exists(path):
         flask.abort(404)
-    with open(path) as f:
+    with open(path, 'rb') as f:
         # NOTE(kearnes): Workaround for unclosed file warnings. See
         # https://github.com/pallets/werkzeug/issues/1785.
-        data = io.StringIO(f.read())
+        data = io.BytesIO(f.read())
     return data
 
 
