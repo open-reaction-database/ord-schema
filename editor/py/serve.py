@@ -15,56 +15,28 @@
 
 import contextlib
 import fcntl
+import io
+import json
 import os
 import re
-import json
-import uuid
-import io
-import tempfile
 import urllib
+import uuid
 
 import flask
 from google.protobuf import text_format
 
+from ord_schema import dataset_templating
+from ord_schema import message_helpers
+from ord_schema import updates
+from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
-from ord_schema import message_helpers
-from ord_schema import validations
-from ord_schema import dataset_templating
-from ord_schema import updates
 from ord_schema.visualization import generate_text
 from ord_schema.visualization import drawing
 
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
 app.config['ORD_EDITOR_DB'] = os.getenv('ORD_EDITOR_DB', 'db')
-
-
-def get_path(file_name, suffix='.pbtxt'):
-    """Returns a safe path in the editor filesystem.
-
-    Uses flask.safe_join to check for directory traversal attacks.
-
-    Args:
-        file_name: Text filename.
-        suffix: Text filename suffix. Defaults to '.pbtxt'.
-
-    Returns:
-        Path to the requested file.
-    """
-    return flask.safe_join(app.config['ORD_EDITOR_DB'], flask.g.user,
-                           f'{file_name}{suffix}')
-
-
-def get_user_path():
-    """Checks that a username results in a valid path in the editor filesystem.
-
-    Uses flask.safe_join to check for directory traversal attacks.
-
-    Returns:
-        Path to the user directory.
-    """
-    return flask.safe_join(app.config['ORD_EDITOR_DB'], flask.g.user)
 
 
 @app.route('/')
@@ -95,8 +67,6 @@ def show_dataset(file_name):
     if redirect:
         return redirect
     dataset = get_dataset(file_name)
-    if dataset is None:
-        flask.abort(404)
     reactions = []
     for reaction in dataset.reactions:
         reactions.append(reaction.identifiers)
@@ -107,20 +77,19 @@ def show_dataset(file_name):
 def download_dataset(file_name):
     """Returns a .pbtxt file from the user directory as an attachment."""
     path = get_path(file_name)
-    if not os.path.isfile(path):
-        flask.abort(404)
-    pbtxt = open(path, 'rb')
-    # TODO(kearnes): Fix ResourceWarning about unclosed file.
-    return flask.send_file(pbtxt,
+    return flask.send_file(get_file(path),
                            mimetype='application/protobuf',
                            as_attachment=True,
-                           attachment_filename='%s.pbtxt' % file_name)
+                           attachment_filename=os.path.basename(path))
 
 
 @app.route('/dataset/<file_name>/upload', methods=['POST'])
 def upload_dataset(file_name):
     """Writes the request body to the user directory without validation."""
     path = get_path(file_name)
+    if os.path.isfile(path):
+        flask.abort(
+            flask.make_response(f'dataset already exists: {file_name}', 409))
     with open(path, 'wb') as upload:
         upload.write(flask.request.get_data())
     return 'ok'
@@ -131,7 +100,8 @@ def new_dataset(file_name):
     """Creates a new dataset."""
     path = get_path(file_name)
     if os.path.isfile(path):
-        flask.abort(404)
+        flask.abort(
+            flask.make_response(f'dataset already exists: {file_name}', 409))
     with open(path, 'wb') as upload:
         upload.write(b'\n')
     return 'ok'
@@ -151,12 +121,9 @@ def enumerate_dataset():
     """
     data = flask.request.get_json(force=True)
     basename, suffix = os.path.splitext(data['spreadsheet_name'])
-    temp_dir = get_user_path()
-    with tempfile.NamedTemporaryFile(mode='w', suffix=suffix,
-                                     dir=temp_dir) as f:
-        f.write(data['spreadsheet_data'].lstrip('ï»¿'))
-        f.seek(0)
-        dataframe = dataset_templating.read_spreadsheet(f.name)
+    spreadsheet_data = io.StringIO(data['spreadsheet_data'].lstrip('ï»¿'))
+    dataframe = dataset_templating.read_spreadsheet(spreadsheet_data,
+                                                    suffix=suffix)
     dataset = None
     try:
         dataset = dataset_templating.generate_dataset(data['template_string'],
@@ -176,8 +143,6 @@ def show_reaction(file_name, index):
     if redirect:
         return redirect
     dataset = get_dataset(file_name)
-    if dataset is None:
-        flask.abort(404)
     try:
         index = int(index)
     except ValueError:
@@ -194,10 +159,8 @@ def download_reaction():
     """Returns a raw .pbtxt file taken from POST as an attachment."""
     reaction = reaction_pb2.Reaction()
     reaction.ParseFromString(flask.request.get_data())
-    mem = io.BytesIO()
-    mem.write(text_format.MessageToString(reaction).encode())
-    mem.seek(0)
-    return flask.send_file(mem,
+    data = io.BytesIO(text_format.MessageToBytes(reaction))
+    return flask.send_file(data,
                            mimetype='application/protobuf',
                            as_attachment=True,
                            attachment_filename='reaction.pbtxt')
@@ -207,10 +170,7 @@ def download_reaction():
 def new_reaction(file_name):
     """Adds a new Reaction to the given Dataset and view the Dataset."""
     dataset = get_dataset(file_name)
-    if dataset is None:
-        flask.abort(404)
-    reaction = reaction_pb2.Reaction()
-    dataset.reactions.append(reaction)
+    dataset.reactions.add()
     put_dataset(file_name, dataset)
     return flask.redirect('/dataset/%s' % file_name)
 
@@ -219,18 +179,13 @@ def new_reaction(file_name):
 def clone_reaction(file_name, index):
     """Copies a specific Reaction to the Dataset and view the Reaction."""
     dataset = get_dataset(file_name)
-    if dataset is None:
-        flask.abort(404)
     try:
         index = int(index)
     except ValueError:
         flask.abort(404)
     if len(dataset.reactions) <= index:
         flask.abort(404)
-    original = dataset.reactions[index]
-    clone = reaction_pb2.Reaction()
-    clone.MergeFrom(original)
-    dataset.reactions.append(clone)
+    dataset.reactions.add().CopyFrom(dataset.reactions[index])
     index = len(dataset.reactions) - 1
     put_dataset(file_name, dataset)
     return flask.redirect('/dataset/%s/reaction/%s' % (file_name, index))
@@ -240,8 +195,6 @@ def clone_reaction(file_name, index):
 def delete_reaction(file_name, index):
     """Removes a specific Reaction from the Dataset and view the Datset."""
     dataset = get_dataset(file_name)
-    if dataset is None:
-        flask.abort(404)
     try:
         index = int(index)
     except ValueError:
@@ -257,8 +210,6 @@ def delete_reaction(file_name, index):
 def delete_reaction_id(file_name, reaction_id):
     """Removes a Reaction reference from the Dataset and view the Dataset."""
     dataset = get_dataset(file_name)
-    if dataset is None:
-        flask.abort(404)
     if reaction_id in dataset.reaction_ids:
         dataset.reaction_ids.remove(reaction_id)
         put_dataset(file_name, dataset)
@@ -321,7 +272,7 @@ def write_upload(file_name, token):
         upload.write(flask.request.get_data())
     with lock(file_name):
         dataset = get_dataset(file_name)
-        if dataset is not None and resolve_tokens(dataset):
+        if resolve_tokens(dataset):
             put_dataset(file_name, dataset)
     return 'ok'
 
@@ -341,11 +292,8 @@ def read_upload(token):
     Returns:
         The POST body from the request, after passing through a file.
     """
-    path = get_path(token)
-    with open(path, 'wb') as upload:
-        upload.write(flask.request.get_data())
-    pbtxt = open(path, 'rb')
-    return flask.send_file(pbtxt,
+    data = io.BytesIO(flask.request.get_data())
+    return flask.send_file(data,
                            mimetype='application/protobuf',
                            as_attachment=True,
                            attachment_filename=token)
@@ -420,7 +368,7 @@ def compare(file_name):
     path = get_path(file_name)
     with open(path, 'rb') as pbtxt:
         local = dataset_pb2.Dataset()
-        text_format.Parse(pbtxt.read(), local)
+        text_format.Parse(pbtxt.read().decode(), local)
     remote_ascii = text_format.MessageToString(remote)
     local_ascii = text_format.MessageToString(local)
     if remote_ascii != local_ascii:
@@ -431,13 +379,17 @@ def compare(file_name):
 @app.route('/js/<script>')
 def js(script):
     """Accesses any built JS file by name from the Closure output directory."""
-    return flask.send_file('../gen/js/ord/%s' % script)
+    path = flask.safe_join(
+        os.path.join(os.path.dirname(__file__), '../gen/js/ord'), script)
+    return flask.send_file(get_file(path), attachment_filename=script)
 
 
 @app.route('/css/<sheet>')
 def css(sheet):
     """Accesses any CSS file by name."""
-    return flask.send_file('../css/%s' % sheet)
+    path = flask.safe_join(os.path.join(os.path.dirname(__file__), '../css'),
+                           sheet)
+    return flask.send_file(get_file(path), attachment_filename=sheet)
 
 
 @app.route('/ketcher/iframe')
@@ -455,7 +407,9 @@ def indigo():
 @app.route('/ketcher/<path:file>')
 def ketcher(file):
     """Accesses any built Ketcher file by name."""
-    return flask.send_file('../ketcher/dist/%s' % file)
+    path = flask.safe_join(
+        os.path.join(os.path.dirname(__file__), '../ketcher/dist'), file)
+    return flask.send_file(get_file(path), attachment_filename=file)
 
 
 @app.route('/dataset/deps.js')
@@ -494,9 +448,9 @@ def get_dataset(file_name):
     with lock(file_name):
         path = get_path(file_name)
         if not os.path.isfile(path):
-            return None
+            flask.abort(404)
         dataset = dataset_pb2.Dataset()
-        with open(path, 'rb') as pbtxt:
+        with open(path) as pbtxt:
             text_format.Parse(pbtxt.read(), dataset)
         return dataset
 
@@ -505,9 +459,9 @@ def put_dataset(file_name, dataset):
     """Write a proto to a .pbtxt file in the user directory."""
     with lock(file_name):
         path = get_path(file_name)
-        with open(path, 'wb') as pbtxt:
+        with open(path, 'w') as pbtxt:
             string = text_format.MessageToString(dataset, as_utf8=True)
-            pbtxt.write(string.encode('utf8'))
+            pbtxt.write(string)
 
 
 @contextlib.contextmanager
@@ -557,7 +511,8 @@ def resolve_tokens(proto):
                 if token.startswith('upload_'):
                     path = get_path(token)
                     if os.path.isfile(path):
-                        proto.bytes_value = open(path, 'rb').read()
+                        with open(path, 'rb') as f:
+                            proto.bytes_value = f.read()
                         matched = True
             matched |= resolve_tokens(message)
     elif 'append' in dir(proto):
@@ -568,6 +523,44 @@ def resolve_tokens(proto):
             message = proto[key]
             matched |= resolve_tokens(message)
     return matched
+
+
+def get_file(path):
+    """Get file contents as a BytesIO object."""
+    if not os.path.exists(path):
+        flask.abort(404)
+    with open(path, 'rb') as f:
+        # NOTE(kearnes): Workaround for unclosed file warnings. See
+        # https://github.com/pallets/werkzeug/issues/1785.
+        data = io.BytesIO(f.read())
+    return data
+
+
+def get_path(file_name, suffix='.pbtxt'):
+    """Returns a safe path in the editor filesystem.
+
+    Uses flask.safe_join to check for directory traversal attacks.
+
+    Args:
+        file_name: Text filename.
+        suffix: Text filename suffix. Defaults to '.pbtxt'.
+
+    Returns:
+        Path to the requested file.
+    """
+    return flask.safe_join(app.config['ORD_EDITOR_DB'], flask.g.user,
+                           f'{file_name}{suffix}')
+
+
+def get_user_path():
+    """Checks that a username results in a valid path in the editor filesystem.
+
+    Uses flask.safe_join to check for directory traversal attacks.
+
+    Returns:
+        Path to the user directory.
+    """
+    return flask.safe_join(app.config['ORD_EDITOR_DB'], flask.g.user)
 
 
 @app.before_request
@@ -604,7 +597,9 @@ def redirect_to_user(user):
     flask.safe_join(app.config['ORD_EDITOR_DB'],
                     user)  # Check that the user is safe.
     url = url_for_user(user)
-    response = flask.redirect(url)
+    # NOTE(kearnes): Use 307 so the request method is preserved. See
+    # https://stackoverflow.com/a/15480983.
+    response = flask.redirect(url, code=307)
     # Expires in a year.
     response.set_cookie('ord-editor-user', user, max_age=31536000)
     return response
