@@ -16,6 +16,7 @@
 import enum
 import os
 
+import flask
 from google import protobuf
 from google.protobuf import json_format
 from google.protobuf import text_format
@@ -511,7 +512,7 @@ def id_filename(filename):
     if not prefix.startswith('ord'):
         raise ValueError(
             'basename does not have the required "ord" prefix: {basename}')
-    return os.path.join('data', suffix[:2], basename)
+    return flask.safe_join('data', suffix[:2], basename)
 
 
 def create_message(message_name):
