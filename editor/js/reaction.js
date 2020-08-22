@@ -27,6 +27,7 @@ exports = {
   addSlowly,
   addChangeHandler,
   validate,
+  toggleValidateMessage,
   compareDataset,
   unloadReaction,
   isEmptyMessage,
