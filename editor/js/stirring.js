@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-goog.provide('ord.stirring');
+goog.module('ord.stirring');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, validateStirring};
 
 goog.require('proto.ord.StirringConditions');
 
-ord.stirring.load = function(stirring) {
+function load (stirring) {
   const method = stirring.getMethod();
   if (method) {
     ord.reaction.setSelector($('#stirring_method_type'), method.getType());
@@ -35,7 +37,7 @@ ord.stirring.load = function(stirring) {
   }
 };
 
-ord.stirring.unload = function() {
+function unload () {
   const stirring = new proto.ord.StirringConditions();
 
   const method = new proto.ord.StirringConditions.StirringMethod();
@@ -58,8 +60,8 @@ ord.stirring.unload = function() {
   return stirring;
 };
 
-ord.stirring.validateStirring = function(node, validateNode) {
-  const stirring = ord.stirring.unload();
+function validateStirring (node, validateNode) {
+  const stirring = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
