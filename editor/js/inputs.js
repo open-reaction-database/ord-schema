@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-goog.provide('ord.inputs');
+goog.module('ord.inputs');
+goog.module.declareLegacyNamespace();
+exports = {load, loadInputUnnamed, unload, unloadInputUnnamed, add, validateInput};
 
 goog.require('ord.compounds');
 goog.require('ord.crudes');
@@ -22,21 +24,21 @@ goog.require('proto.ord.FlowRate');
 goog.require('proto.ord.ReactionInput');
 goog.require('proto.ord.Time');
 
-ord.inputs.load = function(inputs) {
+function load (inputs) {
   const names = inputs.stringKeys_();
   names.forEach(function(name) {
     const input = inputs.get(name);
-    ord.inputs.loadInput('#inputs', name, input);
+    loadInput('#inputs', name, input);
   });
 };
 
-ord.inputs.loadInput = function(root, name, input) {
-  const node = ord.inputs.add(root);
-  ord.inputs.loadInputUnnamed(node, input);
+function loadInput (root, name, input) {
+  const node = add(root);
+  loadInputUnnamed(node, input);
   $('.input_name', node).text(name);
 };
 
-ord.inputs.loadInputUnnamed = function(node, input) {
+function loadInputUnnamed (node, input) {
   const compounds = input.getComponentsList();
   ord.compounds.load(node, compounds);
 
@@ -75,26 +77,26 @@ ord.inputs.loadInputUnnamed = function(node, input) {
   return node;
 };
 
-ord.inputs.unload = function(inputs) {
+function unload (inputs) {
   $('#inputs > div.input').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
-      ord.inputs.unloadInput(inputs, node);
+      unloadInput(inputs, node);
     }
   });
 };
 
-ord.inputs.unloadInput = function(inputs, node) {
+function unloadInput (inputs, node) {
   const name = $('.input_name', node).text();
-  const input = ord.inputs.unloadInputUnnamed(node);
+  const input = unloadInputUnnamed(node);
   if (!ord.reaction.isEmptyMessage(input) ||
       !ord.reaction.isEmptyMessage(name)) {
     inputs.set(name, input);
   }
 };
 
-ord.inputs.unloadInputUnnamed = function(node) {
+function unloadInputUnnamed (node) {
   const input = new proto.ord.ReactionInput();
 
   const compounds = ord.compounds.unload(node);
@@ -148,17 +150,17 @@ ord.inputs.unloadInputUnnamed = function(node) {
   return input;
 };
 
-ord.inputs.add = function(root) {
+function add (root) {
   const node = ord.reaction.addSlowly('#input_template', root);
   // Add live validation handling.
   ord.reaction.addChangeHandler(node, () => {
-    ord.inputs.validateInput(node);
+    validateInput(node);
   });
   return node;
 };
 
-ord.inputs.validateInput = function(node, validateNode) {
-  const input = ord.inputs.unloadInputUnnamed(node);
+function validateInput (node, validateNode) {
+  const input = unloadInputUnnamed(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
