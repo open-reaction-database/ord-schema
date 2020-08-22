@@ -14,21 +14,22 @@
  * limitations under the License.
  */
 
-goog.provide('ord.outcomes');
+goog.module('ord.outcomes');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, add, addAnalysis, addProcess, addRaw, validateOutcome, validateAnalysis};
 
 goog.require('ord.products');
-
 goog.require('proto.ord.ReactionOutcome');
 
 // Freely create radio button groups by generating new input names.
-ord.outcomes.radioGroupCounter = 0;
+let radioGroupCounter = 0;
 
-ord.outcomes.load = function(outcomes) {
-  outcomes.forEach(outcome => ord.outcomes.loadOutcome(outcome));
+function load (outcomes) {
+  outcomes.forEach(outcome => loadOutcome(outcome));
 };
 
-ord.outcomes.loadOutcome = function(outcome) {
-  const node = ord.outcomes.add();
+function loadOutcome (outcome) {
+  const node = add();
 
   const time = outcome.getReactionTime();
   if (time != null) {
@@ -44,15 +45,15 @@ ord.outcomes.loadOutcome = function(outcome) {
   const names = analyses.stringKeys_();
   names.forEach(function(name) {
     const analysis = analyses.get(name);
-    ord.outcomes.loadAnalysis(node, name, analysis);
+    loadAnalysis(node, name, analysis);
   });
 
   const products = outcome.getProductsList();
   ord.products.load(node, products);
 };
 
-ord.outcomes.loadAnalysis = function(analysesNode, name, analysis) {
-  const node = ord.outcomes.addAnalysis(analysesNode);
+function loadAnalysis (analysesNode, name, analysis) {
+  const node = addAnalysis(analysesNode);
 
   $('.outcome_analysis_name', node).text(name).trigger('input');
 
@@ -68,16 +69,16 @@ ord.outcomes.loadAnalysis = function(analysesNode, name, analysis) {
   const processNames = processes.stringKeys_();
   processNames.forEach(function(name) {
     const process = processes.get(name);
-    const processNode = ord.outcomes.addProcess(node);
-    ord.outcomes.loadProcess(processNode, name, process);
+    const processNode = addProcess(node);
+    loadProcess(processNode, name, process);
   });
 
   const raws = analysis.getRawDataMap();
   const rawNames = raws.stringKeys_();
   rawNames.forEach(function(name) {
     const raw = raws.get(name);
-    const rawNode = ord.outcomes.addRaw(node);
-    ord.outcomes.loadRaw(rawNode, name, raw);
+    const rawNode = addRaw(node);
+    loadRaw(rawNode, name, raw);
   });
   $('.outcome_analysis_manufacturer', node)
       .text(analysis.getInstrumentManufacturer());
@@ -96,7 +97,7 @@ ord.outcomes.loadAnalysis = function(analysesNode, name, analysis) {
           null);
 };
 
-ord.outcomes.loadProcess = function(node, name, process) {
+function loadProcess (node, name, process) {
   $('.outcome_process_name', node).text(name);
   $('.outcome_process_description', node).text(process.getDescription());
   $('.outcome_process_format', node).text(process.getFormat());
@@ -131,7 +132,7 @@ ord.outcomes.loadProcess = function(node, name, process) {
   }
 };
 
-ord.outcomes.loadRaw = function(node, name, raw) {
+function loadRaw (node, name, raw) {
   $('.outcome_raw_name', node).text(name);
   $('.outcome_raw_description', node).text(raw.getDescription());
   $('.outcome_raw_format', node).text(raw.getFormat());
@@ -166,13 +167,13 @@ ord.outcomes.loadRaw = function(node, name, raw) {
   }
 };
 
-ord.outcomes.unload = function() {
+function unload () {
   const outcomes = [];
   $('.outcome').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
-      const outcome = ord.outcomes.unloadOutcome(node);
+      const outcome = unloadOutcome(node);
       if (!ord.reaction.isEmptyMessage(outcome)) {
         outcomes.push(outcome);
       }
@@ -181,7 +182,7 @@ ord.outcomes.unload = function() {
   return outcomes;
 };
 
-ord.outcomes.unloadOutcome = function(node) {
+function unloadOutcome (node) {
   const outcome = new proto.ord.ReactionOutcome();
 
   const time =
@@ -204,13 +205,13 @@ ord.outcomes.unloadOutcome = function(node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
-      ord.outcomes.unloadAnalysis(node, analyses);
+      unloadAnalysis(node, analyses);
     }
   });
   return outcome;
 };
 
-ord.outcomes.unloadAnalysisSingle = function(analysisNode) {
+function unloadAnalysisSingle (analysisNode) {
   const analysis = new proto.ord.ReactionAnalysis();
   analysis.setType(
       ord.reaction.getSelector($('.outcome_analysis_type', analysisNode)));
@@ -224,14 +225,14 @@ ord.outcomes.unloadAnalysisSingle = function(analysisNode) {
   $('.outcome_process', analysisNode).each(function(index, processNode) {
     processNode = $(processNode);
     if (!processNode.attr('id')) {
-      ord.outcomes.unloadProcess(processNode, processes);
+      unloadProcess(processNode, processes);
     }
   });
   const raws = analysis.getRawDataMap();
   $('.outcome_raw', analysisNode).each(function(index, rawNode) {
     rawNode = $(rawNode);
     if (!rawNode.attr('id')) {
-      ord.outcomes.unloadRaw(rawNode, raws);
+      unloadRaw(rawNode, raws);
     }
   });
   analysis.setInstrumentManufacturer(
@@ -249,8 +250,8 @@ ord.outcomes.unloadAnalysisSingle = function(analysisNode) {
   return analysis;
 };
 
-ord.outcomes.unloadAnalysis = function(analysisNode, analyses) {
-  const analysis = ord.outcomes.unloadAnalysisSingle(analysisNode);
+function unloadAnalysis (analysisNode, analyses) {
+  const analysis = unloadAnalysisSingle(analysisNode);
   const name = $('.outcome_analysis_name', analysisNode).text();
   if (!ord.reaction.isEmptyMessage(name) ||
       !ord.reaction.isEmptyMessage(analysis)) {
@@ -258,7 +259,7 @@ ord.outcomes.unloadAnalysis = function(analysisNode, analyses) {
   }
 };
 
-ord.outcomes.unloadProcess = function(node, processes) {
+function unloadProcess (node, processes) {
   const name = $('.outcome_process_name', node).text();
 
   const process = new proto.ord.Data();
@@ -295,7 +296,7 @@ ord.outcomes.unloadProcess = function(node, processes) {
   }
 };
 
-ord.outcomes.unloadRaw = function(node, raws) {
+function unloadRaw (node, raws) {
   const name = $('.outcome_raw_name', node).text();
 
   const raw = new proto.ord.Data();
@@ -331,16 +332,16 @@ ord.outcomes.unloadRaw = function(node, raws) {
   }
 };
 
-ord.outcomes.add = function() {
+function add () {
   const node = ord.reaction.addSlowly('#outcome_template', '#outcomes');
   // Add live validation handling.
   ord.reaction.addChangeHandler(node, () => {
-    ord.outcomes.validateOutcome(node);
+    validateOutcome(node);
   });
   return node;
 };
 
-ord.outcomes.addAnalysis = function(node) {
+function addAnalysis (node) {
   const analysisNode = ord.reaction.addSlowly(
       '#outcome_analysis_template', $('.outcome_analyses', node));
 
@@ -374,17 +375,17 @@ ord.outcomes.addAnalysis = function(node) {
 
   // Add live validation handling.
   ord.reaction.addChangeHandler(analysisNode, () => {
-    ord.outcomes.validateAnalysis(analysisNode);
+    validateAnalysis(analysisNode);
   });
   return analysisNode;
 };
 
-ord.outcomes.addProcess = function(node) {
+function addProcess (node) {
   const processNode = ord.reaction.addSlowly(
       '#outcome_process_template', $('.outcome_processes', node));
 
   const typeButtons = $('input[type=\'radio\']', processNode);
-  typeButtons.attr('name', 'outcomes_' + ord.outcomes.radioGroupCounter++);
+  typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);
   typeButtons.change(function() {
     if ((this.value == 'text') || (this.value == 'number') ||
         (this.value == 'url')) {
@@ -399,12 +400,12 @@ ord.outcomes.addProcess = function(node) {
   return processNode;
 };
 
-ord.outcomes.addRaw = function(node) {
+function addRaw (node) {
   const rawNode =
       ord.reaction.addSlowly('#outcome_raw_template', $('.outcome_raws', node));
 
   const typeButtons = $('input[type=\'radio\']', rawNode);
-  typeButtons.attr('name', 'outcomes_' + ord.outcomes.radioGroupCounter++);
+  typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);
   typeButtons.change(function() {
     if ((this.value == 'text') || (this.value == 'number') ||
         (this.value == 'url')) {
@@ -419,16 +420,16 @@ ord.outcomes.addRaw = function(node) {
   return rawNode;
 };
 
-ord.outcomes.validateOutcome = function(node, validateNode) {
-  const outcome = ord.outcomes.unloadOutcome(node);
+function validateOutcome (node, validateNode) {
+  const outcome = unloadOutcome(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(outcome, 'ReactionOutcome', validateNode);
 };
 
-ord.outcomes.validateAnalysis = function(node, validateNode) {
-  const analysis = ord.outcomes.unloadAnalysisSingle(node);
+function validateAnalysis (node, validateNode) {
+  const analysis = unloadAnalysisSingle(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
