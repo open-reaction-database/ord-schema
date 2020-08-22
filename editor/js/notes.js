@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-goog.provide('ord.notes');
+goog.module('ord.notes');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, validateNotes};
 
 goog.require('proto.ord.ReactionNotes');
 
-ord.notes.load = function(notes) {
+function load (notes) {
   ord.reaction.setOptionalBool(
       $('#notes_heterogeneous'),
       notes.hasIsHeterogeneous() ? notes.getIsHeterogeneous() : null);
@@ -44,7 +46,7 @@ ord.notes.load = function(notes) {
   $('#notes_details').text(notes.getProcedureDetails());
 };
 
-ord.notes.unload = function() {
+function unload () {
   const notes = new proto.ord.ReactionNotes();
   notes.setIsHeterogeneous(
       ord.reaction.getOptionalBool($('#notes_heterogeneous')));
@@ -62,8 +64,8 @@ ord.notes.unload = function() {
   return notes;
 };
 
-ord.notes.validateNotes = function(node, validateNode) {
-  const notes = ord.notes.unload();
+function validateNotes (node, validateNode) {
+  const notes = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
