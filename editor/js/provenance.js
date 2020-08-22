@@ -16,14 +16,19 @@
 
 goog.module('ord.provenance');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, addModification, validateProvenance};
+exports = {
+  load,
+  unload,
+  addModification,
+  validateProvenance
+};
 
 goog.require('proto.ord.DateTime');
 goog.require('proto.ord.Person');
 goog.require('proto.ord.ReactionProvenance');
 goog.require('proto.ord.RecordEvent');
 
-function load (provenance) {
+function load(provenance) {
   const experimenter = provenance.getExperimenter();
   if (experimenter) {
     loadPerson($('#provenance_experimenter'), experimenter);
@@ -47,9 +52,9 @@ function load (provenance) {
     const node = addModification();
     loadRecordEvent(node, modified);
   });
-};
+}
 
-function loadRecordEvent (node, record) {
+function loadRecordEvent(node, record) {
   const time = record.getTime();
   if (time) {
     $('.provenance_time', node).text(time.getValue());
@@ -59,21 +64,20 @@ function loadRecordEvent (node, record) {
     loadPerson(node, record.getPerson());
   }
   $('.provenance_details', node).text(record.getDetails());
-};
+}
 
-function loadPerson (node, person) {
+function loadPerson(node, person) {
   $('.provenance_username', node).text(person.getUsername());
   $('.provenance_name', node).text(person.getName());
   $('.provenance_orcid', node).text(person.getOrcid());
   $('.provenance_organization', node).text(person.getOrganization());
   $('.provenance_email', node).text(person.getEmail());
-};
+}
 
-function unload () {
+function unload() {
   const provenance = new proto.ord.ReactionProvenance();
 
-  const experimenter =
-      unloadPerson($('#provenance_experimenter'));
+  const experimenter = unloadPerson($('#provenance_experimenter'));
   if (!ord.reaction.isEmptyMessage(experimenter)) {
     provenance.setExperimenter(experimenter);
   }
@@ -109,9 +113,9 @@ function unload () {
       });
   provenance.setRecordModifiedList(modifieds);
   return provenance;
-};
+}
 
-function unloadRecordEvent (node) {
+function unloadRecordEvent(node) {
   const created = new proto.ord.RecordEvent();
   const createdTime = new proto.ord.DateTime();
   createdTime.setValue($('.provenance_time', node).text());
@@ -125,9 +129,9 @@ function unloadRecordEvent (node) {
   const createdDetails = $('.provenance_details', node).text();
   created.setDetails(createdDetails);
   return created;
-};
+}
 
-function unloadPerson (node) {
+function unloadPerson(node) {
   const person = new proto.ord.Person();
   person.setUsername($('.provenance_username', node).text());
   person.setName($('.provenance_name', node).text());
@@ -135,17 +139,17 @@ function unloadPerson (node) {
   person.setOrganization($('.provenance_organization', node).text());
   person.setEmail($('.provenance_email', node).text());
   return person;
-};
+}
 
-function addModification () {
+function addModification() {
   return ord.reaction.addSlowly(
       '#provenance_modified_template', '#provenance_modifieds');
-};
+}
 
-function validateProvenance (node, validateNode) {
+function validateProvenance(node, validateNode) {
   const provenance = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(provenance, 'ReactionProvenance', validateNode);
-};
+}

@@ -16,7 +16,14 @@
 
 goog.module('ord.inputs');
 goog.module.declareLegacyNamespace();
-exports = {load, loadInputUnnamed, unload, unloadInputUnnamed, add, validateInput};
+exports = {
+  load,
+  loadInputUnnamed,
+  unload,
+  unloadInputUnnamed,
+  add,
+  validateInput
+};
 
 goog.require('ord.compounds');
 goog.require('ord.crudes');
@@ -24,21 +31,21 @@ goog.require('proto.ord.FlowRate');
 goog.require('proto.ord.ReactionInput');
 goog.require('proto.ord.Time');
 
-function load (inputs) {
+function load(inputs) {
   const names = inputs.stringKeys_();
   names.forEach(function(name) {
     const input = inputs.get(name);
     loadInput('#inputs', name, input);
   });
-};
+}
 
-function loadInput (root, name, input) {
+function loadInput(root, name, input) {
   const node = add(root);
   loadInputUnnamed(node, input);
   $('.input_name', node).text(name);
-};
+}
 
-function loadInputUnnamed (node, input) {
+function loadInputUnnamed(node, input) {
   const compounds = input.getComponentsList();
   ord.compounds.load(node, compounds);
 
@@ -75,9 +82,9 @@ function loadInputUnnamed (node, input) {
     ord.reaction.writeMetric('.input_flow_rate', flowRate, node);
   }
   return node;
-};
+}
 
-function unload (inputs) {
+function unload(inputs) {
   $('#inputs > div.input').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
@@ -85,18 +92,18 @@ function unload (inputs) {
       unloadInput(inputs, node);
     }
   });
-};
+}
 
-function unloadInput (inputs, node) {
+function unloadInput(inputs, node) {
   const name = $('.input_name', node).text();
   const input = unloadInputUnnamed(node);
   if (!ord.reaction.isEmptyMessage(input) ||
       !ord.reaction.isEmptyMessage(name)) {
     inputs.set(name, input);
   }
-};
+}
 
-function unloadInputUnnamed (node) {
+function unloadInputUnnamed(node) {
   const input = new proto.ord.ReactionInput();
 
   const compounds = ord.compounds.unload(node);
@@ -148,21 +155,21 @@ function unloadInputUnnamed (node) {
   }
 
   return input;
-};
+}
 
-function add (root) {
+function add(root) {
   const node = ord.reaction.addSlowly('#input_template', root);
   // Add live validation handling.
   ord.reaction.addChangeHandler(node, () => {
     validateInput(node);
   });
   return node;
-};
+}
 
-function validateInput (node, validateNode) {
+function validateInput(node, validateNode) {
   const input = unloadInputUnnamed(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(input, 'ReactionInput', validateNode);
-};
+}

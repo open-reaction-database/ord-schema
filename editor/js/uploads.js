@@ -16,7 +16,13 @@
 
 goog.module('ord.uploads');
 goog.module.declareLegacyNamespace();
-exports = {putAll, retrieve, initialize, load, unload};
+exports = {
+  putAll,
+  retrieve,
+  initialize,
+  load,
+  unload
+};
 
 // Map token strings to byte arrays to round-trip uploaded byte_values.
 let tokenBytes = {};
@@ -25,36 +31,36 @@ let tokenBytes = {};
 let tokenFiles = {};
 
 // Return a short random string of ASCII characters.
-function newToken () {
+function newToken() {
   return 'upload_' + Math.random().toString(36).substring(2);
-};
+}
 
 // Tag this file for upload and return a random token to access it later.
-function newFile (file) {
+function newFile(file) {
   const token = newToken();
   tokenFiles[token] = file;
   return token;
-};
+}
 
 // Get back a file that was previously recorded at newFile().
-function getFile (token) {
+function getFile(token) {
   return tokenFiles[token];
-};
+}
 
 // Remember bytes at load() so they can be restored at unload().
-function stashUpload (bytesValue) {
+function stashUpload(bytesValue) {
   const token = newToken();
   tokenBytes[token] = bytesValue;
   return token;
-};
+}
 
 // At unload, recall bytes that were stashed at load().
-function unstashUpload (token) {
+function unstashUpload(token) {
   return tokenBytes[token];
-};
+}
 
 // Sends all files referenced in tokenFiles to the server.
-function putAll (fileName) {
+function putAll(fileName) {
   const tokens = Object.getOwnPropertyNames(tokenFiles);
   tokens.forEach(token => {
     const file = tokenFiles[token];
@@ -67,10 +73,10 @@ function putAll (fileName) {
       xhr.send(payload);
     };
   });
-};
+}
 
 // Look up the bytesValue of the given uploader and send back it as a download.
-function retrieve (uploader) {
+function retrieve(uploader) {
   const token = uploader.attr('data-token');
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/dataset/proto/download/' + token);
@@ -85,10 +91,10 @@ function retrieve (uploader) {
   };
   const bytesValue = tokenBytes[token];
   xhr.send(bytesValue);
-};
+}
 
 // Configure behaviors of a ".uploader" DOM element.
-function initialize (node) {
+function initialize(node) {
   $('.uploader_chooser_file', node).on('input', (event) => {
     const file = event.target.files[0];
     $('.uploader_file_name', node).show();
@@ -97,18 +103,18 @@ function initialize (node) {
     $('.uploader', node).attr('data-token', token);
     $('.uploader_file_retrieve', node).hide();
   });
-};
+}
 
-function load (node, bytesValue) {
+function load(node, bytesValue) {
   const token = stashUpload(bytesValue);
   $('.uploader', node).show();
   $('.uploader', node).attr('data-token', token);
   $('.uploader_chooser_button', node).text('Replace...');
   $('.uploader_file_name', node).hide();
   $('.uploader_file_retrieve', node).show();
-};
+}
 
-function unload (node) {
+function unload(node) {
   const token = $('.uploader', node).attr('data-token');
   const bytesValue = unstashUpload(token);
   if (bytesValue) {
@@ -119,4 +125,4 @@ function unload (node) {
     const bytes = (new TextEncoder()).encode(token);
     return bytes;
   }
-};
+}

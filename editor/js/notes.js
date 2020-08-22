@@ -16,11 +16,15 @@
 
 goog.module('ord.notes');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, validateNotes};
+exports = {
+  load,
+  unload,
+  validateNotes
+};
 
 goog.require('proto.ord.ReactionNotes');
 
-function load (notes) {
+function load(notes) {
   ord.reaction.setOptionalBool(
       $('#notes_heterogeneous'),
       notes.hasIsHeterogeneous() ? notes.getIsHeterogeneous() : null);
@@ -44,9 +48,9 @@ function load (notes) {
       notes.hasIsSensitiveToLight() ? notes.getIsSensitiveToLight() : null);
   $('#notes_safety').text(notes.getSafetyNotes());
   $('#notes_details').text(notes.getProcedureDetails());
-};
+}
 
-function unload () {
+function unload() {
   const notes = new proto.ord.ReactionNotes();
   notes.setIsHeterogeneous(
       ord.reaction.getOptionalBool($('#notes_heterogeneous')));
@@ -62,12 +66,12 @@ function unload () {
   notes.setSafetyNotes($('#notes_safety').text());
   notes.setProcedureDetails($('#notes_details').text());
   return notes;
-};
+}
 
-function validateNotes (node, validateNode) {
+function validateNotes(node, validateNode) {
   const notes = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(notes, 'ReactionNotes', validateNode);
-};
+}

@@ -16,13 +16,17 @@
 
 goog.module('ord.illumination');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, validateIllumination};
+exports = {
+  load,
+  unload,
+  validateIllumination
+};
 
 goog.require('proto.ord.IlluminationConditions');
 goog.require('proto.ord.Length');
 goog.require('proto.ord.Wavelength');
 
-function load (illumination) {
+function load(illumination) {
   const type = illumination.getType();
   if (type) {
     ord.reaction.setSelector($('#illumination_type'), type.getType());
@@ -33,9 +37,9 @@ function load (illumination) {
   $('#illumination_color').text(illumination.getColor());
   const distance = illumination.getDistanceToVessel();
   ord.reaction.writeMetric('#illumination_distance', distance);
-};
+}
 
-function unload () {
+function unload() {
   const illumination = new proto.ord.IlluminationConditions();
 
   const type = new proto.ord.IlluminationConditions.IlluminationType();
@@ -57,12 +61,12 @@ function unload () {
     illumination.setDistanceToVessel(distance);
   }
   return illumination;
-};
+}
 
-function validateIllumination (node, validateNode) {
+function validateIllumination(node, validateNode) {
   const illumination = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(illumination, 'IlluminationConditions', validateNode);
-};
+}

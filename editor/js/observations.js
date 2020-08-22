@@ -16,19 +16,23 @@
 
 goog.module('ord.observations');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, add, validateObservation};
+exports = {
+  load,
+  unload,
+  add,
+  validateObservation
+};
 
 goog.require('proto.ord.ReactionObservation');
 
 // Freely create radio button groups by generating new input names.
 let radioGroupCounter = 0;
 
-function load (observations) {
-  observations.forEach(
-      observation => loadObservation(observation));
-};
+function load(observations) {
+  observations.forEach(observation => loadObservation(observation));
+}
 
-function loadObservation (observation) {
+function loadObservation(observation) {
   const node = add();
   ord.reaction.writeMetric('.observation_time', observation.getTime(), node);
 
@@ -66,9 +70,9 @@ function loadObservation (observation) {
     $('.observation_image_text', node).text(url);
     $('input[value=\'url\']', node).prop('checked', true);
   }
-};
+}
 
-function unload () {
+function unload() {
   const observations = [];
   $('.observation').each(function(index, node) {
     node = $(node);
@@ -81,9 +85,9 @@ function unload () {
     }
   });
   return observations;
-};
+}
 
-function unloadObservation (node) {
+function unloadObservation(node) {
   const observation = new proto.ord.ReactionObservation();
   const time =
       ord.reaction.readMetric('.observation_time', new proto.ord.Time(), node);
@@ -125,14 +129,13 @@ function unloadObservation (node) {
     observation.setImage(image);
   }
   return observation;
-};
+}
 
-function add () {
+function add() {
   const node = ord.reaction.addSlowly('#observation_template', '#observations');
 
   const typeButtons = $('input[type=\'radio\']', node);
-  typeButtons.attr(
-      'name', 'observations_' + radioGroupCounter++);
+  typeButtons.attr('name', 'observations_' + radioGroupCounter++);
   typeButtons.change(function() {
     if ((this.value == 'text') || (this.value == 'number') ||
         (this.value == 'url')) {
@@ -151,12 +154,12 @@ function add () {
   });
 
   return node;
-};
+}
 
-function validateObservation (node, validateNode) {
+function validateObservation(node, validateNode) {
   const observation = unloadObservation(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(observation, 'ReactionObservation', validateNode);
-};
+}

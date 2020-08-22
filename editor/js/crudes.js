@@ -16,7 +16,11 @@
 
 goog.module('ord.crudes');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, add};
+exports = {
+  load,
+  unload,
+  add
+};
 
 goog.require('ord.amountsCrudes');
 goog.require('proto.ord.CrudeComponent');
@@ -24,11 +28,11 @@ goog.require('proto.ord.CrudeComponent');
 // Freely create radio button groups by generating new input names.
 let radioGroupCounter = 0;
 
-function load (node, crudes) {
+function load(node, crudes) {
   crudes.forEach(crude => loadCrude(node, crude));
-};
+}
 
-function loadCrude (root, crude) {
+function loadCrude(root, crude) {
   const node = add(root);
 
   const reactionId = crude.getReactionId();
@@ -44,9 +48,9 @@ function loadCrude (root, crude) {
   const mass = crude.getMass();
   const volume = crude.getVolume();
   ord.amountsCrudes.load(node, mass, volume);
-};
+}
 
-function unload (node) {
+function unload(node) {
   const crudes = [];
   $('.crude', node).each(function(index, crudeNode) {
     crudeNode = $(crudeNode);
@@ -59,9 +63,9 @@ function unload (node) {
     }
   });
   return crudes;
-};
+}
 
-function unloadCrude (node) {
+function unloadCrude(node) {
   const crude = new proto.ord.CrudeComponent();
 
   const reactionId = $('.crude_reaction', node).text();
@@ -77,9 +81,9 @@ function unloadCrude (node) {
   ord.amountsCrudes.unload(node, crude);
 
   return crude;
-};
+}
 
-function add (root) {
+function add(root) {
   const node = ord.reaction.addSlowly('#crude_template', $('.crudes', root));
 
   // Create an "amount" radio button group and connect it to the unit selectors.
@@ -98,4 +102,4 @@ function add (root) {
     }
   });
   return node;
-};
+}

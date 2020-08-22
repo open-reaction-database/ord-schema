@@ -16,14 +16,19 @@
 
 goog.module('ord.pressure');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, addMeasurement, validatePressure};
+exports = {
+  load,
+  unload,
+  addMeasurement,
+  validatePressure
+};
 
 goog.require('proto.ord.Pressure');
 goog.require('proto.ord.PressureConditions');
 goog.require('proto.ord.PressureConditions.Measurement');
 goog.require('proto.ord.Time');
 
-function load (pressure) {
+function load(pressure) {
   const control = pressure.getControl();
   if (control) {
     ord.reaction.setSelector($('#pressure_control_type'), control.getType());
@@ -43,9 +48,9 @@ function load (pressure) {
         $('#pressure_atmosphere_type'), atmosphere.getType());
     $('#pressure_atmosphere_details').text(atmosphere.getDetails());
   }
-};
+}
 
-function loadMeasurement (measurement, node) {
+function loadMeasurement(measurement, node) {
   const type = measurement.getType();
   ord.reaction.setSelector($('.pressure_measurement_type', node), type);
   $('.pressure_measurement_details', node).text(measurement.getDetails());
@@ -55,9 +60,9 @@ function loadMeasurement (measurement, node) {
 
   const time = measurement.getTime();
   ord.reaction.writeMetric('.pressure_measurement_time', time, node);
-};
+}
 
-function unload () {
+function unload() {
   const pressure = new proto.ord.PressureConditions();
 
   const control = new proto.ord.PressureConditions.PressureControl();
@@ -93,9 +98,9 @@ function unload () {
   pressure.setMeasurementsList(measurements);
 
   return pressure;
-};
+}
 
-function unloadMeasurement (node) {
+function unloadMeasurement(node) {
   const measurement = new proto.ord.PressureConditions.Measurement();
   const type = ord.reaction.getSelector($('.pressure_measurement_type', node));
   measurement.setType(type);
@@ -113,17 +118,17 @@ function unloadMeasurement (node) {
   }
 
   return measurement;
-};
+}
 
-function addMeasurement () {
+function addMeasurement() {
   return ord.reaction.addSlowly(
       '#pressure_measurement_template', '#pressure_measurements');
-};
+}
 
-function validatePressure (node, validateNode) {
+function validatePressure(node, validateNode) {
   const pressure = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(pressure, 'PressureConditions', validateNode);
-};
+}

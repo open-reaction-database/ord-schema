@@ -65,7 +65,7 @@ function load(conditions) {
       null;
   ord.reaction.setOptionalBool($('#condition_dynamic'), dynamic);
   $('#condition_details').text(conditions.getDetails());
-};
+}
 
 function unload() {
   const conditions = new proto.ord.ReactionConditions();
@@ -105,7 +105,7 @@ function unload() {
   const details = $('#condition_details').text();
   conditions.setDetails(details);
   return conditions;
-};
+}
 
 function validateConditions(node, validateNode) {
   const condition = unload();
@@ -113,4 +113,4 @@ function validateConditions(node, validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(condition, 'ReactionConditions', validateNode);
-};
+}

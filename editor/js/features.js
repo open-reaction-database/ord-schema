@@ -16,13 +16,17 @@
 
 goog.module('ord.features');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, add};
+exports = {
+  load,
+  unload,
+  add
+};
 
 goog.require('proto.ord.Compound.Feature');
 
 function load(node, features) {
   features.forEach(feature => loadFeature(node, feature));
-};
+}
 
 function loadFeature(compoundNode, feature) {
   const node = add(compoundNode);
@@ -38,9 +42,9 @@ function loadFeature(compoundNode, feature) {
   }
   const how = feature.getHowComputed();
   $('.component_feature_how', node).text(how);
-};
+}
 
-function unload (compoundNode) {
+function unload(compoundNode) {
   const features = [];
   $('.component_feature', compoundNode).each(function(index, node) {
     node = $(node);
@@ -52,7 +56,7 @@ function unload (compoundNode) {
     }
   });
   return features;
-};
+}
 
 function unloadFeature(node) {
   const feature = new proto.ord.Compound.Feature();
@@ -73,9 +77,9 @@ function unloadFeature(node) {
   const how = $('.component_feature_how', node).text();
   feature.setHowComputed(how);
   return feature;
-};
+}
 
 function add(compoundNode) {
   return ord.reaction.addSlowly(
       '#component_feature_template', $('.features', compoundNode));
-};
+}

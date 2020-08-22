@@ -16,7 +16,16 @@
 
 goog.module('ord.outcomes');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, add, addAnalysis, addProcess, addRaw, validateOutcome, validateAnalysis};
+exports = {
+  load,
+  unload,
+  add,
+  addAnalysis,
+  addProcess,
+  addRaw,
+  validateOutcome,
+  validateAnalysis
+};
 
 goog.require('ord.products');
 goog.require('proto.ord.ReactionOutcome');
@@ -24,11 +33,11 @@ goog.require('proto.ord.ReactionOutcome');
 // Freely create radio button groups by generating new input names.
 let radioGroupCounter = 0;
 
-function load (outcomes) {
+function load(outcomes) {
   outcomes.forEach(outcome => loadOutcome(outcome));
-};
+}
 
-function loadOutcome (outcome) {
+function loadOutcome(outcome) {
   const node = add();
 
   const time = outcome.getReactionTime();
@@ -50,9 +59,9 @@ function loadOutcome (outcome) {
 
   const products = outcome.getProductsList();
   ord.products.load(node, products);
-};
+}
 
-function loadAnalysis (analysesNode, name, analysis) {
+function loadAnalysis(analysesNode, name, analysis) {
   const node = addAnalysis(analysesNode);
 
   $('.outcome_analysis_name', node).text(name).trigger('input');
@@ -95,9 +104,9 @@ function loadAnalysis (analysesNode, name, analysis) {
       analysis.hasUsesAuthenticStandard() ?
           analysis.getUsesAuthenticStandard() :
           null);
-};
+}
 
-function loadProcess (node, name, process) {
+function loadProcess(node, name, process) {
   $('.outcome_process_name', node).text(name);
   $('.outcome_process_description', node).text(process.getDescription());
   $('.outcome_process_format', node).text(process.getFormat());
@@ -130,9 +139,9 @@ function loadProcess (node, name, process) {
     $('.outcome_process_text', node).text(url);
     $('input[value=\'url\']', node).prop('checked', true);
   }
-};
+}
 
-function loadRaw (node, name, raw) {
+function loadRaw(node, name, raw) {
   $('.outcome_raw_name', node).text(name);
   $('.outcome_raw_description', node).text(raw.getDescription());
   $('.outcome_raw_format', node).text(raw.getFormat());
@@ -165,9 +174,9 @@ function loadRaw (node, name, raw) {
     $('.outcome_raw_text', node).text(url);
     $('input[value=\'url\']', node).prop('checked', true);
   }
-};
+}
 
-function unload () {
+function unload() {
   const outcomes = [];
   $('.outcome').each(function(index, node) {
     node = $(node);
@@ -180,9 +189,9 @@ function unload () {
     }
   });
   return outcomes;
-};
+}
 
-function unloadOutcome (node) {
+function unloadOutcome(node) {
   const outcome = new proto.ord.ReactionOutcome();
 
   const time =
@@ -209,9 +218,9 @@ function unloadOutcome (node) {
     }
   });
   return outcome;
-};
+}
 
-function unloadAnalysisSingle (analysisNode) {
+function unloadAnalysisSingle(analysisNode) {
   const analysis = new proto.ord.ReactionAnalysis();
   analysis.setType(
       ord.reaction.getSelector($('.outcome_analysis_type', analysisNode)));
@@ -248,18 +257,18 @@ function unloadAnalysisSingle (analysisNode) {
       $('.outcome_analysis_authentic_standard', analysisNode)));
 
   return analysis;
-};
+}
 
-function unloadAnalysis (analysisNode, analyses) {
+function unloadAnalysis(analysisNode, analyses) {
   const analysis = unloadAnalysisSingle(analysisNode);
   const name = $('.outcome_analysis_name', analysisNode).text();
   if (!ord.reaction.isEmptyMessage(name) ||
       !ord.reaction.isEmptyMessage(analysis)) {
     analyses.set(name, analysis);
   }
-};
+}
 
-function unloadProcess (node, processes) {
+function unloadProcess(node, processes) {
   const name = $('.outcome_process_name', node).text();
 
   const process = new proto.ord.Data();
@@ -294,9 +303,9 @@ function unloadProcess (node, processes) {
       !ord.reaction.isEmptyMessage(process)) {
     processes.set(name, process);
   }
-};
+}
 
-function unloadRaw (node, raws) {
+function unloadRaw(node, raws) {
   const name = $('.outcome_raw_name', node).text();
 
   const raw = new proto.ord.Data();
@@ -330,18 +339,18 @@ function unloadRaw (node, raws) {
   if (!ord.reaction.isEmptyMessage(name) || !ord.reaction.isEmptyMessage(raw)) {
     raws.set(name, raw);
   }
-};
+}
 
-function add () {
+function add() {
   const node = ord.reaction.addSlowly('#outcome_template', '#outcomes');
   // Add live validation handling.
   ord.reaction.addChangeHandler(node, () => {
     validateOutcome(node);
   });
   return node;
-};
+}
 
-function addAnalysis (node) {
+function addAnalysis(node) {
   const analysisNode = ord.reaction.addSlowly(
       '#outcome_analysis_template', $('.outcome_analyses', node));
 
@@ -378,9 +387,9 @@ function addAnalysis (node) {
     validateAnalysis(analysisNode);
   });
   return analysisNode;
-};
+}
 
-function addProcess (node) {
+function addProcess(node) {
   const processNode = ord.reaction.addSlowly(
       '#outcome_process_template', $('.outcome_processes', node));
 
@@ -398,9 +407,9 @@ function addProcess (node) {
   });
   ord.uploads.initialize(processNode);
   return processNode;
-};
+}
 
-function addRaw (node) {
+function addRaw(node) {
   const rawNode =
       ord.reaction.addSlowly('#outcome_raw_template', $('.outcome_raws', node));
 
@@ -418,20 +427,20 @@ function addRaw (node) {
   });
   ord.uploads.initialize(rawNode);
   return rawNode;
-};
+}
 
-function validateOutcome (node, validateNode) {
+function validateOutcome(node, validateNode) {
   const outcome = unloadOutcome(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(outcome, 'ReactionOutcome', validateNode);
-};
+}
 
-function validateAnalysis (node, validateNode) {
+function validateAnalysis(node, validateNode) {
   const analysis = unloadAnalysisSingle(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(analysis, 'ReactionAnalysis', validateNode);
-};
+}

@@ -16,7 +16,12 @@
 
 goog.module('ord.electro');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, addMeasurement, validateElectro};
+exports = {
+  load,
+  unload,
+  addMeasurement,
+  validateElectro
+};
 
 goog.require('proto.ord.ElectrochemistryConditions');
 goog.require('proto.ord.ElectrochemistryConditions.Measurement');
@@ -24,7 +29,7 @@ goog.require('proto.ord.ElectrochemistryConditions.Measurement');
 // Freely create radio button groups by generating new input names.
 let radioGroupCounter = 0;
 
-function load (electro) {
+function load(electro) {
   const type = electro.getElectrochemistryType();
   if (type) {
     ord.reaction.setSelector($('#electro_type'), type.getType());
@@ -46,9 +51,9 @@ function load (electro) {
     const node = addMeasurement();
     loadMeasurement(node, measurement);
   });
-};
+}
 
-function loadMeasurement (node, measurement) {
+function loadMeasurement(node, measurement) {
   const time = measurement.getTime();
   if (time) {
     ord.reaction.writeMetric('.electro_measurement_time', time, node);
@@ -67,9 +72,9 @@ function loadMeasurement (node, measurement) {
     $('.electro_measurement_current_fields', node).hide();
     $('.electro_measurement_voltage_fields', node).show();
   }
-};
+}
 
-function unload () {
+function unload() {
   const electro = new proto.ord.ElectrochemistryConditions();
 
   const type = new proto.ord.ElectrochemistryConditions.ElectrochemistryType();
@@ -116,9 +121,9 @@ function unload () {
   });
   electro.setMeasurementsList(measurements);
   return electro;
-};
+}
 
-function unloadMeasurement (node) {
+function unloadMeasurement(node) {
   const measurement = new proto.ord.ElectrochemistryConditions.Measurement();
   const time = ord.reaction.readMetric(
       '.electro_measurement_time', new proto.ord.Time(), node);
@@ -141,9 +146,9 @@ function unloadMeasurement (node) {
     }
   }
   return measurement;
-};
+}
 
-function addMeasurement () {
+function addMeasurement() {
   const node = ord.reaction.addSlowly(
       '#electro_measurement_template', '#electro_measurements');
 
@@ -161,12 +166,12 @@ function addMeasurement () {
   });
 
   return node;
-};
+}
 
-function validateElectro (node, validateNode) {
+function validateElectro(node, validateNode) {
   const electro = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(electro, 'ElectrochemistryConditions', validateNode);
-};
+}

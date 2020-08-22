@@ -251,7 +251,9 @@ function add(root) {
   });
 
   // Add live validation handling.
-  ord.reaction.addChangeHandler(node, () => {validateCompound(node)});
+  ord.reaction.addChangeHandler(node, () => {
+    validateCompound(node);
+  });
 
   return node;
 }
@@ -298,7 +300,7 @@ function addNameIdentifier(node) {
       identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
       identifier.setDetails('NAME resolved by the ' + resolver);
       loadIdentifier(node, identifier);
-    };
+    }
     validateCompound(node);
   };
   xhr.send(name);
@@ -384,7 +386,7 @@ function drawIdentifier(node) {
       loadIdentifier(node, identifier);
     }
     validateCompound(node);
-  }
+  };
 }
 
 function addPreparation(node) {
@@ -404,7 +406,7 @@ function addPreparation(node) {
   });
 
   return PreparationNode;
-};
+}
 
 // Update the image tag with a drawing of this component.
 function renderCompound(node, compound) {

@@ -16,11 +16,15 @@
 
 goog.module('ord.stirring');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, validateStirring};
+exports = {
+  load,
+  unload,
+  validateStirring
+};
 
 goog.require('proto.ord.StirringConditions');
 
-function load (stirring) {
+function load(stirring) {
   const method = stirring.getMethod();
   if (method) {
     ord.reaction.setSelector($('#stirring_method_type'), method.getType());
@@ -35,9 +39,9 @@ function load (stirring) {
       $('#stirring_rpm').text(rpm);
     }
   }
-};
+}
 
-function unload () {
+function unload() {
   const stirring = new proto.ord.StirringConditions();
 
   const method = new proto.ord.StirringConditions.StirringMethod();
@@ -58,12 +62,12 @@ function unload () {
     stirring.setRate(rate);
   }
   return stirring;
-};
+}
 
-function validateStirring (node, validateNode) {
+function validateStirring(node, validateNode) {
   const stirring = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(stirring, 'StirringConditions', validateNode);
-};
+}

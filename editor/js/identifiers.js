@@ -16,7 +16,11 @@
 
 goog.module('ord.identifiers');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, add};
+exports = {
+  load,
+  unload,
+  add
+};
 
 goog.require('ord.uploads');
 goog.require('proto.ord.ReactionIdentifier');
@@ -26,7 +30,7 @@ function load(identifiers) {
   if (!(identifiers.length)) {
     add();
   }
-};
+}
 
 function loadIdentifier(identifier) {
   const node = add();
@@ -34,9 +38,9 @@ function loadIdentifier(identifier) {
   $('.reaction_identifier_value', node).text(value);
   ord.reaction.setSelector(node, identifier.getType());
   $('.reaction_identifier_details', node).text(identifier.getDetails());
-};
+}
 
-function unload () {
+function unload() {
   const identifiers = [];
   $('.reaction_identifier').each(function(index, node) {
     node = $(node);
@@ -49,9 +53,9 @@ function unload () {
     }
   });
   return identifiers;
-};
+}
 
-function unloadIdentifier (node) {
+function unloadIdentifier(node) {
   const identifier = new proto.ord.ReactionIdentifier();
 
   const value = $('.reaction_identifier_value', node).text();
@@ -68,9 +72,9 @@ function unloadIdentifier (node) {
     identifier.setDetails(details);
   }
   return identifier;
-};
+}
 
-function add () {
+function add() {
   const node =
       ord.reaction.addSlowly('#reaction_identifier_template', '#identifiers');
 
@@ -87,4 +91,4 @@ function add () {
   });
   ord.uploads.initialize(node);
   return node;
-};
+}

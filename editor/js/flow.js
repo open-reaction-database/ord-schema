@@ -37,7 +37,7 @@ function load(flow) {
   ord.reaction.setSelector($('#flow_tubing_type'), tubing.getType());
   $('#flow_tubing_details').text(tubing.getDetails());
   ord.reaction.writeMetric('#flow_tubing', tubing.getDiameter());
-};
+}
 
 function unload() {
   const flow = new proto.ord.FlowConditions();
@@ -64,7 +64,7 @@ function unload() {
     flow.setTubing(tubing);
   }
   return flow;
-};
+}
 
 function validateFlow(node, validateNode) {
   const flow = unload();
@@ -72,4 +72,4 @@ function validateFlow(node, validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(flow, 'FlowConditions', validateNode);
-};
+}

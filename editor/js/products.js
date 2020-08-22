@@ -16,16 +16,25 @@
 
 goog.module('ord.products');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, add, addIdentity, addYield, addPurity, addSelectivity, validateProduct};
+exports = {
+  load,
+  unload,
+  add,
+  addIdentity,
+  addYield,
+  addPurity,
+  addSelectivity,
+  validateProduct
+};
 
 goog.require('ord.compounds');
 goog.require('proto.ord.ReactionProduct');
 
-function load (node, products) {
+function load(node, products) {
   products.forEach(product => loadProduct(node, product));
-};
+}
 
-function loadProduct (outcomeNode, product) {
+function loadProduct(outcomeNode, product) {
   const node = add(outcomeNode);
 
   const compound = product.getCompound();
@@ -91,9 +100,9 @@ function loadProduct (outcomeNode, product) {
         $('.outcome_product_texture_type', node), texture.getType());
     $('.outcome_product_texture_details', node).text(texture.getDetails());
   }
-};
+}
 
-function unload (node) {
+function unload(node) {
   const products = [];
   $('.outcome_product', node).each(function(index, productNode) {
     productNode = $(productNode);
@@ -106,9 +115,9 @@ function unload (node) {
     }
   });
   return products;
-};
+}
 
-function unloadProduct (node) {
+function unloadProduct(node) {
   const product = new proto.ord.ReactionProduct();
 
   const compoundNode = $('.outcome_product_compound');
@@ -175,9 +184,9 @@ function unloadProduct (node) {
   }
 
   return product;
-};
+}
 
-function unloadAnalysisKeys (node, tag) {
+function unloadAnalysisKeys(node, tag) {
   const values = [];
   $('.outcome_product_analysis_' + tag, node).each(function(index, tagNode) {
     tagNode = $(tagNode);
@@ -190,9 +199,9 @@ function unloadAnalysisKeys (node, tag) {
     }
   });
   return values;
-};
+}
 
-function add (node) {
+function add(node) {
   const productNode = ord.reaction.addSlowly(
       '#outcome_product_template', $('.outcome_products', node));
 
@@ -214,36 +223,36 @@ function add (node) {
     validateProduct(productNode);
   });
   return productNode;
-};
+}
 
-function addIdentity (node) {
+function addIdentity(node) {
   return ord.reaction.addSlowly(
       '#outcome_product_analysis_identity_template',
       $('.outcome_product_analysis_identities', node));
-};
+}
 
-function addYield (node) {
+function addYield(node) {
   return ord.reaction.addSlowly(
       '#outcome_product_analysis_yield_template',
       $('.outcome_product_analysis_yields', node));
-};
+}
 
-function addPurity (node) {
+function addPurity(node) {
   return ord.reaction.addSlowly(
       '#outcome_product_analysis_purity_template',
       $('.outcome_product_analysis_purities', node));
-};
+}
 
-function addSelectivity (node) {
+function addSelectivity(node) {
   return ord.reaction.addSlowly(
       '#outcome_product_analysis_selectivity_template',
       $('.outcome_product_analysis_selectivities', node));
-};
+}
 
-function validateProduct (node, validateNode) {
+function validateProduct(node, validateNode) {
   const product = unloadProduct(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(product, 'ReactionProduct', validateNode);
-};
+}

@@ -16,14 +16,19 @@
 
 goog.module('ord.setups');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, addVesselPreparation, validateSetup};
+exports = {
+  load,
+  unload,
+  addVesselPreparation,
+  validateSetup
+};
 
 goog.require('ord.codes');
 goog.require('proto.ord.ReactionSetup');
 goog.require('proto.ord.Vessel');
 goog.require('proto.ord.Volume');
 
-function load (setup) {
+function load(setup) {
   const vessel = setup.getVessel();
   if (vessel) {
     loadVessel(vessel);
@@ -54,9 +59,9 @@ function load (setup) {
         $('#setup_environment_type'), environment.getType());
     $('#setup_environment_details').text(environment.getDetails());
   }
-};
+}
 
-function loadVessel (vessel) {
+function loadVessel(vessel) {
   const type = vessel.getType();
   if (type) {
     ord.reaction.setSelector($('#setup_vessel_type'), type.getType());
@@ -85,9 +90,9 @@ function loadVessel (vessel) {
     const volume = vessel.getVolume();
     ord.reaction.writeMetric('#setup_vessel_volume', volume);
   }
-};
+}
 
-function unload () {
+function unload() {
   const setup = new proto.ord.ReactionSetup();
 
   const vessel = unloadVessel();
@@ -112,9 +117,9 @@ function unload () {
   }
 
   return setup;
-};
+}
 
-function unloadVessel () {
+function unloadVessel() {
   const vessel = new proto.ord.Vessel();
 
   const type = new proto.ord.VesselType();
@@ -172,22 +177,22 @@ function unloadVessel () {
   }
 
   return vessel;
-};
+}
 
-function addVesselPreparation () {
+function addVesselPreparation() {
   return ord.reaction.addSlowly(
       '#setup_vessel_preparation_template', '#setup_vessel_preparations');
-};
+}
 
-function addVesselAttachment () {
+function addVesselAttachment() {
   return ord.reaction.addSlowly(
       '#setup_vessel_attachment_template', '#setup_vessel_attachments');
-};
+}
 
-function validateSetup (node, validateNode) {
+function validateSetup(node, validateNode) {
   const setup = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(setup, 'ReactionSetup', validateNode);
-};
+}

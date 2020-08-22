@@ -16,16 +16,22 @@
 
 goog.module('ord.workups');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, add, addMeasurement, validateWorkup};
+exports = {
+  load,
+  unload,
+  add,
+  addMeasurement,
+  validateWorkup
+};
 
 goog.require('ord.inputs');
 goog.require('proto.ord.ReactionWorkup');
 
-function load (workups) {
+function load(workups) {
   workups.forEach(workup => loadWorkup(workup));
-};
+}
 
-function loadWorkup (workup) {
+function loadWorkup(workup) {
   const node = add();
   ord.reaction.setSelector($('.workup_type', node), workup.getType());
   $('.workup_details', node).text(workup.getDetails());
@@ -83,9 +89,9 @@ function loadWorkup (workup) {
   ord.reaction.setOptionalBool(
       $('.workup_automated', node),
       workup.hasIsAutomated() ? workup.getIsAutomated() : null);
-};
+}
 
-function loadMeasurement (workupNode, measurement) {
+function loadMeasurement(workupNode, measurement) {
   const node = addMeasurement(workupNode);
   ord.reaction.setSelector(
       $('.workup_temperature_measurement_type', node), measurement.getType());
@@ -101,9 +107,9 @@ function loadMeasurement (workupNode, measurement) {
     ord.reaction.writeMetric(
         '.workup_temperature_measurement_temperature', temperature, node);
   }
-};
+}
 
-function unload () {
+function unload() {
   const workups = [];
   $('.workup').each(function(index, node) {
     node = $(node);
@@ -115,9 +121,9 @@ function unload () {
     }
   });
   return workups;
-};
+}
 
-function unloadWorkup (node) {
+function unloadWorkup(node) {
   const workup = new proto.ord.ReactionWorkup();
 
   workup.setType(ord.reaction.getSelector($('.workup_type', node)));
@@ -202,9 +208,9 @@ function unloadWorkup (node) {
   workup.setIsAutomated(
       ord.reaction.getOptionalBool($('.workup_automated', node)));
   return workup;
-};
+}
 
-function unloadMeasurement (node) {
+function unloadMeasurement(node) {
   const measurement = new proto.ord.TemperatureConditions.Measurement();
   measurement.setType(ord.reaction.getSelector(
       $('.workup_temperature_measurement_type', node)));
@@ -222,9 +228,9 @@ function unloadMeasurement (node) {
     measurement.setTemperature(temperature);
   }
   return measurement;
-};
+}
 
-function add () {
+function add() {
   const workupNode = ord.reaction.addSlowly('#workup_template', '#workups');
   const inputNode = $('.workup_input', workupNode);
   // The template for ReactionWorkup.input is taken from Reaction.inputs.
@@ -247,18 +253,18 @@ function add () {
   });
 
   return workupNode;
-};
+}
 
-function addMeasurement (node) {
+function addMeasurement(node) {
   return ord.reaction.addSlowly(
       '#workup_temperature_measurement_template',
       $('.workup_temperature_measurements', node));
-};
+}
 
-function validateWorkup (node, validateNode) {
+function validateWorkup(node, validateNode) {
   const workup = unloadWorkup(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(workup, 'ReactionWorkup', validateNode);
-};
+}

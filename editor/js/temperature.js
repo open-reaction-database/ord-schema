@@ -16,7 +16,12 @@
 
 goog.module('ord.temperature');
 goog.module.declareLegacyNamespace();
-exports = {load, unload, addMeasurement, validateTemperature};
+exports = {
+  load,
+  unload,
+  addMeasurement,
+  validateTemperature
+};
 
 goog.require('proto.ord.Temperature');
 goog.require('proto.ord.TemperatureConditions');
@@ -24,7 +29,7 @@ goog.require('proto.ord.TemperatureConditions.Measurement');
 goog.require('proto.ord.TemperatureConditions.TemperatureControl');
 goog.require('proto.ord.Time');
 
-function load (temperature) {
+function load(temperature) {
   const control = temperature.getControl();
   if (control) {
     ord.reaction.setSelector($('#temperature_control'), control.getType());
@@ -37,9 +42,9 @@ function load (temperature) {
   });
   const setpoint = temperature.getSetpoint();
   ord.reaction.writeMetric('#temperature_setpoint', setpoint);
-};
+}
 
-function loadMeasurement (measurement, node) {
+function loadMeasurement(measurement, node) {
   const type = measurement.getType();
   ord.reaction.setSelector($('.temperature_measurement_type', node), type);
   $('.temperature_measurement_details', node).text(measurement.getDetails());
@@ -50,9 +55,9 @@ function loadMeasurement (measurement, node) {
 
   const time = measurement.getTime();
   ord.reaction.writeMetric('.temperature_measurement_time', time, node);
-};
+}
 
-function unload () {
+function unload() {
   const temperature = new proto.ord.TemperatureConditions();
 
   const control = new proto.ord.TemperatureConditions.TemperatureControl();
@@ -80,9 +85,9 @@ function unload () {
   });
   temperature.setMeasurementsList(measurements);
   return temperature;
-};
+}
 
-function unloadMeasurement (node) {
+function unloadMeasurement(node) {
   const measurement = new proto.ord.TemperatureConditions.Measurement();
   const type =
       ord.reaction.getSelector($('.temperature_measurement_type', node));
@@ -101,17 +106,17 @@ function unloadMeasurement (node) {
     measurement.setTime(time);
   }
   return measurement;
-};
+}
 
-function addMeasurement () {
+function addMeasurement() {
   return ord.reaction.addSlowly(
       '#temperature_measurement_template', '#temperature_measurements');
-};
+}
 
-function validateTemperature (node, validateNode) {
+function validateTemperature(node, validateNode) {
   const temperature = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
   ord.reaction.validate(temperature, 'TemperatureConditions', validateNode);
-};
+}
