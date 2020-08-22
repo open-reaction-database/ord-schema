@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-goog.provide('ord.illumination');
+goog.module('ord.illumination');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, validateIllumination};
 
 goog.require('proto.ord.IlluminationConditions');
 goog.require('proto.ord.Length');
 goog.require('proto.ord.Wavelength');
 
-ord.illumination.load = function(illumination) {
+function load (illumination) {
   const type = illumination.getType();
   if (type) {
     ord.reaction.setSelector($('#illumination_type'), type.getType());
@@ -33,7 +35,7 @@ ord.illumination.load = function(illumination) {
   ord.reaction.writeMetric('#illumination_distance', distance);
 };
 
-ord.illumination.unload = function() {
+function unload () {
   const illumination = new proto.ord.IlluminationConditions();
 
   const type = new proto.ord.IlluminationConditions.IlluminationType();
@@ -57,8 +59,8 @@ ord.illumination.unload = function() {
   return illumination;
 };
 
-ord.illumination.validateIllumination = function(node, validateNode) {
-  const illumination = ord.illumination.unload();
+function validateIllumination (node, validateNode) {
+  const illumination = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
