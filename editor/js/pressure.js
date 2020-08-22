@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-goog.provide('ord.pressure');
+goog.module('ord.pressure');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, addMeasurement, validatePressure};
 
 goog.require('proto.ord.Pressure');
 goog.require('proto.ord.PressureConditions');
 goog.require('proto.ord.PressureConditions.Measurement');
 goog.require('proto.ord.Time');
 
-ord.pressure.load = function(pressure) {
+function load (pressure) {
   const control = pressure.getControl();
   if (control) {
     ord.reaction.setSelector($('#pressure_control_type'), control.getType());
@@ -29,8 +31,8 @@ ord.pressure.load = function(pressure) {
   }
   const measurements = pressure.getMeasurementsList();
   measurements.forEach(function(measurement) {
-    const node = ord.pressure.addMeasurement();
-    ord.pressure.loadMeasurement(measurement, node);
+    const node = addMeasurement();
+    loadMeasurement(measurement, node);
   });
   const setpoint = pressure.getSetpoint();
   ord.reaction.writeMetric('#pressure_setpoint', setpoint);
@@ -43,7 +45,7 @@ ord.pressure.load = function(pressure) {
   }
 };
 
-ord.pressure.loadMeasurement = function(measurement, node) {
+function loadMeasurement (measurement, node) {
   const type = measurement.getType();
   ord.reaction.setSelector($('.pressure_measurement_type', node), type);
   $('.pressure_measurement_details', node).text(measurement.getDetails());
@@ -55,7 +57,7 @@ ord.pressure.loadMeasurement = function(measurement, node) {
   ord.reaction.writeMetric('.pressure_measurement_time', time, node);
 };
 
-ord.pressure.unload = function() {
+function unload () {
   const pressure = new proto.ord.PressureConditions();
 
   const control = new proto.ord.PressureConditions.PressureControl();
@@ -82,7 +84,7 @@ ord.pressure.unload = function() {
   $('.pressure_measurement').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
-      const measurement = ord.pressure.unloadMeasurement(node);
+      const measurement = unloadMeasurement(node);
       if (!ord.reaction.isEmptyMessage(measurement)) {
         measurements.push(measurement);
       }
@@ -93,7 +95,7 @@ ord.pressure.unload = function() {
   return pressure;
 };
 
-ord.pressure.unloadMeasurement = function(node) {
+function unloadMeasurement (node) {
   const measurement = new proto.ord.PressureConditions.Measurement();
   const type = ord.reaction.getSelector($('.pressure_measurement_type', node));
   measurement.setType(type);
@@ -113,13 +115,13 @@ ord.pressure.unloadMeasurement = function(node) {
   return measurement;
 };
 
-ord.pressure.addMeasurement = function() {
+function addMeasurement () {
   return ord.reaction.addSlowly(
       '#pressure_measurement_template', '#pressure_measurements');
 };
 
-ord.pressure.validatePressure = function(node, validateNode) {
-  const pressure = ord.pressure.unload();
+function validatePressure (node, validateNode) {
+  const pressure = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
