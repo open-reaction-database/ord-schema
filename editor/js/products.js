@@ -14,17 +14,19 @@
  * limitations under the License.
  */
 
-goog.provide('ord.products');
+goog.module('ord.products');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, add, addIdentity, addYield, addPurity, addSelectivity, validateProduct};
 
 goog.require('ord.compounds');
 goog.require('proto.ord.ReactionProduct');
 
-ord.products.load = function(node, products) {
-  products.forEach(product => ord.products.loadProduct(node, product));
+function load (node, products) {
+  products.forEach(product => loadProduct(node, product));
 };
 
-ord.products.loadProduct = function(outcomeNode, product) {
-  const node = ord.products.add(outcomeNode);
+function loadProduct (outcomeNode, product) {
+  const node = add(outcomeNode);
 
   const compound = product.getCompound();
   if (compound) {
@@ -63,22 +65,22 @@ ord.products.loadProduct = function(outcomeNode, product) {
 
   const identities = product.getAnalysisIdentityList();
   identities.forEach(identity => {
-    const analysisNode = ord.products.addIdentity(node);
+    const analysisNode = addIdentity(node);
     $('.analysis_key_selector', analysisNode).val(identity);
   });
   const yields = product.getAnalysisYieldList();
   yields.forEach(yeild => {
-    const analysisNode = ord.products.addYield(node);
+    const analysisNode = addYield(node);
     $('.analysis_key_selector', analysisNode).val(yeild);
   });
   const purities = product.getAnalysisPurityList();
   purities.forEach(purity => {
-    const analysisNode = ord.products.addPurity(node);
+    const analysisNode = addPurity(node);
     $('.analysis_key_selector', analysisNode).val(purity);
   });
   const selectivities = product.getAnalysisSelectivityList();
   selectivities.forEach(selectivity => {
-    const analysisNode = ord.products.addSelectivity(node);
+    const analysisNode = addSelectivity(node);
     $('.analysis_key_selector', analysisNode).val(selectivity);
   });
   $('.outcome_product_color', node).text(product.getIsolatedColor());
@@ -91,13 +93,13 @@ ord.products.loadProduct = function(outcomeNode, product) {
   }
 };
 
-ord.products.unload = function(node) {
+function unload (node) {
   const products = [];
   $('.outcome_product', node).each(function(index, productNode) {
     productNode = $(productNode);
     if (!productNode.attr('id')) {
       // Not a template.
-      const product = ord.products.unloadProduct(productNode);
+      const product = unloadProduct(productNode);
       if (!ord.reaction.isEmptyMessage(product)) {
         products.push(product);
       }
@@ -106,7 +108,7 @@ ord.products.unload = function(node) {
   return products;
 };
 
-ord.products.unloadProduct = function(node) {
+function unloadProduct (node) {
   const product = new proto.ord.ReactionProduct();
 
   const compoundNode = $('.outcome_product_compound');
@@ -149,16 +151,16 @@ ord.products.unloadProduct = function(node) {
     product.setSelectivity(selectivity);
   }
 
-  const identities = ord.products.unloadAnalysisKeys(node, 'identity');
+  const identities = unloadAnalysisKeys(node, 'identity');
   product.setAnalysisIdentityList(identities);
 
-  const yields = ord.products.unloadAnalysisKeys(node, 'yield');
+  const yields = unloadAnalysisKeys(node, 'yield');
   product.setAnalysisYieldList(yields);
 
-  const purities = ord.products.unloadAnalysisKeys(node, 'purity');
+  const purities = unloadAnalysisKeys(node, 'purity');
   product.setAnalysisPurityList(purities);
 
-  const selectivities = ord.products.unloadAnalysisKeys(node, 'selectivity');
+  const selectivities = unloadAnalysisKeys(node, 'selectivity');
   product.setAnalysisSelectivityList(selectivities);
 
   const color = $('.outcome_product_color', node).text();
@@ -175,7 +177,7 @@ ord.products.unloadProduct = function(node) {
   return product;
 };
 
-ord.products.unloadAnalysisKeys = function(node, tag) {
+function unloadAnalysisKeys (node, tag) {
   const values = [];
   $('.outcome_product_analysis_' + tag, node).each(function(index, tagNode) {
     tagNode = $(tagNode);
@@ -190,7 +192,7 @@ ord.products.unloadAnalysisKeys = function(node, tag) {
   return values;
 };
 
-ord.products.add = function(node) {
+function add (node) {
   const productNode = ord.reaction.addSlowly(
       '#outcome_product_template', $('.outcome_products', node));
 
@@ -209,37 +211,37 @@ ord.products.add = function(node) {
 
   // Add live validation handling.
   ord.reaction.addChangeHandler(productNode, () => {
-    ord.products.validateProduct(productNode);
+    validateProduct(productNode);
   });
   return productNode;
 };
 
-ord.products.addIdentity = function(node) {
+function addIdentity (node) {
   return ord.reaction.addSlowly(
       '#outcome_product_analysis_identity_template',
       $('.outcome_product_analysis_identities', node));
 };
 
-ord.products.addYield = function(node) {
+function addYield (node) {
   return ord.reaction.addSlowly(
       '#outcome_product_analysis_yield_template',
       $('.outcome_product_analysis_yields', node));
 };
 
-ord.products.addPurity = function(node) {
+function addPurity (node) {
   return ord.reaction.addSlowly(
       '#outcome_product_analysis_purity_template',
       $('.outcome_product_analysis_purities', node));
 };
 
-ord.products.addSelectivity = function(node) {
+function addSelectivity (node) {
   return ord.reaction.addSlowly(
       '#outcome_product_analysis_selectivity_template',
       $('.outcome_product_analysis_selectivities', node));
 };
 
-ord.products.validateProduct = function(node, validateNode) {
-  const product = ord.products.unloadProduct(node);
+function validateProduct (node, validateNode) {
+  const product = unloadProduct(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
