@@ -14,17 +14,19 @@
  * limitations under the License.
  */
 
-goog.provide('ord.workups');
+goog.module('ord.workups');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, add, addMeasurement, validateWorkup};
 
 goog.require('ord.inputs');
 goog.require('proto.ord.ReactionWorkup');
 
-ord.workups.load = function(workups) {
-  workups.forEach(workup => ord.workups.loadWorkup(workup));
+function load (workups) {
+  workups.forEach(workup => loadWorkup(workup));
 };
 
-ord.workups.loadWorkup = function(workup) {
-  const node = ord.workups.add();
+function loadWorkup (workup) {
+  const node = add();
   ord.reaction.setSelector($('.workup_type', node), workup.getType());
   $('.workup_details', node).text(workup.getDetails());
   const duration = workup.getDuration();
@@ -51,7 +53,7 @@ ord.workups.loadWorkup = function(workup) {
     }
 
     temperature.getMeasurementsList().forEach(
-        measurement => ord.workups.loadMeasurement(node, measurement));
+        measurement => loadMeasurement(node, measurement));
   }
 
   $('.workup_keep_phase', node).text(workup.getKeepPhase());
@@ -83,8 +85,8 @@ ord.workups.loadWorkup = function(workup) {
       workup.hasIsAutomated() ? workup.getIsAutomated() : null);
 };
 
-ord.workups.loadMeasurement = function(workupNode, measurement) {
-  const node = ord.workups.addMeasurement(workupNode);
+function loadMeasurement (workupNode, measurement) {
+  const node = addMeasurement(workupNode);
   ord.reaction.setSelector(
       $('.workup_temperature_measurement_type', node), measurement.getType());
   $('.workup_temperature_measurement_details', node)
@@ -101,12 +103,12 @@ ord.workups.loadMeasurement = function(workupNode, measurement) {
   }
 };
 
-ord.workups.unload = function() {
+function unload () {
   const workups = [];
   $('.workup').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
-      const workup = ord.workups.unloadWorkup(node);
+      const workup = unloadWorkup(node);
       if (!ord.reaction.isEmptyMessage(workup)) {
         workups.push(workup);
       }
@@ -115,7 +117,7 @@ ord.workups.unload = function() {
   return workups;
 };
 
-ord.workups.unloadWorkup = function(node) {
+function unloadWorkup (node) {
   const workup = new proto.ord.ReactionWorkup();
 
   workup.setType(ord.reaction.getSelector($('.workup_type', node)));
@@ -155,7 +157,7 @@ ord.workups.unloadWorkup = function(node) {
     measurementNode = $(measurementNode);
     if (!measurementNode.attr('id')) {
       // Not a template.
-      const measurement = ord.workups.unloadMeasurement(measurementNode);
+      const measurement = unloadMeasurement(measurementNode);
       if (!ord.reaction.isEmptyMessage(measurement)) {
         measurements.push(measurement);
       }
@@ -202,7 +204,7 @@ ord.workups.unloadWorkup = function(node) {
   return workup;
 };
 
-ord.workups.unloadMeasurement = function(node) {
+function unloadMeasurement (node) {
   const measurement = new proto.ord.TemperatureConditions.Measurement();
   measurement.setType(ord.reaction.getSelector(
       $('.workup_temperature_measurement_type', node)));
@@ -222,7 +224,7 @@ ord.workups.unloadMeasurement = function(node) {
   return measurement;
 };
 
-ord.workups.add = function() {
+function add () {
   const workupNode = ord.reaction.addSlowly('#workup_template', '#workups');
   const inputNode = $('.workup_input', workupNode);
   // The template for ReactionWorkup.input is taken from Reaction.inputs.
@@ -241,20 +243,20 @@ ord.workups.add = function() {
 
   // Add live validation handling.
   ord.reaction.addChangeHandler(workupNode, () => {
-    ord.workups.validateWorkup(workupNode);
+    validateWorkup(workupNode);
   });
 
   return workupNode;
 };
 
-ord.workups.addMeasurement = function(node) {
+function addMeasurement (node) {
   return ord.reaction.addSlowly(
       '#workup_temperature_measurement_template',
       $('.workup_temperature_measurements', node));
 };
 
-ord.workups.validateWorkup = function(node, validateNode) {
-  const workup = ord.workups.unloadWorkup(node);
+function validateWorkup (node, validateNode) {
+  const workup = unloadWorkup(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
