@@ -14,33 +14,35 @@
  * limitations under the License.
  */
 
-goog.provide('ord.identifiers');
+goog.module('ord.identifiers');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, add};
 
 goog.require('ord.uploads');
 goog.require('proto.ord.ReactionIdentifier');
 
-ord.identifiers.load = function(identifiers) {
-  identifiers.forEach(identifier => ord.identifiers.loadIdentifier(identifier));
+function load(identifiers) {
+  identifiers.forEach(identifier => loadIdentifier(identifier));
   if (!(identifiers.length)) {
-    ord.identifiers.add();
+    add();
   }
 };
 
-ord.identifiers.loadIdentifier = function(identifier) {
-  const node = ord.identifiers.add();
+function loadIdentifier(identifier) {
+  const node = add();
   const value = identifier.getValue();
   $('.reaction_identifier_value', node).text(value);
   ord.reaction.setSelector(node, identifier.getType());
   $('.reaction_identifier_details', node).text(identifier.getDetails());
 };
 
-ord.identifiers.unload = function() {
+function unload () {
   const identifiers = [];
   $('.reaction_identifier').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
-      const identifier = ord.identifiers.unloadIdentifier(node);
+      const identifier = unloadIdentifier(node);
       if (!ord.reaction.isEmptyMessage(identifier)) {
         identifiers.push(identifier);
       }
@@ -49,7 +51,7 @@ ord.identifiers.unload = function() {
   return identifiers;
 };
 
-ord.identifiers.unloadIdentifier = function(node) {
+function unloadIdentifier (node) {
   const identifier = new proto.ord.ReactionIdentifier();
 
   const value = $('.reaction_identifier_value', node).text();
@@ -68,7 +70,7 @@ ord.identifiers.unloadIdentifier = function(node) {
   return identifier;
 };
 
-ord.identifiers.add = function() {
+function add () {
   const node =
       ord.reaction.addSlowly('#reaction_identifier_template', '#identifiers');
 
