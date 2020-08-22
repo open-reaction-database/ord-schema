@@ -14,16 +14,18 @@
  * limitations under the License.
  */
 
-goog.provide('ord.features');
+goog.module('ord.features');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, add};
 
 goog.require('proto.ord.Compound.Feature');
 
-ord.features.load = function(node, features) {
-  features.forEach(feature => ord.features.loadFeature(node, feature));
+function load(node, features) {
+  features.forEach(feature => loadFeature(node, feature));
 };
 
-ord.features.loadFeature = function(compoundNode, feature) {
-  const node = ord.features.add(compoundNode);
+function loadFeature(compoundNode, feature) {
+  const node = add(compoundNode);
   const name = feature.getName();
   $('.component_feature_name', node).text(name);
   const valueText = feature.getStringValue();
@@ -38,12 +40,12 @@ ord.features.loadFeature = function(compoundNode, feature) {
   $('.component_feature_how', node).text(how);
 };
 
-ord.features.unload = function(compoundNode) {
+function unload (compoundNode) {
   const features = [];
   $('.component_feature', compoundNode).each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
-      const feature = ord.features.unloadFeature(node);
+      const feature = unloadFeature(node);
       if (!ord.reaction.isEmptyMessage(feature)) {
         features.push(feature);
       }
@@ -52,7 +54,7 @@ ord.features.unload = function(compoundNode) {
   return features;
 };
 
-ord.features.unloadFeature = function(node) {
+function unloadFeature(node) {
   const feature = new proto.ord.Compound.Feature();
   const name = $('.component_feature_name', node).text();
   feature.setName(name);
@@ -73,7 +75,7 @@ ord.features.unloadFeature = function(node) {
   return feature;
 };
 
-ord.features.add = function(compoundNode) {
+function add(compoundNode) {
   return ord.reaction.addSlowly(
       '#component_feature_template', $('.features', compoundNode));
 };
