@@ -14,20 +14,22 @@
  * limitations under the License.
  */
 
-goog.provide('ord.observations');
+goog.module('ord.observations');
+goog.module.declareLegacyNamespace();
+exports = {load, unload, add, validateObservation};
 
 goog.require('proto.ord.ReactionObservation');
 
 // Freely create radio button groups by generating new input names.
-ord.observations.radioGroupCounter = 0;
+let radioGroupCounter = 0;
 
-ord.observations.load = function(observations) {
+function load (observations) {
   observations.forEach(
-      observation => ord.observations.loadObservation(observation));
+      observation => loadObservation(observation));
 };
 
-ord.observations.loadObservation = function(observation) {
-  const node = ord.observations.add();
+function loadObservation (observation) {
+  const node = add();
   ord.reaction.writeMetric('.observation_time', observation.getTime(), node);
 
   $('.observation_comment', node).text(observation.getComment());
@@ -66,13 +68,13 @@ ord.observations.loadObservation = function(observation) {
   }
 };
 
-ord.observations.unload = function() {
+function unload () {
   const observations = [];
   $('.observation').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template
-      const observation = ord.observations.unloadObservation(node);
+      const observation = unloadObservation(node);
       if (!ord.reaction.isEmptyMessage(observation)) {
         observations.push(observation);
       }
@@ -81,7 +83,7 @@ ord.observations.unload = function() {
   return observations;
 };
 
-ord.observations.unloadObservation = function(node) {
+function unloadObservation (node) {
   const observation = new proto.ord.ReactionObservation();
   const time =
       ord.reaction.readMetric('.observation_time', new proto.ord.Time(), node);
@@ -125,12 +127,12 @@ ord.observations.unloadObservation = function(node) {
   return observation;
 };
 
-ord.observations.add = function() {
+function add () {
   const node = ord.reaction.addSlowly('#observation_template', '#observations');
 
   const typeButtons = $('input[type=\'radio\']', node);
   typeButtons.attr(
-      'name', 'observations_' + ord.observations.radioGroupCounter++);
+      'name', 'observations_' + radioGroupCounter++);
   typeButtons.change(function() {
     if ((this.value == 'text') || (this.value == 'number') ||
         (this.value == 'url')) {
@@ -145,14 +147,14 @@ ord.observations.add = function() {
 
   // Add live validation handling.
   ord.reaction.addChangeHandler(node, () => {
-    ord.observations.validateObservation(node);
+    validateObservation(node);
   });
 
   return node;
 };
 
-ord.observations.validateObservation = function(node, validateNode) {
-  const observation = ord.observations.unloadObservation(node);
+function validateObservation (node, validateNode) {
+  const observation = unloadObservation(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
