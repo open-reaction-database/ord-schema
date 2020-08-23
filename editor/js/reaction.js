@@ -91,7 +91,7 @@ async function init(fileName, index) {
   loadReaction(reaction);
   clean();
   // Trigger reaction-level validation.
-  setTimeout(validateReaction, 1000);
+  validateReaction();
   // Signal to tests that the DOM is initialized.
   ready();
 }
