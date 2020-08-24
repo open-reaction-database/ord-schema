@@ -1,4 +1,3 @@
-#!/bin/bash
 # Copyright 2020 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,8 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+codecov:
+  require_ci_to_pass: yes
 
-export PYTHONPATH=py:../build/lib
-export FLASK_APP=serve.py
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
 
-python -m flask run "$@"
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: no
+
+github_checks:
+  annotations: false

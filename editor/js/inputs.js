@@ -75,7 +75,7 @@ ord.inputs.loadInputUnnamed = function(node, input) {
 };
 
 ord.inputs.unload = function(inputs) {
-  $('.input').each(function(index, node) {
+  $('#inputs > div.input').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
@@ -147,7 +147,9 @@ ord.inputs.unloadInputUnnamed = function(node) {
 ord.inputs.add = function(root) {
   const node = addSlowly('#input_template', root);
   // Add live validation handling.
-  addChangeHandler(node, () => {ord.inputs.validateInput(node)});
+  addChangeHandler(node, () => {
+    ord.inputs.validateInput(node);
+  });
   return node;
 };
 

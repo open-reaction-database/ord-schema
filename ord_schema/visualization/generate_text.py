@@ -34,12 +34,6 @@ from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
 from ord_schema.visualization import filters
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string('input_file', None, 'File containing a Reaction message.')
-flags.DEFINE_enum('type', 'text', ['text', 'html'],
-                  'Text or HTML output format.')
-flags.DEFINE_string('output', None, 'Filename for output Dataset.')
-
 # pylint: disable=redefined-outer-name
 with open(os.path.join(os.path.dirname(__file__), 'template.html'), 'r') as fid:
     _HTML_TEMPLATE = fid.read()
@@ -101,5 +95,12 @@ def main(argv):
 
 
 if __name__ == '__main__':
+    FLAGS = flags.FLAGS
+    flags.DEFINE_string('input_file', None,
+                        'File containing a Reaction message.')
+    flags.DEFINE_enum('type', 'text', ['text', 'html'],
+                      'Text or HTML output format.')
+    flags.DEFINE_string('output', None, 'Filename for output Dataset.')
+
     flags.mark_flag_as_required('input_file')
     app.run(main)

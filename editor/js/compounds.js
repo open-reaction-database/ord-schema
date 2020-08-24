@@ -36,7 +36,7 @@ ord.compounds.loadCompound = function(root, compound) {
 ord.compounds.loadIntoCompound = function(node, compound) {
   const reactionRole = compound.getReactionRole();
   setSelector($('.component_reaction_role', node), reactionRole);
-  $('.component_reaction_role', node).trigger('change')
+  $('.component_reaction_role', node).trigger('change');
 
   const isLimiting = compound.hasIsLimiting() ? compound.getIsLimiting() : null;
   setOptionalBool($('.component_limiting', node), isLimiting);
@@ -116,7 +116,7 @@ ord.compounds.unloadCompound = function(node) {
   compound.setReactionRole(reactionRole);
 
   // Only call setIsLimiting if this is a reactant Compound.
-  if (getSelectorText($('.component_reaction_role', node)[0]) == 'REACTANT') {
+  if (getSelectorText($('.component_reaction_role', node)[0]) === 'REACTANT') {
     const isLimiting = getOptionalBool($('.component_limiting', node));
     compound.setIsLimiting(isLimiting);
   }
@@ -206,10 +206,10 @@ ord.compounds.add = function(root) {
   // Connect reaction role selection to limiting reactant field.
   const roleSelector = $('.component_reaction_role', node);
   roleSelector.change(function() {
-    if (getSelectorText(this) == 'REACTANT') {
-      $('.limiting_reactant').show();
+    if (getSelectorText(this) === 'REACTANT') {
+      $('.limiting_reactant', node).show();
     } else {
-      $('.limiting_reactant').hide();
+      $('.limiting_reactant', node).hide();
     }
   });
 
@@ -219,21 +219,23 @@ ord.compounds.add = function(root) {
   amountButtons.change(function() {
     $('.amount .selector', node).hide();
     if (this.value == 'mass') {
-      $('.component_amount_units_mass', root).show();
-      $('.includes_solutes', root).hide();
+      $('.component_amount_units_mass', node).show();
+      $('.includes_solutes', node).hide();
     }
     if (this.value == 'moles') {
-      $('.component_amount_units_moles', root).show();
-      $('.includes_solutes', root).hide();
+      $('.component_amount_units_moles', node).show();
+      $('.includes_solutes', node).hide();
     }
     if (this.value == 'volume') {
-      $('.component_amount_units_volume', root).show();
-      $('.includes_solutes', root).show().css('display', 'inline-block');
+      $('.component_amount_units_volume', node).show();
+      $('.includes_solutes', node).show().css('display', 'inline-block');
     }
   });
 
   // Add live validation handling.
-  addChangeHandler(node, () => {ord.compounds.validateCompound(node)});
+  addChangeHandler(node, () => {
+    ord.compounds.validateCompound(node);
+  });
 
   return node;
 };
@@ -280,7 +282,8 @@ ord.compounds.addNameIdentifier = function(node) {
       identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
       identifier.setDetails('NAME resolved by the ' + resolver);
       ord.compounds.loadIdentifier(node, identifier);
-    };
+    }
+    ord.compounds.validateCompound(node);
   };
   xhr.send(name);
 };
@@ -326,7 +329,7 @@ ord.compounds.drawIdentifier = function(node) {
           // it.
           ketcherModal.off('shown.bs.modal');
           ketcher.setMolecule(molblock);
-        })
+        });
       }
     }
     // Now that we're done with (trying to) loading the molecule, hide the
@@ -364,7 +367,8 @@ ord.compounds.drawIdentifier = function(node) {
       identifier.setValue(ketcher.getMolfile());
       ord.compounds.loadIdentifier(node, identifier);
     }
-  }
+    ord.compounds.validateCompound(node);
+  };
 };
 
 ord.compounds.addPreparation = function(node) {
@@ -383,7 +387,7 @@ ord.compounds.addPreparation = function(node) {
     }
   });
 
-  return PreparationNode
+  return PreparationNode;
 };
 
 // Update the image tag with a drawing of this component.
@@ -396,7 +400,9 @@ ord.compounds.renderCompound = function(node, compound) {
     const png_data = xhr.response;
     if (png_data) {
       $('.component_rendering', node)[0].src = 'data:image/png;base64,' + png_data;
-    };
+    } else {
+      $('.component_rendering', node)[0].src = '';
+    }
   };
   xhr.send(binary);
 };

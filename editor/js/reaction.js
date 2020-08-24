@@ -58,13 +58,14 @@ async function init(fileName, index) {
   listen('body');
   // Load Ketcher content into an element with attribute role="application".
   document.getElementById('ketcher-iframe').contentWindow.ketcher.initKetcher();
-
   // Fetch the Dataset containing the Reaction proto.
   session.dataset = await getDataset(fileName);
   // Initialize the UI with the Reaction.
   const reaction = session.dataset.getReactionsList()[index];
   loadReaction(reaction);
   clean();
+  // Trigger reaction-level validation.
+  setTimeout(validateReaction, 1000);
   // Signal to tests that the DOM is initialized.
   ready();
 }
@@ -128,7 +129,7 @@ function validate(message, messageTypeString, validateNode) {
     statusNode.css('backgroundColor', null);
     statusNode.text('');
     if (errors.length) {
-      statusNode.addClass('fa fa-exclamation-triangle')
+      statusNode.addClass('fa fa-exclamation-triangle');
       statusNode.css('color', 'red');
       statusNode.text(' ' + errors.length);
 
@@ -141,7 +142,7 @@ function validate(message, messageTypeString, validateNode) {
       }
       messageNode.css('backgroundColor', 'pink');
     } else {
-      statusNode.addClass('fa fa-check')
+      statusNode.addClass('fa fa-check');
       statusNode.css('color', 'green');
 
       messageNode.html('');
@@ -162,7 +163,20 @@ function toggleValidateMessage(node) {
       messageNode.css('visibility', 'visible');
       break;
   }
-};
+}
+
+// Update the visual summary of this reaction.
+function renderReaction(reaction) {
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/render/reaction');
+  const binary = reaction.serializeBinary();
+  xhr.responseType = 'json';
+  xhr.onload = function() {
+    const html_block = xhr.response;
+    $('#reaction_render').html(html_block);
+  };
+  xhr.send(binary);
+}
 
 function validateReaction() {
   var validateNode = $('#reaction_validate');
@@ -170,6 +184,8 @@ function validateReaction() {
   validate(reaction, 'Reaction', validateNode);
   // Trigger all submessages to validate.
   $('.validate_button:visible:not(#reaction_validate_button)').trigger('click');
+  // Render reaction as an HTML block.
+  renderReaction(reaction);
 }
 
 function commit() {
@@ -382,7 +398,7 @@ function removeSlowly(button, pattern) {
   node.parents('fieldset').each(function() {
     buttonsToClick =
         buttonsToClick.add($(this).children('legend').find('.validate_button'));
-  })
+  });
   node.hide('slow', function() {
     node.remove();
     buttonsToClick.trigger('click');
@@ -464,7 +480,7 @@ function setTextFromFile(identifierNode, valueClass) {
     reader.onload = readerEvent => {
       const contents = readerEvent.target.result;
       $('.' + valueClass, identifierNode).text(contents);
-    }
+    };
   });
   input.click();
 }
@@ -576,53 +592,63 @@ function initValidateNode(oldNode) {
 function initValidateHandlers() {
   // For setup
   var setupNode = $('#section_setup');
-  addChangeHandler(setupNode, () => {ord.setups.validateSetup(setupNode)});
+  addChangeHandler(setupNode, () => {
+    ord.setups.validateSetup(setupNode);
+  });
 
   // For conditions
   var conditionNode = $('#section_conditions');
-  addChangeHandler(
-      conditionNode, () => {ord.conditions.validateConditions(conditionNode)});
+  addChangeHandler(conditionNode, () => {
+    ord.conditions.validateConditions(conditionNode);
+  });
 
   // For temperature
   var temperatureNode = $('#section_conditions_temperature');
-  addChangeHandler(
-      temperatureNode,
-      () => {ord.temperature.validateTemperature(temperatureNode)});
+  addChangeHandler(temperatureNode, () => {
+    ord.temperature.validateTemperature(temperatureNode);
+  });
 
   // For pressure
   var pressureNode = $('#section_conditions_pressure');
-  addChangeHandler(
-      pressureNode, () => {ord.pressure.validatePressure(pressureNode)});
+  addChangeHandler(pressureNode, () => {
+    ord.pressure.validatePressure(pressureNode);
+  });
 
   // For stirring
   var stirringNode = $('#section_conditions_stirring');
-  addChangeHandler(
-      stirringNode, () => {ord.stirring.validateStirring(stirringNode)});
+  addChangeHandler(stirringNode, () => {
+    ord.stirring.validateStirring(stirringNode);
+  });
 
   // For illumination
   var illuminationNode = $('#section_conditions_illumination');
-  addChangeHandler(
-      illuminationNode,
-      () => {ord.illumination.validateIllumination(illuminationNode)});
+  addChangeHandler(illuminationNode, () => {
+    ord.illumination.validateIllumination(illuminationNode);
+  });
 
   // For electro
   var electroNode = $('#section_conditions_electro');
-  addChangeHandler(
-      electroNode, () => {ord.electro.validateElectro(electroNode)});
+  addChangeHandler(electroNode, () => {
+    ord.electro.validateElectro(electroNode);
+  });
 
   // For flow
   var flowNode = $('#section_conditions_flow');
-  addChangeHandler(flowNode, () => {ord.flows.validateFlow(flowNode)});
+  addChangeHandler(flowNode, () => {
+    ord.flows.validateFlow(flowNode);
+  });
 
   // For notes
   var notesNode = $('#section_notes');
-  addChangeHandler(notesNode, () => {ord.notes.validateNotes(notesNode)});
+  addChangeHandler(notesNode, () => {
+    ord.notes.validateNotes(notesNode);
+  });
 
   // For provenance
   var provenanceNode = $('#section_provenance');
-  addChangeHandler(
-      provenanceNode,
-      () => {ord.provenance.validateProvenance(provenanceNode)});
+  addChangeHandler(provenanceNode, () => {
+    ord.provenance.validateProvenance(provenanceNode);
+  });
 }
 
 // Convert a Message_Field name from a data-proto attribute into a proto class.

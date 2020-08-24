@@ -15,15 +15,42 @@
 FROM continuumio/miniconda3
 WORKDIR /usr/src/app
 
+RUN apt-get update && apt-get install --yes build-essential procps unzip
 RUN conda install -c rdkit rdkit
-COPY package/ord/requirements.txt .
+RUN conda install flask nodejs
+
+# Fetch/build editor dependencies.
+RUN git clone https://github.com/Open-Reaction-Database/ketcher.git
+WORKDIR ketcher
+RUN npm install && npm run build
+WORKDIR ..
+RUN wget https://github.com/google/closure-library/archive/v20200517.tar.gz
+RUN tar -xzf v20200517.tar.gz
+RUN wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
+RUN tar -xzf editor_test_protobuf_1dae8fdd.tar
+
+RUN git clone https://github.com/Open-Reaction-Database/ord-schema.git
+RUN mv closure-library-20200517 ord-schema/editor/
+RUN mv ketcher ord-schema/editor/
+RUN mv protobuf ord-schema/editor/
+
+WORKDIR ord-schema
+# Bust the cache to get the latest commits; see
+# https://stackoverflow.com/a/39278224.
+ADD https://api.github.com/repos/Open-Reaction-Database/ord-schema/git/refs/heads/main ord-schema-version.json
+RUN git pull
 RUN pip install -r requirements.txt
-RUN pip install Flask protobuf
+RUN python setup.py install
 
-# First run "make package".
-COPY package/ord.tgz .
-RUN tar zxf ord.tgz
+# Build the editor.
+WORKDIR editor
+# Uncomment these lines to copy over any local changes in ord-schema/editor.
+#COPY css/*.css css/
+#COPY html/*.html html/
+#COPY js/*.js js/
+#COPY py/*.py py/
+RUN make
 
-WORKDIR /usr/src/app/ord
 EXPOSE 5000
-CMD ./serve.sh --host=0.0.0.0
+RUN pip install gunicorn
+CMD gunicorn py.serve:app -b 0.0.0.0:5000 --access-logfile '-'

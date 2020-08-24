@@ -206,8 +206,9 @@ ord.products.add = function(node) {
   $('.component .vendor', productNode).hide();
 
   // Add live validation handling.
-  addChangeHandler(
-      productNode, () => {ord.products.validateProduct(productNode)});
+  addChangeHandler(productNode, () => {
+    ord.products.validateProduct(productNode);
+  });
   return productNode;
 };
 
