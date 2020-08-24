@@ -154,13 +154,14 @@ class Predicate:
         """
 
     def json(self):
+        """Serialize this Predicate for transmission to the web client."""
         predicate = {}
         if self.inputs:
             inputs = []
-            for input in self.inputs:
+            for inpt in self.inputs:
                 inputs.append({
-                    'smiles': input[0],
-                    'matchMode': input[1].name.lower()
+                    'smiles': inpt[0],
+                    'matchMode': inpt[1].name.lower()
                 })
             predicate['inputs'] = inputs
         if self.output:

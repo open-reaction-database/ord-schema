@@ -95,8 +95,8 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
         predicate.set_tanimoto_threshold(0.1)
         results = self.postgres.predicate_search_ids(predicate)
         self.assertTrue(len(results) > 0)
-        for r in reaction_ids:
-            self.assertTrue(r in results)
+        for reaction_id in reaction_ids:
+            self.assertTrue(reaction_id in results)
 
     @parameterized.named_parameters(('smiles', 'C', False),
                                     ('smarts', '[#6]', True))
