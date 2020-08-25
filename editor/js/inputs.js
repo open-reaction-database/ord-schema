@@ -14,7 +14,16 @@
  * limitations under the License.
  */
 
-goog.provide('ord.inputs');
+goog.module('ord.inputs');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  loadInputUnnamed,
+  unload,
+  unloadInputUnnamed,
+  add,
+  validateInput
+};
 
 goog.require('ord.compounds');
 goog.require('ord.crudes');
@@ -22,21 +31,21 @@ goog.require('proto.ord.FlowRate');
 goog.require('proto.ord.ReactionInput');
 goog.require('proto.ord.Time');
 
-ord.inputs.load = function(inputs) {
+function load(inputs) {
   const names = inputs.stringKeys_();
   names.forEach(function(name) {
     const input = inputs.get(name);
-    ord.inputs.loadInput('#inputs', name, input);
+    loadInput('#inputs', name, input);
   });
-};
+}
 
-ord.inputs.loadInput = function(root, name, input) {
-  const node = ord.inputs.add(root);
-  ord.inputs.loadInputUnnamed(node, input);
+function loadInput(root, name, input) {
+  const node = add(root);
+  loadInputUnnamed(node, input);
   $('.input_name', node).text(name);
-};
+}
 
-ord.inputs.loadInputUnnamed = function(node, input) {
+function loadInputUnnamed(node, input) {
   const compounds = input.getComponentsList();
   ord.compounds.load(node, compounds);
 
@@ -50,58 +59,60 @@ ord.inputs.loadInputUnnamed = function(node, input) {
 
   const additionTime = input.getAdditionTime();
   if (additionTime) {
-    writeMetric('.input_addition_time', additionTime, node);
+    ord.reaction.writeMetric('.input_addition_time', additionTime, node);
   }
   const additionSpeed = input.getAdditionSpeed();
   if (additionSpeed) {
-    setSelector($('.input_addition_speed_type', node), additionSpeed.getType());
+    ord.reaction.setSelector(
+        $('.input_addition_speed_type', node), additionSpeed.getType());
     $('.input_addition_speed_details', node).text(additionSpeed.getDetails());
   }
   const additionDevice = input.getAdditionDevice();
   if (additionDevice) {
-    setSelector(
+    ord.reaction.setSelector(
         $('.input_addition_device_type', node), additionDevice.getType());
     $('.input_addition_device_details', node).text(additionDevice.getDetails());
   }
   const duration = input.getAdditionDuration();
   if (duration) {
-    writeMetric('.input_addition_duration', duration, node);
+    ord.reaction.writeMetric('.input_addition_duration', duration, node);
   }
   const flowRate = input.getFlowRate();
   if (flowRate) {
-    writeMetric('.input_flow_rate', flowRate, node);
+    ord.reaction.writeMetric('.input_flow_rate', flowRate, node);
   }
   return node;
-};
+}
 
-ord.inputs.unload = function(inputs) {
+function unload(inputs) {
   $('#inputs > div.input').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
-      ord.inputs.unloadInput(inputs, node);
+      unloadInput(inputs, node);
     }
   });
-};
+}
 
-ord.inputs.unloadInput = function(inputs, node) {
+function unloadInput(inputs, node) {
   const name = $('.input_name', node).text();
-  const input = ord.inputs.unloadInputUnnamed(node);
-  if (!isEmptyMessage(input) || !isEmptyMessage(name)) {
+  const input = unloadInputUnnamed(node);
+  if (!ord.reaction.isEmptyMessage(input) ||
+      !ord.reaction.isEmptyMessage(name)) {
     inputs.set(name, input);
   }
-};
+}
 
-ord.inputs.unloadInputUnnamed = function(node) {
+function unloadInputUnnamed(node) {
   const input = new proto.ord.ReactionInput();
 
   const compounds = ord.compounds.unload(node);
-  if (!isEmptyMessage(compounds)) {
+  if (!ord.reaction.isEmptyMessage(compounds)) {
     input.setComponentsList(compounds);
   }
 
   const crudes = ord.crudes.unload(node);
-  if (!isEmptyMessage(crudes)) {
+  if (!ord.reaction.isEmptyMessage(crudes)) {
     input.setCrudeComponentsList(crudes);
   }
 
@@ -109,54 +120,56 @@ ord.inputs.unloadInputUnnamed = function(node) {
   if (!isNaN(additionOrder)) {
     input.setAdditionOrder(additionOrder);
   }
-  const additionTime =
-      readMetric('.input_addition_time', new proto.ord.Time(), node);
-  if (!isEmptyMessage(additionTime)) {
+  const additionTime = ord.reaction.readMetric(
+      '.input_addition_time', new proto.ord.Time(), node);
+  if (!ord.reaction.isEmptyMessage(additionTime)) {
     input.setAdditionTime(additionTime);
   }
 
   const additionSpeed = new proto.ord.ReactionInput.AdditionSpeed();
-  additionSpeed.setType(getSelector($('.input_addition_speed_type', node)));
+  additionSpeed.setType(
+      ord.reaction.getSelector($('.input_addition_speed_type', node)));
   additionSpeed.setDetails($('.input_addition_speed_details', node).text());
-  if (!isEmptyMessage(additionSpeed)) {
+  if (!ord.reaction.isEmptyMessage(additionSpeed)) {
     input.setAdditionSpeed(additionSpeed);
   }
 
   const additionDevice = new proto.ord.ReactionInput.AdditionDevice();
-  additionDevice.setType(getSelector($('.input_addition_device_type', node)));
+  additionDevice.setType(
+      ord.reaction.getSelector($('.input_addition_device_type', node)));
   additionDevice.setDetails($('.input_addition_device_details', node).text());
-  if (!isEmptyMessage(additionDevice)) {
+  if (!ord.reaction.isEmptyMessage(additionDevice)) {
     input.setAdditionDevice(additionDevice);
   }
 
-  const additionDuration =
-      readMetric('.input_addition_duration', new proto.ord.Time(), node);
-  if (!isEmptyMessage(additionDuration)) {
+  const additionDuration = ord.reaction.readMetric(
+      '.input_addition_duration', new proto.ord.Time(), node);
+  if (!ord.reaction.isEmptyMessage(additionDuration)) {
     input.setAdditionDuration(additionDuration);
   }
 
-  const flowRate =
-      readMetric('.input_flow_rate', new proto.ord.FlowRate(), node);
-  if (!isEmptyMessage(flowRate)) {
+  const flowRate = ord.reaction.readMetric(
+      '.input_flow_rate', new proto.ord.FlowRate(), node);
+  if (!ord.reaction.isEmptyMessage(flowRate)) {
     input.setFlowRate(flowRate);
   }
 
   return input;
-};
+}
 
-ord.inputs.add = function(root) {
-  const node = addSlowly('#input_template', root);
+function add(root) {
+  const node = ord.reaction.addSlowly('#input_template', root);
   // Add live validation handling.
-  addChangeHandler(node, () => {
-    ord.inputs.validateInput(node);
+  ord.reaction.addChangeHandler(node, () => {
+    validateInput(node);
   });
   return node;
-};
+}
 
-ord.inputs.validateInput = function(node, validateNode) {
-  const input = ord.inputs.unloadInputUnnamed(node);
+function validateInput(node, validateNode) {
+  const input = unloadInputUnnamed(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(input, 'ReactionInput', validateNode);
-};
+  ord.reaction.validate(input, 'ReactionInput', validateNode);
+}

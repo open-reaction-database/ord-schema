@@ -14,13 +14,19 @@
  * limitations under the License.
  */
 
-goog.provide('ord.amounts');
+goog.module('ord.amounts');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload,
+  unloadVolume
+};
 
 goog.require('proto.ord.Mass');
 goog.require('proto.ord.Moles');
 goog.require('proto.ord.Volume');
 
-ord.amounts.load = function(node, mass, moles, volume) {
+function load(node, mass, moles, volume) {
   const amount = $('.amount', node);
   $('.component_amount_units_mass', node).hide();
   $('.component_amount_units_moles', node).hide();
@@ -35,7 +41,8 @@ ord.amounts.load = function(node, mass, moles, volume) {
       $('.component_amount_precision', node).text(mass.getPrecision());
     }
     $('.component_amount_units_mass', node).show();
-    setSelector($('.component_amount_units_mass', amount), mass.getUnits());
+    ord.reaction.setSelector(
+        $('.component_amount_units_mass', amount), mass.getUnits());
   }
   if (moles) {
     $('input[value=\'moles\']', amount).prop('checked', true);
@@ -46,7 +53,8 @@ ord.amounts.load = function(node, mass, moles, volume) {
       $('.component_amount_precision', node).text(moles.getPrecision());
     }
     $('.component_amount_units_moles', node).show();
-    setSelector($('.component_amount_units_moles', amount), moles.getUnits());
+    ord.reaction.setSelector(
+        $('.component_amount_units_moles', amount), moles.getUnits());
   }
   if (volume) {
     $('input[value=\'volume\']', amount).prop('checked', true);
@@ -58,32 +66,33 @@ ord.amounts.load = function(node, mass, moles, volume) {
     }
     $('.component_amount_units_volume', node).show();
     $('.includes_solutes', node).show().css('display', 'inline-block');
-    setSelector($('.component_amount_units_volume', amount), volume.getUnits());
+    ord.reaction.setSelector(
+        $('.component_amount_units_volume', amount), volume.getUnits());
   }
-};
+}
 
-ord.amounts.unload = function(node, compound) {
-  const mass = ord.amounts.unloadMass(node);
-  const moles = ord.amounts.unloadMoles(node);
-  const volume = ord.amounts.unloadVolume(node);
+function unload(node, compound) {
+  const mass = unloadMass(node);
+  const moles = unloadMoles(node);
+  const volume = unloadVolume(node);
   if (mass) {
-    if (!isEmptyMessage(mass)) {
+    if (!ord.reaction.isEmptyMessage(mass)) {
       compound.setMass(mass);
     }
   }
   if (moles) {
-    if (!isEmptyMessage(moles)) {
+    if (!ord.reaction.isEmptyMessage(moles)) {
       compound.setMoles(moles);
     }
   }
   if (volume) {
-    if (!isEmptyMessage(volume)) {
+    if (!ord.reaction.isEmptyMessage(volume)) {
       compound.setVolume(volume);
     }
   }
-};
+}
 
-ord.amounts.unloadMass = function(node) {
+function unloadMass(node) {
   if (!$('.component_amount_mass', node).is(':checked')) {
     return null;
   }
@@ -92,16 +101,17 @@ ord.amounts.unloadMass = function(node) {
   if (!isNaN(value)) {
     mass.setValue(value);
   }
-  const units = getSelector($('.component_amount_units_mass', node));
+  const units =
+      ord.reaction.getSelector($('.component_amount_units_mass', node));
   mass.setUnits(units);
   const precision = parseFloat($('.component_amount_precision', node).text());
   if (!isNaN(precision)) {
     mass.setPrecision(precision);
   }
   return mass;
-};
+}
 
-ord.amounts.unloadMoles = function(node) {
+function unloadMoles(node) {
   if (!$('.component_amount_moles', node).is(':checked')) {
     return null;
   }
@@ -110,16 +120,17 @@ ord.amounts.unloadMoles = function(node) {
   if (!isNaN(value)) {
     moles.setValue(value);
   }
-  const units = getSelector($('.component_amount_units_moles', node));
+  const units =
+      ord.reaction.getSelector($('.component_amount_units_moles', node));
   moles.setUnits(units);
   const precision = parseFloat($('.component_amount_precision', node).text());
   if (!isNaN(precision)) {
     moles.setPrecision(precision);
   }
   return moles;
-};
+}
 
-ord.amounts.unloadVolume = function(node) {
+function unloadVolume(node) {
   if (!$('.component_amount_volume', node).is(':checked')) {
     return null;
   }
@@ -128,11 +139,12 @@ ord.amounts.unloadVolume = function(node) {
   if (!isNaN(value)) {
     volume.setValue(value);
   }
-  const units = getSelector($('.component_amount_units_volume', node));
+  const units =
+      ord.reaction.getSelector($('.component_amount_units_volume', node));
   volume.setUnits(units);
   const precision = parseFloat($('.component_amount_precision', node).text());
   if (!isNaN(precision)) {
     volume.setPrecision(precision);
   }
   return volume;
-};
+}

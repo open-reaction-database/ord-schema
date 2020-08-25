@@ -14,48 +14,60 @@
  * limitations under the License.
  */
 
-goog.provide('ord.outcomes');
+goog.module('ord.outcomes');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload,
+  add,
+  addAnalysis,
+  addProcess,
+  addRaw,
+  validateOutcome,
+  validateAnalysis
+};
 
 goog.require('ord.products');
-
 goog.require('proto.ord.ReactionOutcome');
 
 // Freely create radio button groups by generating new input names.
-ord.outcomes.radioGroupCounter = 0;
+let radioGroupCounter = 0;
 
-ord.outcomes.load = function(outcomes) {
-  outcomes.forEach(outcome => ord.outcomes.loadOutcome(outcome));
-};
+function load(outcomes) {
+  outcomes.forEach(outcome => loadOutcome(outcome));
+}
 
-ord.outcomes.loadOutcome = function(outcome) {
-  const node = ord.outcomes.add();
+function loadOutcome(outcome) {
+  const node = add();
 
   const time = outcome.getReactionTime();
   if (time != null) {
-    writeMetric('.outcome_time', time, node);
+    ord.reaction.writeMetric('.outcome_time', time, node);
   }
   const conversion = outcome.getConversion();
   if (conversion) {
-    writeMetric('.outcome_conversion', outcome.getConversion(), node);
+    ord.reaction.writeMetric(
+        '.outcome_conversion', outcome.getConversion(), node);
   }
 
   const analyses = outcome.getAnalysesMap();
   const names = analyses.stringKeys_();
   names.forEach(function(name) {
     const analysis = analyses.get(name);
-    ord.outcomes.loadAnalysis(node, name, analysis);
+    loadAnalysis(node, name, analysis);
   });
 
   const products = outcome.getProductsList();
   ord.products.load(node, products);
-};
+}
 
-ord.outcomes.loadAnalysis = function(analysesNode, name, analysis) {
-  const node = ord.outcomes.addAnalysis(analysesNode);
+function loadAnalysis(analysesNode, name, analysis) {
+  const node = addAnalysis(analysesNode);
 
   $('.outcome_analysis_name', node).text(name).trigger('input');
 
-  setSelector($('.outcome_analysis_type', node), analysis.getType());
+  ord.reaction.setSelector(
+      $('.outcome_analysis_type', node), analysis.getType());
   const chmoId = analysis.getChmoId();
   if (chmoId != 0) {
     $('.outcome_analysis_chmo_id', node).text(analysis.getChmoId());
@@ -66,16 +78,16 @@ ord.outcomes.loadAnalysis = function(analysesNode, name, analysis) {
   const processNames = processes.stringKeys_();
   processNames.forEach(function(name) {
     const process = processes.get(name);
-    const processNode = ord.outcomes.addProcess(node);
-    ord.outcomes.loadProcess(processNode, name, process);
+    const processNode = addProcess(node);
+    loadProcess(processNode, name, process);
   });
 
   const raws = analysis.getRawDataMap();
   const rawNames = raws.stringKeys_();
   rawNames.forEach(function(name) {
     const raw = raws.get(name);
-    const rawNode = ord.outcomes.addRaw(node);
-    ord.outcomes.loadRaw(rawNode, name, raw);
+    const rawNode = addRaw(node);
+    loadRaw(rawNode, name, raw);
   });
   $('.outcome_analysis_manufacturer', node)
       .text(analysis.getInstrumentManufacturer());
@@ -83,18 +95,18 @@ ord.outcomes.loadAnalysis = function(analysesNode, name, analysis) {
   if (calibrated) {
     $('.outcome_analysis_calibrated', node).text(calibrated.getValue());
   }
-  setOptionalBool(
+  ord.reaction.setOptionalBool(
       $('.outcome_analysis_internal_standard', node),
       analysis.hasUsesInternalStandard() ? analysis.getUsesInternalStandard() :
                                            null);
-  setOptionalBool(
+  ord.reaction.setOptionalBool(
       $('.outcome_analysis_authentic_standard', node),
       analysis.hasUsesAuthenticStandard() ?
           analysis.getUsesAuthenticStandard() :
           null);
-};
+}
 
-ord.outcomes.loadProcess = function(node, name, process) {
+function loadProcess(node, name, process) {
   $('.outcome_process_name', node).text(name);
   $('.outcome_process_description', node).text(process.getDescription());
   $('.outcome_process_format', node).text(process.getFormat());
@@ -127,9 +139,9 @@ ord.outcomes.loadProcess = function(node, name, process) {
     $('.outcome_process_text', node).text(url);
     $('input[value=\'url\']', node).prop('checked', true);
   }
-};
+}
 
-ord.outcomes.loadRaw = function(node, name, raw) {
+function loadRaw(node, name, raw) {
   $('.outcome_raw_name', node).text(name);
   $('.outcome_raw_description', node).text(raw.getDescription());
   $('.outcome_raw_format', node).text(raw.getFormat());
@@ -162,34 +174,35 @@ ord.outcomes.loadRaw = function(node, name, raw) {
     $('.outcome_raw_text', node).text(url);
     $('input[value=\'url\']', node).prop('checked', true);
   }
-};
+}
 
-ord.outcomes.unload = function() {
+function unload() {
   const outcomes = [];
   $('.outcome').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
-      const outcome = ord.outcomes.unloadOutcome(node);
-      if (!isEmptyMessage(outcome)) {
+      const outcome = unloadOutcome(node);
+      if (!ord.reaction.isEmptyMessage(outcome)) {
         outcomes.push(outcome);
       }
     }
   });
   return outcomes;
-};
+}
 
-ord.outcomes.unloadOutcome = function(node) {
+function unloadOutcome(node) {
   const outcome = new proto.ord.ReactionOutcome();
 
-  const time = readMetric('.outcome_time', new proto.ord.Time(), node);
-  if (!isEmptyMessage(time)) {
+  const time =
+      ord.reaction.readMetric('.outcome_time', new proto.ord.Time(), node);
+  if (!ord.reaction.isEmptyMessage(time)) {
     outcome.setReactionTime(time);
   }
 
-  const conversion =
-      readMetric('.outcome_conversion', new proto.ord.Percentage(), node);
-  if (!isEmptyMessage(conversion)) {
+  const conversion = ord.reaction.readMetric(
+      '.outcome_conversion', new proto.ord.Percentage(), node);
+  if (!ord.reaction.isEmptyMessage(conversion)) {
     outcome.setConversion(conversion);
   }
 
@@ -201,15 +214,16 @@ ord.outcomes.unloadOutcome = function(node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
-      ord.outcomes.unloadAnalysis(node, analyses);
+      unloadAnalysis(node, analyses);
     }
   });
   return outcome;
-};
+}
 
-ord.outcomes.unloadAnalysisSingle = function(analysisNode) {
+function unloadAnalysisSingle(analysisNode) {
   const analysis = new proto.ord.ReactionAnalysis();
-  analysis.setType(getSelector($('.outcome_analysis_type', analysisNode)));
+  analysis.setType(
+      ord.reaction.getSelector($('.outcome_analysis_type', analysisNode)));
   const chmoId = $('.outcome_analysis_chmo_id', analysisNode).text();
   if (!isNaN(chmoId)) {
     analysis.setChmoId(chmoId);
@@ -220,40 +234,41 @@ ord.outcomes.unloadAnalysisSingle = function(analysisNode) {
   $('.outcome_process', analysisNode).each(function(index, processNode) {
     processNode = $(processNode);
     if (!processNode.attr('id')) {
-      ord.outcomes.unloadProcess(processNode, processes);
+      unloadProcess(processNode, processes);
     }
   });
   const raws = analysis.getRawDataMap();
   $('.outcome_raw', analysisNode).each(function(index, rawNode) {
     rawNode = $(rawNode);
     if (!rawNode.attr('id')) {
-      ord.outcomes.unloadRaw(rawNode, raws);
+      unloadRaw(rawNode, raws);
     }
   });
   analysis.setInstrumentManufacturer(
       $('.outcome_analysis_manufacturer', analysisNode).text());
   const calibrated = new proto.ord.DateTime();
   calibrated.setValue($('.outcome_analysis_calibrated', analysisNode).text());
-  if (!isEmptyMessage(calibrated)) {
+  if (!ord.reaction.isEmptyMessage(calibrated)) {
     analysis.setInstrumentLastCalibrated(calibrated);
   }
-  analysis.setUsesInternalStandard(
-      getOptionalBool($('.outcome_analysis_internal_standard', analysisNode)));
-  analysis.setUsesAuthenticStandard(
-      getOptionalBool($('.outcome_analysis_authentic_standard', analysisNode)));
+  analysis.setUsesInternalStandard(ord.reaction.getOptionalBool(
+      $('.outcome_analysis_internal_standard', analysisNode)));
+  analysis.setUsesAuthenticStandard(ord.reaction.getOptionalBool(
+      $('.outcome_analysis_authentic_standard', analysisNode)));
 
   return analysis;
-};
+}
 
-ord.outcomes.unloadAnalysis = function(analysisNode, analyses) {
-  const analysis = ord.outcomes.unloadAnalysisSingle(analysisNode);
+function unloadAnalysis(analysisNode, analyses) {
+  const analysis = unloadAnalysisSingle(analysisNode);
   const name = $('.outcome_analysis_name', analysisNode).text();
-  if (!isEmptyMessage(name) || !isEmptyMessage(analysis)) {
+  if (!ord.reaction.isEmptyMessage(name) ||
+      !ord.reaction.isEmptyMessage(analysis)) {
     analyses.set(name, analysis);
   }
-};
+}
 
-ord.outcomes.unloadProcess = function(node, processes) {
+function unloadProcess(node, processes) {
   const name = $('.outcome_process_name', node).text();
 
   const process = new proto.ord.Data();
@@ -262,7 +277,7 @@ ord.outcomes.unloadProcess = function(node, processes) {
 
   if ($('input[value=\'text\']', node).is(':checked')) {
     const stringValue = $('.outcome_process_text', node).text();
-    if (!isEmptyMessage(stringValue)) {
+    if (!ord.reaction.isEmptyMessage(stringValue)) {
       process.setStringValue(stringValue);
     }
   }
@@ -274,22 +289,23 @@ ord.outcomes.unloadProcess = function(node, processes) {
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    if (!isEmptyMessage(bytesValue)) {
+    if (!ord.reaction.isEmptyMessage(bytesValue)) {
       process.setBytesValue(bytesValue);
     }
   }
   if ($('input[value=\'url\']', node).is(':checked')) {
     const url = $('.outcome_process_text', node).text();
-    if (!isEmptyMessage(url)) {
+    if (!ord.reaction.isEmptyMessage(url)) {
       process.setUrl(url);
     }
   }
-  if (!isEmptyMessage(name) || !isEmptyMessage(process)) {
+  if (!ord.reaction.isEmptyMessage(name) ||
+      !ord.reaction.isEmptyMessage(process)) {
     processes.set(name, process);
   }
-};
+}
 
-ord.outcomes.unloadRaw = function(node, raws) {
+function unloadRaw(node, raws) {
   const name = $('.outcome_raw_name', node).text();
 
   const raw = new proto.ord.Data();
@@ -298,7 +314,7 @@ ord.outcomes.unloadRaw = function(node, raws) {
 
   if ($('input[value=\'text\']', node).is(':checked')) {
     const stringValue = $('.outcome_raw_text', node).text();
-    if (!isEmptyMessage(stringValue)) {
+    if (!ord.reaction.isEmptyMessage(stringValue)) {
       raw.setStringValue(stringValue);
     }
   }
@@ -310,33 +326,33 @@ ord.outcomes.unloadRaw = function(node, raws) {
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    if (!isEmptyMessage(bytesValue)) {
+    if (!ord.reaction.isEmptyMessage(bytesValue)) {
       raw.setBytesValue(bytesValue);
     }
   }
   if ($('input[value=\'url\']', node).is(':checked')) {
     const url = $('.outcome_raw_text', node).text();
-    if (!isEmptyMessage(url)) {
+    if (!ord.reaction.isEmptyMessage(url)) {
       raw.setUrl(url);
     }
   }
-  if (!isEmptyMessage(name) || !isEmptyMessage(raw)) {
+  if (!ord.reaction.isEmptyMessage(name) || !ord.reaction.isEmptyMessage(raw)) {
     raws.set(name, raw);
   }
-};
+}
 
-ord.outcomes.add = function() {
-  const node = addSlowly('#outcome_template', '#outcomes');
+function add() {
+  const node = ord.reaction.addSlowly('#outcome_template', '#outcomes');
   // Add live validation handling.
-  addChangeHandler(node, () => {
-    ord.outcomes.validateOutcome(node);
+  ord.reaction.addChangeHandler(node, () => {
+    validateOutcome(node);
   });
   return node;
-};
+}
 
-ord.outcomes.addAnalysis = function(node) {
-  const analysisNode =
-      addSlowly('#outcome_analysis_template', $('.outcome_analyses', node));
+function addAnalysis(node) {
+  const analysisNode = ord.reaction.addSlowly(
+      '#outcome_analysis_template', $('.outcome_analyses', node));
 
   // Handle name changes.
   const nameNode = $('.outcome_analysis_name', analysisNode);
@@ -367,18 +383,18 @@ ord.outcomes.addAnalysis = function(node) {
   });
 
   // Add live validation handling.
-  addChangeHandler(analysisNode, () => {
-    ord.outcomes.validateAnalysis(analysisNode);
+  ord.reaction.addChangeHandler(analysisNode, () => {
+    validateAnalysis(analysisNode);
   });
   return analysisNode;
-};
+}
 
-ord.outcomes.addProcess = function(node) {
-  const processNode =
-      addSlowly('#outcome_process_template', $('.outcome_processes', node));
+function addProcess(node) {
+  const processNode = ord.reaction.addSlowly(
+      '#outcome_process_template', $('.outcome_processes', node));
 
   const typeButtons = $('input[type=\'radio\']', processNode);
-  typeButtons.attr('name', 'outcomes_' + ord.outcomes.radioGroupCounter++);
+  typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);
   typeButtons.change(function() {
     if ((this.value == 'text') || (this.value == 'number') ||
         (this.value == 'url')) {
@@ -391,13 +407,14 @@ ord.outcomes.addProcess = function(node) {
   });
   ord.uploads.initialize(processNode);
   return processNode;
-};
+}
 
-ord.outcomes.addRaw = function(node) {
-  const rawNode = addSlowly('#outcome_raw_template', $('.outcome_raws', node));
+function addRaw(node) {
+  const rawNode =
+      ord.reaction.addSlowly('#outcome_raw_template', $('.outcome_raws', node));
 
   const typeButtons = $('input[type=\'radio\']', rawNode);
-  typeButtons.attr('name', 'outcomes_' + ord.outcomes.radioGroupCounter++);
+  typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);
   typeButtons.change(function() {
     if ((this.value == 'text') || (this.value == 'number') ||
         (this.value == 'url')) {
@@ -410,20 +427,20 @@ ord.outcomes.addRaw = function(node) {
   });
   ord.uploads.initialize(rawNode);
   return rawNode;
-};
+}
 
-ord.outcomes.validateOutcome = function(node, validateNode) {
-  const outcome = ord.outcomes.unloadOutcome(node);
+function validateOutcome(node, validateNode) {
+  const outcome = unloadOutcome(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(outcome, 'ReactionOutcome', validateNode);
-};
+  ord.reaction.validate(outcome, 'ReactionOutcome', validateNode);
+}
 
-ord.outcomes.validateAnalysis = function(node, validateNode) {
-  const analysis = ord.outcomes.unloadAnalysisSingle(node);
+function validateAnalysis(node, validateNode) {
+  const analysis = unloadAnalysisSingle(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(analysis, 'ReactionAnalysis', validateNode);
-};
+  ord.reaction.validate(analysis, 'ReactionAnalysis', validateNode);
+}

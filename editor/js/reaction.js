@@ -14,7 +14,31 @@
  * limitations under the License.
  */
 
-goog.provide('ord.reaction');
+goog.module('ord.reaction');
+goog.module.declareLegacyNamespace();
+exports = {
+  init,
+  commit,
+  downloadReaction,
+  validateReaction,
+  setTextFromFile,
+  removeSlowly,
+  collapseToggle,
+  addSlowly,
+  addChangeHandler,
+  validate,
+  toggleValidateMessage,
+  compareDataset,
+  unloadReaction,
+  isEmptyMessage,
+  readMetric,
+  writeMetric,
+  setSelector,
+  getSelector,
+  getSelectorText,
+  setOptionalBool,
+  getOptionalBool
+};
 
 goog.require('ord.conditions');
 goog.require('ord.enums');
@@ -34,6 +58,8 @@ const session = {
   dataset: null,
   index: null  // Ordinal position of the Reaction in its Dataset.
 };
+// Export session, because it's used by test.js.
+exports.session = session;
 
 async function init(fileName, index) {
   session.fileName = fileName;
@@ -122,8 +148,8 @@ function validate(message, messageTypeString, validateNode) {
   xhr.responseType = 'json';
   xhr.onload = function() {
     const errors = xhr.response;
-    statusNode = $('.validate_status', validateNode);
-    messageNode = $('.validate_message', validateNode);
+    const statusNode = $('.validate_status', validateNode);
+    const messageNode = $('.validate_message', validateNode);
     statusNode.removeClass('fa-check');
     statusNode.removeClass('fa-exclamation-triangle');
     statusNode.css('backgroundColor', null);
@@ -134,9 +160,9 @@ function validate(message, messageTypeString, validateNode) {
       statusNode.text(' ' + errors.length);
 
       messageNode.empty();
-      for (index = 0; index < errors.length; index++) {
-        error = errors[index];
-        errorNode = $('<div></div>');
+      for (let index = 0; index < errors.length; index++) {
+        const error = errors[index];
+        const errorNode = $('<div></div>');
         errorNode.text('\u2022 ' + error);
         messageNode.append(errorNode);
       }
@@ -179,7 +205,7 @@ function renderReaction(reaction) {
 }
 
 function validateReaction() {
-  var validateNode = $('#reaction_validate');
+  const validateNode = $('#reaction_validate');
   const reaction = unloadReaction();
   validate(reaction, 'Reaction', validateNode);
   // Trigger all submessages to validate.
@@ -358,7 +384,7 @@ function isEmptyMessage(obj) {
   if ([null, undefined, ''].includes(obj)) {
     return true;
   }
-  array = obj.array;
+  const array = obj.array;
   if (array !== undefined) {
     // message is a protobuf message, test underlying array
     return isEmptyMessage(array);
@@ -566,7 +592,7 @@ function getOptionalBool(node) {
 function initCollapse(node) {
   node.addClass('fa');
   node.addClass('fa-chevron-down');
-  node.attr('onclick', 'collapseToggle(this)');
+  node.attr('onclick', 'ord.reaction.collapseToggle(this)');
   if (node.hasClass('starts_collapsed')) {
     node.trigger('click');
   }

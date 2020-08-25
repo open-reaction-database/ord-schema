@@ -14,7 +14,20 @@
  * limitations under the License.
  */
 
-goog.provide('ord.compounds');
+goog.module('ord.compounds');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload,
+  unloadCompound,
+  loadIntoCompound,
+  add,
+  validateCompound,
+  drawIdentifier,
+  addNameIdentifier,
+  addIdentifier,
+  addPreparation
+};
 
 goog.require('ord.amounts');
 goog.require('ord.features');
@@ -22,33 +35,32 @@ goog.require('proto.ord.Compound');
 goog.require('proto.ord.CompoundIdentifier');
 
 // Freely create radio button groups by generating new input names.
-ord.compounds.radioGroupCounter = 0;
+let radioGroupCounter = 0;
 
-ord.compounds.load = function(node, compounds) {
-  compounds.forEach(compound => ord.compounds.loadCompound(node, compound));
-};
+function load(node, compounds) {
+  compounds.forEach(compound => loadCompound(node, compound));
+}
 
-ord.compounds.loadCompound = function(root, compound) {
-  const node = ord.compounds.add(root);
-  ord.compounds.loadIntoCompound(node, compound);
-};
+function loadCompound(root, compound) {
+  const node = add(root);
+  loadIntoCompound(node, compound);
+}
 
-ord.compounds.loadIntoCompound = function(node, compound) {
+function loadIntoCompound(node, compound) {
   const reactionRole = compound.getReactionRole();
-  setSelector($('.component_reaction_role', node), reactionRole);
+  ord.reaction.setSelector($('.component_reaction_role', node), reactionRole);
   $('.component_reaction_role', node).trigger('change');
 
   const isLimiting = compound.hasIsLimiting() ? compound.getIsLimiting() : null;
-  setOptionalBool($('.component_limiting', node), isLimiting);
+  ord.reaction.setOptionalBool($('.component_limiting', node), isLimiting);
 
   const solutes = compound.hasVolumeIncludesSolutes() ?
       compound.getVolumeIncludesSolutes() :
       null;
-  setOptionalBool($('.component_includes_solutes', node), solutes);
+  ord.reaction.setOptionalBool($('.component_includes_solutes', node), solutes);
 
   const identifiers = compound.getIdentifiersList();
-  identifiers.forEach(
-      identifier => ord.compounds.loadIdentifier(node, identifier));
+  identifiers.forEach(identifier => loadIdentifier(node, identifier));
 
   const mass = compound.getMass();
   const moles = compound.getMoles();
@@ -57,78 +69,82 @@ ord.compounds.loadIntoCompound = function(node, compound) {
 
   const preparations = compound.getPreparationsList();
   preparations.forEach(preparation => {
-    const preparationNode = ord.compounds.addPreparation(node);
-    ord.compounds.loadPreparation(preparationNode, preparation);
+    const preparationNode = addPreparation(node);
+    loadPreparation(preparationNode, preparation);
   });
   const vendorSource = compound.getVendorSource();
   const vendorLot = compound.getVendorLot();
   const vendorId = compound.getVendorId();
-  ord.compounds.loadVendor(node, vendorSource, vendorLot, vendorId);
+  loadVendor(node, vendorSource, vendorLot, vendorId);
 
   const features = compound.getFeaturesList();
   ord.features.load(node, features);
-};
+}
 
-ord.compounds.loadIdentifier = function(compoundNode, identifier) {
-  const node = ord.compounds.addIdentifier(compoundNode);
+function loadIdentifier(compoundNode, identifier) {
+  const node = addIdentifier(compoundNode);
   const value = identifier.getValue();
   $('.component_identifier_value', node).text(value);
-  setSelector(node, identifier.getType());
+  ord.reaction.setSelector(node, identifier.getType());
   $('.component_identifier_details', node).text(identifier.getDetails());
-};
+}
 
-ord.compounds.loadPreparation = function(node, preparation) {
+function loadPreparation(node, preparation) {
   const type = preparation.getType();
-  setSelector($('.component_compound_preparation_type', node), type);
+  ord.reaction.setSelector(
+      $('.component_compound_preparation_type', node), type);
   const details = preparation.getDetails();
   $('.component_compound_preparation_details', node).text(details);
   const reaction = preparation.getReactionId();
   $('.component_compound_preparation_reaction', node).text(reaction);
-};
+}
 
-ord.compounds.loadVendor = function(
-    compoundNode, vendorSource, vendorLot, vendorId) {
+function loadVendor(compoundNode, vendorSource, vendorLot, vendorId) {
   const node = $('fieldset.vendor', compoundNode);
   $('.component_vendor_source', node).text(vendorSource);
   $('.component_vendor_lot', node).text(vendorLot);
   $('.component_vendor_id', node).text(vendorId);
-};
+}
 
-ord.compounds.unload = function(node) {
+function unload(node) {
   const compounds = [];
   $('.component', node).each(function(index, compoundNode) {
     compoundNode = $(compoundNode);
     if (!compoundNode.attr('id')) {
       // Not a template.
-      const compound = ord.compounds.unloadCompound(compoundNode);
-      if (!isEmptyMessage(compound)) {
+      const compound = unloadCompound(compoundNode);
+      if (!ord.reaction.isEmptyMessage(compound)) {
         compounds.push(compound);
       }
     }
   });
   return compounds;
-};
+}
 
-ord.compounds.unloadCompound = function(node) {
+function unloadCompound(node) {
   const compound = new proto.ord.Compound();
 
-  const reactionRole = getSelector($('.component_reaction_role', node));
+  const reactionRole =
+      ord.reaction.getSelector($('.component_reaction_role', node));
   compound.setReactionRole(reactionRole);
 
   // Only call setIsLimiting if this is a reactant Compound.
-  if (getSelectorText($('.component_reaction_role', node)[0]) === 'REACTANT') {
-    const isLimiting = getOptionalBool($('.component_limiting', node));
+  if (ord.reaction.getSelectorText($('.component_reaction_role', node)[0]) ===
+      'REACTANT') {
+    const isLimiting =
+        ord.reaction.getOptionalBool($('.component_limiting', node));
     compound.setIsLimiting(isLimiting);
   }
 
   // Only call setVolumeIncludesSolutes if the amount is defined as a volume.
   if (ord.amounts.unloadVolume(node)) {
-    const solutes = getOptionalBool($('.component_includes_solutes', node));
+    const solutes =
+        ord.reaction.getOptionalBool($('.component_includes_solutes', node));
     compound.setVolumeIncludesSolutes(solutes);
   }
 
-  const identifiers = ord.compounds.unloadIdentifiers(node);
-  if (!isEmptyMessage(identifiers)) {
+  const identifiers = unloadIdentifiers(node);
+  if (!ord.reaction.isEmptyMessage(identifiers)) {
     compound.setIdentifiersList(identifiers);
   }
 
@@ -136,77 +152,79 @@ ord.compounds.unloadCompound = function(node) {
 
   const preparations = [];
   $('.component_preparation', node).each(function(index, preparationNode) {
-    const preparation = ord.compounds.unloadPreparation(preparationNode);
-    if (!isEmptyMessage(preparation)) {
+    const preparation = unloadPreparation(preparationNode);
+    if (!ord.reaction.isEmptyMessage(preparation)) {
       preparations.push(preparation);
     }
   });
   compound.setPreparationsList(preparations);
 
-  ord.compounds.unloadVendor(node, compound);
+  unloadVendor(node, compound);
 
   const features = ord.features.unload(node);
   compound.setFeaturesList(features);
 
   return compound;
-};
+}
 
-ord.compounds.unloadIdentifiers = function(node) {
+function unloadIdentifiers(node) {
   const identifiers = [];
   $('.component_identifier', node).each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
-      const identifier = ord.compounds.unloadIdentifier(node);
-      if (!isEmptyMessage(identifier)) {
+      const identifier = unloadIdentifier(node);
+      if (!ord.reaction.isEmptyMessage(identifier)) {
         identifiers.push(identifier);
       }
     }
   });
   return identifiers;
-};
+}
 
-ord.compounds.unloadIdentifier = function(node) {
+function unloadIdentifier(node) {
   const identifier = new proto.ord.CompoundIdentifier();
 
   const value = $('.component_identifier_value', node).text();
-  if (!isEmptyMessage(value)) {
+  if (!ord.reaction.isEmptyMessage(value)) {
     identifier.setValue(value);
   }
-  const type = getSelector(node);
+  const type = ord.reaction.getSelector(node);
   identifier.setType(type);
   const details = $('.component_identifier_details', node).text();
   identifier.setDetails(details);
   return identifier;
-};
+}
 
-ord.compounds.unloadPreparation = function(node) {
+function unloadPreparation(node) {
   const preparation = new proto.ord.CompoundPreparation();
-  const type = getSelector($('.component_compound_preparation_type', node));
+  const type =
+      ord.reaction.getSelector($('.component_compound_preparation_type', node));
   preparation.setType(type);
   const details = $('.component_compound_preparation_details', node).text();
   preparation.setDetails(details);
   const reaction = $('.component_compound_preparation_reaction', node).text();
   preparation.setReactionId(reaction);
   return preparation;
-};
+}
 
-ord.compounds.unloadVendor = function(node, compound) {
+function unloadVendor(node, compound) {
   const vendorSource = $('.component_vendor_source', node).text();
   compound.setVendorSource(vendorSource);
   const vendorLot = $('.component_vendor_lot', node).text();
   compound.setVendorLot(vendorLot);
   const vendorId = $('.component_vendor_id', node).text();
   compound.setVendorId(vendorId);
-};
+}
 
-ord.compounds.add = function(root) {
-  const node = addSlowly('#component_template', $('.components', root));
+function add(root) {
+  const node =
+      ord.reaction.addSlowly('#component_template', $('.components', root));
 
   // Connect reaction role selection to limiting reactant field.
   const roleSelector = $('.component_reaction_role', node);
   roleSelector.change(function() {
-    if (getSelectorText(this) === 'REACTANT') {
+    if (ord.reaction.getSelectorText(this) === 'REACTANT') {
       $('.limiting_reactant', node).show();
     } else {
       $('.limiting_reactant', node).hide();
@@ -215,7 +233,7 @@ ord.compounds.add = function(root) {
 
   // Create an "amount" radio button group and connect it to the unit selectors.
   const amountButtons = $('.amount input', node);
-  amountButtons.attr('name', 'compounds_' + ord.compounds.radioGroupCounter++);
+  amountButtons.attr('name', 'compounds_' + radioGroupCounter++);
   amountButtons.change(function() {
     $('.amount .selector', node).hide();
     if (this.value == 'mass') {
@@ -233,16 +251,16 @@ ord.compounds.add = function(root) {
   });
 
   // Add live validation handling.
-  addChangeHandler(node, () => {
-    ord.compounds.validateCompound(node);
+  ord.reaction.addChangeHandler(node, () => {
+    validateCompound(node);
   });
 
   return node;
-};
+}
 
-ord.compounds.addIdentifier = function(node) {
-  const identifierNode =
-      addSlowly('#component_identifier_template', $('.identifiers', node));
+function addIdentifier(node) {
+  const identifierNode = ord.reaction.addSlowly(
+      '#component_identifier_template', $('.identifiers', node));
 
   const uploadButton = $('.component_identifier_upload', identifierNode);
   uploadButton.change(function() {
@@ -257,10 +275,10 @@ ord.compounds.addIdentifier = function(node) {
   });
   ord.uploads.initialize(identifierNode);
   return identifierNode;
-};
+}
 
 // Shortcut to add an identifier based on name.
-ord.compounds.addNameIdentifier = function(node) {
+function addNameIdentifier(node) {
   var name = prompt('Compound name: ');
   if (!(name)) {
     return;
@@ -268,7 +286,7 @@ ord.compounds.addNameIdentifier = function(node) {
   const identifier = new proto.ord.CompoundIdentifier();
   identifier.setValue(name);
   identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.NAME);
-  ord.compounds.loadIdentifier(node, identifier);
+  loadIdentifier(node, identifier);
 
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/resolve/name');
@@ -281,15 +299,15 @@ ord.compounds.addNameIdentifier = function(node) {
       identifier.setValue(smiles);
       identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
       identifier.setDetails('NAME resolved by the ' + resolver);
-      ord.compounds.loadIdentifier(node, identifier);
+      loadIdentifier(node, identifier);
     }
-    ord.compounds.validateCompound(node);
+    validateCompound(node);
   };
   xhr.send(name);
-};
+}
 
 // Shortcut to add an identifier by drawing.
-ord.compounds.drawIdentifier = function(node) {
+function drawIdentifier(node) {
   // Get a reference to Ketcher, and to look nice, clear any old drawings.
   const ketcher =
       document.getElementById('ketcher-iframe').contentWindow.ketcher;
@@ -299,8 +317,8 @@ ord.compounds.drawIdentifier = function(node) {
 
   // First, pack the current Compound into a message.
   const compound = new proto.ord.Compound();
-  const identifiers = ord.compounds.unloadIdentifiers(node);
-  if (!isEmptyMessage(identifiers)) {
+  const identifiers = unloadIdentifiers(node);
+  if (!ord.reaction.isEmptyMessage(identifiers)) {
     compound.setIdentifiersList(identifiers);
   }
   // Then, try to resolve compound into a MolBlock.
@@ -347,12 +365,12 @@ ord.compounds.drawIdentifier = function(node) {
       node = $(node);
       if (!node.attr('id')) {
         // Not a template.
-        const identifier = ord.compounds.unloadIdentifier(node);
+        const identifier = unloadIdentifier(node);
         if ((identifier.getType() ===
              proto.ord.CompoundIdentifier.IdentifierType.SMILES) ||
             (identifier.getType() ===
              proto.ord.CompoundIdentifier.IdentifierType.MOLBLOCK)) {
-          removeSlowly(node, '.component_identifier');
+          ord.reaction.removeSlowly(node, '.component_identifier');
         }
       }
     });
@@ -362,23 +380,23 @@ ord.compounds.drawIdentifier = function(node) {
       identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
       identifier.setValue(ketcher.getSmiles());
       identifier.setDetails('Drawn with Ketcher');
-      ord.compounds.loadIdentifier(node, identifier);
+      loadIdentifier(node, identifier);
       identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.MOLBLOCK);
       identifier.setValue(ketcher.getMolfile());
-      ord.compounds.loadIdentifier(node, identifier);
+      loadIdentifier(node, identifier);
     }
-    ord.compounds.validateCompound(node);
+    validateCompound(node);
   };
-};
+}
 
-ord.compounds.addPreparation = function(node) {
-  const PreparationNode =
-      addSlowly('#component_preparation_template', $('.preparations', node));
+function addPreparation(node) {
+  const PreparationNode = ord.reaction.addSlowly(
+      '#component_preparation_template', $('.preparations', node));
 
   const typeSelector =
       $('.component_compound_preparation_type', PreparationNode);
   typeSelector.change(function() {
-    if (getSelectorText(this) == 'SYNTHESIZED') {
+    if (ord.reaction.getSelectorText(this) == 'SYNTHESIZED') {
       $('.component_compound_preparation_reaction_id', PreparationNode)
           .css('display', 'inline-block');
     } else {
@@ -388,10 +406,10 @@ ord.compounds.addPreparation = function(node) {
   });
 
   return PreparationNode;
-};
+}
 
 // Update the image tag with a drawing of this component.
-ord.compounds.renderCompound = function(node, compound) {
+function renderCompound(node, compound) {
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/render/compound');
   const binary = compound.serializeBinary();
@@ -405,17 +423,17 @@ ord.compounds.renderCompound = function(node, compound) {
     }
   };
   xhr.send(binary);
-};
+}
 
-ord.compounds.validateCompound = function(node, validateNode) {
-  const compound = ord.compounds.unloadCompound(node);
+function validateCompound(node, validateNode) {
+  const compound = unloadCompound(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(compound, 'Compound', validateNode);
+  ord.reaction.validate(compound, 'Compound', validateNode);
 
   // Try to resolve compound structural identifiers. This is tied to
   // validation so the same trigger is used and we only have to unload the
   // compound once per update.
-  ord.compounds.renderCompound(node, compound);
-};
+  renderCompound(node, compound);
+}

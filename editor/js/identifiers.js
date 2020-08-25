@@ -14,62 +14,69 @@
  * limitations under the License.
  */
 
-goog.provide('ord.identifiers');
+goog.module('ord.identifiers');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload,
+  add
+};
 
 goog.require('ord.uploads');
 goog.require('proto.ord.ReactionIdentifier');
 
-ord.identifiers.load = function(identifiers) {
-  identifiers.forEach(identifier => ord.identifiers.loadIdentifier(identifier));
+function load(identifiers) {
+  identifiers.forEach(identifier => loadIdentifier(identifier));
   if (!(identifiers.length)) {
-    ord.identifiers.add();
+    add();
   }
-};
+}
 
-ord.identifiers.loadIdentifier = function(identifier) {
-  const node = ord.identifiers.add();
+function loadIdentifier(identifier) {
+  const node = add();
   const value = identifier.getValue();
   $('.reaction_identifier_value', node).text(value);
-  setSelector(node, identifier.getType());
+  ord.reaction.setSelector(node, identifier.getType());
   $('.reaction_identifier_details', node).text(identifier.getDetails());
-};
+}
 
-ord.identifiers.unload = function() {
+function unload() {
   const identifiers = [];
   $('.reaction_identifier').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
-      const identifier = ord.identifiers.unloadIdentifier(node);
-      if (!isEmptyMessage(identifier)) {
+      const identifier = unloadIdentifier(node);
+      if (!ord.reaction.isEmptyMessage(identifier)) {
         identifiers.push(identifier);
       }
     }
   });
   return identifiers;
-};
+}
 
-ord.identifiers.unloadIdentifier = function(node) {
+function unloadIdentifier(node) {
   const identifier = new proto.ord.ReactionIdentifier();
 
   const value = $('.reaction_identifier_value', node).text();
-  if (!isEmptyMessage(value)) {
+  if (!ord.reaction.isEmptyMessage(value)) {
     identifier.setValue(value);
   }
 
-  const type = getSelector(node);
-  if (!isEmptyMessage(type)) {
+  const type = ord.reaction.getSelector(node);
+  if (!ord.reaction.isEmptyMessage(type)) {
     identifier.setType(type);
   }
   const details = $('.reaction_identifier_details', node).text();
-  if (!isEmptyMessage(details)) {
+  if (!ord.reaction.isEmptyMessage(details)) {
     identifier.setDetails(details);
   }
   return identifier;
-};
+}
 
-ord.identifiers.add = function() {
-  const node = addSlowly('#reaction_identifier_template', '#identifiers');
+function add() {
+  const node =
+      ord.reaction.addSlowly('#reaction_identifier_template', '#identifiers');
 
   const uploadButton = $('.reaction_identifier_upload', node);
   uploadButton.change(function() {
@@ -84,4 +91,4 @@ ord.identifiers.add = function() {
   });
   ord.uploads.initialize(node);
   return node;
-};
+}

@@ -14,54 +14,60 @@
  * limitations under the License.
  */
 
-goog.provide('ord.stirring');
+goog.module('ord.stirring');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload,
+  validateStirring
+};
 
 goog.require('proto.ord.StirringConditions');
 
-ord.stirring.load = function(stirring) {
+function load(stirring) {
   const method = stirring.getMethod();
   if (method) {
-    setSelector($('#stirring_method_type'), method.getType());
+    ord.reaction.setSelector($('#stirring_method_type'), method.getType());
     $('#stirring_method_details').text(method.getDetails());
   }
   const rate = stirring.getRate();
   if (rate) {
-    setSelector($('#stirring_rate_type'), rate.getType());
+    ord.reaction.setSelector($('#stirring_rate_type'), rate.getType());
     $('#stirring_rate_details').text(rate.getDetails());
     const rpm = rate.getRpm();
     if (rpm != 0) {
       $('#stirring_rpm').text(rpm);
     }
   }
-};
+}
 
-ord.stirring.unload = function() {
+function unload() {
   const stirring = new proto.ord.StirringConditions();
 
   const method = new proto.ord.StirringConditions.StirringMethod();
-  method.setType(getSelector($('#stirring_method_type')));
+  method.setType(ord.reaction.getSelector($('#stirring_method_type')));
   method.setDetails($('#stirring_method_details').text());
-  if (!isEmptyMessage(method)) {
+  if (!ord.reaction.isEmptyMessage(method)) {
     stirring.setMethod(method);
   }
 
   const rate = new proto.ord.StirringConditions.StirringRate();
-  rate.setType(getSelector($('#stirring_rate_type')));
+  rate.setType(ord.reaction.getSelector($('#stirring_rate_type')));
   rate.setDetails($('#stirring_rate_details').text());
   const rpm = parseFloat($('#stirring_rpm').text());
   if (!isNaN(rpm)) {
     rate.setRpm(rpm);
   }
-  if (!isEmptyMessage(rate)) {
+  if (!ord.reaction.isEmptyMessage(rate)) {
     stirring.setRate(rate);
   }
   return stirring;
-};
+}
 
-ord.stirring.validateStirring = function(node, validateNode) {
-  const stirring = ord.stirring.unload();
+function validateStirring(node, validateNode) {
+  const stirring = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(stirring, 'StirringConditions', validateNode);
-};
+  ord.reaction.validate(stirring, 'StirringConditions', validateNode);
+}

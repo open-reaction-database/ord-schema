@@ -14,74 +14,81 @@
  * limitations under the License.
  */
 
-goog.provide('ord.crudes');
+goog.module('ord.crudes');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload,
+  add
+};
 
 goog.require('ord.amountsCrudes');
 goog.require('proto.ord.CrudeComponent');
 
 // Freely create radio button groups by generating new input names.
-ord.crudes.radioGroupCounter = 0;
+let radioGroupCounter = 0;
 
-ord.crudes.load = function(node, crudes) {
-  crudes.forEach(crude => ord.crudes.loadCrude(node, crude));
-};
+function load(node, crudes) {
+  crudes.forEach(crude => loadCrude(node, crude));
+}
 
-ord.crudes.loadCrude = function(root, crude) {
-  const node = ord.crudes.add(root);
+function loadCrude(root, crude) {
+  const node = add(root);
 
   const reactionId = crude.getReactionId();
   $('.crude_reaction', node).text(reactionId);
 
   const workup = crude.hasIncludesWorkup() ? crude.getIncludesWorkup() : null;
-  setOptionalBool($('.crude_includes_workup', node), workup);
+  ord.reaction.setOptionalBool($('.crude_includes_workup', node), workup);
 
   const derived =
       crude.hasHasDerivedAmount() ? crude.getHasDerivedAmount() : null;
-  setOptionalBool($('.crude_has_derived', node), derived);
+  ord.reaction.setOptionalBool($('.crude_has_derived', node), derived);
 
   const mass = crude.getMass();
   const volume = crude.getVolume();
   ord.amountsCrudes.load(node, mass, volume);
-};
+}
 
-ord.crudes.unload = function(node) {
+function unload(node) {
   const crudes = [];
   $('.crude', node).each(function(index, crudeNode) {
     crudeNode = $(crudeNode);
     if (!crudeNode.attr('id')) {
       // Not a template.
-      const crude = ord.crudes.unloadCrude(crudeNode);
-      if (!isEmptyMessage(crude)) {
+      const crude = unloadCrude(crudeNode);
+      if (!ord.reaction.isEmptyMessage(crude)) {
         crudes.push(crude);
       }
     }
   });
   return crudes;
-};
+}
 
-ord.crudes.unloadCrude = function(node) {
+function unloadCrude(node) {
   const crude = new proto.ord.CrudeComponent();
 
   const reactionId = $('.crude_reaction', node).text();
   crude.setReactionId(reactionId);
 
-  const workup = getOptionalBool($('.crude_includes_workup', node));
+  const workup =
+      ord.reaction.getOptionalBool($('.crude_includes_workup', node));
   crude.setIncludesWorkup(workup);
 
-  const derived = getOptionalBool($('.crude_has_derived', node));
+  const derived = ord.reaction.getOptionalBool($('.crude_has_derived', node));
   crude.setHasDerivedAmount(derived);
 
   ord.amountsCrudes.unload(node, crude);
 
   return crude;
-};
+}
 
-ord.crudes.add = function(root) {
-  const node = addSlowly('#crude_template', $('.crudes', root));
+function add(root) {
+  const node = ord.reaction.addSlowly('#crude_template', $('.crudes', root));
 
   // Create an "amount" radio button group and connect it to the unit selectors.
   const amountButtons = $('.amount input', node);
-  amountButtons.attr('name', 'crudes_' + ord.crudes.radioGroupCounter++);
+  amountButtons.attr('name', 'crudes_' + radioGroupCounter++);
   amountButtons.change(function() {
     $('.amount .selector', node).hide();
     if (this.value == 'mass') {
@@ -95,4 +102,4 @@ ord.crudes.add = function(root) {
     }
   });
   return node;
-};
+}
