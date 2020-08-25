@@ -604,8 +604,7 @@ function initValidateNode(oldNode) {
   let newNode = $('#validate_template').clone();
   // Add attributes necessary for validation functions:
   // Convert the placeholder onclick method into the button's onclick method.
-  $('.validate_button', newNode)
-      .attr('onclick', oldNode.attr('onclick'));
+  $('.validate_button', newNode).attr('onclick', oldNode.attr('onclick'));
   oldNode.removeAttr('onclick');
   // Add an id to the button.
   if (oldNode.attr('id')) {
