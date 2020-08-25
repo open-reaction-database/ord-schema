@@ -602,9 +602,12 @@ function initCollapse(node) {
 // inserting contents into a div in reaction.html
 function initValidateNode(oldNode) {
   let newNode = $('#validate_template').clone();
-  // Add attributes necessary for validation functions.
+  // Add attributes necessary for validation functions:
+  // Convert the placeholder onclick method into the button's onclick method.
   $('.validate_button', newNode)
-      .attr('onclick', oldNode.attr('button-onclick'));
+      .attr('onclick', oldNode.attr('onclick'));
+  oldNode.removeAttr('onclick');
+  // Add an id to the button.
   if (oldNode.attr('id')) {
     $('.validate_button', newNode).attr('id', oldNode.attr('id') + '_button');
   }
