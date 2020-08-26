@@ -293,11 +293,11 @@ class OrdPostgres:
     def cursor(self):
         return self._connection.cursor()
 
-    def query(self, query, return_ids=False):
+    def run_query(self, query, return_ids=False):
         """Runs a query against the database.
 
         Args:
-            query: sql.SQL query object.
+            query: ReactionQueryBase query.
             return_ids: If True, only return reaction IDs. If False, return
                 full Reaction records.
 
