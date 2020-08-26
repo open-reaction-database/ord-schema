@@ -81,7 +81,7 @@ def show_root():
         command = query.ReactionSmartsQuery(reaction_smarts)
     else:
         predicates = []
-        for table, queries in [('inputs', inputs), ('outputs', outputs)]
+        for table, queries in [('inputs', inputs), ('outputs', outputs)]:
             splits = [i.split(';', 1) for i in queries] if queries else []
         for smiles, mode_name in splits:
             mode = query.ReactionComponentPredicate.MatchMode.from_name(
