@@ -83,15 +83,15 @@ class ReactionQueryBase:
 
 
 class ReactionIdQuery(ReactionQueryBase):
-    """Looks up a specific reaction by ID."""
+    """Looks up reactions by ID."""
 
-    def __init__(self, reaction_id):
+    def __init__(self, reaction_ids):
         """Initializes the query.
 
         Args:
-            reaction_id: Reaction ID.
+            reaction_ids: List of reaction IDs.
         """
-        self._reaction_id = reaction_id
+        self._reaction_ids = reaction_ids
 
     def run(self, cursor, limit=None):
         """Runs the query.
@@ -105,10 +105,9 @@ class ReactionIdQuery(ReactionQueryBase):
         """
         del limit  # Unused.
         query = sql.SQL(
-            'SELECT serialized FROM reactions WHERE reaction_id = %s LIMIT 1')
-        cursor.execute(query, [self._reaction_id])
-        for result in cursor:
-            return {self._reaction_id: result[0]}
+            'SELECT serialized FROM reactions WHERE reaction_id = ANY (%s)')
+        cursor.execute(query, [self._reaction_ids])
+        return fetch_results(cursor)
 
 
 class ReactionSmartsQuery(ReactionQueryBase):
