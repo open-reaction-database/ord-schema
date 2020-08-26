@@ -89,7 +89,8 @@ def show_root():
             predicates.append(
                 query.ReactionComponentPredicate(smiles, table, mode))
         command = query.ReactionComponentQuery(
-            predicates, do_chiral_sss=do_chiral_sss,
+            predicates,
+            do_chiral_sss=do_chiral_sss,
             tanimoto_threshold=float(tanimoto_threshold))
     dataset = connect().run_query(command, return_ids=True)
     return flask.render_template('search.html',

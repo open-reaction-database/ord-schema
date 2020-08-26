@@ -132,11 +132,13 @@ class ReactionSmartsQuery(ReactionQueryBase):
         Returns:
             Dict mapping reaction IDs to serialized Reaction protos.
         """
-        components = [sql.SQL("""
+        components = [
+            sql.SQL("""
             SELECT reactions.reaction_id, reactions.serialized
             FROM reactions
             INNER JOIN rdkit.reactions USING (reaction_id)
-            WHERE rdkit.reactions.r@>%s::qmol""")]
+            WHERE rdkit.reactions.r@>%s::qmol""")
+        ]
         args = [self._reaction_smarts]
         if limit:
             components.append(sql.SQL(' LIMIT %s'))
@@ -186,14 +188,16 @@ class ReactionComponentQuery(ReactionQueryBase):
             Dict mapping reaction IDs to serialized Reaction protos.
         """
         self._setup(cursor)
-        components = [sql.SQL("""
+        components = [
+            sql.SQL("""
             SELECT reactions.reaction_id, reactions.serialized
             FROM reactions
             INNER JOIN inputs USING (reaction_id)
             INNER JOIN rdk.inputs USING (reaction_id)
             INNER JOIN outputs USING (reaction_id)
             INNER JOIN rdk.outputs USING (reaction_id)
-            WHERE """)]
+            WHERE """)
+        ]
         args = []
         predicates = []
         for predicate in self._predicates:
