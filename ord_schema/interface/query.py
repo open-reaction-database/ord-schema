@@ -208,6 +208,8 @@ class ReactionComponentQuery(ReactionQueryBase):
         Returns:
             Dict mapping reaction IDs to serialized Reaction protos.
         """
+        if not self._predicates:
+            return {}
         self._setup(cursor)
         components = [
             sql.SQL("""

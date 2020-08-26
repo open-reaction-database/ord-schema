@@ -68,7 +68,9 @@ def show_root():
                 mode_name)
             predicates.append(
                 query.ReactionComponentPredicate(pattern, table, mode))
-        kwargs = {'do_chiral_sss': use_stereochemistry}
+        kwargs = {}
+        if use_stereochemistry is not None:
+            kwargs['do_chiral_sss'] = use_stereochemistry
         if similarity is not None:
             kwargs['tanimoto_threshold'] = float(similarity)
         command = query.ReactionComponentQuery(predicates, **kwargs)

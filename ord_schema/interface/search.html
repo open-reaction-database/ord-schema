@@ -309,7 +309,7 @@
         query = JSON.parse('{{ query|safe }}')
 
         // Components.
-        if (query.hasAttribute('components') && (query.components.length > 0)) {
+        if ('components' in query && (query.components.length > 0)) {
           query.components.forEach(component => {
             const edittext = addComponent();
             edittext.text(component.pattern);
@@ -322,22 +322,22 @@
         }
 
         // Fingerprint similarity options.
-        if (query.hasAttribute('useStereochemistry')) {
+        if ('useStereochemistry' in query) {
           $('#stereo').val(query.useStereochemistry);
         }
-        if (query.hasAttribute('similarity')) {
+        if ('similarity' in query) {
           const similarity = query.similarity;
           setSimilarity(similarity);
         }
 
         // Reaction ID.
-        if (query.hasAttribute('reactionIds')) {
+        if ('reactionIds' in query) {
           const reactionIds = $('#reaction_ids')
           reactionIds.text(predicate.reactionIds.join(','));
         }
 
         // Reaction SMILES.
-        if (query.hasAttribute('reactionSmarts')) {
+        if ('reactionSmarts' in query) {
           const reactionSmarts = $('#reaction_smarts');
           reactionSmarts.text(predicate.reactionSmarts);
         }
@@ -384,7 +384,7 @@
       importQuery();
 
       // Show the tab appropriate to the current predicate.
-      if (query.hasAttribute('reactionIds') || query.hasAttribute('reactionSmarts') {
+      if ('reactionIds' in query || 'reactionSmarts' in query) {
         showReactionsTab();
       } else {
         showReagentsTab();
