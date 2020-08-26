@@ -40,6 +40,7 @@ For example, a reaction query might have the following predicates:
 Note that a predicate is matched if it applies to _any_ input/output.
 """
 
+import abc
 import binascii
 import enum
 import json
@@ -68,13 +69,14 @@ def fetch_results(cursor):
     return reactions
 
 
-class ReactionQueryBase:
+class ReactionQueryBase(abc.ABC):
     """Base class for reaction-based queries."""
 
+    @abc.abstractmethod
     def json(self):
         """Returns a JSON representation of the query."""
-        raise NotImplementedError()
 
+    @abc.abstractmethod
     def run(self, cursor, limit=None):
         """Runs the query.
 
@@ -86,7 +88,6 @@ class ReactionQueryBase:
         Returns:
             Dict mapping reaction IDs to serialized Reaction protos.
         """
-        raise NotImplementedError()
 
 
 class ReactionIdQuery(ReactionQueryBase):
