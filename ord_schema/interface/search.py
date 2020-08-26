@@ -56,7 +56,7 @@ All query parameters are assumed to be URL-encoded.
 
 import flask
 
-import query
+from ord_schema.interface import query
 
 app = flask.Flask(__name__, template_folder='.')
 
@@ -69,50 +69,38 @@ def show_root():
     populated with the results. The form fields are populated with the params.
     """
     reaction_ids = flask.request.args.get('reaction_ids')
-    reaction_smiles = flask.request.args.get('reaction_smiles')
-    inputs = flask.request.args.getlist("input")
-    output = flask.request.args.get('output')
-    similarity = flask.request.args.get('similarity')
-
-    predicate = query.Predicate()
+    reaction_smarts = flask.request.args.get('reaction_smarts')
+    inputs = flask.request.args.getlist('input')
+    outputs = flask.request.args.getlist('output')
+    do_chiral_sss = flask.request.args.get('use_stereochemistry')
+    tanimoto_threshold = flask.request.args.get('similarity')
 
     if reaction_ids is not None:
-        for reaction_id in reaction_ids.split(','):
-            predicate.add_reaction_id(reaction_id)
-
-    if reaction_smiles is not None:
-        predicate.set_reaction_smiles(reaction_smiles)
-
-    in_splits = [i.split(';', 1) for i in inputs] if inputs else []
-    for smiles, mode_name in in_splits:
-        mode = query.Predicate.MatchMode.from_name(mode_name)
-        predicate.add_input(smiles, mode)
-
-    if output is not None:
-        smiles, mode_name = output.split(';', 1)
-        mode = query.Predicate.MatchMode.from_name(mode_name)
-        predicate.set_output(smiles, mode)
-
-    if similarity is not None:
-        predicate.set_tanimoto_threshold(float(similarity))
-
-    if reaction_ids or reaction_smiles or inputs or output:
-        db = connect()
-        reaction_ids = db.predicate_search_ids(predicate)
+        command = query.ReactionIdQuery(reaction_ids.split(','))
+    elif reaction_smarts is not None
+        command = query.ReactionSmartsQuery(reaction_smarts)
     else:
-        reaction_ids = []
+        predicates = []
+        for table, queries in [('inputs', inputs), ('outputs', outputs)]
+            splits = [i.split(';', 1) for i in queries] if queries else []
+        for smiles, mode_name in splits:
+            mode = query.ReactionComponentPredicate.MatchMode.from_name(
+                mode_name)
+            predicates.append(
+                query.ReactionComponentPredicate(smiles, table, mode))
+        command = query.ReactionComponentQuery(
+            predicates, do_chiral_sss=do_chiral_sss,
+            tanimoto_threshold=float(tanimoto_threshold))
+    dataset = connect().run_query(command, return_ids=True)
     return flask.render_template('search.html',
-                                 reaction_ids=reaction_ids,
-                                 predicate=predicate.json())
+                                 reaction_ids=dataset.reaction_ids,
+                                 predicate=command.json())
 
 
 @app.route('/id/<reaction_id>')
 def show_id(reaction_id):
     """Returns the pbtxt of a single reaction as plain text."""
-    predicate = query.Predicate()
-    predicate.add_reaction_id(reaction_id)
-    db = connect()
-    dataset = db.predicate_search(predicate)
+    dataset = connect().run_query(query.ReactionIdQuery([reaction_id]))
     if len(dataset.reactions) == 0:
         return flask.abort(404)
     return flask.Response(str(dataset.reactions[0]), mimetype='text/plain')
