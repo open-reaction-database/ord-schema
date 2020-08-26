@@ -77,7 +77,7 @@ def show_root():
 
     if reaction_ids is not None:
         command = query.ReactionIdQuery(reaction_ids.split(','))
-    elif reaction_smarts is not None
+    elif reaction_smarts is not None:
         command = query.ReactionSmartsQuery(reaction_smarts)
     else:
         predicates = []
