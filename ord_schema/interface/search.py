@@ -14,44 +14,25 @@
 """Query web interface to the Open Reaction Database in Postgres.
 
 The client is stateless. Full information is in the URL so results can be
-linked.
+linked. Query parameters are communicated in URL GET params:
 
-There are three kinds of query.
+  component=<pattern;source;(exact|substructure|similarity|smarts)>
 
-  inputs and output SMILES or SMARTS
+    The second token specifies whether the predicate should match an input or
+    an output.
 
-    These match against individual reagents and results. Each SMILES expression
-    can be freely specified for "exact", "substructure", or "similarity"
-    matching. SMARTS expressions do not allow such a specification.
+    The last token specifies the matching criterion. The default is "exact".
+    The pattern is a SMILES string, unless the token is "smarts" in which case
+    the pattern is a SMARTS string.
 
-  reaction ID
+    Component may be repeated any number of times.
 
-    Matches either zero or one reactions. The ID has the form,
-      "ord-<32-bit hex>".
+  reaction_ids=<ids>
 
-  reaction SMILES
+  reaction_smarts=<smarts>
 
-    Matches against RDKit fingerprints.
-
-Query parameters are communicated in URL GET params.
-
-  input=<pattern;(exact|substructure|similarity|smarts)>
-
-  output=<pattern;(exact|substructure|similarity|smarts)>
-
-    The token after the semicolon specifies the matching criterion. The default
-    is "exact". The pattern is a SMILES string, unless the token is "smarts" in
-    which case the pattern is a SMARTS string.
-
-    The "input" param may be repeated. The "output" param may not.
-
-  reaction_id=<id>
-
-  reaction_smiles=<smiles>
-
-If multiple conditions are given, then the query is interpreted as conjunction.
-
-All query parameters are assumed to be URL-encoded.
+These query types are mutually exclusive. All query parameters are assumed to
+be URL-encoded.
 """
 
 import flask
