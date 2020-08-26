@@ -42,6 +42,7 @@ Note that a predicate is matched if it applies to _any_ input/output.
 
 import binascii
 import enum
+import json
 
 import psycopg2
 from psycopg2 import sql
@@ -68,6 +69,10 @@ def fetch_results(cursor):
 class ReactionQueryBase:
     """Base class for reaction-based queries."""
 
+    def json(self):
+        """Returns a JSON representation of the query."""
+        raise NotImplementedError()
+
     def run(self, cursor, limit=None):
         """Runs the query.
 
@@ -92,6 +97,10 @@ class ReactionIdQuery(ReactionQueryBase):
             reaction_ids: List of reaction IDs.
         """
         self._reaction_ids = reaction_ids
+
+    def json(self):
+        """Returns a JSON representation of the query."""
+        return json.dumps({'reactionIds': self._reaction_ids})
 
     def run(self, cursor, limit=None):
         """Runs the query.
@@ -120,6 +129,10 @@ class ReactionSmartsQuery(ReactionQueryBase):
             reaction_smarts: Reaction SMARTS.
         """
         self._reaction_smarts = reaction_smarts
+
+    def json(self):
+        """Returns a JSON representation of the query."""
+        return json.dumps({'reactionSmarts': self._reaction_smarts})
 
     def run(self, cursor, limit=None):
         """Runs the query.
@@ -164,6 +177,14 @@ class ReactionComponentQuery(ReactionQueryBase):
         self._predicates = predicates
         self._do_chiral_sss = do_chiral_sss
         self._tanimoto_threshold = tanimoto_threshold
+
+    def json(self):
+        """Returns a JSON representation of the query."""
+        return json.dumps({
+            'useStereochemistry': self._do_chiral_sss,
+            'similarity': self._tanimoto_threshold,
+            'components': [predicate.json() for predicate in self._predicates],
+        })
 
     def _setup(self, cursor):
         """Prepares the database for a query.
@@ -217,6 +238,8 @@ class ReactionComponentPredicate:
     """Specifies a single reaction component predicate."""
 
     _ALLOWED_TABLES = ['inputs', 'outputs']
+    SOURCE_TO_TABLE = {'input': 'inputs', 'output': 'outputs'}
+    _TABLE_TO_SOURCE = {'inputs': 'input', 'outputs': 'output'}
 
     class MatchMode(enum.Enum):
         """Interpretations for SMILES and SMARTS strings."""
@@ -246,6 +269,14 @@ class ReactionComponentPredicate:
         self._pattern = pattern
         self._table = table
         self._mode = mode
+
+    def json(self):
+        """Returns a JSON representation of the predicate."""
+        return json.dumps({
+            'pattern': self._pattern,
+            'source': self._TABLE_TO_SOURCE[self._table],
+            'mode': self._mode.name.lower(),
+        })
 
     def get(self):
         """Builds the SQL predicate.

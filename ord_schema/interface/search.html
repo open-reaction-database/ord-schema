@@ -66,7 +66,7 @@
       select {
         grid-column: match;
       }
-      #add_input {
+      #add_component {
         grid-column: add;
       }
       #similarity {
@@ -121,18 +121,16 @@
       </div>
 
       <div id="reagents">
-        <a href="#" id="add_input">+ input</a>
-
-        <span class="label">output</span>
-        <div class="output edittext"></div>
-        <select class="output">
-          <option value="exact">exact</option>
-          <option value="similar">similar</option>
-          <option value="substructure">substructure</option>
-          <option value="smarts">smarts</option>
-        </select>
+        <a href="#" id="add_component">+ component</a>
 
         <div></div> <!-- Blank grid cell to the right of the output. -->
+
+        <span class="label">use stereochemistry</span>
+        <div class="stereo edittext"></div>
+        <select class="stereo">
+          <option value="true">true</option>
+          <option value="false">false</option>
+        </select>
 
         <span class="label">similarity</span>
         <div id="similarity"></div>
@@ -143,8 +141,8 @@
         <span class="label">reaction IDs</span>
         <div id="reaction_ids" class="edittext"></div>
 
-        <span class="label">reaction SMILES</span>
-        <div id="reaction_smiles" class="edittext"></div>
+        <span class="label">reaction SMARTS</span>
+        <div id="reaction_smarts" class="edittext"></div>
       </div>
 
       <div id="go">
@@ -171,10 +169,14 @@
       </pre>
     </div>
 
-    <div id="input_template" style="display: none;">
-      <span class="label">input</span>
-      <div class="input edittext"></div>
-      <select class="input">
+    <div id="component_template" style="display: none;">
+      <span class="label">Component</span>
+      <div class="component edittext"></div>
+      <select class="source">
+        <option value="input">input</option>
+        <option value="output">output</option>
+      </select>
+      <select class="component">
         <option value="exact">exact</option>
         <option value="similar">similar</option>
         <option value="substructure">substructure</option>
@@ -194,7 +196,7 @@
         xhr.send();
       }
       
-      // Inputs, output, similarity.
+      // Components.
       function showReagentsTab() {
         $('#reagents').show();
         $('#reactions').hide();
@@ -210,14 +212,14 @@
         $('#reactionsTab').css('background-color', 'lightblue');
       }
 
-      // Add an input field, for "+ input" button (and initialization).
-      function addInput() {
-        const input = $('#input_template').clone();
-        const anchor = $('#add_input');
-        input.children().each((index, node) => {
+      // Add a component field, for "+ component" button (and initialization).
+      function addComponent() {
+        const component = $('#component_template').clone();
+        const anchor = $('#add_component');
+        component.children().each((index, node) => {
           anchor.before(node);
         });
-        // Return value is the text field <div/> of the new input.
+        // Return value is the text field <div/> of the new component.
         return anchor.prev().prev();
       }
 
@@ -226,8 +228,18 @@
         return node.text().trim();
       }
 
+      // Get the component source (input/output).
+      function getComponentSource(node) {
+        return $('option:selected', node.next()).text()
+      }
+
       // Get the matching option for a text field.
       function getMatchMode(node) {
+        return $('option:selected', node.next().next()).text()
+      }
+
+      // Get the stereochemistry option.
+      function getUseStereochemistry(node) {
         return $('option:selected', node.next()).text()
       }
 
@@ -246,31 +258,26 @@
         let path = '/?'
         let hasReagent = false;
 
-        // Inputs.
-        const inputs = $('.input.edittext');
-        inputs.each((index, node) => {
-          const input = $(node);
-          if (input.is(':hidden')) {
+        // Components.
+        const components = $('.component.edittext');
+        components.each((index, node) => {
+          const component = $(node);
+          if (component.is(':hidden')) {
             // The template.
             return;
           }
-          const inputText = getText(input);
-          if (inputText) {
-            const matchMode = getMatchMode(input);
-            path += 'input=' + encodeURIComponent(inputText) + ';' + matchMode + '&';
+          const componentText = getText(component);
+          if (componentText) {
+            const sourceTable = getComponentSource(component);
+            const matchMode = getMatchMode(component);
+            path += 'component=' + encodeURIComponent(componentText) + ';' + sourceTable + ';' + matchMode + '&';
           }
           hasReagent = true;
         });
-        // Output.
-        const output = $('.output.edittext');
-        const outputText = getText(output);
-        if (outputText) {
-          const matchMode = getMatchMode(output);
-          path += 'output=' + encodeURIComponent(outputText) + ';' + matchMode + '&';
-          hasReagent = true;
-        }
-        // Similarity threshold.
+        // Fingerprint similarity options.
         if (hasReagent) {
+          const useStereochemistry = getUseStereochemistry();
+          path += 'use_stereochemistry=' + encodeURIComponent(useStereochemistry) + '&';
           const similarity = getSimilarity();
           path += 'similarity=' + encodeURIComponent(similarity / 100) + '&';
         }
@@ -285,11 +292,11 @@
         if (reactionIds.length > 0) {
           path += 'reaction_ids=' + encodeURIComponent(reactionIds.join(',')) + '&';
         }
-        // Reaction SMILES.
-        const reactionSmiles = $('#reaction_smiles');
-        const reactionSmilesText = getText(reactionSmiles);
-        if (reactionSmilesText) {
-          path += 'reaction_smiles=' + encodeURIComponent(reactionSmilesText) + '&';
+        // Reaction SMARTS.
+        const reactionSmarts = $('#reaction_smarts');
+        const reactionSmartsText = getText(reactionSmarts);
+        if (reactionSmartsText) {
+          path += 'reaction_smarts=' + encodeURIComponent(reactionSmartsText) + '&';
         }
         if (path.slice(-1) == '&') {
           path = path.slice(0, -1);
@@ -298,42 +305,42 @@
       }
 
       // Initialize the user inputs from the current predicate.
-      function importPredicate() {
-        predicate = JSON.parse('{{ predicate|safe }}')
+      function importQuery() {
+        query = JSON.parse('{{ query|safe }}')
 
-        // Inputs.
-        if (predicate.inputs && (predicate.inputs.length > 0)) {
-          predicate.inputs.forEach(input => {
-            const edittext = addInput();
-            edittext.text(input.smiles);
-            edittext.next().val(input.matchMode);
+        // Components.
+        if (query.hasAttribute('components') && (query.components.length > 0)) {
+          query.components.forEach(component => {
+            const edittext = addComponent();
+            edittext.text(component.pattern);
+            edittext.next().val(component.source);
+            edittext.next().next().val(component.matchMode);
           });
         } else {
-          // Make sure there is at least one input for convenience.
-          addInput();
+          // Make sure there is at least one component for convenience.
+          addComponent();
         }
 
-        // Output.
-        if (predicate.output) {
-          const output = predicate.output;
-          const edittext = $('.output.edittext')
-          edittext.text(output.smiles);
-          edittext.next().val(output.matchMode);
+        // Fingerprint similarity options.
+        if (query.hasAttribute('useStereochemistry')) {
+          $('#stereo').val(query.useStereochemistry);
         }
-
-        // Similarity.
-        const similarity = predicate.similarity;
-        setSimilarity(similarity);
+        if (query.hasAttribute('similarity')) {
+          const similarity = query.similarity;
+          setSimilarity(similarity);
+        }
 
         // Reaction ID.
-        if (predicate.reactionIds) {
+        if (query.hasAttribute('reactionIds')) {
           const reactionIds = $('#reaction_ids')
           reactionIds.text(predicate.reactionIds.join(','));
         }
 
         // Reaction SMILES.
-        const reactionSmiles = $('#reaction_smiles');
-        reactionSmiles.text(predicate.reactionSmiles);
+        if (query.hasAttribute('reactionSmarts')) {
+          const reactionSmarts = $('#reaction_smarts');
+          reactionSmarts.text(predicate.reactionSmarts);
+        }
       }
 
       // Update the pbtxt when the user mouses over a result.
@@ -348,9 +355,9 @@
       // Make the .editext divs actually editable.
       $('.edittext').attr('contentEditable', 'true');
 
-      // Hook up the "+ input" button.
-      $('#add_input').click(() => {
-        addInput();
+      // Hook up the "+ component" button.
+      $('#add_component').click(() => {
+        addComponent();
       });
 
       // Hook up the query button.
@@ -374,10 +381,10 @@
         showReactionsTab();
       });
 
-      importPredicate();
+      importQuery();
 
       // Show the tab appropriate to the current predicate.
-      if (predicate.reactionIds || predicate.reactionSmiles) {
+      if (query.hasAttribute('reactionIds') || query.hasAttribute('reactionSmarts') {
         showReactionsTab();
       } else {
         showReagentsTab();

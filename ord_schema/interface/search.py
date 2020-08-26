@@ -70,10 +70,9 @@ def show_root():
     """
     reaction_ids = flask.request.args.get('reaction_ids')
     reaction_smarts = flask.request.args.get('reaction_smarts')
-    inputs = flask.request.args.getlist('input')
-    outputs = flask.request.args.getlist('output')
-    do_chiral_sss = flask.request.args.get('use_stereochemistry')
-    tanimoto_threshold = flask.request.args.get('similarity')
+    components = flask.request.args.getlist('components')
+    use_stereochemistry = flask.request.args.get('use_stereochemistry')
+    similarity = flask.request.args.get('similarity')
 
     if reaction_ids is not None:
         command = query.ReactionIdQuery(reaction_ids.split(','))
@@ -81,21 +80,21 @@ def show_root():
         command = query.ReactionSmartsQuery(reaction_smarts)
     else:
         predicates = []
-        for table, queries in [('inputs', inputs), ('outputs', outputs)]:
-            splits = [i.split(';', 1) for i in queries] if queries else []
-        for smiles, mode_name in splits:
+        for component in components:
+            pattern, source, mode_name = component.split(';')
+            table = query.ReactionComponentPredicate.SOURCE_TO_TABLE[source]
             mode = query.ReactionComponentPredicate.MatchMode.from_name(
                 mode_name)
             predicates.append(
-                query.ReactionComponentPredicate(smiles, table, mode))
-        command = query.ReactionComponentQuery(
-            predicates,
-            do_chiral_sss=do_chiral_sss,
-            tanimoto_threshold=float(tanimoto_threshold))
+                query.ReactionComponentPredicate(pattern, table, mode))
+        kwargs = {'do_chiral_sss': use_stereochemistry}
+        if similarity is not None:
+            kwargs['tanimoto_threshold'] = float(similarity)
+        command = query.ReactionComponentQuery(predicates, **kwargs)
     dataset = connect().run_query(command, return_ids=True)
     return flask.render_template('search.html',
                                  reaction_ids=dataset.reaction_ids,
-                                 predicate=command.json())
+                                 query=command.json())
 
 
 @app.route('/id/<reaction_id>')
