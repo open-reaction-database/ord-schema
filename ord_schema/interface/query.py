@@ -44,8 +44,10 @@ import binascii
 import enum
 import json
 
+from absl import logging
 import psycopg2
 from psycopg2 import sql
+from rdkit import Chem
 
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
@@ -113,9 +115,14 @@ class ReactionIdQuery(ReactionQueryBase):
             Dict mapping reaction IDs to serialized Reaction protos.
         """
         del limit  # Unused.
-        query = sql.SQL(
-            'SELECT serialized FROM reactions WHERE reaction_id = ANY (%s)')
-        cursor.execute(query, [self._reaction_ids])
+        query = sql.SQL("""
+            SELECT DISTINCT reaction_id, serialized 
+            FROM reactions 
+            WHERE reaction_id = ANY (%s)""")
+        args = [self._reaction_ids]
+        logging.info('Running SQL command:%s',
+                     cursor.mogrify(query, args).decode())
+        cursor.execute(query, args)
         return fetch_results(cursor)
 
 
@@ -147,16 +154,18 @@ class ReactionSmartsQuery(ReactionQueryBase):
         """
         components = [
             sql.SQL("""
-            SELECT reactions.reaction_id, reactions.serialized
+            SELECT DISTINCT reaction_id, serialized
             FROM reactions
-            INNER JOIN rdkit.reactions USING (reaction_id)
-            WHERE rdkit.reactions.r@>%s::qmol""")
+            INNER JOIN rdk.reactions USING (reaction_id)
+            WHERE rdk.reactions.r@>reaction_from_smarts(%s)""")
         ]
         args = [self._reaction_smarts]
         if limit:
             components.append(sql.SQL(' LIMIT %s'))
             args.append(limit)
         query = sql.Composed(components).join('')
+        logging.info('Running SQL command:%s',
+                     cursor.mogrify(query, args).decode())
         cursor.execute(query, args)
         return fetch_results(cursor)
 
@@ -192,10 +201,52 @@ class ReactionComponentQuery(ReactionQueryBase):
         Args:
             cursor: psycopg.cursor instance.
         """
-        cursor.execute(sql.SQL('SET rdkit.do_chiral_sss=%s'),
-                       [self._do_chiral_sss])
-        cursor.execute(sql.SQL('SET rdkit.tanimoto_threshold=%s'),
-                       [self._tanimoto_threshold])
+        command = sql.SQL('SET rdkit.do_chiral_sss=%s')
+        args = [self._do_chiral_sss]
+        logging.info('Running SQL command: %s',
+                     cursor.mogrify(command, args).decode())
+        cursor.execute(command, args)
+        command = sql.SQL('SET rdkit.tanimoto_threshold=%s')
+        args = [self._tanimoto_threshold]
+        logging.info('Running SQL command: %s',
+                     cursor.mogrify(command, args).decode())
+        cursor.execute(command, args)
+
+    def _get_tables(self):
+        """Identifies the minimum set of tables to join for the query."""
+        tables = []
+        requires_inputs = False
+        requires_rdk_inputs = False
+        requires_outputs = False
+        requires_rdk_outputs = False
+        for predicate in self._predicates:
+            if predicate.table == 'inputs':
+                if predicate.mode == ReactionComponentPredicate.MatchMode.EXACT:
+                    requires_inputs = True
+                else:
+                    requires_rdk_inputs = True
+            elif predicate.table == 'outputs':
+                if predicate.mode == ReactionComponentPredicate.MatchMode.EXACT:
+                    requires_outputs = True
+                else:
+                    requires_rdk_outputs = True
+        if requires_inputs:
+            tables.append(
+                sql.SQL("""
+                    INNER JOIN inputs USING (reaction_id) """))
+        if requires_rdk_inputs:
+            tables.append(
+                sql.SQL("""
+                    INNER JOIN rdk.inputs USING (reaction_id) """))
+        if requires_outputs:
+            tables.append(
+                sql.SQL("""
+                    INNER JOIN outputs USING (reaction_id) """))
+        if requires_rdk_outputs:
+            tables.append(
+                sql.SQL("""
+                    INNER JOIN rdk.outputs USING (reaction_id) """))
+        return tables
 
     def run(self, cursor, limit=None):
         """Runs the query.
@@ -213,14 +264,12 @@ class ReactionComponentQuery(ReactionQueryBase):
         self._setup(cursor)
         components = [
             sql.SQL("""
-            SELECT reactions.reaction_id, reactions.serialized
-            FROM reactions
-            INNER JOIN inputs USING (reaction_id)
-            INNER JOIN rdk.inputs USING (reaction_id)
-            INNER JOIN outputs USING (reaction_id)
-            INNER JOIN rdk.outputs USING (reaction_id)
-            WHERE """)
+            SELECT DISTINCT reaction_id, serialized
+            FROM reactions """)
         ]
+        components.extend(self._get_tables())
+        components.append(sql.SQL("""
+            WHERE """))
         args = []
         predicates = []
         for predicate in self._predicates:
@@ -232,6 +281,8 @@ class ReactionComponentQuery(ReactionQueryBase):
             components.append(sql.SQL(' LIMIT %s'))
             args.append(limit)
         query = sql.Composed(components).join('')
+        logging.info('Running SQL command:%s',
+                     cursor.mogrify(query, args).decode())
         cursor.execute(query, args)
         return fetch_results(cursor)
 
@@ -272,6 +323,14 @@ class ReactionComponentPredicate:
         self._table = table
         self._mode = mode
 
+    @property
+    def table(self):
+        return self._table
+
+    @property
+    def mode(self):
+        return self._mode
+
     def json(self):
         """Returns a JSON representation of the predicate."""
         return json.dumps({
@@ -288,10 +347,12 @@ class ReactionComponentPredicate:
             args: List of arguments for `predicate`.
         """
         if self._mode == ReactionComponentPredicate.MatchMode.EXACT:
+            # Canonicalize the SMILES.
+            self._pattern = Chem.MolToSmiles(Chem.MolFromSmiles(self._pattern))
             predicate = sql.SQL('{} = %s').format(
                 sql.Identifier(self._table, 'smiles'))
         elif self._mode == ReactionComponentPredicate.MatchMode.SIMILAR:
-            predicate = sql.SQL('{}%morganbv_fp(%s)').format(
+            predicate = sql.SQL('{}%%morganbv_fp(%s)').format(
                 sql.Identifier('rdk', self._table, 'mfp2'))
         elif self._mode == ReactionComponentPredicate.MatchMode.SUBSTRUCTURE:
             predicate = sql.SQL('{}@>%s').format(
@@ -329,11 +390,13 @@ class OrdPostgres:
     def cursor(self):
         return self._connection.cursor()
 
-    def run_query(self, query, return_ids=False):
+    def run_query(self, query, limit=None, return_ids=False):
         """Runs a query against the database.
 
         Args:
             query: ReactionQueryBase query.
+            limit: Integer maximum number of matches. If None (the default), no
+                limit is set.
             return_ids: If True, only return reaction IDs. If False, return
                 full Reaction records.
 
@@ -341,14 +404,13 @@ class OrdPostgres:
             dataset_pb2.Dataset containing the matched reactions (or IDs).
         """
         with self._connection, self.cursor() as cursor:
-            reactions = query.run(cursor)
+            reactions = query.run(cursor, limit=limit)
             self._connection.rollback()  # Revert rdkit runtime configuration.
         if return_ids:
             return dataset_pb2.Dataset(reaction_ids=reactions.keys())
-        else:
-            unserialized = []
-            for reaction_id, serialized in reactions.items():
-                reaction = reaction_pb2.Reaction.FromString(
-                    binascii.unhexlify(serialized.tobytes()))
-                unserialized.append(reaction)
-            return dataset_pb2.Dataset(reactions=unserialized)
+        unserialized = []
+        for serialized in reactions.values():
+            reaction = reaction_pb2.Reaction.FromString(
+                binascii.unhexlify(serialized.tobytes()))
+            unserialized.append(reaction)
+        return dataset_pb2.Dataset(reactions=unserialized)
