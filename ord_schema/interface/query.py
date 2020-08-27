@@ -238,19 +238,19 @@ class ReactionComponentQuery(ReactionQueryBase):
         if requires_inputs:
             tables.append(
                 sql.SQL("""
-                    INNER JOIN inputs USING (reaction_id) """))
+            INNER JOIN inputs USING (reaction_id) """))
         if requires_rdk_inputs:
             tables.append(
                 sql.SQL("""
-                    INNER JOIN rdk.inputs USING (reaction_id) """))
+            INNER JOIN rdk.inputs USING (reaction_id) """))
         if requires_outputs:
             tables.append(
                 sql.SQL("""
-                    INNER JOIN outputs USING (reaction_id) """))
+            INNER JOIN outputs USING (reaction_id) """))
         if requires_rdk_outputs:
             tables.append(
                 sql.SQL("""
-                    INNER JOIN rdk.outputs USING (reaction_id) """))
+            INNER JOIN rdk.outputs USING (reaction_id) """))
         return tables
 
     def run(self, cursor, limit=None):
