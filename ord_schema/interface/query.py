@@ -191,9 +191,13 @@ class ReactionComponentQuery(ReactionQueryBase):
     def json(self):
         """Returns a JSON representation of the query."""
         return json.dumps({
-            'useStereochemistry': self._do_chiral_sss,
-            'similarity': self._tanimoto_threshold,
-            'components': [predicate.json() for predicate in self._predicates],
+            'useStereochemistry':
+                self._do_chiral_sss,
+            'similarity':
+                self._tanimoto_threshold,
+            'components': [
+                predicate.to_dict() for predicate in self._predicates
+            ],
         })
 
     def _setup(self, cursor):
@@ -332,13 +336,13 @@ class ReactionComponentPredicate:
     def mode(self):
         return self._mode
 
-    def json(self):
-        """Returns a JSON representation of the predicate."""
-        return json.dumps({
+    def to_dict(self):
+        """Returns a dict representation of the predicate."""
+        return {
             'pattern': self._pattern,
             'source': self._TABLE_TO_SOURCE[self._table],
             'mode': self._mode.name.lower(),
-        })
+        }
 
     def get(self):
         """Builds the SQL predicate.

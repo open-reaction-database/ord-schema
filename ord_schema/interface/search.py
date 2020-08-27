@@ -51,7 +51,7 @@ def show_root():
     """
     reaction_ids = flask.request.args.get('reaction_ids')
     reaction_smarts = flask.request.args.get('reaction_smarts')
-    components = flask.request.args.getlist('components')
+    components = flask.request.args.getlist('component')
     use_stereochemistry = flask.request.args.get('use_stereochemistry')
     similarity = flask.request.args.get('similarity')
 

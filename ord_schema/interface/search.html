@@ -126,11 +126,7 @@
         <div></div> <!-- Blank grid cell to the right of the output. -->
 
         <span class="label">use stereochemistry</span>
-        <div class="stereo edittext"></div>
-        <select class="stereo">
-          <option value="false">false</option>
-          <option value="true">true</option>
-        </select>
+        <input type="checkbox" id="stereo">
 
         <span class="label">similarity</span>
         <div id="similarity"></div>
@@ -220,7 +216,7 @@
           anchor.before(node);
         });
         // Return value is the text field <div/> of the new component.
-        return anchor.prev().prev();
+        return anchor.prev().prev().prev();
       }
 
       // Get the text from an .edittext div.
@@ -239,8 +235,8 @@
       }
 
       // Get the stereochemistry option.
-      function getUseStereochemistry(node) {
-        return $('option:selected', node.next()).text()
+      function getUseStereochemistry() {
+        return $('#stereo').is(":checked")
       }
 
       // Get the current value of the similarity slider.
@@ -254,7 +250,7 @@
       }
 
       // Read back the user inputs and build a query URL.
-      function exportPredicate() {
+      function exportQuery() {
         let path = '/?'
         let hasReagent = false;
 
@@ -306,7 +302,8 @@
 
       // Initialize the user inputs from the current predicate.
       function importQuery() {
-        query = JSON.parse('{{ query|safe }}')
+        const query = JSON.parse('{{ query|safe }}')
+        console.log(query);
 
         // Components.
         if ('components' in query && (query.components.length > 0)) {
@@ -314,7 +311,7 @@
             const edittext = addComponent();
             edittext.text(component.pattern);
             edittext.next().val(component.source);
-            edittext.next().next().val(component.matchMode);
+            edittext.next().next().val(component.mode);
           });
         } else {
           // Make sure there is at least one component for convenience.
@@ -323,7 +320,7 @@
 
         // Fingerprint similarity options.
         if ('useStereochemistry' in query) {
-          $('#stereo').val(query.useStereochemistry);
+          $('#stereo').prop( "checked", query.useStereochemistry === "true");
         }
         if ('similarity' in query) {
           const similarity = query.similarity;
@@ -333,14 +330,16 @@
         // Reaction ID.
         if ('reactionIds' in query) {
           const reactionIds = $('#reaction_ids')
-          reactionIds.text(predicate.reactionIds.join(','));
+          reactionIds.text(query.reactionIds.join(','));
         }
 
         // Reaction SMILES.
         if ('reactionSmarts' in query) {
           const reactionSmarts = $('#reaction_smarts');
-          reactionSmarts.text(predicate.reactionSmarts);
+          reactionSmarts.text(query.reactionSmarts);
         }
+
+        return query;
       }
 
       // Update the pbtxt when the user mouses over a result.
@@ -362,7 +361,7 @@
 
       // Hook up the query button.
       $('#go').click(() => {
-        const path = exportPredicate();
+        const path = exportQuery();
         window.location.href = path;
       });
 
@@ -381,7 +380,7 @@
         showReactionsTab();
       });
 
-      importQuery();
+      const query = importQuery();
 
       // Show the tab appropriate to the current predicate.
       if ('reactionIds' in query || 'reactionSmarts' in query) {
