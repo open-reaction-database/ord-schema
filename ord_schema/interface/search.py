@@ -14,49 +14,30 @@
 """Query web interface to the Open Reaction Database in Postgres.
 
 The client is stateless. Full information is in the URL so results can be
-linked.
+linked. Query parameters are communicated in URL GET params:
 
-There are three kinds of query.
+  component=<pattern;source;(exact|substructure|similarity|smarts)>
 
-  inputs and output SMILES or SMARTS
+    The second token specifies whether the predicate should match an input or
+    an output.
 
-    These match against individual reagents and results. Each SMILES expression
-    can be freely specified for "exact", "substructure", or "similarity"
-    matching. SMARTS expressions do not allow such a specification.
+    The last token specifies the matching criterion. The default is "exact".
+    The pattern is a SMILES string, unless the token is "smarts" in which case
+    the pattern is a SMARTS string.
 
-  reaction ID
+    Component may be repeated any number of times.
 
-    Matches either zero or one reactions. The ID has the form,
-      "ord-<32-bit hex>".
+  reaction_ids=<ids>
 
-  reaction SMILES
+  reaction_smarts=<smarts>
 
-    Matches against RDKit fingerprints.
-
-Query parameters are communicated in URL GET params.
-
-  input=<pattern;(exact|substructure|similarity|smarts)>
-
-  output=<pattern;(exact|substructure|similarity|smarts)>
-
-    The token after the semicolon specifies the matching criterion. The default
-    is "exact". The pattern is a SMILES string, unless the token is "smarts" in
-    which case the pattern is a SMARTS string.
-
-    The "input" param may be repeated. The "output" param may not.
-
-  reaction_id=<id>
-
-  reaction_smiles=<smiles>
-
-If multiple conditions are given, then the query is interpreted as conjunction.
-
-All query parameters are assumed to be URL-encoded.
+These query types are mutually exclusive. All query parameters are assumed to
+be URL-encoded.
 """
 
 import flask
 
-import query
+from ord_schema.interface import query
 
 app = flask.Flask(__name__, template_folder='.')
 
@@ -69,50 +50,40 @@ def show_root():
     populated with the results. The form fields are populated with the params.
     """
     reaction_ids = flask.request.args.get('reaction_ids')
-    reaction_smiles = flask.request.args.get('reaction_smiles')
-    inputs = flask.request.args.getlist("input")
-    output = flask.request.args.get('output')
+    reaction_smarts = flask.request.args.get('reaction_smarts')
+    components = flask.request.args.getlist('component')
+    use_stereochemistry = flask.request.args.get('use_stereochemistry')
     similarity = flask.request.args.get('similarity')
 
-    predicate = query.Predicate()
-
     if reaction_ids is not None:
-        for reaction_id in reaction_ids.split(','):
-            predicate.add_reaction_id(reaction_id)
-
-    if reaction_smiles is not None:
-        predicate.set_reaction_smiles(reaction_smiles)
-
-    in_splits = [i.split(';', 1) for i in inputs] if inputs else []
-    for smiles, mode_name in in_splits:
-        mode = query.Predicate.MatchMode.from_name(mode_name)
-        predicate.add_input(smiles, mode)
-
-    if output is not None:
-        smiles, mode_name = output.split(';', 1)
-        mode = query.Predicate.MatchMode.from_name(mode_name)
-        predicate.set_output(smiles, mode)
-
-    if similarity is not None:
-        predicate.set_tanimoto_threshold(float(similarity))
-
-    if reaction_ids or reaction_smiles or inputs or output:
-        db = connect()
-        reaction_ids = db.predicate_search_ids(predicate)
+        command = query.ReactionIdQuery(reaction_ids.split(','))
+    elif reaction_smarts is not None:
+        command = query.ReactionSmartsQuery(reaction_smarts)
     else:
-        reaction_ids = []
+        predicates = []
+        for component in components:
+            pattern, source, mode_name = component.split(';')
+            table = query.ReactionComponentPredicate.SOURCE_TO_TABLE[source]
+            mode = query.ReactionComponentPredicate.MatchMode.from_name(
+                mode_name)
+            predicates.append(
+                query.ReactionComponentPredicate(pattern, table, mode))
+        kwargs = {}
+        if use_stereochemistry is not None:
+            kwargs['do_chiral_sss'] = use_stereochemistry
+        if similarity is not None:
+            kwargs['tanimoto_threshold'] = float(similarity)
+        command = query.ReactionComponentQuery(predicates, **kwargs)
+    dataset = connect().run_query(command, return_ids=True)
     return flask.render_template('search.html',
-                                 reaction_ids=reaction_ids,
-                                 predicate=predicate.json())
+                                 reaction_ids=dataset.reaction_ids,
+                                 query=command.json())
 
 
 @app.route('/id/<reaction_id>')
 def show_id(reaction_id):
     """Returns the pbtxt of a single reaction as plain text."""
-    predicate = query.Predicate()
-    predicate.add_reaction_id(reaction_id)
-    db = connect()
-    dataset = db.predicate_search(predicate)
+    dataset = connect().run_query(query.ReactionIdQuery([reaction_id]))
     if len(dataset.reactions) == 0:
         return flask.abort(404)
     return flask.Response(str(dataset.reactions[0]), mimetype='text/plain')
