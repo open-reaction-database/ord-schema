@@ -28,14 +28,14 @@ from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 
-def validate_datasets(datasets, write_errors=False, validate_ids=False):
+def validate_datasets(datasets, write_errors=False, strict=False):
     """Runs validation for a set of datasets.
 
     Args:
         datasets: Dict mapping text filenames to Dataset protos.
         write_errors: If True, errors are written to disk.
-        validate_ids: A boolean that controls whether the IDs of Reactions or
-            Datasets should be checked for validity. Defaults to False.
+        strict: A boolean that controls whether strict validations are used in
+            validate_dataset and validate_reaction. Defaults to False.
 
     Raises:
         ValidationError: if any Dataset does not pass validation.
@@ -43,9 +43,7 @@ def validate_datasets(datasets, write_errors=False, validate_ids=False):
     all_errors = []
     for filename, dataset in datasets.items():
         basename = os.path.basename(filename)
-        errors = _validate_datasets(dataset,
-                                    label=basename,
-                                    validate_ids=validate_ids)
+        errors = _validate_datasets(dataset, label=basename, strict=strict)
         if errors:
             for error in errors:
                 all_errors.append(f'{filename}: {error}')
@@ -60,14 +58,14 @@ def validate_datasets(datasets, write_errors=False, validate_ids=False):
         raise ValidationError(f'validation encountered errors:\n{error_string}')
 
 
-def _validate_datasets(dataset, label='dataset', validate_ids=False):
+def _validate_datasets(dataset, label='dataset', strict=False):
     """Validates Reaction messages and cross-references in a Dataset.
 
     Args:
         dataset: dataset_pb2.Dataset message.
         label: string label for logging purposes only.
-        validate_ids: A boolean that controls whether the IDs of Reactions or
-            Datasets should be checked for validity. Defaults to False.
+        strict: A boolean that controls whether strict validations are used in
+            validate_dataset and validate_reaction. Defaults to False.
 
     Returns:
         List of validation error messages.
@@ -79,7 +77,7 @@ def _validate_datasets(dataset, label='dataset', validate_ids=False):
     for i, reaction in enumerate(dataset.reactions):
         reaction_errors = validate_message(reaction,
                                            raise_on_error=False,
-                                           validate_ids=validate_ids)
+                                           strict=strict)
         if reaction_errors:
             num_bad_reactions += 1
         for error in reaction_errors:
@@ -93,7 +91,7 @@ def _validate_datasets(dataset, label='dataset', validate_ids=False):
     dataset_errors = validate_message(dataset,
                                       raise_on_error=False,
                                       recurse=False,
-                                      validate_ids=validate_ids)
+                                      strict=strict)
     for error in dataset_errors:
         errors.append(error)
         logging.warning('Validation error for %s: %s', label, error)
@@ -104,7 +102,7 @@ def _validate_datasets(dataset, label='dataset', validate_ids=False):
 def validate_message(message,
                      recurse=True,
                      raise_on_error=True,
-                     validate_ids=False,
+                     strict=False,
                      trace=None):
     """Template function for validating custom messages in the reaction_pb2.
 
@@ -124,8 +122,8 @@ def validate_message(message,
         raise_on_error: If True, raises a ValidationError exception when errors
             are encountered. If False, the user must manually check the return
             value to identify validation errors.
-        validate_ids: A boolean that controls whether the IDs of Reactions or
-            Datasets should be checked for validity. Defaults to False.
+        strict: A boolean that controls whether strict validations are used in
+            validate_dataset and validate_reaction. Defaults to False.
         trace: Tuple containing a string "stack trace" to track the position of
             the current message relative to the recursion root.
 
@@ -146,7 +144,7 @@ def validate_message(message,
                                   value=value,
                                   errors=errors,
                                   raise_on_error=raise_on_error,
-                                  validate_ids=validate_ids,
+                                  strict=strict,
                                   trace=trace)
 
     # Message-specific validation
@@ -159,9 +157,9 @@ def validate_message(message,
         raise NotImplementedError(f"Don't know how to validate {type(message)}")
 
     with warnings.catch_warnings(record=True) as tape:
-        if validate_ids and isinstance(
-                message, (reaction_pb2.Reaction, dataset_pb2.Dataset)):
-            _VALIDATOR_SWITCH[type(message)](message, validate_id=True)
+        if strict and isinstance(message,
+                                 (reaction_pb2.Reaction, dataset_pb2.Dataset)):
+            _VALIDATOR_SWITCH[type(message)](message, strict=True)
         else:
             _VALIDATOR_SWITCH[type(message)](message)
     stack = '.'.join(trace)
@@ -176,8 +174,7 @@ def validate_message(message,
     return errors
 
 
-def _validate_message(field, value, errors, raise_on_error, validate_ids,
-                      trace):
+def _validate_message(field, value, errors, raise_on_error, strict, trace):
     """Validates a single message field and its children.
 
     Args:
@@ -187,8 +184,8 @@ def _validate_message(field, value, errors, raise_on_error, validate_ids,
         raise_on_error: If True, raises a ValidationError exception when errors
             are encountered. If False, the user must manually check the return
             value to identify validation errors.
-        validate_ids: A boolean that controls whether the IDs of Reactions or
-            Datasets should be checked for validity. Defaults to False.
+        strict: A boolean that controls whether strict validations are used in
+            validate_dataset and validate_reaction. Defaults to False.
         trace: Tuple containing a string "stack trace" to track the position of
             the current message relative to the recursion root.
     """
@@ -202,7 +199,7 @@ def _validate_message(field, value, errors, raise_on_error, validate_ids,
                     errors.extend(
                         validate_message(submessage,
                                          raise_on_error=raise_on_error,
-                                         validate_ids=validate_ids,
+                                         strict=strict,
                                          trace=this_trace))
             else:  # value is a primitive
                 pass
@@ -212,14 +209,14 @@ def _validate_message(field, value, errors, raise_on_error, validate_ids,
                 errors.extend(
                     validate_message(submessage,
                                      raise_on_error=raise_on_error,
-                                     validate_ids=validate_ids,
+                                     strict=strict,
                                      trace=this_trace))
     else:  # no recursion needed
         this_trace = trace + (field.name,)
         errors.extend(
             validate_message(value,
                              raise_on_error=raise_on_error,
-                             validate_ids=validate_ids,
+                             strict=strict,
                              trace=this_trace))
 
 
@@ -317,7 +314,7 @@ def get_referenced_reaction_ids(message):
     return referenced_ids
 
 
-def validate_dataset(message, validate_id=False):
+def validate_dataset(message, strict=False):
     # pylint: disable=too-many-branches,too-many-nested-blocks
     if not message.reactions and not message.reaction_ids:
         warnings.warn('Dataset requires reactions or reaction_ids',
@@ -329,10 +326,16 @@ def validate_dataset(message, validate_id=False):
         for reaction_id in message.reaction_ids:
             if not re.fullmatch('^ord-[0-9a-f]{32}$', reaction_id):
                 warnings.warn('Reaction ID is malformed', ValidationError)
-    if validate_id:
+    if strict:
         # The dataset_id is a 32-character uuid4 hex string.
         if not re.fullmatch('^ord_dataset-[0-9a-f]{32}$', message.dataset_id):
             warnings.warn('Dataset ID is malformed', ValidationError)
+        # Require all reactions to have defined IDs.
+        for reaction in message.reactions:
+            if not reaction.reaction_id:
+                warnings.warn('Reactions must have defined IDs',
+                              ValidationError)
+                break
     # Check cross-references
     dataset_referenced_ids = set()
     dataset_defined_ids = set()
@@ -364,7 +367,7 @@ def validate_dataset_example(message):
         warnings.warn('DatasetExample.created is required', ValidationError)
 
 
-def validate_reaction(message, validate_id=False):
+def validate_reaction(message, strict=False):
     if len(message.inputs) == 0:
         warnings.warn('Reactions should have at least 1 reaction input',
                       ValidationError)
@@ -383,10 +386,17 @@ def validate_reaction(message, validate_id=False):
             'If reaction conversion is specified, at least one '
             'reaction input component must be labeled is_limiting',
             ValidationError)
-    if validate_id:
+    if strict:
         # The reaction_id suffix is a 32-character uuid4 hex string.
-        if not re.fullmatch('^ord-[0-9a-f]{32}$', message.reaction_id):
+        # NOTE(kearnes): This only activates if the reaction ID is defined. Use
+        # strict=True in validate_dataset to require defined IDs for all
+        # reactions.
+        if message.reaction_id and not re.fullmatch('^ord-[0-9a-f]{32}$',
+                                                    message.reaction_id):
             warnings.warn('Reaction ID is malformed', ValidationError)
+        # Require provenance.
+        if not message.HasField('provenance'):
+            warnings.warn('Reaction requires provenance', ValidationError)
 
 
 def validate_reaction_identifier(message):

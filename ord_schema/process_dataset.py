@@ -245,7 +245,7 @@ def _run_updates(inputs, datasets):
     # Final validation (incl. IDs) to make sure we didn't break anything.
     validations.validate_datasets({'_COMBINED': combined},
                                   FLAGS.write_errors,
-                                  validate_ids=True)
+                                  strict=True)
     if FLAGS.output:
         output_filename = FLAGS.output
     else:
