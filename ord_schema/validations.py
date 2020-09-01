@@ -31,6 +31,7 @@ from ord_schema.proto import reaction_pb2
 
 @dataclasses.dataclass
 class ValidationOptions:
+    """Options for message validation."""
     # Check that Dataset and Reaction IDs are well-formed.
     validate_ids: bool = False
     # Require ReactionProvenance for Reactions.
@@ -319,9 +320,9 @@ def get_referenced_reaction_ids(message):
 
 
 def validate_dataset(message, options=None):
+    # pylint: disable=too-many-branches,too-many-nested-blocks
     if options is None:
         options = ValidationOptions()
-    # pylint: disable=too-many-branches,too-many-nested-blocks
     if not message.reactions and not message.reaction_ids:
         warnings.warn('Dataset requires reactions or reaction_ids',
                       ValidationError)
