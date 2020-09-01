@@ -242,10 +242,12 @@ def _run_updates(inputs, datasets):
             logging.info('Running command: %s', ' '.join(args))
             subprocess.run(args, check=True)
     combined = _combine_datasets(datasets)
-    # Final validation (incl. IDs) to make sure we didn't break anything.
+    # Final validation to make sure we didn't break anything.
+    options = validations.ValidationOptions(validate_ids=True,
+                                            require_provenance=True)
     validations.validate_datasets({'_COMBINED': combined},
                                   FLAGS.write_errors,
-                                  strict=True)
+                                  options=options)
     if FLAGS.output:
         output_filename = FLAGS.output
     else:

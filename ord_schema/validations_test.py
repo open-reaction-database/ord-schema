@@ -261,16 +261,18 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message = reaction_pb2.Reaction(reaction_id=reaction_id)
         _ = message.inputs['test']
         message.outcomes.add()
+        options = validations.ValidationOptions(validate_ids=True)
         with self.assertRaisesRegex(validations.ValidationError, 'malformed'):
-            self._run_validation(message, recurse=False, strict=True)
+            self._run_validation(message, recurse=False, options=options)
 
     def test_missing_provenance(self):
         message = reaction_pb2.Reaction()
         _ = message.inputs['test']
         message.outcomes.add()
+        options = validations.ValidationOptions(require_provenance=True)
         with self.assertRaisesRegex(validations.ValidationError,
                                     'requires provenance'):
-            self._run_validation(message, recurse=False, strict=True)
+            self._run_validation(message, recurse=False, options=options)
 
     def test_data(self):
         message = reaction_pb2.Data()
@@ -286,29 +288,24 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     def test_dataset_bad_reaction_id(self):
         message = dataset_pb2.Dataset(reaction_ids=['foo'])
+        options = validations.ValidationOptions(validate_ids=True)
         with self.assertRaisesRegex(validations.ValidationError, 'malformed'):
-            self._run_validation(message, strict=True)
-
-    def test_dataset_missing_reaction_id(self):
-        message = dataset_pb2.Dataset(
-            reactions=[reaction_pb2.Reaction()],
-            dataset_id='ord_dataset-c0bbd41f095a44a78b6221135961d809')
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'must have defined IDs'):
-            self._run_validation(message, recurse=False, strict=True)
+            self._run_validation(message, options=options)
 
     def test_dataset_records_and_ids(self):
         message = dataset_pb2.Dataset(
             reactions=[reaction_pb2.Reaction()],
             reaction_ids=['ord-c0bbd41f095a44a78b6221135961d809'])
+        options = validations.ValidationOptions(validate_ids=True)
         with self.assertRaisesRegex(validations.ValidationError, 'not both'):
-            self._run_validation(message, recurse=False, strict=True)
+            self._run_validation(message, recurse=False, options=options)
 
     def test_dataset_bad_id(self):
         message = dataset_pb2.Dataset(reactions=[reaction_pb2.Reaction()],
                                       dataset_id='foo')
+        options = validations.ValidationOptions(validate_ids=True)
         with self.assertRaisesRegex(validations.ValidationError, 'malformed'):
-            self._run_validation(message, recurse=False, strict=True)
+            self._run_validation(message, recurse=False, options=options)
 
     def test_dataset_example(self):
         message = dataset_pb2.DatasetExample()
