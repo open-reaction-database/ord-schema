@@ -304,7 +304,10 @@ def validate_reaction(message_name):
     """Receives a serialized Reaction protobuf and runs validations."""
     message = message_helpers.create_message(message_name)
     message.ParseFromString(flask.request.get_data())
-    errors = validations.validate_message(message, raise_on_error=False)
+    options = validations.ValidationOptions(require_provenance=True)
+    errors = validations.validate_message(message,
+                                          raise_on_error=False,
+                                          options=options)
     return json.dumps(errors)
 
 

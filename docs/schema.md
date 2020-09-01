@@ -251,8 +251,8 @@ including required fields and checks for consistency across messages.
   message.
 * If `reaction_id` is set for a `Reaction` in `reactions`, it must be unique.
 * Each entry in `reaction_ids` must match `^ord-[0-9a-f]{32}$`.
-* When run with `validate_ids=True` (default is False), `dataset_id` must
-  match `^ord_dataset-[0-9a-f]{32}$`.
+* If `options.validate_ids=True`, `dataset_id` must match 
+  `^ord_dataset-[0-9a-f]{32}$`.
 
 ### DatasetExample
 
@@ -339,8 +339,8 @@ including required fields and checks for consistency across messages.
   `INTERNAL_STANDARD` role.
 * If `Reaction.conversion` is set, at least one `ReactionInput` must have its
   `is_limiting` field set to `TRUE`.
-* When run with `validate_ids=True` (default is False), `reaction_id` must
-  match `^ord-[0-9a-f]{32}$`.
+* If `options.validate_ids=True`, `reaction_id` must match `^ord-[0-9a-f]{32}$`.
+* If `options.require_provenance=True`, `Reaction.provenance` must be defined.
 
 ### ReactionAnalysis
 
