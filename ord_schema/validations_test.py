@@ -241,13 +241,14 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message.record_created.time.value = '2020-01-03'
         self.assertEmpty(self._run_validation(message))
 
-    @parameterized.parameters(['ord-c0bbd41f095a44a78b6221135961d809', ''])
-    def test_reaction_id(self, reaction_id):
+    def test_reaction_id(self):
         message = reaction_pb2.Reaction()
         _ = message.inputs['test']
         message.outcomes.add()
-        message.reaction_id = reaction_id
-        self.assertEmpty(self._run_validation(message, recurse=False))
+        message.reaction_id = 'ord-c0bbd41f095a44a78b6221135961d809'
+        options = validations.ValidationOptions(validate_ids=True)
+        self.assertEmpty(
+            self._run_validation(message, recurse=False, options=options))
 
     @parameterized.named_parameters(
         ('too short', 'ord-c0bbd41f095a4'),
@@ -256,6 +257,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         ('bad capitalization', 'ord-C0BBD41F095A44A78B6221135961D809'),
         ('bad characters', 'ord-h0bbd41f095a44a78b6221135961d809'),
         ('bad characters 2', 'ord-notARealId'),
+        ('empty', ''),
     )
     def test_bad_reaction_id(self, reaction_id):
         message = reaction_pb2.Reaction(reaction_id=reaction_id)
