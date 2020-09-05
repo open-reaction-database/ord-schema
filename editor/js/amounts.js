@@ -28,7 +28,7 @@ goog.require('proto.ord.Volume');
 
 /**
  * Populates the form's fields describing the amount of a compound.
- * @param {Node} node The div corresponding to the compound whose amount fields
+ * @param {!Node} node The div corresponding to the compound whose amount fields
  *     on the form should be updated.
  * @param {?proto.ord.Mass} mass
  * @param {?proto.ord.Moles} moles
@@ -81,9 +81,9 @@ function load(node, mass, moles, volume) {
 
 /**
  * Sets the amount fields of a compound message according to the form.
- * @param {Node} node The div corresponding to the compound whose amount fields
+ * @param {!Node} node The div corresponding to the compound whose amount fields
  *     should be read from the form.
- * @param {proto.ord.Compound} compound
+ * @param {!proto.ord.Compound} compound
  */
 function unload(node, compound) {
   const mass = unloadMass(node);
@@ -108,7 +108,7 @@ function unload(node, compound) {
 
 /**
  * Reads and returns a mass amount as defined in the form.
- * @param {Node} node The div corresponding to the compound whose mass fields
+ * @param {!Node} node The div corresponding to the compound whose mass fields
  *     should be read from the form.
  * @return {?proto.ord.Mass} mass
  */
@@ -133,7 +133,7 @@ function unloadMass(node) {
 
 /**
  * Reads and returns a molar amount as defined in the form.
- * @param {Node} node The div corresponding to the compound whose moles fields
+ * @param {!Node} node The div corresponding to the compound whose moles fields
  *     should be read from the form.
  * @return {?proto.ord.Moles} moles
  */
@@ -158,7 +158,7 @@ function unloadMoles(node) {
 
 /**
  * Reads and returns a volumetric amount as defined in the form.
- * @param {Node} node The div corresponding to the compound whose volume fields
+ * @param {!Node} node The div corresponding to the compound whose volume fields
  *     should be read from the form.
  * @return {?proto.ord.Volume} volume
  */
