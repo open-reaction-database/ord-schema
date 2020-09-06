@@ -229,7 +229,6 @@ function addIdentity(node) {
   const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_identity_template',
       $('.outcome_product_analysis_identities', node));
-  $('.outcome_analysis_name').trigger('input');
   return analysisSelectorNode;
 }
 
@@ -237,7 +236,6 @@ function addYield(node) {
   const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_yield_template',
       $('.outcome_product_analysis_yields', node));
-  $('.outcome_analysis_name').trigger('input');
   return analysisSelectorNode;
 }
 
@@ -245,7 +243,6 @@ function addPurity(node) {
   const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_purity_template',
       $('.outcome_product_analysis_purities', node));
-  $('.outcome_analysis_name').trigger('input');
   return analysisSelectorNode;
 }
 
@@ -253,7 +250,6 @@ function addSelectivity(node) {
   const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_selectivity_template',
       $('.outcome_product_analysis_selectivities', node));
-  $('.outcome_analysis_name').trigger('input');
   return analysisSelectorNode;
 }
 
