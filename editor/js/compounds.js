@@ -42,7 +42,7 @@ let radioGroupCounter = 0;
  * reaction input.
  * @param {!Node} node The div corresponding to the reaction input to which
  *     compound definitions should be added.
- * @param {!Array<proto.ord.Compound>} compounds
+ * @param {!Array<!proto.ord.Compound>} compounds
  */
 function load(node, compounds) {
   compounds.forEach(compound => loadCompound(node, compound));
@@ -151,7 +151,7 @@ function loadVendor(compoundNode, vendorSource, vendorLot, vendorId) {
  * Reads and returns a list of compounds defined within part of the form.
  * @param {!Node} node The div corresponding to the reaction inputs whose
  *     compounds should be read from the form.
- * @return {!Array<proto.ord.Compound>} compounds
+ * @return {!Array<!proto.ord.Compound>} compounds
  */
 function unload(node) {
   const compounds = [];
@@ -225,7 +225,7 @@ function unloadCompound(node) {
  * defined on the form.
  * @param {!Node} node The div corresponding to the compound whose identifiers
  *     should be read from the form.
- * @return {!Array<proto.ord.CompoundIdentifier>} identifiers
+ * @return {!Array<!proto.ord.CompoundIdentifier>} identifiers
  */
 function unloadIdentifiers(node) {
   const identifiers = [];
