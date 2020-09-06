@@ -77,6 +77,10 @@ function loadInputUnnamed(node, input) {
   if (duration) {
     ord.reaction.writeMetric('.input_addition_duration', duration, node);
   }
+  const temperature = input.getAdditionTemperature();
+  if (temperature) {
+    ord.reaction.writeMetric('.input_addition_temperature', temperature, node);
+  }
   const flowRate = input.getFlowRate();
   if (flowRate) {
     ord.reaction.writeMetric('.input_flow_rate', flowRate, node);
@@ -146,6 +150,12 @@ function unloadInputUnnamed(node) {
       '.input_addition_duration', new proto.ord.Time(), node);
   if (!ord.reaction.isEmptyMessage(additionDuration)) {
     input.setAdditionDuration(additionDuration);
+  }
+
+  const additionTemperature = ord.reaction.readMetric(
+      '.input_addition_temperature', new proto.ord.Temperature(), node);
+  if (!ord.reaction.isEmptyMessage(additionTemperature)) {
+    input.setAdditionTemperature(additionTemperature);
   }
 
   const flowRate = ord.reaction.readMetric(
