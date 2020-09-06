@@ -226,27 +226,35 @@ function add(node) {
 }
 
 function addIdentity(node) {
-  return ord.reaction.addSlowly(
+  const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_identity_template',
       $('.outcome_product_analysis_identities', node));
+  $('.outcome_analysis_name').trigger('input');
+  return analysisSelectorNode;
 }
 
 function addYield(node) {
-  return ord.reaction.addSlowly(
+  const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_yield_template',
       $('.outcome_product_analysis_yields', node));
+  $('.outcome_analysis_name').trigger('input');
+  return analysisSelectorNode;
 }
 
 function addPurity(node) {
-  return ord.reaction.addSlowly(
+  const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_purity_template',
       $('.outcome_product_analysis_purities', node));
+  $('.outcome_analysis_name').trigger('input');
+  return analysisSelectorNode;
 }
 
 function addSelectivity(node) {
-  return ord.reaction.addSlowly(
+  const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_selectivity_template',
       $('.outcome_product_analysis_selectivities', node));
+  $('.outcome_analysis_name').trigger('input');
+  return analysisSelectorNode;
 }
 
 function validateProduct(node, validateNode) {

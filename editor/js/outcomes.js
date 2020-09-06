@@ -35,6 +35,7 @@ let radioGroupCounter = 0;
 
 function load(outcomes) {
   outcomes.forEach(outcome => loadOutcome(outcome));
+  $('.outcome_analysis_name').trigger('input');
 }
 
 function loadOutcome(outcome) {
@@ -64,7 +65,7 @@ function loadOutcome(outcome) {
 function loadAnalysis(analysesNode, name, analysis) {
   const node = addAnalysis(analysesNode);
 
-  $('.outcome_analysis_name', node).text(name).trigger('input');
+  $('.outcome_analysis_name', node).text(name);
 
   ord.reaction.setSelector(
       $('.outcome_analysis_type', node), analysis.getType());
@@ -210,7 +211,7 @@ function unloadOutcome(node) {
   outcome.setProductsList(products);
 
   const analyses = outcome.getAnalysesMap();
-  $('.outcome_analysis').each(function(index, node) {
+  $('.outcome_analysis', node).each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
@@ -365,17 +366,17 @@ function addAnalysis(node) {
     var old_name = nameNode.data('val');
     if (old_name) {
       // If any selector had this value selected, reset it.
-      $('.analysis_key_selector').each(function() {
+      $('.analysis_key_selector', node).each(function() {
         if ($(this).val() == old_name) {
           $(this).val('');
         }
       });
-      $('.analysis_key_selector option[value="' + old_name + '"]').remove();
+      $('.analysis_key_selector option[value="' + old_name + '"]', node).remove();
     }
     // Add new key.
     var name = nameNode.text();
     if (name) {
-      $('.analysis_key_selector')
+      $('.analysis_key_selector', node)
           .append('<option value="' + name + '">' + name + '</option>');
       // Ensure old value stored (necessary if focus does not change).
       nameNode.data('val', name);
