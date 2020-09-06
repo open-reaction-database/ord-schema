@@ -225,10 +225,22 @@ function add(node) {
   return productNode;
 }
 
+function populateAnalysisSelector(node, analysisSelectorNode) {
+  const outcomeNode = node.closest('.outcome');
+  $('.outcome_analysis_name', outcomeNode).each(function () {
+    var name = $(this).text();
+    if (name) {
+      $('.analysis_key_selector', analysisSelectorNode)
+          .append('<option value="' + name + '">' + name + '</option>');
+    }
+  });
+}
+
 function addIdentity(node) {
   const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_identity_template',
       $('.outcome_product_analysis_identities', node));
+  populateAnalysisSelector(node, analysisSelectorNode);
   return analysisSelectorNode;
 }
 
@@ -236,6 +248,7 @@ function addYield(node) {
   const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_yield_template',
       $('.outcome_product_analysis_yields', node));
+  populateAnalysisSelector(node, analysisSelectorNode);
   return analysisSelectorNode;
 }
 
@@ -243,6 +256,7 @@ function addPurity(node) {
   const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_purity_template',
       $('.outcome_product_analysis_purities', node));
+  populateAnalysisSelector(node, analysisSelectorNode);
   return analysisSelectorNode;
 }
 
@@ -250,6 +264,7 @@ function addSelectivity(node) {
   const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_selectivity_template',
       $('.outcome_product_analysis_selectivities', node));
+  populateAnalysisSelector(node, analysisSelectorNode);
   return analysisSelectorNode;
 }
 

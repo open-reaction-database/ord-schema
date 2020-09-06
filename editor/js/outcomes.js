@@ -61,8 +61,8 @@ function loadOutcome(outcome) {
   ord.products.load(node, products);
 }
 
-function loadAnalysis(analysesNode, name, analysis) {
-  const node = addAnalysis(analysesNode);
+function loadAnalysis(outcomeNode, name, analysis) {
+  const node = addAnalysis(outcomeNode);
 
   $('.outcome_analysis_name', node).text(name).trigger('input');
 
