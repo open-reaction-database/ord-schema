@@ -107,7 +107,7 @@ function unload(node, compound) {
 }
 
 /**
- * Reads and returns a mass amount as defined in the form.
+ * Reads and returns a mass amount of a compound as defined in the form.
  * @param {!Node} node The div corresponding to the compound whose mass fields
  *     should be read from the form.
  * @return {?proto.ord.Mass} mass
@@ -132,7 +132,7 @@ function unloadMass(node) {
 }
 
 /**
- * Reads and returns a molar amount as defined in the form.
+ * Reads and returns a molar amount of a compound as defined in the form.
  * @param {!Node} node The div corresponding to the compound whose moles fields
  *     should be read from the form.
  * @return {?proto.ord.Moles} moles
@@ -157,7 +157,7 @@ function unloadMoles(node) {
 }
 
 /**
- * Reads and returns a volumetric amount as defined in the form.
+ * Reads and returns a volumetric amount of a compound as defined in the form.
  * @param {!Node} node The div corresponding to the compound whose volume fields
  *     should be read from the form.
  * @return {?proto.ord.Volume} volume

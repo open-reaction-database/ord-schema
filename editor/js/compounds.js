@@ -37,15 +37,35 @@ goog.require('proto.ord.CompoundIdentifier');
 // Freely create radio button groups by generating new input names.
 let radioGroupCounter = 0;
 
+/**
+ * Populates the form's fields describing multiple compounds for a single
+ * reaction input.
+ * @param {!Node} node The div corresponding to the reaction input to which
+ *     compound definitions should be added.
+ * @param {!Array<proto.ord.Compound>} compounds
+ */
 function load(node, compounds) {
   compounds.forEach(compound => loadCompound(node, compound));
 }
 
+/**
+ * Adds fields describing a new component to an existing reaction input in the
+ * form and populates them according to the provided compound.
+ * @param {!Node} root The div corresponding to the reaction input to which
+ *     a new compound definition should be added.
+ * @param {!proto.ord.Compound} compound
+ */
 function loadCompound(root, compound) {
   const node = add(root);
   loadIntoCompound(node, compound);
 }
 
+/**
+ * Populates the form's fields describing a compound.
+ * @param {!Node} node The div corresponding to the compound whose fields
+ *     should be updated.
+ * @param {!proto.ord.Compound} compound
+ */
 function loadIntoCompound(node, compound) {
   const reactionRole = compound.getReactionRole();
   ord.reaction.setSelector($('.component_reaction_role', node), reactionRole);
@@ -81,6 +101,13 @@ function loadIntoCompound(node, compound) {
   ord.features.load(node, features);
 }
 
+/**
+ * Adds fields describing a new identifier to an existing compound in the form
+ * and populates them according to the provided identifier.
+ * @param {!Node} compoundNode The div corresponding to the compound to which a
+ *     new compound definition should be added.
+ * @param {!proto.ord.CompoundIdentifier} identifier
+ */
 function loadIdentifier(compoundNode, identifier) {
   const node = addIdentifier(compoundNode);
   const value = identifier.getValue();
@@ -89,6 +116,12 @@ function loadIdentifier(compoundNode, identifier) {
   $('.component_identifier_details', node).text(identifier.getDetails());
 }
 
+/**
+ * Populates the form's fields describing a compound preparation.
+ * @param {!Node} node The div corresponding to the preparation that should be
+ *     updated on the form.
+ * @param {!proto.ord.CompoundPreparation} preparation
+ */
 function loadPreparation(node, preparation) {
   const type = preparation.getType();
   ord.reaction.setSelector(
@@ -99,6 +132,14 @@ function loadPreparation(node, preparation) {
   $('.component_compound_preparation_reaction', node).text(reaction);
 }
 
+/**
+ * Populates the form's fields describing a compound's source.
+ * @param {!Node} compoundNode The div corresponding to the compound whose
+ *     vendor information should be updated on the form.
+ * @param {string} vendorSource
+ * @param {string} vendorLot
+ * @param {string} vendorId
+ */
 function loadVendor(compoundNode, vendorSource, vendorLot, vendorId) {
   const node = $('fieldset.vendor', compoundNode);
   $('.component_vendor_source', node).text(vendorSource);
@@ -106,6 +147,12 @@ function loadVendor(compoundNode, vendorSource, vendorLot, vendorId) {
   $('.component_vendor_id', node).text(vendorId);
 }
 
+/**
+ * Reads and returns a list of compounds defined within part of the form.
+ * @param {!Node} node The div corresponding to the reaction inputs whose
+ *     compounds should be read from the form.
+ * @return {!Array<proto.ord.Compound>} compounds
+ */
 function unload(node) {
   const compounds = [];
   $('.component', node).each(function(index, compoundNode) {
@@ -121,6 +168,12 @@ function unload(node) {
   return compounds;
 }
 
+/**
+ * Reads and returns a single compound as defined on the form.
+ * @param {!Node} node The div corresponding to the compound whose definition
+ *     should be read from the form.
+ * @return {!proto.ord.Compound} compound
+ */
 function unloadCompound(node) {
   const compound = new proto.ord.Compound();
 
@@ -167,6 +220,13 @@ function unloadCompound(node) {
   return compound;
 }
 
+/**
+ * Reads and returns a list of compound identifiers for a single compound as
+ * defined on the form.
+ * @param {!Node} node The div corresponding to the compound whose identifiers
+ *     should be read from the form.
+ * @return {!Array<proto.ord.CompoundIdentifier>} identifiers
+ */
 function unloadIdentifiers(node) {
   const identifiers = [];
   $('.component_identifier', node).each(function(index, node) {
@@ -182,6 +242,12 @@ function unloadIdentifiers(node) {
   return identifiers;
 }
 
+/**
+ * Reads and returns a single compound identifier as defined on the form.
+ * @param {!Node} node The div corresponding to the compound identifier that
+ *     should be read from the form.
+ * @return {!proto.ord.CompoundIdentifier} identifier
+ */
 function unloadIdentifier(node) {
   const identifier = new proto.ord.CompoundIdentifier();
 
@@ -196,6 +262,12 @@ function unloadIdentifier(node) {
   return identifier;
 }
 
+/**
+ * Reads and returns a single compound preparation as defined on the form.
+ * @param {!Node} node The div corresponding to a compound preparation that
+ *     should be read from the form.
+ * @return {!proto.ord.CompoundPreparation} preparation
+ */
 function unloadPreparation(node) {
   const preparation = new proto.ord.CompoundPreparation();
   const type =
@@ -208,6 +280,12 @@ function unloadPreparation(node) {
   return preparation;
 }
 
+/**
+ * Sets the vendor information fields of a compound according to the form.
+ * @param {!Node} node The div corresponding to the compound whose vendor
+ *     information should be read from the form.
+ * @param {!proto.ord.Compound} compound
+ */
 function unloadVendor(node, compound) {
   const vendorSource = $('.component_vendor_source', node).text();
   compound.setVendorSource(vendorSource);
@@ -217,6 +295,12 @@ function unloadVendor(node, compound) {
   compound.setVendorId(vendorId);
 }
 
+/**
+ * Adds fields to the form corresponding to a new, empty compound definition as
+ * specified by the component template with ID "component_template".
+ * @param {!Node} root The div within which the new compound should be added.
+ * @return {!Node} node The node of the new component div.
+ */
 function add(root) {
   const node =
       ord.reaction.addSlowly('#component_template', $('.components', root));
@@ -258,6 +342,13 @@ function add(root) {
   return node;
 }
 
+/**
+ * Adds fields to the form corresponding to a new, empty compound identifier as
+ * specified by the component identifier template with ID
+ * "component_identifier_template".
+ * @param {!Node} node The div within which the new identifier should be added.
+ * @return {!Node} node The node of the new compound identifier div.
+ */
 function addIdentifier(node) {
   const identifierNode = ord.reaction.addSlowly(
       '#component_identifier_template', $('.identifiers', node));
@@ -277,8 +368,14 @@ function addIdentifier(node) {
   return identifierNode;
 }
 
-// Shortcut to add an identifier based on name.
-function addNameIdentifier(node) {
+/**
+ * Adds new compound identifier(s) after prompting the user for the name of
+ * a compound to add. A NAME-type identifier is always included. A SMILES-type
+ * identifier is included when the name can be parsed.
+ * @param {!Node} node The div corresponding to the compound to which the new
+ *     identifiers should be added.
+ */
+ function addNameIdentifier(node) {
   var name = prompt('Compound name: ');
   if (!(name)) {
     return;
@@ -306,8 +403,14 @@ function addNameIdentifier(node) {
   xhr.send(name);
 }
 
-// Shortcut to add an identifier by drawing.
-function drawIdentifier(node) {
+/**
+ * Displays the Ketcher drawing tool for defining compound identifiers. A
+ * callback is defined to create SMILES and MOLBLOCK-type identifiers; this
+ * callback is triggered upon submission from the Ketcher window.
+ * @param {!Node} node The div corresponding to the compound to which the new
+ *     identifiers should be added.
+ */
+ function drawIdentifier(node) {
   // Get a reference to Ketcher, and to look nice, clear any old drawings.
   const ketcher =
       document.getElementById('ketcher-iframe').contentWindow.ketcher;
@@ -389,6 +492,14 @@ function drawIdentifier(node) {
   };
 }
 
+/**
+ * Adds fields to the form corresponding to a new, empty compound preparation
+ * as specified by the component preparation template with ID
+ * "component_preparation_template".
+ * @param {!Node} node The div corresponding to the compound to which the new
+ *     preparation should be added.
+ * @return {!Node} node The div corresponding to the new compound preparation.
+ */
 function addPreparation(node) {
   const PreparationNode = ord.reaction.addSlowly(
       '#component_preparation_template', $('.preparations', node));
@@ -408,8 +519,13 @@ function addPreparation(node) {
   return PreparationNode;
 }
 
-// Update the image tag with a drawing of this component.
-function renderCompound(node, compound) {
+/**
+ * Updates a png rendering of a compound as defined by its identifiers.
+ * @param {!Node} node The div corresponding to the compound whose rendering
+ *     should be updated.
+ * @param {!proto.ord.Compound} compound
+ */
+ function renderCompound(node, compound) {
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/render/compound');
   const binary = compound.serializeBinary();
@@ -425,6 +541,14 @@ function renderCompound(node, compound) {
   xhr.send(binary);
 }
 
+/**
+ * Validates the definition of a compound and updates the validation error
+ * display node.
+ * @param {!Node} node The div corresponding to the compound that should be
+ *     read from the form and validated.
+ * @param {!Node} validateNode The div that is used to show the results of
+ *     validation (i.e., success or errors).
+ */
 function validateCompound(node, validateNode) {
   const compound = unloadCompound(node);
   if (!validateNode) {

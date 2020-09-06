@@ -24,6 +24,13 @@ exports = {
 goog.require('proto.ord.Mass');
 goog.require('proto.ord.Volume');
 
+/**
+ * Populates the form's fields describing the amount of a crude compound.
+ * @param {!Node} node The div corresponding to the crude compound whose amount
+ *     fields on the form should be updated.
+ * @param {?proto.ord.Mass} mass
+ * @param {?proto.ord.Volume} volume
+ */
 function load(node, mass, volume) {
   const amount = $('.amount', node);
   $('.crude_amount_units_mass', node).hide();
@@ -54,6 +61,12 @@ function load(node, mass, volume) {
   }
 }
 
+/**
+ * Sets the amount fields of a crude component message according to the form.
+ * @param {!Node} node The div corresponding to the crude component whose amount
+ *     fields should be read from the form.
+ * @param {!proto.ord.CrudeComponent} crude
+ */
 function unload(node, crude) {
   const mass = unloadMass(node);
   const volume = unloadVolume(node);
@@ -69,6 +82,13 @@ function unload(node, crude) {
   }
 }
 
+/**
+ * Reads and returns a mass amount as defined in the form for a crude
+ * component.
+ * @param {!Node} node The div corresponding to the crude component whose mass
+ *     fields should be read from the form.
+ * @return {?proto.ord.Mass} mass
+ */
 function unloadMass(node) {
   if (!$('.crude_amount_mass', node).is(':checked')) {
     return null;
@@ -87,6 +107,13 @@ function unloadMass(node) {
   return mass;
 }
 
+/**
+ * Reads and returns a volumetric amount as defined in the form for a crude
+ * component.
+ * @param {!Node} node The div corresponding to the crude component whose
+ *     volume fields should be read from the form.
+ * @return {?proto.ord.Volume} volume
+ */
 function unloadVolume(node) {
   if (!$('.crude_amount_volume', node).is(':checked')) {
     return null;
