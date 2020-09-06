@@ -375,7 +375,7 @@ function addIdentifier(node) {
  * @param {!Node} node The div corresponding to the compound to which the new
  *     identifiers should be added.
  */
- function addNameIdentifier(node) {
+function addNameIdentifier(node) {
   var name = prompt('Compound name: ');
   if (!(name)) {
     return;
@@ -410,7 +410,7 @@ function addIdentifier(node) {
  * @param {!Node} node The div corresponding to the compound to which the new
  *     identifiers should be added.
  */
- function drawIdentifier(node) {
+function drawIdentifier(node) {
   // Get a reference to Ketcher, and to look nice, clear any old drawings.
   const ketcher =
       document.getElementById('ketcher-iframe').contentWindow.ketcher;
@@ -525,7 +525,7 @@ function addPreparation(node) {
  *     should be updated.
  * @param {!proto.ord.Compound} compound
  */
- function renderCompound(node, compound) {
+function renderCompound(node, compound) {
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/render/compound');
   const binary = compound.serializeBinary();
