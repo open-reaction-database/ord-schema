@@ -120,7 +120,7 @@ function unload(node) {
 function unloadProduct(node) {
   const product = new proto.ord.ReactionProduct();
 
-  const compoundNode = $('.outcome_product_compound');
+  const compoundNode = $('.outcome_product_compound', node);
   const compound = ord.compounds.unloadCompound(compoundNode);
   if (!ord.reaction.isEmptyMessage(compound)) {
     product.setCompound(compound);
