@@ -35,7 +35,6 @@ let radioGroupCounter = 0;
 
 function load(outcomes) {
   outcomes.forEach(outcome => loadOutcome(outcome));
-  $('.outcome_analysis_name').trigger('input');
 }
 
 function loadOutcome(outcome) {
@@ -65,7 +64,7 @@ function loadOutcome(outcome) {
 function loadAnalysis(analysesNode, name, analysis) {
   const node = addAnalysis(analysesNode);
 
-  $('.outcome_analysis_name', node).text(name);
+  $('.outcome_analysis_name', node).text(name).trigger('input');
 
   ord.reaction.setSelector(
       $('.outcome_analysis_type', node), analysis.getType());
@@ -362,8 +361,9 @@ function addAnalysis(node) {
     nameNode.data('val', nameNode.text());
   });
   nameNode.on('input', function() {
-    // Remove old key.
     var old_name = nameNode.data('val');
+    var name = nameNode.text();
+    // Remove old key.
     if (old_name) {
       // If any selector had this value selected, reset it.
       $('.analysis_key_selector', node).each(function() {
@@ -374,7 +374,6 @@ function addAnalysis(node) {
       $('.analysis_key_selector option[value="' + old_name + '"]', node).remove();
     }
     // Add new key.
-    var name = nameNode.text();
     if (name) {
       $('.analysis_key_selector', node)
           .append('<option value="' + name + '">' + name + '</option>');
