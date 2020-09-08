@@ -30,37 +30,59 @@ let tokenBytes = {};
 // Map token strings to file system paths for new uploads.
 let tokenFiles = {};
 
-// Return a short random string of ASCII characters.
+/**
+ * Returns a short random string of ASCII characters.
+ * @return {string}
+ */
 function newToken() {
   return 'upload_' + Math.random().toString(36).substring(2);
 }
 
-// Tag this file for upload and return a random token to access it later.
+/**
+ * Tags this file for upload and returns a random token to access it later.
+ * @param {string} file The filename to be uploaded.
+ * @return {string} A new key into `tokenFiles`.
+ */
 function newFile(file) {
   const token = newToken();
   tokenFiles[token] = file;
   return token;
 }
 
-// Get back a file that was previously recorded at newFile().
+/**
+ * Returns the filename of a file that was previously recorded at newFile().
+ * @param {string} token A key into `tokenFiles`.
+ * @return {string}
+ */
 function getFile(token) {
   return tokenFiles[token];
 }
 
-// Remember bytes at load() so they can be restored at unload().
+/**
+ * Stores bytes at load() so they can be restored at unload().
+ * @param {!Uint8Array} bytesValue The bytes to store.
+ * @returns {string} A new key into `tokenBytes`.
+ */
 function stashUpload(bytesValue) {
   const token = newToken();
   tokenBytes[token] = bytesValue;
   return token;
 }
 
-// At unload, recall bytes that were stashed at load().
+/**
+ * Recalls bytes that were stashed at load().
+ * @param {string} token A key into `tokenBytes`.
+ * @return {!Uint8Array} The stored bytes.
+ */
 function unstashUpload(token) {
   return tokenBytes[token];
 }
 
-// Sends all files referenced in tokenFiles to the server.
-function putAll(fileName) {
+/**
+ * Sends all files referenced in tokenFiles to the server.
+ * @param {string} dirName Server directory in which to store files.
+ */
+function putAll(dirName) {
   const tokens = Object.getOwnPropertyNames(tokenFiles);
   tokens.forEach(token => {
     const file = tokenFiles[token];
@@ -68,14 +90,19 @@ function putAll(fileName) {
     reader.readAsBinaryString(file);
     reader.onload = (event) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/dataset/proto/upload/' + fileName + '/' + token);
+      xhr.open('POST',
+          '/dataset/proto/upload/' + dirName + '/' + token);
       const payload = event.target.result;
       xhr.send(payload);
     };
   });
 }
 
-// Look up the bytesValue of the given uploader and send back it as a download.
+/**
+ * Looks up the bytesValue of the given uploader and sends back it as a
+ * download.
+ * @param {!Node} uploader An `.uploader` div.
+ */
 function retrieve(uploader) {
   const token = uploader.attr('data-token');
   const xhr = new XMLHttpRequest();
@@ -93,7 +120,10 @@ function retrieve(uploader) {
   xhr.send(bytesValue);
 }
 
-// Configure behaviors of a ".uploader" DOM element.
+/**
+ * Configures the behavior of an uploader.
+ * @param {!Node} node An `.uploader` div.
+ */
 function initialize(node) {
   $('.uploader_chooser_file', node).on('input', (event) => {
     const file = event.target.files[0];
@@ -105,6 +135,11 @@ function initialize(node) {
   });
 }
 
+/**
+ * Loads a token and filename into an uploader.
+ * @param {!Node} node An `.uploader` div.
+ * @param {!Uint8Array} bytesValue File content as bytes.
+ */
 function load(node, bytesValue) {
   const token = stashUpload(bytesValue);
   $('.uploader', node).show();
@@ -114,6 +149,11 @@ function load(node, bytesValue) {
   $('.uploader_file_retrieve', node).show();
 }
 
+/**
+ * Retrieves the stored bytes from an uploader.
+ * @param {!Node} node An `.uploader` div.
+ * @returns {!Uint8Array}
+ */
 function unload(node) {
   const token = $('.uploader', node).attr('data-token');
   const bytesValue = unstashUpload(token);
@@ -122,7 +162,6 @@ function unload(node) {
     return bytesValue;
   } else {
     // A new file has been chosen for upload.
-    const bytes = (new TextEncoder()).encode(token);
-    return bytes;
+    return (new TextEncoder()).encode(token);
   }
 }
