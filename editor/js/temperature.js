@@ -29,6 +29,10 @@ goog.require('proto.ord.TemperatureConditions.Measurement');
 goog.require('proto.ord.TemperatureConditions.TemperatureControl');
 goog.require('proto.ord.Time');
 
+/**
+ * Populates a temperature conditions section in the form.
+ * @param {!proto.ord.TemperatureConditions} temperature
+ */
 function load(temperature) {
   const control = temperature.getControl();
   if (control) {
@@ -44,6 +48,11 @@ function load(temperature) {
   ord.reaction.writeMetric('#temperature_setpoint', setpoint);
 }
 
+/**
+ * Populates a temperature measurement section in the form.
+ * @param {!proto.ord.TemperatureConditions.Measurement} measurement
+ * @param {!Node} node The target div.
+ */
 function loadMeasurement(measurement, node) {
   const type = measurement.getType();
   ord.reaction.setSelector($('.temperature_measurement_type', node), type);
@@ -57,6 +66,10 @@ function loadMeasurement(measurement, node) {
   ord.reaction.writeMetric('.temperature_measurement_time', time, node);
 }
 
+/**
+ * Fetches temperature conditions from the form.
+ * @return {!proto.ord.TemperatureConditions}
+ */
 function unload() {
   const temperature = new proto.ord.TemperatureConditions();
 
@@ -87,6 +100,11 @@ function unload() {
   return temperature;
 }
 
+/**
+ * Fetches a temperature measurement from the form.
+ * @param {!Node} node The div of the measurement to fetch.
+ * @return {!proto.ord.TemperatureConditions.Measurement}
+ */
 function unloadMeasurement(node) {
   const measurement = new proto.ord.TemperatureConditions.Measurement();
   const type =
@@ -108,11 +126,20 @@ function unloadMeasurement(node) {
   return measurement;
 }
 
+/**
+ * Adds a temperature measurment section to the form.
+ * @return {!Node} The node of the new measurement div.
+ */
 function addMeasurement() {
   return ord.reaction.addSlowly(
       '#temperature_measurement_template', '#temperature_measurements');
 }
 
+/**
+ * Validates temperature conditions defined in the form.
+ * @param {!Node} node The node containing the temperature conditions div.
+ * @param {!Node} validateNode The target div for validation results.
+ */
 function validateTemperature(node, validateNode) {
   const temperature = unload();
   if (!validateNode) {
