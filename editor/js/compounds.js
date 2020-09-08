@@ -151,7 +151,7 @@ function loadVendor(compoundNode, vendorSource, vendorLot, vendorId) {
  * Reads and returns a list of compounds defined within part of the form.
  * @param {!Node} node The div corresponding to the reaction inputs whose
  *     compounds should be read from the form.
- * @return {!Array<!proto.ord.Compound>} compounds
+ * @return {!Array<!proto.ord.Compound>}
  */
 function unload(node) {
   const compounds = [];
@@ -172,7 +172,7 @@ function unload(node) {
  * Reads and returns a single compound as defined on the form.
  * @param {!Node} node The div corresponding to the compound whose definition
  *     should be read from the form.
- * @return {!proto.ord.Compound} compound
+ * @return {!proto.ord.Compound}
  */
 function unloadCompound(node) {
   const compound = new proto.ord.Compound();
@@ -225,7 +225,7 @@ function unloadCompound(node) {
  * defined on the form.
  * @param {!Node} node The div corresponding to the compound whose identifiers
  *     should be read from the form.
- * @return {!Array<!proto.ord.CompoundIdentifier>} identifiers
+ * @return {!Array<!proto.ord.CompoundIdentifier>}
  */
 function unloadIdentifiers(node) {
   const identifiers = [];
@@ -246,7 +246,7 @@ function unloadIdentifiers(node) {
  * Reads and returns a single compound identifier as defined on the form.
  * @param {!Node} node The div corresponding to the compound identifier that
  *     should be read from the form.
- * @return {!proto.ord.CompoundIdentifier} identifier
+ * @return {!proto.ord.CompoundIdentifier}
  */
 function unloadIdentifier(node) {
   const identifier = new proto.ord.CompoundIdentifier();
@@ -266,7 +266,7 @@ function unloadIdentifier(node) {
  * Reads and returns a single compound preparation as defined on the form.
  * @param {!Node} node The div corresponding to a compound preparation that
  *     should be read from the form.
- * @return {!proto.ord.CompoundPreparation} preparation
+ * @return {!proto.ord.CompoundPreparation}
  */
 function unloadPreparation(node) {
   const preparation = new proto.ord.CompoundPreparation();
@@ -299,7 +299,7 @@ function unloadVendor(node, compound) {
  * Adds fields to the form corresponding to a new, empty compound definition as
  * specified by the component template with ID "component_template".
  * @param {!Node} root The div within which the new compound should be added.
- * @return {!Node} node The node of the new component div.
+ * @return {!Node} The node of the new component div.
  */
 function add(root) {
   const node =
@@ -347,7 +347,7 @@ function add(root) {
  * specified by the component identifier template with ID
  * "component_identifier_template".
  * @param {!Node} node The div within which the new identifier should be added.
- * @return {!Node} node The node of the new compound identifier div.
+ * @return {!Node} The node of the new compound identifier div.
  */
 function addIdentifier(node) {
   const identifierNode = ord.reaction.addSlowly(
@@ -498,7 +498,7 @@ function drawIdentifier(node) {
  * "component_preparation_template".
  * @param {!Node} node The div corresponding to the compound to which the new
  *     preparation should be added.
- * @return {!Node} node The div corresponding to the new compound preparation.
+ * @return {!Node} The div corresponding to the new compound preparation.
  */
 function addPreparation(node) {
   const PreparationNode = ord.reaction.addSlowly(

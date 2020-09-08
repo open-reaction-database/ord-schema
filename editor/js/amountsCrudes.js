@@ -87,7 +87,7 @@ function unload(node, crude) {
  * component.
  * @param {!Node} node The div corresponding to the crude component whose mass
  *     fields should be read from the form.
- * @return {?proto.ord.Mass} mass
+ * @return {?proto.ord.Mass}
  */
 function unloadMass(node) {
   if (!$('.crude_amount_mass', node).is(':checked')) {
@@ -112,7 +112,7 @@ function unloadMass(node) {
  * component.
  * @param {!Node} node The div corresponding to the crude component whose
  *     volume fields should be read from the form.
- * @return {?proto.ord.Volume} volume
+ * @return {?proto.ord.Volume}
  */
 function unloadVolume(node) {
   if (!$('.crude_amount_volume', node).is(':checked')) {

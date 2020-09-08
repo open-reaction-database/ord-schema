@@ -110,7 +110,7 @@ function unload(node, compound) {
  * Reads and returns a mass amount of a compound as defined in the form.
  * @param {!Node} node The div corresponding to the compound whose mass fields
  *     should be read from the form.
- * @return {?proto.ord.Mass} mass
+ * @return {?proto.ord.Mass}
  */
 function unloadMass(node) {
   if (!$('.component_amount_mass', node).is(':checked')) {
@@ -135,7 +135,7 @@ function unloadMass(node) {
  * Reads and returns a molar amount of a compound as defined in the form.
  * @param {!Node} node The div corresponding to the compound whose moles fields
  *     should be read from the form.
- * @return {?proto.ord.Moles} moles
+ * @return {?proto.ord.Moles}
  */
 function unloadMoles(node) {
   if (!$('.component_amount_moles', node).is(':checked')) {
@@ -160,7 +160,7 @@ function unloadMoles(node) {
  * Reads and returns a volumetric amount of a compound as defined in the form.
  * @param {!Node} node The div corresponding to the compound whose volume fields
  *     should be read from the form.
- * @return {?proto.ord.Volume} volume
+ * @return {?proto.ord.Volume}
  */
 function unloadVolume(node) {
   if (!$('.component_amount_volume', node).is(':checked')) {

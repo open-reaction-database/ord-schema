@@ -145,7 +145,7 @@ function unload() {
 /**
  * Fetches a single workup from the form.
  * @param {!Node} node The div corresponding to the workup to fetch.
- * @returns {!proto.ord.ReactionWorkup} workup
+ * @return {!proto.ord.ReactionWorkup}
  */
 function unloadWorkup(node) {
   const workup = new proto.ord.ReactionWorkup();
@@ -237,7 +237,7 @@ function unloadWorkup(node) {
 /**
  * Fetches a single workup temperature measurement from the form.
  * @param {!Node} node The div corresponding to the measurement to fetch.
- * @returns {!proto.ord.TemperatureConditions.Measurement} measurement
+ * @return {!proto.ord.TemperatureConditions.Measurement}
  */
 function unloadMeasurement(node) {
   const measurement = new proto.ord.TemperatureConditions.Measurement();
@@ -261,7 +261,7 @@ function unloadMeasurement(node) {
 
 /**
  * Adds a new workup section to the form.
- * @returns {!Node} node The node of the new workup div.
+ * @return {!Node} The node of the new workup div.
  */
 function add() {
   const workupNode = ord.reaction.addSlowly('#workup_template', '#workups');
@@ -291,7 +291,7 @@ function add() {
 /**
  * Adds a new measurement section to the current workup in the form.
  * @param {!Node} node The workup div where the new measurement should be added.
- * @returns {!Node} node The node of the new measurement div.
+ * @return {!Node} The node of the new measurement div.
  */
 function addMeasurement(node) {
   return ord.reaction.addSlowly(
