@@ -127,7 +127,7 @@ function unloadMeasurement(node) {
 }
 
 /**
- * Adds a temperature measurment section to the form.
+ * Adds a temperature measurement section to the form.
  * @return {!Node} The node of the new measurement div.
  */
 function addMeasurement() {
