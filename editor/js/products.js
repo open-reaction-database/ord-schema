@@ -256,6 +256,11 @@ function add(node) {
   return productNode;
 }
 
+/**
+ * Adds keys for defined analyses to the analysis selector.
+ * @param {!Node} node Parent node containing ReactionOutcome data.
+ * @param {!Node} analysisSelectorNode Node containing an analysis selector.
+ */
 function populateAnalysisSelector(node, analysisSelectorNode) {
   const outcomeNode = node.closest('.outcome');
   $('.outcome_analysis_name', outcomeNode).each(function() {
