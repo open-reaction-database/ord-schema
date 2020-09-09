@@ -28,10 +28,18 @@ goog.require('proto.ord.ReactionObservation');
 // Freely create radio button groups by generating new input names.
 let radioGroupCounter = 0;
 
+/**
+ * Populates the reaction observation sections in the form.
+ * @param {!Array<!proto.ord.ReactionObservation>} observations
+ */
 function load(observations) {
   observations.forEach(observation => loadObservation(observation));
 }
 
+/**
+ * Populates a single reaction observation section in the form.
+ * @param {!proto.ord.ReactionObservation} observation
+ */
 function loadObservation(observation) {
   const node = add();
   ord.reaction.writeMetric('.observation_time', observation.getTime(), node);
@@ -72,6 +80,10 @@ function loadObservation(observation) {
   }
 }
 
+/**
+ * Fetches the reaction observations defined in the form.
+ * @return {!Array<!proto.ord.ReactionObservation>}
+ */
 function unload() {
   const observations = [];
   $('.observation').each(function(index, node) {
@@ -87,6 +99,11 @@ function unload() {
   return observations;
 }
 
+/**
+ * Fetches a single reaction observation defined in the form.
+ * @param {!Node} node Root node for the reaction observation.
+ * @return {!proto.ord.ReactionObservation}
+ */
 function unloadObservation(node) {
   const observation = new proto.ord.ReactionObservation();
   const time =
@@ -131,6 +148,10 @@ function unloadObservation(node) {
   return observation;
 }
 
+/**
+ * Adds a reaction observation section to the form.
+ * @return {!Node} The newly added parent node for the reaction observation.
+ */
 function add() {
   const node = ord.reaction.addSlowly('#observation_template', '#observations');
 
@@ -156,6 +177,11 @@ function add() {
   return node;
 }
 
+/**
+ * Validates a single reaction observation defined in the form.
+ * @param {!Node} node Root node for the reaction observation.
+ * @param validateNode Target node for validation results.
+ */
 function validateObservation(node, validateNode) {
   const observation = unloadObservation(node);
   if (!validateNode) {
