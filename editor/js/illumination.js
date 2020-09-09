@@ -26,6 +26,10 @@ goog.require('proto.ord.IlluminationConditions');
 goog.require('proto.ord.Length');
 goog.require('proto.ord.Wavelength');
 
+/**
+ * Populates the illumination conditions section in the form.
+ * @param {!proto.ord.IlluminationConditions} illumination
+ */
 function load(illumination) {
   const type = illumination.getType();
   if (type) {
@@ -39,6 +43,10 @@ function load(illumination) {
   ord.reaction.writeMetric('#illumination_distance', distance);
 }
 
+/**
+ * Fetches the illumination conditions defined in the form.
+ * @return {!proto.ord.IlluminationConditions}
+ */
 function unload() {
   const illumination = new proto.ord.IlluminationConditions();
 
@@ -63,6 +71,11 @@ function unload() {
   return illumination;
 }
 
+/**
+ * Validates the illumination conditions defined in the form.
+ * @param {!Node} node Root node for the illumination conditions.
+ * @param {!Node} validateNode Target node for validation results.
+ */
 function validateIllumination(node, validateNode) {
   const illumination = unload();
   if (!validateNode) {

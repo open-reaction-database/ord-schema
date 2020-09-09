@@ -25,6 +25,10 @@ exports = {
 goog.require('proto.ord.FlowConditions');
 goog.require('proto.ord.FlowConditions.Tubing');
 
+/**
+ * Populates the flow conditions section in the form.
+ * @param {!proto.ord.FlowConditions} flow
+ */
 function load(flow) {
   const type = flow.getFlowType();
   if (type) {
@@ -39,6 +43,10 @@ function load(flow) {
   ord.reaction.writeMetric('#flow_tubing', tubing.getDiameter());
 }
 
+/**
+ * Fetches the flow conditions defined in the form.
+ * @return {!proto.ord.FlowConditions}
+ */
 function unload() {
   const flow = new proto.ord.FlowConditions();
 
@@ -66,6 +74,11 @@ function unload() {
   return flow;
 }
 
+/**
+ * Validates the flow conditions defined in the form.
+ * @param {!Node} node Root node for the flow conditions.
+ * @param {!Node} validateNode Target node for validation results.
+ */
 function validateFlow(node, validateNode) {
   const flow = unload();
   if (!validateNode) {
