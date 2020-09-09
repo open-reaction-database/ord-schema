@@ -28,7 +28,7 @@ goog.require('ord.inputs');
 goog.require('proto.ord.ReactionWorkup');
 
 /**
- * Populates the form's fields describing reaction workups.
+ * Populates the reaction workup sections in the form.
  * @param {!Array<!proto.ord.ReactionWorkup>} workups
  */
 function load(workups) {
@@ -36,8 +36,7 @@ function load(workups) {
 }
 
 /**
- * Adds fields describing a reaction workup and populates them according to the
- *     provided workup.
+ * Populates a reaction workup section in the form.
  * @param {!proto.ord.ReactionWorkup} workup
  */
 function loadWorkup(workup) {
@@ -260,8 +259,8 @@ function unloadMeasurement(node) {
 }
 
 /**
- * Adds a new workup section to the form.
- * @return {!Node} The node of the new workup div.
+ * Adds a new reaction workup section to the form.
+ * @return {!Node} The newly added parent node for the reaction workup.
  */
 function add() {
   const workupNode = ord.reaction.addSlowly('#workup_template', '#workups');
