@@ -406,7 +406,8 @@ function addNameIdentifier(node) {
 /**
  * Displays the Ketcher drawing tool for defining compound identifiers. A
  * callback is defined to create SMILES and MOLBLOCK-type identifiers; this
- * callback is triggered upon submission from the Ketcher window.
+ * callback is triggered upon submission of a molecular drawing from the
+ * Ketcher window.
  * @param {!Node} node The div corresponding to the compound to which the new
  *     identifiers should be added.
  */
