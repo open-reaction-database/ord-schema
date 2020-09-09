@@ -180,7 +180,7 @@ function add() {
 /**
  * Validates a single reaction observation defined in the form.
  * @param {!Node} node Root node for the reaction observation.
- * @param validateNode Target node for validation results.
+ * @param {!Node} validateNode Target node for validation results.
  */
 function validateObservation(node, validateNode) {
   const observation = unloadObservation(node);
