@@ -33,10 +33,18 @@ goog.require('proto.ord.ReactionOutcome');
 // Freely create radio button groups by generating new input names.
 let radioGroupCounter = 0;
 
+/**
+ * Populates the reaction outcome sections in the form.
+ * @param {!Array<!proto.ord.ReactionOutcome>} outcomes
+ */
 function load(outcomes) {
   outcomes.forEach(outcome => loadOutcome(outcome));
 }
 
+/**
+ * Populates a reaction outcome section in the form.
+ * @param outcome
+ */
 function loadOutcome(outcome) {
   const node = add();
 
@@ -61,6 +69,12 @@ function loadOutcome(outcome) {
   ord.products.load(node, products);
 }
 
+/**
+ * Populates a reaction analysis section in the form.
+ * @param {!Node} outcomeNode Parent reaction outcome node.
+ * @param {string} name The name of this analysis.
+ * @param {!proto.ord.ReactionAnalysis} analysis
+ */
 function loadAnalysis(outcomeNode, name, analysis) {
   const node = addAnalysis(outcomeNode);
 
@@ -106,6 +120,12 @@ function loadAnalysis(outcomeNode, name, analysis) {
           null);
 }
 
+/**
+ * Populates a processed_data section in a reaction analysis.
+ * @param {!Node} node Parent reaction analysis node.
+ * @param {string} name The name of this Data record.
+ * @param {!proto.ord.Data} process
+ */
 function loadProcess(node, name, process) {
   $('.outcome_process_name', node).text(name);
   $('.outcome_process_description', node).text(process.getDescription());
@@ -141,6 +161,12 @@ function loadProcess(node, name, process) {
   }
 }
 
+/**
+ * Populates a raw_data section in a reaction analysis.
+ * @param {!Node} node Parent reaction analysis node.
+ * @param {string} name The name of this Data record.
+ * @param {!proto.ord.Data} raw
+ */
 function loadRaw(node, name, raw) {
   $('.outcome_raw_name', node).text(name);
   $('.outcome_raw_description', node).text(raw.getDescription());
@@ -176,6 +202,10 @@ function loadRaw(node, name, raw) {
   }
 }
 
+/**
+ * Fetches the reaction outcomes defined in the form.
+ * @return {!Array<!proto.ord.ReactionOutcome>}
+ */
 function unload() {
   const outcomes = [];
   $('.outcome').each(function(index, node) {
@@ -191,6 +221,11 @@ function unload() {
   return outcomes;
 }
 
+/**
+ * Fetches a reaction outcome defined in the form.
+ * @param {!Node} node Root node for the reaction outcome.
+ * @return {!proto.ord.ReactionOutcome}
+ */
 function unloadOutcome(node) {
   const outcome = new proto.ord.ReactionOutcome();
 
@@ -220,6 +255,11 @@ function unloadOutcome(node) {
   return outcome;
 }
 
+/**
+ * Fetches a reaction analysis defined in the form.
+ * @param {!Node} analysisNode Root node for the reaction analysis.
+ * @return {!proto.ord.ReactionAnalysis}
+ */
 function unloadAnalysisSingle(analysisNode) {
   const analysis = new proto.ord.ReactionAnalysis();
   analysis.setType(
@@ -259,6 +299,11 @@ function unloadAnalysisSingle(analysisNode) {
   return analysis;
 }
 
+/**
+ * Fetches a reaction analysis defined in the form and adds it to `analyses`.
+ * @param {!Node} analysisNode Root node for the reaction analysis.
+ * @param {!jspb.Map<string, !proto.ord.ReactionAnalysis>} analyses
+ */
 function unloadAnalysis(analysisNode, analyses) {
   const analysis = unloadAnalysisSingle(analysisNode);
   const name = $('.outcome_analysis_name', analysisNode).text();
@@ -268,6 +313,12 @@ function unloadAnalysis(analysisNode, analyses) {
   }
 }
 
+/**
+ * Fetches a processed_data record defined in the form and adds it to
+ * `processes`.
+ * @param {!Node} node Root node for the Data record.
+ * @param {!jspb.Map<string, !proto.ord.Data>} processes
+ */
 function unloadProcess(node, processes) {
   const name = $('.outcome_process_name', node).text();
 
@@ -305,6 +356,12 @@ function unloadProcess(node, processes) {
   }
 }
 
+/**
+ * Fetches a raw_data record defined in the form and adds it to
+ * `processes`.
+ * @param {!Node} node Root node for the Data record.
+ * @param {!jspb.Map<string, !proto.ord.Data>} raws
+ */
 function unloadRaw(node, raws) {
   const name = $('.outcome_raw_name', node).text();
 
@@ -341,6 +398,10 @@ function unloadRaw(node, raws) {
   }
 }
 
+/**
+ * Adds a reaction outcome section to the form.
+ * @return {!Node} The newly added parent node for the reaction outcome.
+ */
 function add() {
   const node = ord.reaction.addSlowly('#outcome_template', '#outcomes');
   // Add live validation handling.
@@ -350,6 +411,11 @@ function add() {
   return node;
 }
 
+/**
+ * Adds a reaction analysis section to the form.
+ * @param {!Node} node Parent reaction outcome node.
+ * @return {!Node} The newly added parent node for the reaction analysis.
+ */
 function addAnalysis(node) {
   const analysisNode = ord.reaction.addSlowly(
       '#outcome_analysis_template', $('.outcome_analyses', node));
@@ -390,6 +456,11 @@ function addAnalysis(node) {
   return analysisNode;
 }
 
+/**
+ * Adds a new processed_data section to the form.
+ * @param {!Node} node Parent reaction outcome node.
+ * @return {!Node} The newly added parent node for the Data record.
+ */
 function addProcess(node) {
   const processNode = ord.reaction.addSlowly(
       '#outcome_process_template', $('.outcome_processes', node));
@@ -410,6 +481,11 @@ function addProcess(node) {
   return processNode;
 }
 
+/**
+ * Adds a new raw_data section to the form.
+ * @param {!Node} node Parent reaction outcome node.
+ * @return {!Node} The newly added parent node for the Data record.
+ */
 function addRaw(node) {
   const rawNode =
       ord.reaction.addSlowly('#outcome_raw_template', $('.outcome_raws', node));
@@ -430,6 +506,11 @@ function addRaw(node) {
   return rawNode;
 }
 
+/**
+ * Validates a reaction outcome defined in the form.
+ * @param {!Node} node Root node for the reaction outcome.
+ * @param {!Node} validateNode The target node for validation results.
+ */
 function validateOutcome(node, validateNode) {
   const outcome = unloadOutcome(node);
   if (!validateNode) {
@@ -438,6 +519,11 @@ function validateOutcome(node, validateNode) {
   ord.reaction.validate(outcome, 'ReactionOutcome', validateNode);
 }
 
+/**
+ * Validates a reaction analysis defined in the form.
+ * @param {!Node} node Root node for the reaction analysis.
+ * @param {!Node} validateNode The target node for validation results.
+ */
 function validateAnalysis(node, validateNode) {
   const analysis = unloadAnalysisSingle(node);
   if (!validateNode) {
