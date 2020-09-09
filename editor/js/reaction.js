@@ -289,7 +289,7 @@ function downloadReaction() {
 /**
  * Downloads a dataset as a serialized Dataset proto.
  * @param {string} fileName The name of the dataset to fetch.
- * @return {!Uint8Array}
+ * @return {!Promise<!Uint8Array>}
  */
 async function getDataset(fileName) {
   return new Promise(resolve => {
@@ -323,7 +323,7 @@ function putDataset(fileName, dataset) {
  * Compares a local Dataset to a Dataset on the server (used for testing).
  * @param {string} fileName The name of a dataset on the server.
  * @param {!proto.ord.Dataset} dataset A local Dataset.
- * @return {!Uint8Array}
+ * @return {!Promise<!Uint8Array>}
  */
 async function compareDataset(fileName, dataset) {
   return new Promise((resolve, reject) => {
@@ -478,7 +478,7 @@ function isEmptyMessage(obj) {
  * Adds an instance of `template` to the root node.
  * @param {string} template A jQuery selector.
  * @param {!Node} root A jQuery object.
- * @return {!Node}
+ * @return {!Node} The new copy of the template.
  */
 function addSlowly(template, root) {
   const node = $(template).clone();
@@ -829,7 +829,7 @@ function initValidateHandlers() {
  * Converts a Message_Field name from a data-proto attribute into a proto class.
  * @param {string} protoName Underscore-delimited protocol buffer field name,
  *     such as Reaction_provenance.
- * @return {!typeof jspb.Message|null}
+ * @return {?typeof jspb.Message}
  */
 function nameToProto(protoName) {
   let clazz = proto.ord;

@@ -103,9 +103,8 @@ function download() {
 /**
  * Fetches a dataset from the server.
  * @param {string} fileName The filename of the dataset to fetch.
- * @param {!Function} listener Function used to load the dataset into the
+ * @param {?Function} listener Function used to load the dataset into the
  *     editor.
- * @return {!Uint8Array} The serialized Dataset proto.
  */
 function getDataset(fileName, listener) {
   if (!listener) {
