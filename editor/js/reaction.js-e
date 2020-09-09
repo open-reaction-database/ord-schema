@@ -343,7 +343,7 @@ async function compareDataset(fileName, dataset) {
 }
 
 /**
- * Adds and populates the form with the given reaction.
+ * Populates the form with the given reaction.
  * @param {!proto.ord.Reaction} reaction
  */
 function loadReaction(reaction) {
@@ -622,8 +622,7 @@ function setTextFromFile(identifierNode, valueClass) {
 }
 
 /**
- * Adds and populates a <select/> node according to its data-proto type
- * declaration.
+ * Populates a <select/> node according to its data-proto type declaration.
  * @param {!Node} node A node containing a `data-proto` attribute.
  */
 function initSelector(node) {

@@ -31,7 +31,7 @@ goog.require('ord.compounds');
 goog.require('proto.ord.ReactionProduct');
 
 /**
- * Adds and populates the products section of the form.
+ * Populates the products section of the form.
  * @param {!Node} node The target node for the product divs.
  * @param {!Array<!proto.ord.ReactionProduct>} products
  */
@@ -40,7 +40,7 @@ function load(node, products) {
 }
 
 /**
- * Adds and populates a product section in the form.
+ * Populates a product section in the form.
  * @param {!Node} outcomeNode The parent ReactionOutcome node.
  * @param {!proto.ord.ReactionProduct} product
  */

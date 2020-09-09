@@ -25,7 +25,7 @@ exports = {
 goog.require('proto.ord.StirringConditions');
 
 /**
- * Adds and populates the stirring conditions section in the form.
+ * Populates the stirring conditions section in the form.
  * @param {!proto.ord.StirringConditions} stirring
  */
 function load(stirring) {

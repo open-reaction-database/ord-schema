@@ -29,7 +29,7 @@ goog.require('proto.ord.PressureConditions.Measurement');
 goog.require('proto.ord.Time');
 
 /**
- * Adds and populates the pressure conditions section in the form.
+ * Populates the pressure conditions section in the form.
  * @param {!proto.ord.PressureConditions} pressure
  */
 function load(pressure) {
@@ -55,7 +55,7 @@ function load(pressure) {
 }
 
 /**
- * Adds and populates a pressure measurement section in the form.
+ * Populates a pressure measurement section in the form.
  * @param {!proto.ord.PressureConditions.Measurement} measurement
  * @param {!Node} node The target div.
  */

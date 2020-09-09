@@ -34,7 +34,7 @@ goog.require('proto.ord.ReactionOutcome');
 let radioGroupCounter = 0;
 
 /**
- * Adds and populates the reaction outcome sections in the form.
+ * Populates the reaction outcome sections in the form.
  * @param {!Array<!proto.ord.ReactionOutcome>} outcomes
  */
 function load(outcomes) {
@@ -42,7 +42,7 @@ function load(outcomes) {
 }
 
 /**
- * Adds and populates a reaction outcome section in the form.
+ * Populates a reaction outcome section in the form.
  * @param outcome
  */
 function loadOutcome(outcome) {
@@ -70,7 +70,7 @@ function loadOutcome(outcome) {
 }
 
 /**
- * Adds and populates a reaction analysis section in the form.
+ * Populates a reaction analysis section in the form.
  * @param {!Node} outcomeNode Parent reaction outcome node.
  * @param {string} name The name of this analysis.
  * @param {!proto.ord.ReactionAnalysis} analysis
@@ -121,7 +121,7 @@ function loadAnalysis(outcomeNode, name, analysis) {
 }
 
 /**
- * Adds and populates a processed_data section in a reaction analysis.
+ * Populates a processed_data section in a reaction analysis.
  * @param {!Node} node Parent reaction analysis node.
  * @param {string} name The name of this Data record.
  * @param {!proto.ord.Data} process
@@ -162,7 +162,7 @@ function loadProcess(node, name, process) {
 }
 
 /**
- * Adds and populates a raw_data section in a reaction analysis.
+ * Populates a raw_data section in a reaction analysis.
  * @param {!Node} node Parent reaction analysis node.
  * @param {string} name The name of this Data record.
  * @param {!proto.ord.Data} raw

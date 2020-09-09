@@ -25,7 +25,7 @@ exports = {
 goog.require('proto.ord.Compound.Feature');
 
 /**
- * Adds and populates the feature sections for a Compound.
+ * Populates the feature sections for a Compound.
  * @param {!Node} node Root node for the parent Compound.
  * @param {!Array<!proto.ord.Compound.Feature>} features
  */
@@ -34,7 +34,7 @@ function load(node, features) {
 }
 
 /**
- * Adds and populates a single feature section in the form.
+ * Populates a single feature section in the form.
  * @param {!Node} compoundNode Root node for the parent Compound.
  * @param {!proto.ord.Compound.Feature} feature
  */

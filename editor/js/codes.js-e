@@ -28,7 +28,7 @@ goog.require('proto.ord.Data');
 let radioGroupCounter = 0;
 
 /**
- * Adds and populates the automation_code sections in the form.
+ * Populates the automation_code sections in the form.
  * @param {!jspb.Map<string, !proto.ord.Data>} codes
  */
 function load(codes) {
@@ -40,7 +40,7 @@ function load(codes) {
 }
 
 /**
- * Adds and populates a single automation_code section in the form.
+ * Populates a single automation_code section in the form.
  * @param {string} name The name of this automation code.
  * @param {!proto.ord.Data} code
  */

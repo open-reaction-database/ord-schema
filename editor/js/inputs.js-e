@@ -32,7 +32,7 @@ goog.require('proto.ord.ReactionInput');
 goog.require('proto.ord.Time');
 
 /**
- * Adds and populates the reaction input sections in the form.
+ * Populates the reaction input sections in the form.
  * @param {!jspb.Map<string, !proto.ord.ReactionInput>} inputs
  */
 function load(inputs) {
@@ -44,7 +44,7 @@ function load(inputs) {
 }
 
 /**
- * Adds and populates a single reaction input section in the form.
+ * Populates a single reaction input section in the form.
  * @param {!Node} root Root node for the reaction input.
  * @param {string} name The name of this input.
  * @param {!proto.ord.ReactionInput} input
@@ -56,8 +56,8 @@ function loadInput(root, name, input) {
 }
 
 /**
- * Adds and populates a single reaction input section in the form without
- * assigning it a name.
+ * Populates a single reaction input section in the form without assigning it a
+ * name.
  * @param {!Node} node Root node for the reaction input.
  * @param {!proto.ord.ReactionInput} input
  * @return {!Node} The original root node.

@@ -28,7 +28,7 @@ goog.require('ord.inputs');
 goog.require('proto.ord.ReactionWorkup');
 
 /**
- * Adds and populates the reaction workup sections in the form.
+ * Populates the reaction workup sections in the form.
  * @param {!Array<!proto.ord.ReactionWorkup>} workups
  */
 function load(workups) {
@@ -36,7 +36,7 @@ function load(workups) {
 }
 
 /**
- * Adds and populates a reaction workup section in the form.
+ * Populates a reaction workup section in the form.
  * @param {!proto.ord.ReactionWorkup} workup
  */
 function loadWorkup(workup) {

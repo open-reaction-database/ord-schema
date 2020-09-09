@@ -29,7 +29,7 @@ goog.require('proto.ord.ReactionObservation');
 let radioGroupCounter = 0;
 
 /**
- * Adds and populates the reaction observation sections in the form.
+ * Populates the reaction observation sections in the form.
  * @param {!Array<!proto.ord.ReactionObservation>} observations
  */
 function load(observations) {
@@ -37,7 +37,7 @@ function load(observations) {
 }
 
 /**
- * Adds and populates a single reaction observation section in the form.
+ * Populates a single reaction observation section in the form.
  * @param {!proto.ord.ReactionObservation} observation
  */
 function loadObservation(observation) {

@@ -27,7 +27,7 @@ goog.require('proto.ord.Moles');
 goog.require('proto.ord.Volume');
 
 /**
- * Adds and populates the form's fields describing the amount of a compound.
+ * Populates the form's fields describing the amount of a compound.
  * @param {!Node} node The div corresponding to the compound whose amount fields
  *     on the form should be updated.
  * @param {?proto.ord.Mass} mass

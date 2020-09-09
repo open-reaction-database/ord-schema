@@ -31,7 +31,7 @@ goog.require('ord.temperature');
 goog.require('proto.ord.ReactionConditions');
 
 /**
- * Adds and populates the reaction conditions in the form.
+ * Populates the reaction conditions in the form.
  * @param {!proto.ord.ReactionConditions} conditions
  */
 function load(conditions) {

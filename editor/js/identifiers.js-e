@@ -26,7 +26,7 @@ goog.require('ord.uploads');
 goog.require('proto.ord.ReactionIdentifier');
 
 /**
- * Adds and populates the reaction identifier sections in the form.
+ * Populates the reaction identifier sections in the form.
  * @param {!Array<!proto.ord.ReactionIdentifier>} identifiers
  */
 function load(identifiers) {
@@ -37,7 +37,7 @@ function load(identifiers) {
 }
 
 /**
- * Adds and populates a single reaction identifier section in the form.
+ * Populates a single reaction identifier section in the form.
  * @param {!proto.ord.ReactionIdentifier} identifier
  */
 function loadIdentifier(identifier) {

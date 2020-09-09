@@ -27,7 +27,7 @@ goog.require('proto.ord.Length');
 goog.require('proto.ord.Wavelength');
 
 /**
- * Adds and populates the illumination conditions section in the form.
+ * Populates the illumination conditions section in the form.
  * @param {!proto.ord.IlluminationConditions} illumination
  */
 function load(illumination) {

@@ -29,7 +29,7 @@ goog.require('proto.ord.CrudeComponent');
 let radioGroupCounter = 0;
 
 /**
- * Adds and populates the crude components of a reaction input.
+ * Populates the crude components of a reaction input.
  * @param {!Node} node Root node for the parent reaction input.
  * @param {!Array<!proto.ord.CrudeComponent>} crudes
  */
@@ -38,7 +38,7 @@ function load(node, crudes) {
 }
 
 /**
- * Adds and populates a single crude component section in the form.
+ * Populates a single crude component section in the form.
  * @param {!Node} root Root node for the parent reaction input.
  * @param {!proto.ord.CrudeComponent} crude
  */

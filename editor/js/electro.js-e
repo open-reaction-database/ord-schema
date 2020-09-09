@@ -30,7 +30,7 @@ goog.require('proto.ord.ElectrochemistryConditions.Measurement');
 let radioGroupCounter = 0;
 
 /**
- * Adds and populates the electrochemistry conditions section in the form.
+ * Populates the electrochemistry conditions section in the form.
  * @param {!proto.ord.ElectrochemistryConditions} electro
  */
 function load(electro) {
@@ -58,7 +58,7 @@ function load(electro) {
 }
 
 /**
- * Adds and populates an electrochemistry measurement section in the form.
+ * Populates an electrochemistry measurement section in the form.
  * @param {!Node} node The target div.
  * @param {!proto.ord.ElectrochemistryConditions.Measurement} measurement
  */

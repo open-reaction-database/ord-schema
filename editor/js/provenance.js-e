@@ -29,7 +29,7 @@ goog.require('proto.ord.ReactionProvenance');
 goog.require('proto.ord.RecordEvent');
 
 /**
- * Adds and populates the provenance section in the form.
+ * Populates the provenance section in the form.
  * @param {!proto.ord.ReactionProvenance} provenance
  */
 function load(provenance) {
@@ -59,7 +59,7 @@ function load(provenance) {
 }
 
 /**
- * Adds and populates a record event section in the form.
+ * Populates a record event section in the form.
  * @param {!Node} node The target div.
  * @param {!proto.ord.RecordEvent} record
  */
@@ -76,7 +76,7 @@ function loadRecordEvent(node, record) {
 }
 
 /**
- * Adds and populates a person section in the form.
+ * Populates a person section in the form.
  * @param {!Node} node The target div.
  * @param {!proto.ord.Person} person
  */

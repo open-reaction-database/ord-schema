@@ -30,7 +30,7 @@ goog.require('proto.ord.TemperatureConditions.TemperatureControl');
 goog.require('proto.ord.Time');
 
 /**
- * Adds and populates the temperature conditions section in the form.
+ * Populates the temperature conditions section in the form.
  * @param {!proto.ord.TemperatureConditions} temperature
  */
 function load(temperature) {
@@ -49,7 +49,7 @@ function load(temperature) {
 }
 
 /**
- * Adds and populates a temperature measurement section in the form.
+ * Populates a temperature measurement section in the form.
  * @param {!proto.ord.TemperatureConditions.Measurement} measurement
  * @param {!Node} node The target div.
  */

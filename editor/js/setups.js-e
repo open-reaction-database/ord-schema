@@ -29,7 +29,7 @@ goog.require('proto.ord.Vessel');
 goog.require('proto.ord.Volume');
 
 /**
- * Adds and populates the reaction setup section in the form.
+ * Populates the reaction setup section in the form.
  * @param {!proto.ord.ReactionSetup} setup
  */
 function load(setup) {
@@ -66,7 +66,7 @@ function load(setup) {
 }
 
 /**
- * Adds and populates the reaction vessel section of the form.
+ * Populates the reaction vessel section of the form.
  * @param {!proto.ord.Vessel} vessel
  */
 function loadVessel(vessel) {

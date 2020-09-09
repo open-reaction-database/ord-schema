@@ -26,7 +26,7 @@ goog.require('proto.ord.FlowConditions');
 goog.require('proto.ord.FlowConditions.Tubing');
 
 /**
- * Adds and populates the flow conditions section in the form.
+ * Populates the flow conditions section in the form.
  * @param {!proto.ord.FlowConditions} flow
  */
 function load(flow) {

@@ -38,8 +38,8 @@ goog.require('proto.ord.CompoundIdentifier');
 let radioGroupCounter = 0;
 
 /**
- * Adds and populates the form's fields describing multiple compounds for a
- * single reaction input.
+ * Populates the form's fields describing multiple compounds for a single
+ * reaction input.
  * @param {!Node} node The div corresponding to the reaction input to which
  *     compound definitions should be added.
  * @param {!Array<!proto.ord.Compound>} compounds
@@ -61,7 +61,7 @@ function loadCompound(root, compound) {
 }
 
 /**
- * Adds and populates the form's fields describing a compound.
+ * Populates the form's fields describing a compound.
  * @param {!Node} node The div corresponding to the compound whose fields
  *     should be updated.
  * @param {!proto.ord.Compound} compound
@@ -117,7 +117,7 @@ function loadIdentifier(compoundNode, identifier) {
 }
 
 /**
- * Adds and populates the form's fields describing a compound preparation.
+ * Populates the form's fields describing a compound preparation.
  * @param {!Node} node The div corresponding to the preparation that should be
  *     updated on the form.
  * @param {!proto.ord.CompoundPreparation} preparation
@@ -133,7 +133,7 @@ function loadPreparation(node, preparation) {
 }
 
 /**
- * Adds and populates the form's fields describing a compound's source.
+ * Populates the form's fields describing a compound's source.
  * @param {!Node} compoundNode The div corresponding to the compound whose
  *     vendor information should be updated on the form.
  * @param {string} vendorSource
