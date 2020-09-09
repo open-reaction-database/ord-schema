@@ -509,7 +509,7 @@ function addRaw(node) {
 /**
  * Validates a reaction outcome defined in the form.
  * @param {!Node} node Root node for the reaction outcome.
- * @param {!Node} validateNode The target node for validation results.
+ * @param {?Node} validateNode The target node for validation results.
  */
 function validateOutcome(node, validateNode) {
   const outcome = unloadOutcome(node);
@@ -522,7 +522,7 @@ function validateOutcome(node, validateNode) {
 /**
  * Validates a reaction analysis defined in the form.
  * @param {!Node} node Root node for the reaction analysis.
- * @param {!Node} validateNode The target node for validation results.
+ * @param {?Node} validateNode The target node for validation results.
  */
 function validateAnalysis(node, validateNode) {
   const analysis = unloadAnalysisSingle(node);

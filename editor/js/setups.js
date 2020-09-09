@@ -216,7 +216,7 @@ function addVesselAttachment() {
 /**
  * Validates the reaction setup defined in the form.
  * @param {!Node} node The node containing the reaction setup div.
- * @param {!Node} validateNode The target div for validation results.
+ * @param {?Node} validateNode The target div for validation results.
  */
 function validateSetup(node, validateNode) {
   const setup = unload();

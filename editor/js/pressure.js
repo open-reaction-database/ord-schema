@@ -150,7 +150,7 @@ function addMeasurement() {
 /**
  * Validates pressure conditions defined in the form.
  * @param {!Node} node The node containing the pressure conditions div.
- * @param {!Node} validateNode The target div for validation results.
+ * @param {?Node} validateNode The target div for validation results.
  */
 function validatePressure(node, validateNode) {
   const pressure = unload();

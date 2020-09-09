@@ -77,7 +77,7 @@ function unload() {
 /**
  * Validates the flow conditions defined in the form.
  * @param {!Node} node Root node for the flow conditions.
- * @param {!Node} validateNode Target node for validation results.
+ * @param {?Node} validateNode Target node for validation results.
  */
 function validateFlow(node, validateNode) {
   const flow = unload();

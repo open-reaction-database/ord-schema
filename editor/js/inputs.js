@@ -215,7 +215,7 @@ function add(root) {
 /**
  * Validates a reaction input defined in the form.
  * @param {!Node} node Root node for the reaction input.
- * @param {!Node} validateNode Target node for validation results.
+ * @param {?Node} validateNode Target node for validation results.
  */
 function validateInput(node, validateNode) {
   const input = unloadInputUnnamed(node);

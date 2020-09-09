@@ -181,7 +181,7 @@ function addModification() {
 /**
  * Validates the reaction provenence defined in the form.
  * @param {!Node} node The node containing reaction provenance information.
- * @param {!Node} validateNode The target div for validation results.
+ * @param {?Node} validateNode The target div for validation results.
  */
 function validateProvenance(node, validateNode) {
   const provenance = unload();

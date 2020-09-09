@@ -301,7 +301,7 @@ function addMeasurement(node) {
 /**
  * Validates a workup as defined in the form.
  * @param {!Node} node The div containing to the workup in the form.
- * @param {!Node} validateNode The target div for validation results.
+ * @param {?Node} validateNode The target div for validation results.
  */
 function validateWorkup(node, validateNode) {
   const workup = unloadWorkup(node);

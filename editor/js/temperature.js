@@ -138,7 +138,7 @@ function addMeasurement() {
 /**
  * Validates temperature conditions defined in the form.
  * @param {!Node} node The node containing the temperature conditions div.
- * @param {!Node} validateNode The target div for validation results.
+ * @param {?Node} validateNode The target div for validation results.
  */
 function validateTemperature(node, validateNode) {
   const temperature = unload();

@@ -168,7 +168,7 @@ function addChangeHandler(node, handler) {
  * NOTE: This function does not commit or save anything!
  * @param {!jspb.Message} message The proto to validate.
  * @param {string} messageTypeString The message type.
- * @param {!Node} validateNode Target div for validation output.
+ * @param {?Node} validateNode Target div for validation output.
  */
 function validate(message, messageTypeString, validateNode) {
   // eg message is a type of reaction, messageTypeString = 'Reaction'

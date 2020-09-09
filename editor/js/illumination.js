@@ -74,7 +74,7 @@ function unload() {
 /**
  * Validates the illumination conditions defined in the form.
  * @param {!Node} node Root node for the illumination conditions.
- * @param {!Node} validateNode Target node for validation results.
+ * @param {?Node} validateNode Target node for validation results.
  */
 function validateIllumination(node, validateNode) {
   const illumination = unload();

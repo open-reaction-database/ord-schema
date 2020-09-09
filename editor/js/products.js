@@ -327,7 +327,7 @@ function addSelectivity(node) {
 /**
  * Validates a product defined in the form.
  * @param {!Node} node A node containing a reaction product.
- * @param {!Node} validateNode The target div for validation results.
+ * @param {?Node} validateNode The target div for validation results.
  */
 function validateProduct(node, validateNode) {
   const product = unloadProduct(node);

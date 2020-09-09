@@ -546,7 +546,7 @@ function renderCompound(node, compound) {
  * display node.
  * @param {!Node} node The div corresponding to the compound that should be
  *     read from the form and validated.
- * @param {!Node} validateNode The div that is used to show the results of
+ * @param {?Node} validateNode The div that is used to show the results of
  *     validation (i.e., success or errors).
  */
 function validateCompound(node, validateNode) {
