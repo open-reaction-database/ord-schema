@@ -30,10 +30,20 @@ exports = {
 goog.require('ord.compounds');
 goog.require('proto.ord.ReactionProduct');
 
+/**
+ * Adds and populates the products section of the form.
+ * @param {!Node} node The target node for the product divs.
+ * @param {!Array<!proto.ord.ReactionProduct>} products
+ */
 function load(node, products) {
   products.forEach(product => loadProduct(node, product));
 }
 
+/**
+ * Adds and populates a product section in the form.
+ * @param {!Node} outcomeNode The parent ReactionOutcome node.
+ * @param {!proto.ord.ReactionProduct} product
+ */
 function loadProduct(outcomeNode, product) {
   const node = add(outcomeNode);
 
@@ -102,6 +112,11 @@ function loadProduct(outcomeNode, product) {
   }
 }
 
+/**
+ * Fetches the products defined in the form.
+ * @param {!Node} node The parent ReactionOutcome node.
+ * @return {!Array<!proto.ord.ReactionProduct>}
+ */
 function unload(node) {
   const products = [];
   $('.outcome_product', node).each(function(index, productNode) {
@@ -117,6 +132,11 @@ function unload(node) {
   return products;
 }
 
+/**
+ * Fetches a product defined in the form.
+ * @param {!Node} node An element containing a product.
+ * @return {!proto.ord.ReactionProduct}
+ */
 function unloadProduct(node) {
   const product = new proto.ord.ReactionProduct();
 
@@ -186,6 +206,12 @@ function unloadProduct(node) {
   return product;
 }
 
+/**
+ * Fetches the set of ReactionAnalysis keys.
+ * @param {!Node} node The parent ReactionOutcome div.
+ * @param {string} tag Analysis target, e.g. "identities", "yields", etc.
+ * @return {!Array<string>}
+ */
 function unloadAnalysisKeys(node, tag) {
   const values = [];
   $('.outcome_product_analysis_' + tag, node).each(function(index, tagNode) {
@@ -201,6 +227,11 @@ function unloadAnalysisKeys(node, tag) {
   return values;
 }
 
+/**
+ * Adds a reaction product section to the form.
+ * @param {!Node} node Target ReactionOutcome node for the new product.
+ * @return {!Node} The newly created node.
+ */
 function add(node) {
   const productNode = ord.reaction.addSlowly(
       '#outcome_product_template', $('.outcome_products', node));
@@ -225,6 +256,11 @@ function add(node) {
   return productNode;
 }
 
+/**
+ * Adds keys for defined analyses to the analysis selector.
+ * @param {!Node} node Parent node containing ReactionOutcome data.
+ * @param {!Node} analysisSelectorNode Node containing an analysis selector.
+ */
 function populateAnalysisSelector(node, analysisSelectorNode) {
   const outcomeNode = node.closest('.outcome');
   $('.outcome_analysis_name', outcomeNode).each(function() {
@@ -236,6 +272,11 @@ function populateAnalysisSelector(node, analysisSelectorNode) {
   });
 }
 
+/**
+ * Adds a new identity analysis to the form.
+ * @param {!Node} node Parent ReactionProduct node.
+ * @return {!Node} The newly created node.
+ */
 function addIdentity(node) {
   const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_identity_template',
@@ -244,6 +285,11 @@ function addIdentity(node) {
   return analysisSelectorNode;
 }
 
+/**
+ * Adds a new yield analysis to the form.
+ * @param {!Node} node Parent ReactionProduct node.
+ * @return {!Node} The newly created node.
+ */
 function addYield(node) {
   const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_yield_template',
@@ -252,6 +298,11 @@ function addYield(node) {
   return analysisSelectorNode;
 }
 
+/**
+ * Adds a new purity analysis to the form.
+ * @param {!Node} node Parent ReactionProduct node.
+ * @return {!Node} The newly created node.
+ */
 function addPurity(node) {
   const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_purity_template',
@@ -260,6 +311,11 @@ function addPurity(node) {
   return analysisSelectorNode;
 }
 
+/**
+ * Adds a new selectivity analysis to the form.
+ * @param {!Node} node Parent ReactionProduct node.
+ * @return {!Node} The newly created node.
+ */
 function addSelectivity(node) {
   const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_selectivity_template',
@@ -268,6 +324,11 @@ function addSelectivity(node) {
   return analysisSelectorNode;
 }
 
+/**
+ * Validates a product defined in the form.
+ * @param {!Node} node A node containing a reaction product.
+ * @param {?Node} validateNode The target div for validation results.
+ */
 function validateProduct(node, validateNode) {
   const product = unloadProduct(node);
   if (!validateNode) {

@@ -28,10 +28,20 @@ goog.require('proto.ord.CrudeComponent');
 // Freely create radio button groups by generating new input names.
 let radioGroupCounter = 0;
 
+/**
+ * Adds and populates the crude components of a reaction input.
+ * @param {!Node} node Root node for the parent reaction input.
+ * @param {!Array<!proto.ord.CrudeComponent>} crudes
+ */
 function load(node, crudes) {
   crudes.forEach(crude => loadCrude(node, crude));
 }
 
+/**
+ * Adds and populates a single crude component section in the form.
+ * @param {!Node} root Root node for the parent reaction input.
+ * @param {!proto.ord.CrudeComponent} crude
+ */
 function loadCrude(root, crude) {
   const node = add(root);
 
@@ -50,6 +60,11 @@ function loadCrude(root, crude) {
   ord.amountsCrudes.load(node, mass, volume);
 }
 
+/**
+ * Fetches the crude components defined for a reaction input in the form.
+ * @param {!Node} node Root node for the parent reaction input.
+ * @return {!Array<!proto.ord.CrudeComponent>}
+ */
 function unload(node) {
   const crudes = [];
   $('.crude', node).each(function(index, crudeNode) {
@@ -65,6 +80,11 @@ function unload(node) {
   return crudes;
 }
 
+/**
+ * Fetches a single crude component defined in the form.
+ * @param {!Node} node Root node for the crude component.
+ * @return {!proto.ord.CrudeComponent}
+ */
 function unloadCrude(node) {
   const crude = new proto.ord.CrudeComponent();
 
@@ -83,6 +103,11 @@ function unloadCrude(node) {
   return crude;
 }
 
+/**
+ * Adds a crude component section to the given reaction input.
+ * @param {!Node} root Root node for the parent reaction input.
+ * @return {!Node} The newly added root node for the crude component.
+ */
 function add(root) {
   const node = ord.reaction.addSlowly('#crude_template', $('.crudes', root));
 

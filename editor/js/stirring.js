@@ -24,6 +24,10 @@ exports = {
 
 goog.require('proto.ord.StirringConditions');
 
+/**
+ * Adds and populates the stirring conditions section in the form.
+ * @param {!proto.ord.StirringConditions} stirring
+ */
 function load(stirring) {
   const method = stirring.getMethod();
   if (method) {
@@ -41,6 +45,10 @@ function load(stirring) {
   }
 }
 
+/**
+ * Fetches the stirring conditions from the form.
+ * @return {!proto.ord.StirringConditions}
+ */
 function unload() {
   const stirring = new proto.ord.StirringConditions();
 
@@ -64,6 +72,11 @@ function unload() {
   return stirring;
 }
 
+/**
+ * Validates the stirring conditions defined in the form.
+ * @param {!Node} node The div containing the stirring conditions.
+ * @param {?Node} validateNode The target div for validation results.
+ */
 function validateStirring(node, validateNode) {
   const stirring = unload();
   if (!validateNode) {

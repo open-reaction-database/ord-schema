@@ -30,6 +30,10 @@ goog.require('ord.stirring');
 goog.require('ord.temperature');
 goog.require('proto.ord.ReactionConditions');
 
+/**
+ * Adds and populates the reaction conditions in the form.
+ * @param {!proto.ord.ReactionConditions} conditions
+ */
 function load(conditions) {
   const temperature = conditions.getTemperature();
   if (temperature) {
@@ -67,6 +71,10 @@ function load(conditions) {
   $('#condition_details').text(conditions.getDetails());
 }
 
+/**
+ * Fetches the reaction conditions from the form.
+ * @return {!proto.ord.ReactionConditions}
+ */
 function unload() {
   const conditions = new proto.ord.ReactionConditions();
   const temperature = ord.temperature.unload();
@@ -107,6 +115,11 @@ function unload() {
   return conditions;
 }
 
+/**
+ * Validates the reaction conditions defined in the form.
+ * @param {!Node} node Root node for the reaction conditions.
+ * @param {?Node} validateNode Target node for validation results.
+ */
 function validateConditions(node, validateNode) {
   const condition = unload();
   if (!validateNode) {

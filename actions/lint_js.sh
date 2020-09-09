@@ -40,7 +40,7 @@ java -jar node_modules/google-closure-compiler-java/compiler.jar \
     --js 'js/**.js' \
     --dependency_mode PRUNE \
     --checks_only \
-    --jscomp_warning lintChecks \
+    --jscomp_error lintChecks \
     --hide_warnings_for closure-library-20200517 \
     --hide_warnings_for protobuf/js \
     --hide_warnings_for gen/js/proto/ord

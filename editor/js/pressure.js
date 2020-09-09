@@ -28,6 +28,10 @@ goog.require('proto.ord.PressureConditions');
 goog.require('proto.ord.PressureConditions.Measurement');
 goog.require('proto.ord.Time');
 
+/**
+ * Adds and populates the pressure conditions section in the form.
+ * @param {!proto.ord.PressureConditions} pressure
+ */
 function load(pressure) {
   const control = pressure.getControl();
   if (control) {
@@ -50,6 +54,11 @@ function load(pressure) {
   }
 }
 
+/**
+ * Adds and populates a pressure measurement section in the form.
+ * @param {!proto.ord.PressureConditions.Measurement} measurement
+ * @param {!Node} node The target div.
+ */
 function loadMeasurement(measurement, node) {
   const type = measurement.getType();
   ord.reaction.setSelector($('.pressure_measurement_type', node), type);
@@ -62,6 +71,10 @@ function loadMeasurement(measurement, node) {
   ord.reaction.writeMetric('.pressure_measurement_time', time, node);
 }
 
+/**
+ * Fetches pressure conditions from the form.
+ * @return {!proto.ord.PressureConditions}
+ */
 function unload() {
   const pressure = new proto.ord.PressureConditions();
 
@@ -100,6 +113,11 @@ function unload() {
   return pressure;
 }
 
+/**
+ * Fetches a pressure measurement from the form.
+ * @param {!Node} node The div of the measurement to fetch.
+ * @return {!proto.ord.PressureConditions.Measurement}
+ */
 function unloadMeasurement(node) {
   const measurement = new proto.ord.PressureConditions.Measurement();
   const type = ord.reaction.getSelector($('.pressure_measurement_type', node));
@@ -120,11 +138,20 @@ function unloadMeasurement(node) {
   return measurement;
 }
 
+/**
+ * Adds a pressure measurement section to the form.
+ * @return {!Node} The node of the new measurement div.
+ */
 function addMeasurement() {
   return ord.reaction.addSlowly(
       '#pressure_measurement_template', '#pressure_measurements');
 }
 
+/**
+ * Validates pressure conditions defined in the form.
+ * @param {!Node} node The node containing the pressure conditions div.
+ * @param {?Node} validateNode The target div for validation results.
+ */
 function validatePressure(node, validateNode) {
   const pressure = unload();
   if (!validateNode) {

@@ -25,6 +25,10 @@ exports = {
 goog.require('ord.uploads');
 goog.require('proto.ord.ReactionIdentifier');
 
+/**
+ * Adds and populates the reaction identifier sections in the form.
+ * @param {!Array<!proto.ord.ReactionIdentifier>} identifiers
+ */
 function load(identifiers) {
   identifiers.forEach(identifier => loadIdentifier(identifier));
   if (!(identifiers.length)) {
@@ -32,6 +36,10 @@ function load(identifiers) {
   }
 }
 
+/**
+ * Adds and populates a single reaction identifier section in the form.
+ * @param {!proto.ord.ReactionIdentifier} identifier
+ */
 function loadIdentifier(identifier) {
   const node = add();
   const value = identifier.getValue();
@@ -40,6 +48,10 @@ function loadIdentifier(identifier) {
   $('.reaction_identifier_details', node).text(identifier.getDetails());
 }
 
+/**
+ * Fetches the reaction identifiers defined in the form.
+ * @return {!Array<!proto.ord.ReactionIdentifiers>}
+ */
 function unload() {
   const identifiers = [];
   $('.reaction_identifier').each(function(index, node) {
@@ -55,6 +67,11 @@ function unload() {
   return identifiers;
 }
 
+/**
+ * Fetches a single reaction identifier defined in the form.
+ * @param {!Node} node Root node for the identifier.
+ * @return {!proto.ord.ReactionIdentifier}
+ */
 function unloadIdentifier(node) {
   const identifier = new proto.ord.ReactionIdentifier();
 
@@ -74,6 +91,10 @@ function unloadIdentifier(node) {
   return identifier;
 }
 
+/**
+ * Adds a reaction identifier section to the form.
+ * @return {!Node} The newly added parent node for the identifier.
+ */
 function add() {
   const node =
       ord.reaction.addSlowly('#reaction_identifier_template', '#identifiers');

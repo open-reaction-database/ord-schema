@@ -28,6 +28,10 @@ goog.require('proto.ord.Person');
 goog.require('proto.ord.ReactionProvenance');
 goog.require('proto.ord.RecordEvent');
 
+/**
+ * Adds and populates the provenance section in the form.
+ * @param {!proto.ord.ReactionProvenance} provenance
+ */
 function load(provenance) {
   const experimenter = provenance.getExperimenter();
   if (experimenter) {
@@ -54,6 +58,11 @@ function load(provenance) {
   });
 }
 
+/**
+ * Adds and populates a record event section in the form.
+ * @param {!Node} node The target div.
+ * @param {!proto.ord.RecordEvent} record
+ */
 function loadRecordEvent(node, record) {
   const time = record.getTime();
   if (time) {
@@ -66,6 +75,11 @@ function loadRecordEvent(node, record) {
   $('.provenance_details', node).text(record.getDetails());
 }
 
+/**
+ * Adds and populates a person section in the form.
+ * @param {!Node} node The target div.
+ * @param {!proto.ord.Person} person
+ */
 function loadPerson(node, person) {
   $('.provenance_username', node).text(person.getUsername());
   $('.provenance_name', node).text(person.getName());
@@ -74,6 +88,10 @@ function loadPerson(node, person) {
   $('.provenance_email', node).text(person.getEmail());
 }
 
+/**
+ * Fetches reaction provenance as defined in the form.
+ * @return {!proto.ord.ReactionProvenance}
+ */
 function unload() {
   const provenance = new proto.ord.ReactionProvenance();
 
@@ -115,6 +133,11 @@ function unload() {
   return provenance;
 }
 
+/**
+ * Fetches a record event as defined in the form.
+ * @param {!Node} node Parent node containing the record event.
+ * @return {!proto.ord.RecordEvent}
+ */
 function unloadRecordEvent(node) {
   const created = new proto.ord.RecordEvent();
   const createdTime = new proto.ord.DateTime();
@@ -131,6 +154,11 @@ function unloadRecordEvent(node) {
   return created;
 }
 
+/**
+ * Fetches a person message as defined in the form.
+ * @param {!Node} node Parent node containing the person message.
+ * @return {!proto.ord.Person}
+ */
 function unloadPerson(node) {
   const person = new proto.ord.Person();
   person.setUsername($('.provenance_username', node).text());
@@ -141,11 +169,20 @@ function unloadPerson(node) {
   return person;
 }
 
+/**
+ * Adds a record_modified section to the form.
+ * @return {!Node} The div containing the new event.
+ */
 function addModification() {
   return ord.reaction.addSlowly(
       '#provenance_modified_template', '#provenance_modifieds');
 }
 
+/**
+ * Validates the reaction provenence defined in the form.
+ * @param {!Node} node The node containing reaction provenance information.
+ * @param {?Node} validateNode The target div for validation results.
+ */
 function validateProvenance(node, validateNode) {
   const provenance = unload();
   if (!validateNode) {

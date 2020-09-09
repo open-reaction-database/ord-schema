@@ -27,6 +27,10 @@ goog.require('proto.ord.Data');
 // Freely create radio button groups by generating new input names.
 let radioGroupCounter = 0;
 
+/**
+ * Adds and populates the automation_code sections in the form.
+ * @param {!jspb.Map<string, !proto.ord.Data>} codes
+ */
 function load(codes) {
   const names = codes.stringKeys_();
   names.forEach(function(name) {
@@ -35,6 +39,11 @@ function load(codes) {
   });
 }
 
+/**
+ * Adds and populates a single automation_code section in the form.
+ * @param {string} name The name of this automation code.
+ * @param {!proto.ord.Data} code
+ */
 function loadCode(name, code) {
   const node = addCode();
   $('.setup_code_name', node).text(name);
@@ -71,6 +80,10 @@ function loadCode(name, code) {
   }
 }
 
+/**
+ * Fetches the automation_code sections from the form and adds them to `codes`.
+ * @param {!jspb.Map<string, !proto.ord.Data>} codes
+ */
 function unload(codes) {
   $('.setup_code').each(function(index, node) {
     node = $(node);
@@ -80,6 +93,12 @@ function unload(codes) {
   });
 }
 
+/**
+ * Fetches a single automation_code section from the form and adds it to
+ * `codes`.
+ * @param {!jspb.Map<string, !proto.ord.Data>} codes
+ * @param {!Node} node The root node of the automation_code section to fetch.
+ */
 function unloadCode(codes, node) {
   const name = $('.setup_code_name', node).text();
 
@@ -120,6 +139,10 @@ function unloadCode(codes, node) {
   }
 }
 
+/**
+ * Adds an automation_code section to the form.
+ * @return {!Node} The newly added root node for the automation_code section.
+ */
 function addCode() {
   const node = ord.reaction.addSlowly('#setup_code_template', '#setup_codes');
 

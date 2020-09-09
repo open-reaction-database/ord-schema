@@ -29,6 +29,10 @@ goog.require('proto.ord.ElectrochemistryConditions.Measurement');
 // Freely create radio button groups by generating new input names.
 let radioGroupCounter = 0;
 
+/**
+ * Adds and populates the electrochemistry conditions section in the form.
+ * @param {!proto.ord.ElectrochemistryConditions} electro
+ */
 function load(electro) {
   const type = electro.getElectrochemistryType();
   if (type) {
@@ -53,6 +57,11 @@ function load(electro) {
   });
 }
 
+/**
+ * Adds and populates an electrochemistry measurement section in the form.
+ * @param {!Node} node The target div.
+ * @param {!proto.ord.ElectrochemistryConditions.Measurement} measurement
+ */
 function loadMeasurement(node, measurement) {
   const time = measurement.getTime();
   if (time) {
@@ -74,6 +83,10 @@ function loadMeasurement(node, measurement) {
   }
 }
 
+/**
+ * Fetches the electrochemistry conditions defined in the form.
+ * @return {!proto.ord.ElectrochemistryConditions}
+ */
 function unload() {
   const electro = new proto.ord.ElectrochemistryConditions();
 
@@ -123,6 +136,11 @@ function unload() {
   return electro;
 }
 
+/**
+ * Fetches an electrochemistry measurement from the form.
+ * @param {!Node} node Root node of the measurement.
+ * @return {!proto.ord.ElectrochemistryConditions.Measurement}
+ */
 function unloadMeasurement(node) {
   const measurement = new proto.ord.ElectrochemistryConditions.Measurement();
   const time = ord.reaction.readMetric(
@@ -148,6 +166,10 @@ function unloadMeasurement(node) {
   return measurement;
 }
 
+/**
+ * Adds an electrochemistry measurement section to the form.
+ * @return {!Node} The newly added parent node for the measurement.
+ */
 function addMeasurement() {
   const node = ord.reaction.addSlowly(
       '#electro_measurement_template', '#electro_measurements');
@@ -168,6 +190,11 @@ function addMeasurement() {
   return node;
 }
 
+/**
+ * Validates the electrochemistry conditions defined in the form.
+ * @param {!Node} node Root node for the electrochemistry conditions.
+ * @param {?Node} validateNode Target node for validation results.
+ */
 function validateElectro(node, validateNode) {
   const electro = unload();
   if (!validateNode) {
