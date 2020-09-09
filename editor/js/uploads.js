@@ -90,8 +90,7 @@ function putAll(dirName) {
     reader.readAsBinaryString(file);
     reader.onload = (event) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST',
-          '/dataset/proto/upload/' + dirName + '/' + token);
+      xhr.open('POST', '/dataset/proto/upload/' + dirName + '/' + token);
       const payload = event.target.result;
       xhr.send(payload);
     };
