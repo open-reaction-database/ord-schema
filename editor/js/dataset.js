@@ -33,6 +33,10 @@ const session = {
   dataset: null
 };
 
+/**
+ * Initializes the dataset landing page.
+ * @param {string} fileName The filename of the dataset to load.
+ */
 function init(fileName) {
   session.fileName = fileName;
   $('.edittext').attr('contentEditable', 'true');
@@ -40,20 +44,33 @@ function init(fileName) {
   listenDirty($('#text_fields'));
 }
 
+/**
+ * Adds change handlers to a newly added reaction or reaction ID node.
+ * @param {!Node} node Root node for the reaction or reaction ID.
+ */
 function listenDirty(node) {
   $('.edittext', node).on('input', dirty);
   $('.selector', node).on('input', dirty);
 }
 
+/**
+ * Shows the 'save' button.
+ */
 function dirty() {
   $('#save').css('visibility', 'visible');
 }
 
+/**
+ * Hides the 'save' button.
+ */
 function clean() {
   $('#save').css('visibility', 'hidden');
   $('#save').text('save');
 }
 
+/**
+ * Writes the current dataset to disk.
+ */
 function commit() {
   const dataset = unloadDataset();
   $('#save').text('saving');
@@ -65,6 +82,9 @@ function commit() {
   xhr.send(binary);
 }
 
+/**
+ * Downloads the current dataset.
+ */
 function download() {
   const xhr = new XMLHttpRequest();
   xhr.open('GET', '/dataset/' + session.fileName + '/download');
@@ -80,6 +100,13 @@ function download() {
   xhr.send();
 }
 
+/**
+ * Fetches a dataset from the server.
+ * @param {string} fileName The filename of the dataset to fetch.
+ * @param {!Function} listener Function used to load the dataset into the
+ *     editor.
+ * @return {!Uint8Array} The serialized Dataset proto.
+ */
 function getDataset(fileName, listener) {
   if (!listener) {
     return;
@@ -96,6 +123,10 @@ function getDataset(fileName, listener) {
   xhr.send();
 }
 
+/**
+ * Loads a dataset into the editor.
+ * @param {!proto.ord.Dataset} dataset
+ */
 function loadDataset(dataset) {
   $('#name').text(dataset.getName());
   $('#description').text(dataset.getDescription());
@@ -110,6 +141,10 @@ function loadDataset(dataset) {
   clean();
 }
 
+/**
+ * Loads a list of reactions into the editor.
+ * @param {!Array<!proto.ord.Reaction>} reactions
+ */
 function loadReactions(reactions) {
   for (var i = 0; i < reactions.length; i++) {
     const reaction = reactions[i];
@@ -117,21 +152,38 @@ function loadReactions(reactions) {
   }
 }
 
+/**
+ * Loads a single reaction into the editor.
+ * @param {number} index The index of the new reaction.
+ * @param {!proto.ord.Reaction} reaction
+ */
 function loadReaction(index, reaction) {
   const node = addReaction(index);
   const id = reaction.getReactionId();
   $('.reaction_id', node).text(id);
 }
 
+/**
+ * Loads a list of reaction IDs into the editor.
+ * @param {!Array<string>} reactionIds
+ */
 function loadReactionIds(reactionIds) {
   reactionIds.forEach(reactionId => loadReactionId(reactionId));
 }
 
+/**
+ * Loads a single reaction ID into the editor.
+ * @param {string} reactionId
+ */
 function loadReactionId(reactionId) {
   const node = addReactionId();
   $('.other_reaction_id_text', node).text(reactionId);
 }
 
+/**
+ * Fetches the current dataset.
+ * @return {!proto.ord.Dataset}
+ */
 function unloadDataset() {
   const dataset = session.dataset;
   dataset.setName($('#name').text());
@@ -149,6 +201,11 @@ function unloadDataset() {
   return dataset;
 }
 
+/**
+ * Adds a new reaction to the current dataset.
+ * @param {number} index The index of the new reaction.
+ * @return {!Node} The newly added root node for the reaction.
+ */
 function addReaction(index) {
   const node = $('#reaction_template').clone();
   node.removeAttr('id');
@@ -163,6 +220,10 @@ function addReaction(index) {
   return node;
 }
 
+/**
+ * Adds a new reaction ID to the current dataset.
+ * @return {!Node} The newly added root node for the reaction ID.
+ */
 function addReactionId() {
   const node = $('#other_reaction_id_template').clone();
   node.removeAttr('id');
@@ -174,23 +235,37 @@ function addReactionId() {
   return node;
 }
 
+/**
+ * Loads the Reaction editor immediately without waiting for 'save'.
+ */
 function newReaction() {
-  // Load the Reaction editor immediately without waiting for "save".
   window.location.href = '/dataset/' + session.fileName + '/new/reaction';
 }
 
+/**
+ * Deletes a Reaction immediately without waiting for 'save'.
+ * @param {!Node} button The node of the 'remove' button.
+ */
 function deleteReaction(button) {
-  // Delete the Reaction immediately without waiting for "save".
   const node = $(button).closest('.reaction');
   const index = parseInt($('a', node).text());
   window.location.href =
       '/dataset/' + session.fileName + '/delete/reaction/' + index;
 }
 
+/**
+ * Deletes a Reaction ID.
+ * @param {!Node} button The node of the 'remove' button.
+ */
 function removeReactionId(button) {
   removeSlowly(button, '.other_reaction_id');
 }
 
+/**
+ * Deletes an element matching `pattern`.
+ * @param {!Node} button The node of the 'remove' button.
+ * @param {string} pattern The element pattern to match.
+ */
 function removeSlowly(button, pattern) {
   const node = $(button).closest(pattern);
   node.hide('slow', () => node.remove());
