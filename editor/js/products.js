@@ -120,7 +120,7 @@ function unload(node) {
 function unloadProduct(node) {
   const product = new proto.ord.ReactionProduct();
 
-  const compoundNode = $('.outcome_product_compound');
+  const compoundNode = $('.outcome_product_compound', node);
   const compound = ord.compounds.unloadCompound(compoundNode);
   if (!ord.reaction.isEmptyMessage(compound)) {
     product.setCompound(compound);
@@ -225,28 +225,47 @@ function add(node) {
   return productNode;
 }
 
+function populateAnalysisSelector(node, analysisSelectorNode) {
+  const outcomeNode = node.closest('.outcome');
+  $('.outcome_analysis_name', outcomeNode).each(function() {
+    var name = $(this).text();
+    if (name) {
+      $('.analysis_key_selector', analysisSelectorNode)
+          .append('<option value="' + name + '">' + name + '</option>');
+    }
+  });
+}
+
 function addIdentity(node) {
-  return ord.reaction.addSlowly(
+  const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_identity_template',
       $('.outcome_product_analysis_identities', node));
+  populateAnalysisSelector(node, analysisSelectorNode);
+  return analysisSelectorNode;
 }
 
 function addYield(node) {
-  return ord.reaction.addSlowly(
+  const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_yield_template',
       $('.outcome_product_analysis_yields', node));
+  populateAnalysisSelector(node, analysisSelectorNode);
+  return analysisSelectorNode;
 }
 
 function addPurity(node) {
-  return ord.reaction.addSlowly(
+  const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_purity_template',
       $('.outcome_product_analysis_purities', node));
+  populateAnalysisSelector(node, analysisSelectorNode);
+  return analysisSelectorNode;
 }
 
 function addSelectivity(node) {
-  return ord.reaction.addSlowly(
+  const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_selectivity_template',
       $('.outcome_product_analysis_selectivities', node));
+  populateAnalysisSelector(node, analysisSelectorNode);
+  return analysisSelectorNode;
 }
 
 function validateProduct(node, validateNode) {
