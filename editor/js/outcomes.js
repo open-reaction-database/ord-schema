@@ -371,7 +371,8 @@ function addAnalysis(node) {
           $(this).val('');
         }
       });
-      $('.analysis_key_selector option[value="' + old_name + '"]', node).remove();
+      $('.analysis_key_selector option[value="' + old_name + '"]', node)
+          .remove();
     }
     // Add new key.
     if (name) {
