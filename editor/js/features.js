@@ -24,10 +24,20 @@ exports = {
 
 goog.require('proto.ord.Compound.Feature');
 
+/**
+ * Populates the feature sections for a Compound.
+ * @param {!Node} node Root node for the parent Compound.
+ * @param {!Array<!proto.ord.Compound.Feature>} features
+ */
 function load(node, features) {
   features.forEach(feature => loadFeature(node, feature));
 }
 
+/**
+ * Populates a single feature section in the form.
+ * @param {!Node} compoundNode Root node for the parent Compound.
+ * @param {!proto.ord.Compound.Feature} feature
+ */
 function loadFeature(compoundNode, feature) {
   const node = add(compoundNode);
   const name = feature.getName();
@@ -44,6 +54,11 @@ function loadFeature(compoundNode, feature) {
   $('.component_feature_how', node).text(how);
 }
 
+/**
+ * Fetches the features for a compound from the form.
+ * @param {!Node} compoundNode Root node for the parent Compound.
+ * @return {!Array<!proto.ord.Compound.Feature>}
+ */
 function unload(compoundNode) {
   const features = [];
   $('.component_feature', compoundNode).each(function(index, node) {
@@ -58,6 +73,11 @@ function unload(compoundNode) {
   return features;
 }
 
+/**
+ * Fetches a single feature defined in the form.
+ * @param {!Node} node Root node for the compound feature.
+ * @return {!proto.ord.Compound.Feature}
+ */
 function unloadFeature(node) {
   const feature = new proto.ord.Compound.Feature();
   const name = $('.component_feature_name', node).text();
@@ -79,6 +99,11 @@ function unloadFeature(node) {
   return feature;
 }
 
+/**
+ * Adds a feature section to the given compound in the form.
+ * @param {!Node} compoundNode Root node for the parent Compound.
+ * @return {!Node} The newly added parent node for the compound feature.
+ */
 function add(compoundNode) {
   return ord.reaction.addSlowly(
       '#component_feature_template', $('.features', compoundNode));
