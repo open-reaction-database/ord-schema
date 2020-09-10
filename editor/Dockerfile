@@ -29,14 +29,16 @@ RUN tar -xzf v20200517.tar.gz
 RUN wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
 RUN tar -xzf editor_test_protobuf_1dae8fdd.tar
 
-RUN git clone https://github.com/Open-Reaction-Database/ord-schema.git
+ARG GITHUB_REPOSITORY=Open-Reaction-Database/ord-schema
+ARG GITHUB_REF=refs/heads/main
+RUN git clone https://github.com/${GITHUB_REPOSITORY}.git
+# NOTE(kearnes): These moves are only here so they are cached even when the
+# ord-schema repo changes.
 RUN mv closure-library-20200517 ord-schema/editor/
 RUN mv ketcher ord-schema/editor/
 RUN mv protobuf ord-schema/editor/
 
 WORKDIR ord-schema
-ARG GITHUB_REPOSITORY=Open-Reaction-Database/ord-schema
-ARG GITHUB_REF=refs/heads/main
 # Bust the cache to get the latest commits; see
 # https://stackoverflow.com/a/39278224.
 ADD "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/${GITHUB_REF}" ord-schema-version.json
