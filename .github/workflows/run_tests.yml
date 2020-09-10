@@ -80,6 +80,7 @@ jobs:
         docker build \
           -t ord-editor \
           --build-arg "GITHUB_REPOSITORY=${GITHUB_REPOSITORY}" \
+          --build-arg "GITHUB_SHA=${GITHUB_SHA}" \
           --build-arg "GITHUB_REF=${GITHUB_REF}" \
           .
         docker run --rm -d -p 5000:5000 --name editor ord-editor
