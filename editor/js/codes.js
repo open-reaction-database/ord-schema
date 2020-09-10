@@ -52,6 +52,7 @@ function loadCode(name, code) {
 
   const stringValue = code.getStringValue();
   const floatValue = code.getFloatValue();
+  const integerValue = code.getIntegerValue();
   const bytesValue = code.getBytesValue();
   const url = code.getUrl();
   if (stringValue) {
@@ -60,10 +61,14 @@ function loadCode(name, code) {
     $('.setup_code_text', node).text(stringValue);
     $('input[value=\'text\']', node).prop('checked', true);
   }
-  if (floatValue) {
+  if (floatValue || integerValue) {
     $('.setup_code_text', node).show();
     $('.uploader', node).hide();
-    $('.setup_code_text', node).text(floatValue);
+    if (floatValue) {
+      $('.setup_code_text', node).text(floatValue);
+    } else {
+      $('.setup_code_text', node).text(integerValue);
+    }
     $('input[value=\'number\']', node).prop('checked', true);
   }
   if (bytesValue) {
@@ -116,9 +121,11 @@ function unloadCode(codes, node) {
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
-    const floatValue = parseFloat($('.setup_code_text', node).text());
-    if (!isNaN(floatValue)) {
-      code.setFloatValue(floatValue);
+    const value = $('.setup_code_text', node).text();
+    if (Number.isInteger(value)) {
+      code.setIntegerValue(parseInt(value));
+    } else if (Number.isNaN(value)) {
+      code.setFloatValue(parseFloat(value));
     }
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {

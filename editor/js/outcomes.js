@@ -134,6 +134,7 @@ function loadProcessedData(node, name, processedData) {
 
   const stringValue = processedData.getStringValue();
   const floatValue = processedData.getFloatValue();
+  const integerValue = processedData.getIntegerValue();
   const bytesValue = processedData.getBytesValue();
   const url = processedData.getUrl();
   if (stringValue) {
@@ -142,10 +143,14 @@ function loadProcessedData(node, name, processedData) {
     $('.outcome_processed_data_text', node).text(stringValue);
     $('input[value=\'text\']', node).prop('checked', true);
   }
-  if (floatValue) {
+  if (floatValue || integerValue) {
     $('.outcome_processed_data_text', node).show();
     $('.uploader', node).hide();
-    $('.outcome_processed_data_text', node).text(floatValue);
+    if (floatValue) {
+      $('.outcome_processed_data_text', node).text(floatValue);
+    } else {
+      $('.outcome_processed_data_text', node).text(integerValue);
+    }
     $('input[value=\'number\']', node).prop('checked', true);
   }
   if (bytesValue) {
@@ -175,6 +180,7 @@ function loadRaw(node, name, rawData) {
 
   const stringValue = rawData.getStringValue();
   const floatValue = rawData.getFloatValue();
+  const integerValue = rawData.getIntegerValue();
   const bytesValue = rawData.getBytesValue();
   const url = rawData.getUrl();
   if (stringValue) {
@@ -183,10 +189,14 @@ function loadRaw(node, name, rawData) {
     $('.outcome_raw_data_text', node).text(stringValue);
     $('input[value=\'text\']', node).prop('checked', true);
   }
-  if (floatValue) {
+  if (floatValue || integerValue) {
     $('.outcome_raw_data_text', node).show();
     $('.uploader', node).hide();
-    $('.outcome_raw_data_text', node).text(floatValue);
+    if (floatValue) {
+      $('.outcome_raw_data_text', node).text(floatValue);
+    } else {
+      $('.outcome_raw_data_text', node).text(integerValue);
+    }
     $('input[value=\'number\']', node).prop('checked', true);
   }
   if (bytesValue) {
@@ -334,10 +344,11 @@ function unloadProcessedData(node, processedDataMap) {
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
-    const floatValue =
-        parseFloat($('.outcome_processed_data_text', node).text());
-    if (!isNaN(floatValue)) {
-      processedData.setFloatValue(floatValue);
+    const value = $('.outcome_processed_data_text', node).text();
+    if (Number.isInteger(value)) {
+      processedData.setIntegerValue(parseInt(value));
+    } else if (Number.isNaN(value)) {
+      processedData.setFloatValue(parseFloat(value));
     }
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {
@@ -372,9 +383,11 @@ function unloadRawData(node, rawDataMap) {
   rawData.setFormat($('.outcome_raw_data_format', node).text());
 
   if ($('input[value=\'text\']', node).is(':checked')) {
-    const stringValue = $('.outcome_raw_data_text', node).text();
-    if (!ord.reaction.isEmptyMessage(stringValue)) {
-      rawData.setStringValue(stringValue);
+    const value = $('.outcome_raw_data_text', node).text();
+    if (Number.isInteger(value)) {
+      rawData.setIntegerValue(parseInt(value));
+    } else if (Number.isNaN(value)) {
+      rawData.setFloatValue(parseFloat(value));
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
