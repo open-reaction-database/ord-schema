@@ -35,10 +35,12 @@ RUN mv ketcher ord-schema/editor/
 RUN mv protobuf ord-schema/editor/
 
 WORKDIR ord-schema
+ARG GITHUB_REF=refs/heads/main
 # Bust the cache to get the latest commits; see
 # https://stackoverflow.com/a/39278224.
-ADD https://api.github.com/repos/Open-Reaction-Database/ord-schema/git/refs/heads/main ord-schema-version.json
-RUN git pull
+ADD "https://api.github.com/repos/Open-Reaction-Database/ord-schema/git/${GITHUB_REF}" ord-schema-version.json
+RUN git checkout "${GITHUB_REF##*/}"
+RUN git pull origin "${GITHUB_REF##*/}"
 RUN pip install -r requirements.txt
 RUN python setup.py install
 
