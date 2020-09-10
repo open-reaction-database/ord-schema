@@ -282,14 +282,14 @@ function unloadAnalysisSingle(analysisNode) {
   analysis.setDetails($('.outcome_analysis_details', analysisNode).text());
 
   const processes = analysis.getProcessedDataMap();
-  $('.outcome_process', analysisNode).each(function(index, processNode) {
+  $('.outcome_processed_data', analysisNode).each(function(index, processNode) {
     processNode = $(processNode);
     if (!processNode.attr('id')) {
       unloadProcessedData(processNode, processes);
     }
   });
   const raws = analysis.getRawDataMap();
-  $('.outcome_raw', analysisNode).each(function(index, rawNode) {
+  $('.outcome_raw_data', analysisNode).each(function(index, rawNode) {
     rawNode = $(rawNode);
     if (!rawNode.attr('id')) {
       unloadRawData(rawNode, raws);
@@ -478,7 +478,7 @@ function addAnalysis(node) {
  */
 function addProcessedData(node) {
   const processNode = ord.reaction.addSlowly(
-      '#outcome_processed_data_template', $('.outcome_processes', node));
+      '#outcome_processed_data_template', $('.outcome_processed_data_repeated', node));
 
   const typeButtons = $('input[type=\'radio\']', processNode);
   typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);
@@ -503,7 +503,7 @@ function addProcessedData(node) {
  */
 function addRawData(node) {
   const rawNode = ord.reaction.addSlowly(
-      '#outcome_raw_data_template', $('.outcome_raws', node));
+      '#outcome_raw_data_template', $('.outcome_raw_data_repeated', node));
 
   const typeButtons = $('input[type=\'radio\']', rawNode);
   typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);

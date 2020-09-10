@@ -952,13 +952,13 @@ limitations under the License.
               </table>
 
               <div>
-                <div class="outcome_processes">
+                <div class="outcome_processed_data_repeated">
                 </div>
                 <div onclick="ord.outcomes.addProcessedData($(this).closest('.outcome_analysis'));" class="add">+ add processed data</div>
               </div>
 
               <div>
-                <div class="outcome_raws">
+                <div class="outcome_raw_data_repeated">
                 </div>
                 <div onclick="ord.outcomes.addRawData($(this).closest('.outcome_analysis'));" class="add">+ add raw data</div>
               </div>
@@ -966,13 +966,13 @@ limitations under the License.
 
           </div>
 
-          <div id="outcome_processed_data_template" class="outcome_process" style="display: none;">
+          <div id="outcome_processed_data_template" class="outcome_processed_data" style="display: none;">
             <fieldset>
               <legend>
                 <span class="collapse"></span>
                 Processed analytical data
               </legend>
-              <div onclick="ord.reaction.removeSlowly(this, '.outcome_process');" class="remove">remove</div>
+              <div onclick="ord.reaction.removeSlowly(this, '.outcome_processed_data');" class="remove">remove</div>
               <table>
                 <tr><td align="right">name</td><td><div class="outcome_processed_data_name edittext"></div></td></tr>
                 <tr>
@@ -1002,13 +1002,13 @@ limitations under the License.
             </fieldset>
           </div>
 
-          <div id="outcome_raw_data_template" class="outcome_raw" style="display: none;">
+          <div id="outcome_raw_data_template" class="outcome_raw_data" style="display: none;">
             <fieldset>
               <legend>
                 <span class="collapse"></span>
                 Raw analytical data
               </legend>
-              <div onclick="ord.reaction.removeSlowly(this, '.outcome_raw');" class="remove">remove</div>
+              <div onclick="ord.reaction.removeSlowly(this, '.outcome_raw_data');" class="remove">remove</div>
               <table>
                 <tr><td align="right">name</td><td><div class="outcome_raw_data_name edittext"></div></td></tr>
                 <tr>
