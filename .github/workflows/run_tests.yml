@@ -74,7 +74,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-node@v1.4.2
-    - name: Build editor
+    - name: Build and launch editor
       run: |
         cd "${GITHUB_WORKSPACE}/editor"
         docker build -t ord-editor .
@@ -84,6 +84,7 @@ jobs:
       timeout-minutes: 5
       run: |
         cd "${GITHUB_WORKSPACE}/editor"
+        npm install puppeteer
         node js/test.js
     - name: Cleanup
       run: docker stop editor
