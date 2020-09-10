@@ -478,7 +478,8 @@ function addAnalysis(node) {
  */
 function addProcessedData(node) {
   const processNode = ord.reaction.addSlowly(
-      '#outcome_processed_data_template', $('.outcome_processed_data_repeated', node));
+      '#outcome_processed_data_template',
+      $('.outcome_processed_data_repeated', node));
 
   const typeButtons = $('input[type=\'radio\']', processNode);
   typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);
