@@ -45,7 +45,6 @@ ADD "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/${GITHUB_REF}" ord-sc
 WORKDIR ord-schema
 RUN git remote add origin https://github.com/${GITHUB_REPOSITORY}.git
 RUN git fetch --depth=1 origin "+${GITHUB_SHA}:${GITHUB_REF}"
-RUN cat editor/README.md
 RUN git checkout "${GITHUB_REF}"
 RUN pip install -r requirements.txt
 RUN python setup.py install
