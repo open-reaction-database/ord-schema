@@ -168,8 +168,6 @@ function loadProcessedData(node, name, processedData) {
       $('.outcome_processed_data_text', node).text(value);
       $('input[value=\'url\']', node).prop('checked', true);
       break;
-    default:
-      break;
   }
 }
 
@@ -219,8 +217,6 @@ function loadRawData(node, name, rawData) {
       $('.uploader', node).hide();
       $('.outcome_raw_data_text', node).text(value);
       $('input[value=\'url\']', node).prop('checked', true);
-      break;
-    default:
       break;
   }
 }
@@ -357,11 +353,11 @@ function unloadProcessedData(node, processedDataMap) {
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
-    const value = $('.outcome_processed_data_text', node).text();
+    const value = parseFloat($('.outcome_processed_data_text', node).text());
     if (Number.isInteger(value)) {
-      processedData.setIntegerValue(parseInt(value));
-    } else if (Number.isNaN(value)) {
-      processedData.setFloatValue(parseFloat(value));
+      code.setIntegerValue(value);
+    } else if (!Number.isNaN(value)) {
+      code.setFloatValue(value);
     }
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {
@@ -396,17 +392,17 @@ function unloadRawData(node, rawDataMap) {
   rawData.setFormat($('.outcome_raw_data_format', node).text());
 
   if ($('input[value=\'text\']', node).is(':checked')) {
-    const value = $('.outcome_raw_data_text', node).text();
-    if (Number.isInteger(value)) {
-      rawData.setIntegerValue(parseInt(value));
-    } else if (Number.isNaN(value)) {
-      rawData.setFloatValue(parseFloat(value));
+    const stringValue = $('.outcome_raw_data_text', node).text();
+    if (!ord.reaction.isEmptyMessage(stringValue)) {
+      code.setStringValue(stringValue);
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
-    const floatValue = parseFloat($('.outcome_raw_data_text', node).text());
-    if (!isNaN(floatValue)) {
-      rawData.setFloatValue(floatValue);
+    const value = parseFloat($('.outcome_raw_data_text', node).text());
+    if (Number.isInteger(value)) {
+      code.setIntegerValue(value);
+    } else if (!Number.isNaN(value)) {
+      code.setFloatValue(value);
     }
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {

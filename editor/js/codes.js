@@ -86,8 +86,6 @@ function loadCode(name, code) {
       $('.setup_code_text', node).text(value);
       $('input[value=\'url\']', node).prop('checked', true);
       break;
-    default:
-      break;
   }
 }
 
@@ -127,11 +125,11 @@ function unloadCode(codes, node) {
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
-    const value = $('.setup_code_text', node).text();
+    const value = parseFloat($('.setup_code_text', node).text());
     if (Number.isInteger(value)) {
-      code.setIntegerValue(parseInt(value));
-    } else if (Number.isNaN(value)) {
-      code.setFloatValue(parseFloat(value));
+      code.setIntegerValue(value);
+    } else if (!Number.isNaN(value)) {
+      code.setFloatValue(value);
     }
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {
