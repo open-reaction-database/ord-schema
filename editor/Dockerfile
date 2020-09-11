@@ -51,7 +51,8 @@ RUN python setup.py install
 
 # Build the editor.
 WORKDIR editor
-# Uncomment these lines to copy over any local changes in ord-schema/editor.
+# Uncomment these lines to copy over any local changes under the editor root.
+#COPY db/test/*.pbtxt db/test/
 #COPY css/*.css css/
 #COPY html/*.html html/
 #COPY js/*.js js/
