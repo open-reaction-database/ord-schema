@@ -14,21 +14,35 @@
  * limitations under the License.
  */
 
-goog.provide('ord.observations');
+goog.module('ord.observations');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload,
+  add,
+  validateObservation
+};
 
 goog.require('proto.ord.ReactionObservation');
 
 // Freely create radio button groups by generating new input names.
-ord.observations.radioGroupCounter = 0;
+let radioGroupCounter = 0;
 
-ord.observations.load = function(observations) {
-  observations.forEach(
-      observation => ord.observations.loadObservation(observation));
-};
+/**
+ * Adds and populates the reaction observation sections in the form.
+ * @param {!Array<!proto.ord.ReactionObservation>} observations
+ */
+function load(observations) {
+  observations.forEach(observation => loadObservation(observation));
+}
 
-ord.observations.loadObservation = function(observation) {
-  const node = ord.observations.add();
-  writeMetric('.observation_time', observation.getTime(), node);
+/**
+ * Adds and populates a single reaction observation section in the form.
+ * @param {!proto.ord.ReactionObservation} observation
+ */
+function loadObservation(observation) {
+  const node = add();
+  ord.reaction.writeMetric('.observation_time', observation.getTime(), node);
 
   $('.observation_comment', node).text(observation.getComment());
 
@@ -64,27 +78,37 @@ ord.observations.loadObservation = function(observation) {
     $('.observation_image_text', node).text(url);
     $('input[value=\'url\']', node).prop('checked', true);
   }
-};
+}
 
-ord.observations.unload = function() {
+/**
+ * Fetches the reaction observations defined in the form.
+ * @return {!Array<!proto.ord.ReactionObservation>}
+ */
+function unload() {
   const observations = [];
   $('.observation').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template
-      const observation = ord.observations.unloadObservation(node);
-      if (!isEmptyMessage(observation)) {
+      const observation = unloadObservation(node);
+      if (!ord.reaction.isEmptyMessage(observation)) {
         observations.push(observation);
       }
     }
   });
   return observations;
-};
+}
 
-ord.observations.unloadObservation = function(node) {
+/**
+ * Fetches a single reaction observation defined in the form.
+ * @param {!Node} node Root node for the reaction observation.
+ * @return {!proto.ord.ReactionObservation}
+ */
+function unloadObservation(node) {
   const observation = new proto.ord.ReactionObservation();
-  const time = readMetric('.observation_time', new proto.ord.Time(), node);
-  if (!isEmptyMessage(time)) {
+  const time =
+      ord.reaction.readMetric('.observation_time', new proto.ord.Time(), node);
+  if (!ord.reaction.isEmptyMessage(time)) {
     observation.setTime(time);
   }
 
@@ -96,7 +120,7 @@ ord.observations.unloadObservation = function(node) {
 
   if ($('input[value=\'text\']', node).is(':checked')) {
     const stringValue = $('.observation_image_text', node).text();
-    if (!isEmptyMessage(stringValue)) {
+    if (!ord.reaction.isEmptyMessage(stringValue)) {
       image.setStringValue(stringValue);
     }
   }
@@ -108,28 +132,31 @@ ord.observations.unloadObservation = function(node) {
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    if (!isEmptyMessage(bytesValue)) {
+    if (!ord.reaction.isEmptyMessage(bytesValue)) {
       image.setBytesValue(bytesValue);
     }
   }
   if ($('input[value=\'url\']', node).is(':checked')) {
     const url = $('.observation_image_text', node).text();
-    if (!isEmptyMessage(url)) {
+    if (!ord.reaction.isEmptyMessage(url)) {
       image.setUrl(url);
     }
   }
-  if (!isEmptyMessage(image)) {
+  if (!ord.reaction.isEmptyMessage(image)) {
     observation.setImage(image);
   }
   return observation;
-};
+}
 
-ord.observations.add = function() {
-  const node = addSlowly('#observation_template', '#observations');
+/**
+ * Adds a reaction observation section to the form.
+ * @return {!Node} The newly added parent node for the reaction observation.
+ */
+function add() {
+  const node = ord.reaction.addSlowly('#observation_template', '#observations');
 
   const typeButtons = $('input[type=\'radio\']', node);
-  typeButtons.attr(
-      'name', 'observations_' + ord.observations.radioGroupCounter++);
+  typeButtons.attr('name', 'observations_' + radioGroupCounter++);
   typeButtons.change(function() {
     if ((this.value == 'text') || (this.value == 'number') ||
         (this.value == 'url')) {
@@ -143,15 +170,22 @@ ord.observations.add = function() {
   ord.uploads.initialize(node);
 
   // Add live validation handling.
-  addChangeHandler(node, () => {ord.observations.validateObservation(node)});
+  ord.reaction.addChangeHandler(node, () => {
+    validateObservation(node);
+  });
 
   return node;
-};
+}
 
-ord.observations.validateObservation = function(node, validateNode) {
-  const observation = ord.observations.unloadObservation(node);
+/**
+ * Validates a single reaction observation defined in the form.
+ * @param {!Node} node Root node for the reaction observation.
+ * @param {?Node} validateNode Target node for validation results.
+ */
+function validateObservation(node, validateNode) {
+  const observation = unloadObservation(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(observation, 'ReactionObservation', validateNode);
-};
+  ord.reaction.validate(observation, 'ReactionObservation', validateNode);
+}

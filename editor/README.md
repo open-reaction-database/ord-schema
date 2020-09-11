@@ -114,8 +114,8 @@ so remember to download your Dataset when you are done.
 
 ## How it Works
 
-Datasets to be edited are stored in the `db/` directory as `.pbtxt` files (protobuf
-text format).
+Datasets to be edited are stored in the ORD_EDITOR_DB directory as `.pbtxt`
+files (protobuf text format).
 
 When you load a Reaction in the editor, the editor reads the entire Dataset
 from the server and maps the content of the chosen Reaction onto the DOM. When
@@ -136,8 +136,11 @@ upload after both are available.
 Since the backing store is a file system, writes happen in multiple steps, and
 there are no incremental updates, users must take care.
 
-* There is no database. If you kill the server while it's writing you will corrupt the entire Dataset. Forget about concurrent access.
-
-* Really large Datasets need to pass both ways on the network every time you edit them, including all their images.
-
-* Binary data are added by uploading files, and Javascript is not allowed to access files. This means that if you attach a new image to a Reaction, the two must be uploaded separately and merged on the server. This is another opportunity for corruption if the process is interrupted.
+* There is no database. If you kill the server while it's writing you will 
+  corrupt the entire Dataset. Forget about concurrent access.
+* Really large Datasets need to pass both ways on the network every time you 
+  edit them, including all their images.
+* Binary data are added by uploading files, and Javascript is not allowed to 
+  access files. This means that if you attach a new image to a Reaction, the
+  two must be uploaded separately and merged on the server. This is another 
+  opportunity for corruption if the process is interrupted.

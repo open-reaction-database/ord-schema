@@ -72,7 +72,7 @@ flags.DEFINE_float('min_size', 0.1,
                    'Minimum size (in MB) for offloading Data values.')
 flags.DEFINE_float('max_size', 100.0,
                    'Maximum size (in MB) for offloading Data values.')
-flags.DEFINE_string('base', 'main', 'Git branch to diff against.')
+flags.DEFINE_string('base', None, 'Git branch to diff against.')
 flags.DEFINE_integer(
     'issue', None,
     'GitHub pull request number. If provided, a comment will be added.')
@@ -174,10 +174,11 @@ def cleanup(inputs, output_filename):
 
 
 def _get_reaction_ids(dataset):
-    """Returns a list of reaction IDs in a Dataset."""
-    reaction_ids = []
+    """Returns a set containing the reaction IDs in a Dataset."""
+    reaction_ids = set()
     for reaction in dataset.reactions:
-        reaction_ids.append(reaction.reaction_id)
+        if reaction.reaction_id:
+            reaction_ids.add(reaction.reaction_id)
     return reaction_ids
 
 
@@ -185,7 +186,8 @@ def _load_base_dataset(file_status, base):
     """Loads a Dataset message from another branch."""
     if file_status.status.startswith('A'):
         return None  # Dataset only exists in the submission.
-    args = ['git', 'show']
+    # NOTE(kearnes): Use --no-pager to avoid a non-zero exit code.
+    args = ['git', '--no-pager', 'show']
     if file_status.status.startswith('R'):
         args.append(f'{base}:{file_status.original_filename}')
     else:
@@ -240,10 +242,12 @@ def _run_updates(inputs, datasets):
             logging.info('Running command: %s', ' '.join(args))
             subprocess.run(args, check=True)
     combined = _combine_datasets(datasets)
-    # Final validation (incl. IDs) to make sure we didn't break anything.
+    # Final validation to make sure we didn't break anything.
+    options = validations.ValidationOptions(validate_ids=True,
+                                            require_provenance=True)
     validations.validate_datasets({'_COMBINED': combined},
                                   FLAGS.write_errors,
-                                  validate_ids=True)
+                                  options=options)
     if FLAGS.output:
         output_filename = FLAGS.output
     else:
@@ -282,14 +286,17 @@ def run():
     if FLAGS.validate:
         # Note: this does not check if IDs are malformed.
         validations.validate_datasets(datasets, FLAGS.write_errors)
-    added, removed = get_change_stats(datasets, inputs, base=FLAGS.base)
-    logging.info('Summary: +%d -%d reaction IDs', len(added), len(removed))
-    if FLAGS.issue and FLAGS.token:
-        client = github.Github(FLAGS.token)
-        repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
-        issue = repo.get_issue(FLAGS.issue)
-        issue.create_comment(
-            f'Summary: +{len(added)} -{len(removed)} reaction IDs')
+    if FLAGS.base:
+        added, removed = get_change_stats(datasets, inputs, base=FLAGS.base)
+        logging.info('Summary: +%d -%d reaction IDs', len(added), len(removed))
+        if FLAGS.issue and FLAGS.token:
+            client = github.Github(FLAGS.token)
+            repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
+            issue = repo.get_issue(FLAGS.issue)
+            issue.create_comment(
+                f'Summary: +{len(added)} -{len(removed)} reaction IDs')
+    else:
+        added, removed = None, None
     if FLAGS.update:
         _run_updates(inputs, datasets)
     else:

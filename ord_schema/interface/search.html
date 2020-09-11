@@ -1,0 +1,393 @@
+<!--
+ Copyright 2020 Open Reaction Database Project Authors
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <style>
+      body {
+        padding: 48px;
+        font-family: Roboto;
+        display: grid;
+        grid-template-columns: [form] 37% [results] 22% [proto] 41%;
+      }
+      #form {
+        grid-column: form;
+        display: grid;
+        grid-template-rows: [tabs] 60px [controls] auto [go] 40px [spacer] 1fr;
+        justify-content: center;
+      }
+      #tabs {
+        display: grid;
+        grid-row: tabs;
+        grid-template-columns: auto auto;
+        height: 18px;
+        margin: 0 auto;
+      }
+      #reagents {
+        display: grid;
+        grid-row: controls;
+        grid-row-gap: 18px;
+        grid-column-gap: 18px;
+        grid-template-columns: [labels] 120px [text] 220px [match] 96px [add] 100px;
+        align-items: center;
+      }
+      #reactions {
+        display: grid;
+        grid-row: controls;
+        grid-row-gap: 18px;
+        grid-column-gap: 18px;
+        grid-template-columns: [labels] 120px [text] 220px;
+        align-items: center;
+      }
+      .label {
+        grid-column: labels;
+        text-align: right;
+      }
+      .edittext, #similarity {
+        grid-column: text;
+      }
+      select {
+        grid-column: match;
+      }
+      #add_component {
+        grid-column: add;
+      }
+      #similarity {
+        grid-column: text;
+      }
+      #go {
+        grid-row: go;
+        margin: 18px auto;
+      }
+      #spacer {
+        grid-row: spacer;
+      }
+      #results {
+        grid-column: results;
+        font-family: monospace;
+      }
+      #proto {
+        grid-column: proto;
+      }
+      #proto, #results {
+        border-left: solid lightgray;
+        border-width: 1px;
+        padding-left: 32px;
+      }
+      #proto pre {
+        margin: 0;
+      }
+      .edittext {
+        border: solid #c0c0c0;
+        border-width: 1px;
+        margin: 2px;
+        padding: 2px;
+        width: 200px;
+      }
+      .tab {
+        padding: 2px 4px;
+        margin: 2px;
+        border-radius: 8px;
+        cursor:pointer;
+      }
+      .tab:hover {
+        background-color: lightblue;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="form">
+
+      <div id="tabs">
+        <div id="reagentsTab" class="tab">Reagents</div>
+        <div id="reactionsTab" class="tab">Reactions</div>
+      </div>
+
+      <div id="reagents">
+        <a href="#" id="add_component">+ component</a>
+
+        <div></div> <!-- Blank grid cell to the right of the output. -->
+
+        <span class="label">use stereochemistry</span>
+        <input type="checkbox" id="stereo">
+
+        <span class="label">similarity</span>
+        <div id="similarity"></div>
+        <span id="similarityText"></span>
+      </div>
+
+      <div id="reactions" style="display: none;">
+        <span class="label">reaction IDs</span>
+        <div id="reaction_ids" class="edittext"></div>
+
+        <span class="label">reaction SMARTS</span>
+        <div id="reaction_smarts" class="edittext"></div>
+      </div>
+
+      <div id="go">
+        <button>go</button>
+      </div>
+
+      <div id="spacer">
+      </div>
+
+    </div>
+
+    <div id="results">
+        {% for reaction_id in reaction_ids %}
+          <a href="#" class="result">{{ reaction_id }}</a><br>
+        {% endfor %}
+        {% if not reaction_ids %}
+          no reactions
+        {% endif %}
+    </div>
+
+    <div id="proto">
+      <pre>
+        no proto
+      </pre>
+    </div>
+
+    <div id="component_template" style="display: none;">
+      <span class="label">Component</span>
+      <div class="component edittext"></div>
+      <select class="source">
+        <option value="input">input</option>
+        <option value="output">output</option>
+      </select>
+      <select class="component">
+        <option value="exact">exact</option>
+        <option value="similar">similar</option>
+        <option value="substructure">substructure</option>
+        <option value="smarts">smarts</option>
+      </select>
+    </div>
+
+    <script>
+
+      // Respond to mouseover on a result to display its pbtxt.
+      function updateProto(reactionId) {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', '/id/' + reactionId);
+        xhr.onload = function (event) {
+          $('#proto pre').text(xhr.response);
+        };
+        xhr.send();
+      }
+      
+      // Components.
+      function showReagentsTab() {
+        $('#reagents').show();
+        $('#reactions').hide();
+        $('.tab').css('background-color', '');
+        $('#reagentsTab').css('background-color', 'lightblue');
+      }
+      
+      // Reaction IDs, reaction SMILES.
+      function showReactionsTab() {
+        $('#reactions').show();
+        $('#reagents').hide();
+        $('.tab').css('background-color', '');
+        $('#reactionsTab').css('background-color', 'lightblue');
+      }
+
+      // Add a component field, for "+ component" button (and initialization).
+      function addComponent() {
+        const component = $('#component_template').clone();
+        const anchor = $('#add_component');
+        component.children().each((index, node) => {
+          anchor.before(node);
+        });
+        // Return value is the text field <div/> of the new component.
+        return anchor.prev().prev().prev();
+      }
+
+      // Get the text from an .edittext div.
+      function getText(node) {
+        return node.text().trim();
+      }
+
+      // Get the component source (input/output).
+      function getComponentSource(node) {
+        return $('option:selected', node.next()).text()
+      }
+
+      // Get the matching option for a text field.
+      function getMatchMode(node) {
+        return $('option:selected', node.next().next()).text()
+      }
+
+      // Get the stereochemistry option.
+      function getUseStereochemistry() {
+        return $('#stereo').is(":checked")
+      }
+
+      // Get the current value of the similarity slider.
+      function getSimilarity() {
+        return $('#similarity').slider('option', 'value');
+      }
+
+      // Set the value of the similarity slider.
+      function setSimilarity(similarity) {
+        $('#similarity').slider({min: 0, max: 100, value: 100 * similarity});
+      }
+
+      // Read back the user inputs and build a query URL.
+      function exportQuery() {
+        let path = '/?'
+        let hasReagent = false;
+
+        // Components.
+        const components = $('.component.edittext');
+        components.each((index, node) => {
+          const component = $(node);
+          if (component.is(':hidden')) {
+            // The template.
+            return;
+          }
+          const componentText = getText(component);
+          if (componentText) {
+            const sourceTable = getComponentSource(component);
+            const matchMode = getMatchMode(component);
+            path += 'component=' + encodeURIComponent(componentText) + ';' + sourceTable + ';' + matchMode + '&';
+          }
+          hasReagent = true;
+        });
+        // Fingerprint similarity options.
+        if (hasReagent) {
+          const useStereochemistry = getUseStereochemistry();
+          path += 'use_stereochemistry=' + encodeURIComponent(useStereochemistry) + '&';
+          const similarity = getSimilarity();
+          path += 'similarity=' + encodeURIComponent(similarity / 100) + '&';
+        }
+        // Reaction IDs.
+        const reactionsNode = $('#reaction_ids');
+        const reactionIdsText = reactionsNode.html();
+        const matches = reactionIdsText.matchAll(/(ord-[0-9a-f]+)/g);
+        const reactionIds = [];
+        for (const match of matches) {
+          reactionIds.push(match[0]);
+        }
+        if (reactionIds.length > 0) {
+          path += 'reaction_ids=' + encodeURIComponent(reactionIds.join(',')) + '&';
+        }
+        // Reaction SMARTS.
+        const reactionSmarts = $('#reaction_smarts');
+        const reactionSmartsText = getText(reactionSmarts);
+        if (reactionSmartsText) {
+          path += 'reaction_smarts=' + encodeURIComponent(reactionSmartsText) + '&';
+        }
+        if (path.slice(-1) == '&') {
+          path = path.slice(0, -1);
+        }
+        return path;
+      }
+
+      // Initialize the user inputs from the current predicate.
+      function importQuery() {
+        const query = JSON.parse('{{ query|safe }}')
+        console.log(query);
+
+        // Components.
+        if ('components' in query && (query.components.length > 0)) {
+          query.components.forEach(component => {
+            const edittext = addComponent();
+            edittext.text(component.pattern);
+            edittext.next().val(component.source);
+            edittext.next().next().val(component.mode);
+          });
+        } else {
+          // Make sure there is at least one component for convenience.
+          addComponent();
+        }
+
+        // Fingerprint similarity options.
+        if ('useStereochemistry' in query) {
+          $('#stereo').prop( "checked", query.useStereochemistry === "true");
+        }
+        if ('similarity' in query) {
+          const similarity = query.similarity;
+          setSimilarity(similarity);
+        }
+
+        // Reaction ID.
+        if ('reactionIds' in query) {
+          const reactionIds = $('#reaction_ids')
+          reactionIds.text(query.reactionIds.join(','));
+        }
+
+        // Reaction SMILES.
+        if ('reactionSmarts' in query) {
+          const reactionSmarts = $('#reaction_smarts');
+          reactionSmarts.text(query.reactionSmarts);
+        }
+
+        return query;
+      }
+
+      // Update the pbtxt when the user mouses over a result.
+      $('.result').mouseover((event) => {
+        const result = $(event.target);
+        const reactionId = result.text().trim();
+        updateProto(reactionId);
+        $('.result').css('background-color', '');
+        result.css('background-color', 'powderblue');
+      });
+
+      // Make the .editext divs actually editable.
+      $('.edittext').attr('contentEditable', 'true');
+
+      // Hook up the "+ component" button.
+      $('#add_component').click(() => {
+        addComponent();
+      });
+
+      // Hook up the query button.
+      $('#go').click(() => {
+        const path = exportQuery();
+        window.location.href = path;
+      });
+
+      // Initialize the similarity slider.
+      similarity = $('#similarity').slider({min: 0, max: 100});
+      similarity.on('slidechange', () => {
+        const value = similarity.slider('option', 'value');
+        $('#similarityText').text((value / 100).toFixed(2));
+      });
+
+      // Hook up the tabs.
+      $('#reagentsTab').click(() => {
+        showReagentsTab()
+      });
+      $('#reactionsTab').click(() => {
+        showReactionsTab();
+      });
+
+      const query = importQuery();
+
+      // Show the tab appropriate to the current predicate.
+      if ('reactionIds' in query || 'reactionSmarts' in query) {
+        showReactionsTab();
+      } else {
+        showReagentsTab();
+      }
+    </script>
+  </body>
+</html>

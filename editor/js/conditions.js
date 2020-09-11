@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-goog.provide('ord.conditions');
+goog.module('ord.conditions');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload,
+  validateConditions
+};
 
 goog.require('ord.electro');
 goog.require('ord.flows');
@@ -24,7 +30,11 @@ goog.require('ord.stirring');
 goog.require('ord.temperature');
 goog.require('proto.ord.ReactionConditions');
 
-ord.conditions.load = function(conditions) {
+/**
+ * Adds and populates the reaction conditions in the form.
+ * @param {!proto.ord.ReactionConditions} conditions
+ */
+function load(conditions) {
   const temperature = conditions.getTemperature();
   if (temperature) {
     ord.temperature.load(temperature);
@@ -50,61 +60,70 @@ ord.conditions.load = function(conditions) {
     ord.flows.load(flow);
   }
   const reflux = conditions.hasReflux() ? conditions.getReflux() : null;
-  setOptionalBool($('#condition_reflux'), reflux);
+  ord.reaction.setOptionalBool($('#condition_reflux'), reflux);
   if (conditions.hasPh()) {
     $('#condition_ph').text(conditions.getPh());
   }
   const dynamic = conditions.hasConditionsAreDynamic() ?
       conditions.getConditionsAreDynamic() :
       null;
-  setOptionalBool($('#condition_dynamic'), dynamic);
+  ord.reaction.setOptionalBool($('#condition_dynamic'), dynamic);
   $('#condition_details').text(conditions.getDetails());
-};
+}
 
-ord.conditions.unload = function() {
+/**
+ * Fetches the reaction conditions from the form.
+ * @return {!proto.ord.ReactionConditions}
+ */
+function unload() {
   const conditions = new proto.ord.ReactionConditions();
   const temperature = ord.temperature.unload();
-  if (!isEmptyMessage(temperature)) {
+  if (!ord.reaction.isEmptyMessage(temperature)) {
     conditions.setTemperature(temperature);
   }
   const pressure = ord.pressure.unload();
-  if (!isEmptyMessage(pressure)) {
+  if (!ord.reaction.isEmptyMessage(pressure)) {
     conditions.setPressure(pressure);
   }
   const stirring = ord.stirring.unload();
-  if (!isEmptyMessage(stirring)) {
+  if (!ord.reaction.isEmptyMessage(stirring)) {
     conditions.setStirring(stirring);
   }
   const illumination = ord.illumination.unload();
-  if (!isEmptyMessage(illumination)) {
+  if (!ord.reaction.isEmptyMessage(illumination)) {
     conditions.setIllumination(illumination);
   }
   const electro = ord.electro.unload();
-  if (!isEmptyMessage(electro)) {
+  if (!ord.reaction.isEmptyMessage(electro)) {
     conditions.setElectrochemistry(electro);
   }
   const flow = ord.flows.unload();
-  if (!isEmptyMessage(flow)) {
+  if (!ord.reaction.isEmptyMessage(flow)) {
     conditions.setFlow(flow);
   }
 
-  const reflux = getOptionalBool($('#condition_reflux'));
+  const reflux = ord.reaction.getOptionalBool($('#condition_reflux'));
   conditions.setReflux(reflux);
   const ph = parseFloat($('#condition_ph').text());
   if (!isNaN(ph)) {
     conditions.setPh(ph);
   }
-  const dynamic = getOptionalBool($('#condition_dynamic'));
+  const dynamic = ord.reaction.getOptionalBool($('#condition_dynamic'));
   conditions.setConditionsAreDynamic(dynamic);
   const details = $('#condition_details').text();
   conditions.setDetails(details);
   return conditions;
-};
+}
 
-ord.conditions.validateConditions = function(node, validateNode) {
-  const condition = ord.conditions.unload();
+/**
+ * Validates the reaction conditions defined in the form.
+ * @param {!Node} node Root node for the reaction conditions.
+ * @param {?Node} validateNode Target node for validation results.
+ */
+function validateConditions(node, validateNode) {
+  const condition = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(condition, 'ReactionConditions', validateNode);
-};
+  ord.reaction.validate(condition, 'ReactionConditions', validateNode);
+}

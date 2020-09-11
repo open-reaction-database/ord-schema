@@ -63,14 +63,15 @@ class ProcessDatasetTest(absltest.TestCase):
         message_helpers.write_message(dataset2, self.dataset2_filename)
 
     def test_main_with_input_pattern(self):
-        with flagsaver.flagsaver(input_pattern=self.dataset1_filename):
+        with flagsaver.flagsaver(input_pattern=self.dataset1_filename,
+                                 base='main'):
             process_dataset.main(())
 
     def test_main_with_input_file(self):
         input_file = os.path.join(self.test_subdirectory, 'input_file.txt')
         with open(input_file, 'w') as f:
             f.write(f'A\t{self.dataset1_filename}\n')
-        with flagsaver.flagsaver(input_file=input_file):
+        with flagsaver.flagsaver(input_file=input_file, base='main'):
             process_dataset.main(())
 
     def test_main_with_validation_errors(self):
@@ -92,7 +93,8 @@ class ProcessDatasetTest(absltest.TestCase):
         output = os.path.join(self.test_subdirectory, 'output.pbtxt')
         with flagsaver.flagsaver(input_pattern=self.dataset1_filename,
                                  update=True,
-                                 output=output):
+                                 output=output,
+                                 base='main'):
             process_dataset.main(())
         self.assertTrue(os.path.exists(output))
         dataset = message_helpers.load_message(output, dataset_pb2.Dataset)
@@ -177,7 +179,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         run_flags = {
             'input_file': 'changed.txt',
             'update': True,
-            'cleanup': True
+            'cleanup': True,
+            'base': 'main',
         }
         run_flags.update(kwargs)
         with flagsaver.flagsaver(**run_flags):

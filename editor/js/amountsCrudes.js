@@ -14,12 +14,25 @@
  * limitations under the License.
  */
 
-goog.provide('ord.amountsCrudes');
+goog.module('ord.amountsCrudes');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload
+};
 
 goog.require('proto.ord.Mass');
 goog.require('proto.ord.Volume');
 
-ord.amountsCrudes.load = function(node, mass, volume) {
+/**
+ * Adds and populates the form's fields describing the amount of a crude
+ * compound.
+ * @param {!Node} node The div corresponding to the crude compound whose amount
+ *     fields on the form should be updated.
+ * @param {?proto.ord.Mass} mass
+ * @param {?proto.ord.Volume} volume
+ */
+function load(node, mass, volume) {
   const amount = $('.amount', node);
   $('.crude_amount_units_mass', node).hide();
   $('.crude_amount_units_volume', node).hide();
@@ -32,7 +45,8 @@ ord.amountsCrudes.load = function(node, mass, volume) {
       $('.crude_amount_precision', node).text(mass.getPrecision());
     }
     $('.crude_amount_units_mass', node).show();
-    setSelector($('.crude_amount_units_mass', amount), mass.getUnits());
+    ord.reaction.setSelector(
+        $('.crude_amount_units_mass', amount), mass.getUnits());
   }
   if (volume) {
     $('input[value=\'volume\']', amount).prop('checked', true);
@@ -43,26 +57,40 @@ ord.amountsCrudes.load = function(node, mass, volume) {
       $('.crude_amount_precision', node).text(volume.getPrecision());
     }
     $('.crude_amount_units_volume', node).show();
-    setSelector($('.crude_amount_units_volume', amount), volume.getUnits());
+    ord.reaction.setSelector(
+        $('.crude_amount_units_volume', amount), volume.getUnits());
   }
-};
+}
 
-ord.amountsCrudes.unload = function(node, crude) {
-  const mass = ord.amountsCrudes.unloadMass(node);
-  const volume = ord.amountsCrudes.unloadVolume(node);
+/**
+ * Sets the amount fields of a crude component message according to the form.
+ * @param {!Node} node The div corresponding to the crude component whose amount
+ *     fields should be read from the form.
+ * @param {!proto.ord.CrudeComponent} crude
+ */
+function unload(node, crude) {
+  const mass = unloadMass(node);
+  const volume = unloadVolume(node);
   if (mass) {
-    if (!isEmptyMessage(mass)) {
+    if (!ord.reaction.isEmptyMessage(mass)) {
       crude.setMass(mass);
     }
   }
   if (volume) {
-    if (!isEmptyMessage(volume)) {
+    if (!ord.reaction.isEmptyMessage(volume)) {
       crude.setVolume(volume);
     }
   }
-};
+}
 
-ord.amountsCrudes.unloadMass = function(node) {
+/**
+ * Reads and returns a mass amount as defined in the form for a crude
+ * component.
+ * @param {!Node} node The div corresponding to the crude component whose mass
+ *     fields should be read from the form.
+ * @return {?proto.ord.Mass}
+ */
+function unloadMass(node) {
   if (!$('.crude_amount_mass', node).is(':checked')) {
     return null;
   }
@@ -71,16 +99,23 @@ ord.amountsCrudes.unloadMass = function(node) {
   if (!isNaN(value)) {
     mass.setValue(value);
   }
-  const units = getSelector($('.crude_amount_units_mass', node));
+  const units = ord.reaction.getSelector($('.crude_amount_units_mass', node));
   mass.setUnits(units);
   const precision = parseFloat($('.crude_amount_precision', node).text());
   if (!isNaN(precision)) {
     mass.setPrecision(precision);
   }
   return mass;
-};
+}
 
-ord.amountsCrudes.unloadVolume = function(node) {
+/**
+ * Reads and returns a volumetric amount as defined in the form for a crude
+ * component.
+ * @param {!Node} node The div corresponding to the crude component whose
+ *     volume fields should be read from the form.
+ * @return {?proto.ord.Volume}
+ */
+function unloadVolume(node) {
   if (!$('.crude_amount_volume', node).is(':checked')) {
     return null;
   }
@@ -89,11 +124,11 @@ ord.amountsCrudes.unloadVolume = function(node) {
   if (!isNaN(value)) {
     volume.setValue(value);
   }
-  const units = getSelector($('.crude_amount_units_volume', node));
+  const units = ord.reaction.getSelector($('.crude_amount_units_volume', node));
   volume.setUnits(units);
   const precision = parseFloat($('.crude_amount_precision', node).text());
   if (!isNaN(precision)) {
     volume.setPrecision(precision);
   }
   return volume;
-};
+}

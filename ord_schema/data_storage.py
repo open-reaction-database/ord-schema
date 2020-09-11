@@ -24,6 +24,7 @@ import tempfile
 import urllib
 
 from absl import logging
+import flask
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
@@ -77,7 +78,7 @@ def write_data(message, dirname, min_size=0.0, max_size=1.0):
     value_hash = hashlib.sha256(value).hexdigest()
     suffix = message.format or 'txt'
     basename = f'{DATA_PREFIX}{value_hash}.{suffix}'
-    filename = os.path.join(dirname, basename)
+    filename = flask.safe_join(dirname, basename)
     with open(filename, 'wb') as f:
         f.write(value)
     return filename, value_size
@@ -124,7 +125,7 @@ def extract_data(message, root, min_size=0.0, max_size=1.0):
         if data_filename:
             basename = os.path.basename(data_filename)
             output_filename = message_helpers.id_filename(basename)
-            with_root = os.path.join(root, output_filename)
+            with_root = flask.safe_join(root, output_filename)
             os.makedirs(os.path.dirname(with_root), exist_ok=True)
             os.rename(data_filename, with_root)
             data_message.url = urllib.parse.urljoin(DATA_URL_PREFIX,

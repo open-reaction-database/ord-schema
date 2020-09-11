@@ -12,44 +12,98 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Cleanup
+name: Lint
 
-on: push
+on: [pull_request, push]
 
 jobs:
-  cleanup:
-
+  check_licenses:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
     - uses: actions/setup-go@v2
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
-        pip install protoc-wheel-0 yapf
         go get -v -u github.com/google/addlicense
         echo "::set-env name=GOBIN::${HOME}/go/bin"
-        sudo apt update && sudo apt install clang-format-10 --yes
-    - name: Install ord_schema
+    - name: addlicense
       run: |
         cd "${GITHUB_WORKSPACE}"
-        echo "$(which python)"
-        python setup.py install
-    - name: Run addlicense
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        "${GOBIN}/addlicense" -c "Open Reaction Database Project Authors" -l apache .
-        ./actions/commit_changes.sh "Run addlicense"
-    - name: Run YAPF
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        yapf -p -r . --exclude="*_pb2.py" --verbose --in-place
-        ./actions/commit_changes.sh "Run YAPF"
-    - name: Run clang-format
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        find . -name '*.js' -exec clang-format-10 -i --style=file --verbose {} +
-        find . -name '*.proto' -exec clang-format-10 -i --style=file --verbose {} +
-        ./actions/commit_changes.sh "Run clang-format"
+        "${GOBIN}/addlicense" -check -c "Open Reaction Database Project Authors" -l apache .
+
+  check_python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: s-weigand/setup-conda@v1
+        with:
+          python-version: 3.7
+      - name: yapf
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          pip install yapf
+          yapf --parallel --recursive --exclude="*_pb2.py" --quiet .
+      - name: Install ord-schema
+        run: |
+          pip install -r requirements.txt
+          # Test deps are required to check imports with pylint.
+          pip install -r test_requirements.txt
+          conda install -c rdkit rdkit
+          python setup.py install
+      - name: pylint
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          pip install flask pylint
+          pylint editor examples ord_schema *.py
+
+  check_javascript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+      - uses: actions/setup-node@v1
+      - uses: s-weigand/setup-conda@v1
+        with:
+          python-version: 3.7
+      - name: clang-format
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          sudo apt update && sudo apt install clang-format-10 --yes
+          # NOTE(kearnes): Run clang-format before installing anything with npm.
+          find . -name '*.js' -exec clang-format-10 -n -Werror --style=file {} +
+      - name: Install ord-schema
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          pip install -r requirements.txt
+          conda install -c rdkit rdkit
+          python setup.py install
+      - name: Build editor
+        run: |
+          cd "${GITHUB_WORKSPACE}/editor"
+          pip install flask pylint yapf
+          npm install google-protobuf puppeteer
+          wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
+          tar -xzf editor_test_protobuf_1dae8fdd.tar
+          wget https://github.com/google/closure-library/archive/v20200517.tar.gz
+          tar -xzf v20200517.tar.gz
+          git clone https://github.com/Open-Reaction-Database/ketcher.git
+          make
+      - name: closure-linter
+        run: |
+          cd "${GITHUB_WORKSPACE}/editor"
+          # See https://github.com/google/closure-compiler/wiki/Lint-checks.
+          npm install google-closure-compiler
+          ../actions/lint_js.sh ord.reaction
+          ../actions/lint_js.sh ord.dataset
+
+  check_proto:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: clang-format
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          sudo apt update && sudo apt install clang-format-10 --yes
+          find . -name '*.proto' -exec clang-format-10 -n -Werror --style=file {} +

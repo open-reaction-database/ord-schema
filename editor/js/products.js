@@ -14,40 +14,61 @@
  * limitations under the License.
  */
 
-goog.provide('ord.products');
+goog.module('ord.products');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload,
+  add,
+  addIdentity,
+  addYield,
+  addPurity,
+  addSelectivity,
+  validateProduct
+};
 
 goog.require('ord.compounds');
 goog.require('proto.ord.ReactionProduct');
 
-ord.products.load = function(node, products) {
-  products.forEach(product => ord.products.loadProduct(node, product));
-};
+/**
+ * Adds and populates the products section of the form.
+ * @param {!Node} node The target node for the product divs.
+ * @param {!Array<!proto.ord.ReactionProduct>} products
+ */
+function load(node, products) {
+  products.forEach(product => loadProduct(node, product));
+}
 
-ord.products.loadProduct = function(outcomeNode, product) {
-  const node = ord.products.add(outcomeNode);
+/**
+ * Adds and populates a product section in the form.
+ * @param {!Node} outcomeNode The parent ReactionOutcome node.
+ * @param {!proto.ord.ReactionProduct} product
+ */
+function loadProduct(outcomeNode, product) {
+  const node = add(outcomeNode);
 
   const compound = product.getCompound();
   if (compound) {
     ord.compounds.loadIntoCompound(node, compound);
   }
 
-  setOptionalBool(
+  ord.reaction.setOptionalBool(
       $('.outcome_product_desired', node),
       product.hasIsDesiredProduct() ? product.getIsDesiredProduct() : null);
 
   const compoundYield = product.getCompoundYield();
   if (compoundYield) {
-    writeMetric('.outcome_product_yield', compoundYield, node);
+    ord.reaction.writeMetric('.outcome_product_yield', compoundYield, node);
   }
 
   const purity = product.getPurity();
   if (purity) {
-    writeMetric('.outcome_product_purity', purity, node);
+    ord.reaction.writeMetric('.outcome_product_purity', purity, node);
   }
 
   const selectivity = product.getSelectivity();
   if (selectivity) {
-    setSelector(
+    ord.reaction.setSelector(
         $('.outcome_product_selectivity_type', node), selectivity.getType());
     $('.outcome_product_selectivity_details', node)
         .text(selectivity.getDetails());
@@ -63,75 +84,86 @@ ord.products.loadProduct = function(outcomeNode, product) {
 
   const identities = product.getAnalysisIdentityList();
   identities.forEach(identity => {
-    const analysisNode = ord.products.addIdentity(node);
+    const analysisNode = addIdentity(node);
     $('.analysis_key_selector', analysisNode).val(identity);
   });
   const yields = product.getAnalysisYieldList();
   yields.forEach(yeild => {
-    const analysisNode = ord.products.addYield(node);
+    const analysisNode = addYield(node);
     $('.analysis_key_selector', analysisNode).val(yeild);
   });
   const purities = product.getAnalysisPurityList();
   purities.forEach(purity => {
-    const analysisNode = ord.products.addPurity(node);
+    const analysisNode = addPurity(node);
     $('.analysis_key_selector', analysisNode).val(purity);
   });
   const selectivities = product.getAnalysisSelectivityList();
   selectivities.forEach(selectivity => {
-    const analysisNode = ord.products.addSelectivity(node);
+    const analysisNode = addSelectivity(node);
     $('.analysis_key_selector', analysisNode).val(selectivity);
   });
   $('.outcome_product_color', node).text(product.getIsolatedColor());
 
   const texture = product.getTexture();
   if (texture) {
-    setSelector($('.outcome_product_texture_type', node), texture.getType());
+    ord.reaction.setSelector(
+        $('.outcome_product_texture_type', node), texture.getType());
     $('.outcome_product_texture_details', node).text(texture.getDetails());
   }
-};
+}
 
-ord.products.unload = function(node) {
+/**
+ * Fetches the products defined in the form.
+ * @param {!Node} node The parent ReactionOutcome node.
+ * @return {!Array<!proto.ord.ReactionProduct>}
+ */
+function unload(node) {
   const products = [];
   $('.outcome_product', node).each(function(index, productNode) {
     productNode = $(productNode);
     if (!productNode.attr('id')) {
       // Not a template.
-      const product = ord.products.unloadProduct(productNode);
-      if (!isEmptyMessage(product)) {
+      const product = unloadProduct(productNode);
+      if (!ord.reaction.isEmptyMessage(product)) {
         products.push(product);
       }
     }
   });
   return products;
-};
+}
 
-ord.products.unloadProduct = function(node) {
+/**
+ * Fetches a product defined in the form.
+ * @param {!Node} node An element containing a product.
+ * @return {!proto.ord.ReactionProduct}
+ */
+function unloadProduct(node) {
   const product = new proto.ord.ReactionProduct();
 
-  const compoundNode = $('.outcome_product_compound');
+  const compoundNode = $('.outcome_product_compound', node);
   const compound = ord.compounds.unloadCompound(compoundNode);
-  if (!isEmptyMessage(compound)) {
+  if (!ord.reaction.isEmptyMessage(compound)) {
     product.setCompound(compound);
   }
 
   product.setIsDesiredProduct(
-      getOptionalBool($('.outcome_product_desired', node)));
+      ord.reaction.getOptionalBool($('.outcome_product_desired', node)));
 
-  const yeild =
-      readMetric('.outcome_product_yield', new proto.ord.Percentage(), node);
-  if (!isEmptyMessage(yeild)) {
+  const yeild = ord.reaction.readMetric(
+      '.outcome_product_yield', new proto.ord.Percentage(), node);
+  if (!ord.reaction.isEmptyMessage(yeild)) {
     product.setCompoundYield(yeild);
   }
 
-  const purity =
-      readMetric('.outcome_product_purity', new proto.ord.Percentage(), node);
-  if (!isEmptyMessage(purity)) {
+  const purity = ord.reaction.readMetric(
+      '.outcome_product_purity', new proto.ord.Percentage(), node);
+  if (!ord.reaction.isEmptyMessage(purity)) {
     product.setPurity(purity);
   }
 
   const selectivity = new proto.ord.Selectivity();
   selectivity.setType(
-      getSelector($('.outcome_product_selectivity_type', node)));
+      ord.reaction.getSelector($('.outcome_product_selectivity_type', node)));
   selectivity.setDetails(
       $('.outcome_product_selectivity_details', node).text());
   const selectivityValue =
@@ -144,36 +176,43 @@ ord.products.unloadProduct = function(node) {
   if (!isNaN(selectivityPrecision)) {
     selectivity.setPrecision(selectivityPrecision);
   }
-  if (!isEmptyMessage(selectivity)) {
+  if (!ord.reaction.isEmptyMessage(selectivity)) {
     product.setSelectivity(selectivity);
   }
 
-  const identities = ord.products.unloadAnalysisKeys(node, 'identity');
+  const identities = unloadAnalysisKeys(node, 'identity');
   product.setAnalysisIdentityList(identities);
 
-  const yields = ord.products.unloadAnalysisKeys(node, 'yield');
+  const yields = unloadAnalysisKeys(node, 'yield');
   product.setAnalysisYieldList(yields);
 
-  const purities = ord.products.unloadAnalysisKeys(node, 'purity');
+  const purities = unloadAnalysisKeys(node, 'purity');
   product.setAnalysisPurityList(purities);
 
-  const selectivities = ord.products.unloadAnalysisKeys(node, 'selectivity');
+  const selectivities = unloadAnalysisKeys(node, 'selectivity');
   product.setAnalysisSelectivityList(selectivities);
 
   const color = $('.outcome_product_color', node).text();
   product.setIsolatedColor(color);
 
   const texture = new proto.ord.ReactionProduct.Texture();
-  texture.setType(getSelector($('.outcome_product_texture_type', node)));
+  texture.setType(
+      ord.reaction.getSelector($('.outcome_product_texture_type', node)));
   texture.setDetails($('.outcome_product_texture_details', node).text());
-  if (!isEmptyMessage(texture)) {
+  if (!ord.reaction.isEmptyMessage(texture)) {
     product.setTexture(texture);
   }
 
   return product;
-};
+}
 
-ord.products.unloadAnalysisKeys = function(node, tag) {
+/**
+ * Fetches the set of ReactionAnalysis keys.
+ * @param {!Node} node The parent ReactionOutcome div.
+ * @param {string} tag Analysis target, e.g. "identities", "yields", etc.
+ * @return {!Array<string>}
+ */
+function unloadAnalysisKeys(node, tag) {
   const values = [];
   $('.outcome_product_analysis_' + tag, node).each(function(index, tagNode) {
     tagNode = $(tagNode);
@@ -186,11 +225,16 @@ ord.products.unloadAnalysisKeys = function(node, tag) {
     }
   });
   return values;
-};
+}
 
-ord.products.add = function(node) {
-  const productNode =
-      addSlowly('#outcome_product_template', $('.outcome_products', node));
+/**
+ * Adds a reaction product section to the form.
+ * @param {!Node} node Target ReactionOutcome node for the new product.
+ * @return {!Node} The newly created node.
+ */
+function add(node) {
+  const productNode = ord.reaction.addSlowly(
+      '#outcome_product_template', $('.outcome_products', node));
 
   // Add an empty compound node.
   ord.compounds.add(productNode);
@@ -206,39 +250,89 @@ ord.products.add = function(node) {
   $('.component .vendor', productNode).hide();
 
   // Add live validation handling.
-  addChangeHandler(
-      productNode, () => {ord.products.validateProduct(productNode)});
+  ord.reaction.addChangeHandler(productNode, () => {
+    validateProduct(productNode);
+  });
   return productNode;
-};
+}
 
-ord.products.addIdentity = function(node) {
-  return addSlowly(
+/**
+ * Adds keys for defined analyses to the analysis selector.
+ * @param {!Node} node Parent node containing ReactionOutcome data.
+ * @param {!Node} analysisSelectorNode Node containing an analysis selector.
+ */
+function populateAnalysisSelector(node, analysisSelectorNode) {
+  const outcomeNode = node.closest('.outcome');
+  $('.outcome_analysis_name', outcomeNode).each(function() {
+    var name = $(this).text();
+    if (name) {
+      $('.analysis_key_selector', analysisSelectorNode)
+          .append('<option value="' + name + '">' + name + '</option>');
+    }
+  });
+}
+
+/**
+ * Adds a new identity analysis to the form.
+ * @param {!Node} node Parent ReactionProduct node.
+ * @return {!Node} The newly created node.
+ */
+function addIdentity(node) {
+  const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_identity_template',
       $('.outcome_product_analysis_identities', node));
-};
+  populateAnalysisSelector(node, analysisSelectorNode);
+  return analysisSelectorNode;
+}
 
-ord.products.addYield = function(node) {
-  return addSlowly(
+/**
+ * Adds a new yield analysis to the form.
+ * @param {!Node} node Parent ReactionProduct node.
+ * @return {!Node} The newly created node.
+ */
+function addYield(node) {
+  const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_yield_template',
       $('.outcome_product_analysis_yields', node));
-};
+  populateAnalysisSelector(node, analysisSelectorNode);
+  return analysisSelectorNode;
+}
 
-ord.products.addPurity = function(node) {
-  return addSlowly(
+/**
+ * Adds a new purity analysis to the form.
+ * @param {!Node} node Parent ReactionProduct node.
+ * @return {!Node} The newly created node.
+ */
+function addPurity(node) {
+  const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_purity_template',
       $('.outcome_product_analysis_purities', node));
-};
+  populateAnalysisSelector(node, analysisSelectorNode);
+  return analysisSelectorNode;
+}
 
-ord.products.addSelectivity = function(node) {
-  return addSlowly(
+/**
+ * Adds a new selectivity analysis to the form.
+ * @param {!Node} node Parent ReactionProduct node.
+ * @return {!Node} The newly created node.
+ */
+function addSelectivity(node) {
+  const analysisSelectorNode = ord.reaction.addSlowly(
       '#outcome_product_analysis_selectivity_template',
       $('.outcome_product_analysis_selectivities', node));
-};
+  populateAnalysisSelector(node, analysisSelectorNode);
+  return analysisSelectorNode;
+}
 
-ord.products.validateProduct = function(node, validateNode) {
-  const product = ord.products.unloadProduct(node);
+/**
+ * Validates a product defined in the form.
+ * @param {!Node} node A node containing a reaction product.
+ * @param {?Node} validateNode The target div for validation results.
+ */
+function validateProduct(node, validateNode) {
+  const product = unloadProduct(node);
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(product, 'ReactionProduct', validateNode);
-};
+  ord.reaction.validate(product, 'ReactionProduct', validateNode);
+}

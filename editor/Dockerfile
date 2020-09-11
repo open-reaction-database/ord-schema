@@ -12,18 +12,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# To build the editor using the current state of ord-schema:
+# $ cd path/to/ord-schema
+# $ docker build --file=editor/Dockerfile -t openreactiondatabase/ord-editor .
+#
+# To test the editor:
+# $ docker run --rm -d -p 5000:5000 --name editor openreactiondatabase/ord-editor
+# $ node editor/js/test.js
+# $ docker stop editor
+#
+# To push the built image to Docker Hub:
+# docker push openreactiondatabase/ord-editor
+
 FROM continuumio/miniconda3
-WORKDIR /usr/src/app
 
+RUN apt-get update && apt-get install --yes build-essential procps unzip
 RUN conda install -c rdkit rdkit
-COPY package/ord/requirements.txt .
+RUN conda install flask nodejs
+
+# Fetch/build editor dependencies.
+# NOTE(kearnes): Do this before COPYing the local state so it can be cached.
+WORKDIR /usr/src/app/ord-schema/editor
+RUN git clone https://github.com/Open-Reaction-Database/ketcher.git
+WORKDIR ketcher
+RUN npm install && npm run build
+WORKDIR ..
+RUN wget https://github.com/google/closure-library/archive/v20200517.tar.gz
+RUN tar -xzf v20200517.tar.gz
+RUN wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
+RUN tar -xzf editor_test_protobuf_1dae8fdd.tar
+
+# COPY and install the local state of ord-schema.
+WORKDIR /usr/src/app/ord-schema
+COPY setup.py requirements.txt ./
+COPY editor/ editor/
+COPY ord_schema/ ord_schema/
 RUN pip install -r requirements.txt
-RUN pip install Flask protobuf
+RUN python setup.py install
 
-# First run "make package".
-COPY package/ord.tgz .
-RUN tar zxf ord.tgz
-
-WORKDIR /usr/src/app/ord
+# Build and launch the editor.
+WORKDIR /usr/src/app/ord-schema/editor
+RUN make
 EXPOSE 5000
-CMD ./serve.sh --host=0.0.0.0
+RUN pip install gunicorn
+CMD gunicorn py.serve:app -b 0.0.0.0:5000 --access-logfile '-'

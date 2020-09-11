@@ -14,67 +14,103 @@
  * limitations under the License.
  */
 
-goog.provide('ord.codes');
+goog.module('ord.codes');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload,
+  addCode
+};
 
 goog.require('proto.ord.Data');
 
 // Freely create radio button groups by generating new input names.
-ord.codes.radioGroupCounter = 0;
+let radioGroupCounter = 0;
 
-ord.codes.load = function(codes) {
+/**
+ * Adds and populates the automation_code sections in the form.
+ * @param {!jspb.Map<string, !proto.ord.Data>} codes
+ */
+function load(codes) {
   const names = codes.stringKeys_();
   names.forEach(function(name) {
     const code = codes.get(name);
-    ord.codes.loadCode(name, code);
+    loadCode(name, code);
   });
-};
+}
 
-ord.codes.loadCode = function(name, code) {
-  const node = ord.codes.addCode();
+/**
+ * Adds and populates a single automation_code section in the form.
+ * @param {string} name The name of this automation code.
+ * @param {!proto.ord.Data} code
+ */
+function loadCode(name, code) {
+  const node = addCode();
   $('.setup_code_name', node).text(name);
   $('.setup_code_description', node).text(code.getDescription());
   $('.setup_code_format', node).text(code.getFormat());
+  let value;
+  switch (code.getKindCase()) {
+    case proto.ord.Data.KindCase.FLOAT_VALUE:
+      value = code.getFloatValue();
+      $('.setup_code_text', node).show();
+      $('.uploader', node).hide();
+      $('.setup_code_text', node).text(value);
+      $('input[value=\'number\']', node).prop('checked', true);
+      break;
+    case proto.ord.Data.KindCase.INTEGER_VALUE:
+      value = code.getIntegerValue();
+      $('.setup_code_text', node).show();
+      $('.uploader', node).hide();
+      $('.setup_code_text', node).text(value);
+      $('input[value=\'number\']', node).prop('checked', true);
+      break;
+    case proto.ord.Data.KindCase.BYTES_VALUE:
+      value = code.getBytesValue();
+      $('.setup_code_text', node).hide();
+      $('.uploader', node).show();
+      ord.uploads.load(node, value);
+      $('input[value=\'upload\']', node).prop('checked', true);
+      break;
+    case proto.ord.Data.KindCase.STRING_VALUE:
+      value = code.getStringValue();
+      $('.setup_code_text', node).show();
+      $('.uploader', node).hide();
+      $('.setup_code_text', node).text(stringValue);
+      $('input[value=\'text\']', node).prop('checked', true);
+      break;
+    case proto.ord.Data.KindCase.URL:
+      value = code.getUrl();
+      $('.setup_code_text', node).show();
+      $('.uploader', node).hide();
+      $('.setup_code_text', node).text(value);
+      $('input[value=\'url\']', node).prop('checked', true);
+      break;
+    default:
+      break;
+  }
+}
 
-  const stringValue = code.getStringValue();
-  const floatValue = code.getFloatValue();
-  const bytesValue = code.getBytesValue();
-  const url = code.getUrl();
-  if (stringValue) {
-    $('.setup_code_text', node).show();
-    $('.uploader', node).hide();
-    $('.setup_code_text', node).text(stringValue);
-    $('input[value=\'text\']', node).prop('checked', true);
-  }
-  if (floatValue) {
-    $('.setup_code_text', node).show();
-    $('.uploader', node).hide();
-    $('.setup_code_text', node).text(floatValue);
-    $('input[value=\'number\']', node).prop('checked', true);
-  }
-  if (bytesValue) {
-    $('.setup_code_text', node).hide();
-    $('.uploader', node).show();
-    ord.uploads.load(node, bytesValue);
-    $('input[value=\'upload\']', node).prop('checked', true);
-  }
-  if (url) {
-    $('.setup_code_text', node).show();
-    $('.uploader', node).hide();
-    $('.setup_code_text', node).text(url);
-    $('input[value=\'url\']', node).prop('checked', true);
-  }
-};
-
-ord.codes.unload = function(codes) {
+/**
+ * Fetches the automation_code sections from the form and adds them to `codes`.
+ * @param {!jspb.Map<string, !proto.ord.Data>} codes
+ */
+function unload(codes) {
   $('.setup_code').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
-      ord.codes.unloadCode(codes, node);
+      unloadCode(codes, node);
     }
   });
-};
+}
 
-ord.codes.unloadCode = function(codes, node) {
+/**
+ * Fetches a single automation_code section from the form and adds it to
+ * `codes`.
+ * @param {!jspb.Map<string, !proto.ord.Data>} codes
+ * @param {!Node} node The root node of the automation_code section to fetch.
+ */
+function unloadCode(codes, node) {
   const name = $('.setup_code_name', node).text();
 
   const code = new proto.ord.Data();
@@ -86,38 +122,45 @@ ord.codes.unloadCode = function(codes, node) {
 
   if ($('input[value=\'text\']', node).is(':checked')) {
     const stringValue = $('.setup_code_text', node).text();
-    if (!isEmptyMessage(stringValue)) {
+    if (!ord.reaction.isEmptyMessage(stringValue)) {
       code.setStringValue(stringValue);
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
-    const floatValue = parseFloat($('.setup_code_text', node).text());
-    if (!isNaN(floatValue)) {
-      code.setFloatValue(floatValue);
+    const value = parseFloat($('.setup_code_text', node).text());
+    if (Number.isInteger(value)) {
+      code.setIntegerValue(value);
+    } else if (!Number.isNaN(value)) {
+      code.setFloatValue(value);
     }
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
-    if (!isEmptyMessage(bytesValue)) {
+    if (!ord.reaction.isEmptyMessage(bytesValue)) {
       code.setBytesValue(bytesValue);
     }
   }
   if ($('input[value=\'url\']', node).is(':checked')) {
     const url = $('.setup_code_text', node).text();
-    if (!isEmptyMessage(url)) {
+    if (!ord.reaction.isEmptyMessage(url)) {
       code.setUrl(url);
     }
   }
-  if (!isEmptyMessage(name) || !isEmptyMessage(code)) {
+  if (!ord.reaction.isEmptyMessage(name) ||
+      !ord.reaction.isEmptyMessage(code)) {
     codes.set(name, code);
   }
-};
+}
 
-ord.codes.addCode = function() {
-  const node = addSlowly('#setup_code_template', '#setup_codes');
+/**
+ * Adds an automation_code section to the form.
+ * @return {!Node} The newly added root node for the automation_code section.
+ */
+function addCode() {
+  const node = ord.reaction.addSlowly('#setup_code_template', '#setup_codes');
 
   const typeButtons = $('input[type=\'radio\']', node);
-  typeButtons.attr('name', 'codes_' + ord.codes.radioGroupCounter++);
+  typeButtons.attr('name', 'codes_' + radioGroupCounter++);
   typeButtons.change(function() {
     if ((this.value == 'text') || (this.value == 'number') ||
         (this.value == 'url')) {
@@ -130,4 +173,4 @@ ord.codes.addCode = function() {
   });
   ord.uploads.initialize(node);
   return node;
-};
+}
