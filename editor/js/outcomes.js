@@ -21,8 +21,8 @@ exports = {
   unload,
   add,
   addAnalysis,
-  addProcess,
-  addRaw,
+  addProcessedData,
+  addRawData,
   validateOutcome,
   validateAnalysis
 };
@@ -92,16 +92,16 @@ function loadAnalysis(outcomeNode, name, analysis) {
   const processNames = processes.stringKeys_();
   processNames.forEach(function(name) {
     const process = processes.get(name);
-    const processNode = addProcess(node);
-    loadProcess(processNode, name, process);
+    const processNode = addProcessedData(node);
+    loadProcessedData(processNode, name, process);
   });
 
   const raws = analysis.getRawDataMap();
   const rawNames = raws.stringKeys_();
   rawNames.forEach(function(name) {
     const raw = raws.get(name);
-    const rawNode = addRaw(node);
-    loadRaw(rawNode, name, raw);
+    const rawNode = addRawData(node);
+    loadRawData(rawNode, name, raw);
   });
   $('.outcome_analysis_manufacturer', node)
       .text(analysis.getInstrumentManufacturer());
@@ -124,40 +124,52 @@ function loadAnalysis(outcomeNode, name, analysis) {
  * Adds and populates a processed_data section in a reaction analysis.
  * @param {!Node} node Parent reaction analysis node.
  * @param {string} name The name of this Data record.
- * @param {!proto.ord.Data} process
+ * @param {!proto.ord.Data} processedData
  */
-function loadProcess(node, name, process) {
-  $('.outcome_process_name', node).text(name);
-  $('.outcome_process_description', node).text(process.getDescription());
-  $('.outcome_process_format', node).text(process.getFormat());
-
-  const stringValue = process.getStringValue();
-  const floatValue = process.getFloatValue();
-  const bytesValue = process.getBytesValue();
-  const url = process.getUrl();
-  if (stringValue) {
-    $('.outcome_process_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_process_text', node).text(stringValue);
-    $('input[value=\'text\']', node).prop('checked', true);
-  }
-  if (floatValue) {
-    $('.outcome_process_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_process_text', node).text(floatValue);
-    $('input[value=\'number\']', node).prop('checked', true);
-  }
-  if (bytesValue) {
-    $('.outcome_process_text', node).hide();
-    $('.uploader', node).show();
-    ord.uploads.load(node, bytesValue);
-    $('input[value=\'upload\']', node).prop('checked', true);
-  }
-  if (url) {
-    $('.outcome_process_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_process_text', node).text(url);
-    $('input[value=\'url\']', node).prop('checked', true);
+function loadProcessedData(node, name, processedData) {
+  $('.outcome_processed_data_name', node).text(name);
+  $('.outcome_processed_data_description', node)
+      .text(processedData.getDescription());
+  $('.outcome_processed_data_format', node).text(processedData.getFormat());
+  let value;
+  switch (processedData.getKindCase()) {
+    case proto.ord.Data.KindCase.FLOAT_VALUE:
+      value = processedData.getFloatValue();
+      $('.outcome_processed_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_processed_data_text', node).text(value);
+      $('input[value=\'number\']', node).prop('checked', true);
+      break;
+    case proto.ord.Data.KindCase.INTEGER_VALUE:
+      value = processedData.getIntegerValue();
+      $('.outcome_processed_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_processed_data_text', node).text(value);
+      $('input[value=\'number\']', node).prop('checked', true);
+      break;
+    case proto.ord.Data.KindCase.BYTES_VALUE:
+      value = processedData.getBytesValue();
+      $('.outcome_processed_data_text', node).hide();
+      $('.uploader', node).show();
+      ord.uploads.load(node, value);
+      $('input[value=\'upload\']', node).prop('checked', true);
+      break;
+    case proto.ord.Data.KindCase.STRING_VALUE:
+      value = processedData.getStringValue();
+      $('.outcome_processed_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_processed_data_text', node).text(stringValue);
+      $('input[value=\'text\']', node).prop('checked', true);
+      break;
+    case proto.ord.Data.KindCase.URL:
+      value = processedData.getUrl();
+      $('.outcome_processed_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_processed_data_text', node).text(value);
+      $('input[value=\'url\']', node).prop('checked', true);
+      break;
+    default:
+      break;
   }
 }
 
@@ -165,40 +177,51 @@ function loadProcess(node, name, process) {
  * Adds and populates a raw_data section in a reaction analysis.
  * @param {!Node} node Parent reaction analysis node.
  * @param {string} name The name of this Data record.
- * @param {!proto.ord.Data} raw
+ * @param {!proto.ord.Data} rawData
  */
-function loadRaw(node, name, raw) {
-  $('.outcome_raw_name', node).text(name);
-  $('.outcome_raw_description', node).text(raw.getDescription());
-  $('.outcome_raw_format', node).text(raw.getFormat());
-
-  const stringValue = raw.getStringValue();
-  const floatValue = raw.getFloatValue();
-  const bytesValue = raw.getBytesValue();
-  const url = raw.getUrl();
-  if (stringValue) {
-    $('.outcome_raw_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_raw_text', node).text(stringValue);
-    $('input[value=\'text\']', node).prop('checked', true);
-  }
-  if (floatValue) {
-    $('.outcome_raw_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_raw_text', node).text(floatValue);
-    $('input[value=\'number\']', node).prop('checked', true);
-  }
-  if (bytesValue) {
-    $('.outcome_raw_text', node).hide();
-    $('.uploader', node).show();
-    ord.uploads.load(node, bytesValue);
-    $('input[value=\'upload\']', node).prop('checked', true);
-  }
-  if (url) {
-    $('.outcome_raw_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_raw_text', node).text(url);
-    $('input[value=\'url\']', node).prop('checked', true);
+function loadRawData(node, name, rawData) {
+  $('.outcome_raw_data_name', node).text(name);
+  $('.outcome_raw_data_description', node).text(rawData.getDescription());
+  $('.outcome_raw_data_format', node).text(rawData.getFormat());
+  let value;
+  switch (rawData.getKindCase()) {
+    case proto.ord.Data.KindCase.FLOAT_VALUE:
+      value = rawData.getFloatValue();
+      $('.outcome_raw_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_raw_data_text', node).text(value);
+      $('input[value=\'number\']', node).prop('checked', true);
+      break;
+    case proto.ord.Data.KindCase.INTEGER_VALUE:
+      value = rawData.getIntegerValue();
+      $('.outcome_raw_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_raw_data_text', node).text(value);
+      $('input[value=\'number\']', node).prop('checked', true);
+      break;
+    case proto.ord.Data.KindCase.BYTES_VALUE:
+      value = rawData.getBytesValue();
+      $('.outcome_raw_data_text', node).hide();
+      $('.uploader', node).show();
+      ord.uploads.load(node, value);
+      $('input[value=\'upload\']', node).prop('checked', true);
+      break;
+    case proto.ord.Data.KindCase.STRING_VALUE:
+      value = rawData.getStringValue();
+      $('.outcome_raw_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_raw_data_text', node).text(stringValue);
+      $('input[value=\'text\']', node).prop('checked', true);
+      break;
+    case proto.ord.Data.KindCase.URL:
+      value = rawData.getUrl();
+      $('.outcome_raw_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_raw_data_text', node).text(value);
+      $('input[value=\'url\']', node).prop('checked', true);
+      break;
+    default:
+      break;
   }
 }
 
@@ -270,18 +293,19 @@ function unloadAnalysisSingle(analysisNode) {
   }
   analysis.setDetails($('.outcome_analysis_details', analysisNode).text());
 
-  const processes = analysis.getProcessedDataMap();
-  $('.outcome_process', analysisNode).each(function(index, processNode) {
-    processNode = $(processNode);
-    if (!processNode.attr('id')) {
-      unloadProcess(processNode, processes);
-    }
-  });
-  const raws = analysis.getRawDataMap();
-  $('.outcome_raw', analysisNode).each(function(index, rawNode) {
-    rawNode = $(rawNode);
-    if (!rawNode.attr('id')) {
-      unloadRaw(rawNode, raws);
+  const processedDataMap = analysis.getProcessedDataMap();
+  $('.outcome_processed_data', analysisNode)
+      .each(function(index, processedDataNode) {
+        processedDataNode = $(processedDataNode);
+        if (!processedDataNode.attr('id')) {
+          unloadProcessedData(processedDataNode, processedDataMap);
+        }
+      });
+  const rawDataMap = analysis.getRawDataMap();
+  $('.outcome_raw_data', analysisNode).each(function(index, rawDataNode) {
+    rawDataNode = $(rawDataNode);
+    if (!rawDataNode.attr('id')) {
+      unloadRawData(rawDataNode, rawDataMap);
     }
   });
   analysis.setInstrumentManufacturer(
@@ -317,42 +341,44 @@ function unloadAnalysis(analysisNode, analyses) {
  * Fetches a processed_data record defined in the form and adds it to
  * `processes`.
  * @param {!Node} node Root node for the Data record.
- * @param {!jspb.Map<string, !proto.ord.Data>} processes
+ * @param {!jspb.Map<string, !proto.ord.Data>} processedDataMap
  */
-function unloadProcess(node, processes) {
-  const name = $('.outcome_process_name', node).text();
+function unloadProcessedData(node, processedDataMap) {
+  const name = $('.outcome_processed_data_name', node).text();
 
-  const process = new proto.ord.Data();
-  process.setDescription($('.outcome_process_description').text());
-  process.setFormat($('.outcome_process_format').text());
+  const processedData = new proto.ord.Data();
+  processedData.setDescription($('.outcome_processed_data_description').text());
+  processedData.setFormat($('.outcome_processed_data_format').text());
 
   if ($('input[value=\'text\']', node).is(':checked')) {
-    const stringValue = $('.outcome_process_text', node).text();
+    const stringValue = $('.outcome_processed_data_text', node).text();
     if (!ord.reaction.isEmptyMessage(stringValue)) {
-      process.setStringValue(stringValue);
+      processedData.setStringValue(stringValue);
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
-    const floatValue = parseFloat($('.outcome_process_text', node).text());
-    if (!isNaN(floatValue)) {
-      process.setFloatValue(floatValue);
+    const value = parseFloat($('.outcome_processed_data_text', node).text());
+    if (Number.isInteger(value)) {
+      processedData.setIntegerValue(value);
+    } else if (!Number.isNaN(value)) {
+      processedData.setFloatValue(value);
     }
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
     if (!ord.reaction.isEmptyMessage(bytesValue)) {
-      process.setBytesValue(bytesValue);
+      processedData.setBytesValue(bytesValue);
     }
   }
   if ($('input[value=\'url\']', node).is(':checked')) {
-    const url = $('.outcome_process_text', node).text();
+    const url = $('.outcome_processed_data_text', node).text();
     if (!ord.reaction.isEmptyMessage(url)) {
-      process.setUrl(url);
+      processedData.setUrl(url);
     }
   }
   if (!ord.reaction.isEmptyMessage(name) ||
-      !ord.reaction.isEmptyMessage(process)) {
-    processes.set(name, process);
+      !ord.reaction.isEmptyMessage(processedData)) {
+    processedDataMap.set(name, processedData);
   }
 }
 
@@ -360,41 +386,43 @@ function unloadProcess(node, processes) {
  * Fetches a raw_data record defined in the form and adds it to
  * `processes`.
  * @param {!Node} node Root node for the Data record.
- * @param {!jspb.Map<string, !proto.ord.Data>} raws
+ * @param {!jspb.Map<string, !proto.ord.Data>} rawDataMap
  */
-function unloadRaw(node, raws) {
-  const name = $('.outcome_raw_name', node).text();
+function unloadRawData(node, rawDataMap) {
+  const name = $('.outcome_raw_data_name', node).text();
 
-  const raw = new proto.ord.Data();
-  raw.setDescription($('.outcome_raw_description', node).text());
-  raw.setFormat($('.outcome_raw_format', node).text());
+  const rawData = new proto.ord.Data();
+  rawData.setDescription($('.outcome_raw_data_description', node).text());
+  rawData.setFormat($('.outcome_raw_data_format', node).text());
 
   if ($('input[value=\'text\']', node).is(':checked')) {
-    const stringValue = $('.outcome_raw_text', node).text();
+    const stringValue = $('.outcome_raw_data_text', node).text();
     if (!ord.reaction.isEmptyMessage(stringValue)) {
-      raw.setStringValue(stringValue);
+      rawData.setStringValue(stringValue);
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
-    const floatValue = parseFloat($('.outcome_raw_text', node).text());
-    if (!isNaN(floatValue)) {
-      raw.setFloatValue(floatValue);
+    const value = parseFloat($('.outcome_raw_data_text', node).text());
+    if (Number.isInteger(value)) {
+      rawData.setIntegerValue(value);
+    } else if (!Number.isNaN(value)) {
+      rawData.setFloatValue(value);
     }
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
     if (!ord.reaction.isEmptyMessage(bytesValue)) {
-      raw.setBytesValue(bytesValue);
+      rawData.setBytesValue(bytesValue);
     }
   }
   if ($('input[value=\'url\']', node).is(':checked')) {
-    const url = $('.outcome_raw_text', node).text();
+    const url = $('.outcome_raw_data_text', node).text();
     if (!ord.reaction.isEmptyMessage(url)) {
-      raw.setUrl(url);
+      rawData.setUrl(url);
     }
   }
   if (!ord.reaction.isEmptyMessage(name) || !ord.reaction.isEmptyMessage(raw)) {
-    raws.set(name, raw);
+    rawDataMap.set(name, rawData);
   }
 }
 
@@ -461,19 +489,20 @@ function addAnalysis(node) {
  * @param {!Node} node Parent reaction outcome node.
  * @return {!Node} The newly added parent node for the Data record.
  */
-function addProcess(node) {
+function addProcessedData(node) {
   const processNode = ord.reaction.addSlowly(
-      '#outcome_process_template', $('.outcome_processes', node));
+      '#outcome_processed_data_template',
+      $('.outcome_processed_data_repeated', node));
 
   const typeButtons = $('input[type=\'radio\']', processNode);
   typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);
   typeButtons.change(function() {
     if ((this.value == 'text') || (this.value == 'number') ||
         (this.value == 'url')) {
-      $('.outcome_process_text', processNode).show();
+      $('.outcome_processed_data_text', processNode).show();
       $('.uploader', processNode).hide();
     } else {
-      $('.outcome_process_text', processNode).hide();
+      $('.outcome_processed_data_text', processNode).hide();
       $('.uploader', processNode).show();
     }
   });
@@ -486,19 +515,19 @@ function addProcess(node) {
  * @param {!Node} node Parent reaction outcome node.
  * @return {!Node} The newly added parent node for the Data record.
  */
-function addRaw(node) {
-  const rawNode =
-      ord.reaction.addSlowly('#outcome_raw_template', $('.outcome_raws', node));
+function addRawData(node) {
+  const rawNode = ord.reaction.addSlowly(
+      '#outcome_raw_data_template', $('.outcome_raw_data_repeated', node));
 
   const typeButtons = $('input[type=\'radio\']', rawNode);
   typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);
   typeButtons.change(function() {
     if ((this.value == 'text') || (this.value == 'number') ||
         (this.value == 'url')) {
-      $('.outcome_raw_text', rawNode).show();
+      $('.outcome_raw_data_text', rawNode).show();
       $('.uploader', rawNode).hide();
     } else {
-      $('.outcome_raw_text', rawNode).hide();
+      $('.outcome_raw_data_text', rawNode).hide();
       $('.uploader', rawNode).show();
     }
   });
