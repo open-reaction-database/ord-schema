@@ -101,7 +101,7 @@ function loadAnalysis(outcomeNode, name, analysis) {
   rawNames.forEach(function(name) {
     const raw = raws.get(name);
     const rawNode = addRawData(node);
-    loadRaw(rawNode, name, raw);
+    loadRawData(rawNode, name, raw);
   });
   $('.outcome_analysis_manufacturer', node)
       .text(analysis.getInstrumentManufacturer());
@@ -131,39 +131,45 @@ function loadProcessedData(node, name, processedData) {
   $('.outcome_processed_data_description', node)
       .text(processedData.getDescription());
   $('.outcome_processed_data_format', node).text(processedData.getFormat());
-
-  const stringValue = processedData.getStringValue();
-  const floatValue = processedData.getFloatValue();
-  const integerValue = processedData.getIntegerValue();
-  const bytesValue = processedData.getBytesValue();
-  const url = processedData.getUrl();
-  if (stringValue) {
-    $('.outcome_processed_data_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_processed_data_text', node).text(stringValue);
-    $('input[value=\'text\']', node).prop('checked', true);
-  }
-  if (floatValue || integerValue) {
-    $('.outcome_processed_data_text', node).show();
-    $('.uploader', node).hide();
-    if (floatValue) {
-      $('.outcome_processed_data_text', node).text(floatValue);
-    } else {
-      $('.outcome_processed_data_text', node).text(integerValue);
-    }
-    $('input[value=\'number\']', node).prop('checked', true);
-  }
-  if (bytesValue) {
-    $('.outcome_processed_data_text', node).hide();
-    $('.uploader', node).show();
-    ord.uploads.load(node, bytesValue);
-    $('input[value=\'upload\']', node).prop('checked', true);
-  }
-  if (url) {
-    $('.outcome_processed_data_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_processed_data_text', node).text(url);
-    $('input[value=\'url\']', node).prop('checked', true);
+  let value;
+  switch (processedData.getKindCase()) {
+    case processedData.KindCase.FLOAT_VALUE:
+      value = processedData.getFloatValue();
+      $('.outcome_processed_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_processed_data_text', node).text(value);
+      $('input[value=\'number\']', node).prop('checked', true);
+      break;
+    case processedData.KindCase.INTEGER_VALUE:
+      value = processedData.getIntegerValue();
+      $('.outcome_processed_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_processed_data_text', node).text(value);
+      $('input[value=\'number\']', node).prop('checked', true);
+      break;
+    case processedData.KindCase.BYTES_VALUE:
+      value = processedData.getBytesValue();
+      $('.outcome_processed_data_text', node).hide();
+      $('.uploader', node).show();
+      ord.uploads.load(node, value);
+      $('input[value=\'upload\']', node).prop('checked', true);
+      break;
+    case processedData.KindCase.STRING_VALUE:
+      value = processedData.getStringValue();
+      $('.outcome_processed_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_processed_data_text', node).text(stringValue);
+      $('input[value=\'text\']', node).prop('checked', true);
+      break;
+    case processedData.KindCase.URL_VALUE:
+      value = processedData.getUrl();
+      $('.outcome_processed_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_processed_data_text', node).text(value);
+      $('input[value=\'url\']', node).prop('checked', true);
+      break;
+    default:
+      break;
   }
 }
 
@@ -173,43 +179,49 @@ function loadProcessedData(node, name, processedData) {
  * @param {string} name The name of this Data record.
  * @param {!proto.ord.Data} rawData
  */
-function loadRaw(node, name, rawData) {
+function loadRawData(node, name, rawData) {
   $('.outcome_raw_data_name', node).text(name);
   $('.outcome_raw_data_description', node).text(rawData.getDescription());
   $('.outcome_raw_data_format', node).text(rawData.getFormat());
-
-  const stringValue = rawData.getStringValue();
-  const floatValue = rawData.getFloatValue();
-  const integerValue = rawData.getIntegerValue();
-  const bytesValue = rawData.getBytesValue();
-  const url = rawData.getUrl();
-  if (stringValue) {
-    $('.outcome_raw_data_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_raw_data_text', node).text(stringValue);
-    $('input[value=\'text\']', node).prop('checked', true);
-  }
-  if (floatValue || integerValue) {
-    $('.outcome_raw_data_text', node).show();
-    $('.uploader', node).hide();
-    if (floatValue) {
-      $('.outcome_raw_data_text', node).text(floatValue);
-    } else {
-      $('.outcome_raw_data_text', node).text(integerValue);
-    }
-    $('input[value=\'number\']', node).prop('checked', true);
-  }
-  if (bytesValue) {
-    $('.outcome_raw_data_text', node).hide();
-    $('.uploader', node).show();
-    ord.uploads.load(node, bytesValue);
-    $('input[value=\'upload\']', node).prop('checked', true);
-  }
-  if (url) {
-    $('.outcome_raw_data_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_raw_data_text', node).text(url);
-    $('input[value=\'url\']', node).prop('checked', true);
+  let value;
+  switch (rawData.getKindCase()) {
+    case rawData.KindCase.FLOAT_VALUE:
+      value = rawData.getFloatValue();
+      $('.outcome_raw_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_raw_data_text', node).text(value);
+      $('input[value=\'number\']', node).prop('checked', true);
+      break;
+    case rawData.KindCase.INTEGER_VALUE:
+      value = rawData.getIntegerValue();
+      $('.outcome_raw_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_raw_data_text', node).text(value);
+      $('input[value=\'number\']', node).prop('checked', true);
+      break;
+    case rawData.KindCase.BYTES_VALUE:
+      value = rawData.getBytesValue();
+      $('.outcome_raw_data_text', node).hide();
+      $('.uploader', node).show();
+      ord.uploads.load(node, value);
+      $('input[value=\'upload\']', node).prop('checked', true);
+      break;
+    case rawData.KindCase.STRING_VALUE:
+      value = rawData.getStringValue();
+      $('.outcome_raw_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_raw_data_text', node).text(stringValue);
+      $('input[value=\'text\']', node).prop('checked', true);
+      break;
+    case rawData.KindCase.URL_VALUE:
+      value = rawData.getUrl();
+      $('.outcome_raw_data_text', node).show();
+      $('.uploader', node).hide();
+      $('.outcome_raw_data_text', node).text(value);
+      $('input[value=\'url\']', node).prop('checked', true);
+      break;
+    default:
+      break;
   }
 }
 
@@ -281,18 +293,19 @@ function unloadAnalysisSingle(analysisNode) {
   }
   analysis.setDetails($('.outcome_analysis_details', analysisNode).text());
 
-  const processes = analysis.getProcessedDataMap();
-  $('.outcome_processed_data', analysisNode).each(function(index, processNode) {
-    processNode = $(processNode);
-    if (!processNode.attr('id')) {
-      unloadProcessedData(processNode, processes);
-    }
-  });
-  const raws = analysis.getRawDataMap();
-  $('.outcome_raw_data', analysisNode).each(function(index, rawNode) {
-    rawNode = $(rawNode);
-    if (!rawNode.attr('id')) {
-      unloadRawData(rawNode, raws);
+  const processedDataMap = analysis.getProcessedDataMap();
+  $('.outcome_processed_data', analysisNode)
+      .each(function(index, processedDataNode) {
+        processedDataNode = $(processedDataNode);
+        if (!processedDataNode.attr('id')) {
+          unloadProcessedData(processedDataNode, processedDataMap);
+        }
+      });
+  const rawDataMap = analysis.getRawDataMap();
+  $('.outcome_raw_data', analysisNode).each(function(index, rawDataNode) {
+    rawDataNode = $(rawDataNode);
+    if (!rawDataNode.attr('id')) {
+      unloadRawData(rawDataNode, rawDataMap);
     }
   });
   analysis.setInstrumentManufacturer(

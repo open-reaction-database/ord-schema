@@ -49,39 +49,45 @@ function loadCode(name, code) {
   $('.setup_code_name', node).text(name);
   $('.setup_code_description', node).text(code.getDescription());
   $('.setup_code_format', node).text(code.getFormat());
-
-  const stringValue = code.getStringValue();
-  const floatValue = code.getFloatValue();
-  const integerValue = code.getIntegerValue();
-  const bytesValue = code.getBytesValue();
-  const url = code.getUrl();
-  if (stringValue) {
-    $('.setup_code_text', node).show();
-    $('.uploader', node).hide();
-    $('.setup_code_text', node).text(stringValue);
-    $('input[value=\'text\']', node).prop('checked', true);
-  }
-  if (floatValue || integerValue) {
-    $('.setup_code_text', node).show();
-    $('.uploader', node).hide();
-    if (floatValue) {
-      $('.setup_code_text', node).text(floatValue);
-    } else {
-      $('.setup_code_text', node).text(integerValue);
-    }
-    $('input[value=\'number\']', node).prop('checked', true);
-  }
-  if (bytesValue) {
-    $('.setup_code_text', node).hide();
-    $('.uploader', node).show();
-    ord.uploads.load(node, bytesValue);
-    $('input[value=\'upload\']', node).prop('checked', true);
-  }
-  if (url) {
-    $('.setup_code_text', node).show();
-    $('.uploader', node).hide();
-    $('.setup_code_text', node).text(url);
-    $('input[value=\'url\']', node).prop('checked', true);
+  let value;
+  switch (code.getKindCase()) {
+    case code.KindCase.FLOAT_VALUE:
+      value = code.getFloatValue();
+      $('.setup_code_text', node).show();
+      $('.uploader', node).hide();
+      $('.setup_code_text', node).text(value);
+      $('input[value=\'number\']', node).prop('checked', true);
+      break;
+    case code.KindCase.INTEGER_VALUE:
+      value = code.getIntegerValue();
+      $('.setup_code_text', node).show();
+      $('.uploader', node).hide();
+      $('.setup_code_text', node).text(value);
+      $('input[value=\'number\']', node).prop('checked', true);
+      break;
+    case code.KindCase.BYTES_VALUE:
+      value = code.getBytesValue();
+      $('.setup_code_text', node).hide();
+      $('.uploader', node).show();
+      ord.uploads.load(node, value);
+      $('input[value=\'upload\']', node).prop('checked', true);
+      break;
+    case code.KindCase.STRING_VALUE:
+      value = code.getStringValue();
+      $('.setup_code_text', node).show();
+      $('.uploader', node).hide();
+      $('.setup_code_text', node).text(stringValue);
+      $('input[value=\'text\']', node).prop('checked', true);
+      break;
+    case code.KindCase.URL_VALUE:
+      value = code.getUrl();
+      $('.setup_code_text', node).show();
+      $('.uploader', node).hide();
+      $('.setup_code_text', node).text(value);
+      $('input[value=\'url\']', node).prop('checked', true);
+      break;
+    default:
+      break;
   }
 }
 
