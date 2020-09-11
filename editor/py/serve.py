@@ -378,9 +378,10 @@ def compare(file_name):
     local_ascii = text_format.MessageToString(local)
     if remote_ascii != local_ascii:
         app.logger.error(
-            pprint.pformat(list(
-                difflib.context_diff(local_ascii.splitlines(),
-                                     remote_ascii.splitlines()))))
+            pprint.pformat(
+                list(
+                    difflib.context_diff(local_ascii.splitlines(),
+                                         remote_ascii.splitlines()))))
         return 'differs', 409  # "Conflict"
     return 'equals'
 
