@@ -86,6 +86,8 @@ function loadCode(name, code) {
       $('.setup_code_text', node).text(value);
       $('input[value=\'url\']', node).prop('checked', true);
       break;
+    default:
+      break;
   }
 }
 

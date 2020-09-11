@@ -168,6 +168,8 @@ function loadProcessedData(node, name, processedData) {
       $('.outcome_processed_data_text', node).text(value);
       $('input[value=\'url\']', node).prop('checked', true);
       break;
+    default:
+      break;
   }
 }
 
@@ -217,6 +219,8 @@ function loadRawData(node, name, rawData) {
       $('.uploader', node).hide();
       $('.outcome_raw_data_text', node).text(value);
       $('input[value=\'url\']', node).prop('checked', true);
+      break;
+    default:
       break;
   }
 }
