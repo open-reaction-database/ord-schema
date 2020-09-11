@@ -161,7 +161,7 @@ function loadProcessedData(node, name, processedData) {
       $('.outcome_processed_data_text', node).text(stringValue);
       $('input[value=\'text\']', node).prop('checked', true);
       break;
-    case proto.ord.Data.KindCase.URL_VALUE:
+    case proto.ord.Data.KindCase.URL:
       value = processedData.getUrl();
       $('.outcome_processed_data_text', node).show();
       $('.uploader', node).hide();
@@ -213,7 +213,7 @@ function loadRawData(node, name, rawData) {
       $('.outcome_raw_data_text', node).text(stringValue);
       $('input[value=\'text\']', node).prop('checked', true);
       break;
-    case proto.ord.Data.KindCase.URL_VALUE:
+    case proto.ord.Data.KindCase.URL:
       value = rawData.getUrl();
       $('.outcome_raw_data_text', node).show();
       $('.uploader', node).hide();

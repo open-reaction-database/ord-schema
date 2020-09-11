@@ -79,7 +79,7 @@ function loadCode(name, code) {
       $('.setup_code_text', node).text(stringValue);
       $('input[value=\'text\']', node).prop('checked', true);
       break;
-    case proto.ord.Data.KindCase.URL_VALUE:
+    case proto.ord.Data.KindCase.URL:
       value = code.getUrl();
       $('.setup_code_text', node).show();
       $('.uploader', node).hide();
