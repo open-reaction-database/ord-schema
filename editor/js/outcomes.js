@@ -355,9 +355,9 @@ function unloadProcessedData(node, processedDataMap) {
   if ($('input[value=\'number\']', node).is(':checked')) {
     const value = parseFloat($('.outcome_processed_data_text', node).text());
     if (Number.isInteger(value)) {
-      code.setIntegerValue(value);
+      processedData.setIntegerValue(value);
     } else if (!Number.isNaN(value)) {
-      code.setFloatValue(value);
+      processedData.setFloatValue(value);
     }
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {
@@ -394,15 +394,15 @@ function unloadRawData(node, rawDataMap) {
   if ($('input[value=\'text\']', node).is(':checked')) {
     const stringValue = $('.outcome_raw_data_text', node).text();
     if (!ord.reaction.isEmptyMessage(stringValue)) {
-      code.setStringValue(stringValue);
+      rawData.setStringValue(stringValue);
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
     const value = parseFloat($('.outcome_raw_data_text', node).text());
     if (Number.isInteger(value)) {
-      code.setIntegerValue(value);
+      rawData.setIntegerValue(value);
     } else if (!Number.isNaN(value)) {
-      code.setFloatValue(value);
+      rawData.setFloatValue(value);
     }
   }
   if ($('input[value=\'upload\']', node).is(':checked')) {
