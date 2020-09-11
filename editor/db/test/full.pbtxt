@@ -443,7 +443,7 @@ reactions {
         raw_data {
           key: "139"
           value {
-            float_value: 140.0
+            float_value: 140.5
             description: "141"
             format: "142"
           }
