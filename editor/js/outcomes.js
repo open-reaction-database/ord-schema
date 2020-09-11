@@ -133,35 +133,35 @@ function loadProcessedData(node, name, processedData) {
   $('.outcome_processed_data_format', node).text(processedData.getFormat());
   let value;
   switch (processedData.getKindCase()) {
-    case processedData.KindCase.FLOAT_VALUE:
+    case proto.ord.Data.KindCase.FLOAT_VALUE:
       value = processedData.getFloatValue();
       $('.outcome_processed_data_text', node).show();
       $('.uploader', node).hide();
       $('.outcome_processed_data_text', node).text(value);
       $('input[value=\'number\']', node).prop('checked', true);
       break;
-    case processedData.KindCase.INTEGER_VALUE:
+    case proto.ord.Data.KindCase.INTEGER_VALUE:
       value = processedData.getIntegerValue();
       $('.outcome_processed_data_text', node).show();
       $('.uploader', node).hide();
       $('.outcome_processed_data_text', node).text(value);
       $('input[value=\'number\']', node).prop('checked', true);
       break;
-    case processedData.KindCase.BYTES_VALUE:
+    case proto.ord.Data.KindCase.BYTES_VALUE:
       value = processedData.getBytesValue();
       $('.outcome_processed_data_text', node).hide();
       $('.uploader', node).show();
       ord.uploads.load(node, value);
       $('input[value=\'upload\']', node).prop('checked', true);
       break;
-    case processedData.KindCase.STRING_VALUE:
+    case proto.ord.Data.KindCase.STRING_VALUE:
       value = processedData.getStringValue();
       $('.outcome_processed_data_text', node).show();
       $('.uploader', node).hide();
       $('.outcome_processed_data_text', node).text(stringValue);
       $('input[value=\'text\']', node).prop('checked', true);
       break;
-    case processedData.KindCase.URL_VALUE:
+    case proto.ord.Data.KindCase.URL_VALUE:
       value = processedData.getUrl();
       $('.outcome_processed_data_text', node).show();
       $('.uploader', node).hide();
@@ -185,35 +185,35 @@ function loadRawData(node, name, rawData) {
   $('.outcome_raw_data_format', node).text(rawData.getFormat());
   let value;
   switch (rawData.getKindCase()) {
-    case rawData.KindCase.FLOAT_VALUE:
+    case proto.ord.Data.KindCase.FLOAT_VALUE:
       value = rawData.getFloatValue();
       $('.outcome_raw_data_text', node).show();
       $('.uploader', node).hide();
       $('.outcome_raw_data_text', node).text(value);
       $('input[value=\'number\']', node).prop('checked', true);
       break;
-    case rawData.KindCase.INTEGER_VALUE:
+    case proto.ord.Data.KindCase.INTEGER_VALUE:
       value = rawData.getIntegerValue();
       $('.outcome_raw_data_text', node).show();
       $('.uploader', node).hide();
       $('.outcome_raw_data_text', node).text(value);
       $('input[value=\'number\']', node).prop('checked', true);
       break;
-    case rawData.KindCase.BYTES_VALUE:
+    case proto.ord.Data.KindCase.BYTES_VALUE:
       value = rawData.getBytesValue();
       $('.outcome_raw_data_text', node).hide();
       $('.uploader', node).show();
       ord.uploads.load(node, value);
       $('input[value=\'upload\']', node).prop('checked', true);
       break;
-    case rawData.KindCase.STRING_VALUE:
+    case proto.ord.Data.KindCase.STRING_VALUE:
       value = rawData.getStringValue();
       $('.outcome_raw_data_text', node).show();
       $('.uploader', node).hide();
       $('.outcome_raw_data_text', node).text(stringValue);
       $('input[value=\'text\']', node).prop('checked', true);
       break;
-    case rawData.KindCase.URL_VALUE:
+    case proto.ord.Data.KindCase.URL_VALUE:
       value = rawData.getUrl();
       $('.outcome_raw_data_text', node).show();
       $('.uploader', node).hide();
@@ -378,7 +378,7 @@ function unloadProcessedData(node, processedDataMap) {
   }
   if (!ord.reaction.isEmptyMessage(name) ||
       !ord.reaction.isEmptyMessage(processedData)) {
-    processedDataMap.set(name, process);
+    processedDataMap.set(name, processedData);
   }
 }
 
@@ -422,7 +422,7 @@ function unloadRawData(node, rawDataMap) {
     }
   }
   if (!ord.reaction.isEmptyMessage(name) || !ord.reaction.isEmptyMessage(raw)) {
-    rawDataMap.set(name, raw);
+    rawDataMap.set(name, rawData);
   }
 }
 

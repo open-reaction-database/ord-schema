@@ -51,35 +51,35 @@ function loadCode(name, code) {
   $('.setup_code_format', node).text(code.getFormat());
   let value;
   switch (code.getKindCase()) {
-    case code.KindCase.FLOAT_VALUE:
+    case proto.ord.Data.KindCase.FLOAT_VALUE:
       value = code.getFloatValue();
       $('.setup_code_text', node).show();
       $('.uploader', node).hide();
       $('.setup_code_text', node).text(value);
       $('input[value=\'number\']', node).prop('checked', true);
       break;
-    case code.KindCase.INTEGER_VALUE:
+    case proto.ord.Data.KindCase.INTEGER_VALUE:
       value = code.getIntegerValue();
       $('.setup_code_text', node).show();
       $('.uploader', node).hide();
       $('.setup_code_text', node).text(value);
       $('input[value=\'number\']', node).prop('checked', true);
       break;
-    case code.KindCase.BYTES_VALUE:
+    case proto.ord.Data.KindCase.BYTES_VALUE:
       value = code.getBytesValue();
       $('.setup_code_text', node).hide();
       $('.uploader', node).show();
       ord.uploads.load(node, value);
       $('input[value=\'upload\']', node).prop('checked', true);
       break;
-    case code.KindCase.STRING_VALUE:
+    case proto.ord.Data.KindCase.STRING_VALUE:
       value = code.getStringValue();
       $('.setup_code_text', node).show();
       $('.uploader', node).hide();
       $('.setup_code_text', node).text(stringValue);
       $('input[value=\'text\']', node).prop('checked', true);
       break;
-    case code.KindCase.URL_VALUE:
+    case proto.ord.Data.KindCase.URL_VALUE:
       value = code.getUrl();
       $('.setup_code_text', node).show();
       $('.uploader', node).hide();
