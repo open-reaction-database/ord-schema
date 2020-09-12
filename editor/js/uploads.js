@@ -100,7 +100,7 @@ function putAll(dirName) {
 /**
  * Looks up the bytesValue of the given uploader and sends back it as a
  * download.
- * @param {!Node} uploader An `.uploader` div.
+ * @param {!Node} uploader A `.data_uploader` div.
  */
 function retrieve(uploader) {
   const token = uploader.attr('data-token');
@@ -121,40 +121,40 @@ function retrieve(uploader) {
 
 /**
  * Configures the behavior of an uploader.
- * @param {!Node} node An `.uploader` div.
+ * @param {!Node} node A `.data_uploader` div.
  */
 function initialize(node) {
-  $('.uploader_chooser_file', node).on('input', (event) => {
+  $('.data_uploader_chooser_file', node).on('input', (event) => {
     const file = event.target.files[0];
-    $('.uploader_file_name', node).show();
-    $('.uploader_file_name', node).text(file.name);
+    $('.data_uploader_file_name', node).show();
+    $('.data_uploader_file_name', node).text(file.name);
     const token = newFile(file);
-    $('.uploader', node).attr('data-token', token);
-    $('.uploader_file_retrieve', node).hide();
+    $('.data_uploader', node).attr('data-token', token);
+    $('.data_uploader_file_retrieve', node).hide();
   });
 }
 
 /**
  * Loads a token and filename into an uploader.
- * @param {!Node} node An `.uploader` div.
+ * @param {!Node} node A `.data_uploader` div.
  * @param {!Uint8Array} bytesValue File content as bytes.
  */
 function load(node, bytesValue) {
   const token = stashUpload(bytesValue);
-  $('.uploader', node).show();
-  $('.uploader', node).attr('data-token', token);
-  $('.uploader_chooser_button', node).text('Replace...');
-  $('.uploader_file_name', node).hide();
-  $('.uploader_file_retrieve', node).show();
+  $('.data_uploader', node).show();
+  $('.data_uploader', node).attr('data-token', token);
+  $('.data_uploader_chooser_button', node).text('Replace...');
+  $('.data_uploader_file_name', node).hide();
+  $('.data_uploader_file_retrieve', node).show();
 }
 
 /**
  * Retrieves the stored bytes from an uploader.
- * @param {!Node} node An `.uploader` div.
+ * @param {!Node} node A `.data_uploader` div.
  * @returns {!Uint8Array}
  */
 function unload(node) {
-  const token = $('.uploader', node).attr('data-token');
+  const token = $('.data_uploader', node).attr('data-token');
   const bytesValue = unstashUpload(token);
   if (bytesValue) {
     // This is just a round-trip for bytesValue.
