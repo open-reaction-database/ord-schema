@@ -52,7 +52,10 @@ function loadCode(name, code) {
   let value;
   switch (code.getKindCase()) {
     case proto.ord.Data.KindCase.FLOAT_VALUE:
-      value = code.getFloatValue();
+      value = code.getFloatValue().toString();
+      if (value.indexOf('.') === -1) {
+        value = value.concat('.');
+      }
       $('.setup_code_text', node).show();
       $('.uploader', node).hide();
       $('.setup_code_text', node).text(value);
@@ -127,8 +130,9 @@ function unloadCode(codes, node) {
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
-    const value = parseFloat($('.setup_code_text', node).text());
-    if (Number.isInteger(value)) {
+    const stringValue = $('.setup_code_text', node).text();
+    const value = parseFloat(stringValue);
+    if (Number.isInteger(value) && stringValue.indexOf('.') === -1) {
       code.setIntegerValue(value);
     } else if (!Number.isNaN(value)) {
       code.setFloatValue(value);

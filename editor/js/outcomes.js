@@ -134,7 +134,10 @@ function loadProcessedData(node, name, processedData) {
   let value;
   switch (processedData.getKindCase()) {
     case proto.ord.Data.KindCase.FLOAT_VALUE:
-      value = processedData.getFloatValue();
+      value = processedData.getFloatValue().toString();
+      if (value.indexOf('.') === -1) {
+        value = value.concat('.');
+      }
       $('.outcome_processed_data_text', node).show();
       $('.uploader', node).hide();
       $('.outcome_processed_data_text', node).text(value);
@@ -186,7 +189,10 @@ function loadRawData(node, name, rawData) {
   let value;
   switch (rawData.getKindCase()) {
     case proto.ord.Data.KindCase.FLOAT_VALUE:
-      value = rawData.getFloatValue();
+      value = rawData.getFloatValue().toString();
+      if (value.indexOf('.') === -1) {
+        value = value.concat('.');
+      }
       $('.outcome_raw_data_text', node).show();
       $('.uploader', node).hide();
       $('.outcome_raw_data_text', node).text(value);
@@ -357,8 +363,9 @@ function unloadProcessedData(node, processedDataMap) {
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
-    const value = parseFloat($('.outcome_processed_data_text', node).text());
-    if (Number.isInteger(value)) {
+    const stringValue = $('.outcome_processed_data_text', node).text();
+    const value = parseFloat(stringValue);
+    if (Number.isInteger(value) && stringValue.indexOf('.') === -1) {
       processedData.setIntegerValue(value);
     } else if (!Number.isNaN(value)) {
       processedData.setFloatValue(value);
@@ -402,8 +409,9 @@ function unloadRawData(node, rawDataMap) {
     }
   }
   if ($('input[value=\'number\']', node).is(':checked')) {
-    const value = parseFloat($('.outcome_raw_data_text', node).text());
-    if (Number.isInteger(value)) {
+    const stringValue = $('.outcome_raw_data_text', node).text();
+    const value = parseFloat(stringValue);
+    if (Number.isInteger(value) && stringValue.indexOf('.') === -1) {
       rawData.setIntegerValue(value);
     } else if (!Number.isNaN(value)) {
       rawData.setFloatValue(value);
