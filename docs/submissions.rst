@@ -113,7 +113,7 @@ Submit
          $ git push origin my_submission
 
 Next, log in to GitHub, navigate to the `database repository
-<https://github.com/Open-Reaction-Database/ord-submissions-test>`_, and `create
+<https://github.com/Open-Reaction-Database/ord-data>`_, and `create
 a pull request
 <https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request-from-a-fork>`_
 from your fork to the official repository.

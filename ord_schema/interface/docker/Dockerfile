@@ -29,8 +29,8 @@ WORKDIR "${ORD_ROOT}"
 # https://stackoverflow.com/a/39278224.
 ADD https://api.github.com/repos/Open-Reaction-Database/ord-schema/git/refs/heads/main ord-schema-version.json
 RUN git clone https://github.com/Open-Reaction-Database/ord-schema.git
-ADD https://api.github.com/repos/Open-Reaction-Database/ord-submissions-test/git/refs/heads/main ord-submissions-test-version.json
-RUN git clone https://github.com/Open-Reaction-Database/ord-submissions-test.git
+ADD https://api.github.com/repos/Open-Reaction-Database/ord-data/git/refs/heads/main ord-data-version.json
+RUN git clone https://github.com/Open-Reaction-Database/ord-data.git
 WORKDIR "${ORD_ROOT}/ord-schema"
 RUN pip install -r requirements.txt
 RUN python setup.py install
@@ -43,5 +43,5 @@ ENV POSTGRES_DB=ord
 ENV POSTGRES_USER=ord-postgres
 ENV POSTGRES_PASSWORD=ord-postgres
 COPY postgres.conf /etc/postgresql/postgresql.conf
-ENV ORD_INPUT="${ORD_ROOT}/ord-submissions-test/data/*/*.pbtxt"
+ENV ORD_INPUT="${ORD_ROOT}/ord-data/data/*/*.pbtxt"
 COPY build_database.sh .

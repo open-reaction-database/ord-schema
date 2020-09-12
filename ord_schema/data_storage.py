@@ -31,7 +31,7 @@ from ord_schema.proto import reaction_pb2
 
 # Prefix for filenames that store reaction_pb2.Data values.
 DATA_PREFIX = 'ord_data-'
-DATA_REPO = 'ord-submissions-test'
+DATA_REPO = 'ord-data'
 DATA_URL_PREFIX = (
     f'https://github.com/Open-Reaction-Database/{DATA_REPO}/tree/main')
 
