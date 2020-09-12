@@ -22,6 +22,7 @@ exports = {
   addCode
 };
 
+goog.require('ord.data');
 goog.require('proto.ord.Data');
 
 // Freely create radio button groups by generating new input names.
@@ -47,48 +48,7 @@ function load(codes) {
 function loadCode(name, code) {
   const node = addCode();
   $('.setup_code_name', node).text(name);
-  $('.setup_code_description', node).text(code.getDescription());
-  $('.setup_code_format', node).text(code.getFormat());
-  let value;
-  switch (code.getKindCase()) {
-    case proto.ord.Data.KindCase.FLOAT_VALUE:
-      value = code.getFloatValue();
-      $('.setup_code_text', node).show();
-      $('.uploader', node).hide();
-      $('.setup_code_text', node).text(value);
-      $('input[value=\'number\']', node).prop('checked', true);
-      break;
-    case proto.ord.Data.KindCase.INTEGER_VALUE:
-      value = code.getIntegerValue();
-      $('.setup_code_text', node).show();
-      $('.uploader', node).hide();
-      $('.setup_code_text', node).text(value);
-      $('input[value=\'number\']', node).prop('checked', true);
-      break;
-    case proto.ord.Data.KindCase.BYTES_VALUE:
-      value = code.getBytesValue();
-      $('.setup_code_text', node).hide();
-      $('.uploader', node).show();
-      ord.uploads.load(node, value);
-      $('input[value=\'upload\']', node).prop('checked', true);
-      break;
-    case proto.ord.Data.KindCase.STRING_VALUE:
-      value = code.getStringValue();
-      $('.setup_code_text', node).show();
-      $('.uploader', node).hide();
-      $('.setup_code_text', node).text(stringValue);
-      $('input[value=\'text\']', node).prop('checked', true);
-      break;
-    case proto.ord.Data.KindCase.URL:
-      value = code.getUrl();
-      $('.setup_code_text', node).show();
-      $('.uploader', node).hide();
-      $('.setup_code_text', node).text(value);
-      $('input[value=\'url\']', node).prop('checked', true);
-      break;
-    default:
-      break;
-  }
+  ord.data.loadData(node, code);
 }
 
 /**
@@ -112,40 +72,7 @@ function unload(codes) {
  */
 function unloadCode(codes, node) {
   const name = $('.setup_code_name', node).text();
-
-  const code = new proto.ord.Data();
-
-  const description = $('.setup_code_description', node).text();
-  code.setDescription(description);
-  const format = $('.setup_code_format', node).text();
-  code.setFormat(format);
-
-  if ($('input[value=\'text\']', node).is(':checked')) {
-    const stringValue = $('.setup_code_text', node).text();
-    if (!ord.reaction.isEmptyMessage(stringValue)) {
-      code.setStringValue(stringValue);
-    }
-  }
-  if ($('input[value=\'number\']', node).is(':checked')) {
-    const value = parseFloat($('.setup_code_text', node).text());
-    if (Number.isInteger(value)) {
-      code.setIntegerValue(value);
-    } else if (!Number.isNaN(value)) {
-      code.setFloatValue(value);
-    }
-  }
-  if ($('input[value=\'upload\']', node).is(':checked')) {
-    const bytesValue = ord.uploads.unload(node);
-    if (!ord.reaction.isEmptyMessage(bytesValue)) {
-      code.setBytesValue(bytesValue);
-    }
-  }
-  if ($('input[value=\'url\']', node).is(':checked')) {
-    const url = $('.setup_code_text', node).text();
-    if (!ord.reaction.isEmptyMessage(url)) {
-      code.setUrl(url);
-    }
-  }
+  const code = ord.data.unloadData(node);
   if (!ord.reaction.isEmptyMessage(name) ||
       !ord.reaction.isEmptyMessage(code)) {
     codes.set(name, code);
@@ -158,19 +85,6 @@ function unloadCode(codes, node) {
  */
 function addCode() {
   const node = ord.reaction.addSlowly('#setup_code_template', '#setup_codes');
-
-  const typeButtons = $('input[type=\'radio\']', node);
-  typeButtons.attr('name', 'codes_' + radioGroupCounter++);
-  typeButtons.change(function() {
-    if ((this.value == 'text') || (this.value == 'number') ||
-        (this.value == 'url')) {
-      $('.setup_code_text', node).show();
-      $('.uploader', node).hide();
-    } else {
-      $('.setup_code_text', node).hide();
-      $('.uploader', node).show();
-    }
-  });
-  ord.uploads.initialize(node);
+  ord.data.addData(node);
   return node;
 }

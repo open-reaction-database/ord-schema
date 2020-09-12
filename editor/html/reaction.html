@@ -373,29 +373,6 @@ limitations under the License.
               <div onclick="ord.reaction.removeSlowly(this, '.setup_code');" class="remove">remove</div>
               <table>
                 <tr><td align="right">name</td><td><div class="setup_code_name edittext"></div></td></tr>
-                <tr>
-                  <td align="right">value</td>
-                  <td>
-                    <div class="setup_code_text edittext"></div>
-                    <div class="uploader" data-token="" style="display: none;">
-                      <input class="uploader_chooser_file uploadertext" type="file">
-                      <div class="uploader_chooser_button uploadertext">Choose...</div>
-                      <div class="uploader_file_name uploadertext"></div>
-                      <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="right">type</td>
-                  <td>
-                    <input type="radio" value="text" checked> text
-                    <input type="radio" value="number"> number
-                    <input type="radio" value="url"> url
-                    <input type="radio" value="upload"> upload
-                  </td>
-                </tr>
-                <tr><td align="right">description</td><td><div class="setup_code_description edittext"></div></td></tr>
-                <tr><td align="right">file format</td><td><div class="setup_code_format edittext"></div></td></tr>
               </table>
             </fieldset>
           </div>
@@ -639,29 +616,6 @@ limitations under the License.
                 <tr><td align="right">time</td><td><div class="observation_time_value edittext shorttext"></div>
                                                    <div class="observation_time_units selector" data-proto="Time_TimeUnit"></div>
                                                    +/- <div class="observation_time_precision edittext shorttext"></div></td></tr>
-                <tr>
-                  <td align="right">value</td>
-                  <td>
-                    <div class="observation_image_text edittext"></div>
-                    <div class="uploader" data-token="" style="display: none;">
-                      <input class="uploader_chooser_file uploadertext" type="file">
-                      <div class="uploader_chooser_button uploadertext">Choose...</div>
-                      <div class="uploader_file_name uploadertext"></div>
-                      <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="right">type</td>
-                  <td>
-                    <input type="radio" value="text" checked> text
-                    <input type="radio" value="number"> number
-                    <input type="radio" value="url"> url
-                    <input type="radio" value="upload"> upload
-                  </td>
-                </tr>
-                <tr><td align="right">description</td><td><div class="observation_image_description edittext"></div></td></tr>
-                <tr><td align="right">file format</td><td><div class="observation_image_format edittext"></div></td></tr>
                 <tr><td align="right">comment</td><td><div class="observation_comment edittext"></div></td></tr>
               </table>
             </fieldset>
@@ -975,29 +929,6 @@ limitations under the License.
               <div onclick="ord.reaction.removeSlowly(this, '.outcome_processed_data');" class="remove">remove</div>
               <table>
                 <tr><td align="right">name</td><td><div class="outcome_processed_data_name edittext"></div></td></tr>
-                <tr>
-                  <td align="right">content</td>
-                  <td>
-                    <div class="outcome_processed_data_text edittext"></div>
-                    <div class="uploader" data-token="" style="display: none;">
-                      <input class="uploader_chooser_file uploadertext" type="file">
-                      <div class="uploader_chooser_button uploadertext">Choose...</div>
-                      <div class="uploader_file_name uploadertext"></div>
-                      <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="right">type</td>
-                  <td>
-                    <input type="radio" value="text" checked> text
-                    <input type="radio" value="number"> number
-                    <input type="radio" value="url"> url
-                    <input type="radio" value="upload"> upload
-                  </td>
-                </tr>
-                <tr><td align="right">description</td><td><div class="outcome_processed_data_description edittext"></div></td></tr>
-                <tr><td align="right">file format</td><td><div class="outcome_processed_data_format edittext"></div></td></tr>
               </table>
             </fieldset>
           </div>
@@ -1011,29 +942,6 @@ limitations under the License.
               <div onclick="ord.reaction.removeSlowly(this, '.outcome_raw_data');" class="remove">remove</div>
               <table>
                 <tr><td align="right">name</td><td><div class="outcome_raw_data_name edittext"></div></td></tr>
-                <tr>
-                  <td align="right">content</td>
-                  <td>
-                    <div class="outcome_raw_data_text edittext"></div>
-                    <div class="uploader" data-token="" style="display: none;">
-                      <input class="uploader_chooser_file uploadertext" type="file">
-                      <div class="uploader_chooser_button uploadertext">Choose...</div>
-                      <div class="uploader_file_name uploadertext"></div>
-                      <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="right">type</td>
-                  <td>
-                    <input type="radio" value="text" checked> text
-                    <input type="radio" value="number"> number
-                    <input type="radio" value="url"> url
-                    <input type="radio" value="upload"> upload
-                  </td>
-                </tr>
-                <tr><td align="right">description</td><td><div class="outcome_raw_data_description edittext"></div></td></tr>
-                <tr><td align="right">file format</td><td><div class="outcome_raw_data_format edittext"></div></td></tr>
               </table>
             </fieldset>
           </div>
@@ -1133,6 +1041,34 @@ limitations under the License.
               </div>
           </div>
       </div>
+    </div>
+
+    <div id="data_template" class="data" style="display: none;">
+      <table>
+      <tr>
+        <td align="right">data</td>
+        <td>
+          <div class="data_text edittext"></div>
+          <div class="data_uploader" data-token="" style="display: none;">
+            <input class="data_uploader_chooser_file data_uploader_text" type="file">
+            <div class="data_uploader_chooser_button data_uploader_text">Choose...</div>
+            <div class="data_uploader_file_name data_uploader_text"></div>
+            <div class="data_uploader_file_retrieve data_uploader_text" onclick="ord.uploads.retrieve($(this).closest('.data_uploader'));" style="display: none;">retrieve</div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td align="right">type</td>
+        <td>
+          <input type="radio" value="text" checked> text
+          <input type="radio" value="number"> number
+          <input type="radio" value="url"> url
+          <input type="radio" value="upload"> upload
+        </td>
+      </tr>
+      <tr><td align="right">description</td><td><div class="data_description edittext"></div></td></tr>
+      <tr><td align="right">file format</td><td><div class="data_format edittext"></div></td></tr>
+      </table>
     </div>
 
     <script>

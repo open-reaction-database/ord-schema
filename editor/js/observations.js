@@ -23,6 +23,7 @@ exports = {
   validateObservation
 };
 
+goog.require('ord.data');
 goog.require('proto.ord.ReactionObservation');
 
 // Freely create radio button groups by generating new input names.
@@ -43,41 +44,8 @@ function load(observations) {
 function loadObservation(observation) {
   const node = add();
   ord.reaction.writeMetric('.observation_time', observation.getTime(), node);
-
   $('.observation_comment', node).text(observation.getComment());
-
-  const image = observation.getImage();
-  $('.observation_image_description', node).text(image.getDescription());
-  $('.observation_image_format', node).text(image.getFormat());
-
-  const stringValue = image.getStringValue();
-  const floatValue = image.getFloatValue();
-  const bytesValue = image.getBytesValue();
-  const url = image.getUrl();
-  if (stringValue) {
-    $('.observation_image_text', node).show();
-    $('.uploader', node).hide();
-    $('.observation_image_text', node).text(stringValue);
-    $('input[value=\'text\']', node).prop('checked', true);
-  }
-  if (floatValue) {
-    $('.observation_image_text', node).show();
-    $('.uploader', node).hide();
-    $('.observation_image_text', node).text(floatValue);
-    $('input[value=\'number\']', node).prop('checked', true);
-  }
-  if (bytesValue) {
-    $('.observation_image_text', node).hide();
-    $('.uploader', node).show();
-    ord.uploads.load(node, bytesValue);
-    $('input[value=\'upload\']', node).prop('checked', true);
-  }
-  if (url) {
-    $('.observation_image_text', node).show();
-    $('.uploader', node).hide();
-    $('.observation_image_text', node).text(url);
-    $('input[value=\'url\']', node).prop('checked', true);
-  }
+  ord.data.loadData(node, observation.getImage());
 }
 
 /**
@@ -111,37 +79,8 @@ function unloadObservation(node) {
   if (!ord.reaction.isEmptyMessage(time)) {
     observation.setTime(time);
   }
-
   observation.setComment($('.observation_comment', node).text());
-
-  const image = new proto.ord.Data();
-  image.setDescription($('.observation_image_description', node).text());
-  image.setFormat($('.observation_image_format', node).text());
-
-  if ($('input[value=\'text\']', node).is(':checked')) {
-    const stringValue = $('.observation_image_text', node).text();
-    if (!ord.reaction.isEmptyMessage(stringValue)) {
-      image.setStringValue(stringValue);
-    }
-  }
-  if ($('input[value=\'number\']', node).is(':checked')) {
-    const floatValue = parseFloat($('.setup_code_text', node).text());
-    if (!isNaN(floatValue)) {
-      image.setFloatValue(floatValue);
-    }
-  }
-  if ($('input[value=\'upload\']', node).is(':checked')) {
-    const bytesValue = ord.uploads.unload(node);
-    if (!ord.reaction.isEmptyMessage(bytesValue)) {
-      image.setBytesValue(bytesValue);
-    }
-  }
-  if ($('input[value=\'url\']', node).is(':checked')) {
-    const url = $('.observation_image_text', node).text();
-    if (!ord.reaction.isEmptyMessage(url)) {
-      image.setUrl(url);
-    }
-  }
+  const image = ord.data.unloadData(node);
   if (!ord.reaction.isEmptyMessage(image)) {
     observation.setImage(image);
   }
@@ -154,26 +93,11 @@ function unloadObservation(node) {
  */
 function add() {
   const node = ord.reaction.addSlowly('#observation_template', '#observations');
-
-  const typeButtons = $('input[type=\'radio\']', node);
-  typeButtons.attr('name', 'observations_' + radioGroupCounter++);
-  typeButtons.change(function() {
-    if ((this.value == 'text') || (this.value == 'number') ||
-        (this.value == 'url')) {
-      $('.observation_image_text', node).show();
-      $('.uploader', node).hide();
-    } else {
-      $('.observation_image_text', node).hide();
-      $('.uploader', node).show();
-    }
-  });
-  ord.uploads.initialize(node);
-
+  ord.data.addData(node);
   // Add live validation handling.
   ord.reaction.addChangeHandler(node, () => {
     validateObservation(node);
   });
-
   return node;
 }
 

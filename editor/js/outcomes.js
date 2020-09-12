@@ -27,6 +27,7 @@ exports = {
   validateAnalysis
 };
 
+goog.require('ord.data');
 goog.require('ord.products');
 goog.require('proto.ord.ReactionOutcome');
 
@@ -128,49 +129,7 @@ function loadAnalysis(outcomeNode, name, analysis) {
  */
 function loadProcessedData(node, name, processedData) {
   $('.outcome_processed_data_name', node).text(name);
-  $('.outcome_processed_data_description', node)
-      .text(processedData.getDescription());
-  $('.outcome_processed_data_format', node).text(processedData.getFormat());
-  let value;
-  switch (processedData.getKindCase()) {
-    case proto.ord.Data.KindCase.FLOAT_VALUE:
-      value = processedData.getFloatValue();
-      $('.outcome_processed_data_text', node).show();
-      $('.uploader', node).hide();
-      $('.outcome_processed_data_text', node).text(value);
-      $('input[value=\'number\']', node).prop('checked', true);
-      break;
-    case proto.ord.Data.KindCase.INTEGER_VALUE:
-      value = processedData.getIntegerValue();
-      $('.outcome_processed_data_text', node).show();
-      $('.uploader', node).hide();
-      $('.outcome_processed_data_text', node).text(value);
-      $('input[value=\'number\']', node).prop('checked', true);
-      break;
-    case proto.ord.Data.KindCase.BYTES_VALUE:
-      value = processedData.getBytesValue();
-      $('.outcome_processed_data_text', node).hide();
-      $('.uploader', node).show();
-      ord.uploads.load(node, value);
-      $('input[value=\'upload\']', node).prop('checked', true);
-      break;
-    case proto.ord.Data.KindCase.STRING_VALUE:
-      value = processedData.getStringValue();
-      $('.outcome_processed_data_text', node).show();
-      $('.uploader', node).hide();
-      $('.outcome_processed_data_text', node).text(stringValue);
-      $('input[value=\'text\']', node).prop('checked', true);
-      break;
-    case proto.ord.Data.KindCase.URL:
-      value = processedData.getUrl();
-      $('.outcome_processed_data_text', node).show();
-      $('.uploader', node).hide();
-      $('.outcome_processed_data_text', node).text(value);
-      $('input[value=\'url\']', node).prop('checked', true);
-      break;
-    default:
-      break;
-  }
+  ord.data.loadData(node, processedData);
 }
 
 /**
@@ -181,48 +140,7 @@ function loadProcessedData(node, name, processedData) {
  */
 function loadRawData(node, name, rawData) {
   $('.outcome_raw_data_name', node).text(name);
-  $('.outcome_raw_data_description', node).text(rawData.getDescription());
-  $('.outcome_raw_data_format', node).text(rawData.getFormat());
-  let value;
-  switch (rawData.getKindCase()) {
-    case proto.ord.Data.KindCase.FLOAT_VALUE:
-      value = rawData.getFloatValue();
-      $('.outcome_raw_data_text', node).show();
-      $('.uploader', node).hide();
-      $('.outcome_raw_data_text', node).text(value);
-      $('input[value=\'number\']', node).prop('checked', true);
-      break;
-    case proto.ord.Data.KindCase.INTEGER_VALUE:
-      value = rawData.getIntegerValue();
-      $('.outcome_raw_data_text', node).show();
-      $('.uploader', node).hide();
-      $('.outcome_raw_data_text', node).text(value);
-      $('input[value=\'number\']', node).prop('checked', true);
-      break;
-    case proto.ord.Data.KindCase.BYTES_VALUE:
-      value = rawData.getBytesValue();
-      $('.outcome_raw_data_text', node).hide();
-      $('.uploader', node).show();
-      ord.uploads.load(node, value);
-      $('input[value=\'upload\']', node).prop('checked', true);
-      break;
-    case proto.ord.Data.KindCase.STRING_VALUE:
-      value = rawData.getStringValue();
-      $('.outcome_raw_data_text', node).show();
-      $('.uploader', node).hide();
-      $('.outcome_raw_data_text', node).text(stringValue);
-      $('input[value=\'text\']', node).prop('checked', true);
-      break;
-    case proto.ord.Data.KindCase.URL:
-      value = rawData.getUrl();
-      $('.outcome_raw_data_text', node).show();
-      $('.uploader', node).hide();
-      $('.outcome_raw_data_text', node).text(value);
-      $('input[value=\'url\']', node).prop('checked', true);
-      break;
-    default:
-      break;
-  }
+  ord.data.loadData(rawData);
 }
 
 /**
@@ -345,37 +263,7 @@ function unloadAnalysis(analysisNode, analyses) {
  */
 function unloadProcessedData(node, processedDataMap) {
   const name = $('.outcome_processed_data_name', node).text();
-
-  const processedData = new proto.ord.Data();
-  processedData.setDescription($('.outcome_processed_data_description').text());
-  processedData.setFormat($('.outcome_processed_data_format').text());
-
-  if ($('input[value=\'text\']', node).is(':checked')) {
-    const stringValue = $('.outcome_processed_data_text', node).text();
-    if (!ord.reaction.isEmptyMessage(stringValue)) {
-      processedData.setStringValue(stringValue);
-    }
-  }
-  if ($('input[value=\'number\']', node).is(':checked')) {
-    const value = parseFloat($('.outcome_processed_data_text', node).text());
-    if (Number.isInteger(value)) {
-      processedData.setIntegerValue(value);
-    } else if (!Number.isNaN(value)) {
-      processedData.setFloatValue(value);
-    }
-  }
-  if ($('input[value=\'upload\']', node).is(':checked')) {
-    const bytesValue = ord.uploads.unload(node);
-    if (!ord.reaction.isEmptyMessage(bytesValue)) {
-      processedData.setBytesValue(bytesValue);
-    }
-  }
-  if ($('input[value=\'url\']', node).is(':checked')) {
-    const url = $('.outcome_processed_data_text', node).text();
-    if (!ord.reaction.isEmptyMessage(url)) {
-      processedData.setUrl(url);
-    }
-  }
+  const processedData = ord.data.unloadData(node);
   if (!ord.reaction.isEmptyMessage(name) ||
       !ord.reaction.isEmptyMessage(processedData)) {
     processedDataMap.set(name, processedData);
@@ -390,37 +278,7 @@ function unloadProcessedData(node, processedDataMap) {
  */
 function unloadRawData(node, rawDataMap) {
   const name = $('.outcome_raw_data_name', node).text();
-
-  const rawData = new proto.ord.Data();
-  rawData.setDescription($('.outcome_raw_data_description', node).text());
-  rawData.setFormat($('.outcome_raw_data_format', node).text());
-
-  if ($('input[value=\'text\']', node).is(':checked')) {
-    const stringValue = $('.outcome_raw_data_text', node).text();
-    if (!ord.reaction.isEmptyMessage(stringValue)) {
-      rawData.setStringValue(stringValue);
-    }
-  }
-  if ($('input[value=\'number\']', node).is(':checked')) {
-    const value = parseFloat($('.outcome_raw_data_text', node).text());
-    if (Number.isInteger(value)) {
-      rawData.setIntegerValue(value);
-    } else if (!Number.isNaN(value)) {
-      rawData.setFloatValue(value);
-    }
-  }
-  if ($('input[value=\'upload\']', node).is(':checked')) {
-    const bytesValue = ord.uploads.unload(node);
-    if (!ord.reaction.isEmptyMessage(bytesValue)) {
-      rawData.setBytesValue(bytesValue);
-    }
-  }
-  if ($('input[value=\'url\']', node).is(':checked')) {
-    const url = $('.outcome_raw_data_text', node).text();
-    if (!ord.reaction.isEmptyMessage(url)) {
-      rawData.setUrl(url);
-    }
-  }
+  const rawData = ord.data.unloadData(node);
   if (!ord.reaction.isEmptyMessage(name) || !ord.reaction.isEmptyMessage(raw)) {
     rawDataMap.set(name, rawData);
   }
@@ -493,20 +351,7 @@ function addProcessedData(node) {
   const processNode = ord.reaction.addSlowly(
       '#outcome_processed_data_template',
       $('.outcome_processed_data_repeated', node));
-
-  const typeButtons = $('input[type=\'radio\']', processNode);
-  typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);
-  typeButtons.change(function() {
-    if ((this.value == 'text') || (this.value == 'number') ||
-        (this.value == 'url')) {
-      $('.outcome_processed_data_text', processNode).show();
-      $('.uploader', processNode).hide();
-    } else {
-      $('.outcome_processed_data_text', processNode).hide();
-      $('.uploader', processNode).show();
-    }
-  });
-  ord.uploads.initialize(processNode);
+  ord.data.addData(processNode);
   return processNode;
 }
 
@@ -518,20 +363,7 @@ function addProcessedData(node) {
 function addRawData(node) {
   const rawNode = ord.reaction.addSlowly(
       '#outcome_raw_data_template', $('.outcome_raw_data_repeated', node));
-
-  const typeButtons = $('input[type=\'radio\']', rawNode);
-  typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);
-  typeButtons.change(function() {
-    if ((this.value == 'text') || (this.value == 'number') ||
-        (this.value == 'url')) {
-      $('.outcome_raw_data_text', rawNode).show();
-      $('.uploader', rawNode).hide();
-    } else {
-      $('.outcome_raw_data_text', rawNode).hide();
-      $('.uploader', rawNode).show();
-    }
-  });
-  ord.uploads.initialize(rawNode);
+  ord.data.addData(rawNode);
   return rawNode;
 }
 
