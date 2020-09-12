@@ -120,24 +120,21 @@ function unloadData(node) {
     if (!ord.reaction.isEmptyMessage(stringValue)) {
       data.setStringValue(stringValue);
     }
-  }
-  if ($('input[value=\'number\']', node).is(':checked')) {
-    const stringValue = $('.setup_code_text', node).text();
+  } else if ($('input[value=\'number\']', node).is(':checked')) {
+    const stringValue = $('.data_text', node).text();
     const value = parseFloat(stringValue);
     if (Number.isInteger(value) && stringValue.indexOf('.') === -1) {
       data.setIntegerValue(value);
     } else if (!Number.isNaN(value)) {
       data.setFloatValue(value);
     }
-  }
-  if ($('input[value=\'upload\']', node).is(':checked')) {
+  } else if ($('input[value=\'upload\']', node).is(':checked')) {
     const bytesValue = ord.uploads.unload(node);
     if (!ord.reaction.isEmptyMessage(bytesValue)) {
       data.setBytesValue(bytesValue);
     }
-  }
-  if ($('input[value=\'url\']', node).is(':checked')) {
-    const url = $('.setup_code_text', node).text();
+  } else if ($('input[value=\'url\']', node).is(':checked')) {
+    const url = $('.data_text', node).text();
     if (!ord.reaction.isEmptyMessage(url)) {
       data.setUrl(url);
     }

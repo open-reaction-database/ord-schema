@@ -140,7 +140,7 @@ function loadProcessedData(node, name, processedData) {
  */
 function loadRawData(node, name, rawData) {
   $('.outcome_raw_data_name', node).text(name);
-  ord.data.loadData(rawData);
+  ord.data.loadData(node, rawData);
 }
 
 /**
