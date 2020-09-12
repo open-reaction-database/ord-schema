@@ -64,7 +64,7 @@ function loadData(node, data) {
     case proto.ord.Data.KindCase.FLOAT_VALUE:
       value = data.getFloatValue().toString();
       if (value.indexOf('.') === -1) {
-        value = value.concat('.');
+        value = value.concat('.0');
       }
       $('.data_text', node).show();
       $('.data_uploader', node).hide();
