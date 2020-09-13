@@ -149,31 +149,31 @@ function selectText(node) {
 
 /**
  * Ensures that the text entered in a float input is valid by forbidding any
- * charactersides besides 0-9, a single period to signify a decimal, and a
+ * characters besides 0-9, a single period to signify a decimal, and a
  * leading hyphen.
  * @param {!Node} node
  */
 function sanitizeFloat(node) {
   var stringValue = $(node).text();
   var negativeSign = (stringValue[0] === '-' ? '-' : '');
-  stringValue = stringValue.replace(/[^0-9\.]/g,'');
+  stringValue = stringValue.replace(/[^0-9\.]/g, '');
   const matches = stringValue.match(/\./g);
   if (matches && matches.length > 1) {
     var parts = stringValue.split('.');
-    stringValue = parts.shift() + (parts.length ? '.': '') + parts.join('');
+    stringValue = parts.shift() + (parts.length ? '.' : '') + parts.join('');
   }
   $(node).text(negativeSign + stringValue);
 }
 
 /**
  * Ensures that the text entered in an integer input is valid by forbidding any
- * charactersides besides 0-9 and a leading hyphen.
+ * characters besides 0-9 and a leading hyphen.
  * @param {!Node} node
  */
 function sanitizeInteger(node) {
   var stringValue = $(node).text();
   var negativeSign = (stringValue[0] === '-' ? '-' : '');
-  stringValue = stringValue.replace(/[^0-9]/g,'');
+  stringValue = stringValue.replace(/[^0-9]/g, '');
   $(node).text(negativeSign + stringValue);
 }
 
