@@ -115,7 +115,9 @@ function ready() {
  */
 function listen(node) {
   addChangeHandler($(node), dirty);
-  $('.edittext').on('focus', event => selectText(event.target));
+  $('.edittext', node).on('focus', event => selectText(event.target));
+  $('.floattext', node).on('blur', event => sanitizeFloat(event.target));
+  $('.integertext', node).on('blur', event => sanitizeInteger(event.target));
 }
 
 /**
@@ -143,6 +145,36 @@ function selectText(node) {
   const selection = window.getSelection();
   selection.removeAllRanges();
   selection.addRange(range);
+}
+
+/**
+ * Ensures that the text entered in a float input is valid by forbidding any
+ * charactersides besides 0-9, a single period to signify a decimal, and a
+ * leading hyphen.
+ * @param {!Node} node
+ */
+function sanitizeFloat(node) {
+  var stringValue = $(node).text();
+  var negativeSign = (stringValue[0] === '-' ? '-' : '');
+  stringValue = stringValue.replace(/[^0-9\.]/g,'');
+  const matches = stringValue.match(/\./g);
+  if (matches && matches.length > 1) {
+    var parts = stringValue.split('.');
+    stringValue = parts.shift() + (parts.length ? '.': '') + parts.join('');
+  }
+  $(node).text(negativeSign + stringValue);
+}
+
+/**
+ * Ensures that the text entered in an integer input is valid by forbidding any
+ * charactersides besides 0-9 and a leading hyphen.
+ * @param {!Node} node
+ */
+function sanitizeInteger(node) {
+  var stringValue = $(node).text();
+  var negativeSign = (stringValue[0] === '-' ? '-' : '');
+  stringValue = stringValue.replace(/[^0-9]/g,'');
+  $(node).text(negativeSign + stringValue);
 }
 
 /**
