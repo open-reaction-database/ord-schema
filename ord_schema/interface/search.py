@@ -44,6 +44,7 @@ from ord_schema.interface import query
 app = flask.Flask(__name__, template_folder='.')
 app.config['ORD_POSTGRES_HOST'] = os.getenv('ORD_POSTGRES_HOST', 'localhost')
 
+
 @app.route('/')
 def show_root():
     """Shows the web form.
