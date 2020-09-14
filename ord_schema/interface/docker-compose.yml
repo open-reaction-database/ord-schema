@@ -1,0 +1,12 @@
+version: "3"
+services:
+  ord-postgres:
+    image: "openreactiondatabase/ord-postgres:latest"
+  web:
+    depends_on:
+      - ord-postgres
+    environment:
+      - ORD_POSTGRES_HOST=ord-postgres
+    image: "openreactiondatabase/ord-interface:latest"
+    ports:
+      - "5000:5000"

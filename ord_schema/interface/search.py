@@ -35,12 +35,14 @@ These query types are mutually exclusive. All query parameters are assumed to
 be URL-encoded.
 """
 
+import os
+
 import flask
 
 from ord_schema.interface import query
 
 app = flask.Flask(__name__, template_folder='.')
-
+app.config['ORD_POSTGRES_HOST'] = os.getenv('ORD_POSTGRES_HOST', 'localhost')
 
 @app.route('/')
 def show_root():
@@ -93,5 +95,5 @@ def connect():
     return query.OrdPostgres(dbname='ord',
                              user='ord-postgres',
                              password='ord-postgres',
-                             host='localhost',
+                             host=app.config['ORD_POSTGRES_HOST'],
                              port=5432)
