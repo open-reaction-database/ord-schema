@@ -116,8 +116,8 @@ function ready() {
 function listen(node) {
   addChangeHandler($(node), dirty);
   $('.edittext', node).on('focus', event => selectText(event.target));
-  $('.floattext', node).on('blur', event => sanitizeFloat(event.target));
-  $('.integertext', node).on('blur', event => sanitizeInteger(event.target));
+  $('.floattext', node).on('blur', event => checkFloat(event.target));
+  $('.integertext', node).on('blur', event => checkInteger(event.target));
 }
 
 /**
@@ -148,33 +148,41 @@ function selectText(node) {
 }
 
 /**
- * Ensures that the text entered in a float input is valid by forbidding any
+ * Determines if the text entered in a float input is valid by detecting any
  * characters besides 0-9, a single period to signify a decimal, and a
  * leading hyphen.
  * @param {!Node} node
  */
-function sanitizeFloat(node) {
+function checkFloat(node) {
   var stringValue = $(node).text();
-  var negativeSign = (stringValue[0] === '-' ? '-' : '');
-  stringValue = stringValue.replace(/[^0-9\.]/g, '');
-  const matches = stringValue.match(/\./g);
-  if (matches && matches.length > 1) {
-    var parts = stringValue.split('.');
-    stringValue = parts.shift() + (parts.length ? '.' : '') + parts.join('');
+  const decimalMatches = stringValue.match(/\./g);
+  if (stringValue[0] === '-') {
+    stringValue = stringValue.substring(1);
   }
-  $(node).text(negativeSign + stringValue);
+  if (stringValue.match(/[^0-9\.]/g)) {
+    $(node).addClass('invalid');
+  } else if (decimalMatches && decimalMatches.length > 1) {
+    $(node).addClass('invalid');
+  } else {
+    $(node).removeClass('invalid');
+  }
 }
 
 /**
- * Ensures that the text entered in an integer input is valid by forbidding any
- * characters besides 0-9 and a leading hyphen.
+ * Determines if the text entered in an integer input is valid by forbidding
+ * any characters besides 0-9 and a leading hyphen.
  * @param {!Node} node
  */
-function sanitizeInteger(node) {
+function checkInteger(node) {
   var stringValue = $(node).text();
-  var negativeSign = (stringValue[0] === '-' ? '-' : '');
-  stringValue = stringValue.replace(/[^0-9]/g, '');
-  $(node).text(negativeSign + stringValue);
+  if (stringValue[0] === '-') {
+    stringValue = stringValue.substring(1);
+  }
+  if (stringValue.match(/[^0-9]/g)) {
+    $(node).addClass('invalid');
+  } else {
+    $(node).removeClass('invalid');
+  }
 }
 
 /**
