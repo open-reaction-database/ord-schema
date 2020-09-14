@@ -12,16 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# To build an updated ord-postgres image containing the latest data:
-# $ cd .../ord-schema/ord_schema/interface/docker
-# $ docker build -t openreactiondatabase/ord-postgres .
-#
-# To push the built image to Docker Hub:
-# docker push openreactiondatabase/ord-postgres
-
 FROM mcs07/postgres-rdkit
 
-RUN apt-get update && apt-get install --yes build-essential git libpq-dev wget
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+    build-essential git libpq-dev wget
 
 ENV ORD_ROOT=/home/ord
 RUN wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
@@ -31,15 +25,13 @@ RUN conda update conda --yes
 RUN conda install -c rdkit rdkit
 
 WORKDIR "${ORD_ROOT}"
-# Bust the cache to get the latest ord-data commits; see
+# Bust the cache to get the latest commits; see
 # https://stackoverflow.com/a/39278224.
+ADD https://api.github.com/repos/Open-Reaction-Database/ord-schema/git/refs/heads/main ord-schema-version.json
+RUN git clone https://github.com/Open-Reaction-Database/ord-schema.git
 ADD https://api.github.com/repos/Open-Reaction-Database/ord-data/git/refs/heads/main ord-data-version.json
 RUN git clone https://github.com/Open-Reaction-Database/ord-data.git
-
-# COPY and install the local state of ord-schema.
 WORKDIR "${ORD_ROOT}/ord-schema"
-COPY setup.py requirements.txt ./
-COPY ord_schema/ ord_schema/
 RUN pip install -r requirements.txt
 RUN python setup.py install
 
@@ -52,3 +44,4 @@ ENV POSTGRES_USER=ord-postgres
 ENV POSTGRES_PASSWORD=ord-postgres
 COPY postgres.conf /etc/postgresql/postgresql.conf
 ENV ORD_INPUT="${ORD_ROOT}/ord-data/data/*/*.pbtxt"
+COPY build_database.sh .
