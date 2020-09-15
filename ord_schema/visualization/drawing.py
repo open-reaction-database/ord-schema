@@ -19,6 +19,9 @@ given an RDKit molecule object: mol_to_svg and mol_to_png.
 
 import io
 import base64
+import json
+import re
+
 import numpy as np
 from PIL import Image, ImageOps
 from rdkit import Chem
@@ -26,6 +29,7 @@ from rdkit.Chem import Draw
 from rdkit.Chem import rdDepictor
 
 rdDepictor.SetPreferCoordGen(True)
+
 
 # pylint: disable=unsubscriptable-object
 
@@ -63,7 +67,7 @@ def trim_image_whitespace(image, padding=0):
     y_range = (max([min(ys_nonzero) - margin,
                     0]), min([max(ys_nonzero) + margin, as_array.shape[1]]))
     as_array_cropped = as_array[x_range[0]:x_range[1], y_range[0]:y_range[1],
-                                0:3]
+                       0:3]
 
     image = Image.fromarray(as_array_cropped, mode='RGB')
     return ImageOps.expand(image, border=padding, fill=(255, 255, 255))
@@ -86,7 +90,9 @@ def mol_to_svg(mol, max_size=300, bond_length=25):
     drawer.drawOptions().fixedBondLength = bond_length
     drawer.DrawMolecule(mol)
     drawer.FinishDrawing()
-    return drawer.GetDrawingText()
+    match = re.search(r'(<svg\s+.*</svg>)', drawer.GetDrawingText(),
+                      flags=re.DOTALL)
+    return match.group(1)
 
 
 def mol_to_png(mol, max_size=1000, bond_length=25, png_quality=70):

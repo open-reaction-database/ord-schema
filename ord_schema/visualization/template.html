@@ -73,9 +73,7 @@
     <tr>
         {% for key, input in reaction.inputs|sort_addition_order %}
             {% for compound, border in input.components|get_input_borders %}
-                <td class="{{ border }}">
-                    <img src="data:image/png;base64,{{ compound|compound_png }}"/>
-                </td>
+                <td class="{{ border }}">{{ compound|compound_svg }}</td>
             {% endfor %}
         {% endfor %}
         <td class="clean">
@@ -96,7 +94,7 @@
         </td>
         {% for outcome in reaction.outcomes %}
             {% for product in outcome.products %}
-                <td class="clean"><img src="data:image/png;base64,{{ product.compound|compound_png }}"/></td>
+                <td class="clean">{{ product.compound|compound_svg }}</td>
             {% endfor %}
         {% endfor %}
     </tr>
