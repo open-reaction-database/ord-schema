@@ -1,23 +1,8 @@
-# Use HEAD: git clone git@github.com:protocolbuffers/protobuf.git
-protobuf = protobuf
-
-# cd protobuf && ./autogen.sh && ./configure && make
-# protoc = protobuf/src/protoc
-
-# Instead of compiling, use these prebuilt protoc binaries available at
-# https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
-# The hex identifies the GitHub commit of the build.
-UNAME = $(shell uname)
-ifeq ($(UNAME), Linux)
-  protoc = protobuf/bin/protoc.elf
-else ifeq ($(UNAME), Darwin)
-  protoc = protobuf/bin/protoc.mach-o
-else
-  $(error protoc not found)
-endif
-
 # https://github.com/google/closure-library/releases/
 closure = closure-library-20200517
+
+# https://github.com/protocolbuffers/protobuf/releases
+protobuf = protobuf-3.13.0
 
 # Check that the present ketcher code is compatible.
 ketcher-req = v0.1.0+ord
@@ -65,7 +50,7 @@ gen/js/ord/reaction.js : js/*.js gen/js/proto/ord/reaction.js
 	  || (rm -f gen/js/ord/reaction.js && false)
 
 gen/js/proto/ord/%.js : ../ord_schema/proto/%.proto
-	$(protoc) \
+	protoc \
 	  --experimental_allow_proto3_optional \
 	  --js_out=binary:gen/js/proto/ord \
 	  --proto_path=.. \
