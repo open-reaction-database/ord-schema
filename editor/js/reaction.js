@@ -37,7 +37,8 @@ exports = {
   getSelector,
   getSelectorText,
   setOptionalBool,
-  getOptionalBool
+  getOptionalBool,
+  freeze
 };
 
 goog.require('ord.conditions');
@@ -905,4 +906,22 @@ function enumToStrings(protoEnum) {
  */
 function stringToEnum(name, protoEnum) {
   return protoEnum[name];
+}
+
+// Switch the UI into a read-only mode.
+function freeze() {
+  $('.edittext').attr('contenteditable', 'false')
+  $('select').attr('disabled', 'true')
+  $('.validate').hide()
+  $('.add').hide()
+  $('.remove').hide()
+  $('.text_upload').hide()
+  $('#provenance_created button').hide()
+  $('#save').hide()
+  $('.edittext').each((i, x) => {
+    // Ensure non-editable divs have a text node to preserve vertical alignment.
+    if (!$(x).text()) {
+      $(x).text(" ");
+    }
+  });
 }
