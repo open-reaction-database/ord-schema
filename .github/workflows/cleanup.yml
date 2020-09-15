@@ -84,8 +84,8 @@ jobs:
           cd "${GITHUB_WORKSPACE}/editor"
           pip install flask pylint yapf
           npm install google-protobuf puppeteer
-          wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
-          tar -xzf editor_test_protobuf_1dae8fdd.tar
+          wget https://github.com/protocolbuffers/protobuf/releases/download/v3.13.0/protobuf-js-3.13.0.tar.gz
+          tar -xzf protobuf-js-3.13.0.tar.gz
           wget https://github.com/google/closure-library/archive/v20200517.tar.gz
           tar -xzf v20200517.tar.gz
           git clone https://github.com/Open-Reaction-Database/ketcher.git
