@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -39,19 +39,27 @@ const puppeteer = require('puppeteer');
     const url = tests[i];
     await page.goto(url);
     await page.waitFor('body[ready=true]');
-    const test = page.evaluate(async function (url) {
-      const reaction = unloadReaction();
+    const test = page.evaluate(async function(url) {
+      const reaction = ord.reaction.unloadReaction();
+      const session = ord.reaction.session;
       const reactions = session.dataset.getReactionsList();
       reactions[session.index] = reaction;
-      return await compareDataset(session.fileName, session.dataset)
-          .then(() => {console.log('PASS', url); return 0;})
-          .catch(() => {console.log('FAIL', url); return 1;})
+      return await ord.reaction
+          .compareDataset(session.fileName, session.dataset)
+          .then(() => {
+            console.log('PASS', url);
+            return 0;
+          })
+          .catch(() => {
+            console.log('FAIL', url);
+            return 1;
+          })
     }, url);
     const testResult = await test;
 
     // Report results of testing to environment (shell, Git CI, etc.)
-    // If _any_ test fails (i.e. testResult 1), then the entire process must fail too.
-    // We still run all tests though, for convenience's sake.
+    // If _any_ test fails (i.e. testResult 1), then the entire process must
+    // fail too. We still run all tests though, for convenience's sake.
     if (testResult == 1) {
       process.exitCode = 1;
     }

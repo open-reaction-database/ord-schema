@@ -106,6 +106,7 @@ CONCENTRATION_UNIT_SYNONYMS = {
 
 class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
+
     def __init__(self, unit_synonyms=None, forbidden_units=None):
         """Initializes a UnitResolver.
 

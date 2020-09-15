@@ -66,14 +66,14 @@ limitations under the License.
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src="/js/dataset.js"></script>
   </head>
-  <body onload="init('{{ file_name }}');">
+  <body onload="ord.dataset.init('{{ file_name }}');">
 
     <center>
       <h1><a href="/">Dataset</a>: {{ file_name }}.pbtxt</h1>
     </center>
     <div id="top_buttons">
-      <div id="download" onclick="download();">download</div>
-      <div id="save" onclick="commit();" style="visibility: hidden;">save</div>
+      <div id="download" onclick="ord.dataset.download();">download</div>
+      <div id="save" onclick="ord.dataset.commit();" style="visibility: hidden;">save</div>
     </div>
 
     <div class="spacer"></div>
@@ -103,10 +103,10 @@ limitations under the License.
         <div id="reaction_template" class="reaction" style="display: none;">
           <a class="reaction_index"></a>
           <div class="reaction_id"></div>
-          <div class="remove" onclick="deleteReaction(this);">remove</div>
+          <div class="remove" onclick="ord.dataset.deleteReaction(this);">remove</div>
         </div>
       </div>
-      <div id="add_reaction" class="add" onclick="newReaction();">+ add reaction</div>
+      <div id="add_reaction" class="add" onclick="ord.dataset.newReaction();">+ add reaction</div>
     </fieldset>
 
     <div class="spacer"></div>
@@ -116,33 +116,10 @@ limitations under the License.
       <div id="other_reaction_ids">
         <div id="other_reaction_id_template" class="other_reaction_id" style="display: none;">
           <div class="other_reaction_id_text edittext"></div>
-          <div class="remove" onclick="removeReactionId(this);">remove</div>
+          <div class="remove" onclick="ord.dataset.removeReactionId(this);">remove</div>
         </div>
       </div>
-      <div id="add_other_reaction_id" class="add" onclick="addReactionId();">+ add reaction ID</div>
+      <div id="add_other_reaction_id" class="add" onclick="ord.dataset.addReactionId();">+ add reaction ID</div>
     </fieldset>
-
-    <div class="spacer"></div>
-
-    <div id="examples">
-      <div id="example_template" class="example" style="display: none;">
-        <fieldset>
-          <legend>Example</legend>
-          <div class="remove" onclick="removeExample(this);" style="float: right;">remove</div>
-          <table>
-            <tr><td align="right">url</td><td><div class="example_url edittext"></div>
-            <tr><td align="right">description</td><td><div class="example_description edittext"></div>
-            <tr><td align="right">time</td><td><div class="example_created_time edittext"></div>
-            <tr><td align="right">username</td><td><div class="example_created_person_username edittext"></div>
-            <tr><td align="right">name</td><td><div class="example_created_person_name edittext"></div>
-            <tr><td align="right">orcid</td><td><div class="example_created_person_orcid edittext"></div>
-            <tr><td align="right">organization</td><td><div class="example_created_person_org edittext"></div>
-            <tr><td align="right">details</td><td><div class="example_created_details edittext"></div>
-          </table>
-        </fieldset>
-        <div class="spacer"></div>
-      </div>
-    </div>
-    <div id="add_example" class="add" onclick="addExample();">+ add example</div>
   </body>
 </html>

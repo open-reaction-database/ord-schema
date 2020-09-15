@@ -16,6 +16,7 @@
 import enum
 import os
 
+import flask
 from google import protobuf
 from google.protobuf import json_format
 from google.protobuf import text_format
@@ -82,14 +83,14 @@ def build_compound(smiles=None,
         else:
             raise TypeError(f'unsupported units for amount: {amount_pb}')
     if role:
-        field = reaction_pb2.Compound.DESCRIPTOR.fields_by_name[
-            'reaction_role']
+        field = reaction_pb2.Compound.DESCRIPTOR.fields_by_name['reaction_role']
         values_dict = field.enum_type.values_by_name
         try:
             compound.reaction_role = values_dict[role.upper()].number
-        except KeyError:
+        except KeyError as error:
             raise KeyError(
-                f'{role} is not a supported type: {values_dict.keys()}')
+                f'{role} is not a supported type: {values_dict.keys()}'
+            ) from error
     if is_limiting is not None:
         if not (is_limiting is True or is_limiting is False):
             raise TypeError(
@@ -101,12 +102,13 @@ def build_compound(smiles=None,
         values_dict = field.enum_type.values_by_name
         try:
             compound.preparations.add().type = values_dict[prep.upper()].number
-        except KeyError:
+        except KeyError as error:
             raise KeyError(
-                f'{prep} is not a supported type: {values_dict.keys()}')
+                f'{prep} is not a supported type: {values_dict.keys()}'
+            ) from error
         if (compound.preparations[0].type
-                == reaction_pb2.CompoundPreparation.CUSTOM
-                and not prep_details):
+                == reaction_pb2.CompoundPreparation.CUSTOM and
+                not prep_details):
             raise ValueError(
                 'prep_details must be provided when CUSTOM prep is used')
     if prep_details:
@@ -154,8 +156,7 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
         elif solvent.volume.units == solvent.volume.MICROLITER:
             volume_liter += solvent.volume.value * 1e-6
         else:
-            raise ValueError(
-                'solvent units not recognized by set_solute_moles')
+            raise ValueError('solvent units not recognized by set_solute_moles')
     # Get solute concentration in molar.
     resolver = units.UnitResolver(
         unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
@@ -247,8 +248,8 @@ def find_submessages(message, submessage_type):
         elif field.label == field.LABEL_REPEATED:
             # Standard repeated field.
             for submessage in value:
-                submessages.extend(
-                    find_submessages(submessage, submessage_type))
+                submessages.extend(find_submessages(submessage,
+                                                    submessage_type))
         else:
             submessages.extend(find_submessages(value, submessage_type))
     return submessages
@@ -269,6 +270,21 @@ def smiles_from_compound(compound):
         if identifier.type == reaction_pb2.CompoundIdentifier.SMILES:
             return identifier.value
     return Chem.MolToSmiles(mol_from_compound(compound))
+
+
+def molblock_from_compound(compound):
+    """Fetches or generates a MolBlock identifier for a compound.
+
+    Args:
+        compound: reaction_pb2.Compound message.
+
+    Returns:
+        molblock: MolBlock identifier.
+    """
+    for identifier in compound.identifiers:
+        if identifier.type == reaction_pb2.CompoundIdentifier.MOLBLOCK:
+            return identifier.value
+    return Chem.MolToMolBlock(mol_from_compound(compound))
 
 
 # pylint: disable=inconsistent-return-statements
@@ -295,13 +311,11 @@ def mol_from_compound(compound, return_identifier=False):
                 identifier.value)
             if not mol:
                 raise ValueError(
-                    f'invalid structural identifier for Compound: {identifier}'
-                )
+                    f'invalid structural identifier for Compound: {identifier}')
             if return_identifier:
                 return mol, identifier
             return mol
-    raise ValueError(
-        f'no valid structural identifier for Compound: {compound}')
+    raise ValueError(f'no valid structural identifier for Compound: {compound}')
 
 
 # pylint: enable=inconsistent-return-statements
@@ -453,7 +467,7 @@ def load_message(filename, message_type):
                 return message_type.FromString(f.read())
         except (json_format.ParseError, protobuf.message.DecodeError,
                 text_format.ParseError) as error:
-            raise ValueError(f'error parsing {filename}: {error}')
+            raise ValueError(f'error parsing {filename}: {error}') from error
 
 
 # pylint: enable=inconsistent-return-statements
@@ -498,7 +512,7 @@ def id_filename(filename):
     if not prefix.startswith('ord'):
         raise ValueError(
             'basename does not have the required "ord" prefix: {basename}')
-    return os.path.join('data', suffix[:2], basename)
+    return flask.safe_join('data', suffix[:2], basename)
 
 
 def create_message(message_name):
@@ -520,5 +534,6 @@ def create_message(message_name):
         for name in message_name.split('.'):
             message_class = getattr(message_class, name)
         return message_class()
-    except (AttributeError, TypeError):
-        raise ValueError(f'Cannot resolve message name {message_name}')
+    except (AttributeError, TypeError) as error:
+        raise ValueError(
+            f'Cannot resolve message name {message_name}') from error

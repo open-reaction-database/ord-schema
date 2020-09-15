@@ -39,8 +39,7 @@ flags.DEFINE_string('input', None, 'Input pattern for Reaction protos.')
 flags.DEFINE_string('output', None, 'Output Dataset filename (*.pbtxt).')
 flags.DEFINE_string('name', None, 'Name for this dataset.')
 flags.DEFINE_string('description', None, 'Description for this dataset.')
-flags.DEFINE_boolean('validate', True,
-                     'If True, run validations on Reactions.')
+flags.DEFINE_boolean('validate', True, 'If True, run validations on Reactions.')
 
 
 def main(argv):

@@ -12,15 +12,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
-import os
+"""Installer script."""
 
 from distutils.command import build_py
 from distutils import spawn
 import glob
-import setuptools
 import subprocess
+
+import setuptools
 
 
 class BuildPyCommand(build_py.build_py):
@@ -51,7 +50,6 @@ if __name__ == '__main__':
         description='Schema for the Open Reaction Database',
         url='https://github.com/Open-Reaction-Database/ord-schema',
         license='Apache License, Version 2.0',
-        version="0.1",
         packages=setuptools.find_packages(),
         package_data={
             'ord_schema.visualization': ['template.html', 'template.txt'],

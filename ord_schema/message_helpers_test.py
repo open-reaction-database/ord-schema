@@ -59,6 +59,7 @@ M  END"""
 
 
 class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
+
     @parameterized.parameters(
         ('ord-1234567890', 'data/12/ord-1234567890'),
         ('test/ord-foo.pbtxt', 'data/fo/ord-foo.pbtxt'),
@@ -150,6 +151,7 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
 
 
 class FindSubmessagesTest(absltest.TestCase):
+
     def test_scalar(self):
         message = test_pb2.Scalar(int32_value=5, float_value=6.7)
         self.assertEmpty(
@@ -182,19 +184,19 @@ class FindSubmessagesTest(absltest.TestCase):
         message.children['one'].value = 1.2
         message.children['two'].value = 3.4
         self.assertLen(
-            message_helpers.find_submessages(message,
-                                             test_pb2.MapNested.Child), 2)
+            message_helpers.find_submessages(message, test_pb2.MapNested.Child),
+            2)
 
     def test_compounds(self):
         message = reaction_pb2.Reaction()
-        message.inputs['test'].components.add().identifiers.add(
-            type='NAME', value='aspirin')
+        message.inputs['test'].components.add().identifiers.add(type='NAME',
+                                                                value='aspirin')
         self.assertLen(
-            message_helpers.find_submessages(message, reaction_pb2.Compound),
-            1)
+            message_helpers.find_submessages(message, reaction_pb2.Compound), 1)
 
 
 class BuildDataTest(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
@@ -217,6 +219,7 @@ class BuildDataTest(absltest.TestCase):
 
 
 class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
+
     def test_smiles_and_name(self):
         compound = message_helpers.build_compound(smiles='c1ccccc1',
                                                   name='benzene')
@@ -229,8 +232,8 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
     @parameterized.named_parameters(
         ('mass', '1.2 g', reaction_pb2.Mass(value=1.2, units='GRAM')),
         ('moles', '3.4 mol', reaction_pb2.Moles(value=3.4, units='MOLE')),
-        ('volume', '5.6 mL', reaction_pb2.Volume(value=5.6,
-                                                 units='MILLILITER')))
+        ('volume', '5.6 mL', reaction_pb2.Volume(value=5.6, units='MILLILITER'))
+    )
     def test_amount(self, amount, expected):
         compound = message_helpers.build_compound(amount=amount)
         self.assertEqual(getattr(compound, compound.WhichOneof('amount')),
@@ -293,6 +296,7 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
 
 
 class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
+
     def test_set_solute_moles_should_fail(self):
         solute = message_helpers.build_compound(name='Solute')
         solvent = message_helpers.build_compound(name='Solvent')
@@ -335,6 +339,7 @@ class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
 
 
 class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         self.messages = [
@@ -389,6 +394,7 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
 
 
 class CreateMessageTest(parameterized.TestCase, absltest.TestCase):
+
     @parameterized.named_parameters(
         ('reaction', 'Reaction', reaction_pb2.Reaction),
         ('temperature', 'Temperature', reaction_pb2.Temperature),

@@ -22,73 +22,113 @@ import docker
 import numpy as np
 import psycopg2
 
+from ord_schema import interface
 from ord_schema.interface import query
-
-# Avoid conflicts with any running PostgreSQL server(s).
-_POSTGRES_PORT = 5430
 
 
 class QueryTest(parameterized.TestCase, absltest.TestCase):
+
     @classmethod
     def setUpClass(cls):
         client = docker.from_env()
-        # TODO(kearnes): Use a smaller test image if needed.
         client.images.pull('openreactiondatabase/ord-postgres')
         cls._container = client.containers.run(
             'openreactiondatabase/ord-postgres',
-            ports={'5432/tcp': _POSTGRES_PORT},
-            detach=True)
+            ports={'5432/tcp': interface.POSTGRES_PORT},
+            detach=True,
+            remove=True)
+        num_attempts = 0
+        while True:
+            num_attempts += 1
+            if num_attempts > 30:
+                raise RuntimeError('failed to connect to the database')
+            try:
+                cls.postgres = query.OrdPostgres(
+                    dbname=interface.POSTGRES_DB,
+                    user=interface.POSTGRES_USER,
+                    password=interface.POSTGRES_PASSWORD,
+                    host='localhost',
+                    port=interface.POSTGRES_PORT)
+                break
+            except psycopg2.OperationalError as error:
+                logging.info('waiting for database to be ready: %s', error)
+                time.sleep(1)
+                continue
 
     @classmethod
     def tearDownClass(cls):
         cls._container.stop()
 
-    def setUp(self):
-        super().setUp()
-        while True:
-            try:
-                self.postgres = query.OrdPostgres(host='localhost',
-                                                  port=_POSTGRES_PORT)
-                break
-            except psycopg2.OperationalError:
-                logging.info('waiting for database to be ready')
-                time.sleep(1)
-                continue
+    def test_reaction_id_query(self):
+        reaction_ids = [
+            'ord-00386496302144278c262d284c3bc9f0',
+            'ord-003de5cd29a541bdb3279081ebdefd06',
+            'ord-00469722514e4e148db9fae89586f4a6'
+        ]
+        command = query.ReactionIdQuery(reaction_ids)
+        results = self.postgres.run_query(command, limit=10, return_ids=True)
+        self.assertCountEqual(results.reaction_ids, reaction_ids)
 
-    @parameterized.named_parameters(('smiles', 'C', False),
-                                    ('smarts', '[#6]', True))
-    def test_substructure_search(self, pattern, use_smarts):
-        results = self.postgres.substructure_search(pattern=pattern,
-                                                    table='rdk.inputs',
-                                                    limit=100,
-                                                    use_smarts=use_smarts)
-        self.assertLen(results.reactions, 100)
-        reaction_ids = [reaction.reaction_id for reaction in results.reactions]
-        # Check that we remove redundant reaction IDs.
-        self.assertCountEqual(reaction_ids, np.unique(reaction_ids))
+    def test_reaction_smarts_query(self):
+        pattern = '[#6]>>[#7]'
+        command = query.ReactionSmartsQuery(pattern)
+        results = self.postgres.run_query(command, limit=10, return_ids=True)
+        self.assertLen(results.reaction_ids, 10)
 
-    def test_similarity_search(self):
-        results = self.postgres.similarity_search(smiles='CC=O',
-                                                  table='rdk.inputs',
-                                                  limit=100,
-                                                  threshold=0.5)
-        self.assertEmpty(results.reactions)
-        results = self.postgres.similarity_search(smiles='CC=O',
-                                                  table='rdk.inputs',
-                                                  limit=100,
-                                                  threshold=0.05)
-        self.assertLen(results.reactions, 100)
-        reaction_ids = [reaction.reaction_id for reaction in results.reactions]
+    def test_substructure_query(self):
+        pattern = 'C'
+        mode = query.ReactionComponentPredicate.MatchMode.SUBSTRUCTURE
+        predicates = [
+            query.ReactionComponentPredicate(pattern, table='inputs', mode=mode)
+        ]
+        command = query.ReactionComponentQuery(predicates)
+        results = self.postgres.run_query(command, limit=10, return_ids=True)
+        self.assertLen(results.reaction_ids, 10)
         # Check that we remove redundant reaction IDs.
-        self.assertCountEqual(reaction_ids, np.unique(reaction_ids))
+        self.assertCountEqual(results.reaction_ids,
+                              np.unique(results.reaction_ids))
+
+    def test_smarts_query(self):
+        pattern = '[#6]'
+        mode = query.ReactionComponentPredicate.MatchMode.SMARTS
+        predicates = [
+            query.ReactionComponentPredicate(pattern, table='inputs', mode=mode)
+        ]
+        command = query.ReactionComponentQuery(predicates)
+        results = self.postgres.run_query(command, limit=10, return_ids=True)
+        self.assertLen(results.reaction_ids, 10)
+        # Check that we remove redundant reaction IDs.
+        self.assertCountEqual(results.reaction_ids,
+                              np.unique(results.reaction_ids))
+
+    def test_similarity_query(self):
+        pattern = 'CC=O'
+        mode = query.ReactionComponentPredicate.MatchMode.SIMILAR
+        predicates = [
+            query.ReactionComponentPredicate(pattern, table='inputs', mode=mode)
+        ]
+        command = query.ReactionComponentQuery(predicates,
+                                               tanimoto_threshold=0.5)
+        results = self.postgres.run_query(command, limit=10, return_ids=True)
+        self.assertEmpty(results.reaction_ids)
+        command = query.ReactionComponentQuery(predicates,
+                                               tanimoto_threshold=0.05)
+        results = self.postgres.run_query(command, limit=10, return_ids=True)
+        self.assertLen(results.reaction_ids, 10)
+        # Check that we remove redundant reaction IDs.
+        self.assertCountEqual(results.reaction_ids,
+                              np.unique(results.reaction_ids))
 
     def test_bad_smiles(self):
+        pattern = 'invalid_smiles'
+        mode = query.ReactionComponentPredicate.MatchMode.SUBSTRUCTURE
+        predicates = [
+            query.ReactionComponentPredicate(pattern, table='inputs', mode=mode)
+        ]
+        command = query.ReactionComponentQuery(predicates)
         with self.assertRaisesRegex(psycopg2.errors.DataException,
                                     'could not create molecule'):
-            self.postgres.substructure_search('invalid', 'rdk.inputs')
-        with self.assertRaisesRegex(psycopg2.errors.DataException,
-                                    'could not create molecule'):
-            self.postgres.similarity_search('invalid', 'rdk.inputs')
+            self.postgres.run_query(command)
 
 
 if __name__ == '__main__':

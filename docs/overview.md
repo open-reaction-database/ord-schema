@@ -138,7 +138,7 @@ database repository:
 
 ```shell
 $ cd "${REPOSITORY}"
-$ git remote add upstream https://github.com/Open-Reaction-Database/ord-submissions-test.git
+$ git remote add upstream https://github.com/Open-Reaction-Database/ord-data.git
 ```
 
 ## Submitting to the database
@@ -151,7 +151,10 @@ repository (under the
 [Open-Reaction-Database](https://github.com/Open-Reaction-Database) GitHub
 organization) will then be hosted on GitHub under this license.
 
-The submission workflow is described in detail [here](submissions.md).
+```eval_rst
+.. NOTE::
+   The submission workflow is described in detail `here <submissions.html>`_.
+```
 
 ## Development roadmap
 

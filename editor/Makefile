@@ -1,7 +1,14 @@
 # https://github.com/google/closure-library/releases/
 closure = closure-library-20200517
 
-all : dirs py js
+# Check that the present ketcher code is compatible.
+ketcher-req = v0.1.0+ord
+ketcher-cur = $(shell cd ketcher && git describe --tags)
+ifneq ($(ketcher-req), $(ketcher-cur))
+  $(error ketcher needs update, see editor readme)
+endif
+
+all : prep py js
 
 dirs :
 	# Ensure output directories exist.
@@ -59,7 +66,11 @@ package : all
 	  serve.sh \
 	  package/ord
 
+	cp ../requirements.txt package/ord
 	cp -r ../build/lib/ord_schema package/ord/py
+
+	mkdir package/ord/ketcher
+	cp -r ketcher/dist package/ord/ketcher
 
 	mkdir package/ord/db
 

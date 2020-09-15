@@ -22,6 +22,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: s-weigand/setup-conda@v1
+      with:
+        python-version: 3.7
     - name: Install ord_schema
       run: |
         cd "${GITHUB_WORKSPACE}"
@@ -29,7 +31,9 @@ jobs:
         pip install -r requirements.txt
         pip install -r test_requirements.txt
         conda install -c rdkit rdkit
-        python setup.py install
+        # NOTE(kearnes): `develop` is required for coverage to work properly.
+        python setup.py build develop
+        coverage erase
     - name: Run tests
       run: |
         cd "${GITHUB_WORKSPACE}"
@@ -38,31 +42,21 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         ./run_long_tests.sh
-
-  test_pylint:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: s-weigand/setup-conda@v1
-    - name: Install ord_schema
+    - name: Coverage
       run: |
         cd "${GITHUB_WORKSPACE}"
-        pip install -r requirements.txt
-        # Test deps are required to check imports with pylint.
-        pip install -r test_requirements.txt
-        conda install -c rdkit rdkit
-        python setup.py install
-    - name: Run pylint
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        pip install pylint
-        pylint ord_schema
+        coverage combine
+        coverage report
+        coverage xml
+    - uses: codecov/codecov-action@v1
 
   test_notebooks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: s-weigand/setup-conda@v1
+        with:
+          python-version: 3.7
       - name: Install ord_schema
         run: |
           cd "${GITHUB_WORKSPACE}"
@@ -74,30 +68,23 @@ jobs:
           cd "${GITHUB_WORKSPACE}"
           pip install treon
           treon
-        
+
   test_editor:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: s-weigand/setup-conda@v1
     - uses: actions/setup-node@v1.4.2
-    - name: Install dependencies
+    - name: Build and launch editor
       run: |
         cd "${GITHUB_WORKSPACE}"
-        pip install -r requirements.txt
-        conda install -c rdkit rdkit
-        python setup.py install
-        pip install flask
-        cd "${GITHUB_WORKSPACE}/editor"
-        npm install google-protobuf puppeteer
-        wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
-        tar -xzf editor_test_protobuf_1dae8fdd.tar
-        wget https://github.com/google/closure-library/archive/v20200517.tar.gz
-        tar -xzf v20200517.tar.gz
-    - name: Build editor and run tests
+        docker build --file=editor/Dockerfile -t ord-editor .
+        docker run --rm -d -p 5000:5000 --name editor ord-editor
+        # NOTE(kearnes): This also leaves time for the server to get ready.
+        npm install puppeteer
+    - name: Run editor tests
+      timeout-minutes: 5
       run: |
-        cd "${GITHUB_WORKSPACE}/editor"
-        make
-        ./serve.sh &
-        sleep 5  # Time for the server to get ready.
-        make test
+        cd "${GITHUB_WORKSPACE}"
+        node editor/js/test.js
+    - name: Cleanup
+      run: docker stop editor

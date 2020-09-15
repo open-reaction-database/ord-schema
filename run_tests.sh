@@ -16,5 +16,5 @@
 # Runs ord-schema tests.
 set -ex
 # Python tests.
-find ./ord_schema -name '*_test.py' -print0 \
-  | xargs -t -0 -I '{}' python '{}' --verbosity=-2 > /dev/null
+find ./editor ./ord_schema -name '*_test.py' -print0 \
+  | xargs -t -0 -I '{}' coverage run '{}' > /dev/null

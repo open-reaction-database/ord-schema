@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,7 +14,17 @@
  * limitations under the License.
  */
 
-goog.provide('ord.dataset');
+goog.module('ord.dataset');
+goog.module.declareLegacyNamespace();
+exports = {
+  init,
+  download,
+  commit,
+  deleteReaction,
+  newReaction,
+  removeReactionId,
+  addReactionId
+};
 
 goog.require('proto.ord.Dataset');
 
@@ -23,6 +33,10 @@ const session = {
   dataset: null
 };
 
+/**
+ * Initializes the dataset landing page.
+ * @param {string} fileName The filename of the dataset to load.
+ */
 function init(fileName) {
   session.fileName = fileName;
   $('.edittext').attr('contentEditable', 'true');
@@ -30,20 +44,33 @@ function init(fileName) {
   listenDirty($('#text_fields'));
 }
 
+/**
+ * Adds change handlers to a newly added reaction or reaction ID node.
+ * @param {!Node} node Root node for the reaction or reaction ID.
+ */
 function listenDirty(node) {
   $('.edittext', node).on('input', dirty);
   $('.selector', node).on('input', dirty);
 }
 
+/**
+ * Shows the 'save' button.
+ */
 function dirty() {
   $('#save').css('visibility', 'visible');
 }
 
+/**
+ * Hides the 'save' button.
+ */
 function clean() {
   $('#save').css('visibility', 'hidden');
   $('#save').text('save');
 }
 
+/**
+ * Writes the current dataset to disk.
+ */
 function commit() {
   const dataset = unloadDataset();
   $('#save').text('saving');
@@ -55,6 +82,9 @@ function commit() {
   xhr.send(binary);
 }
 
+/**
+ * Downloads the current dataset.
+ */
 function download() {
   const xhr = new XMLHttpRequest();
   xhr.open('GET', '/dataset/' + session.fileName + '/download');
@@ -70,6 +100,12 @@ function download() {
   xhr.send();
 }
 
+/**
+ * Fetches a dataset from the server.
+ * @param {string} fileName The filename of the dataset to fetch.
+ * @param {?Function} listener Function used to load the dataset into the
+ *     editor.
+ */
 function getDataset(fileName, listener) {
   if (!listener) {
     return;
@@ -86,6 +122,10 @@ function getDataset(fileName, listener) {
   xhr.send();
 }
 
+/**
+ * Loads a dataset into the editor.
+ * @param {!proto.ord.Dataset} dataset
+ */
 function loadDataset(dataset) {
   $('#name').text(dataset.getName());
   $('#description').text(dataset.getDescription());
@@ -97,12 +137,13 @@ function loadDataset(dataset) {
   const reactionIds = dataset.getReactionIdsList();
   loadReactionIds(reactionIds);
 
-  const examples = dataset.getExamplesList();
-  loadExamples(examples);
-
   clean();
 }
 
+/**
+ * Loads a list of reactions into the editor.
+ * @param {!Array<!proto.ord.Reaction>} reactions
+ */
 function loadReactions(reactions) {
   for (var i = 0; i < reactions.length; i++) {
     const reaction = reactions[i];
@@ -110,100 +151,60 @@ function loadReactions(reactions) {
   }
 }
 
+/**
+ * Loads a single reaction into the editor.
+ * @param {number} index The index of the new reaction.
+ * @param {!proto.ord.Reaction} reaction
+ */
 function loadReaction(index, reaction) {
   const node = addReaction(index);
   const id = reaction.getReactionId();
   $('.reaction_id', node).text(id);
 }
 
+/**
+ * Loads a list of reaction IDs into the editor.
+ * @param {!Array<string>} reactionIds
+ */
 function loadReactionIds(reactionIds) {
   reactionIds.forEach(reactionId => loadReactionId(reactionId));
 }
 
+/**
+ * Loads a single reaction ID into the editor.
+ * @param {string} reactionId
+ */
 function loadReactionId(reactionId) {
   const node = addReactionId();
   $('.other_reaction_id_text', node).text(reactionId);
 }
 
-function loadExamples(examples) {
-  examples.forEach(example => loadExample(example));
-}
-
-function loadExample(example) {
-  const node = addExample();
-  $('.example_url', node).text(example.getUrl());
-  $('.example_description', node).text(example.getDescription());
-  const created = example.getCreated();
-  if (created) {
-    $('.example_created_time', node).text(created.getTime().getValue());
-    $('.example_created_details', node).text(created.getDetails());
-    const person = created.getPerson();
-    if (person) {
-      $('.example_created_person_username', node).text(person.getUsername());
-      $('.example_created_person_name', node).text(person.getName());
-      $('.example_created_person_orcid', node).text(person.getOrcid());
-      $('.example_created_person_org', node).text(person.getOrganization());
-    }
-  }
-}
-
+/**
+ * Fetches the current dataset.
+ * @return {!proto.ord.Dataset}
+ */
 function unloadDataset() {
   const dataset = session.dataset;
   dataset.setName($('#name').text());
   dataset.setDescription($('#description').text());
   dataset.setDatasetId($('#dataset_id').text());
   const reactionIds = [];
-  $('.other_reaction_id').each(function (index, node) {
+  $('.other_reaction_id').each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       reactionIds.push($('.other_reaction_id_text', node).text());
     }
   });
   dataset.setReactionIdsList(reactionIds);
-  const examples = [];
-  $('.example').each(function (index, node) {
-    node = $(node);
-    if (!node.attr('id')) {
-      const example = unloadExample(node);
-      examples.push(example);
-    }
-  });
-  dataset.setExamplesList(examples);
   // Do not mutate Reactions. They are edited separately.
   return dataset;
 }
 
-function unloadExample(node) {
-  const example = new proto.ord.DatasetExample();
-  const url = $('.example_url', node).text();
-  example.setUrl(url);
-  const description = $('.example_description', node).text();
-  example.setDescription(description);
-
-  const created = new proto.ord.RecordEvent();
-  const timeValue = $('.example_created_time', node).text();
-  time = new proto.ord.DateTime();
-  time.setValue(timeValue);
-  created.setTime(time);
-  const details = $('.example_created_details', node).text();
-  created.setDetails(details);
-
-  const person = new proto.ord.Person();
-  const username = $('.example_created_person_username', node).text();
-  person.setUsername(username);
-  const name = $('.example_created_person_name', node).text();
-  person.setName(name);
-  const orcid = $('.example_created_person_orcid', node).text();
-  person.setOrcid(orcid);
-  const org = $('.example_created_person_org', node).text();
-  person.setOrganization(org);
-
-  created.setPerson(person);
-  example.setCreated(created);
-
-  return example;
-}
-
+/**
+ * Adds a new reaction to the current dataset.
+ * @param {number} index The index of the new reaction.
+ * @return {!Node} The newly added root node for the reaction.
+ */
 function addReaction(index) {
   const node = $('#reaction_template').clone();
   node.removeAttr('id');
@@ -218,6 +219,10 @@ function addReaction(index) {
   return node;
 }
 
+/**
+ * Adds a new reaction ID to the current dataset.
+ * @return {!Node} The newly added root node for the reaction ID.
+ */
 function addReactionId() {
   const node = $('#other_reaction_id_template').clone();
   node.removeAttr('id');
@@ -229,38 +234,37 @@ function addReactionId() {
   return node;
 }
 
-function addExample() {
-  const node = $('#example_template').clone();
-  node.removeAttr('id');
-  const root = $('#examples');
-  root.append(node);
-  node.show('slow');
-  listenDirty(node);
-  dirty();
-  return node;
-}
-
+/**
+ * Loads the Reaction editor immediately without waiting for 'save'.
+ */
 function newReaction() {
-  // Load the Reaction editor immediately without waiting for "save".
   window.location.href = '/dataset/' + session.fileName + '/new/reaction';
 }
 
+/**
+ * Deletes a Reaction immediately without waiting for 'save'.
+ * @param {!Node} button The node of the 'remove' button.
+ */
 function deleteReaction(button) {
-  // Delete the Reaction immediately without waiting for "save".
   const node = $(button).closest('.reaction');
   const index = parseInt($('a', node).text());
   window.location.href =
       '/dataset/' + session.fileName + '/delete/reaction/' + index;
 }
 
+/**
+ * Deletes a Reaction ID.
+ * @param {!Node} button The node of the 'remove' button.
+ */
 function removeReactionId(button) {
   removeSlowly(button, '.other_reaction_id');
 }
 
-function removeExample(button) {
-  removeSlowly(button, '.example');
-}
-
+/**
+ * Deletes an element matching `pattern`.
+ * @param {!Node} button The node of the 'remove' button.
+ * @param {string} pattern The element pattern to match.
+ */
 function removeSlowly(button, pattern) {
   const node = $(button).closest(pattern);
   node.hide('slow', () => node.remove());

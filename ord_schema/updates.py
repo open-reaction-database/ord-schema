@@ -32,6 +32,9 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.XYZ,
 ]
 
+_USERNAME = 'github-actions'
+_EMAIL = 'github-actions@github.com'
+
 
 def name_resolve(value_type, value):
     """Resolves compound identifiers to SMILES via multiple APIs."""
@@ -42,8 +45,8 @@ def name_resolve(value_type, value):
             if smiles is not None:
                 return smiles, resolver
         except urllib.error.HTTPError as error:
-            logging.info('%s could not resolve %s %s: %s', resolver,
-                         value_type, value, error)
+            logging.info('%s could not resolve %s %s: %s', resolver, value_type,
+                         value, error)
     raise ValueError(f'Could not resolve {value_type} {value} to SMILES')
 
 
@@ -78,8 +81,7 @@ def resolve_names(message):
         Boolean whether `message` was modified.
     """
     modified = False
-    compounds = message_helpers.find_submessages(message,
-                                                 reaction_pb2.Compound)
+    compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
     for compound in compounds:
         if any(identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS
                for identifier in compound.identifiers):
@@ -117,10 +119,6 @@ def update_reaction(reaction):
     """
     modified = False
     id_substitutions = {}
-    if not reaction.provenance.HasField('record_created'):
-        reaction.provenance.record_created.time.value = (
-            datetime.datetime.utcnow().ctime())
-        modified = True
     if not re.fullmatch('^ord-[0-9a-f]{32}$', reaction.reaction_id):
         # NOTE(kearnes): This does not check for the case where a Dataset is
         # edited and reaction_id values are changed inappropriately. This will
@@ -139,6 +137,8 @@ def update_reaction(reaction):
     if modified:
         event = reaction.provenance.record_modified.add()
         event.time.value = datetime.datetime.utcnow().ctime()
+        event.person.username = _USERNAME
+        event.person.email = _EMAIL
         event.details = 'Automatic updates from the submission pipeline.'
     return id_substitutions
 

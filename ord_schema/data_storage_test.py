@@ -25,6 +25,7 @@ from ord_schema.proto import reaction_pb2
 
 
 class WriteDataTest(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
@@ -88,6 +89,7 @@ class WriteDataTest(absltest.TestCase):
 
 
 class ExtractDataTest(absltest.TestCase):
+
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
@@ -121,7 +123,7 @@ class ExtractDataTest(absltest.TestCase):
             '5464533c9647b67eb320c40ccc5959537c09102ae75388f6a7675b433e745c9d'
             '.txt')
         expected = ('https://github.com/Open-Reaction-Database/'
-                    'ord-submissions-test/tree/' + relative_path)
+                    'ord-data/tree/' + relative_path)
         self.assertEqual(message.image.url, expected)
         with open(os.path.join(self.test_subdirectory, relative_path)) as f:
             self.assertEqual(f.read(), 'not an image')

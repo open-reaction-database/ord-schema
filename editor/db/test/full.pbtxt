@@ -135,7 +135,7 @@ reactions {
     automation_code {
       key: "33"
       value {
-        float_value: 34.0
+        integer_value: 34
         description: "35"
         format: "36"
       }

@@ -1,12 +1,12 @@
 /**
  * Copyright 2020 Open Reaction Database Project Authors
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,26 +14,37 @@
  * limitations under the License.
  */
 
-goog.provide('ord.setups');
+goog.module('ord.setups');
+goog.module.declareLegacyNamespace();
+exports = {
+  load,
+  unload,
+  addVesselPreparation,
+  validateSetup
+};
 
 goog.require('ord.codes');
 goog.require('proto.ord.ReactionSetup');
 goog.require('proto.ord.Vessel');
 goog.require('proto.ord.Volume');
 
-ord.setups.load = function (setup) {
+/**
+ * Adds and populates the reaction setup section in the form.
+ * @param {!proto.ord.ReactionSetup} setup
+ */
+function load(setup) {
   const vessel = setup.getVessel();
   if (vessel) {
-    ord.setups.loadVessel(vessel);
+    loadVessel(vessel);
   }
   const isAutomated = setup.hasIsAutomated() ? setup.getIsAutomated() : null;
-  setOptionalBool($('#setup_automated'), isAutomated);
+  ord.reaction.setOptionalBool($('#setup_automated'), isAutomated);
   if (isAutomated) {
     $('#automation_platform').show();
   }
 
   $('#setup_automated').change(function() {
-    if (getSelectorText(this) == 'TRUE') {
+    if (ord.reaction.getSelectorText(this) == 'TRUE') {
       $('#automation_platform').show();
     } else {
       $('#automation_platform').hide();
@@ -48,51 +59,60 @@ ord.setups.load = function (setup) {
 
   const environment = setup.getEnvironment();
   if (environment != null) {
-    setSelector($('#setup_environment_type'), environment.getType());
+    ord.reaction.setSelector(
+        $('#setup_environment_type'), environment.getType());
     $('#setup_environment_details').text(environment.getDetails());
   }
-};
+}
 
-ord.setups.loadVessel = function (vessel) {
+/**
+ * Adds and populates the reaction vessel section of the form.
+ * @param {!proto.ord.Vessel} vessel
+ */
+function loadVessel(vessel) {
   const type = vessel.getType();
   if (type) {
-    setSelector($('#setup_vessel_type'), type.getType());
+    ord.reaction.setSelector($('#setup_vessel_type'), type.getType());
     $('#setup_vessel_details').text(type.getDetails());
   }
   const material = vessel.getMaterial();
   if (material) {
-    setSelector($('#setup_vessel_material'), material.getType());
+    ord.reaction.setSelector($('#setup_vessel_material'), material.getType());
     $('#setup_vessel_material_details').text(material.getDetails());
   }
   const preparations = vessel.getPreparationsList();
   preparations.forEach(preparation => {
-    const node = ord.setups.addVesselPreparation();
-    setSelector(
+    const node = addVesselPreparation();
+    ord.reaction.setSelector(
         $('.setup_vessel_preparation_type', node), preparation.getType());
     $('.setup_vessel_preparation_details', node).text(preparation.getDetails());
   });
   const attachments = vessel.getAttachmentsList();
   attachments.forEach(attachment => {
-    const node = ord.setups.addVesselAttachment();
-    setSelector(
+    const node = addVesselAttachment();
+    ord.reaction.setSelector(
         $('.setup_vessel_attachment_type', node), attachment.getType());
     $('.setup_vessel_attachment_details', node).text(attachment.getDetails());
   });
   if (vessel.hasVolume()) {
     const volume = vessel.getVolume();
-    writeMetric('#setup_vessel_volume', volume);
+    ord.reaction.writeMetric('#setup_vessel_volume', volume);
   }
-};
+}
 
-ord.setups.unload = function () {
+/**
+ * Fetches the reaction setup from the form.
+ * @return {!proto.ord.ReactionSetup}
+ */
+function unload() {
   const setup = new proto.ord.ReactionSetup();
 
-  const vessel = ord.setups.unloadVessel();
-  if (!isEmptyMessage(vessel)) {
+  const vessel = unloadVessel();
+  if (!ord.reaction.isEmptyMessage(vessel)) {
     setup.setVessel(vessel);
   }
 
-  const isAutomated = getOptionalBool($('#setup_automated'));
+  const isAutomated = ord.reaction.getOptionalBool($('#setup_automated'));
   setup.setIsAutomated(isAutomated);
 
   const platform = $('#setup_platform').text();
@@ -102,86 +122,106 @@ ord.setups.unload = function () {
   ord.codes.unload(codes);
 
   const environment = new proto.ord.ReactionSetup.ReactionEnvironment();
-  environment.setType(getSelector($('#setup_environment_type')));
+  environment.setType(ord.reaction.getSelector($('#setup_environment_type')));
   environment.setDetails($('#setup_environment_details').text());
-  if (!isEmptyMessage(environment)) {
-    setup.setEnvironment(environment);  
+  if (!ord.reaction.isEmptyMessage(environment)) {
+    setup.setEnvironment(environment);
   }
 
   return setup;
-};
+}
 
-ord.setups.unloadVessel = function () {
+/**
+ * Fetches the reaction vessel information from the form.
+ * @return {!proto.ord.Vessel}
+ */
+function unloadVessel() {
   const vessel = new proto.ord.Vessel();
 
-  type = new proto.ord.VesselType();
-  type.setType(getSelector($('#setup_vessel_type')));
+  const type = new proto.ord.VesselType();
+  type.setType(ord.reaction.getSelector($('#setup_vessel_type')));
   type.setDetails($('#setup_vessel_details').text());
-  if (!isEmptyMessage(type)) {
+  if (!ord.reaction.isEmptyMessage(type)) {
     vessel.setType(type);
   }
 
   const material = new proto.ord.VesselMaterial();
-  material.setType(getSelector('#setup_vessel_material'));
+  material.setType(ord.reaction.getSelector('#setup_vessel_material'));
   material.setDetails($('#setup_vessel_material_details').text());
-  if (!isEmptyMessage(material)) {
+  if (!ord.reaction.isEmptyMessage(material)) {
     vessel.setMaterial(material);
   }
 
   const preparations = [];
-  $('.setup_vessel_preparation').each(function (index, node) {
+  $('.setup_vessel_preparation').each(function(index, node) {
     node = $(node);
     if (node.attr('id')) {
       // The template.
       return;
     }
     const preparation = new proto.ord.VesselPreparation();
-    preparation.setType(getSelector($('.setup_vessel_preparation_type', node)));
+    preparation.setType(
+        ord.reaction.getSelector($('.setup_vessel_preparation_type', node)));
     preparation.setDetails($('.setup_vessel_preparation_details', node).text());
-    if (!isEmptyMessage(preparation)) {
+    if (!ord.reaction.isEmptyMessage(preparation)) {
       preparations.push(preparation);
     }
   });
   vessel.setPreparationsList(preparations);
 
   const attachments = [];
-  $('.setup_vessel_attachment').each(function (index, node) {
+  $('.setup_vessel_attachment').each(function(index, node) {
     node = $(node);
     if (node.attr('id')) {
       // The template.
       return;
     }
     const attachment = new proto.ord.VesselAttachment();
-    attachment.setType(getSelector($('.setup_vessel_attachment_type', node)));
+    attachment.setType(
+        ord.reaction.getSelector($('.setup_vessel_attachment_type', node)));
     attachment.setDetails($('.setup_vessel_attachment_details', node).text());
-    if (!isEmptyMessage(attachment)) {
+    if (!ord.reaction.isEmptyMessage(attachment)) {
       attachments.push(attachment);
     }
   });
   vessel.setAttachmentsList(attachments);
 
-  const volume = readMetric('#setup_vessel_volume', new proto.ord.Volume());
-  if (!isEmptyMessage(volume)) {
+  const volume =
+      ord.reaction.readMetric('#setup_vessel_volume', new proto.ord.Volume());
+  if (!ord.reaction.isEmptyMessage(volume)) {
     vessel.setVolume(volume);
   }
 
   return vessel;
-};
+}
 
-ord.setups.addVesselPreparation = function () {
-  return addSlowly(
+/**
+ * Adds a new vessel preparation section to the form.
+ * @return {!Node} The node of the newly added div.
+ */
+function addVesselPreparation() {
+  return ord.reaction.addSlowly(
       '#setup_vessel_preparation_template', '#setup_vessel_preparations');
-};
+}
 
-ord.setups.addVesselAttachment = function () {
-  return addSlowly(
+/**
+ * Adds a new vessel attachment section to the form.
+ * @return {!Node} The node of the newly added div.
+ */
+function addVesselAttachment() {
+  return ord.reaction.addSlowly(
       '#setup_vessel_attachment_template', '#setup_vessel_attachments');
-};
+}
 
-ord.setups.validateSetup = function(node, validateNode) {
-  const setup = ord.setups.unload();
+/**
+ * Validates the reaction setup defined in the form.
+ * @param {!Node} node The node containing the reaction setup div.
+ * @param {?Node} validateNode The target div for validation results.
+ */
+function validateSetup(node, validateNode) {
+  const setup = unload();
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-  validate(setup, 'ReactionSetup', validateNode);
-};
+  ord.reaction.validate(setup, 'ReactionSetup', validateNode);
+}
