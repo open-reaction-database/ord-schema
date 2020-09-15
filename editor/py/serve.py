@@ -343,14 +343,12 @@ def render_reaction():
 
 @app.route('/render/compound', methods=['POST'])
 def render_compound():
-    """Receives a serialized Compound message and returns base64-encoded png
-    data corresponding to a line drawing of the molecule."""
+    """Returns an HTML-tagged SVG for the given Compound."""
     compound = reaction_pb2.Compound()
     compound.ParseFromString(flask.request.get_data())
     try:
         mol = message_helpers.mol_from_compound(compound)
-        png_data = drawing.mol_to_png(mol)
-        return flask.jsonify(png_data)
+        return drawing.mol_to_svg(mol)
     except ValueError:
         return ''
 
