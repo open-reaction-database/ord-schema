@@ -921,7 +921,7 @@ function freeze() {
   $('.edittext').each((i, x) => {
     // Ensure non-editable divs have a text node to preserve vertical alignment.
     if (!$(x).text()) {
-      $(x).text(" ");
+      $(x).text(' ');
     }
   });
 }
