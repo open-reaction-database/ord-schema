@@ -1,6 +1,9 @@
 # https://github.com/google/closure-library/releases/
 closure = closure-library-20200517
 
+# https://github.com/protocolbuffers/protobuf/releases
+protobuf = protobuf-3.13.0
+
 # Check that the present ketcher code is compatible.
 ketcher-req = v0.1.0+ord
 ketcher-cur = $(shell cd ketcher && git describe --tags)
@@ -10,9 +13,11 @@ endif
 
 all : prep py js
 
-dirs :
+prep :
 	# Ensure output directories exist.
 	mkdir -p gen/js/ord gen/js/proto/ord
+	# Prevent Closure from compiling test code.
+	rm -rf $(protobuf)/js/binary/*test* $(protobuf)/js/*test* $(protobuf)/js/experimental
 
 js : gen/js/proto/ord/dataset.js \
 	   gen/js/proto/ord/reaction.js \
@@ -25,7 +30,7 @@ py : ../build/lib/ord_schema/proto/dataset_pb2.py \
 gen/js/ord/dataset.js : js/dataset.js gen/js/proto/ord/dataset.js
 	$(closure)/closure/bin/build/closurebuilder.py \
 	  --root=$(closure) \
-	  --root=protobuf/js \
+	  --root=$(protobuf)/js \
 	  --root=gen/js/proto/ord \
 	  --root=js \
 	  --namespace=ord.dataset \
@@ -36,7 +41,7 @@ gen/js/ord/dataset.js : js/dataset.js gen/js/proto/ord/dataset.js
 gen/js/ord/reaction.js : js/*.js gen/js/proto/ord/reaction.js
 	$(closure)/closure/bin/build/closurebuilder.py \
 	  --root=$(closure) \
-	  --root=protobuf/js \
+	  --root=$(protobuf)/js \
 	  --root=gen/js/proto/ord \
 	  --root=js \
 	  --namespace=ord.reaction \

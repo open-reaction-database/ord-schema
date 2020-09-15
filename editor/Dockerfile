@@ -39,8 +39,8 @@ RUN npm install && npm run build
 WORKDIR ..
 RUN wget https://github.com/google/closure-library/archive/v20200517.tar.gz
 RUN tar -xzf v20200517.tar.gz
-RUN wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
-RUN tar -xzf editor_test_protobuf_1dae8fdd.tar
+RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v3.13.0/protobuf-js-3.13.0.tar.gz
+RUN tar -xzf protobuf-js-3.13.0.tar.gz
 
 # COPY and install the local state of ord-schema.
 WORKDIR /usr/src/app/ord-schema
