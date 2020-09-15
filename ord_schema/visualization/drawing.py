@@ -19,7 +19,6 @@ given an RDKit molecule object: mol_to_svg and mol_to_png.
 
 import io
 import base64
-import json
 import re
 
 import numpy as np
@@ -29,6 +28,7 @@ from rdkit.Chem import Draw
 from rdkit.Chem import rdDepictor
 
 rdDepictor.SetPreferCoordGen(True)
+
 
 # pylint: disable=unsubscriptable-object
 
@@ -66,26 +66,38 @@ def trim_image_whitespace(image, padding=0):
     y_range = (max([min(ys_nonzero) - margin,
                     0]), min([max(ys_nonzero) + margin, as_array.shape[1]]))
     as_array_cropped = as_array[x_range[0]:x_range[1], y_range[0]:y_range[1],
-                                0:3]
+                       0:3]
 
     image = Image.fromarray(as_array_cropped, mode='RGB')
     return ImageOps.expand(image, border=padding, fill=(255, 255, 255))
 
 
-def mol_to_svg(mol, max_size=300, bond_length=25):
-    """Creates an (uncropped) SVG molecule drawing as a string.
+def mol_to_svg(mol, max_size=300, bond_length=25, padding=10):
+    """Creates a (cropped) SVG molecule drawing as a string.
 
     Args:
         mol: RDKit Mol.
         max_size: Integer maximum image size (in pixels).
         bond_length: Integer bond length (in pixels).
+        padding: Integer number of padding pixels in each dimension.
 
     Returns:
         String SVG image.
     """
-    rdDepictor.Compute2DCoords(mol)
     Chem.Kekulize(mol)
+    rdDepictor.Compute2DCoords(mol)
     drawer = Draw.MolDraw2DSVG(max_size, max_size)
+    drawer.drawOptions().fixedBondLength = bond_length
+    drawer.DrawMolecule(mol)
+    min_x, max_x, min_y, max_y = np.inf, -np.inf, np.inf, -np.inf
+    for atom in mol.GetAtoms():
+        canvas_x, canvas_y = drawer.GetDrawCoords(atom.GetIdx())
+        min_x = min(canvas_x, min_x)
+        max_x = max(canvas_x, max_x)
+        min_y = min(canvas_y, min_y)
+        max_y = max(canvas_y, max_y)
+    drawer = Draw.MolDraw2DSVG(int(max_x - min_x + 2 * padding),
+                               int(max_y - min_y + 2 * padding))
     drawer.drawOptions().fixedBondLength = bond_length
     drawer.DrawMolecule(mol)
     drawer.FinishDrawing()

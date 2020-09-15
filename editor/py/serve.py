@@ -348,7 +348,7 @@ def render_compound():
     compound.ParseFromString(flask.request.get_data())
     try:
         mol = message_helpers.mol_from_compound(compound)
-        return drawing.mol_to_svg(mol)
+        return flask.jsonify(drawing.mol_to_svg(mol))
     except ValueError:
         return ''
 
