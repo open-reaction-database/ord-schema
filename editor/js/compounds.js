@@ -533,7 +533,6 @@ function renderCompound(node, compound) {
   xhr.responseType = 'json';
   xhr.onload = function() {
     const svg_data = xhr.response;
-    console.log(svg_data);
     if (svg_data) {
       $('.component_rendering', node).html(svg_data);
     } else {
