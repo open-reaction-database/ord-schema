@@ -55,6 +55,9 @@ body {
   overflow-y: scroll;
   vertical-align: bottom;
 }
+.invalid {
+  border: 2px solid red;
+}
 .add, #save, #download, .remove, #delete, .collapse, .validate_button, .validate_status, .validate_message, .tooltip > .tooltip-inner {
   padding: 2px 4px;
   margin: 2px;
