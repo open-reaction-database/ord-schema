@@ -18,7 +18,6 @@ Everything requires Python 3.
 
 The build needs:
 * built ord-schema python code;
-* the `protoc` protobuf compiler;
 * the protobuf runtime libraries for Javascript;
 * the Closure Library for Javascript; and
 * a built version of ORD's Ketcher code.
@@ -28,23 +27,18 @@ Serving depends on:
 
 To build the ord-schema python code, follow the instructions [here](https://github.com/Open-Reaction-Database/ord-schema/blob/main/README.md).
 
-For the protobuf compiler and Javascript runtime libraries, the editor currently requires HEAD protobuf (to get experimental "optional" declarations).
+Download the protobuf JS runtime as follows. At the time of writing, version
+3.13.0 matches the protoc compiler in pip's protoc-wheel-0 distribution
+referenced from ../requirements.txt.
 
 ```
-$ git clone git@github.com:protocolbuffers/protobuf.git
-$ cd protobuf
-$ ./autogen.sh && ./configure && make
-````
+$ url=https://github.com/protocolbuffers/protobuf/releases/download/v3.13.0/protobuf-js-3.13.0.tar.gz
+$ wget $url -O - | tar zxf -
+```
 
-(For the sake of automated testing, statically linked protobuf
-dependencies built at GitHub commit 1dae8fdd have been built for Mac and Linux
-and are available for download [here](https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar).)
-
-The editor has been tested with [Closure
+Unpack closure-library in this directory so that make can find it. The editor
+has been tested with [Closure
 v20200517](https://github.com/google/closure-library/releases/).
-
-Unpack both protobuf and closure-library in this directory so that make can
-find them.
 
 To build Ketcher, first install Node.js and npm (instructions [here](https://nodejs.org/en/download/)). Then, in this directory,
 
@@ -100,7 +94,7 @@ web server instead.
 You can bundle the built package into a Docker image like
 
 ```
-docker build -t ord-editor .
+docker build -t ord-editor -f Dockerfile ..
 ```
 
 and then make the editor available on port 80 like
