@@ -115,7 +115,9 @@ function ready() {
  */
 function listen(node) {
   addChangeHandler($(node), dirty);
-  $('.edittext').on('focus', event => selectText(event.target));
+  $('.edittext', node).on('focus', event => selectText(event.target));
+  $('.floattext', node).on('blur', event => checkFloat(event.target));
+  $('.integertext', node).on('blur', event => checkInteger(event.target));
 }
 
 /**
@@ -143,6 +145,44 @@ function selectText(node) {
   const selection = window.getSelection();
   selection.removeAllRanges();
   selection.addRange(range);
+}
+
+/**
+ * Determines if the text entered in a float input is valid by detecting any
+ * characters besides 0-9, a single period to signify a decimal, and a
+ * leading hyphen.
+ * @param {!Node} node
+ */
+function checkFloat(node) {
+  var stringValue = $(node).text();
+  const decimalMatches = stringValue.match(/\./g);
+  if (stringValue[0] === '-') {
+    stringValue = stringValue.substring(1);
+  }
+  if (stringValue.match(/[^0-9\.]/g)) {
+    $(node).addClass('invalid');
+  } else if (decimalMatches && decimalMatches.length > 1) {
+    $(node).addClass('invalid');
+  } else {
+    $(node).removeClass('invalid');
+  }
+}
+
+/**
+ * Determines if the text entered in an integer input is valid by forbidding
+ * any characters besides 0-9 and a leading hyphen.
+ * @param {!Node} node
+ */
+function checkInteger(node) {
+  var stringValue = $(node).text();
+  if (stringValue[0] === '-') {
+    stringValue = stringValue.substring(1);
+  }
+  if (stringValue.match(/[^0-9]/g)) {
+    $(node).addClass('invalid');
+  } else {
+    $(node).removeClass('invalid');
+  }
 }
 
 /**

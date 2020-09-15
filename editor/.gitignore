@@ -8,4 +8,4 @@ ketcher
 node_modules
 package
 package-lock.json
-protobuf
+protobuf-*

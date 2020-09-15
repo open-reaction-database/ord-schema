@@ -35,12 +35,12 @@ ENTRY_POINT="$1"
 java -jar node_modules/google-closure-compiler-java/compiler.jar \
     --entry_point "${ENTRY_POINT}" \
     --js 'closure-library-20200517/**.js' \
-    --js 'protobuf/js/**.js' \
+    --js 'protobuf-3.13.0/js/**.js' \
     --js 'gen/js/proto/ord/**.js'  \
     --js 'js/**.js' \
     --dependency_mode PRUNE \
     --checks_only \
     --jscomp_error lintChecks \
     --hide_warnings_for closure-library-20200517 \
-    --hide_warnings_for protobuf/js \
+    --hide_warnings_for protobuf-3.13.0/js \
     --hide_warnings_for gen/js/proto/ord
