@@ -27,6 +27,7 @@ body {
   padding: 2px;
   margin: 2px;
   display: inline-block;
+  height: 20px;
 }
 .edittext {
   width: 200px;
