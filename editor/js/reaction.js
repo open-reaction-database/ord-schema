@@ -910,14 +910,14 @@ function stringToEnum(name, protoEnum) {
 
 // Switch the UI into a read-only mode.
 function freeze() {
-  $('.edittext').attr('contenteditable', 'false')
-  $('select').attr('disabled', 'true')
-  $('.validate').hide()
-  $('.add').hide()
-  $('.remove').hide()
-  $('.text_upload').hide()
-  $('#provenance_created button').hide()
-  $('#save').hide()
+  $('.edittext').attr('contenteditable', 'false');
+  $('select').attr('disabled', 'true');
+  $('.validate').hide();
+  $('.add').hide();
+  $('.remove').hide();
+  $('.text_upload').hide();
+  $('#provenance_created button').hide();
+  $('#save').hide();
   $('.edittext').each((i, x) => {
     // Ensure non-editable divs have a text node to preserve vertical alignment.
     if (!$(x).text()) {
