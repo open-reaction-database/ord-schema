@@ -87,9 +87,8 @@ def mol_to_svg(mol, min_size=50, max_size=300, bond_length=25, padding=10):
     Chem.Kekulize(mol)
     rdDepictor.Compute2DCoords(mol)
     drawer = Draw.MolDraw2DSVG(max_size, max_size)
-    options = drawer.drawOptions()
-    options.fixedBondLength = bond_length
-    options.padding = 0.0
+    drawer.drawOptions().fixedBondLength = bond_length
+    drawer.drawOptions().padding = 0.0
     drawer.DrawMolecule(mol)
     min_x, max_x, min_y, max_y = np.inf, -np.inf, np.inf, -np.inf
     for atom in mol.GetAtoms():
@@ -101,9 +100,8 @@ def mol_to_svg(mol, min_size=50, max_size=300, bond_length=25, padding=10):
     size_x = max(min_size, int(max_x - min_x + 2 * padding))
     size_y = max(min_size, int(max_y - min_y + 2 * padding))
     drawer = Draw.MolDraw2DSVG(size_x, size_y)
-    options = drawer.drawOptions()
-    options.fixedBondLength = bond_length
-    options.padding = 0.0
+    drawer.drawOptions().fixedBondLength = bond_length
+    drawer.drawOptions().padding = 0.0
     drawer.DrawMolecule(mol)
     drawer.FinishDrawing()
     match = re.search(r'(<svg\s+.*</svg>)',
