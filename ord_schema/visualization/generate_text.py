@@ -58,4 +58,4 @@ def generate_html(reaction):
     with open(os.path.join(os.path.dirname(__file__), 'template.html'),
               'r') as f:
         template = f.read()
-    return _generate(reaction, template, True)
+    return _generate(reaction, template_string=template, line_breaks=True)

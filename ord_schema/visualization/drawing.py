@@ -19,6 +19,8 @@ given an RDKit molecule object: mol_to_svg and mol_to_png.
 
 import io
 import base64
+import re
+
 import numpy as np
 from PIL import Image, ImageOps
 from rdkit import Chem
@@ -69,24 +71,61 @@ def trim_image_whitespace(image, padding=0):
     return ImageOps.expand(image, border=padding, fill=(255, 255, 255))
 
 
-def mol_to_svg(mol, max_size=300, bond_length=25):
-    """Creates an (uncropped) SVG molecule drawing as a string.
+def mol_to_svg(mol, min_size=50, max_size=300, bond_length=25, padding=10):
+    """Creates a (cropped) SVG molecule drawing as a string.
 
     Args:
         mol: RDKit Mol.
+        min_size: Integer minimum image size (in pixels).
         max_size: Integer maximum image size (in pixels).
         bond_length: Integer bond length (in pixels).
+        padding: Integer number of padding pixels in each dimension.
 
     Returns:
         String SVG image.
     """
-    rdDepictor.Compute2DCoords(mol)
     Chem.Kekulize(mol)
-    drawer = Draw.MolDraw2DSVG(max_size, max_size)
+    rdDepictor.Compute2DCoords(mol)
+    drawer = _draw_svg(mol,
+                       size_x=max_size,
+                       size_y=max_size,
+                       bond_length=bond_length)
+    # Find the extent of the drawn image so we can crop the canvas.
+    min_x, max_x, min_y, max_y = np.inf, -np.inf, np.inf, -np.inf
+    for atom in mol.GetAtoms():
+        canvas_x, canvas_y = drawer.GetDrawCoords(atom.GetIdx())
+        min_x = min(canvas_x, min_x)
+        max_x = max(canvas_x, max_x)
+        min_y = min(canvas_y, min_y)
+        max_y = max(canvas_y, max_y)
+    drawer = _draw_svg(mol,
+                       size_x=max(min_size, int(max_x - min_x + 2 * padding)),
+                       size_y=max(min_size, int(max_y - min_y + 2 * padding)),
+                       bond_length=bond_length)
+    match = re.search(r'(<svg\s+.*</svg>)',
+                      drawer.GetDrawingText(),
+                      flags=re.DOTALL)
+    return match.group(1)
+
+
+def _draw_svg(mol, size_x, size_y, bond_length):
+    """Creates a canvas and draws a SVG.
+
+    Args:
+        mol: RDKit Mol.
+        size_x: Integer image size in the x-dimension (in pixels).
+        size_y: Integer image size in the y-dimension (in pixels).
+        bond_length: Integer bond length (in pixels).
+
+    Returns:
+        MolDraw2DCairo.
+    """
+    drawer = Draw.MolDraw2DSVG(size_x, size_y)
     drawer.drawOptions().fixedBondLength = bond_length
+    drawer.drawOptions().padding = 0.0
     drawer.DrawMolecule(mol)
     drawer.FinishDrawing()
-    return drawer.GetDrawingText()
+    return drawer
 
 
 def mol_to_png(mol, max_size=1000, bond_length=25, png_quality=70):

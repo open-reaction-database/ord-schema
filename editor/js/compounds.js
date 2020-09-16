@@ -532,11 +532,11 @@ function renderCompound(node, compound) {
   const binary = compound.serializeBinary();
   xhr.responseType = 'json';
   xhr.onload = function() {
-    const png_data = xhr.response;
-    if (png_data) {
-      $('.component_rendering', node)[0].src = 'data:image/png;base64,' + png_data;
+    const svg_data = xhr.response;
+    if (svg_data) {
+      $('.component_rendering', node).html(svg_data);
     } else {
-      $('.component_rendering', node)[0].src = '';
+      $('.component_rendering', node).html('');
     }
   };
   xhr.send(binary);
