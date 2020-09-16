@@ -86,10 +86,11 @@ def mol_to_svg(mol, min_size=50, max_size=300, bond_length=25, padding=10):
     """
     Chem.Kekulize(mol)
     rdDepictor.Compute2DCoords(mol)
-    drawer = Draw.MolDraw2DSVG(max_size, max_size)
-    drawer.drawOptions().fixedBondLength = bond_length
-    drawer.drawOptions().padding = 0.0
-    drawer.DrawMolecule(mol)
+    drawer = _draw_svg(mol,
+                       size_x=max_size,
+                       size_y=max_size,
+                       bond_length=bond_length)
+    # Find the extent of the drawn image so we can crop the canvas.
     min_x, max_x, min_y, max_y = np.inf, -np.inf, np.inf, -np.inf
     for atom in mol.GetAtoms():
         canvas_x, canvas_y = drawer.GetDrawCoords(atom.GetIdx())
@@ -97,17 +98,34 @@ def mol_to_svg(mol, min_size=50, max_size=300, bond_length=25, padding=10):
         max_x = max(canvas_x, max_x)
         min_y = min(canvas_y, min_y)
         max_y = max(canvas_y, max_y)
-    size_x = max(min_size, int(max_x - min_x + 2 * padding))
-    size_y = max(min_size, int(max_y - min_y + 2 * padding))
+    drawer = _draw_svg(mol,
+                       size_x=max(min_size, int(max_x - min_x + 2 * padding)),
+                       size_y=max(min_size, int(max_y - min_y + 2 * padding)),
+                       bond_length=bond_length)
+    match = re.search(r'(<svg\s+.*</svg>)',
+                      drawer.GetDrawingText(),
+                      flags=re.DOTALL)
+    return match.group(1)
+
+
+def _draw_svg(mol, size_x, size_y, bond_length):
+    """Creates a canvas and draws a SVG.
+
+    Args:
+        mol: RDKit Mol.
+        size_x: Integer image size in the x-dimension (in pixels).
+        size_y: Integer image size in the y-dimension (in pixels).
+        bond_length: Integer bond length (in pixels).
+
+    Returns:
+        MolDraw2DCairo.
+    """
     drawer = Draw.MolDraw2DSVG(size_x, size_y)
     drawer.drawOptions().fixedBondLength = bond_length
     drawer.drawOptions().padding = 0.0
     drawer.DrawMolecule(mol)
     drawer.FinishDrawing()
-    match = re.search(r'(<svg\s+.*</svg>)',
-                      drawer.GetDrawingText(),
-                      flags=re.DOTALL)
-    return match.group(1)
+    return drawer
 
 
 def mol_to_png(mol, max_size=1000, bond_length=25, png_quality=70):
