@@ -13,12 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -ex
+set -x
 
-docker build -t ord-postgres:empty .
-docker run --rm --name ord-postgres -d ord-postgres:empty
-docker exec -it ord-postgres ./build_database.sh
-docker commit ord-postgres openreactiondatabase/ord-postgres
-docker stop ord-postgres
-# Uncomment the next line to push the new image to Docker Hub.
-# docker push openreactiondatabase/ord-postgres
+docker build \
+  --file=ord_schema/interface/docker/Dockerfile \
+  -t ord-postgres:empty \
+  .
+CONTAINER="$(docker run --rm -d ord-postgres:empty)"
+echo "Waiting 5s for the server to start..."
+sleep 5
+docker exec -it "${CONTAINER}" ./build_database.sh
+docker commit "${CONTAINER}" openreactiondatabase/ord-postgres
+docker stop "${CONTAINER}"
