@@ -20,12 +20,12 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
     <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.21/css/jquery.dataTables.css">
+    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.10.21/js/jquery.dataTables.js"></script>
     <style>
       body {
         padding: 48px;
         font-family: Roboto;
-        display: grid;
-        grid-template-columns: [form] 37% [results] 22% [proto] 41%;
       }
       #form {
         grid-column: form;
@@ -83,17 +83,6 @@
         grid-column: results;
         font-family: monospace;
       }
-      #proto {
-        grid-column: proto;
-      }
-      #proto, #results {
-        border-left: solid lightgray;
-        border-width: 1px;
-        padding-left: 32px;
-      }
-      #proto pre {
-        margin: 0;
-      }
       .edittext {
         border: solid #c0c0c0;
         border-width: 1px;
@@ -145,24 +134,12 @@
         <button>go</button>
       </div>
 
-      <div id="spacer">
-      </div>
+      <div id="spacer"></div>
 
     </div>
 
     <div id="results">
-        {% for reaction_id in reaction_ids %}
-          <a href="#" class="result">{{ reaction_id }}</a><br>
-        {% endfor %}
-        {% if not reaction_ids %}
-          no reactions
-        {% endif %}
-    </div>
-
-    <div id="proto">
-      <pre>
-        no proto
-      </pre>
+      <table id="results_table"></table>
     </div>
 
     <div id="component_template" style="display: none;">
@@ -182,16 +159,6 @@
 
     <script>
 
-      // Respond to mouseover on a result to display its pbtxt.
-      function updateProto(reactionId) {
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', '/id/' + reactionId);
-        xhr.onload = function (event) {
-          $('#proto pre').text(xhr.response);
-        };
-        xhr.send();
-      }
-      
       // Components.
       function showReagentsTab() {
         $('#reagents').show();
@@ -199,7 +166,7 @@
         $('.tab').css('background-color', '');
         $('#reagentsTab').css('background-color', 'lightblue');
       }
-      
+
       // Reaction IDs, reaction SMILES.
       function showReactionsTab() {
         $('#reactions').show();
@@ -342,15 +309,6 @@
         return query;
       }
 
-      // Update the pbtxt when the user mouses over a result.
-      $('.result').mouseover((event) => {
-        const result = $(event.target);
-        const reactionId = result.text().trim();
-        updateProto(reactionId);
-        $('.result').css('background-color', '');
-        result.css('background-color', 'powderblue');
-      });
-
       // Make the .editext divs actually editable.
       $('.edittext').attr('contentEditable', 'true');
 
@@ -388,6 +346,34 @@
       } else {
         showReagentsTab();
       }
+
+      const resultsData = [
+          {% for reaction_id in reaction_ids -%}
+            {"Reaction ID": "{{ reaction_id }}", "Summary": ""},
+          {% endfor %}
+      ];
+
+      $( document ).ready(function() {
+        $('#results_table').DataTable( {
+          "data": resultsData,
+          "columns": [
+            {data: "Reaction ID"},
+            {data: "Summary"}
+          ],
+          "createdRow": function(row, data, dataIndex, cells) {
+            const reactionId = data["Reaction ID"];
+            fetch('/render/' + reactionId)
+              .then(response => response.json())
+              .then(responseData => {
+                $("td", row).eq(0).html(
+                    "<a href='/id/" + reactionId + "'>" + reactionId + "</a>");
+                $("td", row).eq(1).html(responseData);
+              });
+        },
+          "deferRender": true,
+        } );
+              }
+      );
     </script>
   </body>
 </html>

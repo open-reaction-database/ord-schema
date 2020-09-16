@@ -35,11 +35,15 @@ These query types are mutually exclusive. All query parameters are assumed to
 be URL-encoded.
 """
 
+import os
+
 import flask
 
 from ord_schema.interface import query
+from ord_schema.visualization import generate_text
 
 app = flask.Flask(__name__, template_folder='.')
+app.config['ORD_POSTGRES_HOST'] = os.getenv('ORD_POSTGRES_HOST', 'localhost')
 
 
 @app.route('/')
@@ -89,9 +93,26 @@ def show_id(reaction_id):
     return flask.Response(str(dataset.reactions[0]), mimetype='text/plain')
 
 
+@app.route('/render/<reaction_id>')
+def render_reaction(reaction_id):
+    """Renders a reaction as an HTML table with images and text."""
+    command = query.ReactionIdQuery([reaction_id])
+    dataset = connect().run_query(command)
+    if len(dataset.reactions) == 0 or len(dataset.reactions) > 1:
+        return flask.abort(404)
+    reaction = dataset.reactions[0]
+    if not (reaction.inputs or reaction.outcomes):
+        return ''
+    try:
+        html = generate_text.generate_html(reaction)
+        return flask.jsonify(html)
+    except (ValueError, KeyError):
+        return ''
+
+
 def connect():
     return query.OrdPostgres(dbname='ord',
                              user='ord-postgres',
                              password='ord-postgres',
-                             host='localhost',
+                             host=app.config['ORD_POSTGRES_HOST'],
                              port=5432)
