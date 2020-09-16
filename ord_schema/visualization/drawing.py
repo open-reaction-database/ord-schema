@@ -71,7 +71,7 @@ def trim_image_whitespace(image, padding=0):
     return ImageOps.expand(image, border=padding, fill=(255, 255, 255))
 
 
-def mol_to_svg(mol, min_size=100, max_size=300, bond_length=25, padding=10):
+def mol_to_svg(mol, min_size=50, max_size=300, bond_length=25, padding=10):
     """Creates a (cropped) SVG molecule drawing as a string.
 
     Args:
