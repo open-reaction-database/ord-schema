@@ -534,10 +534,9 @@ function renderCompound(node, compound) {
   xhr.onload = function() {
     const png_data = xhr.response;
     if (png_data) {
-      $('.component_rendering', node)[0].src = 'data:image/png;base64,' + png_data;
-    } else {
-      $('.component_rendering', node)[0].src = '';
-    }
+      var src = 'data:image/png;base64,' + png_data;
+      $('.image_container', node).append('<img class="component_rendering" src="' + src + '" style="margin-left: auto; margin-right: auto;"/>')
+    } 
   };
   xhr.send(binary);
 }
