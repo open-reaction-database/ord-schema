@@ -71,11 +71,12 @@ def trim_image_whitespace(image, padding=0):
     return ImageOps.expand(image, border=padding, fill=(255, 255, 255))
 
 
-def mol_to_svg(mol, max_size=300, bond_length=25, padding=10):
+def mol_to_svg(mol, min_size=100, max_size=300, bond_length=25, padding=10):
     """Creates a (cropped) SVG molecule drawing as a string.
 
     Args:
         mol: RDKit Mol.
+        min_size: Integer minimum image size (in pixels).
         max_size: Integer maximum image size (in pixels).
         bond_length: Integer bond length (in pixels).
         padding: Integer number of padding pixels in each dimension.
@@ -86,7 +87,9 @@ def mol_to_svg(mol, max_size=300, bond_length=25, padding=10):
     Chem.Kekulize(mol)
     rdDepictor.Compute2DCoords(mol)
     drawer = Draw.MolDraw2DSVG(max_size, max_size)
-    drawer.drawOptions().fixedBondLength = bond_length
+    options = drawer.drawOptions()
+    options.fixedBondLength = bond_length
+    options.padding = 0.0
     drawer.DrawMolecule(mol)
     min_x, max_x, min_y, max_y = np.inf, -np.inf, np.inf, -np.inf
     for atom in mol.GetAtoms():
@@ -95,9 +98,12 @@ def mol_to_svg(mol, max_size=300, bond_length=25, padding=10):
         max_x = max(canvas_x, max_x)
         min_y = min(canvas_y, min_y)
         max_y = max(canvas_y, max_y)
-    drawer = Draw.MolDraw2DSVG(int(max_x - min_x + 2 * padding),
-                               int(max_y - min_y + 2 * padding))
-    drawer.drawOptions().fixedBondLength = bond_length
+    size_x = max(min_size, int(max_x - min_x + 2 * padding))
+    size_y = max(min_size, int(max_y - min_y + 2 * padding))
+    drawer = Draw.MolDraw2DSVG(size_x, size_y)
+    options = drawer.drawOptions()
+    options.fixedBondLength = bond_length
+    options.padding = 0.0
     drawer.DrawMolecule(mol)
     drawer.FinishDrawing()
     match = re.search(r'(<svg\s+.*</svg>)',
