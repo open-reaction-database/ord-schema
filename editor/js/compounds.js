@@ -535,6 +535,7 @@ function renderCompound(node, compound) {
     const png_data = xhr.response;
     if (png_data) {
       var src = 'data:image/png;base64,' + png_data;
+      $('.image_container', node).empty();
       $('.image_container', node).append('<img class="component_rendering" src="' + src + '" style="margin-left: auto; margin-right: auto;"/>')
     } 
   };
