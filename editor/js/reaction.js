@@ -37,7 +37,8 @@ exports = {
   getSelector,
   getSelectorText,
   setOptionalBool,
-  getOptionalBool
+  getOptionalBool,
+  freeze
 };
 
 goog.require('ord.conditions');
@@ -61,6 +62,11 @@ const session = {
 // Export session, because it's used by test.js.
 exports.session = session;
 
+/**
+ * Initializes the form.
+ * @param {string} fileName Path to the current Dataset proto.
+ * @param {number} index The index of this Reaction in the current Dataset.
+ */
 async function init(fileName, index) {
   session.fileName = fileName;
   session.index = index;
@@ -96,24 +102,44 @@ async function init(fileName, index) {
   ready();
 }
 
+/**
+ * Sets the `ready` value to true.
+ */
 function ready() {
   $('body').attr('ready', true);
 }
 
+/**
+ * Adds a change handler to the given node that shows the 'save' button when
+ * the node text is edited.
+ * @param {!Node} node
+ */
 function listen(node) {
   addChangeHandler($(node), dirty);
-  $('.edittext').on('focus', event => selectText(event.target));
+  $('.edittext', node).on('focus', event => selectText(event.target));
+  $('.floattext', node).on('blur', event => checkFloat(event.target));
+  $('.integertext', node).on('blur', event => checkInteger(event.target));
 }
 
+/**
+ * Shows the 'save' button.
+ */
 function dirty() {
   $('#save').css('visibility', 'visible');
 }
 
+/**
+ * Hides the 'save' button.
+ */
 function clean() {
   $('#save').css('visibility', 'hidden');
   $('#save').text('save');
 }
 
+/**
+ * Selects the contents of the given node.
+ * @param {!Node} node
+ */
 function selectText(node) {
   const range = document.createRange();
   range.selectNodeContents(node);
@@ -122,11 +148,52 @@ function selectText(node) {
   selection.addRange(range);
 }
 
-// Adds a jQuery handler to a node such that the handler is run once
-// whenever data entry within that node is changed,
-// *except through remove* -- this must be handled manually.
-// (This prevents inconsistent timing in the ordering of
-// the element being removed and the handler being called)
+/**
+ * Determines if the text entered in a float input is valid by detecting any
+ * characters besides 0-9, a single period to signify a decimal, and a
+ * leading hyphen.
+ * @param {!Node} node
+ */
+function checkFloat(node) {
+  var stringValue = $(node).text();
+  const decimalMatches = stringValue.match(/\./g);
+  if (stringValue[0] === '-') {
+    stringValue = stringValue.substring(1);
+  }
+  if (stringValue.match(/[^0-9\.]/g)) {
+    $(node).addClass('invalid');
+  } else if (decimalMatches && decimalMatches.length > 1) {
+    $(node).addClass('invalid');
+  } else {
+    $(node).removeClass('invalid');
+  }
+}
+
+/**
+ * Determines if the text entered in an integer input is valid by forbidding
+ * any characters besides 0-9 and a leading hyphen.
+ * @param {!Node} node
+ */
+function checkInteger(node) {
+  var stringValue = $(node).text();
+  if (stringValue[0] === '-') {
+    stringValue = stringValue.substring(1);
+  }
+  if (stringValue.match(/[^0-9]/g)) {
+    $(node).addClass('invalid');
+  } else {
+    $(node).removeClass('invalid');
+  }
+}
+
+/**
+ * Adds a jQuery handler to a node such that the handler is run once whenever
+ * data entry within that node is changed, *except through remove* -- this must
+ * be handled manually. (This prevents inconsistent timing in the ordering of
+ * the element being removed and the handler being called.)
+ * @param {!Node} node
+ * @param {!Function} handler
+ */
 function addChangeHandler(node, handler) {
   // For textboxes
   node.on('blur', '.edittext', handler);
@@ -137,8 +204,13 @@ function addChangeHandler(node, handler) {
   node.on('click', '.add', handler);
 }
 
-// Generic validator for many message types, not just reaction
-// note: does not commit or save anything!
+/**
+ * Generic validator for many message types, not just reaction.
+ * NOTE: This function does not commit or save anything!
+ * @param {!jspb.Message} message The proto to validate.
+ * @param {string} messageTypeString The message type.
+ * @param {?Node} validateNode Target div for validation output.
+ */
 function validate(message, messageTypeString, validateNode) {
   // eg message is a type of reaction, messageTypeString = 'Reaction'
   const xhr = new XMLHttpRequest();
@@ -179,6 +251,10 @@ function validate(message, messageTypeString, validateNode) {
   xhr.send(binary);
 }
 
+/**
+ * Toggles the visibility of the 'validate' button for a given node.
+ * @param {!Node} node
+ */
 function toggleValidateMessage(node) {
   let messageNode = $('.validate_message', node);
   switch (messageNode.css('visibility')) {
@@ -191,7 +267,10 @@ function toggleValidateMessage(node) {
   }
 }
 
-// Update the visual summary of this reaction.
+/**
+ * Updates the visual summary of the current reaction.
+ * @param {!proto.ord.Reaction} reaction
+ */
 function renderReaction(reaction) {
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/render/reaction');
@@ -204,6 +283,9 @@ function renderReaction(reaction) {
   xhr.send(binary);
 }
 
+/**
+ * Validates the current reaction.
+ */
 function validateReaction() {
   const validateNode = $('#reaction_validate');
   const reaction = unloadReaction();
@@ -214,6 +296,9 @@ function validateReaction() {
   renderReaction(reaction);
 }
 
+/**
+ * Writes the current reaction to disk.
+ */
 function commit() {
   const reaction = unloadReaction();
   const reactions = session.dataset.getReactionsList();
@@ -222,6 +307,9 @@ function commit() {
   ord.uploads.putAll(session.fileName);
 }
 
+/**
+ * Downloads the current reaction as a serialized Reaction proto.
+ */
 function downloadReaction() {
   const reaction = unloadReaction();
   const binary = reaction.serializeBinary();
@@ -239,6 +327,11 @@ function downloadReaction() {
   xhr.send(binary);
 }
 
+/**
+ * Downloads a dataset as a serialized Dataset proto.
+ * @param {string} fileName The name of the dataset to fetch.
+ * @return {!Promise<!Uint8Array>}
+ */
 async function getDataset(fileName) {
   return new Promise(resolve => {
     const xhr = new XMLHttpRequest();
@@ -253,6 +346,11 @@ async function getDataset(fileName) {
   });
 }
 
+/**
+ * Uploads a serialized Dataset proto.
+ * @param {string} fileName The name of the new dataset.
+ * @param {!proto.ord.Dataset} dataset
+ */
 function putDataset(fileName, dataset) {
   $('#save').text('saving');
   const xhr = new XMLHttpRequest();
@@ -262,7 +360,12 @@ function putDataset(fileName, dataset) {
   xhr.send(binary);
 }
 
-// For testing, compare a local Dataset to a Dataset on the server.
+/**
+ * Compares a local Dataset to a Dataset on the server (used for testing).
+ * @param {string} fileName The name of a dataset on the server.
+ * @param {!proto.ord.Dataset} dataset A local Dataset.
+ * @return {!Promise<!Uint8Array>}
+ */
 async function compareDataset(fileName, dataset) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -280,6 +383,10 @@ async function compareDataset(fileName, dataset) {
   });
 }
 
+/**
+ * Adds and populates the form with the given reaction.
+ * @param {!proto.ord.Reaction} reaction
+ */
 function loadReaction(reaction) {
   const identifiers = reaction.getIdentifiersList();
   ord.identifiers.load(identifiers);
@@ -323,6 +430,10 @@ function loadReaction(reaction) {
   $('#reaction_id').text(reaction.getReactionId());
 }
 
+/**
+ * Fetches the current reaction from the form.
+ * @return {!proto.ord.Reaction}
+ */
 function unloadReaction() {
   const reaction = new proto.ord.Reaction();
   const identifiers = ord.identifiers.unload();
@@ -366,20 +477,23 @@ function unloadReaction() {
   return reaction;
 }
 
-// Checks if the argument represents an empty protobuf message
-// (that is, the argument's nested arrays only contains null or empty values),
-// or is null or undefined.
-// We use this check on both primitives and arrays/messages.
-// Note: Unlike other primitive types, using a setter to set a oneof string
-// field to “” causes the message to include the field and “”, which would be
-// unwanted. So we instead claim that empty strings are empty messages. (Hence
-// we don’t set _any_ empty string.)
-// Note: In a submessage, setting a meaningful
-// value (e.g. optional float to 0) will result in a non-null/undefined value in
-// the submessage array. So, if the array of a submessage only contains null and
-// undefined vals, we can assume that the message is truly “empty” (that is,
-// doesn’t have anything meaningful that is set)
-// and can be omitted when constructing the surrounding message.
+/**
+ * Checks if the argument represents an empty protobuf message (that is, the
+ * argument's nested arrays only contains null or empty values), or is null or
+ * undefined. We use this check on both primitives and arrays/messages.
+ * NOTE: Unlike other primitive types, using a setter to set a oneof string
+ * field to “” causes the message to include the field and “”, which would be
+ * unwanted. So we instead claim that empty strings are empty messages. (Hence
+ * we don’t set _any_ empty string.)
+ * NOTE: In a submessage, setting a meaningful value (e.g. optional float to 0)
+ * will result in a non-null/undefined value in the submessage array. So, if
+ * the array of a submessage only contains null and undefined vals, we can
+ * assume that the message is truly “empty” (that is, doesn’t have anything
+ * meaningful that is set) and can be omitted when constructing the surrounding
+ * message.
+ * @param {?jspb.Message|?Array|?Uint8Array} obj The object to test.
+ * @return {boolean} Whether the message is empty.
+ */
 function isEmptyMessage(obj) {
   if ([null, undefined, ''].includes(obj)) {
     return true;
@@ -401,7 +515,12 @@ function isEmptyMessage(obj) {
   return false;
 }
 
-// The template is a jQuery selector. The root may be a jQuery object.
+/**
+ * Adds an instance of `template` to the root node.
+ * @param {string} template A jQuery selector.
+ * @param {!Node} root A jQuery object.
+ * @return {!Node} The new copy of the template.
+ */
 function addSlowly(template, root) {
   const node = $(template).clone();
   node.removeAttr('id');
@@ -413,7 +532,11 @@ function addSlowly(template, root) {
   return node;
 }
 
-// Removes from the DOM the nearest ancestor element matching the pattern.
+/**
+ * Removes from the DOM the nearest ancestor element matching the pattern.
+ * @param {string} button The element from which to start the search.
+ * @param {string} pattern The pattern for the element to remove.
+ */
 function removeSlowly(button, pattern) {
   const node = $(button).closest(pattern);
   // Must call necessary validators only after the node is removed,
@@ -432,9 +555,14 @@ function removeSlowly(button, pattern) {
   dirty();
 }
 
-// Toggle visibility of all siblings of an element,
-// or if a pattern is provided, toggle visibility of all siblings of
-// the nearest ancestor element matching the pattern.
+/**
+ * Toggles the visibility of all siblings of an element, or if a pattern is
+ * provided, toggles the visibility of all siblings of the nearest ancestor
+ * element matching the pattern.
+ * @param {!Node} node The element to toggle or use as the search root.
+ * @param {string} pattern The pattern to match for finding siblings to toggle.
+ */
+//
 function toggleSlowly(node, pattern) {
   node = $(node);
   if (pattern) {
@@ -456,12 +584,24 @@ function toggleSlowly(node, pattern) {
   }
 }
 
+/**
+ * Toggles the collapse of a section in the form.
+ * @param {string} button The element to toggle.
+ */
 function collapseToggle(button) {
   $(button).toggleClass('fa-chevron-down fa-chevron-right');
   toggleSlowly(button, 'legend');
 }
 
-// Unpack a value/units/precision triple into the given type.
+/**
+ * Unpacks a (value, units, precision) tuple into the given type.
+ * @param {string} prefix The prefix for element attributes.
+ * @param {!jspb.Message} proto A protocol buffer with `value`, `precision`,
+ *     and `units` fields.
+ * @param {!Node} node The node containing the tuple.
+ * @return {!jspb.Message} The updated protocol buffer. Note that the message
+ *     is modified in-place.
+ */
 function readMetric(prefix, proto, node) {
   const value = parseFloat($(prefix + '_value', node).text());
   if (!isNaN(value)) {
@@ -478,7 +618,13 @@ function readMetric(prefix, proto, node) {
   return proto;
 }
 
-// Pack a value/units/precision triple into the elements specified.
+/**
+ * Packs a (value, units, precision) tuple into form elements.
+ * @param {string} prefix The prefix for element attributes.
+ * @param {!jspb.Message} proto A protocol buffer with `value`, `precision`,
+ *     and`units` fields.
+ * @param {!Node} node The target node for the tuple.
+ */
 function writeMetric(prefix, proto, node) {
   if (!(proto)) {
     return;
@@ -495,7 +641,12 @@ function writeMetric(prefix, proto, node) {
   }
 }
 
-// Prompt user to upload a file and return its content as a string.
+/**
+ * Prompts the user to upload a file and sets the target node text with its
+ * contents.
+ * @param {!Node} identifierNode The node to update with the file contents.
+ * @param {string} valueClass The class containing `identifierNode`.
+ */
 function setTextFromFile(identifierNode, valueClass) {
   var input = document.createElement('input');
   input.type = 'file';
@@ -511,7 +662,11 @@ function setTextFromFile(identifierNode, valueClass) {
   input.click();
 }
 
-// Populate a <select/> node according to its data-proto type declaration.
+/**
+ * Adds and populates a <select/> node according to its data-proto type
+ * declaration.
+ * @param {!Node} node A node containing a `data-proto` attribute.
+ */
 function initSelector(node) {
   const protoName = node.attr('data-proto');
   const protoEnum = nameToProto(protoName);
@@ -531,24 +686,39 @@ function initSelector(node) {
   node.append(select);
 }
 
-// Select an <option/> under a <select/>. The "value" is an integer.
+/**
+ * Selects an <option/> under a <select/>.
+ * @param {!Node} node A <select/> element.
+ * @param {number} value
+ */
 function setSelector(node, value) {
   $('option', node).removeAttr('selected');
   $('option[value=' + value + ']', node).attr('selected', 'selected');
 }
 
-// Find the selected <option/> and map its text onto a proto Enum.
+/**
+ * Finds the selected <option/> and maps its text onto a proto Enum.
+ * @param {!Node} node A <select/> element.
+ * @return {number}
+ */
 function getSelector(node) {
   return parseInt($('select', node).val());
 }
 
-// Find the selected <option/> and return its text.
+/**
+ * Finds the selected <option/> and returns its text.
+ * @param {!Node} node A node containing one or more <select/> elements.
+ * @return {string}
+ */
 function getSelectorText(node) {
   const selectorElement = node.getElementsByTagName('select')[0];
   return selectorElement.options[selectorElement.selectedIndex].text;
 }
 
-// Set up the three-way popup, "true"/"false"/"unspecified".
+/**
+ * Sets up a three-way popup (true/false/unspecified).
+ * @param {!Node} node Target node for the new <select/> element.
+ */
 function initOptionalBool(node) {
   const select = $('<select>');
   const options = ['UNSPECIFIED', 'TRUE', 'FALSE'];
@@ -563,6 +733,11 @@ function initOptionalBool(node) {
   node.append(select);
 }
 
+/**
+ * Sets the value of a three-way popup (true/false/unspecified).
+ * @param {!Node} node A node containing a three-way selector.
+ * @param {boolean|null} value The value to select.
+ */
 function setOptionalBool(node, value) {
   $('option', node).removeAttr('selected');
   if (value == true) {
@@ -576,6 +751,11 @@ function setOptionalBool(node, value) {
   }
 }
 
+/**
+ * Fetches the value of a three-way popup (true/false/unspecified).
+ * @param {!Node} node A node containing a three-way selector.
+ * @return {boolean|null}
+ */
 function getOptionalBool(node) {
   const value = $('select', node).val();
   if (value == 'TRUE') {
@@ -587,8 +767,11 @@ function getOptionalBool(node) {
   return null;
 }
 
-// Set up and initialize a collapse button,
-// by adding attributes into a div in reaction.html
+/**
+ * Sets up and initializes a collapse button by adding attributes into a div in
+ * reaction.html.
+ * @param {!Node} node Target node for the new button.
+ */
 function initCollapse(node) {
   node.addClass('fa');
   node.addClass('fa-chevron-down');
@@ -598,8 +781,11 @@ function initCollapse(node) {
   }
 }
 
-// Set up a validator div (button, status indicator, error list, etc.),
-// inserting contents into a div in reaction.html
+/**
+ * Sets up a validator div (button, status indicator, error list, etc.) by
+ * inserting contents into a div in reaction.html.
+ * @param {!Node} oldNode Target node for the new validation elements.
+ */
 function initValidateNode(oldNode) {
   let newNode = $('#validate_template').clone();
   // Add attributes necessary for validation functions:
@@ -613,10 +799,12 @@ function initValidateNode(oldNode) {
   oldNode.append(newNode.children());
 }
 
-// Some nodes are dynamically added / removed;
-// we add their validation handlers when the nodes themselves are added.
-// However, other nodes are always present in the html, and aren't dynamically
-// added nor removed. To add live validation to these nodes, we do so here.
+/**
+ * Initializes the validation handlers. Some nodes are dynamically added or
+ * removed; we add their validation handlers when the nodes themselves are
+ * added. However, other nodes are always present in the HTML, and aren't
+ * dynamically added nor removed. We add live validation to these nodes here.
+ */
 function initValidateHandlers() {
   // For setup
   var setupNode = $('#section_setup');
@@ -679,7 +867,12 @@ function initValidateHandlers() {
   });
 }
 
-// Convert a Message_Field name from a data-proto attribute into a proto class.
+/**
+ * Converts a Message_Field name from a data-proto attribute into a proto class.
+ * @param {string} protoName Underscore-delimited protocol buffer field name,
+ *     such as Reaction_provenance.
+ * @return {?typeof jspb.Message}
+ */
 function nameToProto(protoName) {
   let clazz = proto.ord;
   protoName.split('_').forEach(function(name) {
@@ -691,7 +884,11 @@ function nameToProto(protoName) {
   return clazz;
 }
 
-// Convert an Enum protobuf class to an arrray of strings.
+/**
+ * Converts an Enum protobuf class to an arrray of strings.
+ * @param {!enum} protoEnum
+ * @return {!Array<string>}
+ */
 function enumToStrings(protoEnum) {
   const types = Object.entries(protoEnum);
   const strings = [];
@@ -701,7 +898,32 @@ function enumToStrings(protoEnum) {
   return strings;
 }
 
-// Convert an Enum name string to its protobuf member int.
+/**
+ * Converts an Enum name string to its protobuf member value.
+ * @param {string} name A text representation of an enum member.
+ * @param {!enum} protoEnum The protocol buffer enum to search.
+ * @return {number}
+ */
 function stringToEnum(name, protoEnum) {
   return protoEnum[name];
+}
+
+/**
+ * Switch the UI into a read-only mode. This is irreversible.
+ */
+function freeze() {
+  $('.edittext').attr('contenteditable', 'false');
+  $('select').attr('disabled', 'true');
+  $('.validate').hide();
+  $('.add').hide();
+  $('.remove').hide();
+  $('.text_upload').hide();
+  $('#provenance_created button').hide();
+  $('#save').hide();
+  $('.edittext').each((i, x) => {
+    // Ensure non-editable divs have a text node to preserve vertical alignment.
+    if (!$(x).text()) {
+      $(x).text(' ');
+    }
+  });
 }

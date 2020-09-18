@@ -12,45 +12,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# To build the editor using the current state of ord-schema:
+# $ cd path/to/ord-schema
+# $ docker build --file=editor/Dockerfile -t openreactiondatabase/ord-editor .
+#
+# To test the editor:
+# $ docker run --rm -d -p 5000:5000 --name editor openreactiondatabase/ord-editor
+# $ node editor/js/test.js
+# $ docker stop editor
+#
+# To push the built image to Docker Hub:
+# docker push openreactiondatabase/ord-editor
+
 FROM continuumio/miniconda3
-WORKDIR /usr/src/app
 
 RUN apt-get update && apt-get install --yes build-essential procps unzip
 RUN conda install -c rdkit rdkit
 RUN conda install flask nodejs
 
 # Fetch/build editor dependencies.
+# NOTE(kearnes): Do this before COPYing the local state so it can be cached.
+WORKDIR /usr/src/app/ord-schema/editor
 RUN git clone https://github.com/Open-Reaction-Database/ketcher.git
 WORKDIR ketcher
 RUN npm install && npm run build
 WORKDIR ..
 RUN wget https://github.com/google/closure-library/archive/v20200517.tar.gz
 RUN tar -xzf v20200517.tar.gz
-RUN wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
-RUN tar -xzf editor_test_protobuf_1dae8fdd.tar
+RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v3.13.0/protobuf-js-3.13.0.tar.gz
+RUN tar -xzf protobuf-js-3.13.0.tar.gz
 
-RUN git clone https://github.com/Open-Reaction-Database/ord-schema.git
-RUN mv closure-library-20200517 ord-schema/editor/
-RUN mv ketcher ord-schema/editor/
-RUN mv protobuf ord-schema/editor/
-
-WORKDIR ord-schema
-# Bust the cache to get the latest commits; see
-# https://stackoverflow.com/a/39278224.
-ADD https://api.github.com/repos/Open-Reaction-Database/ord-schema/git/refs/heads/main ord-schema-version.json
-RUN git pull
+# COPY and install the local state of ord-schema.
+WORKDIR /usr/src/app/ord-schema
+COPY setup.py requirements.txt ./
+COPY editor/ editor/
+COPY ord_schema/ ord_schema/
 RUN pip install -r requirements.txt
 RUN python setup.py install
 
-# Build the editor.
-WORKDIR editor
-# Uncomment these lines to copy over any local changes in ord-schema/editor.
-#COPY css/*.css css/
-#COPY html/*.html html/
-#COPY js/*.js js/
-#COPY py/*.py py/
+# Build and launch the editor.
+WORKDIR /usr/src/app/ord-schema/editor
 RUN make
-
 EXPOSE 5000
 RUN pip install gunicorn
 CMD gunicorn py.serve:app -b 0.0.0.0:5000 --access-logfile '-'

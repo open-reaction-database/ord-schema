@@ -73,34 +73,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: s-weigand/setup-conda@v1
-      with:
-        python-version: 3.7
     - uses: actions/setup-node@v1.4.2
-    - name: Install ord-schema
+    - name: Build and launch editor
       run: |
         cd "${GITHUB_WORKSPACE}"
-        pip install -r requirements.txt
-        conda install -c rdkit rdkit
-        python setup.py install
-    - name: Build editor
-      run: |
-        cd "${GITHUB_WORKSPACE}/editor"
-        pip install flask
-        npm install google-protobuf puppeteer
-        wget https://storage.googleapis.com/ord-editor-test/editor_test_protobuf_1dae8fdd.tar
-        tar -xzf editor_test_protobuf_1dae8fdd.tar
-        wget https://github.com/google/closure-library/archive/v20200517.tar.gz
-        tar -xzf v20200517.tar.gz
-        git clone https://github.com/Open-Reaction-Database/ketcher.git
-        cd "${GITHUB_WORKSPACE}/editor/ketcher"
-        npm install && npm run build
-        cd "${GITHUB_WORKSPACE}/editor"
-        make
+        docker build --file=editor/Dockerfile -t ord-editor .
+        docker run --rm -d -p 5000:5000 --name editor ord-editor
+        # NOTE(kearnes): This also leaves time for the server to get ready.
+        npm install puppeteer
     - name: Run editor tests
       timeout-minutes: 5
       run: |
-        cd "${GITHUB_WORKSPACE}/editor"
-        ./serve.sh &
-        sleep 5  # Time for the server to get ready.
-        make test
+        cd "${GITHUB_WORKSPACE}"
+        node editor/js/test.js
+    - name: Cleanup
+      run: docker stop editor

@@ -13,15 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Runs editor javascript tests.
 set -x
 
-docker build \
-  --file=ord_schema/interface/docker/Dockerfile \
-  -t ord-postgres:empty \
-  .
-CONTAINER="$(docker run --rm -d ord-postgres:empty)"
-echo "Waiting 5s for the server to start..."
-sleep 5
-docker exec -it "${CONTAINER}" ./build_database.sh
-docker commit "${CONTAINER}" openreactiondatabase/ord-postgres
+docker build --file=editor/Dockerfile -t openreactiondatabase/ord-editor .
+CONTAINER=$(docker run --rm -d -p 5000:5000 openreactiondatabase/ord-editor)
+node editor/js/test.js
+test $? -eq 0 || docker logs "${CONTAINER}"
 docker stop "${CONTAINER}"

@@ -138,7 +138,7 @@ database repository:
 
 ```shell
 $ cd "${REPOSITORY}"
-$ git remote add upstream https://github.com/Open-Reaction-Database/ord-submissions-test.git
+$ git remote add upstream https://github.com/Open-Reaction-Database/ord-data.git
 ```
 
 ## Submitting to the database
@@ -188,14 +188,15 @@ Advisory Board is:
 * Alán Aspuru-Guzik (Toronto, MADNESS)
 * Timothy Cernak (Michigan)
 * Lucy Colwell (Cambridge, SynTech, Google)
+* Werngard Czechtizky (AstraZeneca)
 * Matthew Gaunt (Cambridge, SynTech)
 * Mimi Hii (Imperial, ROAR)
 * Greg Landrum (T5 Informatics)
 * Fabio Lima (Novartis)
 * Christos Nicolaou (Lilly)
-* Garry Pairaudeau (AstraZeneca)
 * Sarah Reisman (Caltech)
 * Matthew Sigman (Utah)
+* Sarah Trice (MilliporeSigma)
 * Matthew Tudge (GSK)
 
 ## Commitment to Open Access

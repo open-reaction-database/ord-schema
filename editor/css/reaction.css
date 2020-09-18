@@ -27,6 +27,7 @@ body {
   padding: 2px;
   margin: 2px;
   display: inline-block;
+  height: 20px;
 }
 .edittext {
   width: 200px;
@@ -54,6 +55,9 @@ body {
   max-height: 75px;
   overflow-y: scroll;
   vertical-align: bottom;
+}
+.invalid {
+  border: 2px solid red;
 }
 .add, #save, #download, .remove, #delete, .collapse, .validate_button, .validate_status, .validate_message, .tooltip > .tooltip-inner {
   padding: 2px 4px;
@@ -114,39 +118,39 @@ fieldset {
 .navSection:hover {
   background-color: lightblue;
 }
-.uploader .adder {
+.data_uploader .adder {
   width: 208px;
   display: inline-block;
   padding-left: 2px;
   position: relative;
 }
-.uploadertext {
+.data_uploader_text {
   display: inline-block;
   border: solid;
   border-width: 1px;
   border-color: #c0c0c0;
   height: 21px;
 }
-.uploader_chooser_file {
+.data_uploader_chooser_file {
   opacity: 0;
   position: absolute;
   width: 100px;
 }
-.uploader_chooser_button {
+.data_uploader_chooser_button {
   width: 99px;
 }
-.uploader_chooser_file, .uploader_chooser_button {
+.data_uploader_chooser_file, .data_uploader_chooser_button {
   cursor: pointer;
 }
-.uploader_chooser_button, .uploader_file_retrieve {
+.data_uploader_chooser_button, .data_uploader_file_retrieve {
   text-align: center;
 }
-.uploader_file_name {
+.data_uploader_file_name {
   min-width: 99px;
   overflow-x: visible;
   vertical-align: bottom
 }
-.uploader_file_retrieve {
+.data_uploader_file_retrieve {
   width: 100px;
   border: none;
   cursor: pointer;

@@ -1,4 +1,3 @@
-#!/bin/bash
 # Copyright 2020 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -x
-
-docker build \
-  --file=ord_schema/interface/docker/Dockerfile \
-  -t ord-postgres:empty \
-  .
-CONTAINER="$(docker run --rm -d ord-postgres:empty)"
-echo "Waiting 5s for the server to start..."
-sleep 5
-docker exec -it "${CONTAINER}" ./build_database.sh
-docker commit "${CONTAINER}" openreactiondatabase/ord-postgres
-docker stop "${CONTAINER}"
+version: "3"
+services:
+  ord-postgres:
+    image: "openreactiondatabase/ord-postgres:latest"
+  web:
+    depends_on:
+      - ord-postgres
+    environment:
+      - ORD_POSTGRES_HOST=ord-postgres
+    image: "openreactiondatabase/ord-interface:latest"
+    ports:
+      - "5000:5000"

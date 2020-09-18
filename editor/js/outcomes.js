@@ -21,22 +21,31 @@ exports = {
   unload,
   add,
   addAnalysis,
-  addProcess,
-  addRaw,
+  addProcessedData,
+  addRawData,
   validateOutcome,
   validateAnalysis
 };
 
+goog.require('ord.data');
 goog.require('ord.products');
 goog.require('proto.ord.ReactionOutcome');
 
 // Freely create radio button groups by generating new input names.
 let radioGroupCounter = 0;
 
+/**
+ * Adds and populates the reaction outcome sections in the form.
+ * @param {!Array<!proto.ord.ReactionOutcome>} outcomes
+ */
 function load(outcomes) {
   outcomes.forEach(outcome => loadOutcome(outcome));
 }
 
+/**
+ * Adds and populates a reaction outcome section in the form.
+ * @param outcome
+ */
 function loadOutcome(outcome) {
   const node = add();
 
@@ -61,8 +70,14 @@ function loadOutcome(outcome) {
   ord.products.load(node, products);
 }
 
-function loadAnalysis(analysesNode, name, analysis) {
-  const node = addAnalysis(analysesNode);
+/**
+ * Adds and populates a reaction analysis section in the form.
+ * @param {!Node} outcomeNode Parent reaction outcome node.
+ * @param {string} name The name of this analysis.
+ * @param {!proto.ord.ReactionAnalysis} analysis
+ */
+function loadAnalysis(outcomeNode, name, analysis) {
+  const node = addAnalysis(outcomeNode);
 
   $('.outcome_analysis_name', node).text(name).trigger('input');
 
@@ -78,16 +93,16 @@ function loadAnalysis(analysesNode, name, analysis) {
   const processNames = processes.stringKeys_();
   processNames.forEach(function(name) {
     const process = processes.get(name);
-    const processNode = addProcess(node);
-    loadProcess(processNode, name, process);
+    const processNode = addProcessedData(node);
+    loadProcessedData(processNode, name, process);
   });
 
   const raws = analysis.getRawDataMap();
   const rawNames = raws.stringKeys_();
   rawNames.forEach(function(name) {
     const raw = raws.get(name);
-    const rawNode = addRaw(node);
-    loadRaw(rawNode, name, raw);
+    const rawNode = addRawData(node);
+    loadRawData(rawNode, name, raw);
   });
   $('.outcome_analysis_manufacturer', node)
       .text(analysis.getInstrumentManufacturer());
@@ -106,76 +121,32 @@ function loadAnalysis(analysesNode, name, analysis) {
           null);
 }
 
-function loadProcess(node, name, process) {
-  $('.outcome_process_name', node).text(name);
-  $('.outcome_process_description', node).text(process.getDescription());
-  $('.outcome_process_format', node).text(process.getFormat());
-
-  const stringValue = process.getStringValue();
-  const floatValue = process.getFloatValue();
-  const bytesValue = process.getBytesValue();
-  const url = process.getUrl();
-  if (stringValue) {
-    $('.outcome_process_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_process_text', node).text(stringValue);
-    $('input[value=\'text\']', node).prop('checked', true);
-  }
-  if (floatValue) {
-    $('.outcome_process_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_process_text', node).text(floatValue);
-    $('input[value=\'number\']', node).prop('checked', true);
-  }
-  if (bytesValue) {
-    $('.outcome_process_text', node).hide();
-    $('.uploader', node).show();
-    ord.uploads.load(node, bytesValue);
-    $('input[value=\'upload\']', node).prop('checked', true);
-  }
-  if (url) {
-    $('.outcome_process_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_process_text', node).text(url);
-    $('input[value=\'url\']', node).prop('checked', true);
-  }
+/**
+ * Adds and populates a processed_data section in a reaction analysis.
+ * @param {!Node} node Parent reaction analysis node.
+ * @param {string} name The name of this Data record.
+ * @param {!proto.ord.Data} processedData
+ */
+function loadProcessedData(node, name, processedData) {
+  $('.outcome_processed_data_name', node).text(name);
+  ord.data.loadData(node, processedData);
 }
 
-function loadRaw(node, name, raw) {
-  $('.outcome_raw_name', node).text(name);
-  $('.outcome_raw_description', node).text(raw.getDescription());
-  $('.outcome_raw_format', node).text(raw.getFormat());
-
-  const stringValue = raw.getStringValue();
-  const floatValue = raw.getFloatValue();
-  const bytesValue = raw.getBytesValue();
-  const url = raw.getUrl();
-  if (stringValue) {
-    $('.outcome_raw_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_raw_text', node).text(stringValue);
-    $('input[value=\'text\']', node).prop('checked', true);
-  }
-  if (floatValue) {
-    $('.outcome_raw_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_raw_text', node).text(floatValue);
-    $('input[value=\'number\']', node).prop('checked', true);
-  }
-  if (bytesValue) {
-    $('.outcome_raw_text', node).hide();
-    $('.uploader', node).show();
-    ord.uploads.load(node, bytesValue);
-    $('input[value=\'upload\']', node).prop('checked', true);
-  }
-  if (url) {
-    $('.outcome_raw_text', node).show();
-    $('.uploader', node).hide();
-    $('.outcome_raw_text', node).text(url);
-    $('input[value=\'url\']', node).prop('checked', true);
-  }
+/**
+ * Adds and populates a raw_data section in a reaction analysis.
+ * @param {!Node} node Parent reaction analysis node.
+ * @param {string} name The name of this Data record.
+ * @param {!proto.ord.Data} rawData
+ */
+function loadRawData(node, name, rawData) {
+  $('.outcome_raw_data_name', node).text(name);
+  ord.data.loadData(node, rawData);
 }
 
+/**
+ * Fetches the reaction outcomes defined in the form.
+ * @return {!Array<!proto.ord.ReactionOutcome>}
+ */
 function unload() {
   const outcomes = [];
   $('.outcome').each(function(index, node) {
@@ -191,6 +162,11 @@ function unload() {
   return outcomes;
 }
 
+/**
+ * Fetches a reaction outcome defined in the form.
+ * @param {!Node} node Root node for the reaction outcome.
+ * @return {!proto.ord.ReactionOutcome}
+ */
 function unloadOutcome(node) {
   const outcome = new proto.ord.ReactionOutcome();
 
@@ -210,7 +186,7 @@ function unloadOutcome(node) {
   outcome.setProductsList(products);
 
   const analyses = outcome.getAnalysesMap();
-  $('.outcome_analysis').each(function(index, node) {
+  $('.outcome_analysis', node).each(function(index, node) {
     node = $(node);
     if (!node.attr('id')) {
       // Not a template.
@@ -220,6 +196,11 @@ function unloadOutcome(node) {
   return outcome;
 }
 
+/**
+ * Fetches a reaction analysis defined in the form.
+ * @param {!Node} analysisNode Root node for the reaction analysis.
+ * @return {!proto.ord.ReactionAnalysis}
+ */
 function unloadAnalysisSingle(analysisNode) {
   const analysis = new proto.ord.ReactionAnalysis();
   analysis.setType(
@@ -230,18 +211,19 @@ function unloadAnalysisSingle(analysisNode) {
   }
   analysis.setDetails($('.outcome_analysis_details', analysisNode).text());
 
-  const processes = analysis.getProcessedDataMap();
-  $('.outcome_process', analysisNode).each(function(index, processNode) {
-    processNode = $(processNode);
-    if (!processNode.attr('id')) {
-      unloadProcess(processNode, processes);
-    }
-  });
-  const raws = analysis.getRawDataMap();
-  $('.outcome_raw', analysisNode).each(function(index, rawNode) {
-    rawNode = $(rawNode);
-    if (!rawNode.attr('id')) {
-      unloadRaw(rawNode, raws);
+  const processedDataMap = analysis.getProcessedDataMap();
+  $('.outcome_processed_data', analysisNode)
+      .each(function(index, processedDataNode) {
+        processedDataNode = $(processedDataNode);
+        if (!processedDataNode.attr('id')) {
+          unloadProcessedData(processedDataNode, processedDataMap);
+        }
+      });
+  const rawDataMap = analysis.getRawDataMap();
+  $('.outcome_raw_data', analysisNode).each(function(index, rawDataNode) {
+    rawDataNode = $(rawDataNode);
+    if (!rawDataNode.attr('id')) {
+      unloadRawData(rawDataNode, rawDataMap);
     }
   });
   analysis.setInstrumentManufacturer(
@@ -259,6 +241,11 @@ function unloadAnalysisSingle(analysisNode) {
   return analysis;
 }
 
+/**
+ * Fetches a reaction analysis defined in the form and adds it to `analyses`.
+ * @param {!Node} analysisNode Root node for the reaction analysis.
+ * @param {!jspb.Map<string, !proto.ord.ReactionAnalysis>} analyses
+ */
 function unloadAnalysis(analysisNode, analyses) {
   const analysis = unloadAnalysisSingle(analysisNode);
   const name = $('.outcome_analysis_name', analysisNode).text();
@@ -268,79 +255,39 @@ function unloadAnalysis(analysisNode, analyses) {
   }
 }
 
-function unloadProcess(node, processes) {
-  const name = $('.outcome_process_name', node).text();
-
-  const process = new proto.ord.Data();
-  process.setDescription($('.outcome_process_description').text());
-  process.setFormat($('.outcome_process_format').text());
-
-  if ($('input[value=\'text\']', node).is(':checked')) {
-    const stringValue = $('.outcome_process_text', node).text();
-    if (!ord.reaction.isEmptyMessage(stringValue)) {
-      process.setStringValue(stringValue);
-    }
-  }
-  if ($('input[value=\'number\']', node).is(':checked')) {
-    const floatValue = parseFloat($('.outcome_process_text', node).text());
-    if (!isNaN(floatValue)) {
-      process.setFloatValue(floatValue);
-    }
-  }
-  if ($('input[value=\'upload\']', node).is(':checked')) {
-    const bytesValue = ord.uploads.unload(node);
-    if (!ord.reaction.isEmptyMessage(bytesValue)) {
-      process.setBytesValue(bytesValue);
-    }
-  }
-  if ($('input[value=\'url\']', node).is(':checked')) {
-    const url = $('.outcome_process_text', node).text();
-    if (!ord.reaction.isEmptyMessage(url)) {
-      process.setUrl(url);
-    }
-  }
+/**
+ * Fetches a processed_data record defined in the form and adds it to
+ * `processes`.
+ * @param {!Node} node Root node for the Data record.
+ * @param {!jspb.Map<string, !proto.ord.Data>} processedDataMap
+ */
+function unloadProcessedData(node, processedDataMap) {
+  const name = $('.outcome_processed_data_name', node).text();
+  const processedData = ord.data.unloadData(node);
   if (!ord.reaction.isEmptyMessage(name) ||
-      !ord.reaction.isEmptyMessage(process)) {
-    processes.set(name, process);
+      !ord.reaction.isEmptyMessage(processedData)) {
+    processedDataMap.set(name, processedData);
   }
 }
 
-function unloadRaw(node, raws) {
-  const name = $('.outcome_raw_name', node).text();
-
-  const raw = new proto.ord.Data();
-  raw.setDescription($('.outcome_raw_description', node).text());
-  raw.setFormat($('.outcome_raw_format', node).text());
-
-  if ($('input[value=\'text\']', node).is(':checked')) {
-    const stringValue = $('.outcome_raw_text', node).text();
-    if (!ord.reaction.isEmptyMessage(stringValue)) {
-      raw.setStringValue(stringValue);
-    }
-  }
-  if ($('input[value=\'number\']', node).is(':checked')) {
-    const floatValue = parseFloat($('.outcome_raw_text', node).text());
-    if (!isNaN(floatValue)) {
-      raw.setFloatValue(floatValue);
-    }
-  }
-  if ($('input[value=\'upload\']', node).is(':checked')) {
-    const bytesValue = ord.uploads.unload(node);
-    if (!ord.reaction.isEmptyMessage(bytesValue)) {
-      raw.setBytesValue(bytesValue);
-    }
-  }
-  if ($('input[value=\'url\']', node).is(':checked')) {
-    const url = $('.outcome_raw_text', node).text();
-    if (!ord.reaction.isEmptyMessage(url)) {
-      raw.setUrl(url);
-    }
-  }
+/**
+ * Fetches a raw_data record defined in the form and adds it to
+ * `processes`.
+ * @param {!Node} node Root node for the Data record.
+ * @param {!jspb.Map<string, !proto.ord.Data>} rawDataMap
+ */
+function unloadRawData(node, rawDataMap) {
+  const name = $('.outcome_raw_data_name', node).text();
+  const rawData = ord.data.unloadData(node);
   if (!ord.reaction.isEmptyMessage(name) || !ord.reaction.isEmptyMessage(raw)) {
-    raws.set(name, raw);
+    rawDataMap.set(name, rawData);
   }
 }
 
+/**
+ * Adds a reaction outcome section to the form.
+ * @return {!Node} The newly added parent node for the reaction outcome.
+ */
 function add() {
   const node = ord.reaction.addSlowly('#outcome_template', '#outcomes');
   // Add live validation handling.
@@ -350,6 +297,11 @@ function add() {
   return node;
 }
 
+/**
+ * Adds a reaction analysis section to the form.
+ * @param {!Node} node Parent reaction outcome node.
+ * @return {!Node} The newly added parent node for the reaction analysis.
+ */
 function addAnalysis(node) {
   const analysisNode = ord.reaction.addSlowly(
       '#outcome_analysis_template', $('.outcome_analyses', node));
@@ -361,21 +313,22 @@ function addAnalysis(node) {
     nameNode.data('val', nameNode.text());
   });
   nameNode.on('input', function() {
-    // Remove old key.
     var old_name = nameNode.data('val');
+    var name = nameNode.text();
+    // Remove old key.
     if (old_name) {
       // If any selector had this value selected, reset it.
-      $('.analysis_key_selector').each(function() {
+      $('.analysis_key_selector', node).each(function() {
         if ($(this).val() == old_name) {
           $(this).val('');
         }
       });
-      $('.analysis_key_selector option[value="' + old_name + '"]').remove();
+      $('.analysis_key_selector option[value="' + old_name + '"]', node)
+          .remove();
     }
     // Add new key.
-    var name = nameNode.text();
     if (name) {
-      $('.analysis_key_selector')
+      $('.analysis_key_selector', node)
           .append('<option value="' + name + '">' + name + '</option>');
       // Ensure old value stored (necessary if focus does not change).
       nameNode.data('val', name);
@@ -389,46 +342,36 @@ function addAnalysis(node) {
   return analysisNode;
 }
 
-function addProcess(node) {
+/**
+ * Adds a new processed_data section to the form.
+ * @param {!Node} node Parent reaction outcome node.
+ * @return {!Node} The newly added parent node for the Data record.
+ */
+function addProcessedData(node) {
   const processNode = ord.reaction.addSlowly(
-      '#outcome_process_template', $('.outcome_processes', node));
-
-  const typeButtons = $('input[type=\'radio\']', processNode);
-  typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);
-  typeButtons.change(function() {
-    if ((this.value == 'text') || (this.value == 'number') ||
-        (this.value == 'url')) {
-      $('.outcome_process_text', processNode).show();
-      $('.uploader', processNode).hide();
-    } else {
-      $('.outcome_process_text', processNode).hide();
-      $('.uploader', processNode).show();
-    }
-  });
-  ord.uploads.initialize(processNode);
+      '#outcome_processed_data_template',
+      $('.outcome_processed_data_repeated', node));
+  ord.data.addData(processNode);
   return processNode;
 }
 
-function addRaw(node) {
-  const rawNode =
-      ord.reaction.addSlowly('#outcome_raw_template', $('.outcome_raws', node));
-
-  const typeButtons = $('input[type=\'radio\']', rawNode);
-  typeButtons.attr('name', 'outcomes_' + radioGroupCounter++);
-  typeButtons.change(function() {
-    if ((this.value == 'text') || (this.value == 'number') ||
-        (this.value == 'url')) {
-      $('.outcome_raw_text', rawNode).show();
-      $('.uploader', rawNode).hide();
-    } else {
-      $('.outcome_raw_text', rawNode).hide();
-      $('.uploader', rawNode).show();
-    }
-  });
-  ord.uploads.initialize(rawNode);
+/**
+ * Adds a new raw_data section to the form.
+ * @param {!Node} node Parent reaction outcome node.
+ * @return {!Node} The newly added parent node for the Data record.
+ */
+function addRawData(node) {
+  const rawNode = ord.reaction.addSlowly(
+      '#outcome_raw_data_template', $('.outcome_raw_data_repeated', node));
+  ord.data.addData(rawNode);
   return rawNode;
 }
 
+/**
+ * Validates a reaction outcome defined in the form.
+ * @param {!Node} node Root node for the reaction outcome.
+ * @param {?Node} validateNode The target node for validation results.
+ */
 function validateOutcome(node, validateNode) {
   const outcome = unloadOutcome(node);
   if (!validateNode) {
@@ -437,6 +380,11 @@ function validateOutcome(node, validateNode) {
   ord.reaction.validate(outcome, 'ReactionOutcome', validateNode);
 }
 
+/**
+ * Validates a reaction analysis defined in the form.
+ * @param {!Node} node Root node for the reaction analysis.
+ * @param {?Node} validateNode The target node for validation results.
+ */
 function validateAnalysis(node, validateNode) {
   const analysis = unloadAnalysisSingle(node);
   if (!validateNode) {

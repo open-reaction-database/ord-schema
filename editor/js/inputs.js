@@ -31,6 +31,10 @@ goog.require('proto.ord.FlowRate');
 goog.require('proto.ord.ReactionInput');
 goog.require('proto.ord.Time');
 
+/**
+ * Adds and populates the reaction input sections in the form.
+ * @param {!jspb.Map<string, !proto.ord.ReactionInput>} inputs
+ */
 function load(inputs) {
   const names = inputs.stringKeys_();
   names.forEach(function(name) {
@@ -39,12 +43,25 @@ function load(inputs) {
   });
 }
 
+/**
+ * Adds and populates a single reaction input section in the form.
+ * @param {!Node} root Root node for the reaction input.
+ * @param {string} name The name of this input.
+ * @param {!proto.ord.ReactionInput} input
+ */
 function loadInput(root, name, input) {
   const node = add(root);
   loadInputUnnamed(node, input);
   $('.input_name', node).text(name);
 }
 
+/**
+ * Adds and populates a single reaction input section in the form without
+ * assigning it a name.
+ * @param {!Node} node Root node for the reaction input.
+ * @param {!proto.ord.ReactionInput} input
+ * @return {!Node} The original root node.
+ */
 function loadInputUnnamed(node, input) {
   const compounds = input.getComponentsList();
   ord.compounds.load(node, compounds);
@@ -77,6 +94,10 @@ function loadInputUnnamed(node, input) {
   if (duration) {
     ord.reaction.writeMetric('.input_addition_duration', duration, node);
   }
+  const temperature = input.getAdditionTemperature();
+  if (temperature) {
+    ord.reaction.writeMetric('.input_addition_temperature', temperature, node);
+  }
   const flowRate = input.getFlowRate();
   if (flowRate) {
     ord.reaction.writeMetric('.input_flow_rate', flowRate, node);
@@ -84,6 +105,10 @@ function loadInputUnnamed(node, input) {
   return node;
 }
 
+/**
+ * Fetches the reaction inputs defined in the form and adds them to `inputs`.
+ * @param {!jspb.Map<string, !proto.ord.ReactionInput>} inputs
+ */
 function unload(inputs) {
   $('#inputs > div.input').each(function(index, node) {
     node = $(node);
@@ -94,6 +119,11 @@ function unload(inputs) {
   });
 }
 
+/**
+ * Fetches a single reaction input defined in the form and adds it to `inputs`.
+ * @param {!jspb.Map<string, !proto.ord.ReactionInput>} inputs
+ * @param {!Node} node Root node for the reaction input.
+ */
 function unloadInput(inputs, node) {
   const name = $('.input_name', node).text();
   const input = unloadInputUnnamed(node);
@@ -103,6 +133,11 @@ function unloadInput(inputs, node) {
   }
 }
 
+/**
+ * Fetches a single reaction input defined in the form.
+ * @param {!Node} node Root node for the reaction input.
+ * @return {!proto.ord.ReactionInput}
+ */
 function unloadInputUnnamed(node) {
   const input = new proto.ord.ReactionInput();
 
@@ -148,6 +183,12 @@ function unloadInputUnnamed(node) {
     input.setAdditionDuration(additionDuration);
   }
 
+  const additionTemperature = ord.reaction.readMetric(
+      '.input_addition_temperature', new proto.ord.Temperature(), node);
+  if (!ord.reaction.isEmptyMessage(additionTemperature)) {
+    input.setAdditionTemperature(additionTemperature);
+  }
+
   const flowRate = ord.reaction.readMetric(
       '.input_flow_rate', new proto.ord.FlowRate(), node);
   if (!ord.reaction.isEmptyMessage(flowRate)) {
@@ -157,6 +198,11 @@ function unloadInputUnnamed(node) {
   return input;
 }
 
+/**
+ * Adds a reaction input section to the form.
+ * @param {!Node} root Parent node for reaction inputs.
+ * @return {!Node} The newly added parent node for the reaction input.
+ */
 function add(root) {
   const node = ord.reaction.addSlowly('#input_template', root);
   // Add live validation handling.
@@ -166,6 +212,11 @@ function add(root) {
   return node;
 }
 
+/**
+ * Validates a reaction input defined in the form.
+ * @param {!Node} node Root node for the reaction input.
+ * @param {?Node} validateNode Target node for validation results.
+ */
 function validateInput(node, validateNode) {
   const input = unloadInputUnnamed(node);
   if (!validateNode) {

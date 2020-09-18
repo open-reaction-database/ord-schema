@@ -27,10 +27,18 @@ exports = {
 goog.require('ord.inputs');
 goog.require('proto.ord.ReactionWorkup');
 
+/**
+ * Adds and populates the reaction workup sections in the form.
+ * @param {!Array<!proto.ord.ReactionWorkup>} workups
+ */
 function load(workups) {
   workups.forEach(workup => loadWorkup(workup));
 }
 
+/**
+ * Adds and populates a reaction workup section in the form.
+ * @param {!proto.ord.ReactionWorkup} workup
+ */
 function loadWorkup(workup) {
   const node = add();
   ord.reaction.setSelector($('.workup_type', node), workup.getType());
@@ -91,6 +99,12 @@ function loadWorkup(workup) {
       workup.hasIsAutomated() ? workup.getIsAutomated() : null);
 }
 
+/**
+ * Loads a measurement into the given node in a workup.
+ * @param {!Node} workupNode The div corresponding to the workup whose fields
+ *     should be updated.
+ * @param {!proto.ord.TemperatureConditions.Measurement} measurement
+ */
 function loadMeasurement(workupNode, measurement) {
   const node = addMeasurement(workupNode);
   ord.reaction.setSelector(
@@ -109,6 +123,10 @@ function loadMeasurement(workupNode, measurement) {
   }
 }
 
+/**
+ * Fetches a list of workups defined in the form.
+ * @return {!Array<!proto.ord.ReactionWorkup>} workups
+ */
 function unload() {
   const workups = [];
   $('.workup').each(function(index, node) {
@@ -123,6 +141,11 @@ function unload() {
   return workups;
 }
 
+/**
+ * Fetches a single workup from the form.
+ * @param {!Node} node The div corresponding to the workup to fetch.
+ * @return {!proto.ord.ReactionWorkup}
+ */
 function unloadWorkup(node) {
   const workup = new proto.ord.ReactionWorkup();
 
@@ -210,6 +233,11 @@ function unloadWorkup(node) {
   return workup;
 }
 
+/**
+ * Fetches a single workup temperature measurement from the form.
+ * @param {!Node} node The div corresponding to the measurement to fetch.
+ * @return {!proto.ord.TemperatureConditions.Measurement}
+ */
 function unloadMeasurement(node) {
   const measurement = new proto.ord.TemperatureConditions.Measurement();
   measurement.setType(ord.reaction.getSelector(
@@ -230,6 +258,10 @@ function unloadMeasurement(node) {
   return measurement;
 }
 
+/**
+ * Adds a new reaction workup section to the form.
+ * @return {!Node} The newly added parent node for the reaction workup.
+ */
 function add() {
   const workupNode = ord.reaction.addSlowly('#workup_template', '#workups');
   const inputNode = $('.workup_input', workupNode);
@@ -255,12 +287,22 @@ function add() {
   return workupNode;
 }
 
+/**
+ * Adds a new measurement section to the current workup in the form.
+ * @param {!Node} node The workup div where the new measurement should be added.
+ * @return {!Node} The node of the new measurement div.
+ */
 function addMeasurement(node) {
   return ord.reaction.addSlowly(
       '#workup_temperature_measurement_template',
       $('.workup_temperature_measurements', node));
 }
 
+/**
+ * Validates a workup as defined in the form.
+ * @param {!Node} node The div containing to the workup in the form.
+ * @param {?Node} validateNode The target div for validation results.
+ */
 function validateWorkup(node, validateNode) {
   const workup = unloadWorkup(node);
   if (!validateNode) {

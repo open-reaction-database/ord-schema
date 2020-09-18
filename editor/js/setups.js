@@ -28,6 +28,10 @@ goog.require('proto.ord.ReactionSetup');
 goog.require('proto.ord.Vessel');
 goog.require('proto.ord.Volume');
 
+/**
+ * Adds and populates the reaction setup section in the form.
+ * @param {!proto.ord.ReactionSetup} setup
+ */
 function load(setup) {
   const vessel = setup.getVessel();
   if (vessel) {
@@ -61,6 +65,10 @@ function load(setup) {
   }
 }
 
+/**
+ * Adds and populates the reaction vessel section of the form.
+ * @param {!proto.ord.Vessel} vessel
+ */
 function loadVessel(vessel) {
   const type = vessel.getType();
   if (type) {
@@ -92,6 +100,10 @@ function loadVessel(vessel) {
   }
 }
 
+/**
+ * Fetches the reaction setup from the form.
+ * @return {!proto.ord.ReactionSetup}
+ */
 function unload() {
   const setup = new proto.ord.ReactionSetup();
 
@@ -119,6 +131,10 @@ function unload() {
   return setup;
 }
 
+/**
+ * Fetches the reaction vessel information from the form.
+ * @return {!proto.ord.Vessel}
+ */
 function unloadVessel() {
   const vessel = new proto.ord.Vessel();
 
@@ -179,16 +195,29 @@ function unloadVessel() {
   return vessel;
 }
 
+/**
+ * Adds a new vessel preparation section to the form.
+ * @return {!Node} The node of the newly added div.
+ */
 function addVesselPreparation() {
   return ord.reaction.addSlowly(
       '#setup_vessel_preparation_template', '#setup_vessel_preparations');
 }
 
+/**
+ * Adds a new vessel attachment section to the form.
+ * @return {!Node} The node of the newly added div.
+ */
 function addVesselAttachment() {
   return ord.reaction.addSlowly(
       '#setup_vessel_attachment_template', '#setup_vessel_attachments');
 }
 
+/**
+ * Validates the reaction setup defined in the form.
+ * @param {!Node} node The node containing the reaction setup div.
+ * @param {?Node} validateNode The target div for validation results.
+ */
 function validateSetup(node, validateNode) {
   const setup = unload();
   if (!validateNode) {

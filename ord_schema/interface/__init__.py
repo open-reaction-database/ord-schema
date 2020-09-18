@@ -15,7 +15,7 @@
 
 import collections
 
-POSTGRES_PORT = 5430  # Avoid conflicts with any existing PostgreSQL server.
+POSTGRES_PORT = 5432
 POSTGRES_USER = 'ord-postgres'
 POSTGRES_PASSWORD = 'ord-postgres'
 POSTGRES_DB = 'ord'

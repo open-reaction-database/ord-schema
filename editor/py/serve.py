@@ -14,10 +14,12 @@
 """A web editor for Open Reaction Database structures."""
 
 import contextlib
+import difflib
 import fcntl
 import io
 import json
 import os
+import pprint
 import re
 import urllib
 import uuid
@@ -341,14 +343,12 @@ def render_reaction():
 
 @app.route('/render/compound', methods=['POST'])
 def render_compound():
-    """Receives a serialized Compound message and returns base64-encoded png
-    data corresponding to a line drawing of the molecule."""
+    """Returns an HTML-tagged SVG for the given Compound."""
     compound = reaction_pb2.Compound()
     compound.ParseFromString(flask.request.get_data())
     try:
         mol = message_helpers.mol_from_compound(compound)
-        png_data = drawing.mol_to_png(mol)
-        return flask.jsonify(png_data)
+        return flask.jsonify(drawing.mol_to_svg(mol))
     except ValueError:
         return ''
 
@@ -375,6 +375,11 @@ def compare(file_name):
     remote_ascii = text_format.MessageToString(remote)
     local_ascii = text_format.MessageToString(local)
     if remote_ascii != local_ascii:
+        app.logger.error(
+            pprint.pformat(
+                list(
+                    difflib.context_diff(local_ascii.splitlines(),
+                                         remote_ascii.splitlines()))))
         return 'differs', 409  # "Conflict"
     return 'equals'
 

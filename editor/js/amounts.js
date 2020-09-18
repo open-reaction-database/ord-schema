@@ -26,6 +26,14 @@ goog.require('proto.ord.Mass');
 goog.require('proto.ord.Moles');
 goog.require('proto.ord.Volume');
 
+/**
+ * Adds and populates the form's fields describing the amount of a compound.
+ * @param {!Node} node The div corresponding to the compound whose amount fields
+ *     on the form should be updated.
+ * @param {?proto.ord.Mass} mass
+ * @param {?proto.ord.Moles} moles
+ * @param {?proto.ord.Volume} volume
+ */
 function load(node, mass, moles, volume) {
   const amount = $('.amount', node);
   $('.component_amount_units_mass', node).hide();
@@ -71,6 +79,12 @@ function load(node, mass, moles, volume) {
   }
 }
 
+/**
+ * Sets the amount fields of a compound message according to the form.
+ * @param {!Node} node The div corresponding to the compound whose amount fields
+ *     should be read from the form.
+ * @param {!proto.ord.Compound} compound
+ */
 function unload(node, compound) {
   const mass = unloadMass(node);
   const moles = unloadMoles(node);
@@ -92,6 +106,12 @@ function unload(node, compound) {
   }
 }
 
+/**
+ * Reads and returns a mass amount of a compound as defined in the form.
+ * @param {!Node} node The div corresponding to the compound whose mass fields
+ *     should be read from the form.
+ * @return {?proto.ord.Mass}
+ */
 function unloadMass(node) {
   if (!$('.component_amount_mass', node).is(':checked')) {
     return null;
@@ -111,6 +131,12 @@ function unloadMass(node) {
   return mass;
 }
 
+/**
+ * Reads and returns a molar amount of a compound as defined in the form.
+ * @param {!Node} node The div corresponding to the compound whose moles fields
+ *     should be read from the form.
+ * @return {?proto.ord.Moles}
+ */
 function unloadMoles(node) {
   if (!$('.component_amount_moles', node).is(':checked')) {
     return null;
@@ -130,6 +156,12 @@ function unloadMoles(node) {
   return moles;
 }
 
+/**
+ * Reads and returns a volumetric amount of a compound as defined in the form.
+ * @param {!Node} node The div corresponding to the compound whose volume fields
+ *     should be read from the form.
+ * @return {?proto.ord.Volume}
+ */
 function unloadVolume(node) {
   if (!$('.component_amount_volume', node).is(':checked')) {
     return null;

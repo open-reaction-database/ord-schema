@@ -24,6 +24,10 @@ exports = {
 
 goog.require('proto.ord.ReactionNotes');
 
+/**
+ * Adds and populates the reaction nodes section in the form.
+ * @param {!proto.ord.ReactionNotes} notes
+ */
 function load(notes) {
   ord.reaction.setOptionalBool(
       $('#notes_heterogeneous'),
@@ -50,6 +54,10 @@ function load(notes) {
   $('#notes_details').text(notes.getProcedureDetails());
 }
 
+/**
+ * Fetches the reaction notes defined in the form.
+ * @return {!proto.ord.ReactionNotes}
+ */
 function unload() {
   const notes = new proto.ord.ReactionNotes();
   notes.setIsHeterogeneous(
@@ -68,6 +76,11 @@ function unload() {
   return notes;
 }
 
+/**
+ * Validates the reaction notes defined in the form.
+ * @param {!Node} node Root node for the reaction notes.
+ * @param {?Node} validateNode Target node for validation results.
+ */
 function validateNotes(node, validateNode) {
   const notes = unload();
   if (!validateNode) {

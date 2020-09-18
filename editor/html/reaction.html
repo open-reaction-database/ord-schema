@@ -132,7 +132,7 @@ limitations under the License.
                     <span data-toggle="tooltip" data-placement="right" title="Addition order should be an integer value, starting at 1.">
                       <span class="fa fa-question-circle" aria-hidden="true"></span>
                     </span>
-                    </td><td><div class="input_addition_order edittext veryshorttext"></div></td></tr>
+                    </td><td><div class="input_addition_order edittext veryshorttext integertext"></div></td></tr>
                     <tr><td align="right">addition speed</td><td><div class="input_addition_speed_type selector" data-proto="ReactionInput_AdditionSpeed_AdditionSpeedType"></div></td><td>
                                                                 details <div class="input_addition_speed_details edittext"></div></td></tr>
                     <tr><td align="right">addition device</td><td><div class="input_addition_device_type selector" data-proto="ReactionInput_AdditionDevice_AdditionDeviceType"></div></td><td>
@@ -141,14 +141,20 @@ limitations under the License.
                     <span data-toggle="tooltip" data-placement="right" title="Addition time is relative to when the first input was added.">
                       <span class="fa fa-question-circle" aria-hidden="true"></span>
                     </span>
-                    </td><td><div class="input_addition_time_value edittext shorttext"></div><div class="input_addition_time_units selector" data-proto="Time_TimeUnit"></div></td><td>
-                    +/- <div class="input_addition_time_precision edittext shorttext"></div></td></tr>
+                    </td><td><div class="input_addition_time_value edittext shorttext floattext"></div><div class="input_addition_time_units selector" data-proto="Time_TimeUnit"></div></td><td>
+                    +/- <div class="input_addition_time_precision edittext shorttext floattext"></div></td></tr>
                     <tr><td align="right">addition duration
                     <span data-toggle="tooltip" data-placement="right" title="Addition duration quantifies how long it took to add the input.">
                       <span class="fa fa-question-circle" aria-hidden="true"></span>
                     </span>
-                    </td><td><div class="input_addition_duration_value edittext shorttext"></div><div class="input_addition_duration_units selector" data-proto="Time_TimeUnit"></div></td><td>
-                    +/- <div class="input_addition_duration_precision edittext shorttext"></div></td></tr>
+                    </td><td><div class="input_addition_duration_value edittext shorttext floattext"></div><div class="input_addition_duration_units selector" data-proto="Time_TimeUnit"></div></td><td>
+                    +/- <div class="input_addition_duration_precision edittext shorttext floattext"></div></td></tr>
+                    <tr><td align="right">addition temperature
+                    <span data-toggle="tooltip" data-placement="right" title="Addition temperature specifies if the reaction input was heated or cooled prior to addition.">
+                      <span class="fa fa-question-circle" aria-hidden="true"></span>
+                    </span>
+                    </td><td><div class="input_addition_temperature_value edittext shorttext floattext"></div><div class="input_addition_temperature_units selector" data-proto="Temperature_TemperatureUnit"></div></td><td>
+                    +/- <div class="input_addition_temperature_precision edittext shorttext floattext"></div></td></tr>
                   </table>
                 </fieldset>
                 <fieldset>
@@ -160,9 +166,9 @@ limitations under the License.
                     </span>
                   </legend>
                   <div>
-                    value <div class="input_flow_rate_value edittext shorttext"></div>
+                    value <div class="input_flow_rate_value edittext shorttext floattext"></div>
                     <div class="input_flow_rate_units selector" data-proto="FlowRate_FlowRateUnit"></div>
-                    +/- <div class="input_flow_rate_precision edittext shorttext"></div>
+                    +/- <div class="input_flow_rate_precision edittext shorttext floattext"></div>
                   </div>
                 </fieldset>
               </fieldset>
@@ -189,9 +195,7 @@ limitations under the License.
                     </span>
                   </legend>
                   <!-- Compound rendering -->
-                  <div style="text-align: center">
-                    <img class="component_rendering" src="" style="margin-left: auto; margin-right: auto;"/>
-                  </div>
+                  <div class="component_rendering" style="text-align: center;"></div>
                   <div class="identifiers"></div>
                   <!-- Shortcuts for name resolving & drawing -->
                   <div onclick="ord.compounds.drawIdentifier($(this).closest('.component'));" class="add"><span class="far fa-edit" aria-hidden="true"></span> draw compound</div>
@@ -208,8 +212,8 @@ limitations under the License.
                   <input type="radio" class="component_amount_moles" value="moles"> moles 
                   <input type="radio" class="component_amount_volume" value="volume"> volume 
                   <span class="includes_solutes">includes solutes?</span> <div class="component_includes_solutes includes_solutes optional_bool"></div>
-                  <span style="padding-left:25px">value</span> <div class="component_amount_value edittext shorttext"></div>
-                  +/- <div class="component_amount_precision edittext shorttext"></div>
+                  <span style="padding-left:25px">value</span> <div class="component_amount_value edittext shorttext floattext"></div>
+                  +/- <div class="component_amount_precision edittext shorttext floattext"></div>
                   <div class="component_amount_units_mass selector" data-proto="Mass_MassUnit"></div>
                   <div class="component_amount_units_moles selector" data-proto="Moles_MolesUnit" style="display: none;"></div>
                   <div class="component_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
@@ -292,8 +296,8 @@ limitations under the License.
                   </legend>
                   <input type="radio" class="crude_amount_mass" value="mass" checked> mass
                   <input type="radio" class="crude_amount_volume" value="volume"> volume
-                  <span style="padding-left:25px">value</span> <div class="crude_amount_value edittext shorttext"></div>
-                  +/- <div class="crude_amount_precision edittext shorttext"></div>
+                  <span style="padding-left:25px">value</span> <div class="crude_amount_value edittext shorttext floattext"></div>
+                  +/- <div class="crude_amount_precision edittext shorttext floattext"></div>
                   <div class="crude_amount_units_mass selector" data-proto="Mass_MassUnit"></div>
                   <div class="crude_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
                 </fieldset>
@@ -318,9 +322,9 @@ limitations under the License.
                                                details <div id="setup_vessel_details" class="edittext"></td></tr>
           <tr><td align="right">material</td><td><div id="setup_vessel_material" class="selector" data-proto="VesselMaterial_VesselMaterialType"></div>
                                                  details <div id="setup_vessel_material_details" class="edittext"></div></td></tr>
-          <tr><td align="right">volume</td><td><div id="setup_vessel_volume_value" class="edittext shorttext"></div>
+          <tr><td align="right">volume</td><td><div id="setup_vessel_volume_value" class="edittext shorttext floattext"></div>
                                                <div id="setup_vessel_volume_units" class="selector" data-proto="Volume_VolumeUnit"></div>
-                                               +/- <div id="setup_vessel_volume_precision" class="edittext shorttext"></div></td></tr>
+                                               +/- <div id="setup_vessel_volume_precision" class="edittext shorttext floattext"></div></td></tr>
           <tr><td align="right">automated</td><td><div id="setup_automated" class="optional_bool"></div></td></tr>
           <tr id="automation_platform"><td align="right">platform</td><td><div id="setup_platform" class="edittext longtext"></div></td></tr>
           <tr><td align="right">environment</td><td><div id="setup_environment_type" class="selector" data-proto="ReactionSetup_ReactionEnvironment_ReactionEnvironmentType"></div>
@@ -367,29 +371,6 @@ limitations under the License.
               <div onclick="ord.reaction.removeSlowly(this, '.setup_code');" class="remove">remove</div>
               <table>
                 <tr><td align="right">name</td><td><div class="setup_code_name edittext"></div></td></tr>
-                <tr>
-                  <td align="right">value</td>
-                  <td>
-                    <div class="setup_code_text edittext"></div>
-                    <div class="uploader" data-token="" style="display: none;">
-                      <input class="uploader_chooser_file uploadertext" type="file">
-                      <div class="uploader_chooser_button uploadertext">Choose...</div>
-                      <div class="uploader_file_name uploadertext"></div>
-                      <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="right">type</td>
-                  <td>
-                    <input type="radio" value="text" checked> text
-                    <input type="radio" value="number"> number
-                    <input type="radio" value="url"> url
-                    <input type="radio" value="upload"> upload
-                  </td>
-                </tr>
-                <tr><td align="right">description</td><td><div class="setup_code_description edittext"></div></td></tr>
-                <tr><td align="right">file format</td><td><div class="setup_code_format edittext"></div></td></tr>
               </table>
             </fieldset>
           </div>
@@ -412,9 +393,9 @@ limitations under the License.
           <table>
             <tr><td align="right">control</td><td><div id="temperature_control" class="selector" data-proto="TemperatureConditions_TemperatureControl_TemperatureControlType"></div>
                                                   details <div id="temperature_control_details" class="edittext"></div></td></tr>
-            <tr><td align="right">setpoint</td><td><div id="temperature_setpoint_value" class="edittext shorttext"></div>
+            <tr><td align="right">setpoint</td><td><div id="temperature_setpoint_value" class="edittext shorttext floattext"></div>
                                                    <div id="temperature_setpoint_units" class="selector" data-proto="Temperature_TemperatureUnit"></div>
-                                                   +/- <div id="temperature_setpoint_precision" class="edittext shorttext"></div></td></tr>
+                                                   +/- <div id="temperature_setpoint_precision" class="edittext shorttext floattext"></div></td></tr>
           </table>
           <div id="temperature_measurements">
             <div id="temperature_measurement_template" class="temperature_measurement" style="display: none;">
@@ -426,12 +407,12 @@ limitations under the License.
                 <div onclick="ord.reaction.removeSlowly(this, '.temperature_measurement');" class="remove">remove</div>
                 <table>
                   <tr><td align="right">type</td><td><div class="temperature_measurement_type selector" data-proto="TemperatureConditions_Measurement_MeasurementType"></div></td></tr>
-                  <tr><td align="right">temperature</td><td><div class="temperature_measurement_temperature_value edittext shorttext"></div>
+                  <tr><td align="right">temperature</td><td><div class="temperature_measurement_temperature_value edittext shorttext floattext"></div>
                                                             <div class="temperature_measurement_temperature_units selector" data-proto="Temperature_TemperatureUnit"></div>
-                                                            +/- <div class="temperature_measurement_temperature_precision edittext shorttext"></div></td></tr>
-                  <tr><td align="right">time</td><td><div class="temperature_measurement_time_value edittext shorttext"></div>
+                                                            +/- <div class="temperature_measurement_temperature_precision edittext shorttext floattext"></div></td></tr>
+                  <tr><td align="right">time</td><td><div class="temperature_measurement_time_value edittext shorttext floattext"></div>
                                                      <div class="temperature_measurement_time_units selector" data-proto="Time_TimeUnit"></div>
-                                                     +/- <div class="temperature_measurement_time_precision edittext shorttext"></div></td></tr>
+                                                     +/- <div class="temperature_measurement_time_precision edittext shorttext floattext"></div></td></tr>
                   <tr><td align="right">details</td><td colspan="2"><div class="temperature_measurement_details edittext"></div></td></tr>
                 </table>
               </fieldset>
@@ -448,9 +429,9 @@ limitations under the License.
             <table>
               <tr><td align="right">control</td><td><div id="pressure_control_type" class="selector" data-proto="PressureConditions_PressureControl_PressureControlType"></div>
                                                     details <div id="pressure_control_details" class="edittext"></div></td></tr>
-              <tr><td align="right">setpoint</td><td><div id="pressure_setpoint_value" class="edittext shorttext"></div>
+              <tr><td align="right">setpoint</td><td><div id="pressure_setpoint_value" class="edittext shorttext floattext"></div>
                                                      <div id="pressure_setpoint_units" class="selector" data-proto="Pressure_PressureUnit"></div>
-                                                     +/- <div id="pressure_setpoint_precision" class="edittext shorttext"></div></td></tr>
+                                                     +/- <div id="pressure_setpoint_precision" class="edittext shorttext floattext"></div></td></tr>
               <tr><td align="right">atmosphere</td><td><div id="pressure_atmosphere_type" class="selector" data-proto="PressureConditions_Atmosphere_AtmosphereType"></div>
                                                        details <div id="pressure_atmosphere_details" class="edittext"></div></td></tr>
             </table>
@@ -464,12 +445,12 @@ limitations under the License.
                 <div onclick="ord.reaction.removeSlowly(this, '.pressure_measurement');" class="remove">remove</div>
                 <table>
                   <tr><td align="right">type</td><td><div class="pressure_measurement_type selector" data-proto="PressureConditions_Measurement_MeasurementType"></div></td></tr>
-                  <tr><td align="right">pressure</td><td><div class="pressure_measurement_pressure_value edittext shorttext"></div>
+                  <tr><td align="right">pressure</td><td><div class="pressure_measurement_pressure_value edittext shorttext floattext"></div>
                                                          <div class="pressure_measurement_pressure_units selector" data-proto="Pressure_PressureUnit"></div>
-                                                         +/- <div class="pressure_measurement_pressure_precision edittext shorttext"></div></td></tr>
-                  <tr><td align="right">time</td><td><div class="pressure_measurement_time_value edittext shorttext"></div>
+                                                         +/- <div class="pressure_measurement_pressure_precision edittext shorttext floattext"></div></td></tr>
+                  <tr><td align="right">time</td><td><div class="pressure_measurement_time_value edittext shorttext floattext"></div>
                                                      <div class="pressure_measurement_time_units selector" data-proto="Time_TimeUnit"></div>
-                                                     +/- <div class="pressure_measurement_time_precision edittext shorttext"></div></td></tr>
+                                                     +/- <div class="pressure_measurement_time_precision edittext shorttext floattext"></div></td></tr>
                   <tr><td align="right">details</td><td colspan="2"><div class="pressure_measurement_details edittext"></div></td></tr>
                 </table>
               </fieldset>
@@ -488,7 +469,7 @@ limitations under the License.
                                                  details <div id="stirring_method_details" class="edittext"></div></td></tr>
             <tr><td align="right">rate</td><td><div id="stirring_rate_type" class="selector" data-proto="StirringConditions_StirringRate_StirringRateType"></div>
                                                  details <div id="stirring_rate_details" class="edittext"></div></td></tr>
-            <tr><td align="right">rpm</td><td><div id="stirring_rpm" class="edittext shorttext"></div></td></tr>
+            <tr><td align="right">rpm</td><td><div id="stirring_rpm" class="edittext shorttext integertext"></div></td></tr>
           </table>
         </fieldset>
         <fieldset id="section_conditions_illumination">
@@ -500,12 +481,12 @@ limitations under the License.
           <table>
             <tr><td align="right">type</td><td><div id="illumination_type" class="selector" data-proto="IlluminationConditions_IlluminationType_IlluminationTypeEnum"></div>
                                                 details<div id="illumination_details" class="edittext"></div></td></tr>
-            <tr><td align="right">wavelength</td><td><div id="illumination_wavelength_value" class="edittext shorttext"></div>
+            <tr><td align="right">wavelength</td><td><div id="illumination_wavelength_value" class="edittext shorttext floattext"></div>
                                                      <div id="illumination_wavelength_units" class="selector" data-proto="Wavelength_WavelengthUnit"></div>
-                                                     +/- <div id="illumination_wavelength_precision" class="edittext shorttext"></div></td></tr>
-            <tr><td align="right">distance</td><td><div id="illumination_distance_value" class="edittext shorttext"></div>
+                                                     +/- <div id="illumination_wavelength_precision" class="edittext shorttext floattext"></div></td></tr>
+            <tr><td align="right">distance</td><td><div id="illumination_distance_value" class="edittext shorttext floattext"></div>
                                                    <div id="illumination_distance_units" class="selector" data-proto="Length_LengthUnit"></div>
-                                                   +/- <div id="illumination_distance_precision" class="edittext shorttext"></div></td></tr>
+                                                   +/- <div id="illumination_distance_precision" class="edittext shorttext floattext"></div></td></tr>
             <tr><td align="right">color</td><td><div id="illumination_color" class="edittext"></div></td></tr>
           </table>
         </fieldset>
@@ -518,17 +499,17 @@ limitations under the License.
           <table>
             <tr><td align="right">type</td><td><div id="electro_type" class="selector" data-proto="ElectrochemistryConditions_ElectrochemistryType_ElectrochemistryTypeEnum"></div>
                                                details <div id="electro_details" class="edittext"></div></td></tr>
-            <tr><td align="right">current</td><td><div id="electro_current_value" class="edittext shorttext"></div>
+            <tr><td align="right">current</td><td><div id="electro_current_value" class="edittext shorttext floattext"></div>
                                                   <div id="electro_current_units" class="selector" data-proto="Current_CurrentUnit"></div>
-                                                  +/- <div id="electro_current_precision" class="edittext shorttext"></div></td></tr>
-            <tr><td align="right">voltage</td><td><div id="electro_voltage_value" class="edittext shorttext"></div>
+                                                  +/- <div id="electro_current_precision" class="edittext shorttext floattext"></div></td></tr>
+            <tr><td align="right">voltage</td><td><div id="electro_voltage_value" class="edittext shorttext floattext"></div>
                                                   <div id="electro_voltage_units" class="selector" data-proto="Voltage_VoltageUnit"></div>
-                                                  +/- <div id="electro_voltage_precision" class="edittext shorttext"></div></td></tr>
+                                                  +/- <div id="electro_voltage_precision" class="edittext shorttext floattext"></div></td></tr>
             <tr><td align="right">anode</td><td><div id="electro_anode" class="edittext"></div></td></tr>
             <tr><td align="right">cathode</td><td><div id="electro_cathode" class="edittext"></div></td></tr>
-            <tr><td align="right">separation</td><td><div id="electro_separation_value" class="edittext shorttext"></div>
+            <tr><td align="right">separation</td><td><div id="electro_separation_value" class="edittext shorttext floattext"></div>
                                                      <div id="electro_separation_units" class="selector" data-proto="Length_LengthUnit"></div>
-                                                     +/- <div id="electro_separation_precision" class="edittext shorttext"></div></td></tr>
+                                                     +/- <div id="electro_separation_precision" class="edittext shorttext floattext"></div></td></tr>
             <tr><td align="right">cell</td><td><div id="electro_cell_type" class="selector" data-proto="ElectrochemistryConditions_ElectrochemistryCell_ElectrochemistryCellType"></div>
                                                details <div id="electro_cell_details" class="edittext"></div></td></tr>
           </table>
@@ -543,17 +524,17 @@ limitations under the License.
                 <input type="radio" class="electro_measurement_current" value="current" checked> current
                 <input type="radio" class="electro_measurement_voltage" value="voltage"> voltage
                 <table>
-                  <tr><td align="right">time</td><td><div class="electro_measurement_time_value edittext shorttext"></div>
+                  <tr><td align="right">time</td><td><div class="electro_measurement_time_value edittext shorttext floattext"></div>
                                                      <div class="electro_measurement_time_units selector" data-proto="Time_TimeUnit"></div>
                                                      +/- <div class="electro_measurement_time_precision edittext shorttext"></div></td></tr>
                   <tr class="electro_measurement_current_fields">
-                    <td align="right">current</td><td><div class="electro_measurement_current_value edittext shorttext"></div>
+                    <td align="right">current</td><td><div class="electro_measurement_current_value edittext shorttext floattext"></div>
                                                       <div class="electro_measurement_current_units selector" data-proto="Current_CurrentUnit"></div>
-                                                      +/- <div class="electro_measurement_current_precision edittext shorttext"></div></td></tr>
+                                                      +/- <div class="electro_measurement_current_precision edittext shorttext floattext"></div></td></tr>
                   <tr class="electro_measurement_voltage_fields" style="display: none;">
-                    <td align="right">voltage</td><td><div class="electro_measurement_voltage_value edittext shorttext"></div>
+                    <td align="right">voltage</td><td><div class="electro_measurement_voltage_value edittext shorttext floattext"></div>
                                                       <div class="electro_measurement_voltage_units selector" data-proto="Voltage_VoltageUnit"></div>
-                                                      +/- <div class="electro_measurement_voltage_precision edittext shorttext"></div></td></tr>
+                                                      +/- <div class="electro_measurement_voltage_precision edittext shorttext floattext"></div></td></tr>
                 </table>
               </fieldset>
             </div>
@@ -572,14 +553,14 @@ limitations under the License.
             <tr><td align="right">pump</td><td><div id="flow_pump" class="edittext"></div></td></tr>
             <tr><td align="right">tubing</td><td><div id="flow_tubing_type" class="selector" data-proto="FlowConditions_Tubing_TubingMaterialType"></div>
                                                  details <div id="flow_tubing_details" class="edittext"></div></td></tr>
-            <tr><td align="right">diameter</td><td><div id="flow_tubing_value" class="edittext shorttext"></div>
+            <tr><td align="right">diameter</td><td><div id="flow_tubing_value" class="edittext shorttext floattext"></div>
                                                 <div id="flow_tubing_units" class="selector" data-proto="Length_LengthUnit"></div>
-                                                +/- <div id="flow_tubing_precision" class="edittext shorttext"></div></td></tr>
+                                                +/- <div id="flow_tubing_precision" class="edittext shorttext floattext"></div></td></tr>
           </table>
         </fieldset>
         <table>
           <tr><td align="right">reflux</td><td><div id="condition_reflux" class="optional_bool"></div></td></tr>
-          <tr><td align="right">pH</td><td><div id="condition_ph" class="edittext veryshorttext"></div></td></tr>
+          <tr><td align="right">pH</td><td><div id="condition_ph" class="edittext veryshorttext floattext"></div></td></tr>
           <tr><td align="right">dynamic conditions
             <span data-toggle="tooltip" data-placement="right" title="Whether the reaction conditions cannot be fully described by the fields in this schema/form.">
               <span class="fa fa-question-circle" aria-hidden="true"></span>
@@ -630,32 +611,9 @@ limitations under the License.
               </legend>
               <div onclick="ord.reaction.removeSlowly(this, '.observation');" class="remove">remove</div>
               <table>
-                <tr><td align="right">time</td><td><div class="observation_time_value edittext shorttext"></div>
+                <tr><td align="right">time</td><td><div class="observation_time_value edittext shorttext floattext"></div>
                                                    <div class="observation_time_units selector" data-proto="Time_TimeUnit"></div>
-                                                   +/- <div class="observation_time_precision edittext shorttext"></div></td></tr>
-                <tr>
-                  <td align="right">value</td>
-                  <td>
-                    <div class="observation_image_text edittext"></div>
-                    <div class="uploader" data-token="" style="display: none;">
-                      <input class="uploader_chooser_file uploadertext" type="file">
-                      <div class="uploader_chooser_button uploadertext">Choose...</div>
-                      <div class="uploader_file_name uploadertext"></div>
-                      <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="right">type</td>
-                  <td>
-                    <input type="radio" value="text" checked> text
-                    <input type="radio" value="number"> number
-                    <input type="radio" value="url"> url
-                    <input type="radio" value="upload"> upload
-                  </td>
-                </tr>
-                <tr><td align="right">description</td><td><div class="observation_image_description edittext"></div></td></tr>
-                <tr><td align="right">file format</td><td><div class="observation_image_format edittext"></div></td></tr>
+                                                   +/- <div class="observation_time_precision edittext shorttext floattext"></div></td></tr>
                 <tr><td align="right">comment</td><td><div class="observation_comment edittext"></div></td></tr>
               </table>
             </fieldset>
@@ -684,10 +642,10 @@ limitations under the License.
             <table>
               <tr><td align="right">type</td><td><div class="workup_type selector" data-proto="ReactionWorkup_WorkupType"></div></td></tr>
               <tr><td align="right">keep phase</td><td><div class="workup_keep_phase edittext"></div></td></tr>
-              <tr><td align="right">target ph</td><td><div class="workup_target_ph edittext veryshorttext"></div></td></tr>
-              <tr><td align="right">duration</td><td><div class="workup_duration_value edittext shorttext"></div>
+              <tr><td align="right">target ph</td><td><div class="workup_target_ph edittext veryshorttext floattext"></div></td></tr>
+              <tr><td align="right">duration</td><td><div class="workup_duration_value edittext shorttext floattext"></div>
                                                      <div class="workup_duration_units selector" data-proto="Time_TimeUnit"></div>
-                                                     +/- <div class="workup_duration_precision edittext shorttext"></div></td></tr>
+                                                     +/- <div class="workup_duration_precision edittext shorttext floattext"></div></td></tr>
               <tr><td align="right">automated</td><td><div class="workup_automated optional_bool"></div></td></tr>
               <tr><td align="right">details</td><td><div class="workup_details edittext"></div></td></tr>
             </table>
@@ -701,9 +659,9 @@ limitations under the License.
               </legend>
               <table>
                 <tr><td align="right">control</td><td><div class="workup_temperature_control_type selector" data-proto="TemperatureConditions_TemperatureControl_TemperatureControlType"></div></td></tr>
-                <tr><td align="right">setpoint</td><td><div class="workup_temperature_setpoint_value edittext"></div>
+                <tr><td align="right">setpoint</td><td><div class="workup_temperature_setpoint_value edittext shorttext floattext"></div>
                                                        <div class="workup_temperature_setpoint_units selector" data-proto="Temperature_TemperatureUnit"></div>
-                                                       +/- <div class="workup_temperature_setpoint_precision edittext"></div></td></tr>
+                                                       +/- <div class="workup_temperature_setpoint_precision edittext shorttext floattext"></div></td></tr>
                 <tr><td align="right">details</td><td><div class="workup_temperature_details edittext"></div></td></tr>
               </table>
             </fieldset>
@@ -726,7 +684,7 @@ limitations under the License.
                                                      details <div class="workup_stirring_method_details edittext"></div></td></tr>
                 <tr><td align="right">rate</td><td><div class="workup_stirring_rate_type selector" data-proto="StirringConditions_StirringRate_StirringRateType"></div>
                                                    details <div class="workup_stirring_rate_details edittext"></div></td></tr>
-                <tr><td align="right">rpm</td><td><div class="workup_stirring_rate_rpm edittext"></div></td></tr>
+                <tr><td align="right">rpm</td><td><div class="workup_stirring_rate_rpm edittext shorttext floattext"></div></td></tr>
               </table>
             </fieldset>
           </fieldset>
@@ -741,12 +699,12 @@ limitations under the License.
               <div onclick="ord.reaction.removeSlowly(this, '.workup_temperature_measurement');" class="remove">remove</div>
               <table>
                 <tr><td align="right">type</td><td><div class="workup_temperature_measurement_type selector" data-proto="TemperatureConditions_Measurement_MeasurementType"></div></td></tr>
-                <tr><td align="right">time</td><td><div class="workup_temperature_measurement_time_value edittext"></div>
+                <tr><td align="right">time</td><td><div class="workup_temperature_measurement_time_value edittext shorttext floattext"></div>
                                            <div class="workup_temperature_measurement_time_units selector" data-proto="Time_TimeUnit"></div>
-                                           +/- <div class="workup_temperature_measurement_time_precision edittext"></div></td></tr>
-                <tr><td align="right">temperature</td><td><div class="workup_temperature_measurement_temperature_value edittext"></div>
+                                           +/- <div class="workup_temperature_measurement_time_precision edittext shorttext floattext"></div></td></tr>
+                <tr><td align="right">temperature</td><td><div class="workup_temperature_measurement_temperature_value edittext shorttext floattext"></div>
                                                   <div class="workup_temperature_measurement_temperature_units selector" data-proto="Temperature_TemperatureUnit"></div>
-                                                  +/- <div class="workup_temperature_measurement_temperature_precision edittext"></div></td></tr>
+                                                  +/- <div class="workup_temperature_measurement_temperature_precision edittext shorttext floattext"></div></td></tr>
                 <tr><td align="right">details</td><td><div class="workup_temperature_measurement_details edittext"></div></td></tr>
               </table>
             </fieldset>
@@ -780,15 +738,15 @@ limitations under the License.
                 <span data-toggle="tooltip" data-placement="right" title="The reaction time at which this analysis/characterization was performed.">
                   <span class="fa fa-question-circle" aria-hidden="true"></span>
                 </span>
-              </td><td><div class="outcome_time_value edittext shorttext"></div>
+              </td><td><div class="outcome_time_value edittext shorttext floattext"></div>
                                                  <div class="outcome_time_units selector" data-proto="Time_TimeUnit"></div>
-                                                 +/- <div class="outcome_time_precision edittext shorttext"></div></td></tr>
+                                                 +/- <div class="outcome_time_precision edittext shorttext floattext"></div></td></tr>
               <tr><td align="right">conversion
                 <span data-toggle="tooltip" data-placement="right" title="Reaction conversion with respect to the limiting reactant.">
                   <span class="fa fa-question-circle" aria-hidden="true"></span>
                 </span>
-              </td><td><div class="outcome_conversion_value edittext shorttext"></div>
-                                                       +/- <div class="outcome_conversion_precision edittext shorttext"></div></td></tr>
+              </td><td><div class="outcome_conversion_value edittext shorttext floattext"></div>
+                                                       +/- <div class="outcome_conversion_precision edittext shorttext floattext"></div></td></tr>
             </table>
 
               <div class="outcome_analyses"></div>
@@ -816,13 +774,13 @@ limitations under the License.
             <div class="spacer"></div>
             <table>
               <tr><td align="right">desired</td><td><div class="outcome_product_desired optional_bool"></div></td>
-              <tr><td align="right">yield</td><td><div class="outcome_product_yield_value edittext shorttext"></div>
-                                                  +/- <div class="outcome_product_yield_precision edittext shorttext"></div></td></tr>
-              <tr><td align="right">purity</td><td><div class="outcome_product_purity_value edittext shorttext"></div>
-                                                   +/- <div class="outcome_product_purity_precision edittext shorttext"></div></td></tr>
+              <tr><td align="right">yield</td><td><div class="outcome_product_yield_value edittext shorttext floattext"></div>
+                                                  +/- <div class="outcome_product_yield_precision edittext shorttext floattext"></div></td></tr>
+              <tr><td align="right">purity</td><td><div class="outcome_product_purity_value edittext shorttext floattext"></div>
+                                                   +/- <div class="outcome_product_purity_precision edittext shorttext floattext"></div></td></tr>
               <tr><td align="right">selectivity type</td><td><div class="outcome_product_selectivity_type selector" data-proto="Selectivity_SelectivityType"></div></td></tr>
-              <tr><td align="right">selectivity</td><td><div class="outcome_product_selectivity_value edittext shorttext"></div>
-                                                        +/- <div class="outcome_product_selectivity_precision edittext shorttext"></div>
+              <tr><td align="right">selectivity</td><td><div class="outcome_product_selectivity_value edittext shorttext floattext"></div>
+                                                        +/- <div class="outcome_product_selectivity_precision edittext shorttext floattext"></div>
                                                         details</td><td><div class="outcome_product_selectivity_details edittext"></div></td></tr>
             </table>
             <fieldset>
@@ -946,88 +904,42 @@ limitations under the License.
               </table>
 
               <div>
-                <div class="outcome_processes">
+                <div class="outcome_processed_data_repeated">
                 </div>
-                <div onclick="ord.outcomes.addProcess($(this).closest('.outcome_analysis'));" class="add">+ add processed data</div>
+                <div onclick="ord.outcomes.addProcessedData($(this).closest('.outcome_analysis'));" class="add">+ add processed data</div>
               </div>
 
               <div>
-                <div class="outcome_raws">
+                <div class="outcome_raw_data_repeated">
                 </div>
-                <div onclick="ord.outcomes.addRaw($(this).closest('.outcome_analysis'));" class="add">+ add raw data</div>
+                <div onclick="ord.outcomes.addRawData($(this).closest('.outcome_analysis'));" class="add">+ add raw data</div>
               </div>
             </fieldset>
 
           </div>
 
-          <div id="outcome_process_template" class="outcome_process" style="display: none;">
+          <div id="outcome_processed_data_template" class="outcome_processed_data" style="display: none;">
             <fieldset>
               <legend>
                 <span class="collapse"></span>
                 Processed analytical data
               </legend>
-              <div onclick="ord.reaction.removeSlowly(this, '.outcome_process');" class="remove">remove</div>
+              <div onclick="ord.reaction.removeSlowly(this, '.outcome_processed_data');" class="remove">remove</div>
               <table>
-                <tr><td align="right">name</td><td><div class="outcome_process_name edittext"></div></td></tr>
-                <tr>
-                  <td align="right">content</td>
-                  <td>
-                    <div class="outcome_process_text edittext"></div>
-                    <div class="uploader" data-token="" style="display: none;">
-                      <input class="uploader_chooser_file uploadertext" type="file">
-                      <div class="uploader_chooser_button uploadertext">Choose...</div>
-                      <div class="uploader_file_name uploadertext"></div>
-                      <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="right">type</td>
-                  <td>
-                    <input type="radio" value="text" checked> text
-                    <input type="radio" value="number"> number
-                    <input type="radio" value="url"> url
-                    <input type="radio" value="upload"> upload
-                  </td>
-                </tr>
-                <tr><td align="right">description</td><td><div class="outcome_process_description edittext"></div></td></tr>
-                <tr><td align="right">file format</td><td><div class="outcome_process_format edittext"></div></td></tr>
+                <tr><td align="right">name</td><td><div class="outcome_processed_data_name edittext"></div></td></tr>
               </table>
             </fieldset>
           </div>
 
-          <div id="outcome_raw_template" class="outcome_raw" style="display: none;">
+          <div id="outcome_raw_data_template" class="outcome_raw_data" style="display: none;">
             <fieldset>
               <legend>
                 <span class="collapse"></span>
                 Raw analytical data
               </legend>
-              <div onclick="ord.reaction.removeSlowly(this, '.outcome_raw');" class="remove">remove</div>
+              <div onclick="ord.reaction.removeSlowly(this, '.outcome_raw_data');" class="remove">remove</div>
               <table>
-                <tr><td align="right">name</td><td><div class="outcome_raw_name edittext"></div></td></tr>
-                <tr>
-                  <td align="right">content</td>
-                  <td>
-                    <div class="outcome_raw_text edittext"></div>
-                    <div class="uploader" data-token="" style="display: none;">
-                      <input class="uploader_chooser_file uploadertext" type="file">
-                      <div class="uploader_chooser_button uploadertext">Choose...</div>
-                      <div class="uploader_file_name uploadertext"></div>
-                      <div class="uploader_file_retrieve uploadertext" onclick="ord.uploads.retrieve($(this).closest('.uploader'));" style="display: none;">retrieve</div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="right">type</td>
-                  <td>
-                    <input type="radio" value="text" checked> text
-                    <input type="radio" value="number"> number
-                    <input type="radio" value="url"> url
-                    <input type="radio" value="upload"> upload
-                  </td>
-                </tr>
-                <tr><td align="right">description</td><td><div class="outcome_raw_description edittext"></div></td></tr>
-                <tr><td align="right">file format</td><td><div class="outcome_raw_format edittext"></div></td></tr>
+                <tr><td align="right">name</td><td><div class="outcome_raw_data_name edittext"></div></td></tr>
               </table>
             </fieldset>
           </div>
@@ -1127,6 +1039,34 @@ limitations under the License.
               </div>
           </div>
       </div>
+    </div>
+
+    <div id="data_template" class="data" style="display: none;">
+      <table>
+      <tr>
+        <td align="right">data</td>
+        <td>
+          <div class="data_text edittext"></div>
+          <div class="data_uploader" data-token="" style="display: none;">
+            <input class="data_uploader_chooser_file data_uploader_text" type="file">
+            <div class="data_uploader_chooser_button data_uploader_text">Choose...</div>
+            <div class="data_uploader_file_name data_uploader_text"></div>
+            <div class="data_uploader_file_retrieve data_uploader_text" onclick="ord.uploads.retrieve($(this).closest('.data_uploader'));" style="display: none;">retrieve</div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td align="right">type</td>
+        <td>
+          <input type="radio" value="text" checked> text
+          <input type="radio" value="number"> number
+          <input type="radio" value="url"> url
+          <input type="radio" value="upload"> upload
+        </td>
+      </tr>
+      <tr><td align="right">description</td><td><div class="data_description edittext"></div></td></tr>
+      <tr><td align="right">file format</td><td><div class="data_format edittext"></div></td></tr>
+      </table>
     </div>
 
     <script>
