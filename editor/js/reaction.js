@@ -155,7 +155,7 @@ function selectText(node) {
  * @param {!Node} node
  */
 function checkFloat(node) {
-  var stringValue = $(node).text();
+  var stringValue = $(node).text().trim();
   const decimalMatches = stringValue.match(/\./g);
   if (stringValue[0] === '-') {
     stringValue = stringValue.substring(1);
@@ -175,7 +175,7 @@ function checkFloat(node) {
  * @param {!Node} node
  */
 function checkInteger(node) {
-  var stringValue = $(node).text();
+  var stringValue = $(node).text().trim();
   if (stringValue[0] === '-') {
     stringValue = stringValue.substring(1);
   }
