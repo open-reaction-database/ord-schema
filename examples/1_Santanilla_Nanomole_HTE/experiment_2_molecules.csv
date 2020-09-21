@@ -55,3 +55,5 @@ Product_13,Product_13,O=C(C(C1=CN=CC=C1)C(OCC)=O)OCC
 Product_14,Product_14,O=C(OCC)/C=C(C1=CC=CC=C1)/C2=CC=CN=C2
 Product_15,Product_15,CCCCC1=CC=C(C#CC2=CN=CC=C2)C=C1
 Solvent_0,DMSO,CS(C)=O
+Quench_0,acetic acid,CC(O)=O
+Quench_1,biphenyl,C1(C2=CC=CC=C2)=CC=CC=C1
