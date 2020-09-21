@@ -67,6 +67,20 @@ def _cactus_resolve(value_type, value):
     return response.read().decode().strip()
 
 
+def _emolecules_resolve(value_type, value):
+    """Resolves compound identifiers to SMILES via the eMolecules API."""
+    del value_type
+    response = urllib.request.urlopen(
+        'https://www.emolecules.com/lookup?q={}'.format(
+            urllib.parse.quote(value)))
+    response_text = response.read().decode().strip()
+    if response_text == '__END__':
+        raise urllib.error.HTTPError(None, None,
+                                     'eMolecules lookup unsuccessful', None,
+                                     None)
+    return response_text.split('\t')[0]
+
+
 def resolve_names(message):
     """Attempts to resolve compound NAME identifiers to SMILES.
 
@@ -184,4 +198,5 @@ _UPDATES = [
 _NAME_RESOLVERS = {
     'PubChem API': _pubchem_resolve,
     'NCI/CADD Chemical Identifier Resolver': _cactus_resolve,
+    'eMolecules Lookup Service': _emolecules_resolve,
 }
