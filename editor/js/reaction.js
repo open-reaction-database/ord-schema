@@ -187,6 +187,22 @@ function checkInteger(node) {
 }
 
 /**
+ * Prepares a floating point value for display in the form.
+ * @param {number} value
+ * @return {number}
+ */
+function prepareFloat(value) {
+  // Round to 7 decimal places; this avoid floating point precision issues
+  // that can be quite jarring to users.
+  //
+  // See:
+  //   * https://stackoverflow.com/a/3644302
+  //   * https://medium.com/swlh/ed74c471c1b8
+  const factor = Math.pow(10, 7);
+  return Math.round(value * factor) / factor;
+}
+
+/**
  * Adds a jQuery handler to a node such that the handler is run once whenever
  * data entry within that node is changed, *except through remove* -- this must
  * be handled manually. (This prevents inconsistent timing in the ordering of
@@ -428,6 +444,14 @@ function loadReaction(reaction) {
     ord.provenance.load(provenance);
   }
   $('#reaction_id').text(reaction.getReactionId());
+
+  // Clean up floating point entries.
+  $('.floattext').each(function(index) {
+    const node = $(this);
+    if (node.text() !== '') {
+      node.text(prepareFloat(node.text()));
+    }
+  });
 }
 
 /**
