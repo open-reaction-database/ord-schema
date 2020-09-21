@@ -20,6 +20,7 @@ exports = {
   load,
   unload,
   addVesselPreparation,
+  addVesselAttachment,
   validateSetup
 };
 
