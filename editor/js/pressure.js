@@ -154,8 +154,5 @@ function addMeasurement() {
  */
 function validatePressure(node, validateNode) {
   const pressure = unload();
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(pressure, 'PressureConditions', validateNode);
+  ord.reaction.validate(pressure, 'PressureConditions', node, validateNode);
 }

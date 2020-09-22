@@ -331,8 +331,5 @@ function addSelectivity(node) {
  */
 function validateProduct(node, validateNode) {
   const product = unloadProduct(node);
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(product, 'ReactionProduct', validateNode);
+  ord.reaction.validate(product, 'ReactionProduct', node, validateNode);
 }

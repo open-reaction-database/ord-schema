@@ -108,8 +108,5 @@ function add() {
  */
 function validateObservation(node, validateNode) {
   const observation = unloadObservation(node);
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(observation, 'ReactionObservation', validateNode);
+  ord.reaction.validate(observation, 'ReactionObservation', node, validateNode);
 }

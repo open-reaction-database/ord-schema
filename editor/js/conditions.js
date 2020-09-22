@@ -122,8 +122,5 @@ function unload() {
  */
 function validateConditions(node, validateNode) {
   const condition = unload();
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(condition, 'ReactionConditions', validateNode);
+  ord.reaction.validate(condition, 'ReactionConditions', node, validateNode);
 }
