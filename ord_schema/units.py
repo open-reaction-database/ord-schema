@@ -183,11 +183,8 @@ def format_message(message):
     """
     if message.units == getattr(type(message)(), 'UNSPECIFIED'):
         return None
-    txt = f'{message.value:15g}'.strip()
-    txt += ' '
+    txt = f'{message.value:.7g} '
     if message.precision:
-        txt += '(± '
-        txt += f'{message.precision:15g}'.strip()
-        txt += ') '
+        txt += f'(± {message.precision:.7g}) '
     txt += _UNIT_SYNONYMS[type(message)][message.units][0]
     return txt
