@@ -186,7 +186,7 @@ def format_message(message):
     txt = f'{message.value:15g}'.strip()
     txt += ' '
     if message.precision:
-        txt += '(p/m '
+        txt += '(± '
         txt += f'{message.precision:15g}'.strip()
         txt += ') '
     txt += _UNIT_SYNONYMS[type(message)][message.units][0]
