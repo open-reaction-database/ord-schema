@@ -197,8 +197,6 @@ function addMeasurement() {
  */
 function validateElectro(node, validateNode) {
   const electro = unload();
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(electro, 'ElectrochemistryConditions', validateNode);
+  ord.reaction.validate(
+      electro, 'ElectrochemistryConditions', node, validateNode);
 }

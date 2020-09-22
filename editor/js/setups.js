@@ -221,8 +221,5 @@ function addVesselAttachment() {
  */
 function validateSetup(node, validateNode) {
   const setup = unload();
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(setup, 'ReactionSetup', validateNode);
+  ord.reaction.validate(setup, 'ReactionSetup', node, validateNode);
 }

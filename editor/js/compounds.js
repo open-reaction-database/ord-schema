@@ -552,10 +552,7 @@ function renderCompound(node, compound) {
  */
 function validateCompound(node, validateNode) {
   const compound = unloadCompound(node);
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(compound, 'Compound', validateNode);
+  ord.reaction.validate(compound, 'Compound', node, validateNode);
 
   // Try to resolve compound structural identifiers. This is tied to
   // validation so the same trigger is used and we only have to unload the

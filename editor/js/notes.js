@@ -83,8 +83,5 @@ function unload() {
  */
 function validateNotes(node, validateNode) {
   const notes = unload();
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(notes, 'ReactionNotes', validateNode);
+  ord.reaction.validate(notes, 'ReactionNotes', node, validateNode);
 }

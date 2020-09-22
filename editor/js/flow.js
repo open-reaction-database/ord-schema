@@ -81,8 +81,5 @@ function unload() {
  */
 function validateFlow(node, validateNode) {
   const flow = unload();
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(flow, 'FlowConditions', validateNode);
+  ord.reaction.validate(flow, 'FlowConditions', node, validateNode);
 }
