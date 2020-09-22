@@ -62,6 +62,9 @@ const session = {
 // Export session, because it's used by test.js.
 exports.session = session;
 
+const FLOAT_PATTERN = /^-?\d+(?:\.\d+)?(?:[eE]-?\d+)?$/;
+const INTEGER_PATTERN = /^-?\d+$/;
+
 /**
  * Initializes the form.
  * @param {string} fileName Path to the current Dataset proto.
@@ -156,8 +159,7 @@ function selectText(node) {
  */
 function checkFloat(node) {
   var stringValue = $(node).text();
-  const pattern = /^-?\d+(?:\.\d+)?(?:[eE]-?\d+)?$/;
-  if (pattern.test(stringValue.trim())) {
+  if (FLOAT_PATTERN.test(stringValue.trim())) {
     $(node).removeClass('invalid');
   } else {
     $(node).addClass('invalid');
@@ -171,8 +173,7 @@ function checkFloat(node) {
  */
 function checkInteger(node) {
   var stringValue = $(node).text();
-  const pattern = /^-?\d+$/;
-  if (pattern.test(stringValue.trim())) {
+  if (INTEGER_PATTERN.test(stringValue.trim())) {
     $(node).removeClass('invalid');
   } else {
     $(node).addClass('invalid');
