@@ -142,8 +142,6 @@ function addMeasurement() {
  */
 function validateTemperature(node, validateNode) {
   const temperature = unload();
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(temperature, 'TemperatureConditions', validateNode);
+  ord.reaction.validate(
+      temperature, 'TemperatureConditions', node, validateNode);
 }

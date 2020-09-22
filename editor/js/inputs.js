@@ -219,8 +219,5 @@ function add(root) {
  */
 function validateInput(node, validateNode) {
   const input = unloadInputUnnamed(node);
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(input, 'ReactionInput', validateNode);
+  ord.reaction.validate(input, 'ReactionInput', node, validateNode);
 }

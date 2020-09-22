@@ -209,17 +209,26 @@ function addChangeHandler(node, handler) {
  * NOTE: This function does not commit or save anything!
  * @param {!jspb.Message} message The proto to validate.
  * @param {string} messageTypeString The message type.
+ * @param {!Node} node Parent node for the unloaded message.
  * @param {?Node} validateNode Target div for validation output.
  */
-function validate(message, messageTypeString, validateNode) {
+function validate(message, messageTypeString, node, validateNode) {
   // eg message is a type of reaction, messageTypeString = 'Reaction'
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/dataset/proto/validate/' + messageTypeString);
   const binary = message.serializeBinary();
+  if (!validateNode) {
+    validateNode = $('.validate', node).first();
+  }
 
   xhr.responseType = 'json';
   xhr.onload = function() {
     const errors = xhr.response;
+    // Add client-side validation errors.
+    $(node).find('.invalid').each(function(index) {
+      const invalidName = $(this).attr('class').split(' ')[0];
+      errors.push('Value for ' + invalidName + ' is invalid');
+    });
     const statusNode = $('.validate_status', validateNode);
     const messageNode = $('.validate_message', validateNode);
     statusNode.removeClass('fa-check');
@@ -287,9 +296,10 @@ function renderReaction(reaction) {
  * Validates the current reaction.
  */
 function validateReaction() {
+  const node = $('#sections');
   const validateNode = $('#reaction_validate');
   const reaction = unloadReaction();
-  validate(reaction, 'Reaction', validateNode);
+  validate(reaction, 'Reaction', node, validateNode);
   // Trigger all submessages to validate.
   $('.validate_button:visible:not(#reaction_validate_button)').trigger('click');
   // Render reaction as an HTML block.

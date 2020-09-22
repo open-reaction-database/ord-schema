@@ -374,10 +374,7 @@ function addRawData(node) {
  */
 function validateOutcome(node, validateNode) {
   const outcome = unloadOutcome(node);
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(outcome, 'ReactionOutcome', validateNode);
+  ord.reaction.validate(outcome, 'ReactionOutcome', node, validateNode);
 }
 
 /**
@@ -387,8 +384,5 @@ function validateOutcome(node, validateNode) {
  */
 function validateAnalysis(node, validateNode) {
   const analysis = unloadAnalysisSingle(node);
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(analysis, 'ReactionAnalysis', validateNode);
+  ord.reaction.validate(analysis, 'ReactionAnalysis', node, validateNode);
 }
