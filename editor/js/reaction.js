@@ -450,7 +450,7 @@ function loadReaction(reaction) {
   $('.floattext').each(function(index) {
     const node = $(this);
     if (node.text() !== '') {
-      node.text(prepareFloat(node.text()));
+      node.text(prepareFloat(parseFloat(node.text())));
     }
   });
 }
