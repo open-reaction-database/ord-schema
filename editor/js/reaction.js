@@ -192,14 +192,15 @@ function checkInteger(node) {
  * @return {number}
  */
 function prepareFloat(value) {
-  // Round to 15 decimal places; this avoid floating point precision issues
+  // Round to 15 significant digits; this avoid floating point precision issues
   // that can be quite jarring to users.
   //
   // See:
   //   * https://stackoverflow.com/a/3644302
   //   * https://medium.com/swlh/ed74c471c1b8
-  const factor = Math.pow(10, 15);
-  return Math.round(value.toPrecision(15) * factor) / factor;
+  const precision = 15;
+  const factor = Math.pow(10, precision);
+  return Math.round(value.toPrecision(precision) * factor) / factor;
 }
 
 /**
