@@ -185,8 +185,5 @@ function addModification() {
  */
 function validateProvenance(node, validateNode) {
   const provenance = unload();
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(provenance, 'ReactionProvenance', validateNode);
+  ord.reaction.validate(provenance, 'ReactionProvenance', node, validateNode);
 }

@@ -305,8 +305,5 @@ function addMeasurement(node) {
  */
 function validateWorkup(node, validateNode) {
   const workup = unloadWorkup(node);
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(workup, 'ReactionWorkup', validateNode);
+  ord.reaction.validate(workup, 'ReactionWorkup', node, validateNode);
 }

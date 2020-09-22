@@ -79,8 +79,5 @@ function unload() {
  */
 function validateStirring(node, validateNode) {
   const stirring = unload();
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(stirring, 'StirringConditions', validateNode);
+  ord.reaction.validate(stirring, 'StirringConditions', node, validateNode);
 }

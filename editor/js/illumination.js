@@ -78,8 +78,6 @@ function unload() {
  */
 function validateIllumination(node, validateNode) {
   const illumination = unload();
-  if (!validateNode) {
-    validateNode = $('.validate', node).first();
-  }
-  ord.reaction.validate(illumination, 'IlluminationConditions', validateNode);
+  ord.reaction.validate(
+      illumination, 'IlluminationConditions', node, validateNode);
 }
