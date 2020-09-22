@@ -151,21 +151,16 @@ function selectText(node) {
 /**
  * Determines if the text entered in a float input is valid by detecting any
  * characters besides 0-9, a single period to signify a decimal, and a
- * leading hyphen.
+ * leading hyphen. Also supports scientific notation with either 'e' or 'E'.
  * @param {!Node} node
  */
 function checkFloat(node) {
   var stringValue = $(node).text();
-  const decimalMatches = stringValue.match(/\./g);
-  if (stringValue[0] === '-') {
-    stringValue = stringValue.substring(1);
-  }
-  if (stringValue.match(/[^0-9\.]/g)) {
-    $(node).addClass('invalid');
-  } else if (decimalMatches && decimalMatches.length > 1) {
-    $(node).addClass('invalid');
-  } else {
+  const pattern = /^-?\d+(?:\.\d+)?(?:[eE]-?\d+)?$/;
+  if (pattern.test(stringValue.trim())) {
     $(node).removeClass('invalid');
+  } else {
+    $(node).addClass('invalid');
   }
 }
 
@@ -176,13 +171,11 @@ function checkFloat(node) {
  */
 function checkInteger(node) {
   var stringValue = $(node).text();
-  if (stringValue[0] === '-') {
-    stringValue = stringValue.substring(1);
-  }
-  if (stringValue.match(/[^0-9]/g)) {
-    $(node).addClass('invalid');
-  } else {
+  const pattern = /^-?\d+$/;
+  if (pattern.test(stringValue.trim())) {
     $(node).removeClass('invalid');
+  } else {
+    $(node).addClass('invalid');
   }
 }
 
