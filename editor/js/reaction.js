@@ -62,7 +62,7 @@ const session = {
 // Export session, because it's used by test.js.
 exports.session = session;
 
-const FLOAT_PATTERN = /^-?\d+(?:\.\d+)?(?:[eE]-?\d+)?$/;
+const FLOAT_PATTERN = /^-?(?:\d+|\d+\.\d*|\d*\.\d+)(?:[eE]-?\d+)?$/;
 const INTEGER_PATTERN = /^-?\d+$/;
 
 /**
