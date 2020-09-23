@@ -78,10 +78,12 @@ const puppeteer = require('puppeteer');
     await page.waitFor('body[ready=true]');
     const test = page.evaluate(async function(url) {
       ord.reaction.validateReaction();
-      const prevErrors = parseInt($('.validate_status', '#reaction_validate').html());
+      const prevErrors =
+          parseInt($('.validate_status', '#reaction_validate').html());
       $('.edittext').trigger('blur');
       ord.reaction.validateReaction();
-      const curErrors = parseInt($('.validate_status', '#reaction_validate').html());
+      const curErrors =
+          parseInt($('.validate_status', '#reaction_validate').html());
       if (prevErrors === curErrors) {
         console.log('PASS', 'validation check', url);
         return 0;
