@@ -40,7 +40,7 @@ const puppeteer = require('puppeteer');
     const url = tests[i];
     await page.goto(url);
     await page.waitFor('body[ready=true]');
-    const test = page.evaluate(async function(url) {
+    const testResult = await page.evaluate(function(url) {
       const reaction = ord.reaction.unloadReaction();
       const session = ord.reaction.session;
       const reactions = session.dataset.getReactionsList();
@@ -56,7 +56,6 @@ const puppeteer = require('puppeteer');
             return 1;
           })
     }, url);
-    const testResult = await test;
 
     // Report results of testing to environment (shell, Git CI, etc.)
     // If _any_ test fails (i.e. testResult 1), then the entire process must
@@ -76,7 +75,7 @@ const puppeteer = require('puppeteer');
     const url = tests[i];
     await page.goto(url);
     await page.waitFor('body[ready=true]');
-    const test = page.evaluate(async function(url) {
+    const testResult = await page.evaluate(function(url) {
       ord.reaction.validateReaction();
       const prevErrors =
           parseInt($('.validate_status', '#reaction_validate').html());
@@ -92,7 +91,6 @@ const puppeteer = require('puppeteer');
         return 1;
       }
     }, url);
-    const testResult = await test;
 
     // Report results of testing to environment (shell, Git CI, etc.)
     // If _any_ test fails (i.e. testResult 1), then the entire process must
