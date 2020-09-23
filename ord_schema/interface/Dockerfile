@@ -46,5 +46,4 @@ RUN python setup.py install
 # Build and launch the interface.
 WORKDIR /usr/src/app/ord-schema/ord_schema/interface
 EXPOSE 5000
-RUN pip install gunicorn
 CMD gunicorn search:app -b 0.0.0.0:5000 --access-logfile '-'
