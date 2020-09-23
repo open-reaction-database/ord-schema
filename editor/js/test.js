@@ -77,16 +77,18 @@ const puppeteer = require('puppeteer');
     const testResult = await page.evaluate(function(url) {
       ord.reaction.validateReaction();
       const prevErrors =
-          parseInt($('.validate_status', '#reaction_validate').html());
+          parseInt($('.validate_status', '#reaction_validate').html()) || 0;
       $('.edittext').trigger('blur');
       ord.reaction.validateReaction();
       const curErrors =
-          parseInt($('.validate_status', '#reaction_validate').html());
+          parseInt($('.validate_status', '#reaction_validate').html()) || 0;
       if (prevErrors === curErrors) {
         console.log('PASS', 'validation check', url);
         return 0;
       } else {
         console.log('FAIL', 'validation check', url);
+        console.log('--> ' + prevErrors + ' before rechecking');
+        console.log('--> ' + curErrors + ' after rechecking');
         return 1;
       }
     }, url);
