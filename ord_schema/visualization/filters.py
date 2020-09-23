@@ -358,7 +358,7 @@ def _compound_svg(compound):
             return drawing.mol_to_svg(mol)
     except ValueError:
         pass
-    return '[Component]'
+    return '[Compound]'
 
 
 def _compound_png(compound):
@@ -379,7 +379,7 @@ def _compound_png(compound):
             return drawing.mol_to_png(mol)
     except ValueError:
         pass
-    return '[Component]'
+    return '[Compound]'
 
 
 def _compound_amount(compound):
