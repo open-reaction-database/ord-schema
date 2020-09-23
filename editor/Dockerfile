@@ -24,22 +24,11 @@
 # To push the built image to Docker Hub:
 # docker push openreactiondatabase/ord-editor
 
-FROM openreactiondatabase/ord-base
-
-# Fetch/build editor dependencies.
-# NOTE(kearnes): Do this before COPYing the local state so it can be cached.
-WORKDIR /usr/src/app/ord-schema/editor
-RUN git clone https://github.com/Open-Reaction-Database/ketcher.git
-WORKDIR ketcher
-RUN npm install && npm run build
-WORKDIR ..
-RUN wget https://github.com/google/closure-library/archive/v20200517.tar.gz
-RUN tar -xzf v20200517.tar.gz
-RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v3.13.0/protobuf-js-3.13.0.tar.gz
-RUN tar -xzf protobuf-js-3.13.0.tar.gz
+FROM openreactiondatabase/ord-editor-base
 
 # COPY and install the local state of ord-schema.
-WORKDIR /usr/src/app/ord-schema
+# NOTE(kearnes): WORKDIR is set in the base image.
+# WORKDIR /usr/src/app/ord-schema
 COPY setup.py requirements.txt ./
 COPY editor/ editor/
 COPY ord_schema/ ord_schema/
@@ -47,7 +36,7 @@ RUN pip install -r requirements.txt
 RUN python setup.py install
 
 # Build and launch the editor.
-WORKDIR /usr/src/app/ord-schema/editor
+WORKDIR editor
 RUN make
 EXPOSE 5000
 CMD gunicorn py.serve:app -b 0.0.0.0:5000 --access-logfile '-'

@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This is a base image used to speed up builds for ord-editor, etc.
+# This is a base image used to speed up GitHub test builds for ord-editor.
 #
-# $ docker build -t openreactiondatabase/ord-base .
-# $ docker push openreactiondatabase/ord-base
+# $ docker build -t openreactiondatabase/ord-editor-base .
+# $ docker push openreactiondatabase/ord-editor-base
 
 FROM continuumio/miniconda3
 
@@ -31,3 +31,19 @@ RUN conda install -c rdkit \
     nodejs \
     rdkit \
  && conda clean -afy
+
+# Fetch and build editor dependencies.
+WORKDIR /usr/src/app/ord-schema/editor
+RUN git clone https://github.com/Open-Reaction-Database/ketcher.git \
+ && cd ketcher \
+ && npm install \
+ && npm run build \
+ && rm -rf node_modules
+RUN wget https://github.com/google/closure-library/archive/v20200517.tar.gz \
+ && tar -xzf v20200517.tar.gz \
+ && rm v20200517.tar.gz
+RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v3.13.0/protobuf-js-3.13.0.tar.gz \
+ && tar -xzf protobuf-js-3.13.0.tar.gz \
+ && rm protobuf-js-3.13.0.tar.gz
+
+WORKDIR ..
