@@ -43,6 +43,7 @@ _UNIT_SYNONYMS = {
         reaction_pb2.Volume.MILLILITER: ['mL', 'milliliters'],
         reaction_pb2.Volume.MICROLITER: ['μL', 'uL', 'micl', 'microliters'],
         reaction_pb2.Volume.LITER: ['L', 'liters', 'litres'],
+        reaction_pb2.Volume.NANOLITER: ['nL', 'nanoliters'],
     },
     reaction_pb2.Length: {
         reaction_pb2.Length.CENTIMETER: ['cm', 'centimeter'],
