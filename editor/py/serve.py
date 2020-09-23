@@ -109,6 +109,14 @@ def new_dataset(file_name):
     return 'ok'
 
 
+@app.route('/dataset/<file_name>/delete')
+def delete_dataset(file_name):
+    """Removes a Dataset."""
+    with lock(file_name):
+        os.remove(get_path(file_name))
+    return flask.redirect('/datasets')
+
+
 @app.route('/dataset/enumerate', methods=['POST'])
 def enumerate_dataset():
     """Creates a new dataset based on a template reaction and a spreadsheet.
@@ -195,7 +203,7 @@ def clone_reaction(file_name, index):
 
 @app.route('/dataset/<file_name>/delete/reaction/<index>')
 def delete_reaction(file_name, index):
-    """Removes a specific Reaction from the Dataset and view the Datset."""
+    """Removes a specific Reaction from the Dataset and view the Dataset."""
     dataset = get_dataset(file_name)
     try:
         index = int(index)
@@ -582,9 +590,6 @@ def init_user():
     path = get_user_path()
     if not os.path.isdir(path):
         os.mkdir(path)
-    if not os.listdir(path):
-        dataset = dataset_pb2.Dataset()
-        put_dataset('dataset', dataset)
 
 
 def ensure_user():
