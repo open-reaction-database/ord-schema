@@ -234,6 +234,8 @@ message Compound {
       // added prior to the start of the reaction) or as part of a workup
       // step of addition.
       INTERNAL_STANDARD = 7;
+      // Scavengers are a more specific subset of WORKUP.
+      SCAVENGER = 8;
     }
   }
   ReactionRole.ReactionRoleType reaction_role = 5;
