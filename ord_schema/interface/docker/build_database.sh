@@ -16,4 +16,6 @@
 set -ex
 
 python "${ORD_ROOT}/ord-schema/ord_schema/interface/build_database.py" \
-  --input="${ORD_INPUT}" --output="${HOME}/tables" --database
+  --input="${ORD_INPUT}" --output="${ORD_ROOT}/tables" --database
+# Reduce image size.
+rm -rf "${ORD_ROOT}"

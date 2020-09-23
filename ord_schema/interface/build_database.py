@@ -37,6 +37,8 @@ flags.DEFINE_string('output', 'tables', 'Output directory for CSV tables.')
 flags.DEFINE_boolean('database', False,
                      'If True, builds the PostgreSQL database.')
 flags.DEFINE_boolean('overwrite', False, 'If True, overwrite existing tables.')
+flags.DEFINE_boolean('cleanup', True,
+                     'If True, intermediate CSV files are removed.')
 
 
 class Tables:
@@ -272,6 +274,11 @@ def main(argv):
     if FLAGS.database:
         logging.info('Creating Postgres database')
         create_database()
+    if FLAGS.cleanup:
+        logging.info('Removing intermediate CSV files')
+        for filename in glob.glob(os.path.join(FLAGS.output, '*.csv')):
+            logging.info(filename)
+            os.remove(filename)
 
 
 if __name__ == '__main__':
