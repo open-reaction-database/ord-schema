@@ -38,8 +38,7 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
         ('lengths', ' 10 meter',
          reaction_pb2.Length(value=10, units=reaction_pb2.Length.METER)),
         ('nanoliters', '0.12 nL',
-         reaction_pb2.Volume(value=0.12, units=reaction_pb2.Volume.NANOLITER))
-    )
+         reaction_pb2.Volume(value=0.12, units=reaction_pb2.Volume.NANOLITER)))
     def test_resolve(self, string, expected):
         self.assertEqual(self._resolver.resolve(string), expected)
 
