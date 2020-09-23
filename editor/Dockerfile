@@ -24,11 +24,7 @@
 # To push the built image to Docker Hub:
 # docker push openreactiondatabase/ord-editor
 
-FROM continuumio/miniconda3
-
-RUN apt-get update && apt-get install --yes build-essential procps unzip
-RUN conda install -c rdkit rdkit
-RUN conda install flask nodejs
+FROM openreactiondatabase/ord-base
 
 # Fetch/build editor dependencies.
 # NOTE(kearnes): Do this before COPYing the local state so it can be cached.
@@ -54,5 +50,4 @@ RUN python setup.py install
 WORKDIR /usr/src/app/ord-schema/editor
 RUN make
 EXPOSE 5000
-RUN pip install gunicorn
 CMD gunicorn py.serve:app -b 0.0.0.0:5000 --access-logfile '-'

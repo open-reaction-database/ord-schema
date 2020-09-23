@@ -22,11 +22,7 @@
 # To push the built image to Docker Hub:
 # docker push openreactiondatabase/ord-interface
 
-FROM continuumio/miniconda3
-
-RUN apt-get update && apt-get install --yes build-essential procps unzip
-RUN conda install -c rdkit rdkit
-RUN conda install flask
+FROM openreactiondatabase/ord-base
 
 # COPY and install the local state of ord-schema.
 WORKDIR /usr/src/app/ord-schema
@@ -38,5 +34,4 @@ RUN python setup.py install
 # Build and launch the interface.
 WORKDIR /usr/src/app/ord-schema/ord_schema/interface
 EXPOSE 5000
-RUN pip install gunicorn
 CMD gunicorn search:app -b 0.0.0.0:5000 --access-logfile '-'
