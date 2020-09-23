@@ -352,10 +352,13 @@ def _compound_svg(compound):
     Returns:
         String SVG or sentinel value.
     """
-    mol = message_helpers.mol_from_compound(compound)
-    if mol:
-        return drawing.mol_to_svg(mol)
-    return 'no structural identifiers'
+    try:
+        mol = message_helpers.mol_from_compound(compound)
+        if mol:
+            return drawing.mol_to_svg(mol)
+    except ValueError:
+        pass
+    return '[Compound]'
 
 
 def _compound_png(compound):
@@ -370,10 +373,13 @@ def _compound_png(compound):
     Returns:
         String PNG or sentinel value.
     """
-    mol = message_helpers.mol_from_compound(compound)
-    if mol:
-        return drawing.mol_to_png(mol)
-    return 'no structural identifiers'
+    try:
+        mol = message_helpers.mol_from_compound(compound)
+        if mol:
+            return drawing.mol_to_png(mol)
+    except ValueError:
+        pass
+    return '[Compound]'
 
 
 def _compound_amount(compound):
