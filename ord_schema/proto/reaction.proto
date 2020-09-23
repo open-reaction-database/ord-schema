@@ -977,10 +977,10 @@ message Time {
 message Mass {
   enum MassUnit {
     UNSPECIFIED = 0;
+    KILOGRAM = 4;
     GRAM = 1;
     MILLIGRAM = 2;
     MICROGRAM = 3;
-    KILOGRAM = 4;
   }
   optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
@@ -1003,9 +1003,9 @@ message Moles {
 message Volume {
   enum VolumeUnit {
     UNSPECIFIED = 0;
+    LITER = 3;
     MILLILITER = 1;
     MICROLITER = 2;
-    LITER = 3;
     NANOLITER = 4;
   }
   optional float value = 1;
