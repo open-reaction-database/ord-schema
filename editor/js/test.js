@@ -30,9 +30,10 @@ const puppeteer = require('puppeteer');
   page.on('console', msg => console.log('console>', msg.text()));
 
   // Round-trip these reactions through the DOM and compare at the server.
-  const tests = [
+  var tests = [
     'http://localhost:5000/dataset/empty/reaction/0?user=test',
     'http://localhost:5000/dataset/full/reaction/0?user=test',
+    'http://localhost:5000/dataset/ord-nielsen-example/reaction/0?user=test',
   ];
 
   for (let i = 0; i < tests.length; i++) {
@@ -54,6 +55,40 @@ const puppeteer = require('puppeteer');
             console.log('FAIL', url);
             return 1;
           })
+    }, url);
+    const testResult = await test;
+
+    // Report results of testing to environment (shell, Git CI, etc.)
+    // If _any_ test fails (i.e. testResult 1), then the entire process must
+    // fail too. We still run all tests though, for convenience's sake.
+    if (testResult == 1) {
+      process.exitCode = 1;
+    }
+  }
+
+  // Additional test to ensure that pretending to change field entries does
+  // not lead to a change in the number of validation errors.
+  var tests = [
+    'http://localhost:5000/dataset/ord-nielsen-example/reaction/0?user=test',
+  ];
+
+  for (let i = 0; i < tests.length; i++) {
+    const url = tests[i];
+    await page.goto(url);
+    await page.waitFor('body[ready=true]');
+    const test = page.evaluate(async function(url) {
+      ord.reaction.validateReaction();
+      const prevErrors = parseInt($('.validate_status', '#reaction_validate').html());
+      $('.edittext').trigger('blur');
+      ord.reaction.validateReaction();
+      const curErrors = parseInt($('.validate_status', '#reaction_validate').html());
+      if (prevErrors === curErrors) {
+        console.log('PASS', 'validation check', url);
+        return 0;
+      } else {
+        console.log('FAIL', 'validation check', url);
+        return 1;
+      }
     }, url);
     const testResult = await test;
 
