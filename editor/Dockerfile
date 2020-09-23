@@ -26,27 +26,39 @@
 
 FROM continuumio/miniconda3
 
-RUN apt-get update && apt-get install --yes build-essential procps unzip
-RUN conda install -c rdkit rdkit
-RUN conda install flask nodejs
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    procps \
+    unzip \
+ && rm -rf /var/lib/apt/lists/*
 
-# Fetch/build editor dependencies.
+RUN conda install -c rdkit \
+    flask \
+    gunicorn \
+    nodejs \
+    rdkit \
+ && conda clean -afy
+
+# Fetch and build editor dependencies.
 # NOTE(kearnes): Do this before COPYing the local state so it can be cached.
 WORKDIR /usr/src/app/ord-schema/editor
-RUN git clone https://github.com/Open-Reaction-Database/ketcher.git
-WORKDIR ketcher
-RUN npm install && npm run build
-WORKDIR ..
-RUN wget https://github.com/google/closure-library/archive/v20200517.tar.gz
-RUN tar -xzf v20200517.tar.gz
-RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v3.13.0/protobuf-js-3.13.0.tar.gz
-RUN tar -xzf protobuf-js-3.13.0.tar.gz
+RUN git clone https://github.com/Open-Reaction-Database/ketcher.git \
+ && cd ketcher \
+ && npm install \
+ && npm run build \
+ && rm -rf node_modules
+RUN wget https://github.com/google/closure-library/archive/v20200517.tar.gz \
+ && tar -xzf v20200517.tar.gz \
+ && rm v20200517.tar.gz
+RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v3.13.0/protobuf-js-3.13.0.tar.gz \
+ && tar -xzf protobuf-js-3.13.0.tar.gz \
+ && rm protobuf-js-3.13.0.tar.gz
 
 # COPY and install the local state of ord-schema.
 WORKDIR /usr/src/app/ord-schema
 COPY setup.py requirements.txt ./
-COPY editor/ editor/
 COPY ord_schema/ ord_schema/
+COPY editor/ editor/
 RUN pip install -r requirements.txt
 RUN python setup.py install
 
@@ -54,5 +66,4 @@ RUN python setup.py install
 WORKDIR /usr/src/app/ord-schema/editor
 RUN make
 EXPOSE 5000
-RUN pip install gunicorn
 CMD gunicorn py.serve:app -b 0.0.0.0:5000 --access-logfile '-'

@@ -24,9 +24,17 @@
 
 FROM continuumio/miniconda3
 
-RUN apt-get update && apt-get install --yes build-essential procps unzip
-RUN conda install -c rdkit rdkit
-RUN conda install flask
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    procps \
+    unzip \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN conda install -c rdkit \
+    flask \
+    gunicorn \
+    rdkit \
+ && conda clean -afy
 
 # COPY and install the local state of ord-schema.
 WORKDIR /usr/src/app/ord-schema
@@ -38,5 +46,4 @@ RUN python setup.py install
 # Build and launch the interface.
 WORKDIR /usr/src/app/ord-schema/ord_schema/interface
 EXPOSE 5000
-RUN pip install gunicorn
 CMD gunicorn search:app -b 0.0.0.0:5000 --access-logfile '-'
