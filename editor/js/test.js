@@ -45,8 +45,7 @@ const puppeteer = require('puppeteer');
       const session = ord.reaction.session;
       const reactions = session.dataset.getReactionsList();
       reactions[session.index] = reaction;
-      return ord.reaction
-          .compareDataset(session.fileName, session.dataset)
+      return ord.reaction.compareDataset(session.fileName, session.dataset)
           .then(() => {
             console.log('PASS', url);
             return 0;
