@@ -25,4 +25,9 @@ RUN apt-get update && apt-get install -y \
     unzip \
  && rm -rf /var/lib/apt/lists/*
 
-RUN conda install -c rdkit flask gunicorn rdkit && conda clean -afy
+RUN conda install -c rdkit \
+    flask \
+    gunicorn \
+    nodejs \
+    rdkit \
+ && conda clean -afy
