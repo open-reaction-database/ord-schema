@@ -1006,6 +1006,7 @@ message Volume {
     MILLILITER = 1;
     MICROLITER = 2;
     LITER = 3;
+    NANOLITER = 4;
   }
   optional float value = 1;
   // Precision of the measurement (with the same units as `value`).

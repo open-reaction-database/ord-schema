@@ -155,6 +155,8 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
             volume_liter += solvent.volume.value * 1e-3
         elif solvent.volume.units == solvent.volume.MICROLITER:
             volume_liter += solvent.volume.value * 1e-6
+        elif solvent.volume.units == solvent.volume.NANOLITER:
+            volume_liter += solvent.volume.value * 1e-9
         else:
             raise ValueError('solvent units not recognized by set_solute_moles')
     # Get solute concentration in molar.
