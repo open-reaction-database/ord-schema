@@ -30,22 +30,22 @@ const puppeteer = require('puppeteer');
   page.on('console', msg => console.log('console>', msg.text()));
 
   // Round-trip these reactions through the DOM and compare at the server.
-  const tests = [
+  const roundtripTests = [
     'http://localhost:5000/dataset/empty/reaction/0?user=test',
     'http://localhost:5000/dataset/full/reaction/0?user=test',
+    'http://localhost:5000/dataset/ord-nielsen-example/reaction/0?user=test',
   ];
 
-  for (let i = 0; i < tests.length; i++) {
-    const url = tests[i];
+  for (let i = 0; i < roundtripTests.length; i++) {
+    const url = roundtripTests[i];
     await page.goto(url);
     await page.waitFor('body[ready=true]');
-    const test = page.evaluate(async function(url) {
+    const testResult = await page.evaluate(function(url) {
       const reaction = ord.reaction.unloadReaction();
       const session = ord.reaction.session;
       const reactions = session.dataset.getReactionsList();
       reactions[session.index] = reaction;
-      return await ord.reaction
-          .compareDataset(session.fileName, session.dataset)
+      return ord.reaction.compareDataset(session.fileName, session.dataset)
           .then(() => {
             console.log('PASS', url);
             return 0;
@@ -55,7 +55,43 @@ const puppeteer = require('puppeteer');
             return 1;
           })
     }, url);
-    const testResult = await test;
+
+    // Report results of testing to environment (shell, Git CI, etc.)
+    // If _any_ test fails (i.e. testResult 1), then the entire process must
+    // fail too. We still run all tests though, for convenience's sake.
+    if (testResult == 1) {
+      process.exitCode = 1;
+    }
+  }
+
+  // Additional test to ensure that pretending to change field entries does
+  // not lead to a change in the number of validation errors.
+  const validationTests = [
+    'http://localhost:5000/dataset/ord-nielsen-example/reaction/0?user=test',
+  ];
+
+  for (let i = 0; i < validationTests.length; i++) {
+    const url = validationTests[i];
+    await page.goto(url);
+    await page.waitFor('body[ready=true]');
+    const testResult = await page.evaluate(function(url) {
+      ord.reaction.validateReaction();
+      const prevErrors =
+          parseInt($('.validate_status', '#reaction_validate').html()) || 0;
+      $('.edittext').trigger('blur');
+      ord.reaction.validateReaction();
+      const curErrors =
+          parseInt($('.validate_status', '#reaction_validate').html()) || 0;
+      if (prevErrors === curErrors) {
+        console.log('PASS', 'validation check', url);
+        return 0;
+      } else {
+        console.log('FAIL', 'validation check', url);
+        console.log('--> ' + prevErrors + ' before rechecking');
+        console.log('--> ' + curErrors + ' after rechecking');
+        return 1;
+      }
+    }, url);
 
     // Report results of testing to environment (shell, Git CI, etc.)
     // If _any_ test fails (i.e. testResult 1), then the entire process must
