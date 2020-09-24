@@ -30,14 +30,14 @@ const puppeteer = require('puppeteer');
   page.on('console', msg => console.log('console>', msg.text()));
 
   // Round-trip these reactions through the DOM and compare at the server.
-  var tests = [
+  const roundtripTests = [
     'http://localhost:5000/dataset/empty/reaction/0?user=test',
     'http://localhost:5000/dataset/full/reaction/0?user=test',
     'http://localhost:5000/dataset/ord-nielsen-example/reaction/0?user=test',
   ];
 
-  for (let i = 0; i < tests.length; i++) {
-    const url = tests[i];
+  for (let i = 0; i < roundtripTests.length; i++) {
+    const url = roundtripTests[i];
     await page.goto(url);
     await page.waitFor('body[ready=true]');
     const testResult = await page.evaluate(function(url) {
@@ -66,12 +66,12 @@ const puppeteer = require('puppeteer');
 
   // Additional test to ensure that pretending to change field entries does
   // not lead to a change in the number of validation errors.
-  var tests = [
+  const validationTests = [
     'http://localhost:5000/dataset/ord-nielsen-example/reaction/0?user=test',
   ];
 
-  for (let i = 0; i < tests.length; i++) {
-    const url = tests[i];
+  for (let i = 0; i < validationTests.length; i++) {
+    const url = validationTests[i];
     await page.goto(url);
     await page.waitFor('body[ready=true]');
     const testResult = await page.evaluate(function(url) {
