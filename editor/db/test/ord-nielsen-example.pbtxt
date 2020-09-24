@@ -58,7 +58,6 @@ reactions {
           units: MILLIMOLE
         }
         reaction_role: REAGENT
-        is_limiting: false
         vendor_source: "Millipore-Sigma"
       }
       addition_order: 3
@@ -140,8 +139,6 @@ reactions {
         rpm: 600
       }
     }
-  }
-  notes {
   }
   workup {
     type: ADDITION

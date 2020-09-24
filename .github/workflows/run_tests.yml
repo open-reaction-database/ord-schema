@@ -74,17 +74,9 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-node@v1.4.2
-    - name: Build and launch editor
+    - name: Build and test editor
+      timeout-minutes: 10
       run: |
         cd "${GITHUB_WORKSPACE}"
-        docker build --file=editor/Dockerfile -t ord-editor .
-        docker run --rm -d -p 5000:5000 --name editor ord-editor
-        # NOTE(kearnes): This also leaves time for the server to get ready.
         npm install puppeteer
-    - name: Run editor tests
-      timeout-minutes: 5
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        node editor/js/test.js
-    - name: Cleanup
-      run: docker stop editor
+        ./run_editor_tests.sh
