@@ -1083,21 +1083,15 @@ limitations under the License.
         navSelectors[section] = selector;
       });
 
-      // Show only the given section of the reaction schema.
+      // Navigate to the given section of the reaction schema.
       function setSelected(section) {
         $('.navSection').css('background-color', '');
-        $('.section').hide('slow');
-        if (section != null) {
-          $('#section_' + section).show('slow');
-          const selector = navSelectors[section];
-          selector.css('background-color', 'lightblue');
-        } else {
-          $('.section').show('slow')
-        }
+        $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
+        const selector = navSelectors[section];
+        selector.css('background-color', 'lightblue');
         selected = section;
       }
 
-      // Show and hide the schema sections.
       $('.navSection').click(event => {
         const section = $(event.target).attr('data-section');
         if (section != selected) {
