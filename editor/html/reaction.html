@@ -1083,7 +1083,6 @@ limitations under the License.
           } else {
             sectionToUnselect = section;
           }
-          return false;  // Break.
         });
         if (sectionToSelect) {
           setSelected(sectionToSelect);
@@ -1093,7 +1092,6 @@ limitations under the License.
           $('.section').each(function(index) {
             const section = $(this).attr('id').split('_')[1];
             const rect = this.getBoundingClientRect();
-            console.log(section, rect);
             if ((rect.y >= 0 && rect.y <= window.innerHeight) ||
                 (rect.y < 0 && rect.bottom > 0)) {
               setSelected(section);
