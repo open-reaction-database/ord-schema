@@ -1072,15 +1072,35 @@ limitations under the License.
     <script>
       // Intersection observer for updating the current location in the sidebar
       // as the user scrolls on the page.
+      let selectedSection = null;
       function observerCallback(entries) {
+        let sectionToSelect = null;
+        let sectionToUnselect = null;
         entries.forEach(entry => {
           const section = $(entry.target).attr('id').split('_')[1];
           if (entry.isIntersecting) {
-            setSelected(section);
+            sectionToSelect = section;
           } else {
-            clearSelected(section);
+            sectionToUnselect = section;
           }
+          return false;  // Break.
         });
+        if (sectionToSelect) {
+          setSelected(sectionToSelect);
+        } else if (sectionToUnselect && selectedSection === sectionToUnselect) {
+          clearSelected(sectionToUnselect);
+          // Fallback to the first visible section.
+          $('.section').each(function(index) {
+            const section = $(this).attr('id').split('_')[1];
+            const rect = this.getBoundingClientRect();
+            console.log(section, rect);
+            if ((rect.y >= 0 && rect.y <= window.innerHeight) ||
+                (rect.y < 0 && rect.bottom > 0)) {
+              setSelected(section);
+              return false;  // Break.
+            }
+          });
+        }
       }
       const observer = new IntersectionObserver(observerCallback);
 
@@ -1098,10 +1118,13 @@ limitations under the License.
 
       // Navigate to the given section of the form.
       function setSelected(section) {
+        $('.navSection').css('background-color', '');
         navSelectors[section].css('background-color', 'lightblue');
+        selectedSection = section;
       }
       function clearSelected(section) {
         navSelectors[section].css('background-color', '');
+        selectedSection = null;
       }
 
       $('.navSection').click(event => {
