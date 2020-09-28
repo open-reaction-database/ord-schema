@@ -43,6 +43,10 @@ class ServeTest(parameterized.TestCase, absltest.TestCase):
         self.testdata = os.path.join(
             os.path.dirname(__file__),
             '../../examples/2_Nielsen_Deoxyfluorination_Screen')
+        # Start with an initial empty dataset called 'dataset'.
+        response = self.client.post('/dataset/dataset/new',
+                                    follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
 
     def _get_dataset(self):
         """Returns a Dataset for testing."""

@@ -1070,55 +1070,49 @@ limitations under the License.
     </div>
 
     <script>
-      // The selected section name.
-      let selected = null;
+      // Intersection observer for updating the current location in the sidebar
+      // as the user scrolls on the page.
+      function observerCallback(entries) {
+        entries.forEach(entry => {
+          const section = $(entry.target).attr('id').split('_')[1];
+          if (entry.isIntersecting) {
+            setSelected(section);
+          } else {
+            clearSelected(section);
+          }
+        });
+      }
+      const observer = new IntersectionObserver(observerCallback);
 
-      // An index of the section selector controls.
-      const navSelectors = {};
+      $('.section').each(function(index) {
+        observer.observe(this);
+      });
 
       // Index the selector controls.
+      const navSelectors = {};
       $('.navSection').each((index, selector) => {
         selector = $(selector);
         const section = selector.attr('data-section');
         navSelectors[section] = selector;
       });
 
-      // Show only the given section of the reaction schema.
+      // Navigate to the given section of the form.
       function setSelected(section) {
-        $('.navSection').css('background-color', '');
-        $('.section').hide('slow');
-        if (section != null) {
-          $('#section_' + section).show('slow');
-          const selector = navSelectors[section];
-          selector.css('background-color', 'lightblue');
-        } else {
-          $('.section').show('slow')
-        }
-        selected = section;
+        navSelectors[section].css('background-color', 'lightblue');
+      }
+      function clearSelected(section) {
+        navSelectors[section].css('background-color', '');
       }
 
-      // Show and hide the schema sections.
       $('.navSection').click(event => {
         const section = $(event.target).attr('data-section');
-        if (section != selected) {
-          setSelected(section);
-          history.pushState({section: section}, "", "#" + section);
-        } else {
-          setSelected(null);
-          history.pushState({section: null}, "", location.pathname);
-        }
+        $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
       });
-
-      // Handle the back button.
-      onpopstate = function(event) {
-        const section = event.state.section;
-        setSelected(section);
-      }
 
       // Handle initialization.
       if (location.hash) {
         const section = location.hash.replace('#', '');
-        setSelected(section);
+        $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
       }
     </script>
 

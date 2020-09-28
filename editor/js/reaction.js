@@ -158,8 +158,10 @@ function selectText(node) {
  * @param {!Node} node
  */
 function checkFloat(node) {
-  var stringValue = $(node).text();
-  if (FLOAT_PATTERN.test(stringValue.trim())) {
+  var stringValue = $(node).text().trim();
+  if (stringValue === '') {
+    $(node).removeClass('invalid');
+  } else if (FLOAT_PATTERN.test(stringValue)) {
     $(node).removeClass('invalid');
   } else {
     $(node).addClass('invalid');
@@ -172,8 +174,10 @@ function checkFloat(node) {
  * @param {!Node} node
  */
 function checkInteger(node) {
-  var stringValue = $(node).text();
-  if (INTEGER_PATTERN.test(stringValue.trim())) {
+  var stringValue = $(node).text().trim();
+  if (stringValue === '') {
+    $(node).removeClass('invalid');
+  } else if (INTEGER_PATTERN.test(stringValue)) {
     $(node).removeClass('invalid');
   } else {
     $(node).addClass('invalid');

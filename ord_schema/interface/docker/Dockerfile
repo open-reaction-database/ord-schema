@@ -21,20 +21,32 @@
 
 FROM mcs07/postgres-rdkit
 
-RUN apt-get update && apt-get install --yes build-essential git libpq-dev wget
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    libpq-dev \
+    procps \
+    unzip \
+    wget \
+ && rm -rf /var/lib/apt/lists/*
 
 ENV ORD_ROOT=/home/ord
-RUN wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
-RUN /bin/bash ./Miniconda3-latest-Linux-x86_64.sh -b -p "${ORD_ROOT}/miniconda3"
+RUN wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh \
+ && /bin/bash Miniconda3-latest-Linux-x86_64.sh -b -p "${ORD_ROOT}/miniconda3" \
+ && rm Miniconda3-latest-Linux-x86_64.sh
 ENV PATH="${ORD_ROOT}/miniconda3/bin:${PATH}"
-RUN conda update conda --yes
-RUN conda install python=3.7
-RUN conda install -c rdkit rdkit
+RUN conda install -c rdkit \
+    flask \
+    gunicorn \
+    nodejs \
+    python=3.7 \
+    rdkit \
+ && conda clean -afy
 
 WORKDIR "${ORD_ROOT}"
 # Bust the cache to get the latest ord-data commits; see
 # https://stackoverflow.com/a/39278224.
-ENV ORD_REPO=ord-submissions-test
+ENV ORD_REPO=ord-data
 ADD "https://api.github.com/repos/Open-Reaction-Database/${ORD_REPO}/git/refs/heads/main" ord-data-version.json
 RUN git clone "https://github.com/Open-Reaction-Database/${ORD_REPO}.git"
 
