@@ -111,7 +111,7 @@ def _get_inputs():
         inputs = []
         with open(FLAGS.input_file) as f:
             for line in f:
-                fields = line.strip().split()
+                fields = line.strip().split('\t')
                 if len(fields) == 3:
                     status, original_filename, filename = fields
                     if not status.startswith('R'):
