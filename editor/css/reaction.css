@@ -15,6 +15,7 @@
  */
 body {
   padding: 48px;
+  padding-top: 100px;
   font-family: Roboto;
 }
 #sections {
@@ -104,10 +105,22 @@ body {
 fieldset {
   margin-top: 24px;
 }
+#header {
+  background: white;
+  border: black 1px;
+  border-style: none none solid none;
+  padding: 10px 0;
+  position: fixed;
+  top: 0;
+  width: 100%;
+}
+.section {
+  scroll-margin-top: 120px;
+}
 #nav {
+  margin-top: 10px;
   margin-right: 26px;
   position: fixed;
-  height: 100%;
   width: 110px;
 }
 .navSection {
