@@ -53,7 +53,7 @@ class ProcessDatasetTest(absltest.TestCase):
         reaction1.provenance.record_created.person.email = 'test@example.com'
         dataset1 = dataset_pb2.Dataset(reactions=[reaction1])
         self.dataset1_filename = os.path.join(self.test_subdirectory,
-                                              'dataset1.pbtxt')
+                                              'dataset1 with spaces.pbtxt')
         message_helpers.write_message(dataset1, self.dataset1_filename)
         # reaction2 is empty.
         reaction2 = reaction_pb2.Reaction()
