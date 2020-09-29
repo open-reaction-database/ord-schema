@@ -289,7 +289,7 @@ def run():
     if FLAGS.base:
         added, removed = get_change_stats(datasets, inputs, base=FLAGS.base)
         logging.info('Summary: +%d -%d reaction IDs', len(added), len(removed))
-        if FLAGS.issue and FLAGS.token:
+        if (added or removed) and FLAGS.issue and FLAGS.token:
             client = github.Github(FLAGS.token)
             repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
             issue = repo.get_issue(FLAGS.issue)
