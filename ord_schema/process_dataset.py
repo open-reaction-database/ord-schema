@@ -286,10 +286,17 @@ def run():
     if FLAGS.validate:
         # Note: this does not check if IDs are malformed.
         validations.validate_datasets(datasets, FLAGS.write_errors)
-    if FLAGS.base:
+    # NOTE(kearnes): We get incorrect +0/-0 comments before running the update
+    # step below and moving things under the data directory.
+    compute_change_stats = True
+    for filename in datasets:
+        if not filename.startswith('data/'):
+            compute_change_stats = False
+            break
+    if compute_change_stats and FLAGS.base:
         added, removed = get_change_stats(datasets, inputs, base=FLAGS.base)
         logging.info('Summary: +%d -%d reaction IDs', len(added), len(removed))
-        if (added or removed) and FLAGS.issue and FLAGS.token:
+        if FLAGS.issue and FLAGS.token:
             client = github.Github(FLAGS.token)
             repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
             issue = repo.get_issue(FLAGS.issue)
