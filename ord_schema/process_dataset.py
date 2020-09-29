@@ -278,7 +278,7 @@ def run():
     inputs = sorted(_get_inputs())
     if not inputs:
         logging.info('nothing to do')
-        return set(), set()  # Nothing to do.
+        return set(), set(), set()  # Nothing to do.
     datasets = {}
     for file_status in inputs:
         if file_status.status == 'D':
