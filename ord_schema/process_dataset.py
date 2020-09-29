@@ -40,6 +40,7 @@ Example usage:
 
 import dataclasses
 import glob
+import re
 import os
 import subprocess
 import uuid
@@ -290,7 +291,9 @@ def run():
     # step below and moving things under the data directory.
     compute_change_stats = True
     for filename in datasets:
-        if not filename.startswith('data/'):
+        if not re.fullmatch(
+                'data/[0-9A-Fa-f]{2}/ord_dataset-[0-9A-Fa-f]{32}.pbtxt',
+                filename):
             compute_change_stats = False
             break
     if compute_change_stats and FLAGS.base:
