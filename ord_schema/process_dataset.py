@@ -40,7 +40,6 @@ Example usage:
 
 import dataclasses
 import glob
-import re
 import os
 import subprocess
 import uuid
