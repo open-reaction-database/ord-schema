@@ -184,11 +184,11 @@ class SubmissionWorkflowTest(absltest.TestCase):
         }
         run_flags.update(kwargs)
         with flagsaver.flagsaver(**run_flags):
-            added, removed = process_dataset.run()
+            added, removed, changed = process_dataset.run()
         filenames = glob.glob(os.path.join(self.test_subdirectory,
                                            '**/*.pbtxt'),
                               recursive=True)
-        return added, removed, filenames
+        return added, removed, changed, filenames
 
     def test_add_dataset(self):
         reaction = reaction_pb2.Reaction()
@@ -206,9 +206,10 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        added, removed, filenames = self._run()
+        added, removed, changed, filenames = self._run()
         self.assertEqual(added, {'test'})
         self.assertEmpty(removed)
+        self.assertEmpty(changed)
         self.assertLen(filenames, 2)
         self.assertFalse(os.path.exists(dataset_filename))
         # Check for assignment of dataset and reaction IDs.
@@ -243,9 +244,10 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset2 = dataset_pb2.Dataset(reactions=[reaction])
         dataset2_filename = os.path.join(self.test_subdirectory, 'test2.pbtxt')
         message_helpers.write_message(dataset2, dataset2_filename)
-        added, removed, filenames = self._run()
+        added, removed, changed, filenames = self._run()
         self.assertEqual(added, {'test1', 'test2'})
         self.assertEmpty(removed)
+        self.assertEmpty(changed)
         self.assertLen(filenames, 2)
         filenames.pop(filenames.index(self.dataset_filename))
         self.assertLen(filenames, 1)
@@ -272,9 +274,10 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        added, removed, filenames = self._run()
+        added, removed, changed, filenames = self._run()
         self.assertEqual(added, {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'})
         self.assertEmpty(removed)
+        self.assertEmpty(changed)
         self.assertLen(filenames, 2)
         self.assertFalse(os.path.exists(dataset_filename))
         filenames.pop(filenames.index(self.dataset_filename))
@@ -305,9 +308,10 @@ class SubmissionWorkflowTest(absltest.TestCase):
         reaction.reaction_id = 'test'
         dataset.reactions.add().CopyFrom(reaction)
         message_helpers.write_message(dataset, self.dataset_filename)
-        added, removed, filenames = self._run()
+        added, removed, changed, filenames = self._run()
         self.assertEqual(added, {'test'})
         self.assertEmpty(removed)
+        self.assertEqual(changed, {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'})
         self.assertCountEqual([self.dataset_filename], filenames)
         # Check for preservation of dataset and record IDs.
         updated_dataset = message_helpers.load_message(self.dataset_filename,
@@ -323,9 +327,10 @@ class SubmissionWorkflowTest(absltest.TestCase):
                                                dataset_pb2.Dataset)
         dataset.reactions[0].reaction_id = 'test_rename'
         message_helpers.write_message(dataset, self.dataset_filename)
-        added, removed, filenames = self._run()
+        added, removed, changed, filenames = self._run()
         self.assertEqual(added, {'test_rename'})
         self.assertEqual(removed, {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'})
+        self.assertEmpty(changed)
         self.assertCountEqual([self.dataset_filename], filenames)
 
     def test_add_dataset_with_validation_errors(self):
@@ -393,9 +398,10 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        added, removed, filenames = self._run(min_size=0.0)
+        added, removed, changed, filenames = self._run(min_size=0.0)
         self.assertEqual(added, {'test'})
         self.assertEmpty(removed)
+        self.assertEmpty(changed)
         self.assertLen(filenames, 2)
         filenames.pop(filenames.index(self.dataset_filename))
         dataset = message_helpers.load_message(filenames[0],
