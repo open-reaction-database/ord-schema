@@ -295,7 +295,7 @@ def run():
                                                    base=FLAGS.base)
         logging.info('Summary: +%d -%d Δ%d reaction IDs', len(added),
                      len(removed), len(changed))
-        if FLAGS.issue and FLAGS.token:
+        if (added or removed or changed) and FLAGS.issue and FLAGS.token:
             client = github.Github(FLAGS.token)
             repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
             issue = repo.get_issue(FLAGS.issue)
