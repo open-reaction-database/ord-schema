@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!--
+Copyright 2020 Open Reaction Database Project Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<html>
+  <style>
+    body {
+      padding: 48px;
+      font-family: Roboto;
+    }
+    table, th, td {
+      border: 1px solid black;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 5px;
+    }
+  </style>
+  <body>
+    <center>
+      <h1>Open pull requests</h1>
+    </center>
+    <table>
+      <thead><tr><td>Number</td><td>Title</td><td>Datasets</td></tr></thead>
+      <tbody>
+        {% for number, (title, datasets) in pull_requests.items() %}
+        <tr>
+          <td>
+            <a href="https://github.com/Open-Reaction-Database/ord-data/pull/{{ number }}">{{ number }}</a>
+          </td>
+          <td>{{ title }}</td>
+          <td>
+            {% for dataset in datasets %}
+            <div>
+              <a href="/review/{{ number }}/{{ dataset }}">{{ dataset }}</a>
+            </div>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </body>
+</html>
