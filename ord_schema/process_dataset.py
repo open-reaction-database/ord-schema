@@ -211,6 +211,7 @@ def get_change_stats(datasets, inputs, base):
     Returns:
         added: Set of added reaction IDs.
         removed: Set of deleted reaction IDs.
+        changed: Set of changed reaction IDs.
     """
     old, new = set(), set()
     for file_status in inputs:
@@ -219,7 +220,7 @@ def get_change_stats(datasets, inputs, base):
         dataset = _load_base_dataset(file_status, base)
         if dataset is not None:
             old.update(_get_reaction_ids(dataset))
-    return new - old, old - new
+    return new - old, old - new, new & old
 
 
 def _run_updates(inputs, datasets):
@@ -272,11 +273,12 @@ def run():
     Returns:
         added: Set of added reaction IDs.
         removed: Set of deleted reaction IDs.
+        changed: Set of changed reaction IDs.
     """
     inputs = sorted(_get_inputs())
     if not inputs:
         logging.info('nothing to do')
-        return set(), set()  # Nothing to do.
+        return set(), set(), set()  # Nothing to do.
     datasets = {}
     for file_status in inputs:
         if file_status.status == 'D':
@@ -287,21 +289,25 @@ def run():
         # Note: this does not check if IDs are malformed.
         validations.validate_datasets(datasets, FLAGS.write_errors)
     if FLAGS.base:
-        added, removed = get_change_stats(datasets, inputs, base=FLAGS.base)
-        logging.info('Summary: +%d -%d reaction IDs', len(added), len(removed))
-        if FLAGS.issue and FLAGS.token:
+        added, removed, changed = get_change_stats(datasets,
+                                                   inputs,
+                                                   base=FLAGS.base)
+        logging.info('Summary: +%d -%d Δ%d reaction IDs', len(added),
+                     len(removed), len(changed))
+        if (added or removed or changed) and FLAGS.issue and FLAGS.token:
             client = github.Github(FLAGS.token)
             repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
             issue = repo.get_issue(FLAGS.issue)
             issue.create_comment(
-                f'Summary: +{len(added)} -{len(removed)} reaction IDs')
+                f'Summary: +{len(added)} -{len(removed)} Δ{len(changed)} '
+                'reaction IDs')
     else:
-        added, removed = None, None
+        added, removed, changed = None, None, None
     if FLAGS.update:
         _run_updates(inputs, datasets)
     else:
         logging.info('nothing else to do; use --update for more')
-    return added, removed
+    return added, removed, changed
 
 
 def main(argv):
