@@ -276,13 +276,15 @@ function removeSlowly(button, pattern) {
  * Switches the UI into a read-only mode. This is irreversible.
  */
 function freeze() {
-  $('.edittext').attr('contenteditable', 'false');
   $('.remove').hide();
   $('#save').hide();
   $('.edittext').each((i, x) => {
+    const node = $(x);
+    node.attr('contenteditable', 'false');
+    node.css('background-color', '#ebebe4');
     // Ensure non-editable divs have a text node to preserve vertical alignment.
-    if (!$(x).text()) {
-      $(x).text(' ');
+    if (!node.text()) {
+      node.text(' ');
     }
   });
 }
