@@ -21,10 +21,13 @@ import json
 import os
 import pprint
 import re
+import shutil
+import subprocess
 import urllib
 import uuid
 
 import flask
+import github
 from google.protobuf import text_format
 
 from ord_schema import dataset_templating
@@ -38,7 +41,11 @@ from ord_schema.visualization import drawing
 
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
-app.config['ORD_EDITOR_DB'] = os.getenv('ORD_EDITOR_DB', 'db')
+app.config['ORD_EDITOR_DB'] = os.path.abspath(os.getenv('ORD_EDITOR_DB', 'db'))
+app.config['REVIEW_ROOT'] = flask.safe_join(app.config['ORD_EDITOR_DB'],
+                                            '.review')
+app.config['REVIEW_DATA_ROOT'] = flask.safe_join(app.config['REVIEW_ROOT'],
+                                                 'ord-data')
 
 
 @app.route('/')
@@ -449,6 +456,73 @@ def get_molfile():
         return 'no existing structural identifier', 404
 
 
+@app.before_first_request
+def init_submissions():
+    # NOTE(kearnes): Use a local git clone so we aren't downloading the
+    # uncompressed submission files.
+    if not os.path.exists(app.config['REVIEW_DATA_ROOT']):
+        subprocess.run([
+            'git', 'clone',
+            'https://github.com/Open-Reaction-Database/ord-data.git',
+            app.config['REVIEW_DATA_ROOT']
+        ],
+                       check=True)
+
+
+@app.route('/review')
+def show_submissions():
+    """Lists pending submissions to ord-data."""
+    client = github.Github()
+    repo = client.get_repo('Open-Reaction-Database/ord-data')
+    pull_requests = {}
+    for pull_request in repo.get_pulls():
+        datasets = []
+        for file in pull_request.get_files():
+            if file.filename.endswith('.pbtxt'):
+                datasets.append(file.filename[:-6])
+        pull_requests[pull_request.number] = (pull_request.title, datasets)
+    return flask.render_template('submissions.html',
+                                 pull_requests=pull_requests)
+
+
+@app.route('/review/<pull_request>/<file_name>')
+def show_submission(pull_request, file_name):
+    client = github.Github()
+    repo = client.get_repo('Open-Reaction-Database/ord-data')
+    pr = repo.get_pull(int(pull_request))
+    data_root = flask.safe_join(app.config['REVIEW_ROOT'], 'ord-data')
+    with lock('review', user='.review'):
+        subprocess.run(['git', 'checkout', 'main'],
+                       cwd=app.config['REVIEW_DATA_ROOT'],
+                       check=True)
+        subprocess.run(['git', 'pull', 'origin', 'main'],
+                       cwd=app.config['REVIEW_DATA_ROOT'],
+                       check=True)
+        subprocess.run([
+            'git', 'fetch', 'origin',
+            f'pull/{pull_request}/head:editor#{pull_request}'
+        ],
+                       cwd=app.config['REVIEW_DATA_ROOT'],
+                       check=True)
+        subprocess.run(['git', 'checkout', f'editor#{pull_request}'],
+                       cwd=app.config['REVIEW_DATA_ROOT'],
+                       check=True)
+        subprocess.run(['git', 'pull', 'origin', f'pull/{pull_request}/head'],
+                       cwd=app.config['REVIEW_DATA_ROOT'],
+                       check=True)
+        destination = flask.safe_join(app.config['REVIEW_ROOT'], pull_request)
+        os.makedirs(destination, exist_ok=True)
+        for file in pr.get_files():
+            if file.filename.endswith('.pbtxt'):
+                shutil.copy2(
+                    flask.safe_join(app.config['REVIEW_DATA_ROOT'],
+                                    file.filename), destination)
+    parts = list(urllib.parse.urlparse(f'/dataset/{file_name}'))
+    parts[4] = urllib.parse.urlencode({'user': f'.review/{pull_request}'})
+    url = urllib.parse.urlunparse(parts)
+    return flask.redirect(url, code=307)
+
+
 @app.after_request
 def prevent_caching(response):
     """Prevents caching any of this app's resources on the client."""
@@ -481,7 +555,7 @@ def put_dataset(file_name, dataset):
 
 
 @contextlib.contextmanager
-def lock(file_name):
+def lock(file_name, user=None):
     """Blocks until an exclusive lock on the named file is obtained.
 
     This is part of the upload mechanism. Byte_value fields are populated
@@ -492,11 +566,12 @@ def lock(file_name):
 
     Args:
         file_name: Name of the file to pass to the fcntl system call.
+        user: The current user; used to determine the lock file path.
 
     Yields:
         The locked file descriptor.
     """
-    path = get_path(file_name, suffix='.lock')
+    path = get_path(file_name, user=user, suffix='.lock')
     with open(path, 'w') as lock_file:
         fcntl.lockf(lock_file, fcntl.LOCK_EX)
         try:
@@ -552,19 +627,22 @@ def get_file(path):
     return data
 
 
-def get_path(file_name, suffix='.pbtxt'):
+def get_path(file_name, user=None, suffix='.pbtxt'):
     """Returns a safe path in the editor filesystem.
 
     Uses flask.safe_join to check for directory traversal attacks.
 
     Args:
         file_name: Text filename.
+        user: The current user. If None, defaults to flask.g.user.
         suffix: Text filename suffix. Defaults to '.pbtxt'.
 
     Returns:
         Path to the requested file.
     """
-    return flask.safe_join(app.config['ORD_EDITOR_DB'], flask.g.user,
+    if not user:
+        user = flask.g.user
+    return flask.safe_join(app.config['ORD_EDITOR_DB'], user,
                            f'{file_name}{suffix}')
 
 
