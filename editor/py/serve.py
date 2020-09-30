@@ -458,6 +458,7 @@ def get_molfile():
 
 @app.before_first_request
 def init_submissions():
+    """Clones ord-data for use in review mode."""
     # NOTE(kearnes): Use a local git clone so we aren't downloading the
     # uncompressed submission files.
     if not os.path.exists(app.config['REVIEW_DATA_ROOT']):
@@ -487,10 +488,10 @@ def show_submissions():
 
 @app.route('/review/<pull_request>/<file_name>')
 def show_submission(pull_request, file_name):
+    """Requests a dataset from a current pull request."""
     client = github.Github()
     repo = client.get_repo('Open-Reaction-Database/ord-data')
     pr = repo.get_pull(int(pull_request))
-    data_root = flask.safe_join(app.config['REVIEW_ROOT'], 'ord-data')
     with lock('review', user='.review'):
         subprocess.run(['git', 'checkout', 'main'],
                        cwd=app.config['REVIEW_DATA_ROOT'],
