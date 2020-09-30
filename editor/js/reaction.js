@@ -942,11 +942,12 @@ function stringToEnum(name, protoEnum) {
 }
 
 /**
- * Switch the UI into a read-only mode. This is irreversible.
+ * Switches the UI into a read-only mode. This is irreversible.
  */
 function freeze() {
   $('.edittext').attr('contenteditable', 'false');
   $('select').attr('disabled', 'true');
+  $('input:radio').prop('disabled', 'true');
   $('.validate').hide();
   $('.add').hide();
   $('.remove').hide();
