@@ -119,8 +119,7 @@ def generate_dataset(template_string, df, validate=True):
     for _, substitutions in df[placeholders].iterrows():
         reaction_text = _replace(template_string, substitutions)
         try:
-            reaction = text_format.Parse(reaction_text,
-                                         reaction_pb2.Reaction())
+            reaction = text_format.Parse(reaction_text, reaction_pb2.Reaction())
         except text_format.ParseError as error:
             raise ValueError(
                 f'Failed to parse the reaction pbtxt after templating: {error}')

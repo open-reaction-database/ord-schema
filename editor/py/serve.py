@@ -150,8 +150,9 @@ def enumerate_dataset():
     except ValueError as error:
         flask.abort(flask.make_response(str(error), 400))
     except Exception as error:
-        flask.abort(flask.make_response(
-            f'Unexpected {error.__class__.__name__}: {error}', 400))
+        flask.abort(
+            flask.make_response(
+                f'Unexpected {error.__class__.__name__}: {error}', 400))
     path = get_path(f'{basename}_dataset')
     message_helpers.write_message(dataset, path)
     return 'ok'
