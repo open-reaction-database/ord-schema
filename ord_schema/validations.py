@@ -867,9 +867,11 @@ def validate_percentage(message):
         warnings.warn(
             'Percentage values are 0-100, not fractions '
             f'({message.value} used)', ValidationWarning)
-    ensure_float_nonnegative(message, 'value')
+    if message.value < 0 or message.value > 100:
+        warnings.warn(
+            f'Percentage value ({message.value}) is outside the expected'
+            'range (0-100)', ValidationWarning)
     ensure_float_nonnegative(message, 'precision')
-    ensure_float_range(message, 'value', 0, 105)  # generous upper bound
 
 
 def validate_data(message):
