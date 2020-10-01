@@ -136,6 +136,7 @@ def enumerate_dataset():
     A new dataset is created from the template and spreadsheet using
     ord_schema.dataset_templating.generate_dataset.
     """
+    # pylint: disable=broad-except
     data = flask.request.get_json(force=True)
     basename, suffix = os.path.splitext(data['spreadsheet_name'])
     spreadsheet_data = io.StringIO(data['spreadsheet_data'].lstrip('ï»¿'))
@@ -148,6 +149,9 @@ def enumerate_dataset():
                                                       validate=False)
     except ValueError as error:
         flask.abort(flask.make_response(str(error), 400))
+    except Exception as error:
+        flask.abort(flask.make_response(
+            f'Unexpected {error.__class__.__name__}: {error}', 400))
     path = get_path(f'{basename}_dataset')
     message_helpers.write_message(dataset, path)
     return 'ok'
