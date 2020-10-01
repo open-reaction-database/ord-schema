@@ -32,9 +32,9 @@ body {
 }
 .edittext {
   width: 200px;
-  border: solid;
-  border-width: 1px;
-  border-color: #c0c0c0;
+  height: auto;
+  min-height: 20px;
+  border: 1px solid #c0c0c0;
   white-space: pre-wrap;
 }
 .shorttext {

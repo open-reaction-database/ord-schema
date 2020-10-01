@@ -942,11 +942,11 @@ function stringToEnum(name, protoEnum) {
 }
 
 /**
- * Switch the UI into a read-only mode. This is irreversible.
+ * Switches the UI into a read-only mode. This is irreversible.
  */
 function freeze() {
-  $('.edittext').attr('contenteditable', 'false');
   $('select').attr('disabled', 'true');
+  $('input:radio').prop('disabled', 'true');
   $('.validate').hide();
   $('.add').hide();
   $('.remove').hide();
@@ -954,9 +954,12 @@ function freeze() {
   $('#provenance_created button').hide();
   $('#save').hide();
   $('.edittext').each((i, x) => {
+    const node = $(x);
+    node.attr('contenteditable', 'false');
+    node.css('background-color', '#ebebe4');
     // Ensure non-editable divs have a text node to preserve vertical alignment.
-    if (!$(x).text()) {
-      $(x).text(' ');
+    if (!node.text()) {
+      node.text(' ');
     }
   });
 }

@@ -30,11 +30,11 @@ limitations under the License.
       }
       .edittext {
         width: 200px;
+        height: auto;
+        min-height: 20px;
         padding: 2px;
         margin: 2px;
-        border: solid;
-        border-width: 1px;
-        border-color: #c0c0c0;
+        border: 1px solid #c0c0c0;
       }
       .longtext {
         width: 400px;
@@ -66,7 +66,7 @@ limitations under the License.
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src="/js/dataset.js"></script>
   </head>
-  <body onload="ord.dataset.init('{{ file_name }}');">
+  <body>
 
     <center>
       <h1><a href="/">Dataset</a>: {{ file_name }}.pbtxt</h1>
@@ -122,5 +122,15 @@ limitations under the License.
       </div>
       <div id="add_other_reaction_id" class="add" onclick="ord.dataset.addReactionId();">+ add reaction ID</div>
     </fieldset>
+
+    <script>
+        document.body.onload = function() {
+            ord.dataset.init('{{ file_name }}');
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('user').startsWith('.review')) {
+                ord.dataset.freeze();
+            }
+        };
+    </script>
   </body>
 </html>
