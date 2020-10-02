@@ -125,10 +125,11 @@ def generate_dataset(template_string, df, validate=True):
                 f'Failed to parse the reaction pbtxt after templating: {error}'
             ) from error
         if validate:
-            errors = validations.validate_message(reaction,
+            output = validations.validate_message(reaction,
                                                   raise_on_error=False)
-            if errors:
-                raise ValueError(f'Enumerated Reaction is not valid: {errors}')
+            if output.errors:
+                raise ValueError(
+                    f'Enumerated Reaction is not valid: {output.errors}')
         reactions.append(reaction)
 
     return dataset_pb2.Dataset(reactions=reactions)

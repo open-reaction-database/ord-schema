@@ -60,7 +60,7 @@ body {
 .invalid {
   border: 2px solid red;
 }
-.add, #save, #download, .remove, #delete, .collapse, .validate_button, .validate_status, .validate_message, .tooltip > .tooltip-inner {
+.add, #save, #download, .remove, #delete, .collapse, .validate_button, .validate_status, .validate_message, .validate_warning_status, .validate_warning_message, .tooltip > .tooltip-inner {
   padding: 2px 4px;
   margin: 2px;
   display: inline-block;
@@ -85,16 +85,26 @@ body {
 .validate, .validate_status-message {
   display: inline-block;
 }
+.validate_status-message {
+  padding-left: 4px;
+}
 .validate_button {
   background-color: lightblue;
 }
-.validate_status {
+.validate_status, .validate_warning_status {
   background-color: lightgray;
 }
-.validate_message {
+.validate_message, .validate_warning_message {
   position: absolute;
   z-index: 2;
   visibility: hidden;
+}
+.validate_warning_status {
+  color: yellow;
+  visibility: hidden;
+}
+.validate_warning_message {
+  background-color: #FAFAD2;
 }
 .spacer {
   height: 24px;
