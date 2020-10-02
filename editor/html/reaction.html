@@ -1034,8 +1034,10 @@ limitations under the License.
     <span id="validate_template" style="display: none">
       <span class="validate_button" aria-hidden="true">validate</span>
       <span class="validate_status-message">
-        <span onmouseenter="ord.reaction.toggleValidateMessage($(this).closest('.validate'))" onmouseleave="ord.reaction.toggleValidateMessage($(this).closest('.validate'))"  class="validate_status">unvalidated</span>
+        <span onmouseenter="ord.reaction.toggleValidateMessage($(this).closest('.validate'), '.validate_message')" onmouseleave="ord.reaction.toggleValidateMessage($(this).closest('.validate'), '.validate_message')" class="validate_status">unvalidated</span>
+        <span onmouseenter="ord.reaction.toggleValidateMessage($(this).closest('.validate'), '.validate_warning_message')" onmouseleave="ord.reaction.toggleValidateMessage($(this).closest('.validate'), '.validate_warning_message')" class="validate_warning_status fa fa-bell"></span>
         <span class="validate_message"></span>
+        <span class="validate_warning_message"></span>
       </span>
     </span>
 
