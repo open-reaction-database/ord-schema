@@ -863,6 +863,9 @@ def validate_flow_rate(message):
 
 
 def validate_percentage(message):
+    if not message.HasField('value'):
+        warnings.warn(f'{type(message)} requires `value` to be set',
+                      ValidationError)
     if 0 < message.value < 1:
         warnings.warn(
             'Percentage values are 0-100, not fractions '
