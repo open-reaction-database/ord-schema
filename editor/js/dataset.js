@@ -23,7 +23,8 @@ exports = {
   deleteReaction,
   newReaction,
   removeReactionId,
-  addReactionId
+  addReactionId,
+  freeze
 };
 
 goog.require('proto.ord.Dataset');
@@ -269,4 +270,21 @@ function removeSlowly(button, pattern) {
   const node = $(button).closest(pattern);
   node.hide('slow', () => node.remove());
   dirty();
+}
+
+/**
+ * Switches the UI into a read-only mode. This is irreversible.
+ */
+function freeze() {
+  $('.remove').hide();
+  $('#save').hide();
+  $('.edittext').each((i, x) => {
+    const node = $(x);
+    node.attr('contenteditable', 'false');
+    node.css('background-color', '#ebebe4');
+    // Ensure non-editable divs have a text node to preserve vertical alignment.
+    if (!node.text()) {
+      node.text(' ');
+    }
+  });
 }
