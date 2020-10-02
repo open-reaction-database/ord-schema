@@ -327,10 +327,10 @@ def validate_reaction(message_name):
     message = message_helpers.create_message(message_name)
     message.ParseFromString(flask.request.get_data())
     options = validations.ValidationOptions(require_provenance=True)
-    errors = validations.validate_message(message,
-                                          raise_on_error=False,
-                                          options=options)
-    return json.dumps(errors)
+    errors, warns = validations.validate_message(message,
+                                                 raise_on_error=False,
+                                                 options=options)
+    return json.dumps({'errors': errors, 'warnings': warns})
 
 
 @app.route('/resolve/<identifier_type>', methods=['POST'])

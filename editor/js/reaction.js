@@ -235,10 +235,11 @@ function validate(message, messageTypeString, node, validateNode) {
   if (!validateNode) {
     validateNode = $('.validate', node).first();
   }
-
   xhr.responseType = 'json';
   xhr.onload = function() {
-    const errors = xhr.response;
+    const validationOutput = xhr.response;
+    const errors = validationOutput.errors;
+    const warnings = validationOutput.warnings;
     // Add client-side validation errors.
     $(node).find('.invalid').each(function(index) {
       const invalidName = $(this).attr('class').split(' ')[0];
@@ -254,7 +255,6 @@ function validate(message, messageTypeString, node, validateNode) {
       statusNode.addClass('fa fa-exclamation-triangle');
       statusNode.css('color', 'red');
       statusNode.text(' ' + errors.length);
-
       messageNode.empty();
       for (let index = 0; index < errors.length; index++) {
         const error = errors[index];
@@ -266,10 +266,26 @@ function validate(message, messageTypeString, node, validateNode) {
     } else {
       statusNode.addClass('fa fa-check');
       statusNode.css('color', 'green');
-
       messageNode.html('');
       messageNode.css('backgroundColor', '');
       messageNode.css('visibility', 'hidden');
+    }
+    const warningStatusNode = $('.validate_warning_status', validateNode);
+    const warningMessageNode = $('.validate_warning_message', validateNode);
+    if (warnings.length) {
+      warningStatusNode.css('visibility', 'visible');
+      warningStatusNode.text(' ' + warnings.length);
+      warningMessageNode.empty();
+      for (let index = 0; index < warnings.length; index++) {
+        const warning = warnings[index];
+        const warningNode = $('<div></div>');
+        warningNode.text('\u2022 ' + warning);
+        warningMessageNode.append(warningNode);
+      }
+    } else {
+      warningStatusNode.css('visibility', 'hidden');
+      warningMessageNode.html('');
+      warningMessageNode.css('visibility', 'hidden');
     }
   };
   xhr.send(binary);
@@ -278,9 +294,10 @@ function validate(message, messageTypeString, node, validateNode) {
 /**
  * Toggles the visibility of the 'validate' button for a given node.
  * @param {!Node} node
+ * @param {string} target Destination class for the validation message(s).
  */
-function toggleValidateMessage(node) {
-  let messageNode = $('.validate_message', node);
+function toggleValidateMessage(node, target) {
+  let messageNode = $(target, node);
   switch (messageNode.css('visibility')) {
     case 'visible':
       messageNode.css('visibility', 'hidden');

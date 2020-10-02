@@ -83,9 +83,9 @@ def _validate_datasets(dataset, label='dataset', options=None):
     # Reaction-level validation.
     num_bad_reactions = 0
     for i, reaction in enumerate(dataset.reactions):
-        reaction_errors = validate_message(reaction,
-                                           raise_on_error=False,
-                                           options=options)
+        reaction_errors, _ = validate_message(reaction,
+                                              raise_on_error=False,
+                                              options=options)
         if reaction_errors:
             num_bad_reactions += 1
         for error in reaction_errors:
@@ -96,10 +96,10 @@ def _validate_datasets(dataset, label='dataset', options=None):
                  len(dataset.reactions) - num_bad_reactions,
                  len(dataset.reactions), num_bad_reactions)
     # Dataset-level validation of cross-references.
-    dataset_errors = validate_message(dataset,
-                                      raise_on_error=False,
-                                      recurse=False,
-                                      options=options)
+    dataset_errors, _ = validate_message(dataset,
+                                         raise_on_error=False,
+                                         recurse=False,
+                                         options=options)
     for error in dataset_errors:
         errors.append(error)
         logging.warning('Validation error for %s: %s', label, error)
