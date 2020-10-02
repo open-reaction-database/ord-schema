@@ -17,6 +17,7 @@ import dataclasses
 import math
 import os
 import re
+from typing import List
 import warnings
 
 from absl import logging
@@ -36,6 +37,17 @@ class ValidationOptions:
     validate_ids: bool = False
     # Require ReactionProvenance for Reactions.
     require_provenance: bool = False
+
+
+@dataclasses.dataclass
+class ValidationOutput:
+    """Validation output: errors and warnings."""
+    errors: List[str] = dataclasses.field(default_factory=list)
+    warnings: List[str] = dataclasses.field(default_factory=list)
+
+    def extend(self, other):
+        self.errors.extend(other.errors)
+        self.warnings.extend(other.warnings)
 
 
 def validate_datasets(datasets, write_errors=False, options=None):
@@ -78,17 +90,16 @@ def _validate_datasets(dataset, label='dataset', options=None):
     Returns:
         List of validation error messages.
     """
-
     errors = []
     # Reaction-level validation.
     num_bad_reactions = 0
     for i, reaction in enumerate(dataset.reactions):
-        reaction_errors, _ = validate_message(reaction,
-                                              raise_on_error=False,
-                                              options=options)
-        if reaction_errors:
+        reaction_output = validate_message(reaction,
+                                           raise_on_error=False,
+                                           options=options)
+        if reaction_output.errors:
             num_bad_reactions += 1
-        for error in reaction_errors:
+        for error in reaction_output.errors:
             errors.append(error)
             logging.warning('Validation error for %s[%d]: %s', label, i, error)
     logging.info('Validation summary for %s: %d/%d successful (%d failures)',
@@ -96,11 +107,11 @@ def _validate_datasets(dataset, label='dataset', options=None):
                  len(dataset.reactions) - num_bad_reactions,
                  len(dataset.reactions), num_bad_reactions)
     # Dataset-level validation of cross-references.
-    dataset_errors, _ = validate_message(dataset,
-                                         raise_on_error=False,
-                                         recurse=False,
-                                         options=options)
-    for error in dataset_errors:
+    dataset_output = validate_message(dataset,
+                                      raise_on_error=False,
+                                      recurse=False,
+                                      options=options)
+    for error in dataset_output.errors:
         errors.append(error)
         logging.warning('Validation error for %s: %s', label, error)
 
@@ -135,23 +146,21 @@ def validate_message(message,
             the current message relative to the recursion root.
 
     Returns:
-        errors: List of text validation errors, if any.
-        warnings: List of text validation warnings, if any.
+        ValidationOutput.
 
     Raises:
         ValidationError: If any fields are invalid.
     """
     if trace is None:
         trace = (message.DESCRIPTOR.name,)
-    errors, warns = [], []
+    output = ValidationOutput()
     # Recurse through submessages
     if recurse:
         for field, value in message.ListFields():
             if field.type == field.TYPE_MESSAGE:  # need to recurse
                 _validate_message(field=field,
                                   value=value,
-                                  errors=errors,
-                                  warns=warns,
+                                  output=output,
                                   raise_on_error=raise_on_error,
                                   options=options,
                                   trace=trace)
@@ -176,21 +185,19 @@ def validate_message(message,
         if issubclass(warning.category, ValidationError):
             if raise_on_error:
                 raise ValidationError(message)
-            errors.append(message)
+            output.errors.append(message)
         else:
-            warns.append(message)
-    return errors, warns
+            output.warnings.append(message)
+    return output
 
 
-def _validate_message(field, value, errors, warns, raise_on_error, options,
-                      trace):
+def _validate_message(field, value, output, raise_on_error, options, trace):
     """Validates a single message field and its children.
 
     Args:
         field: FieldDescriptor instance.
         value: The value of the current message field.
-        errors: List of text error messages.
-        warns: List of text warning messages.
+        output: ValidationOutput.
         raise_on_error: If True, raises a ValidationError exception when errors
             are encountered. If False, the user must manually check the return
             value to identify validation errors.
@@ -205,34 +212,29 @@ def _validate_message(field, value, errors, warns, raise_on_error, options,
                     field.TYPE_MESSAGE:
                 for key, submessage in value.items():
                     this_trace = trace + (f'{field.name}["{key}"]',)
-                    this_errors, this_warnings = validate_message(
+                    this_output = validate_message(
                         submessage,
                         raise_on_error=raise_on_error,
                         options=options,
                         trace=this_trace)
-                    errors.extend(this_errors)
-                    warns.extend(this_warnings)
+                    output.extend(this_output)
             else:  # value is a primitive
                 pass
         else:  # Just a repeated message
             for index, submessage in enumerate(value):
                 this_trace = trace + (f'{field.name}[{index}]',)
-                this_errors, this_warnings = validate_message(
-                    submessage,
-                    raise_on_error=raise_on_error,
-                    options=options,
-                    trace=this_trace)
-                errors.extend(this_errors)
-                warns.extend(this_warnings)
+                this_output = validate_message(submessage,
+                                               raise_on_error=raise_on_error,
+                                               options=options,
+                                               trace=this_trace)
+                output.extend(this_output)
     else:  # no recursion needed
         this_trace = trace + (field.name,)
-        this_errors, this_warnings = validate_message(
-            value,
-            raise_on_error=raise_on_error,
-            options=options,
-            trace=this_trace)
-        errors.extend(this_errors)
-        warns.extend(this_warnings)
+        this_output = validate_message(value,
+                                       raise_on_error=raise_on_error,
+                                       options=options,
+                                       trace=this_trace)
+        output.extend(this_output)
 
 
 class ValidationError(Warning):
