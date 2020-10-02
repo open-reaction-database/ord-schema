@@ -135,14 +135,15 @@ def validate_message(message,
             the current message relative to the recursion root.
 
     Returns:
-        List of text validation errors, if any.
+        errors: List of text validation errors, if any.
+        warnings: List of text validation warnings, if any.
 
     Raises:
         ValidationError: If any fields are invalid.
     """
     if trace is None:
         trace = (message.DESCRIPTOR.name,)
-    errors = []
+    errors, warns = [], []
     # Recurse through submessages
     if recurse:
         for field, value in message.ListFields():
@@ -150,6 +151,7 @@ def validate_message(message,
                 _validate_message(field=field,
                                   value=value,
                                   errors=errors,
+                                  warns=warns,
                                   raise_on_error=raise_on_error,
                                   options=options,
                                   trace=trace)
@@ -176,17 +178,19 @@ def validate_message(message,
                 raise ValidationError(message)
             errors.append(message)
         else:
-            warnings.warn(message)
-    return errors
+            warns.append(message)
+    return errors, warns
 
 
-def _validate_message(field, value, errors, raise_on_error, options, trace):
+def _validate_message(field, value, errors, warns, raise_on_error, options,
+                      trace):
     """Validates a single message field and its children.
 
     Args:
         field: FieldDescriptor instance.
         value: The value of the current message field.
         errors: List of text error messages.
+        warns: List of text warning messages.
         raise_on_error: If True, raises a ValidationError exception when errors
             are encountered. If False, the user must manually check the return
             value to identify validation errors.
@@ -201,28 +205,34 @@ def _validate_message(field, value, errors, raise_on_error, options, trace):
                     field.TYPE_MESSAGE:
                 for key, submessage in value.items():
                     this_trace = trace + (f'{field.name}["{key}"]',)
-                    errors.extend(
-                        validate_message(submessage,
-                                         raise_on_error=raise_on_error,
-                                         options=options,
-                                         trace=this_trace))
+                    this_errors, this_warnings = validate_message(
+                        submessage,
+                        raise_on_error=raise_on_error,
+                        options=options,
+                        trace=this_trace)
+                    errors.extend(this_errors)
+                    warns.extend(this_warnings)
             else:  # value is a primitive
                 pass
         else:  # Just a repeated message
             for index, submessage in enumerate(value):
                 this_trace = trace + (f'{field.name}[{index}]',)
-                errors.extend(
-                    validate_message(submessage,
-                                     raise_on_error=raise_on_error,
-                                     options=options,
-                                     trace=this_trace))
+                this_errors, this_warnings = validate_message(
+                    submessage,
+                    raise_on_error=raise_on_error,
+                    options=options,
+                    trace=this_trace)
+                errors.extend(this_errors)
+                warns.extend(this_warnings)
     else:  # no recursion needed
         this_trace = trace + (field.name,)
-        errors.extend(
-            validate_message(value,
-                             raise_on_error=raise_on_error,
-                             options=options,
-                             trace=this_trace))
+        this_errors, this_warnings = validate_message(
+            value,
+            raise_on_error=raise_on_error,
+            options=options,
+            trace=this_trace)
+        errors.extend(this_errors)
+        warns.extend(this_warnings)
 
 
 class ValidationError(Warning):
