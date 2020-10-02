@@ -118,12 +118,18 @@ def generate_dataset(template_string, df, validate=True):
     reactions = []
     for _, substitutions in df[placeholders].iterrows():
         reaction_text = _replace(template_string, substitutions)
-        reaction = text_format.Parse(reaction_text, reaction_pb2.Reaction())
+        try:
+            reaction = text_format.Parse(reaction_text, reaction_pb2.Reaction())
+        except text_format.ParseError as error:
+            raise ValueError(
+                f'Failed to parse the reaction pbtxt after templating: {error}'
+            ) from error
         if validate:
-            errors = validations.validate_message(reaction,
+            output = validations.validate_message(reaction,
                                                   raise_on_error=False)
-            if errors:
-                raise ValueError(f'Enumerated Reaction is not valid: {errors}')
+            if output.errors:
+                raise ValueError(
+                    f'Enumerated Reaction is not valid: {output.errors}')
         reactions.append(reaction)
 
     return dataset_pb2.Dataset(reactions=reactions)

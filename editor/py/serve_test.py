@@ -277,16 +277,19 @@ class ServeTest(parameterized.TestCase, absltest.TestCase):
         self.assertEqual(response.data, data)
 
     @parameterized.named_parameters([
-        ('percentage', reaction_pb2.Percentage(value=15.6), 0),
-        ('bad_percentage', reaction_pb2.Percentage(value=-15.6), 2),
+        ('percentage', reaction_pb2.Percentage(value=15.6), 0, 0),
+        ('bad_percentage', reaction_pb2.Percentage(value=-15.6), 2, 0),
     ])
-    def test_validate_reaction(self, message, expected_num_errors):
+    def test_validate_reaction(self, message, expected_num_errors,
+                               expected_num_warnings):
         response = self.client.post(
             f'/dataset/proto/validate/{message.DESCRIPTOR.name}',
             data=message.SerializeToString(),
             follow_redirects=True)
         self.assertEqual(response.status_code, 200)
-        self.assertLen(json.loads(response.data), expected_num_errors)
+        output = json.loads(response.data)
+        self.assertLen(output['errors'], expected_num_errors)
+        self.assertLen(output['warnings'], expected_num_warnings)
 
     @parameterized.parameters([
         ('NAME', 'benzene', 'c1ccccc1'),
