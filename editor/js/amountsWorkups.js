@@ -122,7 +122,8 @@ function unloadVolume(node) {
   if (!isNaN(value)) {
     volume.setValue(value);
   }
-  const units = ord.reaction.getSelector($('.workup_amount_units_volume', node));
+  const units =
+      ord.reaction.getSelector($('.workup_amount_units_volume', node));
   volume.setUnits(units);
   const precision = parseFloat($('.workup_amount_precision', node).text());
   if (!isNaN(precision)) {
