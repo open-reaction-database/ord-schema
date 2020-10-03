@@ -728,7 +728,7 @@ function initSelector(node) {
   for (let i = 0; i < types.length; i++) {
     const option = $('<option>').text(types[i][0]);
     option.attr('value', types[i][1]);
-    if (types[i] == 'UNSPECIFIED') {
+    if (types[i][0] == 'UNSPECIFIED') {
       option.attr('selected', 'selected');
     }
     select.append(option);
