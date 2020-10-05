@@ -228,7 +228,7 @@ function validateInput(node, validateNode) {
  */
 function updateSidebar() {
   $('#navInputs').empty();
-  $('.input:visible').not('.workup_input').each(function (index) {
+  $('.input:visible').not('.workup_input').each(function(index) {
     const node = $(this);
     let name = node.find('.input_name').first().text();
     if (name === '') {
@@ -249,6 +249,6 @@ function updateSidebar() {
  */
 function scrollToInput(event) {
   const section = $(event.target).attr('input_name');
-  const target = $(".input[input_name='" + section + "']");
+  const target = $('.input[input_name=\'' + section + '\']');
   target[0].scrollIntoView({behavior: 'smooth'});
 }
