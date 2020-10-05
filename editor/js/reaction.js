@@ -723,12 +723,12 @@ function initSelector(node) {
   if (!protoEnum) {
     console.log('missing require: "' + protoName + '"');
   }
-  const options = enumToStrings(protoEnum);
+  const types = Object.entries(protoEnum);
   const select = $('<select>');
-  for (let i = 0; i < options.length; i++) {
-    const option = $('<option>').text(options[i]);
-    option.attr('value', i);
-    if (options[i] == 'UNSPECIFIED') {
+  for (let i = 0; i < types.length; i++) {
+    const option = $('<option>').text(types[i][0]);
+    option.attr('value', types[i][1]);
+    if (types[i][0] == 'UNSPECIFIED') {
       option.attr('selected', 'selected');
     }
     select.append(option);
@@ -932,20 +932,6 @@ function nameToProto(protoName) {
     }
   });
   return clazz;
-}
-
-/**
- * Converts an Enum protobuf class to an arrray of strings.
- * @param {!enum} protoEnum
- * @return {!Array<string>}
- */
-function enumToStrings(protoEnum) {
-  const types = Object.entries(protoEnum);
-  const strings = [];
-  for (let i = 0; i < types.length; i++) {
-    strings.push(types[i][0]);
-  }
-  return strings;
 }
 
 /**
