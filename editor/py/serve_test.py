@@ -278,7 +278,7 @@ class ServeTest(parameterized.TestCase, absltest.TestCase):
 
     @parameterized.named_parameters([
         ('percentage', reaction_pb2.Percentage(value=15.6), 0, 0),
-        ('bad_percentage', reaction_pb2.Percentage(value=-15.6), 2, 0),
+        ('bad_precision', reaction_pb2.Percentage(precision=-15.6), 2, 0),
     ])
     def test_validate_reaction(self, message, expected_num_errors,
                                expected_num_warnings):
