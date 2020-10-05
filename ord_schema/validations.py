@@ -664,6 +664,10 @@ def validate_reaction_workup(message):
     if (message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and
             not message.HasField('target_ph')):
         warnings.warn('pH adjustment workup missing target pH', ValidationError)
+    if (message.type == reaction_pb2.ReactionWorkup.ALIQUOT and
+            not message.WhichOneof('amount')):
+        warnings.warn('Aliquot workup step missing volume/mass amount',
+                      ValidationError)
 
 
 def validate_reaction_outcome(message):
