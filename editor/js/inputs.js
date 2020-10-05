@@ -208,6 +208,7 @@ function add(root) {
   // Add live validation handling.
   ord.reaction.addChangeHandler(node, () => {
     validateInput(node);
+    updateSidebar();
   });
   return node;
 }
@@ -220,4 +221,34 @@ function add(root) {
 function validateInput(node, validateNode) {
   const input = unloadInputUnnamed(node);
   ord.reaction.validate(input, 'ReactionInput', node, validateNode);
+}
+
+/**
+ * Updates the input entries in the sidebar.
+ */
+function updateSidebar() {
+  $('#navInputs').empty();
+  $('.input:visible').not('.workup_input').each(function (index) {
+    const node = $(this);
+    let name = node.find('.input_name').first().text();
+    if (name === '') {
+      name = 'Input ' + index;
+    }
+    node.attr('input_name', name);
+    const navNode = $('<div>' + name + '</div>');
+    navNode.addClass('inputNavSection');
+    navNode.attr('input_name', name);
+    $('#navInputs').append(navNode);
+    navNode.click(scrollToInput);
+  });
+}
+
+/**
+ * Scrolls the viewport to the selected input.
+ * @param {!Event} event
+ */
+function scrollToInput(event) {
+  const section = $(event.target).attr('input_name');
+  const target = $(".input[input_name='" + section + "']");
+  target[0].scrollIntoView({behavior: 'smooth'});
 }
