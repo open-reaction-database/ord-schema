@@ -1117,8 +1117,8 @@ limitations under the License.
     </script>
 
     <script>
-        document.body.onload = function () {
-          ord.reaction.init('{{ file_name }}', {{ index }});
+        document.body.onload = async function () {
+          await ord.reaction.init('{{ file_name }}', {{ index }});
           const urlParams = new URLSearchParams(window.location.search);
           if (urlParams.get('user').startsWith('.review')) {
             ord.reaction.freeze();
