@@ -974,9 +974,5 @@ function freeze() {
     const node = $(x);
     node.attr('contenteditable', 'false');
     node.css('background-color', '#ebebe4');
-    // Ensure non-editable divs have a text node to preserve vertical alignment.
-    if (!node.text()) {
-      node.text(' ');
-    }
   });
 }
