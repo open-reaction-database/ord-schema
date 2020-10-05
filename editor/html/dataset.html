@@ -124,8 +124,8 @@ limitations under the License.
     </fieldset>
 
     <script>
-        document.body.onload = async function() {
-            await ord.dataset.init('{{ file_name }}');
+        document.body.onload = function() {
+            ord.dataset.init('{{ file_name }}');
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('user').startsWith('.review')) {
                 ord.dataset.freeze();
