@@ -284,12 +284,14 @@ limitations under the License.
                     <span class="collapse"></span>
                     Amount
                   </legend>
-                  <input type="radio" class="crude_amount_mass" value="mass" checked> mass
-                  <input type="radio" class="crude_amount_volume" value="volume"> volume
-                  <span style="padding-left:25px">value</span> <div class="crude_amount_value edittext shorttext floattext"></div>
-                  +/- <div class="crude_amount_precision edittext shorttext floattext"></div>
-                  <div class="crude_amount_units_mass selector" data-proto="Mass_MassUnit"></div>
-                  <div class="crude_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
+                  <div>
+                    <input type="radio" class="crude_amount_mass" value="mass" checked> mass
+                    <input type="radio" class="crude_amount_volume" value="volume"> volume
+                    <span style="padding-left:25px">value</span> <div class="crude_amount_value edittext shorttext floattext"></div>
+                    +/- <div class="crude_amount_precision edittext shorttext floattext"></div>
+                    <div class="crude_amount_units_mass selector" data-proto="Mass_MassUnit"></div>
+                    <div class="crude_amount_units_volume selector" data-proto="Volume_VolumeUnit" style="display: none;"></div>
+                  </div>
                 </fieldset>
                 <div onclick="ord.reaction.removeSlowly(this, '.crude');" class="remove">remove</div>
               </fieldset>
@@ -642,6 +644,20 @@ limitations under the License.
             <div class="workup_input">
               <!-- Shares ".input_template" with "#inputs" above. -->
             </div>
+            <fieldset class="amount">
+              <legend>
+                <span class="workup_amount collapse"></span>
+                Aliquot amount
+              </legend>
+              <div>
+                <input type="radio" class="workup_amount_mass" value="mass"> mass
+                <input type="radio" class="workup_amount_volume" value="volume" checked> volume
+                <span style="padding-left:25px">value</span> <div class="workup_amount_value edittext shorttext floattext"></div>
+                +/- <div class="workup_amount_precision edittext shorttext floattext"></div>
+                <div class="workup_amount_units_mass selector" data-proto="Mass_MassUnit" style="display: none;"></div>
+                <div class="workup_amount_units_volume selector" data-proto="Volume_VolumeUnit"></div>
+              </div>
+            </fieldset>
             <fieldset>
               <legend>
                 <span class="workup_temperature collapse"></span>
@@ -1117,8 +1133,8 @@ limitations under the License.
     </script>
 
     <script>
-        document.body.onload = function () {
-          ord.reaction.init('{{ file_name }}', {{ index }});
+        document.body.onload = async function () {
+          await ord.reaction.init('{{ file_name }}', {{ index }});
           const urlParams = new URLSearchParams(window.location.search);
           if (urlParams.get('user').startsWith('.review')) {
             ord.reaction.freeze();

@@ -728,6 +728,10 @@ message ReactionWorkup {
     // Specify composition/amount in "input".
     // Often preceded by TEMPERATURE.
     ADDITION = 2;
+    // Sampling (by mass of volume) a portion of the mixture, often for
+    // dilution in a subsequent ADDITION step prior to analysis. The vessel to
+    // which the aliquot is transferred can be specified in "details".
+    ALIQUOT = 18;
     // Change of temperature.
     // Specify conditions in "temperature".
     TEMPERATURE = 3;
@@ -783,6 +787,13 @@ message ReactionWorkup {
   string details = 2;
   Time duration = 3;
   ReactionInput input = 4;
+  // When aliquotting a portion of the reaction mixture, the amount is
+  // specified by mass or volume. Note that the amounts for additions should
+  // be described in the "input" field instead; these are only for aliquots.
+  oneof amount {
+    Mass mass = 11;
+    Volume volume = 12;
+  }
   TemperatureConditions temperature = 5;
   string keep_phase = 6;
   StirringConditions stirring = 7;

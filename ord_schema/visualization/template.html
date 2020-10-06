@@ -130,7 +130,7 @@
                     {% if product.compound_yield.value %}
                         {{ product.compound_yield.value|round(3) }}%
                         {% if product.compound_yield.precision %}
-                            (p/m {{ product.compound_yield.precision|round(3) }}%)
+                            (± {{ product.compound_yield.precision|round(3) }}%)
                         {% endif %}
                         yield
                         {% if product.analysis_yield %}

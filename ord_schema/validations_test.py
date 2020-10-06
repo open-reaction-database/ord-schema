@@ -85,8 +85,6 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         ('neg mass', reaction_pb2.Mass(
             value=-32.1, units=reaction_pb2.Mass.GRAM), 'non-negative'),
         ('no units', reaction_pb2.FlowRate(value=5), 'units'),
-        ('percentage out of range', reaction_pb2.Percentage(value=200),
-         'between'),
         ('low temperature', reaction_pb2.Temperature(
             value=-5, units='KELVIN'), 'between'),
         ('low temperature 2',

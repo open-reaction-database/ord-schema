@@ -37,6 +37,7 @@ class DatasetTemplatingTest(absltest.TestCase):
         component.mass.value = 1
         component.mass.units = reaction_pb2.Mass.GRAM
         outcome.conversion.value = 75
+        outcome.conversion.precision = 99
         self.valid_reaction = message
 
     def test_valid_templating(self):
@@ -72,18 +73,18 @@ class DatasetTemplatingTest(absltest.TestCase):
         template_string = text_format.MessageToString(self.valid_reaction)
         template_string = template_string.replace('value: "CCO"',
                                                   'value: "$my_smiles$"')
-        template_string = template_string.replace('value: 75',
-                                                  'value: $conversion$')
+        template_string = template_string.replace('precision: 99',
+                                                  'precision: $precision$')
         df = pd.DataFrame.from_dict({
             '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
-            '$conversion$': ['75', '50', '-5'],
+            '$precision$': ['75', '50', '-5'],
         })
         expected_reactions = []
-        for smiles, conversion in zip(['CCO', 'CCCO', 'CCCCO'], [75, 50, -5]):
+        for smiles, precision in zip(['CCO', 'CCCO', 'CCCCO'], [75, 50, -5]):
             reaction = reaction_pb2.Reaction()
             reaction.CopyFrom(self.valid_reaction)
             reaction.inputs['in'].components[0].identifiers[0].value = smiles
-            reaction.outcomes[0].conversion.value = conversion
+            reaction.outcomes[0].conversion.precision = precision
             expected_reactions.append(reaction)
         expected_dataset = dataset_pb2.Dataset(reactions=expected_reactions)
         with self.assertRaisesRegex(ValueError,
