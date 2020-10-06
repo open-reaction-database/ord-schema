@@ -121,7 +121,7 @@ reactions {
         details: "31"
       }
       attachments {
-        type: 5
+        type: CAP
         details: "32"
       }
       volume {
