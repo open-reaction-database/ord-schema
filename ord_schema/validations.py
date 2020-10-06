@@ -664,6 +664,10 @@ def validate_reaction_workup(message):
     if (message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and
             not message.HasField('target_ph')):
         warnings.warn('pH adjustment workup missing target pH', ValidationError)
+    if (message.type == reaction_pb2.ReactionWorkup.ALIQUOT and
+            not message.WhichOneof('amount')):
+        warnings.warn('Aliquot workup step missing volume/mass amount',
+                      ValidationError)
 
 
 def validate_reaction_outcome(message):
@@ -875,13 +879,18 @@ def validate_flow_rate(message):
 
 
 def validate_percentage(message):
+    if not message.HasField('value'):
+        warnings.warn(f'{type(message)} requires `value` to be set',
+                      ValidationError)
     if 0 < message.value < 1:
         warnings.warn(
             'Percentage values are 0-100, not fractions '
             f'({message.value} used)', ValidationWarning)
-    ensure_float_nonnegative(message, 'value')
+    if message.value < 0 or message.value > 100:
+        warnings.warn(
+            f'Percentage value ({message.value}) is outside the expected'
+            'range (0-100)', ValidationWarning)
     ensure_float_nonnegative(message, 'precision')
-    ensure_float_range(message, 'value', 0, 105)  # generous upper bound
 
 
 def validate_data(message):

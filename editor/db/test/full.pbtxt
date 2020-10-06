@@ -371,6 +371,11 @@ reactions {
     }
     target_ph: 89.0
     is_automated: true
+    volume {
+      value: 123.0
+      precision: 0.5
+      units: MILLILITER
+    }
   }
   outcomes {
     reaction_time {

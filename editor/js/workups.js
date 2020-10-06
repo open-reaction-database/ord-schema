@@ -26,6 +26,10 @@ exports = {
 
 goog.require('ord.inputs');
 goog.require('proto.ord.ReactionWorkup');
+goog.require('ord.amountsWorkups');
+
+// Freely create radio button groups by generating new input names.
+let radioGroupCounter = 0;
 
 /**
  * Adds and populates the reaction workup sections in the form.
@@ -52,6 +56,10 @@ function loadWorkup(workup) {
   if (input) {
     ord.inputs.loadInputUnnamed($('.workup_input', node), input);
   }
+
+  const mass = workup.getMass();
+  const volume = workup.getVolume();
+  ord.amountsWorkups.load(node, mass, volume);
 
   const temperature = workup.getTemperature();
   if (temperature) {
@@ -163,6 +171,8 @@ function unloadWorkup(node) {
   if (!ord.reaction.isEmptyMessage(input)) {
     workup.setInput(input);
   }
+
+  ord.amountsWorkups.unload(node, workup);
 
   const control = new proto.ord.TemperatureConditions.TemperatureControl();
   control.setType(
@@ -278,6 +288,20 @@ function add() {
   $('.input_name', inputNode).hide();
   // Unlike Reaction.inputs, this ReactionInput is not repeated.
   $('.remove', inputNode).hide();
+
+  // Create "amount" radio button group and connect it to the unit selectors.
+  const amountButtons = $('.amount input', workupNode);
+  amountButtons.attr('name', 'aliquots_' + radioGroupCounter++);
+  amountButtons.change(function() {
+    $('.amount .selector', workupNode).hide();
+    if (this.value == 'mass') {
+      $('.workup_amount_units_mass', workupNode).show();
+    }
+    if (this.value == 'volume') {
+      $('.workup_amount_units_volume', workupNode).show();
+    }
+  });
+  workupNode.find('.workup_amount').trigger('click');
 
   // Add live validation handling.
   ord.reaction.addChangeHandler(workupNode, () => {
