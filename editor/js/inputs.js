@@ -22,7 +22,8 @@ exports = {
   unload,
   unloadInputUnnamed,
   add,
-  validateInput
+  validateInput,
+  updateSidebar,
 };
 
 goog.require('ord.compounds');
@@ -205,12 +206,24 @@ function unloadInputUnnamed(node) {
  */
 function add(root) {
   const node = ord.reaction.addSlowly('#input_template', root);
+  updateSidebar();
   // Add live validation handling.
   ord.reaction.addChangeHandler(node, () => {
     validateInput(node);
-    updateSidebar();
   });
+  // Update the sidebar when the input name is changed.
+  const nameNode = node.find('.input_name').first();
+  nameNode.blur(updateSidebar);
   return node;
+}
+
+/**
+ * Removes a reaction input section from the form.
+ * @param {!Node} root Parent node for the input section to be removed.
+ */
+function remove(root) {
+  ord.reaction.removeSlowly(root, '.input');
+  updateSidebar();
 }
 
 /**
@@ -232,7 +245,7 @@ function updateSidebar() {
     const node = $(this);
     let name = node.find('.input_name').first().text();
     if (name === '') {
-      name = 'Input ' + index;
+      name = '(Input #' + (index + 1) + ')';
     }
     node.attr('input_name', name);
     const navNode = $('<div>' + name + '</div>');
