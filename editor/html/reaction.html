@@ -1098,7 +1098,11 @@ limitations under the License.
           }
         });
       }
-      const observer = new IntersectionObserver(observerCallback);
+      const headerSize = $('#header').outerHeight();
+      let observerOptions = {
+          rootMargin: '-' + headerSize + 'px 0px 0px 0px'
+      }
+      const observer = new IntersectionObserver(observerCallback, observerOptions);
 
       $('.section').each(function(index) {
         observer.observe(this);
