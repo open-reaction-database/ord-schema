@@ -20,9 +20,12 @@ import io
 import json
 import os
 import pprint
+import psycopg2
+import psycopg2.sql
 import re
 import shutil
 import subprocess
+import time
 import urllib
 import uuid
 
@@ -57,9 +60,6 @@ def show_root():
 @app.route('/datasets')
 def show_datasets():
     """Lists all .pbtxt files in the user directory."""
-    redirect = ensure_user()
-    if redirect:
-        return redirect
     base_names = []
     path = get_user_path()
     for name in os.listdir(path):
@@ -72,9 +72,6 @@ def show_datasets():
 @app.route('/dataset/<file_name>')
 def show_dataset(file_name):
     """Lists all Reactions contained in the specified .pbtxt file."""
-    redirect = ensure_user()
-    if redirect:
-        return redirect
     dataset = get_dataset(file_name)
     reactions = []
     for reaction in dataset.reactions:
@@ -161,9 +158,6 @@ def enumerate_dataset():
 @app.route('/dataset/<file_name>/reaction/<index>')
 def show_reaction(file_name, index):
     """Render the page representing a single Reaction."""
-    redirect = ensure_user()
-    if redirect:
-        return redirect
     dataset = get_dataset(file_name)
     try:
         index = int(index)
@@ -663,55 +657,56 @@ def get_user_path():
     return flask.safe_join(app.config['ORD_EDITOR_DB'], flask.g.user)
 
 
+@app.route('/login')
+def show_login():
+    """Presents a form to set the access token."""
+    user_id = flask.request.args.get('user_id', '')
+    return flask.render_template('login.html', user_id=user_id)
+
+
+@app.route('/authenticate', methods=['POST'])
+def authenticate():
+    """Issue a new access token for a given user ID."""
+    user_id = flask.request.form.get('user_id')
+    if user_id is None:
+        return flask.redirect('/login')
+    with psycopg2.connect(dbname='editor', port=5430) as db:
+        with db.cursor() as cursor:
+            query = psycopg2.sql.SQL(
+                f"SELECT user_id FROM users WHERE user_id=%s")
+            cursor.execute(query, [user_id])
+            if cursor.rowcount == 0:
+                return flask.redirect('/login')
+            query = psycopg2.sql.SQL(f"INSERT INTO logins VALUES (%s, %s, %s)")
+            access_token = uuid.uuid4().hex
+            timestamp = int(time.time())
+            cursor.execute(query, [access_token, user_id, timestamp])
+            response = flask.redirect('/')
+            # Expires in a year.
+            response.set_cookie('access-token', access_token, max_age=31536000)
+            return response
+    return flask.redirect('/login')
+
+
 @app.before_request
 def init_user():
-    """Sets the user cookie and initialize the user directory."""
-    user = flask.request.cookies.get('ord-editor-user')
-    if user is None:
-        user = flask.request.args.get('user') or next_user()
-        return redirect_to_user(user)
-    flask.g.user = user
-    path = get_user_path()
-    if not os.path.isdir(path):
-        os.mkdir(path)
-
-
-def ensure_user():
-    """On page requests only, a user param in the URL overrides the cookie."""
-    url_user = flask.request.args.get('user')
-    cookie_user = flask.request.cookies.get('ord-editor-user')
-    # If there is no user in the URL, set it from the cookie.
-    if url_user is None:
-        return redirect_to_user(cookie_user)
-    # If the cookie and the URL disagree, the URL wins.
-    if url_user != cookie_user:
-        return redirect_to_user(url_user)
-    # If the URL and the cookie are consistent, then do nothing.
-
-
-def redirect_to_user(user):
-    """Sets the user cookie and return a redirect to the updated URL."""
-    flask.safe_join(app.config['ORD_EDITOR_DB'],
-                    user)  # Check that the user is safe.
-    url = url_for_user(user)
-    # NOTE(kearnes): Use 307 so the request method is preserved. See
-    # https://stackoverflow.com/a/15480983.
-    response = flask.redirect(url, code=307)
-    # Expires in a year.
-    response.set_cookie('ord-editor-user', user, max_age=31536000)
-    return response
-
-
-def url_for_user(user):
-    """Replaces the user in the request URL and return the updated URL."""
-    parts = list(urllib.parse.urlparse(flask.request.url))
-    parts[4] = urllib.parse.urlencode({'user': user})
-    return urllib.parse.urlunparse(parts)
-
-
-def next_user():
-    """Returns a user identifier not present in the root directory."""
-    user = uuid.uuid4().hex
-    while os.path.isdir(flask.safe_join(app.config['ORD_EDITOR_DB'], user)):
-        user = uuid.uuid4().hex
-    return user
+    """Connects to the DB and authenticates the user."""
+    if flask.request.path in ('/login', '/authenticate'):
+        return
+    access_token = flask.request.cookies.get('access-token')
+    if access_token is None:
+        return flask.redirect(f'/login')
+    db = psycopg2.connect(dbname='editor', port=5430)
+    cursor = db.cursor()
+    query = psycopg2.sql.SQL(
+        f"SELECT user_id FROM logins WHERE access_token=%s")
+    cursor.execute(query, [access_token])
+    if cursor.rowcount == 0:
+        return flask.redirect(f'/login')
+    user_id = cursor.fetchone()[0]
+    query = psycopg2.sql.SQL(f"INSERT INTO logins VALUES (%s, %s, %s)")
+    access_token = uuid.uuid4().hex
+    timestamp = int(time.time())
+    cursor.execute(query, [access_token, user_id, timestamp])
+    flask.g.db = db
+    flask.g.user_id = user_id
