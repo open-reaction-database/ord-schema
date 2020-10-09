@@ -158,7 +158,7 @@ function selectText(node) {
  * @param {!Node} node
  */
 function checkFloat(node) {
-  var stringValue = $(node).text().trim();
+  const stringValue = $(node).text().trim();
   if (stringValue === '') {
     $(node).removeClass('invalid');
   } else if (FLOAT_PATTERN.test(stringValue)) {
@@ -174,7 +174,7 @@ function checkFloat(node) {
  * @param {!Node} node
  */
 function checkInteger(node) {
-  var stringValue = $(node).text().trim();
+  const stringValue = $(node).text().trim();
   if (stringValue === '') {
     $(node).removeClass('invalid');
   } else if (INTEGER_PATTERN.test(stringValue)) {
@@ -703,11 +703,11 @@ function writeMetric(prefix, proto, node) {
  * @param {string} valueClass The class containing `identifierNode`.
  */
 function setTextFromFile(identifierNode, valueClass) {
-  var input = document.createElement('input');
+  const input = document.createElement('input');
   input.type = 'file';
   input.onchange = (event => {
-    var file = event.target.files[0];
-    var reader = new FileReader();
+    const file = event.target.files[0];
+    const reader = new FileReader();
     reader.readAsText(file);
     reader.onload = readerEvent => {
       const contents = readerEvent.target.result;
@@ -862,61 +862,61 @@ function initValidateNode(oldNode) {
  */
 function initValidateHandlers() {
   // For setup
-  var setupNode = $('#section_setup');
+  const setupNode = $('#section_setup');
   addChangeHandler(setupNode, () => {
     ord.setups.validateSetup(setupNode);
   });
 
   // For conditions
-  var conditionNode = $('#section_conditions');
+  const conditionNode = $('#section_conditions');
   addChangeHandler(conditionNode, () => {
     ord.conditions.validateConditions(conditionNode);
   });
 
   // For temperature
-  var temperatureNode = $('#section_conditions_temperature');
+  const temperatureNode = $('#section_conditions_temperature');
   addChangeHandler(temperatureNode, () => {
     ord.temperature.validateTemperature(temperatureNode);
   });
 
   // For pressure
-  var pressureNode = $('#section_conditions_pressure');
+  const pressureNode = $('#section_conditions_pressure');
   addChangeHandler(pressureNode, () => {
     ord.pressure.validatePressure(pressureNode);
   });
 
   // For stirring
-  var stirringNode = $('#section_conditions_stirring');
+  const stirringNode = $('#section_conditions_stirring');
   addChangeHandler(stirringNode, () => {
     ord.stirring.validateStirring(stirringNode);
   });
 
   // For illumination
-  var illuminationNode = $('#section_conditions_illumination');
+  const illuminationNode = $('#section_conditions_illumination');
   addChangeHandler(illuminationNode, () => {
     ord.illumination.validateIllumination(illuminationNode);
   });
 
   // For electro
-  var electroNode = $('#section_conditions_electro');
+  const electroNode = $('#section_conditions_electro');
   addChangeHandler(electroNode, () => {
     ord.electro.validateElectro(electroNode);
   });
 
   // For flow
-  var flowNode = $('#section_conditions_flow');
+  const flowNode = $('#section_conditions_flow');
   addChangeHandler(flowNode, () => {
     ord.flows.validateFlow(flowNode);
   });
 
   // For notes
-  var notesNode = $('#section_notes');
+  const notesNode = $('#section_notes');
   addChangeHandler(notesNode, () => {
     ord.notes.validateNotes(notesNode);
   });
 
   // For provenance
-  var provenanceNode = $('#section_provenance');
+  const provenanceNode = $('#section_provenance');
   addChangeHandler(provenanceNode, () => {
     ord.provenance.validateProvenance(provenanceNode);
   });
