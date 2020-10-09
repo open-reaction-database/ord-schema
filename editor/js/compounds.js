@@ -376,7 +376,7 @@ function addIdentifier(node) {
  *     identifiers should be added.
  */
 function addNameIdentifier(node) {
-  var name = prompt('Compound name: ');
+  const name = prompt('Compound name: ');
   if (!(name)) {
     return;
   }
