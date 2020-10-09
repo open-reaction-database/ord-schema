@@ -41,8 +41,8 @@ from ord_schema.visualization import drawing
 
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
-app.config['ORD_EDITOR_DB'] = os.path.abspath(os.getenv('ORD_EDITOR_DB', 'db'))
-app.config['REVIEW_ROOT'] = flask.safe_join(app.config['ORD_EDITOR_DB'],
+app.config['ORD_EDITOR_LOCAL'] = os.path.abspath(os.getenv('ORD_EDITOR_LOCAL', 'ord-editor-local'))
+app.config['REVIEW_ROOT'] = flask.safe_join(app.config['ORD_EDITOR_LOCAL'],
                                             '.review')
 app.config['REVIEW_DATA_ROOT'] = flask.safe_join(app.config['REVIEW_ROOT'],
                                                  'ord-data')
@@ -648,7 +648,7 @@ def get_path(file_name, user=None, suffix='.pbtxt'):
     """
     if not user:
         user = flask.g.user
-    return flask.safe_join(app.config['ORD_EDITOR_DB'], user,
+    return flask.safe_join(app.config['ORD_EDITOR_LOCAL'], user,
                            f'{file_name}{suffix}')
 
 
@@ -660,7 +660,7 @@ def get_user_path():
     Returns:
         Path to the user directory.
     """
-    return flask.safe_join(app.config['ORD_EDITOR_DB'], flask.g.user)
+    return flask.safe_join(app.config['ORD_EDITOR_LOCAL'], flask.g.user)
 
 
 @app.before_request
@@ -691,7 +691,7 @@ def ensure_user():
 
 def redirect_to_user(user):
     """Sets the user cookie and return a redirect to the updated URL."""
-    flask.safe_join(app.config['ORD_EDITOR_DB'],
+    flask.safe_join(app.config['ORD_EDITOR_LOCAL'],
                     user)  # Check that the user is safe.
     url = url_for_user(user)
     # NOTE(kearnes): Use 307 so the request method is preserved. See
@@ -712,6 +712,6 @@ def url_for_user(user):
 def next_user():
     """Returns a user identifier not present in the root directory."""
     user = uuid.uuid4().hex
-    while os.path.isdir(flask.safe_join(app.config['ORD_EDITOR_DB'], user)):
+    while os.path.isdir(flask.safe_join(app.config['ORD_EDITOR_LOCAL'], user)):
         user = uuid.uuid4().hex
     return user

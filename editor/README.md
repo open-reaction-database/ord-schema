@@ -108,7 +108,7 @@ so remember to download your Dataset when you are done.
 
 ## How it Works
 
-Datasets to be edited are stored in the ORD_EDITOR_DB directory as `.pbtxt`
+Datasets to be edited are stored in the ORD_EDITOR_LOCAL directory as `.pbtxt`
 files (protobuf text format).
 
 When you load a Reaction in the editor, the editor reads the entire Dataset
