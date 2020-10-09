@@ -112,6 +112,7 @@ def upload_dataset(name):
         pbtxt = flask.request.get_data()
         user_id = flask.g.user_id
         cursor.execute(query, [user_id, pbtxt, name]) 
+        flask.g.db.commit()
     return 'ok'
 
 
@@ -124,8 +125,7 @@ def new_dataset(name):
     with flask.g.db.cursor() as cursor:
         query = psycopg2.sql.SQL('INSERT INTO datasets VALUES (%s, %s, %s)')
         user_id = flask.g.user_id
-        pbtxt = ''
-        cursor.execute(query, [user_id, name, pbtxt]) 
+        cursor.execute(query, [user_id, name, '']) 
         flask.g.db.commit()
     return 'ok'
 
@@ -578,6 +578,7 @@ def put_dataset(name, dataset):
         user_id = flask.g.user_id
         pbtxt = text_format.MessageToString(dataset, as_utf8=True)
         cursor.execute(query, [user_id, name, pbtxt, pbtxt])
+        flask.g.db.commit()
 
 
 @contextlib.contextmanager
@@ -695,53 +696,63 @@ def exists_dataset(name):
 
 @app.route('/login')
 def show_login():
-    """Presents a form to set the access token."""
-    user_id = flask.request.args.get('user_id', '')
-    return flask.render_template('login.html', user_id=user_id)
+    """Presents a form to set a new access token from a given user ID."""
+    return flask.render_template('login.html')
 
 
 @app.route('/authenticate', methods=['POST'])
 def authenticate():
     """Issue a new access token for a given user ID."""
     user_id = flask.request.form.get('user_id')
-    if user_id is None:
+    if user_id is None or re.match('^[0-9a-fA-F]{32}$', user_id) is None:
         return flask.redirect('/login')
-    with psycopg2.connect(dbname='editor', port=5430) as db:
-        with db.cursor() as cursor:
-            query = psycopg2.sql.SQL(
-                f"SELECT user_id FROM users WHERE user_id=%s")
-            cursor.execute(query, [user_id])
-            if cursor.rowcount == 0:
-                return flask.redirect('/login')
-            query = psycopg2.sql.SQL(f"INSERT INTO logins VALUES (%s, %s, %s)")
-            access_token = uuid.uuid4().hex
-            timestamp = int(time.time())
-            cursor.execute(query, [access_token, user_id, timestamp])
-            db.commit()
-            response = flask.redirect('/')
-            # Expires in a year.
-            response.set_cookie('Access-Token', access_token, max_age=31536000)
-            return response
-    return flask.redirect('/login')
+    return issue_access_token(user_id)
+
+
+def issue_access_token(user_id):
+    """Login as the given user and set the access token in a response."""
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL(f'INSERT INTO logins VALUES (%s, %s, %s)')
+        access_token = uuid.uuid4().hex
+        timestamp = int(time.time())
+        cursor.execute(query, [access_token, user_id, timestamp])
+        flask.g.db.commit()
+        response = flask.redirect('/')
+        # Expires in a year.
+        response.set_cookie('Access-Token', access_token, max_age=31536000)
+        return response
+
+
+def make_user(name='auto'):
+    """Writes a new user ID and returns it."""
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL(f'INSERT INTO users VALUES (%s, %s, %s)')
+        user_id = uuid.uuid4().hex
+        timestamp = int(time.time())
+        cursor.execute(query, [user_id, name, timestamp])
+        flask.g.db.commit()
+    return user_id
 
 
 @app.before_request
 def init_user():
     """Connects to the DB and authenticates the user."""
+    flask.g.db = psycopg2.connect(dbname='editor', port=5430)
     if flask.request.path in ('/login', '/authenticate'):
         return
     access_token = flask.request.cookies.get('Access-Token')
     if access_token is None:
-        return flask.redirect(f'/login')
-    db = psycopg2.connect(dbname='editor', port=5430)
-    cursor = db.cursor()
-    query = psycopg2.sql.SQL(
-        f"SELECT user_id FROM logins WHERE access_token=%s")
-    cursor.execute(query, [access_token])
-    if cursor.rowcount == 0:
-        return flask.redirect(f'/login')
-    user_id = cursor.fetchone()[0]
-    flask.g.db = db
+        # Automatically login as a new user.
+        user_id = make_user()
+        return issue_access_token(user_id)
+    else:
+        with flask.g.db.cursor() as cursor:
+            query = psycopg2.sql.SQL(
+                f"SELECT user_id FROM logins WHERE access_token=%s")
+            cursor.execute(query, [access_token])
+            if cursor.rowcount == 0:
+                return flask.redirect(f'/login')
+            user_id = cursor.fetchone()[0]
     flask.g.user_id = user_id
 
 
