@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Creates a Dataset by enumerating a template with a spreadsheet.
+"""Functions for creating Datasets by enumerating a template with a spreadsheet.
 
 The templating code has specific expectations for how the reaction pbtxt and
 spreadsheet are defined, namely that placeholder values in the pbtxt begin and
@@ -30,25 +30,11 @@ import os
 import pandas as pd
 import re
 
-from absl import app
-from absl import flags
-from absl import logging
 from google.protobuf import text_format
 
-from ord_schema import message_helpers
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
-
-FLAGS = flags.FLAGS
-flags.DEFINE_string('template', None,
-                    'Path to a Reaction pbtxt file defining a template.')
-flags.DEFINE_string(
-    'spreadsheet', None,
-    'Path to a spreadsheet file (with a header row) defining '
-    'values to replace placeholders in the template.')
-flags.DEFINE_string('output', None, 'Filename for output Dataset.')
-flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 
 
 def read_spreadsheet(file_name_or_buffer, suffix=None):
@@ -149,25 +135,3 @@ def generate_dataset(template_string, df, validate=True):
         reactions.append(reaction)
 
     return dataset_pb2.Dataset(reactions=reactions)
-
-
-def main(argv):
-    del argv  # Only used by app.run().
-    with open(FLAGS.template) as f:
-        template_string = f.read()
-    df = read_spreadsheet(FLAGS.spreadsheet)
-    logging.info('generating new Dataset from %s and %s', FLAGS.template,
-                 FLAGS.spreadsheet)
-    dataset = generate_dataset(template_string, df, validate=FLAGS.validate)
-    if FLAGS.output:
-        output_filename = FLAGS.output
-    else:
-        basename, _ = os.path.splitext(FLAGS.spreadsheet)
-        output_filename = os.path.join(f'{basename}_dataset.pbtxt')
-    logging.info('writing new Dataset to %s', output_filename)
-    message_helpers.write_message(dataset, output_filename)
-
-
-if __name__ == '__main__':
-    flags.mark_flags_as_required(['template', 'spreadsheet'])
-    app.run(main)
