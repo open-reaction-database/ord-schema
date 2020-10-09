@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Script and functions for enumerating a dataset using a template reaction and
-a spreadsheet file.
+"""Creates a Dataset by enumerating a template with a spreadsheet.
 
 The templating code has specific expectations for how the reaction pbtxt and
 spreadsheet are defined, namely that placeholder values in the pbtxt begin and
@@ -21,23 +20,23 @@ spreadsheet file.
 
 Example usage:
 
-* For normal dataset generation from a template reaction:
-  $ python dataset_templating.py --template=my_reaction.pbtxt
-      --spreadsheet=my_experiments.csv --output=my_dataset.pbtxt
+$ python dataset_templating.py \
+    --template=my_reaction.pbtxt \
+    --spreadsheet=my_experiments.csv \
+    --output=my_dataset.pbtxt
 """
 
 import os
-import re
 import pandas as pd
+import re
 
 from absl import app
 from absl import flags
 from absl import logging
-
 from google.protobuf import text_format
 
-from ord_schema import validations
 from ord_schema import message_helpers
+from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
@@ -53,7 +52,16 @@ flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 
 
 def read_spreadsheet(file_name_or_buffer, suffix=None):
-    """Reads a {csv, xls, xlsx} spreadsheet file."""
+    """Reads a {csv, xls, xlsx} spreadsheet file.
+
+    Args:
+        file_name_or_buffer: Filename or buffer. Note that a buffer is only
+            allowed if suffix is not None.
+        suffix: Filename suffix, used to determine the data encoding.
+
+    Returns:
+        DataFrame containing the reaction spreadsheet data.
+    """
     if suffix is None:
         _, suffix = os.path.splitext(file_name_or_buffer)
     if suffix in ['xls', 'xlsx']:
@@ -62,15 +70,24 @@ def read_spreadsheet(file_name_or_buffer, suffix=None):
 
 
 def _escape(string):
-    """Convert single backslashes to double backslashes. Note that we do not
-    do a full re.escape because only backslashes are problematic."""
+    """Converts single backslashes to double backslashes.
+
+    Note that we do not do a full re.escape because only backslashes are
+    problematic.
+
+    Args:
+        string: String to escape.
+
+    Returns:
+        Updated string with escaped backslashes.
+    """
     return string.replace('\\', '\\\\')
 
 
 def _replace(string, substitutions):
     """Performs substring substitutions according to a dictionary.
 
-    Inputs:
+    Args:
         string: A string whose contents should be modified.
         substitutions: A dictionary where each (key, value) pair defines
             a substring to replace and what its replacement should be.
@@ -84,12 +101,11 @@ def _replace(string, substitutions):
 
 
 def generate_dataset(template_string, df, validate=True):
-    """Generates a Dataset from a template reaction formatted as text according
-    to entries in a pd.Dataframe.
+    """Generates a Dataset by enumerating a template reaction.
 
-    Inputs:
+    Args:
         template_string: The contents of a Reaction pbtxt where placeholder
-            values to be replaced are defined between dollar sign. For example,
+            values to be replaced are defined between dollar signs. For example,
             a SMILES identifier value could be "$product_smiles$". PLaceholders
             may only use letters, numbers, and underscores.
         df: Pandas Dataframe where each row corresponds to one reaction and
@@ -137,16 +153,12 @@ def generate_dataset(template_string, df, validate=True):
 
 def main(argv):
     del argv  # Only used by app.run().
-    flags.mark_flags_as_required(['template', 'spreadsheet'])
-
-    with open(FLAGS.template, 'r') as fid:
-        template_string = fid.read()
+    with open(FLAGS.template) as f:
+        template_string = f.read()
     df = read_spreadsheet(FLAGS.spreadsheet)
-
     logging.info('generating new Dataset from %s and %s', FLAGS.template,
                  FLAGS.spreadsheet)
     dataset = generate_dataset(template_string, df, validate=FLAGS.validate)
-
     if FLAGS.output:
         output_filename = FLAGS.output
     else:
@@ -157,4 +169,5 @@ def main(argv):
 
 
 if __name__ == '__main__':
+    flags.mark_flags_as_required(['template', 'spreadsheet'])
     app.run(main)

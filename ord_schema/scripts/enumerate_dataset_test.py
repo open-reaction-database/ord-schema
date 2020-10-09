@@ -11,23 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for ord_schema.dataset_templating."""
+"""Tests for ord_schema.scripts.enumerate_dataset."""
 
 import pandas as pd
 
 from absl.testing import absltest
 from google.protobuf import text_format
 
-from ord_schema import dataset_templating
 from ord_schema.proto import reaction_pb2
 from ord_schema.proto import dataset_pb2
+from ord_schema.scripts import enumerate_dataset
 
 
-class DatasetTemplatingTest(absltest.TestCase):
+class EnumerateDatasetTest(absltest.TestCase):
 
     def setUp(self):
         super().setUp()
-
         message = reaction_pb2.Reaction()
         dummy_input = message.inputs['in']
         outcome = message.outcomes.add()
@@ -50,7 +49,7 @@ class DatasetTemplatingTest(absltest.TestCase):
             '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
             '$conversion$': ['75', '50', '30'],
         })
-        dataset = dataset_templating.generate_dataset(template_string, df)
+        dataset = enumerate_dataset.generate_dataset(template_string, df)
         expected_reactions = []
         for smiles, conversion in zip(['CCO', 'CCCO', 'CCCCO'], [75, 50, 30]):
             reaction = reaction_pb2.Reaction()
@@ -66,7 +65,7 @@ class DatasetTemplatingTest(absltest.TestCase):
             'my_smiles': ['CCO', 'CCCO', 'CCCCO'],
             'conversion': ['75', '50', '30'],
         })
-        dataset = dataset_templating.generate_dataset(template_string, df)
+        dataset = enumerate_dataset.generate_dataset(template_string, df)
         self.assertEqual(dataset, expected_dataset)
 
     def test_invalid_templating(self):
@@ -89,10 +88,10 @@ class DatasetTemplatingTest(absltest.TestCase):
         expected_dataset = dataset_pb2.Dataset(reactions=expected_reactions)
         with self.assertRaisesRegex(ValueError,
                                     'Enumerated Reaction is not valid'):
-            dataset_templating.generate_dataset(template_string, df)
-        dataset = dataset_templating.generate_dataset(template_string,
-                                                      df,
-                                                      validate=False)
+            enumerate_dataset.generate_dataset(template_string, df)
+        dataset = enumerate_dataset.generate_dataset(template_string,
+                                                     df,
+                                                     validate=False)
         self.assertEqual(dataset, expected_dataset)
 
     def test_bad_placeholders(self):
@@ -105,7 +104,7 @@ class DatasetTemplatingTest(absltest.TestCase):
             '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
         })
         with self.assertRaisesRegex(ValueError, r'\$conversion\$ not found'):
-            dataset_templating.generate_dataset(template_string, df)
+            enumerate_dataset.generate_dataset(template_string, df)
 
 
 if __name__ == '__main__':
