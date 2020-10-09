@@ -41,7 +41,8 @@ from ord_schema.visualization import drawing
 
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
-app.config['ORD_EDITOR_LOCAL'] = os.path.abspath(os.getenv('ORD_EDITOR_LOCAL', 'ord-editor-local'))
+app.config['ORD_EDITOR_LOCAL'] = os.path.abspath(
+    os.getenv('ORD_EDITOR_LOCAL', 'ord-editor-local'))
 app.config['REVIEW_ROOT'] = flask.safe_join(app.config['ORD_EDITOR_LOCAL'],
                                             '.review')
 app.config['REVIEW_DATA_ROOT'] = flask.safe_join(app.config['REVIEW_ROOT'],
