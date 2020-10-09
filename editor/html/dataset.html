@@ -62,11 +62,16 @@ limitations under the License.
       .spacer {
         height: 16px;
       }
+      #identity {
+        float: right;
+      }
     </style>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src="/js/dataset.js"></script>
   </head>
   <body>
+
+    <div id="identity">{{ user_id }} <a href="/logout">logout</a></div>
 
     <center>
       <h1><a href="/">Dataset</a>: {{ name }}.pbtxt</h1>

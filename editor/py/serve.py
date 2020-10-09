@@ -711,10 +711,10 @@ def authenticate():
             access_token = uuid.uuid4().hex
             timestamp = int(time.time())
             cursor.execute(query, [access_token, user_id, timestamp])
-            flask.g.db.commit()
+            db.commit()
             response = flask.redirect('/')
             # Expires in a year.
-            response.set_cookie('access-token', access_token, max_age=31536000)
+            response.set_cookie('Access-Token', access_token, max_age=31536000)
             return response
     return flask.redirect('/login')
 
@@ -724,7 +724,7 @@ def init_user():
     """Connects to the DB and authenticates the user."""
     if flask.request.path in ('/login', '/authenticate'):
         return
-    access_token = flask.request.cookies.get('access-token')
+    access_token = flask.request.cookies.get('Access-Token')
     if access_token is None:
         return flask.redirect(f'/login')
     db = psycopg2.connect(dbname='editor', port=5430)
@@ -737,3 +737,11 @@ def init_user():
     user_id = cursor.fetchone()[0]
     flask.g.db = db
     flask.g.user_id = user_id
+
+
+@app.route('/logout')
+def logout():
+    """Clear the access token and redirect to /login."""
+    response = flask.redirect('/login')
+    response.set_cookie('Access-Token', '', expires=0)
+    return response

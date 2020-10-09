@@ -204,3 +204,7 @@ fieldset {
 #process {
   display: none;
 }
+#identity {
+  float: right;
+  width: 400px;
+}
