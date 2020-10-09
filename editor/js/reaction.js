@@ -586,7 +586,8 @@ function addSlowly(template, root) {
  * Removes from the DOM the nearest ancestor element matching the pattern.
  * @param {string} button The element from which to start the search.
  * @param {string} pattern The pattern for the element to remove.
- * @param {?function} callback Function to execute in the callback to hide().
+ * @param {?function(): undefined} callback Function to execute in the
+ *  callback to hide().
  */
 function removeSlowly(button, pattern, callback) {
   const node = $(button).closest(pattern);
