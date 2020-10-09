@@ -76,27 +76,30 @@ class EnumerateDatasetTest(absltest.TestCase):
                                         'spreadsheet.csv')
         data.to_csv(self.spreadsheet, index=False)
         self.expected = dataset_pb2.Dataset()
-        r1 = self.expected.reactions.add()
-        r1c1 = r1.inputs['test'].components.add()
-        r1c1.identifiers.add(value='C', type='SMILES')
-        r1c1.mass.CopyFrom(reaction_pb2.Mass(value=1.2, units='GRAM'))
-        r1p1 = r1.outcomes.add().products.add()
-        r1p1.compound.identifiers.add(value='CO', type='SMILES')
-        r1p1.compound_yield.value = 7.8
-        r2 = self.expected.reactions.add()
-        r2c1 = r2.inputs['test'].components.add()
-        r2c1.identifiers.add(value='CC', type='SMILES')
-        r2c1.mass.CopyFrom(reaction_pb2.Mass(value=3.4, units='GRAM'))
-        r2p1 = r2.outcomes.add().products.add()
-        r2p1.compound.identifiers.add(value='CCO', type='SMILES')
-        r2p1.compound_yield.value = 9.0
-        r3 = self.expected.reactions.add()
-        r3c1 = r3.inputs['test'].components.add()
-        r3c1.identifiers.add(value='CCC', type='SMILES')
-        r3c1.mass.CopyFrom(reaction_pb2.Mass(value=5.6, units='GRAM'))
-        r3p1 = r3.outcomes.add().products.add()
-        r3p1.compound.identifiers.add(value='CCCO', type='SMILES')
-        r3p1.compound_yield.value = 8.7
+        reaction1 = self.expected.reactions.add()
+        reaction1_compound1 = reaction1.inputs['test'].components.add()
+        reaction1_compound1.identifiers.add(value='C', type='SMILES')
+        reaction1_compound1.mass.CopyFrom(
+            reaction_pb2.Mass(value=1.2, units='GRAM'))
+        reaction1_product1 = reaction1.outcomes.add().products.add()
+        reaction1_product1.compound.identifiers.add(value='CO', type='SMILES')
+        reaction1_product1.compound_yield.value = 7.8
+        reaction2 = self.expected.reactions.add()
+        reaction2_compound1 = reaction2.inputs['test'].components.add()
+        reaction2_compound1.identifiers.add(value='CC', type='SMILES')
+        reaction2_compound1.mass.CopyFrom(
+            reaction_pb2.Mass(value=3.4, units='GRAM'))
+        reaction2_product1 = reaction2.outcomes.add().products.add()
+        reaction2_product1.compound.identifiers.add(value='CCO', type='SMILES')
+        reaction2_product1.compound_yield.value = 9.0
+        reaction3 = self.expected.reactions.add()
+        reaction3_compound1 = reaction3.inputs['test'].components.add()
+        reaction3_compound1.identifiers.add(value='CCC', type='SMILES')
+        reaction3_compound1.mass.CopyFrom(
+            reaction_pb2.Mass(value=5.6, units='GRAM'))
+        reaction3_product1 = reaction3.outcomes.add().products.add()
+        reaction3_product1.compound.identifiers.add(value='CCCO', type='SMILES')
+        reaction3_product1.compound_yield.value = 8.7
 
     def test_main(self):
         output_filename = os.path.join(self.test_subdirectory, 'dataset.pbtxt')

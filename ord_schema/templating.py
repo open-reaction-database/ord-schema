@@ -20,9 +20,9 @@ spreadsheet file.
 """
 
 import os
-import pandas as pd
 import re
 
+import pandas as pd
 from google.protobuf import text_format
 
 from ord_schema import validations
