@@ -42,6 +42,8 @@ from ord_schema.proto import reaction_pb2
 from ord_schema.visualization import generate_text
 from ord_schema.visualization import drawing
 
+import migrate
+
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
 app.config['ORD_EDITOR_DB'] = os.path.abspath(os.getenv('ORD_EDITOR_DB', 'db'))
@@ -49,6 +51,10 @@ app.config['REVIEW_ROOT'] = flask.safe_join(app.config['ORD_EDITOR_DB'],
                                             '.review')
 app.config['REVIEW_DATA_ROOT'] = flask.safe_join(app.config['REVIEW_ROOT'],
                                                  'ord-data')
+
+
+# System user for immutable reactions imported from GitHub pull requests.
+REVIEWER = '8df09572f3c74dbcb6003e2eef8e48fc'
 
 
 @app.route('/')
@@ -78,8 +84,8 @@ def show_dataset(name):
     reactions = []
     for reaction in dataset.reactions:
         reactions.append(reaction.identifiers)
-    # Reactions belong to the "review" user are immutable.
-    freeze = flask.g.user_id == '8df09572f3c74dbcb6003e2eef8e48fc'
+    # Datasets belonging to the "review" user are immutable.
+    freeze = flask.g.user_id == REVIEWER
     return flask.render_template(
         'dataset.html', name=name, freeze=freeze, user_id=flask.g.user_id)
 
@@ -178,8 +184,8 @@ def show_reaction(name, index):
         flask.abort(404)
     if len(dataset.reactions) <= index:
         flask.abort(404)
-    # Reactions belong to the "review" user are immutable.
-    freeze = flask.g.user_id == '8df09572f3c74dbcb6003e2eef8e48fc'
+    # Reactions belonging to the "review" user are immutable.
+    freeze = flask.g.user_id == REVIEWER
     return flask.render_template(
         'reaction.html', name=name, index=index, freeze=freeze,
         user_id=flask.g.user_id)

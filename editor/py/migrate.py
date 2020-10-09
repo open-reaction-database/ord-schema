@@ -21,7 +21,20 @@ import sys
 import time
 
 
-def main():
+def migrate_one(user, name, db):
+    """Slurp one dataset from the db/ directory into Postgres."""
+    for name in os.listdir(f'db/{user}'):
+        if not name.endswith('.pbtxt'):
+            continue
+        pbtxt = open(f'db/{user}/{name}').read()
+        query = psycopg2.sql.SQL(
+            'INSERT INTO datasets VALUES (%s, %s, %s) '
+            'ON CONFLICT (user_id, dataset_name) DO UPDATE SET pbtxt=%s')
+        with db.cursor() as cursor:
+            cursor.execute(query, [user, name[:-6], pbtxt, pbtxt])
+
+
+def migrate_all():
     with psycopg2.connect(dbname='editor', port=5430) as db:
         for user in os.listdir('db'):
             if len(user) != 32:
@@ -34,13 +47,8 @@ def main():
             for name in os.listdir(f'db/{user}'):
                 if not name.endswith('.pbtxt'):
                     continue
-                pbtxt = open(f'db/{user}/{name}').read()
-                query = psycopg2.sql.SQL(
-                    'INSERT INTO datasets VALUES (%s, %s, %s) '
-                    'ON CONFLICT DO NOTHING')
-                with db.cursor() as cursor:
-                    cursor.execute(query, [user, name[:-6], pbtxt])
+                migrate_one(user, name, db)
 
 
 if __name__ == '__main__':
-  sys.exit(main())
+  sys.exit(migrate_all())

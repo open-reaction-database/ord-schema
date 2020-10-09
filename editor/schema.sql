@@ -13,7 +13,7 @@
 -- limitations under the License.
 
 -- $ psql postgres -p 5430 -f schema.sql
--- $ ./import.py
+-- $ ./py/migrate.py
 
 DROP DATABASE IF EXISTS editor;
 
