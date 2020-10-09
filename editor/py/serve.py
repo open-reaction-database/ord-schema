@@ -341,10 +341,24 @@ def resolve_compound(identifier_type):
     if not compound_name:
         return ''
     try:
-        return flask.jsonify(
-            updates.name_resolve(identifier_type, compound_name))
+        smiles, resolver = updates.name_resolve(identifier_type, compound_name)
+        return flask.jsonify((_canonicalize_smiles(smiles), resolver))
     except ValueError:
         return ''
+
+
+@app.route('/canonicalize', methods=['POST'])
+def canonicalize_smiles():
+    """Canonicalizes a SMILES string from a POST request."""
+    return flask.jsonify(_canonicalize_smiles(flask.request.get_data()))
+
+
+def _canonicalize_smiles(smiles):
+    """Canonicalizes a SMILES string."""
+    try:
+        return updates.canonicalize_smiles(smiles)
+    except ValueError:
+        return smiles  # Return the original SMILES on failure.
 
 
 @app.route('/render/reaction', methods=['POST'])
