@@ -1,0 +1,47 @@
+# Copyright 2020 Open Reaction Database Project Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# docker-compose configuration for the ORD editor + postgres backend database.
+#
+# Two environment variables are required:
+#   * ORD_EDITOR_POSTGRES_PASSWORD: The postgres password.
+#   * ORD_EDITOR_MOUNT: Mount location for the volume on which the database
+#     is stored. This is designed for use with GCP, where the mount location
+#     refers to a persistent disk that will not disappear when the image is
+#     restarted. See https://github.com/docker-library/docs/blob/master/postgres/README.md#pgdata
+#     for more details. When running locally, this should be set to something
+#     like "${HOME}/ord-editor-data".
+#
+# In the editor image, the ORD_EDITOR_DB variable is set to the hostname of
+# the postgres image so the editor can connect to the backend. Note that the
+# postgres server is not exposed externally; it is only visible to the editor
+# image.
+
+version: "3"
+services:
+  db:
+    image: "postgres"
+    environment:
+      - POSTGRES_PASSWORD="${ORD_EDITOR_POSTGRES_PASSWORD}"
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - "${ORD_EDITOR_MOUNT}:/var/lib/postgresql/data"
+  web:
+    depends_on:
+      - db
+    environment:
+      - ORD_EDITOR_DB=db
+    image: "openreactiondatabase/ord-editor"
+    ports:
+      - "5000:5000"
