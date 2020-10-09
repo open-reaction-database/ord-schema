@@ -17,13 +17,6 @@ The templating code has specific expectations for how the reaction pbtxt and
 spreadsheet are defined, namely that placeholder values in the pbtxt begin and
 end with a "$" (dollar sign) and that these match a unique column header in the
 spreadsheet file.
-
-Example usage:
-
-$ python dataset_templating.py \
-    --template=my_reaction.pbtxt \
-    --spreadsheet=my_experiments.csv \
-    --output=my_dataset.pbtxt
 """
 
 import os
