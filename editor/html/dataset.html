@@ -16,7 +16,7 @@ limitations under the License.
 -->
 <html>
   <head>
-    <title>{{ file_name }} Reactions</title>
+    <title>{{ name }} Reactions</title>
     <style>
       body {
         padding: 48px;
@@ -69,12 +69,12 @@ limitations under the License.
   <body>
 
     <center>
-      <h1><a href="/">Dataset</a>: {{ file_name }}.pbtxt</h1>
+      <h1><a href="/">Dataset</a>: {{ name }}.pbtxt</h1>
     </center>
     <div id="top_buttons">
       <div id="download" onclick="ord.dataset.download();">download</div>
       <div id="save" onclick="ord.dataset.commit();" style="visibility: hidden;">save</div>
-      <div id="delete" class="remove" style="float: none;" onclick="if(confirm('Are you sure you want to delete this Dataset? This cannot be undone.')) { location.href='/dataset/{{ file_name }}/delete'; }">delete</div>
+      <div id="delete" class="remove" style="float: none;" onclick="if(confirm('Are you sure you want to delete this Dataset? This cannot be undone.')) { location.href='/dataset/{{ name }}/delete'; }">delete</div>
     </div>
 
     <div class="spacer"></div>
@@ -125,11 +125,10 @@ limitations under the License.
 
     <script>
         document.body.onload = function() {
-            ord.dataset.init('{{ file_name }}');
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('user').startsWith('.review')) {
-                ord.dataset.freeze();
-            }
+          ord.dataset.init('{{ name }}');
+          if ({{ freeze }}) {
+            ord.datset.freeze();
+          }
         };
     </script>
   </body>

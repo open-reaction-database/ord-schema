@@ -26,18 +26,18 @@ limitations under the License.
     <script src="/js/reaction.js"></script>
     <link rel="stylesheet" href="/css/reaction.css">
     <link rel="stylesheet" href="/css/ketcher-bootstrap.css">
-    <title>{{ file_name }}:{{ index }}</title>
+    <title>{{ name }}:{{ index }}</title>
   </head>
 
   <body>
 
     <div id="header">
-      <div style="font-weight: bold;"><a href="/dataset/{{ file_name }}">{{ file_name }}</a>: {{ index }}</div>
+      <div style="font-weight: bold;"><a href="/dataset/{{ name }}">{{ name }}</a>: {{ index }}</div>
       <div>Reaction ID <div id="reaction_id" class="edittext longtext"></div></div>
       <div>
         <div id="download" onclick="ord.reaction.commit(); ord.reaction.downloadReaction();">download</div>
-        <div class="add" onclick="location.href='/dataset/{{ file_name }}/clone/{{ index }}';">+ clone</div>
-        <div id="delete" class="remove" style="float: none;" onclick="location.href='/dataset/{{ file_name }}/delete/reaction/{{ index }}';">delete</div>
+        <div class="add" onclick="location.href='/dataset/{{ name }}/clone/{{ index }}';">+ clone</div>
+        <div id="delete" class="remove" style="float: none;" onclick="location.href='/dataset/{{ name }}/delete/reaction/{{ index }}';">delete</div>
         <span>|</span>
         <div id="save" onclick="ord.reaction.commit();" style="visibility: hidden;">save</div>
         <span id="reaction_validate" class="validate" onclick="ord.reaction.validateReaction()"></span>
@@ -1134,9 +1134,8 @@ limitations under the License.
 
     <script>
         document.body.onload = async function () {
-          await ord.reaction.init('{{ file_name }}', {{ index }});
-          const urlParams = new URLSearchParams(window.location.search);
-          if (urlParams.get('user').startsWith('.review')) {
+          await ord.reaction.init('{{ name }}', {{ index }});
+          if ({{ freeze }}) {
             ord.reaction.freeze();
           }
         };

@@ -59,65 +59,79 @@ def show_root():
 
 @app.route('/datasets')
 def show_datasets():
-    """Lists all .pbtxt files in the user directory."""
-    base_names = []
-    path = get_user_path()
-    for name in os.listdir(path):
-        match = re.fullmatch(r'(.*).pbtxt', name)
-        if match is not None:
-            base_names.append(match.group(1))
-    return flask.render_template('datasets.html', file_names=sorted(base_names))
+    """Lists all the user's pbtxts in the datasets table."""
+    names = []
+    with flask.g.db.cursor() as cursor:
+      query = psycopg2.sql.SQL(
+          'SELECT dataset_name FROM datasets WHERE user_id=%s')
+      cursor.execute(query, [flask.g.user_id])
+      for row in cursor:
+          names.append(row[0])
+    return flask.render_template(
+        'datasets.html', names=sorted(names), user_id=flask.g.user_id)
 
 
-@app.route('/dataset/<file_name>')
-def show_dataset(file_name):
-    """Lists all Reactions contained in the specified .pbtxt file."""
-    dataset = get_dataset(file_name)
+@app.route('/dataset/<name>')
+def show_dataset(name):
+    """Lists all Reactions contained in the named dataset."""
+    dataset = get_dataset(name)
     reactions = []
     for reaction in dataset.reactions:
         reactions.append(reaction.identifiers)
-    return flask.render_template('dataset.html', file_name=file_name)
+    # Reactions belong to the "review" user are immutable.
+    freeze = flask.g.user_id == '8df09572f3c74dbcb6003e2eef8e48fc'
+    return flask.render_template(
+        'dataset.html', name=name, freeze=freeze, user_id=flask.g.user_id)
 
 
-@app.route('/dataset/<file_name>/download')
-def download_dataset(file_name):
-    """Returns a .pbtxt file from the user directory as an attachment."""
-    path = get_path(file_name)
-    return flask.send_file(get_file(path),
+@app.route('/dataset/<name>/download')
+def download_dataset(name):
+    """Returns a pbtxt from the datasets table as an attachment."""
+    pbtxt = get_pbtxt(name)
+    data = io.BytesIO(pbtxt)
+    return flask.send_file(data,
                            mimetype='application/protobuf',
                            as_attachment=True,
-                           attachment_filename=os.path.basename(path))
+                           attachment_filename=f'{name}.pbtxt')
 
 
-@app.route('/dataset/<file_name>/upload', methods=['POST'])
-def upload_dataset(file_name):
-    """Writes the request body to the user directory without validation."""
-    path = get_path(file_name)
-    if os.path.isfile(path):
-        flask.abort(
-            flask.make_response(f'dataset already exists: {file_name}', 409))
-    with open(path, 'wb') as upload:
-        upload.write(flask.request.get_data())
+@app.route('/dataset/<name>/upload', methods=['POST'])
+def upload_dataset(name):
+    """Writes the request body to the datasets table without validation."""
+    if exists_dataset(name):
+        response = flask.make_response(f'dataset already exists: {name}', 409)
+        flask.abort(response)
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL('INSERT INTO datasets VALUES (%s, %s, %s)')
+        pbtxt = flask.request.get_data()
+        user_id = flask.g.user_id
+        cursor.execute(query, [user_id, pbtxt, name]) 
     return 'ok'
 
 
-@app.route('/dataset/<file_name>/new', methods=['POST'])
-def new_dataset(file_name):
+@app.route('/dataset/<name>/new', methods=['POST'])
+def new_dataset(name):
     """Creates a new dataset."""
-    path = get_path(file_name)
-    if os.path.isfile(path):
-        flask.abort(
-            flask.make_response(f'dataset already exists: {file_name}', 409))
-    with open(path, 'wb') as upload:
-        upload.write(b'\n')
+    if exists_dataset(name):
+        response = flask.make_response(f'dataset already exists: {name}', 409)
+        flask.abort(response)
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL('INSERT INTO datasets VALUES (%s, %s, %s)')
+        user_id = flask.g.user_id
+        pbtxt = ''
+        cursor.execute(query, [user_id, name, pbtxt]) 
+        flask.g.db.commit()
     return 'ok'
 
 
-@app.route('/dataset/<file_name>/delete')
-def delete_dataset(file_name):
+@app.route('/dataset/<name>/delete')
+def delete_dataset(name):
     """Removes a Dataset."""
-    with lock(file_name):
-        os.remove(get_path(file_name))
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL(
+            'DELETE FROM datasets WHERE user_id=%s and name=%s')
+        user_id = flask.g.user_id
+        cursor.execute(query, [user_id, name])
     return flask.redirect('/datasets')
 
 
@@ -150,29 +164,30 @@ def enumerate_dataset():
         flask.abort(
             flask.make_response(
                 f'Unexpected {error.__class__.__name__}: {error}', 400))
-    path = get_path(f'{basename}_dataset')
-    message_helpers.write_message(dataset, path)
+    put_dataset(f'{basename}_dataset', dataset)
     return 'ok'
 
 
-@app.route('/dataset/<file_name>/reaction/<index>')
-def show_reaction(file_name, index):
+@app.route('/dataset/<name>/reaction/<index>')
+def show_reaction(name, index):
     """Render the page representing a single Reaction."""
-    dataset = get_dataset(file_name)
+    dataset = get_dataset(name)
     try:
         index = int(index)
     except ValueError:
         flask.abort(404)
     if len(dataset.reactions) <= index:
         flask.abort(404)
-    return flask.render_template('reaction.html',
-                                 file_name=file_name,
-                                 index=index)
+    # Reactions belong to the "review" user are immutable.
+    freeze = flask.g.user_id == '8df09572f3c74dbcb6003e2eef8e48fc'
+    return flask.render_template(
+        'reaction.html', name=name, index=index, freeze=freeze,
+        user_id=flask.g.user_id)
 
 
 @app.route('/reaction/download', methods=['POST'])
 def download_reaction():
-    """Returns a raw .pbtxt file taken from POST as an attachment."""
+    """Returns a pbtxt file parsed from POST data as an attachment."""
     reaction = reaction_pb2.Reaction()
     reaction.ParseFromString(flask.request.get_data())
     data = io.BytesIO(text_format.MessageToBytes(reaction))
@@ -182,19 +197,19 @@ def download_reaction():
                            attachment_filename='reaction.pbtxt')
 
 
-@app.route('/dataset/<file_name>/new/reaction')
-def new_reaction(file_name):
-    """Adds a new Reaction to the given Dataset and view the Dataset."""
-    dataset = get_dataset(file_name)
+@app.route('/dataset/<name>/new/reaction')
+def new_reaction(name):
+    """Adds a new Reaction to the named Dataset and redirects to it."""
+    dataset = get_dataset(name)
     dataset.reactions.add()
-    put_dataset(file_name, dataset)
-    return flask.redirect('/dataset/%s' % file_name)
+    put_dataset(name, dataset)
+    return flask.redirect('/dataset/%s' % name)
 
 
-@app.route('/dataset/<file_name>/clone/<index>')
-def clone_reaction(file_name, index):
+@app.route('/dataset/<name>/clone/<index>')
+def clone_reaction(name, index):
     """Copies a specific Reaction to the Dataset and view the Reaction."""
-    dataset = get_dataset(file_name)
+    dataset = get_dataset(name)
     try:
         index = int(index)
     except ValueError:
@@ -203,14 +218,14 @@ def clone_reaction(file_name, index):
         flask.abort(404)
     dataset.reactions.add().CopyFrom(dataset.reactions[index])
     index = len(dataset.reactions) - 1
-    put_dataset(file_name, dataset)
-    return flask.redirect('/dataset/%s/reaction/%s' % (file_name, index))
+    put_dataset(name, dataset)
+    return flask.redirect('/dataset/%s/reaction/%s' % (name, index))
 
 
-@app.route('/dataset/<file_name>/delete/reaction/<index>')
-def delete_reaction(file_name, index):
+@app.route('/dataset/<name>/delete/reaction/<index>')
+def delete_reaction(name, index):
     """Removes a specific Reaction from the Dataset and view the Dataset."""
-    dataset = get_dataset(file_name)
+    dataset = get_dataset(name)
     try:
         index = int(index)
     except ValueError:
@@ -218,47 +233,44 @@ def delete_reaction(file_name, index):
     if len(dataset.reactions) <= index:
         flask.abort(404)
     del dataset.reactions[index]
-    put_dataset(file_name, dataset)
-    return flask.redirect('/dataset/%s' % file_name)
+    put_dataset(name, dataset)
+    return flask.redirect('/dataset/%s' % name)
 
 
-@app.route('/dataset/<file_name>/delete/reaction_id/<reaction_id>')
-def delete_reaction_id(file_name, reaction_id):
+@app.route('/dataset/<name>/delete/reaction_id/<reaction_id>')
+def delete_reaction_id(name, reaction_id):
     """Removes a Reaction reference from the Dataset and view the Dataset."""
-    dataset = get_dataset(file_name)
+    dataset = get_dataset(name)
     if reaction_id in dataset.reaction_ids:
         dataset.reaction_ids.remove(reaction_id)
-        put_dataset(file_name, dataset)
-        return flask.redirect('/dataset/%s' % file_name)
+        put_dataset(name, dataset)
+        return flask.redirect('/dataset/%s' % name)
     flask.abort(404)
 
 
-@app.route('/dataset/<file_name>/delete/reaction_id/')
-def delete_reaction_id_blank(file_name):
+@app.route('/dataset/<name>/delete/reaction_id/')
+def delete_reaction_id_blank(name):
     """Removes the first empty Reaction reference from the Dataset."""
-    return delete_reaction_id(file_name, '')
+    return delete_reaction_id(name, '')
 
 
-@app.route('/dataset/proto/read/<file_name>')
-def read_dataset(file_name):
+@app.route('/dataset/proto/read/<name>')
+def read_dataset(name):
     """Returns a Dataset as a serialized protobuf."""
-    dataset = dataset_pb2.Dataset()
-    path = get_path(file_name)
-    with open(path, 'rb') as pbtxt:
-        text_format.Parse(pbtxt.read(), dataset)
+    dataset = get_dataset(name)
     bites = dataset.SerializeToString(deterministic=True)
     response = flask.make_response(bites)
     response.headers.set('Content-Type', 'application/protobuf')
     return response
 
 
-@app.route('/dataset/proto/write/<file_name>', methods=['POST'])
-def write_dataset(file_name):
-    """Receives a serialized Dataset protobuf and write it to a file."""
+@app.route('/dataset/proto/write/<name>', methods=['POST'])
+def write_dataset(name):
+    """Inserts a protobuf including upload tokens into the datasets table."""
     dataset = dataset_pb2.Dataset()
     dataset.ParseFromString(flask.request.get_data())
     resolve_tokens(dataset)
-    put_dataset(file_name, dataset)
+    put_dataset(name, dataset)
     return 'ok'
 
 
@@ -287,7 +299,7 @@ def write_upload(file_name, token):
     with open(path, 'wb') as upload:
         upload.write(flask.request.get_data())
     with lock(file_name):
-        dataset = get_dataset(file_name)
+        dataset = get_dataset(name)
         if resolve_tokens(dataset):
             put_dataset(file_name, dataset)
     return 'ok'
@@ -367,25 +379,24 @@ def render_compound():
         return ''
 
 
-@app.route('/dataset/proto/compare/<file_name>', methods=['POST'])
-def compare(file_name):
-    """For testing, compares a POST body to a Dataset in the user directory.
+@app.route('/dataset/proto/compare/<name>', methods=['POST'])
+def compare(name):
+    """For testing, compares a POST body to an entry in the datasets table.
 
     Returns HTTP status 200 if their pbtxt representations are equal as strings
     and 409 if they are not. See "make test".
 
     Args:
-        file_name: The .pbtxt file to compare.
+        name: The dataset record to compare.
 
     Returns:
         HTTP status 200 for a match and 409 if there is a difference.
     """
     remote = dataset_pb2.Dataset()
     remote.ParseFromString(flask.request.get_data())
-    path = get_path(file_name)
-    with open(path, 'rb') as pbtxt:
-        local = dataset_pb2.Dataset()
-        text_format.Parse(pbtxt.read().decode(), local)
+    pbtxt = get_dataset(name)
+    local = dataset_pb2.Dataset()
+    text_format.Parse(pbtxt, local)
     remote_ascii = text_format.MessageToString(remote)
     local_ascii = text_format.MessageToString(local)
     if remote_ascii != local_ascii:
@@ -533,25 +544,34 @@ def prevent_caching(response):
     return response
 
 
-def get_dataset(file_name):
-    """Reads a .pbtxt file from the user directory and parses it."""
-    with lock(file_name):
-        path = get_path(file_name)
-        if not os.path.isfile(path):
+def get_dataset(name):
+    """Reads a pbtxt proto from the datasets table and parses it."""
+    pbtxt = get_pbtxt(name)
+    dataset = dataset_pb2.Dataset()
+    text_format.Parse(pbtxt, dataset)
+    return dataset
+
+
+def get_pbtxt(name):
+    """Reads a pbtxt proto from the datasets."""
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL(
+            'SELECT pbtxt FROM datasets WHERE user_id=%s AND dataset_name=%s')
+        cursor.execute(query, [flask.g.user_id, name])
+        if cursor.rowcount == 0:
             flask.abort(404)
-        dataset = dataset_pb2.Dataset()
-        with open(path) as pbtxt:
-            text_format.Parse(pbtxt.read(), dataset)
-        return dataset
+        return cursor.fetchone()[0]
 
 
-def put_dataset(file_name, dataset):
-    """Write a proto to a .pbtxt file in the user directory."""
-    with lock(file_name):
-        path = get_path(file_name)
-        with open(path, 'w') as pbtxt:
-            string = text_format.MessageToString(dataset, as_utf8=True)
-            pbtxt.write(string)
+def put_dataset(name, dataset):
+    """Write a dataset proto to the dataset table, clobbering if needed."""
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL(
+            'INSERT INTO datasets VALUES (%s, %s, %s) '
+            'ON CONFLICT (user_id, dataset_name) DO UPDATE SET pbtxt=%s')
+        user_id = flask.g.user_id
+        pbtxt = text_format.MessageToString(dataset, as_utf8=True)
+        cursor.execute(query, [user_id, name, pbtxt, pbtxt])
 
 
 @contextlib.contextmanager
@@ -657,6 +677,16 @@ def get_user_path():
     return flask.safe_join(app.config['ORD_EDITOR_DB'], flask.g.user)
 
 
+def exists_dataset(name):
+    """True if a dataset with the given name is defined for the current user."""
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL(
+            'SELECT 1 FROM datasets WHERE user_id=%s AND dataset_name=%s')
+        user_id = flask.g.user_id
+        cursor.execute(query, [user_id, name])
+        return cursor.rowcount > 0
+
+
 @app.route('/login')
 def show_login():
     """Presents a form to set the access token."""
@@ -681,6 +711,7 @@ def authenticate():
             access_token = uuid.uuid4().hex
             timestamp = int(time.time())
             cursor.execute(query, [access_token, user_id, timestamp])
+            flask.g.db.commit()
             response = flask.redirect('/')
             # Expires in a year.
             response.set_cookie('access-token', access_token, max_age=31536000)
@@ -704,9 +735,5 @@ def init_user():
     if cursor.rowcount == 0:
         return flask.redirect(f'/login')
     user_id = cursor.fetchone()[0]
-    query = psycopg2.sql.SQL(f"INSERT INTO logins VALUES (%s, %s, %s)")
-    access_token = uuid.uuid4().hex
-    timestamp = int(time.time())
-    cursor.execute(query, [access_token, user_id, timestamp])
     flask.g.db = db
     flask.g.user_id = user_id

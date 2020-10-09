@@ -1,5 +1,19 @@
-l
--- psql postgres -p 5430 -f schema.sql
+-- Copyright 2020 Open Reaction Database Project Authors
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- $ psql postgres -p 5430 -f schema.sql
+-- $ ./import.py
 
 DROP DATABASE IF EXISTS editor;
 
@@ -24,6 +38,13 @@ CREATE TABLE logins (
 CREATE TABLE datasets (
   user_id CHARACTER(32) REFERENCES USERS,
   dataset_name TEXT NOT NULL,
-  PBTXT TEXT NOT NULL,
+  pbtxt TEXT NOT NULL,
   PRIMARY KEY (user_id, dataset_name)
 );
+
+-- System users:
+--   "super" can add new users.
+--   "review" owns read-only datasets imported from GitHub pull requests.
+INSERT INTO users VALUES 
+   ('c3cd7437f90d4a86985ad865ee433eca', 'super', EXTRACT(EPOCH FROM NOW())),
+   ('8df09572f3c74dbcb6003e2eef8e48fc', 'review', EXTRACT(EPOCH FROM NOW()));

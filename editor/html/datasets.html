@@ -66,9 +66,9 @@ limitations under the License.
       <div id="saving" style="visibility: hidden;">saving</div>
       <div id="processing" style="visibility: hidden;">processing</div>
     </center>
-    {% for file_name in file_names %}
+    {% for name in names %}
       <div class="dataset">
-        <a href="/dataset/{{ file_name }}">{{ file_name }}</a>
+        <a href="/dataset/{{ name }}">{{ name }}</a>
       </div>
     {% endfor %}
     <div id="adder">
