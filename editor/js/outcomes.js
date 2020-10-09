@@ -313,8 +313,8 @@ function addAnalysis(node) {
     nameNode.data('val', nameNode.text());
   });
   nameNode.on('input', function() {
-    var old_name = nameNode.data('val');
-    var name = nameNode.text();
+    const old_name = nameNode.data('val');
+    const name = nameNode.text();
     // Remove old key.
     if (old_name) {
       // If any selector had this value selected, reset it.
