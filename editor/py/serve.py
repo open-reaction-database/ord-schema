@@ -30,7 +30,7 @@ import flask
 import github
 from google.protobuf import text_format
 
-from ord_schema import dataset_templating
+from ord_schema import templating
 from ord_schema import message_helpers
 from ord_schema import updates
 from ord_schema import validations
@@ -135,19 +135,18 @@ def enumerate_dataset():
         template_string: a string containing a text-formatted Reaction proto,
             i.e., the contents of a pbtxt file.
     A new dataset is created from the template and spreadsheet using
-    ord_schema.dataset_templating.generate_dataset.
+    ord_schema.templating.generate_dataset.
     """
     # pylint: disable=broad-except
     data = flask.request.get_json(force=True)
     basename, suffix = os.path.splitext(data['spreadsheet_name'])
     spreadsheet_data = io.StringIO(data['spreadsheet_data'].lstrip('ï»¿'))
-    dataframe = dataset_templating.read_spreadsheet(spreadsheet_data,
-                                                    suffix=suffix)
+    dataframe = templating.read_spreadsheet(spreadsheet_data, suffix=suffix)
     dataset = None
     try:
-        dataset = dataset_templating.generate_dataset(data['template_string'],
-                                                      dataframe,
-                                                      validate=False)
+        dataset = templating.generate_dataset(data['template_string'],
+                                              dataframe,
+                                              validate=False)
     except ValueError as error:
         flask.abort(flask.make_response(str(error), 400))
     except Exception as error:
