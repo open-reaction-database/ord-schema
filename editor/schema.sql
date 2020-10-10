@@ -12,8 +12,13 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- $ psql postgres -p 5430 -f schema.sql
--- $ ./py/migrate.py
+-- To initialize the editor database on a fresh Postgres volume:
+--
+--   $ psql -p 5432 -h localhost -U postgres -f schema.sql
+--
+-- To populate the editor database from the db/ directory:
+--
+--   $ ./py/migrate.py
 
 DROP DATABASE IF EXISTS editor;
 

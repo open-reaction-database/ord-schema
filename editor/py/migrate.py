@@ -17,6 +17,7 @@
 import os
 import psycopg2
 import psycopg2.sql
+import re
 import sys
 import time
 
@@ -35,19 +36,21 @@ def migrate_one(user, name, db):
 
 
 def migrate_all():
-    with psycopg2.connect(dbname='editor', port=5430) as db:
-        for user in os.listdir('db'):
-            if len(user) != 32:
+    """Run as a script, copies the entire contents of the db/ directory."""
+    with psycopg2.connect(
+        dbname='editor', host='localhost', port=5432, user='postgres') as db:
+        for user_id in os.listdir('db'):
+            if re.match('^[0-9a-fA-F]{32}$', user_id) is None:
                 continue
             query = psycopg2.sql.SQL(
                 'INSERT INTO users VALUES (%s, %s, %s) ON CONFLICT DO NOTHING')
             with db.cursor() as cursor:
                 timestamp = int(time.time())
-                cursor.execute(query, [user, user, timestamp])
-            for name in os.listdir(f'db/{user}'):
+                cursor.execute(query, [user_id, user_id, timestamp])
+            for name in os.listdir(f'db/{user_id}'):
                 if not name.endswith('.pbtxt'):
                     continue
-                migrate_one(user, name, db)
+                migrate_one(user_id, name, db)
 
 
 if __name__ == '__main__':

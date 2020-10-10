@@ -29,11 +29,15 @@ const puppeteer = require('puppeteer');
   // Relay console messages.
   page.on('console', msg => console.log('console>', msg.text()));
 
+  // First authenticate as the test user.
+  page.goto('http://localhost:5000/authenticate');
+  await page.waitForNavigation();
+
   // Round-trip these reactions through the DOM and compare at the server.
   const roundtripTests = [
-    'http://localhost:5000/dataset/empty/reaction/0?user=test',
-    'http://localhost:5000/dataset/full/reaction/0?user=test',
-    'http://localhost:5000/dataset/ord-nielsen-example/reaction/0?user=test',
+    'http://localhost:5000/dataset/empty/reaction/0',
+    'http://localhost:5000/dataset/full/reaction/0',
+    'http://localhost:5000/dataset/ord-nielsen-example/reaction/0',
   ];
 
   for (let i = 0; i < roundtripTests.length; i++) {

@@ -50,14 +50,19 @@ import migrate
 app = flask.Flask(__name__, template_folder='../html')
 app.config['ORD_EDITOR_LOCAL'] = os.path.abspath(
     os.getenv('ORD_EDITOR_LOCAL', 'db'))
-app.config['REVIEW_ROOT'] = flask.safe_join(app.config['ORD_EDITOR_LOCAL'],
-                                            '.review')
-app.config['REVIEW_DATA_ROOT'] = flask.safe_join(app.config['REVIEW_ROOT'],
-                                                 'ord-data')
 
 
-# System user ID for immutable reactions imported from GitHub pull requests.
+# Defaults are set for local development.
+POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'localhost')
+POSTGRES_PORT = os.getenv('POSTGRES_PORT', 5430)
+POSTGRES_USER = os.getenv('POSTGRES_USER', 'postgres')
+POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', '')
+
+
+# System user for immutable reactions imported from GitHub pull requests.
 REVIEWER = '8df09572f3c74dbcb6003e2eef8e48fc'
+# System user for automated testing.
+TESTER = '680b0d9fe649417cb092d790907bd5a5'
 
 
 @app.route('/')
@@ -420,9 +425,7 @@ def compare(name):
     """
     remote = dataset_pb2.Dataset()
     remote.ParseFromString(flask.request.get_data())
-    pbtxt = get_dataset(name)
-    local = dataset_pb2.Dataset()
-    text_format.Parse(pbtxt, local)
+    local = get_dataset(name)
     remote_ascii = text_format.MessageToString(remote)
     local_ascii = text_format.MessageToString(local)
     if remote_ascii != local_ascii:
@@ -587,7 +590,7 @@ def put_dataset(name, dataset):
 
 
 @contextlib.contextmanager
-def lock(file_name, user=None):
+def lock(file_name):
     """Blocks until an exclusive lock on the named file is obtained.
 
     This is part of the upload mechanism. Byte_value fields are populated
@@ -598,12 +601,11 @@ def lock(file_name, user=None):
 
     Args:
         file_name: Name of the file to pass to the fcntl system call.
-        user: The current user; used to determine the lock file path.
 
     Yields:
         The locked file descriptor.
     """
-    path = get_path(file_name, user=user, suffix='.lock')
+    path = get_path(file_name, suffix='.lock')
     with open(path, 'w') as lock_file:
         fcntl.lockf(lock_file, fcntl.LOCK_EX)
         try:
@@ -659,22 +661,19 @@ def get_file(path):
     return data
 
 
-def get_path(file_name, user=None, suffix='.pbtxt'):
+def get_path(file_name, suffix='.pbtxt'):
     """Returns a safe path in the editor filesystem.
 
     Uses flask.safe_join to check for directory traversal attacks.
 
     Args:
         file_name: Text filename.
-        user: The current user. If None, defaults to flask.g.user.
         suffix: Text filename suffix. Defaults to '.pbtxt'.
 
     Returns:
         Path to the requested file.
     """
-    if not user:
-        user = flask.g.user
-    return flask.safe_join(app.config['ORD_EDITOR_LOCAL'], user,
+    return flask.safe_join(app.config['ORD_EDITOR_LOCAL'], flask.g.user_id,
                            f'{file_name}{suffix}')
 
 
@@ -686,7 +685,7 @@ def get_user_path():
     Returns:
         Path to the user directory.
     """
-    return flask.safe_join(app.config['ORD_EDITOR_LOCAL'], flask.g.user)
+    return flask.safe_join(app.config['ORD_EDITOR_LOCAL'], flask.g.user_id)
 
 
 def exists_dataset(name):
@@ -705,9 +704,12 @@ def show_login():
     return flask.render_template('login.html')
 
 
-@app.route('/authenticate', methods=['POST'])
+@app.route('/authenticate', methods=['GET', 'POST'])
 def authenticate():
     """Issue a new access token for a given user ID."""
+    # GET authentications always login as the test user.
+    if flask.request.method == 'GET':
+        return issue_access_token(TESTER)
     user_id = flask.request.form.get('user_id')
     if user_id is None or re.match('^[0-9a-fA-F]{32}$', user_id) is None:
         return flask.redirect('/login')
@@ -742,7 +744,11 @@ def make_user(name='auto'):
 @app.before_request
 def init_user():
     """Connects to the DB and authenticates the user."""
-    flask.g.db = psycopg2.connect(dbname='editor', port=5430)
+    flask.g.db = psycopg2.connect(dbname='editor',
+                                  user=POSTGRES_USER,
+                                  host=POSTGRES_HOST,
+                                  port=POSTGRES_PORT,
+                                  password=POSTGRES_PASSWORD)
     if flask.request.path in ('/login', '/authenticate'):
         return
     access_token = flask.request.cookies.get('Access-Token')

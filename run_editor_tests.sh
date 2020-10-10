@@ -14,14 +14,44 @@
 # limitations under the License.
 
 # Runs editor javascript tests.
-set -x
+
+set -e -x
+
+export ORD_EDITOR_MOUNT=/tmp/editor-postgres
+export PGPASSWORD=${ORD_EDITOR_POSTGRES_PASSWORD}
+
+# Clear any leftover database state.
+rm -rf $ORD_EDITOR_MOUNT && mkdir $ORD_EDITOR_MOUNT
 
 docker build --file=editor/Dockerfile -t openreactiondatabase/ord-editor .
-CONTAINER=$(docker run --rm -d -p 5000:5000 openreactiondatabase/ord-editor)
-# Give the web server time to come up.
-sleep 5
+docker-compose -f editor/docker-compose.yml up &
+
+# Wait for the database to become available.
+function connect() {
+  psql -p 5432 -h localhost -U postgres < /dev/null
+}
+set +e
+connect
+while [ $? -ne 0 ]; do
+  echo waiting for Postgres
+  sleep 5
+  connect
+done
+set -e
+
+# Initialize the database with schema and contents.
+psql -p 5432 -h localhost -U postgres -f editor/schema.sql
+pushd editor
+./py/migrate.py
+popd
+
+# Run the JS tests.
 node editor/js/test.js
-STATUS=$?
-test "${STATUS}" -eq 0 || docker logs "${CONTAINER}"
-docker stop "${CONTAINER}"
-test "${STATUS}" -eq 0
+
+# TODO: Run python tests that need a database.
+
+# Shut down the containers and relay the test process status.
+status=$?
+docker-compose -f editor/docker-compose.yml down
+[ "${status}" -eq 0 ] && echo PASS || echo FAIL
+test "${status}" -eq 0
