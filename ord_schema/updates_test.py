@@ -14,7 +14,6 @@
 """Tests for ord_schema.updates."""
 
 from absl.testing import absltest
-from rdkit import Chem
 
 from ord_schema import updates
 from ord_schema.proto import reaction_pb2
