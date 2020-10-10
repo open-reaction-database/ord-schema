@@ -112,6 +112,8 @@ def upload_dataset(name):
     with flask.g.db.cursor() as cursor:
         query = psycopg2.sql.SQL('INSERT INTO datasets VALUES (%s, %s, %s)')
         pbtxt = flask.request.get_data().decode('utf-8')
+        dataset = dataset_pb2.Dataset()
+        text_format.Parse(pbtxt, dataset) # Validate.
         user_id = flask.g.user_id
         cursor.execute(query, [user_id, name, pbtxt]) 
         flask.g.db.commit()
