@@ -43,10 +43,8 @@ CREATE TABLE datasets (
 );
 
 -- System users:
---   "super" can add new users.
 --   "review" owns read-only datasets imported from GitHub pull requests.
---   "test" owns datasets used in tests.
+--   "test" owns datasets imported from db/ and used only in tests.
 INSERT INTO users VALUES 
-   ('c3cd7437f90d4a86985ad865ee433eca', 'super', EXTRACT(EPOCH FROM NOW())),
    ('8df09572f3c74dbcb6003e2eef8e48fc', 'review', EXTRACT(EPOCH FROM NOW())),
    ('680b0d9fe649417cb092d790907bd5a5', 'test', EXTRACT(EPOCH FROM NOW()));
