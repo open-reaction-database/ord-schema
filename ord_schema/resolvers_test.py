@@ -27,9 +27,9 @@ class ResolversTest(parameterized.TestCase, absltest.TestCase):
         reaction_input = resolvers.resolve_input(string)
         self.assertEqual(reaction_input.components[0].mass,
                          reaction_pb2.Mass(value=10, units='GRAM'))
-        self.assertEqual(reaction_input.components[0].identifiers[0],
-                         reaction_pb2.CompoundIdentifier(type='NAME',
-                                                         value='THF'))
+        self.assertEqual(
+            reaction_input.components[0].identifiers[0],
+            reaction_pb2.CompoundIdentifier(type='NAME', value='THF'))
         self.assertEqual(len(reaction_input.components), 1)
 
         string = '100 mL of 5.0uM sodium hydroxide  in water'
@@ -37,20 +37,21 @@ class ResolversTest(parameterized.TestCase, absltest.TestCase):
         self.assertEqual(len(reaction_input.components), 2)
         self.assertEqual(reaction_input.components[0].moles,
                          reaction_pb2.Moles(value=500, units='NANOMOLE'))
-        self.assertEqual(reaction_input.components[0].identifiers[0],
-                         reaction_pb2.CompoundIdentifier(type='NAME',
-                            value='sodium hydroxide'))
+        self.assertEqual(
+            reaction_input.components[0].identifiers[0],
+            reaction_pb2.CompoundIdentifier(type='NAME',
+                                            value='sodium hydroxide'))
         self.assertEqual(reaction_input.components[1].volume,
                          reaction_pb2.Volume(value=100, units='MILLILITER'))
         self.assertEqual(reaction_input.components[1].volume_includes_solutes,
                          True)
-        self.assertEqual(reaction_input.components[1].identifiers[0],
-                         reaction_pb2.CompoundIdentifier(type='NAME',
-                                                         value='water'))
+        self.assertEqual(
+            reaction_input.components[1].identifiers[0],
+            reaction_pb2.CompoundIdentifier(type='NAME', value='water'))
 
     @parameterized.named_parameters(
         ('bad amount', '100 g of 5.0uM sodium hydroxide  in water',
-            'amount of solution must be a volume'),
+         'amount of solution must be a volume'),
         ('missing concentration', '100 L of 5 grapes in water',
          'String did not match template'),
     )

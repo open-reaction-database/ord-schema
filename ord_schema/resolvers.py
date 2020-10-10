@@ -89,8 +89,7 @@ def resolve_names(message):
         for identifier in compound.identifiers:
             if identifier.type == identifier.NAME:
                 try:
-                    smiles, resolver = name_resolve(
-                        'name', identifier.value)
+                    smiles, resolver = name_resolve('name', identifier.value)
                     new_identifier = compound.identifiers.add()
                     new_identifier.type = new_identifier.SMILES
                     new_identifier.value = smiles
@@ -155,8 +154,9 @@ def resolve_input(input_string):
     if ' in ' not in description:
         component_name = description
         component = reaction_input.components.add()
-        component.CopyFrom(message_helpers.build_compound(
-            name=component_name.strip(), amount=amount_string))
+        component.CopyFrom(
+            message_helpers.build_compound(name=component_name.strip(),
+                                           amount=amount_string))
         resolve_names(reaction_input)
         return reaction_input
     pattern = re.compile(r'(\d+.?\d*)\s*(\w+) (.*) in (.*)')
@@ -168,13 +168,13 @@ def resolve_input(input_string):
     solvent = reaction_input.components.add()
     solute.CopyFrom(message_helpers.build_compound(\
         name=solute_name.strip()))
-    solvent.CopyFrom(message_helpers.build_compound(
-        name=solvent_name.strip(), amount=amount_string))
+    solvent.CopyFrom(
+        message_helpers.build_compound(name=solvent_name.strip(),
+                                       amount=amount_string))
     if solvent.WhichOneof('amount') != 'volume':
         raise ValueError('Total amount of solution must be a volume!')
     solvent.volume_includes_solutes = True
-    message_helpers.set_solute_moles(solute,
-                                     [solvent],
+    message_helpers.set_solute_moles(solute, [solvent],
                                      f'{conc_value} {conc_units}')
     resolve_names(reaction_input)
     return reaction_input

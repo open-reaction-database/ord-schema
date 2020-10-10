@@ -333,7 +333,6 @@ def validate_reaction(message_name):
     return json.dumps({'errors': output.errors, 'warnings': output.warnings})
 
 
-
 @app.route('/resolve/input', methods=['POST'])
 def resolve_input():
     """Resolve an input string to a ReactionInput message."""
@@ -355,7 +354,8 @@ def resolve_compound(identifier_type):
     if not compound_name:
         return ''
     try:
-        smiles, resolver = resolvers.name_resolve(identifier_type, compound_name)
+        smiles, resolver = resolvers.name_resolve(identifier_type,
+                                                  compound_name)
         return flask.jsonify((_canonicalize_smiles(smiles), resolver))
     except ValueError:
         return ''
