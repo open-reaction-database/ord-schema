@@ -269,6 +269,9 @@ def _run_updates(inputs, datasets):
         binary_filename = root + '.pb'
         logging.info('writing combined Dataset (binary) to %s', binary_filename)
         message_helpers.write_message(combined, binary_filename)
+        args = ['git', 'add', binary_filename]
+        logging.info('Running command: %s', ' '.join(args))
+        subprocess.run(args, check=True)
 
 
 def run():
