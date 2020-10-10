@@ -13,6 +13,7 @@
 # limitations under the License.
 """A web editor for Open Reaction Database structures."""
 
+import collections
 import contextlib
 import difflib
 import fcntl
@@ -23,6 +24,7 @@ import pprint
 import psycopg2
 import psycopg2.sql
 import re
+import requests
 import shutil
 import subprocess
 import time
@@ -53,7 +55,7 @@ app.config['REVIEW_DATA_ROOT'] = flask.safe_join(app.config['REVIEW_ROOT'],
                                                  'ord-data')
 
 
-# System user for immutable reactions imported from GitHub pull requests.
+# System user ID for immutable reactions imported from GitHub pull requests.
 REVIEWER = '8df09572f3c74dbcb6003e2eef8e48fc'
 
 
@@ -94,7 +96,7 @@ def show_dataset(name):
 def download_dataset(name):
     """Returns a pbtxt from the datasets table as an attachment."""
     pbtxt = get_pbtxt(name)
-    data = io.BytesIO(pbtxt)
+    data = io.BytesIO(pbtxt.encode('utf8'))
     return flask.send_file(data,
                            mimetype='application/protobuf',
                            as_attachment=True,
@@ -135,9 +137,11 @@ def delete_dataset(name):
     """Removes a Dataset."""
     with flask.g.db.cursor() as cursor:
         query = psycopg2.sql.SQL(
-            'DELETE FROM datasets WHERE user_id=%s and name=%s')
+            'DELETE FROM datasets WHERE user_id=%s AND dataset_name=%s')
+        print(query)
         user_id = flask.g.user_id
         cursor.execute(query, [user_id, name])
+        flask.g.db.commit()
     return flask.redirect('/datasets')
 
 
@@ -472,72 +476,57 @@ def get_molfile():
         return 'no existing structural identifier', 404
 
 
-@app.before_first_request
-def init_submissions():
-    """Clones ord-data for use in review mode."""
-    # NOTE(kearnes): Use a local git clone so we aren't downloading the
-    # uncompressed submission files.
-    if not os.path.exists(app.config['REVIEW_DATA_ROOT']):
-        subprocess.run([
-            'git', 'clone',
-            'https://github.com/Open-Reaction-Database/ord-data.git',
-            app.config['REVIEW_DATA_ROOT']
-        ],
-                       check=True)
-
-
 @app.route('/review')
 def show_submissions():
-    """Lists pending submissions to ord-data."""
-    client = github.Github()
-    repo = client.get_repo('Open-Reaction-Database/ord-data')
-    pull_requests = {}
-    for pull_request in repo.get_pulls():
-        datasets = []
-        for file in pull_request.get_files():
-            if file.filename.endswith('.pbtxt'):
-                datasets.append(file.filename[:-6])
-        pull_requests[pull_request.number] = (pull_request.title, datasets)
+    """For the review user only, render datasets with GitHub metadata."""
+    if flask.g.user_id != REVIEWER:
+        return flask.redirect('/')
+    pull_requests = collections.defaultdict(list)
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL(
+            'SELECT dataset_name FROM datasets WHERE user_id=%s')
+        cursor.execute(query, [REVIEWER])
+        for row in cursor:
+            name = row[0]
+            match = re.match('^PR_([0-9]+) “(.*)” (.*)', name)
+            if match is None:
+                continue
+            number, title, short_name = match.groups()
+            pull_requests[(number, title)].append((short_name, name))
     return flask.render_template('submissions.html',
                                  pull_requests=pull_requests)
 
 
-@app.route('/review/<pull_request>/<file_name>')
-def show_submission(pull_request, file_name):
-    """Requests a dataset from a current pull request."""
+
+@app.route('/review/sync')
+def sync_reviews():
+    """Import all current pull requests into the datasets table.
+
+    These datasets have two extra pieces of metadata: a GitHub PR number and
+    the PR title text. These are encoded into the dataset name in Postgres
+    using delimiters."""
+    if flask.g.user_id != REVIEWER:
+        return flask.redirect('/')
     client = github.Github()
     repo = client.get_repo('Open-Reaction-Database/ord-data')
-    pr = repo.get_pull(int(pull_request))
-    with lock('review', user='.review'):
-        subprocess.run(['git', 'checkout', 'main'],
-                       cwd=app.config['REVIEW_DATA_ROOT'],
-                       check=True)
-        subprocess.run(['git', 'pull', 'origin', 'main'],
-                       cwd=app.config['REVIEW_DATA_ROOT'],
-                       check=True)
-        subprocess.run([
-            'git', 'fetch', 'origin',
-            f'pull/{pull_request}/head:editor#{pull_request}'
-        ],
-                       cwd=app.config['REVIEW_DATA_ROOT'],
-                       check=True)
-        subprocess.run(['git', 'checkout', f'editor#{pull_request}'],
-                       cwd=app.config['REVIEW_DATA_ROOT'],
-                       check=True)
-        subprocess.run(['git', 'pull', 'origin', f'pull/{pull_request}/head'],
-                       cwd=app.config['REVIEW_DATA_ROOT'],
-                       check=True)
-        destination = flask.safe_join(app.config['REVIEW_ROOT'], pull_request)
-        os.makedirs(destination, exist_ok=True)
-        for file in pr.get_files():
-            if file.filename.endswith('.pbtxt'):
-                shutil.copy2(
-                    flask.safe_join(app.config['REVIEW_DATA_ROOT'],
-                                    file.filename), destination)
-    parts = list(urllib.parse.urlparse(f'/dataset/{file_name}'))
-    parts[4] = urllib.parse.urlencode({'user': f'.review/{pull_request}'})
-    url = urllib.parse.urlunparse(parts)
-    return flask.redirect(url, code=307)
+    user_id = flask.g.user_id
+    with flask.g.db.cursor() as cursor:
+        # First reset all datasets under review.
+        query = psycopg2.sql.SQL('DELETE FROM datasets WHERE user_id=%s')
+        cursor.execute(query, [REVIEWER])
+        # Then import all pbtxts from open PR's.
+        for pr in repo.get_pulls():
+            for remote in pr.get_files():
+                if not remote.filename.endswith('.pbtxt'):
+                    continue
+                pbtxt = requests.get(remote.raw_url).text
+                name = 'PR_%d “%s” %s' % (
+                    pr.number, pr.title, remote.filename[:-6])
+                query = psycopg2.sql.SQL(
+                    'INSERT INTO datasets VALUES (%s, %s, %s)')
+        cursor.execute(query, [user_id, name, pbtxt])
+    flask.g.db.commit()
+    return flask.redirect('/review')
 
 
 @app.after_request
