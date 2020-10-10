@@ -65,7 +65,7 @@ function loadInput(root, name, input) {
  * @param {!Node} root Root node for the reaction input.
  */
 function addInputByString(root) {
-  var string = prompt(`Please describe the input in one of the following forms:
+  const string = prompt(`Please describe the input in one of the following forms:
 (1) [AMOUNT] of [NAME]
 (2) [AMOUNT] of [CONCENTRATION] [SOLUTE] in [SOLVENT]`);
   if (!(string)) {
@@ -76,7 +76,7 @@ function addInputByString(root) {
   xhr.responseType = 'arraybuffer';
   xhr.onload = () => {
     if (xhr.status == 409) {
-      var decoder = new TextDecoder('utf-8');
+      const decoder = new TextDecoder('utf-8');
       alert('Could not parse: ' + decoder.decode(xhr.response));
     } else {
       const bytes = new Uint8Array(xhr.response);
@@ -84,8 +84,8 @@ function addInputByString(root) {
       if (input) {
         const input_node = loadInput(root, string, input);
         $('.edittext', input_node).trigger('blur');
-      };
-    };
+      }
+    }
   };
   xhr.send(string);
 }
