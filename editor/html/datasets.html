@@ -100,7 +100,7 @@ limitations under the License.
         $('#saving').css('visibility', 'visible');
         const file = event.target.files[0];
         const reader = new FileReader();
-        reader.readAsBinaryString(file);
+        reader.readAsArrayBuffer(file);
         reader.onload = event => {
           const xhr = new XMLHttpRequest();
           xhr.open('POST', '/dataset/' + file.name + '/upload');
@@ -155,7 +155,7 @@ limitations under the License.
            var file = event.target.files[0]; 
            spreadsheetName.resolve(file.name);
            var reader = new FileReader();
-           reader.readAsBinaryString(file);
+           reader.readAsArrayBuffer(file);
            reader.onload = readerEvent => {
               spreadsheetData.resolve(readerEvent.target.result);
            }
