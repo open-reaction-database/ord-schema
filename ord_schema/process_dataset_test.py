@@ -97,6 +97,8 @@ class ProcessDatasetTest(absltest.TestCase):
                                  base='main'):
             process_dataset.main(())
         self.assertTrue(os.path.exists(output))
+        self.assertTrue(
+            os.path.exists(os.path.join(self.test_subdirectory, 'output.pb')))
         dataset = message_helpers.load_message(output, dataset_pb2.Dataset)
         self.assertLen(dataset.reactions, 1)
         self.assertStartsWith(dataset.reactions[0].reaction_id, 'ord-')

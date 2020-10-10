@@ -65,6 +65,8 @@ flags.DEFINE_string('input_file', None,
 flags.DEFINE_boolean('write_errors', False,
                      'If True, errors will be written to <filename>.error.')
 flags.DEFINE_string('output', None, 'Filename for output Dataset.')
+flags.DEFINE_boolean('write_binary', True,
+                     'If True, write a binary version of the output Dataset.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 flags.DEFINE_boolean('update', False, 'If True, update Reaction protos.')
 flags.DEFINE_boolean('cleanup', False, 'If True, use git to clean up.')
@@ -261,6 +263,12 @@ def _run_updates(inputs, datasets):
         cleanup(inputs, output_filename)
     logging.info('writing combined Dataset to %s', output_filename)
     message_helpers.write_message(combined, output_filename)
+    # Write a binary version for fast read/write.
+    root, ext = os.path.splitext(output_filename)
+    if FLAGS.write_binary and ext != '.pb':
+        binary_filename = root + '.pb'
+        logging.info('writing combined Dataset (binary) to %s', binary_filename)
+        message_helpers.write_message(combined, binary_filename)
 
 
 def run():
