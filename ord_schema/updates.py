@@ -14,11 +14,12 @@
 """Automated updates for Reaction messages."""
 
 import datetime
-import uuid
 import re
 import urllib.parse
 import urllib.request
 import urllib.error
+import uuid
+
 from absl import logging
 
 from ord_schema import message_helpers
@@ -35,41 +36,6 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
 
 _USERNAME = 'github-actions'
 _EMAIL = 'github-actions@github.com'
-
-
-def resolve_names(message):
-    """Attempts to resolve compound NAME identifiers to SMILES.
-
-    When a NAME identifier is resolved, a SMILES identifier is added to the list
-    of identifiers for that compound. Note that this function moves on to the
-    next Compound after the first successful name resolution.
-
-    Args:
-        message: Reaction proto.
-
-    Returns:
-        Boolean whether `message` was modified.
-    """
-    modified = False
-    compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
-    for compound in compounds:
-        if any(identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS
-               for identifier in compound.identifiers):
-            continue  # Compound already has a structural identifier.
-        for identifier in compound.identifiers:
-            if identifier.type == identifier.NAME:
-                try:
-                    smiles, resolver = resolvers.name_resolve(
-                        'name', identifier.value)
-                    new_identifier = compound.identifiers.add()
-                    new_identifier.type = new_identifier.SMILES
-                    new_identifier.value = smiles
-                    new_identifier.details = f'NAME resolved by the {resolver}'
-                    modified = True
-                    break
-                except ValueError:
-                    pass
-    return modified
 
 
 def update_reaction(reaction):

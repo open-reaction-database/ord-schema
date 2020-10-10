@@ -146,7 +146,7 @@ function loadDataset(dataset) {
  * @param {!Array<!proto.ord.Reaction>} reactions
  */
 function loadReactions(reactions) {
-  for (var i = 0; i < reactions.length; i++) {
+  for (let i = 0; i < reactions.length; i++) {
     const reaction = reactions[i];
     loadReaction(i, reaction);
   }

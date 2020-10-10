@@ -18,6 +18,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 from absl import logging
+from rdkit import Chem
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
@@ -32,6 +33,24 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
 
 _USERNAME = 'github-actions'
 _EMAIL = 'github-actions@github.com'
+
+
+def canonicalize_smiles(smiles):
+    """Canonicalizes a SMILES string.
+
+    Args:
+        smiles: SMILES string.
+
+    Returns:
+        Canonicalized SMILES string.
+
+    Raises:
+        ValueError: If the SMILES cannot be parsed by RDKit.
+    """
+    mol = Chem.MolFromSmiles(smiles)
+    if not mol:
+        raise ValueError(f'Could not parse SMILES: {smiles}')
+    return Chem.MolToSmiles(mol)
 
 
 def name_resolve(value_type, value):

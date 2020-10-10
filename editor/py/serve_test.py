@@ -36,7 +36,7 @@ class ServeTest(parameterized.TestCase, absltest.TestCase):
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
-        serve.app.config['ORD_EDITOR_DB'] = self.test_subdirectory
+        serve.app.config['ORD_EDITOR_LOCAL'] = self.test_subdirectory
         serve.app.config['TESTING'] = True
         self.client = serve.app.test_client()
         # TODO(kearnes): Use a testdata directory next to this module.

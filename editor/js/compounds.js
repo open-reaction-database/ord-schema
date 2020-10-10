@@ -376,7 +376,7 @@ function addIdentifier(node) {
  *     identifiers should be added.
  */
 function addNameIdentifier(node) {
-  var name = prompt('Compound name: ');
+  const name = prompt('Compound name: ');
   if (!(name)) {
     return;
   }
@@ -480,14 +480,25 @@ function drawIdentifier(node) {
     });
     // Create new identifiers.
     if (ketcher.getSmiles()) {
-      const identifier = new proto.ord.CompoundIdentifier();
-      identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.SMILES);
-      identifier.setValue(ketcher.getSmiles());
-      identifier.setDetails('Drawn with Ketcher');
-      loadIdentifier(node, identifier);
-      identifier.setType(proto.ord.CompoundIdentifier.IdentifierType.MOLBLOCK);
-      identifier.setValue(ketcher.getMolfile());
-      loadIdentifier(node, identifier);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/canonicalize');
+      xhr.responseType = 'json';
+      xhr.onload = function() {
+        const smilesIdentifier = new proto.ord.CompoundIdentifier();
+        smilesIdentifier.setType(
+            proto.ord.CompoundIdentifier.IdentifierType.SMILES);
+        const smiles = xhr.response;
+        smilesIdentifier.setValue(smiles);
+        smilesIdentifier.setDetails('Drawn with Ketcher');
+        loadIdentifier(node, smilesIdentifier);
+      };
+      xhr.send(ketcher.getSmiles());
+      const molfileIdentifier = new proto.ord.CompoundIdentifier();
+      molfileIdentifier.setType(
+          proto.ord.CompoundIdentifier.IdentifierType.MOLBLOCK);
+      molfileIdentifier.setValue(ketcher.getMolfile());
+      molfileIdentifier.setDetails('Drawn with Ketcher');
+      loadIdentifier(node, molfileIdentifier);
     }
     validateCompound(node);
   };
