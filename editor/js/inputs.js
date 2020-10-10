@@ -22,7 +22,8 @@ exports = {
   unload,
   unloadInputUnnamed,
   add,
-  validateInput
+  validateInput,
+  remove,
 };
 
 goog.require('ord.compounds');
@@ -201,15 +202,31 @@ function unloadInputUnnamed(node) {
 /**
  * Adds a reaction input section to the form.
  * @param {!Node} root Parent node for reaction inputs.
+ * @param {?Array<string>} classes Additional classes to add to the new node.
  * @return {!Node} The newly added parent node for the reaction input.
  */
-function add(root) {
+function add(root, classes) {
   const node = ord.reaction.addSlowly('#input_template', root);
+  if (Array.isArray(classes) && classes.length) {
+    node.addClass(classes);
+  }
+  updateSidebar();
   // Add live validation handling.
   ord.reaction.addChangeHandler(node, () => {
     validateInput(node);
   });
+  // Update the sidebar when the input name is changed.
+  const nameNode = node.find('.input_name').first();
+  nameNode.blur(updateSidebar);
   return node;
+}
+
+/**
+ * Removes a reaction input section from the form.
+ * @param {!Node} root Parent node for the input section to be removed.
+ */
+function remove(root) {
+  ord.reaction.removeSlowly(root, '.input', updateSidebar);
 }
 
 /**
@@ -220,4 +237,34 @@ function add(root) {
 function validateInput(node, validateNode) {
   const input = unloadInputUnnamed(node);
   ord.reaction.validate(input, 'ReactionInput', node, validateNode);
+}
+
+/**
+ * Updates the input entries in the sidebar.
+ */
+function updateSidebar() {
+  $('#navInputs').empty();
+  $('.input:visible').not('.workup_input').each(function(index) {
+    const node = $(this);
+    let name = node.find('.input_name').first().text();
+    if (name === '') {
+      name = '(Input #' + (index + 1) + ')';
+    }
+    node.attr('input_name', name);
+    const navNode = $('<div>&#8226; ' + name + '</div>');
+    navNode.addClass('inputNavSection');
+    navNode.attr('input_name', name);
+    $('#navInputs').append(navNode);
+    navNode.click(scrollToInput);
+  });
+}
+
+/**
+ * Scrolls the viewport to the selected input.
+ * @param {!Event} event
+ */
+function scrollToInput(event) {
+  const section = $(event.target).attr('input_name');
+  const target = $('.input[input_name=\'' + section + '\']');
+  target[0].scrollIntoView({behavior: 'smooth'});
 }

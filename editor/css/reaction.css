@@ -19,7 +19,7 @@ body {
   font-family: Roboto;
 }
 #sections {
-  margin-left: 128px;
+  margin-left: 150px;
 }
 #top_buttons {
   text-align: center;
@@ -131,14 +131,20 @@ fieldset {
   margin-top: 10px;
   margin-right: 26px;
   position: fixed;
-  width: 110px;
+  width: 132px;
 }
 .navSection {
   padding: 8px;
   margin-bottom: 4px;
   cursor: pointer;
 }
-.navSection:hover {
+.inputNavSection {
+  padding: 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  font-size: 90%;
+}
+.navSection:hover, .inputNavSection:hover {
   background-color: lightblue;
 }
 .data_uploader .adder {

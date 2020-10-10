@@ -14,12 +14,14 @@
 """Automated updates for Reaction messages."""
 
 import datetime
-import uuid
 import re
 import urllib.parse
 import urllib.request
 import urllib.error
+import uuid
+
 from absl import logging
+from rdkit import Chem
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
@@ -36,13 +38,31 @@ _USERNAME = 'github-actions'
 _EMAIL = 'github-actions@github.com'
 
 
+def canonicalize_smiles(smiles):
+    """Canonicalizes a SMILES string.
+
+    Args:
+        smiles: SMILES string.
+
+    Returns:
+        Canonicalized SMILES string.
+
+    Raises:
+        ValueError: If the SMILES cannot be parsed by RDKit.
+    """
+    mol = Chem.MolFromSmiles(smiles)
+    if not mol:
+        raise ValueError(f'Could not parse SMILES: {smiles}')
+    return Chem.MolToSmiles(mol)
+
+
 def name_resolve(value_type, value):
     """Resolves compound identifiers to SMILES via multiple APIs."""
-    smiles = None
     for resolver, resolver_func in _NAME_RESOLVERS.items():
         try:
             smiles = resolver_func(value_type, value)
             if smiles is not None:
+
                 return smiles, resolver
         except urllib.error.HTTPError as error:
             logging.info('%s could not resolve %s %s: %s', resolver, value_type,

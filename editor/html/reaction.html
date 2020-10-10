@@ -49,6 +49,7 @@ limitations under the License.
       <div class="navSection" data-section="summary">Summary</div>
       <div class="navSection" data-section="identifiers">Identifiers</div>
       <div class="navSection" data-section="inputs">Inputs</div>
+      <div id="navInputs"></div>
       <div class="navSection" data-section="setup">Setup</div>
       <div class="navSection" data-section="conditions">Conditions</div>
       <div class="navSection" data-section="notes">Notes</div>
@@ -95,7 +96,7 @@ limitations under the License.
         </legend>
           <div id="inputs">
 
-            <div id="input_template" class="input" style="display: none;">
+            <div id="input_template" class="section input" style="display: none;">
               <fieldset>
                 <legend>
                   <span class="collapse"></span>
@@ -104,7 +105,7 @@ limitations under the License.
                   <span class="validate" onclick="ord.inputs.validateInput($(this).closest('.input'))"></span>
                </legend>
                 
-                <div onclick="ord.reaction.removeSlowly(this, '.input');" class="remove">remove</div>
+                <div onclick="ord.inputs.remove(this);" class="remove">remove</div>
                 <div>
                   <div class="components"></div>
                   <div onclick="ord.compounds.add($(this).closest('.input'));" class="add">+ add component</div>
@@ -1099,7 +1100,11 @@ limitations under the License.
           }
         });
       }
-      const observer = new IntersectionObserver(observerCallback);
+      const headerSize = $('#header').outerHeight();
+      let observerOptions = {
+          rootMargin: '-' + headerSize + 'px 0px 0px 0px'
+      }
+      const observer = new IntersectionObserver(observerCallback, observerOptions);
 
       $('.section').each(function(index) {
         observer.observe(this);
