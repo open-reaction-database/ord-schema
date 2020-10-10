@@ -11,10 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Automated updates for Reaction messages."""
+"""Name/string resolution to structured messages or identifiers."""
 
-import datetime
-import uuid
 import re
 import urllib.parse
 import urllib.request
@@ -22,7 +20,6 @@ import urllib.error
 from absl import logging
 
 from ord_schema import message_helpers
-from ord_schema import units
 from ord_schema.proto import reaction_pb2
 
 _COMPOUND_STRUCTURAL_IDENTIFIERS = [
@@ -133,7 +130,6 @@ def resolve_input(input_string):
         ValueError: if the string cannot be parsed properly.
     """
     reaction_input = reaction_pb2.ReactionInput()
-    unit_resolver = units.UnitResolver()
     if ' of ' not in input_string:
         raise ValueError('String does not match template!')
     amount_string, description = input_string.split(' of ')
@@ -144,26 +140,25 @@ def resolve_input(input_string):
             name=component_name.strip(), amount=amount_string))
         resolve_names(reaction_input)
         return reaction_input
-    else:
-        pattern = re.compile(r'(\d+.?\d*)\s*(\w+) (.*) in (.*)')
-        match = pattern.fullmatch(description.strip())
-        if not match:
-            raise ValueError('String did not match template!')
-        conc_value, conc_units, solute_name, solvent_name = match.groups()
-        solute = reaction_input.components.add()
-        solvent = reaction_input.components.add()
-        solute.CopyFrom(message_helpers.build_compound(\
-            name=solute_name.strip()))
-        solvent.CopyFrom(message_helpers.build_compound(
-            name=solvent_name.strip(), amount=amount_string))
-        if solvent.WhichOneof('amount') != 'volume':
-            raise ValueError('Total amount of solution must be a volume!')
-        solvent.volume_includes_solutes = True
-        message_helpers.set_solute_moles(solute,
-                                         [solvent],
-                                         f'{conc_value} {conc_units}')
-        resolve_names(reaction_input)
-        return reaction_input
+    pattern = re.compile(r'(\d+.?\d*)\s*(\w+) (.*) in (.*)')
+    match = pattern.fullmatch(description.strip())
+    if not match:
+        raise ValueError('String did not match template!')
+    conc_value, conc_units, solute_name, solvent_name = match.groups()
+    solute = reaction_input.components.add()
+    solvent = reaction_input.components.add()
+    solute.CopyFrom(message_helpers.build_compound(\
+        name=solute_name.strip()))
+    solvent.CopyFrom(message_helpers.build_compound(
+        name=solvent_name.strip(), amount=amount_string))
+    if solvent.WhichOneof('amount') != 'volume':
+        raise ValueError('Total amount of solution must be a volume!')
+    solvent.volume_includes_solutes = True
+    message_helpers.set_solute_moles(solute,
+                                     [solvent],
+                                     f'{conc_value} {conc_units}')
+    resolve_names(reaction_input)
+    return reaction_input
 
 
 # Standard name resolvers.
