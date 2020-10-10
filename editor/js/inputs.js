@@ -65,7 +65,8 @@ function loadInput(root, name, input) {
  * @param {!Node} root Root node for the reaction input.
  */
 function addInputByString(root) {
-  const string = prompt(`Please describe the input in one of the following forms:
+  const string =
+      prompt(`Please describe the input in one of the following forms:
 (1) [AMOUNT] of [NAME]
 (2) [AMOUNT] of [CONCENTRATION] [SOLUTE] in [SOLVENT]`);
   if (!(string)) {
