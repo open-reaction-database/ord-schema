@@ -15,12 +15,32 @@
 
 from absl.testing import absltest
 from absl.testing import parameterized
+from rdkit import Chem
 
 from ord_schema import resolvers
 from ord_schema.proto import reaction_pb2
 
 
-class ResolversTest(parameterized.TestCase, absltest.TestCase):
+class NameResolversTest(absltest.TestCase):
+
+    def test_resolve_names(self):
+        roundtrip_smi = lambda smi: Chem.MolToSmiles(Chem.MolFromSmiles(smi))
+        message = reaction_pb2.Reaction()
+        message.inputs['test'].components.add().identifiers.add(type='NAME',
+                                                                value='aspirin')
+        self.assertTrue(resolvers.resolve_names(message))
+        resolved_smi = roundtrip_smi(
+            message.inputs['test'].components[0].identifiers[1].value)
+        self.assertEqual(resolved_smi, roundtrip_smi('CC(=O)Oc1ccccc1C(O)=O'))
+        self.assertEqual(
+            message.inputs['test'].components[0].identifiers[1].type,
+            reaction_pb2.CompoundIdentifier.IdentifierType.SMILES)
+        self.assertRegex(
+            message.inputs['test'].components[0].identifiers[1].details,
+            'NAME resolved')
+
+
+class InputResolversTest(parameterized.TestCase, absltest.TestCase):
 
     def test_input_resolve(self):
         string = '10 g of THF'

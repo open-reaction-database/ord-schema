@@ -15,14 +15,8 @@
 
 import datetime
 import re
-import urllib.parse
-import urllib.request
-import urllib.error
 import uuid
 
-from absl import logging
-
-from ord_schema import message_helpers
 from ord_schema import resolvers
 from ord_schema.proto import reaction_pb2
 
