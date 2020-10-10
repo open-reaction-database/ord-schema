@@ -32,7 +32,6 @@ from google.protobuf import text_format
 
 from ord_schema import dataset_templating
 from ord_schema import message_helpers
-from ord_schema import updates
 from ord_schema import resolvers
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
