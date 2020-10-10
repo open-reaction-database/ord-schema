@@ -23,7 +23,7 @@ exports = {
   unloadInputUnnamed,
   add,
   validateInput,
-  addInputByString
+  addInputByString,
   remove,
 };
 

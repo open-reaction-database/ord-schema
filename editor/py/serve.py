@@ -370,7 +370,7 @@ def canonicalize_smiles():
 def _canonicalize_smiles(smiles):
     """Canonicalizes a SMILES string."""
     try:
-        return updates.canonicalize_smiles(smiles)
+        return resolvers.canonicalize_smiles(smiles)
     except ValueError:
         return smiles  # Return the original SMILES on failure.
 
