@@ -134,6 +134,8 @@ def resolve_input(input_string):
     """
     reaction_input = reaction_pb2.ReactionInput()
     unit_resolver = units.UnitResolver()
+    if ' of ' not in input_string:
+        raise ValueError('String does not match template!')
     amount_string, description = input_string.split(' of ')
     if ' in ' not in description:
         component_name = description
