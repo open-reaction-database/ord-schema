@@ -586,8 +586,10 @@ function addSlowly(template, root) {
  * Removes from the DOM the nearest ancestor element matching the pattern.
  * @param {string} button The element from which to start the search.
  * @param {string} pattern The pattern for the element to remove.
+ * @param {?function(): undefined} callback Function to execute in the
+ *  callback to hide().
  */
-function removeSlowly(button, pattern) {
+function removeSlowly(button, pattern, callback) {
   const node = $(button).closest(pattern);
   // Must call necessary validators only after the node is removed,
   // but we can only figure out which validators these are before removal.
@@ -601,6 +603,9 @@ function removeSlowly(button, pattern) {
   node.hide('slow', function() {
     node.remove();
     buttonsToClick.trigger('click');
+    if (callback !== undefined) {
+      callback();
+    }
   });
   dirty();
 }
