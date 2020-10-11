@@ -28,8 +28,8 @@ services:
   db:
     image: "postgres"
     environment:
-      POSTGRES_PASSWORD: "${ORD_EDITOR_POSTGRES_PASSWORD}"
       PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_PASSWORD: "${ORD_EDITOR_POSTGRES_PASSWORD}"
     volumes:
       - "${ORD_EDITOR_MOUNT}:/var/lib/postgresql/data"
     ports:
@@ -38,10 +38,8 @@ services:
     depends_on:
       - db
     environment:
-      ORD_EDITOR_LOCAL: db
       POSTGRES_HOST: db
       POSTGRES_PASSWORD: "${ORD_EDITOR_POSTGRES_PASSWORD}"
-      POSTGRES_PORT: 5432
     image: "openreactiondatabase/ord-editor"
     ports:
       - "5000:5000"

@@ -46,15 +46,16 @@ from ord_schema.visualization import drawing
 
 import migrate
 
+
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
 app.config['ORD_EDITOR_LOCAL'] = os.path.abspath(
     os.getenv('ORD_EDITOR_LOCAL', 'db'))
 
 
-# Defaults are set for local development.
+# Defaults for development, overridden in docker-compose.yml.
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'localhost')
-POSTGRES_PORT = os.getenv('POSTGRES_PORT', 5430)
+POSTGRES_PORT = os.getenv('POSTGRES_PORT', 5432)
 POSTGRES_USER = os.getenv('POSTGRES_USER', 'postgres')
 POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', '')
 
@@ -291,9 +292,9 @@ def write_dataset(name):
     return 'ok'
 
 
-@app.route('/dataset/proto/upload/<file_name>/<token>', methods=['POST'])
-def write_upload(file_name, token):
-    """Writes the POST body, names it <token>, and maybe updates <file_name>.
+@app.route('/dataset/proto/upload/<name>/<token>', methods=['POST'])
+def write_upload(name, token):
+    """Writes the POST body, names it <token>, and maybe updates the dataset.
 
     This is part of the upload mechanism. Fields named "bytes_value" can be
     populated only through browser file uploads (e.g. images), and the binary
@@ -305,20 +306,20 @@ def write_upload(file_name, token):
     Datasets protos and their bytes_values are reunited in resolve_tokens().
 
     Args:
-        file_name: The .pbtxt containing the Dataset that owns the upload.
+        name: The dataset that owns the uploaded asset.
         token: The bytes_value placeholder used in pbtxt to reference the
             upload.
 
     Returns:
-        A 200 response when the file was written.
+        A 200 response.
     """
     path = get_path(token)
     with open(path, 'wb') as upload:
         upload.write(flask.request.get_data())
-    with lock(file_name):
+    with lock(name):
         dataset = get_dataset(name)
         if resolve_tokens(dataset):
-            put_dataset(file_name, dataset)
+            put_dataset(name, dataset)
     return 'ok'
 
 
@@ -746,9 +747,9 @@ def init_user():
     """Connects to the DB and authenticates the user."""
     flask.g.db = psycopg2.connect(dbname='editor',
                                   user=POSTGRES_USER,
+                                  password=POSTGRES_PASSWORD,
                                   host=POSTGRES_HOST,
-                                  port=POSTGRES_PORT,
-                                  password=POSTGRES_PASSWORD)
+                                  port=POSTGRES_PORT)
     if flask.request.path in ('/login', '/authenticate'):
         return
     access_token = flask.request.cookies.get('Access-Token')
