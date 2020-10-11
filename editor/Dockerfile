@@ -66,4 +66,8 @@ RUN python setup.py install
 WORKDIR /usr/src/app/ord-schema/editor
 RUN make
 EXPOSE 5000
-CMD gunicorn py.serve:app -b 0.0.0.0:5000 --access-logfile '-'
+# TODO(kearnes): Remove timeout after we fix editor review latency.
+CMD gunicorn py.serve:app \
+    -b 0.0.0.0:5000 \
+    --access-logfile '-' \
+    --timeout 60
