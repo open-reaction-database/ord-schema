@@ -47,23 +47,19 @@ from ord_schema.visualization import drawing
 
 import migrate
 
-
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
-
 
 # For dataset merges operations like byte-value uploads and enumeration.
 TEMP = '/tmp/ord-editor'
 if not os.path.isdir(TEMP):
     os.mkdir(TEMP)
 
-
 # Defaults for development, overridden in docker-compose.yml.
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'localhost')
 POSTGRES_PORT = os.getenv('POSTGRES_PORT', 5432)
 POSTGRES_USER = os.getenv('POSTGRES_USER', 'postgres')
 POSTGRES_PASS = os.getenv('POSTGRES_PASS', '')
-
 
 # System user for immutable reactions imported from GitHub pull requests.
 REVIEWER = '8df09572f3c74dbcb6003e2eef8e48fc'
@@ -82,13 +78,14 @@ def show_datasets():
     """Lists all the user's pbtxts in the datasets table."""
     names = []
     with flask.g.db.cursor() as cursor:
-      query = psycopg2.sql.SQL(
-          'SELECT dataset_name FROM datasets WHERE user_id=%s')
-      cursor.execute(query, [flask.g.user_id])
-      for row in cursor:
-          names.append(row[0])
-    return flask.render_template(
-        'datasets.html', names=sorted(names), user_id=flask.g.user_id)
+        query = psycopg2.sql.SQL(
+            'SELECT dataset_name FROM datasets WHERE user_id=%s')
+        cursor.execute(query, [flask.g.user_id])
+        for row in cursor:
+            names.append(row[0])
+    return flask.render_template('datasets.html',
+                                 names=sorted(names),
+                                 user_id=flask.g.user_id)
 
 
 @app.route('/dataset/<name>')
@@ -100,8 +97,10 @@ def show_dataset(name):
         reactions.append(reaction.identifiers)
     # Datasets belonging to the "review" user are immutable.
     freeze = flask.g.user_id == REVIEWER
-    return flask.render_template(
-        'dataset.html', name=name, freeze=freeze, user_id=flask.g.user_id)
+    return flask.render_template('dataset.html',
+                                 name=name,
+                                 freeze=freeze,
+                                 user_id=flask.g.user_id)
 
 
 @app.route('/dataset/<name>/download')
@@ -125,9 +124,9 @@ def upload_dataset(name):
         query = psycopg2.sql.SQL('INSERT INTO datasets VALUES (%s, %s, %s)')
         pbtxt = flask.request.get_data().decode('utf-8')
         dataset = dataset_pb2.Dataset()
-        text_format.Parse(pbtxt, dataset) # Validate.
+        text_format.Parse(pbtxt, dataset)  # Validate.
         user_id = flask.g.user_id
-        cursor.execute(query, [user_id, name, pbtxt]) 
+        cursor.execute(query, [user_id, name, pbtxt])
         flask.g.db.commit()
     return 'ok'
 
@@ -141,7 +140,7 @@ def new_dataset(name):
     with flask.g.db.cursor() as cursor:
         query = psycopg2.sql.SQL('INSERT INTO datasets VALUES (%s, %s, %s)')
         user_id = flask.g.user_id
-        cursor.execute(query, [user_id, name, '']) 
+        cursor.execute(query, [user_id, name, ''])
         flask.g.db.commit()
     return 'ok'
 
@@ -203,9 +202,11 @@ def show_reaction(name, index):
         flask.abort(404)
     # Reactions belonging to the "review" user are immutable.
     freeze = flask.g.user_id == REVIEWER
-    return flask.render_template(
-        'reaction.html', name=name, index=index, freeze=freeze,
-        user_id=flask.g.user_id)
+    return flask.render_template('reaction.html',
+                                 name=name,
+                                 index=index,
+                                 freeze=freeze,
+                                 user_id=flask.g.user_id)
 
 
 @app.route('/reaction/download', methods=['POST'])
@@ -522,7 +523,6 @@ def show_submissions():
                                  pull_requests=pull_requests)
 
 
-
 @app.route('/review/sync')
 def sync_reviews():
     """Import all current pull requests into the datasets table.
@@ -545,8 +545,8 @@ def sync_reviews():
                 if not remote.filename.endswith('.pbtxt'):
                     continue
                 pbtxt = requests.get(remote.raw_url).text
-                name = 'PR_%d “%s” %s' % (
-                    pr.number, pr.title, remote.filename[:-6])
+                name = 'PR_%d “%s” %s' % (pr.number, pr.title,
+                                          remote.filename[:-6])
                 query = psycopg2.sql.SQL(
                     'INSERT INTO datasets VALUES (%s, %s, %s)')
         cursor.execute(query, [user_id, name, pbtxt])

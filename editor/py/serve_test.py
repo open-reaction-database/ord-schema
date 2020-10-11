@@ -28,7 +28,6 @@ from ord_schema.proto import reaction_pb2
 
 import serve  # pylint: disable=import-error,wrong-import-order
 
-
 # These temporary datasets are leaked by tests and must be deleted in setUp().
 DATASETS = [
     'dataset',

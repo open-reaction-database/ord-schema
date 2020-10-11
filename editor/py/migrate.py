@@ -37,8 +37,10 @@ def migrate_one(user, name, db):
 
 def migrate_all():
     """Run as a script, copies the entire contents of the db/ directory."""
-    with psycopg2.connect(
-        dbname='editor', host='localhost', port=5432, user='postgres') as db:
+    with psycopg2.connect(dbname='editor',
+                          host='localhost',
+                          port=5432,
+                          user='postgres') as db:
         for user_id in os.listdir('db'):
             if re.match('^[0-9a-fA-F]{32}$', user_id) is None:
                 continue
@@ -54,4 +56,4 @@ def migrate_all():
 
 
 if __name__ == '__main__':
-  sys.exit(migrate_all())
+    sys.exit(migrate_all())
