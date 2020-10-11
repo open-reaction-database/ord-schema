@@ -1087,62 +1087,20 @@ limitations under the License.
     </div>
 
     <script>
-      // Intersection observer for updating the current location in the sidebar
-      // as the user scrolls on the page.
-      function observerCallback(entries) {
-        entries.forEach(entry => {
-          const section = $(entry.target).attr('id').split('_')[1];
-          if (entry.isIntersecting) {
-            setSelected(section);
-          } else {
-            clearSelected(section);
-          }
-        });
-      }
-      const headerSize = $('#header').outerHeight();
-      let observerOptions = {
-          rootMargin: '-' + headerSize + 'px 0px 0px 0px'
-      }
-      const observer = new IntersectionObserver(observerCallback, observerOptions);
-
-      $('.section').each(function(index) {
-        observer.observe(this);
-      });
-
-      // Index the selector controls.
-      const navSelectors = {};
-      $('.navSection').each((index, selector) => {
-        selector = $(selector);
-        const section = selector.attr('data-section');
-        navSelectors[section] = selector;
-      });
-
-      // Navigate to the given section of the form.
-      function setSelected(section) {
-        navSelectors[section].css('background-color', 'lightblue');
-      }
-      function clearSelected(section) {
-        navSelectors[section].css('background-color', '');
-      }
-
-      $('.navSection').click(event => {
-        const section = $(event.target).attr('data-section');
-        $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
-      });
-
-      // Handle initialization.
-      if (location.hash) {
-        const section = location.hash.replace('#', '');
-        $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
-      }
-    </script>
-
-    <script>
         document.body.onload = async function () {
           await ord.reaction.init('{{ file_name }}', {{ index }});
+          $('.navSection').click(event => {
+            const section = $(event.target).attr('data-section');
+            $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
+          });
+          ord.reaction.setupObserver();
           const urlParams = new URLSearchParams(window.location.search);
           if (urlParams.get('user').startsWith('.review')) {
             ord.reaction.freeze();
+          }
+          if (location.hash) {
+            const section = location.hash.replace('#', '');
+            $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
           }
         };
     </script>
