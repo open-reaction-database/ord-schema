@@ -66,5 +66,4 @@ RUN python setup.py install
 WORKDIR /usr/src/app/ord-schema/editor
 RUN make
 EXPOSE 5000
-ENV PYTHONPATH=py
 CMD gunicorn py.serve:app -b 0.0.0.0:5000 --access-logfile '-'
