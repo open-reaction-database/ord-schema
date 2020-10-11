@@ -47,6 +47,15 @@ CREATE TABLE datasets (
   PRIMARY KEY (user_id, dataset_name)
 );
 
+CREATE TABLE revisions (
+  user_id CHARACTER(32) REFERENCES users,
+  dataset_name TEXT NOT NULL,
+  pbtxt TEXT NOT NULL,
+  timestamp INTEGER NOT NULL,
+  FOREIGN KEY (user_id, dataset_name)
+      REFERENCES datasets (user_id, dataset_name)
+);
+
 -- System users:
 --   "review" owns read-only datasets imported from GitHub pull requests.
 --   "test" owns datasets imported from db/ and used only in tests.

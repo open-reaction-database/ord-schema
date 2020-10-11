@@ -15,6 +15,7 @@
 
 import collections
 import contextlib
+import datetime
 import difflib
 import fcntl
 import io
@@ -546,6 +547,65 @@ def sync_reviews():
         cursor.execute(query, [user_id, name, pbtxt])
     flask.g.db.commit()
     return flask.redirect('/review')
+
+
+@app.route('/revisions/<name>')
+def show_revisions(name):
+    """List all historical revisions of a dataset for download."""
+    # Offset relative to UTC, for localized timestamp representation.
+    hours = 0
+    if 'tz' in flask.request.args:
+      hours = int(flask.request.args.get('tz'))
+    revisions = []
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL(
+            'SELECT timestamp FROM revisions '
+            'WHERE user_id=%s and dataset_name=%s '
+            'ORDER BY timestamp DESC')
+        user_id = flask.g.user_id
+        cursor.execute(query, [user_id, name])
+        for row in cursor:
+            timestamp = int(row[0])
+            localtime = (datetime.datetime.utcfromtimestamp(timestamp)
+                - datetime.timedelta(hours=hours)).strftime('%Y-%m-%d %H:%M:%S')
+            revisions.append((localtime, timestamp))
+    return flask.render_template(
+        'revisions.html', name=name, revisions=revisions, user_id=user_id)
+
+
+@app.route('/checkpoint/<name>', methods=['POST'])
+def checkpoint(name):
+    """Append a dataset to the "revisions" list."""
+    dataset = dataset_pb2.Dataset()
+    dataset.ParseFromString(flask.request.get_data())
+    resolve_tokens(dataset)
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL(
+            'INSERT INTO revisions VALUES (%s, %s, %s, %s)')
+        timestamp = int(time.time())
+        user_id = flask.g.user_id
+        pbtxt = text_format.MessageToString(dataset, as_utf8=True)
+        cursor.execute(query, [user_id, name, pbtxt, timestamp])
+        flask.g.db.commit()
+    return 'ok'
+
+
+@app.route('/revision/<name>/<timestamp>')
+def download_revision(name, timestamp):
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL(
+            'SELECT pbtxt FROM revisions '
+            'WHERE user_id=%s AND dataset_name=%s AND timestamp=%s')
+        user_id = flask.g.user_id
+        cursor.execute(query, [user_id, name, int(timestamp)])
+        if cursor.rowcount == 0:
+            flask.abort(404)
+        pbtxt = cursor.fetchone()[0]
+    data = io.BytesIO(pbtxt.encode('utf8'))
+    return flask.send_file(data,
+                           mimetype='application/protobuf',
+                           as_attachment=True,
+                           attachment_filename=f'{name}-{timestamp}.pbtxt')
 
 
 @app.after_request
