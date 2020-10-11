@@ -39,7 +39,7 @@ services:
       - db
     environment:
       POSTGRES_HOST: db
-      POSTGRES_PASSWORD: "${ORD_EDITOR_POSTGRES_PASSWORD}"
+      POSTGRES_PASS: "${ORD_EDITOR_POSTGRES_PASSWORD}"
     image: "openreactiondatabase/ord-editor"
     ports:
       - "5000:5000"

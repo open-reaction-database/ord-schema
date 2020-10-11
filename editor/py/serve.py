@@ -27,6 +27,7 @@ import re
 import requests
 import shutil
 import subprocess
+import tempfile
 import time
 import urllib
 import uuid
@@ -49,15 +50,19 @@ import migrate
 
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
-app.config['ORD_EDITOR_LOCAL'] = os.path.abspath(
-    os.getenv('ORD_EDITOR_LOCAL', 'db'))
+
+
+# For dataset merges operations like byte-value uploads and enumeration.
+TEMP = '/tmp/ord-editor'
+if not os.path.isdir(TEMP):
+    os.mkdir(TEMP)
 
 
 # Defaults for development, overridden in docker-compose.yml.
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'localhost')
 POSTGRES_PORT = os.getenv('POSTGRES_PORT', 5432)
 POSTGRES_USER = os.getenv('POSTGRES_USER', 'postgres')
-POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', '')
+POSTGRES_PASS = os.getenv('POSTGRES_PASS', '')
 
 
 # System user for immutable reactions imported from GitHub pull requests.
@@ -662,8 +667,19 @@ def get_file(path):
     return data
 
 
-def get_path(file_name, suffix='.pbtxt'):
-    """Returns a safe path in the editor filesystem.
+def get_user_path():
+    """Returns the path of the current user's temp directory.
+
+    Uses flask.safe_join to check for directory traversal attacks.
+
+    Returns:
+        Path to the user directory.
+    """
+    return flask.safe_join(TEMP, flask.g.user_id)
+
+
+def get_path(file_name, suffix=''):
+    """Returns a safe path in the user's temp directory.
 
     Uses flask.safe_join to check for directory traversal attacks.
 
@@ -674,19 +690,7 @@ def get_path(file_name, suffix='.pbtxt'):
     Returns:
         Path to the requested file.
     """
-    return flask.safe_join(app.config['ORD_EDITOR_LOCAL'], flask.g.user_id,
-                           f'{file_name}{suffix}')
-
-
-def get_user_path():
-    """Checks that a username results in a valid path in the editor filesystem.
-
-    Uses flask.safe_join to check for directory traversal attacks.
-
-    Returns:
-        Path to the user directory.
-    """
-    return flask.safe_join(app.config['ORD_EDITOR_LOCAL'], flask.g.user_id)
+    return flask.safe_join(get_user_path(), f'{file_name}{suffix}')
 
 
 def exists_dataset(name):
@@ -747,7 +751,7 @@ def init_user():
     """Connects to the DB and authenticates the user."""
     flask.g.db = psycopg2.connect(dbname='editor',
                                   user=POSTGRES_USER,
-                                  password=POSTGRES_PASSWORD,
+                                  password=POSTGRES_PASS,
                                   host=POSTGRES_HOST,
                                   port=POSTGRES_PORT)
     if flask.request.path in ('/login', '/authenticate'):
@@ -766,6 +770,9 @@ def init_user():
                 return flask.redirect(f'/login')
             user_id = cursor.fetchone()[0]
     flask.g.user_id = user_id
+    temp = get_user_path()
+    if not os.path.isdir(temp):
+        os.mkdir(temp)
 
 
 @app.route('/logout')

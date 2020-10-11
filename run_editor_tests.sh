@@ -23,7 +23,7 @@
 export PGPASSWORD="$ORD_EDITOR_POSTGRES_PASSWORD"
 
 # The Flask app in absltest gets its Postgres password like this.
-export POSTGRES_PASSWORD="$ORD_EDITOR_POSTGRES_PASSWORD"
+export POSTGRES_PASS="$ORD_EDITOR_POSTGRES_PASSWORD"
 
 # Postgres puts its files here, via docker-compose.yml.
 export ORD_EDITOR_MOUNT=/tmp/editor-postgres
@@ -61,8 +61,7 @@ status=0
 node editor/js/test.js
 [ $? -eq 0 ] || status=1
 
-# Python tests run with Flask the test environment, not a container.
-export ORD_EDITOR_LOCAL=editor/db
+# Python tests run Flask in the test environment, not a container.
 python editor/py/serve_test.py
 [ $? -eq 0 ] || status=1
 
