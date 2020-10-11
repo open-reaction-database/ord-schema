@@ -37,6 +37,7 @@ jobs:
     - name: Run tests
       run: |
         cd "${GITHUB_WORKSPACE}"
+        export ORD_EDITOR_POSTGRES_PASSWORD=test
         ./run_tests.sh
     - name: Run long tests
       run: |
@@ -79,5 +80,5 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         npm install puppeteer
-        export POSTGRES_HOST_AUTH_METHOD=trust
+        export ORD_EDITOR_POSTGRES_PASSWORD=test
         ./run_editor_tests.sh

@@ -53,7 +53,7 @@ if not os.path.isdir(TEMP):
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'localhost')
 POSTGRES_PORT = os.getenv('POSTGRES_PORT', '5432')
 POSTGRES_USER = os.getenv('POSTGRES_USER', 'postgres')
-POSTGRES_PASS = os.getenv('POSTGRES_PASS', '')
+POSTGRES_PASS = os.getenv('POSTGRES_PASSWORD', '')
 
 # System user for immutable reactions imported from GitHub pull requests.
 REVIEWER = '8df09572f3c74dbcb6003e2eef8e48fc'

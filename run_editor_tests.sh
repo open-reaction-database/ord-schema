@@ -15,6 +15,8 @@
 
 # Runs editor tests in python and JS.
 
+set -e
+
 # The Postgres Docker container gets its password like this.
 [ "$ORD_EDITOR_POSTGRES_PASSWORD" != "" ] || \
     ( echo "*** missing ORD_EDITOR_POSTGRES_PASSWORD ***" && false )
@@ -23,7 +25,7 @@
 export PGPASSWORD="$ORD_EDITOR_POSTGRES_PASSWORD"
 
 # The Flask app in absltest gets its Postgres password like this.
-export POSTGRES_PASS="$ORD_EDITOR_POSTGRES_PASSWORD"
+export POSTGRES_PASSWORD="$ORD_EDITOR_POSTGRES_PASSWORD"
 
 # Postgres puts its files here, via docker-compose.yml.
 export ORD_EDITOR_MOUNT=/tmp/editor-postgres
@@ -31,9 +33,9 @@ export ORD_EDITOR_MOUNT=/tmp/editor-postgres
 # Clear any leftover database state.
 rm -rf $ORD_EDITOR_MOUNT && mkdir $ORD_EDITOR_MOUNT
 
-set -e
 docker build --file=editor/Dockerfile -t openreactiondatabase/ord-editor .
 docker-compose -f editor/docker-compose.yml up &
+
 set +e
 
 # Wait for the database to become available.
