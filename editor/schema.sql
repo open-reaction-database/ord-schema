@@ -36,12 +36,12 @@ CREATE TABLE users (
 
 CREATE TABLE logins (
   access_token TEXT PRIMARY KEY,
-  user_id CHARACTER(32) REFERENCES USERS,
+  user_id CHARACTER(32) REFERENCES users,
   timestamp INTEGER NOT NULL
 );
 
 CREATE TABLE datasets (
-  user_id CHARACTER(32) REFERENCES USERS,
+  user_id CHARACTER(32) REFERENCES users,
   dataset_name TEXT NOT NULL,
   pbtxt TEXT NOT NULL,
   PRIMARY KEY (user_id, dataset_name)

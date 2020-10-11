@@ -760,7 +760,9 @@ def init_user():
             "SELECT user_id FROM logins WHERE access_token=%s")
         cursor.execute(query, [access_token])
         if cursor.rowcount == 0:
-            return flask.redirect('/login')
+            # Automatically login as a new user.
+            user_id = make_user()
+            return issue_access_token(user_id)
         user_id = cursor.fetchone()[0]
     flask.g.user_id = user_id
     temp = get_user_path()
