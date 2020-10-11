@@ -79,4 +79,5 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         npm install puppeteer
+        export POSTGRES_HOST_AUTH_METHOD=trust
         ./run_editor_tests.sh
