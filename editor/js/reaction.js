@@ -620,6 +620,8 @@ function addSlowly(template, root) {
  *  callback to hide().
  */
 function removeSlowly(button, pattern, callback) {
+  // Always checkpoint the Dataset before deleting anything.
+  checkpoint();
   const node = $(button).closest(pattern);
   // Must call necessary validators only after the node is removed,
   // but we can only figure out which validators these are before removal.
