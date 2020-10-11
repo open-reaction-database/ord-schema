@@ -131,9 +131,9 @@ limitations under the License.
     <script>
         document.body.onload = function() {
           ord.dataset.init('{{ name }}');
-          if ({{ freeze }}) {
+          {% if freeze %}
             ord.datset.freeze();
-          }
+          {% endif %}
         };
     </script>
   </body>

@@ -1141,9 +1141,9 @@ limitations under the License.
     <script>
         document.body.onload = async function () {
           await ord.reaction.init('{{ name }}', {{ index }});
-          if ({{ freeze }}) {
-            ord.reaction.freeze();
-          }
+          {% if freeze %}
+            ord.datset.freeze();
+          {% endif %}
         };
     </script>
 
