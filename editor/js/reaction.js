@@ -975,7 +975,7 @@ function freeze() {
 /**
  * Highlights navigation buttons in the sidebar corresponding to visible
  * sections. Used as a callback function for the IntersectionObserver.
- * @param {!Array<IntersectionObserverEntry>} entries
+ * @param {!Array<!IntersectionObserverEntry>} entries
  */
 function observerCallback(entries) {
   entries.forEach(entry => {
