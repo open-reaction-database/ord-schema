@@ -15,24 +15,22 @@
 """Slurp the local db/ directory contents into Postgres."""
 
 import os
-import psycopg2
-import psycopg2.sql
 import re
 import sys
 import time
 
+import psycopg2
+import psycopg2.sql
 
-def migrate_one(user, name, db):
-    """Slurp one dataset from the db/ directory into Postgres."""
-    for name in os.listdir(f'db/{user}'):
-        if not name.endswith('.pbtxt'):
-            continue
-        pbtxt = open(f'db/{user}/{name}').read()
-        query = psycopg2.sql.SQL(
-            'INSERT INTO datasets VALUES (%s, %s, %s) '
-            'ON CONFLICT (user_id, dataset_name) DO UPDATE SET pbtxt=%s')
-        with db.cursor() as cursor:
-            cursor.execute(query, [user, name[:-6], pbtxt, pbtxt])
+
+def migrate_one(user_id, name, conn):
+    """Slurp one named dataset from the db/ directory into Postgres."""
+    pbtxt = open(f'db/{user_id}/{name}').read()
+    query = psycopg2.sql.SQL(
+        'INSERT INTO datasets VALUES (%s, %s, %s) '
+        'ON CONFLICT (user_id, dataset_name) DO UPDATE SET pbtxt=%s')
+    with conn.cursor() as cursor:
+        cursor.execute(query, [user_id, name[:-6], pbtxt, pbtxt])
 
 
 def migrate_all():
@@ -40,19 +38,19 @@ def migrate_all():
     with psycopg2.connect(dbname='editor',
                           host='localhost',
                           port=5432,
-                          user='postgres') as db:
+                          user='postgres') as conn:
         for user_id in os.listdir('db'):
             if re.match('^[0-9a-fA-F]{32}$', user_id) is None:
                 continue
             query = psycopg2.sql.SQL(
                 'INSERT INTO users VALUES (%s, %s, %s) ON CONFLICT DO NOTHING')
-            with db.cursor() as cursor:
+            with conn.cursor() as cursor:
                 timestamp = int(time.time())
                 cursor.execute(query, [user_id, user_id, timestamp])
             for name in os.listdir(f'db/{user_id}'):
                 if not name.endswith('.pbtxt'):
                     continue
-                migrate_one(user_id, name, db)
+                migrate_one(user_id, name, conn)
 
 
 if __name__ == '__main__':

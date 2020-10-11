@@ -21,20 +21,16 @@ import io
 import json
 import os
 import pprint
-import psycopg2
-import psycopg2.sql
 import re
-import requests
-import shutil
-import subprocess
-import tempfile
 import time
-import urllib
 import uuid
 
 import flask
 import github
 from google.protobuf import text_format
+import psycopg2
+import psycopg2.sql
+import requests
 
 from ord_schema import templating
 from ord_schema import message_helpers
@@ -44,8 +40,6 @@ from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 from ord_schema.visualization import generate_text
 from ord_schema.visualization import drawing
-
-import migrate
 
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
@@ -57,7 +51,7 @@ if not os.path.isdir(TEMP):
 
 # Defaults for development, overridden in docker-compose.yml.
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'localhost')
-POSTGRES_PORT = os.getenv('POSTGRES_PORT', 5432)
+POSTGRES_PORT = os.getenv('POSTGRES_PORT', '5432')
 POSTGRES_USER = os.getenv('POSTGRES_USER', 'postgres')
 POSTGRES_PASS = os.getenv('POSTGRES_PASS', '')
 
@@ -724,7 +718,7 @@ def authenticate():
 def issue_access_token(user_id):
     """Login as the given user and set the access token in a response."""
     with flask.g.db.cursor() as cursor:
-        query = psycopg2.sql.SQL(f'INSERT INTO logins VALUES (%s, %s, %s)')
+        query = psycopg2.sql.SQL('INSERT INTO logins VALUES (%s, %s, %s)')
         access_token = uuid.uuid4().hex
         timestamp = int(time.time())
         cursor.execute(query, [access_token, user_id, timestamp])
@@ -738,7 +732,7 @@ def issue_access_token(user_id):
 def make_user(name='auto'):
     """Writes a new user ID and returns it."""
     with flask.g.db.cursor() as cursor:
-        query = psycopg2.sql.SQL(f'INSERT INTO users VALUES (%s, %s, %s)')
+        query = psycopg2.sql.SQL('INSERT INTO users VALUES (%s, %s, %s)')
         user_id = uuid.uuid4().hex
         timestamp = int(time.time())
         cursor.execute(query, [user_id, name, timestamp])
@@ -753,7 +747,7 @@ def init_user():
                                   user=POSTGRES_USER,
                                   password=POSTGRES_PASS,
                                   host=POSTGRES_HOST,
-                                  port=POSTGRES_PORT)
+                                  port=int(POSTGRES_PORT))
     if flask.request.path in ('/login', '/authenticate'):
         return
     access_token = flask.request.cookies.get('Access-Token')
@@ -761,14 +755,13 @@ def init_user():
         # Automatically login as a new user.
         user_id = make_user()
         return issue_access_token(user_id)
-    else:
-        with flask.g.db.cursor() as cursor:
-            query = psycopg2.sql.SQL(
-                f"SELECT user_id FROM logins WHERE access_token=%s")
-            cursor.execute(query, [access_token])
-            if cursor.rowcount == 0:
-                return flask.redirect(f'/login')
-            user_id = cursor.fetchone()[0]
+    with flask.g.db.cursor() as cursor:
+        query = psycopg2.sql.SQL(
+            "SELECT user_id FROM logins WHERE access_token=%s")
+        cursor.execute(query, [access_token])
+        if cursor.rowcount == 0:
+            return flask.redirect('/login')
+        user_id = cursor.fetchone()[0]
     flask.g.user_id = user_id
     temp = get_user_path()
     if not os.path.isdir(temp):

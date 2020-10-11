@@ -17,7 +17,6 @@ import json
 import os
 import urllib
 
-from absl import flags
 from absl.testing import absltest
 from absl.testing import parameterized
 from google.protobuf import text_format
