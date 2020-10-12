@@ -38,7 +38,9 @@ exports = {
   getSelectorText,
   setOptionalBool,
   getOptionalBool,
-  freeze
+  freeze,
+  setupObserver,
+  updateObserver
 };
 
 goog.require('ord.conditions');
@@ -57,7 +59,9 @@ goog.require('proto.ord.Dataset');
 const session = {
   fileName: null,
   dataset: null,
-  index: null  // Ordinal position of the Reaction in its Dataset.
+  index: null,      // Ordinal position of the Reaction in its Dataset.
+  observer: null,   // IntersectionObserver used for the sidebar.
+  navSelectors: {}  // Dictionary from navigation to section.
 };
 // Export session, because it's used by test.js.
 exports.session = session;
@@ -965,5 +969,64 @@ function freeze() {
     const node = $(x);
     node.attr('contenteditable', 'false');
     node.css('background-color', '#ebebe4');
+  });
+}
+
+/**
+ * Highlights navigation buttons in the sidebar corresponding to visible
+ * sections. Used as a callback function for the IntersectionObserver.
+ * @param {!Array<!IntersectionObserverEntry>} entries
+ */
+function observerCallback(entries) {
+  entries.forEach(entry => {
+    const target = $(entry.target);
+    let section;
+    if (target[0].hasAttribute('input_name')) {
+      section = target.attr('input_name');
+    } else {
+      section = target.attr('id').split('_')[1];
+    }
+    if (entry.isIntersecting) {
+      session.navSelectors[section].css('background-color', 'lightblue');
+    } else {
+      session.navSelectors[section].css('background-color', '');
+    }
+  });
+}
+
+/**
+ * Sets up the IntersectionObserver used to highlight navigation buttons
+ * in the sidebar.
+ */
+function setupObserver() {
+  const headerSize = $('#header').outerHeight();
+  const observerOptions = {rootMargin: '-' + headerSize + 'px 0px 0px 0px'};
+  session.observer =
+      new IntersectionObserver(observerCallback, observerOptions);
+  updateObserver();
+}
+
+/**
+ * Updates the set of elements watched by the IntersectionObserver.
+ */
+function updateObserver() {
+  if (!session.observer) {
+    return;  // Do nothing until setupObserver has been run.
+  }
+  session.observer.disconnect();
+  $('.section:visible').not('.workup_input').each(function() {
+    session.observer.observe(this);
+  });
+  // Index the selector controls.
+  session.navSelectors = {};
+  $('.navSection').each((index, selector) => {
+    selector = $(selector);
+    const section = selector.attr('data-section');
+    session.navSelectors[section] = selector;
+  });
+  $('.inputNavSection').each((index, selector) => {
+    selector = $(selector);
+    const section = selector.attr('input_name');
+    session.navSelectors[section] = selector;
   });
 }
