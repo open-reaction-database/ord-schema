@@ -8,6 +8,7 @@ Reactions Databse.
 From the ord-schema project root, 
 ```
 $ export ORD_EDITOR_POSTGRESS_PASSWORD=########
+$ export ORD_EDITOR_MOUNT=$HOME/ord-editor-postgres
 $ docker build -f editor/Dockerfile -t openreactiondatabase/ord-editor .
 $ docker-compose -f editor/docker-compose.yml up
 ```
