@@ -1,7 +1,7 @@
 # Reaction Editor
 
 A web app for browsing, modifying, and creating submissions to the Open
-Reactions Databse.
+Reaction Database.
 
 ## Getting Started
 
