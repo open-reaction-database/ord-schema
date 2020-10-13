@@ -143,7 +143,6 @@ def delete_dataset(name):
     with flask.g.db.cursor() as cursor:
         query = psycopg2.sql.SQL(
             'DELETE FROM datasets WHERE user_id=%s AND dataset_name=%s')
-        print(query)
         user_id = flask.g.user_id
         cursor.execute(query, [user_id, name])
         flask.g.db.commit()
