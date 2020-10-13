@@ -43,16 +43,22 @@ class NameResolversTest(absltest.TestCase):
 class InputResolversTest(parameterized.TestCase, absltest.TestCase):
 
     def test_input_resolve(self):
+        roundtrip_smi = lambda smi: Chem.MolToSmiles(Chem.MolFromSmiles(smi))
         string = '10 g of THF'
         reaction_input = resolvers.resolve_input(string)
+        self.assertEqual(len(reaction_input.components), 1)
         self.assertEqual(reaction_input.components[0].mass,
                          reaction_pb2.Mass(value=10, units='GRAM'))
         self.assertEqual(
             reaction_input.components[0].identifiers[0],
             reaction_pb2.CompoundIdentifier(type='NAME', value='THF'))
-        self.assertEqual(len(reaction_input.components), 1)
+        self.assertEqual(reaction_pb2.CompoundIdentifier.SMILES,
+                         reaction_input.components[0].identifiers[1].type)
+        self.assertEqual(
+            roundtrip_smi(reaction_input.components[0].identifiers[1].value),
+            roundtrip_smi('C1COCC1'))
 
-        string = '100 mL of 5.0uM sodium hydroxide  in water'
+        string = '100 mL of 5.0uM sodium hydroxide in water'
         reaction_input = resolvers.resolve_input(string)
         self.assertEqual(len(reaction_input.components), 2)
         self.assertEqual(reaction_input.components[0].moles,
@@ -61,6 +67,11 @@ class InputResolversTest(parameterized.TestCase, absltest.TestCase):
             reaction_input.components[0].identifiers[0],
             reaction_pb2.CompoundIdentifier(type='NAME',
                                             value='sodium hydroxide'))
+        self.assertEqual(reaction_pb2.CompoundIdentifier.SMILES,
+                         reaction_input.components[0].identifiers[1].type)
+        self.assertEqual(
+            roundtrip_smi(reaction_input.components[0].identifiers[1].value),
+            roundtrip_smi('[Na+].[OH-]'))
         self.assertEqual(reaction_input.components[1].volume,
                          reaction_pb2.Volume(value=100, units='MILLILITER'))
         self.assertEqual(reaction_input.components[1].volume_includes_solutes,
@@ -68,9 +79,14 @@ class InputResolversTest(parameterized.TestCase, absltest.TestCase):
         self.assertEqual(
             reaction_input.components[1].identifiers[0],
             reaction_pb2.CompoundIdentifier(type='NAME', value='water'))
+        self.assertEqual(reaction_pb2.CompoundIdentifier.SMILES,
+                         reaction_input.components[1].identifiers[1].type)
+        self.assertEqual(
+            roundtrip_smi(reaction_input.components[1].identifiers[1].value),
+            roundtrip_smi('O'))
 
     @parameterized.named_parameters(
-        ('bad amount', '100 g of 5.0uM sodium hydroxide  in water',
+        ('bad amount', '100 g of 5.0uM sodium hydroxide in water',
          'amount of solution must be a volume'),
         ('missing concentration', '100 L of 5 grapes in water',
          'String did not match template'),

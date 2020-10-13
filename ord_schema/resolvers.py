@@ -159,14 +159,14 @@ def resolve_input(input_string):
                                            amount=amount_string))
         resolve_names(reaction_input)
         return reaction_input
-    pattern = re.compile(r'(\d+.?\d*)\s*(\w+) (.*) in (.*)')
+    pattern = re.compile(r'(\d+.?\d*)\s?(\w+)\s(.+)\sin\s(.+)')
     match = pattern.fullmatch(description.strip())
     if not match:
         raise ValueError('String did not match template!')
     conc_value, conc_units, solute_name, solvent_name = match.groups()
     solute = reaction_input.components.add()
     solvent = reaction_input.components.add()
-    solute.CopyFrom(message_helpers.build_compound(\
+    solute.CopyFrom(message_helpers.build_compound(
         name=solute_name.strip()))
     solvent.CopyFrom(
         message_helpers.build_compound(name=solvent_name.strip(),
