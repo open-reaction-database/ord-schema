@@ -100,7 +100,7 @@ body {
 }
 .validate_warning_status {
   color: yellow;
-  visibility: hidden;
+  display: none;
 }
 .validate_warning_message {
   background-color: #FAFAD2;
