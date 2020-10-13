@@ -15,12 +15,10 @@
 
 import collections
 import contextlib
-import difflib
 import fcntl
 import io
 import json
 import os
-import pprint
 import re
 import time
 import uuid
@@ -430,11 +428,6 @@ def compare(name):
     remote_ascii = text_format.MessageToString(remote)
     local_ascii = text_format.MessageToString(local)
     if remote_ascii != local_ascii:
-        app.logger.error(
-            pprint.pformat(
-                list(
-                    difflib.context_diff(local_ascii.splitlines(),
-                                         remote_ascii.splitlines()))))
         return 'differs', 409  # "Conflict"
     return 'equals'
 
