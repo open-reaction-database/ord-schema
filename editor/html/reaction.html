@@ -1091,23 +1091,19 @@ limitations under the License.
     <script>
         document.body.onload = async function () {
           await ord.reaction.init('{{ name }}', {{ index }});
-          await ord.reaction.init('{{ file_name }}', {{ index }});
           $('.navSection').click(event => {
             const section = $(event.target).attr('data-section');
             $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
           });
           ord.reaction.setupObserver();
           const urlParams = new URLSearchParams(window.location.search);
-          if (urlParams.get('user').startsWith('.review')) {
+          {% if freeze %}
             ord.reaction.freeze();
-          }
+          {% endif %}
           if (location.hash) {
             const section = location.hash.replace('#', '');
             $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
           }
-          {% if freeze %}
-            ord.reaction.freeze();
-          {% endif %}
         };
     </script>
 
