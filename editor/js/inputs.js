@@ -285,13 +285,14 @@ function updateSidebar() {
     if (name === '') {
       name = '(Input #' + (index + 1) + ')';
     }
-    node.attr('input_name', name);
+    node.attr('input_name', 'INPUT-' + name);
     const navNode = $('<div>&#8226; ' + name + '</div>');
     navNode.addClass('inputNavSection');
-    navNode.attr('input_name', name);
+    navNode.attr('input_name', 'INPUT-' + name);
     $('#navInputs').append(navNode);
     navNode.click(scrollToInput);
   });
+  ord.reaction.updateObserver();
 }
 
 /**
