@@ -500,7 +500,7 @@ def show_submissions():
         cursor.execute(query, [REVIEWER])
         for row in cursor:
             name = row[0]
-            match = re.match('^PR_([0-9]+) “(.*)” (.*)', name)
+            match = re.match('^PR_([0-9]+) ___(.*)___ (.*)', name)
             if match is None:
                 continue
             number, title, short_name = match.groups()
@@ -531,8 +531,8 @@ def sync_reviews():
                 if not remote.filename.endswith('.pbtxt'):
                     continue
                 pbtxt = requests.get(remote.raw_url).text
-                name = 'PR_%d “%s” %s' % (pr.number, pr.title,
-                                          remote.filename[:-6])
+                name = 'PR_%d ___%s___ %s' % (pr.number, pr.title,
+                                              remote.filename[:-6])
                 query = psycopg2.sql.SQL(
                     'INSERT INTO datasets VALUES (%s, %s, %s)')
         cursor.execute(query, [user_id, name, pbtxt])
