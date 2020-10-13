@@ -34,7 +34,7 @@ export ORD_EDITOR_MOUNT=/tmp/editor-postgres
 rm -rf $ORD_EDITOR_MOUNT && mkdir $ORD_EDITOR_MOUNT
 
 docker build --file=editor/Dockerfile -t openreactiondatabase/ord-editor .
-docker-compose -f editor/docker-compose.yml up &
+docker-compose --file editor/docker-compose.yml up --detach
 
 set +e
 
