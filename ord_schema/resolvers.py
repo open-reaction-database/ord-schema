@@ -166,8 +166,7 @@ def resolve_input(input_string):
     conc_value, conc_units, solute_name, solvent_name = match.groups()
     solute = reaction_input.components.add()
     solvent = reaction_input.components.add()
-    solute.CopyFrom(message_helpers.build_compound(
-        name=solute_name.strip()))
+    solute.CopyFrom(message_helpers.build_compound(name=solute_name.strip()))
     solvent.CopyFrom(
         message_helpers.build_compound(name=solvent_name.strip(),
                                        amount=amount_string))
