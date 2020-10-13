@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 body {
-  padding: 48px;
-  padding-top: 100px;
+  padding: 100px 20px 20px;
   font-family: Roboto;
 }
 #sections {
-  margin-left: 150px;
+  margin-left: 168px;
 }
 #top_buttons {
   text-align: center;
@@ -131,7 +130,7 @@ fieldset {
   margin-top: 10px;
   margin-right: 26px;
   position: fixed;
-  width: 132px;
+  width: 150px;
 }
 .navSection {
   padding: 8px;
@@ -143,6 +142,10 @@ fieldset {
   margin-bottom: 4px;
   cursor: pointer;
   font-size: 90%;
+  border-width: 0 0 0 10px;
+  border-style: solid;
+  border-color: white;
+  background-clip: padding-box;
 }
 .navSection:hover, .inputNavSection:hover {
   background-color: lightblue;
