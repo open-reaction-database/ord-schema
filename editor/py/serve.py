@@ -737,7 +737,14 @@ def issue_access_token(user_id):
 
 
 def make_user(name='auto'):
-    """Writes a new user ID and returns it."""
+    """Writes a new user ID and returns it
+
+    Args:
+        name: Hopefully a readable label for the user, not currently used in UI.
+
+    Returns:
+        The 32-character generated UUID of the user, currently used in the UI.
+    """
     with flask.g.db.cursor() as cursor:
         query = psycopg2.sql.SQL('INSERT INTO users VALUES (%s, %s, %s)')
         user_id = uuid.uuid4().hex
