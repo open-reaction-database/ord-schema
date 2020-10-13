@@ -84,6 +84,5 @@ jobs:
         cd "${GITHUB_WORKSPACE}"
         npm install puppeteer
         export ORD_EDITOR_POSTGRES_PASSWORD=test
-        pip install psycopg2-binary
-        pip install absl-py
+        pip install psycopg2-binary absl-py protobuf
         ./run_editor_tests.sh
