@@ -85,4 +85,5 @@ jobs:
         npm install puppeteer
         export ORD_EDITOR_POSTGRES_PASSWORD=test
         pip install psycopg2-binary
+        pip install absl-py
         ./run_editor_tests.sh
