@@ -23,6 +23,7 @@ exports = {
   unloadInputUnnamed,
   add,
   validateInput,
+  addInputByString,
   remove,
 };
 
@@ -49,11 +50,45 @@ function load(inputs) {
  * @param {!Node} root Root node for the reaction input.
  * @param {string} name The name of this input.
  * @param {!proto.ord.ReactionInput} input
+ * @return {!Node} The new input node.
  */
 function loadInput(root, name, input) {
   const node = add(root);
   loadInputUnnamed(node, input);
   $('.input_name', node).text(name);
+  return node;
+}
+
+/**
+ * Adds and populates a single reaction input section in the form according to
+ * a short-hand string describing a stock solution.
+ * @param {!Node} root Root node for the reaction input.
+ */
+function addInputByString(root) {
+  const string =
+      prompt(`Please describe the input in one of the following forms:
+(1) [AMOUNT] of [NAME]
+(2) [AMOUNT] of [CONCENTRATION] [SOLUTE] in [SOLVENT]`);
+  if (!(string)) {
+    return;
+  }
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/resolve/input');
+  xhr.responseType = 'arraybuffer';
+  xhr.onload = () => {
+    if (xhr.status == 409) {
+      const decoder = new TextDecoder('utf-8');
+      alert('Could not parse: ' + decoder.decode(xhr.response));
+    } else {
+      const bytes = new Uint8Array(xhr.response);
+      const input = proto.ord.ReactionInput.deserializeBinary(bytes);
+      if (input) {
+        const input_node = loadInput(root, string, input);
+        $('.edittext', input_node).trigger('blur');
+      }
+    }
+  };
+  xhr.send(string);
 }
 
 /**

@@ -40,10 +40,12 @@ _UNIT_SYNONYMS = {
         reaction_pb2.Moles.NANOMOLE: ['nmol', 'nanomoles'],
     },
     reaction_pb2.Volume: {
-        reaction_pb2.Volume.MILLILITER: ['mL', 'milliliters'],
-        reaction_pb2.Volume.MICROLITER: ['μL', 'uL', 'micl', 'microliters'],
-        reaction_pb2.Volume.LITER: ['L', 'liters', 'litres'],
-        reaction_pb2.Volume.NANOLITER: ['nL', 'nanoliters'],
+        reaction_pb2.Volume.MILLILITER: ['mL', 'milliliter', 'milliliters'],
+        reaction_pb2.Volume.MICROLITER: [
+            'μL', 'uL', 'micl', 'microliter', 'microliters'
+        ],
+        reaction_pb2.Volume.LITER: ['L', 'liter', 'liters', 'litres'],
+        reaction_pb2.Volume.NANOLITER: ['nL', 'nanoliter', 'nanoliters'],
     },
     reaction_pb2.Length: {
         reaction_pb2.Length.CENTIMETER: ['cm', 'centimeter'],

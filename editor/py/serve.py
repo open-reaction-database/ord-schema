@@ -32,7 +32,7 @@ from google.protobuf import text_format
 
 from ord_schema import templating
 from ord_schema import message_helpers
-from ord_schema import updates
+from ord_schema import resolvers
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
@@ -333,6 +333,20 @@ def validate_reaction(message_name):
     return json.dumps({'errors': output.errors, 'warnings': output.warnings})
 
 
+@app.route('/resolve/input', methods=['POST'])
+def resolve_input():
+    """Resolve an input string to a ReactionInput message."""
+    string = flask.request.get_data().decode()
+    try:
+        reaction_input = resolvers.resolve_input(string)
+        bites = reaction_input.SerializeToString(deterministic=True)
+        response = flask.make_response(bites)
+        response.headers.set('Content-Type', 'application/protobuf')
+    except (ValueError, KeyError) as error:
+        flask.abort(flask.make_response(str(error), 409))
+    return response
+
+
 @app.route('/resolve/<identifier_type>', methods=['POST'])
 def resolve_compound(identifier_type):
     """Resolve a compound name to a SMILES string."""
@@ -340,7 +354,8 @@ def resolve_compound(identifier_type):
     if not compound_name:
         return ''
     try:
-        smiles, resolver = updates.name_resolve(identifier_type, compound_name)
+        smiles, resolver = resolvers.name_resolve(identifier_type,
+                                                  compound_name)
         return flask.jsonify((_canonicalize_smiles(smiles), resolver))
     except ValueError:
         return ''
@@ -355,7 +370,7 @@ def canonicalize_smiles():
 def _canonicalize_smiles(smiles):
     """Canonicalizes a SMILES string."""
     try:
-        return updates.canonicalize_smiles(smiles)
+        return resolvers.canonicalize_smiles(smiles)
     except ValueError:
         return smiles  # Return the original SMILES on failure.
 
