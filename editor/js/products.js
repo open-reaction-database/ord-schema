@@ -264,7 +264,7 @@ function add(node) {
 function populateAnalysisSelector(node, analysisSelectorNode) {
   const outcomeNode = node.closest('.outcome');
   $('.outcome_analysis_name', outcomeNode).each(function() {
-    var name = $(this).text();
+    const name = $(this).text();
     if (name) {
       $('.analysis_key_selector', analysisSelectorNode)
           .append('<option value="' + name + '">' + name + '</option>');

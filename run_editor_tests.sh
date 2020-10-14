@@ -21,5 +21,7 @@ CONTAINER=$(docker run --rm -d -p 5000:5000 openreactiondatabase/ord-editor)
 # Give the web server time to come up.
 sleep 5
 node editor/js/test.js
-test $? -eq 0 || docker logs "${CONTAINER}"
+STATUS=$?
+test "${STATUS}" -eq 0 || docker logs "${CONTAINER}"
 docker stop "${CONTAINER}"
+test "${STATUS}" -eq 0

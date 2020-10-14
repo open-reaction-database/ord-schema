@@ -30,9 +30,9 @@ import flask
 import github
 from google.protobuf import text_format
 
-from ord_schema import dataset_templating
+from ord_schema import templating
 from ord_schema import message_helpers
-from ord_schema import updates
+from ord_schema import resolvers
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
@@ -41,8 +41,9 @@ from ord_schema.visualization import drawing
 
 # pylint: disable=invalid-name,no-member,inconsistent-return-statements
 app = flask.Flask(__name__, template_folder='../html')
-app.config['ORD_EDITOR_DB'] = os.path.abspath(os.getenv('ORD_EDITOR_DB', 'db'))
-app.config['REVIEW_ROOT'] = flask.safe_join(app.config['ORD_EDITOR_DB'],
+app.config['ORD_EDITOR_LOCAL'] = os.path.abspath(
+    os.getenv('ORD_EDITOR_LOCAL', 'db'))
+app.config['REVIEW_ROOT'] = flask.safe_join(app.config['ORD_EDITOR_LOCAL'],
                                             '.review')
 app.config['REVIEW_DATA_ROOT'] = flask.safe_join(app.config['REVIEW_ROOT'],
                                                  'ord-data')
@@ -134,19 +135,18 @@ def enumerate_dataset():
         template_string: a string containing a text-formatted Reaction proto,
             i.e., the contents of a pbtxt file.
     A new dataset is created from the template and spreadsheet using
-    ord_schema.dataset_templating.generate_dataset.
+    ord_schema.templating.generate_dataset.
     """
     # pylint: disable=broad-except
     data = flask.request.get_json(force=True)
     basename, suffix = os.path.splitext(data['spreadsheet_name'])
     spreadsheet_data = io.StringIO(data['spreadsheet_data'].lstrip('ï»¿'))
-    dataframe = dataset_templating.read_spreadsheet(spreadsheet_data,
-                                                    suffix=suffix)
+    dataframe = templating.read_spreadsheet(spreadsheet_data, suffix=suffix)
     dataset = None
     try:
-        dataset = dataset_templating.generate_dataset(data['template_string'],
-                                                      dataframe,
-                                                      validate=False)
+        dataset = templating.generate_dataset(data['template_string'],
+                                              dataframe,
+                                              validate=False)
     except ValueError as error:
         flask.abort(flask.make_response(str(error), 400))
     except Exception as error:
@@ -333,6 +333,20 @@ def validate_reaction(message_name):
     return json.dumps({'errors': output.errors, 'warnings': output.warnings})
 
 
+@app.route('/resolve/input', methods=['POST'])
+def resolve_input():
+    """Resolve an input string to a ReactionInput message."""
+    string = flask.request.get_data().decode()
+    try:
+        reaction_input = resolvers.resolve_input(string)
+        bites = reaction_input.SerializeToString(deterministic=True)
+        response = flask.make_response(bites)
+        response.headers.set('Content-Type', 'application/protobuf')
+    except (ValueError, KeyError) as error:
+        flask.abort(flask.make_response(str(error), 409))
+    return response
+
+
 @app.route('/resolve/<identifier_type>', methods=['POST'])
 def resolve_compound(identifier_type):
     """Resolve a compound name to a SMILES string."""
@@ -340,10 +354,25 @@ def resolve_compound(identifier_type):
     if not compound_name:
         return ''
     try:
-        return flask.jsonify(
-            updates.name_resolve(identifier_type, compound_name))
+        smiles, resolver = resolvers.name_resolve(identifier_type,
+                                                  compound_name)
+        return flask.jsonify((_canonicalize_smiles(smiles), resolver))
     except ValueError:
         return ''
+
+
+@app.route('/canonicalize', methods=['POST'])
+def canonicalize_smiles():
+    """Canonicalizes a SMILES string from a POST request."""
+    return flask.jsonify(_canonicalize_smiles(flask.request.get_data()))
+
+
+def _canonicalize_smiles(smiles):
+    """Canonicalizes a SMILES string."""
+    try:
+        return resolvers.canonicalize_smiles(smiles)
+    except ValueError:
+        return smiles  # Return the original SMILES on failure.
 
 
 @app.route('/render/reaction', methods=['POST'])
@@ -648,7 +677,7 @@ def get_path(file_name, user=None, suffix='.pbtxt'):
     """
     if not user:
         user = flask.g.user
-    return flask.safe_join(app.config['ORD_EDITOR_DB'], user,
+    return flask.safe_join(app.config['ORD_EDITOR_LOCAL'], user,
                            f'{file_name}{suffix}')
 
 
@@ -660,7 +689,7 @@ def get_user_path():
     Returns:
         Path to the user directory.
     """
-    return flask.safe_join(app.config['ORD_EDITOR_DB'], flask.g.user)
+    return flask.safe_join(app.config['ORD_EDITOR_LOCAL'], flask.g.user)
 
 
 @app.before_request
@@ -691,7 +720,7 @@ def ensure_user():
 
 def redirect_to_user(user):
     """Sets the user cookie and return a redirect to the updated URL."""
-    flask.safe_join(app.config['ORD_EDITOR_DB'],
+    flask.safe_join(app.config['ORD_EDITOR_LOCAL'],
                     user)  # Check that the user is safe.
     url = url_for_user(user)
     # NOTE(kearnes): Use 307 so the request method is preserved. See
@@ -712,6 +741,6 @@ def url_for_user(user):
 def next_user():
     """Returns a user identifier not present in the root directory."""
     user = uuid.uuid4().hex
-    while os.path.isdir(flask.safe_join(app.config['ORD_EDITOR_DB'], user)):
+    while os.path.isdir(flask.safe_join(app.config['ORD_EDITOR_LOCAL'], user)):
         user = uuid.uuid4().hex
     return user

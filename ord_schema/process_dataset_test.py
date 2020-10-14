@@ -94,9 +94,12 @@ class ProcessDatasetTest(absltest.TestCase):
         with flagsaver.flagsaver(input_pattern=self.dataset1_filename,
                                  update=True,
                                  output=output,
+                                 write_binary=False,
                                  base='main'):
             process_dataset.main(())
         self.assertTrue(os.path.exists(output))
+        self.assertFalse(
+            os.path.exists(os.path.join(self.test_subdirectory, 'output.pb')))
         dataset = message_helpers.load_message(output, dataset_pb2.Dataset)
         self.assertLen(dataset.reactions, 1)
         self.assertStartsWith(dataset.reactions[0].reaction_id, 'ord-')
@@ -220,6 +223,10 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.assertNotEmpty(dataset.dataset_id)
         self.assertLen(dataset.reactions, 1)
         self.assertNotEmpty(dataset.reactions[0].reaction_id)
+        # Check for binary output.
+        root, ext = os.path.splitext(filenames[0])
+        self.assertEqual(ext, '.pbtxt')
+        self.assertTrue(os.path.exists(root + '.pb'))
 
     def test_add_sharded_dataset(self):
         reaction = reaction_pb2.Reaction()

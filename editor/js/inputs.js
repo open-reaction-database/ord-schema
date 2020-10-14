@@ -22,7 +22,9 @@ exports = {
   unload,
   unloadInputUnnamed,
   add,
-  validateInput
+  validateInput,
+  addInputByString,
+  remove,
 };
 
 goog.require('ord.compounds');
@@ -48,11 +50,45 @@ function load(inputs) {
  * @param {!Node} root Root node for the reaction input.
  * @param {string} name The name of this input.
  * @param {!proto.ord.ReactionInput} input
+ * @return {!Node} The new input node.
  */
 function loadInput(root, name, input) {
   const node = add(root);
   loadInputUnnamed(node, input);
   $('.input_name', node).text(name);
+  return node;
+}
+
+/**
+ * Adds and populates a single reaction input section in the form according to
+ * a short-hand string describing a stock solution.
+ * @param {!Node} root Root node for the reaction input.
+ */
+function addInputByString(root) {
+  const string =
+      prompt(`Please describe the input in one of the following forms:
+(1) [AMOUNT] of [NAME]
+(2) [AMOUNT] of [CONCENTRATION] [SOLUTE] in [SOLVENT]`);
+  if (!(string)) {
+    return;
+  }
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/resolve/input');
+  xhr.responseType = 'arraybuffer';
+  xhr.onload = () => {
+    if (xhr.status == 409) {
+      const decoder = new TextDecoder('utf-8');
+      alert('Could not parse: ' + decoder.decode(xhr.response));
+    } else {
+      const bytes = new Uint8Array(xhr.response);
+      const input = proto.ord.ReactionInput.deserializeBinary(bytes);
+      if (input) {
+        const input_node = loadInput(root, string, input);
+        $('.edittext', input_node).trigger('blur');
+      }
+    }
+  };
+  xhr.send(string);
 }
 
 /**
@@ -201,15 +237,31 @@ function unloadInputUnnamed(node) {
 /**
  * Adds a reaction input section to the form.
  * @param {!Node} root Parent node for reaction inputs.
+ * @param {?Array<string>} classes Additional classes to add to the new node.
  * @return {!Node} The newly added parent node for the reaction input.
  */
-function add(root) {
+function add(root, classes) {
   const node = ord.reaction.addSlowly('#input_template', root);
+  if (Array.isArray(classes) && classes.length) {
+    node.addClass(classes);
+  }
+  updateSidebar();
   // Add live validation handling.
   ord.reaction.addChangeHandler(node, () => {
     validateInput(node);
   });
+  // Update the sidebar when the input name is changed.
+  const nameNode = node.find('.input_name').first();
+  nameNode.blur(updateSidebar);
   return node;
+}
+
+/**
+ * Removes a reaction input section from the form.
+ * @param {!Node} root Parent node for the input section to be removed.
+ */
+function remove(root) {
+  ord.reaction.removeSlowly(root, '.input', updateSidebar);
 }
 
 /**
@@ -220,4 +272,35 @@ function add(root) {
 function validateInput(node, validateNode) {
   const input = unloadInputUnnamed(node);
   ord.reaction.validate(input, 'ReactionInput', node, validateNode);
+}
+
+/**
+ * Updates the input entries in the sidebar.
+ */
+function updateSidebar() {
+  $('#navInputs').empty();
+  $('.input:visible').not('.workup_input').each(function(index) {
+    const node = $(this);
+    let name = node.find('.input_name').first().text();
+    if (name === '') {
+      name = '(Input #' + (index + 1) + ')';
+    }
+    node.attr('input_name', 'INPUT-' + name);
+    const navNode = $('<div>&#8226; ' + name + '</div>');
+    navNode.addClass('inputNavSection');
+    navNode.attr('input_name', 'INPUT-' + name);
+    $('#navInputs').append(navNode);
+    navNode.click(scrollToInput);
+  });
+  ord.reaction.updateObserver();
+}
+
+/**
+ * Scrolls the viewport to the selected input.
+ * @param {!Event} event
+ */
+function scrollToInput(event) {
+  const section = $(event.target).attr('input_name');
+  const target = $('.input[input_name=\'' + section + '\']');
+  target[0].scrollIntoView({behavior: 'smooth'});
 }

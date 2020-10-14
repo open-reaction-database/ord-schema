@@ -48,6 +48,7 @@ limitations under the License.
       <div class="navSection" data-section="summary">Summary</div>
       <div class="navSection" data-section="identifiers">Identifiers</div>
       <div class="navSection" data-section="inputs">Inputs</div>
+      <div id="navInputs"></div>
       <div class="navSection" data-section="setup">Setup</div>
       <div class="navSection" data-section="conditions">Conditions</div>
       <div class="navSection" data-section="notes">Notes</div>
@@ -94,7 +95,7 @@ limitations under the License.
         </legend>
           <div id="inputs">
 
-            <div id="input_template" class="input" style="display: none;">
+            <div id="input_template" class="section input" style="display: none;">
               <fieldset>
                 <legend>
                   <span class="collapse"></span>
@@ -103,7 +104,7 @@ limitations under the License.
                   <span class="validate" onclick="ord.inputs.validateInput($(this).closest('.input'))"></span>
                </legend>
                 
-                <div onclick="ord.reaction.removeSlowly(this, '.input');" class="remove">remove</div>
+                <div onclick="ord.inputs.remove(this);" class="remove">remove</div>
                 <div>
                   <div class="components"></div>
                   <div onclick="ord.compounds.add($(this).closest('.input'));" class="add">+ add component</div>
@@ -300,6 +301,7 @@ limitations under the License.
           </div>
 
           <div onclick="ord.inputs.add('#inputs');" class="add">+ add input</div>
+          <div onclick="ord.inputs.addInputByString('#inputs');" class="add"><span class="fa fa-search" aria-hidden="true"></span> resolve text</div>
       </fieldset>
 
       <fieldset id="section_setup" class="section">
@@ -1086,58 +1088,20 @@ limitations under the License.
     </div>
 
     <script>
-      // Intersection observer for updating the current location in the sidebar
-      // as the user scrolls on the page.
-      function observerCallback(entries) {
-        entries.forEach(entry => {
-          const section = $(entry.target).attr('id').split('_')[1];
-          if (entry.isIntersecting) {
-            setSelected(section);
-          } else {
-            clearSelected(section);
-          }
-        });
-      }
-      const observer = new IntersectionObserver(observerCallback);
-
-      $('.section').each(function(index) {
-        observer.observe(this);
-      });
-
-      // Index the selector controls.
-      const navSelectors = {};
-      $('.navSection').each((index, selector) => {
-        selector = $(selector);
-        const section = selector.attr('data-section');
-        navSelectors[section] = selector;
-      });
-
-      // Navigate to the given section of the form.
-      function setSelected(section) {
-        navSelectors[section].css('background-color', 'lightblue');
-      }
-      function clearSelected(section) {
-        navSelectors[section].css('background-color', '');
-      }
-
-      $('.navSection').click(event => {
-        const section = $(event.target).attr('data-section');
-        $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
-      });
-
-      // Handle initialization.
-      if (location.hash) {
-        const section = location.hash.replace('#', '');
-        $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
-      }
-    </script>
-
-    <script>
         document.body.onload = async function () {
           await ord.reaction.init('{{ file_name }}', {{ index }});
+          $('.navSection').click(event => {
+            const section = $(event.target).attr('data-section');
+            $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
+          });
+          ord.reaction.setupObserver();
           const urlParams = new URLSearchParams(window.location.search);
           if (urlParams.get('user').startsWith('.review')) {
             ord.reaction.freeze();
+          }
+          if (location.hash) {
+            const section = location.hash.replace('#', '');
+            $('#section_' + section)[0].scrollIntoView({behavior: 'smooth'});
           }
         };
     </script>

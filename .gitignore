@@ -6,6 +6,7 @@
 docs/_build/
 # Misc python.
 __pycache__
+.coverage.*
 *.egg-info
 .ipynb_checkpoints
 # vim swap files
