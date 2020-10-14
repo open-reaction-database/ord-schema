@@ -562,6 +562,8 @@ def prevent_caching(response):
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     response.headers['Cache-Control'] = 'public, max-age=0'
+    # Make the user ID accessible for logging.
+    response.headers['User-Id'] = flask.g.get('user_id', 'unknown')
     return response
 
 
