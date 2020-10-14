@@ -550,7 +550,7 @@ def sync_reviews():
                                               remote.filename[:-6])
                 query = psycopg2.sql.SQL(
                     'INSERT INTO datasets VALUES (%s, %s, %s)')
-        cursor.execute(query, [user_id, name, pbtxt])
+                cursor.execute(query, [user_id, name, pbtxt])
     flask.g.db.commit()
     return flask.redirect('/review')
 
