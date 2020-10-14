@@ -68,6 +68,7 @@ RUN make
 EXPOSE 5000
 # TODO(kearnes): Remove timeout after we fix editor review latency.
 CMD gunicorn py.serve:app \
-    -b 0.0.0.0:5000 \
+    --bind 0.0.0.0:5000 \
+    --workers 2 \
     --access-logfile '-' \
     --timeout 60
