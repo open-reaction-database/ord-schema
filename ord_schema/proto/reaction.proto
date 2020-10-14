@@ -398,6 +398,7 @@ message VesselAttachment {
     CUSTOM = 2;
     SEPTUM = 3;
     CAP = 4;
+    MAT = 5;  // e.g. a covering for a well plate.
     REFLUX_CONDENSER = 6;
     VENT_NEEDLE = 7;
     DEAN_STARK = 8;
