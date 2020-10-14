@@ -38,7 +38,9 @@ exports = {
   getSelectorText,
   setOptionalBool,
   getOptionalBool,
-  freeze
+  freeze,
+  setupObserver,
+  updateObserver
 };
 
 goog.require('ord.conditions');
@@ -57,7 +59,9 @@ goog.require('proto.ord.Dataset');
 const session = {
   fileName: null,
   dataset: null,
-  index: null  // Ordinal position of the Reaction in its Dataset.
+  index: null,      // Ordinal position of the Reaction in its Dataset.
+  observer: null,   // IntersectionObserver used for the sidebar.
+  navSelectors: {}  // Dictionary from navigation to section.
 };
 // Export session, because it's used by test.js.
 exports.session = session;
@@ -158,7 +162,7 @@ function selectText(node) {
  * @param {!Node} node
  */
 function checkFloat(node) {
-  var stringValue = $(node).text().trim();
+  const stringValue = $(node).text().trim();
   if (stringValue === '') {
     $(node).removeClass('invalid');
   } else if (FLOAT_PATTERN.test(stringValue)) {
@@ -174,7 +178,7 @@ function checkFloat(node) {
  * @param {!Node} node
  */
 function checkInteger(node) {
-  var stringValue = $(node).text().trim();
+  const stringValue = $(node).text().trim();
   if (stringValue === '') {
     $(node).removeClass('invalid');
   } else if (INTEGER_PATTERN.test(stringValue)) {
@@ -273,8 +277,9 @@ function validate(message, messageTypeString, node, validateNode) {
     const warningStatusNode = $('.validate_warning_status', validateNode);
     const warningMessageNode = $('.validate_warning_message', validateNode);
     if (warnings.length) {
-      warningStatusNode.css('visibility', 'visible');
+      warningStatusNode.show();
       warningStatusNode.text(' ' + warnings.length);
+      warningMessageNode.show();
       warningMessageNode.empty();
       for (let index = 0; index < warnings.length; index++) {
         const warning = warnings[index];
@@ -283,9 +288,9 @@ function validate(message, messageTypeString, node, validateNode) {
         warningMessageNode.append(warningNode);
       }
     } else {
-      warningStatusNode.css('visibility', 'hidden');
+      warningStatusNode.hide();
       warningMessageNode.html('');
-      warningMessageNode.css('visibility', 'hidden');
+      warningMessageNode.hide();
     }
   };
   xhr.send(binary);
@@ -586,8 +591,10 @@ function addSlowly(template, root) {
  * Removes from the DOM the nearest ancestor element matching the pattern.
  * @param {string} button The element from which to start the search.
  * @param {string} pattern The pattern for the element to remove.
+ * @param {?function(): undefined} callback Function to execute in the
+ *  callback to hide().
  */
-function removeSlowly(button, pattern) {
+function removeSlowly(button, pattern, callback) {
   const node = $(button).closest(pattern);
   // Must call necessary validators only after the node is removed,
   // but we can only figure out which validators these are before removal.
@@ -601,6 +608,9 @@ function removeSlowly(button, pattern) {
   node.hide('slow', function() {
     node.remove();
     buttonsToClick.trigger('click');
+    if (callback !== undefined) {
+      callback();
+    }
   });
   dirty();
 }
@@ -698,11 +708,11 @@ function writeMetric(prefix, proto, node) {
  * @param {string} valueClass The class containing `identifierNode`.
  */
 function setTextFromFile(identifierNode, valueClass) {
-  var input = document.createElement('input');
+  const input = document.createElement('input');
   input.type = 'file';
   input.onchange = (event => {
-    var file = event.target.files[0];
-    var reader = new FileReader();
+    const file = event.target.files[0];
+    const reader = new FileReader();
     reader.readAsText(file);
     reader.onload = readerEvent => {
       const contents = readerEvent.target.result;
@@ -857,61 +867,61 @@ function initValidateNode(oldNode) {
  */
 function initValidateHandlers() {
   // For setup
-  var setupNode = $('#section_setup');
+  const setupNode = $('#section_setup');
   addChangeHandler(setupNode, () => {
     ord.setups.validateSetup(setupNode);
   });
 
   // For conditions
-  var conditionNode = $('#section_conditions');
+  const conditionNode = $('#section_conditions');
   addChangeHandler(conditionNode, () => {
     ord.conditions.validateConditions(conditionNode);
   });
 
   // For temperature
-  var temperatureNode = $('#section_conditions_temperature');
+  const temperatureNode = $('#section_conditions_temperature');
   addChangeHandler(temperatureNode, () => {
     ord.temperature.validateTemperature(temperatureNode);
   });
 
   // For pressure
-  var pressureNode = $('#section_conditions_pressure');
+  const pressureNode = $('#section_conditions_pressure');
   addChangeHandler(pressureNode, () => {
     ord.pressure.validatePressure(pressureNode);
   });
 
   // For stirring
-  var stirringNode = $('#section_conditions_stirring');
+  const stirringNode = $('#section_conditions_stirring');
   addChangeHandler(stirringNode, () => {
     ord.stirring.validateStirring(stirringNode);
   });
 
   // For illumination
-  var illuminationNode = $('#section_conditions_illumination');
+  const illuminationNode = $('#section_conditions_illumination');
   addChangeHandler(illuminationNode, () => {
     ord.illumination.validateIllumination(illuminationNode);
   });
 
   // For electro
-  var electroNode = $('#section_conditions_electro');
+  const electroNode = $('#section_conditions_electro');
   addChangeHandler(electroNode, () => {
     ord.electro.validateElectro(electroNode);
   });
 
   // For flow
-  var flowNode = $('#section_conditions_flow');
+  const flowNode = $('#section_conditions_flow');
   addChangeHandler(flowNode, () => {
     ord.flows.validateFlow(flowNode);
   });
 
   // For notes
-  var notesNode = $('#section_notes');
+  const notesNode = $('#section_notes');
   addChangeHandler(notesNode, () => {
     ord.notes.validateNotes(notesNode);
   });
 
   // For provenance
-  var provenanceNode = $('#section_provenance');
+  const provenanceNode = $('#section_provenance');
   addChangeHandler(provenanceNode, () => {
     ord.provenance.validateProvenance(provenanceNode);
   });
@@ -960,5 +970,64 @@ function freeze() {
     const node = $(x);
     node.attr('contenteditable', 'false');
     node.css('background-color', '#ebebe4');
+  });
+}
+
+/**
+ * Highlights navigation buttons in the sidebar corresponding to visible
+ * sections. Used as a callback function for the IntersectionObserver.
+ * @param {!Array<!IntersectionObserverEntry>} entries
+ */
+function observerCallback(entries) {
+  entries.forEach(entry => {
+    const target = $(entry.target);
+    let section;
+    if (target[0].hasAttribute('input_name')) {
+      section = target.attr('input_name');
+    } else {
+      section = target.attr('id').split('_')[1];
+    }
+    if (entry.isIntersecting) {
+      session.navSelectors[section].css('background-color', 'lightblue');
+    } else {
+      session.navSelectors[section].css('background-color', '');
+    }
+  });
+}
+
+/**
+ * Sets up the IntersectionObserver used to highlight navigation buttons
+ * in the sidebar.
+ */
+function setupObserver() {
+  const headerSize = $('#header').outerHeight();
+  const observerOptions = {rootMargin: '-' + headerSize + 'px 0px 0px 0px'};
+  session.observer =
+      new IntersectionObserver(observerCallback, observerOptions);
+  updateObserver();
+}
+
+/**
+ * Updates the set of elements watched by the IntersectionObserver.
+ */
+function updateObserver() {
+  if (!session.observer) {
+    return;  // Do nothing until setupObserver has been run.
+  }
+  session.observer.disconnect();
+  $('.section:visible').not('.workup_input').each(function() {
+    session.observer.observe(this);
+  });
+  // Index the selector controls.
+  session.navSelectors = {};
+  $('.navSection').each((index, selector) => {
+    selector = $(selector);
+    const section = selector.attr('data-section');
+    session.navSelectors[section] = selector;
+  });
+  $('.inputNavSection').each((index, selector) => {
+    selector = $(selector);
+    const section = selector.attr('input_name');
+    session.navSelectors[section] = selector;
   });
 }
