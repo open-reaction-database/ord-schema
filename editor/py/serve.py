@@ -45,8 +45,10 @@ app = flask.Flask(__name__, template_folder='../html')
 
 # For dataset merges operations like byte-value uploads and enumeration.
 TEMP = '/tmp/ord-editor'
-if not os.path.isdir(TEMP):
+try:
     os.mkdir(TEMP)
+except FileExistsError:
+    pass
 
 # Defaults for development, overridden in docker-compose.yml.
 POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'localhost')
