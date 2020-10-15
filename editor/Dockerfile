@@ -70,5 +70,6 @@ EXPOSE 5000
 CMD gunicorn py.serve:app \
     --bind 0.0.0.0:5000 \
     --workers 2 \
-    --access-logfile '-' \
+    --access-logfile - \
+    --access-logformat '%(t)s %({user-id}o)s %(U)s %(s)s %(L)s %(b)s %(f)s "%(r)s" "%(a)s"' \
     --timeout 60
