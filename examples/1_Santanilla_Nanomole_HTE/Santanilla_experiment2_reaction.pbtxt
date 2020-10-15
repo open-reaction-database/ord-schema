@@ -162,18 +162,18 @@ setup {
   vessel {
     type {
       type: WELL_PLATE
-      details: "Corning EchoTM qualified, Cat. No. 3730"
+      details: "Corning Echo qualified, Cat. No. 3730"
     }
     material {
       type: PLASTIC
       details: "Cyclic Olefin-Copolymer"
     }
     attachments {
-      type: CAP
+      type: MAT
       details: "perfluoroalkoxy alkane (PFA) mat (Analytical-Sales, Cat. No. 96981)"
     }
     attachments {
-      type: CAP
+      type: MAT
       details: "silicon rubber mat (Analytical-Sales, Cat. No. 96982)"
     }
     attachments {
@@ -305,6 +305,20 @@ workup {
   is_automated: true
 }
 workup {
+  type: ALIQUOT
+  stirring {
+    method {
+      type: AGITATION
+      details: "The Mosquito mixing feature was used three times"
+    }
+  }
+  is_automated: true
+  volume {
+    value: 1.0
+    units: MICROLITER
+  }
+}
+workup {
   type: ADDITION
   input {
     components {
@@ -401,6 +415,7 @@ outcomes {
       }
       instrument_manufacturer: "Waters"
       uses_internal_standard: true
+      uses_authentic_standard: true
     }
   }
 }
@@ -410,7 +425,7 @@ provenance {
   publication_url: "https://science.sciencemag.org/content/347/6217/49"
   record_created {
     time {
-      value: "10/14/2020, 16:12:26"
+      value: "10/15/2020, 16:38:43"
     }
     person {
       name: "Michael R. Maser"
