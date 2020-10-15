@@ -87,7 +87,7 @@ function putAll(dirName) {
   tokens.forEach(token => {
     const file = tokenFiles[token];
     const reader = new FileReader();
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
     reader.onload = (event) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/dataset/proto/upload/' + dirName + '/' + token);

@@ -15,10 +15,8 @@
 
 import json
 import os
-import tempfile
 import urllib
 
-from absl import flags
 from absl.testing import absltest
 from absl.testing import parameterized
 from google.protobuf import text_format
@@ -29,24 +27,47 @@ from ord_schema.proto import reaction_pb2
 
 import serve  # pylint: disable=import-error,wrong-import-order
 
+# These temporary datasets are leaked by tests and must be deleted in setUp().
+DATASETS = [
+    'dataset',
+    'other',
+    'test',
+]
+
 
 # pylint: disable=too-many-public-methods
 class ServeTest(parameterized.TestCase, absltest.TestCase):
 
+    def _create(self, dataset):
+        """Make an empty dataset for testing."""
+        response = self.client.post(f'/dataset/{dataset}/new',
+                                    follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+
+    def _destroy(self, dataset):
+        """Clean up a dataset that was created for testing."""
+        response = self.client.get(f'/dataset/{dataset}/delete',
+                                   follow_redirects=True)
+        # Returns 200 even if the dataset did not exist before.
+        self.assertEqual(response.status_code, 200)
+
+    def _destroy_datasets(self):
+        for dataset in DATASETS:
+            self._destroy(dataset)
+
     def setUp(self):
         super().setUp()
-        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
-        serve.app.config['ORD_EDITOR_LOCAL'] = self.test_subdirectory
         serve.app.config['TESTING'] = True
         self.client = serve.app.test_client()
+        # GET requests automatically login as the test user.
+        self.client.get('/authenticate')
         # TODO(kearnes): Use a testdata directory next to this module.
         self.testdata = os.path.join(
             os.path.dirname(__file__),
             '../../examples/2_Nielsen_Deoxyfluorination_Screen')
+        self._destroy_datasets()
         # Start with an initial empty dataset called 'dataset'.
-        response = self.client.post('/dataset/dataset/new',
-                                    follow_redirects=True)
-        self.assertEqual(response.status_code, 200)
+        self._create('dataset')
 
     def _get_dataset(self):
         """Returns a Dataset for testing."""
