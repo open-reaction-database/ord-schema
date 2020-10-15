@@ -603,6 +603,7 @@ def checkpoint(name):
 
 @app.route('/revision/<name>/<timestamp>')
 def download_revision(name, timestamp):
+    """Read back a dataset checkpoint identified by its name and timestamp."""
     with flask.g.db.cursor() as cursor:
         query = psycopg2.sql.SQL(
             'SELECT pbtxt FROM revisions '
