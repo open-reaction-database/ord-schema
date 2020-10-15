@@ -277,8 +277,9 @@ function validate(message, messageTypeString, node, validateNode) {
     const warningStatusNode = $('.validate_warning_status', validateNode);
     const warningMessageNode = $('.validate_warning_message', validateNode);
     if (warnings.length) {
-      warningStatusNode.css('visibility', 'visible');
+      warningStatusNode.show();
       warningStatusNode.text(' ' + warnings.length);
+      warningMessageNode.show();
       warningMessageNode.empty();
       for (let index = 0; index < warnings.length; index++) {
         const warning = warnings[index];
@@ -287,9 +288,9 @@ function validate(message, messageTypeString, node, validateNode) {
         warningMessageNode.append(warningNode);
       }
     } else {
-      warningStatusNode.css('visibility', 'hidden');
+      warningStatusNode.hide();
       warningMessageNode.html('');
-      warningMessageNode.css('visibility', 'hidden');
+      warningMessageNode.hide();
     }
   };
   xhr.send(binary);

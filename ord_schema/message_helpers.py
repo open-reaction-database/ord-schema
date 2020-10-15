@@ -497,7 +497,7 @@ def write_message(message, filename):
         elif output_format == MessageFormat.PBTXT:
             f.write(text_format.MessageToString(message))
         elif output_format == MessageFormat.BINARY:
-            f.write(message.SerializeToString())
+            f.write(message.SerializeToString(deterministic=True))
 
 
 def id_filename(filename):
