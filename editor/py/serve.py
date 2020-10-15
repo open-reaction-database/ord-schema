@@ -551,7 +551,7 @@ def sync_reviews():
                                               remote.filename[:-6])
                 query = psycopg2.sql.SQL(
                     'INSERT INTO datasets VALUES (%s, %s, %s)')
-        cursor.execute(query, [user_id, name, pbtxt])
+                cursor.execute(query, [user_id, name, pbtxt])
     flask.g.db.commit()
     return flask.redirect('/review')
 
@@ -622,6 +622,8 @@ def prevent_caching(response):
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
     response.headers['Cache-Control'] = 'public, max-age=0'
+    # Make the user ID accessible for logging.
+    response.headers['User-Id'] = flask.g.get('user_id', 'unknown')
     return response
 
 
@@ -797,7 +799,14 @@ def issue_access_token(user_id):
 
 
 def make_user(name='auto'):
-    """Writes a new user ID and returns it."""
+    """Writes a new user ID and returns it
+
+    Args:
+        name: Hopefully a readable label for the user, not currently used in UI.
+
+    Returns:
+        The 32-character generated UUID of the user, currently used in the UI.
+    """
     with flask.g.db.cursor() as cursor:
         query = psycopg2.sql.SQL('INSERT INTO users VALUES (%s, %s, %s)')
         user_id = uuid.uuid4().hex
