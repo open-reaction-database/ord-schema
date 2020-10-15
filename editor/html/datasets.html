@@ -55,20 +55,24 @@ limitations under the License.
       border-radius: 8px;
       background-color: lightgray;
     }
+    #identity {
+      float: right;
+    }
   </style>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.1/css/all.min.css">
   <body>
+    <div id="identity">{{ user_id }} <a href="/logout">logout</a></div>
     <center>
       <h1>Available datasets</h1>
       <div id="saving" style="visibility: hidden;">saving</div>
       <div id="processing" style="visibility: hidden;">processing</div>
     </center>
-    {% for file_name in file_names %}
+    {% for name in names %}
       <div class="dataset">
-        <a href="/dataset/{{ file_name }}">{{ file_name }}</a>
+        <a href="/dataset/{{ name }}">{{ name }}</a>
       </div>
     {% endfor %}
     <div id="adder">
@@ -96,7 +100,7 @@ limitations under the License.
         $('#saving').css('visibility', 'visible');
         const file = event.target.files[0];
         const reader = new FileReader();
-        reader.readAsBinaryString(file);
+        reader.readAsArrayBuffer(file);
         reader.onload = event => {
           const xhr = new XMLHttpRequest();
           xhr.open('POST', '/dataset/' + file.name + '/upload');
@@ -151,7 +155,7 @@ limitations under the License.
            var file = event.target.files[0]; 
            spreadsheetName.resolve(file.name);
            var reader = new FileReader();
-           reader.readAsBinaryString(file);
+           reader.readAsArrayBuffer(file);
            reader.onload = readerEvent => {
               spreadsheetData.resolve(readerEvent.target.result);
            }
