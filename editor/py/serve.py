@@ -562,22 +562,24 @@ def show_revisions(name):
     # Offset relative to UTC, for localized timestamp representation.
     hours = 0
     if 'tz' in flask.request.args:
-      hours = int(flask.request.args.get('tz'))
+        hours = int(flask.request.args.get('tz'))
     revisions = []
     with flask.g.db.cursor() as cursor:
-        query = psycopg2.sql.SQL(
-            'SELECT timestamp FROM revisions '
-            'WHERE user_id=%s and dataset_name=%s '
-            'ORDER BY timestamp DESC')
+        query = psycopg2.sql.SQL('SELECT timestamp FROM revisions '
+                                 'WHERE user_id=%s and dataset_name=%s '
+                                 'ORDER BY timestamp DESC')
         user_id = flask.g.user_id
         cursor.execute(query, [user_id, name])
         for row in cursor:
             timestamp = int(row[0])
-            localtime = (datetime.datetime.utcfromtimestamp(timestamp)
-                - datetime.timedelta(hours=hours)).strftime('%Y-%m-%d %H:%M:%S')
+            localtime = (
+                datetime.datetime.utcfromtimestamp(timestamp) -
+                datetime.timedelta(hours=hours)).strftime('%Y-%m-%d %H:%M:%S')
             revisions.append((localtime, timestamp))
-    return flask.render_template(
-        'revisions.html', name=name, revisions=revisions, user_id=user_id)
+    return flask.render_template('revisions.html',
+                                 name=name,
+                                 revisions=revisions,
+                                 user_id=user_id)
 
 
 @app.route('/checkpoint/<name>', methods=['POST'])
