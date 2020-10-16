@@ -32,19 +32,20 @@ limitations under the License.
     <center>
       <h1>Open pull requests</h1>
     </center>
+    <a href="/review/sync">sync</a>
     <table>
       <thead><tr><td>Number</td><td>Title</td><td>Datasets</td></tr></thead>
       <tbody>
-        {% for number, (title, datasets) in pull_requests.items() %}
+        {% for (number, title), names in pull_requests.items() %}
         <tr>
           <td>
             <a href="https://github.com/Open-Reaction-Database/ord-data/pull/{{ number }}">{{ number }}</a>
           </td>
           <td>{{ title }}</td>
           <td>
-            {% for dataset in datasets %}
+            {% for short_name, name in names %}
             <div>
-              <a href="/review/{{ number }}/{{ dataset }}">{{ dataset }}</a>
+              <a href="/dataset/{{ name }}">{{ short_name }}</a>
             </div>
             {% endfor %}
           </td>
