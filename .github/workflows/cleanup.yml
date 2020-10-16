@@ -54,7 +54,7 @@ jobs:
         run: |
           cd "${GITHUB_WORKSPACE}"
           pip install flask pylint
-          pylint editor examples ord_schema *.py
+          pylint examples ord_schema *.py
 
   check_proto:
     runs-on: ubuntu-latest
