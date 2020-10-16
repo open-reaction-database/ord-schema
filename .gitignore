@@ -14,4 +14,5 @@ __pycache__
 # build output
 /build
 /dist
+# Folder tracking files
 .DS_Store
