@@ -13,6 +13,10 @@
 # limitations under the License.
 """Tests for ord_schema.templating."""
 
+import os
+import tempfile
+
+from absl import flags
 import pandas as pd
 
 from absl.testing import absltest
@@ -39,6 +43,7 @@ class TemplatingTest(absltest.TestCase):
         outcome.conversion.precision = 99
         self.valid_reaction = message
         self.template_string = text_format.MessageToString(self.valid_reaction)
+        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
 
     def test_valid_templating(self):
         template_string = self.template_string.replace('value: "CCO"',
@@ -129,7 +134,12 @@ class TemplatingTest(absltest.TestCase):
                                                   'value: "$smiles$"')
         template_string = template_string.replace('value: 5.6', 'value: $mass$')
         # Build a spreadsheet and test for proper edits.
-        df = pd.DataFrame([{'smiles': 'CN'}, {'mass': 1.5}])
+        filename = os.path.join(self.test_subdirectory, 'missing.csv')
+        with open(filename, 'w') as f:
+            f.write('smiles,mass\n')
+            f.write('CN,\n')  # Missing mass.
+            f.write(',1.5\n')  # Missing SMILES.
+        df = pd.read_csv(filename)
         dataset = templating.generate_dataset(template_string, df)
         expected_dataset = dataset_pb2.Dataset()
         reaction1 = expected_dataset.reactions.add()

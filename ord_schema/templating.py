@@ -65,10 +65,11 @@ def _escape(string):
 
 def _is_null(value):
     """Returns whether a value is null."""
-    return pd.isnull(value) or value == 'nan'
+    return pd.isnull(value) or (
+                isinstance(value, str) and (value == 'nan' or not value.strip()))
 
 
-def _replace(string, substitutions):
+def _fill_template(string, substitutions):
     """Performs substring substitutions according to a dictionary.
 
     If any pattern has a null replacement value (i.e. this is an empty cell in
@@ -100,7 +101,7 @@ def _replace(string, substitutions):
     for pattern, value in substitutions.items():
         if pd.isnull(value):
             check_null = True
-        string = string.replace(pattern, _escape(str(value)), 1)
+        string = string.replace(pattern, _escape(str(value)))
     try:
         reaction = text_format.Parse(string, reaction_pb2.Reaction())
     except text_format.ParseError as error:
@@ -157,7 +158,7 @@ def generate_dataset(template_string, df, validate=True):
 
     reactions = []
     for _, substitutions in df[placeholders].iterrows():
-        reaction = _replace(template_string, substitutions)
+        reaction = _fill_template(template_string, substitutions)
         if validate:
             output = validations.validate_message(reaction,
                                                   raise_on_error=False)
