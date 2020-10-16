@@ -13,10 +13,13 @@
 # limitations under the License.
 """Tests for ord_schema.templating."""
 
-import pandas as pd
+import os
+import tempfile
 
+from absl import flags
 from absl.testing import absltest
 from google.protobuf import text_format
+import pandas as pd
 
 from ord_schema import templating
 from ord_schema.proto import reaction_pb2
@@ -38,11 +41,12 @@ class TemplatingTest(absltest.TestCase):
         outcome.conversion.value = 75
         outcome.conversion.precision = 99
         self.valid_reaction = message
+        self.template_string = text_format.MessageToString(self.valid_reaction)
+        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
 
     def test_valid_templating(self):
-        template_string = text_format.MessageToString(self.valid_reaction)
-        template_string = template_string.replace('value: "CCO"',
-                                                  'value: "$my_smiles$"')
+        template_string = self.template_string.replace('value: "CCO"',
+                                                       'value: "$my_smiles$"')
         template_string = template_string.replace('value: 75',
                                                   'value: $conversion$')
         df = pd.DataFrame.from_dict({
@@ -69,9 +73,8 @@ class TemplatingTest(absltest.TestCase):
         self.assertEqual(dataset, expected_dataset)
 
     def test_invalid_templating(self):
-        template_string = text_format.MessageToString(self.valid_reaction)
-        template_string = template_string.replace('value: "CCO"',
-                                                  'value: "$my_smiles$"')
+        template_string = self.template_string.replace('value: "CCO"',
+                                                       'value: "$my_smiles$"')
         template_string = template_string.replace('precision: 99',
                                                   'precision: $precision$')
         df = pd.DataFrame.from_dict({
@@ -95,9 +98,8 @@ class TemplatingTest(absltest.TestCase):
         self.assertEqual(dataset, expected_dataset)
 
     def test_bad_placeholders(self):
-        template_string = text_format.MessageToString(self.valid_reaction)
-        template_string = template_string.replace('value: "CCO"',
-                                                  'value: "$my_smiles$"')
+        template_string = self.template_string.replace('value: "CCO"',
+                                                       'value: "$my_smiles$"')
         template_string = template_string.replace('value: 75',
                                                   'value: $conversion$')
         df = pd.DataFrame.from_dict({
@@ -105,6 +107,50 @@ class TemplatingTest(absltest.TestCase):
         })
         with self.assertRaisesRegex(ValueError, r'\$conversion\$ not found'):
             templating.generate_dataset(template_string, df)
+
+    def test_missing_values(self):
+        # pylint: disable=too-many-locals
+        # Build a template reaction.
+        reaction = reaction_pb2.Reaction()
+        input1 = reaction.inputs['one']
+        input1_component1 = input1.components.add()
+        input1_component1.identifiers.add(value='CCO', type='SMILES')
+        input1_component1.mass.value = 1.2
+        input1_component1.mass.units = reaction_pb2.Mass.GRAM
+        input1_component2 = input1.components.add()
+        input1_component2.is_limiting = True
+        input1_component2.identifiers.add(value='c1ccccc1', type='SMILES')
+        input1_component2.volume.value = 3.4
+        input1_component2.volume.units = reaction_pb2.Volume.LITER
+        input2 = reaction.inputs['two']
+        input2_component1 = input2.components.add()
+        input2_component1.identifiers.add(value='COO', type='SMILES')
+        input2_component1.mass.value = 5.6
+        input2_component1.mass.units = reaction_pb2.Mass.GRAM
+        outcome = reaction.outcomes.add()
+        outcome.conversion.value = 75
+        template_string = text_format.MessageToString(reaction)
+        template_string = template_string.replace('value: "CCO"',
+                                                  'value: "$smiles$"')
+        template_string = template_string.replace('value: 5.6', 'value: $mass$')
+        # Build a spreadsheet and test for proper edits.
+        filename = os.path.join(self.test_subdirectory, 'missing.csv')
+        with open(filename, 'w') as f:
+            f.write('smiles,mass\n')
+            f.write('CN,\n')  # Missing mass.
+            f.write(',1.5\n')  # Missing SMILES.
+        df = pd.read_csv(filename)
+        dataset = templating.generate_dataset(template_string, df)
+        expected_dataset = dataset_pb2.Dataset()
+        reaction1 = expected_dataset.reactions.add()
+        reaction1.CopyFrom(reaction)
+        reaction1.inputs['one'].components[0].identifiers[0].value = 'CN'
+        del reaction1.inputs['two']  # No components after amount removal.
+        reaction2 = expected_dataset.reactions.add()
+        reaction2.CopyFrom(reaction)
+        del reaction2.inputs['one'].components[0]  # No indentifiers.
+        reaction2.inputs['two'].components[0].mass.value = 1.5
+        self.assertEqual(dataset, expected_dataset)
 
 
 if __name__ == '__main__':

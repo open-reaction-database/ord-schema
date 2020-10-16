@@ -15,6 +15,6 @@
 
 # Runs ord-schema tests.
 set -ex
-# Python tests, excluding the editor which requres Postgres.
+# Python tests.
 find ./ord_schema -name '*_test.py' -print0 \
   | xargs -t -0 -I '{}' coverage run '{}' > /dev/null
