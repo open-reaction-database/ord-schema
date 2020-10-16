@@ -69,27 +69,3 @@ jobs:
           cd "${GITHUB_WORKSPACE}"
           pip install treon
           treon
-
-  test_editor:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-node@v1.4.2
-    - uses: s-weigand/setup-conda@v1
-      with:
-        python-version: 3.7
-    - name: Install ord_schema
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        sudo apt update
-        pip install -r requirements.txt
-        pip install -r test_requirements.txt
-        conda install -c rdkit rdkit
-        python setup.py install
-    - name: Build and test editor
-      timeout-minutes: 10
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        npm install puppeteer
-        export ORD_EDITOR_POSTGRES_PASSWORD=test
-        ./run_editor_tests.sh

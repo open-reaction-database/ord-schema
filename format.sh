@@ -30,13 +30,11 @@ if ! command -v yapf &> /dev/null; then
   pip install yapf
 fi
 yapf -p -r "${ROOT_DIR}" --exclude="*_pb2.py" --in-place
-# Format javascript and proto.
+# Format proto.
 if command -v clang-format-10 &> /dev/null; then
-  find "${ROOT_DIR}" -name '*.js' -exec clang-format-10 -i --style=file {} +
   find "${ROOT_DIR}" -name '*.proto' -exec clang-format-10 -i --style=file {} +
 elif command -v clang-format &> /dev/null; then
   # NOTE(kearnes): Make sure you have version 10 or higher!
-  find "${ROOT_DIR}" -name '*.js' -exec clang-format -i --style=file {} +
   find "${ROOT_DIR}" -name '*.proto' -exec clang-format -i --style=file {} +
 else
   echo "Please install clang-format:"
