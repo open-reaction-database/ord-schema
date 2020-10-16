@@ -65,8 +65,8 @@ def _escape(string):
 
 def _is_null(value):
     """Returns whether a value is null."""
-    return pd.isnull(value) or (
-                isinstance(value, str) and (value == 'nan' or not value.strip()))
+    return pd.isnull(value) or (isinstance(value, str) and
+                                (value == 'nan' or not value.strip()))
 
 
 def _fill_template(string, substitutions):
