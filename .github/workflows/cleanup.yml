@@ -56,48 +56,6 @@ jobs:
           pip install flask pylint
           pylint editor examples ord_schema *.py
 
-  check_javascript:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-java@v1
-        with:
-          java-version: 1.8
-      - uses: actions/setup-node@v1
-      - uses: s-weigand/setup-conda@v1
-        with:
-          python-version: 3.7
-      - name: clang-format
-        run: |
-          cd "${GITHUB_WORKSPACE}"
-          sudo apt update && sudo apt install clang-format-10 --yes
-          # NOTE(kearnes): Run clang-format before installing anything with npm.
-          find . -name '*.js' -exec clang-format-10 -n -Werror --style=file {} +
-      - name: Install ord-schema
-        run: |
-          cd "${GITHUB_WORKSPACE}"
-          pip install -r requirements.txt
-          conda install -c rdkit rdkit
-          python setup.py install
-      - name: Build editor
-        run: |
-          cd "${GITHUB_WORKSPACE}/editor"
-          pip install flask pylint yapf
-          npm install google-protobuf puppeteer
-          wget https://github.com/protocolbuffers/protobuf/releases/download/v3.13.0/protobuf-js-3.13.0.tar.gz
-          tar -xzf protobuf-js-3.13.0.tar.gz
-          wget https://github.com/google/closure-library/archive/v20200517.tar.gz
-          tar -xzf v20200517.tar.gz
-          git clone https://github.com/Open-Reaction-Database/ketcher.git
-          make
-      - name: closure-linter
-        run: |
-          cd "${GITHUB_WORKSPACE}/editor"
-          # See https://github.com/google/closure-compiler/wiki/Lint-checks.
-          npm install google-closure-compiler
-          ../actions/lint_js.sh ord.reaction
-          ../actions/lint_js.sh ord.dataset
-
   check_proto:
     runs-on: ubuntu-latest
     steps:
