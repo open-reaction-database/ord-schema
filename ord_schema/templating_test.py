@@ -17,10 +17,9 @@ import os
 import tempfile
 
 from absl import flags
-import pandas as pd
-
 from absl.testing import absltest
 from google.protobuf import text_format
+import pandas as pd
 
 from ord_schema import templating
 from ord_schema.proto import reaction_pb2
@@ -110,6 +109,7 @@ class TemplatingTest(absltest.TestCase):
             templating.generate_dataset(template_string, df)
 
     def test_missing_values(self):
+        # pylint: disable=too-many-locals
         # Build a template reaction.
         reaction = reaction_pb2.Reaction()
         input1 = reaction.inputs['one']
