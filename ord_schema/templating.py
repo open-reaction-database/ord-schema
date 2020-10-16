@@ -63,8 +63,28 @@ def _escape(string):
     return string.replace('\\', '\\\\')
 
 
-def _replace(string, substitutions):
+def _is_null(value):
+    """Returns whether a value is null."""
+    return pd.isnull(value) or (isinstance(value, str) and
+                                (value == 'nan' or not value.strip()))
+
+
+def _fill_template(string, substitutions):
     """Performs substring substitutions according to a dictionary.
+
+    If any pattern has a null replacement value (i.e. this is an empty cell in
+    the spreadsheet), apply the following edits in the given order:
+
+        1. If after templating, any identifier does not have a defined value,
+           remove the identifier.
+        2. If a compound doesn't have any identifiers, remove that compound.
+        3. If a compound amount is NaN, remove that compound.
+        4. If an input has no components, remove that input.
+
+    These edits are logged for easier error checking.
+
+    Note that these edits are focused on *inputs* and are not intended to be
+    exhaustive (e.g. by covering all Compound messages anywhere in Reaction).
 
     Args:
         string: A string whose contents should be modified.
@@ -72,11 +92,37 @@ def _replace(string, substitutions):
             a substring to replace and what its replacement should be.
 
     Returns:
-        The modified string.
+        Reaction message with substitutions filled in.
+
+    Raises:
+        ValueError: If the substituted reaction template cannot be parsed.
     """
-    pattern = re.compile('|'.join(map(re.escape, substitutions.keys())))
-    return pattern.sub(lambda match: _escape(substitutions[match.group(0)]),
-                       string)
+    check_null = False
+    for pattern, value in substitutions.items():
+        if pd.isnull(value):
+            check_null = True
+        string = string.replace(pattern, _escape(str(value)))
+    try:
+        reaction = text_format.Parse(string, reaction_pb2.Reaction())
+    except text_format.ParseError as error:
+        raise ValueError(
+            f'Failed to parse reaction pbtxt after templating: {error}'
+        ) from error
+    if check_null:
+        for message in reaction.inputs.values():
+            for component in message.components:
+                for identifier in list(component.identifiers):
+                    if _is_null(identifier.value):
+                        component.identifiers.remove(identifier)
+            for component in list(message.components):
+                kind = component.WhichOneof('amount')
+                if (_is_null(getattr(component, kind).value) or
+                        not component.identifiers):
+                    message.components.remove(component)
+        for key in list(reaction.inputs.keys()):
+            if not reaction.inputs[key].components:
+                del reaction.inputs[key]
+    return reaction
 
 
 def generate_dataset(template_string, df, validate=True):
@@ -112,13 +158,7 @@ def generate_dataset(template_string, df, validate=True):
 
     reactions = []
     for _, substitutions in df[placeholders].iterrows():
-        reaction_text = _replace(template_string, substitutions)
-        try:
-            reaction = text_format.Parse(reaction_text, reaction_pb2.Reaction())
-        except text_format.ParseError as error:
-            raise ValueError(
-                f'Failed to parse the reaction pbtxt after templating: {error}'
-            ) from error
+        reaction = _fill_template(template_string, substitutions)
         if validate:
             output = validations.validate_message(reaction,
                                                   raise_on_error=False)
