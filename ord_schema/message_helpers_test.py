@@ -343,17 +343,22 @@ class CompoundIdentifiersTest(absltest.TestCase):
     def test_identifier_setters(self):
         compound = reaction_pb2.Compound()
         identifier = message_helpers.set_compound_name(compound, 'water')
-        self.assertEqual(identifier, reaction_pb2.CompoundIdentifier(
-            type='NAME', value='water'))
-        self.assertEqual(compound.identifiers[0],
+        self.assertEqual(
+            identifier,
+            reaction_pb2.CompoundIdentifier(type='NAME', value='water'))
+        self.assertEqual(
+            compound.identifiers[0],
             reaction_pb2.CompoundIdentifier(type='NAME', value='water'))
         message_helpers.set_compound_smiles(compound, 'O')
-        self.assertEqual(compound.identifiers[1],
+        self.assertEqual(
+            compound.identifiers[1],
             reaction_pb2.CompoundIdentifier(type='SMILES', value='O'))
         identifier = message_helpers.set_compound_name(compound, 'ice')
-        self.assertEqual(identifier, reaction_pb2.CompoundIdentifier(
-            type='NAME', value='ice'))
-        self.assertEqual(compound.identifiers[0],
+        self.assertEqual(
+            identifier, reaction_pb2.CompoundIdentifier(type='NAME',
+                                                        value='ice'))
+        self.assertEqual(
+            compound.identifiers[0],
             reaction_pb2.CompoundIdentifier(type='NAME', value='ice'))
 
     def test_identifier_getters(self):

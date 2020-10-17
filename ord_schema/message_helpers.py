@@ -494,6 +494,7 @@ def set_compound_smiles(compound, value):
                                    reaction_pb2.CompoundIdentifier.SMILES,
                                    value)
 
+
 def get_compound_name(compound):
     """Returns the value of the compound's NAME identifier if it exists.
 
@@ -519,8 +520,7 @@ def set_compound_name(compound, value):
         The compound identifier that was modified or created.
     """
     return set_compound_identifier(compound,
-                                   reaction_pb2.CompoundIdentifier.NAME,
-                                   value)
+                                   reaction_pb2.CompoundIdentifier.NAME, value)
 
 
 class MessageFormat(enum.Enum):
