@@ -260,6 +260,13 @@ message Compound {
     string how_computed = 4;
   }
   repeated Feature features = 13;
+  // Compounds may have arbitrary data associated with them. For example,
+  // product compounds could contain product-specific data that does not make
+  // sense to store at the analysis level, e.g., LC peak areas when multiple
+  // peaks are quantified. Reactants or other input species could contain
+  // data from quality control assays, e.g., an NMR spectrum from a purity
+  // check or the residual water ppm from a Karl Fischer titration.
+  map<string, Data> data = 15;
 }
 
 /**
