@@ -19,9 +19,11 @@ keeps the protocol buffers small and avoids data capacity issues on GitHub.
 
 import hashlib
 import os
+import shutil
 import sys
 import tempfile
 import urllib
+import warnings
 
 from absl import logging
 import flask
@@ -79,8 +81,11 @@ def write_data(message, dirname, min_size=0.0, max_size=1.0):
     suffix = message.format or 'txt'
     basename = f'{DATA_PREFIX}{value_hash}.{suffix}'
     filename = flask.safe_join(dirname, basename)
-    with open(filename, 'wb') as f:
-        f.write(value)
+    if os.path.exists(filename):
+        warnings.warn(f'Data blob already exists: {filename}')
+    else:
+        with open(filename, 'wb') as f:
+            f.write(value)
     return filename, value_size
 
 
@@ -112,11 +117,11 @@ def extract_data(message, root, min_size=0.0, max_size=1.0):
         max_size: Float maximum size of data to write (in MB).
 
     Returns:
-        List of text filenames; the generated Data files.
+        Set of text filenames; the generated Data files.
     """
     dirname = tempfile.mkdtemp()
     data_messages = message_helpers.find_submessages(message, reaction_pb2.Data)
-    filenames = []
+    filenames = set()
     for data_message in data_messages:
         data_filename, data_size = write_data(data_message,
                                               dirname,
@@ -126,10 +131,14 @@ def extract_data(message, root, min_size=0.0, max_size=1.0):
             basename = os.path.basename(data_filename)
             output_filename = message_helpers.id_filename(basename)
             with_root = flask.safe_join(root, output_filename)
-            os.makedirs(os.path.dirname(with_root), exist_ok=True)
-            os.rename(data_filename, with_root)
+            if os.path.exists(with_root):
+                warnings.warn(f'Target Data blob already exists: {with_root}')
+            else:
+                os.makedirs(os.path.dirname(with_root), exist_ok=True)
+                shutil.copy2(data_filename, with_root)
+                filenames.add(with_root)
             data_message.url = urllib.parse.urljoin(DATA_URL_PREFIX,
                                                     output_filename)
-            logging.info('Created Data file (%g MB): %s', data_size, with_root)
-            filenames.append(with_root)
+            logging.info('Created Data link (%g MB): %s', data_size, with_root)
+    shutil.rmtree(dirname)
     return filenames
