@@ -361,8 +361,8 @@ class CompoundIdentifiersTest(absltest.TestCase):
             compound.identifiers[0],
             reaction_pb2.CompoundIdentifier(type='NAME', value='ice'))
         compound = reaction_pb2.Compound()
-        identifier = message_helpers.set_compound_molblock(compound,
-                                                           _BENZENE_MOLBLOCK)
+        identifier = message_helpers.set_compound_molblock(
+            compound, _BENZENE_MOLBLOCK)
         self.assertEqual(_BENZENE_MOLBLOCK, compound.identifiers[0].value)
 
     def test_identifier_getters(self):
