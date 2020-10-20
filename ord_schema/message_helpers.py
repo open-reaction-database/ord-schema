@@ -287,7 +287,7 @@ def molblock_from_compound(compound):
     Raises:
         ValueError: if no structural identifiers are defined.
     """
-    return (get_compound_smiles(compound) or
+    return (get_compound_molblock(compound) or
             Chem.MolToMolBlock(mol_from_compound(compound)))
 
 
