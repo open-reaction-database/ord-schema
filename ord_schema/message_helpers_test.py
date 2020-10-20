@@ -338,6 +338,49 @@ class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
                          reaction_pb2.Moles(units='NANOMOLE', value=30))
 
 
+class CompoundIdentifiersTest(absltest.TestCase):
+
+    def test_identifier_setters(self):
+        compound = reaction_pb2.Compound()
+        identifier = message_helpers.set_compound_name(compound, 'water')
+        self.assertEqual(
+            identifier,
+            reaction_pb2.CompoundIdentifier(type='NAME', value='water'))
+        self.assertEqual(
+            compound.identifiers[0],
+            reaction_pb2.CompoundIdentifier(type='NAME', value='water'))
+        message_helpers.set_compound_smiles(compound, 'O')
+        self.assertEqual(
+            compound.identifiers[1],
+            reaction_pb2.CompoundIdentifier(type='SMILES', value='O'))
+        identifier = message_helpers.set_compound_name(compound, 'ice')
+        self.assertEqual(
+            identifier, reaction_pb2.CompoundIdentifier(type='NAME',
+                                                        value='ice'))
+        self.assertEqual(
+            compound.identifiers[0],
+            reaction_pb2.CompoundIdentifier(type='NAME', value='ice'))
+        compound = reaction_pb2.Compound()
+        identifier = message_helpers.set_compound_molblock(
+            compound, _BENZENE_MOLBLOCK)
+        self.assertEqual(_BENZENE_MOLBLOCK, compound.identifiers[0].value)
+
+    def test_identifier_getters(self):
+        compound = reaction_pb2.Compound()
+        compound.identifiers.add(type='NAME', value='water')
+        self.assertEqual(message_helpers.get_compound_name(compound), 'water')
+        self.assertIsNone(message_helpers.get_compound_smiles(compound))
+        compound.identifiers.add(type='SMILES', value='O')
+        self.assertEqual(message_helpers.get_compound_smiles(compound), 'O')
+        self.assertEqual(message_helpers.smiles_from_compound(compound), 'O')
+        compound = reaction_pb2.Compound()
+        compound.identifiers.add(type='MOLBLOCK', value=_BENZENE_MOLBLOCK)
+        self.assertEqual(message_helpers.get_compound_molblock(compound),
+                         _BENZENE_MOLBLOCK)
+        self.assertEqual(message_helpers.molblock_from_compound(compound),
+                         _BENZENE_MOLBLOCK)
+
+
 class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
