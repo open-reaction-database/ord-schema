@@ -267,11 +267,12 @@ def smiles_from_compound(compound):
 
     Returns:
         Text SMILES.
+
+    Raises:
+        ValueError: if no structural identifiers are defined.
     """
-    for identifier in compound.identifiers:
-        if identifier.type == reaction_pb2.CompoundIdentifier.SMILES:
-            return identifier.value
-    return Chem.MolToSmiles(mol_from_compound(compound))
+    return (get_compound_smiles(compound) or
+            Chem.MolToSmiles(mol_from_compound(compound)))
 
 
 def molblock_from_compound(compound):
@@ -282,11 +283,12 @@ def molblock_from_compound(compound):
 
     Returns:
         molblock: MolBlock identifier.
+
+    Raises:
+        ValueError: if no structural identifiers are defined.
     """
-    for identifier in compound.identifiers:
-        if identifier.type == reaction_pb2.CompoundIdentifier.MOLBLOCK:
-            return identifier.value
-    return Chem.MolToMolBlock(mol_from_compound(compound))
+    return (get_compound_molblock(compound) or
+            Chem.MolToMolBlock(mol_from_compound(compound)))
 
 
 # pylint: disable=inconsistent-return-statements
@@ -429,6 +431,129 @@ def validate_reaction_smiles(reaction_smiles):
     if num_errors:
         raise ValueError(f'reaction contains errors: {reaction_smiles}')
     return rdChemReactions.ReactionToSmiles(reaction)
+
+
+def get_compound_identifier(compound, identifier_type):
+    """Returns the value of a compound identifier if it exists. If multiple
+    identifiers of that type exist, only the first is returned.
+
+    Args:
+        compound: Compound message.
+        identifier_type: The CompoundIdentifier type to retrieve the value of.
+
+    Returns:
+        Identifier value or None if the identifier is not defined.
+    """
+    for identifier in compound.identifiers:
+        if identifier.type == identifier_type:
+            return identifier.value
+    return None
+
+
+def set_compound_identifier(compound, identifier_type, value):
+    """Sets the value of a compound identifier if it exists or creates one. If
+    multiple identifiers of that type exist, only the first is overwritten.
+
+    Args:
+        compound: Compound message.
+        identifier_type: The CompoundIdentifier type to retrieve the value of.
+        value: The value to set.
+
+    Returns:
+        The compound identifier that was modified or created.
+    """
+    for identifier in compound.identifiers:
+        if identifier.type == identifier_type:
+            identifier.value = value
+            return identifier
+    identifier = compound.identifiers.add(type=identifier_type, value=value)
+    return identifier
+
+
+def get_compound_smiles(compound):
+    """Returns the value of the compound's SMILES identifier if it exists.
+
+    Args:
+        compound: Compound message.
+
+    Returns:
+        SMILES string or None if the compound has no SMILES identifier.
+    """
+    return get_compound_identifier(compound,
+                                   reaction_pb2.CompoundIdentifier.SMILES)
+
+
+def set_compound_smiles(compound, value):
+    """Sets the value of the compound's SMILES identifier if it exists or
+    creates one.
+
+    Args:
+        compound: Compound message.
+        value: The value to set.
+
+    Returns:
+        The compound identifier that was modified or created.
+    """
+    return set_compound_identifier(compound,
+                                   reaction_pb2.CompoundIdentifier.SMILES,
+                                   value)
+
+
+def get_compound_name(compound):
+    """Returns the value of the compound's NAME identifier if it exists.
+
+    Args:
+        compound: Compound message.
+
+    Returns:
+        NAME string or None if the compound has no NAME identifier.
+    """
+    return get_compound_identifier(compound,
+                                   reaction_pb2.CompoundIdentifier.NAME)
+
+
+def set_compound_name(compound, value):
+    """Sets the value of the compound's NAME identifier if it exists or
+    creates one.
+
+    Args:
+        compound: Compound message.
+        value: The value to set.
+
+    Returns:
+        The compound identifier that was modified or created.
+    """
+    return set_compound_identifier(compound,
+                                   reaction_pb2.CompoundIdentifier.NAME, value)
+
+
+def get_compound_molblock(compound):
+    """Returns the value of the compound's MOLBLOCK identifier if it exists.
+
+    Args:
+        compound: Compound message.
+
+    Returns:
+        MOLBLOCK string or None if the compound has no MOLBLOCK identifier.
+    """
+    return get_compound_identifier(compound,
+                                   reaction_pb2.CompoundIdentifier.MOLBLOCK)
+
+
+def set_compound_molblock(compound, value):
+    """Sets the value of the compound's MOLBLOCK identifier if it exists or
+    creates one.
+
+    Args:
+        compound: Compound message.
+        value: The value to set.
+
+    Returns:
+        The compound identifier that was modified or created.
+    """
+    return set_compound_identifier(compound,
+                                   reaction_pb2.CompoundIdentifier.MOLBLOCK,
+                                   value)
 
 
 class MessageFormat(enum.Enum):
