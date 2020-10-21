@@ -18,6 +18,7 @@ import tempfile
 
 from absl import flags
 from absl.testing import absltest
+from absl.testing import parameterized
 from google.protobuf import text_format
 import pandas as pd
 
@@ -26,7 +27,7 @@ from ord_schema.proto import reaction_pb2
 from ord_schema.proto import dataset_pb2
 
 
-class TemplatingTest(absltest.TestCase):
+class TemplatingTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
         super().setUp()
@@ -71,6 +72,19 @@ class TemplatingTest(absltest.TestCase):
         })
         dataset = templating.generate_dataset(template_string, df)
         self.assertEqual(dataset, expected_dataset)
+
+    @parameterized.parameters(['.csv', '.xls', '.xlsx'])
+    def test_read_spreadsheet(self, suffix):
+        df = pd.DataFrame.from_dict({
+            'smiles': ['CCO', 'CCCO', 'CCCCO'],
+            'conversion': ['75', '50', '30'],
+        })
+        filename = os.path.join(self.test_subdirectory, f'test{suffix}')
+        if suffix == '.csv':
+            df.to_csv(filename, index=False)
+        else:
+            df.to_excel(filename, index=False)
+        pd.testing.assert_frame_equal(templating.read_spreadsheet(filename), df)
 
     def test_invalid_templating(self):
         template_string = self.template_string.replace('value: "CCO"',
