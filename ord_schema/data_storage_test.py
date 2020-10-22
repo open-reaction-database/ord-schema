@@ -15,12 +15,14 @@
 
 import os
 import tempfile
+import warnings
 
 from absl import flags
 from absl.testing import absltest
 
 from ord_schema import data_storage
 from ord_schema import message_helpers
+from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 
@@ -125,6 +127,31 @@ class ExtractDataTest(absltest.TestCase):
         expected = ('https://github.com/Open-Reaction-Database/'
                     'ord-data/tree/' + relative_path)
         self.assertEqual(message.image.url, expected)
+        with open(os.path.join(self.test_subdirectory, relative_path)) as f:
+            self.assertEqual(f.read(), 'not an image')
+
+    def test_extract_data_multiple_copies(self):
+        dataset = dataset_pb2.Dataset()
+        for _ in range(2):
+            reaction = dataset.reactions.add()
+            message = reaction.observations.add()
+            message.image.string_value = 'not an image'
+        self.assertLen(dataset.reactions, 2)
+        with warnings.catch_warnings(record=True) as tape:
+            warnings.simplefilter('always')
+            filenames = data_storage.extract_data(dataset,
+                                                  root=self.test_subdirectory)
+        self.assertLen(tape, 2)
+        self.assertLen(filenames, 1)
+        relative_path = (
+            'data/54/ord_data-'
+            '5464533c9647b67eb320c40ccc5959537c09102ae75388f6a7675b433e745c9d'
+            '.txt')
+        expected = ('https://github.com/Open-Reaction-Database/'
+                    'ord-data/tree/' + relative_path)
+        for reaction in dataset.reactions:
+            for observation in reaction.observations:
+                self.assertEqual(observation.image.url, expected)
         with open(os.path.join(self.test_subdirectory, relative_path)) as f:
             self.assertEqual(f.read(), 'not an image')
 

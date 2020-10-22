@@ -241,7 +241,7 @@ def _run_updates(inputs, datasets):
                                                    min_size=FLAGS.min_size,
                                                    max_size=FLAGS.max_size)
         if data_filenames:
-            args = ['git', 'add'] + data_filenames
+            args = ['git', 'add'] + list(data_filenames)
             logging.info('Running command: %s', ' '.join(args))
             subprocess.run(args, check=True)
     combined = _combine_datasets(datasets)
