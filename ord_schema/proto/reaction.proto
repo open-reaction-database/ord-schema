@@ -716,7 +716,7 @@ message ReactionNotes {
 }
 
 message ReactionObservation {
-  Time time = 1;
+  Time time = 1;  // The reaction time at which the observation was made.
   string comment = 2;  // e.g. what color is the reaction?
   Data image = 3;
 }
