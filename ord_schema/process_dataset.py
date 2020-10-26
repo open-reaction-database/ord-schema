@@ -70,7 +70,7 @@ flags.DEFINE_boolean('write_binary', True,
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 flags.DEFINE_boolean('update', False, 'If True, update Reaction protos.')
 flags.DEFINE_boolean('cleanup', False, 'If True, use git to clean up.')
-flags.DEFINE_float('min_size', 0.1,
+flags.DEFINE_float('min_size', 0.001,
                    'Minimum size (in MB) for offloading Data values.')
 flags.DEFINE_float('max_size', 100.0,
                    'Maximum size (in MB) for offloading Data values.')
