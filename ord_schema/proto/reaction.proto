@@ -249,17 +249,10 @@ message Compound {
   // Compounds can accommodate any number of features. These may include simple
   // properties of the compound (e.g., molecular weight), heuristic estimates
   // of physical properties (e.g., ClogP), optimized geometries (e.g., through
-  // DFT), and calculated stereoelectronic descriptors.
-  message Feature {
-    string name = 1;
-    oneof kind {
-      string string_value = 2;
-      float float_value = 3;
-    }
-    // Details of computation. Software, theory level, solvation, etc.
-    string how_computed = 4;
-  }
-  repeated Feature features = 13;
+  // DFT), and calculated stereoelectronic descriptors. It is also possible to
+  // upload arbitary data containing, e.g., documents containing assay data
+  // related to starting material quality.
+  map<string, Data> features = 13;
 }
 
 /**
@@ -822,28 +815,26 @@ message ReactionOutcome {
   Percentage conversion = 2;
   repeated ReactionProduct products = 3;
   // Analyses are stored in a map to associate each with a unique key.
-  // The key is cross-referenced in ReactionProduct messages to indicate
-  // which analyses were used to derive which performance values/metrics.
-  // The string used for the key carries no meaning outside of this
-  // cross-referencing.
+  // The key is cross-referenced in ReactionProduct's ProductMeasurement
+  // messages to indicate which analyses were used to derive which performance
+  // values/metrics. The string used for the key carries no meaning outside of
+  // this cross-referencing.
   map<string, ReactionAnalysis> analyses = 4;
 }
 
 message ReactionProduct {
+  // The identity of the product compound, the quantitative amount produced
+  // (mass/moles), and any associated features or arbitrary product-specific
+  // data should be defined within the compound field.
   Compound compound = 1;
   optional bool is_desired_product = 2;
-  Percentage compound_yield = 3;
-  Percentage purity = 4;
-  Selectivity selectivity = 5;
-  // Key(s) of the analysis used to confirm identity.
-  repeated string analysis_identity = 6;
-  // Key(s) of the analysis used to assess yield.
-  repeated string analysis_yield = 7;
-  // Key(s) of the analysis used to assess purity.
-  repeated string analysis_purity = 8;
-  // Key(s) of the analysis used to assess selectivity
-  repeated string analysis_selectivity = 9;
-  string isolated_color = 10;
+  // Each ProductMeasurement describes a connection between this product and a
+  // ReactionAnalysis. This includes information about how the identity of the
+  // product was confirmed. It also contains quantitative standardized
+  // performance metrics like quantitative yield as well as unstandardized
+  // (and unnormalized) metrics like an integrated UV peak area.
+  repeated ProductMeasurement measurements = 3;
+  string isolated_color = 4;
   message Texture {
     enum TextureType {
       UNSPECIFIED = 0;
@@ -861,26 +852,104 @@ message ReactionProduct {
     // "viscous" for OIL, etc.
     string details = 2;
   }
-  Texture texture = 11;
+  Texture texture = 5;
 }
 
-message Selectivity {
-  // EE, ER, and DR assume that any product labeled as desired is first
-  // in the calculation, whereas EZ and ZE ratios are calculated as written.
-  enum SelectivityType {
+message ProductMeasurement {
+  // The key of the analysis used to calculate this product-specific
+  // measurement; this should cross-reference the outcome.analyses map.
+  string analysis_key = 1;
+  // The type of measurement. While each measurement is associated with a
+  // specific product compound and is cross-referenced to an analysis through
+  // the analysis_key, there is still ambiguity as to what a measurement
+  // truly represents. For example, an LCMS analysis can lead to a quantitative
+  // YIELD if an authentic standard and internal standard are used to obtain
+  // a calibration curve; sometimes, it is only used to obtain an uncalibrated
+  // "yield" that is better described as an peak AREA or integrated EIC
+  // COUNTS. Understanding the fidelity of the approach taken to measure
+  // the performance of a reaction is important for downstream learning tasks.
+  // Other measurement types are relatively unambiguous (e.g., a melting point
+  // measurement results in a Temperature) but should be specified for
+  // uniformity.
+  enum MeasurementType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
-    EE = 2;  // Enantiomeric excess as a percentage (desired - undesired).
-    ER = 3;  // Enantiomeric ratio. (x:1) (desired / undesired).
-    DR = 4;  // Diasteromeric ratio. (x:1) (desired / undesired).
-    EZ = 5;  // Alkene geometry ratio. (x:1) (E / Z)
-    ZE = 6;  // Alkene geometry ratio. (x:1) (Z / E)
+    // An identity type indicates that the corresponding analysis was used
+    // to confirm the identity of the reported product.
+    IDENTITY = 2;
+    // Yields should only be reported as quantitative yields, e.g., measured
+    // using an isolated weight analysis, quantitative NMR with an internal
+    // standard, LC peak area with an internal standard and calibration curve
+    // obtained using an authentic standard. 
+    YIELD = 3;
+    // Selectivites include enantiomeric excess/ratios, diastereomic ratios,
+    // etc. The detailed type should be specified in selectivity_type.
+    SELECTIVITY = 4;
+    // The purity of the product mixture, normalized to all other species
+    // observed in the analysis.
+    PURITY = 5;
+    // Integrated peak area, e.g., as in an LC chromatogram.
+    AREA = 6;
+    // Retention time, e.g., as in an LC or GC chromatogram.
+    RETENTION_TIME = 7;
+    // Raw counts, e.g., as in an EIC or TIC from a MS analysis. If an EIC,
+    // the m/z ratio(s) should be defined in the details.
+    COUNTS = 8;
+    // Intensity, e.g., of a TLC spot, ELSD, or GC FID.
+    INTENSITY = 9;
+    // Direct m/z measurement, e.g., from HRMS. The value field should be used
+    // to report the m/z, not the "mass" field.
+    MZ = 10;
+    // Temperature, e.g., from a melting point experiment.
+    TEMPERATURE = 11;
+    // Angle, e.g., from a circular dichroism experiment. Units of degrees
+    // centimer squared per decimol are assumed.
+    ANGLE = 12;
   }
-  SelectivityType type = 1;
-  string details = 2;
-  optional float value = 3;
-  // TODO(kearnes): What does precision mean in this context?
-  optional float precision = 4;
+  MeasurementType type = 2;
+  // Additional information about the measurement and, in particular, how it
+  // was calculated if that is ambiguous given the analysis type.
+  string details = 3;
+  // Whether an internal standard was used for this measurement to normalize
+  // it, e.g., for quantification of yield or relative peak area.
+  optional bool uses_internal_standard = 4;
+  // Whether an authentic sample of a material was used for callibrating
+  // an analytical technique, e.g., for product identification by LCMS.
+  // "Authentic" refers to a sample of a compound whose structure has been
+  // proven by the accepted means (1H NMR, 13C NMR, IR, HRMS), and is now
+  // being used as a comparison for other analytical methods.
+  optional bool uses_authentic_standard = 5;
+  // Details about the authentic standard used, optionally including
+  // information about its precise salt form and source/vendor.
+  Compound authentic_standard = 6;
+  // The numeric value for this measurement. For example, the yield expressed
+  // as a percentage (i.e., 50% yield corresponds to 50 and not 0.5). If the
+  // value is associated with units, those unit-specific fields should be used
+  // instead.
+  optional float value = 7;
+  optional float precision = 8;
+  // The value for this measurement metric when it cannot be represented by a
+  // single number.
+  string string_value = 9;
+  Mass mass = 10;
+  Temperature temperature = 11;
+  Time time = 12;
+  // The more specific type of selectivity that is being reported, e.g., EE,
+  // ER, DR, EZ, ZE. EZ, ER, and DR assume that any product labeled as desired
+  // is first in the calculation, whereas EZ and ZE ratios are calculated as
+  // written.
+  message SelectivityType {
+    enum SelectivityTypeEnum {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      EE = 2;  // Enantiomeric excess as a percentage (desired - undesired).
+      ER = 3;  // Enantiomeric ratio. (x:1) (desired / undesired).
+      DR = 4;  // Diasteromeric ratio. (x:1) (desired / undesired).
+      EZ = 5;  // Alkene geometry ratio. (x:1) (E / Z)
+      ZE = 6;  // Alkene geometry ratio. (x:1) (Z / E)
+    }
+  }
+  SelectivityType.SelectivityTypeEnum selectivity_type = 13;
 }
 
 message DateTime {
@@ -927,15 +996,6 @@ message ReactionAnalysis {
   map<string, Data> raw_data = 5;
   string instrument_manufacturer = 6;
   DateTime instrument_last_calibrated = 7;
-  // Whether an internal standard was used with this analytical technique for
-  // quantification, e.g., of yield.
-  optional bool uses_internal_standard = 8;
-  // Whether an authentic sample of a material was used for callibrating
-  // an analytical technique, e.g., for product identification by LCMS.
-  // "Authentic" refers to a sample of a compound whose structure has been
-  // proven by the accepted means (1H NMR, 13C NMR, IR, HRMS), and is now
-  // being used as a comparison for other analytical methods.
-  optional bool uses_authentic_standard = 9;
 }
 
 message ReactionProvenance {
