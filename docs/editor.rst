@@ -16,9 +16,9 @@ is designed to allow users to explore the interface but **should not be used
 for creating datasets for submission**.
 
 * Changes will be saved, but are subject to deletion at any time.
-* The user ID is set in a cookie on your browser. If you delete your cookies
-  or move to another device, you will not be able to access data stored under
-  this user ID.
+* Your guest access token is set in a cookie on your browser. If you delete
+  your cookies or move to another device, you will not be able to access data
+  stored under this user ID.
 
 To ensure that your data remains accessible, we strongly encourage users to
 sign in with GitHub. This creates a user account linked to your GitHub username
