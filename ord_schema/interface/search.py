@@ -122,5 +122,5 @@ def connect():
 def fetch_reactions():
     reaction_ids = flask.request.get_json()
     command = query.ReactionIdQuery(reaction_ids)
-    dataset = connect().run_query(command, return_ids=True)
+    dataset = connect().run_query(command)
     return flask.make_response(dataset.SerializeToString())
