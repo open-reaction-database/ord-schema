@@ -120,7 +120,7 @@ def connect():
 
 @app.route('/api/fetch_reactions', methods=['POST'])
 def fetch_reactions():
-    reaction_ids = flask.request.get_json()
+    reaction_ids = flask.request.get_json().get('reaction_ids')
     command = query.ReactionIdQuery(reaction_ids)
     dataset = connect().run_query(command, return_ids=True)
     return flask.make_response(dataset.SerializeToString())
