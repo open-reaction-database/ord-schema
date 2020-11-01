@@ -74,7 +74,12 @@ class OrdClient:
         Returns:
             List of Dataset messages.
         """
-        return [self.fetch_dataset(dataset_id) for dataset_id in dataset_ids]
+        # NOTE(kearnes): Return datasets in the same order as requested.
+        datasets = {
+            dataset_id: self.fetch_dataset(dataset_id)
+            for dataset_id in set(dataset_ids)
+        }
+        return [datasets[dataset_id] for dataset_id in dataset_ids]
 
     def fetch_dataset(self, dataset_id):
         """Fetches a single Dataset message.
@@ -104,9 +109,13 @@ class OrdClient:
                 raise ValueError(f'Invalid reaction ID: {reaction_id}')
         response = requests.post(urllib.parse.urljoin(self._target,
                                                       '/api/fetch_reactions'),
-                                 data=reaction_ids)
+                                 json=list(set(reaction_ids)))
         dataset = dataset_pb2.Dataset.FromString(response.content)
-        return dataset.reactions
+        # NOTE(kearnes): Return reactions in the same order as requested.
+        reactions = {
+            reaction.reaction_id: reaction for reaction in dataset.reactions
+        }
+        return [reactions[reaction_id] for reaction_id in reaction_ids]
 
     def fetch_reaction(self, reaction_id):
         """Fetches a single Reaction message.

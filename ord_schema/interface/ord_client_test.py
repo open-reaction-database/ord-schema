@@ -38,6 +38,28 @@ class OrdClientTest(parameterized.TestCase, absltest.TestCase):
         for dataset, expected in zip(datasets, expected_num_reactions):
             self.assertLen(dataset.reactions, expected)
 
+    @parameterized.parameters(
+        ('ord-f0621fa47ac74fd59f9da027f6d13fc4', 'Jun Li'),
+        ('ord-c6fbf2aab30841d198a27068a65a9a98', 'Steven Kearnes'))
+    def test_fetch_reaction(self, reaction_id, created_by):
+        client = ord_client.OrdClient()
+        reaction = client.fetch_reaction(reaction_id)
+        self.assertEqual(reaction.provenance.record_created.person.name,
+                         created_by)
+
+    @parameterized.parameters(([
+        'ord-f0621fa47ac74fd59f9da027f6d13fc4',
+        'ord-c6fbf2aab30841d198a27068a65a9a98'
+    ], ['Jun Li', 'Steven Kearnes']))
+    def test_fetch_reactions(self, reaction_ids, created_by):
+        client = ord_client.OrdClient()
+        reactions = client.fetch_reactions(reaction_ids)
+        self.assertLen(reaction_ids, len(created_by))
+        self.assertLen(reactions, len(created_by))
+        for reaction, expected in zip(reactions, created_by):
+            self.assertEqual(reaction.provenance.record_created.person.name,
+                             expected)
+
 
 if __name__ == '__main__':
     absltest.main()
