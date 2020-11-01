@@ -13,8 +13,9 @@
 # limitations under the License.
 """Python API for the Open Reaction Database."""
 
-import requests
 import urllib.parse
+
+import requests
 
 from ord_schema import message_helpers
 from ord_schema import validations
@@ -81,7 +82,7 @@ class OrdClient:
         }
         return [datasets[dataset_id] for dataset_id in dataset_ids]
 
-    def fetch_dataset(self, dataset_id):
+    def fetch_dataset(self, dataset_id):  # pylint: disable=no-self-use
         """Fetches a single Dataset message.
 
         Args:
