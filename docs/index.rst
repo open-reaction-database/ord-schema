@@ -14,4 +14,5 @@ Welcome to the Open Reaction Database!
    schema
    submissions
    faq
+   editor
    developer
