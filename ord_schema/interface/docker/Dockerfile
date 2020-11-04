@@ -65,5 +65,5 @@ ENV POSTGRES_DB=ord
 ENV POSTGRES_USER=ord-postgres
 ENV POSTGRES_PASSWORD=ord-postgres
 COPY ord_schema/interface/docker/postgres.conf /etc/postgresql/postgresql.conf
-ENV ORD_INPUT="${ORD_ROOT}/${ORD_REPO}/data/*/*.pbtxt"
+ENV ORD_INPUT="${ORD_ROOT}/${ORD_REPO}/data/*/*.pb"
 COPY ord_schema/interface/docker/build_database.sh .
