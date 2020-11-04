@@ -331,6 +331,14 @@ def get_referenced_reaction_ids(message):
     return referenced_ids
 
 
+def is_valid_reaction_id(reaction_id):
+    return re.fullmatch('^ord-[0-9a-f]{32}$', reaction_id)
+
+
+def is_valid_dataset_id(dataset_id):
+    return re.fullmatch('^ord_dataset-[0-9a-f]{32}$', dataset_id)
+
+
 def validate_dataset(message, options=None):
     # pylint: disable=too-many-branches,too-many-nested-blocks
     if options is None:
@@ -343,11 +351,11 @@ def validate_dataset(message, options=None):
                       ValidationError)
     if message.reaction_ids:
         for reaction_id in message.reaction_ids:
-            if not re.fullmatch('^ord-[0-9a-f]{32}$', reaction_id):
+            if not is_valid_reaction_id(reaction_id):
                 warnings.warn('Reaction ID is malformed', ValidationError)
     if options.validate_ids:
         # The dataset_id is a 32-character uuid4 hex string.
-        if not re.fullmatch('^ord_dataset-[0-9a-f]{32}$', message.dataset_id):
+        if not is_valid_dataset_id(message.dataset_id):
             warnings.warn('Dataset ID is malformed', ValidationError)
     # Check cross-references
     dataset_referenced_ids = set()

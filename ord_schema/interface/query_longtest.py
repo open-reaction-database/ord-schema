@@ -61,9 +61,9 @@ class QueryTest(parameterized.TestCase, absltest.TestCase):
 
     def test_reaction_id_query(self):
         reaction_ids = [
-            'ord-028914271126456c9a0374f59e6841d7',
-            'ord-b7c2caa8156a4bbbbbc073eb413a357b',
-            'ord-8b21f284487947f48e9ac8b4108e2448'
+            'ord-e49ed67da61e4cddabd3c84a72fed227',
+            'ord-bc17663fcf7b4ddabf2de2a791be184e',
+            'ord-edff29c0822542b793cd95c54b315522'
         ]
         command = query.ReactionIdQuery(reaction_ids)
         results = self.postgres.run_query(command, limit=10, return_ids=True)
