@@ -811,8 +811,16 @@ message ReactionWorkup {
 message ReactionOutcome {
   // Reaction time (for flow, equivalent to residence time or spacetime).
   Time reaction_time = 1;
-  // Conversion with respect to the limiting reactant.
+  // Conversion with respect to the sole limiting reactant. If there is
+  // ambiguity in which species the conversion is defined with respect to, the
+  // quantification of leftover starting materials should be defined as the
+  // quantification of multiple products, where the compound identity of those
+  // products matches the starting materials.
   Percentage conversion = 2;
+  // The products observed in this reaction, including product-specific data
+  // defined in submessages. If the quantities of leftover starting materials
+  // are measured, these starting materials may also be defined as product
+  // species.
   repeated ReactionProduct products = 3;
   // Analyses are stored in a map to associate each with a unique key.
   // The key is cross-referenced in ReactionProduct's ProductMeasurement
@@ -868,9 +876,13 @@ message ProductMeasurement {
   // "yield" that is better described as an peak AREA or integrated EIC
   // COUNTS. Understanding the fidelity of the approach taken to measure
   // the performance of a reaction is important for downstream learning tasks.
-  // Other measurement types are relatively unambiguous (e.g., a melting point
-  // measurement results in a Temperature) but should be specified for
-  // uniformity.
+  // Note that this message is intended to capture product-specific data
+  // extracted from an analysis. The raw analytical data (e.g., a full NMR
+  // spectrum) should be defined in a ReactionAnalysis message. Even analyses
+  // of ostensibly pure compounds (e.g., HRMS) should have their results
+  // defined in the ReactionAnalysis message (with is_of_isolated_species set
+  // to True) but with a cross-reference to a product via a ProductMessage
+  // (e.g., of type IDENTITY for HRMS).
   enum MeasurementType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
@@ -890,28 +902,19 @@ message ProductMeasurement {
     PURITY = 5;
     // Integrated peak area, e.g., as in an LC chromatogram.
     AREA = 6;
-    // Retention time, e.g., as in an LC or GC chromatogram.
-    RETENTION_TIME = 7;
     // Raw counts, e.g., as in an EIC or TIC from a MS analysis. If an EIC,
     // the m/z ratio(s) should be defined in the details.
-    COUNTS = 8;
+    COUNTS = 7;
     // Intensity, e.g., of a TLC spot, ELSD, or GC FID.
-    INTENSITY = 9;
-    // Direct m/z measurement, e.g., from HRMS. The value field should be used
-    // to report the m/z, not the "mass" field.
-    MZ = 10;
-    // Temperature, e.g., from a melting point experiment.
-    TEMPERATURE = 11;
-    // Angle, e.g., from a circular dichroism experiment. Units of degrees
-    // centimer squared per decimol are assumed.
-    ANGLE = 12;
+    INTENSITY = 8;
   }
   MeasurementType type = 2;
   // Additional information about the measurement and, in particular, how it
   // was calculated if that is ambiguous given the analysis type.
   string details = 3;
   // Whether an internal standard was used for this measurement to normalize
-  // it, e.g., for quantification of yield or relative peak area.
+  // it, e.g., for quantification of yield or relative peak area. If this
+  // field is true, the value field should contain the normalized quantity.
   optional bool uses_internal_standard = 4;
   // Whether an authentic sample of a material was used for callibrating
   // an analytical technique, e.g., for product identification by LCMS.
@@ -922,22 +925,57 @@ message ProductMeasurement {
   // Details about the authentic standard used, optionally including
   // information about its precise salt form and source/vendor.
   Compound authentic_standard = 6;
-  // The numeric value for this measurement. For example, the yield expressed
-  // as a percentage (i.e., 50% yield corresponds to 50 and not 0.5). If the
-  // value is associated with units, those unit-specific fields should be used
-  // instead.
-  optional float value = 7;
-  optional float precision = 8;
-  // The value for this measurement metric when it cannot be represented by a
-  // single number.
-  string string_value = 9;
-  Mass mass = 10;
-  Temperature temperature = 11;
-  Time time = 12;
+  // The value for this measurement.
+  oneof value {
+    // A percentage value and its precision, as should be used for yields,
+    // purities, and some selectivities like EE. Note that a 50% yield
+    // corresponds to a percentage.value of 50 and not 0.5.
+    Percentage percentage = 7;
+    // A float value and its precision, as should be used for areas, counts,
+    // intensities, and some selectivities.
+    FloatValue float_value = 8;
+    // A string value, as should be used for measurements that cannot be
+    // captured as floats or percentages. For example, complex selectivities
+    // such as "2:1:1". Note that in the case of a 2:1:1 selectivity, however,
+    // it is preferable to define the 3 distinct products specifically and
+    // record the 3 product-specific measurements (e.g., peak areas) that
+    // were used to derive the "2:1:1" summary statistic.
+    string string_value = 9;
+
+  }
+  // A time to be used only when specifying the retention time at which a peak
+  // area or intensity was calculated, e.g., as in LC, LCMS, GC, or GCMS.
+  Time retention_time = 10;
+  // More details about how a particular performance metric (e.g., counts)
+  // was calculated from an analysis using mass spec. This includes
+  // distinguishing total ion current (TIC) counts from extracted ion
+  // chromatogram (EIC) counts and their corresponding mass ranges or masses.
+  message MassSpecType {
+    enum MassSpecTypeEnum {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      TIC = 2;
+      TIC_POS = 3;
+      TIC_NEG = 4;
+      EIC = 5;
+    }
+    MassSpecTypeEnum type = 1;
+    string details = 2;
+    // The lower bound of the m/z interval used to calculate the TIC counts.
+    optional float tic_minimum_mz = 3;
+    // The upper bound of the m/z interval used to calculate the TIC counts.
+    optional float tic_maximum_mz = 4;
+    // A list of m/z ratios that were used to calculate the peak area or
+    // intensity from an extracted ion chromatogram (EIC), e.g., from an LCMS
+    // analysis.
+    repeated float eic_masses = 5;
+  }
+  MassSpecType ms_type = 11;
+  
   // The more specific type of selectivity that is being reported, e.g., EE,
   // ER, DR, EZ, ZE. EZ, ER, and DR assume that any product labeled as desired
   // is first in the calculation, whereas EZ and ZE ratios are calculated as
-  // written.
+  // written. Only to be used when the type is SELECTIVITY.
   message SelectivityType {
     enum SelectivityTypeEnum {
       UNSPECIFIED = 0;
@@ -948,8 +986,10 @@ message ProductMeasurement {
       EZ = 5;  // Alkene geometry ratio. (x:1) (E / Z)
       ZE = 6;  // Alkene geometry ratio. (x:1) (Z / E)
     }
+    SelectivityTypeEnum type = 1;
+    string details = 2;
   }
-  SelectivityType.SelectivityTypeEnum selectivity_type = 13;
+  SelectivityType selectivity_type = 12;
 }
 
 message DateTime {
@@ -985,6 +1025,10 @@ message ReactionAnalysis {
     ED = 23;  // Electron diffraction, including MicroED.
   }
   AnalysisType type = 1;
+  // Whether this analysis is intended to be of an isolated species. If false
+  // or unspecified, the assumption is that it is of a crude product mixture
+  // (or a partially worked-up product mixture).
+  optional bool is_of_isolated_species = 8;
   // RSC Chemical Methods Ontology ID to define the analytical method with
   // greater specificity. Defined at https://github.com/rsc-ontologies/rsc-cmo.
   int32 chmo_id = 2;
@@ -1187,8 +1231,25 @@ message FlowRate {
   optional float precision = 2;
   FlowRateUnit units = 3;
 }
+message CircularDichroism {
+  enum CircularDichroismUnit {
+    UNSPECIFIED = 0;
+    DEGREES = 1;  // Uncorrected for concentration and length.
+    MILLIDEGREES = 2;
+    MOLAR_EXTINCTION = 3;  // liter / (mol * cm)
+    MOLAR_ELLIPTICITY = 4;  // deg * cm^2 / decimol
+    ABSORBANCE = 5;  // Uncorrected for concentration and length.
+    MILLIABSORBANCE = 6;  // Uncorrected for concentration and length.
+  }
+}
 // Used for things like conversion and yield.
 message Percentage {
+  optional float value = 1;
+  // Precision of the measurement (with the same units as `value`).
+  optional float precision = 2;
+}
+// Wrapper for floats to include a precision.
+message FloatValue {
   optional float value = 1;
   // Precision of the measurement (with the same units as `value`).
   optional float precision = 2;
