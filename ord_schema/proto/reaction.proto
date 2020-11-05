@@ -249,10 +249,11 @@ message Compound {
   // Compounds can accommodate any number of features. These may include simple
   // properties of the compound (e.g., molecular weight), heuristic estimates
   // of physical properties (e.g., ClogP), optimized geometries (e.g., through
-  // DFT), and calculated stereoelectronic descriptors. It is also possible to
-  // upload arbitary data containing, e.g., documents containing assay data
-  // related to starting material quality.
+  // DFT), and calculated stereoelectronic descriptors.
   map<string, Data> features = 13;
+  // Compounds may be assayed for quality control; analytical data should be
+  // defined in the analyses map.
+  map<string, Analysis> analyses = 14;
 }
 
 /**
@@ -827,7 +828,7 @@ message ReactionOutcome {
   // messages to indicate which analyses were used to derive which performance
   // values/metrics. The string used for the key carries no meaning outside of
   // this cross-referencing.
-  map<string, ReactionAnalysis> analyses = 4;
+  map<string, Analysis> analyses = 4;
 }
 
 message ReactionProduct {
@@ -836,8 +837,8 @@ message ReactionProduct {
   // data should be defined within the compound field.
   Compound compound = 1;
   optional bool is_desired_product = 2;
-  // Each ProductMeasurement describes a connection between this product and a
-  // ReactionAnalysis. This includes information about how the identity of the
+  // Each ProductMeasurement describes a connection between this product and an
+  // Analysis. This includes information about how the identity of the
   // product was confirmed. It also contains quantitative standardized
   // performance metrics like quantitative yield as well as unstandardized
   // (and unnormalized) metrics like an integrated UV peak area.
@@ -878,9 +879,9 @@ message ProductMeasurement {
   // the performance of a reaction is important for downstream learning tasks.
   // Note that this message is intended to capture product-specific data
   // extracted from an analysis. The raw analytical data (e.g., a full NMR
-  // spectrum) should be defined in a ReactionAnalysis message. Even analyses
+  // spectrum) should be defined in an Analysis message. Even analyses
   // of ostensibly pure compounds (e.g., HRMS) should have their results
-  // defined in the ReactionAnalysis message (with is_of_isolated_species set
+  // defined in the Analysis message (with is_of_isolated_species set
   // to True) but with a cross-reference to a product via a ProductMessage
   // (e.g., of type IDENTITY for HRMS).
   enum MeasurementType {
@@ -996,7 +997,7 @@ message DateTime {
   string value = 1;
 }
 
-message ReactionAnalysis {
+message Analysis {
   // TODO(ccoley): Solicit more feedback from experimentalists
   enum AnalysisType {
     UNSPECIFIED = 0;
@@ -1034,12 +1035,10 @@ message ReactionAnalysis {
   int32 chmo_id = 2;
   // Any details about analysis (e.g., NMR type, columns, gradients).
   string details = 3;
-  // Data files (processed or annotated).
-  map<string, Data> processed_data = 4;
-  // Data files (raw) obtained directly from the instrument.
-  map<string, Data> raw_data = 5;
-  string instrument_manufacturer = 6;
-  DateTime instrument_last_calibrated = 7;
+  // Data files (raw, processed, or annotated).
+  map<string, Data> data = 4;
+  string instrument_manufacturer = 5;
+  DateTime instrument_last_calibrated = 6;
 }
 
 message ReactionProvenance {
