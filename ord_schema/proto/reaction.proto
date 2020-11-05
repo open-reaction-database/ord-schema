@@ -955,8 +955,8 @@ message ProductMeasurement {
       UNSPECIFIED = 0;
       CUSTOM = 1;
       TIC = 2;
-      TIC_POS = 3;
-      TIC_NEG = 4;
+      TIC_POSITIVE = 3;
+      TIC_NEGATIVE = 4;
       EIC = 5;
     }
     MassSpecTypeEnum type = 1;
@@ -1241,6 +1241,10 @@ message CircularDichroism {
     ABSORBANCE = 5;  // Uncorrected for concentration and length.
     MILLIABSORBANCE = 6;  // Uncorrected for concentration and length.
   }
+  optional float value = 1;
+  // Precision of the measurement (with the same units as `value`).
+  optional float precision = 2;
+  CircularDichroismUnit units = 3;
 }
 // Used for things like conversion and yield.
 message Percentage {
