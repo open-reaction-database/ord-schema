@@ -227,13 +227,11 @@ message Compound {
       // The workup role is used when defining quenches, buffer additives for
       // liquid-liquid separations, etc.
       WORKUP = 5;
-      // Product role is always implicitly defined when a compound appears in
-      // a reaction outcome's list of products.
-      PRODUCT = 6;
       // Internal standards can be included as part of a reaction input (when
       // added prior to the start of the reaction) or as part of a workup
       // step of addition.
-      INTERNAL_STANDARD = 7;
+      INTERNAL_STANDARD = 6;
+      AUTHENTIC_STANDARD = 7;
     }
   }
   ReactionRole.ReactionRoleType reaction_role = 5;
@@ -253,7 +251,7 @@ message Compound {
   map<string, Data> features = 13;
   // Compounds may be assayed for quality control; analytical data should be
   // defined in the analyses map.
-  map<string, Analysis> analyses = 14;
+  map<string, Analysis> analyses = 15;
 }
 
 /**
@@ -832,18 +830,22 @@ message ReactionOutcome {
 }
 
 message ReactionProduct {
-  // The identity of the product compound, the quantitative amount produced
-  // (mass/moles), and any associated features or arbitrary product-specific
-  // data should be defined within the compound field.
-  Compound compound = 1;
+  // The identity of the product compound.
+  repeated CompoundIdentifier identifiers = 1;
   optional bool is_desired_product = 2;
+  // The quantitative amount of this product obtained in the reaction.
+  oneof amount {
+    Mass mass = 3;
+    Moles moles = 4;
+    Volume volume = 5;
+  }
   // Each ProductMeasurement describes a connection between this product and an
   // Analysis. This includes information about how the identity of the
   // product was confirmed. It also contains quantitative standardized
   // performance metrics like quantitative yield as well as unstandardized
   // (and unnormalized) metrics like an integrated UV peak area.
-  repeated ProductMeasurement measurements = 3;
-  string isolated_color = 4;
+  repeated ProductMeasurement measurements = 6;
+  string isolated_color = 7;
   message Texture {
     enum TextureType {
       UNSPECIFIED = 0;
@@ -861,7 +863,9 @@ message ReactionProduct {
     // "viscous" for OIL, etc.
     string details = 2;
   }
-  Texture texture = 5;
+  Texture texture = 8;
+  // Any features (e.g., calculated descriptors) of the product compound.
+  map<string, Data> features = 9;
 }
 
 message ProductMeasurement {
@@ -1029,16 +1033,16 @@ message Analysis {
   // Whether this analysis is intended to be of an isolated species. If false
   // or unspecified, the assumption is that it is of a crude product mixture
   // (or a partially worked-up product mixture).
-  optional bool is_of_isolated_species = 8;
+  optional bool is_of_isolated_species = 2;
   // RSC Chemical Methods Ontology ID to define the analytical method with
   // greater specificity. Defined at https://github.com/rsc-ontologies/rsc-cmo.
-  int32 chmo_id = 2;
+  int32 chmo_id = 3;
   // Any details about analysis (e.g., NMR type, columns, gradients).
-  string details = 3;
-  // Data files (raw, processed, or annotated).
-  map<string, Data> data = 4;
-  string instrument_manufacturer = 5;
-  DateTime instrument_last_calibrated = 6;
+  string details = 4;
+  // Data values or files (raw, processed, or annotated).
+  map<string, Data> data = 5;
+  string instrument_manufacturer = 6;
+  DateTime instrument_last_calibrated = 7;
 }
 
 message ReactionProvenance {
