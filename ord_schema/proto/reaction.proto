@@ -199,7 +199,7 @@ message Compound {
   // Set of identifiers used to uniquely define this compound.
   // Solutions or mixed compounds should use the NAME identifier
   // and list all constituent compounds in the "components" field.
-  repeated CompoundIdentifier identifiers = 1;
+  repeated CompoundIdentifier identifiers = 2;
   // The quantitative amount of a Compound used in a particular reaction.
   // Compounds added in their pure form should have their value defined by
   // mass, moles, or volume. Compounds prepared as solutions should be defined
@@ -1233,21 +1233,6 @@ message FlowRate {
   // Precision of the measurement (with the same units as `value`).
   optional float precision = 2;
   FlowRateUnit units = 3;
-}
-message CircularDichroism {
-  enum CircularDichroismUnit {
-    UNSPECIFIED = 0;
-    DEGREES = 1;  // Uncorrected for concentration and length.
-    MILLIDEGREES = 2;
-    MOLAR_EXTINCTION = 3;  // liter / (mol * cm)
-    MOLAR_ELLIPTICITY = 4;  // deg * cm^2 / decimol
-    ABSORBANCE = 5;  // Uncorrected for concentration and length.
-    MILLIABSORBANCE = 6;  // Uncorrected for concentration and length.
-  }
-  optional float value = 1;
-  // Precision of the measurement (with the same units as `value`).
-  optional float precision = 2;
-  CircularDichroismUnit units = 3;
 }
 // Used for things like conversion and yield.
 message Percentage {
