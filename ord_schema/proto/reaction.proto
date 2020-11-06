@@ -199,7 +199,7 @@ message Compound {
   // Set of identifiers used to uniquely define this compound.
   // Solutions or mixed compounds should use the NAME identifier
   // and list all constituent compounds in the "components" field.
-  repeated CompoundIdentifier identifiers = 2;
+  repeated CompoundIdentifier identifiers = 1;
   // The quantitative amount of a Compound used in a particular reaction.
   // Compounds added in their pure form should have their value defined by
   // mass, moles, or volume. Compounds prepared as solutions should be defined
@@ -808,6 +808,7 @@ message ReactionWorkup {
  * data.
  */
 message ReactionOutcome {
+  reserved 4;
   // Reaction time (for flow, equivalent to residence time or spacetime).
   Time reaction_time = 1;
   // Conversion with respect to the sole limiting reactant. If there is
@@ -826,26 +827,27 @@ message ReactionOutcome {
   // messages to indicate which analyses were used to derive which performance
   // values/metrics. The string used for the key carries no meaning outside of
   // this cross-referencing.
-  map<string, Analysis> analyses = 4;
+  map<string, Analysis> analyses = 5;
 }
 
 message ReactionProduct {
+  reserved 1, 3 to 9;
   // The identity of the product compound.
-  repeated CompoundIdentifier identifiers = 1;
+  repeated CompoundIdentifier identifiers = 12;
   optional bool is_desired_product = 2;
   // The quantitative amount of this product obtained in the reaction.
   oneof amount {
-    Mass mass = 3;
-    Moles moles = 4;
-    Volume volume = 5;
+    Mass mass = 13;
+    Moles moles = 14;
+    Volume volume = 15;
   }
   // Each ProductMeasurement describes a connection between this product and an
   // Analysis. This includes information about how the identity of the
   // product was confirmed. It also contains quantitative standardized
   // performance metrics like quantitative yield as well as unstandardized
   // (and unnormalized) metrics like an integrated UV peak area.
-  repeated ProductMeasurement measurements = 6;
-  string isolated_color = 7;
+  repeated ProductMeasurement measurements = 16;
+  string isolated_color = 10;
   message Texture {
     enum TextureType {
       UNSPECIFIED = 0;
@@ -863,9 +865,9 @@ message ReactionProduct {
     // "viscous" for OIL, etc.
     string details = 2;
   }
-  Texture texture = 8;
+  Texture texture = 11;
   // Any features (e.g., calculated descriptors) of the product compound.
-  map<string, Data> features = 9;
+  map<string, Data> features = 17;
 }
 
 message ProductMeasurement {
@@ -918,39 +920,41 @@ message ProductMeasurement {
   // was calculated if that is ambiguous given the analysis type.
   string details = 3;
   // Whether an internal standard was used for this measurement to normalize
-  // it, e.g., for quantification of yield or relative peak area. If this
-  // field is true, the value field should contain the normalized quantity.
+  // it, e.g., for quantification of yield or relative peak area.
   optional bool uses_internal_standard = 4;
+  // Whether the reported measurement has already been normalized to the
+  // internal standard, if an internal standard was used.
+  optional bool is_normalized = 5;
   // Whether an authentic sample of a material was used for callibrating
   // an analytical technique, e.g., for product identification by LCMS.
   // "Authentic" refers to a sample of a compound whose structure has been
   // proven by the accepted means (1H NMR, 13C NMR, IR, HRMS), and is now
   // being used as a comparison for other analytical methods.
-  optional bool uses_authentic_standard = 5;
+  optional bool uses_authentic_standard = 6;
   // Details about the authentic standard used, optionally including
   // information about its precise salt form and source/vendor.
-  Compound authentic_standard = 6;
+  Compound authentic_standard = 7;
   // The value for this measurement.
   oneof value {
     // A percentage value and its precision, as should be used for yields,
     // purities, and some selectivities like EE. Note that a 50% yield
     // corresponds to a percentage.value of 50 and not 0.5.
-    Percentage percentage = 7;
+    Percentage percentage = 8;
     // A float value and its precision, as should be used for areas, counts,
     // intensities, and some selectivities.
-    FloatValue float_value = 8;
+    FloatValue float_value = 9;
     // A string value, as should be used for measurements that cannot be
     // captured as floats or percentages. For example, complex selectivities
     // such as "2:1:1". Note that in the case of a 2:1:1 selectivity, however,
     // it is preferable to define the 3 distinct products specifically and
     // record the 3 product-specific measurements (e.g., peak areas) that
     // were used to derive the "2:1:1" summary statistic.
-    string string_value = 9;
+    string string_value = 10;
 
   }
   // A time to be used only when specifying the retention time at which a peak
   // area or intensity was calculated, e.g., as in LC, LCMS, GC, or GCMS.
-  Time retention_time = 10;
+  Time retention_time = 11;
   // More details about how a particular performance metric (e.g., counts)
   // was calculated from an analysis using mass spec. This includes
   // distinguishing total ion current (TIC) counts from extracted ion
@@ -975,7 +979,7 @@ message ProductMeasurement {
     // analysis.
     repeated float eic_masses = 5;
   }
-  MassSpecType ms_type = 11;
+  MassSpecType ms_type = 12;
   
   // The more specific type of selectivity that is being reported, e.g., EE,
   // ER, DR, EZ, ZE. EZ, ER, and DR assume that any product labeled as desired
@@ -994,7 +998,7 @@ message ProductMeasurement {
     SelectivityTypeEnum type = 1;
     string details = 2;
   }
-  SelectivityType selectivity_type = 12;
+  SelectivityType selectivity_type = 13;
 }
 
 message DateTime {
@@ -1002,6 +1006,7 @@ message DateTime {
 }
 
 message Analysis {
+  reserved 4, 5;
   // TODO(ccoley): Solicit more feedback from experimentalists
   enum AnalysisType {
     UNSPECIFIED = 0;
@@ -1033,14 +1038,14 @@ message Analysis {
   // Whether this analysis is intended to be of an isolated species. If false
   // or unspecified, the assumption is that it is of a crude product mixture
   // (or a partially worked-up product mixture).
-  optional bool is_of_isolated_species = 2;
+  optional bool is_of_isolated_species = 9;
   // RSC Chemical Methods Ontology ID to define the analytical method with
   // greater specificity. Defined at https://github.com/rsc-ontologies/rsc-cmo.
-  int32 chmo_id = 3;
+  int32 chmo_id = 2;
   // Any details about analysis (e.g., NMR type, columns, gradients).
-  string details = 4;
+  string details = 3;
   // Data values or files (raw, processed, or annotated).
-  map<string, Data> data = 5;
+  map<string, Data> data = 8;
   string instrument_manufacturer = 6;
   DateTime instrument_last_calibrated = 7;
 }
