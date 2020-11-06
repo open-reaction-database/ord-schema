@@ -1007,7 +1007,7 @@ message DateTime {
 }
 
 message Analysis {
-  reserved 4, 5;
+  reserved 4, 5, 8, 9;
   // TODO(ccoley): Solicit more feedback from experimentalists
   enum AnalysisType {
     UNSPECIFIED = 0;
@@ -1039,14 +1039,14 @@ message Analysis {
   // Whether this analysis is intended to be of an isolated species. If false
   // or unspecified, the assumption is that it is of a crude product mixture
   // (or a partially worked-up product mixture).
-  optional bool is_of_isolated_species = 9;
+  optional bool is_of_isolated_species = 11;
   // RSC Chemical Methods Ontology ID to define the analytical method with
   // greater specificity. Defined at https://github.com/rsc-ontologies/rsc-cmo.
   int32 chmo_id = 2;
   // Any details about analysis (e.g., NMR type, columns, gradients).
   string details = 3;
   // Data values or files (raw, processed, or annotated).
-  map<string, Data> data = 8;
+  map<string, Data> data = 10;
   string instrument_manufacturer = 6;
   DateTime instrument_last_calibrated = 7;
 }
