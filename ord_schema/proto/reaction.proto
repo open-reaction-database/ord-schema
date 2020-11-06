@@ -218,6 +218,7 @@ message Compound {
   optional bool volume_includes_solutes = 14;
   message ReactionRole {
     enum ReactionRoleType {
+      reserved 6;
       UNSPECIFIED = 0;
       // A reactant is any compound that contributes atoms to a desired or
       // observed product.
@@ -231,8 +232,8 @@ message Compound {
       // Internal standards can be included as part of a reaction input (when
       // added prior to the start of the reaction) or as part of a workup
       // step of addition.
-      INTERNAL_STANDARD = 6;
-      AUTHENTIC_STANDARD = 7;
+      INTERNAL_STANDARD = 7;
+      AUTHENTIC_STANDARD = 8;
     }
   }
   ReactionRole.ReactionRoleType reaction_role = 5;
