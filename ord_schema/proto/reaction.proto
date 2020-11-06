@@ -196,6 +196,7 @@ message CrudeComponent {
  * be provided about how it was prepared and from where it was purchased.
  */
 message Compound {
+  reserved 13;
   // Set of identifiers used to uniquely define this compound.
   // Solutions or mixed compounds should use the NAME identifier
   // and list all constituent compounds in the "components" field.
@@ -248,10 +249,10 @@ message Compound {
   // properties of the compound (e.g., molecular weight), heuristic estimates
   // of physical properties (e.g., ClogP), optimized geometries (e.g., through
   // DFT), and calculated stereoelectronic descriptors.
-  map<string, Data> features = 13;
+  map<string, Data> features = 15;
   // Compounds may be assayed for quality control; analytical data should be
   // defined in the analyses map.
-  map<string, Analysis> analyses = 15;
+  map<string, Analysis> analyses = 16;
 }
 
 /**
