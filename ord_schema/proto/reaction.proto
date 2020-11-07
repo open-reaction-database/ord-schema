@@ -961,8 +961,8 @@ message ProductMeasurement {
   // was calculated from an analysis using mass spec. This includes
   // distinguishing total ion current (TIC) counts from extracted ion
   // chromatogram (EIC) counts and their corresponding mass ranges or masses.
-  message MassSpecType {
-    enum MassSpecTypeEnum {
+  message MassSpecMeasurementType {
+    enum MassSpecMeasurementTypeEnum {
       UNSPECIFIED = 0;
       CUSTOM = 1;
       TIC = 2;
@@ -970,7 +970,7 @@ message ProductMeasurement {
       TIC_NEGATIVE = 4;
       EIC = 5;
     }
-    MassSpecTypeEnum type = 1;
+    MassSpecMeasurementTypeEnum type = 1;
     string details = 2;
     // The lower bound of the m/z interval used to calculate the TIC counts.
     optional float tic_minimum_mz = 3;
@@ -981,7 +981,7 @@ message ProductMeasurement {
     // analysis.
     repeated float eic_masses = 5;
   }
-  MassSpecType ms_type = 12;
+  MassSpecMeasurementType ms_type = 12;
   
   // The more specific type of selectivity that is being reported, e.g., EE,
   // ER, DR, EZ, ZE. EZ, ER, and DR assume that any product labeled as desired
