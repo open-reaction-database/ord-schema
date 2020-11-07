@@ -206,12 +206,19 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         self.assertEmpty(output.errors)
         self.assertEmpty(output.warnings)
 
-        # If an analysis uses an internal standard, a component must have
+        # If a measurement uses an internal standard, a component must have
         # an INTERNAL_STANDARD reaction role
         outcome.analyses['dummy_analysis'].CopyFrom(
-            reaction_pb2.ReactionAnalysis(type='CUSTOM',
-                                          details='test',
-                                          uses_internal_standard=True))
+            reaction_pb2.Analysis(type='CUSTOM',
+                                  details='test'))
+        product = outcome.products.add(identifiers=[dict(type='SMILES',
+            value='c1ccccc1')])
+        product.measurements.add(type='YIELD', float_value=dict(value=75),
+                                 uses_internal_standard=True)
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'analysis_key'):
+            self._run_validation(message)
+        product.measurements[0].analysis_key = 'dummy_analysis'
         with self.assertRaisesRegex(validations.ValidationError,
                                     'INTERNAL_STANDARD'):
             self._run_validation(message)

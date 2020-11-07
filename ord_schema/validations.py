@@ -312,9 +312,10 @@ def reaction_has_limiting_component(message):
 def reaction_needs_internal_standard(message):
     """Whether any analysis uses an internal standard."""
     for outcome in message.outcomes:
-        for analysis in outcome.analyses.values():
-            if analysis.uses_internal_standard:
-                return True
+        for product in outcome.products:
+            for measurement in product.measurements:
+                if measurement.uses_internal_standard:
+                    return True
     return False
 
 
@@ -462,11 +463,6 @@ def validate_compound(message):
         message_helpers.check_compound_identifiers(message)
     except ValueError as error:
         warnings.warn(str(error), ValidationWarning)
-
-
-def validate_compound_feature(message):
-    if not message.name:
-        warnings.warn('Compound features must have names', ValidationError)
 
 
 def validate_compound_preparation(message):
@@ -680,15 +676,11 @@ def validate_reaction_outcome(message):
     # NOTE(ccoley): Could use any(), but using expanded loops for clarity
     analysis_keys = list(message.analyses.keys())
     for product in message.products:
-        for field in [
-                'analysis_identity', 'analysis_yield', 'analysis_purity',
-                'analysis_selectivity'
-        ]:
-            for key in getattr(product, field):
-                if key not in analysis_keys:
-                    warnings.warn(
-                        f'Undefined analysis key {key} '
-                        'in ReactionProduct', ValidationError)
+        for measurement in product.measurements:
+            if measurement.analysis_key not in analysis_keys:
+                warnings.warn(
+                    f'Undefined analysis key {measurement.analysis_key} '
+                    'in ProductMeasurement', ValidationError)
     # TODO(ccoley): While we do not currently check whether the parent Reaction
     # is *actually* used in a multistep reaction within a Dataset (i.e., in a
     # CrudeComponent); this is an additional check that could be added to the
@@ -701,30 +693,41 @@ def validate_reaction_outcome(message):
 
 
 def validate_reaction_product(message):
-    # pylint: disable=too-many-boolean-expressions
-    if (message.compound.HasField('volume_includes_solutes') or
-            message.compound.HasField('is_limiting') or
-            message.compound.preparations or message.compound.vendor_source or
-            message.compound.vendor_id or message.compound.vendor_lot):
+    if len(message.identifiers) == 0:
+        warnings.warn('Compounds must have at least one identifier',
+                      ValidationError)
+    if all(identifier.type == identifier.NAME
+           for identifier in message.identifiers):
         warnings.warn(
-            'Compounds defined as reaction products should not have'
-            ' any inapplicable fields defined.', ValidationError)
+            'Compounds should have more specific identifiers than '
+            'NAME whenever possible', ValidationWarning)
+    try:
+        message_helpers.check_compound_identifiers(message)
+    except ValueError as error:
+        warnings.warn(str(error), ValidationWarning)
 
 
 def validate_texture(message):
     check_type_and_details(message)
 
 
+def validate_product_measurement(message):
+    check_type_and_details(message)
+    if not message.analysis_key:
+        warnings.warn('Product measurements must be associated with an'
+            ' analysis through its analysis_key', ValidationError)
+    if message.type == reaction_pb2.ProductMeasurement.IDENTITY:
+        if message.WhichOneof('value'):
+            warnings.warn('Product measurements to confirm identities should'
+                ' not have any values defined', ValidationError)
+    # TODO(ccoley) All of the other measurement checks
+
+
 def validate_selectivity(message):
-    ensure_float_nonnegative(message, 'precision')
-    if message.type == message.EE:
-        ensure_float_range(message, 'value', 0, 100)
-        if 0 < message.value < 1:
-            warnings.warn(
-                'EE selectivity values are 0-100, not fractions '
-                f'({message.value} used)', ValidationWarning)
-    elif message.type in [message.ER, message.DR, message.EZ, message.ZE]:
-        ensure_float_nonnegative(message, 'value')
+    check_type_and_details(message)
+
+
+def validate_mass_spec_measurement_type(message):
     check_type_and_details(message)
 
 
@@ -737,7 +740,7 @@ def validate_date_time(message):
                           ValidationError)
 
 
-def validate_reaction_analysis(message):
+def validate_analysis(message):
     # TODO(ccoley): Will be lots to expand here if we add structured data.
     check_type_and_details(message)
 
@@ -893,6 +896,11 @@ def validate_percentage(message):
     ensure_float_nonnegative(message, 'precision')
 
 
+def validate_float_value(message):
+    ensure_float_nonnegative(message, 'value')
+    ensure_float_nonnegative(message, 'precision')
+
+
 def validate_data(message):
     # TODO(kearnes): Validate/ping URLs?
     if not message.WhichOneof('kind'):
@@ -925,8 +933,6 @@ _VALIDATOR_SWITCH = {
         validate_crude_component,
     reaction_pb2.Compound:
         validate_compound,
-    reaction_pb2.Compound.Feature:
-        validate_compound_feature,
     reaction_pb2.CompoundPreparation:
         validate_compound_preparation,
     reaction_pb2.CompoundIdentifier:
@@ -1001,12 +1007,16 @@ _VALIDATOR_SWITCH = {
         validate_reaction_product,
     reaction_pb2.ReactionProduct.Texture:
         validate_texture,
-    reaction_pb2.Selectivity:
+    reaction_pb2.ProductMeasurement:
+        validate_product_measurement,
+    reaction_pb2.ProductMeasurement.SelectivityType:
         validate_selectivity,
+    reaction_pb2.ProductMeasurement.MassSpecMeasurementType:
+        validate_mass_spec_measurement_type,
     reaction_pb2.DateTime:
         validate_date_time,
-    reaction_pb2.ReactionAnalysis:
-        validate_reaction_analysis,
+    reaction_pb2.Analysis:
+        validate_analysis,
     # Metadata
     reaction_pb2.ReactionProvenance:
         validate_reaction_provenance,
@@ -1041,6 +1051,8 @@ _VALIDATOR_SWITCH = {
         validate_flow_rate,
     reaction_pb2.Percentage:
         validate_percentage,
+    reaction_pb2.FloatValue:
+        validate_float_value,
     reaction_pb2.Data:
         validate_data,
 }
