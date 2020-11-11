@@ -52,7 +52,7 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
                                                   'value: $conversion$')
         df = pd.DataFrame.from_dict({
             '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
-            '$conversion$': ['75', '50', '30'],
+            '$conversion$': [75, 50, 30],
         })
         dataset = templating.generate_dataset(template_string, df)
         expected_reactions = []
@@ -68,7 +68,7 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
         # Test without "$" in column names
         df = pd.DataFrame.from_dict({
             'my_smiles': ['CCO', 'CCCO', 'CCCCO'],
-            'conversion': ['75', '50', '30'],
+            'conversion': [75, 50, 30],
         })
         dataset = templating.generate_dataset(template_string, df)
         self.assertEqual(dataset, expected_dataset)
@@ -77,7 +77,7 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
     def test_read_spreadsheet(self, suffix):
         df = pd.DataFrame.from_dict({
             'smiles': ['CCO', 'CCCO', 'CCCCO'],
-            'conversion': ['75', '50', '30'],
+            'conversion': [75, 50, 30],
         })
         filename = os.path.join(self.test_subdirectory, f'test{suffix}')
         if suffix == '.csv':
@@ -93,7 +93,7 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
                                                   'precision: $precision$')
         df = pd.DataFrame.from_dict({
             '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
-            '$precision$': ['75', '50', '-5'],
+            '$precision$': [75, 50, -5],
         })
         expected_reactions = []
         for smiles, precision in zip(['CCO', 'CCCO', 'CCCCO'], [75, 50, -5]):
