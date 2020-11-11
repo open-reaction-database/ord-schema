@@ -552,7 +552,8 @@ def set_dative_bonds(mol, from_atoms=(7,15)):
         for nbr in metal.GetNeighbors():
             nbr_atom = nbr.GetAtomicNum()
             # Handles carbon-bound (e.g., NHC-type) ligands
-            # Converts carbon-metal bond to dative if bonds to carbon != 4
+            # Converts carbon-metal bond to dative if carbon's total valence +
+            # formal charge does not equal 4
             if nbr_atom in from_atoms and nbr_atom == 6:
                 if nbr.GetTotalValence() + nbr.GetFormalCharge() \
                 != pt.GetDefaultValence(nbr_atom) and \
@@ -565,7 +566,8 @@ def set_dative_bonds(mol, from_atoms=(7,15)):
                                      Chem.BondType.DATIVE)
             
             # Handles atoms other than carbon (P, N, O, S, etc.)
-            # Converts atom-metal bond to dative if excedes default valence
+            # Converts atom-metal bond to dative if bonds to atom 
+            # excedes its default valence
             elif nbr_atom in from_atoms and nbr_atom != 6:
                 if nbr.GetExplicitValence() > pt.GetDefaultValence(nbr_atom) \
                 and edit_mol.GetBondBetweenAtoms(nbr.GetIdx(), 
