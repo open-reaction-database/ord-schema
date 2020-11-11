@@ -44,8 +44,8 @@ def read_spreadsheet(file_name_or_buffer, suffix=None):
     if suffix is None:
         _, suffix = os.path.splitext(file_name_or_buffer)
     if suffix in ['.xls', '.xlsx']:
-        return pd.read_excel(file_name_or_buffer, dtype=str)
-    return pd.read_csv(file_name_or_buffer, dtype=str)
+        return pd.read_excel(file_name_or_buffer)
+    return pd.read_csv(file_name_or_buffer)
 
 
 def _escape(string):
