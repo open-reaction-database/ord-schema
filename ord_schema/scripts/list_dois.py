@@ -11,7 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Lists DOIs and the Datasets that cover them."""
+"""Lists DOIs and the Datasets that cover them.
+
+Example usage:
+$ ORD_DATA_ROOT="${HOME}/Documents/GitHub/ord-data"
+$ python list_dois.py --input="${ORD_DATA_ROOT}/data/*/*.pb"
+"""
 
 import collections
 import glob
