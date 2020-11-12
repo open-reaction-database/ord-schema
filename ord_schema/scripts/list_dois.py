@@ -45,7 +45,7 @@ def main(argv):
         doi_set = set()
         for reaction in dataset.reactions:
             # Some poorly-validated DOI entries start with 'doi:'...
-            match = re.fullmatch('(?:(?:doi)|(?:DOI))?:?\s*(.*)',
+            match = re.fullmatch(r'(?:(?:doi)|(?:DOI))?:?\s*(.*)',
                                  reaction.provenance.doi)
             doi_set.add(match.group(1))
         if len(doi_set) != 1:
