@@ -267,21 +267,22 @@ class ReactionComponentQuery(ReactionQueryBase):
         if not self._predicates:
             return {}
         self._setup(cursor)
-        components = [
-            sql.SQL("""
-            SELECT DISTINCT reaction_id, serialized
-            FROM reactions """)
-        ]
-        components.extend(self._get_tables())
-        components.append(sql.SQL("""
-            WHERE """))
-        args = []
         predicates = []
+        args = []
         for predicate in self._predicates:
+            components = [
+                sql.SQL("""
+                SELECT DISTINCT reaction_id, serialized
+                FROM reactions """)
+            ]
+            components.extend(self._get_tables())
+            components.append(sql.SQL("""
+                WHERE """))
             predicate_sql, predicate_args = predicate.get()
-            predicates.append(predicate_sql)
+            components.append(predicate_sql)
             args.extend(predicate_args)
-        components.append(sql.Composed(predicates).join(' AND '))
+            predicates.append(sql.Composed(components))
+        components = [sql.Composed(predicates).join(' INTERSECT ')]
         if limit:
             components.append(sql.SQL(' LIMIT %s'))
             args.append(limit)

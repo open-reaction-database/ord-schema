@@ -53,31 +53,7 @@ def show_root():
     If there are query params, then the query is executed and the form is
     populated with the results. The form fields are populated with the params.
     """
-    reaction_ids = flask.request.args.get('reaction_ids')
-    reaction_smarts = flask.request.args.get('reaction_smarts')
-    components = flask.request.args.getlist('component')
-    use_stereochemistry = flask.request.args.get('use_stereochemistry')
-    similarity = flask.request.args.get('similarity')
-
-    if reaction_ids is not None:
-        command = query.ReactionIdQuery(reaction_ids.split(','))
-    elif reaction_smarts is not None:
-        command = query.ReactionSmartsQuery(reaction_smarts)
-    else:
-        predicates = []
-        for component in components:
-            pattern, source, mode_name = component.split(';')
-            table = query.ReactionComponentPredicate.SOURCE_TO_TABLE[source]
-            mode = query.ReactionComponentPredicate.MatchMode.from_name(
-                mode_name)
-            predicates.append(
-                query.ReactionComponentPredicate(pattern, table, mode))
-        kwargs = {}
-        if use_stereochemistry is not None:
-            kwargs['do_chiral_sss'] = use_stereochemistry
-        if similarity is not None:
-            kwargs['tanimoto_threshold'] = float(similarity)
-        command = query.ReactionComponentQuery(predicates, **kwargs)
+    command = build_query()
     dataset = connect().run_query(command, return_ids=True)
     return flask.render_template('search.html',
                                  reaction_ids=dataset.reaction_ids,
@@ -125,3 +101,49 @@ def fetch_reactions():
     command = query.ReactionIdQuery(reaction_ids)
     dataset = connect().run_query(command)
     return flask.make_response(dataset.SerializeToString())
+
+
+@app.route('/api/query')
+def run_query():
+    """Builds and executes a GET query.
+
+    Returns:
+        A serialized Dataset proto containing the matched reactions.
+    """
+    command = build_query()
+    dataset = connect().run_query(command)
+    return flask.make_response(dataset.SerializeToString())
+
+
+def build_query():
+    """Builds a query from GET parameters.
+
+    Returns:
+        ReactionQueryBase subclass instance.
+    """
+    reaction_ids = flask.request.args.get('reaction_ids')
+    reaction_smarts = flask.request.args.get('reaction_smarts')
+    components = flask.request.args.getlist('component')
+    use_stereochemistry = flask.request.args.get('use_stereochemistry')
+    similarity = flask.request.args.get('similarity')
+
+    if reaction_ids is not None:
+        command = query.ReactionIdQuery(reaction_ids.split(','))
+    elif reaction_smarts is not None:
+        command = query.ReactionSmartsQuery(reaction_smarts)
+    else:
+        predicates = []
+        for component in components:
+            pattern, source, mode_name = component.split(';')
+            table = query.ReactionComponentPredicate.SOURCE_TO_TABLE[source]
+            mode = query.ReactionComponentPredicate.MatchMode.from_name(
+                mode_name)
+            predicates.append(
+                query.ReactionComponentPredicate(pattern, table, mode))
+        kwargs = {}
+        if use_stereochemistry is not None:
+            kwargs['do_chiral_sss'] = use_stereochemistry
+        if similarity is not None:
+            kwargs['tanimoto_threshold'] = float(similarity)
+        command = query.ReactionComponentQuery(predicates, **kwargs)
+    return command

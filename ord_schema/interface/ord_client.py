@@ -19,6 +19,7 @@ import requests
 
 from ord_schema import message_helpers
 from ord_schema import validations
+from ord_schema.interface import query
 from ord_schema.proto import dataset_pb2
 
 TARGET = 'https://client.open-reaction-database.org'
@@ -108,9 +109,8 @@ class OrdClient:
         for reaction_id in reaction_ids:
             if not validations.is_valid_reaction_id(reaction_id):
                 raise ValueError(f'Invalid reaction ID: {reaction_id}')
-        response = requests.post(urllib.parse.urljoin(self._target,
-                                                      '/api/fetch_reactions'),
-                                 json=list(set(reaction_ids)))
+        target = urllib.parse.urljoin(self._target, '/api/fetch_reactions')
+        response = requests.post(target, json=list(set(reaction_ids)))
         dataset = dataset_pb2.Dataset.FromString(response.content)
         # NOTE(kearnes): Return reactions in the same order as requested.
         reactions = {
@@ -130,3 +130,70 @@ class OrdClient:
         reactions = self.fetch_reactions([reaction_id])
         assert len(reactions) == 1
         return reactions[0]
+
+    def query(self,
+              reaction_ids=None,
+              reaction_smarts=None,
+              components=None,
+              use_stereochemistry=None,
+              similarity=None):
+        """Executes a query against the Open Reaction Database.
+
+        Args:
+            reaction_ids: List of reaction IDs to fetch. This is provided for
+                completeness, but fetch_reaction(s) should be preferred.
+            reaction_smarts: Reaction SMARTS pattern.
+            components: List of ComponentQuery instances.
+            use_stereochemistry: Boolean whether to use stereochemistry when
+                matching.
+            similarity: Float similarity threshold for SIMILAR queries.
+
+        Returns:
+            A Dataset containing the matched reactions.
+        """
+        if components is not None:
+            component_params = [
+                component.get_params() for component in components
+            ]
+        else:
+            component_params = None
+        params = {
+            'reaction_ids': ','.join(reaction_ids) if reaction_ids else None,
+            'reaction_smarts': reaction_smarts,
+            'component': component_params,
+            'use_stereochemistry': use_stereochemistry,
+            'similarity': similarity,
+        }
+        target = urllib.parse.urljoin(self._target, '/api/query')
+        response = requests.get(target, params=params)
+        return dataset_pb2.Dataset.FromString(response.content)
+
+
+class ComponentQuery:
+    """Client-side implementation of ReactionComponentPredicate."""
+
+    _ALLOWED_SOURCES = list(
+        query.ReactionComponentPredicate.SOURCE_TO_TABLE.keys())
+    _MATCH_MODE = query.ReactionComponentPredicate.MatchMode
+
+    def __init__(self, pattern, source, mode):
+        """Initializes the query.
+
+        Args:
+            pattern: String SMILES or SMARTS pattern.
+            source: String key into ReactionComponentPredicate.SOURCE_TO_TABLE.
+            mode: String ReactionComponentPredicate.MatchMode value.
+        """
+        self._pattern = pattern
+        if source not in self._ALLOWED_SOURCES:
+            raise ValueError(f'source is not in {self._ALLOWED_SOURCES}')
+        self._source = source
+        try:
+            self._MATCH_MODE.from_name(mode)
+        except KeyError as error:
+            raise ValueError(f'mode is not in {self._MATCH_MODE}') from error
+        self._mode = mode
+
+    def get_params(self):
+        """Returns URL parameters for GET requests."""
+        return ';'.join([self._pattern, self._source, self._mode])

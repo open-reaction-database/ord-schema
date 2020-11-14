@@ -21,18 +21,20 @@ from ord_schema.interface import ord_client
 
 class OrdClientTest(parameterized.TestCase, absltest.TestCase):
 
+    def setUp(self):
+        super().setUp()
+        self.client = ord_client.OrdClient()
+
     @parameterized.parameters(
         ('ord_dataset-d319c2a22ecf4ce59db1a18ae71d529c', 264))
     def test_fetch_dataset(self, dataset_id, expected_num_reactions):
-        client = ord_client.OrdClient()
-        dataset = client.fetch_dataset(dataset_id)
+        dataset = self.client.fetch_dataset(dataset_id)
         self.assertLen(dataset.reactions, expected_num_reactions)
 
     @parameterized.parameters(
         (['ord_dataset-d319c2a22ecf4ce59db1a18ae71d529c'], [264]))
     def test_fetch_datasets(self, dataset_ids, expected_num_reactions):
-        client = ord_client.OrdClient()
-        datasets = client.fetch_datasets(dataset_ids)
+        datasets = self.client.fetch_datasets(dataset_ids)
         self.assertLen(dataset_ids, len(expected_num_reactions))
         self.assertLen(datasets, len(expected_num_reactions))
         for dataset, expected in zip(datasets, expected_num_reactions):
@@ -42,8 +44,7 @@ class OrdClientTest(parameterized.TestCase, absltest.TestCase):
         ('ord-f0621fa47ac74fd59f9da027f6d13fc4', 'Jun Li'),
         ('ord-c6fbf2aab30841d198a27068a65a9a98', 'Steven Kearnes'))
     def test_fetch_reaction(self, reaction_id, created_by):
-        client = ord_client.OrdClient()
-        reaction = client.fetch_reaction(reaction_id)
+        reaction = self.client.fetch_reaction(reaction_id)
         self.assertEqual(reaction.provenance.record_created.person.name,
                          created_by)
 
@@ -52,13 +53,52 @@ class OrdClientTest(parameterized.TestCase, absltest.TestCase):
         'ord-c6fbf2aab30841d198a27068a65a9a98'
     ], ['Jun Li', 'Steven Kearnes']))
     def test_fetch_reactions(self, reaction_ids, created_by):
-        client = ord_client.OrdClient()
-        reactions = client.fetch_reactions(reaction_ids)
+        reactions = self.client.fetch_reactions(reaction_ids)
         self.assertLen(reaction_ids, len(created_by))
         self.assertLen(reactions, len(created_by))
         for reaction, expected in zip(reactions, created_by):
             self.assertEqual(reaction.provenance.record_created.person.name,
                              expected)
+
+    def test_query_reaction_ids(self):
+        dataset = self.client.query(reaction_ids=[
+            'ord-f0621fa47ac74fd59f9da027f6d13fc4',
+            'ord-c6fbf2aab30841d198a27068a65a9a98'
+        ])
+        self.assertLen(dataset.reactions, 2)
+
+    def test_query_reaction_smarts(self):
+        dataset = self.client.query(
+            reaction_smarts='FC(F)(F)c1ccc([F,Cl,Br,I])cc1>CS(=O)C>')
+        self.assertLen(dataset.reactions, 862)
+
+    def test_query_single_component(self):
+        component = ord_client.ComponentQuery('FC(F)(F)c1ccc(Br)cc1',
+                                              source='input',
+                                              mode='exact')
+        dataset = self.client.query(components=[component])
+        self.assertLen(dataset.reactions, 287)
+
+    def test_query_multiple_components(self):
+        component1 = ord_client.ComponentQuery('FC(F)(F)c1ccc(Br)cc1',
+                                               source='input',
+                                               mode='exact')
+        component2 = ord_client.ComponentQuery('Cc1cc(C)on1',
+                                               source='input',
+                                               mode='exact')
+        dataset = self.client.query(components=[component1, component2])
+        self.assertLen(dataset.reactions, 12)
+
+    def test_query_stereochemistry(self):
+        # TODO(kearnes): Add a test once we have more chiral stuff.
+        pass
+
+    def test_query_similarity(self):
+        component = ord_client.ComponentQuery('FC(F)(F)c1ccc(Br)cc1',
+                                              source='input',
+                                              mode='similar')
+        dataset = self.client.query(components=[component], similarity=0.6)
+        self.assertLen(dataset.reactions, 575)
 
 
 if __name__ == '__main__':
