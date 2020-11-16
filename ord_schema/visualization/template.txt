@@ -104,70 +104,16 @@ added
 
     {# PRODUCTS #}
     {% for product in outcome.products %}
-        {{ product.compound|compound_name }}
-        {% if product.compound.is_desired_product|is_true %}
+        {{ product|compound_name }}
+        {% if product.is_desired_product|is_true %}
             , the desired product,
         {% endif %}
 
-        {# PRODUCT IDENTITY #}
-        {% if product.analysis_identity %}
-            was identified through
-            {% for key in product.analysis_identity %}
-                {% if loop.last and loop.index > 1 %} and {% endif %}
-                {{ outcome.analyses[key]|analysis_format }}
-                {% if not loop.last %}, {% endif %}
-            {% endfor %}
-        {% else %}
-            was observed
-        {% endif %}
+        was observed
         
         {# PRODUCT YIELD #}
-        {% if product.compound_yield.value %}
-            with a yield of {{ product.compound_yield.value|round(3) }}%
-            {% if product.compound_yield.precision %}
-                (p/m {{ product.compound_yield.precision|round(3) }}%)
-            {% endif %}
-            {% if product.analysis_yield %}
-                (assayed through
-                {% for key in product.analysis_yield %}
-                    {% if loop.last and loop.index > 1 %} and {% endif %}
-                    {{ outcome.analyses[key]|analysis_format }}
-                    {% if not loop.last %}, {% endif %}
-                {% endfor %})
-            {% endif %}
-        {% endif %}
-
-        {# PRODUCT SELECTIVITY #}
-        {% if product.selectivity.value %}
-            with a selectivity of {{ product.selectivity.value|round(3) }}
-            {{ product.selectivity|selectivity_type }}
-            {% if product.selectivity.precision %}
-                (p/m {{ product.selectivity.precision|round(3) }})
-            {% endif %}
-            {% if product.analysis_selectivity %}
-                (assayed through
-                {% for key in product.analysis_selectivity %}
-                    {% if loop.last and loop.index > 1 %} and {% endif %}
-                    {{ outcome.analyses[key]|analysis_format }}
-                    {% if not loop.last %}, {% endif %}
-                {% endfor %})
-            {% endif %}
-        {% endif %}
-
-        {# PRODUCT PURITY #}
-        {% if product.purity.value %}
-            with a purity of {{ product.purity.value|round(3) }}%
-            {% if product.purity.precision %}
-                (p/m {{ product.purity.precision|round(3) }}%)
-            {% endif %}
-            {% if product.analysis_purity %}
-                (assayed through
-                {% for key in product.analysis_purity %}
-                    {% if loop.last and loop.index > 1 %} and {% endif %}
-                    {{ outcome.analyses[key]|analysis_format }}
-                    {% if not loop.last %}, {% endif %}
-                {% endfor %})
-            {% endif %}
+        {% if product|product_yield %}
+            with a yield of {{ product|product_yield }}
         {% endif %}.
 
         {# PRODUCT COLOR/TEXTURE #}

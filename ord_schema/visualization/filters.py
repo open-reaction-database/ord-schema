@@ -432,7 +432,8 @@ def _compound_role(compound, text=False):
             compound.ReactionRole.CATALYST: 'as a catalyst',
             compound.ReactionRole.INTERNAL_STANDARD: 'as an internal standard',
             compound.ReactionRole.WORKUP: '',
-            compound.ReactionRole.PRODUCT: 'as a product',
+            compound.ReactionRole.AUTHENTIC_STANDARD:
+                'as an authentic standard',
         }
     else:
         options = {
@@ -443,7 +444,7 @@ def _compound_role(compound, text=False):
             compound.ReactionRole.CATALYST: 'catalyst',
             compound.ReactionRole.INTERNAL_STANDARD: 'internal standard',
             compound.ReactionRole.WORKUP: '',
-            compound.ReactionRole.PRODUCT: 'product',
+            compound.ReactionRole.AUTHENTIC_STANDARD: 'authentic standard',
         }
     return options[compound.reaction_role]
 
@@ -477,6 +478,18 @@ def _compound_source_prep(compound):
         txt.append(preparation.details)
     if any(elem for elem in txt):
         return '(' + ', '.join([elem for elem in txt if elem]) + ')'
+    return ''
+
+
+def _product_yield(product):
+    """Returns a string describing how a product yield was calculated."""
+    for measurement in product.measurements:
+        if measurement.type == measurement.YIELD:
+            if measurement.percentage.HasField('value'):
+                string = f'{measurement.percentage.value:0.3f}%'
+                if measurement.percentage.HasField('precision'):
+                    string += f' (± {measurement.percentage.precision:0.3f}%)'
+                return string
     return ''
 
 
@@ -606,6 +619,7 @@ TEMPLATE_FILTERS = {
     'compound_smiles': _compound_smiles,
     'compound_role': _compound_role,
     'compound_source_prep': _compound_source_prep,
+    'product_yield': _product_yield,
     'vessel_prep': _vessel_prep,
     'vessel_type': _vessel_type,
     'vessel_material': _vessel_material,
