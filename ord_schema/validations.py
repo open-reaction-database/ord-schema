@@ -738,7 +738,7 @@ def validate_product_measurement(message):
         if message.WhichOneof('value') not in ('percentage', 'float_value'):
             warnings.warn(
                 'Product measurements of type AREA, COUNTS, or '
-                'INTENSITY must use numeric values (percentage or float_value',
+                'INTENSITY must use numeric values (percentage or float_value)',
                 ValidationError)
     if message.HasField('selectivity_type') and (
             message.type != reaction_pb2.ProductMeasurement.SELECTIVITY):
