@@ -116,3 +116,12 @@ def connect():
                              password='ord-postgres',
                              host=app.config['ORD_POSTGRES_HOST'],
                              port=5432)
+
+
+@app.route('/api/fetch_reactions', methods=['POST'])
+def fetch_reactions():
+    """Fetches a list of Reactions by ID."""
+    reaction_ids = flask.request.get_json()
+    command = query.ReactionIdQuery(reaction_ids)
+    dataset = connect().run_query(command)
+    return flask.make_response(dataset.SerializeToString())

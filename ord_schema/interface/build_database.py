@@ -195,7 +195,6 @@ def _rdkit_reaction_smiles(cursor, table):
 
     Creates a new table rdk.<table> with the following columns:
         * r: reaction objects loaded from reaction SMILES
-        * rdfp: reaction difference fingerprints
 
     An index is also created for each column.
 
@@ -206,8 +205,7 @@ def _rdkit_reaction_smiles(cursor, table):
     cursor.execute(
         sql.SQL("""
         SELECT reaction_id,
-               r,
-               reaction_difference_fp(r) AS rdfp 
+               r
         INTO {} FROM (
             SELECT reaction_id, 
                    reaction_from_smiles(reaction_smiles::cstring) AS r
@@ -218,10 +216,6 @@ def _rdkit_reaction_smiles(cursor, table):
     cursor.execute(
         sql.SQL('CREATE INDEX {} ON {} USING gist(r)').format(
             sql.Identifier(f'{table}_r'),
-            sql.Identifier(interface.RDKIT_SCHEMA, table)))
-    cursor.execute(
-        sql.SQL('CREATE INDEX {} ON {} USING gist(rdfp)').format(
-            sql.Identifier(f'{table}_rdfp'),
             sql.Identifier(interface.RDKIT_SCHEMA, table)))
 
 
