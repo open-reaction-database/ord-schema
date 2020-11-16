@@ -714,13 +714,37 @@ def validate_texture(message):
 def validate_product_measurement(message):
     check_type_and_details(message)
     if not message.analysis_key:
-        warnings.warn('Product measurements must be associated with an'
+        warnings.warn(
+            'Product measurements must be associated with an'
             ' analysis through its analysis_key', ValidationError)
     if message.type == reaction_pb2.ProductMeasurement.IDENTITY:
         if message.WhichOneof('value'):
-            warnings.warn('Product measurements to confirm identities should'
+            warnings.warn(
+                'Product measurements to confirm identities should'
                 ' not have any values defined', ValidationError)
-    # TODO(ccoley) All of the other measurement checks
+    elif message.type == reaction_pb2.ProductMeasurement.YIELD:
+        if message.WhichOneof('value') != 'percentage':
+            warnings.warn(
+                'Yield measurements should be defined as percentage'
+                ' values', ValidationError)
+    elif message.type == reaction_pb2.ProductMeasurement.PURITY:
+        if message.WhichOneof('value') != 'percentage':
+            warnings.warn(
+                'Purity measurements should be defined as percentage'
+                ' values', ValidationError)
+    elif message.type in (reaction_pb2.ProductMeasurement.AREA,
+                          reaction_pb2.ProductMeasurement.COUNTS,
+                          reaction_pb2.ProductMeasurement.INTENSITY):
+        if message.WhichOneof('value') not in ('percentage', 'float_value'):
+            warnings.warn(
+                'Product measurements of type AREA, COUNTS, or '
+                'INTENSITY must use numeric values (percentage or float_value',
+                ValidationError)
+    if message.HasField('selectivity_type') and (
+            message.type != reaction_pb2.ProductMeasurement.SELECTIVITY):
+        warnings.warn(
+            'The selectivity_type field should only be used for a'
+            ' product measurement with type SELECTIVITY', ValidationError)
 
 
 def validate_selectivity(message):

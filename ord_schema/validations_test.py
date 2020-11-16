@@ -151,6 +151,25 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         self.assertEmpty(output.errors)
         self.assertEmpty(output.warnings)
 
+    def test_product_measurement(self):
+        message = reaction_pb2.ProductMeasurement(analysis_key='my_analysis',
+                                                  type='YIELD',
+                                                  float_value=dict(value=60))
+        with self.assertRaisesRegex(validations.ValidationError, 'percentage'):
+            self._run_validation(message)
+        message = reaction_pb2.ProductMeasurement(analysis_key='my_analysis',
+                                                  type='AREA',
+                                                  string_value='35.221')
+        with self.assertRaisesRegex(validations.ValidationError, 'numeric'):
+            self._run_validation(message)
+        message = reaction_pb2.ProductMeasurement(
+            analysis_key='my_analysis',
+            type='YIELD',
+            percentage=dict(value=60),
+            selectivity_type=dict(type='EE'))
+        with self.assertRaisesRegex(validations.ValidationError, 'selectivity'):
+            self._run_validation(message)
+
     def test_reaction(self):
         message = reaction_pb2.Reaction()
         with self.assertRaisesRegex(validations.ValidationError,
@@ -209,11 +228,11 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         # If a measurement uses an internal standard, a component must have
         # an INTERNAL_STANDARD reaction role
         outcome.analyses['dummy_analysis'].CopyFrom(
-            reaction_pb2.Analysis(type='CUSTOM',
-                                  details='test'))
-        product = outcome.products.add(identifiers=[dict(type='SMILES',
-            value='c1ccccc1')])
-        product.measurements.add(type='YIELD', float_value=dict(value=75),
+            reaction_pb2.Analysis(type='CUSTOM', details='test'))
+        product = outcome.products.add(
+            identifiers=[dict(type='SMILES', value='c1ccccc1')])
+        product.measurements.add(type='YIELD',
+                                 percentage=dict(value=75),
                                  uses_internal_standard=True)
         with self.assertRaisesRegex(validations.ValidationError,
                                     'analysis_key'):
