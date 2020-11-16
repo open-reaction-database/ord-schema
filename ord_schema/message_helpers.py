@@ -390,7 +390,7 @@ def get_reaction_smiles(message, allow_incomplete=True, validate=True):
     for outcome in message.outcomes:
         for product in outcome.products:
             try:
-                smiles = smiles_from_compound(product.compound)
+                smiles = smiles_from_compound(product)
             except ValueError as error:
                 if allow_incomplete:
                     continue

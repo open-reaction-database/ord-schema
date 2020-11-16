@@ -126,7 +126,7 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
             value='Cc1ccccc1', type='SMILES')
         reactant2.components.add(reaction_role='SOLVENT').identifiers.add(
             value='N', type='SMILES')
-        reaction.outcomes.add().products.add().compound.identifiers.add(
+        reaction.outcomes.add().products.add().identifiers.add(
             value='O=C=O', type='SMILES')
         self.assertEqual(message_helpers.get_reaction_smiles(reaction),
                          'Cc1ccccc1.c1ccccc1>N>O=C=O')
@@ -143,7 +143,7 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(ValueError, 'must contain at least one'):
             message_helpers.get_reaction_smiles(reaction,
                                                 allow_incomplete=False)
-        reaction.outcomes.add().products.add().compound.identifiers.add(
+        reaction.outcomes.add().products.add().identifiers.add(
             value='invalid', type='SMILES')
         with self.assertRaisesRegex(ValueError, 'reaction contains errors'):
             message_helpers.get_reaction_smiles(reaction,
