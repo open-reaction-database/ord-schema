@@ -901,7 +901,7 @@ message ProductMeasurement {
     // Yields should only be reported as quantitative yields, e.g., measured
     // using an isolated weight analysis, quantitative NMR with an internal
     // standard, LC peak area with an internal standard and calibration curve
-    // obtained using an authentic standard. 
+    // obtained using an authentic standard.
     YIELD = 3;
     // Selectivites include enantiomeric excess/ratios, diastereomic ratios,
     // etc. The detailed type should be specified in selectivity_type.
@@ -952,7 +952,6 @@ message ProductMeasurement {
     // record the 3 product-specific measurements (e.g., peak areas) that
     // were used to derive the "2:1:1" summary statistic.
     string string_value = 10;
-
   }
   // A time to be used only when specifying the retention time at which a peak
   // area or intensity was calculated, e.g., as in LC, LCMS, GC, or GCMS.
@@ -982,7 +981,7 @@ message ProductMeasurement {
     repeated float eic_masses = 5;
   }
   MassSpecMeasurementType ms_type = 12;
-  
+
   // The more specific type of selectivity that is being reported, e.g., EE,
   // ER, DR, EZ, ZE. EZ, ER, and DR assume that any product labeled as desired
   // is first in the calculation, whereas EZ and ZE ratios are calculated as
