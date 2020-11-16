@@ -50,15 +50,23 @@ class EnumerateDatasetTest(absltest.TestCase):
             }
         }
         outcomes {
-            products {
-                compound {
-                    identifiers {
-                        type: SMILES
-                        value: "$product_smiles$"
-                    }
+            analyses {
+                key: "my_analysis"
+                value {
+                    type: WEIGHT
                 }
-                compound_yield {
-                    value: $product_yield$
+            }
+            products {
+                identifiers {
+                    type: SMILES
+                    value: "$product_smiles$"
+                }
+                measurements {
+                    analysis_key: "my_analysis"
+                    type: YIELD
+                    percentage {
+                        value: $product_yield$
+                    }
                 }
             }
         }
@@ -82,24 +90,36 @@ class EnumerateDatasetTest(absltest.TestCase):
         reaction1_compound1.mass.CopyFrom(
             reaction_pb2.Mass(value=1.2, units='GRAM'))
         reaction1_product1 = reaction1.outcomes.add().products.add()
-        reaction1_product1.compound.identifiers.add(value='CO', type='SMILES')
-        reaction1_product1.compound_yield.value = 7.8
+        reaction1_product1.identifiers.add(value='CO', type='SMILES')
+        reaction1_product1.measurements.add(analysis_key='my_analysis',
+                                            type='YIELD',
+                                            percentage=dict(value=7.8))
+        reaction1.outcomes[0].analyses['my_analysis'].type = (
+            reaction_pb2.Analysis.WEIGHT)
         reaction2 = self.expected.reactions.add()
         reaction2_compound1 = reaction2.inputs['test'].components.add()
         reaction2_compound1.identifiers.add(value='CC', type='SMILES')
         reaction2_compound1.mass.CopyFrom(
             reaction_pb2.Mass(value=3.4, units='GRAM'))
         reaction2_product1 = reaction2.outcomes.add().products.add()
-        reaction2_product1.compound.identifiers.add(value='CCO', type='SMILES')
-        reaction2_product1.compound_yield.value = 9.0
+        reaction2_product1.identifiers.add(value='CCO', type='SMILES')
+        reaction2_product1.measurements.add(analysis_key='my_analysis',
+                                            type='YIELD',
+                                            percentage=dict(value=9.0))
+        reaction2.outcomes[0].analyses['my_analysis'].type = (
+            reaction_pb2.Analysis.WEIGHT)
         reaction3 = self.expected.reactions.add()
         reaction3_compound1 = reaction3.inputs['test'].components.add()
         reaction3_compound1.identifiers.add(value='CCC', type='SMILES')
         reaction3_compound1.mass.CopyFrom(
             reaction_pb2.Mass(value=5.6, units='GRAM'))
         reaction3_product1 = reaction3.outcomes.add().products.add()
-        reaction3_product1.compound.identifiers.add(value='CCCO', type='SMILES')
-        reaction3_product1.compound_yield.value = 8.7
+        reaction3_product1.identifiers.add(value='CCCO', type='SMILES')
+        reaction3_product1.measurements.add(analysis_key='my_analysis',
+                                            type='YIELD',
+                                            percentage=dict(value=8.7))
+        reaction3.outcomes[0].analyses['my_analysis'].type = (
+            reaction_pb2.Analysis.WEIGHT)
 
     def test_main(self):
         output_filename = os.path.join(self.test_subdirectory, 'dataset.pbtxt')
