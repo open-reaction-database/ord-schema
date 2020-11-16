@@ -63,7 +63,7 @@ class GenerateTextTest(parameterized.TestCase, absltest.TestCase):
             message_helpers.build_compound(
                 name='hexanone',
                 smiles='CCCCC(=O)C',
-            ).identifers)
+            ).identifiers)
         reaction.reaction_id = 'dummy_reaction_id'
         self._reaction = reaction
         self._input = os.path.join(self.test_subdirectory, 'reaction.pbtxt')
