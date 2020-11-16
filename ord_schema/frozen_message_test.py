@@ -90,7 +90,6 @@ class FrozenMessageTest(absltest.TestCase):
         self.assertEqual(frozen.eic_masses[0], 1.5)
         with self.assertRaises(IndexError):
             _ = frozen.eic_masses[1]
-        
 
     def test_access_repeated_submessage(self):
         message = reaction_pb2.Reaction()

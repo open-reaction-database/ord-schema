@@ -425,13 +425,20 @@ def _compound_role(compound, text=False):
     limiting = limiting_if_true[compound.is_limiting]
     if text:
         options = {
-            compound.ReactionRole.UNSPECIFIED: '',
-            compound.ReactionRole.REACTANT: f'as a {limiting} reactant',
-            compound.ReactionRole.REAGENT: 'as a reagent',
-            compound.ReactionRole.SOLVENT: 'as a solvent',
-            compound.ReactionRole.CATALYST: 'as a catalyst',
-            compound.ReactionRole.INTERNAL_STANDARD: 'as an internal standard',
-            compound.ReactionRole.WORKUP: '',
+            compound.ReactionRole.UNSPECIFIED:
+                '',
+            compound.ReactionRole.REACTANT:
+                f'as a {limiting} reactant',
+            compound.ReactionRole.REAGENT:
+                'as a reagent',
+            compound.ReactionRole.SOLVENT:
+                'as a solvent',
+            compound.ReactionRole.CATALYST:
+                'as a catalyst',
+            compound.ReactionRole.INTERNAL_STANDARD:
+                'as an internal standard',
+            compound.ReactionRole.WORKUP:
+                '',
             compound.ReactionRole.AUTHENTIC_STANDARD:
                 'as an authentic standard',
         }
