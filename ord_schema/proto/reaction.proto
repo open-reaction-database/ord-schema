@@ -1032,7 +1032,8 @@ message Analysis {
   }
   AnalysisType type = 1;
   // Any details about analysis (e.g., NMR type, columns, gradients).
-  string details = 2;// Whether this analysis is intended to be of an isolated species. If false
+  string details = 2;
+  // Whether this analysis is intended to be of an isolated species. If false
   // RSC Chemical Methods Ontology ID to define the analytical method with
   // greater specificity. Defined at https://github.com/rsc-ontologies/rsc-cmo.
   int32 chmo_id = 3;
