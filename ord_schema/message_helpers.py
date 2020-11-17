@@ -433,6 +433,26 @@ def validate_reaction_smiles(reaction_smiles):
     return rdChemReactions.ReactionToSmiles(reaction)
 
 
+def get_product_yield(product, as_measurement=False):
+    """Returns the value of a product's yield if it is defined. If multiple
+    measurements of type YIELD exist, only the first is returned.
+
+    Args:
+        product: ReactionProduct message.
+        as_measurement: Whether to return the full ProductMeasurement that
+            corresponds to the yield measurement. Defaults to False.
+
+    Returns:
+        Yield value as a percentage, the ProductMeasurement message, or None.
+    """
+    for measurement in product.measurements:
+        if measurement.type == measurement.YIELD:
+            if as_measurement:
+                return measurement
+            return measurement.percentage.value
+    return None
+
+
 def get_compound_identifier(compound, identifier_type):
     """Returns the value of a compound identifier if it exists. If multiple
     identifiers of that type exist, only the first is returned.

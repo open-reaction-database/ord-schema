@@ -101,6 +101,12 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
                                     'invalid structural identifier'):
             message_helpers.mol_from_compound(compound)
 
+    def test_get_product_yield(self):
+        product = reaction_pb2.ReactionProduct()
+        self.assertIsNone(message_helpers.get_product_yield(product))
+        product.measurements.add(type='YIELD', percentage=dict(value=23))
+        self.assertEqual(23, message_helpers.get_product_yield(product))
+
     def test_check_compound_identifiers(self):
         compound = reaction_pb2.Compound()
         compound.identifiers.add(value='c1ccccc1', type='SMILES')
