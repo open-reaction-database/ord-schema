@@ -82,7 +82,7 @@ class BuildDatabaseTest(absltest.TestCase):
         input2.components.add().identifiers.add(value='input2b', type='SMILES')
         outcome = reaction.outcomes.add()
         product = outcome.products.add()
-        product.measurements.add(type='YIELD', value=2.5)
+        product.measurements.add(type='YIELD', percentage=dict(value=2.5))
         product.identifiers.add(value='product', type='SMILES')
         self.dataset = dataset_pb2.Dataset(reactions=[reaction])
         message_helpers.write_message(
