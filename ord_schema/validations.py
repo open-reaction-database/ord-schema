@@ -430,7 +430,7 @@ def validate_reaction_input(message):
         warnings.warn('Reaction inputs must have at least one component',
                       ValidationError)
     for component in message.components:
-        if not component.WhichOneof('amount'):
+        if not component.amount.WhichOneof('kind'):
             warnings.warn('Reaction input components require an amount',
                           ValidationError)
 
@@ -443,19 +443,40 @@ def validate_addition_speed(message):
     del message  # Unused.
 
 
+def validate_amount(message):
+    if (message.HasField('volume_includes_solutes') and
+            message.WhichOneof('kind') != 'volume'):
+        warnings.warn(
+            'volume_includes_solutes should only be set for volume amounts',
+            ValidationError)
+
+
+def validate_source(message):
+    del message  # Unused.
+
+
 def validate_crude_component(message):
     if not message.reaction_id:
         warnings.warn('CrudeComponents must specify a reaction_id',
                       ValidationError)
-    if message.has_derived_amount and message.HasField('amount'):
+    if message.has_derived_amount and message.amount.HasField('kind'):
         warnings.warn(
             'CrudeComponents with derived amounts cannot have their'
             ' mass or volume specified explicitly', ValidationError)
     if ((not message.HasField('has_derived_amount') or
-         not message.has_derived_amount) and not message.HasField('amount')):
+         not message.has_derived_amount) and
+            not message.amount.HasField('kind')):
         warnings.warn(
             'Crude components should either have a derived amount or'
             ' a specified mass or volume', ValidationError)
+    if (message.amount.WhichOneof('kind') and
+            message.amount.WhichOneof('kind') not in ['mass', 'volume']):
+        warnings.warn(
+            'Crude component amounts must be specified by mass or volume',
+            ValidationError)
+    if message.amount.HasField('volume_includes_solutes'):
+        warnings.warn(
+            'volume_includes_solutes should only be used for input Compounds')
 
 
 def validate_compound(message):
@@ -668,10 +689,17 @@ def validate_reaction_workup(message):
     if (message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and
             not message.HasField('target_ph')):
         warnings.warn('pH adjustment workup missing target pH', ValidationError)
-    if (message.type == reaction_pb2.ReactionWorkup.ALIQUOT and
-            not message.WhichOneof('amount')):
-        warnings.warn('Aliquot workup step missing volume/mass amount',
-                      ValidationError)
+    if message.type == reaction_pb2.ReactionWorkup.ALIQUOT:
+        if not message.amount.WhichOneof('kind'):
+            warnings.warn('Aliquot workup step missing volume/mass amount',
+                          ValidationError)
+        if message.amount.WhichOneof('kind') not in ['mass', 'volume']:
+            warnings.warn('Aliquot amounts must be specified by mass or volume',
+                          ValidationError)
+        if message.amount.HasField('volume_includes_solutes'):
+            warnings.warn(
+                'volume_includes_solutes should only be used for input Compounds',
+                ValidationError)
 
 
 def validate_reaction_outcome(message):
@@ -961,6 +989,8 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.ReactionInput.AdditionSpeed:
         validate_addition_speed,
     # Compounds
+    reaction_pb2.Amount:
+        validate_amount,
     reaction_pb2.CrudeComponent:
         validate_crude_component,
     reaction_pb2.Compound:
@@ -969,6 +999,8 @@ _VALIDATOR_SWITCH = {
         validate_compound_preparation,
     reaction_pb2.CompoundIdentifier:
         validate_compound_identifier,
+    reaction_pb2.Compound.Source:
+        validate_source,
     # Setup
     reaction_pb2.Vessel:
         validate_vessel,
