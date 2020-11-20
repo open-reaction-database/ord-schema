@@ -698,8 +698,8 @@ def validate_reaction_workup(message):
                           ValidationError)
         if message.amount.HasField('volume_includes_solutes'):
             warnings.warn(
-                'volume_includes_solutes should only be used for input Compounds',
-                ValidationError)
+                'volume_includes_solutes should only '
+                'be used for input Compounds', ValidationError)
 
 
 def validate_reaction_outcome(message):
