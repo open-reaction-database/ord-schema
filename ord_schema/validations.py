@@ -469,14 +469,14 @@ def validate_crude_component(message):
         warnings.warn(
             'Crude components should either have a derived amount or'
             ' a specified mass or volume', ValidationError)
-    if (message.amount.WhichOneof('kind') and
-            message.amount.WhichOneof('kind') not in ['mass', 'volume']):
+    if message.amount.WhichOneof('kind') not in [None, 'mass', 'volume']:
         warnings.warn(
             'Crude component amounts must be specified by mass or volume',
             ValidationError)
     if message.amount.HasField('volume_includes_solutes'):
         warnings.warn(
-            'volume_includes_solutes should only be used for input Compounds')
+            'volume_includes_solutes should only be used for input Compounds',
+            ValidationError)
 
 
 def validate_compound(message):
