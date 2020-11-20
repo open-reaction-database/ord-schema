@@ -21,6 +21,7 @@ from ord_schema.interface import ord_client
 
 class OrdClientTest(parameterized.TestCase, absltest.TestCase):
 
+    @absltest.skip('Temporarily disabled for Reaction schema migration.')
     @parameterized.parameters(
         ('ord_dataset-d319c2a22ecf4ce59db1a18ae71d529c', 264))
     def test_fetch_dataset(self, dataset_id, expected_num_reactions):
@@ -28,6 +29,7 @@ class OrdClientTest(parameterized.TestCase, absltest.TestCase):
         dataset = client.fetch_dataset(dataset_id)
         self.assertLen(dataset.reactions, expected_num_reactions)
 
+    @absltest.skip('Temporarily disabled for Reaction schema migration.')
     @parameterized.parameters(
         (['ord_dataset-d319c2a22ecf4ce59db1a18ae71d529c'], [264]))
     def test_fetch_datasets(self, dataset_ids, expected_num_reactions):

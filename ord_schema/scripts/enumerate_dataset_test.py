@@ -42,9 +42,11 @@ class EnumerateDatasetTest(absltest.TestCase):
                         type: SMILES
                         value: "$input_smiles$"
                     }
-                    mass {
-                        value: $input_mass$
-                        units: GRAM
+                    amount {
+                        mass {
+                            value: $input_mass$
+                            units: GRAM
+                        }
                     }
                 }
             }
@@ -87,7 +89,7 @@ class EnumerateDatasetTest(absltest.TestCase):
         reaction1 = self.expected.reactions.add()
         reaction1_compound1 = reaction1.inputs['test'].components.add()
         reaction1_compound1.identifiers.add(value='C', type='SMILES')
-        reaction1_compound1.mass.CopyFrom(
+        reaction1_compound1.amount.mass.CopyFrom(
             reaction_pb2.Mass(value=1.2, units='GRAM'))
         reaction1_product1 = reaction1.outcomes.add().products.add()
         reaction1_product1.identifiers.add(value='CO', type='SMILES')
@@ -99,7 +101,7 @@ class EnumerateDatasetTest(absltest.TestCase):
         reaction2 = self.expected.reactions.add()
         reaction2_compound1 = reaction2.inputs['test'].components.add()
         reaction2_compound1.identifiers.add(value='CC', type='SMILES')
-        reaction2_compound1.mass.CopyFrom(
+        reaction2_compound1.amount.mass.CopyFrom(
             reaction_pb2.Mass(value=3.4, units='GRAM'))
         reaction2_product1 = reaction2.outcomes.add().products.add()
         reaction2_product1.identifiers.add(value='CCO', type='SMILES')
@@ -111,7 +113,7 @@ class EnumerateDatasetTest(absltest.TestCase):
         reaction3 = self.expected.reactions.add()
         reaction3_compound1 = reaction3.inputs['test'].components.add()
         reaction3_compound1.identifiers.add(value='CCC', type='SMILES')
-        reaction3_compound1.mass.CopyFrom(
+        reaction3_compound1.amount.mass.CopyFrom(
             reaction_pb2.Mass(value=5.6, units='GRAM'))
         reaction3_product1 = reaction3.outcomes.add().products.add()
         reaction3_product1.identifiers.add(value='CCCO', type='SMILES')

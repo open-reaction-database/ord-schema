@@ -209,8 +209,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(validations.ValidationError,
                                     'require an amount'):
             self._run_validation(message)
-        dummy_component.mass.value = 1
-        dummy_component.mass.units = reaction_pb2.Mass.GRAM
+        dummy_component.amount.mass.value = 1
+        dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
         # Reactions don't require defined products or conversion because they
         # can be used to prepare crude for a second Reaction
         output = self._run_validation(message)
@@ -255,8 +255,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         workup = message_workup_istd.workup.add(type='CUSTOM', details='test')
         istd = workup.input.components.add()
         istd.identifiers.add(type='SMILES', value='CCO')
-        istd.mass.value = 1
-        istd.mass.units = reaction_pb2.Mass.GRAM
+        istd.amount.mass.value = 1
+        istd.amount.mass.units = reaction_pb2.Mass.GRAM
         istd.reaction_role = istd.ReactionRole.INTERNAL_STANDARD
         output = self._run_validation(message_workup_istd)
         self.assertEmpty(output.errors)
@@ -392,8 +392,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         dummy_component.identifiers.add(type='CUSTOM')
         dummy_component.identifiers[0].details = 'custom_identifier'
         dummy_component.identifiers[0].value = 'custom_value'
-        dummy_component.mass.value = 1
-        dummy_component.mass.units = reaction_pb2.Mass.GRAM
+        dummy_component.amount.mass.value = 1
+        dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
         reaction2.CopyFrom(reaction1)
         reaction3.CopyFrom(reaction1)
         # It is not required to cross-reference SYNTHESIZED compounds.

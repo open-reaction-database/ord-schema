@@ -75,11 +75,11 @@ def build_compound(smiles=None,
         resolver = units.UnitResolver()
         amount_pb = resolver.resolve(amount)
         if isinstance(amount_pb, reaction_pb2.Mass):
-            compound.mass.CopyFrom(amount_pb)
+            compound.amount.mass.CopyFrom(amount_pb)
         elif isinstance(amount_pb, reaction_pb2.Moles):
-            compound.moles.CopyFrom(amount_pb)
+            compound.amount.moles.CopyFrom(amount_pb)
         elif isinstance(amount_pb, reaction_pb2.Volume):
-            compound.volume.CopyFrom(amount_pb)
+            compound.amount.volume.CopyFrom(amount_pb)
         else:
             raise TypeError(f'unsupported units for amount: {amount_pb}')
     if role:
@@ -116,7 +116,7 @@ def build_compound(smiles=None,
             raise ValueError('prep must be provided when prep_details is used')
         compound.preparations[0].details = prep_details
     if vendor:
-        compound.vendor_source = vendor
+        compound.source.vendor = vendor
     return compound
 
 
@@ -141,22 +141,23 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
         List of Compounds to assign to a repeated components field.
     """
     # Check solute definition
-    if solute.WhichOneof('amount') and not overwrite:
+    if solute.amount.WhichOneof('kind') and not overwrite:
         raise ValueError('solute has defined amount and overwrite is False')
 
     # Get total solvent volume in liters.
     volume_liter = 0
     for solvent in solvents:
-        if not solvent.HasField('volume') or not solvent.volume.value:
+        amount = solvent.amount
+        if not amount.HasField('volume') or not amount.volume.value:
             raise ValueError('solvent must have defined volume')
-        if solvent.volume.units == solvent.volume.LITER:
-            volume_liter += solvent.volume.value
-        elif solvent.volume.units == solvent.volume.MILLILITER:
-            volume_liter += solvent.volume.value * 1e-3
-        elif solvent.volume.units == solvent.volume.MICROLITER:
-            volume_liter += solvent.volume.value * 1e-6
-        elif solvent.volume.units == solvent.volume.NANOLITER:
-            volume_liter += solvent.volume.value * 1e-9
+        if amount.volume.units == amount.volume.LITER:
+            volume_liter += amount.volume.value
+        elif amount.volume.units == amount.volume.MILLILITER:
+            volume_liter += amount.volume.value * 1e-3
+        elif amount.volume.units == amount.volume.MICROLITER:
+            volume_liter += amount.volume.value * 1e-6
+        elif amount.volume.units == amount.volume.NANOLITER:
+            volume_liter += amount.volume.value * 1e-9
         else:
             raise ValueError('solvent units not recognized by set_solute_moles')
     # Get solute concentration in molar.
@@ -185,8 +186,8 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
     else:
         value = moles
         unit = reaction_pb2.Moles.MOLE
-    solute.moles.value = value
-    solute.moles.units = unit
+    solute.amount.moles.value = value
+    solute.amount.moles.units = unit
     return [solute] + solvents
 
 

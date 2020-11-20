@@ -384,10 +384,10 @@ def _compound_png(compound):
 
 def _compound_amount(compound):
     """Returns a string describing the compound amount, if defined."""
-    amount = compound.WhichOneof('amount')
-    if not amount:
+    kind = compound.amount.WhichOneof('kind')
+    if not kind:
         return ''
-    return units.format_message(getattr(compound, amount))
+    return units.format_message(getattr(compound.amount, kind))
 
 
 def _compound_name(compound):
@@ -466,12 +466,12 @@ def _compound_source_prep(compound):
         String description of the source and preparation.
     """
     txt = []
-    if compound.vendor_source:
-        txt.append(f'purchased from {compound.vendor_source}')
-    if compound.vendor_id:
-        txt.append(f'catalog #{compound.vendor_id}')
-    if compound.vendor_lot:
-        txt.append(f'lot #{compound.vendor_lot}')
+    if compound.source.vendor:
+        txt.append(f'purchased from {compound.source.vendor}')
+    if compound.source.id:
+        txt.append(f'catalog #{compound.source.id}')
+    if compound.source.lot:
+        txt.append(f'lot #{compound.source.lot}')
     for preparation in compound.preparations:
         txt.append({
             preparation.UNSPECIFIED: '',
