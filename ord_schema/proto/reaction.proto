@@ -898,11 +898,11 @@ message ProductMeasurement {
     // standard, LC peak area with an internal standard and calibration curve
     // obtained using an authentic standard.
     YIELD = 3;
-    // Selectivites include enantiomeric excess/ratios, diastereomic ratios,
+    // Selectivites include enantiomeric excess/ratios, diastereomeric ratios,
     // etc. The detailed type should be specified in selectivity_type.
     SELECTIVITY = 4;
-    // The purity of the product mixture, normalized to all other species
-    // observed in the analysis.
+    // The apparent purity of the product mixture accoridng to a specific
+    // analysis (e.g,. qNMR, LC).
     PURITY = 5;
     // Integrated peak area, e.g., as in an LC chromatogram.
     AREA = 6;
