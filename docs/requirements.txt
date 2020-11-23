@@ -1,4 +1,5 @@
 ipython>=7.18.1
+protobuf>=3.13.0
 Pygments>=2.7.2
 recommonmark>=0.6.0
 sphinx>=3.3.1
