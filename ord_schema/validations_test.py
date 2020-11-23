@@ -252,7 +252,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         # Assigning internal standard role to workup should resolve the error
         message_workup_istd = reaction_pb2.Reaction()
         message_workup_istd.CopyFrom(message)
-        workup = message_workup_istd.workup.add(type='CUSTOM', details='test')
+        workup = message_workup_istd.workups.add(type='CUSTOM', details='test')
         istd = workup.input.components.add()
         istd.identifiers.add(type='SMILES', value='CCO')
         istd.amount.mass.value = 1
