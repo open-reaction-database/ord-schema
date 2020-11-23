@@ -291,7 +291,7 @@ def reaction_has_internal_standard(message):
             if (compound.reaction_role ==
                     compound.ReactionRole.INTERNAL_STANDARD):
                 return True
-    for workup in message.workup:
+    for workup in message.workups:
         if workup.input:
             for compound in workup.input.components:
                 if (compound.reaction_role ==

@@ -50,7 +50,7 @@ message Reaction {
   ReactionNotes notes = 5;
   repeated ReactionObservation observations = 6;
   // Workup steps are listed in the order they are performed.
-  repeated ReactionWorkup workup = 7;
+  repeated ReactionWorkup workups = 7;
   // Each reaction outcome contains all analyses and confirmed/expected product
   // structures at a particular reaction time.
   repeated ReactionOutcome outcomes = 8;

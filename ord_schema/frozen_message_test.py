@@ -154,10 +154,10 @@ class FrozenMessageTest(absltest.TestCase):
     def test_modify_repeated_submessage(self):
         """See https://git.io/JfPf9."""
         message = reaction_pb2.Reaction()
-        message.workup.add(type='ADDITION')
+        message.workups.add(type='ADDITION')
         frozen = self._freeze(message)
         with self.assertRaises(dataclasses.FrozenInstanceError):
-            frozen.workup[0].type = reaction_pb2.ReactionWorkup.TEMPERATURE
+            frozen.workups[0].type = reaction_pb2.ReactionWorkup.TEMPERATURE
 
 
 if __name__ == '__main__':
