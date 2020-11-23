@@ -7,12 +7,20 @@ Welcome to the Open Reaction Database!
 ======================================
 
 .. toctree::
+   :hidden:
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Contents
 
    overview
    schema
    submissions
    faq
    editor
-   developer
+
+.. toctree::
+   :hidden:
+   :maxdepth: 2
+   :caption: Developer Documentation
+
+   developer/bigquery
+   developer/editor
