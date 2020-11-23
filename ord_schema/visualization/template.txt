@@ -76,9 +76,9 @@ added
 {% endif %}
 
 {# TODO(ccoley) WORKUP #}
-{% if reaction.workup %}
+{% if reaction.workups %}
     The workup procedure consisted of 
-    {% for workup in reaction.workup %}
+    {% for workup in reaction.workups %}
         {% if loop.last  and loop.index > 1 %} and {% endif %}
         ({{ loop.index }}) 
             <WORKUP_STEP>
