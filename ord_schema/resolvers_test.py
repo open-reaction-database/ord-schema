@@ -47,7 +47,7 @@ class InputResolversTest(parameterized.TestCase, absltest.TestCase):
         string = '10 g of THF'
         reaction_input = resolvers.resolve_input(string)
         self.assertEqual(len(reaction_input.components), 1)
-        self.assertEqual(reaction_input.components[0].mass,
+        self.assertEqual(reaction_input.components[0].amount.mass,
                          reaction_pb2.Mass(value=10, units='GRAM'))
         self.assertEqual(
             reaction_input.components[0].identifiers[0],
@@ -61,7 +61,7 @@ class InputResolversTest(parameterized.TestCase, absltest.TestCase):
         string = '100 mL of 5.0uM sodium hydroxide in water'
         reaction_input = resolvers.resolve_input(string)
         self.assertEqual(len(reaction_input.components), 2)
-        self.assertEqual(reaction_input.components[0].moles,
+        self.assertEqual(reaction_input.components[0].amount.moles,
                          reaction_pb2.Moles(value=500, units='NANOMOLE'))
         self.assertEqual(
             reaction_input.components[0].identifiers[0],
@@ -72,10 +72,10 @@ class InputResolversTest(parameterized.TestCase, absltest.TestCase):
         self.assertEqual(
             roundtrip_smi(reaction_input.components[0].identifiers[1].value),
             roundtrip_smi('[Na+].[OH-]'))
-        self.assertEqual(reaction_input.components[1].volume,
+        self.assertEqual(reaction_input.components[1].amount.volume,
                          reaction_pb2.Volume(value=100, units='MILLILITER'))
-        self.assertEqual(reaction_input.components[1].volume_includes_solutes,
-                         True)
+        self.assertEqual(
+            reaction_input.components[1].amount.volume_includes_solutes, True)
         self.assertEqual(
             reaction_input.components[1].identifiers[0],
             reaction_pb2.CompoundIdentifier(type='NAME', value='water'))

@@ -37,8 +37,8 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
         component = dummy_input.components.add()
         component.identifiers.add(type='SMILES', value='CCO')
         component.is_limiting = True
-        component.mass.value = 1
-        component.mass.units = reaction_pb2.Mass.GRAM
+        component.amount.mass.value = 1
+        component.amount.mass.units = reaction_pb2.Mass.GRAM
         outcome.conversion.value = 75
         outcome.conversion.precision = 99
         self.valid_reaction = message
@@ -129,18 +129,18 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
         input1 = reaction.inputs['one']
         input1_component1 = input1.components.add()
         input1_component1.identifiers.add(value='CCO', type='SMILES')
-        input1_component1.mass.value = 1.2
-        input1_component1.mass.units = reaction_pb2.Mass.GRAM
+        input1_component1.amount.mass.value = 1.2
+        input1_component1.amount.mass.units = reaction_pb2.Mass.GRAM
         input1_component2 = input1.components.add()
         input1_component2.is_limiting = True
         input1_component2.identifiers.add(value='c1ccccc1', type='SMILES')
-        input1_component2.volume.value = 3.4
-        input1_component2.volume.units = reaction_pb2.Volume.LITER
+        input1_component2.amount.volume.value = 3.4
+        input1_component2.amount.volume.units = reaction_pb2.Volume.LITER
         input2 = reaction.inputs['two']
         input2_component1 = input2.components.add()
         input2_component1.identifiers.add(value='COO', type='SMILES')
-        input2_component1.mass.value = 5.6
-        input2_component1.mass.units = reaction_pb2.Mass.GRAM
+        input2_component1.amount.mass.value = 5.6
+        input2_component1.amount.mass.units = reaction_pb2.Mass.GRAM
         outcome = reaction.outcomes.add()
         outcome.conversion.value = 75
         template_string = text_format.MessageToString(reaction)
@@ -163,7 +163,7 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
         reaction2 = expected_dataset.reactions.add()
         reaction2.CopyFrom(reaction)
         del reaction2.inputs['one'].components[0]  # No indentifiers.
-        reaction2.inputs['two'].components[0].mass.value = 1.5
+        reaction2.inputs['two'].components[0].amount.mass.value = 1.5
         self.assertEqual(dataset, expected_dataset)
 
 

@@ -59,12 +59,11 @@ class GenerateTextTest(parameterized.TestCase, absltest.TestCase):
                                      units=reaction_pb2.Temperature.CELSIUS))
         outcome = reaction.outcomes.add()
         outcome.reaction_time.CopyFrom(self._resolver.resolve('40 minutes'))
-        outcome.products.add().compound.CopyFrom(
+        outcome.products.add().identifiers.extend(
             message_helpers.build_compound(
                 name='hexanone',
                 smiles='CCCCC(=O)C',
-                role='product',
-            ))
+            ).identifiers)
         reaction.reaction_id = 'dummy_reaction_id'
         self._reaction = reaction
         self._input = os.path.join(self.test_subdirectory, 'reaction.pbtxt')

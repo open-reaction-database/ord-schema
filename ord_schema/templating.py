@@ -115,8 +115,8 @@ def _fill_template(string, substitutions):
                     if _is_null(identifier.value):
                         component.identifiers.remove(identifier)
             for component in list(message.components):
-                kind = component.WhichOneof('amount')
-                if (_is_null(getattr(component, kind).value) or
+                kind = component.amount.WhichOneof('kind')
+                if (_is_null(getattr(component.amount, kind).value) or
                         not component.identifiers):
                     message.components.remove(component)
         for key in list(reaction.inputs.keys()):

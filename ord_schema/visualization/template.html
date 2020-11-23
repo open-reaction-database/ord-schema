@@ -94,7 +94,7 @@
         </td>
         {% for outcome in reaction.outcomes %}
             {% for product in outcome.products %}
-                <td class="clean">{{ product.compound|compound_svg }}</td>
+                <td class="clean">{{ product|compound_svg }}</td>
             {% endfor %}
         {% endfor %}
     </tr>
@@ -110,7 +110,7 @@
         {% for outcome in reaction.outcomes %}
             {% for product in outcome.products %}
                 <td class="clean">
-                    {{ product.compound|compound_name }}
+                    {{ product|compound_name }}
                 </td>
             {% endfor %}
         {% endfor %}
@@ -127,21 +127,7 @@
         {% for outcome in reaction.outcomes %}
             {% for product in outcome.products %}
                 <td class="clean">
-                    {% if product.compound_yield.value %}
-                        {{ product.compound_yield.value|round(3) }}%
-                        {% if product.compound_yield.precision %}
-                            (± {{ product.compound_yield.precision|round(3) }}%)
-                        {% endif %}
-                        yield
-                        {% if product.analysis_yield %}
-                            by
-                            {% for key in product.analysis_yield %}
-                                {% if loop.last and loop.index > 1 %} and {% endif %}
-                                {{ outcome.analyses[key]|analysis_format }}
-                                {% if not loop.last %}, {% endif %}
-                            {% endfor %}
-                        {% endif %}
-                    {% endif %}
+                    {{ product|product_yield }}
                 </td>
             {% endfor %}
         {% endfor %}
