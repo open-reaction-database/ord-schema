@@ -29,8 +29,8 @@ milligram, microgram, and kilogram.
      MassUnit units = 3;
    }
 
-"Protos"&mdash;messages with defined values (akin to an instance of a Python
-class)&mdash;can be imported/exported to/from JSON, Protobuf text (pbtxt), and
+"Protos"---messages with defined values (akin to an instance of a Python
+class)---can be imported/exported to/from JSON, Protobuf text (pbtxt), and
 Protobuf binary formats.
 
 ************************
@@ -157,7 +157,7 @@ downstream applications. The message contains three fields:
    }
 
 Essentially, a ``DatasetExample`` is simply a pointer to an external
-resource&mdash;such as a colab notebook or blog post&mdash;along with a
+resource---such as a colab notebook or blog post---along with a
 description and a timestamp. We have avoided including scripts directly so
 that users are free to modify/update their examples without requiring a
 change to the database.
