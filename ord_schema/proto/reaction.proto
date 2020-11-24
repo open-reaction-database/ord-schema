@@ -995,6 +995,9 @@ message ProductMeasurement {
     string details = 2;
   }
   Selectivity selectivity = 13;
+
+  // The wavelength used for e.g. LC quantification.
+  Wavelength wavelength = 14;
 }
 
 message DateTime {
