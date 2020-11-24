@@ -162,11 +162,10 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
                                                   string_value='35.221')
         with self.assertRaisesRegex(validations.ValidationError, 'numeric'):
             self._run_validation(message)
-        message = reaction_pb2.ProductMeasurement(
-            analysis_key='my_analysis',
-            type='YIELD',
-            percentage=dict(value=60),
-            selectivity_type=dict(type='EE'))
+        message = reaction_pb2.ProductMeasurement(analysis_key='my_analysis',
+                                                  type='YIELD',
+                                                  percentage=dict(value=60),
+                                                  selectivity=dict(type='EE'))
         with self.assertRaisesRegex(validations.ValidationError, 'selectivity'):
             self._run_validation(message)
 
