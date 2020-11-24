@@ -170,9 +170,9 @@ def resolve_input(input_string):
     solvent.CopyFrom(
         message_helpers.build_compound(name=solvent_name.strip(),
                                        amount=amount_string))
-    if solvent.WhichOneof('amount') != 'volume':
+    if solvent.amount.WhichOneof('kind') != 'volume':
         raise ValueError('Total amount of solution must be a volume!')
-    solvent.volume_includes_solutes = True
+    solvent.amount.volume_includes_solutes = True
     message_helpers.set_solute_moles(solute, [solvent],
                                      f'{conc_value} {conc_units}')
     resolve_names(reaction_input)

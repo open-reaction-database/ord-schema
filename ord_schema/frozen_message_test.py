@@ -78,16 +78,18 @@ class FrozenMessageTest(absltest.TestCase):
             _ = frozen.setup
 
     def test_access_repeated_scalar(self):
-        message = reaction_pb2.ReactionProduct()
-        message.analysis_identity.append('test')
+        message = reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails()
+        frozen_empty = self._freeze(message)
+        self.assertEmpty(frozen_empty.eic_masses)
+        with self.assertRaises(IndexError):
+            _ = frozen_empty.eic_masses[0]
+
+        message.eic_masses.append(1.5)
         frozen = self._freeze(message)
-        self.assertLen(frozen.analysis_identity, 1)
-        self.assertEqual(frozen.analysis_identity[0], 'test')
+        self.assertLen(frozen.eic_masses, 1)
+        self.assertEqual(frozen.eic_masses[0], 1.5)
         with self.assertRaises(IndexError):
-            _ = frozen.analysis_identity[1]
-        self.assertEmpty(frozen.analysis_yield)
-        with self.assertRaises(IndexError):
-            _ = frozen.analysis_yield[0]
+            _ = frozen.eic_masses[1]
 
     def test_access_repeated_submessage(self):
         message = reaction_pb2.Reaction()
@@ -152,10 +154,10 @@ class FrozenMessageTest(absltest.TestCase):
     def test_modify_repeated_submessage(self):
         """See https://git.io/JfPf9."""
         message = reaction_pb2.Reaction()
-        message.workup.add(type='ADDITION')
+        message.workups.add(type='ADDITION')
         frozen = self._freeze(message)
         with self.assertRaises(dataclasses.FrozenInstanceError):
-            frozen.workup[0].type = reaction_pb2.ReactionWorkup.TEMPERATURE
+            frozen.workups[0].type = reaction_pb2.ReactionWorkup.TEMPERATURE
 
 
 if __name__ == '__main__':

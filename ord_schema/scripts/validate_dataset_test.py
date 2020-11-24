@@ -39,8 +39,8 @@ class ValidateDatasetTest(absltest.TestCase):
         dummy_component.identifiers[0].details = 'custom_identifier'
         dummy_component.identifiers[0].value = 'custom_value'
         dummy_component.is_limiting = True
-        dummy_component.mass.value = 1
-        dummy_component.mass.units = reaction_pb2.Mass.GRAM
+        dummy_component.amount.mass.value = 1
+        dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
         reaction1.outcomes.add().conversion.value = 75
         dataset1 = dataset_pb2.Dataset(reactions=[reaction1])
         dataset1_filename = os.path.join(self.test_subdirectory,
