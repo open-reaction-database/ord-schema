@@ -955,8 +955,8 @@ message ProductMeasurement {
   // was calculated from an analysis using mass spec. This includes
   // distinguishing total ion current (TIC) counts from extracted ion
   // chromatogram (EIC) counts and their corresponding mass ranges or masses.
-  message MassSpecMeasurementType {
-    enum MassSpecMeasurementTypeEnum {
+  message MassSpecDetails {
+    enum MassSpecMeasurementType {
       UNSPECIFIED = 0;
       CUSTOM = 1;
       TIC = 2;
@@ -964,7 +964,7 @@ message ProductMeasurement {
       TIC_NEGATIVE = 4;
       EIC = 5;
     }
-    MassSpecMeasurementTypeEnum type = 1;
+    MassSpecMeasurementType type = 1;
     string details = 2;
     // The lower bound of the m/z interval used to calculate the TIC counts.
     optional float tic_minimum_mz = 3;
@@ -975,14 +975,14 @@ message ProductMeasurement {
     // analysis.
     repeated float eic_masses = 5;
   }
-  MassSpecMeasurementType ms_type = 12;
+  MassSpecDetails mass_spec_details = 12;
 
   // The more specific type of selectivity that is being reported, e.g., EE,
   // ER, DR, EZ, ZE. EZ, ER, and DR assume that any product labeled as desired
   // is first in the calculation, whereas EZ and ZE ratios are calculated as
   // written. Only to be used when the type is SELECTIVITY.
-  message SelectivityType {
-    enum SelectivityTypeEnum {
+  message Selectivity {
+    enum SelectivityType {
       UNSPECIFIED = 0;
       CUSTOM = 1;
       EE = 2;  // Enantiomeric excess as a percentage (desired - undesired).
@@ -991,10 +991,10 @@ message ProductMeasurement {
       EZ = 5;  // Alkene geometry ratio. (x:1) (E / Z)
       ZE = 6;  // Alkene geometry ratio. (x:1) (Z / E)
     }
-    SelectivityTypeEnum type = 1;
+    SelectivityType type = 1;
     string details = 2;
   }
-  SelectivityType selectivity_type = 13;
+  Selectivity selectivity = 13;
 }
 
 message DateTime {
