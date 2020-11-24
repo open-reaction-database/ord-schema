@@ -291,7 +291,7 @@ def reaction_has_internal_standard(message):
             if (compound.reaction_role ==
                     compound.ReactionRole.INTERNAL_STANDARD):
                 return True
-    for workup in message.workup:
+    for workup in message.workups:
         if workup.input:
             for compound in workup.input.components:
                 if (compound.reaction_role ==
@@ -312,9 +312,10 @@ def reaction_has_limiting_component(message):
 def reaction_needs_internal_standard(message):
     """Whether any analysis uses an internal standard."""
     for outcome in message.outcomes:
-        for analysis in outcome.analyses.values():
-            if analysis.uses_internal_standard:
-                return True
+        for product in outcome.products:
+            for measurement in product.measurements:
+                if measurement.uses_internal_standard:
+                    return True
     return False
 
 
@@ -429,7 +430,7 @@ def validate_reaction_input(message):
         warnings.warn('Reaction inputs must have at least one component',
                       ValidationError)
     for component in message.components:
-        if not component.WhichOneof('amount'):
+        if not component.amount.WhichOneof('kind'):
             warnings.warn('Reaction input components require an amount',
                           ValidationError)
 
@@ -442,19 +443,40 @@ def validate_addition_speed(message):
     del message  # Unused.
 
 
+def validate_amount(message):
+    if (message.HasField('volume_includes_solutes') and
+            message.WhichOneof('kind') != 'volume'):
+        warnings.warn(
+            'volume_includes_solutes should only be set for volume amounts',
+            ValidationError)
+
+
+def validate_source(message):
+    del message  # Unused.
+
+
 def validate_crude_component(message):
     if not message.reaction_id:
         warnings.warn('CrudeComponents must specify a reaction_id',
                       ValidationError)
-    if message.has_derived_amount and message.HasField('amount'):
+    if message.has_derived_amount and message.amount.HasField('kind'):
         warnings.warn(
             'CrudeComponents with derived amounts cannot have their'
             ' mass or volume specified explicitly', ValidationError)
     if ((not message.HasField('has_derived_amount') or
-         not message.has_derived_amount) and not message.HasField('amount')):
+         not message.has_derived_amount) and
+            not message.amount.HasField('kind')):
         warnings.warn(
             'Crude components should either have a derived amount or'
             ' a specified mass or volume', ValidationError)
+    if message.amount.WhichOneof('kind') not in [None, 'mass', 'volume']:
+        warnings.warn(
+            'Crude component amounts must be specified by mass or volume',
+            ValidationError)
+    if message.amount.HasField('volume_includes_solutes'):
+        warnings.warn(
+            'volume_includes_solutes should only be used for input Compounds',
+            ValidationError)
 
 
 def validate_compound(message):
@@ -470,11 +492,6 @@ def validate_compound(message):
         message_helpers.check_compound_identifiers(message)
     except ValueError as error:
         warnings.warn(str(error), ValidationWarning)
-
-
-def validate_compound_feature(message):
-    if not message.name:
-        warnings.warn('Compound features must have names', ValidationError)
 
 
 def validate_compound_preparation(message):
@@ -672,10 +689,17 @@ def validate_reaction_workup(message):
     if (message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and
             not message.HasField('target_ph')):
         warnings.warn('pH adjustment workup missing target pH', ValidationError)
-    if (message.type == reaction_pb2.ReactionWorkup.ALIQUOT and
-            not message.WhichOneof('amount')):
-        warnings.warn('Aliquot workup step missing volume/mass amount',
-                      ValidationError)
+    if message.type == reaction_pb2.ReactionWorkup.ALIQUOT:
+        if not message.aliquot_amount.WhichOneof('kind'):
+            warnings.warn('Aliquot workup step missing volume/mass amount',
+                          ValidationError)
+        if message.aliquot_amount.WhichOneof('kind') not in ['mass', 'volume']:
+            warnings.warn('Aliquot amounts must be specified by mass or volume',
+                          ValidationError)
+        if message.aliquot_amount.HasField('volume_includes_solutes'):
+            warnings.warn(
+                'volume_includes_solutes should only '
+                'be used for input Compounds', ValidationError)
 
 
 def validate_reaction_outcome(message):
@@ -688,15 +712,11 @@ def validate_reaction_outcome(message):
     # NOTE(ccoley): Could use any(), but using expanded loops for clarity
     analysis_keys = list(message.analyses.keys())
     for product in message.products:
-        for field in [
-                'analysis_identity', 'analysis_yield', 'analysis_purity',
-                'analysis_selectivity'
-        ]:
-            for key in getattr(product, field):
-                if key not in analysis_keys:
-                    warnings.warn(
-                        f'Undefined analysis key {key} '
-                        'in ReactionProduct', ValidationError)
+        for measurement in product.measurements:
+            if measurement.analysis_key not in analysis_keys:
+                warnings.warn(
+                    f'Undefined analysis key {measurement.analysis_key} '
+                    'in ProductMeasurement', ValidationError)
     # TODO(ccoley): While we do not currently check whether the parent Reaction
     # is *actually* used in a multistep reaction within a Dataset (i.e., in a
     # CrudeComponent); this is an additional check that could be added to the
@@ -709,30 +729,65 @@ def validate_reaction_outcome(message):
 
 
 def validate_reaction_product(message):
-    # pylint: disable=too-many-boolean-expressions
-    if (message.compound.HasField('volume_includes_solutes') or
-            message.compound.HasField('is_limiting') or
-            message.compound.preparations or message.compound.vendor_source or
-            message.compound.vendor_id or message.compound.vendor_lot):
+    if len(message.identifiers) == 0:
+        warnings.warn('Compounds must have at least one identifier',
+                      ValidationError)
+    if all(identifier.type == identifier.NAME
+           for identifier in message.identifiers):
         warnings.warn(
-            'Compounds defined as reaction products should not have'
-            ' any inapplicable fields defined.', ValidationError)
+            'Compounds should have more specific identifiers than '
+            'NAME whenever possible', ValidationWarning)
+    try:
+        message_helpers.check_compound_identifiers(message)
+    except ValueError as error:
+        warnings.warn(str(error), ValidationWarning)
 
 
 def validate_texture(message):
     check_type_and_details(message)
 
 
-def validate_selectivity(message):
-    ensure_float_nonnegative(message, 'precision')
-    if message.type == message.EE:
-        ensure_float_range(message, 'value', 0, 100)
-        if 0 < message.value < 1:
+def validate_product_measurement(message):
+    check_type_and_details(message)
+    if not message.analysis_key:
+        warnings.warn(
+            'Product measurements must be associated with an'
+            ' analysis through its analysis_key', ValidationError)
+    if message.type == reaction_pb2.ProductMeasurement.IDENTITY:
+        if message.WhichOneof('value'):
             warnings.warn(
-                'EE selectivity values are 0-100, not fractions '
-                f'({message.value} used)', ValidationWarning)
-    elif message.type in [message.ER, message.DR, message.EZ, message.ZE]:
-        ensure_float_nonnegative(message, 'value')
+                'Product measurements to confirm identities should'
+                ' not have any values defined', ValidationError)
+    elif message.type == reaction_pb2.ProductMeasurement.YIELD:
+        if message.WhichOneof('value') != 'percentage':
+            warnings.warn(
+                'Yield measurements should be defined as percentage'
+                ' values', ValidationError)
+    elif message.type == reaction_pb2.ProductMeasurement.PURITY:
+        if message.WhichOneof('value') != 'percentage':
+            warnings.warn(
+                'Purity measurements should be defined as percentage'
+                ' values', ValidationError)
+    elif message.type in (reaction_pb2.ProductMeasurement.AREA,
+                          reaction_pb2.ProductMeasurement.COUNTS,
+                          reaction_pb2.ProductMeasurement.INTENSITY):
+        if message.WhichOneof('value') not in ('percentage', 'float_value'):
+            warnings.warn(
+                'Product measurements of type AREA, COUNTS, or '
+                'INTENSITY must use numeric values (percentage or float_value)',
+                ValidationError)
+    if message.HasField('selectivity_type') and (
+            message.type != reaction_pb2.ProductMeasurement.SELECTIVITY):
+        warnings.warn(
+            'The selectivity_type field should only be used for a'
+            ' product measurement with type SELECTIVITY', ValidationError)
+
+
+def validate_selectivity(message):
+    check_type_and_details(message)
+
+
+def validate_mass_spec_measurement_type(message):
     check_type_and_details(message)
 
 
@@ -745,7 +800,7 @@ def validate_date_time(message):
                           ValidationError)
 
 
-def validate_reaction_analysis(message):
+def validate_analysis(message):
     # TODO(ccoley): Will be lots to expand here if we add structured data.
     check_type_and_details(message)
 
@@ -901,6 +956,11 @@ def validate_percentage(message):
     ensure_float_nonnegative(message, 'precision')
 
 
+def validate_float_value(message):
+    ensure_float_nonnegative(message, 'value')
+    ensure_float_nonnegative(message, 'precision')
+
+
 def validate_data(message):
     # TODO(kearnes): Validate/ping URLs?
     if not message.WhichOneof('kind'):
@@ -929,16 +989,18 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.ReactionInput.AdditionSpeed:
         validate_addition_speed,
     # Compounds
+    reaction_pb2.Amount:
+        validate_amount,
     reaction_pb2.CrudeComponent:
         validate_crude_component,
     reaction_pb2.Compound:
         validate_compound,
-    reaction_pb2.Compound.Feature:
-        validate_compound_feature,
     reaction_pb2.CompoundPreparation:
         validate_compound_preparation,
     reaction_pb2.CompoundIdentifier:
         validate_compound_identifier,
+    reaction_pb2.Compound.Source:
+        validate_source,
     # Setup
     reaction_pb2.Vessel:
         validate_vessel,
@@ -1009,12 +1071,16 @@ _VALIDATOR_SWITCH = {
         validate_reaction_product,
     reaction_pb2.ReactionProduct.Texture:
         validate_texture,
-    reaction_pb2.Selectivity:
+    reaction_pb2.ProductMeasurement:
+        validate_product_measurement,
+    reaction_pb2.ProductMeasurement.SelectivityType:
         validate_selectivity,
+    reaction_pb2.ProductMeasurement.MassSpecMeasurementType:
+        validate_mass_spec_measurement_type,
     reaction_pb2.DateTime:
         validate_date_time,
-    reaction_pb2.ReactionAnalysis:
-        validate_reaction_analysis,
+    reaction_pb2.Analysis:
+        validate_analysis,
     # Metadata
     reaction_pb2.ReactionProvenance:
         validate_reaction_provenance,
@@ -1049,6 +1115,8 @@ _VALIDATOR_SWITCH = {
         validate_flow_rate,
     reaction_pb2.Percentage:
         validate_percentage,
+    reaction_pb2.FloatValue:
+        validate_float_value,
     reaction_pb2.Data:
         validate_data,
 }

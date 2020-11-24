@@ -384,10 +384,10 @@ def _compound_png(compound):
 
 def _compound_amount(compound):
     """Returns a string describing the compound amount, if defined."""
-    amount = compound.WhichOneof('amount')
-    if not amount:
+    kind = compound.amount.WhichOneof('kind')
+    if not kind:
         return ''
-    return units.format_message(getattr(compound, amount))
+    return units.format_message(getattr(compound.amount, kind))
 
 
 def _compound_name(compound):
@@ -425,14 +425,22 @@ def _compound_role(compound, text=False):
     limiting = limiting_if_true[compound.is_limiting]
     if text:
         options = {
-            compound.ReactionRole.UNSPECIFIED: '',
-            compound.ReactionRole.REACTANT: f'as a {limiting} reactant',
-            compound.ReactionRole.REAGENT: 'as a reagent',
-            compound.ReactionRole.SOLVENT: 'as a solvent',
-            compound.ReactionRole.CATALYST: 'as a catalyst',
-            compound.ReactionRole.INTERNAL_STANDARD: 'as an internal standard',
-            compound.ReactionRole.WORKUP: '',
-            compound.ReactionRole.PRODUCT: 'as a product',
+            compound.ReactionRole.UNSPECIFIED:
+                '',
+            compound.ReactionRole.REACTANT:
+                f'as a {limiting} reactant',
+            compound.ReactionRole.REAGENT:
+                'as a reagent',
+            compound.ReactionRole.SOLVENT:
+                'as a solvent',
+            compound.ReactionRole.CATALYST:
+                'as a catalyst',
+            compound.ReactionRole.INTERNAL_STANDARD:
+                'as an internal standard',
+            compound.ReactionRole.WORKUP:
+                '',
+            compound.ReactionRole.AUTHENTIC_STANDARD:
+                'as an authentic standard',
         }
     else:
         options = {
@@ -443,7 +451,7 @@ def _compound_role(compound, text=False):
             compound.ReactionRole.CATALYST: 'catalyst',
             compound.ReactionRole.INTERNAL_STANDARD: 'internal standard',
             compound.ReactionRole.WORKUP: '',
-            compound.ReactionRole.PRODUCT: 'product',
+            compound.ReactionRole.AUTHENTIC_STANDARD: 'authentic standard',
         }
     return options[compound.reaction_role]
 
@@ -458,12 +466,12 @@ def _compound_source_prep(compound):
         String description of the source and preparation.
     """
     txt = []
-    if compound.vendor_source:
-        txt.append(f'purchased from {compound.vendor_source}')
-    if compound.vendor_id:
-        txt.append(f'catalog #{compound.vendor_id}')
-    if compound.vendor_lot:
-        txt.append(f'lot #{compound.vendor_lot}')
+    if compound.source.vendor:
+        txt.append(f'purchased from {compound.source.vendor}')
+    if compound.source.id:
+        txt.append(f'catalog #{compound.source.id}')
+    if compound.source.lot:
+        txt.append(f'lot #{compound.source.lot}')
     for preparation in compound.preparations:
         txt.append({
             preparation.UNSPECIFIED: '',
@@ -477,6 +485,18 @@ def _compound_source_prep(compound):
         txt.append(preparation.details)
     if any(elem for elem in txt):
         return '(' + ', '.join([elem for elem in txt if elem]) + ')'
+    return ''
+
+
+def _product_yield(product):
+    """Returns a string describing how a product yield was calculated."""
+    for measurement in product.measurements:
+        if measurement.type == measurement.YIELD:
+            if measurement.percentage.HasField('value'):
+                string = f'{measurement.percentage.value:0.3f}%'
+                if measurement.percentage.HasField('precision'):
+                    string += f' (± {measurement.percentage.precision:0.3f}%)'
+                return string
     return ''
 
 
@@ -606,6 +626,7 @@ TEMPLATE_FILTERS = {
     'compound_smiles': _compound_smiles,
     'compound_role': _compound_role,
     'compound_source_prep': _compound_source_prep,
+    'product_yield': _product_yield,
     'vessel_prep': _vessel_prep,
     'vessel_type': _vessel_type,
     'vessel_material': _vessel_material,
