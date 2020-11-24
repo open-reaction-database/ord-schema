@@ -1075,7 +1075,7 @@ _VALIDATOR_SWITCH = {
         validate_product_measurement,
     reaction_pb2.ProductMeasurement.Selectivity:
         validate_selectivity,
-    reaction_pb2.ProductMeasurement.MassSpecDetails:
+    reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails:
         validate_mass_spec_measurement_type,
     reaction_pb2.DateTime:
         validate_date_time,

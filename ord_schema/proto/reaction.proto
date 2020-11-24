@@ -955,7 +955,7 @@ message ProductMeasurement {
   // was calculated from an analysis using mass spec. This includes
   // distinguishing total ion current (TIC) counts from extracted ion
   // chromatogram (EIC) counts and their corresponding mass ranges or masses.
-  message MassSpecDetails {
+  message MassSpecMeasurementDetails {
     enum MassSpecMeasurementType {
       UNSPECIFIED = 0;
       CUSTOM = 1;
@@ -975,7 +975,7 @@ message ProductMeasurement {
     // analysis.
     repeated float eic_masses = 5;
   }
-  MassSpecDetails mass_spec_details = 12;
+  MassSpecMeasurementDetails mass_spec_details = 12;
 
   // The more specific type of selectivity that is being reported, e.g., EE,
   // ER, DR, EZ, ZE. EZ, ER, and DR assume that any product labeled as desired
