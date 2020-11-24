@@ -25,11 +25,10 @@ jobs:
     - name: Install dependencies
       run: |
         go get -v -u github.com/google/addlicense
-        echo "::set-env name=GOBIN::${HOME}/go/bin"
     - name: addlicense
       run: |
         cd "${GITHUB_WORKSPACE}"
-        "${GOBIN}/addlicense" -check -c "Open Reaction Database Project Authors" -l apache .
+        "${HOME}/go/bin/addlicense" -check -c "Open Reaction Database Project Authors" -l apache .
 
   check_python:
     runs-on: ubuntu-latest

@@ -78,8 +78,8 @@ class UpdateDatasetTest(absltest.TestCase):
         dummy_component.identifiers.add(type='CUSTOM')
         dummy_component.identifiers[0].details = 'custom_identifier'
         dummy_component.identifiers[0].value = 'custom_value'
-        dummy_component.mass.value = 1
-        dummy_component.mass.units = reaction_pb2.Mass.GRAM
+        dummy_component.amount.mass.value = 1
+        dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
         reaction2.CopyFrom(reaction1)
         reaction3.CopyFrom(reaction1)
         dummy_component.preparations.add(type='SYNTHESIZED')
