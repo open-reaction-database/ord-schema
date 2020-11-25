@@ -25,7 +25,7 @@ from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
 from ord_schema import units
-from . import validations
+from ord_schema.validations import ValidationWarning
 from ord_schema.proto import reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
@@ -587,7 +587,7 @@ def set_dative_bonds(mol, from_atoms=('N', 'P')):
                         f'a datively bound metal-carbene complex, '
                         f'the positive charge should be removed from '
                         f'the SMILES string before converting dative bonds',
-                        validations.ValidationWarning)
+                        ValidationWarning)
                 if (nbr.GetTotalValence() + nbr.GetFormalCharge() !=
                         p_table.GetDefaultValence(nbr_atom) and
                         edit_mol.GetBondBetweenAtoms(
