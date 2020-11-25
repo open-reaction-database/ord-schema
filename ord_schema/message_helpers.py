@@ -577,11 +577,11 @@ def set_dative_bonds(mol, from_atoms=('N', 'P')):
             # Converts carbon-metal bond to dative if carbon's total valence +
             # formal charge does not equal 4
             if nbr_atom in from_atoms and nbr_atom == 'C':
-                if (nbr.GetTotalValence() + nbr.GetFormalCharge()
-                != p_table.GetDefaultValence(nbr_atom) and
-                edit_mol.GetBondBetweenAtoms(
-                    nbr.GetIdx(), metal.GetIdx()).GetBondType()
-                == Chem.BondType.SINGLE):
+                if (nbr.GetTotalValence() + nbr.GetFormalCharge() !=
+                        p_table.GetDefaultValence(nbr_atom) and
+                        edit_mol.GetBondBetweenAtoms(
+                            nbr.GetIdx(), metal.GetIdx()).GetBondType()
+                        == Chem.BondType.SINGLE):
                     edit_mol.RemoveBond(nbr.GetIdx(), metal.GetIdx())
                     edit_mol.AddBond(nbr.GetIdx(), metal.GetIdx(),
                                      Chem.BondType.DATIVE)
@@ -590,11 +590,11 @@ def set_dative_bonds(mol, from_atoms=('N', 'P')):
             # Converts atom-metal bond to dative if bonds to atom
             # excedes its default valence
             elif nbr_atom in from_atoms and nbr_atom != 'C':
-                if (nbr.GetExplicitValence() > 
-                    p_table.GetDefaultValence(nbr_atom) 
-                    and edit_mol.GetBondBetweenAtoms(
-                        nbr.GetIdx(), metal.GetIdx()).GetBondType()
-                == Chem.BondType.SINGLE):
+                if (nbr.GetExplicitValence() >
+                        p_table.GetDefaultValence(nbr_atom) and
+                        edit_mol.GetBondBetweenAtoms(
+                            nbr.GetIdx(), metal.GetIdx()).GetBondType()
+                        == Chem.BondType.SINGLE):
                     edit_mol.RemoveBond(nbr.GetIdx(), metal.GetIdx())
                     edit_mol.AddBond(nbr.GetIdx(), metal.GetIdx(),
                                      Chem.BondType.DATIVE)
