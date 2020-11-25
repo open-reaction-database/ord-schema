@@ -15,6 +15,7 @@
 
 import enum
 import os
+import warnings
 
 import flask
 from google import protobuf
@@ -24,6 +25,7 @@ from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
 from ord_schema import units
+from ord_schema import validations
 from ord_schema.proto import reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
@@ -573,10 +575,19 @@ def set_dative_bonds(mol, from_atoms=('N', 'P')):
     for metal in metals:
         for nbr in metal.GetNeighbors():
             nbr_atom = nbr.GetSymbol()
-            # Handles carbon-bound (e.g., NHC-type) ligands
+            # Handles carbon-bound (e.g., NHC-type or CO) ligands
             # Converts carbon-metal bond to dative if carbon's total valence +
             # formal charge does not equal 4
             if nbr_atom in from_atoms and nbr_atom == 'C':
+                if nbr.GetFormalCharge() > 0:
+                    warnings.warn(
+                        f'A positively charged C atom bound to '
+                        f'{metal.GetSymbol()} was found in the compound '
+                        f'with SMILES {Chem.MolToSmiles(mol)}. If this is '
+                        f'a datively bound metal-carbene complex, '
+                        f'the positive charge should be removed from '
+                        f'the SMILES string before converting dative bonds', 
+                        validations.ValidationWarning)
                 if (nbr.GetTotalValence() + nbr.GetFormalCharge() !=
                         p_table.GetDefaultValence(nbr_atom) and
                         edit_mol.GetBondBetweenAtoms(
