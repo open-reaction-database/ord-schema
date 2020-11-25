@@ -522,10 +522,10 @@ def set_compound_smiles(compound, value):
 
 def is_transition_metal(atom):
     """Determines if an atom is a transition metal.
-    
+
     Args:
         atom: The atom in question. Should be of type rdkit.Chem.rdchem.Atom
-        
+
     Returns:
         Boolean for whether the atom is a transition metal.
     """
@@ -535,10 +535,10 @@ def is_transition_metal(atom):
 
 def has_transition_metal(mol):
     """Determines if a molecule contains a transition metal.
-    
+
     Args:
         mol: The molecule in question. Should be of type rdkit.Chem.rdchem.Mol
-        
+
     Returns:
         Boolean for whether the molecule has a transition metal.
     """
@@ -549,8 +549,8 @@ def has_transition_metal(mol):
 
 
 def set_dative_bonds(mol, from_atoms=('N', 'P')):
-    """Converts metal-ligand bonds to dative. 
-    
+    """Converts metal-ligand bonds to dative.
+
     Replaces some single bonds between metals and atoms with atomic numbers
     in fromAtoms with dative bonds. For all atoms except carbon, the
     replacement is only done if the atom has "too many" bonds. To handle
@@ -559,10 +559,10 @@ def set_dative_bonds(mol, from_atoms=('N', 'P')):
     does not equal its default valence, 4.
 
     Args:
-        mol: The molecule to be converted. 
+        mol: The molecule to be converted.
         fromAtoms: tuple of atomic symbols corresponding to atom types that
         should have atom-metal bonds converted to dative. Default is N and P
-                            
+
     Returns:
         The modified molecule.
     """
