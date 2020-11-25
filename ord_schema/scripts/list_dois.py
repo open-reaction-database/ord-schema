@@ -53,10 +53,7 @@ def main(argv):
             match = re.fullmatch(r'(?:(?:doi)|(?:DOI))?:?\s*(.*)',
                                  reaction.provenance.doi)
             doi_set.add(match.group(1))
-        if len(doi_set) != 1:
-            raise ValueError(f'Dataset covers multiple DOIs: {doi_set}')
-        doi = list(doi_set)[0]
-        if doi:
+        for doi in doi_set:
             dois[doi].append(dataset_id)
     for doi in sorted(dois):
         print(f'* [{doi}](https://doi.org/{doi})')

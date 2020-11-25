@@ -35,8 +35,8 @@ class ValidateDatasetTest(absltest.TestCase):
         dataset.reactions.add().provenance.doi = 'DOI: \t foo/bar'
         tempdir = self.create_tempdir()
         message_helpers.write_message(
-            dataset, os.path.join(tempdir, f'{dataset.dataset_id}.pbtxt'))
-        with flagsaver.flagsaver(input=os.path.join(tempdir, '*.pbtxt')):
+            dataset, os.path.join(tempdir, f'{dataset.dataset_id}.pb'))
+        with flagsaver.flagsaver(input=os.path.join(tempdir, '*.pb')):
             list_dois.main(())
 
     def test_multiple_dois(self):
@@ -46,10 +46,9 @@ class ValidateDatasetTest(absltest.TestCase):
         dataset.reactions.add().provenance.doi = 'not/bar'
         tempdir = self.create_tempdir()
         message_helpers.write_message(
-            dataset, os.path.join(tempdir, f'{dataset.dataset_id}.pbtxt'))
-        with flagsaver.flagsaver(input=os.path.join(tempdir, '*.pbtxt')):
-            with self.assertRaisesRegex(ValueError, 'multiple DOIs'):
-                list_dois.main(())
+            dataset, os.path.join(tempdir, f'{dataset.dataset_id}.pb'))
+        with flagsaver.flagsaver(input=os.path.join(tempdir, '*.pb')):
+            list_dois.main(())
 
 
 if __name__ == '__main__':
