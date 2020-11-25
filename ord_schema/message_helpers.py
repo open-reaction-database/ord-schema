@@ -585,7 +585,7 @@ def set_dative_bonds(mol, from_atoms=('N', 'P')):
                         f'with SMILES {Chem.MolToSmiles(mol)}. If this is '
                         f'a datively bound metal-carbene complex, '
                         f'the positive charge should be removed from '
-                        f'the SMILES string before converting dative bonds')
+                        f'the SMILES string before setting dative bonds')
                 if (nbr.GetTotalValence() + nbr.GetFormalCharge() !=
                         p_table.GetDefaultValence(nbr_atom) and
                         edit_mol.GetBondBetweenAtoms(
