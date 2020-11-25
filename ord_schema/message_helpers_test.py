@@ -101,6 +101,12 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
                                     'invalid structural identifier'):
             message_helpers.mol_from_compound(compound)
 
+    def test_get_product_yield(self):
+        product = reaction_pb2.ReactionProduct()
+        self.assertIsNone(message_helpers.get_product_yield(product))
+        product.measurements.add(type='YIELD', percentage=dict(value=23))
+        self.assertEqual(23, message_helpers.get_product_yield(product))
+
     def test_check_compound_identifiers(self):
         compound = reaction_pb2.Compound()
         compound.identifiers.add(value='c1ccccc1', type='SMILES')
@@ -126,8 +132,8 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
             value='Cc1ccccc1', type='SMILES')
         reactant2.components.add(reaction_role='SOLVENT').identifiers.add(
             value='N', type='SMILES')
-        reaction.outcomes.add().products.add().compound.identifiers.add(
-            value='O=C=O', type='SMILES')
+        reaction.outcomes.add().products.add().identifiers.add(value='O=C=O',
+                                                               type='SMILES')
         self.assertEqual(message_helpers.get_reaction_smiles(reaction),
                          'Cc1ccccc1.c1ccccc1>N>O=C=O')
 
@@ -143,8 +149,8 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(ValueError, 'must contain at least one'):
             message_helpers.get_reaction_smiles(reaction,
                                                 allow_incomplete=False)
-        reaction.outcomes.add().products.add().compound.identifiers.add(
-            value='invalid', type='SMILES')
+        reaction.outcomes.add().products.add().identifiers.add(value='invalid',
+                                                               type='SMILES')
         with self.assertRaisesRegex(ValueError, 'reaction contains errors'):
             message_helpers.get_reaction_smiles(reaction,
                                                 allow_incomplete=False)
@@ -236,8 +242,9 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
     )
     def test_amount(self, amount, expected):
         compound = message_helpers.build_compound(amount=amount)
-        self.assertEqual(getattr(compound, compound.WhichOneof('amount')),
-                         expected)
+        self.assertEqual(
+            getattr(compound.amount, compound.amount.WhichOneof('kind')),
+            expected)
 
     @parameterized.named_parameters(('missing_units', '1.2'),
                                     ('negative_mass', '-3.4 g'))
@@ -291,7 +298,7 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
 
     def test_vendor(self):
         self.assertEqual(
-            message_helpers.build_compound(vendor='Sally').vendor_source,
+            message_helpers.build_compound(vendor='Sally').source.vendor,
             'Sally')
 
 
@@ -313,28 +320,28 @@ class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
         solvent2 = message_helpers.build_compound(name='Solvent',
                                                   amount='100 mL')
         message_helpers.set_solute_moles(solute, [solvent2], '1 molar')
-        self.assertEqual(solute.moles,
+        self.assertEqual(solute.amount.moles,
                          reaction_pb2.Moles(units='MILLIMOLE', value=100))
         solvent3 = message_helpers.build_compound(name='Solvent',
                                                   amount='75 uL')
         message_helpers.set_solute_moles(solute, [solvent3],
                                          '3 mM',
                                          overwrite=True)
-        self.assertEqual(solute.moles,
+        self.assertEqual(solute.amount.moles,
                          reaction_pb2.Moles(units='NANOMOLE', value=225))
         solvent4 = message_helpers.build_compound(name='Solvent',
                                                   amount='0.2 uL')
         message_helpers.set_solute_moles(solute, [solvent4],
                                          '30 mM',
                                          overwrite=True)
-        self.assertEqual(solute.moles,
+        self.assertEqual(solute.amount.moles,
                          reaction_pb2.Moles(units='NANOMOLE', value=6))
         solvent5 = message_helpers.build_compound(name='Solvent',
                                                   amount='0.8 uL')
         message_helpers.set_solute_moles(solute, [solvent4, solvent5],
                                          '30 mM',
                                          overwrite=True)
-        self.assertEqual(solute.moles,
+        self.assertEqual(solute.amount.moles,
                          reaction_pb2.Moles(units='NANOMOLE', value=30))
 
 

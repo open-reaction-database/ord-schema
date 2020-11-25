@@ -45,8 +45,8 @@ class ProcessDatasetTest(absltest.TestCase):
         dummy_component.identifiers[0].details = 'custom_identifier'
         dummy_component.identifiers[0].value = 'custom_value'
         dummy_component.is_limiting = True
-        dummy_component.mass.value = 1
-        dummy_component.mass.units = reaction_pb2.Mass.GRAM
+        dummy_component.amount.mass.value = 1
+        dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
         reaction1.outcomes.add().conversion.value = 75
         reaction1.provenance.record_created.time.value = '2020-01-01'
         reaction1.provenance.record_created.person.username = 'test'
@@ -137,8 +137,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component = methylamine.components.add()
         component.identifiers.add(type='SMILES', value='CN')
         component.is_limiting = True
-        component.moles.value = 1
-        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        component.amount.moles.value = 1
+        component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 75
         reaction.provenance.record_created.time.value = '2020-01-01'
         reaction.provenance.record_created.person.username = 'test'
@@ -199,8 +199,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
         component.is_limiting = True
-        component.moles.value = 2
-        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        component.amount.moles.value = 2
+        component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
         reaction.provenance.record_created.time.value = '2020-01-01'
         reaction.provenance.record_created.person.username = 'test'
@@ -234,8 +234,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
         component.is_limiting = True
-        component.moles.value = 2
-        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        component.amount.moles.value = 2
+        component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
         reaction.provenance.record_created.time.value = '2020-01-02'
         reaction.provenance.record_created.person.username = 'test2'
@@ -270,8 +270,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
         component.is_limiting = True
-        component.moles.value = 2
-        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        component.amount.moles.value = 2
+        component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
         reaction_id = 'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'
         reaction.reaction_id = reaction_id
@@ -299,15 +299,16 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = message_helpers.load_message(self.dataset_filename,
                                                dataset_pb2.Dataset)
         # Modify the existing reaction...
-        dataset.reactions[0].inputs['methylamine'].components[0].moles.value = 2
+        reaction1 = dataset.reactions[0]
+        reaction1.inputs['methylamine'].components[0].amount.moles.value = 2
         # ...and add a new reaction.
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs['ethylamine']
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
         component.is_limiting = True
-        component.moles.value = 2
-        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        component.amount.moles.value = 2
+        component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
         reaction.provenance.record_created.time.value = '2020-01-01'
         reaction.provenance.record_created.person.username = 'test'
@@ -346,8 +347,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='C#O')
         component.is_limiting = True
-        component.moles.value = 2
-        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        component.amount.moles.value = 2
+        component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
@@ -362,8 +363,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
         component.is_limiting = True
-        component.moles.value = 2
-        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        component.amount.moles.value = 2
+        component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
         dataset1 = dataset_pb2.Dataset(reactions=[reaction])
         dataset1_filename = os.path.join(self.test_subdirectory, 'test1.pbtxt')
@@ -379,8 +380,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
     def test_modify_dataset_with_validation_errors(self):
         dataset = message_helpers.load_message(self.dataset_filename,
                                                dataset_pb2.Dataset)
-        dataset.reactions[0].inputs['methylamine'].components[0].moles.value = (
-            -2)
+        reaction = dataset.reactions[0]
+        reaction.inputs['methylamine'].components[0].amount.moles.value = -2
         message_helpers.write_message(dataset, self.dataset_filename)
         with self.assertRaisesRegex(validations.ValidationError,
                                     'must be non-negative'):
@@ -392,8 +393,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
         component.is_limiting = True
-        component.moles.value = 2
-        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        component.amount.moles.value = 2
+        component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
         reaction.provenance.record_created.time.value = '2020-01-01'
         reaction.provenance.record_created.person.username = 'test'
@@ -431,8 +432,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component = ethylamine.components.add()
         component.identifiers.add(type='SMILES', value='CCN')
         component.is_limiting = True
-        component.moles.value = 2
-        component.moles.units = reaction_pb2.Moles.MILLIMOLE
+        component.amount.moles.value = 2
+        component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
         image = reaction.observations.add().image
         image.bytes_value = b'test data value'

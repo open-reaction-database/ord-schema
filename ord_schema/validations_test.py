@@ -151,6 +151,24 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         self.assertEmpty(output.errors)
         self.assertEmpty(output.warnings)
 
+    def test_product_measurement(self):
+        message = reaction_pb2.ProductMeasurement(analysis_key='my_analysis',
+                                                  type='YIELD',
+                                                  float_value=dict(value=60))
+        with self.assertRaisesRegex(validations.ValidationError, 'percentage'):
+            self._run_validation(message)
+        message = reaction_pb2.ProductMeasurement(analysis_key='my_analysis',
+                                                  type='AREA',
+                                                  string_value='35.221')
+        with self.assertRaisesRegex(validations.ValidationError, 'numeric'):
+            self._run_validation(message)
+        message = reaction_pb2.ProductMeasurement(analysis_key='my_analysis',
+                                                  type='YIELD',
+                                                  percentage=dict(value=60),
+                                                  selectivity=dict(type='EE'))
+        with self.assertRaisesRegex(validations.ValidationError, 'selectivity'):
+            self._run_validation(message)
+
     def test_reaction(self):
         message = reaction_pb2.Reaction()
         with self.assertRaisesRegex(validations.ValidationError,
@@ -190,8 +208,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(validations.ValidationError,
                                     'require an amount'):
             self._run_validation(message)
-        dummy_component.mass.value = 1
-        dummy_component.mass.units = reaction_pb2.Mass.GRAM
+        dummy_component.amount.mass.value = 1
+        dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
         # Reactions don't require defined products or conversion because they
         # can be used to prepare crude for a second Reaction
         output = self._run_validation(message)
@@ -206,12 +224,19 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         self.assertEmpty(output.errors)
         self.assertEmpty(output.warnings)
 
-        # If an analysis uses an internal standard, a component must have
+        # If a measurement uses an internal standard, a component must have
         # an INTERNAL_STANDARD reaction role
         outcome.analyses['dummy_analysis'].CopyFrom(
-            reaction_pb2.ReactionAnalysis(type='CUSTOM',
-                                          details='test',
-                                          uses_internal_standard=True))
+            reaction_pb2.Analysis(type='CUSTOM', details='test'))
+        product = outcome.products.add(
+            identifiers=[dict(type='SMILES', value='c1ccccc1')])
+        product.measurements.add(type='YIELD',
+                                 percentage=dict(value=75),
+                                 uses_internal_standard=True)
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'analysis_key'):
+            self._run_validation(message)
+        product.measurements[0].analysis_key = 'dummy_analysis'
         with self.assertRaisesRegex(validations.ValidationError,
                                     'INTERNAL_STANDARD'):
             self._run_validation(message)
@@ -226,11 +251,11 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         # Assigning internal standard role to workup should resolve the error
         message_workup_istd = reaction_pb2.Reaction()
         message_workup_istd.CopyFrom(message)
-        workup = message_workup_istd.workup.add(type='CUSTOM', details='test')
+        workup = message_workup_istd.workups.add(type='CUSTOM', details='test')
         istd = workup.input.components.add()
         istd.identifiers.add(type='SMILES', value='CCO')
-        istd.mass.value = 1
-        istd.mass.units = reaction_pb2.Mass.GRAM
+        istd.amount.mass.value = 1
+        istd.amount.mass.units = reaction_pb2.Mass.GRAM
         istd.reaction_role = istd.ReactionRole.INTERNAL_STANDARD
         output = self._run_validation(message_workup_istd)
         self.assertEmpty(output.errors)
@@ -366,8 +391,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         dummy_component.identifiers.add(type='CUSTOM')
         dummy_component.identifiers[0].details = 'custom_identifier'
         dummy_component.identifiers[0].value = 'custom_value'
-        dummy_component.mass.value = 1
-        dummy_component.mass.units = reaction_pb2.Mass.GRAM
+        dummy_component.amount.mass.value = 1
+        dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
         reaction2.CopyFrom(reaction1)
         reaction3.CopyFrom(reaction1)
         # It is not required to cross-reference SYNTHESIZED compounds.
