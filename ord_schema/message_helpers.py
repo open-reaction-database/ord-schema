@@ -24,7 +24,6 @@ from google.protobuf import text_format
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
-import ord_schema
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
 
@@ -586,8 +585,7 @@ def set_dative_bonds(mol, from_atoms=('N', 'P')):
                         f'with SMILES {Chem.MolToSmiles(mol)}. If this is '
                         f'a datively bound metal-carbene complex, '
                         f'the positive charge should be removed from '
-                        f'the SMILES string before converting dative bonds',
-                        ord_schema.validations.ValidationWarning)
+                        f'the SMILES string before converting dative bonds')
                 if (nbr.GetTotalValence() + nbr.GetFormalCharge() !=
                         p_table.GetDefaultValence(nbr_atom) and
                         edit_mol.GetBondBetweenAtoms(
