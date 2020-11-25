@@ -25,7 +25,7 @@ from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
 from ord_schema import units
-from ord_schema import validations
+from . import validations
 from ord_schema.proto import reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
