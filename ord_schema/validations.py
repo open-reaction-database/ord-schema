@@ -776,7 +776,7 @@ def validate_product_measurement(message):
                 'Product measurements of type AREA, COUNTS, or '
                 'INTENSITY must use numeric values (percentage or float_value)',
                 ValidationError)
-    if message.HasField('selectivity_type') and (
+    if message.HasField('selectivity') and (
             message.type != reaction_pb2.ProductMeasurement.SELECTIVITY):
         warnings.warn(
             'The selectivity_type field should only be used for a'
@@ -1073,9 +1073,9 @@ _VALIDATOR_SWITCH = {
         validate_texture,
     reaction_pb2.ProductMeasurement:
         validate_product_measurement,
-    reaction_pb2.ProductMeasurement.SelectivityType:
+    reaction_pb2.ProductMeasurement.Selectivity:
         validate_selectivity,
-    reaction_pb2.ProductMeasurement.MassSpecMeasurementType:
+    reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails:
         validate_mass_spec_measurement_type,
     reaction_pb2.DateTime:
         validate_date_time,

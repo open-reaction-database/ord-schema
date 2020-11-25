@@ -78,7 +78,7 @@ class FrozenMessageTest(absltest.TestCase):
             _ = frozen.setup
 
     def test_access_repeated_scalar(self):
-        message = reaction_pb2.ProductMeasurement.MassSpecMeasurementType()
+        message = reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails()
         frozen_empty = self._freeze(message)
         self.assertEmpty(frozen_empty.eic_masses)
         with self.assertRaises(IndexError):
