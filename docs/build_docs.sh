@@ -29,5 +29,5 @@ set -ex
 #   ord-schema/proto/reaction.proto ord-schema/proto/dataset.proto
 
 # Run sphinx.
-pip install -r requirements.txt
+pip install -Ur requirements.txt
 make clean html
