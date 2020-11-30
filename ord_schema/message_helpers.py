@@ -396,9 +396,9 @@ def get_reaction_smiles(message, allow_incomplete=True, validate=True):
                 if allow_incomplete:
                     continue
                 raise error
-            if compound.reaction_role == roles.PRODUCT:
+            if product.reaction_role == roles.PRODUCT:
                 products.add(smiles)
-            elif compound.reaction_role in [
+            elif product.reaction_role in [
                     roles.REAGENT, roles.SOLVENT, roles.CATALYST,
                     roles.INTERNAL_STANDARD
             ]:
