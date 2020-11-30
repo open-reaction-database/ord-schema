@@ -22,6 +22,7 @@ import collections
 from ord_schema import units
 from ord_schema import message_helpers
 from ord_schema.visualization import drawing
+from ord_schema.proto import reaction_pb2
 
 
 def _is_true(boolean):
@@ -279,7 +280,7 @@ def _product_color_texture(product):
     """Generates a text description of the color and texture of a product.
 
     Args:
-        product: ReactionProduct message.
+        product: ProductCompound message.
 
     Returns:
         String description of the product.
@@ -425,33 +426,36 @@ def _compound_role(compound, text=False):
     limiting = limiting_if_true[compound.is_limiting]
     if text:
         options = {
-            compound.ReactionRole.UNSPECIFIED:
+            reaction_pb2.ReactionRole.UNSPECIFIED:
                 '',
-            compound.ReactionRole.REACTANT:
+            reaction_pb2.ReactionRole.REACTANT:
                 f'as a {limiting} reactant',
-            compound.ReactionRole.REAGENT:
+            reaction_pb2.ReactionRole.REAGENT:
                 'as a reagent',
-            compound.ReactionRole.SOLVENT:
+            reaction_pb2.ReactionRole.SOLVENT:
                 'as a solvent',
-            compound.ReactionRole.CATALYST:
+            reaction_pb2.ReactionRole.CATALYST:
                 'as a catalyst',
-            compound.ReactionRole.INTERNAL_STANDARD:
+            reaction_pb2.ReactionRole.INTERNAL_STANDARD:
                 'as an internal standard',
-            compound.ReactionRole.WORKUP:
+            reaction_pb2.ReactionRole.WORKUP:
                 '',
-            compound.ReactionRole.AUTHENTIC_STANDARD:
+            reaction_pb2.ReactionRole.AUTHENTIC_STANDARD:
                 'as an authentic standard',
+            reaction_pb2.ReactionRole.PRODUCT:
+                'as a product',
         }
     else:
         options = {
-            compound.ReactionRole.UNSPECIFIED: '',
-            compound.ReactionRole.REACTANT: f'{limiting} reactant',
-            compound.ReactionRole.REAGENT: 'reagent',
-            compound.ReactionRole.SOLVENT: 'solvent',
-            compound.ReactionRole.CATALYST: 'catalyst',
-            compound.ReactionRole.INTERNAL_STANDARD: 'internal standard',
-            compound.ReactionRole.WORKUP: '',
-            compound.ReactionRole.AUTHENTIC_STANDARD: 'authentic standard',
+            reaction_pb2.ReactionRole.UNSPECIFIED: '',
+            reaction_pb2.ReactionRole.REACTANT: f'{limiting} reactant',
+            reaction_pb2.ReactionRole.REAGENT: 'reagent',
+            reaction_pb2.ReactionRole.SOLVENT: 'solvent',
+            reaction_pb2.ReactionRole.CATALYST: 'catalyst',
+            reaction_pb2.ReactionRole.INTERNAL_STANDARD: 'internal standard',
+            reaction_pb2.ReactionRole.WORKUP: '',
+            reaction_pb2.ReactionRole.AUTHENTIC_STANDARD: 'authentic standard',
+            reaction_pb2.ReactionRole.PRODUCT: 'product',
         }
     return options[compound.reaction_role]
 

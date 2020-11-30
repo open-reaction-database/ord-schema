@@ -218,25 +218,6 @@ message Compound {
   // and list all constituent compounds in the "components" field.
   repeated CompoundIdentifier identifiers = 1;
   Amount amount = 2;
-  message ReactionRole {
-    enum ReactionRoleType {
-      UNSPECIFIED = 0;
-      // A reactant is any compound that contributes atoms to a desired or
-      // observed product.
-      REACTANT = 1;
-      REAGENT = 2;
-      SOLVENT = 3;
-      CATALYST = 4;
-      // The workup role is used when defining quenches, buffer additives for
-      // liquid-liquid separations, etc.
-      WORKUP = 5;
-      // Internal standards can be included as part of a reaction input (when
-      // added prior to the start of the reaction) or as part of a workup
-      // step of addition.
-      INTERNAL_STANDARD = 6;
-      AUTHENTIC_STANDARD = 7;
-    }
-  }
   ReactionRole.ReactionRoleType reaction_role = 3;
   // Whether this species is intended to be a limiting reactant.
   optional bool is_limiting = 4;
@@ -258,6 +239,29 @@ message Compound {
   // Compounds may be assayed for quality control; analytical data should be
   // defined in the analyses map.
   map<string, Analysis> analyses = 8;
+}
+
+message ReactionRole {
+  enum ReactionRoleType {
+    UNSPECIFIED = 0;
+    // A reactant is any compound that contributes atoms to a desired or
+    // observed product.
+    REACTANT = 1;
+    REAGENT = 2;
+    SOLVENT = 3;
+    CATALYST = 4;
+    // The workup role is used when defining quenches, buffer additives for
+    // liquid-liquid separations, etc.
+    WORKUP = 5;
+    // Internal standards can be included as part of a reaction input (when
+    // added prior to the start of the reaction) or as part of a workup
+    // step of addition.
+    INTERNAL_STANDARD = 6;
+    AUTHENTIC_STANDARD = 7;
+    // A product can be any species produced by the reaction, whether desired
+    // or undesired.
+    PRODUCT = 8;
+  }
 }
 
 /**
@@ -823,16 +827,16 @@ message ReactionOutcome {
   // defined in submessages. If the quantities of leftover starting materials
   // are measured, these starting materials may also be defined as product
   // species.
-  repeated ReactionProduct products = 3;
+  repeated ProductCompound products = 3;
   // Analyses are stored in a map to associate each with a unique key.
-  // The key is cross-referenced in ReactionProduct's ProductMeasurement
+  // The key is cross-referenced in ProductCompound's ProductMeasurement
   // messages to indicate which analyses were used to derive which performance
   // values/metrics. The string used for the key carries no meaning outside of
   // this cross-referencing.
   map<string, Analysis> analyses = 4;
 }
 
-message ReactionProduct {
+message ProductCompound {
   // The identity of the product compound.
   repeated CompoundIdentifier identifiers = 1;
   optional bool is_desired_product = 2;
@@ -865,6 +869,7 @@ message ReactionProduct {
   Texture texture = 6;
   // Any features (e.g., calculated descriptors) of the product compound.
   map<string, Data> features = 7;
+  ReactionRole.ReactionRoleType reaction_role = 8;
 }
 
 message ProductMeasurement {

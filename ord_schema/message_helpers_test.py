@@ -102,7 +102,7 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
             message_helpers.mol_from_compound(compound)
 
     def test_get_product_yield(self):
-        product = reaction_pb2.ReactionProduct()
+        product = reaction_pb2.ProductCompound()
         self.assertIsNone(message_helpers.get_product_yield(product))
         product.measurements.add(type='YIELD', percentage=dict(value=23))
         self.assertEqual(23, message_helpers.get_product_yield(product))
@@ -255,7 +255,7 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
     def test_role(self):
         compound = message_helpers.build_compound(role='solvent')
         self.assertEqual(compound.reaction_role,
-                         reaction_pb2.Compound.ReactionRole.SOLVENT)
+                         reaction_pb2.ReactionRole.SOLVENT)
 
     def test_bad_role(self):
         with self.assertRaisesRegex(KeyError, 'not a supported type'):

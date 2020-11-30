@@ -289,13 +289,13 @@ def reaction_has_internal_standard(message):
     for reaction_input in message.inputs.values():
         for compound in reaction_input.components:
             if (compound.reaction_role ==
-                    compound.ReactionRole.INTERNAL_STANDARD):
+                    reaction_pb2.ReactionRole.INTERNAL_STANDARD):
                 return True
     for workup in message.workups:
         if workup.input:
             for compound in workup.input.components:
                 if (compound.reaction_role ==
-                        compound.ReactionRole.INTERNAL_STANDARD):
+                        reaction_pb2.ReactionRole.INTERNAL_STANDARD):
                     return True
     return False
 
@@ -1067,9 +1067,9 @@ _VALIDATOR_SWITCH = {
         validate_reaction_workup,
     reaction_pb2.ReactionOutcome:
         validate_reaction_outcome,
-    reaction_pb2.ReactionProduct:
+    reaction_pb2.ProductCompound:
         validate_reaction_product,
-    reaction_pb2.ReactionProduct.Texture:
+    reaction_pb2.ProductCompound.Texture:
         validate_texture,
     reaction_pb2.ProductMeasurement:
         validate_product_measurement,

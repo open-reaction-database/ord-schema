@@ -244,7 +244,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message_input_istd = reaction_pb2.Reaction()
         message_input_istd.CopyFrom(message)
         message_input_istd.inputs['dummy_input'].components[0].reaction_role = (
-            reaction_pb2.Compound.ReactionRole.INTERNAL_STANDARD)
+            reaction_pb2.ReactionRole.INTERNAL_STANDARD)
         output = self._run_validation(message_input_istd)
         self.assertEmpty(output.errors)
         self.assertEmpty(output.warnings)
@@ -256,7 +256,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         istd.identifiers.add(type='SMILES', value='CCO')
         istd.amount.mass.value = 1
         istd.amount.mass.units = reaction_pb2.Mass.GRAM
-        istd.reaction_role = istd.ReactionRole.INTERNAL_STANDARD
+        istd.reaction_role = reaction_pb2.ReactionRole.INTERNAL_STANDARD
         output = self._run_validation(message_workup_istd)
         self.assertEmpty(output.errors)
         self.assertEmpty(output.warnings)
