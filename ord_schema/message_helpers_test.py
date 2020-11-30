@@ -391,24 +391,11 @@ class CompoundIdentifiersTest(absltest.TestCase):
 class SetDativeBondsTest(parameterized.TestCase, absltest.TestCase):
 
     def test_has_transition_metal(self):
-        xphos = reaction_pb2.Compound()
-        xphos.identifiers.add(type='SMILES',
-                              value=('CC(C)c1cc(C(C)C)c(-c2ccccc2P(C2CCCCC2)'
-                                     'C2CCCCC2)c(C(C)C)c1'))
         self.assertFalse(
-            message_helpers.has_transition_metal(
-                Chem.MolFromSmiles(xphos.identifiers[0].value)))
-
-        xphos_g3 = reaction_pb2.Compound()
-        xphos_g3.identifiers.add(type='SMILES',
-                                 value=('CS(O[Pd]1([P](C2CCCCC2)'
-                                        '(C3CCCCC3)C4=C(C5=C(C(C)C)C=C'
-                                        '(C(C)C)C=C5C(C)C)C=CC=C4)C6=CC=C'
-                                        'C=C6C7=C([NH2]1)C=CC=C7)(=O)=O'))
+            message_helpers.has_transition_metal(Chem.MolFromSmiles('P')))
         self.assertTrue(
             message_helpers.has_transition_metal(
-                Chem.MolFromSmiles(xphos_g3.identifiers[0].value,
-                                   sanitize=False)))
+                Chem.MolFromSmiles('Cl[Pd]Cl')))
 
     def test_set_dative_bonds(self):
         xphos_g3 = reaction_pb2.Compound()
