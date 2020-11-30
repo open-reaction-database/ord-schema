@@ -371,7 +371,7 @@ def get_reaction_smiles(message, allow_incomplete=True, validate=True):
         if identifier.type == reaction_pb2.ReactionIdentifier.REACTION_SMILES:
             return identifier.value
     reactants, agents, products = set(), set(), set()
-    roles = reaction_pb2.ReactionRole()
+    roles = reaction_pb2.ReactionRole
     for key in sorted(message.inputs):
         for compound in message.inputs[key].components:
             try:
