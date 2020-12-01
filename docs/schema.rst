@@ -78,6 +78,8 @@ A repeated field (list) of ``ReactionIdentifier`` messages that
 include reaction names, reaction SMILES, etc.
 
 .. image:: images/identifiers.png
+   :scale: 70
+   :align: center
 
 Inputs
 ======
@@ -85,6 +87,8 @@ Inputs
 A map (dictionary) that labels ``ReactionInput`` messages with simple string names.
 
 .. image:: images/inputs.png
+   :scale: 70
+   :align: center
 
 Each ``ReactionInput`` message describes pure components or stock solutions
 that are added to the reaction vessel as reactants, reagents, solvents, etc.
@@ -96,14 +100,22 @@ an associated ``Amount`` message. (Note that many additional subfields are not s
 Setup
 =====
 
-The
-``ReactionSetup`` defines information about the vessel and use of automation.
+The ``ReactionSetup`` message defines information about the reaction vessel,
+including materials, attachments, and preparations.
+
+.. image:: images/setup.png
+   :scale: 70
+   :align: center
 
 Conditions
 ==========
 
 ``ReactionConditions`` define temperature, pressure, stirring, flow chemistry,
 electrochemistry, and photochemistry as used in the reaction.
+
+.. image:: images/conditions.png
+   :scale: 70
+   :align: center
 
 Notes
 =====
