@@ -398,7 +398,8 @@ class SetDativeBondsTest(parameterized.TestCase, absltest.TestCase):
                 Chem.MolFromSmiles('Cl[Pd]Cl')))
 
     @parameterized.named_parameters(
-        ('[PH3][Pd](Cl)(Cl)[NH3]', ('N', 'P'), 'N->[Pd](<-P)(Cl)Cl'))
+        ('Pd(PH3)(NH3)Cl2', '[PH3][Pd](Cl)(Cl)[NH3]', ('N', 'P'),
+         'N->[Pd](<-P)(Cl)Cl'))
     def test_set_dative_bonds(self, smiles, from_atoms, expected):
         mol = Chem.MolFromSmiles(smiles, sanitize=False)
         dative_mol = message_helpers.set_dative_bonds(mol,
