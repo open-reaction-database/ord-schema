@@ -59,7 +59,17 @@ for clarity):
 Graphically, the ``Reaction`` message has a hierarchy of submessages
 and fields that looks like this:
 
-The following subsections go through each field in detail.
+.. image:: images/reaction.png
+
+The following subsections go through each field in detail. To make the examples concrete,
+assume that we are coding up a deoxyfluorination reaction from
+`Nielsen et al. <https://pubs.acs.org/doi/10.1021/jacs.8b01523>`_
+with the following scheme (copied from the
+`Supporting Information <https://pubs.acs.org/doi/suppl/10.1021/jacs.8b01523/suppl_file/ja8b01523_si_001.pdf>`_):
+
+.. image:: images/nielsen_scheme.png
+
+Specifically, we'll choose **3-Cl** as the sulfonyl fluoride and DBU as the base.
 
 Identifiers
 ===========
@@ -67,11 +77,21 @@ Identifiers
 A repeated field (list) of ``ReactionIdentifier`` messages that
 include reaction names, reaction SMILES, etc.
 
+.. image:: images/identifiers.png
+
 Inputs
 ======
 
-A map (dictionary) that connects  ``ReactionInput``: pure components or stock solutions
+A map (dictionary) that labels ``ReactionInput`` messages with simple string names.
+
+.. image:: images/inputs.png
+
+Each ``ReactionInput`` message describes pure components or stock solutions
 that are added to the reaction vessel as reactants, reagents, solvents, etc.
+Every input component requires its own ``CompoundIdentifier`` list as well as
+an associated ``Amount`` message. (Note that many additional subfields are not shown.)
+
+.. image:: images/input_detail.png
 
 Setup
 =====
