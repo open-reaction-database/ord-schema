@@ -836,15 +836,13 @@ message ReactionProduct {
   // The identity of the product compound.
   repeated CompoundIdentifier identifiers = 1;
   optional bool is_desired_product = 2;
-  // The quantitative amount of this product obtained in the reaction.
-  Amount amount = 3;
   // Each ProductMeasurement describes a connection between this product and an
   // Analysis. This includes information about how the identity of the
   // product was confirmed. It also contains quantitative standardized
   // performance metrics like quantitative yield as well as unstandardized
   // (and unnormalized) metrics like an integrated UV peak area.
-  repeated ProductMeasurement measurements = 4;
-  string isolated_color = 5;
+  repeated ProductMeasurement measurements = 3;
+  string isolated_color = 4;
   message Texture {
     enum TextureType {
       UNSPECIFIED = 0;
@@ -862,9 +860,9 @@ message ReactionProduct {
     // "viscous" for OIL, etc.
     string details = 2;
   }
-  Texture texture = 6;
+  Texture texture = 5;
   // Any features (e.g., calculated descriptors) of the product compound.
-  map<string, Data> features = 7;
+  map<string, Data> features = 6;
 }
 
 message ProductMeasurement {
@@ -911,6 +909,8 @@ message ProductMeasurement {
     COUNTS = 7;
     // Intensity, e.g., of a TLC spot, ELSD, or GC FID.
     INTENSITY = 8;
+    // Quantitative amount of this product, usually mass.
+    AMOUNT = 9;
   }
   MeasurementType type = 2;
   // Additional information about the measurement and, in particular, how it
@@ -947,10 +947,16 @@ message ProductMeasurement {
     // record the 3 product-specific measurements (e.g., peak areas) that
     // were used to derive the "2:1:1" summary statistic.
     string string_value = 10;
+    // Quantitative amount of this product. Measurements of this type should
+    // be linked to an analysis of type WEIGHT. Separate ProductMeasurement
+    // entries should be used to capture multiple amounts, such as mass and
+    // moles. However, since moles is derived from mass, recording just the
+    // mass is fine.
+    Amount amount = 11;
   }
   // A time to be used only when specifying the retention time at which a peak
   // area or intensity was calculated, e.g., as in LC, LCMS, GC, or GCMS.
-  Time retention_time = 11;
+  Time retention_time = 12;
   // More details about how a particular performance metric (e.g., counts)
   // was calculated from an analysis using mass spec. This includes
   // distinguishing total ion current (TIC) counts from extracted ion
@@ -975,7 +981,7 @@ message ProductMeasurement {
     // analysis.
     repeated float eic_masses = 5;
   }
-  MassSpecMeasurementDetails mass_spec_details = 12;
+  MassSpecMeasurementDetails mass_spec_details = 13;
 
   // The more specific type of selectivity that is being reported, e.g., EE,
   // ER, DR, EZ, ZE. EZ, ER, and DR assume that any product labeled as desired
@@ -994,10 +1000,10 @@ message ProductMeasurement {
     SelectivityType type = 1;
     string details = 2;
   }
-  Selectivity selectivity = 13;
+  Selectivity selectivity = 14;
 
   // The wavelength used for e.g. LC quantification.
-  Wavelength wavelength = 14;
+  Wavelength wavelength = 15;
 }
 
 message DateTime {
