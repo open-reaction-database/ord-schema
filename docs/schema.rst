@@ -153,9 +153,17 @@ Outcomes
 A list of ``ReactionOutcome`` messages that include timestamped analyses,
 analytical data, and observed/desired products.
 
+.. image:: images/outcomes.png
+   :scale: 70
+   :align: center
+
 The schema adopts a one-to-many approach for analyses. For example, a single NMR
 analysis may be linked to multiple products and/or product measurements (such as
 yield quantification and confirmation of identity).
+
+.. image:: images/outcome_detail.png
+   :scale: 70
+   :align: center
 
 Provenance
 ==========
@@ -165,6 +173,10 @@ including who performed the experiment and where. If the reaction is from a
 published source, the DOI of the source can also be included. Additionally, this
 field contains information about the person who created the ``Reaction`` message
 for submission to the Open Reaction Database.
+
+.. image:: images/provenance.png
+   :scale: 70
+   :align: center
 
 Reaction ID
 ===========
