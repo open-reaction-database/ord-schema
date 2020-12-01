@@ -133,15 +133,15 @@ Observations
 Workups
 =======
 
-A list of ``ReactionWorkup`` messages defines a sequence of workup actions
+A list of ``ReactionWorkup`` messages that defines a sequence of workup actions
 (e.g., quenches, separations) prior to analysis.
 
 .. image:: images/workups.png
    :scale: 70
    :align: center
 
-The ``ReactionWorkup`` message includes a ``ReactionInput`` field, which we recall
-can have several components:
+The ``ReactionWorkup`` message includes a ``ReactionInput`` field,
+which we recall can have several components:
 
 .. image:: images/workup_detail.png
    :scale: 70
@@ -150,16 +150,21 @@ can have several components:
 Outcomes
 ========
 
-``ReactionOutcome`` define timestamped analyses, analytical data,
-and observed/desired products.
+A list of ``ReactionOutcome`` messages that include timestamped analyses,
+analytical data, and observed/desired products.
+
+The schema adopts a one-to-many approach for analyses. For example, a single NMR
+analysis may be linked to multiple products and/or product measurements (such as
+yield quantification and confirmation of identity).
 
 Provenance
 ==========
 
-The
-``ReactionProvenance`` records additional metadata including who performed the
-experiment and where. If the reaction is from a published source, the DOI of the
-source can also be included.
+``ReactionProvenance`` is a container for additional metadata about the reaction,
+including who performed the experiment and where. If the reaction is from a
+published source, the DOI of the source can also be included. Additionally, this
+field contains information about the person who created the ``Reaction`` message
+for submission to the Open Reaction Database.
 
 Reaction ID
 ===========
