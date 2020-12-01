@@ -388,6 +388,25 @@ class CompoundIdentifiersTest(absltest.TestCase):
                          _BENZENE_MOLBLOCK)
 
 
+class SetDativeBondsTest(parameterized.TestCase, absltest.TestCase):
+
+    def test_has_transition_metal(self):
+        self.assertFalse(
+            message_helpers.has_transition_metal(Chem.MolFromSmiles('P')))
+        self.assertTrue(
+            message_helpers.has_transition_metal(
+                Chem.MolFromSmiles('Cl[Pd]Cl')))
+
+    @parameterized.named_parameters(
+        ('Pd(PH3)(NH3)Cl2', '[PH3][Pd](Cl)(Cl)[NH3]', ('N', 'P'),
+         'N->[Pd](<-P)(Cl)Cl'))
+    def test_set_dative_bonds(self, smiles, from_atoms, expected):
+        mol = Chem.MolFromSmiles(smiles, sanitize=False)
+        dative_mol = message_helpers.set_dative_bonds(mol,
+                                                      from_atoms=from_atoms)
+        self.assertEqual(Chem.MolToSmiles(dative_mol), expected)
+
+
 class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
