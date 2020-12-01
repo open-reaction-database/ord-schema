@@ -171,7 +171,7 @@ interface(s) to promotion and publicity. The current membership of the governing
 committee is:
 
 * Connor Coley (MIT)
-* Abby Doyle (Princeton, [CCAS](https://ccas.nd.edu/))
+* Abby Doyle (Princeton, [C-CAS](https://ccas.nd.edu/))
 * Spencer Dreher (Merck)
 * Joel Hawkins (Pfizer)
 * Klavs Jensen (MIT)
@@ -195,7 +195,7 @@ Advisory Board is:
 * Fabio Lima (Novartis)
 * Christos Nicolaou (Lilly)
 * Sarah Reisman (Caltech)
-* Matthew Sigman (Utah, [CCAS](https://ccas.nd.edu/))
+* Matthew Sigman (Utah, [C-CAS](https://ccas.nd.edu/))
 * Sarah Trice (MilliporeSigma)
 * Matthew Tudge (GSK)
 
