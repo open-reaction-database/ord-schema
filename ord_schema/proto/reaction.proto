@@ -869,10 +869,10 @@ message ProductCompound {
   Texture texture = 6;
   // Any features (e.g., calculated descriptors) of the product compound.
   map<string, Data> features = 7;
-  // Specify the role the ProductCompound played in the reaction. This 
+  // Specify the role the ProductCompound played in the reaction. This
   // aids in constructing proper reaction SMILES and product lists.
   // Species produced by the reaction should be identified as PRODUCT,
-  // whether desired or undesired. Recovered starting materials can be 
+  // whether desired or undesired. Recovered starting materials can be
   // specified as REACTANT, REAGENT, CATALYST, etc. as appropriate.
   ReactionRole.ReactionRoleType reaction_role = 8;
 }
