@@ -397,89 +397,13 @@ class SetDativeBondsTest(parameterized.TestCase, absltest.TestCase):
             message_helpers.has_transition_metal(
                 Chem.MolFromSmiles('Cl[Pd]Cl')))
 
-    def test_set_dative_bonds(self):
-        xphos_g3 = reaction_pb2.Compound()
-        xphos_g3.identifiers.add(type='SMILES',
-                                 value=('CS(O[Pd]1([P](C2CCCCC2)'
-                                        '(C3CCCCC3)C4=C(C5=C(C(C)C)C=C'
-                                        '(C(C)C)C=C5C(C)C)C=CC=C4)C6=CC=C'
-                                        'C=C6C7=C([NH2]1)C=CC=C7)(=O)=O'))
-        xphos_g3_dative = message_helpers.set_dative_bonds(
-            Chem.MolFromSmiles(xphos_g3.identifiers[0].value, sanitize=False),
-            from_atoms=('C', 'N', 'O', 'P'))
-        dative_bonds = [
-            bond for bond in xphos_g3_dative.GetBonds()
-            if bond.GetBondType() == Chem.BondType.DATIVE
-        ]
-        self.assertLen(dative_bonds, 2)
-        xphos_g3.identifiers[0].value = Chem.MolToSmiles(xphos_g3_dative)
-        self.assertEqual(xphos_g3.identifiers[0].value,
-                         ('CC(C)C1=CC(C(C)C)=C(C2=C(P(C3CCCCC3)'
-                          '(C3CCCCC3)->[Pd]3(OS(C)(=O)=O)<-NC4=C(C=CC=C4)'
-                          'C4=CC=CC=C43)C=CC=C2)C(C(C)C)=C1'))
-        self.assertIsNotNone(Chem.MolFromSmiles(xphos_g3.identifiers[0].value))
-
-        peppsi_plus = reaction_pb2.Compound()
-        peppsi_plus.identifiers.add(type='SMILES',
-                                    value=('CC(C)C(C=CC=C1C(C)C)=C1N2CCN'
-                                           '(C3=C(C(C)C)C=CC=C3C(C)C)[C+]2'
-                                           '[Pd](Cl)([N]4=CC=CC(Cl)=C4)Cl'))
-        peppsi_plus_dative = message_helpers.set_dative_bonds(
-            Chem.MolFromSmiles(peppsi_plus.identifiers[0].value,
-                               sanitize=False),
-            from_atoms=('C', 'N', 'O', 'P'))
-        dative_bonds = [
-            bond for bond in peppsi_plus_dative.GetBonds()
-            if bond.GetBondType() == Chem.BondType.DATIVE
-        ]
-        self.assertLen(dative_bonds, 1)
-        peppsi_plus.identifiers[0].value = Chem.MolToSmiles(peppsi_plus_dative)
-        self.assertEqual(peppsi_plus.identifiers[0].value,
-                         ('CC(C)C1=CC=CC(C(C)C)=C1N1CCN(C2=C(C(C)C)C=CC=C2C'
-                          '(C)C)[C+]1[Pd](Cl)(Cl)<-N1=CC=CC(Cl)=C1'))
-        self.assertIsNotNone(
-            Chem.MolFromSmiles(peppsi_plus.identifiers[0].value))
-
-        peppsi_neutral = reaction_pb2.Compound()
-        peppsi_neutral.identifiers.add(type='SMILES',
-                                       value=('CC(C)C(C=CC=C1C(C)C)=C1N2CCN'
-                                              '(C3=C(C(C)C)C=CC=C3C(C)C)[C]2'
-                                              '[Pd](Cl)([N]4=CC=CC(Cl)=C4)Cl'))
-        peppsi_neutral_dative = message_helpers.set_dative_bonds(
-            Chem.MolFromSmiles(peppsi_neutral.identifiers[0].value,
-                               sanitize=False),
-            from_atoms=('C', 'N', 'O', 'P'))
-        dative_bonds = [
-            bond for bond in peppsi_neutral_dative.GetBonds()
-            if bond.GetBondType() == Chem.BondType.DATIVE
-        ]
-        self.assertLen(dative_bonds, 2)
-        peppsi_neutral.identifiers[0].value = Chem.MolToSmiles(
-            peppsi_neutral_dative)
-        self.assertEqual(peppsi_neutral.identifiers[0].value,
-                         ('CC(C)C1=CC=CC(C(C)C)=C1N1CCN(C2=C(C(C)C)C=CC=C2C'
-                          '(C)C)C1->[Pd](Cl)(Cl)<-N1=CC=CC(Cl)=C1'))
-        self.assertIsNotNone(
-            Chem.MolFromSmiles(peppsi_neutral.identifiers[0].value))
-
-        mo_co6 = reaction_pb2.Compound()
-        mo_co6.identifiers.add(type='SMILES',
-                               value=('[O+]#[C-][Mo]([C-]#[O+])([C-]#[O+])'
-                                      '([C-]#[O-])([C-]#[O+])[C-]#[O+]'))
-        mo_co6_dative = message_helpers.set_dative_bonds(
-            Chem.MolFromSmiles(mo_co6.identifiers[0].value, sanitize=False),
-            from_atoms=('C', 'N', 'O', 'P'))
-        dative_bonds = [
-            bond for bond in mo_co6_dative.GetBonds()
-            if bond.GetBondType() == Chem.BondType.DATIVE
-        ]
-        self.assertLen(dative_bonds, 6)
-        mo_co6.identifiers[0].value = Chem.MolToSmiles(mo_co6_dative)
-        self.assertEqual(mo_co6.identifiers[0].value,
-                         ('[O+]#[C-]->[Mo](<-[C-]#[O+])(<-[C-]#[O+])'
-                          '(<-[C-]#[O+])(<-[C-]#[O+])<-[C-]#[O-]'))
-        self.assertIsNotNone(
-            Chem.MolFromSmiles(mo_co6.identifiers[0].value, sanitize=False))
+    @parameterized.named_parameters(
+        ('[PH3][Pd](Cl)(Cl)[NH3]', ('N', 'P'), 'N->[Pd](<-P)(Cl)Cl'))
+    def test_set_dative_bonds(self, smiles, from_atoms, expected):
+        mol = Chem.MolFromSmiles(smiles, sanitize=False)
+        dative_mol = message_helpers.set_dative_bonds(mol,
+                                                      from_atoms=from_atoms)
+        self.assertEqual(Chem.MolToSmiles(dative_mol), expected)
 
 
 class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
