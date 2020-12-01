@@ -93,9 +93,11 @@ A map (dictionary) that labels ``ReactionInput`` messages with simple string nam
 Each ``ReactionInput`` message describes pure components or stock solutions
 that are added to the reaction vessel as reactants, reagents, solvents, etc.
 Every input component requires its own ``CompoundIdentifier`` list as well as
-an associated ``Amount`` message. (Note that many additional subfields are not shown.)
+an associated ``Amount`` message (note that many additional subfields are not shown):
 
 .. image:: images/input_detail.png
+   :scale: 70
+   :align: center
 
 Setup
 =====
@@ -120,33 +122,44 @@ electrochemistry, and photochemistry as used in the reaction.
 Notes
 =====
 
-``ReactionNotes`` accommodate auxiliary information like safety notes and free text procedure
-details.
+``ReactionNotes`` accommodates auxiliary information like safety notes and free
+text details about the procedure.
 
 Observations
 ============
 
-``ReactionObservation`` describe timestamped text and image
-observations.
+``ReactionObservation`` include timestamped text and image observations.
 
 Workups
 =======
 
-``ReactionWorkup`` define a sequence of workup actions (e.g.,
-quenches, separations) prior to analysis.
+A list of ``ReactionWorkup`` messages defines a sequence of workup actions
+(e.g., quenches, separations) prior to analysis.
+
+.. image:: images/workups.png
+   :scale: 70
+   :align: center
+
+The ``ReactionWorkup`` message includes a ``ReactionInput`` field, which we recall
+can have several components:
+
+.. image:: images/workup_detail.png
+   :scale: 70
+   :align: center
 
 Outcomes
 ========
 
-``ReactionOutcome`` define timestamped
-analyses, analytical data, and observed/desired products.
+``ReactionOutcome`` define timestamped analyses, analytical data,
+and observed/desired products.
 
 Provenance
 ==========
 
 The
 ``ReactionProvenance`` records additional metadata including who performed the
-experiment and where.
+experiment and where. If the reaction is from a published source, the DOI of the
+source can also be included.
 
 Reaction ID
 ===========
