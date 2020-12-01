@@ -15,6 +15,7 @@
 
 import enum
 import os
+import warnings
 
 import flask
 from google import protobuf
@@ -518,6 +519,96 @@ def set_compound_smiles(compound, value):
     return set_compound_identifier(compound,
                                    reaction_pb2.CompoundIdentifier.SMILES,
                                    value)
+
+
+def is_transition_metal(atom):
+    """Determines if an atom is a transition metal.
+
+    Args:
+        atom: The atom in question. Should be of type rdkit.Chem.rdchem.Atom
+
+    Returns:
+        Boolean for whether the atom is a transition metal.
+    """
+    atom_n = atom.GetAtomicNum()
+    return 22 <= atom_n <= 29 or 40 <= atom_n <= 47 or 72 <= atom_n <= 79
+
+
+def has_transition_metal(mol):
+    """Determines if a molecule contains a transition metal.
+
+    Args:
+        mol: The molecule in question. Should be of type rdkit.Chem.rdchem.Mol
+
+    Returns:
+        Boolean for whether the molecule has a transition metal.
+    """
+    for atom in mol.GetAtoms():
+        if is_transition_metal(atom):
+            return True
+    return False
+
+
+def set_dative_bonds(mol, from_atoms=('N', 'P')):
+    """Converts metal-ligand bonds to dative.
+
+    Replaces some single bonds between metals and atoms with atomic numbers
+    in fromAtoms with dative bonds. For all atoms except carbon, the
+    replacement is only done if the atom has "too many" bonds. To handle
+    metal-carbene complexes, metal-carbon bonds are converted to dative
+    if the sum of the explicit and implicit valence of the carbon atom
+    does not equal its default valence, 4.
+
+    Args:
+        mol: The molecule to be converted.
+        fromAtoms: tuple of atomic symbols corresponding to atom types that
+        should have atom-metal bonds converted to dative. Default is N and P
+
+    Returns:
+        The modified molecule.
+    """
+    p_table = Chem.GetPeriodicTable()
+    edit_mol = Chem.RWMol(mol)
+    edit_mol.UpdatePropertyCache(strict=False)
+    metals = [atom for atom in edit_mol.GetAtoms() if is_transition_metal(atom)]
+    for metal in metals:
+        for nbr in metal.GetNeighbors():
+            nbr_atom = nbr.GetSymbol()
+            # Handles carbon-bound (e.g., NHC-type or CO) ligands
+            # Converts carbon-metal bond to dative if carbon's total valence +
+            # formal charge does not equal 4
+            if nbr_atom in from_atoms and nbr_atom == 'C':
+                if nbr.GetFormalCharge() > 0:
+                    warnings.warn(
+                        f'A positively charged C atom bound to '
+                        f'{metal.GetSymbol()} was found in the compound '
+                        f'with SMILES {Chem.MolToSmiles(mol)}. If this is '
+                        f'a datively bound metal-carbene complex, '
+                        f'the positive charge should be removed from '
+                        f'the SMILES string before setting dative bonds')
+                if (nbr.GetTotalValence() + nbr.GetFormalCharge() !=
+                        p_table.GetDefaultValence(nbr_atom) and
+                        edit_mol.GetBondBetweenAtoms(
+                            nbr.GetIdx(), metal.GetIdx()).GetBondType()
+                        == Chem.BondType.SINGLE):
+                    edit_mol.RemoveBond(nbr.GetIdx(), metal.GetIdx())
+                    edit_mol.AddBond(nbr.GetIdx(), metal.GetIdx(),
+                                     Chem.BondType.DATIVE)
+
+            # Handles atoms other than carbon (P, N, O, S, etc.)
+            # Converts atom-metal bond to dative if bonds to atom
+            # excedes its default valence
+            elif nbr_atom in from_atoms and nbr_atom != 'C':
+                if (nbr.GetExplicitValence() >
+                        p_table.GetDefaultValence(nbr_atom) and
+                        edit_mol.GetBondBetweenAtoms(
+                            nbr.GetIdx(), metal.GetIdx()).GetBondType()
+                        == Chem.BondType.SINGLE):
+                    edit_mol.RemoveBond(nbr.GetIdx(), metal.GetIdx())
+                    edit_mol.AddBond(nbr.GetIdx(), metal.GetIdx(),
+                                     Chem.BondType.DATIVE)
+
+    return edit_mol.GetMol()
 
 
 def get_compound_name(compound):
