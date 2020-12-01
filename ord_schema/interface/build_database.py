@@ -129,12 +129,12 @@ def _outputs_table(reaction, tables):
         for product in outcome.products:
             row = {'reaction_id': reaction.reaction_id}
             try:
-                row['smiles'] = message_helpers.smiles_from_compound(
-                    product.compound)
+                row['smiles'] = message_helpers.smiles_from_compound(product)
             except ValueError:
                 pass
-            if product.HasField('compound_yield'):
-                row['yield'] = product.compound_yield.value
+            product_yield = message_helpers.get_product_yield(product)
+            if product_yield is not None:
+                row['yield'] = product_yield
             if len(row) > 1:
                 rows.append(row)
     tables.outputs.writerows(rows)
