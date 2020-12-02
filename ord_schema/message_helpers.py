@@ -372,7 +372,7 @@ def get_reaction_smiles(message, allow_incomplete=True, validate=True):
         if identifier.type == reaction_pb2.ReactionIdentifier.REACTION_SMILES:
             return identifier.value
     reactants, agents, products = set(), set(), set()
-    roles = reaction_pb2.Compound.ReactionRole()
+    roles = reaction_pb2.ReactionRole
     for key in sorted(message.inputs):
         for compound in message.inputs[key].components:
             try:
@@ -397,7 +397,13 @@ def get_reaction_smiles(message, allow_incomplete=True, validate=True):
                 if allow_incomplete:
                     continue
                 raise error
-            products.add(smiles)
+            if product.reaction_role == roles.PRODUCT:
+                products.add(smiles)
+            elif product.reaction_role in [
+                    roles.REAGENT, roles.SOLVENT, roles.CATALYST,
+                    roles.INTERNAL_STANDARD
+            ]:
+                continue
     if not allow_incomplete and (not reactants or not products):
         raise ValueError(
             'reaction must contain at least one reactant and one product')
@@ -440,7 +446,7 @@ def get_product_yield(product, as_measurement=False):
     measurements of type YIELD exist, only the first is returned.
 
     Args:
-        product: ReactionProduct message.
+        product: ProductCompound message.
         as_measurement: Whether to return the full ProductMeasurement that
             corresponds to the yield measurement. Defaults to False.
 
