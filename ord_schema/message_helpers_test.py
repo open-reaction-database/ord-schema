@@ -102,7 +102,7 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
             message_helpers.mol_from_compound(compound)
 
     def test_get_product_yield(self):
-        product = reaction_pb2.ReactionProduct()
+        product = reaction_pb2.ProductCompound()
         self.assertIsNone(message_helpers.get_product_yield(product))
         product.measurements.add(type='YIELD', percentage=dict(value=23))
         self.assertEqual(23, message_helpers.get_product_yield(product))
@@ -132,8 +132,9 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
             value='Cc1ccccc1', type='SMILES')
         reactant2.components.add(reaction_role='SOLVENT').identifiers.add(
             value='N', type='SMILES')
-        reaction.outcomes.add().products.add().identifiers.add(value='O=C=O',
-                                                               type='SMILES')
+        reaction.outcomes.add().products.add(
+            reaction_role='PRODUCT').identifiers.add(value='O=C=O',
+                                                     type='SMILES')
         self.assertEqual(message_helpers.get_reaction_smiles(reaction),
                          'Cc1ccccc1.c1ccccc1>N>O=C=O')
 
@@ -149,8 +150,9 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(ValueError, 'must contain at least one'):
             message_helpers.get_reaction_smiles(reaction,
                                                 allow_incomplete=False)
-        reaction.outcomes.add().products.add().identifiers.add(value='invalid',
-                                                               type='SMILES')
+        reaction.outcomes.add().products.add(
+            reaction_role='PRODUCT').identifiers.add(value='invalid',
+                                                     type='SMILES')
         with self.assertRaisesRegex(ValueError, 'reaction contains errors'):
             message_helpers.get_reaction_smiles(reaction,
                                                 allow_incomplete=False)
@@ -255,7 +257,7 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
     def test_role(self):
         compound = message_helpers.build_compound(role='solvent')
         self.assertEqual(compound.reaction_role,
-                         reaction_pb2.Compound.ReactionRole.SOLVENT)
+                         reaction_pb2.ReactionRole.SOLVENT)
 
     def test_bad_role(self):
         with self.assertRaisesRegex(KeyError, 'not a supported type'):
