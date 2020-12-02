@@ -909,7 +909,8 @@ message ProductMeasurement {
     COUNTS = 7;
     // Intensity, e.g., of a TLC spot, ELSD, or GC FID.
     INTENSITY = 8;
-    // Quantitative amount of this product, usually mass.
+    // Quantitative amount of this product as defined in the "amount" field,
+    // usually as a mass.
     AMOUNT = 9;
   }
   MeasurementType type = 2;
