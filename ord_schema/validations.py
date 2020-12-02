@@ -728,7 +728,7 @@ def validate_reaction_outcome(message):
             ValidationWarning)
 
 
-def validate_reaction_product(message):
+def validate_product_compound(message):
     if len(message.identifiers) == 0:
         warnings.warn('Compounds must have at least one identifier',
                       ValidationError)
