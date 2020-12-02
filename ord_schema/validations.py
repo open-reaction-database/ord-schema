@@ -1068,7 +1068,7 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.ReactionOutcome:
         validate_reaction_outcome,
     reaction_pb2.ProductCompound:
-        validate_reaction_product,
+        validate_product_compound,
     reaction_pb2.ProductCompound.Texture:
         validate_texture,
     reaction_pb2.ProductMeasurement:
