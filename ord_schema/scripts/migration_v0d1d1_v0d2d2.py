@@ -100,6 +100,7 @@ def migrate_CopyFrom_multiple(message_new, message_old, fields):
             migrate_CopyFrom(getattr(message_new, field),
                              getattr(message_old, field))
 
+
 def migrate_assign_multiple(message_new, message_old, fields):
     """Iterates over field names in "fields" to assign the values from the
      old message to the new one.
@@ -124,27 +125,30 @@ def migrate_input(input_new, input_old):
     """
     migrate_MergeFrom_multiple(input_new, input_old, ('crude_components',))
     input_new.addition_order = input_old.addition_order
-    migrate_CopyFrom_multiple(input_new, input_old, ('addition_time',
-        'addition_speed', 'addition_duration', 'flow_rate',
-        'addition_device', 'addition_temperature'))
+    migrate_CopyFrom_multiple(
+        input_new, input_old,
+        ('addition_time', 'addition_speed', 'addition_duration', 'flow_rate',
+         'addition_device', 'addition_temperature'))
     # Changed input fields - components
     for component_old in input_old.components:
         component = input_new.components.add()
         migrate_MergeFrom_multiple(component, component_old,
-            ('identifiers', 'preparations'))
+                                   ('identifiers', 'preparations'))
         if len(component_old.features) > 0:
             raise NotImplementedError
         if component_old.HasField('is_limiting'):
             component.is_limiting = component_old.is_limiting
         # Vendor information is now in a submessage
-        if (component_old.vendor_source or component_old.vendor_id
-                or component_old.vendor_lot):
+        if (component_old.vendor_source or component_old.vendor_id or
+                component_old.vendor_lot):
             component.source.vendor = component_old.vendor_source
             component.source.id = component_old.vendor_id
             component.source.lot = component_old.vendor_lot
         # Reaction role enum is relocated and renumbered
-        role_name = component_old.ReactionRole.ReactionRoleType.DESCRIPTOR.values_by_number[component_old.reaction_role].name
-        component.reaction_role = reaction_pb2.ReactionRole.ReactionRoleType.DESCRIPTOR.values_by_name[role_name].number
+        role_name = component_old.ReactionRole.ReactionRoleType.DESCRIPTOR.values_by_number[
+            component_old.reaction_role].name
+        component.reaction_role = reaction_pb2.ReactionRole.ReactionRoleType.DESCRIPTOR.values_by_name[
+            role_name].number
         # Amounts are nwo in a submessage
         kind = component_old.WhichOneof('amount')
         if kind:
@@ -154,6 +158,7 @@ def migrate_input(input_new, input_old):
             component.amount.volume_includes_solutes = (
                 component_old.volume_includes_solutes)
 
+
 def main(argv):
     del argv  # Only used by app.run().
     filenames = glob.glob(FLAGS.input, recursive=True)
@@ -161,36 +166,38 @@ def main(argv):
     for filename in filenames:
         logging.info('Processing %s', filename)
         dataset_old = message_helpers.load_message(filename,
-            dataset_old_pb2.Dataset)
+                                                   dataset_old_pb2.Dataset)
         dataset = dataset_pb2.Dataset()
 
         # Copy unchanged dataset-level information
-        migrate_assign_multiple(dataset, dataset_old, ('name', 'description',
-            'dataset_id'))
+        migrate_assign_multiple(dataset, dataset_old,
+                                ('name', 'description', 'dataset_id'))
         migrate_MergeFrom(dataset.reaction_ids, dataset_old.reaction_ids)
 
-        for i,reaction_old in enumerate(dataset_old.reactions):
+        for i, reaction_old in enumerate(dataset_old.reactions):
             logging.info(f'  reaction {i} of {len(dataset_old.reactions)}')
             reaction = dataset.reactions.add()
             # Copy over unchanged fields - all but inputs, workups, outputs
-            migrate_MergeFrom_multiple(reaction, reaction_old, ('identifiers',
-                'observations'))
-            migrate_CopyFrom_multiple(reaction, reaction_old, ('setup',
-                'conditions', 'provenance'))
+            migrate_MergeFrom_multiple(reaction, reaction_old,
+                                       ('identifiers', 'observations'))
+            migrate_CopyFrom_multiple(reaction, reaction_old,
+                                      ('setup', 'conditions', 'provenance'))
             reaction.reaction_id = reaction_old.reaction_id
 
             # Copy workups field, renamed from workup. Need to handle
             # the change in the "input" field.
             for workup_old in reaction_old.workup:
                 workup = reaction.workups.add()
-                type_name = workup_old.WorkupType.DESCRIPTOR.values_by_number[workup_old.type].name
-                workup.type = workup.WorkupType.DESCRIPTOR.values_by_name[type_name].number
+                type_name = workup_old.WorkupType.DESCRIPTOR.values_by_number[
+                    workup_old.type].name
+                workup.type = workup.WorkupType.DESCRIPTOR.values_by_name[
+                    type_name].number
                 if workup_old.HasField('input'):
                     migrate_input(workup.input, workup_old.input)
-                migrate_assign_multiple(workup, workup_old, ('details',
-                    'keep_phase'))
-                migrate_CopyFrom_multiple(workup, workup_old, ('duration',
-                    'temperature', 'stirring'))
+                migrate_assign_multiple(workup, workup_old,
+                                        ('details', 'keep_phase'))
+                migrate_CopyFrom_multiple(
+                    workup, workup_old, ('duration', 'temperature', 'stirring'))
                 if workup_old.HasField('target_ph'):
                     workup.target_ph = workup_old.target_ph
                 if workup_old.HasField('is_automated'):
@@ -209,7 +216,7 @@ def main(argv):
             for outcome_old in reaction_old.outcomes:
                 outcome = reaction.outcomes.add()
                 migrate_CopyFrom_multiple(outcome, outcome_old,
-                    ('reaction_time', 'conversion'))
+                                          ('reaction_time', 'conversion'))
                 for product_old in outcome_old.products:
                     product = outcome.products.add()
                     if product_old.HasField('is_desired_product'):
@@ -219,8 +226,10 @@ def main(argv):
                                       product_old.compound.identifiers)
                     product.isolated_color = product_old.isolated_color
                     migrate_CopyFrom(product.texture, product_old.texture)
-                    role_name = product_old.compound.ReactionRole.ReactionRoleType.DESCRIPTOR.values_by_number[product_old.compound.reaction_role].name
-                    product.reaction_role = reaction_pb2.ReactionRole.ReactionRoleType.DESCRIPTOR.values_by_name[role_name].number
+                    role_name = product_old.compound.ReactionRole.ReactionRoleType.DESCRIPTOR.values_by_number[
+                        product_old.compound.reaction_role].name
+                    product.reaction_role = reaction_pb2.ReactionRole.ReactionRoleType.DESCRIPTOR.values_by_name[
+                        role_name].number
 
                     for analysis_key in product_old.analysis_identity:
                         analysis_old = outcome_old.analyses[analysis_key]
@@ -264,7 +273,8 @@ def main(argv):
                         measurement = product.measurements.add(
                             analysis_key=analysis_key, type='SELECTIVITY')
                         migrate_assign_multiple(measurement.selectivity,
-                            product_old.selectivity, ('type', 'details'))
+                                                product_old.selectivity,
+                                                ('type', 'details'))
                         if product_old.selectivity.HasField('value'):
                             measurement.float_value.value = (
                                 product_old.selectivity.value)
@@ -282,19 +292,19 @@ def main(argv):
                         # Look for analysis_key of type weight to assume
                         # is the source of the amount
                         for analysis_key in outcome_old.analyses:
-                            analysis_old = (
-                                outcome_old.analyses[analysis_key])
+                            analysis_old = (outcome_old.analyses[analysis_key])
                             if analysis_old.type == analysis_old.WEIGHT:
                                 measurement = product.measurements.add(
-                                    analysis_key=analysis_key,
-                                    type='AMOUNT')
+                                    analysis_key=analysis_key, type='AMOUNT')
                                 migrate_CopyFrom(
                                     getattr(measurement.amount, kind),
                                     getattr(product_old.compound, kind))
-                                warnings.warn('Inferring that analysis_key '
+                                warnings.warn(
+                                    'Inferring that analysis_key '
                                     f'{analysis_key} was used for the amount')
                         else:
-                            raise ValueError('Could not find a WEIGHT'
+                            raise ValueError(
+                                'Could not find a WEIGHT'
                                 ' analysis that could have been used to'
                                 ' calculate the product amount')
 
@@ -305,28 +315,26 @@ def main(argv):
                     analysis_old = outcome_old.analyses[analysis_key]
                     analysis = outcome.analyses[analysis_key]
                     # Enums for analysis types didn't change
-                    migrate_assign_multiple(analysis, analysis_old, ('type',
-                        'chmo_id', 'details', 'instrument_manufacturer'))
+                    migrate_assign_multiple(analysis, analysis_old,
+                                            ('type', 'chmo_id', 'details',
+                                             'instrument_manufacturer'))
                     migrate_CopyFrom_multiple(analysis, analysis_old,
-                        ('instrument_last_calibrated',))
+                                              ('instrument_last_calibrated',))
 
                     for data_key in analysis_old.processed_data:
                         migrate_CopyFrom(analysis.data[data_key],
-                            analysis_old.processed_data[data_key])
+                                         analysis_old.processed_data[data_key])
                     for data_key in analysis_old.raw_data:
                         if data_key in analysis.data:
                             data_key += '_raw'
                         migrate_CopyFrom(analysis.data[data_key],
-                            analysis_old.raw_data[data_key])
+                                         analysis_old.raw_data[data_key])
 
             # Add record_modified event
             reaction.provenance.record_modified.add(
                 time=dict(value=str(datetime.datetime.now())),
-                person=dict(
-                    username='connorcoley',
-                    email='ccoley@mit.edu'),
-                details='Automatic migration from schema v0.1.1 to v0.2.2'
-            )
+                person=dict(username='connorcoley', email='ccoley@mit.edu'),
+                details='Automatic migration from schema v0.1.1 to v0.2.2')
 
         # Save
         filename_new = os.path.join(FLAGS.output, os.path.basename(filename))
