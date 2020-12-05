@@ -18,11 +18,8 @@ Example usage:
 $ python migration_v0d1d1_v0d2d2.py --input="old/*.pbtxt" --output="new/"
 """
 
-import collections
 import glob
 import os
-import re
-import urllib.parse
 import datetime
 import warnings
 from google.protobuf import text_format
@@ -41,8 +38,9 @@ flags.DEFINE_string('input', None, 'Input pattern for Dataset protos.')
 flags.DEFINE_string('output', None, 'Output folder for new Dataset protos.')
 
 
+# pylint: disable=invalid-name
 def migrate_MergeFrom(repeated_new, repeated_old):
-    """Mimics the "extend" method of a repeated message field when the field 
+    """Mimics the "extend" method of a repeated message field when the field
     types are defined equivalently but are different classes. Roundtrips each
     message through a serialized pbtxt format. Modified repeated_new in-place.
 
@@ -145,10 +143,10 @@ def migrate_input(input_new, input_old):
             component.source.id = component_old.vendor_id
             component.source.lot = component_old.vendor_lot
         # Reaction role enum is relocated and renumbered
-        role_name = component_old.ReactionRole.ReactionRoleType.DESCRIPTOR.values_by_number[
-            component_old.reaction_role].name
-        component.reaction_role = reaction_pb2.ReactionRole.ReactionRoleType.DESCRIPTOR.values_by_name[
-            role_name].number
+        role_name = component_old.ReactionRole.ReactionRoleType.DESCRIPTOR.\
+            values_by_number[component_old.reaction_role].name
+        component.reaction_role = reaction_pb2.ReactionRole.ReactionRoleType.\
+            DESCRIPTOR.values_by_name[role_name].number
         # Amounts are nwo in a submessage
         kind = component_old.WhichOneof('amount')
         if kind:
@@ -159,6 +157,34 @@ def migrate_input(input_new, input_old):
                 component_old.volume_includes_solutes)
 
 
+def migrate_workup(workup_new, workup_old):
+    """Copies the contents from an old workup to the new workup format.
+
+    Args:
+        workup_new: A reaction_pb2.ReactionWorkup message.
+        workup_old: A reaction_old_pb2.ReactionWorkup message.
+    """
+    type_name = workup_old.WorkupType.DESCRIPTOR.values_by_number[
+        workup_old.type].name
+    workup_new.type = workup_new.WorkupType.DESCRIPTOR.values_by_name[
+        type_name].number
+    if workup_old.HasField('input'):
+        migrate_input(workup_new.input, workup_old.input)
+    migrate_assign_multiple(workup_new, workup_old,
+                            ('details', 'keep_phase'))
+    migrate_CopyFrom_multiple(
+        workup_new, workup_old, ('duration', 'temperature', 'stirring'))
+    if workup_old.HasField('target_ph'):
+        workup_new.target_ph = workup_old.target_ph
+    if workup_old.HasField('is_automated'):
+        workup_new.is_automated = workup_old.is_automated
+    if workup_old.HasField('mass'):
+        migrate_CopyFrom(workup_new.amount.mass, workup_old.mass)
+    elif workup_old.HasField('volume'):
+        migrate_CopyFrom(workup_new.amount.volume, workup_old.volume)
+
+# pylint: disable=too-many-locals,too-many-nested-blocks
+# pylint: disable=too-many-branches,too-many-statements
 def main(argv):
     del argv  # Only used by app.run().
     filenames = glob.glob(FLAGS.input, recursive=True)
@@ -188,24 +214,7 @@ def main(argv):
             # the change in the "input" field.
             for workup_old in reaction_old.workup:
                 workup = reaction.workups.add()
-                type_name = workup_old.WorkupType.DESCRIPTOR.values_by_number[
-                    workup_old.type].name
-                workup.type = workup.WorkupType.DESCRIPTOR.values_by_name[
-                    type_name].number
-                if workup_old.HasField('input'):
-                    migrate_input(workup.input, workup_old.input)
-                migrate_assign_multiple(workup, workup_old,
-                                        ('details', 'keep_phase'))
-                migrate_CopyFrom_multiple(
-                    workup, workup_old, ('duration', 'temperature', 'stirring'))
-                if workup_old.HasField('target_ph'):
-                    workup.target_ph = workup_old.target_ph
-                if workup_old.HasField('is_automated'):
-                    workup.is_automated = workup_old.is_automated
-                if workup_old.HasField('mass'):
-                    migrate_CopyFrom(workup.amount.mass, workup_old.mass)
-                elif workup_old.HasField('volume'):
-                    migrate_CopyFrom(workup.amount.volume, workup_old.volume)
+                migrate_workup(workup, workup_old)
 
             # Copy changed fields in input
             for input_key in reaction_old.inputs:
@@ -226,10 +235,12 @@ def main(argv):
                                       product_old.compound.identifiers)
                     product.isolated_color = product_old.isolated_color
                     migrate_CopyFrom(product.texture, product_old.texture)
-                    role_name = product_old.compound.ReactionRole.ReactionRoleType.DESCRIPTOR.values_by_number[
-                        product_old.compound.reaction_role].name
-                    product.reaction_role = reaction_pb2.ReactionRole.ReactionRoleType.DESCRIPTOR.values_by_name[
-                        role_name].number
+                    role_name = product_old.compound.ReactionRole.\
+                        ReactionRoleType.DESCRIPTOR.values_by_number[
+                            product_old.compound.reaction_role].name
+                    product.reaction_role = reaction_pb2.ReactionRole.\
+                        ReactionRoleType.DESCRIPTOR.values_by_name[
+                            role_name].number
 
                     for analysis_key in product_old.analysis_identity:
                         analysis_old = outcome_old.analyses[analysis_key]
@@ -302,6 +313,7 @@ def main(argv):
                                 warnings.warn(
                                     'Inferring that analysis_key '
                                     f'{analysis_key} was used for the amount')
+                                break
                         else:
                             raise ValueError(
                                 'Could not find a WEIGHT'
