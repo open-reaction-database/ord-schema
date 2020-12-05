@@ -170,10 +170,9 @@ def migrate_workup(workup_new, workup_old):
         type_name].number
     if workup_old.HasField('input'):
         migrate_input(workup_new.input, workup_old.input)
-    migrate_assign_multiple(workup_new, workup_old,
-                            ('details', 'keep_phase'))
-    migrate_CopyFrom_multiple(
-        workup_new, workup_old, ('duration', 'temperature', 'stirring'))
+    migrate_assign_multiple(workup_new, workup_old, ('details', 'keep_phase'))
+    migrate_CopyFrom_multiple(workup_new, workup_old,
+                              ('duration', 'temperature', 'stirring'))
     if workup_old.HasField('target_ph'):
         workup_new.target_ph = workup_old.target_ph
     if workup_old.HasField('is_automated'):
@@ -182,6 +181,7 @@ def migrate_workup(workup_new, workup_old):
         migrate_CopyFrom(workup_new.amount.mass, workup_old.mass)
     elif workup_old.HasField('volume'):
         migrate_CopyFrom(workup_new.amount.volume, workup_old.volume)
+
 
 # pylint: disable=too-many-locals,too-many-nested-blocks
 # pylint: disable=too-many-branches,too-many-statements
