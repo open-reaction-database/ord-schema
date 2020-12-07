@@ -121,7 +121,8 @@ def migrate_input(input_new, input_old):
         input_new: A reaction_pb2.ReactionInput message.
         input_old: A reaction_old_pb2.ReactionInput message.
     """
-    migrate_MergeFrom_multiple(input_new, input_old, ('crude_components',))
+    if input_old.HasField('crude_components'):
+        raise NotImplementedError('Crude component migration not defined')
     input_new.addition_order = input_old.addition_order
     migrate_CopyFrom_multiple(
         input_new, input_old,
@@ -206,8 +207,8 @@ def main(argv):
             # Copy over unchanged fields - all but inputs, workups, outputs
             migrate_MergeFrom_multiple(reaction, reaction_old,
                                        ('identifiers', 'observations'))
-            migrate_CopyFrom_multiple(reaction, reaction_old,
-                                      ('setup', 'conditions', 'provenance'))
+            migrate_CopyFrom_multiple(reaction, reaction_old, ('setup',
+                'notes', 'conditions', 'provenance'))
             reaction.reaction_id = reaction_old.reaction_id
 
             # Copy workups field, renamed from workup. Need to handle
