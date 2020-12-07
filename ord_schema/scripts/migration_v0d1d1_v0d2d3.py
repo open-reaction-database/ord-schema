@@ -207,8 +207,9 @@ def main(argv):
             # Copy over unchanged fields - all but inputs, workups, outputs
             migrate_MergeFrom_multiple(reaction, reaction_old,
                                        ('identifiers', 'observations'))
-            migrate_CopyFrom_multiple(reaction, reaction_old, ('setup',
-                                      'notes', 'conditions', 'provenance'))
+            migrate_CopyFrom_multiple(
+                reaction, reaction_old,
+                ('setup', 'notes', 'conditions', 'provenance'))
             reaction.reaction_id = reaction_old.reaction_id
 
             # Copy workups field, renamed from workup. Need to handle
