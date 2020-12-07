@@ -121,7 +121,7 @@ def migrate_input(input_new, input_old):
         input_new: A reaction_pb2.ReactionInput message.
         input_old: A reaction_old_pb2.ReactionInput message.
     """
-    if input_old.HasField('crude_components'):
+    if len(input_old.crude_components) > 0:
         raise NotImplementedError('Crude component migration not defined')
     input_new.addition_order = input_old.addition_order
     migrate_CopyFrom_multiple(
