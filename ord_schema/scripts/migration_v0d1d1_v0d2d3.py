@@ -179,9 +179,9 @@ def migrate_workup(workup_new, workup_old):
     if workup_old.HasField('is_automated'):
         workup_new.is_automated = workup_old.is_automated
     if workup_old.HasField('mass'):
-        migrate_CopyFrom(workup_new.aliquot_amount.mass, workup_old.mass)
+        migrate_CopyFrom(workup_new.amount.mass, workup_old.mass)
     elif workup_old.HasField('volume'):
-        migrate_CopyFrom(workup_new.aliquot_amount.volume, workup_old.volume)
+        migrate_CopyFrom(workup_new.amount.volume, workup_old.volume)
 
 
 # pylint: disable=too-many-locals,too-many-nested-blocks
@@ -208,7 +208,7 @@ def main(argv):
             migrate_MergeFrom_multiple(reaction, reaction_old,
                                        ('identifiers', 'observations'))
             migrate_CopyFrom_multiple(reaction, reaction_old, ('setup',
-                'notes', 'conditions', 'provenance'))
+                                      'notes', 'conditions', 'provenance'))
             reaction.reaction_id = reaction_old.reaction_id
 
             # Copy workups field, renamed from workup. Need to handle
