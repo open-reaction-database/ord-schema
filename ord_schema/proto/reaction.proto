@@ -793,7 +793,7 @@ message ReactionWorkup {
   // When aliquotting a portion of the reaction mixture, the amount is
   // specified by mass or volume. Note that the amounts for additions should
   // be described in the "input" field instead; these are only for aliquots.
-  Amount aliquot_amount = 5;
+  Amount amount = 5;
   TemperatureConditions temperature = 6;
   string keep_phase = 7;
   StirringConditions stirring = 8;
