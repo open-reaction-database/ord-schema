@@ -289,13 +289,13 @@ def reaction_has_internal_standard(message):
     for reaction_input in message.inputs.values():
         for compound in reaction_input.components:
             if (compound.reaction_role ==
-                    compound.ReactionRole.INTERNAL_STANDARD):
+                    reaction_pb2.ReactionRole.INTERNAL_STANDARD):
                 return True
     for workup in message.workups:
         if workup.input:
             for compound in workup.input.components:
                 if (compound.reaction_role ==
-                        compound.ReactionRole.INTERNAL_STANDARD):
+                        reaction_pb2.ReactionRole.INTERNAL_STANDARD):
                     return True
     return False
 
@@ -690,13 +690,13 @@ def validate_reaction_workup(message):
             not message.HasField('target_ph')):
         warnings.warn('pH adjustment workup missing target pH', ValidationError)
     if message.type == reaction_pb2.ReactionWorkup.ALIQUOT:
-        if not message.aliquot_amount.WhichOneof('kind'):
+        if not message.amount.WhichOneof('kind'):
             warnings.warn('Aliquot workup step missing volume/mass amount',
                           ValidationError)
-        if message.aliquot_amount.WhichOneof('kind') not in ['mass', 'volume']:
+        if message.amount.WhichOneof('kind') not in ['mass', 'volume']:
             warnings.warn('Aliquot amounts must be specified by mass or volume',
                           ValidationError)
-        if message.aliquot_amount.HasField('volume_includes_solutes'):
+        if message.amount.HasField('volume_includes_solutes'):
             warnings.warn(
                 'volume_includes_solutes should only '
                 'be used for input Compounds', ValidationError)
@@ -728,7 +728,7 @@ def validate_reaction_outcome(message):
             ValidationWarning)
 
 
-def validate_reaction_product(message):
+def validate_product_compound(message):
     if len(message.identifiers) == 0:
         warnings.warn('Compounds must have at least one identifier',
                       ValidationError)
@@ -1067,9 +1067,9 @@ _VALIDATOR_SWITCH = {
         validate_reaction_workup,
     reaction_pb2.ReactionOutcome:
         validate_reaction_outcome,
-    reaction_pb2.ReactionProduct:
-        validate_reaction_product,
-    reaction_pb2.ReactionProduct.Texture:
+    reaction_pb2.ProductCompound:
+        validate_product_compound,
+    reaction_pb2.ProductCompound.Texture:
         validate_texture,
     reaction_pb2.ProductMeasurement:
         validate_product_measurement,

@@ -134,7 +134,7 @@ class FrozenMessageTest(absltest.TestCase):
                 reaction_pb2.ReactionSetup(automation_platform='test'))
 
     def test_add_repeated_scalar(self):
-        frozen = self._freeze(reaction_pb2.ReactionProduct())
+        frozen = self._freeze(reaction_pb2.ProductCompound())
         with self.assertRaises(AttributeError):
             frozen.analysis_identity.append('test')
 
