@@ -1,6 +1,6 @@
-##############
-ORD Web Editor
-##############
+##################
+Interactive Editor
+##################
 
 The ORD hosts an interactive web editor for ``Reaction`` and ``Dataset`` protos
 on Google Cloud Platform (GCP); it is available at

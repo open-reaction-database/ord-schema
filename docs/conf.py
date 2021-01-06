@@ -27,8 +27,6 @@ author = 'Open Reaction Database Project Authors'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'recommonmark',
-    'sphinx_markdown_tables',
     'sphinx_tabs.tabs',
 ]
 
@@ -62,8 +60,3 @@ html_css_files = [
 ]
 
 master_doc = 'index'
-
-
-def setup(app):
-    app.add_config_value('recommonmark_config', {'enable_eval_rst': True}, True)
-    app.add_transform(transform.AutoStructify)
