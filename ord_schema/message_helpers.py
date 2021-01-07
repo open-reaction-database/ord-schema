@@ -15,12 +15,15 @@
 
 import enum
 import os
+from typing import Any, Dict, Iterable, Mapping, TypeVar
 import warnings
 
 import flask
 from google import protobuf
+from google.protobuf import any_pb2
 from google.protobuf import json_format
 from google.protobuf import text_format
+import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
@@ -32,6 +35,7 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
+ScalarType = TypeVar('ScalarType', str, bytes, float, int, bool)
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -782,3 +786,58 @@ def create_message(message_name):
     except (AttributeError, TypeError) as error:
         raise ValueError(
             f'Cannot resolve message name {message_name}') from error
+
+
+def messages_to_dataframe(messages: Iterable[any_pb2.Any],
+                          drop_constant_columns: bool = False) -> pd.DataFrame:
+    """Converts a list of protos to a pandas DataFrame.
+
+    Args:
+        messages: List of protos.
+        drop_constant_columns: Whether to drop columns that have the same value
+            for all rows.
+
+    Returns:
+        DataFrame.
+    """
+    rows = []
+    for message in messages:
+        rows.append(message_to_row(message))
+    df = pd.DataFrame(rows)
+    if drop_constant_columns:
+        drop = []
+        for column in df.columns:
+            if len(df[column].unique()) == 1:
+                drop.append(column)
+        del df[drop]
+    return df
+
+
+def message_to_row(message: any_pb2.Any) -> Dict[str, ScalarType]:
+    data = json_format.MessageToDict(message, preserving_proto_field_name=True)
+    print('JSON', data)
+    return _message_to_row(data)
+
+
+def _message_to_row(data: Mapping[str, Any],
+                    trace: str = None) -> Dict[str, ScalarType]:
+    if trace is None:
+        trace = tuple()
+    row = {}
+    for key, value in data.items():
+        if isinstance(value, dict):
+            this_trace = trace + (key,)
+            row.update(_message_to_row(value, trace=this_trace))
+        elif isinstance(value, list):
+            for i, list_value in enumerate(value):
+                this_trace = trace + (f'{key}[{i}]',)
+                if isinstance(list_value, dict):
+                    row.update(_message_to_row(list_value, trace=this_trace))
+                elif isinstance(list_value, list):
+                    raise NotImplementedError(
+                        'lists of lists are not supported')
+                else:
+                    row['.'.join(this_trace)] = list_value
+        else:
+            row['.'.join(trace + (key,))] = value
+    return row

@@ -482,5 +482,55 @@ class CreateMessageTest(parameterized.TestCase, absltest.TestCase):
             message_helpers.create_message(message_name)
 
 
+class MessagesToDataFrameTest(parameterized.TestCase, absltest.TestCase):
+
+    @parameterized.named_parameters(
+        ('scalar', test_pb2.Scalar(int32_value=3, float_value=4.5), {
+            'int32_value': 3,
+            'float_value': 4.5
+        }),
+        ('repeated_scalar', test_pb2.RepeatedScalar(values=[1.2, 3.4]), {
+            'values[0]': 1.2,
+            'values[1]': 3.4
+        }),
+        ('enum', test_pb2.Enum(value='FIRST'), {
+            'value': 'FIRST'
+        }),
+        ('repeated_enum', test_pb2.RepeatedEnum(values=['FIRST', 'SECOND']), {
+            'values[0]': 'FIRST',
+            'values[1]': 'SECOND'
+        }),
+        ('nested', test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)), {
+            'child.value': 1.2
+        }),
+        ('repeated_nested',
+         test_pb2.RepeatedNested(children=[
+             test_pb2.RepeatedNested.Child(value=1.2),
+             test_pb2.RepeatedNested.Child(value=3.4)
+         ]), {
+             'children[0].value': 1.2,
+             'children[1].value': 3.4
+         }),
+        ('map', test_pb2.Map(values={
+            'a': 1.2,
+            'b': 3.4
+        }), {
+            'values["a"]': 1.2,
+            'values["b"]': 3.4
+        }),
+        ('map_nested',
+         test_pb2.MapNested(
+             children={
+                 'a': test_pb2.MapNested.Child(value=1.2),
+                 'b': test_pb2.MapNested.Child(value=3.4)
+             }), {
+                 'values["a"].value': 1.2,
+                 'values["b"].value': 3.4
+             }),
+    )
+    def test_message_to_row(self, message, expected):
+        self.assertEqual(message_helpers.message_to_row(message), expected)
+
+
 if __name__ == '__main__':
     absltest.main()
