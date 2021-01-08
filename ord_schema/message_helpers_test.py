@@ -564,13 +564,11 @@ class MessagesToDataFrameTest(parameterized.TestCase, absltest.TestCase):
         outcome.conversion.value = 9.1
         outcome.conversion.precision = 2.3
         expected = pd.DataFrame({
-            'inputs["test"].components[0].identifiers[0].type': [
-                'SMILES', 'SMILES'
-            ],
+            'inputs["test"].components[0].identifiers[0].type': 'SMILES',
             'inputs["test"].components[0].identifiers[0].value': ['CCO', 'CCC'],
             'inputs["test"].components[0].is_limiting': [True, False],
             'inputs["test"].components[0].amount.mass.value': [1.2, 7.8],
-            'inputs["test"].components[0].amount.mass.units': ['GRAM', 'GRAM'],
+            'inputs["test"].components[0].amount.mass.units': 'GRAM',
             'outcomes[0].conversion.value': [3.4, 9.1],
             'outcomes[0].conversion.precision': [5.6, 2.3]
         })
