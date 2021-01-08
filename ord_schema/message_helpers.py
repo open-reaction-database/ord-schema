@@ -817,6 +817,23 @@ def messages_to_dataframe(messages: Iterable[any_pb2.Any],
 
 def message_to_row(message: any_pb2.Any,
                    trace: Tuple[str] = None) -> Dict[str, ScalarType]:
+    """Converts a proto into a flat dictionary mapping fields to values.
+
+    The keys indicate any nesting; for instance a proto that looks like this:
+
+    value: {
+      subvalue: 5
+    }
+
+    will show up as {'value.subvalue': 5} in the dict.
+
+    Args:
+        message: Proto to convert.
+        trace: Tuple of strings; the trace of nested field names.
+
+    Returns:
+        Dict mapping string field names to scalar value types.
+    """
     if trace is None:
         trace = tuple()
     row = {}
@@ -847,6 +864,16 @@ def message_to_row(message: any_pb2.Any,
 
 def _message_to_row(field: descriptor.FieldDescriptor, value: Any,
                     trace: Tuple[str]) -> Dict[str, ScalarType]:
+    """Recursively creates a dict for a single value.
+
+    Args:
+        field: FieldDescriptor for this field.
+        value: Value for this field. Should be either a proto or a scalar.
+        trace: Tuple of strings; the trace of nested field names.
+
+    Returns:
+        Dict mapping string field names to scalar value types.
+    """
     if field.type == field.TYPE_MESSAGE:
         return message_to_row(message=value, trace=trace)
     if field.type == field.TYPE_ENUM:
