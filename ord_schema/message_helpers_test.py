@@ -487,31 +487,6 @@ class CreateMessageTest(parameterized.TestCase, absltest.TestCase):
 
 class MessagesToDataFrameTest(parameterized.TestCase, absltest.TestCase):
 
-    def setUp(self):
-        super().setUp()
-        message = reaction_pb2.Reaction()
-        input_test = message.inputs['test']
-        outcome = message.outcomes.add()
-        component = input_test.components.add()
-        component.identifiers.add(type='SMILES', value='CCO')
-        component.is_limiting = True
-        component.amount.mass.value = 1.2
-        component.amount.mass.units = reaction_pb2.Mass.GRAM
-        outcome.conversion.value = 3.4
-        outcome.conversion.precision = 5.6
-        self.reaction1 = message
-        message = reaction_pb2.Reaction()
-        input_test = message.inputs['test']
-        outcome = message.outcomes.add()
-        component = input_test.components.add()
-        component.identifiers.add(type='SMILES', value='CCC')
-        component.is_limiting = False
-        component.amount.mass.value = 7.8
-        component.amount.mass.units = reaction_pb2.Mass.GRAM
-        outcome.conversion.value = 9.1
-        outcome.conversion.precision = 2.3
-        self.reaction2 = message
-
     @parameterized.named_parameters(
         ('scalar', test_pb2.Scalar(int32_value=3, float_value=4.5), {
             'int32_value': 3,
@@ -568,6 +543,26 @@ class MessagesToDataFrameTest(parameterized.TestCase, absltest.TestCase):
                                       check_like=True)
 
     def test_messages_to_dataframe(self):
+        reaction1 = reaction_pb2.Reaction()
+        input_test = reaction1.inputs['test']
+        outcome = reaction1.outcomes.add()
+        component = input_test.components.add()
+        component.identifiers.add(type='SMILES', value='CCO')
+        component.is_limiting = True
+        component.amount.mass.value = 1.2
+        component.amount.mass.units = reaction_pb2.Mass.GRAM
+        outcome.conversion.value = 3.4
+        outcome.conversion.precision = 5.6
+        reaction2 = reaction_pb2.Reaction()
+        input_test = reaction2.inputs['test']
+        outcome = reaction2.outcomes.add()
+        component = input_test.components.add()
+        component.identifiers.add(type='SMILES', value='CCC')
+        component.is_limiting = False
+        component.amount.mass.value = 7.8
+        component.amount.mass.units = reaction_pb2.Mass.GRAM
+        outcome.conversion.value = 9.1
+        outcome.conversion.precision = 2.3
         expected = pd.DataFrame({
             'inputs["test"].components[0].identifiers[0].type': [
                 'SMILES', 'SMILES'
@@ -580,14 +575,14 @@ class MessagesToDataFrameTest(parameterized.TestCase, absltest.TestCase):
             'outcomes[0].conversion.precision': [5.6, 2.3]
         })
         pd.testing.assert_frame_equal(message_helpers.messages_to_dataframe(
-            [self.reaction1, self.reaction2]),
+            [reaction1, reaction2]),
                                       expected,
                                       check_like=True)
         # Drop constant columns and test again with drop_constant_columns=True.
         del expected['inputs["test"].components[0].identifiers[0].type']
         del expected['inputs["test"].components[0].amount.mass.units']
         pd.testing.assert_frame_equal(message_helpers.messages_to_dataframe(
-            [self.reaction1, self.reaction2], drop_constant_columns=True),
+            [reaction1, reaction2], drop_constant_columns=True),
                                       expected,
                                       check_like=True)
 
