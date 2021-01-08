@@ -15,12 +15,13 @@
 
 import enum
 import os
-from typing import Any, Dict, Iterable, Mapping, TypeVar
+from typing import Any, Dict, Iterable, Mapping, Tuple, TypeVar
 import warnings
 
 import flask
 from google import protobuf
 from google.protobuf import any_pb2
+from google.protobuf import descriptor
 from google.protobuf import json_format
 from google.protobuf import text_format
 import pandas as pd
@@ -813,31 +814,41 @@ def messages_to_dataframe(messages: Iterable[any_pb2.Any],
     return df
 
 
-def message_to_row(message: any_pb2.Any) -> Dict[str, ScalarType]:
-    data = json_format.MessageToDict(message, preserving_proto_field_name=True)
-    print('JSON', data)
-    return _message_to_row(data)
-
-
-def _message_to_row(data: Mapping[str, Any],
-                    trace: str = None) -> Dict[str, ScalarType]:
+def message_to_row(message: any_pb2.Any,
+                   trace: Tuple[str] = None) -> Dict[str, ScalarType]:
     if trace is None:
         trace = tuple()
     row = {}
-    for key, value in data.items():
-        if isinstance(value, dict):
-            this_trace = trace + (key,)
-            row.update(_message_to_row(value, trace=this_trace))
-        elif isinstance(value, list):
-            for i, list_value in enumerate(value):
-                this_trace = trace + (f'{key}[{i}]',)
-                if isinstance(list_value, dict):
-                    row.update(_message_to_row(list_value, trace=this_trace))
-                elif isinstance(list_value, list):
-                    raise NotImplementedError(
-                        'lists of lists are not supported')
-                else:
-                    row['.'.join(this_trace)] = list_value
+    for field, value in message.ListFields():
+        if field.label == field.LABEL_REPEATED:
+            if (field.type == field.TYPE_MESSAGE and
+                    field.message_type.GetOptions().map_entry):
+                value_field = field.message_type.fields_by_name['value']
+                for key, subvalue in value.items():
+                    this_trace = trace + (f'{field.name}["{key}"]',)
+                    row.update(
+                        _message_to_row(field=value_field,
+                                        value=subvalue,
+                                        trace=this_trace))
+            else:
+                for i, subvalue in enumerate(value):
+                    this_trace = trace + (f'{field.name}[{i}]',)
+                    row.update(
+                        _message_to_row(field=field,
+                                        value=subvalue,
+                                        trace=this_trace))
         else:
-            row['.'.join(trace + (key,))] = value
+            this_trace = trace + (field.name,)
+            row.update(
+                _message_to_row(field=field, value=value, trace=this_trace))
     return row
+
+
+def _message_to_row(field: descriptor.FieldDescriptor, value: Any,
+                    trace: Tuple[str]) -> Dict[str, ScalarType]:
+    if field.type == field.TYPE_MESSAGE:
+        return message_to_row(message=value, trace=trace)
+    if field.type == field.TYPE_ENUM:
+        enum_value = field.enum_type.values_by_number[value].name
+        return {'.'.join(trace): enum_value}
+    return {'.'.join(trace): value}

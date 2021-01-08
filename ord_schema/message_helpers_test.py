@@ -21,6 +21,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 from google.protobuf import json_format
 from google.protobuf import text_format
+import pandas as pd
 from rdkit import Chem
 
 from ord_schema import message_helpers
@@ -489,6 +490,11 @@ class MessagesToDataFrameTest(parameterized.TestCase, absltest.TestCase):
             'int32_value': 3,
             'float_value': 4.5
         }),
+        ('scalar_optional',
+         test_pb2.Scalar(int32_value=0, float_value=0.0, bool_value=False), {
+             'float_value': 0.0,
+             'bool_value': False
+         }),
         ('repeated_scalar', test_pb2.RepeatedScalar(values=[1.2, 3.4]), {
             'values[0]': 1.2,
             'values[1]': 3.4
@@ -524,12 +530,15 @@ class MessagesToDataFrameTest(parameterized.TestCase, absltest.TestCase):
                  'a': test_pb2.MapNested.Child(value=1.2),
                  'b': test_pb2.MapNested.Child(value=3.4)
              }), {
-                 'values["a"].value': 1.2,
-                 'values["b"].value': 3.4
+                 'children["a"].value': 1.2,
+                 'children["b"].value': 3.4
              }),
     )
     def test_message_to_row(self, message, expected):
-        self.assertEqual(message_helpers.message_to_row(message), expected)
+        row = message_helpers.message_to_row(message)
+        pd.testing.assert_frame_equal(pd.DataFrame([row]),
+                                      pd.DataFrame([expected]),
+                                      check_like=True)
 
 
 if __name__ == '__main__':
