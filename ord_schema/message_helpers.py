@@ -810,7 +810,8 @@ def messages_to_dataframe(messages: Iterable[any_pb2.Any],
         for column in df.columns:
             if len(df[column].unique()) == 1:
                 drop.append(column)
-        del df[drop]
+        for column in drop:
+            del df[column]
     return df
 
 
