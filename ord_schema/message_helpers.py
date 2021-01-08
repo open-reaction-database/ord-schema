@@ -15,7 +15,7 @@
 
 import enum
 import os
-from typing import Any, Dict, Iterable, Mapping, Tuple, TypeVar
+from typing import Any, Dict, Iterable, Tuple, TypeVar
 import warnings
 
 import flask

@@ -58,6 +58,8 @@ _BENZENE_MOLBLOCK = """241
   6 12  1  0  0  0  0
 M  END"""
 
+# pylint: disable=no-self-use
+
 
 class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
 
