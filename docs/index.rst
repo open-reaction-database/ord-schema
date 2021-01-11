@@ -31,6 +31,13 @@ underrepresented areas).
 .. toctree::
    :hidden:
    :maxdepth: 2
+   :caption: Guides
+
+   guides/templates
+
+.. toctree::
+   :hidden:
+   :maxdepth: 2
    :caption: Developer Documentation
 
    developer/editor
