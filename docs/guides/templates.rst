@@ -38,14 +38,21 @@ column in the data spreadsheet and start and end with ``$``. For instance:
 .. code-block::
 
   ...
-  inputs {
-  key: "alcohol in THF"
-  value {
-    components {
-      identifiers {
-        type: SMILES
-        value: "C"  <-- Change "C" to "$alcohol_smiles$".
+  products {
+    identifiers {
+      type: SMILES
+      value: "C"  <-- Change "C" to "$product_smiles$" (with quotes).
+    }
+    is_desired_product: true
+    measurements {
+      analysis_key: "19f NMR of crude"
+      type: YIELD
+      uses_internal_standard: true
+      percentage {
+        value: 50.0  <-- Change 50.0 to $product_yield$ (without quotes).
+        precision: 4.8
       }
+    }
   ...
 
 Here's the `templated version <https://gist.github.com/skearnes/1e822a599c07df924f7320352103865b#file-reaction_template-pbtxt>`_ of the earlier example.
@@ -57,6 +64,17 @@ Step 3: Prepare the accompanying spreadsheet
 The spreadsheet can be a CSV or Excel file. There should be a column for each of the
 variables defined in the previous step (the ``$`` markers are not required). Here's
 an `example spreadsheet <https://gist.github.com/skearnes/1e822a599c07df924f7320352103865b#file-spreadsheet-csv>`_.
+
+Some datasets may not include all reaction components in every example. In these cases,
+the corresponding cell(s) in the spreadsheet should be left empty (see
+`templating.py <https://github.com/open-reaction-database/ord-schema/blob/b6fc15c22aad40c0ba55cf5afd3e700fd6f3292a/ord_schema/templating.py#L72>`_
+for details):
+
+  1. If after templating, any identifier does not have a defined value,
+     remove the identifier.
+  2. If a compound doesn't have any identifiers, remove that compound.
+  3. If a compound amount is undefined/NaN, remove that compound.
+  4. If an input has no components, remove that input.
 
 *****************************
 Step 4: Enumerate the dataset
