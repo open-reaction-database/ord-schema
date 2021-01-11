@@ -65,7 +65,8 @@ def main(argv):
         url = f'https://doi.org/{doi}'
         reference = requests.get(
             url, headers={'Accept': 'text/x-bibliography; style=nature'})
-        citation = f'{reference.content.decode().strip()[2:]} [doi: {doi}]({url})'
+        citation = (f'{reference.content.decode().strip()[2:]} '
+                    f'[doi: {doi}]({url})')
         print(f'* {citation}')
         for dataset in sorted(dois[doi]):
             url = urllib.parse.urljoin(
