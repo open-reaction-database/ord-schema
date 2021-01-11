@@ -55,7 +55,10 @@ def main(argv):
                                  reaction.provenance.doi)
             if not match:
                 continue  # No DOI.
-            doi_set.add(match.group(1))
+            doi = urllib.parse.urlsplit(match.group(1)).path
+            if doi.startswith('/'):
+                doi = doi[1:]
+            doi_set.add(doi)
         for doi in doi_set:
             dois[doi].append(dataset_id)
     for doi in sorted(dois):
