@@ -19,8 +19,17 @@ industry and academia (e.g., to reduce duplication or focus data generation on
 underrepresented areas).
 
 .. toctree::
+   :hidden:
+   :caption: Tools
+
+   Interactive Reaction Editor <https://editor.open-reaction-database.org>
+   Search/Browse <https://client.open-reaction-database.org>
+   GitHub <https://github.com/open-reaction-database>
+
+.. toctree::
+   :hidden:
    :maxdepth: 1
-   :caption: Contents
+   :caption: Documentation
 
    overview
    schema
@@ -38,6 +47,7 @@ underrepresented areas).
 .. toctree::
    :hidden:
    :maxdepth: 2
-   :caption: Developer Documentation
+   :caption: Developers
 
    developer/editor
+
