@@ -70,11 +70,11 @@ the corresponding cell(s) in the spreadsheet should be left empty (see
 `templating.py <https://github.com/open-reaction-database/ord-schema/blob/b6fc15c22aad40c0ba55cf5afd3e700fd6f3292a/ord_schema/templating.py#L72>`_
 for details):
 
-  1. If after templating, any identifier does not have a defined value,
-     remove the identifier.
-  2. If a compound doesn't have any identifiers, remove that compound.
-  3. If a compound amount is undefined/NaN, remove that compound.
-  4. If an input has no components, remove that input.
+1. If after templating, any identifier does not have a defined value,
+   remove the identifier.
+2. If a compound doesn't have any identifiers, remove that compound.
+3. If a compound amount is undefined/NaN, remove that compound.
+4. If an input has no components, remove that input.
 
 *****************************
 Step 4: Enumerate the dataset
