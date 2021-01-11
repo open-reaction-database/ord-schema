@@ -27,6 +27,7 @@ import urllib.parse
 from absl import app
 from absl import flags
 from absl import logging
+import requests
 
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
@@ -50,13 +51,19 @@ def main(argv):
         doi_set = set()
         for reaction in dataset.reactions:
             # Some poorly-validated DOI entries start with 'doi:'...
-            match = re.fullmatch(r'(?:(?:doi)|(?:DOI))?:?\s*(.*)',
+            match = re.fullmatch(r'(?:(?:doi)|(?:DOI))?:?\s*(.+)',
                                  reaction.provenance.doi)
+            if not match:
+                continue  # No DOI.
             doi_set.add(match.group(1))
         for doi in doi_set:
             dois[doi].append(dataset_id)
     for doi in sorted(dois):
-        print(f'* [{doi}](https://doi.org/{doi})')
+        url = f'https://doi.org/{doi}'
+        reference = requests.get(
+            url, headers={'Accept': 'text/x-bibliography; style=nature'})
+        citation = f'{reference.content.decode().strip()[2:]} [doi: {doi}]({url})'
+        print(f'* {citation}')
         for dataset in sorted(dois[doi]):
             url = urllib.parse.urljoin(
                 _PREFIX,
