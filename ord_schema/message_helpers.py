@@ -15,12 +15,16 @@
 
 import enum
 import os
+from typing import Any, Dict, Iterable, Mapping, Tuple, TypeVar
 import warnings
 
 import flask
 from google import protobuf
+from google.protobuf import any_pb2
+from google.protobuf import descriptor
 from google.protobuf import json_format
 from google.protobuf import text_format
+import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
@@ -32,6 +36,7 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
+ScalarType = TypeVar('ScalarType', str, bytes, float, int, bool)
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -782,3 +787,107 @@ def create_message(message_name):
     except (AttributeError, TypeError) as error:
         raise ValueError(
             f'Cannot resolve message name {message_name}') from error
+
+
+def messages_to_dataframe(messages: Iterable[any_pb2.Any],
+                          drop_constant_columns: bool = False) -> pd.DataFrame:
+    """Converts a list of protos to a pandas DataFrame.
+
+    Args:
+        messages: List of protos.
+        drop_constant_columns: Whether to drop columns that have the same value
+            for all rows.
+
+    Returns:
+        DataFrame.
+    """
+    rows = []
+    for message in messages:
+        rows.append(message_to_row(message))
+    df = pd.DataFrame(rows)
+    if drop_constant_columns:
+        drop = []
+        for column in df.columns:
+            if len(df[column].unique()) == 1:
+                drop.append(column)
+        for column in drop:
+            del df[column]
+    return df
+
+
+def message_to_row(message: any_pb2.Any,
+                   trace: Tuple[str] = None) -> Dict[str, ScalarType]:
+    """Converts a proto into a flat dictionary mapping fields to values.
+
+    The keys indicate any nesting; for instance a proto that looks like this:
+
+    value: {
+      subvalue: 5
+    }
+
+    will show up as {'value.subvalue': 5} in the dict.
+
+    Args:
+        message: Proto to convert.
+        trace: Tuple of strings; the trace of nested field names.
+
+    Returns:
+        Dict mapping string field names to scalar value types.
+    """
+    if trace is None:
+        trace = tuple()
+    row = {}
+    for field, value in message.ListFields():
+        if field.label == field.LABEL_REPEATED:
+            if (field.type == field.TYPE_MESSAGE and
+                    field.message_type.GetOptions().map_entry):
+                value_field = field.message_type.fields_by_name['value']
+                for key, subvalue in value.items():
+                    this_trace = trace + (f'{field.name}["{key}"]',)
+                    safe_update(
+                        row,
+                        _message_to_row(field=value_field,
+                                        value=subvalue,
+                                        trace=this_trace))
+            else:
+                for i, subvalue in enumerate(value):
+                    this_trace = trace + (f'{field.name}[{i}]',)
+                    safe_update(
+                        row,
+                        _message_to_row(field=field,
+                                        value=subvalue,
+                                        trace=this_trace))
+        else:
+            this_trace = trace + (field.name,)
+            safe_update(
+                row, _message_to_row(field=field, value=value,
+                                     trace=this_trace))
+    return row
+
+
+def safe_update(target: Mapping, update: Mapping):
+    """Checks that `update` will not clobber any keys in `target`."""
+    for key in update:
+        if key in target:
+            raise KeyError(f'key already exists: {key}')
+    target.update(update)
+
+
+def _message_to_row(field: descriptor.FieldDescriptor, value: Any,
+                    trace: Tuple[str]) -> Dict[str, ScalarType]:
+    """Recursively creates a dict for a single value.
+
+    Args:
+        field: FieldDescriptor for this field.
+        value: Value for this field. Should be either a proto or a scalar.
+        trace: Tuple of strings; the trace of nested field names.
+
+    Returns:
+        Dict mapping string field names to scalar value types.
+    """
+    if field.type == field.TYPE_MESSAGE:
+        return message_to_row(message=value, trace=trace)
+    if field.type == field.TYPE_ENUM:
+        enum_value = field.enum_type.values_by_number[value].name
+        return {'.'.join(trace): enum_value}
+    return {'.'.join(trace): value}

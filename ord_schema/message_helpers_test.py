@@ -21,6 +21,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 from google.protobuf import json_format
 from google.protobuf import text_format
+import pandas as pd
 from rdkit import Chem
 
 from ord_schema import message_helpers
@@ -56,6 +57,8 @@ _BENZENE_MOLBLOCK = """241
   5 11  1  0  0  0  0
   6 12  1  0  0  0  0
 M  END"""
+
+# pylint: disable=no-self-use
 
 
 class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
@@ -480,6 +483,106 @@ class CreateMessageTest(parameterized.TestCase, absltest.TestCase):
     def test_invalid_messages(self, message_name):
         with self.assertRaisesRegex(ValueError, 'Cannot resolve'):
             message_helpers.create_message(message_name)
+
+
+class MessagesToDataFrameTest(parameterized.TestCase, absltest.TestCase):
+
+    @parameterized.named_parameters(
+        ('scalar', test_pb2.Scalar(int32_value=3, float_value=4.5), {
+            'int32_value': 3,
+            'float_value': 4.5
+        }),
+        ('scalar_optional',
+         test_pb2.Scalar(int32_value=0, float_value=0.0, bool_value=False), {
+             'float_value': 0.0,
+             'bool_value': False
+         }),
+        ('repeated_scalar', test_pb2.RepeatedScalar(values=[1.2, 3.4]), {
+            'values[0]': 1.2,
+            'values[1]': 3.4
+        }),
+        ('enum', test_pb2.Enum(value='FIRST'), {
+            'value': 'FIRST'
+        }),
+        ('repeated_enum', test_pb2.RepeatedEnum(values=['FIRST', 'SECOND']), {
+            'values[0]': 'FIRST',
+            'values[1]': 'SECOND'
+        }),
+        ('nested', test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)), {
+            'child.value': 1.2
+        }),
+        ('repeated_nested',
+         test_pb2.RepeatedNested(children=[
+             test_pb2.RepeatedNested.Child(value=1.2),
+             test_pb2.RepeatedNested.Child(value=3.4)
+         ]), {
+             'children[0].value': 1.2,
+             'children[1].value': 3.4
+         }),
+        ('map', test_pb2.Map(values={
+            'a': 1.2,
+            'b': 3.4
+        }), {
+            'values["a"]': 1.2,
+            'values["b"]': 3.4
+        }),
+        ('map_nested',
+         test_pb2.MapNested(
+             children={
+                 'a': test_pb2.MapNested.Child(value=1.2),
+                 'b': test_pb2.MapNested.Child(value=3.4)
+             }), {
+                 'children["a"].value': 1.2,
+                 'children["b"].value': 3.4
+             }),
+    )
+    def test_message_to_row(self, message, expected):
+        row = message_helpers.message_to_row(message)
+        pd.testing.assert_frame_equal(pd.DataFrame([row]),
+                                      pd.DataFrame([expected]),
+                                      check_like=True)
+
+    def test_messages_to_dataframe(self):
+        reaction1 = reaction_pb2.Reaction()
+        input_test = reaction1.inputs['test']
+        outcome = reaction1.outcomes.add()
+        component = input_test.components.add()
+        component.identifiers.add(type='SMILES', value='CCO')
+        component.is_limiting = True
+        component.amount.mass.value = 1.2
+        component.amount.mass.units = reaction_pb2.Mass.GRAM
+        outcome.conversion.value = 3.4
+        outcome.conversion.precision = 5.6
+        reaction2 = reaction_pb2.Reaction()
+        input_test = reaction2.inputs['test']
+        outcome = reaction2.outcomes.add()
+        component = input_test.components.add()
+        component.identifiers.add(type='SMILES', value='CCC')
+        component.is_limiting = False
+        component.amount.mass.value = 7.8
+        component.amount.mass.units = reaction_pb2.Mass.GRAM
+        outcome.conversion.value = 9.1
+        outcome.conversion.precision = 2.3
+        expected = pd.DataFrame({
+            'inputs["test"].components[0].identifiers[0].type': 'SMILES',
+            'inputs["test"].components[0].identifiers[0].value': ['CCO', 'CCC'],
+            'inputs["test"].components[0].is_limiting': [True, False],
+            'inputs["test"].components[0].amount.mass.value': [1.2, 7.8],
+            'inputs["test"].components[0].amount.mass.units': 'GRAM',
+            'outcomes[0].conversion.value': [3.4, 9.1],
+            'outcomes[0].conversion.precision': [5.6, 2.3]
+        })
+        pd.testing.assert_frame_equal(message_helpers.messages_to_dataframe(
+            [reaction1, reaction2]),
+                                      expected,
+                                      check_like=True)
+        # Drop constant columns and test again with drop_constant_columns=True.
+        del expected['inputs["test"].components[0].identifiers[0].type']
+        del expected['inputs["test"].components[0].amount.mass.units']
+        pd.testing.assert_frame_equal(message_helpers.messages_to_dataframe(
+            [reaction1, reaction2], drop_constant_columns=True),
+                                      expected,
+                                      check_like=True)
 
 
 if __name__ == '__main__':
