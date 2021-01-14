@@ -844,21 +844,30 @@ def message_to_row(message: any_pb2.Any,
                 value_field = field.message_type.fields_by_name['value']
                 for key, subvalue in value.items():
                     this_trace = trace + (f'{field.name}["{key}"]',)
-                    row.update(
-                        _message_to_row(field=value_field,
-                                        value=subvalue,
-                                        trace=this_trace))
+                    update = _message_to_row(field=value_field,
+                                             value=subvalue,
+                                             trace=this_trace)
+                    for key in update:
+                        if key in row:
+                            raise KeyError(f'key already exists: {key}')
+                    row.update(update)
             else:
                 for i, subvalue in enumerate(value):
                     this_trace = trace + (f'{field.name}[{i}]',)
-                    row.update(
-                        _message_to_row(field=field,
-                                        value=subvalue,
-                                        trace=this_trace))
+                    update = _message_to_row(field=field,
+                                             value=subvalue,
+                                             trace=this_trace)
+                    for key in update:
+                        if key in row:
+                            raise KeyError(f'key already exists: {key}')
+                    row.update(update)
         else:
             this_trace = trace + (field.name,)
-            row.update(
-                _message_to_row(field=field, value=value, trace=this_trace))
+            update = _message_to_row(field=field, value=value, trace=this_trace)
+            for key in update:
+                if key in row:
+                    raise KeyError(f'key already exists: {key}')
+            row.update(update)
     return row
 
 
