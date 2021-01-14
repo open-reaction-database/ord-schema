@@ -15,7 +15,7 @@
 
 import enum
 import os
-from typing import Any, Dict, Iterable, Tuple, TypeVar
+from typing import Any, Dict, Iterable, Mapping, Tuple, TypeVar
 import warnings
 
 import flask
@@ -844,31 +844,33 @@ def message_to_row(message: any_pb2.Any,
                 value_field = field.message_type.fields_by_name['value']
                 for key, subvalue in value.items():
                     this_trace = trace + (f'{field.name}["{key}"]',)
-                    update = _message_to_row(field=value_field,
-                                             value=subvalue,
-                                             trace=this_trace)
-                    for key in update:
-                        if key in row:
-                            raise KeyError(f'key already exists: {key}')
-                    row.update(update)
+                    safe_update(
+                        row,
+                        _message_to_row(field=value_field,
+                                        value=subvalue,
+                                        trace=this_trace))
             else:
                 for i, subvalue in enumerate(value):
                     this_trace = trace + (f'{field.name}[{i}]',)
-                    update = _message_to_row(field=field,
-                                             value=subvalue,
-                                             trace=this_trace)
-                    for key in update:
-                        if key in row:
-                            raise KeyError(f'key already exists: {key}')
-                    row.update(update)
+                    safe_update(
+                        row,
+                        _message_to_row(field=field,
+                                        value=subvalue,
+                                        trace=this_trace))
         else:
             this_trace = trace + (field.name,)
-            update = _message_to_row(field=field, value=value, trace=this_trace)
-            for key in update:
-                if key in row:
-                    raise KeyError(f'key already exists: {key}')
-            row.update(update)
+            safe_update(
+                row, _message_to_row(field=field, value=value,
+                                     trace=this_trace))
     return row
+
+
+def safe_update(target: Mapping, update: Mapping):
+    """Checks that `update` will not clobber any keys in `target`."""
+    for key in update:
+        if key in target:
+            raise KeyError(f'key already exists: {key}')
+    target.update(update)
 
 
 def _message_to_row(field: descriptor.FieldDescriptor, value: Any,
