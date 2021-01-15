@@ -42,7 +42,6 @@ import dataclasses
 import glob
 import os
 import subprocess
-import uuid
 
 from absl import app
 from absl import flags
@@ -64,7 +63,6 @@ flags.DEFINE_string('input_file', None,
                     'Filename containing Dataset proto filenames.')
 flags.DEFINE_boolean('write_errors', False,
                      'If True, errors will be written to <filename>.error.')
-flags.DEFINE_string('output', None, 'Filename for output Dataset.')
 flags.DEFINE_boolean('write_binary', True,
                      'If True, write a binary version of the output Dataset.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
@@ -130,49 +128,19 @@ def _get_inputs():
     raise ValueError('one of --input_pattern or --input_file is required')
 
 
-def _combine_datasets(datasets):
-    """Combines multiple Dataset messages into a single Dataset.
-
-    Args:
-        datasets: Dict mapping FileStatus objects to Dataset messages.
-
-    Returns:
-        Combined Dataset message.
-
-    Raises:
-        ValueError: if the combined dataset ID is malformed.
-    """
-    combined = None
-    for file_status in sorted(datasets):
-        dataset = datasets[file_status]
-        if combined is None:
-            combined = dataset
-        else:
-            combined.reactions.extend(dataset.reactions)
-    if not combined.dataset_id or len(datasets) > 1:
-        combined.dataset_id = f'ord_dataset-{uuid.uuid4().hex}'
-    return combined
-
-
-def cleanup(inputs, output_filename):
+def cleanup(filename, output_filename):
     """Removes and/or renames the input Dataset files.
 
     Args:
-        inputs: List of FileStatus objects; the input Datasets.
-        output_filename: Text filename for the output Dataset.
+        filename: Original dataset filename.
+        output_filename: Updated dataset filename.
     """
-    if len(inputs) == 1 and inputs[0].filename == output_filename:
+    if filename == output_filename:
         logging.info('editing an existing dataset; no cleanup needed')
         return  # Reuse the existing dataset ID.
-    # Branch the first input file...
-    args = ['git', 'mv', inputs[0].filename, output_filename]
+    args = ['git', 'mv', filename, output_filename]
     logging.info('Running command: %s', ' '.join(args))
     subprocess.run(args, check=True)
-    # ...and remove the others.
-    for file_status in inputs[1:]:
-        args = ['git', 'rm', file_status.filename]
-        logging.info('Running command: %s', ' '.join(args))
-        subprocess.run(args, check=True)
 
 
 def _get_reaction_ids(dataset):
@@ -244,34 +212,30 @@ def _run_updates(inputs, datasets):
             args = ['git', 'add'] + list(data_filenames)
             logging.info('Running command: %s', ' '.join(args))
             subprocess.run(args, check=True)
-    combined = _combine_datasets(datasets)
     # Final validation to make sure we didn't break anything.
     options = validations.ValidationOptions(validate_ids=True,
                                             require_provenance=True)
-    validations.validate_datasets({'_COMBINED': combined},
-                                  FLAGS.write_errors,
-                                  options=options)
-    if FLAGS.output:
-        output_filename = FLAGS.output
-    else:
-        _, suffix = os.path.splitext(inputs[0].filename)
+    validations.validate_datasets(datasets, FLAGS.write_errors, options=options)
+    git_add = []
+    for filename, dataset in datasets.items():
         output_filename = os.path.join(
             FLAGS.root,
-            message_helpers.id_filename(f'{combined.dataset_id}{suffix}'))
-    os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-    if FLAGS.cleanup:
-        cleanup(inputs, output_filename)
-    logging.info('writing combined Dataset to %s', output_filename)
-    message_helpers.write_message(combined, output_filename)
-    # Write a binary version for fast read/write.
-    root, ext = os.path.splitext(output_filename)
-    if FLAGS.write_binary and ext != '.pb':
-        binary_filename = root + '.pb'
-        logging.info('writing combined Dataset (binary) to %s', binary_filename)
-        message_helpers.write_message(combined, binary_filename)
-        args = ['git', 'add', binary_filename]
-        logging.info('Running command: %s', ' '.join(args))
-        subprocess.run(args, check=True)
+            message_helpers.id_filename(f'{dataset.dataset_id}.pbtxt'))
+        os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+        if FLAGS.cleanup:
+            cleanup(filename, output_filename)
+        logging.info('writing Dataset to %s', output_filename)
+        message_helpers.write_message(dataset, output_filename)
+        # Write a binary version for fast read/write.
+        root, ext = os.path.splitext(output_filename)
+        if FLAGS.write_binary:
+            binary_filename = root + '.pb'
+            logging.info('writing Dataset (binary) to %s', binary_filename)
+            message_helpers.write_message(dataset, binary_filename)
+            git_add.append(binary_filename)
+    args = ['git', 'add'] + git_add
+    logging.info('Running command: %s', ' '.join(args))
+    subprocess.run(args, check=True)
 
 
 def run():

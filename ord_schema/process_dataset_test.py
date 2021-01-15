@@ -51,7 +51,9 @@ class ProcessDatasetTest(absltest.TestCase):
         reaction1.provenance.record_created.time.value = '2020-01-01'
         reaction1.provenance.record_created.person.username = 'test'
         reaction1.provenance.record_created.person.email = 'test@example.com'
-        dataset1 = dataset_pb2.Dataset(reactions=[reaction1])
+        dataset1 = dataset_pb2.Dataset(
+            dataset_id='ord_dataset-00000000000000000000000000000000',
+            reactions=[reaction1])
         self.dataset1_filename = os.path.join(self.test_subdirectory,
                                               'dataset1 with spaces.pbtxt')
         message_helpers.write_message(dataset1, self.dataset1_filename)
@@ -90,16 +92,21 @@ class ProcessDatasetTest(absltest.TestCase):
             self.assertEqual(f.readlines(), expected_output)
 
     def test_main_with_updates(self):
-        output = os.path.join(self.test_subdirectory, 'output.pbtxt')
+        output = os.path.join(
+            self.test_subdirectory, 'data', '00',
+            'ord_dataset-00000000000000000000000000000000.pbtxt')
         with flagsaver.flagsaver(input_pattern=self.dataset1_filename,
                                  update=True,
-                                 output=output,
+                                 root=self.test_subdirectory,
                                  write_binary=False,
                                  base='main'):
             process_dataset.main(())
         self.assertTrue(os.path.exists(output))
         self.assertFalse(
-            os.path.exists(os.path.join(self.test_subdirectory, 'output.pb')))
+            os.path.exists(
+                os.path.join(
+                    self.test_subdirectory, 'data', '00',
+                    'ord_dataset-00000000000000000000000000000000.pb')))
         dataset = message_helpers.load_message(output, dataset_pb2.Dataset)
         self.assertLen(dataset.reactions, 1)
         self.assertStartsWith(dataset.reactions[0].reaction_id, 'ord-')
@@ -255,12 +262,13 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.assertEqual(added, {'test1', 'test2'})
         self.assertEmpty(removed)
         self.assertEmpty(changed)
-        self.assertLen(filenames, 2)
+        self.assertLen(filenames, 3)
         filenames.pop(filenames.index(self.dataset_filename))
-        self.assertLen(filenames, 1)
-        dataset = message_helpers.load_message(filenames[0],
-                                               dataset_pb2.Dataset)
-        self.assertLen(dataset.reactions, 2)
+        self.assertLen(filenames, 2)
+        for filename in filenames:
+            dataset = message_helpers.load_message(filename,
+                                                   dataset_pb2.Dataset)
+            self.assertLen(dataset.reactions, 1)
         self.assertFalse(os.path.exists(dataset1_filename))
         self.assertFalse(os.path.exists(dataset2_filename))
 
