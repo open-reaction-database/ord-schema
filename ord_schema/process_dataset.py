@@ -193,11 +193,10 @@ def get_change_stats(datasets, inputs, base):
     return new - old, old - new, new & old
 
 
-def _run_updates(inputs, datasets):
+def _run_updates(datasets):
     """Updates the submission files.
 
     Args:
-        inputs: List of FileStatus objects.
         datasets: Dict mapping filenames to Dataset messages.
     """
     for dataset in datasets.values():
@@ -227,7 +226,7 @@ def _run_updates(inputs, datasets):
         logging.info('writing Dataset to %s', output_filename)
         message_helpers.write_message(dataset, output_filename)
         # Write a binary version for fast read/write.
-        root, ext = os.path.splitext(output_filename)
+        root, _ = os.path.splitext(output_filename)
         if FLAGS.write_binary:
             binary_filename = root + '.pb'
             logging.info('writing Dataset (binary) to %s', binary_filename)
@@ -279,7 +278,7 @@ def run():
     else:
         added, removed, changed = None, None, None
     if FLAGS.update:
-        _run_updates(inputs, datasets)
+        _run_updates(datasets)
     else:
         logging.info('nothing else to do; use --update for more')
     return added, removed, changed
