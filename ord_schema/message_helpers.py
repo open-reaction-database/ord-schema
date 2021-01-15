@@ -906,6 +906,7 @@ def parse_doi(doi: str) -> str:
     Raises:
         ValueError: if the DOI cannot be parsed.
     """
+    # See https://www.doi.org/doi_handbook/2_Numbering.html#2.2.
     match = re.search(r'(10\.[\d.]+\/[a-zA-Z\d.]+)', doi)
     if not match:
         raise ValueError(f'could not parse DOI: {doi}')
