@@ -160,6 +160,12 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
             message_helpers.get_reaction_smiles(reaction,
                                                 allow_incomplete=False)
 
+    @parameterized.named_parameters(
+        ('url', 'https://dx.doi.org/10.1021/acscatal.0c02247',
+         '10.1021/acscatal.0c02247'),)
+    def test_parse_doi(self, doi, expected):
+        self.assertEqual(message_helpers.parse_doi(doi), expected)
+
 
 class FindSubmessagesTest(absltest.TestCase):
 
