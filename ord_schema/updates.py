@@ -89,6 +89,8 @@ def update_dataset(dataset):
             cross-referenced reaction_id in any Reaction that is not defined
             elsewhere in the Dataset.
     """
+    if not re.fullmatch('^ord_dataset-[0-9a-f]{32}$', dataset.dataset_id):
+        dataset.dataset_id = f'ord_dataset-{uuid.uuid4().hex}'
     # Reaction-level updates
     id_substitutions = {}
     for reaction in dataset.reactions:
