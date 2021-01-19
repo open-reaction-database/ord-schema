@@ -29,6 +29,8 @@ from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
+# pylint: disable=too-many-branches
+
 
 @dataclasses.dataclass
 class ValidationOptions:
@@ -832,6 +834,19 @@ def validate_reaction_provenance(message):
         if (record_modified - record_created).total_seconds() < 0:
             warnings.warn('Record modified time should be after creation',
                           ValidationError)
+    if not message.record_created.person.email:
+        warnings.warn('User email is required for record_created',
+                      ValidationError)
+    for record in message.record_modified:
+        if not record.person.email:
+            warnings.warn('User email is required for record_modified',
+                          ValidationError)
+    if message.doi:
+        parsed_doi = message_helpers.parse_doi(message.doi)
+        if message.doi != parsed_doi:
+            warnings.warn(
+                f'DOI should be trimmed ({message.doi} -> {parsed_doi})',
+                ValidationError)
     # TODO(ccoley) could check if publication_url is valid, etc.
 
 

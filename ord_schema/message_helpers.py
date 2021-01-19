@@ -15,6 +15,7 @@
 
 import enum
 import os
+import re
 from typing import Any, Dict, Iterable, Mapping, Tuple, TypeVar
 import warnings
 
@@ -891,3 +892,22 @@ def _message_to_row(field: descriptor.FieldDescriptor, value: Any,
         enum_value = field.enum_type.values_by_number[value].name
         return {'.'.join(trace): enum_value}
     return {'.'.join(trace): value}
+
+
+def parse_doi(doi: str) -> str:
+    """Parses a DOI from e.g. a URL.
+
+    Args:
+        doi: DOI string.
+
+    Returns:
+        The (possibly trimmed) DOI.
+
+    Raises:
+        ValueError: if the DOI cannot be parsed.
+    """
+    # See https://www.doi.org/doi_handbook/2_Numbering.html#2.2.
+    match = re.search(r'(10\.[\d.]+\/[a-zA-Z\d.]+)', doi)
+    if not match:
+        raise ValueError(f'could not parse DOI: {doi}')
+    return match.group(1)
