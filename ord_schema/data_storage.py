@@ -22,11 +22,13 @@ import os
 import shutil
 import sys
 import tempfile
+from typing import Optional, Set, Tuple
 import urllib
 import warnings
 
 from absl import logging
 import flask
+import google.protobuf.message
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
@@ -38,7 +40,10 @@ DATA_URL_PREFIX = (
     f'https://github.com/Open-Reaction-Database/{DATA_REPO}/tree/main')
 
 
-def write_data(message, dirname, min_size=0.0, max_size=1.0):
+def write_data(message: reaction_pb2.Data,
+               dirname: str,
+               min_size: float = 0.0,
+               max_size: float = 1.0) -> Tuple[Optional[str], Optional[float]]:
     """Writes a Data value to a file.
 
     If a value is a URL or is smaller than `min_size`, it is left unchanged.
@@ -89,7 +94,10 @@ def write_data(message, dirname, min_size=0.0, max_size=1.0):
     return filename, value_size
 
 
-def extract_data(message, root, min_size=0.0, max_size=1.0):
+def extract_data(message: google.protobuf.message.Message,
+                 root: str,
+                 min_size: float = 0.0,
+                 max_size: float = 1.0) -> Set[str]:
     """Replaces large Data values with pointers to offloaded data.
 
     Git LFS (https://git-lfs.github.com/) is convenient because it lives in the

@@ -24,6 +24,8 @@ _MESSAGE_TYPES = (
     google.protobuf.message.Message,  # Generic submessage.
 )
 
+# pytype: disable=attribute-error
+
 
 @dataclasses.dataclass(eq=True, frozen=True)
 class FrozenMessage(collections.abc.Mapping):
@@ -45,7 +47,7 @@ class FrozenMessage(collections.abc.Mapping):
     """
     _message: Union[_MESSAGE_TYPES]
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
         """Fetches a message attribute, if it exists.
 
         Notes:
@@ -69,7 +71,7 @@ class FrozenMessage(collections.abc.Mapping):
             if not self._message.HasField(name):
                 raise AttributeError(f'attribute "{name}" has not been set')
         except ValueError:
-            pass  # The request attribute is not a submessage.
+            pass  # The requested attribute is not a submessage.
         value = getattr(self._message, name)
         if isinstance(value, _MESSAGE_TYPES):
             return FrozenMessage(value)

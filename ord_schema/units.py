@@ -14,6 +14,9 @@
 """Helpers for translating strings with units."""
 
 import re
+from typing import Iterable, Mapping, Type, Union
+
+import google.protobuf.message
 
 from ord_schema.proto import reaction_pb2
 
@@ -110,7 +113,11 @@ CONCENTRATION_UNIT_SYNONYMS = {
 class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
 
-    def __init__(self, unit_synonyms=None, forbidden_units=None):
+    def __init__(self,
+                 unit_synonyms: Mapping[Type[google.protobuf.message.Message],
+                                        Mapping[google.protobuf.message.Message,
+                                                Iterable[str]]] = None,
+                 forbidden_units: Mapping[str, str] = None):
         """Initializes a UnitResolver.
 
         Args:
@@ -145,7 +152,7 @@ class UnitResolver:
         # value and the unit is optional.
         self._pattern = re.compile(r'(\d+.?\d*)\s*(\w+)')
 
-    def resolve(self, string):
+    def resolve(self, string: str) -> google.protobuf.message.Message:
         """Resolves a string into a message containing a value with units.
 
         Args:
@@ -174,7 +181,7 @@ class UnitResolver:
         return message(value=float(value), units=unit)
 
 
-def format_message(message):
+def format_message(message: google.protobuf.message.Message) -> str:
     """Formats a united message into a string.
 
     Args:

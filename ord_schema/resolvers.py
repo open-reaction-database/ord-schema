@@ -14,6 +14,7 @@
 """Name/string resolution to structured messages or identifiers."""
 
 import re
+from typing import Tuple
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -35,7 +36,7 @@ _USERNAME = 'github-actions'
 _EMAIL = 'github-actions@github.com'
 
 
-def canonicalize_smiles(smiles):
+def canonicalize_smiles(smiles: str) -> str:
     """Canonicalizes a SMILES string.
 
     Args:
@@ -53,7 +54,7 @@ def canonicalize_smiles(smiles):
     return Chem.MolToSmiles(mol)
 
 
-def name_resolve(value_type, value):
+def name_resolve(value_type: str, value: str) -> Tuple[str, str]:
     """Resolves compound identifiers to SMILES via multiple APIs."""
     smiles = None
     for resolver, resolver_func in _NAME_RESOLVERS.items():
@@ -67,7 +68,7 @@ def name_resolve(value_type, value):
     raise ValueError(f'Could not resolve {value_type} {value} to SMILES')
 
 
-def resolve_names(message):
+def resolve_names(message: reaction_pb2.Reaction) -> bool:
     """Attempts to resolve compound NAME identifiers to SMILES.
 
     When a NAME identifier is resolved, a SMILES identifier is added to the list
@@ -101,7 +102,7 @@ def resolve_names(message):
     return modified
 
 
-def _pubchem_resolve(value_type, value):
+def _pubchem_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the PubChem REST API."""
     response = urllib.request.urlopen(
         f'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/{value_type}/'
@@ -109,18 +110,18 @@ def _pubchem_resolve(value_type, value):
     return response.read().decode().strip()
 
 
-def _cactus_resolve(value_type, value):
+def _cactus_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the CACTUS API."""
-    del value_type
+    del value_type  # Unused.
     response = urllib.request.urlopen(
         'https://cactus.nci.nih.gov/chemical/structure/'
         f'{urllib.parse.quote(value)}/smiles')
     return response.read().decode().strip()
 
 
-def _emolecules_resolve(value_type, value):
+def _emolecules_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the eMolecules API."""
-    del value_type
+    del value_type  # Unused.
     response = urllib.request.urlopen(
         'https://www.emolecules.com/lookup?q={}'.format(
             urllib.parse.quote(value)))
@@ -132,7 +133,7 @@ def _emolecules_resolve(value_type, value):
     return response_text.split('\t')[0]
 
 
-def resolve_input(input_string):
+def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
     """Resolve a text-based description of an input in one of the following
     formats:
         (1) [AMOUNT] of [NAME]
