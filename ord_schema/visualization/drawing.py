@@ -72,11 +72,12 @@ def trim_image_whitespace(image: Image.Image, padding: int = 0) -> Image.Image:
     return ImageOps.expand(image, border=padding, fill=(255, 255, 255))
 
 
-def mol_to_svg(mol: Chem.Mol,
-               min_size: int = 50,
-               max_size: int = 300,
-               bond_length: int = 25,
-               padding: int = 10) -> Optional[str]:
+def mol_to_svg(  # pylint: disable=inconsistent-return-statements
+        mol: Chem.Mol,
+        min_size: int = 50,
+        max_size: int = 300,
+        bond_length: int = 25,
+        padding: int = 10) -> Optional[str]:
     """Creates a (cropped) SVG molecule drawing as a string.
 
     Args:
@@ -166,4 +167,4 @@ def mol_to_png(mol: Chem.Mol,
     img.save(output, format='png', quality=png_quality)
     output.seek(0)
     b64 = base64.b64encode(output.getvalue())
-    return b64.decode("UTF-8")
+    return b64.decode('UTF-8')
