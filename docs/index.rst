@@ -18,6 +18,10 @@ Additionally, we hope it will serve as a basis for experimental efforts in
 industry and academia (e.g., to reduce duplication or focus data generation on
 underrepresented areas).
 
+.. raw:: html
+
+   <iframe width="560" height="315" src="https://www.youtube.com/embed/UyHVwJUBDIk?start=3" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
 .. toctree::
    :hidden:
    :caption: Tools
