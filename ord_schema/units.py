@@ -16,7 +16,7 @@
 import re
 from typing import Iterable, Mapping, Optional, Type, Union
 
-from google.protobuf import any_pb2
+from google.protobuf.message import Message
 
 from ord_schema.proto import reaction_pb2
 
@@ -122,8 +122,7 @@ class UnitResolver:
 
     def __init__(self,
                  unit_synonyms: Mapping[Type[UnitMessage],
-                                        Mapping[any_pb2.Any,
-                                                Iterable[str]]] = None,
+                                        Mapping[Message, Iterable[str]]] = None,
                  forbidden_units: Mapping[str, str] = None):
         """Initializes a UnitResolver.
 

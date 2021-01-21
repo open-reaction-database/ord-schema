@@ -22,8 +22,8 @@ import warnings
 
 from absl import logging
 from dateutil import parser
-from google.protobuf import any_pb2
 from google.protobuf import descriptor
+from google.protobuf.message import Message
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
 
@@ -151,7 +151,7 @@ def _validate_datasets(
 
 
 def validate_message(
-        message: any_pb2.Any,
+        message: Message,
         recurse: bool = True,
         raise_on_error: bool = True,
         options: Optional[ValidationOptions] = None,
@@ -281,7 +281,7 @@ class ValidationWarning(Warning):
 
 
 # pylint: disable=missing-function-docstring
-def ensure_float_nonnegative(message: any_pb2.Any, field: str):
+def ensure_float_nonnegative(message: Message, field: str):
     if getattr(message, field) < 0:
         warnings.warn(
             f'Field {field} of message '
@@ -289,7 +289,7 @@ def ensure_float_nonnegative(message: any_pb2.Any, field: str):
             ' non-negative', ValidationError)
 
 
-def ensure_float_range(message: any_pb2.Any,
+def ensure_float_range(message: Message,
                        field: str,
                        min_value: float = -math.inf,
                        max_value: float = math.inf):
@@ -1012,7 +1012,7 @@ def validate_flow_rate(message: reaction_pb2.FlowRate):
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_percentage(message: any_pb2.Any):
+def validate_percentage(message: Message):
     if not message.HasField('value'):
         warnings.warn(f'{type(message)} requires `value` to be set',
                       ValidationError)
@@ -1027,7 +1027,7 @@ def validate_percentage(message: any_pb2.Any):
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_float_value(message: any_pb2.Any):
+def validate_float_value(message: Message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 

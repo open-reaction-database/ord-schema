@@ -21,10 +21,10 @@ import warnings
 
 import flask
 from google import protobuf
-from google.protobuf import any_pb2
-from google.protobuf import descriptor
 from google.protobuf import json_format
 from google.protobuf import text_format  # pytype: disable=import-error
+from google.protobuf.descriptor import FieldDescriptor
+from google.protobuf.message import Message
 import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
@@ -223,7 +223,7 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
     return data
 
 
-def find_submessages(message: any_pb2.Any,
+def find_submessages(message: Message,
                      submessage_type: Type[MessageType]) -> List[MessageType]:
     """Recursively finds all submessages of a specified type.
 
@@ -714,7 +714,7 @@ def load_message(filename: str, message_type: Type[MessageType]) -> MessageType:
 
     Args:
         filename: Text filename containing a serialized protocol buffer message.
-        message_type: any_pb2.Any subclass.
+        message_type: Message subclass.
 
     Returns:
         Message object.
@@ -745,7 +745,7 @@ def load_message(filename: str, message_type: Type[MessageType]) -> MessageType:
 # pylint: enable=inconsistent-return-statements
 
 
-def write_message(message: any_pb2.Any, filename: str):
+def write_message(message: Message, filename: str):
     """Writes a protocol buffer message to disk.
 
     Args:
@@ -787,7 +787,7 @@ def id_filename(filename: str) -> str:
     return flask.safe_join('data', suffix[:2], basename)
 
 
-def create_message(message_name: str) -> any_pb2.Any:
+def create_message(message_name: str) -> Message:
     """Converts a message name into an instantiation of that class, where
     the message belongs to the reaction_pb2 module.
 
@@ -811,7 +811,7 @@ def create_message(message_name: str) -> any_pb2.Any:
             f'Cannot resolve message name {message_name}') from error
 
 
-def messages_to_dataframe(messages: Iterable[any_pb2.Any],
+def messages_to_dataframe(messages: Iterable[Message],
                           drop_constant_columns: bool = False) -> pd.DataFrame:
     """Converts a list of protos to a pandas DataFrame.
 
@@ -837,7 +837,7 @@ def messages_to_dataframe(messages: Iterable[any_pb2.Any],
     return df
 
 
-def message_to_row(message: any_pb2.Any,
+def message_to_row(message: Message,
                    trace: Tuple[str] = None) -> Dict[str, ScalarType]:
     """Converts a proto into a flat dictionary mapping fields to values.
 
@@ -895,8 +895,7 @@ def safe_update(target: Dict, update: Dict):
     target.update(update)
 
 
-def _message_to_row(field: descriptor.FieldDescriptor, value: Union[any_pb2.Any,
-                                                                    ScalarType],
+def _message_to_row(field: FieldDescriptor, value: Union[Message, ScalarType],
                     trace: Tuple[str]) -> Dict[str, ScalarType]:
     """Recursively creates a dict for a single value.
 

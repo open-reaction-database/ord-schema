@@ -21,7 +21,6 @@ import google.protobuf.message
 
 _MESSAGE_TYPES = (
     collections.abc.MutableMapping,  # Proto map.
-    # TODO(kearnes): Why doesn't any_pb2.Any work here?
     google.protobuf.message.Message,  # Generic submessage.
 )
 
