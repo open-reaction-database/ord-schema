@@ -1012,7 +1012,7 @@ def validate_flow_rate(message: reaction_pb2.FlowRate):
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_percentage(message: Message):
+def validate_percentage(message: reaction_pb2.Percentage):
     if not message.HasField('value'):
         warnings.warn(f'{type(message)} requires `value` to be set',
                       ValidationError)
