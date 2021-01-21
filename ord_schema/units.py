@@ -14,10 +14,9 @@
 """Helpers for translating strings with units."""
 
 import re
-from typing import Iterable, Mapping, Optional, Type, Union
+from typing import Iterable, Mapping, Optional, Type
 
-from google.protobuf.message import Message
-
+import ord_schema
 from ord_schema.proto import reaction_pb2
 
 # Accepted synonyms for units. Note that all values will be converted to
@@ -109,20 +108,14 @@ CONCENTRATION_UNIT_SYNONYMS = {
     },
 }
 
-# Messages with 'units' fields.
-UnitMessage = Union[reaction_pb2.Current, reaction_pb2.FlowRate,
-                    reaction_pb2.Length, reaction_pb2.Mass, reaction_pb2.Moles,
-                    reaction_pb2.Pressure, reaction_pb2.Temperature,
-                    reaction_pb2.Time, reaction_pb2.Voltage,
-                    reaction_pb2.Volume, reaction_pb2.Wavelength]
-
 
 class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
 
     def __init__(self,
-                 unit_synonyms: Mapping[Type[UnitMessage],
-                                        Mapping[Message, Iterable[str]]] = None,
+                 unit_synonyms: Mapping[Type[ord_schema.UnitMessage],
+                                        Mapping[ord_schema.Message,
+                                                Iterable[str]]] = None,
                  forbidden_units: Mapping[str, str] = None):
         """Initializes a UnitResolver.
 
@@ -137,9 +130,6 @@ class UnitResolver:
                 case is one of ambiguity (e.g., "m" can mean meter or minute).
                 Defaults to None. If None, uses default _FORBIDDEN_UNITS dict.
                 If no units are forbidden, an empty dictionary should be used.
-
-        Returns:
-            None
         """
         if unit_synonyms is None:
             unit_synonyms = _UNIT_SYNONYMS
@@ -158,7 +148,7 @@ class UnitResolver:
         # value and the unit is optional.
         self._pattern = re.compile(r'(\d+.?\d*)\s*(\w+)')
 
-    def resolve(self, string: str) -> UnitMessage:
+    def resolve(self, string: str) -> ord_schema.UnitMessage:
         """Resolves a string into a message containing a value with units.
 
         Args:
@@ -188,7 +178,7 @@ class UnitResolver:
         return message(value=float(value), units=unit)
 
 
-def format_message(message: UnitMessage) -> Optional[str]:
+def format_message(message: ord_schema.UnitMessage) -> Optional[str]:
     """Formats a united message into a string.
 
     Args:

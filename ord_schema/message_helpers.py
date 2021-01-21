@@ -16,19 +16,18 @@
 import enum
 import os
 import re
-from typing import Dict, Iterable, List, Optional, Tuple, Type, TypeVar, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Type, Union
 import warnings
 
 import flask
 from google import protobuf
 from google.protobuf import json_format
 from google.protobuf import text_format  # pytype: disable=import-error
-from google.protobuf.descriptor import FieldDescriptor
-from google.protobuf.message import Message
 import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
+import ord_schema
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
 
@@ -37,8 +36,6 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
-ScalarType = Union[str, bytes, float, int, bool]
-MessageType = TypeVar('MessageType')  # Generic for setting return types.
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -223,8 +220,9 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
     return data
 
 
-def find_submessages(message: Message,
-                     submessage_type: Type[MessageType]) -> List[MessageType]:
+def find_submessages(
+    message: ord_schema.Message, submessage_type: Type[ord_schema.MessageType]
+) -> List[ord_schema.MessageType]:
     """Recursively finds all submessages of a specified type.
 
     Args:
@@ -709,7 +707,9 @@ class MessageFormat(enum.Enum):
 
 
 # pylint: disable=inconsistent-return-statements
-def load_message(filename: str, message_type: Type[MessageType]) -> MessageType:
+def load_message(
+        filename: str,
+        message_type: Type[ord_schema.MessageType]) -> ord_schema.MessageType:
     """Loads a protocol buffer message from a file.
 
     Args:
@@ -745,7 +745,7 @@ def load_message(filename: str, message_type: Type[MessageType]) -> MessageType:
 # pylint: enable=inconsistent-return-statements
 
 
-def write_message(message: Message, filename: str):
+def write_message(message: ord_schema.Message, filename: str):
     """Writes a protocol buffer message to disk.
 
     Args:
@@ -787,7 +787,7 @@ def id_filename(filename: str) -> str:
     return flask.safe_join('data', suffix[:2], basename)
 
 
-def create_message(message_name: str) -> Message:
+def create_message(message_name: str) -> ord_schema.Message:
     """Converts a message name into an instantiation of that class, where
     the message belongs to the reaction_pb2 module.
 
@@ -811,7 +811,7 @@ def create_message(message_name: str) -> Message:
             f'Cannot resolve message name {message_name}') from error
 
 
-def messages_to_dataframe(messages: Iterable[Message],
+def messages_to_dataframe(messages: Iterable[ord_schema.Message],
                           drop_constant_columns: bool = False) -> pd.DataFrame:
     """Converts a list of protos to a pandas DataFrame.
 
@@ -837,8 +837,9 @@ def messages_to_dataframe(messages: Iterable[Message],
     return df
 
 
-def message_to_row(message: Message,
-                   trace: Tuple[str] = None) -> Dict[str, ScalarType]:
+def message_to_row(
+        message: ord_schema.Message,
+        trace: Tuple[str] = None) -> Dict[str, ord_schema.ScalarType]:
     """Converts a proto into a flat dictionary mapping fields to values.
 
     The keys indicate any nesting; for instance a proto that looks like this:
@@ -895,8 +896,9 @@ def safe_update(target: Dict, update: Dict):
     target.update(update)
 
 
-def _message_to_row(field: FieldDescriptor, value: Union[Message, ScalarType],
-                    trace: Tuple[str]) -> Dict[str, ScalarType]:
+def _message_to_row(field: ord_schema.FieldDescriptor,
+                    value: Union[ord_schema.Message, ord_schema.ScalarType],
+                    trace: Tuple[str]) -> Dict[str, ord_schema.ScalarType]:
     """Recursively creates a dict for a single value.
 
     Args:

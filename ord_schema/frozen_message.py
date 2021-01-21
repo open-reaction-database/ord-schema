@@ -17,11 +17,11 @@ import collections
 import dataclasses
 from typing import Union
 
-import google.protobuf.message
+import ord_schema
 
 _MESSAGE_TYPES = (
     collections.abc.MutableMapping,  # Proto map.
-    google.protobuf.message.Message,  # Generic submessage.
+    ord_schema.Message,  # Generic submessage.
 )
 
 # pytype: disable=attribute-error

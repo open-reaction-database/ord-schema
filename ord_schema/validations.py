@@ -17,42 +17,18 @@ import dataclasses
 import math
 import os
 import re
-from typing import Any, List, Mapping, Optional, Set, Tuple, Union
+from typing import Any, List, Mapping, Optional, Set, Tuple
 import warnings
 
 from absl import logging
 from dateutil import parser
-from google.protobuf import descriptor
-from google.protobuf.message import Message
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
 
+import ord_schema
 from ord_schema import message_helpers
-from ord_schema import units
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
-
-# Messages with 'type' and 'details' fields.
-TypeDetailsMessage = Union[
-    reaction_pb2.Analysis, reaction_pb2.CompoundIdentifier,
-    reaction_pb2.CompoundPreparation,
-    reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell,
-    reaction_pb2.ElectrochemistryConditions.ElectrochemistryType,
-    reaction_pb2.FlowConditions.FlowType, reaction_pb2.FlowConditions.Tubing,
-    reaction_pb2.IlluminationConditions.IlluminationType,
-    reaction_pb2.PressureConditions.Atmosphere,
-    reaction_pb2.PressureConditions.Measurement,
-    reaction_pb2.PressureConditions.PressureControl,
-    reaction_pb2.ProductCompound.Texture, reaction_pb2.ProductMeasurement,
-    reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails,
-    reaction_pb2.ProductMeasurement.Selectivity,
-    reaction_pb2.ReactionIdentifier, reaction_pb2.ReactionInput.AdditionDevice,
-    reaction_pb2.ReactionSetup.ReactionEnvironment, reaction_pb2.ReactionWorkup,
-    reaction_pb2.StirringConditions.StirringMethod,
-    reaction_pb2.TemperatureConditions.Measurement,
-    reaction_pb2.TemperatureConditions.TemperatureControl,
-    reaction_pb2.VesselAttachment, reaction_pb2.VesselMaterial,
-    reaction_pb2.VesselPreparation, reaction_pb2.VesselType]
 
 # pylint: disable=too-many-branches
 
@@ -151,7 +127,7 @@ def _validate_datasets(
 
 
 def validate_message(
-        message: Message,
+        message: ord_schema.Message,
         recurse: bool = True,
         raise_on_error: bool = True,
         options: Optional[ValidationOptions] = None,
@@ -224,7 +200,7 @@ def validate_message(
     return output
 
 
-def _validate_message(field: descriptor.FieldDescriptor, value: Any,
+def _validate_message(field: ord_schema.FieldDescriptor, value: Any,
                       output: ValidationOutput, raise_on_error: bool,
                       options: ValidationOptions, trace: Tuple[str, ...]):
     """Validates a single message field and its children.
@@ -281,7 +257,7 @@ class ValidationWarning(Warning):
 
 
 # pylint: disable=missing-function-docstring
-def ensure_float_nonnegative(message: Message, field: str):
+def ensure_float_nonnegative(message: ord_schema.Message, field: str):
     if getattr(message, field) < 0:
         warnings.warn(
             f'Field {field} of message '
@@ -289,7 +265,7 @@ def ensure_float_nonnegative(message: Message, field: str):
             ' non-negative', ValidationError)
 
 
-def ensure_float_range(message: Message,
+def ensure_float_range(message: ord_schema.Message,
                        field: str,
                        min_value: float = -math.inf,
                        max_value: float = math.inf):
@@ -301,7 +277,7 @@ def ensure_float_range(message: Message,
             f' {min_value} and {max_value}', ValidationError)
 
 
-def check_value_and_units(message: units.UnitMessage):
+def check_value_and_units(message: ord_schema.UnitMessage):
     """Checks that value/units messages are complete."""
     if not message.HasField('value'):
         warnings.warn(f'{type(message)} requires `value` to be set',
@@ -311,7 +287,7 @@ def check_value_and_units(message: units.UnitMessage):
                       ValidationError)
 
 
-def check_type_and_details(message: TypeDetailsMessage):
+def check_type_and_details(message: ord_schema.TypeDetailsMessage):
     """Checks that type/details messages are complete."""
     if message.type == message.UNSPECIFIED:
         warnings.warn(f'{type(message)} requires `type` to be set',
@@ -1027,7 +1003,7 @@ def validate_percentage(message: reaction_pb2.Percentage):
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_float_value(message: Message):
+def validate_float_value(message: ord_schema.Message):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 
