@@ -24,7 +24,7 @@ import re
 from typing import BinaryIO, Mapping, Optional, Union
 
 import pandas as pd
-from google.protobuf import text_format
+from google.protobuf import text_format  # pytype: disable=import-error
 
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2

@@ -16,8 +16,7 @@
 import enum
 import os
 import re
-from typing import (Any, Dict, Iterable, List, Mapping, Optional, Tuple, Type,
-                    TypeVar, Union)
+from typing import Dict, Iterable, List, Optional, Tuple, Type, TypeVar, Union
 import warnings
 
 import flask
@@ -25,8 +24,7 @@ from google import protobuf
 from google.protobuf import any_pb2
 from google.protobuf import descriptor
 from google.protobuf import json_format
-from google.protobuf import text_format
-import google.protobuf.message
+from google.protobuf import text_format  # pytype: disable=import-error
 import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
@@ -39,7 +37,8 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
-ScalarType = TypeVar('ScalarType', str, bytes, float, int, bool)
+ScalarType = Union[str, bytes, float, int, bool]
+MessageType = TypeVar('MessageType')  # Generic for setting return types.
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -130,7 +129,7 @@ def build_compound(smiles: str = None,
 
 
 def set_solute_moles(solute: reaction_pb2.Compound,
-                     solvents: Iterable[reaction_pb2.Compound],
+                     solvents: List[reaction_pb2.Compound],
                      concentration: str,
                      overwrite: bool = False) -> List[reaction_pb2.Compound]:
     """Helps define components for stock solution inputs with a single solute
@@ -224,10 +223,8 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
     return data
 
 
-def find_submessages(
-    message: google.protobuf.message.Message,
-    submessage_type: Type[google.protobuf.message.Message]
-) -> List[google.protobuf.message.Message]:
+def find_submessages(message: any_pb2.Any,
+                     submessage_type: Type[MessageType]) -> List[MessageType]:
     """Recursively finds all submessages of a specified type.
 
     Args:
@@ -712,14 +709,12 @@ class MessageFormat(enum.Enum):
 
 
 # pylint: disable=inconsistent-return-statements
-def load_message(
-    filename: str, message_type: Type[google.protobuf.message.Message]
-) -> google.protobuf.message.Message:
+def load_message(filename: str, message_type: Type[MessageType]) -> MessageType:
     """Loads a protocol buffer message from a file.
 
     Args:
         filename: Text filename containing a serialized protocol buffer message.
-        message_type: google.protobuf.message.Message subclass.
+        message_type: any_pb2.Any subclass.
 
     Returns:
         Message object.
@@ -750,7 +745,7 @@ def load_message(
 # pylint: enable=inconsistent-return-statements
 
 
-def write_message(message: google.protobuf.message.Message, filename: str):
+def write_message(message: any_pb2.Any, filename: str):
     """Writes a protocol buffer message to disk.
 
     Args:
@@ -792,7 +787,7 @@ def id_filename(filename: str) -> str:
     return flask.safe_join('data', suffix[:2], basename)
 
 
-def create_message(message_name: str) -> google.protobuf.message.Message:
+def create_message(message_name: str) -> any_pb2.Any:
     """Converts a message name into an instantiation of that class, where
     the message belongs to the reaction_pb2 module.
 
@@ -892,7 +887,7 @@ def message_to_row(message: any_pb2.Any,
     return row
 
 
-def safe_update(target: Mapping, update: Mapping):
+def safe_update(target: Dict, update: Dict):
     """Checks that `update` will not clobber any keys in `target`."""
     for key in update:
         if key in target:
@@ -900,7 +895,8 @@ def safe_update(target: Mapping, update: Mapping):
     target.update(update)
 
 
-def _message_to_row(field: descriptor.FieldDescriptor, value: Any,
+def _message_to_row(field: descriptor.FieldDescriptor, value: Union[any_pb2.Any,
+                                                                    ScalarType],
                     trace: Tuple[str]) -> Dict[str, ScalarType]:
     """Recursively creates a dict for a single value.
 
@@ -910,13 +906,14 @@ def _message_to_row(field: descriptor.FieldDescriptor, value: Any,
         trace: Tuple of strings; the trace of nested field names.
 
     Returns:
-        Dict mapping string field names to scalar value types.
+        Dict mapping string field names to scalar values.
     """
     if field.type == field.TYPE_MESSAGE:
         return message_to_row(message=value, trace=trace)
     if field.type == field.TYPE_ENUM:
         enum_value = field.enum_type.values_by_number[value].name
         return {'.'.join(trace): enum_value}
+    assert isinstance(value, (str, bytes, float, int, bool))  # Type hint.
     return {'.'.join(trace): value}
 
 

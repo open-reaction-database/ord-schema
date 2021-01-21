@@ -17,19 +17,42 @@ import dataclasses
 import math
 import os
 import re
-from typing import Any, List, Mapping, Optional, Set, Tuple
+from typing import Any, List, Mapping, Optional, Set, Tuple, Union
 import warnings
 
 from absl import logging
 from dateutil import parser
-import google.protobuf.descriptor
-import google.protobuf.message
+from google.protobuf import any_pb2
+from google.protobuf import descriptor
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
 
 from ord_schema import message_helpers
+from ord_schema import units
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
+
+# Messages with 'type' and 'details' fields.
+TypeDetailsMessage = Union[
+    reaction_pb2.Analysis, reaction_pb2.CompoundIdentifier,
+    reaction_pb2.CompoundPreparation,
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell,
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryType,
+    reaction_pb2.FlowConditions.FlowType, reaction_pb2.FlowConditions.Tubing,
+    reaction_pb2.IlluminationConditions.IlluminationType,
+    reaction_pb2.PressureConditions.Atmosphere,
+    reaction_pb2.PressureConditions.Measurement,
+    reaction_pb2.PressureConditions.PressureControl,
+    reaction_pb2.ProductCompound.Texture, reaction_pb2.ProductMeasurement,
+    reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails,
+    reaction_pb2.ProductMeasurement.Selectivity,
+    reaction_pb2.ReactionIdentifier, reaction_pb2.ReactionInput.AdditionDevice,
+    reaction_pb2.ReactionSetup.ReactionEnvironment, reaction_pb2.ReactionWorkup,
+    reaction_pb2.StirringConditions.StirringMethod,
+    reaction_pb2.TemperatureConditions.Measurement,
+    reaction_pb2.TemperatureConditions.TemperatureControl,
+    reaction_pb2.VesselAttachment, reaction_pb2.VesselMaterial,
+    reaction_pb2.VesselPreparation, reaction_pb2.VesselType]
 
 # pylint: disable=too-many-branches
 
@@ -128,7 +151,7 @@ def _validate_datasets(
 
 
 def validate_message(
-        message: google.protobuf.message.Message,
+        message: any_pb2.Any,
         recurse: bool = True,
         raise_on_error: bool = True,
         options: Optional[ValidationOptions] = None,
@@ -201,10 +224,9 @@ def validate_message(
     return output
 
 
-def _validate_message(field: google.protobuf.descriptor.FieldDescriptor,
-                      value: Any, output: ValidationOutput,
-                      raise_on_error: bool, options: ValidationOptions,
-                      trace: Tuple[str, ...]):
+def _validate_message(field: descriptor.FieldDescriptor, value: Any,
+                      output: ValidationOutput, raise_on_error: bool,
+                      options: ValidationOptions, trace: Tuple[str, ...]):
     """Validates a single message field and its children.
 
     Args:
@@ -259,8 +281,7 @@ class ValidationWarning(Warning):
 
 
 # pylint: disable=missing-function-docstring
-def ensure_float_nonnegative(message: google.protobuf.message.Message,
-                             field: str):
+def ensure_float_nonnegative(message: any_pb2.Any, field: str):
     if getattr(message, field) < 0:
         warnings.warn(
             f'Field {field} of message '
@@ -268,7 +289,7 @@ def ensure_float_nonnegative(message: google.protobuf.message.Message,
             ' non-negative', ValidationError)
 
 
-def ensure_float_range(message: google.protobuf.message.Message,
+def ensure_float_range(message: any_pb2.Any,
                        field: str,
                        min_value: float = -math.inf,
                        max_value: float = math.inf):
@@ -280,7 +301,7 @@ def ensure_float_range(message: google.protobuf.message.Message,
             f' {min_value} and {max_value}', ValidationError)
 
 
-def check_value_and_units(message: google.protobuf.message.Message):
+def check_value_and_units(message: units.UnitMessage):
     """Checks that value/units messages are complete."""
     if not message.HasField('value'):
         warnings.warn(f'{type(message)} requires `value` to be set',
@@ -290,7 +311,7 @@ def check_value_and_units(message: google.protobuf.message.Message):
                       ValidationError)
 
 
-def check_type_and_details(message: google.protobuf.message.Message):
+def check_type_and_details(message: TypeDetailsMessage):
     """Checks that type/details messages are complete."""
     if message.type == message.UNSPECIFIED:
         warnings.warn(f'{type(message)} requires `type` to be set',
@@ -991,7 +1012,7 @@ def validate_flow_rate(message: reaction_pb2.FlowRate):
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_percentage(message: google.protobuf.message.Message):
+def validate_percentage(message: any_pb2.Any):
     if not message.HasField('value'):
         warnings.warn(f'{type(message)} requires `value` to be set',
                       ValidationError)
@@ -1006,7 +1027,7 @@ def validate_percentage(message: google.protobuf.message.Message):
     ensure_float_nonnegative(message, 'precision')
 
 
-def validate_float_value(message: google.protobuf.message.Message):
+def validate_float_value(message: any_pb2.Any):
     ensure_float_nonnegative(message, 'value')
     ensure_float_nonnegative(message, 'precision')
 

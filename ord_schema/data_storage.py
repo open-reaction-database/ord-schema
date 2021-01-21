@@ -28,7 +28,7 @@ import warnings
 
 from absl import logging
 import flask
-import google.protobuf.message
+from google.protobuf import any_pb2
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
@@ -94,7 +94,7 @@ def write_data(message: reaction_pb2.Data,
     return filename, value_size
 
 
-def extract_data(message: google.protobuf.message.Message,
+def extract_data(message: any_pb2.Any,
                  root: str,
                  min_size: float = 0.0,
                  max_size: float = 1.0) -> Set[str]:

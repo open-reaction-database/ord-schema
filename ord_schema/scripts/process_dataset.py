@@ -48,7 +48,7 @@ from absl import app
 from absl import flags
 from absl import logging
 import github
-from google.protobuf import text_format
+from google.protobuf import text_format  # pytype: disable=import-error
 
 from ord_schema import data_storage
 from ord_schema import message_helpers

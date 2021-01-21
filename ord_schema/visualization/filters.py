@@ -18,7 +18,8 @@ in this module do not include any HTML tags, only their contents.
 """
 
 import collections
-from typing import Any, Iterable, Mapping, Tuple
+import datetime
+from typing import Any, Iterable, List, Mapping, Optional, Tuple
 
 from ord_schema import units
 from ord_schema import message_helpers
@@ -32,7 +33,8 @@ def _is_true(boolean: Any) -> bool:
 
 
 def _count_addition_order(
-        inputs: Mapping[str, reaction_pb2.ReactionInput]) -> Tuple[int, int]:
+    inputs: Mapping[str,
+                    reaction_pb2.ReactionInput]) -> Iterable[Tuple[int, int]]:
     """Returns the number of inputs for each addition_order value.
 
     Args:
@@ -51,7 +53,7 @@ def _count_addition_order(
 
 def _sort_addition_order(
     inputs: Mapping[str, reaction_pb2.ReactionInput]
-) -> Tuple[str, reaction_pb2.ReactionInput]:
+) -> Iterable[Tuple[str, reaction_pb2.ReactionInput]]:
     """Sorts inputs by addition order, sorting again within stages/steps.
 
     Args:
@@ -71,8 +73,8 @@ def _sort_addition_order(
 
 
 def _get_input_borders(
-    components: Iterable[reaction_pb2.Compound]
-) -> Tuple[reaction_pb2.Compound, str]:
+    components: List[reaction_pb2.Compound]
+) -> Iterable[Tuple[reaction_pb2.Compound, str]]:
     """Returns the CSS class for a Compound cell.
 
     The HTML representation of a Reaction groups Compounds by their parent
@@ -366,7 +368,10 @@ def _compound_svg(compound: reaction_pb2.Compound) -> str:
     try:
         mol = message_helpers.mol_from_compound(compound)
         if mol:
-            return drawing.mol_to_svg(mol)
+            svg = drawing.mol_to_svg(mol)
+            if svg is None:
+                return '[Compound]'
+            return svg
     except ValueError:
         pass
     return '[Compound]'
@@ -393,7 +398,7 @@ def _compound_png(compound: reaction_pb2.Compound) -> str:
     return '[Compound]'
 
 
-def _compound_amount(compound: reaction_pb2.Compound) -> str:
+def _compound_amount(compound: reaction_pb2.Compound) -> Optional[str]:
     """Returns a string describing the compound amount, if defined."""
     kind = compound.amount.WhichOneof('kind')
     if not kind:
@@ -622,7 +627,8 @@ def _round(value: float, places=2) -> str:
     return fstring.format(value)
 
 
-def _datetimeformat(value: str, format_string: str = '%H:%M / %d-%m-%Y') -> str:
+def _datetimeformat(value: datetime.datetime,
+                    format_string: str = '%H:%M / %d-%m-%Y') -> str:
     """Formats a date/time string."""
     return value.strftime(format_string)
 

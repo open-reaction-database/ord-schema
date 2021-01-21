@@ -56,7 +56,6 @@ def canonicalize_smiles(smiles: str) -> str:
 
 def name_resolve(value_type: str, value: str) -> Tuple[str, str]:
     """Resolves compound identifiers to SMILES via multiple APIs."""
-    smiles = None
     for resolver, resolver_func in _NAME_RESOLVERS.items():
         try:
             smiles = resolver_func(value_type, value)
@@ -127,9 +126,8 @@ def _emolecules_resolve(value_type: str, value: str) -> str:
             urllib.parse.quote(value)))
     response_text = response.read().decode().strip()
     if response_text == '__END__':
-        raise urllib.error.HTTPError(None, None,
-                                     'eMolecules lookup unsuccessful', None,
-                                     None)
+        raise urllib.error.HTTPError('', 404, 'eMolecules lookup unsuccessful',
+                                     {}, None)
     return response_text.split('\t')[0]
 
 
@@ -165,6 +163,8 @@ def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
     if not match:
         raise ValueError('String did not match template!')
     conc_value, conc_units, solute_name, solvent_name = match.groups()
+    assert solute_name is not None  # Type hint.
+    assert solvent_name is not None  # Type hint.
     solute = reaction_input.components.add()
     solvent = reaction_input.components.add()
     solute.CopyFrom(message_helpers.build_compound(name=solute_name.strip()))

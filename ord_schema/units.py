@@ -14,9 +14,9 @@
 """Helpers for translating strings with units."""
 
 import re
-from typing import Iterable, Mapping, Type, Union
+from typing import Iterable, Mapping, Optional, Type, Union
 
-import google.protobuf.message
+from google.protobuf import any_pb2
 
 from ord_schema.proto import reaction_pb2
 
@@ -109,13 +109,20 @@ CONCENTRATION_UNIT_SYNONYMS = {
     },
 }
 
+# Messages with 'units' fields.
+UnitMessage = Union[reaction_pb2.Current, reaction_pb2.FlowRate,
+                    reaction_pb2.Length, reaction_pb2.Mass, reaction_pb2.Moles,
+                    reaction_pb2.Pressure, reaction_pb2.Temperature,
+                    reaction_pb2.Time, reaction_pb2.Voltage,
+                    reaction_pb2.Volume, reaction_pb2.Wavelength]
+
 
 class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
 
     def __init__(self,
-                 unit_synonyms: Mapping[Type[google.protobuf.message.Message],
-                                        Mapping[google.protobuf.message.Message,
+                 unit_synonyms: Mapping[Type[UnitMessage],
+                                        Mapping[any_pb2.Any,
                                                 Iterable[str]]] = None,
                  forbidden_units: Mapping[str, str] = None):
         """Initializes a UnitResolver.
@@ -152,7 +159,7 @@ class UnitResolver:
         # value and the unit is optional.
         self._pattern = re.compile(r'(\d+.?\d*)\s*(\w+)')
 
-    def resolve(self, string: str) -> google.protobuf.message.Message:
+    def resolve(self, string: str) -> UnitMessage:
         """Resolves a string into a message containing a value with units.
 
         Args:
@@ -171,6 +178,7 @@ class UnitResolver:
             raise ValueError(
                 f'string does not contain a value with units: {string}')
         value, string_unit = match.groups()
+        assert string_unit is not None  # Type hint.
         string_unit = string_unit.lower()
         if string_unit in self._forbidden_units:
             raise KeyError(f'forbidden units: {string_unit}: '
@@ -181,7 +189,7 @@ class UnitResolver:
         return message(value=float(value), units=unit)
 
 
-def format_message(message: google.protobuf.message.Message) -> str:
+def format_message(message: UnitMessage) -> Optional[str]:
     """Formats a united message into a string.
 
     Args:
