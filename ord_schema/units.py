@@ -14,7 +14,9 @@
 """Helpers for translating strings with units."""
 
 import re
+from typing import Iterable, Mapping, Optional, Type
 
+import ord_schema
 from ord_schema.proto import reaction_pb2
 
 # Accepted synonyms for units. Note that all values will be converted to
@@ -110,7 +112,11 @@ CONCENTRATION_UNIT_SYNONYMS = {
 class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
 
-    def __init__(self, unit_synonyms=None, forbidden_units=None):
+    def __init__(self,
+                 unit_synonyms: Mapping[Type[ord_schema.UnitMessage],
+                                        Mapping[ord_schema.Message,
+                                                Iterable[str]]] = None,
+                 forbidden_units: Mapping[str, str] = None):
         """Initializes a UnitResolver.
 
         Args:
@@ -124,9 +130,6 @@ class UnitResolver:
                 case is one of ambiguity (e.g., "m" can mean meter or minute).
                 Defaults to None. If None, uses default _FORBIDDEN_UNITS dict.
                 If no units are forbidden, an empty dictionary should be used.
-
-        Returns:
-            None
         """
         if unit_synonyms is None:
             unit_synonyms = _UNIT_SYNONYMS
@@ -145,7 +148,7 @@ class UnitResolver:
         # value and the unit is optional.
         self._pattern = re.compile(r'(\d+.?\d*)\s*(\w+)')
 
-    def resolve(self, string):
+    def resolve(self, string: str) -> ord_schema.UnitMessage:
         """Resolves a string into a message containing a value with units.
 
         Args:
@@ -164,6 +167,7 @@ class UnitResolver:
             raise ValueError(
                 f'string does not contain a value with units: {string}')
         value, string_unit = match.groups()
+        assert string_unit is not None  # Type hint.
         string_unit = string_unit.lower()
         if string_unit in self._forbidden_units:
             raise KeyError(f'forbidden units: {string_unit}: '
@@ -174,7 +178,7 @@ class UnitResolver:
         return message(value=float(value), units=unit)
 
 
-def format_message(message):
+def format_message(message: ord_schema.UnitMessage) -> Optional[str]:
     """Formats a united message into a string.
 
     Args:

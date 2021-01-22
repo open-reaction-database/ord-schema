@@ -15,9 +15,11 @@
 
 import datetime
 import re
+from typing import Mapping
 import uuid
 
 from ord_schema import resolvers
+from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 _COMPOUND_STRUCTURAL_IDENTIFIERS = [
@@ -32,7 +34,7 @@ _USERNAME = 'github-actions'
 _EMAIL = 'github-actions@github.com'
 
 
-def update_reaction(reaction):
+def update_reaction(reaction: reaction_pb2.Reaction) -> Mapping[str, str]:
     """Updates a Reaction message.
 
     Current updates:
@@ -74,7 +76,7 @@ def update_reaction(reaction):
     return id_substitutions
 
 
-def update_dataset(dataset):
+def update_dataset(dataset: dataset_pb2.Dataset):
     """Updates a Dataset message.
 
     Current updates:

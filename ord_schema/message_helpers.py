@@ -16,19 +16,18 @@
 import enum
 import os
 import re
-from typing import Any, Dict, Iterable, Mapping, Tuple, TypeVar
+from typing import Dict, Iterable, List, Optional, Tuple, Type, TypeVar, Union
 import warnings
 
 import flask
 from google import protobuf
-from google.protobuf import any_pb2
-from google.protobuf import descriptor
 from google.protobuf import json_format
-from google.protobuf import text_format
+from google.protobuf import text_format  # pytype: disable=import-error
 import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
+import ord_schema
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
 
@@ -37,20 +36,20 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
-ScalarType = TypeVar('ScalarType', str, bytes, float, int, bool)
+MessageType = TypeVar('MessageType')  # Generic for setting return types.
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
 
 
-def build_compound(smiles=None,
-                   name=None,
-                   amount=None,
-                   role=None,
-                   is_limiting=None,
-                   prep=None,
-                   prep_details=None,
-                   vendor=None):
+def build_compound(smiles: str = None,
+                   name: str = None,
+                   amount: str = None,
+                   role: str = None,
+                   is_limiting: bool = None,
+                   prep: str = None,
+                   prep_details: str = None,
+                   vendor: str = None) -> reaction_pb2.Compound:
     """Builds a Compound message with the most common fields.
 
     Args:
@@ -127,7 +126,10 @@ def build_compound(smiles=None,
     return compound
 
 
-def set_solute_moles(solute, solvents, concentration, overwrite=False):
+def set_solute_moles(solute: reaction_pb2.Compound,
+                     solvents: List[reaction_pb2.Compound],
+                     concentration: str,
+                     overwrite: bool = False) -> List[reaction_pb2.Compound]:
     """Helps define components for stock solution inputs with a single solute
     and a one or more solvent compounds.
 
@@ -198,7 +200,7 @@ def set_solute_moles(solute, solvents, concentration, overwrite=False):
     return [solute] + solvents
 
 
-def build_data(filename, description):
+def build_data(filename: str, description: str) -> reaction_pb2.Data:
     """Reads raw data from a file and creates a Data message.
 
     Args:
@@ -219,7 +221,8 @@ def build_data(filename, description):
     return data
 
 
-def find_submessages(message, submessage_type):
+def find_submessages(message: ord_schema.Message,
+                     submessage_type: Type[MessageType]) -> List[MessageType]:
     """Recursively finds all submessages of a specified type.
 
     Args:
@@ -232,7 +235,7 @@ def find_submessages(message, submessage_type):
     Raises:
         TypeError: if `submessage_type` is not a protocol buffer type.
     """
-    if not issubclass(submessage_type, protobuf.message.Message):
+    if not issubclass(submessage_type, ord_schema.Message):
         raise TypeError('submessage_type must be a Protocol Buffer type')
     submessage_name = submessage_type.DESCRIPTOR.full_name
     submessages = []
@@ -265,7 +268,7 @@ def find_submessages(message, submessage_type):
     return submessages
 
 
-def smiles_from_compound(compound):
+def smiles_from_compound(compound: reaction_pb2.Compound) -> str:
     """Fetches or generates a SMILES identifier for a compound.
 
     If a SMILES identifier already exists, it is simply returned.
@@ -283,7 +286,7 @@ def smiles_from_compound(compound):
             Chem.MolToSmiles(mol_from_compound(compound)))
 
 
-def molblock_from_compound(compound):
+def molblock_from_compound(compound: reaction_pb2.Compound) -> str:
     """Fetches or generates a MolBlock identifier for a compound.
 
     Args:
@@ -300,7 +303,10 @@ def molblock_from_compound(compound):
 
 
 # pylint: disable=inconsistent-return-statements
-def mol_from_compound(compound, return_identifier=False):
+def mol_from_compound(
+        compound: reaction_pb2.Compound,
+        return_identifier: bool = False
+) -> Union[Chem.Mol, Tuple[Chem.Mol, str]]:
     """Creates an RDKit Mol from a Compound message.
 
     Args:
@@ -333,7 +339,7 @@ def mol_from_compound(compound, return_identifier=False):
 # pylint: enable=inconsistent-return-statements
 
 
-def check_compound_identifiers(compound):
+def check_compound_identifiers(compound: reaction_pb2.Compound):
     """Verifies that structural compound identifiers are consistent.
 
     Args:
@@ -357,7 +363,9 @@ def check_compound_identifiers(compound):
         raise ValueError(f'structural identifiers are inconsistent: {smiles}')
 
 
-def get_reaction_smiles(message, allow_incomplete=True, validate=True):
+def get_reaction_smiles(message: reaction_pb2.Reaction,
+                        allow_incomplete: bool = True,
+                        validate: bool = True) -> str:
     """Fetches or generates a reaction SMILES.
 
     Args:
@@ -422,7 +430,7 @@ def get_reaction_smiles(message, allow_incomplete=True, validate=True):
     return reaction_smiles
 
 
-def validate_reaction_smiles(reaction_smiles):
+def validate_reaction_smiles(reaction_smiles: str) -> str:
     """Validates reaction SMILES.
 
     Args:
@@ -447,7 +455,8 @@ def validate_reaction_smiles(reaction_smiles):
     return rdChemReactions.ReactionToSmiles(reaction)
 
 
-def get_product_yield(product, as_measurement=False):
+def get_product_yield(product: reaction_pb2.ProductCompound,
+                      as_measurement: bool = False):
     """Returns the value of a product's yield if it is defined. If multiple
     measurements of type YIELD exist, only the first is returned.
 
@@ -467,7 +476,10 @@ def get_product_yield(product, as_measurement=False):
     return None
 
 
-def get_compound_identifier(compound, identifier_type):
+def get_compound_identifier(
+    compound: reaction_pb2.Compound,
+    identifier_type: reaction_pb2.CompoundIdentifier.IdentifierType
+) -> Optional[str]:
     """Returns the value of a compound identifier if it exists. If multiple
     identifiers of that type exist, only the first is returned.
 
@@ -484,7 +496,10 @@ def get_compound_identifier(compound, identifier_type):
     return None
 
 
-def set_compound_identifier(compound, identifier_type, value):
+def set_compound_identifier(
+        compound: reaction_pb2.Compound,
+        identifier_type: reaction_pb2.CompoundIdentifier.IdentifierType,
+        value: str) -> reaction_pb2.CompoundIdentifier:
     """Sets the value of a compound identifier if it exists or creates one. If
     multiple identifiers of that type exist, only the first is overwritten.
 
@@ -504,7 +519,7 @@ def set_compound_identifier(compound, identifier_type, value):
     return identifier
 
 
-def get_compound_smiles(compound):
+def get_compound_smiles(compound: reaction_pb2.Compound) -> Optional[str]:
     """Returns the value of the compound's SMILES identifier if it exists.
 
     Args:
@@ -517,7 +532,8 @@ def get_compound_smiles(compound):
                                    reaction_pb2.CompoundIdentifier.SMILES)
 
 
-def set_compound_smiles(compound, value):
+def set_compound_smiles(compound: reaction_pb2.Compound,
+                        value: str) -> reaction_pb2.CompoundIdentifier:
     """Sets the value of the compound's SMILES identifier if it exists or
     creates one.
 
@@ -533,7 +549,7 @@ def set_compound_smiles(compound, value):
                                    value)
 
 
-def is_transition_metal(atom):
+def is_transition_metal(atom: Chem.Atom) -> bool:
     """Determines if an atom is a transition metal.
 
     Args:
@@ -546,7 +562,7 @@ def is_transition_metal(atom):
     return 22 <= atom_n <= 29 or 40 <= atom_n <= 47 or 72 <= atom_n <= 79
 
 
-def has_transition_metal(mol):
+def has_transition_metal(mol: Chem.Mol) -> bool:
     """Determines if a molecule contains a transition metal.
 
     Args:
@@ -561,7 +577,8 @@ def has_transition_metal(mol):
     return False
 
 
-def set_dative_bonds(mol, from_atoms=('N', 'P')):
+def set_dative_bonds(
+    mol: Chem.Mol, from_atoms: Tuple[str] = ('N', 'P')) -> Chem.Mol:
     """Converts metal-ligand bonds to dative.
 
     Replaces some single bonds between metals and atoms with atomic numbers
@@ -623,7 +640,7 @@ def set_dative_bonds(mol, from_atoms=('N', 'P')):
     return edit_mol.GetMol()
 
 
-def get_compound_name(compound):
+def get_compound_name(compound: reaction_pb2.Compound) -> Optional[str]:
     """Returns the value of the compound's NAME identifier if it exists.
 
     Args:
@@ -636,7 +653,8 @@ def get_compound_name(compound):
                                    reaction_pb2.CompoundIdentifier.NAME)
 
 
-def set_compound_name(compound, value):
+def set_compound_name(compound: reaction_pb2.Compound,
+                      value: str) -> reaction_pb2.CompoundIdentifier:
     """Sets the value of the compound's NAME identifier if it exists or
     creates one.
 
@@ -651,7 +669,7 @@ def set_compound_name(compound, value):
                                    reaction_pb2.CompoundIdentifier.NAME, value)
 
 
-def get_compound_molblock(compound):
+def get_compound_molblock(compound: reaction_pb2.Compound) -> Optional[str]:
     """Returns the value of the compound's MOLBLOCK identifier if it exists.
 
     Args:
@@ -664,7 +682,8 @@ def get_compound_molblock(compound):
                                    reaction_pb2.CompoundIdentifier.MOLBLOCK)
 
 
-def set_compound_molblock(compound, value):
+def set_compound_molblock(compound: reaction_pb2.Compound,
+                          value: str) -> reaction_pb2.CompoundIdentifier:
     """Sets the value of the compound's MOLBLOCK identifier if it exists or
     creates one.
 
@@ -688,12 +707,12 @@ class MessageFormat(enum.Enum):
 
 
 # pylint: disable=inconsistent-return-statements
-def load_message(filename, message_type):
+def load_message(filename: str, message_type: Type[MessageType]) -> MessageType:
     """Loads a protocol buffer message from a file.
 
     Args:
         filename: Text filename containing a serialized protocol buffer message.
-        message_type: google.protobuf.message.Message subclass.
+        message_type: Message subclass.
 
     Returns:
         Message object.
@@ -724,7 +743,7 @@ def load_message(filename, message_type):
 # pylint: enable=inconsistent-return-statements
 
 
-def write_message(message, filename):
+def write_message(message: ord_schema.Message, filename: str):
     """Writes a protocol buffer message to disk.
 
     Args:
@@ -749,7 +768,7 @@ def write_message(message, filename):
             f.write(message.SerializeToString(deterministic=True))
 
 
-def id_filename(filename):
+def id_filename(filename: str) -> str:
     """Converts a filename into a relative path for the repository.
 
     Args:
@@ -766,7 +785,7 @@ def id_filename(filename):
     return flask.safe_join('data', suffix[:2], basename)
 
 
-def create_message(message_name):
+def create_message(message_name: str) -> ord_schema.Message:
     """Converts a message name into an instantiation of that class, where
     the message belongs to the reaction_pb2 module.
 
@@ -790,7 +809,7 @@ def create_message(message_name):
             f'Cannot resolve message name {message_name}') from error
 
 
-def messages_to_dataframe(messages: Iterable[any_pb2.Any],
+def messages_to_dataframe(messages: Iterable[ord_schema.Message],
                           drop_constant_columns: bool = False) -> pd.DataFrame:
     """Converts a list of protos to a pandas DataFrame.
 
@@ -816,8 +835,9 @@ def messages_to_dataframe(messages: Iterable[any_pb2.Any],
     return df
 
 
-def message_to_row(message: any_pb2.Any,
-                   trace: Tuple[str] = None) -> Dict[str, ScalarType]:
+def message_to_row(
+        message: ord_schema.Message,
+        trace: Tuple[str] = None) -> Dict[str, ord_schema.ScalarType]:
     """Converts a proto into a flat dictionary mapping fields to values.
 
     The keys indicate any nesting; for instance a proto that looks like this:
@@ -866,7 +886,7 @@ def message_to_row(message: any_pb2.Any,
     return row
 
 
-def safe_update(target: Mapping, update: Mapping):
+def safe_update(target: Dict, update: Dict):
     """Checks that `update` will not clobber any keys in `target`."""
     for key in update:
         if key in target:
@@ -874,8 +894,9 @@ def safe_update(target: Mapping, update: Mapping):
     target.update(update)
 
 
-def _message_to_row(field: descriptor.FieldDescriptor, value: Any,
-                    trace: Tuple[str]) -> Dict[str, ScalarType]:
+def _message_to_row(field: ord_schema.FieldDescriptor,
+                    value: Union[ord_schema.Message, ord_schema.ScalarType],
+                    trace: Tuple[str]) -> Dict[str, ord_schema.ScalarType]:
     """Recursively creates a dict for a single value.
 
     Args:
@@ -884,13 +905,14 @@ def _message_to_row(field: descriptor.FieldDescriptor, value: Any,
         trace: Tuple of strings; the trace of nested field names.
 
     Returns:
-        Dict mapping string field names to scalar value types.
+        Dict mapping string field names to scalar values.
     """
     if field.type == field.TYPE_MESSAGE:
         return message_to_row(message=value, trace=trace)
     if field.type == field.TYPE_ENUM:
         enum_value = field.enum_type.values_by_number[value].name
         return {'.'.join(trace): enum_value}
+    assert isinstance(value, (str, bytes, float, int, bool))  # Type hint.
     return {'.'.join(trace): value}
 
 
