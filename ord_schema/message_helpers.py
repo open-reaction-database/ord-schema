@@ -36,7 +36,7 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
-T = TypeVar('T')  # Generic for setting return types.
+MessageType = TypeVar('MessageType')  # Generic for setting return types.
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -222,7 +222,7 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
 
 
 def find_submessages(message: ord_schema.Message,
-                     submessage_type: Type[T]) -> List[T]:
+                     submessage_type: Type[MessageType]) -> List[MessageType]:
     """Recursively finds all submessages of a specified type.
 
     Args:
@@ -707,7 +707,7 @@ class MessageFormat(enum.Enum):
 
 
 # pylint: disable=inconsistent-return-statements
-def load_message(filename: str, message_type: Type[T]) -> T:
+def load_message(filename: str, message_type: Type[MessageType]) -> MessageType:
     """Loads a protocol buffer message from a file.
 
     Args:
