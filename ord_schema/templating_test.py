@@ -21,6 +21,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 from google.protobuf import text_format
 import pandas as pd
+from rdkit import Chem
 
 from ord_schema import templating
 from ord_schema.proto import reaction_pb2
@@ -47,11 +48,11 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
 
     def test_valid_templating(self):
         template_string = self.template_string.replace('value: "CCO"',
-                                                       'value: "$my_smiles$"')
+                                                       'value: "$smiles$"')
         template_string = template_string.replace('value: 75',
                                                   'value: $conversion$')
         df = pd.DataFrame.from_dict({
-            '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
+            '$smiles$': ['CCO', 'CCCO', 'CCCCO'],
             '$conversion$': [75, 50, 30],
         })
         dataset = templating.generate_dataset(template_string, df)
@@ -67,10 +68,28 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
 
         # Test without "$" in column names
         df = pd.DataFrame.from_dict({
-            'my_smiles': ['CCO', 'CCCO', 'CCCCO'],
+            'smiles': ['CCO', 'CCCO', 'CCCCO'],
             'conversion': [75, 50, 30],
         })
         dataset = templating.generate_dataset(template_string, df)
+        self.assertEqual(dataset, expected_dataset)
+
+    def test_valid_templating_escapes(self):
+        smiles = ['CCO', 'CCCO', 'CCCCO']
+        mols = [Chem.MolFromSmiles(this_smiles) for this_smiles in smiles]
+        molblocks = [Chem.MolToMolBlock(mol) for mol in mols]
+        self.valid_reaction.inputs['in'].components[0].identifiers.add(
+            type='MOLBLOCK', value='$molblock$')
+        template_string = text_format.MessageToString(self.valid_reaction)
+        df = pd.DataFrame.from_dict({'molblock': molblocks})
+        dataset = templating.generate_dataset(template_string, df)
+        expected_reactions = []
+        for molblock in molblocks:
+            reaction = reaction_pb2.Reaction()
+            reaction.CopyFrom(self.valid_reaction)
+            reaction.inputs['in'].components[0].identifiers[1].value = molblock
+            expected_reactions.append(reaction)
+        expected_dataset = dataset_pb2.Dataset(reactions=expected_reactions)
         self.assertEqual(dataset, expected_dataset)
 
     @parameterized.parameters(['.csv', '.xls', '.xlsx'])
