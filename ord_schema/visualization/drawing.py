@@ -20,6 +20,7 @@ given an RDKit molecule object: mol_to_svg and mol_to_png.
 import io
 import base64
 import re
+from typing import Optional
 
 import numpy as np
 from PIL import Image, ImageOps
@@ -32,7 +33,7 @@ rdDepictor.SetPreferCoordGen(True)
 # pylint: disable=unsubscriptable-object
 
 
-def trim_image_whitespace(image, padding=0):
+def trim_image_whitespace(image: Image.Image, padding: int = 0) -> Image.Image:
     """Crops and image to a minimal rectangle.
 
     This function takes a PIL image and crops it to the minimum rectangle based
@@ -71,7 +72,12 @@ def trim_image_whitespace(image, padding=0):
     return ImageOps.expand(image, border=padding, fill=(255, 255, 255))
 
 
-def mol_to_svg(mol, min_size=50, max_size=300, bond_length=25, padding=10):
+def mol_to_svg(  # pylint: disable=inconsistent-return-statements
+        mol: Chem.Mol,
+        min_size: int = 50,
+        max_size: int = 300,
+        bond_length: int = 25,
+        padding: int = 10) -> Optional[str]:
     """Creates a (cropped) SVG molecule drawing as a string.
 
     Args:
@@ -105,10 +111,12 @@ def mol_to_svg(mol, min_size=50, max_size=300, bond_length=25, padding=10):
     match = re.search(r'(<svg\s+.*</svg>)',
                       drawer.GetDrawingText(),
                       flags=re.DOTALL)
-    return match.group(1)
+    if match:
+        return match.group(1)
 
 
-def _draw_svg(mol, size_x, size_y, bond_length):
+def _draw_svg(mol: Chem.Mol, size_x: int, size_y: int,
+              bond_length: int) -> Draw.MolDraw2DSVG:
     """Creates a canvas and draws a SVG.
 
     Args:
@@ -118,7 +126,7 @@ def _draw_svg(mol, size_x, size_y, bond_length):
         bond_length: Integer bond length (in pixels).
 
     Returns:
-        MolDraw2DCairo.
+        MolDraw2DSVG.
     """
     drawer = Draw.MolDraw2DSVG(size_x, size_y)
     drawer.drawOptions().fixedBondLength = bond_length
@@ -128,7 +136,10 @@ def _draw_svg(mol, size_x, size_y, bond_length):
     return drawer
 
 
-def mol_to_png(mol, max_size=1000, bond_length=25, png_quality=70):
+def mol_to_png(mol: Chem.Mol,
+               max_size: int = 1000,
+               bond_length: int = 25,
+               png_quality: int = 70) -> str:
     """Creates a (cropped) PNG molecule drawing as a string.
 
     Args:
@@ -156,4 +167,4 @@ def mol_to_png(mol, max_size=1000, bond_length=25, png_quality=70):
     img.save(output, format='png', quality=png_quality)
     output.seek(0)
     b64 = base64.b64encode(output.getvalue())
-    return b64.decode("UTF-8")
+    return b64.decode('UTF-8')

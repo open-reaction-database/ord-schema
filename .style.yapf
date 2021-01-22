@@ -75,7 +75,7 @@ blank_line_before_nested_class_or_def=True
 #        'key1': 'value1',
 #        'key2': 'value2',
 #    })
-coalesce_brackets=False
+coalesce_brackets=True
 
 # The column limit.
 column_limit=80

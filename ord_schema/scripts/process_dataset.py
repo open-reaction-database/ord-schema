@@ -42,12 +42,13 @@ import dataclasses
 import glob
 import os
 import subprocess
+from typing import Iterable, List, Mapping, Set, Tuple
 
 from absl import app
 from absl import flags
 from absl import logging
 import github
-from google.protobuf import text_format
+from google.protobuf import text_format  # pytype: disable=import-error
 
 from ord_schema import data_storage
 from ord_schema import message_helpers
@@ -91,7 +92,7 @@ class FileStatus:
             raise ValueError(f'unsupported file status: {self.status}')
 
 
-def _get_inputs():
+def _get_inputs() -> List[FileStatus]:
     """Gets a list of Dataset proto filenames to process.
 
     Returns:
@@ -128,7 +129,7 @@ def _get_inputs():
     raise ValueError('one of --input_pattern or --input_file is required')
 
 
-def cleanup(filename, output_filename):
+def cleanup(filename: str, output_filename: str):
     """Removes and/or renames the input Dataset files.
 
     Args:
@@ -143,7 +144,7 @@ def cleanup(filename, output_filename):
     subprocess.run(args, check=True)
 
 
-def _get_reaction_ids(dataset):
+def _get_reaction_ids(dataset: dataset_pb2.Dataset) -> Set[str]:
     """Returns a set containing the reaction IDs in a Dataset."""
     reaction_ids = set()
     for reaction in dataset.reactions:
@@ -152,7 +153,8 @@ def _get_reaction_ids(dataset):
     return reaction_ids
 
 
-def _load_base_dataset(file_status, base):
+def _load_base_dataset(file_status: FileStatus,
+                       base: str) -> dataset_pb2.Dataset:
     """Loads a Dataset message from another branch."""
     if file_status.status.startswith('A'):
         return None  # Dataset only exists in the submission.
@@ -170,7 +172,9 @@ def _load_base_dataset(file_status, base):
     return text_format.Parse(dataset_pbtxt.stdout, dataset_pb2.Dataset())
 
 
-def get_change_stats(datasets, inputs, base):
+def get_change_stats(datasets: Mapping[str, dataset_pb2.Dataset],
+                     inputs: Iterable[FileStatus],
+                     base: str) -> Tuple[Set[str], Set[str], Set[str]]:
     """Computes diff statistics for the submission.
 
     Args:
@@ -193,7 +197,7 @@ def get_change_stats(datasets, inputs, base):
     return new - old, old - new, new & old
 
 
-def _run_updates(datasets):
+def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset]):
     """Updates the submission files.
 
     Args:
@@ -237,7 +241,7 @@ def _run_updates(datasets):
     subprocess.run(args, check=True)
 
 
-def run():
+def run() -> Tuple[Set[str], Set[str], Set[str]]:
     """Main function that returns added/removed reaction ID sets.
 
     This function should be called directly by tests to get access to the

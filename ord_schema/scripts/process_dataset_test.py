@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for ord_schema.process_dataset."""
+"""Tests for ord_schema.scripts.process_dataset."""
 
 import glob
 import os
@@ -25,10 +25,10 @@ from absl.testing import flagsaver
 from rdkit import RDLogger
 
 from ord_schema import message_helpers
-from ord_schema import process_dataset
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
+from ord_schema.scripts import process_dataset
 
 
 class ProcessDatasetTest(absltest.TestCase):
