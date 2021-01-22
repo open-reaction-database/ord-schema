@@ -235,7 +235,7 @@ def find_submessages(message: ord_schema.Message,
     Raises:
         TypeError: if `submessage_type` is not a protocol buffer type.
     """
-    if not issubclass(submessage_type, protobuf.message.Message):
+    if not issubclass(submessage_type, ord_schema.Message):
         raise TypeError('submessage_type must be a Protocol Buffer type')
     submessage_name = submessage_type.DESCRIPTOR.full_name
     submessages = []
