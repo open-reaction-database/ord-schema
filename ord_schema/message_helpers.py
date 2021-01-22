@@ -16,7 +16,7 @@
 import enum
 import os
 import re
-from typing import Dict, Iterable, List, Optional, Tuple, Type, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Type, TypeVar, Union
 import warnings
 
 import flask
@@ -36,6 +36,7 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
+T = TypeVar('T')  # Generic for setting return types.
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -220,9 +221,8 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
     return data
 
 
-def find_submessages(
-    message: ord_schema.Message, submessage_type: Type[ord_schema.MessageType]
-) -> List[ord_schema.MessageType]:
+def find_submessages(message: ord_schema.Message,
+                     submessage_type: Type[T]) -> List[T]:
     """Recursively finds all submessages of a specified type.
 
     Args:
@@ -707,9 +707,7 @@ class MessageFormat(enum.Enum):
 
 
 # pylint: disable=inconsistent-return-statements
-def load_message(
-        filename: str,
-        message_type: Type[ord_schema.MessageType]) -> ord_schema.MessageType:
+def load_message(filename: str, message_type: Type[T]) -> T:
     """Loads a protocol buffer message from a file.
 
     Args:

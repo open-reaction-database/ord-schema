@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Generic helpers for ord_schema, including common message types."""
-from typing import TypeVar, Union
+from typing import Union
 
 from google.protobuf import descriptor
 import google.protobuf.message
@@ -23,7 +23,6 @@ from ord_schema.proto import reaction_pb2
 FieldDescriptor = descriptor.FieldDescriptor
 Message = google.protobuf.message.Message
 ScalarType = Union[str, bytes, float, int, bool]
-MessageType = TypeVar('MessageType')  # Generic for setting return types.
 
 # Messages with 'type' and 'details' fields.
 TypeDetailsMessage = Union[
