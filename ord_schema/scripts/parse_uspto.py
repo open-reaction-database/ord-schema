@@ -18,9 +18,9 @@ Data is at https://figshare.com/articles/dataset/Chemical_reactions_from_US_pate
 See also https://depth-first.com/articles/2019/01/28/the-nextmove-patent-reaction-dataset/.
 """
 
-import collections
 import glob
 import re
+from typing import Dict
 from xml.etree import ElementTree
 
 from absl import app
@@ -55,36 +55,59 @@ def get_tag(element):
     return element.tag
 
 
+def get_molecule_id(root):
+    molecules = root.findall('cml:molecule', namespaces=NAMESPACES)
+    if len(molecules) != 1:
+        raise NotImplementedError(len(molecules))
+    return molecules[0].attrib['id']
+
+
+def get_component_map(root: ElementTree.ElementTree) -> Dict[str, str]:
+    """Builds a map of components to inputs."""
+    reaction_inputs = {}
+    # Start with a separate input for each component.
+    for component in root.find('cml:reactantList', namespaces=NAMESPACES):
+        molecule_id = get_molecule_id(component)
+        reaction_inputs[molecule_id] = molecule_id
+    for action in root.find('dl:reactionActionList', namespaces=NAMESPACES):
+        components = []
+        for component in action.findall('dl:chemical', namespaces=NAMESPACES):
+            if 'ref' in component.attrib:
+                components.append(component.attrib['ref'])
+        if components:
+            key = '_'.join(components)
+            for component in components:
+                reaction_inputs[component] = key
+    return reaction_inputs
+
+
 def parse_reaction(root):
     """Parses reaction CML into a Reaction message.
 
-    Input components are grouped by reading the reactionActionList; this also
-    provides an indication of addition order.
+    Input components are grouped by reading the reactionActionList.
     """
     reaction = reaction_pb2.Reaction()
+    component_map = get_component_map(root)
     for child in root:
         tag = get_tag(child)
         if tag == 'dl:source':
             parse_source(child, reaction)
+        elif tag == 'dl:reactionSmiles':
+            reaction.identifiers.add(type='REACTION_SMILES', value=child.text)
         elif tag == 'cml:productList':
             outcome = reaction.outcomes.add()  # Add a single outcome.
             for product in child:
                 parse_product(product, outcome.products.add())
-        elif tag == 'cml:reactantList':
-            for i, reactant in enumerate(child):
-                # Treat each reactant as a separate input.
-                reaction_input = reaction.inputs[f'reactant_{i}']
-                parse_reactant(reactant, reaction_input.components.add())
-        elif tag == 'cml:spectatorList':
-            for i, spectator in enumerate(child):
-                # Treat each spectator as a separate input.
-                reaction_input = reaction.inputs[f'spectator_{i}']
-                parse_reactant(spectator, reaction_input.components.add())
+        elif tag in ['cml:reactantList', 'cml:spectatorList']:
+            for compound in child:
+                molecule_id = get_molecule_id(compound)
+                reaction_input = reaction.inputs[component_map[molecule_id]]
+                parse_reactant(compound, reaction_input.components.add())
         elif tag == 'dl:reactionActionList':
             for action in child:
                 parse_action(action, reaction)
-        # else:
-        #     raise NotImplementedError(child)
+        else:
+            raise NotImplementedError(child)
     return reaction
 
 
@@ -100,6 +123,11 @@ def parse_source(root, reaction):
 
 
 def parse_product(root, product_compound):
+    role = root.attrib.get('role')
+    if role == 'product':
+        product_compound.reaction_role = reaction_pb2.ReactionRole.PRODUCT
+    elif role:
+        raise NotImplementedError(role)
     for child in root:
         tag = get_tag(child)
         if tag == 'dl:entityType':
@@ -157,6 +185,13 @@ def parse_product_state(root, product_compound):
 
 
 def parse_reactant(root, compound):
+    role = root.attrib.get('role')
+    if role == 'reactant':
+        compound.reaction_role = reaction_pb2.ReactionRole.REACTANT
+    elif role == 'solvent':
+        compound.reaction_role = reaction_pb2.ReactionRole.SOLVENT
+    elif role:
+        raise NotImplementedError(role)
     for child in root:
         tag = get_tag(child)
         if tag == 'dl:entityType':
@@ -192,7 +227,7 @@ def parse_amount(root, compound):
 
 
 def parse_action(root, reaction):
-
+    pass
 
 
 def main(argv):
