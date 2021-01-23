@@ -47,6 +47,13 @@ NAMESPACES = {
 
 UNIT_RESOLVER = units.UnitResolver()
 
+REACTION_ROLES = {
+    'reactant': reaction_pb2.ReactionRole.REACTANT,
+    'solvent': reaction_pb2.ReactionRole.SOLVENT,
+    'catalyst': reaction_pb2.ReactionRole.CATALYST,
+    'product': reaction_pb2.ReactionRole.PRODUCT,
+}
+
 WORKUP_TYPES = {
     'Extract': reaction_pb2.ReactionWorkup.EXTRACTION,
     'Stir': reaction_pb2.ReactionWorkup.STIRRING,
@@ -59,6 +66,10 @@ WORKUP_TYPES = {
     'Filter': reaction_pb2.ReactionWorkup.FILTRATION,
     'Purify': reaction_pb2.ReactionWorkup.CUSTOM,
     'Distill': reaction_pb2.ReactionWorkup.DISTILLATION,
+    'Dissolve': reaction_pb2.ReactionWorkup.DISSOLUTION,
+    'Yield': None,
+    'Recover': reaction_pb2.ReactionWorkup.CUSTOM,
+    'Precipitate': reaction_pb2.ReactionWorkup.CUSTOM,
 }
 
 
@@ -141,10 +152,8 @@ def parse_source(root, reaction):
 
 def parse_product(root, product_compound):
     role = root.attrib.get('role')
-    if role == 'product':
-        product_compound.reaction_role = reaction_pb2.ReactionRole.PRODUCT
-    elif role:
-        raise NotImplementedError(role)
+    if role:
+        product_compound.reaction_role = REACTION_ROLES[role]
     for child in root:
         tag = get_tag(child)
         if tag == 'dl:entityType':
@@ -206,12 +215,8 @@ def parse_product_state(root, product_compound):
 
 def parse_reactant(root, compound):
     role = root.attrib.get('role')
-    if role == 'reactant':
-        compound.reaction_role = reaction_pb2.ReactionRole.REACTANT
-    elif role == 'solvent':
-        compound.reaction_role = reaction_pb2.ReactionRole.SOLVENT
-    elif role:
-        raise NotImplementedError(role)
+    if role:
+        compound.reaction_role = REACTION_ROLES[role]
     for child in root:
         tag = get_tag(child)
         if tag == 'dl:entityType':
@@ -269,12 +274,15 @@ def parse_workup(root, reaction):
     if action in ['Add', 'Dissolve'] and not components:
         return
     details = root.find('dl:phraseText', namespaces=NAMESPACES)
-    if action == 'Purify' and details:
+    if action in ['Purify', 'Recover'] and details:
+        # Make some actions more specific.
         # TODO(kearnes): This could be expanded.
         if 'distill' in details.lower():
             action = 'Distill'
+        elif 'filtration' in details.lower():
+            action = 'Filter'
         else:
-            logging.info(f'PURIFY: {details}')
+            logging.info(f'{action}: {details}')
     if not WORKUP_TYPES[action]:
         return
     workup = reaction.workups.add(type=WORKUP_TYPES[action])
