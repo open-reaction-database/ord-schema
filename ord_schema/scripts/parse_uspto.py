@@ -47,6 +47,14 @@ NAMESPACES = {
 
 UNIT_RESOLVER = units.UnitResolver()
 
+WORKUP_TYPES = {
+    'Extract': reaction_pb2.ReactionWorkup.EXTRACTION,
+    'Stir': reaction_pb2.ReactionWorkup.STIRRING,
+    'Wash': reaction_pb2.ReactionWorkup.WASH,
+    'Dry with material': reaction_pb2.ReactionWorkup.DRY_WITH_MATERIAL,
+    'Remove': reaction_pb2.ReactionWorkup.CUSTOM,
+}
+
 
 def get_tag(element):
     for key, value in NAMESPACES.items():
@@ -227,7 +235,43 @@ def parse_amount(root, compound):
 
 
 def parse_action(root, reaction):
-    pass
+    if root.findall('dl:chemical', namespaces=NAMESPACES):
+        return  # Refers to an input component; not a workup.
+    action = root.attrib['action']
+    if action == 'Dry':
+        if root.findall('cml:chemical', namespaces=NAMESPACES):
+            action = 'Dry with material'
+        else:
+            raise NotImplementedError(action)
+    if not WORKUP_TYPES[action]:
+        return
+    workup = reaction.workups.add(type=WORKUP_TYPES[action])
+    for child in root:
+        tag = get_tag(child)
+        if tag == 'cml:chemical':
+            compound = workup.input.components.add()
+            parse_reactant(child, compound)
+            compound.reaction_role = reaction_pb2.ReactionRole.WORKUP
+        elif tag == 'dl:phraseText':
+            workup.details = child.text
+        elif tag == 'dl:parameter':
+            parse_parameter(child, workup)
+        else:
+            raise NotImplementedError(child)
+
+
+def parse_parameter(root: ElementTree.Element, workup: reaction_pb2.ReactionWorkup):
+    kind = root.attrib['propertyType']
+    if kind == 'Time':
+        workup.duration.CopyFrom(UNIT_RESOLVER.resolve(root.text))
+    elif kind == 'Temperature':
+        if root.text == 'room temperature':
+            workup.temperature.control.type = (
+                reaction_pb2.TemperatureConditions.TemperatureControl.AMBIENT)
+        else:
+            raise NotImplementedError(root.text)
+    else:
+        raise NotImplementedError(kind)
 
 
 def main(argv):
