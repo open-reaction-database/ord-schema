@@ -70,6 +70,9 @@ WORKUP_TYPES = {
     'Yield': None,
     'Recover': reaction_pb2.ReactionWorkup.CUSTOM,
     'Precipitate': reaction_pb2.ReactionWorkup.CUSTOM,
+    'ApparatusAction': None,
+    'Heat': None,
+    'Wait': None,
 }
 
 
@@ -92,6 +95,9 @@ def get_component_map(root: ElementTree.ElementTree) -> Dict[str, str]:
     reaction_inputs = {}
     # Start with a separate input for each component.
     for component in root.find('cml:reactantList', namespaces=NAMESPACES):
+        molecule_id = get_molecule_id(component)
+        reaction_inputs[molecule_id] = molecule_id
+    for component in root.find('cml:spectatorList', namespaces=NAMESPACES):
         molecule_id = get_molecule_id(component)
         reaction_inputs[molecule_id] = molecule_id
     for action in root.find('dl:reactionActionList', namespaces=NAMESPACES):
@@ -265,7 +271,11 @@ def parse_workup(root, reaction):
     if root.findall('dl:chemical', namespaces=NAMESPACES):
         return  # Refers to an input component; not a workup.
     action = root.attrib['action']
-    components = root.findall('cml:chemical', namespaces=NAMESPACES)
+    components = []
+    for component in root.findall('cml:chemical', namespaces=NAMESPACES):
+        entity_type = component.find('dl:entityType', namespaces=NAMESPACES)
+        if entity_type.text in ['exact', 'chemicalClass', 'definiteReference']:
+            components.append(component)
     if action == 'Dry':
         if components:
             action = 'Dry with material'
@@ -286,16 +296,22 @@ def parse_workup(root, reaction):
     if not WORKUP_TYPES[action]:
         return
     workup = reaction.workups.add(type=WORKUP_TYPES[action])
+    for component in components:
+        compound = workup.input.components.add()
+        parse_reactant(component, compound)
+        compound.reaction_role = reaction_pb2.ReactionRole.WORKUP
     for child in root:
         tag = get_tag(child)
         if tag == 'cml:chemical':
-            compound = workup.input.components.add()
-            parse_reactant(child, compound)
-            compound.reaction_role = reaction_pb2.ReactionRole.WORKUP
+            continue  # Components are handled all together above.
         elif tag == 'dl:phraseText':
             workup.details = child.text
         elif tag == 'dl:parameter':
-            parse_parameter(child, workup)
+            try:
+                parse_parameter(child, workup)
+            except ValueError as error:
+                logging.error(
+                    f'PARAMETER: {ElementTree.tostring(child)}: {error}')
         else:
             raise NotImplementedError(child)
 
