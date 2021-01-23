@@ -43,6 +43,15 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
         self.assertEqual(self._resolver.resolve(string), expected)
 
     @parameterized.named_parameters(
+        ('integer', '1-2 h',
+         reaction_pb2.Time(value=1.5,
+                           precision=0.5,
+                           units=reaction_pb2.Time.HOUR)))
+    def test_resolve_allow_range(self, string, expected):
+        self.assertEqual(self._resolver.resolve(string, allow_range=True),
+                         expected)
+
+    @parameterized.named_parameters(
         ('bad units', '1.21 GW', 'unrecognized units'),
         ('multiple matches', '15.0 ML 20.0 L',
          'string does not contain a value with units'),

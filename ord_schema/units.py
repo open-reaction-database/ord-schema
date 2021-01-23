@@ -16,6 +16,8 @@
 import re
 from typing import Iterable, Mapping, Optional, Type
 
+import numpy as np
+
 import ord_schema
 from ord_schema.proto import reaction_pb2
 
@@ -146,14 +148,20 @@ class UnitResolver:
                     self._resolver[string_unit] = (message, unit)
         # Values must have zero or one decimal point. Whitespace between the
         # value and the unit is optional.
-        self._pattern = re.compile(r'(\d+.?\d*)\s*(\w+)')
+        self._pattern = re.compile(
+            r'(\d+\.?\d*)(?:-(\d+\.?\d*))?\s*([\w\sμ°]+)')
 
-    def resolve(self, string: str) -> ord_schema.UnitMessage:
+    def resolve(self,
+                string: str,
+                allow_range: bool = False) -> ord_schema.UnitMessage:
         """Resolves a string into a message containing a value with units.
 
         Args:
             string: The string to parse; must contain a numeric value and a
                 string unit. For example: "1.25 h".
+            allow_range: If True, ranges like "1-2 h" can be provided and the
+                average value will be reported along with the standard
+                deviation.
 
         Returns:
             Message containing a numeric value with units listed in the schema.
@@ -166,7 +174,15 @@ class UnitResolver:
         if not match:
             raise ValueError(
                 f'string does not contain a value with units: {string}')
-        value, string_unit = match.groups()
+        value, range_value, string_unit = match.groups()
+        precision = None
+        if range_value is not None:
+            if not allow_range:
+                raise ValueError('string appears to contain a range of values '
+                                 f'but allow_range is False: {string}')
+            values = np.asarray([value, range_value], dtype=float)
+            value = values.mean()
+            precision = values.std()
         assert string_unit is not None  # Type hint.
         string_unit = string_unit.lower()
         if string_unit in self._forbidden_units:
@@ -175,6 +191,8 @@ class UnitResolver:
         if string_unit not in self._resolver:
             raise KeyError(f'unrecognized units: {string_unit}')
         message, unit = self._resolver[string_unit]
+        if precision:
+            return message(value=value, precision=precision, units=unit)
         return message(value=float(value), units=unit)
 
 

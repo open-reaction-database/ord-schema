@@ -53,6 +53,12 @@ WORKUP_TYPES = {
     'Wash': reaction_pb2.ReactionWorkup.WASH,
     'Dry with material': reaction_pb2.ReactionWorkup.DRY_WITH_MATERIAL,
     'Remove': reaction_pb2.ReactionWorkup.CUSTOM,
+    'Synthesize': None,
+    'Add': reaction_pb2.ReactionWorkup.ADDITION,
+    'Partition': reaction_pb2.ReactionWorkup.CUSTOM,
+    'Filter': reaction_pb2.ReactionWorkup.FILTRATION,
+    'Purify': reaction_pb2.ReactionWorkup.CUSTOM,
+    'Distill': reaction_pb2.ReactionWorkup.DISTILLATION,
 }
 
 
@@ -113,7 +119,8 @@ def parse_reaction(root):
                 parse_reactant(compound, reaction_input.components.add())
         elif tag == 'dl:reactionActionList':
             for action in child:
-                parse_action(action, reaction)
+                parse_conditions(action, reaction)
+                parse_workup(action, reaction)
         else:
             raise NotImplementedError(child)
     return reaction
@@ -126,6 +133,8 @@ def parse_source(root, reaction):
             reaction.provenance.patent = child.text
         elif tag == 'dl:paragraphText':
             reaction.notes.procedure_details = child.text
+        elif tag in ['dl:headingText']:
+            continue  # Ignored.
         else:
             raise NotImplementedError(child)
 
@@ -139,7 +148,9 @@ def parse_product(root, product_compound):
     for child in root:
         tag = get_tag(child)
         if tag == 'dl:entityType':
-            if child.text not in ['exact', 'chemicalClass']:
+            if child.text not in [
+                    'exact', 'chemicalClass', 'definiteReference'
+            ]:
                 raise NotImplementedError(child.text)
             continue
         elif tag == 'cml:molecule':
@@ -157,7 +168,7 @@ def parse_product(root, product_compound):
 def parse_molecule(root, compound):
     for child in root:
         tag = get_tag(child)
-        if tag == 'cml:name':
+        if tag in ['cml:name', 'dl:nameResolved']:
             compound.identifiers.add(type='NAME', value=child.text)
         else:
             raise NotImplementedError(child)
@@ -165,9 +176,10 @@ def parse_molecule(root, compound):
 
 def parse_product_amount(root, product_compound):
     measurement = product_compound.measurements.add()
-    match = re.fullmatch(r'([\d.]+)% yield', root.text)
-    if match:
+    property_type = root.attrib[f'{{{NAMESPACES["dl"]}}}propertyType']
+    if 'PERCENTYIELD' in property_type:
         measurement.type = measurement.YIELD
+        match = re.search(r'([\d.]+)', root.text)
         measurement.percentage.value = float(match.group(1))
     else:
         parse_amount(root, measurement)
@@ -203,7 +215,9 @@ def parse_reactant(root, compound):
     for child in root:
         tag = get_tag(child)
         if tag == 'dl:entityType':
-            if child.text not in ['exact', 'chemicalClass']:
+            if child.text not in [
+                    'exact', 'chemicalClass', 'definiteReference'
+            ]:
                 raise NotImplementedError(child.text)
             continue
         elif tag == 'cml:molecule':
@@ -217,13 +231,15 @@ def parse_reactant(root, compound):
 
 
 def parse_amount(root, compound):
+    property_type = root.attrib[f'{{{NAMESPACES["dl"]}}}propertyType']
+    if property_type in ['MOLARITY', 'PH']:
+        return
     if compound.amount.WhichOneof('kind') not in ['mass', 'volume']:
         # Don't overwrite existing Mass or Volume with Moles.
         try:
-            amount = UNIT_RESOLVER.resolve(root.text)
+            amount = UNIT_RESOLVER.resolve(root.text, allow_range=True)
         except (KeyError, ValueError) as error:
-            logging.info(f'{root.text}: {error}')
-            return
+            raise ValueError(ElementTree.dump(root)) from error
         if isinstance(amount, reaction_pb2.Mass):
             compound.amount.mass.CopyFrom(amount)
         elif isinstance(amount, reaction_pb2.Moles):
@@ -234,15 +250,31 @@ def parse_amount(root, compound):
             raise NotImplementedError(amount)
 
 
-def parse_action(root, reaction):
+def parse_conditions(root, reaction):
+    if not root.findall('cml:chemical', namespaces=NAMESPACES):
+        return  # Refers to an added component; is a workup.
+    # TODO(kearnes): Finish this.
+
+
+def parse_workup(root, reaction):
     if root.findall('dl:chemical', namespaces=NAMESPACES):
         return  # Refers to an input component; not a workup.
     action = root.attrib['action']
+    components = root.findall('cml:chemical', namespaces=NAMESPACES)
     if action == 'Dry':
-        if root.findall('cml:chemical', namespaces=NAMESPACES):
+        if components:
             action = 'Dry with material'
         else:
             raise NotImplementedError(action)
+    if action in ['Add', 'Dissolve'] and not components:
+        return
+    details = root.find('dl:phraseText', namespaces=NAMESPACES)
+    if action == 'Purify' and details:
+        # TODO(kearnes): This could be expanded.
+        if 'distill' in details.lower():
+            action = 'Distill'
+        else:
+            logging.info(f'PURIFY: {details}')
     if not WORKUP_TYPES[action]:
         return
     workup = reaction.workups.add(type=WORKUP_TYPES[action])
@@ -260,16 +292,20 @@ def parse_action(root, reaction):
             raise NotImplementedError(child)
 
 
-def parse_parameter(root: ElementTree.Element, workup: reaction_pb2.ReactionWorkup):
+def parse_parameter(root: ElementTree.Element,
+                    workup: reaction_pb2.ReactionWorkup):
     kind = root.attrib['propertyType']
     if kind == 'Time':
-        workup.duration.CopyFrom(UNIT_RESOLVER.resolve(root.text))
+        workup.duration.CopyFrom(
+            UNIT_RESOLVER.resolve(root.text, allow_range=True))
     elif kind == 'Temperature':
         if root.text == 'room temperature':
             workup.temperature.control.type = (
                 reaction_pb2.TemperatureConditions.TemperatureControl.AMBIENT)
         else:
-            raise NotImplementedError(root.text)
+            value = root.text.rstrip('.').replace('° ', '°')
+            workup.temperature.setpoint.CopyFrom(
+                UNIT_RESOLVER.resolve(value, allow_range=True))
     else:
         raise NotImplementedError(kind)
 
@@ -283,9 +319,11 @@ def main(argv):
         root = tree.getroot()
         for reaction_cml in root.iterfind('cml:reaction',
                                           namespaces=NAMESPACES):
-            reaction = parse_reaction(reaction_cml)
+            try:
+                reaction = parse_reaction(reaction_cml)
+            except (KeyError, NotImplementedError) as error:
+                raise ValueError(ElementTree.dump(reaction_cml)) from error
             reactions.append(reaction)
-            assert False, reaction
     dataset = dataset_pb2.Dataset(reactions=reactions)
     if FLAGS.output:
         message_helpers.write_message(dataset, FLAGS.output)
