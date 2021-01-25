@@ -17,10 +17,12 @@ import os
 import re
 import jinja2
 
+from ord_schema.proto import reaction_pb2
 from ord_schema.visualization import filters
 
 
-def _generate(reaction, template_string, line_breaks):
+def _generate(reaction: reaction_pb2.Reaction, template_string: str,
+              line_breaks: bool) -> str:
     """Renders a Jinja2 template string with a reaction message.
 
     Args:
@@ -45,7 +47,7 @@ def _generate(reaction, template_string, line_breaks):
     return text
 
 
-def generate_text(reaction):
+def generate_text(reaction: reaction_pb2.Reaction) -> str:
     """Generates a textual reaction description."""
     with open(os.path.join(os.path.dirname(__file__), 'template.txt'),
               'r') as f:
@@ -53,7 +55,7 @@ def generate_text(reaction):
     return _generate(reaction, template_string=template, line_breaks=False)
 
 
-def generate_html(reaction):
+def generate_html(reaction: reaction_pb2.Reaction) -> str:
     """Generates an HTML reaction description."""
     with open(os.path.join(os.path.dirname(__file__), 'template.html'),
               'r') as f:

@@ -37,7 +37,7 @@ jobs:
       - uses: s-weigand/setup-conda@v1
         with:
           python-version: 3.7
-      - name: yapf
+      - name: Run yapf
         run: |
           cd "${GITHUB_WORKSPACE}"
           pip install yapf
@@ -49,11 +49,16 @@ jobs:
           pip install -r test_requirements.txt
           conda install -c rdkit rdkit
           python setup.py install
-      - name: pylint
+      - name: Run pylint
         run: |
           cd "${GITHUB_WORKSPACE}"
           pip install flask pylint
           pylint examples ord_schema *.py
+      - name: Run pytype
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          pip install pytype
+          pytype --config=pytype.cfg
 
   check_proto:
     runs-on: ubuntu-latest

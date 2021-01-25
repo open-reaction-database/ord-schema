@@ -14,9 +14,7 @@
 """Tests for ord_schema.message_helpers."""
 
 import os
-import tempfile
 
-from absl import flags
 from absl.testing import absltest
 from absl.testing import flagsaver
 from absl.testing import parameterized
@@ -31,7 +29,7 @@ class GenerateTextTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
+        self.test_subdirectory = self.create_tempdir()
         self._resolver = units.UnitResolver()
         reaction = reaction_pb2.Reaction()
         reaction.setup.is_automated = True
@@ -69,19 +67,22 @@ class GenerateTextTest(parameterized.TestCase, absltest.TestCase):
         self._input = os.path.join(self.test_subdirectory, 'reaction.pbtxt')
         message_helpers.write_message(self._reaction, self._input)
 
+    @parameterized.parameters('text', 'html')
+    def test_main(self, output_type):
+        with flagsaver.flagsaver(input=self._input, output_type=output_type):
+            generate_text.main(())
+
     @parameterized.parameters(
-        ('text', None),
         ('text', 'test.txt'),
-        ('html', None),
         ('html', 'test.html'),
     )
-    def test_main(self, output_type, output):
+    def test_main_with_output(self, output_type, output):
+        output_filename = os.path.join(self.test_subdirectory, output)
         with flagsaver.flagsaver(input=self._input,
                                  output_type=output_type,
-                                 output=output):
+                                 output=output_filename):
             generate_text.main(())
-        if output:
-            self.assertTrue(os.path.exists(output))
+        self.assertTrue(os.path.exists(output_filename))
 
 
 if __name__ == '__main__':

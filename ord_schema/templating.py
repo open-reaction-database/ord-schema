@@ -21,16 +21,19 @@ spreadsheet file.
 
 import os
 import re
+from typing import BinaryIO, Mapping, Optional, Union
 
 import pandas as pd
-from google.protobuf import text_format
+from google.protobuf import text_format  # pytype: disable=import-error
 
+import ord_schema
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 
-def read_spreadsheet(file_name_or_buffer, suffix=None):
+def read_spreadsheet(file_name_or_buffer: Union[str, BinaryIO],
+                     suffix: Optional[str] = None) -> pd.DataFrame:
     """Reads a {csv, xls, xlsx} spreadsheet file.
 
     Args:
@@ -48,28 +51,16 @@ def read_spreadsheet(file_name_or_buffer, suffix=None):
     return pd.read_csv(file_name_or_buffer)
 
 
-def _escape(string):
-    """Converts single backslashes to double backslashes.
-
-    Note that we do not do a full re.escape because only backslashes are
-    problematic.
-
-    Args:
-        string: String to escape.
-
-    Returns:
-        Updated string with escaped backslashes.
-    """
-    return string.replace('\\', '\\\\')
-
-
-def _is_null(value):
+def _is_null(value: Union[float, str]) -> bool:
     """Returns whether a value is null."""
     return pd.isnull(value) or (isinstance(value, str) and
                                 (value == 'nan' or not value.strip()))
 
 
-def _fill_template(string, substitutions):
+def _fill_template(
+    string: str,
+    substitutions: Mapping[str,
+                           ord_schema.ScalarType]) -> reaction_pb2.Reaction:
     """Performs substring substitutions according to a dictionary.
 
     If any pattern has a null replacement value (i.e. this is an empty cell in
@@ -101,7 +92,7 @@ def _fill_template(string, substitutions):
     for pattern, value in substitutions.items():
         if pd.isnull(value):
             check_null = True
-        string = string.replace(pattern, _escape(str(value)))
+        string = string.replace(pattern, repr(value).strip('\''))
     try:
         reaction = text_format.Parse(string, reaction_pb2.Reaction())
     except text_format.ParseError as error:
@@ -125,7 +116,9 @@ def _fill_template(string, substitutions):
     return reaction
 
 
-def generate_dataset(template_string, df, validate=True):
+def generate_dataset(template_string: str,
+                     df: pd.DataFrame,
+                     validate: bool = True) -> dataset_pb2.Dataset:
     """Generates a Dataset by enumerating a template reaction.
 
     Args:
