@@ -55,24 +55,28 @@ REACTION_ROLES = {
 }
 
 WORKUP_TYPES = {
-    'Extract': reaction_pb2.ReactionWorkup.EXTRACTION,
-    'Stir': reaction_pb2.ReactionWorkup.STIRRING,
-    'Wash': reaction_pb2.ReactionWorkup.WASH,
-    'Dry with material': reaction_pb2.ReactionWorkup.DRY_WITH_MATERIAL,
-    'Remove': reaction_pb2.ReactionWorkup.CUSTOM,
-    'Synthesize': None,
     'Add': reaction_pb2.ReactionWorkup.ADDITION,
-    'Partition': reaction_pb2.ReactionWorkup.CUSTOM,
-    'Filter': reaction_pb2.ReactionWorkup.FILTRATION,
-    'Purify': reaction_pb2.ReactionWorkup.CUSTOM,
-    'Distill': reaction_pb2.ReactionWorkup.DISTILLATION,
-    'Dissolve': reaction_pb2.ReactionWorkup.DISSOLUTION,
-    'Yield': None,
-    'Recover': reaction_pb2.ReactionWorkup.CUSTOM,
-    'Precipitate': reaction_pb2.ReactionWorkup.CUSTOM,
     'ApparatusAction': None,
-    'Heat': None,
+    'Cool': reaction_pb2.ReactionWorkup.TEMPERATURE,
+    'Degass': None,
+    'Dissolve': reaction_pb2.ReactionWorkup.DISSOLUTION,
+    'Distill': reaction_pb2.ReactionWorkup.DISTILLATION,
+    'Dry': reaction_pb2.ReactionWorkup.CUSTOM,
+    'Dry with material': reaction_pb2.ReactionWorkup.DRY_WITH_MATERIAL,
+    'Extract': reaction_pb2.ReactionWorkup.EXTRACTION,
+    'Filter': reaction_pb2.ReactionWorkup.FILTRATION,
+    'Heat': reaction_pb2.ReactionWorkup.TEMPERATURE,
+    'Partition': reaction_pb2.ReactionWorkup.CUSTOM,
+    'Precipitate': reaction_pb2.ReactionWorkup.CUSTOM,
+    'Purify': reaction_pb2.ReactionWorkup.CUSTOM,
+    'Recover': reaction_pb2.ReactionWorkup.CUSTOM,
+    'Remove': reaction_pb2.ReactionWorkup.CUSTOM,
+    'Stir': reaction_pb2.ReactionWorkup.STIRRING,
+    'Synthesize': None,
+    'Unknown': reaction_pb2.ReactionWorkup.CUSTOM,
     'Wait': None,
+    'Wash': reaction_pb2.ReactionWorkup.WASH,
+    'Yield': None,
 }
 
 
@@ -176,6 +180,8 @@ def parse_product(root, product_compound):
             parse_identifier(child, product_compound)
         elif tag == 'dl:state':
             parse_product_state(child, product_compound)
+        elif tag == 'dl:appearance':
+            product_compound.isolated_color = child.text
         else:
             raise NotImplementedError(child)
 
@@ -250,7 +256,8 @@ def parse_amount(root, compound):
         try:
             amount = UNIT_RESOLVER.resolve(root.text, allow_range=True)
         except (KeyError, ValueError) as error:
-            raise ValueError(ElementTree.dump(root)) from error
+            logging.info(f'UNITS: {error}')
+            return
         if isinstance(amount, reaction_pb2.Mass):
             compound.amount.mass.CopyFrom(amount)
         elif isinstance(amount, reaction_pb2.Moles):
@@ -276,11 +283,8 @@ def parse_workup(root, reaction):
         entity_type = component.find('dl:entityType', namespaces=NAMESPACES)
         if entity_type.text in ['exact', 'chemicalClass', 'definiteReference']:
             components.append(component)
-    if action == 'Dry':
-        if components:
-            action = 'Dry with material'
-        else:
-            raise NotImplementedError(action)
+    if action == 'Dry' and components:
+        action = 'Dry with material'
     if action in ['Add', 'Dissolve'] and not components:
         return
     details = root.find('dl:phraseText', namespaces=NAMESPACES)
@@ -330,6 +334,8 @@ def parse_parameter(root: ElementTree.Element,
             value = root.text.rstrip('.').replace('° ', '°')
             workup.temperature.setpoint.CopyFrom(
                 UNIT_RESOLVER.resolve(value, allow_range=True))
+    elif kind in ['Pressure']:
+        return  # Not supported in ReactionWorkup.
     else:
         raise NotImplementedError(kind)
 
