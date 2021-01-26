@@ -358,11 +358,14 @@ def parse_workup(root: ElementTree.Element, reaction: reaction_pb2.Reaction):
     components = []
     for component in root.findall('cml:chemical', namespaces=NAMESPACES):
         entity_type = component.find('dl:entityType', namespaces=NAMESPACES)
+        assert entity_type is not None  # Type hint.
         if entity_type.text in ['exact', 'chemicalClass', 'definiteReference']:
             components.append(component)
     if action == 'Dry' and components:
         action = 'Dry with material'
     details = root.find('dl:phraseText', namespaces=NAMESPACES)
+    assert details is not None  # Type hint.
+    details = details.text
     if action in ['Purify', 'Recover'] and details:
         # Make some actions more specific.
         # TODO(kearnes): This could be expanded.
