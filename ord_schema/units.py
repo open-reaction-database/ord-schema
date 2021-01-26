@@ -25,12 +25,13 @@ from ord_schema.proto import reaction_pb2
 # lowercase.
 _UNIT_SYNONYMS = {
     reaction_pb2.Time: {
+        reaction_pb2.Time.DAY: ['d', 'day', 'days'],
         reaction_pb2.Time.HOUR: ['h', 'hour', 'hours', 'hr', 'hrs'],
         reaction_pb2.Time.MINUTE: ['min', 'mins', 'minute', 'minutes'],
         reaction_pb2.Time.SECOND: ['s', 'sec', 'secs', 'second', 'seconds'],
     },
     reaction_pb2.Mass: {
-        reaction_pb2.Mass.GRAM: ['g', 'gram', 'grams', 'gs', 'gm', 'gms'],
+        reaction_pb2.Mass.GRAM: ['g', 'gram', 'grams', 'gs', 'gm', 'gms', 'gr'],
         reaction_pb2.Mass.MILLIGRAM: ['mg', 'mgs', 'milligrams', 'milligram'],
         reaction_pb2.Mass.MICROGRAM: [
             'μg', 'ug', 'ugs', 'micg', 'micgs', 'micrograms', 'microgram'
@@ -39,12 +40,16 @@ _UNIT_SYNONYMS = {
     },
     reaction_pb2.Moles: {
         reaction_pb2.Moles.MOLE: ['mol', 'mols', 'mole', 'moles'],
-        reaction_pb2.Moles.MILLIMOLE: ['mmol', 'millimoles', 'mmols'],
+        reaction_pb2.Moles.MILLIMOLE: [
+            'mmol', 'millimoles', 'mmols', 'mmole', 'mmoles'
+        ],
         reaction_pb2.Moles.MICROMOLE: ['μmol', 'umol', 'umols', 'micromoles'],
         reaction_pb2.Moles.NANOMOLE: ['nmol', 'nanomoles'],
     },
     reaction_pb2.Volume: {
-        reaction_pb2.Volume.MILLILITER: ['mL', 'milliliter', 'milliliters'],
+        reaction_pb2.Volume.MILLILITER: [
+            'mL', 'milliliter', 'milliliters', 'cc', 'cm3', 'mls'
+        ],
         reaction_pb2.Volume.MICROLITER: [
             'μL', 'uL', 'micl', 'microliter', 'microliters'
         ],
@@ -67,7 +72,9 @@ _UNIT_SYNONYMS = {
         reaction_pb2.Pressure.KILOPASCAL: ['kPa', 'kilopascals', 'kPas'],
     },
     reaction_pb2.Temperature: {
-        reaction_pb2.Temperature.CELSIUS: ['°C', 'C', 'degC', 'celsius'],
+        reaction_pb2.Temperature.CELSIUS: [
+            '°C', 'C', 'degC', '°celsius', 'celsius'
+        ],
         reaction_pb2.Temperature.FAHRENHEIT: ['°F', 'F', 'degF', 'fahrenheit'],
         reaction_pb2.Temperature.KELVIN: ['K', 'degK', 'Kelvin'],
     },
@@ -149,7 +156,7 @@ class UnitResolver:
         # Values must have zero or one decimal point. Whitespace between the
         # value and the unit is optional.
         self._pattern = re.compile(
-            r'(\d+\.?\d*)(?:-(\d+\.?\d*))?\s*([\w\sμ°]+)')
+            r'(-?\d+\.?\d*)(?:-(-?\d+\.?\d*))?\s*([\w\sμ°]+)\.?')
 
     def resolve(self,
                 string: str,
@@ -170,7 +177,7 @@ class UnitResolver:
             ValueError: If string does not contain a value with units.
         """
         # NOTE(kearnes): Use fullmatch() to catch cases with multiple matches.
-        match = self._pattern.fullmatch(string.strip())
+        match = self._pattern.fullmatch(string.strip().replace('−', '-'))
         if not match:
             raise ValueError(
                 f'string does not contain a value with units: {string}')

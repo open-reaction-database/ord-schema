@@ -1104,6 +1104,7 @@ message RecordEvent {
 message Time {
   enum TimeUnit {
     UNSPECIFIED = 0;
+    DAY = 4;
     HOUR = 1;
     MINUTE = 2;
     SECOND = 3;

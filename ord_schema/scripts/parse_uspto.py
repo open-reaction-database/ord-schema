@@ -38,45 +38,56 @@ flags.DEFINE_string('output', None, 'Output Dataset filename.')
 
 # XML namespaces.
 NAMESPACES = {
+    'cml': 'http://www.xml-cml.org/schema',
     'cmlDict': 'http://www.xml-cml.org/dictionary/cml/',
+    'dl': 'http://bitbucket.org/dan2097',
     'nameDict': 'http://www.xml-cml.org/dictionary/cml/name/',
     'unit': 'http://www.xml-cml.org/unit/',
-    'cml': 'http://www.xml-cml.org/schema',
-    'dl': 'http://bitbucket.org/dan2097',
 }
 
 UNIT_RESOLVER = units.UnitResolver()
 
 REACTION_ROLES = {
-    'reactant': reaction_pb2.ReactionRole.REACTANT,
-    'solvent': reaction_pb2.ReactionRole.SOLVENT,
     'catalyst': reaction_pb2.ReactionRole.CATALYST,
     'product': reaction_pb2.ReactionRole.PRODUCT,
+    'reactant': reaction_pb2.ReactionRole.REACTANT,
+    'solvent': reaction_pb2.ReactionRole.SOLVENT,
+}
+
+PRODUCT_STATES = {
+    'crystal': reaction_pb2.ProductCompound.Texture.CRYSTAL,
+    'crystalline-solid': reaction_pb2.ProductCompound.Texture.CRYSTAL,
+    'crystals': reaction_pb2.ProductCompound.Texture.CRYSTAL,
+    'foam': reaction_pb2.ProductCompound.Texture.FOAM,
+    'foam-like': reaction_pb2.ProductCompound.Texture.FOAM,
+    'foam/very': reaction_pb2.ProductCompound.Texture.FOAM,
+    'needle': reaction_pb2.ProductCompound.Texture.CRYSTAL,
+    'needle-like': reaction_pb2.ProductCompound.Texture.CRYSTAL,
+    'needles': reaction_pb2.ProductCompound.Texture.CRYSTAL,
+    'oil': reaction_pb2.ProductCompound.Texture.OIL,
+    'oil-like': reaction_pb2.ProductCompound.Texture.OIL,
+    'oils': reaction_pb2.ProductCompound.Texture.OIL,
+    'powder': reaction_pb2.ProductCompound.Texture.POWDER,
+    'powders': reaction_pb2.ProductCompound.Texture.POWDER,
+    'prisms': reaction_pb2.ProductCompound.Texture.CRYSTAL,
+    'semisolid': reaction_pb2.ProductCompound.Texture.SEMI_SOLID,
+    'semi-solid': reaction_pb2.ProductCompound.Texture.SEMI_SOLID,
 }
 
 WORKUP_TYPES = {
     'Add': reaction_pb2.ReactionWorkup.ADDITION,
-    'ApparatusAction': None,
     'Cool': reaction_pb2.ReactionWorkup.TEMPERATURE,
-    'Degass': None,
+    'Concentrate': reaction_pb2.ReactionWorkup.CONCENTRATION,
     'Dissolve': reaction_pb2.ReactionWorkup.DISSOLUTION,
     'Distill': reaction_pb2.ReactionWorkup.DISTILLATION,
-    'Dry': reaction_pb2.ReactionWorkup.CUSTOM,
     'Dry with material': reaction_pb2.ReactionWorkup.DRY_WITH_MATERIAL,
     'Extract': reaction_pb2.ReactionWorkup.EXTRACTION,
     'Filter': reaction_pb2.ReactionWorkup.FILTRATION,
     'Heat': reaction_pb2.ReactionWorkup.TEMPERATURE,
-    'Partition': reaction_pb2.ReactionWorkup.CUSTOM,
-    'Precipitate': reaction_pb2.ReactionWorkup.CUSTOM,
-    'Purify': reaction_pb2.ReactionWorkup.CUSTOM,
-    'Recover': reaction_pb2.ReactionWorkup.CUSTOM,
-    'Remove': reaction_pb2.ReactionWorkup.CUSTOM,
+    'Sample': reaction_pb2.ReactionWorkup.ALIQUOT,
     'Stir': reaction_pb2.ReactionWorkup.STIRRING,
-    'Synthesize': None,
-    'Unknown': reaction_pb2.ReactionWorkup.CUSTOM,
-    'Wait': None,
+    'Wait': reaction_pb2.ReactionWorkup.WAIT,
     'Wash': reaction_pb2.ReactionWorkup.WASH,
-    'Yield': None,
 }
 
 
@@ -92,6 +103,12 @@ def get_molecule_id(root):
     if len(molecules) != 1:
         raise NotImplementedError(len(molecules))
     return molecules[0].attrib['id']
+
+
+def resolve_units(value):
+    value = value.replace('˜', ' ')
+    value = value.replace('yield ', ' ')
+    return UNIT_RESOLVER.resolve(value, allow_range=True)
 
 
 def get_component_map(root: ElementTree.ElementTree) -> Dict[str, str]:
@@ -154,7 +171,7 @@ def parse_source(root, reaction):
             reaction.provenance.patent = child.text
         elif tag == 'dl:paragraphText':
             reaction.notes.procedure_details = child.text
-        elif tag in ['dl:headingText']:
+        elif tag in ['dl:headingText', 'dl:paragraphNum']:
             continue  # Ignored.
         else:
             raise NotImplementedError(child)
@@ -167,11 +184,7 @@ def parse_product(root, product_compound):
     for child in root:
         tag = get_tag(child)
         if tag == 'dl:entityType':
-            if child.text not in [
-                    'exact', 'chemicalClass', 'definiteReference'
-            ]:
-                raise NotImplementedError(child.text)
-            continue
+            pass
         elif tag == 'cml:molecule':
             parse_molecule(child, product_compound)
         elif tag == 'cml:amount':
@@ -179,7 +192,10 @@ def parse_product(root, product_compound):
         elif tag == 'cml:identifier':
             parse_identifier(child, product_compound)
         elif tag == 'dl:state':
-            parse_product_state(child, product_compound)
+            texture = PRODUCT_STATES.get(
+                child.text.lower(), reaction_pb2.ProductCompound.Texture.CUSTOM)
+            product_compound.texture.type = texture
+            product_compound.texture.details = child.text
         elif tag == 'dl:appearance':
             product_compound.isolated_color = child.text
         else:
@@ -196,15 +212,19 @@ def parse_molecule(root, compound):
 
 
 def parse_product_amount(root, product_compound):
-    measurement = product_compound.measurements.add()
     property_type = root.attrib[f'{{{NAMESPACES["dl"]}}}propertyType']
     if 'PERCENTYIELD' in property_type:
+        match = re.search(r'(\d+\.?\d*)', root.text)
+        if not match:
+            logging.warning(f'AMOUNT: {root.text}')
+            return
+        measurement = product_compound.measurements.add()
         measurement.type = measurement.YIELD
-        match = re.search(r'([\d.]+)', root.text)
         measurement.percentage.value = float(match.group(1))
     else:
-        parse_amount(root, measurement)
+        measurement = product_compound.measurements.add()
         measurement.type = measurement.AMOUNT
+        parse_amount(root, measurement)
 
 
 def parse_identifier(root, compound):
@@ -216,13 +236,6 @@ def parse_identifier(root, compound):
         compound.identifiers.add(type='INCHI', value=value)
     else:
         raise NotImplementedError(kind)
-
-
-def parse_product_state(root, product_compound):
-    if root.text == 'oil':
-        product_compound.texture.type = product_compound.texture.OIL
-    else:
-        raise NotImplementedError(root.text)
 
 
 def parse_reactant(root, compound):
@@ -243,6 +256,8 @@ def parse_reactant(root, compound):
             parse_amount(child, compound)
         elif tag == 'cml:identifier':
             parse_identifier(child, compound)
+        elif tag in ['dl:state', 'dl:appearance']:
+            continue  # Not supported by Compound.
         else:
             raise NotImplementedError(child)
 
@@ -254,9 +269,9 @@ def parse_amount(root, compound):
     if compound.amount.WhichOneof('kind') not in ['mass', 'volume']:
         # Don't overwrite existing Mass or Volume with Moles.
         try:
-            amount = UNIT_RESOLVER.resolve(root.text, allow_range=True)
+            amount = resolve_units(root.text)
         except (KeyError, ValueError) as error:
-            logging.info(f'UNITS: {error}')
+            logging.warning(f'UNITS: {error} ("{root.text}")')
             return
         if isinstance(amount, reaction_pb2.Mass):
             compound.amount.mass.CopyFrom(amount)
@@ -269,9 +284,11 @@ def parse_amount(root, compound):
 
 
 def parse_conditions(root, reaction):
+    del reaction  # Unused.
     if not root.findall('cml:chemical', namespaces=NAMESPACES):
         return  # Refers to an added component; is a workup.
-    # TODO(kearnes): Finish this.
+    action = root.attrib['action']
+    return action  # TODO(kearnes): Implement this?
 
 
 def parse_workup(root, reaction):
@@ -285,8 +302,6 @@ def parse_workup(root, reaction):
             components.append(component)
     if action == 'Dry' and components:
         action = 'Dry with material'
-    if action in ['Add', 'Dissolve'] and not components:
-        return
     details = root.find('dl:phraseText', namespaces=NAMESPACES)
     if action in ['Purify', 'Recover'] and details:
         # Make some actions more specific.
@@ -297,9 +312,8 @@ def parse_workup(root, reaction):
             action = 'Filter'
         else:
             logging.info(f'{action}: {details}')
-    if not WORKUP_TYPES[action]:
-        return
-    workup = reaction.workups.add(type=WORKUP_TYPES[action])
+    workup_type = WORKUP_TYPES.get(action, reaction_pb2.ReactionWorkup.CUSTOM)
+    workup = reaction.workups.add(type=workup_type)
     for component in components:
         compound = workup.input.components.add()
         parse_reactant(component, compound)
@@ -314,8 +328,10 @@ def parse_workup(root, reaction):
             try:
                 parse_parameter(child, workup)
             except ValueError as error:
-                logging.error(
+                logging.warning(
                     f'PARAMETER: {ElementTree.tostring(child)}: {error}')
+        elif tag in ['dl:atmosphere']:
+            continue  # Not supported by ReactionWorkup.
         else:
             raise NotImplementedError(child)
 
@@ -324,17 +340,34 @@ def parse_parameter(root: ElementTree.Element,
                     workup: reaction_pb2.ReactionWorkup):
     kind = root.attrib['propertyType']
     if kind == 'Time':
-        workup.duration.CopyFrom(
-            UNIT_RESOLVER.resolve(root.text, allow_range=True))
+        if root.text in ['overnight']:
+            workup.duration.value = 8
+            workup.duration.precision = 8
+            workup.duration.units = reaction_pb2.Time.HOUR
+        else:
+            try:
+                workup.duration.CopyFrom(resolve_units(root.text))
+            except (KeyError, ValueError) as error:
+                logging.warning(f'UNITS: {error} ("{root.text}")')
     elif kind == 'Temperature':
-        if root.text == 'room temperature':
+        if root.text.lower() in [
+                'room temperature',
+                'room temp',
+                'rt',
+                'r.t',
+                'r.t.',
+                'ambient temperature',
+        ]:
             workup.temperature.control.type = (
                 reaction_pb2.TemperatureConditions.TemperatureControl.AMBIENT)
         else:
             value = root.text.rstrip('.').replace('° ', '°')
-            workup.temperature.setpoint.CopyFrom(
-                UNIT_RESOLVER.resolve(value, allow_range=True))
-    elif kind in ['Pressure']:
+            try:
+                workup.temperature.setpoint.CopyFrom(resolve_units(value))
+            except (KeyError, ValueError) as error:
+                if str(error) not in ['unrecognized units: eq']:
+                    logging.warning(f'UNITS: {error} ("{root.text}")')
+    elif kind in ['Frequency', 'Length', 'Pressure']:
         return  # Not supported in ReactionWorkup.
     else:
         raise NotImplementedError(kind)
