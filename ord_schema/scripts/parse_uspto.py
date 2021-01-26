@@ -90,6 +90,36 @@ WORKUP_TYPES = {
     'Wash': reaction_pb2.ReactionWorkup.WASH,
 }
 
+UNIT_REPLACEMENTS = {
+    '˜': ' ',
+    '≈': ' ',
+    'about ': ' ',
+    'approx ': ' ',
+    'approx. ': ' ',
+    'approximately ': ' ',
+    'around ': ' ',
+    'ca. ': ' ',
+    'yield ': ' ',
+    'yield: ': ' ',
+    'Yield ': ' ',
+    'Yield: ': ' ',
+    '1/2 ': ' 0.5 ',
+    '½ ': ' 0.5 ',
+    'half ': ' 0.5 ',
+    ' to ': '-',
+    # Digits.
+    'zero ': '0 ',
+    'one ': '1 ',
+    'two ': '2 ',
+    'three ': '3 ',
+    'four ': '4 ',
+    'five ': '5 ',
+    'six ': '6 ',
+    'seven ': '7 ',
+    'eight ': '8 ',
+    'nine ': '9 ',
+}
+
 
 def get_tag(element):
     for key, value in NAMESPACES.items():
@@ -106,8 +136,8 @@ def get_molecule_id(root):
 
 
 def resolve_units(value):
-    value = value.replace('˜', ' ')
-    value = value.replace('yield ', ' ')
+    for key, replacement in UNIT_REPLACEMENTS.items():
+        value = value.replace(key, replacement)
     return UNIT_RESOLVER.resolve(value, allow_range=True)
 
 
@@ -357,6 +387,7 @@ def parse_parameter(root: ElementTree.Element,
                 'r.t',
                 'r.t.',
                 'ambient temperature',
+                'ambient temp',
         ]:
             workup.temperature.control.type = (
                 reaction_pb2.TemperatureConditions.TemperatureControl.AMBIENT)
@@ -365,8 +396,7 @@ def parse_parameter(root: ElementTree.Element,
             try:
                 workup.temperature.setpoint.CopyFrom(resolve_units(value))
             except (KeyError, ValueError) as error:
-                if str(error) not in ['unrecognized units: eq']:
-                    logging.warning(f'UNITS: {error} ("{root.text}")')
+                logging.warning(f'UNITS: {error} ("{root.text}")')
     elif kind in ['Frequency', 'Length', 'Pressure']:
         return  # Not supported in ReactionWorkup.
     else:

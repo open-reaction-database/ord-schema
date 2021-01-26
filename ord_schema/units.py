@@ -73,7 +73,7 @@ _UNIT_SYNONYMS = {
     },
     reaction_pb2.Temperature: {
         reaction_pb2.Temperature.CELSIUS: [
-            '°C', 'C', 'degC', '°celsius', 'celsius'
+            '°C', 'C', 'degC', '°celsius', 'celsius', 'degrees C',
         ],
         reaction_pb2.Temperature.FAHRENHEIT: ['°F', 'F', 'degF', 'fahrenheit'],
         reaction_pb2.Temperature.KELVIN: ['K', 'degK', 'Kelvin'],
@@ -156,7 +156,7 @@ class UnitResolver:
         # Values must have zero or one decimal point. Whitespace between the
         # value and the unit is optional.
         self._pattern = re.compile(
-            r'(-?\d+\.?\d*)(?:-(-?\d+\.?\d*))?\s*([\w\sμ°]+)\.?')
+            r'(-?\d+\.?\d*(?:[eE]\d+)?)(?:[-±](-?\d+\.?\d*))?\s*([\w\sμ°]+)\.?')
 
     def resolve(self,
                 string: str,
@@ -184,12 +184,16 @@ class UnitResolver:
         value, range_value, string_unit = match.groups()
         precision = None
         if range_value is not None:
-            if not allow_range:
+            if '±' in string:
+                value = float(value)
+                precision = float(range_value)
+            elif not allow_range:
                 raise ValueError('string appears to contain a range of values '
                                  f'but allow_range is False: {string}')
-            values = np.asarray([value, range_value], dtype=float)
-            value = values.mean()
-            precision = values.std()
+            else:
+                values = np.asarray([value, range_value], dtype=float)
+                value = values.mean()
+                precision = values.std()
         assert string_unit is not None  # Type hint.
         string_unit = string_unit.lower()
         if string_unit in self._forbidden_units:
