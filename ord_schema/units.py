@@ -179,7 +179,8 @@ class UnitResolver:
             Message containing a numeric value with units listed in the schema.
 
         Raises:
-            ValueError: If string does not contain a value with units.
+            ValueError: if string does not contain a value with units, or if
+                the value is invalid.
         """
         # NOTE(kearnes): Use fullmatch() to catch cases with multiple matches.
         match = self._pattern.fullmatch(string.strip().replace('−', '-'))
@@ -199,6 +200,8 @@ class UnitResolver:
                 values = np.asarray([value, range_value], dtype=float)
                 value = values.mean()
                 precision = values.std()
+        else:
+            value = float(value)
         assert string_unit is not None  # Type hint.
         string_unit = string_unit.lower()
         if string_unit in self._forbidden_units:
@@ -207,9 +210,12 @@ class UnitResolver:
         if string_unit not in self._resolver:
             raise KeyError(f'unrecognized units: {string_unit}')
         message, unit = self._resolver[string_unit]
+        if value <= 0.0 and message != reaction_pb2.Temperature:
+            raise ValueError(
+                f'negative values are only allowed for temperature: {string}')
         if precision:
             return message(value=value, precision=precision, units=unit)
-        return message(value=float(value), units=unit)
+        return message(value=value, units=unit)
 
 
 def format_message(message: ord_schema.UnitMessage) -> Optional[str]:
