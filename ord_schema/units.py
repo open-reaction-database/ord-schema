@@ -73,7 +73,12 @@ _UNIT_SYNONYMS = {
     },
     reaction_pb2.Temperature: {
         reaction_pb2.Temperature.CELSIUS: [
-            '°C', 'C', 'degC', '°celsius', 'celsius', 'degrees C',
+            '°C',
+            'C',
+            'degC',
+            '°celsius',
+            'celsius',
+            'degrees C',
         ],
         reaction_pb2.Temperature.FAHRENHEIT: ['°F', 'F', 'degF', 'fahrenheit'],
         reaction_pb2.Temperature.KELVIN: ['K', 'degK', 'Kelvin'],
