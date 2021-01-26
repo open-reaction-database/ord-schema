@@ -210,7 +210,7 @@ class UnitResolver:
         if string_unit not in self._resolver:
             raise KeyError(f'unrecognized units: {string_unit}')
         message, unit = self._resolver[string_unit]
-        if value <= 0.0 and message != reaction_pb2.Temperature:
+        if value < 0.0 and message != reaction_pb2.Temperature:
             raise ValueError(
                 f'negative values are only allowed for temperature: {string}')
         if precision:
