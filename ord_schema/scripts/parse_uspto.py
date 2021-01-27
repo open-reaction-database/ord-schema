@@ -22,14 +22,19 @@ https://depth-first.com/articles/2019/01/28/the-nextmove-patent-reaction-dataset
 Example usage:
 $ python ord_schema/scripts/parse_uspto.py \
     --input_pattern="${HOME}/uspto/grants/2003/*.xml" \
-    --output=grants-2003.pb
+    --output=grants-2003.pb \
+    --n_jobs=8
+
+To run with DEBUG output:
+$ python ord_schema/scripts/parse_uspto.py \
+    --input_pattern="${HOME}/uspto/grants/2003/*.xml" \
+    --verbosity=1
 """
 
 # pylint: disable=too-many-branches
 
 import datetime
 import glob
-import json
 import re
 from typing import Dict, List, Union
 from xml.etree import ElementTree
