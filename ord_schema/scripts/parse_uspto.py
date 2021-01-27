@@ -192,7 +192,9 @@ def parse_reaction(root: ElementTree.Element) -> reaction_pb2.Reaction:
         if tag == 'dl:source':
             parse_source(child, reaction)
         elif tag == 'dl:reactionSmiles':
-            reaction.identifiers.add(type='REACTION_SMILES', value=child.text, is_mapped=True)
+            reaction.identifiers.add(type='REACTION_SMILES',
+                                     value=child.text,
+                                     is_mapped=True)
         elif tag == 'cml:productList':
             outcome = reaction.outcomes.add()  # Add a single outcome.
             for product in child:
