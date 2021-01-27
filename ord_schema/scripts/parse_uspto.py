@@ -27,6 +27,7 @@ $ python ord_schema/scripts/parse_uspto.py \
 
 # pylint: disable=too-many-branches
 
+import datetime
 import glob
 import re
 from typing import Dict, List, Union
@@ -36,12 +37,16 @@ from absl import app
 from absl import flags
 from absl import logging
 import joblib
+from rdkit import RDLogger
 
 import ord_schema
 from ord_schema import message_helpers
 from ord_schema import units
+from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
+
+RDLogger.DisableLog('rdApp.*')  # Disable RDKit logging.
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('input_pattern', None, 'Input pattern for CML files.')
@@ -187,7 +192,7 @@ def parse_reaction(root: ElementTree.Element) -> reaction_pb2.Reaction:
         if tag == 'dl:source':
             parse_source(child, reaction)
         elif tag == 'dl:reactionSmiles':
-            reaction.identifiers.add(type='REACTION_SMILES', value=child.text)
+            reaction.identifiers.add(type='REACTION_SMILES', value=child.text, is_mapped=True)
         elif tag == 'cml:productList':
             outcome = reaction.outcomes.add()  # Add a single outcome.
             for product in child:
@@ -437,6 +442,34 @@ def parse_parameter(root: ElementTree.Element,
         raise NotImplementedError(kind)
 
 
+def clean_reaction(reaction: reaction_pb2.Reaction):
+    """Cleans a reaction so it will pass validations."""
+    # Add a placeholder amount to components with no amount information.
+    empty_amount = reaction_pb2.Moles(value=0, precision=1, units='MOLE')
+    for key in list(reaction.inputs.keys()):
+        for component in reaction.inputs[key].components:
+            if not component.amount.WhichOneof('kind'):
+                component.amount.moles.CopyFrom(empty_amount)
+    for workup in reaction.workups:
+        for component in workup.input.components:
+            if not component.amount.WhichOneof('kind'):
+                component.amount.moles.CopyFrom(empty_amount)
+    # Adjust workup types as needed.
+    for workup in reaction.workups:
+        output = validations.validate_message(workup, raise_on_error=False)
+        if output.errors:
+            workup.type = reaction_pb2.ReactionWorkup.CUSTOM
+    # Create a dummy analysis and connect it with product measurements.
+    for i, outcome in enumerate(reaction.outcomes):
+        key = f'analysis_{i}'
+        analysis = outcome.analyses[key]
+        analysis.type = reaction_pb2.Analysis.CUSTOM
+        analysis.details = 'placeholder'
+        for product in outcome.products:
+            for measurement in product.measurements:
+                measurement.analysis_key = key
+
+
 def run(filename: str) -> List[reaction_pb2.Reaction]:
     """Parses reactions from a single CML file."""
     tree = ElementTree.parse(filename)
@@ -444,9 +477,24 @@ def run(filename: str) -> List[reaction_pb2.Reaction]:
     reactions = []
     for reaction_cml in root.iterfind('cml:reaction', namespaces=NAMESPACES):
         try:
-            reactions.append(parse_reaction(reaction_cml))
+            reaction = parse_reaction(reaction_cml)
         except (KeyError, NotImplementedError) as error:
             raise ValueError(ElementTree.dump(reaction_cml)) from error
+        event = reaction_pb2.RecordEvent(
+            time=dict(value=str(datetime.datetime.now())),
+            person=dict(username='skearnes',
+                        name='Steven Kearnes',
+                        orcid='0000-0003-4579-4388',
+                        organization='Google LLC',
+                        email='kearnes@google.com'))
+        reaction.provenance.record_created.CopyFrom(event)
+        reaction.provenance.doi = '10.6084/m9.figshare.5104873.v1'
+        clean_reaction(reaction)
+        output = validations.validate_message(reaction, raise_on_error=False)
+        if output.errors:
+            message = '\n'.join(output.errors)
+            raise validations.ValidationError(f'{reaction}\n{message}')
+        reactions.append(reaction)
     return reactions
 
 
