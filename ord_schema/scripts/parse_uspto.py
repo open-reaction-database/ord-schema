@@ -436,7 +436,7 @@ def parse_parameter(root: ElementTree.Element,
             value = root.text.rstrip('.').replace('° ', '°')
             try:
                 temperature = resolve_units(value)
-                if (temperature.type == temperature.CELSIUS and
+                if (temperature.units == temperature.CELSIUS and
                         temperature.value < -274):
                     raise ValueError('bad temperature')
                 workup.temperature.setpoint.CopyFrom(temperature)
