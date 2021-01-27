@@ -390,7 +390,7 @@ def parse_workup(root: ElementTree.Element, reaction: reaction_pb2.Reaction):
         elif 'filtration' in details.lower():
             action = 'Filter'
         else:
-            logging.debug(f'{action}: {details}')
+            logging.debug(f'CUSTOM workup "{action}": {details}')
     workup_type = WORKUP_TYPES.get(action, reaction_pb2.ReactionWorkup.CUSTOM)
     workup = reaction.workups.add(type=workup_type)
     for component in components:
