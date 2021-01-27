@@ -29,6 +29,7 @@ $ python ord_schema/scripts/parse_uspto.py \
 
 import datetime
 import glob
+import json
 import re
 from typing import Dict, List, Union
 from xml.etree import ElementTree
@@ -282,6 +283,7 @@ def parse_product_amount(root: ElementTree.Element,
         measurement = product_compound.measurements.add()
         measurement.type = measurement.AMOUNT
         parse_amount(root, measurement)
+    measurement.details = property_type
 
 
 def parse_identifier(root: ElementTree.Element,
