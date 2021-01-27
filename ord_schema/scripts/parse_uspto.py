@@ -448,14 +448,21 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
     """Cleans a reaction so it will pass validations."""
     # Add a placeholder amount to components with no amount information.
     empty_amount = reaction_pb2.Moles(value=0, precision=1, units='MOLE')
-    for key in list(reaction.inputs.keys()):
-        for component in reaction.inputs[key].components:
-            if not component.amount.WhichOneof('kind'):
-                component.amount.moles.CopyFrom(empty_amount)
-    for workup in reaction.workups:
-        for component in workup.input.components:
-            if not component.amount.WhichOneof('kind'):
-                component.amount.moles.CopyFrom(empty_amount)
+    components = message_helpers.find_submessages(reaction,
+                                                  reaction_pb2.Compound)
+    for component in components:
+        if not component.amount.WhichOneof('kind'):
+            component.amount.moles.CopyFrom(empty_amount)
+    # Adjust identifier types as needed.
+    identifiers = message_helpers.find_submessages(
+        reaction, reaction_pb2.CompoundIdentifier)
+    for identifier in identifiers:
+        output = validations.validate_message(identifier, raise_on_error=False)
+        if output.errors:
+            old_type = reaction_pb2.CompoundIdentifier.IdentifierType.Name(
+                identifier.type)
+            identifier.details = f'Originally defined as {old_type}'
+            identifier.type = reaction_pb2.CompoundIdentifier.CUSTOM
     # Adjust workup types as needed.
     for workup in reaction.workups:
         output = validations.validate_message(workup, raise_on_error=False)
@@ -474,6 +481,7 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
 
 def run(filename: str) -> List[reaction_pb2.Reaction]:
     """Parses reactions from a single CML file."""
+    RDLogger.DisableLog('rdApp.*')  # Disable RDKit logging.
     tree = ElementTree.parse(filename)
     root = tree.getroot()
     reactions = []
