@@ -130,6 +130,8 @@ UNIT_REPLACEMENTS = {
     '½ ': ' 0.5 ',
     'half ': ' 0.5 ',
     ' to ': '-',
+    '×10': 'e',
+    '−': '-',
     # Digits.
     'zero ': '0 ',
     'one ': '1 ',

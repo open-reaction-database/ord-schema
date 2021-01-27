@@ -45,8 +45,8 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
                            units=reaction_pb2.Mass.GRAM)),
         ('lengths', ' 10 meter',
          reaction_pb2.Length(value=10, units=reaction_pb2.Length.METER)),
-        ('scientific', '1.2e3g',
-         reaction_pb2.Mass(value=1200, units=reaction_pb2.Mass.GRAM)),
+        ('scientific', '1.2e-3g',
+         reaction_pb2.Mass(value=0.0012, units=reaction_pb2.Mass.GRAM)),
         ('nanoliters', '0.12 nL',
          reaction_pb2.Volume(value=0.12, units=reaction_pb2.Volume.NANOLITER)))
     def test_resolve(self, string, expected):
