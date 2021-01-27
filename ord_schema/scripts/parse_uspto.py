@@ -389,9 +389,9 @@ def parse_workup(root: ElementTree.Element, reaction: reaction_pb2.Reaction):
             action = 'Distill'
         elif 'filtration' in details.lower():
             action = 'Filter'
-        else:
-            logging.debug(f'CUSTOM workup "{action}": {details}')
     workup_type = WORKUP_TYPES.get(action, reaction_pb2.ReactionWorkup.CUSTOM)
+    if workup_type == reaction_pb2.ReactionWorkup.CUSTOM:
+        logging.debug(f'CUSTOM workup "{action}": {details}')
     workup = reaction.workups.add(type=workup_type)
     for component in components:
         compound = workup.input.components.add()
