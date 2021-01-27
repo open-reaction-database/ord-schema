@@ -435,7 +435,10 @@ def parse_parameter(root: ElementTree.Element,
         else:
             value = root.text.rstrip('.').replace('° ', '°')
             try:
-                workup.temperature.setpoint.CopyFrom(resolve_units(value))
+                temperature = resolve_units(value)
+                if temperature.value < -459:
+                    raise ValueError('bad temperature')
+                workup.temperature.setpoint.CopyFrom(temperature)
             except (KeyError, ValueError) as error:
                 logging.debug(f'UNITS: {error} ("{root.text}")')
     elif kind in ['Frequency', 'Length', 'Pressure']:
