@@ -439,6 +439,8 @@ def parse_parameter(root: ElementTree.Element,
                 if (temperature.units == temperature.CELSIUS and
                         temperature.value < -274):
                     raise ValueError('bad temperature')
+                if temperature.precision < 0:
+                    raise ValueError('bad temperature')
                 workup.temperature.setpoint.CopyFrom(temperature)
             except (KeyError, ValueError) as error:
                 logging.debug(f'UNITS: {error} ("{root.text}")')
