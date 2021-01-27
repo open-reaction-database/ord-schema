@@ -413,7 +413,7 @@ def parse_parameter(root: ElementTree.Element,
     """Parses a workup value."""
     kind = root.attrib['propertyType']
     if kind == 'Time':
-        if root.text in ['overnight']:
+        if root.text in ['overnight', 'Overnight']:
             workup.duration.value = 8
             workup.duration.precision = 8
             workup.duration.units = reaction_pb2.Time.HOUR
@@ -487,8 +487,9 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
                 measurement.analysis_key = key
 
 
-def run(filename: str) -> List[reaction_pb2.Reaction]:
+def run(filename: str, verbosity: int) -> List[reaction_pb2.Reaction]:
     """Parses reactions from a single CML file."""
+    logging.set_verbosity(verbosity)
     RDLogger.DisableLog('rdApp.*')  # Disable RDKit logging.
     tree = ElementTree.parse(filename)
     root = tree.getroot()
@@ -520,7 +521,8 @@ def main(argv):
     del argv  # Only used by app.run().
     filenames = glob.glob(FLAGS.input_pattern)
     all_reactions = joblib.Parallel(n_jobs=FLAGS.n_jobs, verbose=True)(
-        joblib.delayed(run)(filename) for filename in filenames)
+        joblib.delayed(run)(filename, FLAGS.verbosity)
+        for filename in filenames)
     reactions = []
     for file_reactions in all_reactions:
         reactions.extend(file_reactions)
