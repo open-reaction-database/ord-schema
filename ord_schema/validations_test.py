@@ -230,13 +230,10 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
             reaction_pb2.Analysis(type='CUSTOM', details='test'))
         product = outcome.products.add(
             identifiers=[dict(type='SMILES', value='c1ccccc1')])
-        product.measurements.add(type='YIELD',
+        product.measurements.add(analysis_key='dummy_analysis',
+                                 type='YIELD',
                                  percentage=dict(value=75),
                                  uses_internal_standard=True)
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'analysis_key'):
-            self._run_validation(message)
-        product.measurements[0].analysis_key = 'dummy_analysis'
         with self.assertRaisesRegex(validations.ValidationError,
                                     'INTERNAL_STANDARD'):
             self._run_validation(message)
