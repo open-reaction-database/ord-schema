@@ -200,7 +200,7 @@ def parse_reaction(root: ElementTree.Element) -> reaction_pb2.Reaction:
         if tag == 'dl:source':
             parse_source(child, reaction)
         elif tag == 'dl:reactionSmiles':
-            reaction.identifiers.add(type='REACTION_SMILES',
+            reaction.identifiers.add(type='REACTION_CXSMILES',
                                      value=child.text,
                                      is_mapped=True)
         elif tag == 'cml:productList':
@@ -483,15 +483,6 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
         output = validations.validate_message(workup, raise_on_error=False)
         if output.errors:
             workup.type = reaction_pb2.ReactionWorkup.CUSTOM
-    # Create a dummy analysis and connect it with product measurements.
-    for i, outcome in enumerate(reaction.outcomes):
-        key = f'analysis_{i}'
-        analysis = outcome.analyses[key]
-        analysis.type = reaction_pb2.Analysis.CUSTOM
-        analysis.details = 'placeholder'
-        for product in outcome.products:
-            for measurement in product.measurements:
-                measurement.analysis_key = key
 
 
 def run(filename: str, verbosity: int) -> List[reaction_pb2.Reaction]:

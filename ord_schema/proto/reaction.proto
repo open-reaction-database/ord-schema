@@ -73,6 +73,7 @@ message ReactionIdentifier {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     REACTION_SMILES = 2;
+    REACTION_CXSMILES = 6;  // Extended SMILES.
     RDFILE = 3;  // Reaction data file.
     RINCHI = 4;  // Reaction InChI.
     NAME = 5;  // Named reaction or reaction category.
