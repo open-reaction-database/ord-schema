@@ -218,6 +218,9 @@ def parse_reaction(root: ElementTree.Element) -> reaction_pb2.Reaction:
                 parse_workup(action, reaction)
         else:
             raise NotImplementedError(child)
+    # We surely didn't capture everything.
+    reaction.conditions.conditions_are_dynamic = True
+    reaction.conditions.details = 'See reaction.notes.procedure_details.'
     return reaction
 
 
@@ -483,6 +486,34 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
         output = validations.validate_message(workup, raise_on_error=False)
         if output.errors:
             workup.type = reaction_pb2.ReactionWorkup.CUSTOM
+    # Move some workups into ReactionConditions/ReactionOutcome.
+    workups = [workup for workup in reaction.workups]
+    del reaction.workups[:]
+    temperature_conditions = False
+    stirring_conditions = False
+    reaction_time = False
+    for workup in workups:
+        if workup.type == workup.STIRRING and not stirring_conditions:
+            reaction.conditions.stirring.CopyFrom(workup.stirring)
+            reaction.conditions.stirring.method.type = (
+                reaction_pb2.StirringConditions.StirringMethod.CUSTOM)
+            reaction.conditions.stirring.method.details = workup.details
+            stirring_conditions = True
+            if workup.HasField('temperature') and not temperature_conditions:
+                reaction.conditions.temperature.CopyFrom(workup.temperature)
+                temperature_conditions = True
+            if workup.HasField('duration') and not reaction_time:
+                reaction.outcomes[0].reaction_time.CopyFrom(workup.duration)
+                reaction_time = True
+        elif (workup.type == workup.WAIT and workup.HasField('duration') and
+              not reaction_time):
+            reaction.outcomes[0].reaction_time.CopyFrom(workup.duration)
+            reaction_time = True
+        elif workup.HasField('temperature') and not temperature_conditions:
+            reaction.conditions.temperature.CopyFrom(workup.temperature)
+            temperature_conditions = True
+        else:
+            reaction.workups.add().CopyFrom(workup)
 
 
 def run(filename: str, verbosity: int) -> List[reaction_pb2.Reaction]:
