@@ -509,7 +509,8 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
               not reaction_time):
             reaction.outcomes[0].reaction_time.CopyFrom(workup.duration)
             reaction_time = True
-        elif workup.HasField('temperature') and not temperature_conditions:
+        elif (workup.type == workup.TEMPERATURE and
+              workup.HasField('temperature') and not temperature_conditions):
             reaction.conditions.temperature.CopyFrom(workup.temperature)
             temperature_conditions = True
         else:
