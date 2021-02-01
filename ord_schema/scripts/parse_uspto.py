@@ -487,7 +487,7 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
         if output.errors:
             workup.type = reaction_pb2.ReactionWorkup.CUSTOM
     # Move some workups into ReactionConditions/ReactionOutcome.
-    workups = [workup for workup in reaction.workups]
+    workups = [workup for workup in reaction.workups]  # pylint: disable=unnecessary-comprehension
     del reaction.workups[:]
     temperature_conditions = False
     stirring_conditions = False
