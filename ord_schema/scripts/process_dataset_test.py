@@ -225,7 +225,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.assertLen(dataset.reactions, 1)
         self.assertNotEmpty(dataset.reactions[0].reaction_id)
         # Check for binary output.
-        root, ext = os.path.splitext(filenames[0])
+        _, ext = os.path.splitext(filenames[0])
         self.assertEqual(ext, '.pb')
 
     def test_add_sharded_dataset(self):
