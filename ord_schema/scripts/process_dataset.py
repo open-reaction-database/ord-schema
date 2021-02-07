@@ -48,7 +48,6 @@ from absl import app
 from absl import flags
 from absl import logging
 import github
-from google.protobuf import text_format  # pytype: disable=import-error
 
 from ord_schema import data_storage
 from ord_schema import message_helpers
@@ -64,8 +63,6 @@ flags.DEFINE_string('input_file', None,
                     'Filename containing Dataset proto filenames.')
 flags.DEFINE_boolean('write_errors', False,
                      'If True, errors will be written to <filename>.error.')
-flags.DEFINE_boolean('write_binary', True,
-                     'If True, write a binary version of the output Dataset.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
 flags.DEFINE_boolean('update', False, 'If True, update Reaction protos.')
 flags.DEFINE_boolean('cleanup', False, 'If True, use git to clean up.')
@@ -165,11 +162,11 @@ def _load_base_dataset(file_status: FileStatus,
     else:
         args.append(f'{base}:{file_status.filename}')
     logging.info('Running command: %s', ' '.join(args))
-    dataset_pbtxt = subprocess.run(args,
-                                   capture_output=True,
-                                   check=True,
-                                   text=True)
-    return text_format.Parse(dataset_pbtxt.stdout, dataset_pb2.Dataset())
+    serialized = subprocess.run(args,
+                                capture_output=True,
+                                check=True,
+                                text=False)
+    return dataset_pb2.Dataset.FromString(serialized.stdout)
 
 
 def get_change_stats(datasets: Mapping[str, dataset_pb2.Dataset],
@@ -219,26 +216,14 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset]):
     options = validations.ValidationOptions(validate_ids=True,
                                             require_provenance=True)
     validations.validate_datasets(datasets, FLAGS.write_errors, options=options)
-    git_add = []
     for filename, dataset in datasets.items():
         output_filename = os.path.join(
-            FLAGS.root,
-            message_helpers.id_filename(f'{dataset.dataset_id}.pbtxt'))
+            FLAGS.root, message_helpers.id_filename(f'{dataset.dataset_id}.pb'))
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         if FLAGS.cleanup:
             cleanup(filename, output_filename)
         logging.info('writing Dataset to %s', output_filename)
         message_helpers.write_message(dataset, output_filename)
-        # Write a binary version for fast read/write.
-        root, _ = os.path.splitext(output_filename)
-        if FLAGS.write_binary:
-            binary_filename = root + '.pb'
-            logging.info('writing Dataset (binary) to %s', binary_filename)
-            message_helpers.write_message(dataset, binary_filename)
-            git_add.append(binary_filename)
-    args = ['git', 'add'] + git_add
-    logging.info('Running command: %s', ' '.join(args))
-    subprocess.run(args, check=True)
 
 
 def run() -> Tuple[Set[str], Set[str], Set[str]]:
