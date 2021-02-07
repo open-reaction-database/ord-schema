@@ -746,10 +746,11 @@ def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome):
     analysis_keys = list(message.analyses.keys())
     for product in message.products:
         for measurement in product.measurements:
-            if measurement.analysis_key not in analysis_keys:
+            if (measurement.analysis_key and
+                    measurement.analysis_key not in analysis_keys):
                 warnings.warn(
-                    f'Undefined analysis key {measurement.analysis_key} '
-                    'in ProductMeasurement', ValidationError)
+                    f'analysis key {measurement.analysis_key} does not match '
+                    f'any known analysis ({analysis_keys})', ValidationError)
     # TODO(ccoley): While we do not currently check whether the parent Reaction
     # is *actually* used in a multistep reaction within a Dataset (i.e., in a
     # CrudeComponent); this is an additional check that could be added to the
@@ -784,8 +785,8 @@ def validate_product_measurement(message: reaction_pb2.ProductMeasurement):
     check_type_and_details(message)
     if not message.analysis_key:
         warnings.warn(
-            'Product measurements must be associated with an'
-            ' analysis through its analysis_key', ValidationError)
+            'Product measurements should be associated with an'
+            ' analysis through its analysis_key', ValidationWarning)
     if message.type == reaction_pb2.ProductMeasurement.IDENTITY:
         if message.WhichOneof('value'):
             warnings.warn(

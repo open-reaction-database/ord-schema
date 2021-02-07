@@ -35,12 +35,31 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
          reaction_pb2.Mass(value=32.1, units=reaction_pb2.Mass.GRAM)),
         ('extra space', '   32.1      \t   g  ',
          reaction_pb2.Mass(value=32.1, units=reaction_pb2.Mass.GRAM)),
+        ('abbreviated', '10 min.',
+         reaction_pb2.Time(value=10.0, units=reaction_pb2.Time.MINUTE)),
+        ('negative', '-78°C',
+         reaction_pb2.Temperature(value=-78.0,
+                                  units=reaction_pb2.Temperature.CELSIUS)),
+        ('precision', '10±5g',
+         reaction_pb2.Mass(value=10, precision=5,
+                           units=reaction_pb2.Mass.GRAM)),
         ('lengths', ' 10 meter',
          reaction_pb2.Length(value=10, units=reaction_pb2.Length.METER)),
+        ('scientific', '1.2e-3g',
+         reaction_pb2.Mass(value=0.0012, units=reaction_pb2.Mass.GRAM)),
         ('nanoliters', '0.12 nL',
          reaction_pb2.Volume(value=0.12, units=reaction_pb2.Volume.NANOLITER)))
     def test_resolve(self, string, expected):
         self.assertEqual(self._resolver.resolve(string), expected)
+
+    @parameterized.named_parameters(
+        ('integer', '1-2 h',
+         reaction_pb2.Time(value=1.5,
+                           precision=0.5,
+                           units=reaction_pb2.Time.HOUR)))
+    def test_resolve_allow_range(self, string, expected):
+        self.assertEqual(self._resolver.resolve(string, allow_range=True),
+                         expected)
 
     @parameterized.named_parameters(
         ('bad units', '1.21 GW', 'unrecognized units'),
