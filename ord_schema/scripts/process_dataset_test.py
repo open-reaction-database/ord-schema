@@ -61,7 +61,7 @@ class ProcessDatasetTest(absltest.TestCase):
         reaction2 = reaction_pb2.Reaction()
         dataset2 = dataset_pb2.Dataset(reactions=[reaction1, reaction2])
         self.dataset2_filename = os.path.join(self.test_subdirectory,
-                                              'dataset2.pbtxt')
+                                              'dataset2.pb')
         message_helpers.write_message(dataset2, self.dataset2_filename)
 
     def test_main_with_input_pattern(self):
@@ -94,19 +94,13 @@ class ProcessDatasetTest(absltest.TestCase):
     def test_main_with_updates(self):
         output = os.path.join(
             self.test_subdirectory, 'data', '00',
-            'ord_dataset-00000000000000000000000000000000.pbtxt')
+            'ord_dataset-00000000000000000000000000000000.pb')
         with flagsaver.flagsaver(input_pattern=self.dataset1_filename,
                                  update=True,
                                  root=self.test_subdirectory,
-                                 write_binary=False,
                                  base='main'):
             process_dataset.main(())
         self.assertTrue(os.path.exists(output))
-        self.assertFalse(
-            os.path.exists(
-                os.path.join(
-                    self.test_subdirectory, 'data', '00',
-                    'ord_dataset-00000000000000000000000000000000.pb')))
         dataset = message_helpers.load_message(output, dataset_pb2.Dataset)
         self.assertLen(dataset.reactions, 1)
         self.assertStartsWith(dataset.reactions[0].reaction_id, 'ord-')
@@ -158,7 +152,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         validations.validate_message(dataset)
         os.makedirs(os.path.join('data', '64'))
         self.dataset_filename = os.path.join(self.test_subdirectory, 'data',
-                                             '64', f'{dataset_id}.pbtxt')
+                                             '64', f'{dataset_id}.pb')
         message_helpers.write_message(dataset, self.dataset_filename)
         subprocess.run(['git', 'add', 'data'], check=True)
         subprocess.run(['git', 'commit', '-m', 'Initial commit'], check=True)
@@ -174,9 +168,10 @@ class SubmissionWorkflowTest(absltest.TestCase):
         Returns:
             added: Set of added reaction IDs.
             removed: Set of deleted reaction IDs.
-            filenames: List of .pbtxt filenames in the updated database.
+            changed: Set of changed reaction IDs.
+            filenames: List of .pb filenames in the updated database.
         """
-        subprocess.run(['git', 'add', '*.pbtxt', 'data/*/*.pbtxt'], check=True)
+        subprocess.run(['git', 'add', '*.pb*', 'data/*/*.pb'], check=True)
         changed = subprocess.run(
             ['git', 'diff', '--name-status', self._DEFAULT_BRANCH],
             check=True,
@@ -195,8 +190,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         run_flags.update(kwargs)
         with flagsaver.flagsaver(**run_flags):
             added, removed, changed = process_dataset.run()
-        filenames = glob.glob(os.path.join(self.test_subdirectory,
-                                           '**/*.pbtxt'),
+        filenames = glob.glob(os.path.join(self.test_subdirectory, '**/*.pb'),
                               recursive=True)
         return added, removed, changed, filenames
 
@@ -231,9 +225,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.assertLen(dataset.reactions, 1)
         self.assertNotEmpty(dataset.reactions[0].reaction_id)
         # Check for binary output.
-        root, ext = os.path.splitext(filenames[0])
-        self.assertEqual(ext, '.pbtxt')
-        self.assertTrue(os.path.exists(root + '.pb'))
+        _, ext = os.path.splitext(filenames[0])
+        self.assertEqual(ext, '.pb')
 
     def test_add_sharded_dataset(self):
         reaction = reaction_pb2.Reaction()
