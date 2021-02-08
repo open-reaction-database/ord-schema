@@ -555,13 +555,13 @@ def main(argv):
     all_reactions = joblib.Parallel(n_jobs=FLAGS.n_jobs, verbose=True)(
         joblib.delayed(run)(filename, FLAGS.verbosity)
         for filename in filenames)
-    if FLAGS.output:
-        reactions = []
-        for file_reactions in all_reactions:
-            reactions.extend(file_reactions)
-        dataset = dataset_pb2.Dataset(reactions=reactions, name=FLAGS.name)
-        basenames = [os.path.basename(filename) for filename in filenames]
-        dataset.description = f'CML filenames: {",".join(basenames)}'
+    reactions = []
+    for file_reactions in all_reactions:
+        reactions.extend(file_reactions)
+    dataset = dataset_pb2.Dataset(reactions=reactions, name=FLAGS.name)
+    basenames = [os.path.basename(filename) for filename in filenames]
+    dataset.description = f'CML filenames: {",".join(basenames)}'
+    if FLAGS.output and reactions:
         message_helpers.write_message(dataset, FLAGS.output)
 
 
