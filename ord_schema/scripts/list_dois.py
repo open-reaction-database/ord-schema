@@ -71,7 +71,7 @@ def main(argv):
         for dataset in sorted(dois[doi]):
             url = urllib.parse.urljoin(
                 _PREFIX,
-                message_helpers.id_filename(dataset) + '.pbtxt')
+                message_helpers.id_filename(dataset) + '.pb')
             print(f'  * [{dataset}]({url})')
 
 
