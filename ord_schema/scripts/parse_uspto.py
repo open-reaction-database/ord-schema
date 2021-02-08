@@ -35,6 +35,7 @@ $ python ord_schema/scripts/parse_uspto.py \
 
 import datetime
 import glob
+import os
 import re
 from typing import Dict, List, Union
 from xml.etree import ElementTree
@@ -57,6 +58,7 @@ RDLogger.DisableLog('rdApp.*')  # Disable RDKit logging.
 FLAGS = flags.FLAGS
 flags.DEFINE_string('input_pattern', None, 'Input pattern for CML files.')
 flags.DEFINE_string('output', None, 'Output Dataset filename.')
+flags.DEFINE_string('name', '', 'Output Dataset name.')
 flags.DEFINE_integer('n_jobs', 1, 'Number of parallel workers.')
 
 # XML namespaces.
@@ -556,8 +558,10 @@ def main(argv):
     reactions = []
     for file_reactions in all_reactions:
         reactions.extend(file_reactions)
-    dataset = dataset_pb2.Dataset(reactions=reactions)
-    if FLAGS.output:
+    dataset = dataset_pb2.Dataset(reactions=reactions, name=FLAGS.name)
+    basenames = [os.path.basename(filename) for filename in filenames]
+    dataset.description = f'CML filenames: {",".join(basenames)}'
+    if FLAGS.output and reactions:
         message_helpers.write_message(dataset, FLAGS.output)
 
 
