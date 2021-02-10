@@ -31,7 +31,7 @@ Example usage:
 * For normal validation-only operation:
   $ python process_dataset.py --input_pattern=my_dataset.pb
 * To write the validated protos to disk:
-  $ python process_dataset.py --input_pattern=my_dataset.pb --output=out.pb
+  $ python process_dataset.py --input_pattern=my_dataset.pb --update
 * To write errors to disk:
   $ python process_dataset.py --input_pattern=my_dataset.pb --write_errors
 * To process multiple Dataset protos:
@@ -40,6 +40,7 @@ Example usage:
 
 import dataclasses
 import glob
+import gzip
 import os
 import subprocess
 from typing import Iterable, List, Mapping, Set, Tuple
@@ -61,6 +62,9 @@ flags.DEFINE_string('input_pattern', None,
                     'Pattern (glob) matching input Dataset protos.')
 flags.DEFINE_string('input_file', None,
                     'Filename containing Dataset proto filenames.')
+flags.DEFINE_enum('output_format', '.pb.gz',
+                  ['.pb.gz', '.pb', '.pbtxt.gz', '.pbtxt'],
+                  'Dataset output format.')
 flags.DEFINE_boolean('write_errors', False,
                      'If True, errors will be written to <filename>.error.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
@@ -168,7 +172,11 @@ def _load_base_dataset(file_status: FileStatus,
                                 capture_output=True,
                                 check=True,
                                 text=False)
-    return dataset_pb2.Dataset.FromString(serialized.stdout)
+    if args[-1].endswith('.gz'):
+        value = gzip.decompress(serialized.stdout)
+    else:
+        value = serialized.stdout
+    return dataset_pb2.Dataset.FromString(value)
 
 
 def get_change_stats(datasets: Mapping[str, dataset_pb2.Dataset],
@@ -221,7 +229,8 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset]):
     for filename, dataset in datasets.items():
         output_filename = os.path.join(
             FLAGS.root,
-            message_helpers.id_filename(f'{dataset.dataset_id}.pb'))
+            message_helpers.id_filename(
+                f'{dataset.dataset_id}{FLAGS.output_format}'))
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         if FLAGS.cleanup:
             cleanup(filename, output_filename)
