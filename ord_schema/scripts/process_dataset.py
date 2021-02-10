@@ -220,7 +220,8 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset]):
     validations.validate_datasets(datasets, FLAGS.write_errors, options=options)
     for filename, dataset in datasets.items():
         output_filename = os.path.join(
-            FLAGS.root, message_helpers.id_filename(f'{dataset.dataset_id}.pb'))
+            FLAGS.root,
+            message_helpers.id_filename(f'{dataset.dataset_id}.pb.gz'))
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         if FLAGS.cleanup:
             cleanup(filename, output_filename)
