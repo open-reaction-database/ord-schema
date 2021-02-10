@@ -367,6 +367,9 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.amount.moles.value = 2
         component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
+        reaction.provenance.record_created.time.value = '2021-02-09'
+        reaction.provenance.record_created.person.username = 'bob'
+        reaction.provenance.record_created.person.email = 'bob@bob.com'
         dataset1 = dataset_pb2.Dataset(reactions=[reaction])
         dataset1_filename = os.path.join(self.test_subdirectory, 'test1.pbtxt')
         message_helpers.write_message(dataset1, dataset1_filename)
