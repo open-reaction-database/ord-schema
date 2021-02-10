@@ -94,7 +94,7 @@ class ProcessDatasetTest(absltest.TestCase):
     def test_main_with_updates(self):
         output = os.path.join(
             self.test_subdirectory, 'data', '00',
-            'ord_dataset-00000000000000000000000000000000.pb')
+            'ord_dataset-00000000000000000000000000000000.pb.gz')
         with flagsaver.flagsaver(input_pattern=self.dataset1_filename,
                                  update=True,
                                  root=self.test_subdirectory,
@@ -152,7 +152,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         validations.validate_message(dataset)
         os.makedirs(os.path.join('data', '64'))
         self.dataset_filename = os.path.join(self.test_subdirectory, 'data',
-                                             '64', f'{dataset_id}.pb')
+                                             '64', f'{dataset_id}.pb.gz')
         message_helpers.write_message(dataset, self.dataset_filename)
         subprocess.run(['git', 'add', 'data'], check=True)
         subprocess.run(['git', 'commit', '-m', 'Initial commit'], check=True)
@@ -171,7 +171,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
             changed: Set of changed reaction IDs.
             filenames: List of .pb filenames in the updated database.
         """
-        subprocess.run(['git', 'add', '*.pb*', 'data/*/*.pb'], check=True)
+        subprocess.run(['git', 'add', '*.pb*', 'data/*/*.pb*'], check=True)
         changed = subprocess.run(
             ['git', 'diff', '--name-status', self._DEFAULT_BRANCH],
             check=True,
@@ -190,7 +190,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         run_flags.update(kwargs)
         with flagsaver.flagsaver(**run_flags):
             added, removed, changed = process_dataset.run()
-        filenames = glob.glob(os.path.join(self.test_subdirectory, '**/*.pb'),
+        filenames = glob.glob(os.path.join(self.test_subdirectory, '**/*.pb*'),
                               recursive=True)
         return added, removed, changed, filenames
 
@@ -225,8 +225,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.assertLen(dataset.reactions, 1)
         self.assertNotEmpty(dataset.reactions[0].reaction_id)
         # Check for binary output.
-        _, ext = os.path.splitext(filenames[0])
-        self.assertEqual(ext, '.pb')
+        self.assertTrue(filenames[0].endswith('.pb.gz'))
 
     def test_add_sharded_dataset(self):
         reaction = reaction_pb2.Reaction()
@@ -367,6 +366,9 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.amount.moles.value = 2
         component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
+        reaction.provenance.record_created.time.value = '2021-02-09'
+        reaction.provenance.record_created.person.username = 'bob'
+        reaction.provenance.record_created.person.email = 'bob@bob.com'
         dataset1 = dataset_pb2.Dataset(reactions=[reaction])
         dataset1_filename = os.path.join(self.test_subdirectory, 'test1.pbtxt')
         message_helpers.write_message(dataset1, dataset1_filename)

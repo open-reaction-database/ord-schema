@@ -31,7 +31,7 @@ Example usage:
 * For normal validation-only operation:
   $ python process_dataset.py --input_pattern=my_dataset.pb
 * To write the validated protos to disk:
-  $ python process_dataset.py --input_pattern=my_dataset.pb --output=out.pb
+  $ python process_dataset.py --input_pattern=my_dataset.pb --update
 * To write errors to disk:
   $ python process_dataset.py --input_pattern=my_dataset.pb --write_errors
 * To process multiple Dataset protos:
@@ -40,6 +40,7 @@ Example usage:
 
 import dataclasses
 import glob
+import gzip
 import os
 import subprocess
 from typing import Iterable, List, Mapping, Set, Tuple
@@ -61,6 +62,9 @@ flags.DEFINE_string('input_pattern', None,
                     'Pattern (glob) matching input Dataset protos.')
 flags.DEFINE_string('input_file', None,
                     'Filename containing Dataset proto filenames.')
+flags.DEFINE_enum('output_format', '.pb.gz',
+                  ['.pb.gz', '.pb', '.pbtxt.gz', '.pbtxt'],
+                  'Dataset output format.')
 flags.DEFINE_boolean('write_errors', False,
                      'If True, errors will be written to <filename>.error.')
 flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
@@ -75,6 +79,8 @@ flags.DEFINE_integer(
     'issue', None,
     'GitHub pull request number. If provided, a comment will be added.')
 flags.DEFINE_string('token', None, 'GitHub authentication token.')
+
+# pylint: disable=too-many-locals
 
 
 @dataclasses.dataclass(eq=True, frozen=True, order=True)
@@ -166,7 +172,11 @@ def _load_base_dataset(file_status: FileStatus,
                                 capture_output=True,
                                 check=True,
                                 text=False)
-    return dataset_pb2.Dataset.FromString(serialized.stdout)
+    if args[-1].endswith('.gz'):
+        value = gzip.decompress(serialized.stdout)
+    else:
+        value = serialized.stdout
+    return dataset_pb2.Dataset.FromString(value)
 
 
 def get_change_stats(datasets: Mapping[str, dataset_pb2.Dataset],
@@ -218,7 +228,9 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset]):
     validations.validate_datasets(datasets, FLAGS.write_errors, options=options)
     for filename, dataset in datasets.items():
         output_filename = os.path.join(
-            FLAGS.root, message_helpers.id_filename(f'{dataset.dataset_id}.pb'))
+            FLAGS.root,
+            message_helpers.id_filename(
+                f'{dataset.dataset_id}{FLAGS.output_format}'))
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         if FLAGS.cleanup:
             cleanup(filename, output_filename)
@@ -242,35 +254,49 @@ def run() -> Tuple[Set[str], Set[str], Set[str]]:
     if not inputs:
         logging.info('nothing to do')
         return set(), set(), set()  # Nothing to do.
-    datasets = {}
+    # NOTE(kearnes): Process one dataset at a time to avoid OOM errors.
+    change_stats = {}
     for file_status in inputs:
         if file_status.status == 'D':
             continue  # Nothing to do for deleted files.
-        datasets[file_status.filename] = message_helpers.load_message(
-            file_status.filename, dataset_pb2.Dataset)
-    if FLAGS.validate:
-        # Note: this does not check if IDs are malformed.
-        validations.validate_datasets(datasets, FLAGS.write_errors)
-    if FLAGS.base:
-        added, removed, changed = get_change_stats(datasets,
-                                                   inputs,
-                                                   base=FLAGS.base)
-        logging.info('Summary: +%d -%d Δ%d reaction IDs', len(added),
-                     len(removed), len(changed))
-        if (added or removed or changed) and FLAGS.issue and FLAGS.token:
+        dataset = message_helpers.load_message(file_status.filename,
+                                               dataset_pb2.Dataset)
+        datasets = {file_status.filename: dataset}
+        if FLAGS.validate:
+            # Note: this does not check if IDs are malformed.
+            validations.validate_datasets(datasets, FLAGS.write_errors)
+        if FLAGS.base:
+            added, removed, changed = get_change_stats(datasets, [file_status],
+                                                       base=FLAGS.base)
+            change_stats[file_status.filename] = (added, removed, changed)
+            logging.info('Summary: +%d -%d Δ%d reaction IDs', len(added),
+                         len(removed), len(changed))
+        if FLAGS.update:
+            _run_updates(datasets)
+    if change_stats:
+        total_added, total_removed, total_changed = set(), set(), set()
+        comment = [
+            'Change summary:',
+            '| Filename | Added | Removed | Changed |',
+            '| -------- | ----- | ------- | ------- |',
+        ]
+        for filename, (added, removed, changed) in change_stats.items():
+            comment.append(f'| {filename} | '
+                           f'{len(added)} | {len(removed)} | {len(changed)} |')
+            total_added |= added
+            total_removed |= removed
+            total_changed |= changed
+        comment.append(f'| | **{len(total_added)}** | '
+                       f'**{len(total_removed)}** | '
+                       f'**{len(total_changed)}** |')
+        if FLAGS.issue and FLAGS.token:
             client = github.Github(FLAGS.token)
             repo = client.get_repo(os.environ['GITHUB_REPOSITORY'])
             issue = repo.get_issue(FLAGS.issue)
-            issue.create_comment(
-                f'Summary: +{len(added)} -{len(removed)} Δ{len(changed)} '
-                'reaction IDs')
+            issue.create_comment('\n'.join(comment))
     else:
-        added, removed, changed = None, None, None
-    if FLAGS.update:
-        _run_updates(datasets)
-    else:
-        logging.info('nothing else to do; use --update for more')
-    return added, removed, changed
+        total_added, total_removed, total_changed = None, None, None
+    return total_added, total_removed, total_changed
 
 
 def main(argv):
