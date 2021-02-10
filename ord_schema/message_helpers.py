@@ -14,6 +14,7 @@
 """Helper functions for constructing Protocol Buffer messages."""
 
 import enum
+import gzip
 import os
 import re
 from typing import Dict, Iterable, List, Optional, Tuple, Type, TypeVar, Union
@@ -721,13 +722,18 @@ def load_message(filename: str, message_type: Type[MessageType]) -> MessageType:
         ValueError: if the message cannot be parsed, or if `input_format` is not
             supported.
     """
-    _, extension = os.path.splitext(filename)
+    if filename.endswith('.gz'):
+        this_open = gzip.open
+        _, extension = os.path.splitext('.'.join(filename.split('.')[:-1]))
+    else:
+        this_open = open
+        _, extension = os.path.splitext(filename)
     input_format = MessageFormat(extension)
     if input_format == MessageFormat.BINARY:
         mode = 'rb'
     else:
-        mode = 'r'
-    with open(filename, mode) as f:
+        mode = 'rt'
+    with this_open(filename, mode) as f:
         try:
             if input_format == MessageFormat.JSON:
                 return json_format.Parse(f.read(), message_type())
@@ -753,13 +759,18 @@ def write_message(message: ord_schema.Message, filename: str):
     Raises:
         ValueError: if `filename` does not have the expected suffix.
     """
-    _, extension = os.path.splitext(filename)
+    if filename.endswith('.gz'):
+        this_open = gzip.open
+        _, extension = os.path.splitext('.'.join(filename.split('.')[:-1]))
+    else:
+        this_open = open
+        _, extension = os.path.splitext(filename)
     output_format = MessageFormat(extension)
     if output_format == MessageFormat.BINARY:
         mode = 'wb'
     else:
-        mode = 'w'
-    with open(filename, mode) as f:
+        mode = 'wt'
+    with this_open(filename, mode) as f:
         if output_format == MessageFormat.JSON:
             f.write(json_format.MessageToJson(message))
         elif output_format == MessageFormat.PBTXT:
