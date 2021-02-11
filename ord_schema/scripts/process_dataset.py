@@ -49,6 +49,7 @@ from absl import app
 from absl import flags
 from absl import logging
 import github
+from rdkit import RDLogger
 
 from ord_schema import data_storage
 from ord_schema import message_helpers
@@ -261,6 +262,8 @@ def run() -> Tuple[Set[str], Set[str], Set[str]]:
             continue  # Nothing to do for deleted files.
         dataset = message_helpers.load_message(file_status.filename,
                                                dataset_pb2.Dataset)
+        logging.info('%s: %d reactions', file_status.filename,
+                     len(dataset.reactions))
         datasets = {file_status.filename: dataset}
         if FLAGS.validate:
             # Note: this does not check if IDs are malformed.
@@ -301,6 +304,7 @@ def run() -> Tuple[Set[str], Set[str], Set[str]]:
 
 def main(argv):
     del argv  # Only used by app.run().
+    RDLogger.DisableLog('rdApp.*')  # Disable RDKit logging.
     run()
 
 
