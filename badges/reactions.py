@@ -21,6 +21,7 @@ from absl import app
 from absl import flags
 from absl import logging
 
+from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 
 FLAGS = flags.FLAGS
@@ -31,9 +32,8 @@ flags.DEFINE_string('output', None, 'Output SVG filename.')
 def main(argv):
     del argv  # Only used by app.run().
     num_reactions = 0
-    for filename in glob.glob(os.path.join(FLAGS.root, '*', '*.pb')):
-        with open(filename, 'rb') as f:
-            dataset = dataset_pb2.Dataset.FromString(f.read())
+    for filename in glob.glob(os.path.join(FLAGS.root, '*', '*.pb*')):
+        dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
         logging.info('%s:\t%d', filename, len(dataset.reactions))
         num_reactions += len(dataset.reactions)
     args = {
