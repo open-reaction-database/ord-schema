@@ -347,19 +347,7 @@ message CompoundIdentifier {
  */
 message Vessel {
   // Vessel type (flask, vial, well-plate, etc.).
-  VesselType type = 1;
-  // Vessel material (glass, plastic, etc.).
-  VesselMaterial material = 2;
-  // How the vessel was prepared for the reaction.
-  repeated VesselPreparation preparations = 3;
-  // Vessel attachments (septum, cap, gas adapter, etc.).
-  repeated VesselAttachment attachments = 4;
-  // Size (volume) of the vessel.
-  Volume volume = 5;
-}
-
-message VesselType {
-  enum VesselTypeEnum {
+  enum VesselType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     ROUND_BOTTOM_FLASK = 2;
@@ -374,14 +362,12 @@ message VesselType {
     PRESSURE_REACTOR = 11;  // High-pressure (e.g., Parr bomb reactor)
     ELECTROCHEMICAL_CELL = 12;
   }
-  VesselTypeEnum type = 1;
+  VesselType type = 1;
+  // Vessel material (glass, plastic, etc.).
   // Include details such as "multi-neck" for ROUND_BOTTOM_FLASK,
   // "J. Young" for NMR_TUBE, etc.
   string details = 2;
-}
-
-message VesselMaterial {
-  enum VesselMaterialType {
+  enum VesselMaterial {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     GLASS = 2;
@@ -390,12 +376,23 @@ message VesselMaterial {
     METAL = 5;
     QUARTZ = 6;
   }
-  VesselMaterialType type = 1;
-  string details = 2;
-}
-
-message VesselAttachment {
-  enum VesselAttachmentType {
+  VesselMaterial material = 3;
+  // How the vessel was prepared for the reaction.
+  enum VesselPreparation {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    NONE = 2;
+    OVEN_DRIED = 3;
+    FLAME_DRIED = 4;
+    EVACUATED_BACKFILLED = 5;
+    PURGED = 6;
+  }
+  repeated VesselPreparation preparations = 4;
+  // Vessel attachments (septum, cap, gas adapter, etc.).
+  // Include attachment specifications in details, e.g., "rubber" for SEPTUM,
+  // "Teflon" for CAP, "water jacket" for REFLUX_CONDENSER, etc.
+  // Also include sealing details, e.g., "electrical tape", "parafilm", etc.
+  enum VesselAttachment {
     UNSPECIFIED = 0;
     NONE = 1;
     CUSTOM = 2;
@@ -415,25 +412,9 @@ message VesselAttachment {
     PRESSURE_REGULATOR = 16;
     RELEASE_VALVE = 17;
   }
-  VesselAttachmentType type = 1;
-  // Include attachment specifications, e.g., "rubber" for SEPTUM,
-  // "Teflon" for CAP, "water jacket" for REFLUX_CONDENSER, etc.
-  // Also include sealing details, e.g., "electrical tape", "parafilm", etc.
-  string details = 2;
-}
-
-message VesselPreparation {
-  enum VesselPreparationType {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    NONE = 2;
-    OVEN_DRIED = 3;
-    FLAME_DRIED = 4;
-    EVACUATED_BACKFILLED = 5;
-    PURGED = 6;
-  }
-  VesselPreparationType type = 1;
-  string details = 2;
+  repeated VesselAttachment attachments = 5;
+  // Size (volume) of the vessel.
+  Volume volume = 6;
 }
 
 message ReactionSetup {
