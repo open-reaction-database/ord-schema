@@ -430,10 +430,11 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
             test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
         ]
 
-    @parameterized.parameters(message_helpers.MessageFormat)
-    def test_round_trip(self, message_format):
+    @parameterized.parameters('.pbtxt', '.pb', '.json', '.pbtxt.gz', '.pb.gz',
+                              '.json.gz')
+    def test_round_trip(self, suffix):
         for message in self.messages:
-            with tempfile.NamedTemporaryFile(suffix=message_format.value) as f:
+            with tempfile.NamedTemporaryFile(suffix=suffix) as f:
                 message_helpers.write_message(message, f.name)
                 f.flush()
                 self.assertEqual(

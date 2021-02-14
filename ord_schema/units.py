@@ -16,6 +16,8 @@
 import re
 from typing import Iterable, Mapping, Optional, Type
 
+import numpy as np
+
 import ord_schema
 from ord_schema.proto import reaction_pb2
 
@@ -23,12 +25,13 @@ from ord_schema.proto import reaction_pb2
 # lowercase.
 _UNIT_SYNONYMS = {
     reaction_pb2.Time: {
+        reaction_pb2.Time.DAY: ['d', 'day', 'days'],
         reaction_pb2.Time.HOUR: ['h', 'hour', 'hours', 'hr', 'hrs'],
         reaction_pb2.Time.MINUTE: ['min', 'mins', 'minute', 'minutes'],
         reaction_pb2.Time.SECOND: ['s', 'sec', 'secs', 'second', 'seconds'],
     },
     reaction_pb2.Mass: {
-        reaction_pb2.Mass.GRAM: ['g', 'gram', 'grams', 'gs', 'gm', 'gms'],
+        reaction_pb2.Mass.GRAM: ['g', 'gram', 'grams', 'gs', 'gm', 'gms', 'gr'],
         reaction_pb2.Mass.MILLIGRAM: ['mg', 'mgs', 'milligrams', 'milligram'],
         reaction_pb2.Mass.MICROGRAM: [
             'μg', 'ug', 'ugs', 'micg', 'micgs', 'micrograms', 'microgram'
@@ -37,12 +40,16 @@ _UNIT_SYNONYMS = {
     },
     reaction_pb2.Moles: {
         reaction_pb2.Moles.MOLE: ['mol', 'mols', 'mole', 'moles'],
-        reaction_pb2.Moles.MILLIMOLE: ['mmol', 'millimoles', 'mmols'],
+        reaction_pb2.Moles.MILLIMOLE: [
+            'mmol', 'millimoles', 'mmols', 'mmole', 'mmoles'
+        ],
         reaction_pb2.Moles.MICROMOLE: ['μmol', 'umol', 'umols', 'micromoles'],
         reaction_pb2.Moles.NANOMOLE: ['nmol', 'nanomoles'],
     },
     reaction_pb2.Volume: {
-        reaction_pb2.Volume.MILLILITER: ['mL', 'milliliter', 'milliliters'],
+        reaction_pb2.Volume.MILLILITER: [
+            'mL', 'milliliter', 'milliliters', 'cc', 'cm3', 'mls'
+        ],
         reaction_pb2.Volume.MICROLITER: [
             'μL', 'uL', 'micl', 'microliter', 'microliters'
         ],
@@ -65,7 +72,14 @@ _UNIT_SYNONYMS = {
         reaction_pb2.Pressure.KILOPASCAL: ['kPa', 'kilopascals', 'kPas'],
     },
     reaction_pb2.Temperature: {
-        reaction_pb2.Temperature.CELSIUS: ['°C', 'C', 'degC', 'celsius'],
+        reaction_pb2.Temperature.CELSIUS: [
+            '°C',
+            'C',
+            'degC',
+            '°celsius',
+            'celsius',
+            'degrees C',
+        ],
         reaction_pb2.Temperature.FAHRENHEIT: ['°F', 'F', 'degF', 'fahrenheit'],
         reaction_pb2.Temperature.KELVIN: ['K', 'degK', 'Kelvin'],
     },
@@ -146,27 +160,49 @@ class UnitResolver:
                     self._resolver[string_unit] = (message, unit)
         # Values must have zero or one decimal point. Whitespace between the
         # value and the unit is optional.
-        self._pattern = re.compile(r'(\d+.?\d*)\s*(\w+)')
+        self._pattern = re.compile(
+            r'(-?\d+\.?\d*(?:[eE]-?\d+)?)(?:[-±](-?\d+\.?\d*))?\s*'
+            r'([\w\sμ°]+)\.?')
 
-    def resolve(self, string: str) -> ord_schema.UnitMessage:
+    def resolve(self,
+                string: str,
+                allow_range: bool = False) -> ord_schema.UnitMessage:
         """Resolves a string into a message containing a value with units.
 
         Args:
             string: The string to parse; must contain a numeric value and a
                 string unit. For example: "1.25 h".
+            allow_range: If True, ranges like "1-2 h" can be provided and the
+                average value will be reported along with the standard
+                deviation.
 
         Returns:
             Message containing a numeric value with units listed in the schema.
 
         Raises:
-            ValueError: If string does not contain a value with units.
+            ValueError: if string does not contain a value with units, or if
+                the value is invalid.
         """
         # NOTE(kearnes): Use fullmatch() to catch cases with multiple matches.
-        match = self._pattern.fullmatch(string.strip())
+        match = self._pattern.fullmatch(string.strip().replace('−', '-'))
         if not match:
             raise ValueError(
                 f'string does not contain a value with units: {string}')
-        value, string_unit = match.groups()
+        value, range_value, string_unit = match.groups()
+        precision = None
+        if range_value is not None:
+            if '±' in string:
+                value = float(value)
+                precision = float(range_value)
+            elif not allow_range:
+                raise ValueError('string appears to contain a range of values '
+                                 f'but allow_range is False: {string}')
+            else:
+                values = np.asarray([value, range_value], dtype=float)
+                value = values.mean()
+                precision = values.std()
+        else:
+            value = float(value)
         assert string_unit is not None  # Type hint.
         string_unit = string_unit.lower()
         if string_unit in self._forbidden_units:
@@ -175,7 +211,12 @@ class UnitResolver:
         if string_unit not in self._resolver:
             raise KeyError(f'unrecognized units: {string_unit}')
         message, unit = self._resolver[string_unit]
-        return message(value=float(value), units=unit)
+        if value < 0.0 and message != reaction_pb2.Temperature:
+            raise ValueError(
+                f'negative values are only allowed for temperature: {string}')
+        if precision:
+            return message(value=value, precision=precision, units=unit)
+        return message(value=value, units=unit)
 
 
 def format_message(message: ord_schema.UnitMessage) -> Optional[str]:
