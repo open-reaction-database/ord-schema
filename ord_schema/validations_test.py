@@ -175,6 +175,19 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
                                     'reaction input'):
             self._run_validation(message)
 
+    def test_reaction_smiles(self):
+        message = reaction_pb2.Reaction()
+        message.identifiers.add(value='test', type='REACTION_SMILES')
+        output = self._run_validation(message)
+        self.assertEmpty(output.errors)
+        self.assertEmpty(output.warnings)
+        # Now disable the exception for reaction SMILES only.
+        options = validations.ValidationOptions()
+        options.allow_reaction_smiles_only = False
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'reaction input'):
+            self._run_validation(message, options=options)
+
     # pylint: disable=too-many-statements
     def test_reaction_recursive(self):
         message = reaction_pb2.Reaction()

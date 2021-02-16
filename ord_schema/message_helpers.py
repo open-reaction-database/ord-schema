@@ -365,12 +365,15 @@ def check_compound_identifiers(compound: reaction_pb2.Compound):
 
 
 def get_reaction_smiles(message: reaction_pb2.Reaction,
+                        generate_if_missing: bool = False,
                         allow_incomplete: bool = True,
-                        validate: bool = True) -> str:
+                        validate: bool = True) -> Optional[str]:
     """Fetches or generates a reaction SMILES.
 
     Args:
         message: reaction_pb2.Reaction message.
+        generate_if_missing: Whether to generate a reaction SMILES from the
+            inputs and outputs if one is not defined explicitly.
         allow_incomplete: Boolean whether to allow "incomplete" reaction SMILES
             that do not include all components (e.g. if a component does not
             have a structural identifier).
@@ -378,14 +381,20 @@ def get_reaction_smiles(message: reaction_pb2.Reaction,
             Only used if allow_incomplete is False.
 
     Returns:
-        Text reaction SMILES.
+        Text reaction SMILES, or None.
 
     Raises:
         ValueError: If the reaction contains errors.
     """
+    types = [
+        reaction_pb2.ReactionIdentifier.REACTION_SMILES,
+        reaction_pb2.ReactionIdentifier.REACTION_CXSMILES
+    ]
     for identifier in message.identifiers:
-        if identifier.type == reaction_pb2.ReactionIdentifier.REACTION_SMILES:
+        if identifier.type in types:
             return identifier.value
+    if not generate_if_missing:
+        return None
     reactants, agents, products = set(), set(), set()
     roles = reaction_pb2.ReactionRole
     for key in sorted(message.inputs):

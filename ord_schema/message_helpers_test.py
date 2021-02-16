@@ -128,8 +128,10 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
             value='c1ccccc1', type='SMILES')
         reactant1.components.add(reaction_role='SOLVENT').identifiers.add(
             value='N', type='SMILES')
-        self.assertEqual(message_helpers.get_reaction_smiles(reaction),
-                         'c1ccccc1>N>')
+        self.assertEqual(
+            message_helpers.get_reaction_smiles(reaction,
+                                                generate_if_missing=True),
+            'c1ccccc1>N>')
         reactant2 = reaction.inputs['reactant2']
         reactant2.components.add(reaction_role='REACTANT').identifiers.add(
             value='Cc1ccccc1', type='SMILES')
@@ -138,8 +140,10 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         reaction.outcomes.add().products.add(
             reaction_role='PRODUCT').identifiers.add(value='O=C=O',
                                                      type='SMILES')
-        self.assertEqual(message_helpers.get_reaction_smiles(reaction),
-                         'Cc1ccccc1.c1ccccc1>N>O=C=O')
+        self.assertEqual(
+            message_helpers.get_reaction_smiles(reaction,
+                                                generate_if_missing=True),
+            'Cc1ccccc1.c1ccccc1>N>O=C=O')
 
     def test_get_reaction_smiles_failure(self):
         reaction = reaction_pb2.Reaction()
@@ -148,16 +152,19 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         component.identifiers.add(value='benzene', type='NAME')
         with self.assertRaisesRegex(ValueError,
                                     'no valid reactants or products'):
-            message_helpers.get_reaction_smiles(reaction)
+            message_helpers.get_reaction_smiles(reaction,
+                                                generate_if_missing=True)
         component.identifiers.add(value='c1ccccc1', type='SMILES')
         with self.assertRaisesRegex(ValueError, 'must contain at least one'):
             message_helpers.get_reaction_smiles(reaction,
+                                                generate_if_missing=True,
                                                 allow_incomplete=False)
         reaction.outcomes.add().products.add(
             reaction_role='PRODUCT').identifiers.add(value='invalid',
                                                      type='SMILES')
         with self.assertRaisesRegex(ValueError, 'reaction contains errors'):
             message_helpers.get_reaction_smiles(reaction,
+                                                generate_if_missing=True,
                                                 allow_incomplete=False)
 
     @parameterized.named_parameters(

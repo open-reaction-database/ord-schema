@@ -40,6 +40,8 @@ class ValidationOptions:
     validate_ids: bool = False
     # Require ReactionProvenance for Reactions.
     require_provenance: bool = False
+    # Allow reactions with valid reaction SMILES and nothing else.
+    allow_reaction_smiles_only = True
 
 
 @dataclasses.dataclass
@@ -410,12 +412,17 @@ def validate_reaction(message: reaction_pb2.Reaction,
                       options: Optional[ValidationOptions] = None):
     if options is None:
         options = ValidationOptions()
-    if len(message.inputs) == 0:
-        warnings.warn('Reactions should have at least 1 reaction input',
-                      ValidationError)
-    if len(message.outcomes) == 0:
-        warnings.warn('Reactions should have at least 1 reaction outcome',
-                      ValidationError)
+    if (options.allow_reaction_smiles_only and
+            message_helpers.get_reaction_smiles(message) and
+            len(message.inputs) == 0 and len(message.outcomes) == 0):
+        pass
+    else:
+        if len(message.inputs) == 0:
+            warnings.warn('Reactions should have at least 1 reaction input',
+                          ValidationError)
+        if len(message.outcomes) == 0:
+            warnings.warn('Reactions should have at least 1 reaction outcome',
+                          ValidationError)
     if (reaction_needs_internal_standard(message) and
             not reaction_has_internal_standard(message)):
         warnings.warn(
