@@ -363,11 +363,21 @@ message Vessel {
     ELECTROCHEMICAL_CELL = 12;
   }
   VesselType type = 1;
-  // Vessel material (glass, plastic, etc.).
   // Include details such as "multi-neck" for ROUND_BOTTOM_FLASK,
   // "J. Young" for NMR_TUBE, etc.
   string details = 2;
-  enum VesselMaterial {
+  // Vessel material (glass, plastic, etc.).
+  VesselMaterial material = 3;
+  // How the vessel was prepared for the reaction.
+  repeated VesselPreparation preparations = 4;
+  // Vessel attachments (septum, cap, gas adapter, etc.).
+  repeated VesselAttachment attachments = 5;
+  // Size (volume) of the vessel.
+  Volume volume = 6;
+}
+
+message VesselMaterial {
+  enum VesselMaterialType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     GLASS = 2;
@@ -376,23 +386,12 @@ message Vessel {
     METAL = 5;
     QUARTZ = 6;
   }
-  VesselMaterial material = 3;
-  // How the vessel was prepared for the reaction.
-  enum VesselPreparation {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    NONE = 2;
-    OVEN_DRIED = 3;
-    FLAME_DRIED = 4;
-    EVACUATED_BACKFILLED = 5;
-    PURGED = 6;
-  }
-  repeated VesselPreparation preparations = 4;
-  // Vessel attachments (septum, cap, gas adapter, etc.).
-  // Include attachment specifications in details, e.g., "rubber" for SEPTUM,
-  // "Teflon" for CAP, "water jacket" for REFLUX_CONDENSER, etc.
-  // Also include sealing details, e.g., "electrical tape", "parafilm", etc.
-  enum VesselAttachment {
+  VesselMaterialType type = 1;
+  string details = 2;
+}
+
+message VesselAttachment {
+  enum VesselAttachmentType {
     UNSPECIFIED = 0;
     NONE = 1;
     CUSTOM = 2;
@@ -412,9 +411,25 @@ message Vessel {
     PRESSURE_REGULATOR = 16;
     RELEASE_VALVE = 17;
   }
-  repeated VesselAttachment attachments = 5;
-  // Size (volume) of the vessel.
-  Volume volume = 6;
+  VesselAttachmentType type = 1;
+  // Include attachment specifications, e.g., "rubber" for SEPTUM,
+  // "Teflon" for CAP, "water jacket" for REFLUX_CONDENSER, etc.
+  // Also include sealing details, e.g., "electrical tape", "parafilm", etc.
+  string details = 2;
+}
+
+message VesselPreparation {
+  enum VesselPreparationType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    NONE = 2;
+    OVEN_DRIED = 3;
+    FLAME_DRIED = 4;
+    EVACUATED_BACKFILLED = 5;
+    PURGED = 6;
+  }
+  VesselPreparationType type = 1;
+  string details = 2;
 }
 
 message ReactionSetup {
