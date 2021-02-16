@@ -82,6 +82,17 @@ class GenerateTextTest(absltest.TestCase):
         self.assertRegex(html, '100 °C')
         self.assertRegex(html, 'dummy_reaction_id')
 
+    def test_compact_html(self):
+        html = generate_text.generate_html(self._reaction, compact=True)
+        self.assertRegex(html, '<table')
+        self.assertNotRegex(html, 'hexanone')
+        self.assertNotRegex(html, 'under oxygen')
+        self.assertNotRegex(html, '100 rpm')
+        self.assertNotRegex(html, '40 min')
+        self.assertNotRegex(html, 'solvent')
+        self.assertNotRegex(html, '100 °C')
+        self.assertRegex(html, 'dummy_reaction_id')
+
 
 if __name__ == '__main__':
     absltest.main()
