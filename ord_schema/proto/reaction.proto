@@ -475,7 +475,7 @@ message ReactionConditions {
 }
 
 message TemperatureConditions {
-  enum TemperatureControl {
+  enum TemperatureControlType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     AMBIENT = 2;
@@ -489,7 +489,7 @@ message TemperatureConditions {
     AIR_FAN = 10;
     LIQUID_NITROGEN = 11;
   }
-  TemperatureControl control = 1;
+  TemperatureControlType type = 1;
   // Specify, e.g., ICE_BATH components (e.g., "ice water, salt"),
   // MICROWAVE power, AIR_FAN speed, etc.
   string details = 2;
@@ -511,7 +511,7 @@ message TemperatureConditions {
 }
 
 message PressureConditions {
-  enum PressureControl {
+  enum PressureControlType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     AMBIENT = 2;
@@ -519,7 +519,7 @@ message PressureConditions {
     SEALED = 4;  // Fully sealed vessel (e.g., microwave vial, sealed tube).
     PRESSURIZED = 5;  // High-pressure applied, e.g., in a bomb reactor.
   }
-  PressureControl control = 1;
+  PressureControlType type = 1;
   // Include means of pressure control in "Attachment" when appropriate.
   string details = 2;
   Pressure setpoint = 3;
@@ -560,7 +560,7 @@ message PressureConditions {
 }
 
 message StirringConditions {
-  enum StirringMethod {
+  enum StirringMethodType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     NONE = 2;
@@ -570,7 +570,7 @@ message StirringConditions {
     BALL_MILLING = 6;
     SONICATION = 7;
   }
-  StirringMethod method = 1;
+  StirringMethodType type = 1;
   // Specify, e.g., "egg-shape" for STIR_BAR.
   string details = 2;
   message StirringRate {
