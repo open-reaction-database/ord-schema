@@ -617,22 +617,19 @@ message IlluminationConditions {
 }
 
 message ElectrochemistryConditions {
-  message ElectrochemistryType {
-    enum ElectrochemistryTypeEnum {
-      UNSPECIFIED = 0;
-      CUSTOM = 1;
-      CONSTANT_CURRENT = 2;
-      CONSTANT_VOLTAGE = 3;
-    }
-    ElectrochemistryTypeEnum type = 1;
-    string details = 2;
+  enum ElectrochemistryType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    CONSTANT_CURRENT = 2;
+    CONSTANT_VOLTAGE = 3;
   }
-  ElectrochemistryType electrochemistry_type = 1;
-  Current current = 2;
-  Voltage voltage = 3;
-  string anode_material = 4;
-  string cathode_material = 5;
-  Length electrode_separation = 6;
+  ElectrochemistryType type = 1;
+  string details = 2;
+  Current current = 3;
+  Voltage voltage = 4;
+  string anode_material = 5;
+  string cathode_material = 6;
+  Length electrode_separation = 7;
   message Measurement {
     Time time = 1;
     oneof kind {
@@ -640,7 +637,7 @@ message ElectrochemistryConditions {
       Voltage voltage = 3;
     }
   }
-  repeated Measurement measurements = 7;
+  repeated Measurement measurements = 8;
   message ElectrochemistryCell {
     enum ElectrochemistryCellType {
       UNSPECIFIED = 0;
@@ -653,7 +650,7 @@ message ElectrochemistryConditions {
     // vs. commercial cell and details.
     string details = 2;
   }
-  ElectrochemistryCell cell = 8;
+  ElectrochemistryCell cell = 9;
 }
 
 message FlowConditions {
