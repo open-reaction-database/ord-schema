@@ -598,25 +598,22 @@ message StirringConditions {
 }
 
 message IlluminationConditions {
-  message IlluminationType {
-    enum IlluminationTypeEnum {
-      UNSPECIFIED = 0;
-      CUSTOM = 1;
-      AMBIENT = 2;
-      DARK = 3;
-      LED = 4;
-      HALOGEN_LAMP = 5;
-      DEUTERIUM_LAMP = 6;
-      SOLAR_SIMULATOR = 7;
-      BROAD_SPECTRUM = 8;
-    }
-    IlluminationTypeEnum type = 1;
-    string details = 2;  // E.g. manufacturer, setup specifications, etc.
+  enum IlluminationType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    AMBIENT = 2;
+    DARK = 3;
+    LED = 4;
+    HALOGEN_LAMP = 5;
+    DEUTERIUM_LAMP = 6;
+    SOLAR_SIMULATOR = 7;
+    BROAD_SPECTRUM = 8;
   }
   IlluminationType type = 1;
-  Wavelength peak_wavelength = 2;
-  string color = 3;
-  Length distance_to_vessel = 4;
+  string details = 2;  // E.g. manufacturer, setup specifications, etc.
+  Wavelength peak_wavelength = 3;
+  string color = 4;
+  Length distance_to_vessel = 5;
 }
 
 message ElectrochemistryConditions {
