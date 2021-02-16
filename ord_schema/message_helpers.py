@@ -41,6 +41,7 @@ MessageType = TypeVar('MessageType')  # Generic for setting return types.
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
+# pylint: disable=too-many-locals
 
 
 def build_compound(smiles: str = None,
