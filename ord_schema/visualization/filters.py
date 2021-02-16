@@ -649,7 +649,7 @@ def _get_compact_components(
     """
     roles_to_keep = [reaction_pb2.ReactionRole.REACTANT]
     compounds = []
-    for key, value in _sort_addition_order(inputs):
+    for _, value in _sort_addition_order(inputs):
         for component in value.components:
             if component.reaction_role in roles_to_keep:
                 compounds.append(component)
