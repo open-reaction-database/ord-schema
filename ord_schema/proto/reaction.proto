@@ -654,21 +654,18 @@ message ElectrochemistryConditions {
 }
 
 message FlowConditions {
-  message FlowType {
-    enum FlowTypeEnum {
-      UNSPECIFIED = 0;
-      CUSTOM = 1;
-      PLUG_FLOW_REACTOR = 2;
-      CONTINUOUS_STIRRED_TANK_REACTOR = 3;
-      PACKED_BED_REACTOR = 4;
-    }
-    FlowTypeEnum type = 1;
-    string details = 2;
+  enum FlowType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    PLUG_FLOW_REACTOR = 2;
+    CONTINUOUS_STIRRED_TANK_REACTOR = 3;
+    PACKED_BED_REACTOR = 4;
   }
-  FlowType flow_type = 1;
-  string pump_type = 2;
+  FlowType type = 1;
+  string details = 2;
+  string pump_type = 3;
   message Tubing {
-    enum TubingMaterialType {
+    enum TubingType {
       UNSPECIFIED = 0;
       CUSTOM = 1;
       STEEL = 2;
@@ -682,11 +679,11 @@ message FlowConditions {
       SILICON = 10;  // e.g., a chip-based microreactor
       PDMS = 11;
     }
-    TubingMaterialType type = 1;
+    TubingType type = 1;
     string details = 2;
     Length diameter = 3;
   }
-  Tubing tubing = 3;
+  Tubing tubing = 4;
 }
 
 message ReactionNotes {
