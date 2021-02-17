@@ -353,7 +353,8 @@ def _analysis_format(analysis: reaction_pb2.Analysis.AnalysisType) -> str:
     }[analysis.type]
 
 
-def _compound_svg(compound: reaction_pb2.Compound) -> str:
+def _compound_svg(compound: reaction_pb2.Compound,
+                  bond_length: int = 25) -> str:
     """Returns an SVG string for the given compound.
 
     If the compound does not have a structural identifier, a sentinel value
@@ -361,6 +362,7 @@ def _compound_svg(compound: reaction_pb2.Compound) -> str:
 
     Args:
         compound: Compound message.
+        bond_length: Bond length in pixels.
 
     Returns:
         String SVG or sentinel value.
@@ -368,7 +370,7 @@ def _compound_svg(compound: reaction_pb2.Compound) -> str:
     try:
         mol = message_helpers.mol_from_compound(compound)
         if mol:
-            svg = drawing.mol_to_svg(mol)
+            svg = drawing.mol_to_svg(mol, bond_length=bond_length)
             if svg is None:
                 return '[Compound]'
             return svg
@@ -633,11 +635,37 @@ def _datetimeformat(value: datetime.datetime,
     return value.strftime(format_string)
 
 
+def _get_compact_components(
+    inputs: Mapping[str, reaction_pb2.ReactionInput]
+) -> Iterable[Tuple[reaction_pb2.Compound, bool]]:
+    """Returns a list of input components for 'compact' visualization.
+
+    Args:
+        inputs: Reaction inputs map.
+
+    Yields:
+        component: Compound message.
+        is_last: Whether this is the last compound that will be displayed.
+    """
+    roles_to_keep = [reaction_pb2.ReactionRole.REACTANT]
+    compounds = []
+    for _, value in _sort_addition_order(inputs):
+        for component in value.components:
+            if component.reaction_role in roles_to_keep:
+                compounds.append(component)
+    for i, compound in enumerate(compounds):
+        if i + 1 == len(compounds):
+            yield compound, True
+        else:
+            yield compound, False
+
+
 TEMPLATE_FILTERS = {
     'round': _round,
     'is_true': _is_true,
     'datetimeformat': _datetimeformat,
     'uses_addition_order': _uses_addition_order,
+    'get_compact_components': _get_compact_components,
     'input_addition': _input_addition,
     'compound_svg': _compound_svg,
     'compound_png': _compound_png,
