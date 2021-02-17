@@ -447,9 +447,7 @@ def validate_reaction(message: reaction_pb2.Reaction,
 
 def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier):
     check_type_and_details(message)
-    if message.type in [
-            message.REACTION_SMILES, message.REACTION_CXSMILES
-    ]:
+    if message.type in [message.REACTION_SMILES, message.REACTION_CXSMILES]:
         if message.type == message.REACTION_CXSMILES:
             smiles = message.value.split()[0]
         else:
