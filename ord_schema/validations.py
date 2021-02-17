@@ -24,6 +24,7 @@ from absl import logging
 from dateutil import parser
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
+from rdkit.Chem import rdChemReactions
 
 import ord_schema
 from ord_schema import message_helpers
@@ -40,6 +41,8 @@ class ValidationOptions:
     validate_ids: bool = False
     # Require ReactionProvenance for Reactions.
     require_provenance: bool = False
+    # Allow reactions with valid reaction SMILES and nothing else.
+    allow_reaction_smiles_only: bool = True
 
 
 @dataclasses.dataclass
@@ -410,12 +413,17 @@ def validate_reaction(message: reaction_pb2.Reaction,
                       options: Optional[ValidationOptions] = None):
     if options is None:
         options = ValidationOptions()
-    if len(message.inputs) == 0:
-        warnings.warn('Reactions should have at least 1 reaction input',
-                      ValidationError)
-    if len(message.outcomes) == 0:
-        warnings.warn('Reactions should have at least 1 reaction outcome',
-                      ValidationError)
+    if (options.allow_reaction_smiles_only and
+            message_helpers.get_reaction_smiles(message) and
+            len(message.inputs) == 0 and len(message.outcomes) == 0):
+        pass
+    else:
+        if len(message.inputs) == 0:
+            warnings.warn('Reactions should have at least 1 reaction input',
+                          ValidationError)
+        if len(message.outcomes) == 0:
+            warnings.warn('Reactions should have at least 1 reaction outcome',
+                          ValidationError)
     if (reaction_needs_internal_standard(message) and
             not reaction_has_internal_standard(message)):
         warnings.warn(
@@ -439,6 +447,20 @@ def validate_reaction(message: reaction_pb2.Reaction,
 
 def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier):
     check_type_and_details(message)
+    if message.type in [message.REACTION_SMILES, message.REACTION_CXSMILES]:
+        if message.type == message.REACTION_CXSMILES:
+            smiles = message.value.split()[0]
+        else:
+            smiles = message.value
+        try:
+            rxn = rdChemReactions.ReactionFromSmarts(smiles, useSmiles=True)
+            if rxn is None:
+                warnings.warn(
+                    f'RDKit {RDKIT_VERSION} could not validate'
+                    f' REACTION_{{CX}}SMILES identifier {message.value}',
+                    ValidationError)
+        except ValueError as error:
+            warnings.warn(str(error), ValidationError)
     if not message.value:
         warnings.warn('value must be set', ValidationError)
 
@@ -525,7 +547,7 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier):
     check_type_and_details(message)
     if not message.value:
         warnings.warn('value must be set', ValidationError)
-    if Chem and message.type == message.SMILES:
+    if message.type == message.SMILES:
         mol = Chem.MolFromSmiles(message.value)
         if mol is None:
             warnings.warn(
