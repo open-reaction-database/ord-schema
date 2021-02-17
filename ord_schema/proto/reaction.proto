@@ -475,25 +475,28 @@ message ReactionConditions {
 }
 
 message TemperatureConditions {
-  enum TemperatureControlType {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    AMBIENT = 2;
-    OIL_BATH = 3;
-    WATER_BATH = 4;
-    SAND_BATH = 5;
-    ICE_BATH = 6;
-    DRY_ALUMINUM_PLATE = 7;
-    MICROWAVE = 8;
-    DRY_ICE_BATH = 9;
-    AIR_FAN = 10;
-    LIQUID_NITROGEN = 11;
+  message TemperatureControl {
+    enum TemperatureControlType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      AMBIENT = 2;
+      OIL_BATH = 3;
+      WATER_BATH = 4;
+      SAND_BATH = 5;
+      ICE_BATH = 6;
+      DRY_ALUMINUM_PLATE = 7;
+      MICROWAVE = 8;
+      DRY_ICE_BATH = 9;
+      AIR_FAN = 10;
+      LIQUID_NITROGEN = 11;
+    }
+    TemperatureControlType type = 1;
+    // Specify, e.g., ICE_BATH components (e.g., "ice water, salt"),
+    // MICROWAVE power, AIR_FAN speed, etc.
+    string details = 2;
   }
-  TemperatureControlType type = 1;
-  // Specify, e.g., ICE_BATH components (e.g., "ice water, salt"),
-  // MICROWAVE power, AIR_FAN speed, etc.
-  string details = 2;
-  Temperature setpoint = 3;
+  TemperatureControl control = 1;
+  Temperature setpoint = 2;
   message Measurement {
     enum MeasurementType {
       UNSPECIFIED = 0;
@@ -507,22 +510,25 @@ message TemperatureConditions {
     Time time = 3;
     Temperature temperature = 4;
   }
-  repeated Measurement measurements = 4;
+  repeated Measurement measurements = 3;
 }
 
 message PressureConditions {
-  enum PressureControlType {
-    UNSPECIFIED = 0;
-    CUSTOM = 1;
-    AMBIENT = 2;
-    SLIGHT_POSITIVE = 3;  // E.g., 1-5 psi with a gas line inlet.
-    SEALED = 4;  // Fully sealed vessel (e.g., microwave vial, sealed tube).
-    PRESSURIZED = 5;  // High-pressure applied, e.g., in a bomb reactor.
+  message PressureControl {
+    enum PressureControlType {
+      UNSPECIFIED = 0;
+      CUSTOM = 1;
+      AMBIENT = 2;
+      SLIGHT_POSITIVE = 3;  // E.g., 1-5 psi with a gas line inlet.
+      SEALED = 4;  // Fully sealed vessel (e.g., microwave vial, sealed tube).
+      PRESSURIZED = 5;  // High-pressure applied, e.g., in a bomb reactor.
+    }
+    PressureControlType type = 1;
+    // Include means of pressure control in "Attachment" when appropriate.
+    string details = 2;
   }
-  PressureControlType type = 1;
-  // Include means of pressure control in "Attachment" when appropriate.
-  string details = 2;
-  Pressure setpoint = 3;
+  PressureControl control = 1;
+  Pressure setpoint = 2;
   message Atmosphere {
     enum AtmosphereType {
       UNSPECIFIED = 0;
@@ -543,7 +549,7 @@ message PressureConditions {
     AtmosphereType type = 1;
     string details = 2;
   }
-  Atmosphere atmosphere = 4;
+  Atmosphere atmosphere = 3;
   message Measurement {
     // TODO(ccoley) get input on how to expand this enum, among others
     enum MeasurementType {
@@ -556,7 +562,7 @@ message PressureConditions {
     Time time = 3;
     Pressure pressure = 4;
   }
-  repeated Measurement measurements = 5;
+  repeated Measurement measurements = 4;
 }
 
 message StirringConditions {
