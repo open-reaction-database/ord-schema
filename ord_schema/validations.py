@@ -447,7 +447,7 @@ def validate_reaction(message: reaction_pb2.Reaction,
 
 def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier):
     check_type_and_details(message)
-    if Chem and message.type in [
+    if message.type in [
             message.REACTION_SMILES, message.REACTION_CXSMILES
     ]:
         if message.type == message.REACTION_CXSMILES:
@@ -549,7 +549,7 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier):
     check_type_and_details(message)
     if not message.value:
         warnings.warn('value must be set', ValidationError)
-    if Chem and message.type == message.SMILES:
+    if message.type == message.SMILES:
         mol = Chem.MolFromSmiles(message.value)
         if mol is None:
             warnings.warn(
