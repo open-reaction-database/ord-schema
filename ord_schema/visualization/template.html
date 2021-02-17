@@ -52,11 +52,16 @@
 </head>
 
 <body>
+{% if not compact %}
 <h2>{{ reaction.reaction_id }}</h2>
+{% else %}
+<p style="font-family: monospace;">{{ reaction.reaction_id }}</p>
+{% endif %}
 
 <table class="autogen_reaction_table">
 
     {# FIRST ROW = inputs for reactants, outcomes for products #}
+  {% if not compact %}
     <tr>
         {% for key, input in reaction.inputs|sort_addition_order %}
             <td class="divide" colspan="{{ input.components|length }}">{{ key }}</td>
@@ -68,8 +73,10 @@
             </td>
         {% endfor %}
     </tr>
+  {% endif %}
 
     {# SECOND ROW = structures for reactants, products, and arrow in middle #}
+  {% if not compact %}
     <tr>
         {% for key, input in reaction.inputs|sort_addition_order %}
             {% for compound, border in input.components|get_input_borders %}
@@ -98,8 +105,29 @@
             {% endfor %}
         {% endfor %}
     </tr>
+  {% else %}
+    <tr>
+      {% for compound, is_last in reaction.inputs|get_compact_components %}
+        <td class="clean">{{ compound|compound_svg(bond_length) }}</td>
+        {% if not is_last %}
+          <td class="clean" style="padding: 0 10px 0 10px;">
+            <span style="font-size:36px">+</span>
+          </td>
+        {% endif %}
+      {% endfor %}
+      <td class="clean">
+        <span style="font-size:36px; padding: 0 10px 0 10px;">&#10230;</span>
+      </td>
+      {% for outcome in reaction.outcomes %}
+          {% for product in outcome.products %}
+              <td class="clean">{{ product|compound_svg(bond_length) }}</td>
+          {% endfor %}
+      {% endfor %}
+    </tr>
+  {% endif %}
 
     {# THIRD ROW = compound name #}
+  {% if not compact %}
     <tr>
         {% for key, input in reaction.inputs|sort_addition_order %}
             {% for compound, border in input.components|get_input_borders %}
@@ -151,4 +179,5 @@
             {% endfor %}
         </tr>
     {% endif %}
+  {% endif %}
 </table>

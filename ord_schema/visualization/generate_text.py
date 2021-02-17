@@ -15,6 +15,7 @@
 
 import os
 import re
+
 import jinja2
 
 from ord_schema.proto import reaction_pb2
@@ -22,13 +23,14 @@ from ord_schema.visualization import filters
 
 
 def _generate(reaction: reaction_pb2.Reaction, template_string: str,
-              line_breaks: bool) -> str:
+              line_breaks: bool, **kwargs) -> str:
     """Renders a Jinja2 template string with a reaction message.
 
     Args:
         reaction: a Reaction message.
         template_string: Jinja template string.
         line_breaks: Whether to keep line breaks.
+        **kwargs: Additional keyword arguments to render().
 
     Returns:
         Rendered string.
@@ -36,7 +38,7 @@ def _generate(reaction: reaction_pb2.Reaction, template_string: str,
     env = jinja2.Environment(loader=jinja2.BaseLoader())
     env.filters.update(filters.TEMPLATE_FILTERS)
     template = env.from_string(template_string)
-    text = template.render(reaction=reaction)
+    text = template.render(reaction=reaction, **kwargs)
 
     # Fix line breaks, extra spaces, "a" versus "an"
     if not line_breaks:
@@ -55,9 +57,15 @@ def generate_text(reaction: reaction_pb2.Reaction) -> str:
     return _generate(reaction, template_string=template, line_breaks=False)
 
 
-def generate_html(reaction: reaction_pb2.Reaction) -> str:
+def generate_html(reaction: reaction_pb2.Reaction, compact=False) -> str:
     """Generates an HTML reaction description."""
     with open(os.path.join(os.path.dirname(__file__), 'template.html'),
               'r') as f:
         template = f.read()
-    return _generate(reaction, template_string=template, line_breaks=True)
+    kwargs = {'compact': compact}
+    if compact:
+        kwargs['bond_length'] = 18
+    return _generate(reaction,
+                     template_string=template,
+                     line_breaks=True,
+                     **kwargs)
