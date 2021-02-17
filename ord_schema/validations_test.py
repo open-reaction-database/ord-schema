@@ -177,7 +177,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     def test_reaction_smiles(self):
         message = reaction_pb2.Reaction()
-        message.identifiers.add(value='test', type='REACTION_SMILES')
+        message.identifiers.add(value='C>>C', type='REACTION_SMILES')
         output = self._run_validation(message)
         self.assertEmpty(output.errors)
         self.assertEmpty(output.warnings)
@@ -187,6 +187,13 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         with self.assertRaisesRegex(validations.ValidationError,
                                     'reaction input'):
             self._run_validation(message, options=options)
+
+    def test_bad_reaction_smiles(self):
+        message = reaction_pb2.Reaction()
+        message.identifiers.add(value='test', type='REACTION_SMILES')
+        with self.assertRaisesRegex(validations.ValidationError,
+                                    'requires at least two > characters'):
+            self._run_validation(message)
 
     # pylint: disable=too-many-statements
     def test_reaction_recursive(self):

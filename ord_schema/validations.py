@@ -24,6 +24,7 @@ from absl import logging
 from dateutil import parser
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
+from rdkit.Chem import rdChemReactions
 
 import ord_schema
 from ord_schema import message_helpers
@@ -41,7 +42,7 @@ class ValidationOptions:
     # Require ReactionProvenance for Reactions.
     require_provenance: bool = False
     # Allow reactions with valid reaction SMILES and nothing else.
-    allow_reaction_smiles_only = True
+    allow_reaction_smiles_only: bool = True
 
 
 @dataclasses.dataclass
@@ -446,6 +447,22 @@ def validate_reaction(message: reaction_pb2.Reaction,
 
 def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier):
     check_type_and_details(message)
+    if Chem and message.type in [
+            message.REACTION_SMILES, message.REACTION_CXSMILES
+    ]:
+        if message.type == message.REACTION_CXSMILES:
+            smiles = message.value.split()[0]
+        else:
+            smiles = message.value
+        try:
+            rxn = rdChemReactions.ReactionFromSmarts(smiles, useSmiles=True)
+            if rxn is None:
+                warnings.warn(
+                    f'RDKit {RDKIT_VERSION} could not validate'
+                    f' REACTION_{{CX}}SMILES identifier {message.value}',
+                    ValidationError)
+        except ValueError as error:
+            warnings.warn(str(error), ValidationError)
     if not message.value:
         warnings.warn('value must be set', ValidationError)
 
