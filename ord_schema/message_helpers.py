@@ -464,7 +464,8 @@ def validate_reaction_smiles(reaction_smiles: str) -> str:
         if num_errors:
             raise ValueError('reaction SMILES contains errors')
     except ValueError as error:
-        raise ValueError(f'bad reaction SMILES: {reaction_smiles}') from error
+        raise ValueError(
+            f'bad reaction SMILES ({str(error)}): {reaction_smiles}') from error
     return rdChemReactions.ReactionToSmiles(reaction)
 
 
