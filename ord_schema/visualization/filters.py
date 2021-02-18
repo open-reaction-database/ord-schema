@@ -647,7 +647,10 @@ def _get_compact_components(
         component: Compound message.
         is_last: Whether this is the last compound that will be displayed.
     """
-    roles_to_keep = [reaction_pb2.ReactionRole.REACTANT]
+    roles_to_keep = [
+        reaction_pb2.ReactionRole.REACTANT,
+        reaction_pb2.ReactionRole.UNSPECIFIED,
+    ]
     compounds = []
     for _, value in _sort_addition_order(inputs):
         for component in value.components:
@@ -664,7 +667,10 @@ def _get_compact_products(
     products: Iterable[reaction_pb2.ProductCompound]
 ) -> List[reaction_pb2.ProductCompound]:
     """Returns a list of product compounds for 'compact' visualization."""
-    roles_to_keep = [reaction_pb2.ReactionRole.PRODUCT]
+    roles_to_keep = [
+        reaction_pb2.ReactionRole.PRODUCT,
+        reaction_pb2.ReactionRole.UNSPECIFIED,
+    ]
     return [
         compound for compound in products
         if compound.reaction_role in roles_to_keep
