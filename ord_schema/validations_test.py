@@ -192,7 +192,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message = reaction_pb2.Reaction()
         message.identifiers.add(value='test', type='REACTION_SMILES')
         with self.assertRaisesRegex(validations.ValidationError,
-                                    'requires at least two > characters'):
+                                    'bad reaction SMILES'):
             self._run_validation(message)
 
     # pylint: disable=too-many-statements

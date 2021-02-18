@@ -18,6 +18,7 @@ import re
 
 import jinja2
 
+from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
 from ord_schema.visualization import filters
 
@@ -59,6 +60,10 @@ def generate_text(reaction: reaction_pb2.Reaction) -> str:
 
 def generate_html(reaction: reaction_pb2.Reaction, compact=False) -> str:
     """Generates an HTML reaction description."""
+    # Special handling for e.g. USPTO reactions.
+    reaction_smiles = message_helpers.get_reaction_smiles(reaction)
+    if reaction_smiles and not reaction.inputs and not reaction.outcomes:
+        reaction = message_helpers.reaction_from_smiles(reaction_smiles)
     with open(os.path.join(os.path.dirname(__file__), 'template.html'),
               'r') as f:
         template = f.read()
