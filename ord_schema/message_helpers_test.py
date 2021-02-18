@@ -15,6 +15,7 @@
 
 import os
 import tempfile
+import time
 
 from absl import flags
 from absl.testing import absltest
@@ -429,6 +430,7 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
         super().setUp()
+        self.test_directory = self.create_tempdir()
         self.messages = [
             test_pb2.Scalar(int32_value=3, float_value=4.5),
             test_pb2.RepeatedScalar(values=[1.2, 3.4]),
@@ -447,6 +449,17 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
                 self.assertEqual(
                     message,
                     message_helpers.load_message(f.name, type(message)))
+
+    def test_gzip_reproducibility(self):
+        filename = os.path.join(self.test_directory, 'test.pb.gz')
+        for message in self.messages:
+            message_helpers.write_message(message, filename)
+            with open(filename, 'rb') as f:
+                value = f.read()
+            time.sleep(1)
+            message_helpers.write_message(message, filename)
+            with open(filename, 'rb') as f:
+                self.assertEqual(f.read(), value)
 
     def test_bad_binary(self):
         with tempfile.NamedTemporaryFile(suffix='.pb') as f:
