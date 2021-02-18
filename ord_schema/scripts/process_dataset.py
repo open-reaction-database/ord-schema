@@ -43,6 +43,7 @@ import glob
 import gzip
 import os
 import subprocess
+import sys
 from typing import Iterable, List, Mapping, Set, Tuple
 
 from absl import app
@@ -71,6 +72,8 @@ flags.DEFINE_boolean('validate', True,
                      'If True, validate input Reaction protos.')
 flags.DEFINE_boolean('update', False, 'If True, update Reaction protos.')
 flags.DEFINE_boolean('cleanup', False, 'If True, use git to clean up.')
+flags.DEFINE_float('max_size', 10.0,
+                   'Maximum size (in MB) for any Reaction message.')
 flags.DEFINE_string('base', None, 'Git branch to diff against.')
 flags.DEFINE_integer(
     'issue', None,
@@ -206,10 +209,19 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset]):
 
     Args:
         datasets: Dict mapping filenames to Dataset messages.
+
+    Raises:
+        ValueError: if any Reaction is larger than FLAGS.max_size.
     """
     for dataset in datasets.values():
         # Set reaction_ids, resolve names, fix cross-references, etc.
         updates.update_dataset(dataset)
+        # Check reaction sizes.
+        for reaction in dataset.reactions:
+            reaction_size = sys.getsizeof(reaction.SerializeToString()) / 1e6
+            if reaction_size > FLAGS.max_size:
+                raise ValueError('Reaction is larger than --max_size '
+                                 f'({reaction_size} vs {FLAGS.max_size}')
     # Final validation to make sure we didn't break anything.
     options = validations.ValidationOptions(validate_ids=True,
                                             require_provenance=True)
