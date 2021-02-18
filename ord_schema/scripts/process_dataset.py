@@ -216,12 +216,6 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset]):
     for dataset in datasets.values():
         # Set reaction_ids, resolve names, fix cross-references, etc.
         updates.update_dataset(dataset)
-        # Check reaction sizes.
-        for reaction in dataset.reactions:
-            reaction_size = sys.getsizeof(reaction.SerializeToString()) / 1e6
-            if reaction_size > FLAGS.max_size:
-                raise ValueError('Reaction is larger than --max_size '
-                                 f'({reaction_size} vs {FLAGS.max_size}')
     # Final validation to make sure we didn't break anything.
     options = validations.ValidationOptions(validate_ids=True,
                                             require_provenance=True)
@@ -267,6 +261,13 @@ def run() -> Tuple[Set[str], Set[str], Set[str]]:
         if FLAGS.validate:
             # Note: this does not check if IDs are malformed.
             validations.validate_datasets(datasets, FLAGS.write_errors)
+            # Check reaction sizes.
+            for reaction in dataset.reactions:
+                reaction_size = sys.getsizeof(
+                    reaction.SerializeToString()) / 1e6
+                if reaction_size > FLAGS.max_size:
+                    raise ValueError('Reaction is larger than --max_size '
+                                     f'({reaction_size} vs {FLAGS.max_size}')
         if FLAGS.base:
             added, removed, changed = get_change_stats(datasets, [file_status],
                                                        base=FLAGS.base)
