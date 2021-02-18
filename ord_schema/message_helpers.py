@@ -14,6 +14,7 @@
 """Helper functions for constructing Protocol Buffer messages."""
 
 import enum
+import functools
 import gzip
 import os
 import re
@@ -770,21 +771,19 @@ def write_message(message: ord_schema.Message, filename: str):
         ValueError: if `filename` does not have the expected suffix.
     """
     if filename.endswith('.gz'):
-        this_open = gzip.open
+        # NOTE(kearnes): Set a constant mtime so that round-trips through gzip
+        # result in identical files.
+        this_open = functools.partial(gzip.GzipFile, mtime=1)
         _, extension = os.path.splitext('.'.join(filename.split('.')[:-1]))
     else:
         this_open = open
         _, extension = os.path.splitext(filename)
     output_format = MessageFormat(extension)
-    if output_format == MessageFormat.BINARY:
-        mode = 'wb'
-    else:
-        mode = 'wt'
-    with this_open(filename, mode) as f:
+    with this_open(filename, 'wb') as f:
         if output_format == MessageFormat.JSON:
-            f.write(json_format.MessageToJson(message))
+            f.write(json_format.MessageToJson(message).encode())
         elif output_format == MessageFormat.PBTXT:
-            f.write(text_format.MessageToString(message))
+            f.write(text_format.MessageToBytes(message))
         elif output_format == MessageFormat.BINARY:
             f.write(message.SerializeToString(deterministic=True))
 
