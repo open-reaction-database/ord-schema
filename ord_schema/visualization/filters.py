@@ -660,12 +660,24 @@ def _get_compact_components(
             yield compound, False
 
 
+def _get_compact_products(
+    products: Iterable[reaction_pb2.ProductCompound]
+) -> List[reaction_pb2.ProductCompound]:
+    """Returns a list of product compounds for 'compact' visualization."""
+    roles_to_keep = [reaction_pb2.ReactionRole.PRODUCT]
+    return [
+        compound for compound in products
+        if compound.reaction_role in roles_to_keep
+    ]
+
+
 TEMPLATE_FILTERS = {
     'round': _round,
     'is_true': _is_true,
     'datetimeformat': _datetimeformat,
     'uses_addition_order': _uses_addition_order,
     'get_compact_components': _get_compact_components,
+    'get_compact_products': _get_compact_products,
     'input_addition': _input_addition,
     'compound_svg': _compound_svg,
     'compound_png': _compound_png,

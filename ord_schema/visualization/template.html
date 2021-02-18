@@ -52,11 +52,6 @@
 </head>
 
 <body>
-{% if not compact %}
-<h2>{{ reaction.reaction_id }}</h2>
-{% else %}
-<p style="font-family: monospace;">{{ reaction.reaction_id }}</p>
-{% endif %}
 
 <table class="autogen_reaction_table">
 
@@ -119,7 +114,7 @@
         <span style="font-size:36px; padding: 0 10px 0 10px;">&#10230;</span>
       </td>
       {% for outcome in reaction.outcomes %}
-          {% for product in outcome.products %}
+          {% for product in outcome.products|get_compact_products %}
               <td class="clean">{{ product|compound_svg(bond_length) }}</td>
           {% endfor %}
       {% endfor %}
