@@ -51,7 +51,6 @@ from absl import logging
 import github
 from rdkit import RDLogger
 
-from ord_schema import data_storage
 from ord_schema import message_helpers
 from ord_schema import updates
 from ord_schema import validations
@@ -68,13 +67,10 @@ flags.DEFINE_enum('output_format', '.pb.gz',
                   'Dataset output format.')
 flags.DEFINE_boolean('write_errors', False,
                      'If True, errors will be written to <filename>.error.')
-flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
+flags.DEFINE_boolean('validate', True,
+                     'If True, validate input Reaction protos.')
 flags.DEFINE_boolean('update', False, 'If True, update Reaction protos.')
 flags.DEFINE_boolean('cleanup', False, 'If True, use git to clean up.')
-flags.DEFINE_float('min_size', 0.001,
-                   'Minimum size (in MB) for offloading Data values.')
-flags.DEFINE_float('max_size', 100.0,
-                   'Maximum size (in MB) for offloading Data values.')
 flags.DEFINE_string('base', None, 'Git branch to diff against.')
 flags.DEFINE_integer(
     'issue', None,
@@ -214,15 +210,6 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset]):
     for dataset in datasets.values():
         # Set reaction_ids, resolve names, fix cross-references, etc.
         updates.update_dataset(dataset)
-        # Offload large Data values.
-        data_filenames = data_storage.extract_data(dataset,
-                                                   FLAGS.root,
-                                                   min_size=FLAGS.min_size,
-                                                   max_size=FLAGS.max_size)
-        if data_filenames:
-            args = ['git', 'add'] + list(data_filenames)
-            logging.info('Running command: %s', ' '.join(args))
-            subprocess.run(args, check=True)
     # Final validation to make sure we didn't break anything.
     options = validations.ValidationOptions(validate_ids=True,
                                             require_provenance=True)
