@@ -24,7 +24,6 @@ from absl import logging
 from dateutil import parser
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
-from rdkit.Chem import rdChemReactions
 
 import ord_schema
 from ord_schema import message_helpers

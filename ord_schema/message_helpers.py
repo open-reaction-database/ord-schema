@@ -458,7 +458,7 @@ def validate_reaction_smiles(reaction_smiles: str) -> str:
         reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles,
                                                       useSmiles=True)
         if not reaction:
-            raise ValueError(f'reaction SMILES could not be parsed')
+            raise ValueError('reaction SMILES could not be parsed')
         rdChemReactions.SanitizeRxn(reaction)
         _, num_errors = reaction.Validate()
         if num_errors:
