@@ -18,7 +18,6 @@ import re
 from typing import Mapping
 import uuid
 
-from ord_schema import resolvers
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
@@ -40,8 +39,6 @@ def update_reaction(reaction: reaction_pb2.Reaction) -> Mapping[str, str]:
     Current updates:
       * Sets reaction_id if not already set.
       * Adds a record modification event to the provenance.
-      * Resolves compound identifier names if no structural identifiers are
-        defined for a given compound.
 
     Args:
         reaction: reaction_pb2.Reaction message.
@@ -111,6 +108,4 @@ def update_dataset(dataset: dataset_pb2.Dataset):
 
 
 # Standard updates.
-_UPDATES = [
-    resolvers.resolve_names,
-]
+_UPDATES = []
