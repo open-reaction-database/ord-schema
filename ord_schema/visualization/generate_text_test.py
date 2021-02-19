@@ -90,6 +90,12 @@ class GenerateTextTest(absltest.TestCase):
         self.assertNotRegex(html, 'solvent')
         self.assertNotRegex(html, '100 °C')
 
+    def test_reaction_smiles_html(self):
+        reaction = reaction_pb2.Reaction()
+        reaction.identifiers.add(value='C>C>C', type='REACTION_SMILES')
+        html = generate_text.generate_html(reaction)
+        self.assertIsNotNone(html)
+
 
 if __name__ == '__main__':
     absltest.main()

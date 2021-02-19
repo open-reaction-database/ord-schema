@@ -457,14 +457,42 @@ def validate_reaction_smiles(reaction_smiles: str) -> str:
     try:
         reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles,
                                                       useSmiles=True)
+        if not reaction:
+            raise ValueError('reaction SMILES could not be parsed')
         rdChemReactions.SanitizeRxn(reaction)
-    except ValueError as error:
+        _, num_errors = reaction.Validate()
+        if num_errors:
+            raise ValueError('reaction SMILES contains errors')
+    except (RuntimeError, ValueError) as error:
         raise ValueError(
-            f'reaction contains errors: {reaction_smiles}') from error
-    _, num_errors = reaction.Validate()
-    if num_errors:
-        raise ValueError(f'reaction contains errors: {reaction_smiles}')
+            f'bad reaction SMILES ({str(error)}): {reaction_smiles}') from error
     return rdChemReactions.ReactionToSmiles(reaction)
+
+
+def reaction_from_smiles(reaction_smiles):
+    """Builds a Reaction by splitting a reaction SMILES."""
+    reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles,
+                                                  useSmiles=True)
+    rdChemReactions.RemoveMappingNumbersFromReactions(reaction)
+    message = reaction_pb2.Reaction()
+    message.identifiers.add(value=reaction_smiles, type='REACTION_SMILES')
+    reaction_input = message.inputs['from_reaction_smiles']
+    for mol in reaction.GetReactants():
+        component = reaction_input.components.add()
+        component.identifiers.add(value=Chem.MolToSmiles(mol), type='SMILES')
+        component.reaction_role = reaction_pb2.ReactionRole.REACTANT
+    for smiles in reaction_smiles.split('>')[1].split('.'):
+        if not smiles:
+            continue
+        component = reaction_input.components.add()
+        component.identifiers.add(value=smiles, type='SMILES')
+        component.reaction_role = reaction_pb2.ReactionRole.REAGENT
+    outcome = message.outcomes.add()
+    for mol in reaction.GetProducts():
+        component = outcome.products.add()
+        component.identifiers.add(value=Chem.MolToSmiles(mol), type='SMILES')
+        component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
+    return message
 
 
 def get_product_yield(product: reaction_pb2.ProductCompound,

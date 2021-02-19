@@ -163,10 +163,34 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         reaction.outcomes.add().products.add(
             reaction_role='PRODUCT').identifiers.add(value='invalid',
                                                      type='SMILES')
-        with self.assertRaisesRegex(ValueError, 'reaction contains errors'):
+        with self.assertRaisesRegex(ValueError, 'bad reaction SMILES'):
             message_helpers.get_reaction_smiles(reaction,
                                                 generate_if_missing=True,
                                                 allow_incomplete=False)
+
+    def test_reaction_from_smiles(self):
+        reaction_smiles = '[C:1].N>O>F.Cl'
+        expected = reaction_pb2.Reaction()
+        expected.identifiers.add(value=reaction_smiles, type='REACTION_SMILES')
+        this_input = expected.inputs['from_reaction_smiles']
+        c_component = this_input.components.add()
+        c_component.identifiers.add(value='C', type='SMILES')
+        c_component.reaction_role = reaction_pb2.ReactionRole.REACTANT
+        n_component = this_input.components.add()
+        n_component.identifiers.add(value='N', type='SMILES')
+        n_component.reaction_role = reaction_pb2.ReactionRole.REACTANT
+        o_component = this_input.components.add()
+        o_component.identifiers.add(value='O', type='SMILES')
+        o_component.reaction_role = reaction_pb2.ReactionRole.REAGENT
+        outcome = expected.outcomes.add()
+        f_component = outcome.products.add()
+        f_component.identifiers.add(value='F', type='SMILES')
+        f_component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
+        cl_component = outcome.products.add()
+        cl_component.identifiers.add(value='Cl', type='SMILES')
+        cl_component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
+        self.assertEqual(message_helpers.reaction_from_smiles(reaction_smiles),
+                         expected)
 
     @parameterized.named_parameters(
         ('url', 'https://dx.doi.org/10.1021/acscatal.0c02247',
