@@ -22,6 +22,7 @@ import glob
 from absl import app
 from absl import flags
 from absl import logging
+from rdkit import RDLogger
 
 from ord_schema import message_helpers
 from ord_schema import validations
@@ -45,4 +46,5 @@ def main(argv):
 
 if __name__ == '__main__':
     flags.mark_flag_as_required('input')
+    RDLogger.DisableLog('rdApp.*')  # Disable RDKit logging.
     app.run(main)

@@ -37,7 +37,7 @@ import datetime
 import glob
 import os
 import re
-from typing import Dict, List, Union
+from typing import Dict, List, Tuple, Union
 from xml.etree import ElementTree
 
 from absl import app
@@ -519,13 +519,16 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
             reaction.workups.add().CopyFrom(workup)
 
 
-def run(filename: str, verbosity: int) -> List[reaction_pb2.Reaction]:
+def run(
+    filename: str, verbosity: int
+) -> Tuple[List[reaction_pb2.Reaction], List[reaction_pb2.Reaction]]:
     """Parses reactions from a single CML file."""
     logging.set_verbosity(verbosity)
     RDLogger.DisableLog('rdApp.*')  # Disable RDKit logging.
     tree = ElementTree.parse(filename)
     root = tree.getroot()
     reactions = []
+    failures = []
     for reaction_cml in root.iterfind('cml:reaction', namespaces=NAMESPACES):
         try:
             reaction = parse_reaction(reaction_cml)
@@ -541,12 +544,19 @@ def run(filename: str, verbosity: int) -> List[reaction_pb2.Reaction]:
         reaction.provenance.record_created.CopyFrom(event)
         reaction.provenance.doi = '10.6084/m9.figshare.5104873.v1'
         clean_reaction(reaction)
+        # Check reaction SMILES.
+        try:
+            message_helpers.validate_reaction_smiles(
+                reaction.identifiers[0].value.split()[0])
+        except ValueError:
+            failures.append(reaction)
+            continue
         output = validations.validate_message(reaction, raise_on_error=False)
         if output.errors:
             message = '\n'.join(output.errors)
             raise validations.ValidationError(f'{reaction}\n{message}')
         reactions.append(reaction)
-    return reactions
+    return reactions, failures
 
 
 def main(argv):
@@ -556,13 +566,20 @@ def main(argv):
         joblib.delayed(run)(filename, FLAGS.verbosity)
         for filename in filenames)
     reactions = []
-    for file_reactions in all_reactions:
+    failures = []
+    for file_reactions, file_failures in all_reactions:
         reactions.extend(file_reactions)
+        failures.extend(file_failures)
     dataset = dataset_pb2.Dataset(reactions=reactions, name=FLAGS.name)
     basenames = [os.path.basename(filename) for filename in filenames]
     dataset.description = f'CML filenames: {",".join(basenames)}'
     if FLAGS.output and reactions:
         message_helpers.write_message(dataset, FLAGS.output)
+        if failures:
+            failure_dataset = dataset_pb2.Dataset(reactions=failures,
+                                                  name=FLAGS.name)
+            message_helpers.write_message(failure_dataset,
+                                          FLAGS.output + '.failures.pb')
 
 
 if __name__ == '__main__':
