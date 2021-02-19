@@ -561,7 +561,7 @@ def run(
 
 def main(argv):
     del argv  # Only used by app.run().
-    filenames = glob.glob(FLAGS.input_pattern)
+    filenames = sorted(glob.glob(FLAGS.input_pattern))
     all_reactions = joblib.Parallel(n_jobs=FLAGS.n_jobs, verbose=True)(
         joblib.delayed(run)(filename, FLAGS.verbosity)
         for filename in filenames)
