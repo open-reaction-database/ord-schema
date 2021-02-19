@@ -24,7 +24,6 @@ from absl import logging
 from dateutil import parser
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
-from rdkit.Chem import rdChemReactions
 
 import ord_schema
 from ord_schema import message_helpers
@@ -453,12 +452,7 @@ def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier):
         else:
             smiles = message.value
         try:
-            rxn = rdChemReactions.ReactionFromSmarts(smiles, useSmiles=True)
-            if rxn is None:
-                warnings.warn(
-                    f'RDKit {RDKIT_VERSION} could not validate'
-                    f' REACTION_{{CX}}SMILES identifier {message.value}',
-                    ValidationError)
+            message_helpers.validate_reaction_smiles(smiles)
         except ValueError as error:
             warnings.warn(str(error), ValidationError)
     if not message.value:

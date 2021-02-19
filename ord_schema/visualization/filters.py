@@ -372,11 +372,12 @@ def _compound_svg(compound: reaction_pb2.Compound,
         if mol:
             svg = drawing.mol_to_svg(mol, bond_length=bond_length)
             if svg is None:
-                return '[Compound]'
+                return (message_helpers.get_compound_smiles(compound) or
+                        '[Compound]')
             return svg
     except ValueError:
         pass
-    return '[Compound]'
+    return message_helpers.get_compound_smiles(compound) or '[Compound]'
 
 
 def _compound_png(compound: reaction_pb2.Compound) -> str:
@@ -397,7 +398,7 @@ def _compound_png(compound: reaction_pb2.Compound) -> str:
             return drawing.mol_to_png(mol)
     except ValueError:
         pass
-    return '[Compound]'
+    return message_helpers.get_compound_smiles(compound) or '[Compound]'
 
 
 def _compound_amount(compound: reaction_pb2.Compound) -> Optional[str]:
