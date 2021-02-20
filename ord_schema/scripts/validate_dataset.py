@@ -34,14 +34,13 @@ flags.DEFINE_string('input', None, 'Input pattern for Dataset protos.')
 
 def main(argv):
     del argv  # Only used by app.run().
-    filenames = glob.glob(FLAGS.input, recursive=True)
+    filenames = sorted(glob.glob(FLAGS.input, recursive=True))
     logging.info('Found %d datasets', len(filenames))
-    datasets = {}
     for filename in filenames:
         logging.info('Validating %s', filename)
-        datasets[filename] = message_helpers.load_message(
+        dataset = message_helpers.load_message(
             filename, dataset_pb2.Dataset)
-    validations.validate_datasets(datasets)
+        validations.validate_datasets({filename: dataset})
 
 
 if __name__ == '__main__':
