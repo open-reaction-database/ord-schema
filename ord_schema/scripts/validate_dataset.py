@@ -38,8 +38,7 @@ def main(argv):
     logging.info('Found %d datasets', len(filenames))
     for filename in filenames:
         logging.info('Validating %s', filename)
-        dataset = message_helpers.load_message(
-            filename, dataset_pb2.Dataset)
+        dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
         validations.validate_datasets({filename: dataset})
 
 
