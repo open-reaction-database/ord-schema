@@ -37,17 +37,6 @@ class UpdateReactionTest(absltest.TestCase):
         updates.update_reaction(copied)
         self.assertEqual(copied, message)
 
-    def test_with_resolve_names(self):
-        reaction = reaction_pb2.Reaction()
-        component = reaction.inputs['ethylamine'].components.add()
-        component.identifiers.add(type='NAME', value='ethylamine')
-        updates.update_reaction(reaction)
-        self.assertLen(component.identifiers, 2)
-        self.assertEqual(component.identifiers[1].value, 'CCN')
-        self.assertEqual(component.identifiers[1].type,
-                         reaction_pb2.CompoundIdentifier.IdentifierType.SMILES)
-        self.assertRegex(component.identifiers[1].details, 'NAME resolved')
-
     def test_add_reaction_id(self):
         message = reaction_pb2.Reaction()
         updates.update_reaction(message)
