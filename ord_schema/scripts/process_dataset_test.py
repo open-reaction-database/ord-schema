@@ -390,46 +390,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
                                     'must be non-negative'):
             self._run()
 
-    def test_add_dataset_with_large_data(self):
-        reaction = reaction_pb2.Reaction()
-        ethylamine = reaction.inputs['ethylamine']
-        component = ethylamine.components.add()
-        component.identifiers.add(type='SMILES', value='CCN')
-        component.is_limiting = True
-        component.amount.moles.value = 2
-        component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
-        reaction.outcomes.add().conversion.value = 25
-        reaction.provenance.record_created.time.value = '2020-01-01'
-        reaction.provenance.record_created.person.username = 'test'
-        reaction.provenance.record_created.person.email = 'test@example.com'
-        reaction.reaction_id = 'test'
-        image = reaction.observations.add().image
-        image.bytes_value = b'test data value'
-        image.format = 'png'
-        dataset = dataset_pb2.Dataset(reactions=[reaction])
-        dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
-        message_helpers.write_message(dataset, dataset_filename)
-        added, removed, changed, filenames = self._run(min_size=0.0)
-        self.assertEqual(added, {'test'})
-        self.assertEmpty(removed)
-        self.assertEmpty(changed)
-        self.assertLen(filenames, 2)
-        filenames.pop(filenames.index(self.dataset_filename))
-        dataset = message_helpers.load_message(filenames[0],
-                                               dataset_pb2.Dataset)
-        relative_path = (
-            'data/36/ord_data-'
-            '36443a1839bf1160087422b7468a93c7b97dac7eea423bfac189208a15823139'
-            '.png')
-        expected = ('https://github.com/Open-Reaction-Database/'
-                    'ord-data/tree/' + relative_path)
-        self.assertEqual(dataset.reactions[0].observations[0].image.url,
-                         expected)
-        with open(os.path.join(self.test_subdirectory, relative_path),
-                  'rb') as f:
-            self.assertEqual(b'test data value', f.read())
-
-    def test_add_dataset_with_too_large_data(self):
+    def test_add_dataset_with_too_large_reaction(self):
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs['ethylamine']
         component = ethylamine.components.add()
@@ -444,8 +405,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        with self.assertRaisesRegex(ValueError, 'larger than max_size'):
-            self._run(min_size=0.0, max_size=0.0)
+        with self.assertRaisesRegex(ValueError, 'larger than --max_size'):
+            self._run(max_size=0.0)
 
 
 if __name__ == '__main__':
