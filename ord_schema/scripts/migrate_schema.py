@@ -146,6 +146,16 @@ def migrate_conditions(old: reaction_old_pb2.ReactionConditions,
     migrate_scalars(old, new, ('details',))
 
 
+def migrate_workup(old: reaction_old_pb2.ReactionWorkup,
+                   new: reaction_pb2.ReactionWorkup):
+    """Migrates a ReactionWorkup message."""
+    migrate_messages(old, new,
+                     ('type', 'duration', 'input', 'amount', 'temperature'))
+    migrate_scalars(old, new, ('details', 'keep_phase'))
+    migrate_optional_scalars(old, new, ('target_ph', 'is_automated'))
+    migrate_stirring_conditions(old.stirring, new.stirring)
+
+
 def main(argv):
     del argv  # Only used by app.run().
     filenames = glob.glob(FLAGS.input_pattern)
@@ -164,10 +174,9 @@ def main(argv):
         for i, old in enumerate(old_dataset.reactions):
             logging.info(f'  reaction {i} of {len(old.reactions)}')
             new = new_dataset.reactions.add()
-            # Copy over unchanged fields - all but setup and conditions.
+            # Copy over unchanged fields.
             migrate_repeated_messages(
-                old, new,
-                ('identifiers', 'observations', 'workups', 'outcomes'))
+                old, new, ('identifiers', 'observations', 'outcomes'))
             for key, value in old.inputs.items():
                 migrate_message(value, new.inputs[key])
             migrate_messages(old, new, ('notes', 'provenance'))
@@ -176,14 +185,20 @@ def main(argv):
             # Migrate changed messages.
             migrate_setup(old.setup, new.setup)
             migrate_conditions(old.conditions, new.conditions)
+            for workup in old.workups:
+                migrate_workup(workup, new.workups.add())
 
-            # Add a record_modified event.
-            new.provenance.record_modified.add(
-                time=dict(value=str(datetime.datetime.now())),
-                person=dict(username='skearnes', email='kearnes@google.com'),
-                details='Automatic migration from schema v0.2.15 to v0.3.0')
+            if (text_format.MessageToString(new) !=
+                    text_format.MessageToString(old)):
+                # Add a record_modified event.
+                new.provenance.record_modified.add(
+                    time=dict(value=str(datetime.datetime.now())),
+                    person=dict(username='skearnes',
+                                email='kearnes@google.com'),
+                    details='Automatic migration from schema v0.2.15 to v0.3.0')
 
         # Save
+        os.makedirs(FLAGS.output_dir)
         new_filename = os.path.join(FLAGS.output_dir,
                                     os.path.basename(filename))
         logging.info('Saving to %s', new_filename)
