@@ -15,7 +15,7 @@
 // Protocol buffer messages for reaction datasets.
 syntax = "proto3";
 
-package ord;
+package ord_old;
 
 import "ord_schema/proto/reaction_old.proto";
 

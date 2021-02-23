@@ -15,7 +15,7 @@
 // Schema for the Open Reaction Database.
 syntax = "proto3";
 
-package ord;
+package ord_old;
 
 /**
  * Throughout this schema, we introduce enums to encourage consistency in

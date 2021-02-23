@@ -85,8 +85,8 @@ def migrate_vessel(old: reaction_old_pb2.Vessel, new: reaction_pb2.Vessel):
 def migrate_stirring_conditions(old: reaction_old_pb2.StirringConditions,
                                 new: reaction_pb2.StirringConditions):
     """Migrates a StirringConditions message."""
-    new.type = old.type.type
-    new.details = old.type.details
+    new.type = old.method.type
+    new.details = old.method.details
     migrate_messages(old, new, ('rate',))
 
 
@@ -104,8 +104,8 @@ def migrate_electrochemistry_conditions(
         old: reaction_old_pb2.ElectrochemistryConditions,
         new: reaction_pb2.ElectrochemistryConditions):
     """Migrates an ElectrochemistryConditions messsage."""
-    new.type = old.type.type
-    new.details = old.type.details
+    new.type = old.electrochemistry_type.type
+    new.details = old.electrochemistry_type.details
     migrate_scalars(old, new, ('anode_material', 'cathode_material'))
     migrate_messages(old, new,
                      ('current', 'voltage', 'electrode_separation', 'cell'))
@@ -115,8 +115,8 @@ def migrate_electrochemistry_conditions(
 def migrate_flow_conditions(old: reaction_old_pb2.FlowConditions,
                             new: reaction_pb2.FlowConditions):
     """Migrates a FlowConditions messsage."""
-    new.type = old.type.type
-    new.details = old.type.details
+    new.type = old.flow_type.type
+    new.details = old.flow_type.details
     migrate_scalars(old, new, ('pump_type',))
     migrate_messages(old, new, ('tubing',))
 
@@ -149,9 +149,8 @@ def migrate_conditions(old: reaction_old_pb2.ReactionConditions,
 def migrate_workup(old: reaction_old_pb2.ReactionWorkup,
                    new: reaction_pb2.ReactionWorkup):
     """Migrates a ReactionWorkup message."""
-    migrate_messages(old, new,
-                     ('type', 'duration', 'input', 'amount', 'temperature'))
-    migrate_scalars(old, new, ('details', 'keep_phase'))
+    migrate_messages(old, new, ('duration', 'input', 'amount', 'temperature'))
+    migrate_scalars(old, new, ('type', 'details', 'keep_phase'))
     migrate_optional_scalars(old, new, ('target_ph', 'is_automated'))
     migrate_stirring_conditions(old.stirring, new.stirring)
 
@@ -171,8 +170,8 @@ def main(argv):
                         ('name', 'description', 'dataset_id'))
         new_dataset.reaction_ids.extend(old_dataset.reaction_ids)
 
-        for i, old in enumerate(old_dataset.reactions):
-            logging.info(f'  reaction {i} of {len(old.reactions)}')
+        num_changed = 0
+        for old in old_dataset.reactions:
             new = new_dataset.reactions.add()
             # Copy over unchanged fields.
             migrate_repeated_messages(
@@ -190,6 +189,7 @@ def main(argv):
 
             if (text_format.MessageToString(new) !=
                     text_format.MessageToString(old)):
+                num_changed += 1
                 # Add a record_modified event.
                 new.provenance.record_modified.add(
                     time=dict(value=str(datetime.datetime.now())),
@@ -198,11 +198,13 @@ def main(argv):
                     details='Automatic migration from schema v0.2.15 to v0.3.0')
 
         # Save
-        os.makedirs(FLAGS.output_dir)
-        new_filename = os.path.join(FLAGS.output_dir,
-                                    os.path.basename(filename))
-        logging.info('Saving to %s', new_filename)
-        message_helpers.write_message(new_dataset, new_filename)
+        logging.info('Changes: %d/%d', num_changed, len(old_dataset.reactions))
+        if num_changed:
+            os.makedirs(FLAGS.output_dir, exist_ok=True)
+            new_filename = os.path.join(FLAGS.output_dir,
+                                        os.path.basename(filename))
+            logging.info('Saving to %s', new_filename)
+            message_helpers.write_message(new_dataset, new_filename)
 
 
 if __name__ == '__main__':
