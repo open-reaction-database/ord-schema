@@ -46,7 +46,8 @@ def migrate_message(old, new):
 def migrate_messages(old, new, fields: Iterable[str]):
     """Migrates a set of unchanged messages."""
     for field in fields:
-        migrate_message(getattr(old, field), getattr(new, field))
+        if old.HasField(field):
+            migrate_message(getattr(old, field), getattr(new, field))
 
 
 def migrate_repeated_message(old, new):
@@ -124,7 +125,8 @@ def migrate_flow_conditions(old: reaction_old_pb2.FlowConditions,
 def migrate_setup(old: reaction_old_pb2.ReactionSetup,
                   new: reaction_pb2.ReactionSetup):
     """Migrates a ReactionSetup messsage."""
-    migrate_vessel(old.vessel, new.vessel)
+    if old.HasField('vessel'):
+        migrate_vessel(old.vessel, new.vessel)
     migrate_optional_scalars(old, new, ('is_automated',))
     migrate_scalars(old, new, ('automation_platform',))
     for key, value in old.automation_code.items():
@@ -136,13 +138,18 @@ def migrate_conditions(old: reaction_old_pb2.ReactionConditions,
                        new: reaction_pb2.ReactionConditions):
     """Migrates a ReactionConditions messsage."""
     migrate_messages(old, new, ('temperature', 'pressure'))
-    migrate_stirring_conditions(old.stirring, new.stirring)
-    migrate_illumination_conditions(old.illumination, new.illumination)
-    migrate_electrochemistry_conditions(old.electrochemistry,
-                                        new.electrochemistry)
-    migrate_flow_conditions(old.flow, new.flow)
-    migrate_optional_scalars(old, new,
-                             ('reflux', 'pH', 'conditions_are_dynamic'))
+    if old.HasField('stirring'):
+        migrate_stirring_conditions(old.stirring, new.stirring)
+    if old.HasField('illumination'):
+        migrate_illumination_conditions(old.illumination, new.illumination)
+    if old.HasField('electrochemistry'):
+        migrate_electrochemistry_conditions(old.electrochemistry,
+                                            new.electrochemistry)
+    if old.HasField('flow'):
+        migrate_flow_conditions(old.flow, new.flow)
+    migrate_optional_scalars(old, new, ('reflux', 'conditions_are_dynamic'))
+    if old.HasField('pH'):
+        new.ph = old.pH  # Lowercase now.
     migrate_scalars(old, new, ('details',))
 
 
@@ -152,7 +159,8 @@ def migrate_workup(old: reaction_old_pb2.ReactionWorkup,
     migrate_messages(old, new, ('duration', 'input', 'amount', 'temperature'))
     migrate_scalars(old, new, ('type', 'details', 'keep_phase'))
     migrate_optional_scalars(old, new, ('target_ph', 'is_automated'))
-    migrate_stirring_conditions(old.stirring, new.stirring)
+    if old.HasField('stirring'):
+        migrate_stirring_conditions(old.stirring, new.stirring)
 
 
 def main(argv):
@@ -182,13 +190,15 @@ def main(argv):
             migrate_scalars(old, new, ('reaction_id',))
 
             # Migrate changed messages.
-            migrate_setup(old.setup, new.setup)
-            migrate_conditions(old.conditions, new.conditions)
+            if old.HasField('setup'):
+                migrate_setup(old.setup, new.setup)
+            if old.HasField('conditions'):
+                migrate_conditions(old.conditions, new.conditions)
             for workup in old.workups:
                 migrate_workup(workup, new.workups.add())
 
-            if (text_format.MessageToString(new) !=
-                    text_format.MessageToString(old)):
+            if (new.SerializeToString(deterministic=True) !=
+                    old.SerializeToString(deterministic=True)):
                 num_changed += 1
                 # Add a record_modified event.
                 new.provenance.record_modified.add(

@@ -465,7 +465,7 @@ message ReactionConditions {
   ElectrochemistryConditions electrochemistry = 5;
   FlowConditions flow = 6;
   optional bool reflux = 7;
-  optional float pH = 8;
+  optional float ph = 8;
   // Boolean to describe whether the conditions cannot be
   // represented by the static, single-step schema.
   optional bool conditions_are_dynamic = 9;
