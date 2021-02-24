@@ -109,7 +109,7 @@ def _stirring_conditions(stirring: reaction_pb2.StirringConditions) -> str:
     Returns:
         String description of the stirring conditions.
     """
-    if stirring.method.type == stirring.method.NONE:
+    if stirring.type == stirring.NONE:
         return 'No stirring was used.'
     txt = ''
     txt += {
@@ -120,15 +120,15 @@ def _stirring_conditions(stirring: reaction_pb2.StirringConditions) -> str:
     }[stirring.rate.type]
     if stirring.rate.rpm:
         txt += f' ({stirring.rate.rpm} rpm)'
-    if stirring.method.type != stirring.method.UNSPECIFIED:
+    if stirring.type != stirring.UNSPECIFIED:
         txt += ' using '
         txt += {
-            stirring.method.CUSTOM: 'a custom setup',
-            stirring.method.STIR_BAR: 'a stir bar',
-            stirring.method.OVERHEAD_MIXER: 'an overhead mixer',
-            stirring.method.AGITATION: 'external agitation',
-        }[stirring.method.type]
-        txt += f' {_parenthetical_if_def(stirring.method.details)}'
+            stirring.CUSTOM: 'a custom setup',
+            stirring.STIR_BAR: 'a stir bar',
+            stirring.OVERHEAD_MIXER: 'an overhead mixer',
+            stirring.AGITATION: 'external agitation',
+        }[stirring.type]
+        txt += f' {_parenthetical_if_def(stirring.details)}'
     if txt.strip():
         txt = 'The reaction mixture was stirred ' + txt + '.'
     return txt
@@ -143,16 +143,16 @@ def _stirring_conditions_html(stirring: reaction_pb2.StirringConditions) -> str:
     Returns:
         String description of the stirring conditions.
     """
-    if stirring.method.type == stirring.method.NONE:
+    if stirring.type == stirring.NONE:
         return ''
     txt = ''
-    if stirring.method.type != stirring.method.UNSPECIFIED:
+    if stirring.type != stirring.UNSPECIFIED:
         txt += {
-            stirring.method.CUSTOM: stirring.method.details,
-            stirring.method.STIR_BAR: 'stir bar',
-            stirring.method.OVERHEAD_MIXER: 'overhead mixer',
-            stirring.method.AGITATION: 'agitation',
-        }[stirring.method.type]
+            stirring.CUSTOM: stirring.details,
+            stirring.STIR_BAR: 'stir bar',
+            stirring.OVERHEAD_MIXER: 'overhead mixer',
+            stirring.AGITATION: 'agitation',
+        }[stirring.type]
     if stirring.rate.rpm:
         txt += f' ({stirring.rate.rpm} rpm)'
     return txt
@@ -570,25 +570,25 @@ def _vessel_type(vessel: reaction_pb2.Vessel) -> str:
         String description of the vessel type.
     """
     return {
-        vessel.type.UNSPECIFIED:
+        vessel.UNSPECIFIED:
             'vessel',
-        vessel.type.CUSTOM:
+        vessel.CUSTOM:
             'vessel',
-        vessel.type.ROUND_BOTTOM_FLASK:
+        vessel.ROUND_BOTTOM_FLASK:
             'round bottom flask',
-        vessel.type.VIAL:
+        vessel.VIAL:
             'vial',
-        vessel.type.WELL_PLATE:
+        vessel.WELL_PLATE:
             'well-plate',
-        vessel.type.MICROWAVE_VIAL:
+        vessel.MICROWAVE_VIAL:
             'microwave vial',
-        vessel.type.TUBE:
+        vessel.TUBE:
             'tube',
-        vessel.type.CONTINUOUS_STIRRED_TANK_REACTOR:
+        vessel.CONTINUOUS_STIRRED_TANK_REACTOR:
             'continuous stirred-tank reactor',
-        vessel.type.PACKED_BED_REACTOR:
+        vessel.PACKED_BED_REACTOR:
             'packed bed reactor',
-    }[vessel.type.type]
+    }[vessel.type]
 
 
 def _input_addition(reaction_input: reaction_pb2.ReactionInput) -> str:
