@@ -15,6 +15,7 @@
 
 import os
 import tempfile
+import time
 
 from absl import flags
 from absl.testing import absltest
@@ -128,8 +129,10 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
             value='c1ccccc1', type='SMILES')
         reactant1.components.add(reaction_role='SOLVENT').identifiers.add(
             value='N', type='SMILES')
-        self.assertEqual(message_helpers.get_reaction_smiles(reaction),
-                         'c1ccccc1>N>')
+        self.assertEqual(
+            message_helpers.get_reaction_smiles(reaction,
+                                                generate_if_missing=True),
+            'c1ccccc1>N>')
         reactant2 = reaction.inputs['reactant2']
         reactant2.components.add(reaction_role='REACTANT').identifiers.add(
             value='Cc1ccccc1', type='SMILES')
@@ -138,8 +141,10 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         reaction.outcomes.add().products.add(
             reaction_role='PRODUCT').identifiers.add(value='O=C=O',
                                                      type='SMILES')
-        self.assertEqual(message_helpers.get_reaction_smiles(reaction),
-                         'Cc1ccccc1.c1ccccc1>N>O=C=O')
+        self.assertEqual(
+            message_helpers.get_reaction_smiles(reaction,
+                                                generate_if_missing=True),
+            'Cc1ccccc1.c1ccccc1>N>O=C=O')
 
     def test_get_reaction_smiles_failure(self):
         reaction = reaction_pb2.Reaction()
@@ -148,17 +153,44 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         component.identifiers.add(value='benzene', type='NAME')
         with self.assertRaisesRegex(ValueError,
                                     'no valid reactants or products'):
-            message_helpers.get_reaction_smiles(reaction)
+            message_helpers.get_reaction_smiles(reaction,
+                                                generate_if_missing=True)
         component.identifiers.add(value='c1ccccc1', type='SMILES')
         with self.assertRaisesRegex(ValueError, 'must contain at least one'):
             message_helpers.get_reaction_smiles(reaction,
+                                                generate_if_missing=True,
                                                 allow_incomplete=False)
         reaction.outcomes.add().products.add(
             reaction_role='PRODUCT').identifiers.add(value='invalid',
                                                      type='SMILES')
-        with self.assertRaisesRegex(ValueError, 'reaction contains errors'):
+        with self.assertRaisesRegex(ValueError, 'bad reaction SMILES'):
             message_helpers.get_reaction_smiles(reaction,
+                                                generate_if_missing=True,
                                                 allow_incomplete=False)
+
+    def test_reaction_from_smiles(self):
+        reaction_smiles = '[C:1].N>O>F.Cl'
+        expected = reaction_pb2.Reaction()
+        expected.identifiers.add(value=reaction_smiles, type='REACTION_SMILES')
+        this_input = expected.inputs['from_reaction_smiles']
+        c_component = this_input.components.add()
+        c_component.identifiers.add(value='C', type='SMILES')
+        c_component.reaction_role = reaction_pb2.ReactionRole.REACTANT
+        n_component = this_input.components.add()
+        n_component.identifiers.add(value='N', type='SMILES')
+        n_component.reaction_role = reaction_pb2.ReactionRole.REACTANT
+        o_component = this_input.components.add()
+        o_component.identifiers.add(value='O', type='SMILES')
+        o_component.reaction_role = reaction_pb2.ReactionRole.REAGENT
+        outcome = expected.outcomes.add()
+        f_component = outcome.products.add()
+        f_component.identifiers.add(value='F', type='SMILES')
+        f_component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
+        cl_component = outcome.products.add()
+        cl_component.identifiers.add(value='Cl', type='SMILES')
+        cl_component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
+        self.assertEqual(message_helpers.reaction_from_smiles(reaction_smiles),
+                         expected)
 
     @parameterized.named_parameters(
         ('url', 'https://dx.doi.org/10.1021/acscatal.0c02247',
@@ -422,6 +454,7 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
         super().setUp()
+        self.test_directory = self.create_tempdir()
         self.messages = [
             test_pb2.Scalar(int32_value=3, float_value=4.5),
             test_pb2.RepeatedScalar(values=[1.2, 3.4]),
@@ -440,6 +473,17 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
                 self.assertEqual(
                     message,
                     message_helpers.load_message(f.name, type(message)))
+
+    def test_gzip_reproducibility(self):
+        filename = os.path.join(self.test_directory, 'test.pb.gz')
+        for message in self.messages:
+            message_helpers.write_message(message, filename)
+            with open(filename, 'rb') as f:
+                value = f.read()
+            time.sleep(1)
+            message_helpers.write_message(message, filename)
+            with open(filename, 'rb') as f:
+                self.assertEqual(f.read(), value)
 
     def test_bad_binary(self):
         with tempfile.NamedTemporaryFile(suffix='.pb') as f:
