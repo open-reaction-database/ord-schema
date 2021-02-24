@@ -546,10 +546,6 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier):
 
 
 def validate_vessel(message: reaction_pb2.Vessel):
-    del message  # Unused.
-
-
-def validate_vessel_type(message: reaction_pb2.VesselType):
     check_type_and_details(message)
 
 
@@ -626,11 +622,6 @@ def validate_pressure_measurement(
 
 
 def validate_stirring_conditions(message: reaction_pb2.StirringConditions):
-    del message  # Unused.
-
-
-def validate_stirring_method(
-        message: reaction_pb2.StirringConditions.StirringMethod):
     check_type_and_details(message)
 
 
@@ -641,21 +632,11 @@ def validate_stirring_rate(
 
 def validate_illumination_conditions(
         message: reaction_pb2.IlluminationConditions):
-    del message  # Unused.
-
-
-def validate_illumination_type(
-        message: reaction_pb2.IlluminationConditions.IlluminationType):
     check_type_and_details(message)
 
 
 def validate_electrochemistry_conditions(
         message: reaction_pb2.ElectrochemistryConditions):
-    del message  # Unused.
-
-
-def validate_electrochemistry_type(
-        message: reaction_pb2.ElectrochemistryConditions.ElectrochemistryType):
     check_type_and_details(message)
 
 
@@ -670,10 +651,6 @@ def validate_electrochemistry_measurement(
 
 
 def validate_flow_conditions(message: reaction_pb2.FlowConditions):
-    del message  # Unused.
-
-
-def validate_flow_type(message: reaction_pb2.FlowConditions.FlowType):
     check_type_and_details(message)
 
 
@@ -1052,8 +1029,6 @@ _VALIDATOR_SWITCH = {
     # Setup
     reaction_pb2.Vessel:
         validate_vessel,
-    reaction_pb2.VesselType:
-        validate_vessel_type,
     reaction_pb2.VesselMaterial:
         validate_vessel_material,
     reaction_pb2.VesselAttachment:
@@ -1083,26 +1058,18 @@ _VALIDATOR_SWITCH = {
         validate_pressure_measurement,
     reaction_pb2.StirringConditions:
         validate_stirring_conditions,
-    reaction_pb2.StirringConditions.StirringMethod:
-        validate_stirring_method,
     reaction_pb2.StirringConditions.StirringRate:
         validate_stirring_rate,
     reaction_pb2.IlluminationConditions:
         validate_illumination_conditions,
-    reaction_pb2.IlluminationConditions.IlluminationType:
-        validate_illumination_type,
     reaction_pb2.ElectrochemistryConditions:
         validate_electrochemistry_conditions,
-    reaction_pb2.ElectrochemistryConditions.ElectrochemistryType:
-        validate_electrochemistry_type,
     reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell:
         validate_electrochemistry_cell,
     reaction_pb2.ElectrochemistryConditions.Measurement:
         validate_electrochemistry_measurement,
     reaction_pb2.FlowConditions:
         validate_flow_conditions,
-    reaction_pb2.FlowConditions.FlowType:
-        validate_flow_type,
     reaction_pb2.FlowConditions.Tubing:
         validate_tubing,
     # Annotations
