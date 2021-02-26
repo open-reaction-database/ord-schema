@@ -207,7 +207,6 @@ def main(argv):
     del argv  # Only used by app.run().
     filenames = glob.glob(FLAGS.input_pattern)
     logging.info('Found %d datasets', len(filenames))
-    os.makedirs(FLAGS.output_dir, exist_ok=True)
     for filename in filenames:
         logging.info(filename)
         old_dataset = message_helpers.load_message(filename,
@@ -215,6 +214,7 @@ def main(argv):
         new_dataset, num_changed = migrate_dataset(old_dataset)
         logging.info('Changes: %d/%d', num_changed, len(old_dataset.reactions))
         if num_changed:
+            os.makedirs(FLAGS.output_dir, exist_ok=True)
             new_filename = os.path.join(FLAGS.output_dir,
                                         os.path.basename(filename))
             logging.info('Saving to %s', new_filename)
