@@ -19,6 +19,7 @@ import tempfile
 from absl import flags
 from absl.testing import absltest
 from absl.testing import flagsaver
+from absl.testing import parameterized
 
 from ord_schema import message_helpers
 from ord_schema import validations
@@ -27,7 +28,7 @@ from ord_schema.proto import reaction_pb2
 from ord_schema.scripts import validate_dataset
 
 
-class ValidateDatasetTest(absltest.TestCase):
+class ValidateDatasetTest(parameterized.TestCase, absltest.TestCase):
 
     def setUp(self):
         super().setUp()
@@ -65,6 +66,23 @@ class ValidateDatasetTest(absltest.TestCase):
                     validations.ValidationError,
                     'Reactions should have at least 1 reaction input'):
                 validate_dataset.main(())
+
+    @parameterized.parameters(
+        (r'data/\d{2}', ['data/11/foo.pb']),
+        (r'data/\d[a-z]', ['data/1a/foo.pb']),
+        (r'data/[a-z]\d', ['data/a1/foo.pb']),
+        (r'data/[a-z]{2}', ['data/aa/foo.pb']),
+    )
+    def test_filter_filenames(self, pattern, expected):
+        filenames = [
+            'dataset.pb',
+            'data/a1/foo.pb',
+            'data/aa/foo.pb',
+            'data/11/foo.pb',
+            'data/1a/foo.pb',
+        ]
+        self.assertCountEqual(
+            expected, validate_dataset.filter_filenames(filenames, pattern))
 
 
 if __name__ == '__main__':
