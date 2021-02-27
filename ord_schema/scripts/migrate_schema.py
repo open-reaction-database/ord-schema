@@ -163,6 +163,46 @@ def migrate_workup(old: reaction_old_pb2.ReactionWorkup,
         migrate_stirring_conditions(old.stirring, new.stirring)
 
 
+def migrate_dataset(
+        old_dataset: dataset_old_pb2.Dataset) -> dataset_pb2.Dataset:
+    """Migrates a single Dataset."""
+    new_dataset = dataset_pb2.Dataset()
+
+    # Copy unchanged dataset-level information.
+    migrate_scalars(old_dataset, new_dataset,
+                    ('name', 'description', 'dataset_id'))
+    new_dataset.reaction_ids.extend(old_dataset.reaction_ids)
+
+    num_changed = 0
+    for old in old_dataset.reactions:
+        new = new_dataset.reactions.add()
+        # Copy over unchanged fields.
+        migrate_repeated_messages(old, new,
+                                  ('identifiers', 'observations', 'outcomes'))
+        for key, value in old.inputs.items():
+            migrate_message(value, new.inputs[key])
+        migrate_messages(old, new, ('notes', 'provenance'))
+        migrate_scalars(old, new, ('reaction_id',))
+
+        # Migrate changed messages.
+        if old.HasField('setup'):
+            migrate_setup(old.setup, new.setup)
+        if old.HasField('conditions'):
+            migrate_conditions(old.conditions, new.conditions)
+        for workup in old.workups:
+            migrate_workup(workup, new.workups.add())
+
+        if (new.SerializeToString(deterministic=True) !=
+                old.SerializeToString(deterministic=True)):
+            num_changed += 1
+            # Add a record_modified event.
+            new.provenance.record_modified.add(
+                time=dict(value=str(datetime.datetime.now())),
+                person=dict(username='skearnes', email='kearnes@google.com'),
+                details='Automatic migration from schema v0.2.15 to v0.3.0')
+    return new_dataset, num_changed
+
+
 def main(argv):
     del argv  # Only used by app.run().
     filenames = glob.glob(FLAGS.input_pattern)
@@ -171,43 +211,7 @@ def main(argv):
         logging.info(filename)
         old_dataset = message_helpers.load_message(filename,
                                                    dataset_old_pb2.Dataset)
-        new_dataset = dataset_pb2.Dataset()
-
-        # Copy unchanged dataset-level information.
-        migrate_scalars(old_dataset, new_dataset,
-                        ('name', 'description', 'dataset_id'))
-        new_dataset.reaction_ids.extend(old_dataset.reaction_ids)
-
-        num_changed = 0
-        for old in old_dataset.reactions:
-            new = new_dataset.reactions.add()
-            # Copy over unchanged fields.
-            migrate_repeated_messages(
-                old, new, ('identifiers', 'observations', 'outcomes'))
-            for key, value in old.inputs.items():
-                migrate_message(value, new.inputs[key])
-            migrate_messages(old, new, ('notes', 'provenance'))
-            migrate_scalars(old, new, ('reaction_id',))
-
-            # Migrate changed messages.
-            if old.HasField('setup'):
-                migrate_setup(old.setup, new.setup)
-            if old.HasField('conditions'):
-                migrate_conditions(old.conditions, new.conditions)
-            for workup in old.workups:
-                migrate_workup(workup, new.workups.add())
-
-            if (new.SerializeToString(deterministic=True) !=
-                    old.SerializeToString(deterministic=True)):
-                num_changed += 1
-                # Add a record_modified event.
-                new.provenance.record_modified.add(
-                    time=dict(value=str(datetime.datetime.now())),
-                    person=dict(username='skearnes',
-                                email='kearnes@google.com'),
-                    details='Automatic migration from schema v0.2.15 to v0.3.0')
-
-        # Save
+        new_dataset, num_changed = migrate_dataset(old_dataset)
         logging.info('Changes: %d/%d', num_changed, len(old_dataset.reactions))
         if num_changed:
             os.makedirs(FLAGS.output_dir, exist_ok=True)
