@@ -59,6 +59,11 @@ class ValidateDatasetTest(parameterized.TestCase, absltest.TestCase):
         with flagsaver.flagsaver(input=input_pattern):
             validate_dataset.main(())
 
+    def test_filter(self):
+        input_pattern = os.path.join(self.test_subdirectory, 'dataset1.pbtxt')
+        with flagsaver.flagsaver(input=input_pattern, filter='dataset'):
+            validate_dataset.main(())
+
     def test_validation_errors(self):
         input_pattern = os.path.join(self.test_subdirectory, 'dataset*.pbtxt')
         with flagsaver.flagsaver(input=input_pattern):
