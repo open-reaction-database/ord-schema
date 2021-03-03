@@ -109,7 +109,7 @@ def _stirring_conditions(stirring: reaction_pb2.StirringConditions) -> str:
     Returns:
         String description of the stirring conditions.
     """
-    if stirring.method.type == stirring.method.NONE:
+    if stirring.type == stirring.NONE:
         return 'No stirring was used.'
     txt = ''
     txt += {
@@ -120,15 +120,15 @@ def _stirring_conditions(stirring: reaction_pb2.StirringConditions) -> str:
     }[stirring.rate.type]
     if stirring.rate.rpm:
         txt += f' ({stirring.rate.rpm} rpm)'
-    if stirring.method.type != stirring.method.UNSPECIFIED:
+    if stirring.type != stirring.UNSPECIFIED:
         txt += ' using '
         txt += {
-            stirring.method.CUSTOM: 'a custom setup',
-            stirring.method.STIR_BAR: 'a stir bar',
-            stirring.method.OVERHEAD_MIXER: 'an overhead mixer',
-            stirring.method.AGITATION: 'external agitation',
-        }[stirring.method.type]
-        txt += f' {_parenthetical_if_def(stirring.method.details)}'
+            stirring.CUSTOM: 'a custom setup',
+            stirring.STIR_BAR: 'a stir bar',
+            stirring.OVERHEAD_MIXER: 'an overhead mixer',
+            stirring.AGITATION: 'external agitation',
+        }[stirring.type]
+        txt += f' {_parenthetical_if_def(stirring.details)}'
     if txt.strip():
         txt = 'The reaction mixture was stirred ' + txt + '.'
     return txt
@@ -143,16 +143,16 @@ def _stirring_conditions_html(stirring: reaction_pb2.StirringConditions) -> str:
     Returns:
         String description of the stirring conditions.
     """
-    if stirring.method.type == stirring.method.NONE:
+    if stirring.type == stirring.NONE:
         return ''
     txt = ''
-    if stirring.method.type != stirring.method.UNSPECIFIED:
+    if stirring.type != stirring.UNSPECIFIED:
         txt += {
-            stirring.method.CUSTOM: stirring.method.details,
-            stirring.method.STIR_BAR: 'stir bar',
-            stirring.method.OVERHEAD_MIXER: 'overhead mixer',
-            stirring.method.AGITATION: 'agitation',
-        }[stirring.method.type]
+            stirring.CUSTOM: stirring.details,
+            stirring.STIR_BAR: 'stir bar',
+            stirring.OVERHEAD_MIXER: 'overhead mixer',
+            stirring.AGITATION: 'agitation',
+        }[stirring.type]
     if stirring.rate.rpm:
         txt += f' ({stirring.rate.rpm} rpm)'
     return txt
@@ -353,7 +353,8 @@ def _analysis_format(analysis: reaction_pb2.Analysis.AnalysisType) -> str:
     }[analysis.type]
 
 
-def _compound_svg(compound: reaction_pb2.Compound) -> str:
+def _compound_svg(compound: reaction_pb2.Compound,
+                  bond_length: int = 25) -> str:
     """Returns an SVG string for the given compound.
 
     If the compound does not have a structural identifier, a sentinel value
@@ -361,6 +362,7 @@ def _compound_svg(compound: reaction_pb2.Compound) -> str:
 
     Args:
         compound: Compound message.
+        bond_length: Bond length in pixels.
 
     Returns:
         String SVG or sentinel value.
@@ -368,13 +370,14 @@ def _compound_svg(compound: reaction_pb2.Compound) -> str:
     try:
         mol = message_helpers.mol_from_compound(compound)
         if mol:
-            svg = drawing.mol_to_svg(mol)
+            svg = drawing.mol_to_svg(mol, bond_length=bond_length)
             if svg is None:
-                return '[Compound]'
+                return (message_helpers.get_compound_smiles(compound) or
+                        '[Compound]')
             return svg
     except ValueError:
         pass
-    return '[Compound]'
+    return message_helpers.get_compound_smiles(compound) or '[Compound]'
 
 
 def _compound_png(compound: reaction_pb2.Compound) -> str:
@@ -395,7 +398,7 @@ def _compound_png(compound: reaction_pb2.Compound) -> str:
             return drawing.mol_to_png(mol)
     except ValueError:
         pass
-    return '[Compound]'
+    return message_helpers.get_compound_smiles(compound) or '[Compound]'
 
 
 def _compound_amount(compound: reaction_pb2.Compound) -> Optional[str]:
@@ -567,25 +570,25 @@ def _vessel_type(vessel: reaction_pb2.Vessel) -> str:
         String description of the vessel type.
     """
     return {
-        vessel.type.UNSPECIFIED:
+        vessel.UNSPECIFIED:
             'vessel',
-        vessel.type.CUSTOM:
+        vessel.CUSTOM:
             'vessel',
-        vessel.type.ROUND_BOTTOM_FLASK:
+        vessel.ROUND_BOTTOM_FLASK:
             'round bottom flask',
-        vessel.type.VIAL:
+        vessel.VIAL:
             'vial',
-        vessel.type.WELL_PLATE:
+        vessel.WELL_PLATE:
             'well-plate',
-        vessel.type.MICROWAVE_VIAL:
+        vessel.MICROWAVE_VIAL:
             'microwave vial',
-        vessel.type.TUBE:
+        vessel.TUBE:
             'tube',
-        vessel.type.CONTINUOUS_STIRRED_TANK_REACTOR:
+        vessel.CONTINUOUS_STIRRED_TANK_REACTOR:
             'continuous stirred-tank reactor',
-        vessel.type.PACKED_BED_REACTOR:
+        vessel.PACKED_BED_REACTOR:
             'packed bed reactor',
-    }[vessel.type.type]
+    }[vessel.type]
 
 
 def _input_addition(reaction_input: reaction_pb2.ReactionInput) -> str:
@@ -633,11 +636,55 @@ def _datetimeformat(value: datetime.datetime,
     return value.strftime(format_string)
 
 
+def _get_compact_components(
+    inputs: Mapping[str, reaction_pb2.ReactionInput]
+) -> Iterable[Tuple[reaction_pb2.Compound, bool]]:
+    """Returns a list of input components for 'compact' visualization.
+
+    Args:
+        inputs: Reaction inputs map.
+
+    Yields:
+        component: Compound message.
+        is_last: Whether this is the last compound that will be displayed.
+    """
+    roles_to_keep = [
+        reaction_pb2.ReactionRole.REACTANT,
+        reaction_pb2.ReactionRole.UNSPECIFIED,
+    ]
+    compounds = []
+    for _, value in _sort_addition_order(inputs):
+        for component in value.components:
+            if component.reaction_role in roles_to_keep:
+                compounds.append(component)
+    for i, compound in enumerate(compounds):
+        if i + 1 == len(compounds):
+            yield compound, True
+        else:
+            yield compound, False
+
+
+def _get_compact_products(
+    products: Iterable[reaction_pb2.ProductCompound]
+) -> List[reaction_pb2.ProductCompound]:
+    """Returns a list of product compounds for 'compact' visualization."""
+    roles_to_keep = [
+        reaction_pb2.ReactionRole.PRODUCT,
+        reaction_pb2.ReactionRole.UNSPECIFIED,
+    ]
+    return [
+        compound for compound in products
+        if compound.reaction_role in roles_to_keep
+    ]
+
+
 TEMPLATE_FILTERS = {
     'round': _round,
     'is_true': _is_true,
     'datetimeformat': _datetimeformat,
     'uses_addition_order': _uses_addition_order,
+    'get_compact_components': _get_compact_components,
+    'get_compact_products': _get_compact_products,
     'input_addition': _input_addition,
     'compound_svg': _compound_svg,
     'compound_png': _compound_png,

@@ -104,10 +104,10 @@ GitHub
 The official Open Reaction Database repository is located
 `here <https://github.com/Open-Reaction-Database/ord-data>`__.
 
-.. NOTE::
-   We use `Git LFS <https://git-lfs.github.com/>`_ for storing large files such
-   as images and raw analytical data. If you want to access these files locally,
-   you'll need to install Git LFS before cloning the repository.
+.. IMPORTANT::
+   We use `Git LFS <https://git-lfs.github.com/>`_ to efficiently store the
+   Dataset records that make up the ORD. To view these files locally, you'll
+   need to install Git LFS before cloning the repository.
 
 If you are planning to make submissions to the database, you should start by
 `creating a fork <https://help.github.com/en/github/getting-started-with-github/fork-a-repo>`_
@@ -187,6 +187,7 @@ Advisory Board is:
 * Christos Nicolaou (Lilly)
 * Sarah Reisman (Caltech)
 * Matthew Sigman (Utah, `C-CAS <https://ccas.nd.edu/>`__)
+* Jay Stevens (BMS)
 * Sarah Trice (MilliporeSigma)
 * Matthew Tudge (GSK)
 

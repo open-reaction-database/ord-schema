@@ -58,7 +58,6 @@ class GenerateTextTest(absltest.TestCase):
                 name='hexanone',
                 smiles='CCCCC(=O)C',
             ).identifiers)
-        reaction.reaction_id = 'dummy_reaction_id'
         self._reaction = reaction
 
     def test_text(self):
@@ -80,7 +79,22 @@ class GenerateTextTest(absltest.TestCase):
         self.assertRegex(html, '40 min')
         self.assertRegex(html, 'solvent')
         self.assertRegex(html, '100 °C')
-        self.assertRegex(html, 'dummy_reaction_id')
+
+    def test_compact_html(self):
+        html = generate_text.generate_html(self._reaction, compact=True)
+        self.assertRegex(html, '<table')
+        self.assertNotRegex(html, 'hexanone')
+        self.assertNotRegex(html, 'under oxygen')
+        self.assertNotRegex(html, '100 rpm')
+        self.assertNotRegex(html, '40 min')
+        self.assertNotRegex(html, 'solvent')
+        self.assertNotRegex(html, '100 °C')
+
+    def test_reaction_smiles_html(self):
+        reaction = reaction_pb2.Reaction()
+        reaction.identifiers.add(value='C>C>C', type='REACTION_SMILES')
+        html = generate_text.generate_html(reaction)
+        self.assertIsNotNone(html)
 
 
 if __name__ == '__main__':

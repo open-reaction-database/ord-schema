@@ -347,19 +347,7 @@ message CompoundIdentifier {
  */
 message Vessel {
   // Vessel type (flask, vial, well-plate, etc.).
-  VesselType type = 1;
-  // Vessel material (glass, plastic, etc.).
-  VesselMaterial material = 2;
-  // How the vessel was prepared for the reaction.
-  repeated VesselPreparation preparations = 3;
-  // Vessel attachments (septum, cap, gas adapter, etc.).
-  repeated VesselAttachment attachments = 4;
-  // Size (volume) of the vessel.
-  Volume volume = 5;
-}
-
-message VesselType {
-  enum VesselTypeEnum {
+  enum VesselType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     ROUND_BOTTOM_FLASK = 2;
@@ -374,10 +362,18 @@ message VesselType {
     PRESSURE_REACTOR = 11;  // High-pressure (e.g., Parr bomb reactor)
     ELECTROCHEMICAL_CELL = 12;
   }
-  VesselTypeEnum type = 1;
+  VesselType type = 1;
   // Include details such as "multi-neck" for ROUND_BOTTOM_FLASK,
   // "J. Young" for NMR_TUBE, etc.
   string details = 2;
+  // Vessel material (glass, plastic, etc.).
+  VesselMaterial material = 3;
+  // How the vessel was prepared for the reaction.
+  repeated VesselPreparation preparations = 4;
+  // Vessel attachments (septum, cap, gas adapter, etc.).
+  repeated VesselAttachment attachments = 5;
+  // Size (volume) of the vessel.
+  Volume volume = 6;
 }
 
 message VesselMaterial {
@@ -469,7 +465,7 @@ message ReactionConditions {
   ElectrochemistryConditions electrochemistry = 5;
   FlowConditions flow = 6;
   optional bool reflux = 7;
-  optional float pH = 8;
+  optional float ph = 8;
   // Boolean to describe whether the conditions cannot be
   // represented by the static, single-step schema.
   optional bool conditions_are_dynamic = 9;
@@ -570,22 +566,19 @@ message PressureConditions {
 }
 
 message StirringConditions {
-  message StirringMethod {
-    enum StirringMethodType {
-      UNSPECIFIED = 0;
-      CUSTOM = 1;
-      NONE = 2;
-      STIR_BAR = 3;
-      OVERHEAD_MIXER = 4;
-      AGITATION = 5;
-      BALL_MILLING = 6;
-      SONICATION = 7;
-    }
-    StirringMethodType type = 1;
-    // Specify, e.g., "egg-shape" for STIR_BAR.
-    string details = 2;
+  enum StirringMethodType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    NONE = 2;
+    STIR_BAR = 3;
+    OVERHEAD_MIXER = 4;
+    AGITATION = 5;
+    BALL_MILLING = 6;
+    SONICATION = 7;
   }
-  StirringMethod method = 1;
+  StirringMethodType type = 1;
+  // Specify, e.g., "egg-shape" for STIR_BAR.
+  string details = 2;
   message StirringRate {
     enum StirringRateType {
       UNSPECIFIED = 0;
@@ -598,48 +591,42 @@ message StirringConditions {
     string details = 2;
     int32 rpm = 3;
   }
-  StirringRate rate = 2;
+  StirringRate rate = 3;
 }
 
 message IlluminationConditions {
-  message IlluminationType {
-    enum IlluminationTypeEnum {
-      UNSPECIFIED = 0;
-      CUSTOM = 1;
-      AMBIENT = 2;
-      DARK = 3;
-      LED = 4;
-      HALOGEN_LAMP = 5;
-      DEUTERIUM_LAMP = 6;
-      SOLAR_SIMULATOR = 7;
-      BROAD_SPECTRUM = 8;
-    }
-    IlluminationTypeEnum type = 1;
-    string details = 2;  // E.g. manufacturer, setup specifications, etc.
+  enum IlluminationType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    AMBIENT = 2;
+    DARK = 3;
+    LED = 4;
+    HALOGEN_LAMP = 5;
+    DEUTERIUM_LAMP = 6;
+    SOLAR_SIMULATOR = 7;
+    BROAD_SPECTRUM = 8;
   }
   IlluminationType type = 1;
-  Wavelength peak_wavelength = 2;
-  string color = 3;
-  Length distance_to_vessel = 4;
+  string details = 2;  // E.g. manufacturer, setup specifications, etc.
+  Wavelength peak_wavelength = 3;
+  string color = 4;
+  Length distance_to_vessel = 5;
 }
 
 message ElectrochemistryConditions {
-  message ElectrochemistryType {
-    enum ElectrochemistryTypeEnum {
-      UNSPECIFIED = 0;
-      CUSTOM = 1;
-      CONSTANT_CURRENT = 2;
-      CONSTANT_VOLTAGE = 3;
-    }
-    ElectrochemistryTypeEnum type = 1;
-    string details = 2;
+  enum ElectrochemistryType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    CONSTANT_CURRENT = 2;
+    CONSTANT_VOLTAGE = 3;
   }
-  ElectrochemistryType electrochemistry_type = 1;
-  Current current = 2;
-  Voltage voltage = 3;
-  string anode_material = 4;
-  string cathode_material = 5;
-  Length electrode_separation = 6;
+  ElectrochemistryType type = 1;
+  string details = 2;
+  Current current = 3;
+  Voltage voltage = 4;
+  string anode_material = 5;
+  string cathode_material = 6;
+  Length electrode_separation = 7;
   message Measurement {
     Time time = 1;
     oneof kind {
@@ -647,7 +634,7 @@ message ElectrochemistryConditions {
       Voltage voltage = 3;
     }
   }
-  repeated Measurement measurements = 7;
+  repeated Measurement measurements = 8;
   message ElectrochemistryCell {
     enum ElectrochemistryCellType {
       UNSPECIFIED = 0;
@@ -660,25 +647,22 @@ message ElectrochemistryConditions {
     // vs. commercial cell and details.
     string details = 2;
   }
-  ElectrochemistryCell cell = 8;
+  ElectrochemistryCell cell = 9;
 }
 
 message FlowConditions {
-  message FlowType {
-    enum FlowTypeEnum {
-      UNSPECIFIED = 0;
-      CUSTOM = 1;
-      PLUG_FLOW_REACTOR = 2;
-      CONTINUOUS_STIRRED_TANK_REACTOR = 3;
-      PACKED_BED_REACTOR = 4;
-    }
-    FlowTypeEnum type = 1;
-    string details = 2;
+  enum FlowType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    PLUG_FLOW_REACTOR = 2;
+    CONTINUOUS_STIRRED_TANK_REACTOR = 3;
+    PACKED_BED_REACTOR = 4;
   }
-  FlowType flow_type = 1;
-  string pump_type = 2;
+  FlowType type = 1;
+  string details = 2;
+  string pump_type = 3;
   message Tubing {
-    enum TubingMaterialType {
+    enum TubingType {
       UNSPECIFIED = 0;
       CUSTOM = 1;
       STEEL = 2;
@@ -692,11 +676,11 @@ message FlowConditions {
       SILICON = 10;  // e.g., a chip-based microreactor
       PDMS = 11;
     }
-    TubingMaterialType type = 1;
+    TubingType type = 1;
     string details = 2;
     Length diameter = 3;
   }
-  Tubing tubing = 3;
+  Tubing tubing = 4;
 }
 
 message ReactionNotes {

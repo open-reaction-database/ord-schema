@@ -14,6 +14,7 @@
 """Helper functions for constructing Protocol Buffer messages."""
 
 import enum
+import functools
 import gzip
 import os
 import re
@@ -41,6 +42,7 @@ MessageType = TypeVar('MessageType')  # Generic for setting return types.
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
+# pylint: disable=too-many-locals
 
 
 def build_compound(smiles: str = None,
@@ -365,12 +367,15 @@ def check_compound_identifiers(compound: reaction_pb2.Compound):
 
 
 def get_reaction_smiles(message: reaction_pb2.Reaction,
+                        generate_if_missing: bool = False,
                         allow_incomplete: bool = True,
-                        validate: bool = True) -> str:
+                        validate: bool = True) -> Optional[str]:
     """Fetches or generates a reaction SMILES.
 
     Args:
         message: reaction_pb2.Reaction message.
+        generate_if_missing: Whether to generate a reaction SMILES from the
+            inputs and outputs if one is not defined explicitly.
         allow_incomplete: Boolean whether to allow "incomplete" reaction SMILES
             that do not include all components (e.g. if a component does not
             have a structural identifier).
@@ -378,14 +383,20 @@ def get_reaction_smiles(message: reaction_pb2.Reaction,
             Only used if allow_incomplete is False.
 
     Returns:
-        Text reaction SMILES.
+        Text reaction SMILES, or None.
 
     Raises:
         ValueError: If the reaction contains errors.
     """
+    types = [
+        reaction_pb2.ReactionIdentifier.REACTION_SMILES,
+        reaction_pb2.ReactionIdentifier.REACTION_CXSMILES
+    ]
     for identifier in message.identifiers:
-        if identifier.type == reaction_pb2.ReactionIdentifier.REACTION_SMILES:
+        if identifier.type in types:
             return identifier.value
+    if not generate_if_missing:
+        return None
     reactants, agents, products = set(), set(), set()
     roles = reaction_pb2.ReactionRole
     for key in sorted(message.inputs):
@@ -446,14 +457,42 @@ def validate_reaction_smiles(reaction_smiles: str) -> str:
     try:
         reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles,
                                                       useSmiles=True)
+        if not reaction:
+            raise ValueError('reaction SMILES could not be parsed')
         rdChemReactions.SanitizeRxn(reaction)
-    except ValueError as error:
+        _, num_errors = reaction.Validate()
+        if num_errors:
+            raise ValueError('reaction SMILES contains errors')
+    except (RuntimeError, ValueError) as error:
         raise ValueError(
-            f'reaction contains errors: {reaction_smiles}') from error
-    _, num_errors = reaction.Validate()
-    if num_errors:
-        raise ValueError(f'reaction contains errors: {reaction_smiles}')
+            f'bad reaction SMILES ({str(error)}): {reaction_smiles}') from error
     return rdChemReactions.ReactionToSmiles(reaction)
+
+
+def reaction_from_smiles(reaction_smiles):
+    """Builds a Reaction by splitting a reaction SMILES."""
+    reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles,
+                                                  useSmiles=True)
+    rdChemReactions.RemoveMappingNumbersFromReactions(reaction)
+    message = reaction_pb2.Reaction()
+    message.identifiers.add(value=reaction_smiles, type='REACTION_SMILES')
+    reaction_input = message.inputs['from_reaction_smiles']
+    for mol in reaction.GetReactants():
+        component = reaction_input.components.add()
+        component.identifiers.add(value=Chem.MolToSmiles(mol), type='SMILES')
+        component.reaction_role = reaction_pb2.ReactionRole.REACTANT
+    for smiles in reaction_smiles.split('>')[1].split('.'):
+        if not smiles:
+            continue
+        component = reaction_input.components.add()
+        component.identifiers.add(value=smiles, type='SMILES')
+        component.reaction_role = reaction_pb2.ReactionRole.REAGENT
+    outcome = message.outcomes.add()
+    for mol in reaction.GetProducts():
+        component = outcome.products.add()
+        component.identifiers.add(value=Chem.MolToSmiles(mol), type='SMILES')
+        component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
+    return message
 
 
 def get_product_yield(product: reaction_pb2.ProductCompound,
@@ -760,21 +799,19 @@ def write_message(message: ord_schema.Message, filename: str):
         ValueError: if `filename` does not have the expected suffix.
     """
     if filename.endswith('.gz'):
-        this_open = gzip.open
+        # NOTE(kearnes): Set a constant mtime so that round-trips through gzip
+        # result in identical files.
+        this_open = functools.partial(gzip.GzipFile, mtime=1)
         _, extension = os.path.splitext('.'.join(filename.split('.')[:-1]))
     else:
         this_open = open
         _, extension = os.path.splitext(filename)
     output_format = MessageFormat(extension)
-    if output_format == MessageFormat.BINARY:
-        mode = 'wb'
-    else:
-        mode = 'wt'
-    with this_open(filename, mode) as f:
+    with this_open(filename, 'wb') as f:
         if output_format == MessageFormat.JSON:
-            f.write(json_format.MessageToJson(message))
+            f.write(json_format.MessageToJson(message).encode())
         elif output_format == MessageFormat.PBTXT:
-            f.write(text_format.MessageToString(message))
+            f.write(text_format.MessageToBytes(message))
         elif output_format == MessageFormat.BINARY:
             f.write(message.SerializeToString(deterministic=True))
 

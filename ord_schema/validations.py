@@ -40,6 +40,8 @@ class ValidationOptions:
     validate_ids: bool = False
     # Require ReactionProvenance for Reactions.
     require_provenance: bool = False
+    # Allow reactions with valid reaction SMILES and nothing else.
+    allow_reaction_smiles_only: bool = True
 
 
 @dataclasses.dataclass
@@ -410,12 +412,17 @@ def validate_reaction(message: reaction_pb2.Reaction,
                       options: Optional[ValidationOptions] = None):
     if options is None:
         options = ValidationOptions()
-    if len(message.inputs) == 0:
-        warnings.warn('Reactions should have at least 1 reaction input',
-                      ValidationError)
-    if len(message.outcomes) == 0:
-        warnings.warn('Reactions should have at least 1 reaction outcome',
-                      ValidationError)
+    if (options.allow_reaction_smiles_only and
+            message_helpers.get_reaction_smiles(message) and
+            len(message.inputs) == 0 and len(message.outcomes) == 0):
+        pass
+    else:
+        if len(message.inputs) == 0:
+            warnings.warn('Reactions should have at least 1 reaction input',
+                          ValidationError)
+        if len(message.outcomes) == 0:
+            warnings.warn('Reactions should have at least 1 reaction outcome',
+                          ValidationError)
     if (reaction_needs_internal_standard(message) and
             not reaction_has_internal_standard(message)):
         warnings.warn(
@@ -439,6 +446,15 @@ def validate_reaction(message: reaction_pb2.Reaction,
 
 def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier):
     check_type_and_details(message)
+    if message.type in [message.REACTION_SMILES, message.REACTION_CXSMILES]:
+        if message.type == message.REACTION_CXSMILES:
+            smiles = message.value.split()[0]
+        else:
+            smiles = message.value
+        try:
+            message_helpers.validate_reaction_smiles(smiles)
+        except ValueError as error:
+            warnings.warn(str(error), ValidationError)
     if not message.value:
         warnings.warn('value must be set', ValidationError)
 
@@ -525,7 +541,7 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier):
     check_type_and_details(message)
     if not message.value:
         warnings.warn('value must be set', ValidationError)
-    if Chem and message.type == message.SMILES:
+    if message.type == message.SMILES:
         mol = Chem.MolFromSmiles(message.value)
         if mol is None:
             warnings.warn(
@@ -546,10 +562,6 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier):
 
 
 def validate_vessel(message: reaction_pb2.Vessel):
-    del message  # Unused.
-
-
-def validate_vessel_type(message: reaction_pb2.VesselType):
     check_type_and_details(message)
 
 
@@ -626,11 +638,6 @@ def validate_pressure_measurement(
 
 
 def validate_stirring_conditions(message: reaction_pb2.StirringConditions):
-    del message  # Unused.
-
-
-def validate_stirring_method(
-        message: reaction_pb2.StirringConditions.StirringMethod):
     check_type_and_details(message)
 
 
@@ -641,21 +648,11 @@ def validate_stirring_rate(
 
 def validate_illumination_conditions(
         message: reaction_pb2.IlluminationConditions):
-    del message  # Unused.
-
-
-def validate_illumination_type(
-        message: reaction_pb2.IlluminationConditions.IlluminationType):
     check_type_and_details(message)
 
 
 def validate_electrochemistry_conditions(
         message: reaction_pb2.ElectrochemistryConditions):
-    del message  # Unused.
-
-
-def validate_electrochemistry_type(
-        message: reaction_pb2.ElectrochemistryConditions.ElectrochemistryType):
     check_type_and_details(message)
 
 
@@ -670,10 +667,6 @@ def validate_electrochemistry_measurement(
 
 
 def validate_flow_conditions(message: reaction_pb2.FlowConditions):
-    del message  # Unused.
-
-
-def validate_flow_type(message: reaction_pb2.FlowConditions.FlowType):
     check_type_and_details(message)
 
 
@@ -1052,8 +1045,6 @@ _VALIDATOR_SWITCH = {
     # Setup
     reaction_pb2.Vessel:
         validate_vessel,
-    reaction_pb2.VesselType:
-        validate_vessel_type,
     reaction_pb2.VesselMaterial:
         validate_vessel_material,
     reaction_pb2.VesselAttachment:
@@ -1083,26 +1074,18 @@ _VALIDATOR_SWITCH = {
         validate_pressure_measurement,
     reaction_pb2.StirringConditions:
         validate_stirring_conditions,
-    reaction_pb2.StirringConditions.StirringMethod:
-        validate_stirring_method,
     reaction_pb2.StirringConditions.StirringRate:
         validate_stirring_rate,
     reaction_pb2.IlluminationConditions:
         validate_illumination_conditions,
-    reaction_pb2.IlluminationConditions.IlluminationType:
-        validate_illumination_type,
     reaction_pb2.ElectrochemistryConditions:
         validate_electrochemistry_conditions,
-    reaction_pb2.ElectrochemistryConditions.ElectrochemistryType:
-        validate_electrochemistry_type,
     reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell:
         validate_electrochemistry_cell,
     reaction_pb2.ElectrochemistryConditions.Measurement:
         validate_electrochemistry_measurement,
     reaction_pb2.FlowConditions:
         validate_flow_conditions,
-    reaction_pb2.FlowConditions.FlowType:
-        validate_flow_type,
     reaction_pb2.FlowConditions.Tubing:
         validate_tubing,
     # Annotations

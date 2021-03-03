@@ -27,11 +27,10 @@ ScalarType = Union[str, bytes, float, int, bool]
 # Messages with 'type' and 'details' fields.
 TypeDetailsMessage = Union[
     reaction_pb2.Analysis, reaction_pb2.CompoundIdentifier,
-    reaction_pb2.CompoundPreparation,
+    reaction_pb2.CompoundPreparation, reaction_pb2.ElectrochemistryConditions,
     reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell,
-    reaction_pb2.ElectrochemistryConditions.ElectrochemistryType,
-    reaction_pb2.FlowConditions.FlowType, reaction_pb2.FlowConditions.Tubing,
-    reaction_pb2.IlluminationConditions.IlluminationType,
+    reaction_pb2.FlowConditions, reaction_pb2.FlowConditions.Tubing,
+    reaction_pb2.IlluminationConditions,
     reaction_pb2.PressureConditions.Atmosphere,
     reaction_pb2.PressureConditions.Measurement,
     reaction_pb2.PressureConditions.PressureControl,
@@ -40,11 +39,11 @@ TypeDetailsMessage = Union[
     reaction_pb2.ProductMeasurement.Selectivity,
     reaction_pb2.ReactionIdentifier, reaction_pb2.ReactionInput.AdditionDevice,
     reaction_pb2.ReactionSetup.ReactionEnvironment, reaction_pb2.ReactionWorkup,
-    reaction_pb2.StirringConditions.StirringMethod,
+    reaction_pb2.StirringConditions,
     reaction_pb2.TemperatureConditions.Measurement,
-    reaction_pb2.TemperatureConditions.TemperatureControl,
+    reaction_pb2.TemperatureConditions.TemperatureControl, reaction_pb2.Vessel,
     reaction_pb2.VesselAttachment, reaction_pb2.VesselMaterial,
-    reaction_pb2.VesselPreparation, reaction_pb2.VesselType]
+    reaction_pb2.VesselPreparation]
 
 # Messages with 'units' fields.
 UnitMessage = Union[reaction_pb2.Current, reaction_pb2.FlowRate,
