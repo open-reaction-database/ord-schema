@@ -602,11 +602,7 @@ def validate_reaction_conditions(message: reaction_pb2.ReactionConditions):
 
 def validate_temperature_conditions(
         message: reaction_pb2.TemperatureConditions):
-    if not message.setpoint.value:
-        warnings.warn(
-            'Temperature setpoints should be specified; even if '
-            'using ambient conditions, estimate room temperature and '
-            'the precision of your estimate.', ValidationWarning)
+    del message  # Unused.
 
 
 def validate_temperature_control(
