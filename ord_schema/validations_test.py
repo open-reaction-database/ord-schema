@@ -66,6 +66,20 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         return output
 
     @parameterized.named_parameters(
+        ('clean', reaction_pb2.ReactionNotes()),
+        ('default1', reaction_pb2.StirringConditions(type='UNSPECIFIED')),
+        ('default2', reaction_pb2.ReactionNotes(safety_notes='')))
+    def test_is_empty(self, message):
+        self.assertTrue(validations.is_empty(message))
+
+    @parameterized.named_parameters(
+        ('not_empty', reaction_pb2.StirringConditions(type='STIR_BAR')),
+        ('optional1', reaction_pb2.ReactionNotes(is_heterogeneous=False)),
+        ('optional2', reaction_pb2.ReactionNotes(is_heterogeneous=True)))
+    def test_is_not_empty(self, message):
+        self.assertFalse(validations.is_empty(message))
+
+    @parameterized.named_parameters(
         ('volume',
          reaction_pb2.Volume(value=15.0, units=reaction_pb2.Volume.MILLILITER)),
         ('time', reaction_pb2.Time(value=24, units=reaction_pb2.Time.HOUR)),
