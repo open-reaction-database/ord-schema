@@ -43,11 +43,15 @@ def main(argv):
     filenames = glob.glob(FLAGS.input, recursive=True)
     logging.info('Found %d datasets', len(filenames))
     dois = collections.defaultdict(list)
+    output_filenames = {}
     for filename in filenames:
         logging.info('Checking %s', filename)
         dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
-        dataset_id = os.path.splitext(os.path.basename(filename))[0]
-        assert dataset.dataset_id == dataset_id
+        dataset_id = os.path.basename(filename).split('.')[0]
+        if dataset.dataset_id != dataset_id:
+            raise AssertionError('Dataset IDs do not match: '
+                                 f'{dataset.dataset_id} != {dataset_id}')
+        output_filenames[dataset_id] = message_helpers.id_filename(filename)
         doi_set = set()
         for reaction in dataset.reactions:
             # Some poorly-validated DOI entries start with 'doi:'...
@@ -69,9 +73,7 @@ def main(argv):
                     f'[doi: {doi}]({url})')
         print(f'* {citation}')
         for dataset in sorted(dois[doi]):
-            url = urllib.parse.urljoin(
-                _PREFIX,
-                message_helpers.id_filename(dataset) + '.pb')
+            url = urllib.parse.urljoin(_PREFIX, output_filenames[dataset])
             print(f'  * [{dataset}]({url})')
 
 
