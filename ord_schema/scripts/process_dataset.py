@@ -172,6 +172,13 @@ def _load_base_dataset(file_status: FileStatus,
                                 capture_output=True,
                                 check=True,
                                 text=False)
+    if serialized.stdout.startswith(b'version'):
+        # Convert Git LFS pointers to real data.
+        serialized = subprocess.run(['git', 'lfs', 'smudge'],
+                                    input=serialized.stdout,
+                                    capture_output=True,
+                                    check=True,
+                                    text=False)
     if args[-1].endswith('.gz'):
         value = gzip.decompress(serialized.stdout)
     else:
