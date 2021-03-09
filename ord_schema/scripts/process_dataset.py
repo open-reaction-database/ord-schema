@@ -80,7 +80,7 @@ flags.DEFINE_integer(
     'GitHub pull request number. If provided, a comment will be added.')
 flags.DEFINE_string('token', None, 'GitHub authentication token.')
 
-# pylint: disable=too-many-locals
+# pylint: disable=too-many-branches,too-many-locals
 
 
 @dataclasses.dataclass(eq=True, frozen=True, order=True)
