@@ -46,8 +46,8 @@ class ValidateDatasetTest(absltest.TestCase):
         dataset.reactions.add().provenance.doi = 'not/bar'
         tempdir = self.create_tempdir()
         message_helpers.write_message(
-            dataset, os.path.join(tempdir, f'{dataset.dataset_id}.pb'))
-        with flagsaver.flagsaver(input=os.path.join(tempdir, '*.pb')):
+            dataset, os.path.join(tempdir, f'{dataset.dataset_id}.pb.gz'))
+        with flagsaver.flagsaver(input=os.path.join(tempdir, '*.pb.gz')):
             list_dois.main(())
 
 

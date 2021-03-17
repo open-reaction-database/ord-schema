@@ -171,7 +171,16 @@ class SubmissionWorkflowTest(absltest.TestCase):
             changed: Set of changed reaction IDs.
             filenames: List of .pb filenames in the updated database.
         """
-        subprocess.run(['git', 'add', '*.pb*', 'data/*/*.pb*'], check=True)
+        # These commands will fail if there are no files to match for a given
+        # pattern, so run them separately to make sure we pick up changes.
+        try:
+            subprocess.run(['git', 'add', '*.pb*'], check=True)
+        except subprocess.CalledProcessError as error:
+            logging.info(error)
+        try:
+            subprocess.run(['git', 'add', 'data/*/*.pb*'], check=True)
+        except subprocess.CalledProcessError as error:
+            logging.info(error)
         changed = subprocess.run(
             ['git', 'diff', '--name-status', self._DEFAULT_BRANCH],
             check=True,
@@ -407,6 +416,26 @@ class SubmissionWorkflowTest(absltest.TestCase):
         message_helpers.write_message(dataset, dataset_filename)
         with self.assertRaisesRegex(ValueError, 'larger than --max_size'):
             self._run(max_size=0.0)
+
+    def test_delete_dataset(self):
+        subprocess.run(['git', 'rm', self.dataset_filename], check=True)
+        added, removed, changed, filenames = self._run()
+        self.assertEmpty(added)
+        self.assertLen(removed, 1)
+        self.assertEmpty(changed)
+        self.assertEmpty(filenames)
+
+    def test_replace_dataset(self):
+        dataset = message_helpers.load_message(self.dataset_filename,
+                                               dataset_pb2.Dataset)
+        dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
+        message_helpers.write_message(dataset, dataset_filename)
+        subprocess.run(['git', 'rm', self.dataset_filename], check=True)
+        added, removed, changed, filenames = self._run()
+        self.assertLen(added, 1)
+        self.assertLen(removed, 1)
+        self.assertEmpty(changed)
+        self.assertLen(filenames, 1)
 
 
 if __name__ == '__main__':

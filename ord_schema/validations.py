@@ -258,6 +258,12 @@ class ValidationWarning(Warning):
     pass
 
 
+def is_empty(message: ord_schema.Message):
+    """Returns whether the given message is empty."""
+    empty = type(message)().SerializeToString()
+    return message.SerializeToString(deterministic=True) == empty
+
+
 # pylint: disable=missing-function-docstring
 def ensure_float_nonnegative(message: ord_schema.Message, field: str):
     if getattr(message, field) < 0:
@@ -291,6 +297,8 @@ def check_value_and_units(message: ord_schema.UnitMessage):
 
 def check_type_and_details(message: ord_schema.TypeDetailsMessage):
     """Checks that type/details messages are complete."""
+    if is_empty(message):
+        return
     if message.type == message.UNSPECIFIED:
         warnings.warn(f'{type(message)} requires `type` to be set',
                       ValidationError)
@@ -602,11 +610,7 @@ def validate_reaction_conditions(message: reaction_pb2.ReactionConditions):
 
 def validate_temperature_conditions(
         message: reaction_pb2.TemperatureConditions):
-    if not message.setpoint.value:
-        warnings.warn(
-            'Temperature setpoints should be specified; even if '
-            'using ambient conditions, estimate room temperature and '
-            'the precision of your estimate.', ValidationWarning)
+    del message  # Unused.
 
 
 def validate_temperature_control(

@@ -80,7 +80,7 @@ flags.DEFINE_integer(
     'GitHub pull request number. If provided, a comment will be added.')
 flags.DEFINE_string('token', None, 'GitHub authentication token.')
 
-# pylint: disable=too-many-locals
+# pylint: disable=too-many-branches,too-many-locals
 
 
 @dataclasses.dataclass(eq=True, frozen=True, order=True)
@@ -172,6 +172,13 @@ def _load_base_dataset(file_status: FileStatus,
                                 capture_output=True,
                                 check=True,
                                 text=False)
+    if serialized.stdout.startswith(b'version'):
+        # Convert Git LFS pointers to real data.
+        serialized = subprocess.run(['git', 'lfs', 'smudge'],
+                                    input=serialized.stdout,
+                                    capture_output=True,
+                                    check=True,
+                                    text=False)
     if args[-1].endswith('.gz'):
         value = gzip.decompress(serialized.stdout)
     else:
@@ -252,13 +259,14 @@ def run() -> Tuple[Set[str], Set[str], Set[str]]:
     change_stats = {}
     for file_status in inputs:
         if file_status.status == 'D':
-            continue  # Nothing to do for deleted files.
-        dataset = message_helpers.load_message(file_status.filename,
-                                               dataset_pb2.Dataset)
-        logging.info('%s: %d reactions', file_status.filename,
-                     len(dataset.reactions))
+            dataset = None
+        else:
+            dataset = message_helpers.load_message(file_status.filename,
+                                                   dataset_pb2.Dataset)
+            logging.info('%s: %d reactions', file_status.filename,
+                         len(dataset.reactions))
         datasets = {file_status.filename: dataset}
-        if FLAGS.validate:
+        if FLAGS.validate and dataset is not None:
             # Note: this does not check if IDs are malformed.
             validations.validate_datasets(datasets, FLAGS.write_errors)
             # Check reaction sizes.
@@ -274,7 +282,7 @@ def run() -> Tuple[Set[str], Set[str], Set[str]]:
             change_stats[file_status.filename] = (added, removed, changed)
             logging.info('Summary: +%d -%d Δ%d reaction IDs', len(added),
                          len(removed), len(changed))
-        if FLAGS.update:
+        if FLAGS.update and dataset is not None:
             _run_updates(datasets)
     if change_stats:
         total_added, total_removed, total_changed = set(), set(), set()
