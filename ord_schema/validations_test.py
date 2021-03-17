@@ -18,6 +18,7 @@ import warnings
 
 from absl.testing import absltest
 from absl.testing import parameterized
+from google.protobuf import text_format
 
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
@@ -207,6 +208,33 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message.identifiers.add(value='test', type='REACTION_SMILES')
         with self.assertRaisesRegex(validations.ValidationError,
                                     'requires at least two > characters'):
+            self._run_validation(message)
+
+    @parameterized.named_parameters(
+        ('aliquot_with_amount',
+         'type: ALIQUOT amount {mass {value: 1.0 units: GRAM}}'),
+        ('addition_with_input',
+         'type: ADDITION input {components {'
+             'identifiers {value: "CCO" type: SMILES} '
+             'amount {mass {value: 10.0 units: GRAM}}}}'),
+    )
+    def test_reaction_workup(self, workup_text):
+        message = text_format.Parse(workup_text, reaction_pb2.ReactionWorkup())
+        output = self._run_validation(message)
+        self.assertEmpty(output.errors)
+        self.assertEmpty(output.warnings)
+
+    @parameterized.named_parameters(
+        ('aliquot_without_amount', 'type: ALIQUOT', 'missing volume/mass'),
+        ('addition_with_amount',
+         'type: ADDITION amount {mass {value: 1.0 units: GRAM}} '
+             'input {components {identifiers {value: "CCO" type: SMILES} '
+                    'amount {mass {value: 10.0 units: GRAM}}}}',
+         'should only be specified'),
+    )
+    def test_bad_reaction_workup(self, workup_text, error_msg):
+        message = text_format.Parse(workup_text, reaction_pb2.ReactionWorkup())
+        with self.assertRaisesRegex(validations.ValidationError, error_msg):
             self._run_validation(message)
 
     # pylint: disable=too-many-statements

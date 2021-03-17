@@ -720,7 +720,7 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
             not message.HasField('target_ph')):
         warnings.warn('pH adjustment workup missing target pH', ValidationError)
     if message.type == reaction_pb2.ReactionWorkup.ALIQUOT:
-        if not message.amount.WhichOneof('kind'):
+        if message.amount.WhichOneof('kind') is None:
             warnings.warn('Aliquot workup step missing volume/mass amount',
                           ValidationError)
         if message.amount.WhichOneof('kind') not in ['mass', 'volume']:
@@ -730,6 +730,13 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
             warnings.warn(
                 'volume_includes_solutes should only '
                 'be used for input Compounds', ValidationError)
+    # Question: Are there other reaction workup types with specifiable amounts?
+    if (message.amount.WhichOneof('kind') is not None and message.type not in (
+        reaction_pb2.ReactionWorkup.ALIQUOT, reaction_pb2.ReactionWorkup.CUSTOM
+    )):
+        warnings.warn(
+            'Workup amount should only be specified if '
+            'workup type is ALIQUOT or CUSTOM', ValidationError)
 
 
 def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome):
