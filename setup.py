@@ -53,19 +53,4 @@ setuptools.setup(
     package_data={
         'ord_schema.visualization': ['template.html', 'template.txt'],
     },
-    install_requires=[
-        'absl-py>=0.9.0',
-        'flask>=1.1.2',
-        'numpy>=1.18.1',
-        'openpyxl>=3.0.5',
-        'pandas>=1.0.4',
-        'protobuf>=3.13.0',
-        'protoc-wheel-0>=3.14.0',
-        'pygithub>=1.51',
-        'python-dateutil>=1.10.0',
-        'jinja2>=2.0.0',
-        'xlrd<2.0.0',
-        'xlwt>=1.3.0',
-        'joblib>=1.0.0',
-    ],
     cmdclass={'build_py': BuildPyCommand})
