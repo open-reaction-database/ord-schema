@@ -7,4 +7,5 @@ dependencies:
   - rdkit
   - pip
   - pip:
+    - protoc-wheel-0>=3.14.0
     - git+https://github.com/open-reaction-database/ord-schema.git

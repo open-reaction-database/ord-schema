@@ -69,5 +69,4 @@ if __name__ == '__main__':
             'xlwt>=1.3.0',
             'joblib>=1.0.0',
         ],
-        cmdclass={'build_py': BuildPyCommand},
-        cmd_deps={'build_py': ['protoc-wheel-0>=3.14.0']})
+        cmdclass={'build_py': BuildPyCommand})
