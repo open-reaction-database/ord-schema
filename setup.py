@@ -29,10 +29,7 @@ class BuildPyCommand(build_py.build_py):
         """Runs the protocol buffer compiler."""
         protoc = spawn.find_executable('protoc')
         if not protoc:
-            subprocess.check_call(['pip', 'install', 'protoc-wheel-0>=3.14.0'])
-            protoc = spawn.find_executable('protoc')
-            if not protoc:
-                raise RuntimeError('cannot find protoc')
+            raise RuntimeError('cannot find protoc')
         for source in glob.glob('ord_schema/proto/*.proto'):
             protoc_command = [
                 protoc,
@@ -72,4 +69,5 @@ if __name__ == '__main__':
             'xlwt>=1.3.0',
             'joblib>=1.0.0',
         ],
-        cmdclass={'build_py': BuildPyCommand})
+        cmdclass={'build_py': BuildPyCommand},
+        cmd_deps={'build_py': ['protoc-wheel-0>=3.14.0']})
