@@ -1,0 +1,10 @@
+name: binder_environment
+channels:
+  - defaults
+  - rdkit
+dependencies:
+  - python==3.7
+  - rdkit
+  - pip
+  - pip:
+    - git+https://github.com/open-reaction-database/ord-schema.git#egg=ord-schema
