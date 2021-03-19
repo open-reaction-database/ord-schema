@@ -3,7 +3,7 @@ channels:
   - defaults
   - rdkit
 dependencies:
-  - python==3.7
+  - python
   - rdkit
   - pip
   - pip:
