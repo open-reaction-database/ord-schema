@@ -11,7 +11,9 @@ We are currently in the process of formalizing the schema and creating examples 
 
 ## Examples
 
-Click here to launch a JupyterHub instance: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/open-reaction-database/ord-schema/HEAD?filepath=examples)
+The `examples/` directory contains examples of dataset creation and use.
+
+Click here to run the examples with Binder: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/open-reaction-database/ord-schema/HEAD?filepath=examples)
 
 ## Local installation
 
