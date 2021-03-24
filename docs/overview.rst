@@ -177,7 +177,7 @@ Advisory Board is:
 
 * Juan Alvarez (Merck)
 * Alán Aspuru-Guzik (Toronto, MADNESS)
-* Timothy Cernak (Michigan)
+* Timothy Cernak (Michigan, Entos)
 * Lucy Colwell (Cambridge, SynTech, Google)
 * Werngard Czechtizky (AstraZeneca)
 * Matthew Gaunt (Cambridge, SynTech)
@@ -188,7 +188,7 @@ Advisory Board is:
 * Sarah Reisman (Caltech)
 * Matthew Sigman (Utah, `C-CAS <https://ccas.nd.edu/>`__)
 * Jay Stevens (BMS)
-* Sarah Trice (MilliporeSigma)
+* Sarah Trice (Entos)
 * Matthew Tudge (GSK)
 
 *************************
