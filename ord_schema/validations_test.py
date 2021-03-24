@@ -213,10 +213,9 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
     @parameterized.named_parameters(
         ('aliquot_with_amount',
          'type: ALIQUOT amount {mass {value: 1.0 units: GRAM}}'),
-        ('addition_with_input',
-         'type: ADDITION input {components {'
-             'identifiers {value: "CCO" type: SMILES} '
-             'amount {mass {value: 10.0 units: GRAM}}}}'),
+        ('addition_with_input', 'type: ADDITION input {components {'
+         'identifiers {value: "CCO" type: SMILES} '
+         'amount {mass {value: 10.0 units: GRAM}}}}'),
     )
     def test_reaction_workup(self, workup_text):
         message = text_format.Parse(workup_text, reaction_pb2.ReactionWorkup())
@@ -228,8 +227,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         ('aliquot_without_amount', 'type: ALIQUOT', 'missing volume/mass'),
         ('addition_with_amount',
          'type: ADDITION amount {mass {value: 1.0 units: GRAM}} '
-             'input {components {identifiers {value: "CCO" type: SMILES} '
-                    'amount {mass {value: 10.0 units: GRAM}}}}',
+         'input {components {identifiers {value: "CCO" type: SMILES} '
+         'amount {mass {value: 10.0 units: GRAM}}}}',
          'should only be specified'),
     )
     def test_bad_reaction_workup(self, workup_text, error_msg):

@@ -731,9 +731,9 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
                 'volume_includes_solutes should only '
                 'be used for input Compounds', ValidationError)
     # Question: Are there other reaction workup types with specifiable amounts?
-    if (message.amount.WhichOneof('kind') is not None and message.type not in (
-        reaction_pb2.ReactionWorkup.ALIQUOT, reaction_pb2.ReactionWorkup.CUSTOM
-    )):
+    if (message.amount.WhichOneof('kind') is not None and
+            message.type not in (reaction_pb2.ReactionWorkup.ALIQUOT,
+                                 reaction_pb2.ReactionWorkup.CUSTOM)):
         warnings.warn(
             'Workup amount should only be specified if '
             'workup type is ALIQUOT or CUSTOM', ValidationError)
