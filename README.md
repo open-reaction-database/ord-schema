@@ -9,7 +9,13 @@ This repository __does not__ contain the database itself. Rather, `ord-schema` i
 
 We are currently in the process of formalizing the schema and creating examples for both low-level and high-level use. Consider joining the [mailing list](https://groups.google.com/forum/#!members/open-reaction-database) to stay up to date with announcements and opportunities for providing feedback.
 
-## Installation
+## Examples
+
+The `examples/` directory contains examples of dataset creation and use.
+
+Click here to run the examples with Binder: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/open-reaction-database/ord-schema/HEAD?filepath=examples)
+
+## Local installation
 
 Many of the schema validators require [RDKit](https://github.com/rdkit/rdkit), so we recommend that you 
 install `ord-schema` in a conda environment.

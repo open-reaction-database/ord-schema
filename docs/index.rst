@@ -12,6 +12,12 @@ learning and related efforts in reaction prediction, chemical synthesis
 planning, and experiment design. Our initial meeting took place on 31 October
 2019 and included experts from pharma, academia, and tech.
 
+Quick links:
+   * `Overview of the ORD <overview.html>`_
+   * `Leadership <overview.html#leadership>`_
+   * `Roadmap <overview.html#development-roadmap>`_
+   * `Commitment to Open Access <overview.html#commitment-to-open-access>`_
+
 We expect that this database will be the starting point for the development of
 best-in-class tools and models for reaction prediction and synthesis planning.
 Additionally, we hope it will serve as a basis for experimental efforts in
