@@ -333,7 +333,9 @@ message CompoundIdentifier {
     // Protein data bank ID (for enzymes)
     PDB_ID = 14;
     // Amino acid sequence (for enzymes).
-    PROTEIN_SEQUENCE = 15;
+    AMINO_ACID_SEQUENCE = 15;
+    // HELM; https://www.pistoiaalliance.org/helm-notation/.
+    HELM = 16;
   }
   IdentifierType type = 1;
   string details = 2;
