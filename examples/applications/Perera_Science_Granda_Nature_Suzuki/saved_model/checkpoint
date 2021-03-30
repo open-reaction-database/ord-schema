@@ -1,2 +1,0 @@
-model_checkpoint_path: "saved_model"
-all_model_checkpoint_paths: "saved_model"
