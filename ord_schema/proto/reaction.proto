@@ -332,6 +332,8 @@ message CompoundIdentifier {
     UNIPROT_ID = 13;
     // Protein data bank ID (for enzymes)
     PDB_ID = 14;
+    // Amino acid sequence (for enzymes).
+    PROTEIN_SEQUENCE = 15;
   }
   IdentifierType type = 1;
   string details = 2;
