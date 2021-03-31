@@ -726,8 +726,9 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
             warnings.warn('Aliquot workup step missing volume/mass amount',
                           ValidationWarning)
         elif message.amount.WhichOneof('kind') not in ['mass', 'volume']:
-            warnings.warn('Aliquot amounts should be specified by mass or '
-                         'volume', ValidationWarning)
+            warnings.warn(
+                'Aliquot amounts should be specified by mass or '
+                'volume', ValidationWarning)
         if message.amount.HasField('volume_includes_solutes'):
             warnings.warn(
                 'volume_includes_solutes should only '
