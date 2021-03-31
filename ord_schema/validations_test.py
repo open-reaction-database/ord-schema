@@ -234,7 +234,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
     def test_bad_reaction_workup(self, workup_text, error_msg):
         message = text_format.Parse(workup_text, reaction_pb2.ReactionWorkup())
         output = self._run_validation(message)
-        self.assertEquals(len(output.warnings), 1)
+        self.assertLen(output.warnings, 1)
         self.assertRegex(output.warnings[0], error_msg)
 
     # pylint: disable=too-many-statements
