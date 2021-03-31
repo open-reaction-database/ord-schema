@@ -431,6 +431,11 @@ def validate_reaction(message: reaction_pb2.Reaction,
         if len(message.outcomes) == 0:
             warnings.warn('Reactions should have at least 1 reaction outcome',
                           ValidationError)
+    for input_ in message.inputs:
+        for component in message.inputs[input_].components:
+            if not component.amount.WhichOneof('kind'):
+                warnings.warn('All reaction input components require an amount',
+                              ValidationError)
     if (reaction_needs_internal_standard(message) and
             not reaction_has_internal_standard(message)):
         warnings.warn(
@@ -471,10 +476,6 @@ def validate_reaction_input(message: reaction_pb2.ReactionInput):
     if len(message.components) + len(message.crude_components) == 0:
         warnings.warn('Reaction inputs must have at least one component',
                       ValidationError)
-    for component in message.components:
-        if not component.amount.WhichOneof('kind'):
-            warnings.warn('Reaction input components require an amount',
-                          ValidationError)
 
 
 def validate_addition_device(
@@ -690,19 +691,19 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
     check_type_and_details(message)
     if (message.type == reaction_pb2.ReactionWorkup.WAIT and
             not message.duration.value):
-        warnings.warn('"WAIT" workup steps require a defined duration',
-                      ValidationError)
+        warnings.warn('WAIT workup steps should have a defined duration',
+                      ValidationWarning)
     if (message.type == reaction_pb2.ReactionWorkup.TEMPERATURE and
             not message.HasField('temperature')):
         warnings.warn(
-            '"TEMPERATURE" workup steps require defined '
-            'temperature conditions', ValidationError)
+            'TEMPERATURE workup steps should have defined '
+            'temperature conditions', ValidationWarning)
     if (message.type in (reaction_pb2.ReactionWorkup.EXTRACTION,
                          reaction_pb2.ReactionWorkup.FILTRATION) and
             not message.keep_phase):
         warnings.warn(
             'Workup step EXTRACTION or FILTRATION missing '
-            'required field keep_phase', ValidationError)
+            'a recommended field keep_phase', ValidationWarning)
     if (message.type in (reaction_pb2.ReactionWorkup.ADDITION,
                          reaction_pb2.ReactionWorkup.WASH,
                          reaction_pb2.ReactionWorkup.DRY_WITH_MATERIAL,
@@ -710,33 +711,34 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
                          reaction_pb2.ReactionWorkup.DISSOLUTION,
                          reaction_pb2.ReactionWorkup.PH_ADJUST) and
             not message.input.components):
-        warnings.warn('Workup step missing required inputs definition',
-                      ValidationError)
+        warnings.warn('Workup step missing recommended inputs definition',
+                      ValidationWarning)
     if (message.type == reaction_pb2.ReactionWorkup.STIRRING and
             not message.stirring):
         warnings.warn('Stirring workup step missing stirring definition',
-                      ValidationError)
+                      ValidationWarning)
     if (message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and
             not message.HasField('target_ph')):
-        warnings.warn('pH adjustment workup missing target pH', ValidationError)
+        warnings.warn('pH adjustment workup missing target pH',
+                      ValidationWarning)
     if message.type == reaction_pb2.ReactionWorkup.ALIQUOT:
         if message.amount.WhichOneof('kind') is None:
             warnings.warn('Aliquot workup step missing volume/mass amount',
-                          ValidationError)
-        if message.amount.WhichOneof('kind') not in ['mass', 'volume']:
-            warnings.warn('Aliquot amounts must be specified by mass or volume',
-                          ValidationError)
+                          ValidationWarning)
+        elif message.amount.WhichOneof('kind') not in ['mass', 'volume']:
+            warnings.warn('Aliquot amounts should be specified by mass or '
+                         'volume', ValidationWarning)
         if message.amount.HasField('volume_includes_solutes'):
             warnings.warn(
                 'volume_includes_solutes should only '
-                'be used for input Compounds', ValidationError)
+                'be used for input Compounds', ValidationWarning)
     # Question: Are there other reaction workup types with specifiable amounts?
     if (message.amount.WhichOneof('kind') is not None and
             message.type not in (reaction_pb2.ReactionWorkup.ALIQUOT,
                                  reaction_pb2.ReactionWorkup.CUSTOM)):
         warnings.warn(
             'Workup amount should only be specified if '
-            'workup type is ALIQUOT or CUSTOM', ValidationError)
+            'workup type is ALIQUOT or CUSTOM', ValidationWarning)
 
 
 def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome):
@@ -794,18 +796,18 @@ def validate_product_measurement(message: reaction_pb2.ProductMeasurement):
     if message.type == reaction_pb2.ProductMeasurement.IDENTITY:
         if message.WhichOneof('value'):
             warnings.warn(
-                'Product measurements to confirm identities should'
+                'Product measurements to confirm IDENTITY should'
                 ' not have any values defined', ValidationError)
     elif message.type == reaction_pb2.ProductMeasurement.YIELD:
         if message.WhichOneof('value') != 'percentage':
             warnings.warn(
-                'Yield measurements should be defined as percentage'
-                ' values', ValidationError)
+                'YIELD measurements should be defined as percentage'
+                ' values if possible', ValidationWarning)
     elif message.type == reaction_pb2.ProductMeasurement.PURITY:
         if message.WhichOneof('value') != 'percentage':
             warnings.warn(
-                'Purity measurements should be defined as percentage'
-                ' values', ValidationError)
+                'PURITY measurements should be defined as percentage'
+                ' values if possible', ValidationWarning)
     elif message.type in (reaction_pb2.ProductMeasurement.AREA,
                           reaction_pb2.ProductMeasurement.COUNTS,
                           reaction_pb2.ProductMeasurement.INTENSITY):
