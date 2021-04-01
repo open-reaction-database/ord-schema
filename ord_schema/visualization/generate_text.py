@@ -44,9 +44,9 @@ def _generate(reaction: reaction_pb2.Reaction, template_string: str,
     # Fix line breaks, extra spaces, "a" versus "an"
     if not line_breaks:
         text = ''.join(text.strip().splitlines())
-    text = re.sub(r'[ ]{2,}', ' ', text)
-    text = re.sub(r' a ([aeiouAEIOU])', r' an \1', text)
-    text = re.sub(r'[ ]([\.\;\)\,]){1,2}', r'\1', text)
+        text = re.sub(r'[ ]{2,}', ' ', text)
+        text = re.sub(r' a ([aeiouAEIOU])', r' an \1', text)
+        text = re.sub(r'[ ]([\.\;\)\,]){1,2}', r'\1', text)
     return text
 
 
@@ -74,3 +74,12 @@ def generate_html(reaction: reaction_pb2.Reaction, compact=False) -> str:
                      template_string=template,
                      line_breaks=True,
                      **kwargs)
+
+
+def generate_summary(reaction: reaction_pb2.Reaction) -> str:
+    """Generates an HTML reaction summary."""
+    with open(os.path.join(os.path.dirname(__file__), 'reaction.html')) as f:
+        template = f.read()
+    return _generate(reaction,
+                     template_string=template,
+                     line_breaks=True)

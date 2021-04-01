@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ reaction.reaction_id }}</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <style>
+      body {
+          font-family: Roboto, sans-serif;
+      }
+
+      #nav {
+          margin-right: 26px;
+          position: fixed;
+          width: 150px;
+      }
+
+      .navSection {
+          padding: 8px;
+          margin-bottom: 4px;
+          cursor: pointer;
+      }
+
+      .navSection:hover {
+          background-color: lightblue;
+      }
+
+      #sections {
+          margin-left: 168px;
+      }
+
+      table {
+          border-collapse: collapse;
+      }
+
+      th, td {
+          padding: 0 10px 0 10px;
+      }
+
+      tr.input_start {
+          border-top: 1px solid black;
+      }
+
+      tr.input_end td {
+          border-bottom: 1px solid black;
+      }
+
+      td.input_name {
+          border-top: 1px solid black;
+          border-bottom: 1px solid black;
+      }
+
+      .raw {
+          display: none;
+      }
+  </style>
+</head>
+<body>
+<div id="nav">
+  <div class="navSection" data-section="summary">Summary</div>
+  <div class="navSection" data-section="identifiers">Identifiers</div>
+  <div class="navSection" data-section="inputs">Inputs</div>
+  <div class="navSection" data-section="setup">Setup</div>
+  <div class="navSection" data-section="conditions">Conditions</div>
+  <div class="navSection" data-section="notes">Notes</div>
+  <div class="navSection" data-section="observations">Observations</div>
+  <div class="navSection" data-section="workups">Workups</div>
+  <div class="navSection" data-section="outcomes">Outcomes</div>
+  <div class="navSection" data-section="provenance">Provenance</div>
+  <div class="navSection" data-section="record">Full Record</div>
+</div>
+<div id="sections">
+  <div id="identifiers">
+    <h2>Identifiers</h2>
+    <table>
+      <tr>
+        <td>Reaction ID</td>
+        <td>{{ reaction.reaction_id }}</td>
+        <td></td>
+      </tr>
+      {% for identifier in reaction.identifiers %}
+        <tr>
+          <td>{{ identifier|reaction_identifier_type }}</td>
+          <td>{{ identifier.value }}</td>
+          <td>{{ identifier.details }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div id="inputs">
+    <h2>Inputs</h2>
+    <table>
+      <thead>
+      <tr>
+        <th>Input</th>
+        <th>Compound</th>
+        <th>Amount</th>
+        <th>Role</th>
+        <th>Raw</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% for key, value in reaction.inputs|sort_addition_order %}
+        {% for compound in value.components %}
+          {% if loop.index0 == 0 %}
+            <tr class="input_start">
+              <td class="input_name" rowspan="{{ value.components|length }}">{{ key }}</td>
+              {% elif loop.index == value.components|length %}
+            <tr class="input_end">
+              {% else %}
+            <tr>
+          {% endif %}
+        <td style="text-align: center;">{{ compound|compound_svg(18) }}</td>
+        <td>{{ compound|compound_amount }}</td>
+        <td>{{ compound|compound_role }}</td>
+        <td>
+          <div><button class="toggle_raw">Show</button></div>
+          <pre class="raw">{{ compound|pbtxt }}</pre>
+        </td>
+        </tr>
+        {% endfor %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div id="setup">
+    <h2>Setup</h2>
+
+  </div>
+  <div id="conditions">
+    <h2>Conditions</h2>
+  </div>
+  <div id="notes">
+    <h2>Notes</h2>
+  </div>
+  <div id="observations">
+    <h2>Observations</h2>
+  </div>
+  <div id="workups">
+    <h2>Workups</h2>
+  </div>
+  <div id="outcomes">
+    <h2>Outcomes</h2>
+  </div>
+  <div id="provenance">
+    <h2>Provenance</h2>
+  </div>
+  <div id="record">
+    <h2>Full Record</h2>
+    <div id="pbtxt" style="font-family: monospace; white-space: pre-wrap;">{{ reaction|pbtxt }}</div>
+  </div>
+</div>
+<script>
+    document.body.onload = function () {
+        $('.navSection').click(event => {
+            const section = $(event.target).attr('data-section');
+            $('#' + section)[0].scrollIntoView({behavior: 'smooth'});
+        });
+        if (location.hash) {
+            const section = location.hash.replace('#', '');
+            $('#' + section)[0].scrollIntoView({behavior: 'smooth'});
+        }
+        $('.toggle_raw').on('click', function () {
+            const element = $(this);
+            const target = element.parent().siblings('.raw');
+            if (element.text() === 'Show') {
+                target.show();
+                element.text('Hide');
+            } else {
+                target.hide();
+                element.text('Show');
+            }
+        });
+    };
+</script>
+</body>
+</html>

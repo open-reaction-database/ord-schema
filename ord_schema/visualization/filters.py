@@ -21,6 +21,9 @@ import collections
 import datetime
 from typing import Any, Iterable, List, Mapping, Optional, Tuple
 
+from google.protobuf import text_format
+import pandas as pd
+
 from ord_schema import units
 from ord_schema import message_helpers
 from ord_schema.visualization import drawing
@@ -678,6 +681,43 @@ def _get_compact_products(
     ]
 
 
+def _reaction_identifier_type(
+        identifier: reaction_pb2.ReactionIdentifier) -> str:
+    """Returns the string reaction identifier type."""
+    return reaction_pb2.ReactionIdentifier.IdentifierType.Name(identifier.type)
+
+
+def _compound_identifier_type(
+        identifier: reaction_pb2.CompoundIdentifier) -> str:
+    """Returns the string compound identifier type."""
+    return reaction_pb2.CompoundIdentifier.IdentifierType.Name(identifier.type)
+
+
+def _inputs_table(reaction: reaction_pb2.Reaction) -> str:
+    """Create a table showing the reaction inputs."""
+    rows = []
+    order = ['input', 'image', 'role', 'amount']
+    for key, value in _sort_addition_order(reaction.inputs):
+        for compound in value.components:
+            row = {
+                'input': key,
+                'image': _compound_svg(compound),
+                'role': _compound_role(compound),
+                'amount': _compound_amount(compound),
+            }
+            if _compound_smiles(compound):
+                row['smiles'] = _compound_smiles(compound)
+            if compound.source.vendor:
+                row['vendor'] = compound.source.vendor
+            rows.append(row)
+    df = pd.DataFrame(rows)
+    return df.to_html()
+
+
+def _pbtxt(reaction: reaction_pb2.Reaction) -> str:
+    return text_format.MessageToString(reaction)
+
+
 TEMPLATE_FILTERS = {
     'round': _round,
     'is_true': _is_true,
@@ -712,4 +752,7 @@ TEMPLATE_FILTERS = {
     'count_addition_order': _count_addition_order,
     'sort_addition_order': _sort_addition_order,
     'get_input_borders': _get_input_borders,
+    'reaction_identifier_type': _reaction_identifier_type,
+    'compound_identifier_type': _compound_identifier_type,
+    'pbtxt': _pbtxt,
 }
