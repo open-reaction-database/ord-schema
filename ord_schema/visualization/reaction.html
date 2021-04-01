@@ -34,6 +34,10 @@
       }
 
       th, td {
+          padding: 5px 10px 5px 10px;
+      }
+
+      #inputs th, #inputs td {
           padding: 0 10px 0 10px;
       }
 
@@ -80,7 +84,7 @@
       </tr>
       {% for identifier in reaction.identifiers %}
         <tr>
-          <td>{{ identifier|reaction_identifier_type }}</td>
+          <td>{{ identifier.IdentifierType.Name(identifier.type) }}</td>
           <td>{{ identifier.value }}</td>
           <td>{{ identifier.details }}</td>
         </tr>
@@ -125,10 +129,163 @@
   </div>
   <div id="setup">
     <h2>Setup</h2>
-
+    <h3>Vessel</h3>
+    <table>
+      <tr>
+        <td>Type</td>
+        <td>{{ reaction.setup.vessel.VesselType.Name(reaction.setup.vessel.type) }}</td>
+        <td>{{ reaction.setup.vessel.details }}</td>
+      </tr>
+      <tr>
+        <td>Material</td>
+        <td>{{ reaction.setup.vessel.material.VesselMaterialType.Name(reaction.setup.vessel.material.type) }}</td>
+        <td>{{ reaction.setup.vessel.material.details }}</td>
+      </tr>
+      <tr>
+        <td>Volume</td>
+        <td>{{ reaction.setup.vessel|vessel_size }}</td>
+        <td></td>
+      </tr>
+      {% if reaction.setup.vessel.attachments %}
+      <tr>
+        <td>Attachments</td>
+        <td colspan="2">
+        <table>
+          {% for attachment in reaction.setup.vessel.attachments %}
+            <tr>
+              <td>{{ attachment.VesselAttachmentType.Name(attachment.type) }}</td>
+              <td>{{ attachment.details }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+        </td>
+      </tr>
+      {% endif %}
+      {% if reaction.setup.vessel.preparations %}
+      <tr>
+        <td>Preparations</td>
+        <td colspan="2">
+        <table>
+          {% for preparation in reaction.setup.vessel.preparations %}
+            <tr>
+              <td>{{ preparation.VesselPreparationType.Name(preparation.type) }}</td>
+              <td>{{ preparation.details }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+        </td>
+      </tr>
+      {% endif %}
+    </table>
+    {% if reaction.setup.is_automated %}
+    <h3>Automation</h3>
+    <table>
+      <tr>
+        <td>Platform</td>
+        <td>{{ reaction.setup.automation_platform or 'UNSPECIFIED' }}</td>
+      </tr>
+    </table>
+    {% endif %}
+    <h3>Environment</h3>
+    <table>
+      <tr>
+        <td>Type</td>
+        <td>{{ reaction.setup.environment.ReactionEnvironmentType.Name(reaction.setup.environment.type) }}</td>
+        <td>{{ reaction.setup.environment.details }}</td>
+      </tr>
+    </table>
   </div>
   <div id="conditions">
     <h2>Conditions</h2>
+    {% if reaction.conditions.temperature %}
+    <h3>Temperature</h3>
+    <table>
+    <tr>
+      <td>Control Type</td>
+      <td>{{ reaction.conditions.temperature.control.TemperatureControlType.Name(reaction.conditions.temperature.control.type) }}</td>
+      <td>{{ reaction.conditions.temperature.control.details }}</td>
+    </tr>
+    <tr>
+      <td>Setpoint</td>
+      <td>{{ reaction.conditions.temperature.setpoint|unit_format }}</td>
+      <td></td>
+    </tr>
+    {% if reaction.conditions.temperature.measurements %}
+    <tr>
+      <td>Measurements</td>
+      <td colspan="2">
+        <table>
+          <thead>
+          <tr>
+            <th>Type</th>
+            <th>Details</th>
+            <th>Time</th>
+            <th>Temperature</th>
+          </tr>
+          </thead>
+          <tbody>
+          {% for measurement in reaction.conditions.temperature.measurements %}
+          <tr>
+            <td>{{ measurement.MeasurementType.Name(measurement.type) }}</td>
+            <td>{{ measurement.details }}</td>
+            <td>{{ measurement.time|unit_format }}</td>
+            <td>{{ measurement.temperature|unit_format }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </td>
+    </tr>
+    {% endif %}
+    </table>
+    {% endif %}
+    {% if reaction.conditions.pressure %}
+    <h3>Pressure</h3>
+    <table>
+    <tr>
+      <td>Control Type</td>
+      <td>{{ reaction.conditions.pressure.control.PressureControlType.Name(reaction.conditions.pressure.control.type) }}</td>
+      <td>{{ reaction.conditions.pressure.control.details }}</td>
+    </tr>
+    <tr>
+      <td>Setpoint</td>
+      <td>{{ reaction.conditions.pressure.setpoint|unit_format }}</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Atmosphere</td>
+      <td>{{ reaction.conditions.pressure.atmosphere.AtmosphereType.Name(reaction.conditions.pressure.atmosphere.type) }}</td>
+      <td>{{ reaction.conditions.pressure.atmosphere.details }}</td>
+    </tr>
+    {% if reaction.conditions.pressure.measurements %}
+    <tr>
+      <td>Measurements</td>
+      <td colspan="2">
+        <table>
+          <thead>
+          <tr>
+            <th>Type</th>
+            <th>Details</th>
+            <th>Time</th>
+            <th>Pressure</th>
+          </tr>
+          </thead>
+          <tbody>
+          {% for measurement in reaction.conditions.pressure.measurements %}
+          <tr>
+            <td>{{ measurement.MeasurementType.Name(measurement.type) }}</td>
+            <td>{{ measurement.details }}</td>
+            <td>{{ measurement.time|unit_format }}</td>
+            <td>{{ measurement.pressure|unit_format }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </td>
+    </tr>
+    {% endif %}
+    </table>
+    {% endif %}
   </div>
   <div id="notes">
     <h2>Notes</h2>

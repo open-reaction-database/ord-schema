@@ -681,18 +681,6 @@ def _get_compact_products(
     ]
 
 
-def _reaction_identifier_type(
-        identifier: reaction_pb2.ReactionIdentifier) -> str:
-    """Returns the string reaction identifier type."""
-    return reaction_pb2.ReactionIdentifier.IdentifierType.Name(identifier.type)
-
-
-def _compound_identifier_type(
-        identifier: reaction_pb2.CompoundIdentifier) -> str:
-    """Returns the string compound identifier type."""
-    return reaction_pb2.CompoundIdentifier.IdentifierType.Name(identifier.type)
-
-
 def _inputs_table(reaction: reaction_pb2.Reaction) -> str:
     """Create a table showing the reaction inputs."""
     rows = []
@@ -752,7 +740,5 @@ TEMPLATE_FILTERS = {
     'count_addition_order': _count_addition_order,
     'sort_addition_order': _sort_addition_order,
     'get_input_borders': _get_input_borders,
-    'reaction_identifier_type': _reaction_identifier_type,
-    'compound_identifier_type': _compound_identifier_type,
     'pbtxt': _pbtxt,
 }
