@@ -21,7 +21,7 @@ import collections
 from typing import Any, Iterable, List, Mapping, Optional, Tuple
 
 from dateutil import parser
-from google.protobuf import text_format
+from google.protobuf import text_format  # pytype: disable=import-error
 
 from ord_schema import units
 from ord_schema import message_helpers
