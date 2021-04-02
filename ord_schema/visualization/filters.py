@@ -636,7 +636,7 @@ def _round(value: float, places=2) -> str:
 
 
 def _datetimeformat(message: reaction_pb2.DateTime,
-                    format_string: str = '%H:%M / %d-%m-%Y') -> str:
+                    format_string: str = '%Y-%m-%d / %H:%M') -> str:
     """Formats a date/time string."""
     value = parser.parse(message.value)
     return value.strftime(format_string)
