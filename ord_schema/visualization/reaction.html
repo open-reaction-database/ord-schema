@@ -688,6 +688,31 @@
       {% endif %}
       {% endfor %}
     </div>
+    {% if outcome.analyses %}
+    <div>
+    <h3>Analyses</h3>
+    <table>
+    <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Raw</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for key, value in outcome.analyses.items() %}
+    <tr>
+      <td>{{ key }}</td>
+      <td>{{ value|type_and_details }}</td>
+      <td>
+        <div><button class="toggle_raw">Show</button></div>
+        <pre class="raw">{{ value|pbtxt }}</pre>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+    </table>
+    {% endif %}
     {% endfor %}
   </div>
   <div id="provenance">
