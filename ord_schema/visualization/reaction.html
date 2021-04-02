@@ -53,8 +53,12 @@
           padding: 5px 10px 5px 10px;
       }
 
-      #inputs th, #inputs td {
+      .components th, .components td {
           padding: 0 10px 0 10px;
+      }
+
+      table.components {
+          margin-top: 10px;
       }
 
       tr.input_start {
@@ -62,11 +66,6 @@
       }
 
       tr.input_end td {
-          border-bottom: 1px solid black;
-      }
-
-      td.input_name {
-          border-top: 1px solid black;
           border-bottom: 1px solid black;
       }
 
@@ -113,11 +112,59 @@
   </div>
   <div id="inputs">
     <h2>Inputs</h2>
-{# Divide this up by input so we can put in the other input-specific fields. #}
+    {% for key, value in reaction.inputs|sort_addition_order %}
+    <div>
+    <h3>{{ key }}</h3>
+    <div>
     <table>
+      {% if value.addition_order %}
+      <tr>
+        <td>Addition Order</td>
+        <td>{{ value.addition_order }}</td>
+      </tr>
+      {% endif %}
+      {% if value.addition_time|defined %}
+      <tr>
+        <td>Addition Time</td>
+        <td>{{ value.addition_time|unit_format }}</td>
+      </tr>
+      {% endif %}
+      {% if value.addition_speed|defined %}
+      <tr>
+        <td>Addition Speed</td>
+        <td>{{ value.addition_speed|type_and_details }}</td>
+      </tr>
+      {% endif %}
+      {% if value.addition_duration|defined %}
+      <tr>
+        <td>Addition Time</td>
+        <td>{{ value.addition_duration|unit_format }}</td>
+      </tr>
+      {% endif %}
+      {% if value.flow_rate|defined %}
+      <tr>
+        <td>Flow Rate</td>
+        <td>{{ value.flow_rate|unit_format }}</td>
+      </tr>
+      {% endif %}
+      {% if value.addition_device|defined %}
+      <tr>
+        <td>Flow Rate</td>
+        <td>{{ value.addition_device|type_and_details }}</td>
+      </tr>
+      {% endif %}
+      {% if value.addition_temperature|defined %}
+      <tr>
+        <td>Flow Rate</td>
+        <td>{{ value.addition_temperature|unit_format }}</td>
+      </tr>
+      {% endif %}
+    </table>
+    </div>
+    <div>
+    <table class="components">
       <thead>
       <tr>
-        <th>Input</th>
         <th>Compound</th>
         <th>Amount</th>
         <th>Role</th>
@@ -125,14 +172,12 @@
       </tr>
       </thead>
       <tbody>
-      {% for key, value in reaction.inputs|sort_addition_order %}
         {% for compound in value.components %}
           {% if loop.index0 == 0 %}
             <tr class="input_start">
-              <td class="input_name" rowspan="{{ value.components|length }}">{{ key }}</td>
-              {% elif loop.index == value.components|length %}
+          {% elif loop.index == value.components|length %}
             <tr class="input_end">
-              {% else %}
+          {% else %}
             <tr>
           {% endif %}
         <td style="text-align: center;">{{ compound|compound_svg(18) }}</td>
@@ -144,9 +189,11 @@
         </td>
         </tr>
         {% endfor %}
-      {% endfor %}
       </tbody>
     </table>
+    </div>
+    </div>
+    {% endfor %}
   </div>
   <div id="setup">
     <h2>Setup</h2>
@@ -527,12 +574,223 @@
   </div>
   <div id="workups">
     <h2>Workups</h2>
+    {% for workup in reaction.workups %}
+    <div class="float">
+      <table>
+        <tr>
+          <td>Type</td>
+          <td>{{ workup|type_and_details }}</td>
+        </tr>
+        {% if workup.duration|defined %}
+        <tr>
+          <td>Duration</td>
+          <td>{{ workup.duration|unit_format }}</td>
+        </tr>
+        {% endif %}
+        {% if workup.amount|defined %}
+        <tr>
+          <td>Aliquot amount</td>
+          <td>{{ workup.amount|unit_format }}</td>
+        </tr>
+        {% endif %}
+        {% if workup.keep_phase %}
+        <tr>
+          <td>Phase kept</td>
+          <td>{{ workup.keep_phase }}</td>
+        </tr>
+        {% endif %}
+        {% if workup.HasField('target_ph') %}
+        <tr>
+          <td>Phase kept</td>
+          <td>{{ workup.target_ph }}</td>
+        </tr>
+        {% endif %}
+        {% if workup.HasField('is_automated') %}
+        <tr>
+          <td>Phase kept</td>
+          <td>{{ workup.is_automated }}</td>
+        </tr>
+        {% endif %}
+      </table>
+    </div>
+    {% endfor %}
   </div>
   <div id="outcomes">
     <h2>Outcomes</h2>
+    {% for outcome in reaction.outcomes %}
+    <div>
+    <h3>Outcome #{{ loop.index }}</h3>
+    <div>
+    <table>
+      {% if outcome.reaction_time|defined %}
+      <tr>
+        <td>Reaction Time</td>
+        <td>{{ outcome.reaction_time|unit_format }}</td>
+      </tr>
+      {% endif %}
+      {% if outcome.conversion|defined %}
+      <tr>
+        <td>Addition Time</td>
+        <td>{{ outcome.conversion|unit_format }}</td>
+      </tr>
+      {% endif %}
+    </table>
+    </div>
+      {% for product in outcome.products %}
+      <div>
+      <table>
+        <thead>
+        <tr>
+          <th>Compound</th>
+          <th>Role</th>
+          <th>Raw</th>
+        </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align: center;">{{ product|compound_svg(18) }}</td>
+            <td>{{ product|compound_role }}</td>
+            <td>
+              <div><button class="toggle_raw">Show</button></div>
+              <pre class="raw">{{ product|product_pbtxt }}</pre>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      {% if product.measurements %}
+      <div>
+      <h4>Measurements</h4>
+      <table>
+        <thead>
+        <tr>
+          <th>Type</th>
+          <th>Value</th>
+          <th>Analysis</th>
+          <th>Raw</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for measurement in product.measurements %}
+        <tr>
+          <td>{{ measurement|type_and_details }}</td>
+          <td>{{ measurement|oneof('value')|product_measurement_value }}</td>
+          <td>{{ measurement.analysis_key }}</td>
+          <td>
+            <div><button class="toggle_raw">Show</button></div>
+            <pre class="raw">{{ measurement|pbtxt }}</pre>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
   </div>
   <div id="provenance">
     <h2>Provenance</h2>
+    <div>
+    <table>
+      {% if reaction.provenance.experimenter|defined %}
+      <tr>
+        <td>Experimenter</td>
+        <td>
+          <table>
+            <thead>
+            <tr>
+              <th>Username</th>
+              <th>Name</th>
+              <th>ORCID</th>
+              <th>Organization</th>
+              <th>Email</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+              <td>{{ reaction.provenance.experimenter.username }}</td>
+              <td>{{ reaction.provenance.experimenter.name }}</td>
+              <td>{{ reaction.provenance.experimenter.orcid }}</td>
+              <td>{{ reaction.provenance.experimenter.organization }}</td>
+              <td>{{ reaction.provenance.experimenter.email }}</td>
+            </tr>
+            </tbody>
+          </table>
+        </td>
+      </tr>
+      {% endif %}
+      {% if reaction.provenance.city %}
+      <tr>
+        <td>City</td>
+        <td>{{ reaction.provenance.city }}</td>
+      </tr>
+      {% endif %}
+      {% if reaction.provenance.experiment_start|defined %}
+      <tr>
+        <td>Start Time</td>
+        <td>{{ reaction.provenance.experiment_start|datetimeformat }}</td>
+      </tr>
+      {% endif %}
+      {% if reaction.provenance.doi %}
+      <tr>
+        <td>DOI</td>
+        <td>{{ reaction.provenance.doi }}</td>
+      </tr>
+      {% endif %}
+      {% if reaction.provenance.patent %}
+      <tr>
+        <td>Patent</td>
+        <td>{{ reaction.provenance.patent }}</td>
+      </tr>
+      {% endif %}
+      {% if reaction.provenance.publication_url %}
+      <tr>
+        <td>Publication URL</td>
+        <td>{{ reaction.provenance.publication_url }}</td>
+      </tr>
+      {% endif %}
+    </table>
+    </div>
+    <div>
+      <h3>Record Events</h3>
+      <table>
+        <thead>
+        <tr>
+          <th>Time</th>
+          <th>Details</th>
+          <th>Username</th>
+          <th>Name</th>
+          <th>ORCID</th>
+          <th>Organization</th>
+          <th>Email</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td>{{ reaction.provenance.record_created.time|datetimeformat }}</td>
+          <td>{{ reaction.provenance.record_created.details }}</td>
+          <td>{{ reaction.provenance.record_created.person.username }}</td>
+          <td>{{ reaction.provenance.record_created.person.name }}</td>
+          <td>{{ reaction.provenance.record_created.person.orcid }}</td>
+          <td>{{ reaction.provenance.record_created.person.organization }}</td>
+          <td>{{ reaction.provenance.record_created.person.email }}</td>
+        </tr>
+        {% for event in reaction.provenance.record_modified %}
+        <tr>
+          <td>{{ event.time|datetimeformat }}</td>
+          <td>{{ event.details }}</td>
+          <td>{{ event.person.username }}</td>
+          <td>{{ event.person.name }}</td>
+          <td>{{ event.person.orcid }}</td>
+          <td>{{ event.person.organization }}</td>
+          <td>{{ event.person.email }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
   <div id="record">
     <h2>Full Record</h2>

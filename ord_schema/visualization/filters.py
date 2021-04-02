@@ -18,11 +18,10 @@ in this module do not include any HTML tags, only their contents.
 """
 
 import collections
-import datetime
 from typing import Any, Iterable, List, Mapping, Optional, Tuple
 
+from dateutil import parser
 from google.protobuf import text_format
-import pandas as pd
 
 from ord_schema import units
 from ord_schema import message_helpers
@@ -444,7 +443,10 @@ def _compound_role(compound: reaction_pb2.Compound, text: bool = False) -> str:
         False: '',
         None: '',
     }
-    limiting = limiting_if_true[compound.is_limiting]
+    try:
+        limiting = limiting_if_true[compound.is_limiting]
+    except AttributeError:
+        limiting = ''
     if text:
         options = {
             reaction_pb2.ReactionRole.UNSPECIFIED:
@@ -633,9 +635,10 @@ def _round(value: float, places=2) -> str:
     return fstring.format(value)
 
 
-def _datetimeformat(value: datetime.datetime,
+def _datetimeformat(message: reaction_pb2.DateTime,
                     format_string: str = '%H:%M / %d-%m-%Y') -> str:
     """Formats a date/time string."""
+    value = parser.parse(message.value)
     return value.strftime(format_string)
 
 
@@ -681,33 +684,38 @@ def _get_compact_products(
     ]
 
 
-def _inputs_table(reaction: reaction_pb2.Reaction) -> str:
-    """Create a table showing the reaction inputs."""
-    rows = []
-    order = ['input', 'image', 'role', 'amount']
-    for key, value in _sort_addition_order(reaction.inputs):
-        for compound in value.components:
-            row = {
-                'input': key,
-                'image': _compound_svg(compound),
-                'role': _compound_role(compound),
-                'amount': _compound_amount(compound),
-            }
-            if _compound_smiles(compound):
-                row['smiles'] = _compound_smiles(compound)
-            if compound.source.vendor:
-                row['vendor'] = compound.source.vendor
-            rows.append(row)
-    df = pd.DataFrame(rows)
-    return df.to_html()
+def _value_and_precision(message) -> str:
+    txt = f'{message.value:.7g}'
+    if message.precision:
+        txt += f' ± {message.precision:.7g}'
+    return txt
+
+
+def _product_measurement_value(message) -> str:
+    if isinstance(message, reaction_pb2.Percentage):
+        return _value_and_precision(message) + '%'
+    if isinstance(message, reaction_pb2.FloatValue):
+        return _value_and_precision(message)
+    if isinstance(message, str):
+        return message
+    if isinstance(message, reaction_pb2.Amount):
+        return _compound_amount(message)
+    return ''
 
 
 def _pbtxt(reaction: reaction_pb2.Reaction) -> str:
     return text_format.MessageToString(reaction)
 
 
-def _oneof(message):
-    return getattr(message, message.WhichOneof('kind'))
+def _product_pbtxt(product: reaction_pb2.ProductCompound) -> str:
+    trimmed = reaction_pb2.ProductCompound()
+    trimmed.CopyFrom(product)
+    del trimmed.measurements[:]
+    return _pbtxt(trimmed)
+
+
+def _oneof(message, name='kind'):
+    return getattr(message, message.WhichOneof(name))
 
 
 def _defined(message):
@@ -757,7 +765,9 @@ TEMPLATE_FILTERS = {
     'sort_addition_order': _sort_addition_order,
     'get_input_borders': _get_input_borders,
     'pbtxt': _pbtxt,
+    'product_pbtxt': _product_pbtxt,
     'oneof': _oneof,
     'defined': _defined,
     'type_and_details': _type_and_details,
+    'product_measurement_value': _product_measurement_value,
 }
