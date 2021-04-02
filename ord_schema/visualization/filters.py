@@ -737,6 +737,14 @@ def _type_and_details(message):
     return value
 
 
+def _events(message: reaction_pb2.ReactionProvenance) -> Iterable[reaction_pb2.RecordEvent]:
+    """Returns a generator of RecordEvent messages."""
+    events = [message.record_created]
+    events.extend(message.record_modified)
+    for event in events:
+        yield event
+
+
 TEMPLATE_FILTERS = {
     'round': _round,
     'is_true': _is_true,
@@ -777,4 +785,5 @@ TEMPLATE_FILTERS = {
     'defined': _defined,
     'type_and_details': _type_and_details,
     'product_measurement_value': _product_measurement_value,
+    'events': _events,
 }
