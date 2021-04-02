@@ -449,9 +449,81 @@
   </div>
   <div id="notes">
     <h2>Notes</h2>
+    <table>
+      {% if reaction.notes.HasField('is_heterogeneous') %}
+      <tr>
+        <td>Heterogeneous</td>
+        <td>{{ reaction.notes.is_heterogeneous }}</td>
+      </tr>
+      {% endif %}
+      {% if reaction.notes.HasField('forms_precipitate') %}
+      <tr>
+        <td>Forms precipitate</td>
+        <td>{{ reaction.notes.forms_precipitate }}</td>
+      </tr>
+      {% endif %}
+      {% if reaction.notes.HasField('is_exothermic') %}
+      <tr>
+        <td>Exothermic</td>
+        <td>{{ reaction.notes.is_exothermic }}</td>
+      </tr>
+      {% endif %}
+      {% if reaction.notes.HasField('offgasses') %}
+      <tr>
+        <td>Offgasses</td>
+        <td>{{ reaction.notes.offgasses }}</td>
+      </tr>
+      {% endif %}
+      {% if reaction.notes.HasField('is_sensitive_to_moisture') %}
+      <tr>
+        <td>Sensitive to moisture</td>
+        <td>{{ reaction.notes.is_sensitive_to_moisture }}</td>
+      </tr>
+      {% endif %}
+      {% if reaction.notes.HasField('is_sensitive_to_oxygen') %}
+      <tr>
+        <td>Sensitive to oxygen</td>
+        <td>{{ reaction.notes.is_sensitive_to_oxygen }}</td>
+      </tr>
+      {% endif %}
+      {% if reaction.notes.HasField('is_sensitive_to_light') %}
+      <tr>
+        <td>Sensitive to light</td>
+        <td>{{ reaction.notes.is_sensitive_to_light }}</td>
+      </tr>
+      {% endif %}
+      {% if reaction.notes.safety_notes %}
+      <tr>
+        <td>Safety notes</td>
+        <td>reaction.notes.safety_notes</td>
+      </tr>
+      {% endif %}
+      {% if reaction.notes.procedure_details %}
+      <tr>
+        <td>Procedure details</td>
+        <td>reaction.notes.procedure_details</td>
+      </tr>
+      {% endif %}
+    </table>
   </div>
   <div id="observations">
     <h2>Observations</h2>
+    {% if reaction.observations %}
+    <table>
+      <thead>
+      <tr>
+        <th>Time</th>
+        <th>Comment</th>
+      </tr>
+      </thead>
+      {% for observation in reaction.observations %}
+      <tr>
+        <td>{{ observation.time|unit_format }}</td>
+        <td>{{ observation.comment }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
   </div>
   <div id="workups">
     <h2>Workups</h2>
