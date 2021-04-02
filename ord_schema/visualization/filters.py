@@ -706,6 +706,22 @@ def _pbtxt(reaction: reaction_pb2.Reaction) -> str:
     return text_format.MessageToString(reaction)
 
 
+def _oneof(message):
+    return getattr(message, message.WhichOneof('kind'))
+
+
+def _defined(message):
+    return message != type(message)()
+
+
+def _type_and_details(message):
+    assert len(message.DESCRIPTOR.enum_types) == 1
+    value = message.DESCRIPTOR.enum_types[0].values_by_number[message.type].name
+    if message.details:
+        value += f' ({message.details})'
+    return value
+
+
 TEMPLATE_FILTERS = {
     'round': _round,
     'is_true': _is_true,
@@ -741,4 +757,7 @@ TEMPLATE_FILTERS = {
     'sort_addition_order': _sort_addition_order,
     'get_input_borders': _get_input_borders,
     'pbtxt': _pbtxt,
+    'oneof': _oneof,
+    'defined': _defined,
+    'type_and_details': _type_and_details,
 }

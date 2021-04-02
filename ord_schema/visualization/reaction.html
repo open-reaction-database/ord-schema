@@ -57,6 +57,10 @@
       .raw {
           display: none;
       }
+
+      .float {
+          display: inline-block;
+      }
   </style>
 </head>
 <body>
@@ -93,6 +97,7 @@
   </div>
   <div id="inputs">
     <h2>Inputs</h2>
+{# Divide this up by input so we can put in the other input-specific fields. #}
     <table>
       <thead>
       <tr>
@@ -129,32 +134,29 @@
   </div>
   <div id="setup">
     <h2>Setup</h2>
+    <div class="float">
     <h3>Vessel</h3>
-    <table>
+    <table class="sub">
       <tr>
         <td>Type</td>
-        <td>{{ reaction.setup.vessel.VesselType.Name(reaction.setup.vessel.type) }}</td>
-        <td>{{ reaction.setup.vessel.details }}</td>
+        <td>{{ reaction.setup.vessel|type_and_details }}</td>
       </tr>
       <tr>
         <td>Material</td>
-        <td>{{ reaction.setup.vessel.material.VesselMaterialType.Name(reaction.setup.vessel.material.type) }}</td>
-        <td>{{ reaction.setup.vessel.material.details }}</td>
+        <td>{{ reaction.setup.vessel.material|type_and_details }}</td>
       </tr>
       <tr>
         <td>Volume</td>
         <td>{{ reaction.setup.vessel|vessel_size }}</td>
-        <td></td>
       </tr>
       {% if reaction.setup.vessel.attachments %}
       <tr>
         <td>Attachments</td>
-        <td colspan="2">
+        <td>
         <table>
           {% for attachment in reaction.setup.vessel.attachments %}
             <tr>
-              <td>{{ attachment.VesselAttachmentType.Name(attachment.type) }}</td>
-              <td>{{ attachment.details }}</td>
+              <td>{{ attachment|type_and_details }}</td>
             </tr>
           {% endfor %}
         </table>
@@ -164,12 +166,11 @@
       {% if reaction.setup.vessel.preparations %}
       <tr>
         <td>Preparations</td>
-        <td colspan="2">
+        <td>
         <table>
           {% for preparation in reaction.setup.vessel.preparations %}
             <tr>
-              <td>{{ preparation.VesselPreparationType.Name(preparation.type) }}</td>
-              <td>{{ preparation.details }}</td>
+              <td>{{ preparation|type_and_details }}</td>
             </tr>
           {% endfor %}
         </table>
@@ -177,38 +178,41 @@
       </tr>
       {% endif %}
     </table>
+    </div>
     {% if reaction.setup.is_automated %}
+    <div class="float">
     <h3>Automation</h3>
-    <table>
+    <table class="sub">
       <tr>
         <td>Platform</td>
         <td>{{ reaction.setup.automation_platform or 'UNSPECIFIED' }}</td>
       </tr>
     </table>
+    </div>
     {% endif %}
+    <div class="float">
     <h3>Environment</h3>
-    <table>
+    <table class="sub">
       <tr>
         <td>Type</td>
-        <td>{{ reaction.setup.environment.ReactionEnvironmentType.Name(reaction.setup.environment.type) }}</td>
-        <td>{{ reaction.setup.environment.details }}</td>
+        <td>{{ reaction.setup.environment|type_and_details }}</td>
       </tr>
     </table>
+    </div>
   </div>
   <div id="conditions">
     <h2>Conditions</h2>
-    {% if reaction.conditions.temperature %}
+    {% if reaction.conditions.temperature|defined %}
+    <div class="float">
     <h3>Temperature</h3>
-    <table>
+    <table class="sub">
     <tr>
       <td>Control Type</td>
-      <td>{{ reaction.conditions.temperature.control.TemperatureControlType.Name(reaction.conditions.temperature.control.type) }}</td>
-      <td>{{ reaction.conditions.temperature.control.details }}</td>
+      <td>{{ reaction.conditions.temperature.control|type_and_details }}</td>
     </tr>
     <tr>
       <td>Setpoint</td>
       <td>{{ reaction.conditions.temperature.setpoint|unit_format }}</td>
-      <td></td>
     </tr>
     {% if reaction.conditions.temperature.measurements %}
     <tr>
@@ -218,7 +222,6 @@
           <thead>
           <tr>
             <th>Type</th>
-            <th>Details</th>
             <th>Time</th>
             <th>Temperature</th>
           </tr>
@@ -226,8 +229,7 @@
           <tbody>
           {% for measurement in reaction.conditions.temperature.measurements %}
           <tr>
-            <td>{{ measurement.MeasurementType.Name(measurement.type) }}</td>
-            <td>{{ measurement.details }}</td>
+            <td>{{ measurement|type_and_details }}</td>
             <td>{{ measurement.time|unit_format }}</td>
             <td>{{ measurement.temperature|unit_format }}</td>
           </tr>
@@ -238,24 +240,23 @@
     </tr>
     {% endif %}
     </table>
+    </div>
     {% endif %}
-    {% if reaction.conditions.pressure %}
+    {% if reaction.conditions.pressure|defined %}
+    <div class="float">
     <h3>Pressure</h3>
-    <table>
+    <table class="sub">
     <tr>
       <td>Control Type</td>
-      <td>{{ reaction.conditions.pressure.control.PressureControlType.Name(reaction.conditions.pressure.control.type) }}</td>
-      <td>{{ reaction.conditions.pressure.control.details }}</td>
+      <td>{{ reaction.conditions.pressure.control|type_and_details }}</td>
     </tr>
     <tr>
       <td>Setpoint</td>
       <td>{{ reaction.conditions.pressure.setpoint|unit_format }}</td>
-      <td></td>
     </tr>
     <tr>
       <td>Atmosphere</td>
-      <td>{{ reaction.conditions.pressure.atmosphere.AtmosphereType.Name(reaction.conditions.pressure.atmosphere.type) }}</td>
-      <td>{{ reaction.conditions.pressure.atmosphere.details }}</td>
+      <td>{{ reaction.conditions.pressure.atmosphere|type_and_details }}</td>
     </tr>
     {% if reaction.conditions.pressure.measurements %}
     <tr>
@@ -265,7 +266,6 @@
           <thead>
           <tr>
             <th>Type</th>
-            <th>Details</th>
             <th>Time</th>
             <th>Pressure</th>
           </tr>
@@ -273,8 +273,7 @@
           <tbody>
           {% for measurement in reaction.conditions.pressure.measurements %}
           <tr>
-            <td>{{ measurement.MeasurementType.Name(measurement.type) }}</td>
-            <td>{{ measurement.details }}</td>
+            <td>{{ measurement|type_and_details }}</td>
             <td>{{ measurement.time|unit_format }}</td>
             <td>{{ measurement.pressure|unit_format }}</td>
           </tr>
@@ -285,6 +284,151 @@
     </tr>
     {% endif %}
     </table>
+    </div>
+    {% endif %}
+    {% if reaction.conditions.stirring|defined %}
+    <div class="float">
+    <h3>Stirring</h3>
+    <table class="sub">
+    <tr>
+      <td>Type</td>
+      <td>{{ reaction.conditions.stirring|type_and_details }}</td>
+    </tr>
+    <tr>
+      <td>Rate</td>
+      <td>{{ reaction.conditions.stirring.rate|type_and_details }}</td>
+    </tr>
+    {% if reaction.conditions.stirring.rate.rpm %}
+    <tr>
+      <td>RPM</td>
+      <td>{{ reaction.conditions.stirring.rate.rpm }}</td>
+    </tr>
+    {% endif %}
+    </table>
+    </div>
+    {% endif %}
+    {% if reaction.conditions.illumination|defined %}
+    <div class="float">
+    <h3>Illumination</h3>
+    <table class="sub">
+    <tr>
+      <td>Type</td>
+      <td>{{ reaction.conditions.illumination|type_and_details }}</td>
+    </tr>
+    <tr>
+      <td>Peak Wavelength</td>
+      <td>{{ reaction.conditions.illumination.peak_wavelength|unit_format }}</td>
+    </tr>
+    {% if reaction.conditions.illumination.color %}
+    <tr>
+      <td>Color</td>
+      <td>{{ reaction.conditions.illumination.color }}</td>
+    </tr>
+    {% endif %}
+    <tr>
+      <td>Distance to Vessel</td>
+      <td>{{ reaction.conditions.illumination.distance_to_vessel|unit_format }}</td>
+    </tr>
+    </table>
+    </div>
+    {% endif %}
+    {% if reaction.conditions.electrochemistry|defined %}
+    <div class="float">
+    <h3>Electrochemistry</h3>
+    <table class="sub">
+    <tr>
+      <td>Type</td>
+      <td>{{ reaction.conditions.electrochemistry|type_and_details }}</td>
+    </tr>
+    <tr>
+      <td>Cell Type</td>
+      <td>{{ reaction.conditions.electrochemistry.cell|type_and_details }}</td>
+    </tr>
+    <tr>
+      <td>Current</td>
+      <td>{{ reaction.conditions.electrochemistry.current|unit_format }}</td>
+    </tr>
+    <tr>
+      <td>Voltage</td>
+      <td>{{ reaction.conditions.electrochemistry.voltage|unit_format }}</td>
+    </tr>
+    {% if reaction.conditions.electrochemistry.anode_material %}
+    <tr>
+      <td>Anode Material</td>
+      <td>{{ reaction.conditions.electrochemistry.anode_material }}</td>
+    </tr>
+    {% endif %}
+    {% if reaction.conditions.electrochemistry.cathode_material %}
+    <tr>
+      <td>Cathode Material</td>
+      <td>{{ reaction.conditions.electrochemistry.cathode_material }}</td>
+    </tr>
+    {% endif %}
+    <tr>
+      <td>Electrode Separation</td>
+      <td>{{ reaction.conditions.electrochemistry.electrode_separation|unit_format }}</td>
+    </tr>
+    </tr>
+    <tr>
+      <td>Rate</td>
+      <td>{{ reaction.conditions.stirring.rate|type_and_details }}</td>
+    </tr>
+    {% if reaction.conditions.stirring.rate.rpm %}
+    <tr>
+      <td>RPM</td>
+      <td>{{ reaction.conditions.stirring.rate.rpm }}</td>
+    </tr>
+    {% endif %}
+    {% if reaction.conditions.electrochemistry.measurements %}
+    <tr>
+      <td>Measurements</td>
+      <td colspan="2">
+        <table>
+          <thead>
+          <tr>
+            <th>Time</th>
+            <th>Value</th>
+          </tr>
+          </thead>
+          <tbody>
+          {% for measurement in reaction.conditions.electrochemistry.measurements %}
+          <tr>
+            <td>{{ measurement.time|unit_format }}</td>
+            <td>{{ measurement|oneof|unit_format }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </td>
+    </tr>
+    {% endif %}
+    </table>
+    </div>
+    {% endif %}
+    {% if reaction.conditions.flow|defined %}
+    <div class="float">
+    <h3>Flow</h3>
+    <table class="sub">
+    <tr>
+      <td>Type</td>
+      <td>{{ reaction.conditions.flow|type_and_details }}</td>
+    </tr>
+    {% if reaction.conditions.flow.pump_type %}
+    <tr>
+      <td>Pump Type</td>
+      <td>{{ reaction.conditions.flow.pump_type }}</td>
+    </tr>
+    {% endif %}
+    <tr>
+      <td>Tubing</td>
+      <td>{{ reaction.conditions.flow.tubing|type_and_details }}</td>
+    </tr>
+    <tr>
+      <td>Tubing Diameter</td>
+      <td>{{ reaction.conditions.flow.tubing.diameter|unit_format }}</td>
+    </tr>
+    </table>
+    </div>
     {% endif %}
   </div>
   <div id="notes">
