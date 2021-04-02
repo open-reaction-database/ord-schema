@@ -737,7 +737,9 @@ def _type_and_details(message):
     return value
 
 
-def _events(message: reaction_pb2.ReactionProvenance) -> Iterable[reaction_pb2.RecordEvent]:
+def _events(
+    message: reaction_pb2.ReactionProvenance
+) -> Iterable[reaction_pb2.RecordEvent]:
     """Returns a generator of RecordEvent messages."""
     events = [message.record_created]
     events.extend(message.record_modified)
