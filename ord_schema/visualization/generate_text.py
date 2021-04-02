@@ -80,6 +80,4 @@ def generate_summary(reaction: reaction_pb2.Reaction) -> str:
     """Generates an HTML reaction summary."""
     with open(os.path.join(os.path.dirname(__file__), 'reaction.html')) as f:
         template = f.read()
-    return _generate(reaction,
-                     template_string=template,
-                     line_breaks=True)
+    return _generate(reaction, template_string=template, line_breaks=True)
