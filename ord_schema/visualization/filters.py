@@ -685,6 +685,7 @@ def _get_compact_products(
 
 
 def _value_and_precision(message) -> str:
+    """Returns value +/- precision."""
     txt = f'{message.value:.7g}'
     if message.precision:
         txt += f' ± {message.precision:.7g}'
@@ -692,6 +693,7 @@ def _value_and_precision(message) -> str:
 
 
 def _product_measurement_value(message) -> str:
+    """Returns the value for a product measurement."""
     if isinstance(message, reaction_pb2.Percentage):
         return _value_and_precision(message) + '%'
     if isinstance(message, reaction_pb2.FloatValue):
@@ -699,15 +701,17 @@ def _product_measurement_value(message) -> str:
     if isinstance(message, str):
         return message
     if isinstance(message, reaction_pb2.Amount):
-        return _compound_amount(message)
+        return _compound_amount(message) or ''
     return ''
 
 
 def _pbtxt(reaction: reaction_pb2.Reaction) -> str:
+    """Converts a message to text format."""
     return text_format.MessageToString(reaction)
 
 
 def _product_pbtxt(product: reaction_pb2.ProductCompound) -> str:
+    """Converts a ProductCompound to text format without measurements."""
     trimmed = reaction_pb2.ProductCompound()
     trimmed.CopyFrom(product)
     del trimmed.measurements[:]
@@ -715,14 +719,17 @@ def _product_pbtxt(product: reaction_pb2.ProductCompound) -> str:
 
 
 def _oneof(message, name='kind'):
+    """Retrieves the proper oneof value."""
     return getattr(message, message.WhichOneof(name))
 
 
 def _defined(message):
+    """Returns whether the message is defined (not empty)."""
     return message != type(message)()
 
 
 def _type_and_details(message):
+    """Returns type (details)."""
     assert len(message.DESCRIPTOR.enum_types) == 1
     value = message.DESCRIPTOR.enum_types[0].values_by_number[message.type].name
     if message.details:
