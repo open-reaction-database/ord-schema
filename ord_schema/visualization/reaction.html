@@ -103,11 +103,6 @@
   <div id="identifiers">
     <h2>Identifiers</h2>
     <table>
-      <tr>
-        <td>Reaction ID</td>
-        <td>{{ reaction.reaction_id }}</td>
-        <td></td>
-      </tr>
       {% for identifier in reaction.identifiers %}
         <tr>
           <td>{{ identifier.IdentifierType.Name(identifier.type) }}</td>
@@ -115,6 +110,18 @@
           <td>{{ identifier.details }}</td>
         </tr>
       {% endfor %}
+      <tr>
+        <td>Reaction ID</td>
+        <td>{{ reaction.reaction_id }}</td>
+        <td></td>
+      </tr>
+      {% if dataset_id %}
+        <tr>
+          <td>Dataset ID</td>
+          <td>{{ dataset_id }}</td>
+          <td></td>
+        </tr>
+      {% endif %}
     </table>
   </div>
   <div id="inputs">
@@ -128,6 +135,7 @@
       {% for key, value in reaction.inputs|sort_addition_order %}
         <div id="input_tabs-{{ loop.index }}">
           <div>
+            <h3>Details</h3>
             <table>
               {% if value.addition_order %}
                 <tr>
@@ -174,10 +182,11 @@
             </table>
           </div>
           <div>
+            <h3>Components</h3>
             <table class="components">
               <thead>
               <tr>
-                <th>Compound</th>
+                <th></th>
                 <th>Amount</th>
                 <th>Role</th>
                 <th>Raw</th>
@@ -847,7 +856,7 @@
         {% if reaction.provenance.doi %}
           <tr>
             <td>DOI</td>
-            <td>{{ reaction.provenance.doi }}</td>
+            <td><a href="https://doi.org/{{ reaction.provenance.doi }}">{{ reaction.provenance.doi }}</a></td>
           </tr>
         {% endif %}
         {% if reaction.provenance.patent %}
@@ -859,7 +868,7 @@
         {% if reaction.provenance.publication_url %}
           <tr>
             <td>Publication URL</td>
-            <td>{{ reaction.provenance.publication_url }}</td>
+            <td><a href="{{ reaction.provenance.publication_url }}">{{ reaction.provenance.publication_url }}</a></td>
           </tr>
         {% endif %}
       </table>

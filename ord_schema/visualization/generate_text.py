@@ -15,6 +15,7 @@
 
 import os
 import re
+from typing import Optional
 
 import jinja2
 
@@ -76,8 +77,12 @@ def generate_html(reaction: reaction_pb2.Reaction, compact=False) -> str:
                      **kwargs)
 
 
-def generate_summary(reaction: reaction_pb2.Reaction) -> str:
+def generate_summary(reaction: reaction_pb2.Reaction,
+                     dataset_id: Optional[str] = None) -> str:
     """Generates an HTML reaction summary."""
     with open(os.path.join(os.path.dirname(__file__), 'reaction.html')) as f:
         template = f.read()
-    return _generate(reaction, template_string=template, line_breaks=True)
+    return _generate(reaction,
+                     template_string=template,
+                     line_breaks=True,
+                     dataset_id=dataset_id)
