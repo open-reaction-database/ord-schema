@@ -90,11 +90,21 @@
   <div class="navSection" data-section="summary">Summary</div>
   <div class="navSection" data-section="identifiers">Identifiers</div>
   <div class="navSection" data-section="inputs">Inputs</div>
+  {% if reaction.setup|defined %}
   <div class="navSection" data-section="setup">Setup</div>
+  {% endif %}
+  {% if reaction.conditions|defined %}
   <div class="navSection" data-section="conditions">Conditions</div>
+  {% endif %}
+  {% if reaction.notes|defined %}
   <div class="navSection" data-section="notes">Notes</div>
+  {% endif %}
+  {% if reaction.observations %}
   <div class="navSection" data-section="observations">Observations</div>
+  {% endif %}
+  {% if reaction.workups %}
   <div class="navSection" data-section="workups">Workups</div>
+  {% endif %}
   <div class="navSection" data-section="outcomes">Outcomes</div>
   <div class="navSection" data-section="provenance">Provenance</div>
   <div class="navSection" data-section="record">Full Record</div>
@@ -218,6 +228,7 @@
       {% endfor %}
     </div>
   </div>
+  {% if reaction.setup|defined %}
   <div id="setup">
     <h2>Setup</h2>
     <div id="setup_tabs" class="tabs">
@@ -292,6 +303,8 @@
       {% endif %}
     </div>
   </div>
+  {% endif %}
+  {% if reaction.conditions|defined %}
   <div id="conditions">
     <h2>Conditions</h2>
     <div id="conditions_tabs" class="tabs">
@@ -561,6 +574,8 @@
       </div>
     </div>
   </div>
+  {% endif %}
+  {% if reaction.notes|defined %}
   <div id="notes">
     <h2>Notes</h2>
     <table>
@@ -620,6 +635,8 @@
       {% endif %}
     </table>
   </div>
+  {% endif %}
+  {% if reaction.observations %}
   <div id="observations">
     <h2>Observations</h2>
     {% if reaction.observations %}
@@ -639,6 +656,8 @@
       </table>
     {% endif %}
   </div>
+  {% endif %}
+  {% if reaction.workups %}
   <div id="workups">
     <h2>Workups</h2>
     {% for workup in reaction.workups %}
@@ -682,6 +701,7 @@
       </div>
     {% endfor %}
   </div>
+  {% endif %}
   <div id="outcomes">
     <h2>Outcomes</h2>
     <div id="outcomes_tabs" class="tabs">
