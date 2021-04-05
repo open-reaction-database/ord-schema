@@ -100,6 +100,10 @@
   <div class="navSection" data-section="record">Full Record</div>
 </div>
 <div id="sections">
+  <div id="summary">
+    <h1 style="font-family: monospace;">{{ reaction.reaction_id }}</h1>
+    {{ reaction_summary }}
+  </div>
   <div id="identifiers">
     <h2>Identifiers</h2>
     <table>
@@ -110,11 +114,6 @@
           <td>{{ identifier.details }}</td>
         </tr>
       {% endfor %}
-      <tr>
-        <td>Reaction ID</td>
-        <td>{{ reaction.reaction_id }}</td>
-        <td></td>
-      </tr>
       {% if dataset_id %}
         <tr>
           <td>Dataset ID</td>

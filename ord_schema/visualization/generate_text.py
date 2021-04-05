@@ -82,7 +82,9 @@ def generate_summary(reaction: reaction_pb2.Reaction,
     """Generates an HTML reaction summary."""
     with open(os.path.join(os.path.dirname(__file__), 'reaction.html')) as f:
         template = f.read()
+    reaction_summary = generate_html(reaction, compact=True)
     return _generate(reaction,
                      template_string=template,
                      line_breaks=True,
-                     dataset_id=dataset_id)
+                     dataset_id=dataset_id,
+                     reaction_summary=reaction_summary)
