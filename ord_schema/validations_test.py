@@ -170,8 +170,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message = reaction_pb2.ProductMeasurement(analysis_key='my_analysis',
                                                   type='YIELD',
                                                   float_value=dict(value=60))
-        with self.assertRaisesRegex(validations.ValidationError, 'percentage'):
-            self._run_validation(message)
+        output = self._run_validation(message)
+        self.assertRegex(output.warnings[0], 'percentage')
         message = reaction_pb2.ProductMeasurement(analysis_key='my_analysis',
                                                   type='AREA',
                                                   string_value='35.221')
@@ -233,8 +233,9 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
     )
     def test_bad_reaction_workup(self, workup_text, error_msg):
         message = text_format.Parse(workup_text, reaction_pb2.ReactionWorkup())
-        with self.assertRaisesRegex(validations.ValidationError, error_msg):
-            self._run_validation(message)
+        output = self._run_validation(message)
+        self.assertLen(output.warnings, 1)
+        self.assertRegex(output.warnings[0], error_msg)
 
     # pylint: disable=too-many-statements
     def test_reaction_recursive(self):
@@ -326,9 +327,8 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         expected = [
             ('Reaction.inputs["dummy_input"].components[0]: '
              'Compounds must have at least one identifier'),
-            ('Reaction.inputs["dummy_input"]: '
-             'Reaction input components require an amount'),
             'Reaction: Reactions should have at least 1 reaction outcome',
+            'Reaction: All reaction input components require an amount',
         ]
         self.assertEqual(output.errors, expected)
         self.assertLen(output.warnings, 1)
