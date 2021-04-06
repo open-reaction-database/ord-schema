@@ -44,13 +44,16 @@ class BuildPyCommand(build_py.build_py):
         build_py.build_py.run(self)
 
 
-setuptools.setup(
-    name='ord-schema',
-    description='Schema for the Open Reaction Database',
-    url='https://github.com/Open-Reaction-Database/ord-schema',
-    license='Apache License, Version 2.0',
-    packages=setuptools.find_packages(),
-    package_data={
-        'ord_schema.visualization': ['template.html', 'template.txt'],
-    },
-    cmdclass={'build_py': BuildPyCommand})
+setuptools.setup(name='ord-schema',
+                 description='Schema for the Open Reaction Database',
+                 url='https://github.com/Open-Reaction-Database/ord-schema',
+                 license='Apache License, Version 2.0',
+                 packages=setuptools.find_packages(),
+                 package_data={
+                     'ord_schema.visualization': [
+                         'reaction.html',
+                         'template.html',
+                         'template.txt',
+                     ],
+                 },
+                 cmdclass={'build_py': BuildPyCommand})
