@@ -18,8 +18,10 @@ in this module do not include any HTML tags, only their contents.
 """
 
 import collections
-import datetime
 from typing import Any, Iterable, List, Mapping, Optional, Tuple
+
+from dateutil import parser
+from google.protobuf import text_format  # pytype: disable=import-error
 
 from ord_schema import units
 from ord_schema import message_helpers
@@ -441,7 +443,10 @@ def _compound_role(compound: reaction_pb2.Compound, text: bool = False) -> str:
         False: '',
         None: '',
     }
-    limiting = limiting_if_true[compound.is_limiting]
+    try:
+        limiting = limiting_if_true[compound.is_limiting]
+    except AttributeError:
+        limiting = ''
     if text:
         options = {
             reaction_pb2.ReactionRole.UNSPECIFIED:
@@ -630,9 +635,10 @@ def _round(value: float, places=2) -> str:
     return fstring.format(value)
 
 
-def _datetimeformat(value: datetime.datetime,
-                    format_string: str = '%H:%M / %d-%m-%Y') -> str:
+def _datetimeformat(message: reaction_pb2.DateTime,
+                    format_string: str = '%Y-%m-%d / %H:%M') -> str:
     """Formats a date/time string."""
+    value = parser.parse(message.value)
     return value.strftime(format_string)
 
 
@@ -678,6 +684,69 @@ def _get_compact_products(
     ]
 
 
+def _value_and_precision(message) -> str:
+    """Returns value +/- precision."""
+    txt = f'{message.value:.7g}'
+    if message.precision:
+        txt += f' ± {message.precision:.7g}'
+    return txt
+
+
+def _product_measurement_value(message) -> str:
+    """Returns the value for a product measurement."""
+    if isinstance(message, reaction_pb2.Percentage):
+        return _value_and_precision(message) + '%'
+    if isinstance(message, reaction_pb2.FloatValue):
+        return _value_and_precision(message)
+    if isinstance(message, str):
+        return message
+    if isinstance(message, reaction_pb2.Amount):
+        return _compound_amount(message) or ''
+    return ''
+
+
+def _pbtxt(reaction: reaction_pb2.Reaction) -> str:
+    """Converts a message to text format."""
+    return text_format.MessageToString(reaction)
+
+
+def _product_pbtxt(product: reaction_pb2.ProductCompound) -> str:
+    """Converts a ProductCompound to text format without measurements."""
+    trimmed = reaction_pb2.ProductCompound()
+    trimmed.CopyFrom(product)
+    del trimmed.measurements[:]
+    return _pbtxt(trimmed)
+
+
+def _oneof(message, name='kind'):
+    """Retrieves the proper oneof value."""
+    return getattr(message, message.WhichOneof(name))
+
+
+def _defined(message):
+    """Returns whether the message is defined (not empty)."""
+    return message != type(message)()
+
+
+def _type_and_details(message):
+    """Returns type (details)."""
+    assert len(message.DESCRIPTOR.enum_types) == 1
+    value = message.DESCRIPTOR.enum_types[0].values_by_number[message.type].name
+    if message.details:
+        value += f' ({message.details})'
+    return value
+
+
+def _events(
+    message: reaction_pb2.ReactionProvenance
+) -> Iterable[reaction_pb2.RecordEvent]:
+    """Returns a generator of RecordEvent messages."""
+    events = [message.record_created]
+    events.extend(message.record_modified)
+    for event in events:
+        yield event
+
+
 TEMPLATE_FILTERS = {
     'round': _round,
     'is_true': _is_true,
@@ -712,4 +781,11 @@ TEMPLATE_FILTERS = {
     'count_addition_order': _count_addition_order,
     'sort_addition_order': _sort_addition_order,
     'get_input_borders': _get_input_borders,
+    'pbtxt': _pbtxt,
+    'product_pbtxt': _product_pbtxt,
+    'oneof': _oneof,
+    'defined': _defined,
+    'type_and_details': _type_and_details,
+    'product_measurement_value': _product_measurement_value,
+    'events': _events,
 }
