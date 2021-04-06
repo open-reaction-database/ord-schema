@@ -96,6 +96,11 @@ class GenerateTextTest(absltest.TestCase):
         html = generate_text.generate_html(reaction)
         self.assertIsNotNone(html)
 
+    def test_summary(self):
+        self._reaction.provenance.record_created.time.value = '2021-04-06'
+        html = generate_text.generate_summary(self._reaction)
+        self.assertIsNotNone(html)
+
 
 if __name__ == '__main__':
     absltest.main()
