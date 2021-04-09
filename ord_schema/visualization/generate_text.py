@@ -83,11 +83,11 @@ def generate_html(reaction: reaction_pb2.Reaction,
 
 
 def generate_summary(reaction: reaction_pb2.Reaction,
-                     dataset_id: Optional[str] = None) -> str:
+                     dataset_id: Optional[str] = None,
+                     bond_length: int = 20) -> str:
     """Generates an HTML reaction summary."""
     with open(os.path.join(os.path.dirname(__file__), 'reaction.html')) as f:
         template = f.read()
-    bond_length = 20
     reaction_summary = generate_html(reaction, bond_length=bond_length)
     return _generate(reaction,
                      template_string=template,
