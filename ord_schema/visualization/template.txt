@@ -29,7 +29,7 @@ added
         {% for compound in input.components %}
 
             {# COMPOUND DETAILS #}
-            {{ compound|compound_amount }}
+            {{ compound.amount|amount }}
             {{ compound|compound_name }} 
             {{ compound|compound_role(text=True) }}
             {{ compound|compound_source_prep }} 

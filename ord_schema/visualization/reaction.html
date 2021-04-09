@@ -59,6 +59,11 @@
           padding: 0 10px 0 10px;
       }
 
+      .components td {
+          border-top: 1px solid black;
+          border-bottom: 1px solid black;
+      }
+
       table.components {
           margin-top: 10px;
       }
@@ -71,8 +76,11 @@
           border-bottom: 1px solid black;
       }
 
+      .hidden {
+          visibility: hidden;
+      }
+
       .raw {
-          display: none;
           white-space: pre-wrap;
       }
 
@@ -80,8 +88,18 @@
           display: inline-block;
       }
 
+      .toggle_raw {
+          text-align: center;
+          padding-top: 10px;
+      }
+
       .ui-tabs {
           width: fit-content;
+      }
+
+      button {
+          font-family: Roboto, sans-serif;
+          font-size: 1em;
       }
   </style>
 </head>
@@ -210,14 +228,14 @@
                     {% else %}
                   <tr>
                 {% endif %}
-              <td style="text-align: center;">{{ compound|compound_svg(18) }}</td>
-              <td>{{ compound|compound_amount }}</td>
+              <td style="text-align: center;">{{ compound|compound_svg(bond_length) }}</td>
+              <td>{{ compound.amount|amount }}</td>
               <td>{{ compound|compound_role }}</td>
               <td>
-                <div>
-                  <button class="toggle_raw">Show</button>
+                <div class="toggle_raw">
+                  <button class="toggle_raw_button">Show</button>
                 </div>
-                <pre class="raw">{{ compound|pbtxt }}</pre>
+                <pre class="raw hidden">{{ compound|pbtxt }}</pre>
               </td>
               </tr>
               {% endfor %}
@@ -738,7 +756,7 @@
             </ul>
             {% for product in outcome.products %}
               <div id="outcome-{{ outcome_loop.index }}_product-{{ loop.index }}">
-                <table>
+                <table class="components">
                   <thead>
                   <tr>
                     <th>Compound</th>
@@ -748,13 +766,13 @@
                   </thead>
                   <tbody>
                   <tr>
-                    <td style="text-align: center;">{{ product|compound_svg(18) }}</td>
+                    <td style="text-align: center;">{{ product|compound_svg(bond_length) }}</td>
                     <td>{{ product|compound_role }}</td>
                     <td>
-                      <div>
-                        <button class="toggle_raw">Show</button>
+                      <div class="toggle_raw">
+                        <button class="toggle_raw_button">Show</button>
                       </div>
-                      <pre class="raw">{{ product|product_pbtxt }}</pre>
+                      <pre class="raw hidden">{{ product|product_pbtxt }}</pre>
                     </td>
                   </tr>
                   </tbody>
@@ -779,10 +797,10 @@
                         <td>{{ measurement|oneof('value')|product_measurement_value }}</td>
                         <td>{{ measurement.analysis_key }}</td>
                         <td>
-                          <div>
-                            <button class="toggle_raw">Show</button>
+                          <div class="toggle_raw">
+                            <button class="toggle_raw_button">Show</button>
                           </div>
-                          <pre class="raw">{{ measurement|pbtxt }}</pre>
+                          <pre class="raw hidden">{{ measurement|pbtxt }}</pre>
                         </td>
                       </tr>
                     {% endfor %}
@@ -814,10 +832,10 @@
                     <tr>
                       <td>Raw</td>
                       <td>
-                        <div>
-                          <button class="toggle_raw">Show</button>
+                        <div class="toggle_raw">
+                          <button class="toggle_raw_button">Show</button>
                         </div>
-                        <pre class="raw">{{ value|pbtxt }}</pre>
+                        <pre class="raw hidden">{{ value|pbtxt }}</pre>
                       </td>
                     </tr>
                   </table>
@@ -952,13 +970,18 @@
   </div>
   <div id="record">
     <h2>Full Record</h2>
-    <div id="pbtxt" style="font-family: monospace; white-space: pre-wrap;">{{ reaction|pbtxt }}</div>
+    <div>
+      <button class="toggle_raw_button">Show</button>
+    </div>
+    <pre class="raw hidden">{{ reaction|pbtxt }}</pre>
   </div>
 </div>
 <script>
     document.body.onload = function () {
         $('.tabs').tabs({
-            heightStyle: 'auto',
+            heightStyle: 'content',
+            hide: false,
+            show: true,
         });
         $('.navSection').click(event => {
             const section = $(event.target).attr('data-section');
@@ -968,14 +991,14 @@
             const section = location.hash.replace('#', '');
             $('#' + section)[0].scrollIntoView({behavior: 'smooth'});
         }
-        $('.toggle_raw').on('click', function () {
+        $('.toggle_raw_button').on('click', function () {
             const element = $(this);
             const target = element.parent().siblings('.raw');
             if (element.text() === 'Show') {
-                target.show();
+                target.css('visibility', 'visible');
                 element.text('Hide');
             } else {
-                target.hide();
+                target.css('visibility', 'hidden');
                 element.text('Show');
             }
         });

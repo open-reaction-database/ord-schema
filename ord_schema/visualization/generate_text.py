@@ -59,7 +59,9 @@ def generate_text(reaction: reaction_pb2.Reaction) -> str:
     return _generate(reaction, template_string=template, line_breaks=False)
 
 
-def generate_html(reaction: reaction_pb2.Reaction, compact=False) -> str:
+def generate_html(reaction: reaction_pb2.Reaction,
+                  compact=False,
+                  bond_length: Optional[int] = None) -> str:
     """Generates an HTML reaction description."""
     # Special handling for e.g. USPTO reactions.
     reaction_smiles = message_helpers.get_reaction_smiles(reaction)
@@ -68,13 +70,16 @@ def generate_html(reaction: reaction_pb2.Reaction, compact=False) -> str:
     with open(os.path.join(os.path.dirname(__file__), 'template.html'),
               'r') as f:
         template = f.read()
-    kwargs = {'compact': compact}
-    if compact:
-        kwargs['bond_length'] = 18
+    if not bond_length:
+        if compact:
+            bond_length = 18
+        else:
+            bond_length = 25
     return _generate(reaction,
                      template_string=template,
                      line_breaks=True,
-                     **kwargs)
+                     compact=compact,
+                     bond_length=bond_length)
 
 
 def generate_summary(reaction: reaction_pb2.Reaction,
@@ -82,9 +87,11 @@ def generate_summary(reaction: reaction_pb2.Reaction,
     """Generates an HTML reaction summary."""
     with open(os.path.join(os.path.dirname(__file__), 'reaction.html')) as f:
         template = f.read()
-    reaction_summary = generate_html(reaction, compact=True)
+    bond_length = 20
+    reaction_summary = generate_html(reaction, bond_length=bond_length)
     return _generate(reaction,
                      template_string=template,
                      line_breaks=True,
                      dataset_id=dataset_id,
-                     reaction_summary=reaction_summary)
+                     reaction_summary=reaction_summary,
+                     bond_length=bond_length)
