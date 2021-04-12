@@ -403,12 +403,12 @@ def _compound_png(compound: reaction_pb2.Compound) -> str:
     return message_helpers.get_compound_smiles(compound) or '[Compound]'
 
 
-def _compound_amount(compound: reaction_pb2.Compound) -> Optional[str]:
-    """Returns a string describing the compound amount, if defined."""
-    kind = compound.amount.WhichOneof('kind')
+def _amount(amount: reaction_pb2.Amount) -> Optional[str]:
+    """Returns a string representing an Amount."""
+    kind = amount.WhichOneof('kind')
     if not kind:
         return ''
-    return units.format_message(getattr(compound.amount, kind))
+    return units.format_message(getattr(amount, kind))
 
 
 def _compound_name(compound: reaction_pb2.Compound) -> str:
@@ -701,7 +701,7 @@ def _product_measurement_value(message) -> str:
     if isinstance(message, str):
         return message
     if isinstance(message, reaction_pb2.Amount):
-        return _compound_amount(message) or ''
+        return _amount(message) or ''
     return ''
 
 
@@ -757,7 +757,7 @@ TEMPLATE_FILTERS = {
     'input_addition': _input_addition,
     'compound_svg': _compound_svg,
     'compound_png': _compound_png,
-    'compound_amount': _compound_amount,
+    'amount': _amount,
     'compound_name': _compound_name,
     'compound_smiles': _compound_smiles,
     'compound_role': _compound_role,
