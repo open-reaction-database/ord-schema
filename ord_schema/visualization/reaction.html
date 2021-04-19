@@ -19,9 +19,7 @@
 <head>
   <meta charset="UTF-8">
   <title>{{ reaction.reaction_id }}</title>
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-  <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6" crossorigin="anonymous">
   <style>
       body {
           font-family: Roboto, sans-serif;
@@ -93,10 +91,6 @@
           padding-top: 10px;
       }
 
-      .ui-tabs {
-          width: fit-content;
-      }
-
       button {
           font-family: Roboto, sans-serif;
           font-size: 1em;
@@ -153,14 +147,16 @@
   </div>
   <div id="inputs">
     <h2>Inputs</h2>
-    <div id="input_tabs" class="tabs">
-      <ul>
-        {% for key, value in reaction.inputs|sort_addition_order %}
-          <li><a href="#input_tabs-{{ loop.index }}">{{ key }}</a></li>
-        {% endfor %}
-      </ul>
+    <nav>
+      <div class="nav nav-tabs" role="tablist">
       {% for key, value in reaction.inputs|sort_addition_order %}
-        <div id="input_tabs-{{ loop.index }}">
+        <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#input_tabs-{{ loop.index }}" role="tab">{{ key }}</button>
+      {% endfor %}
+      </div>
+    </nav>
+    <div class="tab-content">
+      {% for key, value in reaction.inputs|sort_addition_order %}
+        <div id="input_tabs-{{ loop.index }}" class="tab-pane fade" role="tabpanel">
           <div>
             <h3>Details</h3>
             <table>
@@ -249,15 +245,17 @@
   {% if reaction.setup|defined %}
   <div id="setup">
     <h2>Setup</h2>
-    <div id="setup_tabs" class="tabs">
-      <ul>
-        <li><a href="#setup_tabs-vessel">Vessel</a></li>
-        <li><a href="#setup_tabs-environment">Environment</a></li>
+    <nav>
+      <div class="nav nav-tabs" role="tablist">
+        <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#setup_tabs-vessel" role="tab">Vessel</button>
+        <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#setup_tabs-environment" role="tab">Environment</button>
         {% if reaction.setup.is_automated %}
-          <li><a href="#setup_tabs-automation">Automation</a></li>
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#setup_tabs-automation" role="tab">Automation</button>
         {% endif %}
-      </ul>
-      <div id="setup_tabs-vessel">
+      </div>
+    </nav>
+    <div class="tab-content">
+      <div id="setup_tabs-vessel" class="tab-pane fade" role="tabpanel">
         <table class="sub">
           <tr>
             <td>Type</td>
@@ -301,7 +299,7 @@
           {% endif %}
         </table>
       </div>
-      <div id="setup_tabs-environment">
+      <div id="setup_tabs-environment" class="tab-pane fade" role="tabpanel">
         <table class="sub">
           <tr>
             <td>Type</td>
@@ -310,7 +308,7 @@
         </table>
       </div>
       {% if reaction.setup.is_automated %}
-        <div id="setup_tabs-automation">
+        <div id="setup_tabs-automation" class="tab-pane fade" role="tabpanel">
           <table class="sub">
             <tr>
               <td>Platform</td>
@@ -325,30 +323,32 @@
   {% if reaction.conditions|defined %}
   <div id="conditions">
     <h2>Conditions</h2>
-    <div id="conditions_tabs" class="tabs">
-      <ul>
+    <nav>
+      <div class="nav nav-tabs" role="tablist">
         {% if reaction.conditions.temperature|defined %}
-          <li><a href="#conditions_tabs-temperature">Temperature</a></li>
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-temperature" role="tab">Temperature</button>
         {% endif %}
         {% if reaction.conditions.pressure|defined %}
-          <li><a href="#conditions_tabs-pressure">Pressure</a></li>
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-pressure" role="tab">Pressure</button>
         {% endif %}
         {% if reaction.conditions.stirring|defined %}
-          <li><a href="#conditions_tabs-stirring">Stirring</a></li>
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-stirring" role="tab">Stirring</button>
         {% endif %}
         {% if reaction.conditions.illumination|defined %}
-          <li><a href="#conditions_tabs-illumination">Illumination</a></li>
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-illumination" role="tab">Illumination</button>
         {% endif %}
         {% if reaction.conditions.electrochemistry|defined %}
-          <li><a href="#conditions_tabs-electrochemistry">Electrochemistry</a></li>
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-electrochemistry" role="tab">Electrochemistry</button>
         {% endif %}
         {% if reaction.conditions.flow|defined %}
-          <li><a href="#conditions_tabs-flow">Flow</a></li>
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-flow" role="tab">Flow</button>
         {% endif %}
-        <li><a href="#conditions_tabs-other">Other</a></li>
-      </ul>
+        <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-other" role="tab">Other</button>
+      </div>
+    </nav>
+    <div class="tab-content">
       {% if reaction.conditions.temperature|defined %}
-        <div id="conditions_tabs-temperature">
+        <div id="conditions_tabs-temperature" class="tab-pane fade" role="tabpanel">
           <table class="sub">
             <tr>
               <td>Control Type</td>
@@ -387,7 +387,7 @@
         </div>
       {% endif %}
       {% if reaction.conditions.pressure|defined %}
-        <div id="conditions_tabs-pressure">
+        <div id="conditions_tabs-pressure" class="tab-pane fade" role="tabpanel">
           <table class="sub">
             <tr>
               <td>Control Type</td>
@@ -430,7 +430,7 @@
         </div>
       {% endif %}
       {% if reaction.conditions.stirring|defined %}
-        <div id="conditions_tabs-stirring">
+        <div id="conditions_tabs-stirring" class="tab-pane fade" role="tabpanel">
           <table class="sub">
             <tr>
               <td>Type</td>
@@ -450,7 +450,7 @@
         </div>
       {% endif %}
       {% if reaction.conditions.illumination|defined %}
-        <div id="conditions_tabs-illumination">
+        <div id="conditions_tabs-illumination" class="tab-pane fade" role="tabpanel">
           <table class="sub">
             <tr>
               <td>Type</td>
@@ -474,7 +474,7 @@
         </div>
       {% endif %}
       {% if reaction.conditions.electrochemistry|defined %}
-        <div id="conditions_tabs-electrochemistry">
+        <div id="conditions_tabs-electrochemistry" class="tab-pane fade" role="tabpanel">
           <table class="sub">
             <tr>
               <td>Type</td>
@@ -545,7 +545,7 @@
         </div>
       {% endif %}
       {% if reaction.conditions.flow|defined %}
-        <div id="conditions_tabs-flow">
+        <div id="conditions_tabs-flow" class="tab-pane fade" role="tabpanel">
           <table class="sub">
             <tr>
               <td>Type</td>
@@ -568,7 +568,7 @@
           </table>
         </div>
       {% endif %}
-      <div id="conditions_tabs-other">
+      <div id="conditions_tabs-other" class="tab-pane fade" role="tabpanel">
         <table>
           <tr>
             {% if reaction.conditions.HasField('reflux') %}
@@ -722,15 +722,17 @@
   {% endif %}
   <div id="outcomes">
     <h2>Outcomes</h2>
-    <div id="outcomes_tabs" class="tabs">
-      <ul>
+    <nav>
+      <div class="nav nav-tabs" role="tablist">
         {% for outcome in reaction.outcomes %}
-          <li><a href="outcome-{{ loop.index }}">Outcome #{{ loop.index }}</a></li>
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#outcome-{{ loop.index }}" role="tab">Outcome #{{ loop.index }}</button>
         {% endfor %}
-      </ul>
+      </div>
+    </nav>
+    <div class="tab-content">
       {% for outcome in reaction.outcomes %}
         {% set outcome_loop = loop %}
-        <div id="outcome-{{ loop.index }}">
+        <div id="outcome-{{ loop.index }}" class="tab-pane fade" role="tabpanel">
           <h3>Details</h3>
           <table>
             {% if outcome.reaction_time|defined %}
@@ -747,15 +749,16 @@
             {% endif %}
           </table>
           <h3>Products</h3>
-          <div id="products_tabs-{{ outcome_loop.index }}" class="tabs">
-            <ul>
+          <nav>
+            <div  class="nav nav-tabs" role="tablist">
               {% for product in outcome.products %}
-                <li><a href="outcome-{{ outcome_loop.index }}_product-{{ loop.index }}">Product #{{ loop.index }}</a>
-                </li>
+                <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#outcome-{{ outcome_loop.index }}_product-{{ loop.index }}" role="tab">Product #{{ loop.index }}</button>
               {% endfor %}
-            </ul>
+            </div>
+          </nav>
+          <div class="tab-content">
             {% for product in outcome.products %}
-              <div id="outcome-{{ outcome_loop.index }}_product-{{ loop.index }}">
+              <div id="outcome-{{ outcome_loop.index }}_product-{{ loop.index }}" class="tab-pane fade" role="tabpanel">
                 <table class="components">
                   <thead>
                   <tr>
@@ -812,14 +815,16 @@
             {% endfor %}
           {% if outcome.analyses %}
             <h3>Analyses</h3>
-            <div id="analyses_tabs-{{ loop.index }}" class="tabs">
-              <ul>
+            <nav>
+              <div class="nav nav-tabs" role="tablist">
                 {% for key, value in outcome.analyses.items() %}
-                  <li><a href="outcome-{{ outcome_loop.index }}_analysis-{{ loop.index }}">{{ key }}</a></li>
+                  <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#outcome-{{ outcome_loop.index }}_analysis-{{ loop.index }}" role="tab">{{ key }}</button>
                 {% endfor %}
-              </ul>
+              </div>
+            </nav>
+            <div class="tab-content">
               {% for key, value in outcome.analyses.items() %}
-                <div id="outcome-{{ outcome_loop.index }}_analysis-{{ loop.index }}">
+                <div id="outcome-{{ outcome_loop.index }}_analysis-{{ loop.index }}" class="tab-pane fade" role="tabpanel">
                   <table>
                     <tr>
                       <td>Type</td>
@@ -912,14 +917,16 @@
     </div>
     <div>
       <h3>Record Events</h3>
-      <div id="record_events_tabs" class="tabs">
-        <ul>
+      <nav>
+        <div class="nav nav-tabs" role="tablist">
           {% for event in reaction.provenance|events %}
-            <li><a href="#record_event-{{ loop.index }}">{{ event.time|datetimeformat }}</a></li>
+            <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#record_event-{{ loop.index }}" role="tab">{{ event.time|datetimeformat }}</button>
           {% endfor %}
-        </ul>
+        </div>
+      </nav>
+      <div class="tab-content">
         {% for event in reaction.provenance|events %}
-          <div id="record_event-{{ loop.index }}">
+          <div id="record_event-{{ loop.index }}" class="tab-pane fade" role="tabpanel">
             <table>
               {% if event.details %}
                 <tr>
@@ -976,12 +983,13 @@
     <pre class="raw hidden">{{ reaction|pbtxt }}</pre>
   </div>
 </div>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js" integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf" crossorigin="anonymous"></script>
 <script>
     document.body.onload = function () {
-        $('.tabs').tabs({
-            heightStyle: 'content',
-            hide: false,
-            show: true,
+        $('.nav-tabs').each(function () {
+            // Select the first tab in each group.
+           $('.nav-link', this).first().trigger('click');
         });
         $('.navSection').click(event => {
             const section = $(event.target).attr('data-section');
