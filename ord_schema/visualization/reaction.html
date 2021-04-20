@@ -23,7 +23,6 @@
         integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css">
   <style>
-
       body {
           padding: 10px 20px;
       }
@@ -1040,7 +1039,8 @@
             // Select the first tab in each group.
             $('.nav-link', this).first().trigger('click');
         });
-        $('.navSection').click(event => {
+        const navSections = $('.navSection');
+        navSections.click(event => {
             const section = $(event.target).attr('data-section');
             $('#' + section)[0].scrollIntoView({behavior: 'smooth'});
         });
@@ -1068,7 +1068,7 @@
         });
         // Set up the sidebar observer.
         const navSelectors = {};
-        $('.navSection').each((index, selector) => {
+        navSections.each((index, selector) => {
             selector = $(selector);
             const section = selector.attr('data-section');
             navSelectors[section] = selector;
