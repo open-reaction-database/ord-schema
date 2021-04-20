@@ -23,10 +23,10 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css">
   <style>
       body {
-          font-family: Roboto, sans-serif;
+        padding: 10px 20px;
       }
-
       #nav {
+          margin-top: 10px;
           margin-right: 26px;
           position: fixed;
           width: 150px;
@@ -36,7 +36,6 @@
           padding: 8px;
           margin-bottom: 4px;
           cursor: pointer;
-          font-size: large;
       }
 
       .navSection:hover {
@@ -120,11 +119,11 @@
   <div class="navSection" data-section="record">Full Record</div>
 </div>
 <div id="sections">
-  <div id="summary">
-    <h1 style="font-family: monospace;">{{ reaction.reaction_id }}</h1>
+  <div id="summary" class="section">
+    <h2 style="font-family: monospace;">{{ reaction.reaction_id }}</h2>
     {{ reaction_summary }}
   </div>
-  <div id="identifiers">
+  <div id="identifiers" class="section">
     <h2>Identifiers</h2>
     <table>
       {% for identifier in reaction.identifiers %}
@@ -143,7 +142,7 @@
       {% endif %}
     </table>
   </div>
-  <div id="inputs">
+  <div id="inputs" class="section">
     <h2>Inputs</h2>
     <nav>
       <div class="nav nav-tabs" role="tablist">
@@ -240,7 +239,7 @@
     </div>
   </div>
   {% if reaction.setup|defined %}
-  <div id="setup">
+  <div id="setup" class="section">
     <h2>Setup</h2>
     <nav>
       <div class="nav nav-tabs" role="tablist">
@@ -318,7 +317,7 @@
   </div>
   {% endif %}
   {% if reaction.conditions|defined %}
-  <div id="conditions">
+  <div id="conditions" class="section">
     <h2>Conditions</h2>
     <nav>
       <div class="nav nav-tabs" role="tablist">
@@ -591,7 +590,7 @@
   </div>
   {% endif %}
   {% if reaction.notes|defined %}
-  <div id="notes">
+  <div id="notes" class="section">
     <h2>Notes</h2>
     <table>
       {% if reaction.notes.HasField('is_heterogeneous') %}
@@ -652,7 +651,7 @@
   </div>
   {% endif %}
   {% if reaction.observations %}
-  <div id="observations">
+  <div id="observations" class="section">
     <h2>Observations</h2>
     {% if reaction.observations %}
       <table>
@@ -673,7 +672,7 @@
   </div>
   {% endif %}
   {% if reaction.workups %}
-  <div id="workups">
+  <div id="workups" class="section">
     <h2>Workups</h2>
     {% for workup in reaction.workups %}
       <div class="float">
@@ -717,7 +716,7 @@
     {% endfor %}
   </div>
   {% endif %}
-  <div id="outcomes">
+  <div id="outcomes" class="section">
     <h2>Outcomes</h2>
     <nav>
       <div class="nav nav-tabs" role="tablist">
@@ -846,7 +845,7 @@
       {% endfor %}
     </div>
   </div>
-  <div id="provenance">
+  <div id="provenance" class="section">
     <h2>Provenance</h2>
     <div>
       <table>
@@ -969,7 +968,7 @@
       </div>
     </div>
   </div>
-  <div id="record">
+  <div id="record" class="section">
     <h2>Full Record</h2>
     <div>
       <button class="toggle_raw_button">Show</button>
@@ -1010,7 +1009,28 @@
                 // See https://stackoverflow.com/a/54092070.
                 placement: 'right'
             });
-        })
+        });
+        // Set up the sidebar observer.
+        const navSelectors = {};
+        $('.navSection').each((index, selector) => {
+            selector = $(selector);
+            const section = selector.attr('data-section');
+            navSelectors[section] = selector;
+        });
+        const observer = new IntersectionObserver(function (entries) {
+            entries.forEach(entry => {
+            const target = $(entry.target);
+            const section = target.attr('id');
+            if (entry.isIntersecting) {
+              navSelectors[section].css('background-color', 'lightblue');
+            } else {
+              navSelectors[section].css('background-color', '');
+            }
+          });
+        });
+        $('.section').each(function() {
+            observer.observe(this);
+        });
     };
 </script>
 </body>
