@@ -618,7 +618,7 @@ def has_transition_metal(mol: Chem.Mol) -> bool:
 
 
 def set_dative_bonds(
-    mol: Chem.Mol, from_atoms: Tuple[str] = ('N', 'P')) -> Chem.Mol:
+    mol: Chem.Mol, from_atoms: Tuple[str, ...] = ('N', 'P')) -> Chem.Mol:
     """Converts metal-ligand bonds to dative.
 
     Replaces some single bonds between metals and atoms with atomic numbers
