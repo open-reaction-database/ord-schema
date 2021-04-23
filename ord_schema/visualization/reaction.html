@@ -1070,8 +1070,8 @@
         // Initialize tooltips.
         $(function () {
             $('[data-toggle="tooltip"]').tooltip({
-                // See https://stackoverflow.com/a/54092070.
-                placement: 'right'
+                placement: 'right',  // See https://stackoverflow.com/a/54092070.
+                trigger: 'focus',
             });
         });
         // Set up the sidebar observer.
