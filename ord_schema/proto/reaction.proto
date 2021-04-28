@@ -378,6 +378,11 @@ message Vessel {
   repeated VesselAttachment attachments = 5;
   // Size (volume) of the vessel.
   Volume volume = 6;
+  // Identifier number for a microtiter plate or parallel reactor run.
+  string plate_id = 7;
+  // If a well-plate was used, the position of the well for this experiment,
+  // e.g., "A4".
+  string plate_position = 8;
 }
 
 message VesselMaterial {
@@ -847,6 +852,8 @@ message ProductCompound {
       FOAM = 6;
       WAX = 7;
       SEMI_SOLID = 8;
+      SOLID = 9;
+      LIQUID = 10;
     }
     TextureType type = 1;
     // Specify texture forms such as "fine needles" for CRYSTAL,

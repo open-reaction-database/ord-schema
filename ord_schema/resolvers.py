@@ -35,6 +35,8 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
 _USERNAME = 'github-actions'
 _EMAIL = 'github-actions@github.com'
 
+# pylint: disable=consider-using-with
+
 
 def canonicalize_smiles(smiles: str) -> str:
     """Canonicalizes a SMILES string.
