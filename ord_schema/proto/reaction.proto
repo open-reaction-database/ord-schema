@@ -847,6 +847,8 @@ message ProductCompound {
       FOAM = 6;
       WAX = 7;
       SEMI_SOLID = 8;
+      SOLID = 9;
+      LIQUID = 10;
     }
     TextureType type = 1;
     // Specify texture forms such as "fine needles" for CRYSTAL,
