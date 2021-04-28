@@ -720,7 +720,10 @@ def _product_pbtxt(product: reaction_pb2.ProductCompound) -> str:
 
 def _oneof(message, name='kind'):
     """Retrieves the proper oneof value."""
-    return getattr(message, message.WhichOneof(name))
+    kind = message.WhichOneof(name)
+    if kind:
+        return getattr(message, kind)
+    return ''
 
 
 def _defined(message):
