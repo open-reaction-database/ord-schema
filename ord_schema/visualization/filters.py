@@ -731,10 +731,15 @@ def _defined(message):
     return message != type(message)()
 
 
+def _type(message):
+    """Returns type."""
+    assert len(message.DESCRIPTOR.enum_types) == 1
+    return message.DESCRIPTOR.enum_types[0].values_by_number[message.type].name
+
+
 def _type_and_details(message):
     """Returns type (details)."""
-    assert len(message.DESCRIPTOR.enum_types) == 1
-    value = message.DESCRIPTOR.enum_types[0].values_by_number[message.type].name
+    value = _type(message)
     if message.details:
         value += f' ({message.details})'
     return value
@@ -788,6 +793,7 @@ TEMPLATE_FILTERS = {
     'product_pbtxt': _product_pbtxt,
     'oneof': _oneof,
     'defined': _defined,
+    'type': _type,
     'type_and_details': _type_and_details,
     'product_measurement_value': _product_measurement_value,
     'events': _events,

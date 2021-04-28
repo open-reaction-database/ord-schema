@@ -725,46 +725,57 @@
   {% if reaction.workups %}
     <div id="workups" class="section">
       <h2>Workups</h2>
-      {% for workup in reaction.workups %}
-        <div class="float">
-          <table>
-            <tr>
-              <td>Type</td>
-              <td>{{ workup|type_and_details }}</td>
-            </tr>
-            {% if workup.duration|defined %}
-              <tr>
-                <td>Duration</td>
-                <td>{{ workup.duration|unit_format }}</td>
-              </tr>
-            {% endif %}
-            {% if workup.amount|defined %}
-              <tr>
-                <td>Aliquot amount</td>
-                <td>{{ workup.amount|unit_format }}</td>
-              </tr>
-            {% endif %}
-            {% if workup.keep_phase %}
-              <tr>
-                <td>Phase kept</td>
-                <td>{{ workup.keep_phase }}</td>
-              </tr>
-            {% endif %}
-            {% if workup.HasField('target_ph') %}
-              <tr>
-                <td>Phase kept</td>
-                <td>{{ workup.target_ph }}</td>
-              </tr>
-            {% endif %}
-            {% if workup.HasField('is_automated') %}
-              <tr>
-                <td>Phase kept</td>
-                <td>{{ workup.is_automated }}</td>
-              </tr>
-            {% endif %}
-          </table>
+      <nav>
+        <div class="nav nav-tabs" role="tablist">
+          {% for workup in reaction.workups %}
+            <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#workups-{{ loop.index }}"
+                    role="tab">{{ workup|type }}
+            </button>
+          {% endfor %}
         </div>
-      {% endfor %}
+      </nav>
+      <div class="tab-content">
+        {% for workup in reaction.workups %}
+          <div id="workups-{{ loop.index }}" class="tab-pane fade" role="tabpanel">
+            <table>
+              <tr>
+                <td>Type</td>
+                <td>{{ workup|type_and_details }}</td>
+              </tr>
+              {% if workup.duration|defined %}
+                <tr>
+                  <td>Duration</td>
+                  <td>{{ workup.duration|unit_format }}</td>
+                </tr>
+              {% endif %}
+              {% if workup.amount|defined %}
+                <tr>
+                  <td>Aliquot amount</td>
+                  <td>{{ workup.amount|unit_format }}</td>
+                </tr>
+              {% endif %}
+              {% if workup.keep_phase %}
+                <tr>
+                  <td>Phase kept</td>
+                  <td>{{ workup.keep_phase }}</td>
+                </tr>
+              {% endif %}
+              {% if workup.HasField('target_ph') %}
+                <tr>
+                  <td>Phase kept</td>
+                  <td>{{ workup.target_ph }}</td>
+                </tr>
+              {% endif %}
+              {% if workup.HasField('is_automated') %}
+                <tr>
+                  <td>Phase kept</td>
+                  <td>{{ workup.is_automated }}</td>
+                </tr>
+              {% endif %}
+            </table>
+          </div>
+        {% endfor %}
+      </div>
     </div>
   {% endif %}
   <div id="outcomes" class="section">
