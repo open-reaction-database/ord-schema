@@ -121,6 +121,11 @@
           white-space: pre-wrap;
           text-align: left;
       }
+
+      .image {
+        text-align: center;
+        padding: 10px 0;
+      }
   </style>
 </head>
 <body>
@@ -251,7 +256,7 @@
                     {% else %}
                   <tr>
                 {% endif %}
-              <td style="text-align: center;">{{ compound|compound_svg(bond_length) }}</td>
+              <td><div class="image">{{ compound|compound_svg(bond_length) }}</div></td>
               <td>{{ compound.amount|amount }}</td>
               <td>{{ compound|compound_role }}</td>
               <td>
@@ -830,7 +835,7 @@
                   </thead>
                   <tbody>
                   <tr>
-                    <td style="text-align: center;">{{ product|compound_svg(bond_length) }}</td>
+                    <td><div class="image">{{ product|compound_svg(bond_length) }}</div></td>
                     <td>{{ product|compound_role }}</td>
                     <td>
                       <button type="button" class="btn btn-secondary" data-toggle="tooltip"
@@ -1082,7 +1087,7 @@
         $(function () {
             $('[data-toggle="tooltip"]').tooltip({
                 placement: 'right',  // See https://stackoverflow.com/a/54092070.
-                trigger: 'focus',
+                trigger: 'click',
             });
         });
         // Set up the sidebar observer.
