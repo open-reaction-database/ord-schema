@@ -103,28 +103,28 @@ def resolve_names(message: reaction_pb2.Reaction) -> bool:
 
 def _pubchem_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the PubChem REST API."""
-    response = urllib.request.urlopen(
-        f'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/{value_type}/'
-        f'{urllib.parse.quote(value)}/property/IsomericSMILES/txt')
-    return response.read().decode().strip()
+    with urllib.request.urlopen(
+            f'https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/{value_type}/'
+            f'{urllib.parse.quote(value)}/property/IsomericSMILES/txt'
+    ) as response:
+        return response.read().decode().strip()
 
 
 def _cactus_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the CACTUS API."""
     del value_type  # Unused.
-    response = urllib.request.urlopen(
-        'https://cactus.nci.nih.gov/chemical/structure/'
-        f'{urllib.parse.quote(value)}/smiles')
-    return response.read().decode().strip()
+    with urllib.request.urlopen(
+            'https://cactus.nci.nih.gov/chemical/structure/'
+            f'{urllib.parse.quote(value)}/smiles') as response:
+        return response.read().decode().strip()
 
 
 def _emolecules_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the eMolecules API."""
     del value_type  # Unused.
-    response = urllib.request.urlopen(
-        'https://www.emolecules.com/lookup?q={}'.format(
-            urllib.parse.quote(value)))
-    response_text = response.read().decode().strip()
+    with urllib.request.urlopen('https://www.emolecules.com/lookup?q={}'.format(
+            urllib.parse.quote(value))) as response:
+        response_text = response.read().decode().strip()
     if response_text == '__END__':
         raise urllib.error.HTTPError('', 404, 'eMolecules lookup unsuccessful',
                                      {}, None)

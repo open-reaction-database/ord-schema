@@ -19,18 +19,20 @@
 <head>
   <meta charset="UTF-8">
   <title>{{ reaction.reaction_id }}</title>
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
-  <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css">
   <style>
       body {
-          font-family: Roboto, sans-serif;
+          padding: 10px 20px;
       }
 
       #nav {
+          margin-top: 10px;
           margin-right: 26px;
           position: fixed;
           width: 150px;
+          background-color: white;
       }
 
       .navSection {
@@ -45,6 +47,32 @@
 
       #sections {
           margin-left: 168px;
+      }
+
+      .section {
+          margin-bottom: 24px;
+      }
+
+      h3 {
+          margin-top: 16px;
+      }
+
+      h4 {
+          margin-top: 16px;
+      }
+
+      .toggle_raw_button {
+          font-size: small;
+          border: 1px solid black;
+          vertical-align: middle;
+          margin-bottom: 10px;
+      }
+
+      .tab-content {
+          border-left: 1px solid lightgray;
+          padding: 10px;
+          max-width: 800px;
+          width: max-content;
       }
 
       table {
@@ -77,7 +105,7 @@
       }
 
       .hidden {
-          visibility: hidden;
+          display: none;
       }
 
       .raw {
@@ -88,18 +116,15 @@
           display: inline-block;
       }
 
-      .toggle_raw {
-          text-align: center;
-          padding-top: 10px;
+      .tooltip-inner {
+          max-width: 600px;
+          white-space: pre-wrap;
+          text-align: left;
       }
 
-      .ui-tabs {
-          width: fit-content;
-      }
-
-      button {
-          font-family: Roboto, sans-serif;
-          font-size: 1em;
+      .image {
+        text-align: center;
+        padding: 10px 0;
       }
   </style>
 </head>
@@ -109,30 +134,30 @@
   <div class="navSection" data-section="identifiers">Identifiers</div>
   <div class="navSection" data-section="inputs">Inputs</div>
   {% if reaction.setup|defined %}
-  <div class="navSection" data-section="setup">Setup</div>
+    <div class="navSection" data-section="setup">Setup</div>
   {% endif %}
   {% if reaction.conditions|defined %}
-  <div class="navSection" data-section="conditions">Conditions</div>
+    <div class="navSection" data-section="conditions">Conditions</div>
   {% endif %}
   {% if reaction.notes|defined %}
-  <div class="navSection" data-section="notes">Notes</div>
+    <div class="navSection" data-section="notes">Notes</div>
   {% endif %}
   {% if reaction.observations %}
-  <div class="navSection" data-section="observations">Observations</div>
+    <div class="navSection" data-section="observations">Observations</div>
   {% endif %}
   {% if reaction.workups %}
-  <div class="navSection" data-section="workups">Workups</div>
+    <div class="navSection" data-section="workups">Workups</div>
   {% endif %}
   <div class="navSection" data-section="outcomes">Outcomes</div>
   <div class="navSection" data-section="provenance">Provenance</div>
   <div class="navSection" data-section="record">Full Record</div>
 </div>
 <div id="sections">
-  <div id="summary">
-    <h1 style="font-family: monospace;">{{ reaction.reaction_id }}</h1>
+  <div id="summary" class="section">
+    <h2 style="font-family: monospace;">{{ reaction.reaction_id }}</h2>
     {{ reaction_summary }}
   </div>
-  <div id="identifiers">
+  <div id="identifiers" class="section">
     <h2>Identifiers</h2>
     <table>
       {% for identifier in reaction.identifiers %}
@@ -151,16 +176,19 @@
       {% endif %}
     </table>
   </div>
-  <div id="inputs">
+  <div id="inputs" class="section">
     <h2>Inputs</h2>
-    <div id="input_tabs" class="tabs">
-      <ul>
+    <nav>
+      <div class="nav nav-tabs" role="tablist">
         {% for key, value in reaction.inputs|sort_addition_order %}
-          <li><a href="#input_tabs-{{ loop.index }}">{{ key }}</a></li>
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#input_tabs-{{ loop.index }}"
+                  role="tab">{{ key }}</button>
         {% endfor %}
-      </ul>
+      </div>
+    </nav>
+    <div class="tab-content">
       {% for key, value in reaction.inputs|sort_addition_order %}
-        <div id="input_tabs-{{ loop.index }}">
+        <div id="input_tabs-{{ loop.index }}" class="tab-pane fade" role="tabpanel">
           <div>
             <h3>Details</h3>
             <table>
@@ -228,14 +256,14 @@
                     {% else %}
                   <tr>
                 {% endif %}
-              <td style="text-align: center;">{{ compound|compound_svg(bond_length) }}</td>
+              <td><div class="image">{{ compound|compound_svg(bond_length) }}</div></td>
               <td>{{ compound.amount|amount }}</td>
               <td>{{ compound|compound_role }}</td>
               <td>
-                <div class="toggle_raw">
-                  <button class="toggle_raw_button">Show</button>
-                </div>
-                <pre class="raw hidden">{{ compound|pbtxt }}</pre>
+                <button type="button" class="btn btn-secondary" data-toggle="tooltip"
+                        title="{{ compound|pbtxt|escape }}">
+                  <i class="bi bi-code"></i>
+                </button>
               </td>
               </tr>
               {% endfor %}
@@ -247,490 +275,528 @@
     </div>
   </div>
   {% if reaction.setup|defined %}
-  <div id="setup">
-    <h2>Setup</h2>
-    <div id="setup_tabs" class="tabs">
-      <ul>
-        <li><a href="#setup_tabs-vessel">Vessel</a></li>
-        <li><a href="#setup_tabs-environment">Environment</a></li>
-        {% if reaction.setup.is_automated %}
-          <li><a href="#setup_tabs-automation">Automation</a></li>
-        {% endif %}
-      </ul>
-      <div id="setup_tabs-vessel">
-        <table class="sub">
-          <tr>
-            <td>Type</td>
-            <td>{{ reaction.setup.vessel|type_and_details }}</td>
-          </tr>
-          <tr>
-            <td>Material</td>
-            <td>{{ reaction.setup.vessel.material|type_and_details }}</td>
-          </tr>
-          <tr>
-            <td>Volume</td>
-            <td>{{ reaction.setup.vessel|vessel_size }}</td>
-          </tr>
-          {% if reaction.setup.vessel.attachments %}
-            <tr>
-              <td>Attachments</td>
-              <td>
-                <table>
-                  {% for attachment in reaction.setup.vessel.attachments %}
-                    <tr>
-                      <td>{{ attachment|type_and_details }}</td>
-                    </tr>
-                  {% endfor %}
-                </table>
-              </td>
-            </tr>
+    <div id="setup" class="section">
+      <h2>Setup</h2>
+      <nav>
+        <div class="nav nav-tabs" role="tablist">
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#setup_tabs-vessel" role="tab">
+            Vessel
+          </button>
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#setup_tabs-environment"
+                  role="tab">Environment
+          </button>
+          {% if reaction.setup.is_automated %}
+            <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#setup_tabs-automation"
+                    role="tab">Automation
+            </button>
           {% endif %}
-          {% if reaction.setup.vessel.preparations %}
-            <tr>
-              <td>Preparations</td>
-              <td>
-                <table>
-                  {% for preparation in reaction.setup.vessel.preparations %}
-                    <tr>
-                      <td>{{ preparation|type_and_details }}</td>
-                    </tr>
-                  {% endfor %}
-                </table>
-              </td>
-            </tr>
-          {% endif %}
-        </table>
-      </div>
-      <div id="setup_tabs-environment">
-        <table class="sub">
-          <tr>
-            <td>Type</td>
-            <td>{{ reaction.setup.environment|type_and_details }}</td>
-          </tr>
-        </table>
-      </div>
-      {% if reaction.setup.is_automated %}
-        <div id="setup_tabs-automation">
+        </div>
+      </nav>
+      <div class="tab-content">
+        <div id="setup_tabs-vessel" class="tab-pane fade" role="tabpanel">
           <table class="sub">
             <tr>
-              <td>Platform</td>
-              <td>{{ reaction.setup.automation_platform or 'UNSPECIFIED' }}</td>
+              <td>Type</td>
+              <td>{{ reaction.setup.vessel|type_and_details }}</td>
+            </tr>
+            <tr>
+              <td>Material</td>
+              <td>{{ reaction.setup.vessel.material|type_and_details }}</td>
+            </tr>
+            <tr>
+              <td>Volume</td>
+              <td>{{ reaction.setup.vessel|vessel_size }}</td>
+            </tr>
+            {% if reaction.setup.vessel.attachments %}
+              <tr>
+                <td>Attachments</td>
+                <td>
+                  <table>
+                    {% for attachment in reaction.setup.vessel.attachments %}
+                      <tr>
+                        <td>{{ attachment|type_and_details }}</td>
+                      </tr>
+                    {% endfor %}
+                  </table>
+                </td>
+              </tr>
+            {% endif %}
+            {% if reaction.setup.vessel.preparations %}
+              <tr>
+                <td>Preparations</td>
+                <td>
+                  <table>
+                    {% for preparation in reaction.setup.vessel.preparations %}
+                      <tr>
+                        <td>{{ preparation|type_and_details }}</td>
+                      </tr>
+                    {% endfor %}
+                  </table>
+                </td>
+              </tr>
+            {% endif %}
+          </table>
+        </div>
+        <div id="setup_tabs-environment" class="tab-pane fade" role="tabpanel">
+          <table class="sub">
+            <tr>
+              <td>Type</td>
+              <td>{{ reaction.setup.environment|type_and_details }}</td>
             </tr>
           </table>
         </div>
-      {% endif %}
+        {% if reaction.setup.is_automated %}
+          <div id="setup_tabs-automation" class="tab-pane fade" role="tabpanel">
+            <table class="sub">
+              <tr>
+                <td>Platform</td>
+                <td>{{ reaction.setup.automation_platform or 'UNSPECIFIED' }}</td>
+              </tr>
+            </table>
+          </div>
+        {% endif %}
+      </div>
     </div>
-  </div>
   {% endif %}
   {% if reaction.conditions|defined %}
-  <div id="conditions">
-    <h2>Conditions</h2>
-    <div id="conditions_tabs" class="tabs">
-      <ul>
+    <div id="conditions" class="section">
+      <h2>Conditions</h2>
+      <nav>
+        <div class="nav nav-tabs" role="tablist">
+          {% if reaction.conditions.temperature|defined %}
+            <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-temperature"
+                    role="tab">Temperature
+            </button>
+          {% endif %}
+          {% if reaction.conditions.pressure|defined %}
+            <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-pressure"
+                    role="tab">Pressure
+            </button>
+          {% endif %}
+          {% if reaction.conditions.stirring|defined %}
+            <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-stirring"
+                    role="tab">Stirring
+            </button>
+          {% endif %}
+          {% if reaction.conditions.illumination|defined %}
+            <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-illumination"
+                    role="tab">Illumination
+            </button>
+          {% endif %}
+          {% if reaction.conditions.electrochemistry|defined %}
+            <button type="button" class="nav-link" data-bs-toggle="tab"
+                    data-bs-target="#conditions_tabs-electrochemistry" role="tab">Electrochemistry
+            </button>
+          {% endif %}
+          {% if reaction.conditions.flow|defined %}
+            <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-flow"
+                    role="tab">Flow
+            </button>
+          {% endif %}
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#conditions_tabs-other"
+                  role="tab">Other
+          </button>
+        </div>
+      </nav>
+      <div class="tab-content">
         {% if reaction.conditions.temperature|defined %}
-          <li><a href="#conditions_tabs-temperature">Temperature</a></li>
+          <div id="conditions_tabs-temperature" class="tab-pane fade" role="tabpanel">
+            <table class="sub">
+              <tr>
+                <td>Control Type</td>
+                <td>{{ reaction.conditions.temperature.control|type_and_details }}</td>
+              </tr>
+              <tr>
+                <td>Setpoint</td>
+                <td>{{ reaction.conditions.temperature.setpoint|unit_format }}</td>
+              </tr>
+              {% if reaction.conditions.temperature.measurements %}
+                <tr>
+                  <td>Measurements</td>
+                  <td colspan="2">
+                    <table>
+                      <thead>
+                      <tr>
+                        <th>Type</th>
+                        <th>Time</th>
+                        <th>Temperature</th>
+                      </tr>
+                      </thead>
+                      <tbody>
+                      {% for measurement in reaction.conditions.temperature.measurements %}
+                        <tr>
+                          <td>{{ measurement|type_and_details }}</td>
+                          <td>{{ measurement.time|unit_format }}</td>
+                          <td>{{ measurement.temperature|unit_format }}</td>
+                        </tr>
+                      {% endfor %}
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              {% endif %}
+            </table>
+          </div>
         {% endif %}
         {% if reaction.conditions.pressure|defined %}
-          <li><a href="#conditions_tabs-pressure">Pressure</a></li>
+          <div id="conditions_tabs-pressure" class="tab-pane fade" role="tabpanel">
+            <table class="sub">
+              <tr>
+                <td>Control Type</td>
+                <td>{{ reaction.conditions.pressure.control|type_and_details }}</td>
+              </tr>
+              <tr>
+                <td>Setpoint</td>
+                <td>{{ reaction.conditions.pressure.setpoint|unit_format }}</td>
+              </tr>
+              <tr>
+                <td>Atmosphere</td>
+                <td>{{ reaction.conditions.pressure.atmosphere|type_and_details }}</td>
+              </tr>
+              {% if reaction.conditions.pressure.measurements %}
+                <tr>
+                  <td>Measurements</td>
+                  <td colspan="2">
+                    <table>
+                      <thead>
+                      <tr>
+                        <th>Type</th>
+                        <th>Time</th>
+                        <th>Pressure</th>
+                      </tr>
+                      </thead>
+                      <tbody>
+                      {% for measurement in reaction.conditions.pressure.measurements %}
+                        <tr>
+                          <td>{{ measurement|type_and_details }}</td>
+                          <td>{{ measurement.time|unit_format }}</td>
+                          <td>{{ measurement.pressure|unit_format }}</td>
+                        </tr>
+                      {% endfor %}
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              {% endif %}
+            </table>
+          </div>
         {% endif %}
         {% if reaction.conditions.stirring|defined %}
-          <li><a href="#conditions_tabs-stirring">Stirring</a></li>
+          <div id="conditions_tabs-stirring" class="tab-pane fade" role="tabpanel">
+            <table class="sub">
+              <tr>
+                <td>Type</td>
+                <td>{{ reaction.conditions.stirring|type_and_details }}</td>
+              </tr>
+              <tr>
+                <td>Rate</td>
+                <td>{{ reaction.conditions.stirring.rate|type_and_details }}</td>
+              </tr>
+              {% if reaction.conditions.stirring.rate.rpm %}
+                <tr>
+                  <td>RPM</td>
+                  <td>{{ reaction.conditions.stirring.rate.rpm }}</td>
+                </tr>
+              {% endif %}
+            </table>
+          </div>
         {% endif %}
         {% if reaction.conditions.illumination|defined %}
-          <li><a href="#conditions_tabs-illumination">Illumination</a></li>
+          <div id="conditions_tabs-illumination" class="tab-pane fade" role="tabpanel">
+            <table class="sub">
+              <tr>
+                <td>Type</td>
+                <td>{{ reaction.conditions.illumination|type_and_details }}</td>
+              </tr>
+              <tr>
+                <td>Peak Wavelength</td>
+                <td>{{ reaction.conditions.illumination.peak_wavelength|unit_format }}</td>
+              </tr>
+              {% if reaction.conditions.illumination.color %}
+                <tr>
+                  <td>Color</td>
+                  <td>{{ reaction.conditions.illumination.color }}</td>
+                </tr>
+              {% endif %}
+              <tr>
+                <td>Distance to Vessel</td>
+                <td>{{ reaction.conditions.illumination.distance_to_vessel|unit_format }}</td>
+              </tr>
+            </table>
+          </div>
         {% endif %}
         {% if reaction.conditions.electrochemistry|defined %}
-          <li><a href="#conditions_tabs-electrochemistry">Electrochemistry</a></li>
+          <div id="conditions_tabs-electrochemistry" class="tab-pane fade" role="tabpanel">
+            <table class="sub">
+              <tr>
+                <td>Type</td>
+                <td>{{ reaction.conditions.electrochemistry|type_and_details }}</td>
+              </tr>
+              <tr>
+                <td>Cell Type</td>
+                <td>{{ reaction.conditions.electrochemistry.cell|type_and_details }}</td>
+              </tr>
+              <tr>
+                <td>Current</td>
+                <td>{{ reaction.conditions.electrochemistry.current|unit_format }}</td>
+              </tr>
+              <tr>
+                <td>Voltage</td>
+                <td>{{ reaction.conditions.electrochemistry.voltage|unit_format }}</td>
+              </tr>
+              {% if reaction.conditions.electrochemistry.anode_material %}
+                <tr>
+                  <td>Anode Material</td>
+                  <td>{{ reaction.conditions.electrochemistry.anode_material }}</td>
+                </tr>
+              {% endif %}
+              {% if reaction.conditions.electrochemistry.cathode_material %}
+                <tr>
+                  <td>Cathode Material</td>
+                  <td>{{ reaction.conditions.electrochemistry.cathode_material }}</td>
+                </tr>
+              {% endif %}
+              <tr>
+                <td>Electrode Separation</td>
+                <td>{{ reaction.conditions.electrochemistry.electrode_separation|unit_format }}</td>
+              </tr>
+              <tr>
+                <td>Rate</td>
+                <td>{{ reaction.conditions.stirring.rate|type_and_details }}</td>
+              </tr>
+              {% if reaction.conditions.stirring.rate.rpm %}
+                <tr>
+                  <td>RPM</td>
+                  <td>{{ reaction.conditions.stirring.rate.rpm }}</td>
+                </tr>
+              {% endif %}
+              {% if reaction.conditions.electrochemistry.measurements %}
+                <tr>
+                  <td>Measurements</td>
+                  <td colspan="2">
+                    <table>
+                      <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Value</th>
+                      </tr>
+                      </thead>
+                      <tbody>
+                      {% for measurement in reaction.conditions.electrochemistry.measurements %}
+                        <tr>
+                          <td>{{ measurement.time|unit_format }}</td>
+                          <td>{{ measurement|oneof|unit_format }}</td>
+                        </tr>
+                      {% endfor %}
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              {% endif %}
+            </table>
+          </div>
         {% endif %}
         {% if reaction.conditions.flow|defined %}
-          <li><a href="#conditions_tabs-flow">Flow</a></li>
+          <div id="conditions_tabs-flow" class="tab-pane fade" role="tabpanel">
+            <table class="sub">
+              <tr>
+                <td>Type</td>
+                <td>{{ reaction.conditions.flow|type_and_details }}</td>
+              </tr>
+              {% if reaction.conditions.flow.pump_type %}
+                <tr>
+                  <td>Pump Type</td>
+                  <td>{{ reaction.conditions.flow.pump_type }}</td>
+                </tr>
+              {% endif %}
+              <tr>
+                <td>Tubing</td>
+                <td>{{ reaction.conditions.flow.tubing|type_and_details }}</td>
+              </tr>
+              <tr>
+                <td>Tubing Diameter</td>
+                <td>{{ reaction.conditions.flow.tubing.diameter|unit_format }}</td>
+              </tr>
+            </table>
+          </div>
         {% endif %}
-        <li><a href="#conditions_tabs-other">Other</a></li>
-      </ul>
-      {% if reaction.conditions.temperature|defined %}
-        <div id="conditions_tabs-temperature">
-          <table class="sub">
+        <div id="conditions_tabs-other" class="tab-pane fade" role="tabpanel">
+          <table>
             <tr>
-              <td>Control Type</td>
-              <td>{{ reaction.conditions.temperature.control|type_and_details }}</td>
-            </tr>
-            <tr>
-              <td>Setpoint</td>
-              <td>{{ reaction.conditions.temperature.setpoint|unit_format }}</td>
-            </tr>
-            {% if reaction.conditions.temperature.measurements %}
-              <tr>
-                <td>Measurements</td>
-                <td colspan="2">
-                  <table>
-                    <thead>
-                    <tr>
-                      <th>Type</th>
-                      <th>Time</th>
-                      <th>Temperature</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {% for measurement in reaction.conditions.temperature.measurements %}
-                      <tr>
-                        <td>{{ measurement|type_and_details }}</td>
-                        <td>{{ measurement.time|unit_format }}</td>
-                        <td>{{ measurement.temperature|unit_format }}</td>
-                      </tr>
-                    {% endfor %}
-                    </tbody>
-                  </table>
-                </td>
-              </tr>
-            {% endif %}
-          </table>
-        </div>
-      {% endif %}
-      {% if reaction.conditions.pressure|defined %}
-        <div id="conditions_tabs-pressure">
-          <table class="sub">
-            <tr>
-              <td>Control Type</td>
-              <td>{{ reaction.conditions.pressure.control|type_and_details }}</td>
-            </tr>
-            <tr>
-              <td>Setpoint</td>
-              <td>{{ reaction.conditions.pressure.setpoint|unit_format }}</td>
-            </tr>
-            <tr>
-              <td>Atmosphere</td>
-              <td>{{ reaction.conditions.pressure.atmosphere|type_and_details }}</td>
-            </tr>
-            {% if reaction.conditions.pressure.measurements %}
-              <tr>
-                <td>Measurements</td>
-                <td colspan="2">
-                  <table>
-                    <thead>
-                    <tr>
-                      <th>Type</th>
-                      <th>Time</th>
-                      <th>Pressure</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {% for measurement in reaction.conditions.pressure.measurements %}
-                      <tr>
-                        <td>{{ measurement|type_and_details }}</td>
-                        <td>{{ measurement.time|unit_format }}</td>
-                        <td>{{ measurement.pressure|unit_format }}</td>
-                      </tr>
-                    {% endfor %}
-                    </tbody>
-                  </table>
-                </td>
-              </tr>
-            {% endif %}
-          </table>
-        </div>
-      {% endif %}
-      {% if reaction.conditions.stirring|defined %}
-        <div id="conditions_tabs-stirring">
-          <table class="sub">
-            <tr>
-              <td>Type</td>
-              <td>{{ reaction.conditions.stirring|type_and_details }}</td>
-            </tr>
-            <tr>
-              <td>Rate</td>
-              <td>{{ reaction.conditions.stirring.rate|type_and_details }}</td>
-            </tr>
-            {% if reaction.conditions.stirring.rate.rpm %}
-              <tr>
-                <td>RPM</td>
-                <td>{{ reaction.conditions.stirring.rate.rpm }}</td>
-              </tr>
-            {% endif %}
-          </table>
-        </div>
-      {% endif %}
-      {% if reaction.conditions.illumination|defined %}
-        <div id="conditions_tabs-illumination">
-          <table class="sub">
-            <tr>
-              <td>Type</td>
-              <td>{{ reaction.conditions.illumination|type_and_details }}</td>
-            </tr>
-            <tr>
-              <td>Peak Wavelength</td>
-              <td>{{ reaction.conditions.illumination.peak_wavelength|unit_format }}</td>
-            </tr>
-            {% if reaction.conditions.illumination.color %}
-              <tr>
-                <td>Color</td>
-                <td>{{ reaction.conditions.illumination.color }}</td>
-              </tr>
-            {% endif %}
-            <tr>
-              <td>Distance to Vessel</td>
-              <td>{{ reaction.conditions.illumination.distance_to_vessel|unit_format }}</td>
+              {% if reaction.conditions.HasField('reflux') %}
+                <td>Reflux</td>
+                <td>{{ reaction.conditions.reflux }}</td>
+              {% endif %}
+              {% if reaction.conditions.HasField('ph') %}
+                <td>pH</td>
+                <td>{{ reaction.conditions.ph }}</td>
+              {% endif %}
+              {% if reaction.conditions.HasField('conditions_are_dynamic') %}
+                <td>Conditions are dynamic</td>
+                <td>{{ reaction.conditions.conditions_are_dynamic }}</td>
+              {% endif %}
+              {% if reaction.conditions.details %}
+                <td>Details</td>
+                <td>{{ reaction.conditions.details }}</td>
+              {% endif %}
             </tr>
           </table>
         </div>
-      {% endif %}
-      {% if reaction.conditions.electrochemistry|defined %}
-        <div id="conditions_tabs-electrochemistry">
-          <table class="sub">
-            <tr>
-              <td>Type</td>
-              <td>{{ reaction.conditions.electrochemistry|type_and_details }}</td>
-            </tr>
-            <tr>
-              <td>Cell Type</td>
-              <td>{{ reaction.conditions.electrochemistry.cell|type_and_details }}</td>
-            </tr>
-            <tr>
-              <td>Current</td>
-              <td>{{ reaction.conditions.electrochemistry.current|unit_format }}</td>
-            </tr>
-            <tr>
-              <td>Voltage</td>
-              <td>{{ reaction.conditions.electrochemistry.voltage|unit_format }}</td>
-            </tr>
-            {% if reaction.conditions.electrochemistry.anode_material %}
-              <tr>
-                <td>Anode Material</td>
-                <td>{{ reaction.conditions.electrochemistry.anode_material }}</td>
-              </tr>
-            {% endif %}
-            {% if reaction.conditions.electrochemistry.cathode_material %}
-              <tr>
-                <td>Cathode Material</td>
-                <td>{{ reaction.conditions.electrochemistry.cathode_material }}</td>
-              </tr>
-            {% endif %}
-            <tr>
-              <td>Electrode Separation</td>
-              <td>{{ reaction.conditions.electrochemistry.electrode_separation|unit_format }}</td>
-            </tr>
-            <tr>
-              <td>Rate</td>
-              <td>{{ reaction.conditions.stirring.rate|type_and_details }}</td>
-            </tr>
-            {% if reaction.conditions.stirring.rate.rpm %}
-              <tr>
-                <td>RPM</td>
-                <td>{{ reaction.conditions.stirring.rate.rpm }}</td>
-              </tr>
-            {% endif %}
-            {% if reaction.conditions.electrochemistry.measurements %}
-              <tr>
-                <td>Measurements</td>
-                <td colspan="2">
-                  <table>
-                    <thead>
-                    <tr>
-                      <th>Time</th>
-                      <th>Value</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {% for measurement in reaction.conditions.electrochemistry.measurements %}
-                      <tr>
-                        <td>{{ measurement.time|unit_format }}</td>
-                        <td>{{ measurement|oneof|unit_format }}</td>
-                      </tr>
-                    {% endfor %}
-                    </tbody>
-                  </table>
-                </td>
-              </tr>
-            {% endif %}
-          </table>
-        </div>
-      {% endif %}
-      {% if reaction.conditions.flow|defined %}
-        <div id="conditions_tabs-flow">
-          <table class="sub">
-            <tr>
-              <td>Type</td>
-              <td>{{ reaction.conditions.flow|type_and_details }}</td>
-            </tr>
-            {% if reaction.conditions.flow.pump_type %}
-              <tr>
-                <td>Pump Type</td>
-                <td>{{ reaction.conditions.flow.pump_type }}</td>
-              </tr>
-            {% endif %}
-            <tr>
-              <td>Tubing</td>
-              <td>{{ reaction.conditions.flow.tubing|type_and_details }}</td>
-            </tr>
-            <tr>
-              <td>Tubing Diameter</td>
-              <td>{{ reaction.conditions.flow.tubing.diameter|unit_format }}</td>
-            </tr>
-          </table>
-        </div>
-      {% endif %}
-      <div id="conditions_tabs-other">
-        <table>
-          <tr>
-            {% if reaction.conditions.HasField('reflux') %}
-              <td>Reflux</td>
-              <td>{{ reaction.conditions.reflux }}</td>
-            {% endif %}
-            {% if reaction.conditions.HasField('ph') %}
-              <td>pH</td>
-              <td>{{ reaction.conditions.ph }}</td>
-            {% endif %}
-            {% if reaction.conditions.HasField('conditions_are_dynamic') %}
-              <td>Conditions are dynamic</td>
-              <td>{{ reaction.conditions.conditions_are_dynamic }}</td>
-            {% endif %}
-            {% if reaction.conditions.details %}
-              <td>Details</td>
-              <td>{{ reaction.conditions.details }}</td>
-            {% endif %}
-          </tr>
-        </table>
       </div>
     </div>
-  </div>
   {% endif %}
   {% if reaction.notes|defined %}
-  <div id="notes">
-    <h2>Notes</h2>
-    <table>
-      {% if reaction.notes.HasField('is_heterogeneous') %}
-        <tr>
-          <td>Heterogeneous</td>
-          <td>{{ reaction.notes.is_heterogeneous }}</td>
-        </tr>
-      {% endif %}
-      {% if reaction.notes.HasField('forms_precipitate') %}
-        <tr>
-          <td>Forms precipitate</td>
-          <td>{{ reaction.notes.forms_precipitate }}</td>
-        </tr>
-      {% endif %}
-      {% if reaction.notes.HasField('is_exothermic') %}
-        <tr>
-          <td>Exothermic</td>
-          <td>{{ reaction.notes.is_exothermic }}</td>
-        </tr>
-      {% endif %}
-      {% if reaction.notes.HasField('offgasses') %}
-        <tr>
-          <td>Offgasses</td>
-          <td>{{ reaction.notes.offgasses }}</td>
-        </tr>
-      {% endif %}
-      {% if reaction.notes.HasField('is_sensitive_to_moisture') %}
-        <tr>
-          <td>Sensitive to moisture</td>
-          <td>{{ reaction.notes.is_sensitive_to_moisture }}</td>
-        </tr>
-      {% endif %}
-      {% if reaction.notes.HasField('is_sensitive_to_oxygen') %}
-        <tr>
-          <td>Sensitive to oxygen</td>
-          <td>{{ reaction.notes.is_sensitive_to_oxygen }}</td>
-        </tr>
-      {% endif %}
-      {% if reaction.notes.HasField('is_sensitive_to_light') %}
-        <tr>
-          <td>Sensitive to light</td>
-          <td>{{ reaction.notes.is_sensitive_to_light }}</td>
-        </tr>
-      {% endif %}
-      {% if reaction.notes.safety_notes %}
-        <tr>
-          <td>Safety notes</td>
-          <td>reaction.notes.safety_notes</td>
-        </tr>
-      {% endif %}
-      {% if reaction.notes.procedure_details %}
-        <tr>
-          <td>Procedure details</td>
-          <td>reaction.notes.procedure_details</td>
-        </tr>
-      {% endif %}
-    </table>
-  </div>
+    <div id="notes" class="section">
+      <h2>Notes</h2>
+      <table>
+        {% if reaction.notes.HasField('is_heterogeneous') %}
+          <tr>
+            <td>Heterogeneous</td>
+            <td>{{ reaction.notes.is_heterogeneous }}</td>
+          </tr>
+        {% endif %}
+        {% if reaction.notes.HasField('forms_precipitate') %}
+          <tr>
+            <td>Forms precipitate</td>
+            <td>{{ reaction.notes.forms_precipitate }}</td>
+          </tr>
+        {% endif %}
+        {% if reaction.notes.HasField('is_exothermic') %}
+          <tr>
+            <td>Exothermic</td>
+            <td>{{ reaction.notes.is_exothermic }}</td>
+          </tr>
+        {% endif %}
+        {% if reaction.notes.HasField('offgasses') %}
+          <tr>
+            <td>Offgasses</td>
+            <td>{{ reaction.notes.offgasses }}</td>
+          </tr>
+        {% endif %}
+        {% if reaction.notes.HasField('is_sensitive_to_moisture') %}
+          <tr>
+            <td>Sensitive to moisture</td>
+            <td>{{ reaction.notes.is_sensitive_to_moisture }}</td>
+          </tr>
+        {% endif %}
+        {% if reaction.notes.HasField('is_sensitive_to_oxygen') %}
+          <tr>
+            <td>Sensitive to oxygen</td>
+            <td>{{ reaction.notes.is_sensitive_to_oxygen }}</td>
+          </tr>
+        {% endif %}
+        {% if reaction.notes.HasField('is_sensitive_to_light') %}
+          <tr>
+            <td>Sensitive to light</td>
+            <td>{{ reaction.notes.is_sensitive_to_light }}</td>
+          </tr>
+        {% endif %}
+        {% if reaction.notes.safety_notes %}
+          <tr>
+            <td>Safety notes</td>
+            <td>reaction.notes.safety_notes</td>
+          </tr>
+        {% endif %}
+        {% if reaction.notes.procedure_details %}
+          <tr>
+            <td>Procedure details</td>
+            <td>reaction.notes.procedure_details</td>
+          </tr>
+        {% endif %}
+      </table>
+    </div>
   {% endif %}
   {% if reaction.observations %}
-  <div id="observations">
-    <h2>Observations</h2>
-    {% if reaction.observations %}
-      <table>
-        <thead>
-        <tr>
-          <th>Time</th>
-          <th>Comment</th>
-        </tr>
-        </thead>
-        {% for observation in reaction.observations %}
+    <div id="observations" class="section">
+      <h2>Observations</h2>
+      {% if reaction.observations %}
+        <table>
+          <thead>
           <tr>
-            <td>{{ observation.time|unit_format }}</td>
-            <td>{{ observation.comment }}</td>
+            <th>Time</th>
+            <th>Comment</th>
           </tr>
-        {% endfor %}
-      </table>
-    {% endif %}
-  </div>
+          </thead>
+          {% for observation in reaction.observations %}
+            <tr>
+              <td>{{ observation.time|unit_format }}</td>
+              <td>{{ observation.comment }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      {% endif %}
+    </div>
   {% endif %}
   {% if reaction.workups %}
-  <div id="workups">
-    <h2>Workups</h2>
-    {% for workup in reaction.workups %}
-      <div class="float">
-        <table>
-          <tr>
-            <td>Type</td>
-            <td>{{ workup|type_and_details }}</td>
-          </tr>
-          {% if workup.duration|defined %}
-            <tr>
-              <td>Duration</td>
-              <td>{{ workup.duration|unit_format }}</td>
-            </tr>
-          {% endif %}
-          {% if workup.amount|defined %}
-            <tr>
-              <td>Aliquot amount</td>
-              <td>{{ workup.amount|unit_format }}</td>
-            </tr>
-          {% endif %}
-          {% if workup.keep_phase %}
-            <tr>
-              <td>Phase kept</td>
-              <td>{{ workup.keep_phase }}</td>
-            </tr>
-          {% endif %}
-          {% if workup.HasField('target_ph') %}
-            <tr>
-              <td>Phase kept</td>
-              <td>{{ workup.target_ph }}</td>
-            </tr>
-          {% endif %}
-          {% if workup.HasField('is_automated') %}
-            <tr>
-              <td>Phase kept</td>
-              <td>{{ workup.is_automated }}</td>
-            </tr>
-          {% endif %}
-        </table>
-      </div>
-    {% endfor %}
-  </div>
-  {% endif %}
-  <div id="outcomes">
-    <h2>Outcomes</h2>
-    <div id="outcomes_tabs" class="tabs">
-      <ul>
-        {% for outcome in reaction.outcomes %}
-          <li><a href="outcome-{{ loop.index }}">Outcome #{{ loop.index }}</a></li>
+    <div id="workups" class="section">
+      <h2>Workups</h2>
+      <nav>
+        <div class="nav nav-tabs" role="tablist">
+          {% for workup in reaction.workups %}
+            <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#workups-{{ loop.index }}"
+                    role="tab">{{ workup|type }}
+            </button>
+          {% endfor %}
+        </div>
+      </nav>
+      <div class="tab-content">
+        {% for workup in reaction.workups %}
+          <div id="workups-{{ loop.index }}" class="tab-pane fade" role="tabpanel">
+            <table>
+              <tr>
+                <td>Type</td>
+                <td>{{ workup|type_and_details }}</td>
+              </tr>
+              {% if workup.duration|defined %}
+                <tr>
+                  <td>Duration</td>
+                  <td>{{ workup.duration|unit_format }}</td>
+                </tr>
+              {% endif %}
+              {% if workup.amount|defined %}
+                <tr>
+                  <td>Aliquot amount</td>
+                  <td>{{ workup.amount|unit_format }}</td>
+                </tr>
+              {% endif %}
+              {% if workup.keep_phase %}
+                <tr>
+                  <td>Phase kept</td>
+                  <td>{{ workup.keep_phase }}</td>
+                </tr>
+              {% endif %}
+              {% if workup.HasField('target_ph') %}
+                <tr>
+                  <td>Phase kept</td>
+                  <td>{{ workup.target_ph }}</td>
+                </tr>
+              {% endif %}
+              {% if workup.HasField('is_automated') %}
+                <tr>
+                  <td>Phase kept</td>
+                  <td>{{ workup.is_automated }}</td>
+                </tr>
+              {% endif %}
+            </table>
+          </div>
         {% endfor %}
-      </ul>
+      </div>
+    </div>
+  {% endif %}
+  <div id="outcomes" class="section">
+    <h2>Outcomes</h2>
+    <nav>
+      <div class="nav nav-tabs" role="tablist">
+        {% for outcome in reaction.outcomes %}
+          <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#outcome-{{ loop.index }}"
+                  role="tab">Outcome #{{ loop.index }}</button>
+        {% endfor %}
+      </div>
+    </nav>
+    <div class="tab-content">
       {% for outcome in reaction.outcomes %}
         {% set outcome_loop = loop %}
-        <div id="outcome-{{ loop.index }}">
+        <div id="outcome-{{ loop.index }}" class="tab-pane fade" role="tabpanel">
           <h3>Details</h3>
           <table>
             {% if outcome.reaction_time|defined %}
@@ -747,15 +813,18 @@
             {% endif %}
           </table>
           <h3>Products</h3>
-          <div id="products_tabs-{{ outcome_loop.index }}" class="tabs">
-            <ul>
+          <nav>
+            <div class="nav nav-tabs" role="tablist">
               {% for product in outcome.products %}
-                <li><a href="outcome-{{ outcome_loop.index }}_product-{{ loop.index }}">Product #{{ loop.index }}</a>
-                </li>
+                <button type="button" class="nav-link" data-bs-toggle="tab"
+                        data-bs-target="#outcome-{{ outcome_loop.index }}_product-{{ loop.index }}" role="tab">Product
+                  #{{ loop.index }}</button>
               {% endfor %}
-            </ul>
+            </div>
+          </nav>
+          <div class="tab-content">
             {% for product in outcome.products %}
-              <div id="outcome-{{ outcome_loop.index }}_product-{{ loop.index }}">
+              <div id="outcome-{{ outcome_loop.index }}_product-{{ loop.index }}" class="tab-pane fade" role="tabpanel">
                 <table class="components">
                   <thead>
                   <tr>
@@ -766,13 +835,13 @@
                   </thead>
                   <tbody>
                   <tr>
-                    <td style="text-align: center;">{{ product|compound_svg(bond_length) }}</td>
+                    <td><div class="image">{{ product|compound_svg(bond_length) }}</div></td>
                     <td>{{ product|compound_role }}</td>
                     <td>
-                      <div class="toggle_raw">
-                        <button class="toggle_raw_button">Show</button>
-                      </div>
-                      <pre class="raw hidden">{{ product|product_pbtxt }}</pre>
+                      <button type="button" class="btn btn-secondary" data-toggle="tooltip"
+                              title="{{ product|product_pbtxt|escape }}">
+                        <i class="bi bi-code"></i>
+                      </button>
                     </td>
                   </tr>
                   </tbody>
@@ -797,10 +866,10 @@
                         <td>{{ measurement|oneof('value')|product_measurement_value }}</td>
                         <td>{{ measurement.analysis_key }}</td>
                         <td>
-                          <div class="toggle_raw">
-                            <button class="toggle_raw_button">Show</button>
-                          </div>
-                          <pre class="raw hidden">{{ measurement|pbtxt }}</pre>
+                          <button type="button" class="btn btn-secondary" data-toggle="tooltip"
+                                  title="{{ measurement|pbtxt|escape }}">
+                            <i class="bi bi-code"></i>
+                          </button>
                         </td>
                       </tr>
                     {% endfor %}
@@ -812,14 +881,19 @@
             {% endfor %}
           {% if outcome.analyses %}
             <h3>Analyses</h3>
-            <div id="analyses_tabs-{{ loop.index }}" class="tabs">
-              <ul>
+            <nav>
+              <div class="nav nav-tabs" role="tablist">
                 {% for key, value in outcome.analyses.items() %}
-                  <li><a href="outcome-{{ outcome_loop.index }}_analysis-{{ loop.index }}">{{ key }}</a></li>
+                  <button type="button" class="nav-link" data-bs-toggle="tab"
+                          data-bs-target="#outcome-{{ outcome_loop.index }}_analysis-{{ loop.index }}"
+                          role="tab">{{ key }}</button>
                 {% endfor %}
-              </ul>
+              </div>
+            </nav>
+            <div class="tab-content">
               {% for key, value in outcome.analyses.items() %}
-                <div id="outcome-{{ outcome_loop.index }}_analysis-{{ loop.index }}">
+                <div id="outcome-{{ outcome_loop.index }}_analysis-{{ loop.index }}" class="tab-pane fade"
+                     role="tabpanel">
                   <table>
                     <tr>
                       <td>Type</td>
@@ -832,10 +906,10 @@
                     <tr>
                       <td>Raw</td>
                       <td>
-                        <div class="toggle_raw">
-                          <button class="toggle_raw_button">Show</button>
-                        </div>
-                        <pre class="raw hidden">{{ value|pbtxt }}</pre>
+                        <button type="button" class="btn btn-secondary" data-toggle="tooltip"
+                                title="{{ value|pbtxt|escape }}">
+                          <i class="bi bi-code"></i>
+                        </button>
                       </td>
                     </tr>
                   </table>
@@ -847,7 +921,7 @@
       {% endfor %}
     </div>
   </div>
-  <div id="provenance">
+  <div id="provenance" class="section">
     <h2>Provenance</h2>
     <div>
       <table>
@@ -912,14 +986,17 @@
     </div>
     <div>
       <h3>Record Events</h3>
-      <div id="record_events_tabs" class="tabs">
-        <ul>
+      <nav>
+        <div class="nav nav-tabs" role="tablist">
           {% for event in reaction.provenance|events %}
-            <li><a href="#record_event-{{ loop.index }}">{{ event.time|datetimeformat }}</a></li>
+            <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#record_event-{{ loop.index }}"
+                    role="tab">{{ event.time|datetimeformat }}</button>
           {% endfor %}
-        </ul>
+        </div>
+      </nav>
+      <div class="tab-content">
         {% for event in reaction.provenance|events %}
-          <div id="record_event-{{ loop.index }}">
+          <div id="record_event-{{ loop.index }}" class="tab-pane fade" role="tabpanel">
             <table>
               {% if event.details %}
                 <tr>
@@ -968,7 +1045,7 @@
       </div>
     </div>
   </div>
-  <div id="record">
+  <div id="record" class="section">
     <h2>Full Record</h2>
     <div>
       <button class="toggle_raw_button">Show</button>
@@ -976,14 +1053,18 @@
     <pre class="raw hidden">{{ reaction|pbtxt }}</pre>
   </div>
 </div>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+        crossorigin="anonymous"></script>
 <script>
     document.body.onload = function () {
-        $('.tabs').tabs({
-            heightStyle: 'content',
-            hide: false,
-            show: true,
+        $('.nav-tabs').each(function () {
+            // Select the first tab in each group.
+            $('.nav-link', this).first().trigger('click');
         });
-        $('.navSection').click(event => {
+        const navSections = $('.navSection');
+        navSections.click(event => {
             const section = $(event.target).attr('data-section');
             $('#' + section)[0].scrollIntoView({behavior: 'smooth'});
         });
@@ -995,12 +1076,40 @@
             const element = $(this);
             const target = element.parent().siblings('.raw');
             if (element.text() === 'Show') {
-                target.css('visibility', 'visible');
+                target.show();
                 element.text('Hide');
             } else {
-                target.css('visibility', 'hidden');
+                target.hide();
                 element.text('Show');
             }
+        });
+        // Initialize tooltips.
+        $(function () {
+            $('[data-toggle="tooltip"]').tooltip({
+                placement: 'right',  // See https://stackoverflow.com/a/54092070.
+                trigger: 'click',
+            });
+        });
+        // Set up the sidebar observer.
+        const navSelectors = {};
+        navSections.each((index, selector) => {
+            selector = $(selector);
+            const section = selector.attr('data-section');
+            navSelectors[section] = selector;
+        });
+        const observer = new IntersectionObserver(function (entries) {
+            entries.forEach(entry => {
+                const target = $(entry.target);
+                const section = target.attr('id');
+                if (entry.isIntersecting) {
+                    navSelectors[section].css('background-color', 'lightblue');
+                } else {
+                    navSelectors[section].css('background-color', '');
+                }
+            });
+        });
+        $('.section').each(function () {
+            observer.observe(this);
         });
     };
 </script>
