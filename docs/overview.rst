@@ -165,7 +165,7 @@ committee is:
 * Spencer Dreher (Merck)
 * Joel Hawkins (Pfizer)
 * Klavs Jensen (MIT)
-* Steven Kearnes (Google)
+* Steven Kearnes (Relay)
 
 Advisory Board
 ==============
