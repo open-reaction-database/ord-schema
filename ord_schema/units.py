@@ -238,8 +238,10 @@ def format_message(message: ord_schema.UnitMessage) -> Optional[str]:
     return txt
 
 
-def compute_solute_quantity(volume: reaction_pb2.Volume,
-                            concentration: reaction_pb2.Concentration):
+def compute_solute_quantity(
+        volume: reaction_pb2.Volume,
+        concentration: reaction_pb2.Concentration) -> reaction_pb2.Amount:
+    """Computes the quantity of a solute, given volume and concentration."""
     volume_conversion = {
         volume.LITER: 1,
         volume.MILLILITER: 1e-3,
