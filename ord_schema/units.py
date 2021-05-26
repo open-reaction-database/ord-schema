@@ -236,3 +236,35 @@ def format_message(message: ord_schema.UnitMessage) -> Optional[str]:
         txt += f'(± {message.precision:.7g}) '
     txt += _UNIT_SYNONYMS[type(message)][message.units][0]
     return txt
+
+
+def compute_solute_quantity(volume: reaction_pb2.Volume,
+                            concentration: reaction_pb2.Concentration):
+    volume_conversion = {
+        volume.LITER: 1,
+        volume.MILLILITER: 1e-3,
+        volume.MICROLITER: 1e-6,
+        volume.NANOLITER: 1e-9,
+    }[volume.units]
+    concentration_conversion = {
+        concentration.MOLAR: 1,
+        concentration.MILLIMOLAR: 1e-3,
+        concentration.MICROMOLAR: 1e-6,
+    }[concentration.units]
+    volume_liter = volume.value * volume_conversion
+    concentration_molar = concentration.value * concentration_conversion
+
+    moles = volume_liter * concentration_molar
+    if moles < 1e-6:
+        value = moles * 1e9
+        unit = reaction_pb2.Moles.NANOMOLE
+    elif moles < 1e-3:
+        value = moles * 1e6
+        unit = reaction_pb2.Moles.MICROMOLE
+    elif moles < 1:
+        value = moles * 1e3
+        unit = reaction_pb2.Moles.MILLIMOLE
+    else:
+        value = moles
+        unit = reaction_pb2.Moles.MOLE
+    return reaction_pb2.Amount(moles=reaction_pb2.Moles(value=value, units=unit))
