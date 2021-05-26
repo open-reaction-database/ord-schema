@@ -35,26 +35,29 @@ def simple_solution(
 
     if volume is not None and concentration is not None:
         solute_amount = units.compute_solute_quantity(volume, concentration)
+    else:
+        solute_amount = None
 
     output_compounds = []
-    if solvent_smiles:
-        component = reaction_pb2.Compound()
-        component.identifiers.add(value=solvent_smiles, type='SMILES')
-        if solute_smiles:
-            component.amount.volume_includes_solutes = True
-        component.amount.volume.MergeFrom(volume)
-        output_compounds.append(component)
+    solvent_pb = reaction_pb2.Compound()
+    solvent_pb.identifiers.add(value=solvent_smiles, type='SMILES')
+    if volume is not None:
+        solvent_pb.amount.volume.MergeFrom(volume)
+        if solute_smiles is not None:
+            solvent_pb.amount.volume_includes_solutes = True
+    output_compounds.append(solvent_pb)
 
     if solute_smiles:
-        component = reaction_pb2.Compound()
-        component.identifiers.add(value=solute_smiles, type='SMILES')
-        component.amount.MergeFrom(solute_amount)
-        output_compounds.append(component)
+        solute_pb = reaction_pb2.Compound()
+        solute_pb.identifiers.add(value=solute_smiles, type='SMILES')
+        if solute_amount is not None:
+            solute_pb.amount.MergeFrom(solute_amount)
+        output_compounds.append(solute_pb)
     return output_compounds
 
 
 def BRINE(volume=None):
-    return simple_solution(solute_smiles='[Na+][Cl-]',
+    return simple_solution(solute_smiles='[Na+].[Cl-]',
                            solvent_smiles='O',
                            volume=volume,
                            concentration='6.14 M')
