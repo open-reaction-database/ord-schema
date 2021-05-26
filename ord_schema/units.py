@@ -267,4 +267,5 @@ def compute_solute_quantity(volume: reaction_pb2.Volume,
     else:
         value = moles
         unit = reaction_pb2.Moles.MOLE
-    return reaction_pb2.Amount(moles=reaction_pb2.Moles(value=value, units=unit))
+    return reaction_pb2.Amount(
+        moles=reaction_pb2.Moles(value=value, units=unit))

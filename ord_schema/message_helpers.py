@@ -178,8 +178,8 @@ def set_solute_moles(solute: reaction_pb2.Compound,
     concentration_pb = resolver.resolve(concentration)
 
     solute_moles = units.compute_solute_quantity(
-        reaction_pb2.Volume(value=volume_liter, units=reaction_pb2.Volume.LITER),
-        concentration_pb)
+        reaction_pb2.Volume(value=volume_liter,
+                            units=reaction_pb2.Volume.LITER), concentration_pb)
     solute.amount.MergeFrom(solute_moles)
     return [solute] + solvents
 

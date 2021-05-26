@@ -18,14 +18,16 @@ from ord_schema.proto import reaction_pb2
 from ord_schema import units
 
 UNITS_RESOLVER = units.UnitResolver()
-CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
+CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS,
+                                            forbidden_units={})
+
 
 def simple_solution(
-        solvent_smiles=None,
-        solute_smiles=None,
-        volume: Union[None, str, reaction_pb2.Volume] = None,
-        concentration: Union[None, str, reaction_pb2.Concentration] = None
-        ) -> List[reaction_pb2.Compound]:
+    solvent_smiles=None,
+    solute_smiles=None,
+    volume: Union[None, str, reaction_pb2.Volume] = None,
+    concentration: Union[None, str, reaction_pb2.Concentration] = None
+) -> List[reaction_pb2.Compound]:
     if isinstance(volume, str):
         volume = UNITS_RESOLVER.resolve(volume)
     if isinstance(concentration, str):
@@ -50,6 +52,9 @@ def simple_solution(
         output_compounds.append(component)
     return output_compounds
 
+
 def BRINE(volume=None):
-    return simple_solution(solute_smiles='[Na+][Cl-]', solvent_smiles='O',
-        volume=volume, concentration='6.14 M')
+    return simple_solution(solute_smiles='[Na+][Cl-]',
+                           solvent_smiles='O',
+                           volume=volume,
+                           concentration='6.14 M')

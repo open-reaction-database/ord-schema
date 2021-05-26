@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Macros for quickly creating workup steps.
 
 Example usage:
@@ -51,10 +50,9 @@ from ord_schema.macros import solutions
 UNITS_RESOLVER = units.UnitResolver()
 CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS)
 
-def add_solution(
-        solution: List[reaction_pb2.Compound],
-        type: Optional[str] = None
-        ) -> reaction_pb2.ReactionWorkup:
+
+def add_solution(solution: List[reaction_pb2.Compound],
+                 type: Optional[str] = None) -> reaction_pb2.ReactionWorkup:
     workup = reaction_pb2.ReactionWorkup(type=type)
     workup.type = workup.ADDITION
     workup.input.components.MergeFrom(solution)

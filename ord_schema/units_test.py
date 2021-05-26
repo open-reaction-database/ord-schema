@@ -57,14 +57,16 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
         ('3mL', '0.1 molar', '300 micromoles'),
         ('100mL', '0.1 molar', '10 millimoles'),
     )
-    def test_compute_solute_quantity(self, volume, concentration, expected_quantity):
-        conc_resolver = units.UnitResolver(unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS)
+    def test_compute_solute_quantity(self, volume, concentration,
+                                     expected_quantity):
+        conc_resolver = units.UnitResolver(
+            unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS)
         self.assertEqual(
             units.compute_solute_quantity(
                 volume=self._resolver.resolve(volume),
                 concentration=conc_resolver.resolve(concentration)),
-            reaction_pb2.Amount(moles=self._resolver.resolve(expected_quantity)))
-
+            reaction_pb2.Amount(
+                moles=self._resolver.resolve(expected_quantity)))
 
     @parameterized.named_parameters(
         ('integer', '1-2 h',
