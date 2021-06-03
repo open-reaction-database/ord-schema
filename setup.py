@@ -43,6 +43,8 @@ class BuildPyCommand(build_py.build_py):
         # build_py.build_py is an old-style class, so super() doesn't work.
         build_py.build_py.run(self)
 
+with open ("requirements.txt", "r") as f:
+    requirements = f.readlines()
 
 setuptools.setup(name='ord-schema',
                  description='Schema for the Open Reaction Database',
@@ -56,4 +58,6 @@ setuptools.setup(name='ord-schema',
                          'template.txt',
                      ],
                  },
-                 cmdclass={'build_py': BuildPyCommand})
+                 install_requires=requirements,
+                 cmdclass={'build_py': BuildPyCommand}
+)
