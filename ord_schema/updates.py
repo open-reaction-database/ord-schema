@@ -99,12 +99,14 @@ def update_dataset(dataset: dataset_pb2.Dataset):
         for reaction_input in reaction.inputs.values():
             for component in reaction_input.components:
                 for preparation in component.preparations:
-                    if preparation.reaction_id:
-                        preparation.reaction_id = id_substitutions[
-                            preparation.reaction_id]
+                    if (preparation.reaction_id and
+                            preparation.reaction_id in id_substitutions):
+                        preparation.reaction_id = (
+                            id_substitutions[preparation.reaction_id])
             for crude_component in reaction_input.crude_components:
-                crude_component.reaction_id = id_substitutions[
-                    crude_component.reaction_id]
+                if crude_component.reaction_id in id_substitutions:
+                    crude_component.reaction_id = (
+                        id_substitutions[crude_component.reaction_id])
 
 
 # Standard updates.
