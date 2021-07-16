@@ -28,6 +28,7 @@ from absl import app
 from absl import flags
 from absl import logging
 import requests
+import tqdm
 
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
@@ -44,8 +45,7 @@ def main(argv):
     logging.info('Found %d datasets', len(filenames))
     dois = collections.defaultdict(list)
     output_filenames = {}
-    for filename in filenames:
-        logging.info('Checking %s', filename)
+    for filename in tqdm.tqdm(filenames):
         dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
         dataset_id = os.path.basename(filename).split('.')[0]
         if dataset.dataset_id != dataset_id:
@@ -58,23 +58,37 @@ def main(argv):
             match = re.fullmatch(r'(?:(?:doi)|(?:DOI))?:?\s*(.+)',
                                  reaction.provenance.doi)
             if not match:
-                continue  # No DOI.
-            doi = urllib.parse.urlsplit(match.group(1)).path
+                doi = 'None'
+            else:
+                doi = urllib.parse.urlsplit(match.group(1)).path
             if doi.startswith('/'):
                 doi = doi[1:]
-            doi_set.add(doi)
+            doi_set.add(doi.lower())
         for doi in doi_set:
-            dois[doi].append(dataset_id)
+            if dataset.description.startswith('CML filenames:'):
+                description = ''
+            else:
+                description = dataset.description
+            dois[doi].append(
+                (dataset_id, len(dataset.reactions), description))
+    print('| Citation | Dataset | Reactions | Description |')
+    print('| - | - | -: | - |')
     for doi in sorted(dois):
-        url = f'https://doi.org/{doi}'
-        reference = requests.get(
-            url, headers={'Accept': 'text/x-bibliography; style=nature'})
-        citation = (f'{reference.content.decode().strip()[2:]} '
-                    f'[doi: {doi}]({url})')
-        print(f'* {citation}')
-        for dataset in sorted(dois[doi]):
+        if doi != 'none':
+            url = f'https://doi.org/{doi}'
+            reference = requests.get(
+                url, headers={'Accept': 'text/x-bibliography; style=nature'})
+            citation = (f'{reference.content.decode().strip()[2:]} '
+                        f'[doi: {doi}]({url})')
+        else:
+            citation = '(None)'
+        for i, (dataset, count, description) in enumerate(sorted(dois[doi])):
+            if i == 0:
+                col = citation
+            else:
+                col = ''
             url = urllib.parse.urljoin(_PREFIX, output_filenames[dataset])
-            print(f'  * [{dataset}]({url})')
+            print(f'| {col} | [link]({url}) | {count} | {description} |')
 
 
 if __name__ == '__main__':
