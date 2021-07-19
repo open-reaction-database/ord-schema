@@ -45,14 +45,14 @@ MessageType = TypeVar('MessageType')  # Generic for setting return types.
 # pylint: disable=too-many-locals
 
 
-def build_compound(smiles: str = None,
-                   name: str = None,
-                   amount: str = None,
-                   role: str = None,
-                   is_limiting: bool = None,
-                   prep: str = None,
-                   prep_details: str = None,
-                   vendor: str = None) -> reaction_pb2.Compound:
+def build_compound(smiles: Optional[str] = None,
+                   name: Optional[str] = None,
+                   amount: Optional[str] = None,
+                   role: Optional[str] = None,
+                   is_limiting: Optional[bool] = None,
+                   prep: Optional[str] = None,
+                   prep_details: Optional[str] = None,
+                   vendor: Optional[str] = None) -> reaction_pb2.Compound:
     """Builds a Compound message with the most common fields.
 
     Args:
@@ -885,7 +885,7 @@ def messages_to_dataframe(messages: Iterable[ord_schema.Message],
 
 def message_to_row(
         message: ord_schema.Message,
-        trace: Tuple[str] = None) -> Dict[str, ord_schema.ScalarType]:
+        trace: Optional[Tuple[str]] = None) -> Dict[str, ord_schema.ScalarType]:
     """Converts a proto into a flat dictionary mapping fields to values.
 
     The keys indicate any nesting; for instance a proto that looks like this:
