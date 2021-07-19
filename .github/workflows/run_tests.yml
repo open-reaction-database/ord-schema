@@ -57,7 +57,7 @@ jobs:
         run: |
           cd "${GITHUB_WORKSPACE}"
           conda install -c rdkit rdkit pip
-          pip install -r requirements.txt -r example_requirements.txt
+          pip install -r requirements.txt -r example_requirements.txt --no-binary
           python setup.py install
       - name: Test notebooks
         run: |
