@@ -44,7 +44,7 @@ jobs:
           yapf --parallel --recursive --exclude="*_pb2.py" --quiet .
       - name: Install ord-schema
         run: |
-          conda install --upgrade -c rdkit rdkit pip
+          conda install -c rdkit rdkit pip
           pip install -r requirements.txt
           # Test deps are required to check imports with pylint.
           pip install -r test_requirements.txt

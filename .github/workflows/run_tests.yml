@@ -28,7 +28,7 @@ jobs:
       run: |
         cd "${GITHUB_WORKSPACE}"
         sudo apt update && sudo apt install -y git
-        conda install --upgrade -c rdkit rdkit pip
+        conda install -c rdkit rdkit pip
         pip install -r requirements.txt
         pip install -r test_requirements.txt
         # NOTE(kearnes): `develop` is required for coverage to work properly.
@@ -56,7 +56,7 @@ jobs:
       - name: Install ord_schema
         run: |
           cd "${GITHUB_WORKSPACE}"
-          conda install --upgrade -c rdkit rdkit pip
+          conda install -c rdkit rdkit pip
           pip install -r requirements.txt
           pip install -r example_requirements.txt
           python setup.py install
