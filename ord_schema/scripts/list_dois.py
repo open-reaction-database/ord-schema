@@ -22,6 +22,7 @@ import collections
 import glob
 import os
 import re
+from typing import Dict, List, Tuple
 import urllib.parse
 
 from absl import app
@@ -39,10 +40,17 @@ flags.DEFINE_string('input', None, 'Input pattern for Dataset protos.')
 _PREFIX = 'https://github.com/Open-Reaction-Database/ord-data/blob/main/'
 
 
-def main(argv):
-    del argv  # Only used by app.run().
-    filenames = glob.glob(FLAGS.input, recursive=True)
-    logging.info('Found %d datasets', len(filenames))
+def get_dois(
+        filenames) -> Tuple[Dict[str, List[Tuple[str, ...]]], Dict[str, str]]:
+    """Builds the DOI table entries.
+
+    Args:
+        filenames: List of dataset filenames.
+
+    Returns:
+        dois: Dict mapping string DOIs to table row tuples.
+        output_filenames: Dict mapping string dataset IDs to filenames.
+    """
     dois = collections.defaultdict(list)
     output_filenames = {}
     for filename in tqdm.tqdm(filenames):
@@ -71,6 +79,14 @@ def main(argv):
                 description = dataset.description
             dois[doi].append(
                 (dataset_id, dataset.name, len(dataset.reactions), description))
+    return dois, output_filenames
+
+
+def main(argv):
+    del argv  # Only used by app.run().
+    filenames = glob.glob(FLAGS.input, recursive=True)
+    logging.info('Found %d datasets', len(filenames))
+    dois, output_filenames = get_dois(filenames)
     print('| Citation | Dataset | Description | Reactions |')
     print('| - | - | - | -: |')
     for doi in sorted(dois):
