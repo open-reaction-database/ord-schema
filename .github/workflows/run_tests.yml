@@ -56,8 +56,9 @@ jobs:
       - name: Install ord_schema
         run: |
           cd "${GITHUB_WORKSPACE}"
-          conda install -c rdkit rdkit pip
-          pip install -r requirements.txt -r example_requirements.txt --upgrade-strategy eager
+          conda install pip
+          pip install -r requirements.txt -r example_requirements.txt
+          conda install -c rdkit rdkit
           python setup.py install
       - name: Test notebooks
         run: |
