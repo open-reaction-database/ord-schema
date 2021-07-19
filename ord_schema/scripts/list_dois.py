@@ -70,25 +70,30 @@ def main(argv):
             else:
                 description = dataset.description
             dois[doi].append(
-                (dataset_id, len(dataset.reactions), description))
-    print('| Citation | Dataset | Reactions | Description |')
-    print('| - | - | -: | - |')
+                (dataset_id, dataset.name, len(dataset.reactions), description))
+    print('| Citation | Dataset | Description | Reactions |')
+    print('| - | - | - | -: |')
     for doi in sorted(dois):
         if doi != 'none':
             url = f'https://doi.org/{doi}'
             reference = requests.get(
                 url, headers={'Accept': 'text/x-bibliography; style=nature'})
-            citation = (f'{reference.content.decode().strip()[2:]} '
+            citation = (f'{reference.content.decode().strip()} '
                         f'[doi: {doi}]({url})')
+            if citation.startswith('1.'):
+                citation = citation[2:]
         else:
             citation = '(None)'
-        for i, (dataset, count, description) in enumerate(sorted(dois[doi])):
+        for i, (dataset, name, count,
+                description) in enumerate(sorted(dois[doi])):
             if i == 0:
                 col = citation
             else:
                 col = ''
+            if not name:
+                name = 'link'
             url = urllib.parse.urljoin(_PREFIX, output_filenames[dataset])
-            print(f'| {col} | [link]({url}) | {count} | {description} |')
+            print(f'| {col} | [{name}]({url}) | {description} | {count} |')
 
 
 if __name__ == '__main__':
