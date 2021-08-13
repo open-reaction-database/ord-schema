@@ -126,11 +126,12 @@ CONCENTRATION_UNIT_SYNONYMS = {
 class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
 
-    def __init__(self,
-                 unit_synonyms: Mapping[Type[ord_schema.UnitMessage],
-                                        Mapping[ord_schema.Message,
-                                                Iterable[str]]] = None,
-                 forbidden_units: Optional[Mapping[str, str]] = None):
+    def __init__(
+            self,
+            unit_synonyms: Optional[Mapping[Type[ord_schema.UnitMessage],
+                                            Mapping[ord_schema.Message,
+                                                    Iterable[str]]]] = None,
+            forbidden_units: Optional[Mapping[str, str]] = None):
         """Initializes a UnitResolver.
 
         Args:
