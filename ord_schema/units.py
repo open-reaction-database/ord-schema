@@ -130,7 +130,7 @@ class UnitResolver:
                  unit_synonyms: Mapping[Type[ord_schema.UnitMessage],
                                         Mapping[ord_schema.Message,
                                                 Iterable[str]]] = None,
-                 forbidden_units: Mapping[str, str] = None):
+                 forbidden_units: Optional[Mapping[str, str]] = None):
         """Initializes a UnitResolver.
 
         Args:
