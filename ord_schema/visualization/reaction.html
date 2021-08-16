@@ -756,7 +756,7 @@
               {% if workup.amount|defined %}
                 <tr>
                   <td>Aliquot amount</td>
-                  <td>{{ workup.amount|unit_format }}</td>
+                  <td>{{ workup.amount|oneof|unit_format }}</td>
                 </tr>
               {% endif %}
               {% if workup.keep_phase %}
@@ -807,8 +807,8 @@
             {% endif %}
             {% if outcome.conversion|defined %}
               <tr>
-                <td>Addition Time</td>
-                <td>{{ outcome.conversion|unit_format }}</td>
+                <td>Conversion</td>
+                <td>{{ outcome.conversion|product_measurement_value }}</td>
               </tr>
             {% endif %}
           </table>
