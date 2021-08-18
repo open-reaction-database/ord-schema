@@ -280,9 +280,11 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
 
     def test_unmeasured_amount(self):
         compound = message_helpers.build_compound(smiles='CCO',
-            amount='catalytic')
-        expected = reaction_pb2.Compound(identifiers=[
-            reaction_pb2.CompoundIdentifier(value='CCO', type='SMILES'),],
+                                                  amount='catalytic')
+        expected = reaction_pb2.Compound(
+            identifiers=[
+                reaction_pb2.CompoundIdentifier(value='CCO', type='SMILES'),
+            ],
             amount=dict(unmeasured=dict(type='CATALYTIC')))
         self.assertEqual(compound, expected)
 
