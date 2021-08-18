@@ -495,6 +495,10 @@ def validate_amount(message: reaction_pb2.Amount):
             ValidationError)
 
 
+def validate_unmeasured_amount(message: reaction_pb2.UnmeasuredAmount):
+    check_type_and_details(message)
+
+
 def validate_source(message: reaction_pb2.Compound.Source):
     del message  # Unused.
 
@@ -1046,6 +1050,8 @@ _VALIDATOR_SWITCH = {
     # Compounds
     reaction_pb2.Amount:
         validate_amount,
+    reaction_pb2.UnmeasuredAmount:
+        validate_unmeasured_amount,
     reaction_pb2.CrudeComponent:
         validate_crude_component,
     reaction_pb2.Compound:

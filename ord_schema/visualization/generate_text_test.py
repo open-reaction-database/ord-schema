@@ -43,6 +43,13 @@ class GenerateTextTest(absltest.TestCase):
                 role='solvent',
                 amount='40 liters',
             ))
+        reaction.inputs['dummy_input2'].components.add().CopyFrom(
+            message_helpers.build_compound(
+                name='Pd',
+                smiles='[Pd]',
+                role='catalyst',
+                amount='catalytic',
+            ))
         reaction.conditions.pressure.atmosphere.type = (
             reaction_pb2.PressureConditions.Atmosphere.OXYGEN)
         reaction.conditions.stirring.rate.rpm = 100
