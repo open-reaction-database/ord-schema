@@ -156,7 +156,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
                 identifiers=[dict(type='SMILES', value='c1ccccc1')],
                 amount=dict(unmeasured=dict(type='SATURATED'))))
         output = self._run_validation(message)
-        self.assertLen(output.warnings, 1)        
+        self.assertLen(output.warnings, 1)
         message.components.add().CopyFrom(
             reaction_pb2.Compound(identifiers=[dict(type='SMILES', value='O')]))
         output = self._run_validation(message)
