@@ -476,6 +476,15 @@ def validate_reaction_input(message: reaction_pb2.ReactionInput):
     if len(message.components) + len(message.crude_components) == 0:
         warnings.warn('Reaction inputs must have at least one component',
                       ValidationError)
+    elif len(message.components) + len(message.crude_components) == 1:
+        for component in message.components:
+            if (component.amount.WhichOneof('kind') == 'unmeasured' and
+                    component.amount.unmeasured.type
+                    == reaction_pb2.UnmeasuredAmount.SATURATED):
+                warnings.warn(
+                    'SATURATED compound amounts should only be used '
+                    'for solutes when another component (solvent) is present',
+                    ValidationWarning)
 
 
 def validate_addition_device(
