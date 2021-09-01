@@ -476,6 +476,15 @@ def validate_reaction_input(message: reaction_pb2.ReactionInput):
     if len(message.components) + len(message.crude_components) == 0:
         warnings.warn('Reaction inputs must have at least one component',
                       ValidationError)
+    elif len(message.components) + len(message.crude_components) == 1:
+        for component in message.components:
+            if (component.amount.WhichOneof('kind') == 'unmeasured' and
+                    component.amount.unmeasured.type
+                    == reaction_pb2.UnmeasuredAmount.SATURATED):
+                warnings.warn(
+                    'SATURATED compound amounts should only be used '
+                    'for solutes when another component (solvent) is present',
+                    ValidationWarning)
 
 
 def validate_addition_device(
@@ -493,6 +502,10 @@ def validate_amount(message: reaction_pb2.Amount):
         warnings.warn(
             'volume_includes_solutes should only be set for volume amounts',
             ValidationError)
+
+
+def validate_unmeasured_amount(message: reaction_pb2.UnmeasuredAmount):
+    check_type_and_details(message)
 
 
 def validate_source(message: reaction_pb2.Compound.Source):
@@ -1046,6 +1059,8 @@ _VALIDATOR_SWITCH = {
     # Compounds
     reaction_pb2.Amount:
         validate_amount,
+    reaction_pb2.UnmeasuredAmount:
+        validate_unmeasured_amount,
     reaction_pb2.CrudeComponent:
         validate_crude_component,
     reaction_pb2.Compound:

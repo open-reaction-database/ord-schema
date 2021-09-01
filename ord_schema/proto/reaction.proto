@@ -176,12 +176,37 @@ message Amount {
     Mass mass = 1;
     Moles moles = 2;
     Volume volume = 3;
+    UnmeasuredAmount unmeasured = 5;
   }
   // Whether the volume measurement refers to the pure substance or to the
   // total volume of the reaction input. An example of when this field should
   // be TRUE is when stock solutions are prepared by adding solvent to a
   // volumetric flask already containing solute(s).
   optional bool volume_includes_solutes = 4;
+}
+
+/**
+ * Compounds may be defined with qualitative amounts in situations where a
+ * precise quantity is not measured or reported.
+ */
+message UnmeasuredAmount {
+  enum UnmeasuredAmountType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    // Solute species present at saturation limit. Should only be used for
+    // compounds when a solvent compound is also present in he same input.
+    SATURATED = 2;
+    // An unmeasured drop or scoop of compound intended to introduce it only
+    // at a catalytic (very low) concentration.
+    CATALYTIC = 3;
+    // Compound was titrated in, but the actual amount added was not recorded.
+    // Details of how the amount of compound added was decided, e.g., a change
+    // in color, should be included in the details field.
+    TITRATED = 4;
+  }
+  UnmeasuredAmountType type = 1;
+  // Full description of the unmeasured amount if more details are known.
+  string details = 2;
 }
 
 /**

@@ -408,6 +408,16 @@ def _amount(amount: reaction_pb2.Amount) -> Optional[str]:
     kind = amount.WhichOneof('kind')
     if not kind:
         return ''
+    if kind == 'unmeasured':
+        unmeasured_amount = getattr(amount, kind)
+        options = {
+            reaction_pb2.UnmeasuredAmount.UNSPECIFIED: 'unspecified',
+            reaction_pb2.UnmeasuredAmount.CUSTOM: unmeasured_amount.details,
+            reaction_pb2.UnmeasuredAmount.SATURATED: 'saturated',
+            reaction_pb2.UnmeasuredAmount.CATALYTIC: 'catalytic',
+            reaction_pb2.UnmeasuredAmount.TITRATED: 'titrated',
+        }
+        return options[unmeasured_amount.type]
     return units.format_message(getattr(amount, kind))
 
 
