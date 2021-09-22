@@ -43,6 +43,13 @@ class GenerateTextTest(absltest.TestCase):
                 role='solvent',
                 amount='40 liters',
             ))
+        reaction.inputs['dummy_input2'].components.add().CopyFrom(
+            message_helpers.build_compound(
+                name='Pd',
+                smiles='[Pd]',
+                role='catalyst',
+                amount='catalytic',
+            ))
         reaction.conditions.pressure.atmosphere.type = (
             reaction_pb2.PressureConditions.Atmosphere.OXYGEN)
         reaction.conditions.stirring.rate.rpm = 100
@@ -69,6 +76,7 @@ class GenerateTextTest(absltest.TestCase):
         self.assertRegex(text, 'hexanone')
         self.assertRegex(text, 'automatically')
         self.assertRegex(text, 'mL')
+        self.assertRegex(text, 'catalytic')
 
     def test_html(self):
         html = generate_text.generate_html(self._reaction)
@@ -79,6 +87,7 @@ class GenerateTextTest(absltest.TestCase):
         self.assertRegex(html, '40 min')
         self.assertRegex(html, 'solvent')
         self.assertRegex(html, '100 °C')
+        self.assertRegex(html, 'catalytic')
 
     def test_compact_html(self):
         html = generate_text.generate_html(self._reaction, compact=True)

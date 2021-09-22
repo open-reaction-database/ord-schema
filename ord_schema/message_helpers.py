@@ -81,16 +81,20 @@ def build_compound(smiles: Optional[str] = None,
     if name:
         compound.identifiers.add(value=name, type='NAME')
     if amount:
-        resolver = units.UnitResolver()
-        amount_pb = resolver.resolve(amount)
-        if isinstance(amount_pb, reaction_pb2.Mass):
-            compound.amount.mass.CopyFrom(amount_pb)
-        elif isinstance(amount_pb, reaction_pb2.Moles):
-            compound.amount.moles.CopyFrom(amount_pb)
-        elif isinstance(amount_pb, reaction_pb2.Volume):
-            compound.amount.volume.CopyFrom(amount_pb)
+        if amount.lower() in ('saturated', 'catalytic', 'titrated'):
+            compound.amount.unmeasured.CopyFrom(
+                reaction_pb2.UnmeasuredAmount(type=amount.upper()))
         else:
-            raise TypeError(f'unsupported units for amount: {amount_pb}')
+            resolver = units.UnitResolver()
+            amount_pb = resolver.resolve(amount)
+            if isinstance(amount_pb, reaction_pb2.Mass):
+                compound.amount.mass.CopyFrom(amount_pb)
+            elif isinstance(amount_pb, reaction_pb2.Moles):
+                compound.amount.moles.CopyFrom(amount_pb)
+            elif isinstance(amount_pb, reaction_pb2.Volume):
+                compound.amount.volume.CopyFrom(amount_pb)
+            else:
+                raise TypeError(f'unsupported units for amount: {amount_pb}')
     if role:
         field = reaction_pb2.Compound.DESCRIPTOR.fields_by_name['reaction_role']
         values_dict = field.enum_type.values_by_name
