@@ -82,7 +82,7 @@ def drying_agent(agent_smiles: str) -> reaction_pb2.ReactionWorkup:
     return workup
 
 
-def filter(keep_phase:str) -> reaction_pb2.ReactionWorkup:
+def filter(keep_phase: str) -> reaction_pb2.ReactionWorkup:
     """Create a workup representing a filtration step.
 
     keep_phase should be one of 'filtrate' or 'solid'.
