@@ -34,7 +34,7 @@ reaction.workups.MergeFrom([
     workups.add_solution(solutions.simple_solution(
         solvent_smiles='CC(=O)OCC', volume='100mL'), type='EXTRACTION'),
     workups.separate_phases(keep_phase='organic'),
-    workups.add_solution(solutions.BRINE('200mL'), type='WASH'),
+    workups.add_solution(solutions.brine('200mL'), type='WASH'),
     workups.drying_agent('[Mg+2].[O-]S([O-])(=O)=O'),
     workups.filter(keep_phase='filtrate'),
     workups.rotovap(),
@@ -52,20 +52,29 @@ CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS)
 
 
 def add_solution(solution: List[reaction_pb2.Compound],
-                 type: Optional[str] = None) -> reaction_pb2.ReactionWorkup:
+                 type: str = 'ADDITION') -> reaction_pb2.ReactionWorkup:
+    """Create a workup representing addition of a solution.
+    
+    type is commonly one of 'ADDITION', 'EXTRACTION', or 'WASH'; see
+    ReactionWorkup.WorkupType enum for full list of possible values.
+    """
     workup = reaction_pb2.ReactionWorkup(type=type)
-    workup.type = workup.ADDITION
     workup.input.components.MergeFrom(solution)
     for component in workup.input.components:
         component.reaction_role = reaction_pb2.ReactionRole.WORKUP
     return workup
 
 
-def separate_phases(keep_phase: str):
+def separate_phases(keep_phase: str) -> reaction_pb2.ReactionWorkup:
+    """Create a workup representing a phase separation.
+    
+    keep_phase is commonly either 'aqueous' or 'organic'.
+    """
     return reaction_pb2.ReactionWorkup(type='EXTRACTION', keep_phase=keep_phase)
 
 
-def drying_agent(agent_smiles: str):
+def drying_agent(agent_smiles: str) -> reaction_pb2.ReactionWorkup:
+    """Create a workup representing addition of a drying agent."""
     workup = reaction_pb2.ReactionWorkup(type='DRY_WITH_MATERIAL')
     component = workup.input.components.add()
     component.identifiers.add(value=agent_smiles, type='SMILES')
@@ -73,9 +82,14 @@ def drying_agent(agent_smiles: str):
     return workup
 
 
-def filter(keep_phase):
+def filter(keep_phase:str) -> reaction_pb2.ReactionWorkup:
+    """Create a workup representing a filtration step.
+
+    keep_phase should be one of 'filtrate' or 'solid'.
+    """
     return reaction_pb2.ReactionWorkup(type='FILTRATION', keep_phase=keep_phase)
 
 
-def rotovap():
+def rotovap() -> reaction_pb2.ReactionWorkup:
+    """Create a workup representing a rotary evaporation step."""
     return reaction_pb2.ReactionWorkup(type='CONCENTRATION')

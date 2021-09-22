@@ -36,6 +36,33 @@ class SolutionsTest(parameterized.TestCase, absltest.TestCase):
         for component in solution_components:
             validations.validate_message(component)
 
+    @parameterized.parameters(['1L', None])
+    def test_simple_saturated_solution(self, volume):
+        """Test that the macro never generates illegal solution configurations."""
+        solution_components = solutions.simple_solution(
+            solvent_smiles='O',
+            solute_smiles='[Na+].[Cl-]',
+            volume=volume,
+            saturated=True)
+        for component in solution_components:
+            validations.validate_message(component)
+
+    def test_simple_solution_concentration_and_saturated_illegal(self):
+        with self.assertRaisesRegex(ValueError, 'Cannot specify both'):
+            solutions.simple_solution(
+                solvent_smiles='O',
+                solute_smiles='[Na+].[Cl-]',
+                volume='1L',
+                concentration='1M',
+                saturated=True)
+
+    def test_simple_solution_saturated_solute_missing(self):
+        with self.assertRaisesRegex(ValueError, 'Must specify'):
+            solutions.simple_solution(
+                solvent_smiles='O',
+                solute_smiles=None,
+                volume='1L',
+                saturated=True)
 
 if __name__ == '__main__':
     absltest.main()

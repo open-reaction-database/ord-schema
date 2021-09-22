@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Union
+from typing import List, Optional, Union
 
 from ord_schema.proto import reaction_pb2
 from ord_schema import units
@@ -23,11 +23,33 @@ CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS,
 
 
 def simple_solution(
-    solvent_smiles=None,
-    solute_smiles=None,
+    solvent_smiles: str,
+    solute_smiles: Optional[str] = None,
     volume: Union[None, str, reaction_pb2.Volume] = None,
-    concentration: Union[None, str, reaction_pb2.Concentration] = None
+    concentration: Union[None, str, reaction_pb2.Concentration] = None,
+    saturated: bool = False,
 ) -> List[reaction_pb2.Compound]:
+    """Creates a solution with at most one solvent and one solute.
+    
+    Args:
+        solvent_smiles: SMILES of the solvent.
+        solute_smiles: SMILES of the solute. If not specified, a pure solvent
+            is generated.
+        volume: Volume of solution (total volume including the solute).
+        concentration: Concentration of solution. If both concentration and
+            volume are specified, a solute quantity is computed. The schema
+            does not currently have a way to represent an unknown volume of
+            solution with a known concentration.
+        saturated: Whether the solution is saturated. `Saturated` and
+            `concentrated` cannot both be specified.
+    Returns: A list of solvent/solute Compounds.
+    """
+    if saturated:
+        if concentration is not None:
+            raise ValueError(
+                "Cannot specify both `saturated=True` and a concentration.")
+        if solute_smiles is None:
+            raise ValueError("Must specify a solute if `saturated=True`")
     if isinstance(volume, str):
         volume = UNITS_RESOLVER.resolve(volume)
     if isinstance(concentration, str):
@@ -35,6 +57,9 @@ def simple_solution(
 
     if volume is not None and concentration is not None:
         solute_amount = units.compute_solute_quantity(volume, concentration)
+    elif saturated:
+        solute_amount = reaction_pb2.Amount(
+            unmeasured=reaction_pb2.UnmeasuredAmount(type='SATURATED'))
     else:
         solute_amount = None
 
@@ -56,8 +81,8 @@ def simple_solution(
     return output_compounds
 
 
-def BRINE(volume=None):
+def brine(volume=None):
     return simple_solution(solute_smiles='[Na+].[Cl-]',
                            solvent_smiles='O',
                            volume=volume,
-                           concentration='6.14 M')
+                           saturated=True)
