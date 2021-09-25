@@ -29,17 +29,15 @@
 
       #header {
           background: white;
-          border: black 1px;
-          border-style: none none solid none;
           padding: 10px 0;
           position: fixed;
           top: 0;
-          width: var(--body-width);
+          width: 100%;
           z-index: 1;
       }
 
       #nav {
-          margin-top: 10px;
+          margin-top: 48px;
           margin-right: 26px;
           position: fixed;
           width: 150px;
@@ -61,7 +59,8 @@
       }
 
       .section {
-          margin-bottom: 24px;
+          scroll-margin-top: 60px;
+          margin-top: 48px;
       }
 
       h3 {
@@ -140,6 +139,23 @@
   </style>
 </head>
 <body>
+<div id="header">
+    <nav id="breadcrumbs" aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item">
+            <a href="/">Home</a>
+          </li>
+          {% if dataset_id %}
+            <li class="breadcrumb-item">
+              <a href="/?dataset_ids={{ dataset_id }}&limit=100">{{ dataset_id }}</a>
+            </li>
+          {% endif %}
+          <li class="breadcrumb-item active" aria-current="page">
+            <span id="reaction_id">{{ reaction.reaction_id }}</span>
+          </li>
+        </ol>
+      </nav>
+</div>
 <div id="nav">
   <div class="navSection" data-section="summary">Summary</div>
   <div class="navSection" data-section="identifiers">Identifiers</div>
@@ -162,23 +178,6 @@
   <div class="navSection" data-section="outcomes">Outcomes</div>
   <div class="navSection" data-section="provenance">Provenance</div>
   <div class="navSection" data-section="record">Full Record</div>
-</div>
-<div id="header">
-    <nav id="breadcrumbs" aria-label="breadcrumb">
-        <ol class="breadcrumb">
-          <li class="breadcrumb-item">
-            <a href="/">Home</a>
-          </li>
-          {% if dataset_id %}
-            <li class="breadcrumb-item">
-              <a href="/?dataset_ids={{ dataset_id }}&limit=100">{{ dataset_id }}</a>
-            </li>
-          {% endif %}
-          <li class="breadcrumb-item active" aria-current="page">
-            <span id="reaction_id">{{ reaction.reaction_id }}</span>
-          </li>
-        </ol>
-      </nav>
 </div>
 <div id="sections">
   <div id="summary" class="section">
