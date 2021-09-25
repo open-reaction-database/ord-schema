@@ -61,7 +61,7 @@ def generate_text(reaction: reaction_pb2.Reaction) -> str:
 
 def generate_html(reaction: reaction_pb2.Reaction,
                   compact=False,
-                  bond_length: Optional[int] = None, **kwargs) -> str:
+                  bond_length: Optional[int] = None) -> str:
     """Generates an HTML reaction description."""
     # Special handling for e.g. USPTO reactions.
     reaction_smiles = message_helpers.get_reaction_smiles(reaction)
@@ -79,7 +79,7 @@ def generate_html(reaction: reaction_pb2.Reaction,
                      template_string=template,
                      line_breaks=True,
                      compact=compact,
-                     bond_length=bond_length, **kwargs)
+                     bond_length=bond_length)
 
 
 def generate_summary(reaction: reaction_pb2.Reaction,
