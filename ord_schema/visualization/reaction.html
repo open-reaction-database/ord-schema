@@ -1116,6 +1116,8 @@
             const section = selector.attr('data-section');
             navSelectors[section] = selector;
         });
+        const headerSize = $('#header').outerHeight();
+        const observerOptions = {rootMargin: '-' + headerSize + 'px 0px 0px 0px'};
         const observer = new IntersectionObserver(function (entries) {
             entries.forEach(entry => {
                 const target = $(entry.target);
@@ -1126,7 +1128,7 @@
                     navSelectors[section].css('background-color', '');
                 }
             });
-        });
+        }, observerOptions);
         $('.section').each(function () {
             observer.observe(this);
         });
