@@ -62,7 +62,8 @@ confidence=
 # --disable=W".
 disable=fixme,
         similarities,
-        too-few-public-methods
+        too-few-public-methods,
+        unspecified-encoding
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
