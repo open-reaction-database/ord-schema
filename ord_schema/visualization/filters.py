@@ -641,7 +641,7 @@ def _uses_addition_order(reaction: reaction_pb2.Reaction) -> bool:
 
 def _round(value: float, places=2) -> str:
     """Rounds a value to the given number of decimal places."""
-    fstring = '{:.%gg}' % places
+    fstring = '{:.%gg}' % places  # pylint: disable=consider-using-f-string
     return fstring.format(value)
 
 

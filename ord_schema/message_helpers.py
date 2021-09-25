@@ -439,8 +439,11 @@ def get_reaction_smiles(message: reaction_pb2.Reaction,
             'reaction must contain at least one reactant and one product')
     if not reactants and not products:
         raise ValueError('reaction contains no valid reactants or products')
-    reaction_smiles = '%s>%s>%s' % ('.'.join(sorted(reactants)), '.'.join(
-        sorted(agents)), '.'.join(sorted(products)))
+    components = [
+        '.'.join(sorted(reactants)), '.'.join(sorted(agents)),
+        '.'.join(sorted(products))
+    ]
+    reaction_smiles = '>'.join(components)
     if validate and not allow_incomplete:
         reaction_smiles = validate_reaction_smiles(reaction_smiles)
     return reaction_smiles
