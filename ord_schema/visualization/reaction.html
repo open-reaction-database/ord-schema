@@ -27,8 +27,17 @@
           padding: 10px 20px;
       }
 
+      #header {
+          background: white;
+          padding: 10px 0;
+          position: fixed;
+          top: 0;
+          width: 100%;
+          z-index: 1;
+      }
+
       #nav {
-          margin-top: 10px;
+          margin-top: 48px;
           margin-right: 26px;
           position: fixed;
           width: 150px;
@@ -50,7 +59,8 @@
       }
 
       .section {
-          margin-bottom: 24px;
+          scroll-margin-top: 60px;
+          margin-top: 48px;
       }
 
       h3 {
@@ -129,6 +139,23 @@
   </style>
 </head>
 <body>
+<div id="header">
+    <nav id="breadcrumbs" aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item">
+            <a href="/">Home</a>
+          </li>
+          {% if dataset_id %}
+            <li class="breadcrumb-item">
+              <a href="/?dataset_ids={{ dataset_id }}&limit=100">{{ dataset_id }}</a>
+            </li>
+          {% endif %}
+          <li class="breadcrumb-item active" aria-current="page">
+            <span id="reaction_id">{{ reaction.reaction_id }}</span>
+          </li>
+        </ol>
+      </nav>
+</div>
 <div id="nav">
   <div class="navSection" data-section="summary">Summary</div>
   <div class="navSection" data-section="identifiers">Identifiers</div>
@@ -154,7 +181,6 @@
 </div>
 <div id="sections">
   <div id="summary" class="section">
-    <h2 style="font-family: monospace;">{{ reaction.reaction_id }}</h2>
     {{ reaction_summary }}
   </div>
   <div id="identifiers" class="section">
@@ -167,13 +193,6 @@
           <td>{{ identifier.details }}</td>
         </tr>
       {% endfor %}
-      {% if dataset_id %}
-        <tr>
-          <td>Dataset ID</td>
-          <td>{{ dataset_id }}</td>
-          <td></td>
-        </tr>
-      {% endif %}
     </table>
   </div>
   <div id="inputs" class="section">
@@ -1097,6 +1116,8 @@
             const section = selector.attr('data-section');
             navSelectors[section] = selector;
         });
+        const headerSize = $('#header').outerHeight();
+        const observerOptions = {rootMargin: '-' + headerSize + 'px 0px 0px 0px'};
         const observer = new IntersectionObserver(function (entries) {
             entries.forEach(entry => {
                 const target = $(entry.target);
@@ -1107,7 +1128,7 @@
                     navSelectors[section].css('background-color', '');
                 }
             });
-        });
+        }, observerOptions);
         $('.section').each(function () {
             observer.observe(this);
         });
