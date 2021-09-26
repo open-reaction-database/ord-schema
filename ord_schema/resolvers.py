@@ -123,7 +123,7 @@ def _emolecules_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the eMolecules API."""
     del value_type  # Unused.
     with urllib.request.urlopen(
-            'https://www.emolecules.com'
+            'https://www.emolecules.com/'
             f'lookup?q={urllib.parse.quote(value)}') as response:
         response_text = response.read().decode().strip()
     if response_text == '__END__':
