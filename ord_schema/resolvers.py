@@ -13,7 +13,6 @@
 # limitations under the License.
 """Name/string resolution to structured messages or identifiers."""
 
-import os
 import re
 from typing import Tuple
 import urllib.parse
@@ -124,8 +123,9 @@ def _emolecules_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the eMolecules API."""
     del value_type  # Unused.
     with urllib.request.urlopen(
-            os.path.join('https://www.emolecules.com'
-                         f'lookup?q={urllib.parse.quote(value)}')) as response:
+            urllib.parse.urljoin(
+                'https://www.emolecules.com',
+                f'lookup?q={urllib.parse.quote(value)}')) as response:
         response_text = response.read().decode().strip()
     if response_text == '__END__':
         raise urllib.error.HTTPError('', 404, 'eMolecules lookup unsuccessful',
