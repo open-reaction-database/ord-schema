@@ -751,7 +751,7 @@ def _type_and_details(message):
     """Returns type (details)."""
     value = _type(message)
     if message.details:
-        value += f' ({message.details})'
+        value += f': {message.details}'
     return value
 
 

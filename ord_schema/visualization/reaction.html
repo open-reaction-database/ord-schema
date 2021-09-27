@@ -316,8 +316,14 @@
           <table class="sub">
             <tr>
               <td>Type</td>
-              <td>{{ reaction.setup.vessel|type_and_details }}</td>
+              <td>{{ reaction.setup.vessel|type }}</td>
             </tr>
+            {% if reaction.setup.vessel.details %}
+              <tr>
+                <td>Details</td>
+                <td>{{ reaction.setup.vessel.details }}</td>
+              </tr>
+            {% endif %}
             <tr>
               <td>Material</td>
               <td>{{ reaction.setup.vessel.material|type_and_details }}</td>
@@ -360,8 +366,14 @@
           <table class="sub">
             <tr>
               <td>Type</td>
-              <td>{{ reaction.setup.environment|type_and_details }}</td>
+              <td>{{ reaction.setup.environment|type }}</td>
             </tr>
+            {% if reaction.setup.environment.details %}
+              <tr>
+                <td>Details</td>
+                <td>{{ reaction.setup.environment.details }}</td>
+              </tr>
+            {% endif %}
           </table>
         </div>
         {% if reaction.setup.is_automated %}
@@ -423,8 +435,14 @@
             <table class="sub">
               <tr>
                 <td>Control Type</td>
-                <td>{{ reaction.conditions.temperature.control|type_and_details }}</td>
+                <td>{{ reaction.conditions.temperature.control|type }}</td>
               </tr>
+              {% if reaction.conditions.temperature.control.details %}
+                <tr>
+                  <td>Details</td>
+                  <td>{{ reaction.conditions.temperature.control.details }}</td>
+                </tr>
+              {% endif %}
               <tr>
                 <td>Setpoint</td>
                 <td>{{ reaction.conditions.temperature.setpoint|unit_format }}</td>
@@ -462,8 +480,14 @@
             <table class="sub">
               <tr>
                 <td>Control Type</td>
-                <td>{{ reaction.conditions.pressure.control|type_and_details }}</td>
+                <td>{{ reaction.conditions.pressure.control|type }}</td>
               </tr>
+              {% if reaction.conditions.pressure.control.details %}
+                <tr>
+                  <td>Details</td>
+                  <td>{{ reaction.conditions.pressure.control.details }}</td>
+                </tr>
+              {% endif %}
               <tr>
                 <td>Setpoint</td>
                 <td>{{ reaction.conditions.pressure.setpoint|unit_format }}</td>
@@ -505,8 +529,14 @@
             <table class="sub">
               <tr>
                 <td>Type</td>
-                <td>{{ reaction.conditions.stirring|type_and_details }}</td>
+                <td>{{ reaction.conditions.stirring|type }}</td>
               </tr>
+              {% if reaction.conditions.stirring.details %}
+                <tr>
+                  <td>Details</td>
+                  <td>{{ reaction.conditions.stirring.details }}</td>
+                </tr>
+              {% endif %}
               <tr>
                 <td>Rate</td>
                 <td>{{ reaction.conditions.stirring.rate|type_and_details }}</td>
@@ -549,8 +579,14 @@
             <table class="sub">
               <tr>
                 <td>Type</td>
-                <td>{{ reaction.conditions.electrochemistry|type_and_details }}</td>
+                <td>{{ reaction.conditions.electrochemistry|type }}</td>
               </tr>
+              {% if reaction.conditions.electrochemistry.details %}
+                <tr>
+                  <td>Details</td>
+                  <td>{{ reaction.conditions.electrochemistry.details }}</td>
+                </tr>
+              {% endif %}
               <tr>
                 <td>Cell Type</td>
                 <td>{{ reaction.conditions.electrochemistry.cell|type_and_details }}</td>
@@ -620,8 +656,14 @@
             <table class="sub">
               <tr>
                 <td>Type</td>
-                <td>{{ reaction.conditions.flow|type_and_details }}</td>
+                <td>{{ reaction.conditions.flow|type }}</td>
               </tr>
+              {% if reaction.conditions.flow.details %}
+                <tr>
+                  <td>Details</td>
+                  <td>{{ reaction.conditions.flow.details }}</td>
+                </tr>
+              {% endif %}
               {% if reaction.conditions.flow.pump_type %}
                 <tr>
                   <td>Pump Type</td>
@@ -764,8 +806,14 @@
             <table>
               <tr>
                 <td>Type</td>
-                <td>{{ workup|type_and_details }}</td>
+                <td>{{ workup|type }}</td>
               </tr>
+              {% if workup.details %}
+                <tr>
+                  <td>Details</td>
+                  <td>{{ workup.details }}</td>
+                </tr>
+              {% endif %}
               {% if workup.duration|defined %}
                 <tr>
                   <td>Duration</td>
