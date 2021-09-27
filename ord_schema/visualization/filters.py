@@ -18,6 +18,7 @@ in this module do not include any HTML tags, only their contents.
 """
 
 import collections
+import re
 from typing import Any, Iterable, List, Mapping, Optional, Tuple
 
 from dateutil import parser
@@ -717,7 +718,9 @@ def _product_measurement_value(message) -> str:
 
 def _pbtxt(reaction: reaction_pb2.Reaction) -> str:
     """Converts a message to text format."""
-    return text_format.MessageToString(reaction)
+    message = text_format.MessageToString(reaction)
+    # Preserve indentation.
+    return re.sub(r'\s', '&nbsp;', message.strip().replace('\n', '<br>'))
 
 
 def _product_pbtxt(product: reaction_pb2.ProductCompound) -> str:
