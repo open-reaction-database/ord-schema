@@ -713,13 +713,13 @@
         {% if reaction.notes.safety_notes %}
           <tr>
             <td>Safety notes</td>
-            <td>reaction.notes.safety_notes</td>
+            <td>{{ reaction.notes.safety_notes }}</td>
           </tr>
         {% endif %}
         {% if reaction.notes.procedure_details %}
           <tr>
             <td>Procedure details</td>
-            <td>reaction.notes.procedure_details</td>
+            <td>{{ reaction.notes.procedure_details }}</td>
           </tr>
         {% endif %}
       </table>
@@ -786,13 +786,13 @@
               {% endif %}
               {% if workup.HasField('target_ph') %}
                 <tr>
-                  <td>Phase kept</td>
+                  <td>Target pH</td>
                   <td>{{ workup.target_ph }}</td>
                 </tr>
               {% endif %}
               {% if workup.HasField('is_automated') %}
                 <tr>
-                  <td>Phase kept</td>
+                  <td>Automated</td>
                   <td>{{ workup.is_automated }}</td>
                 </tr>
               {% endif %}
