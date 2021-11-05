@@ -486,18 +486,28 @@ def reaction_from_smiles(reaction_smiles):
     reaction_input = message.inputs['from_reaction_smiles']
     for mol in reaction.GetReactants():
         component = reaction_input.components.add()
-        component.identifiers.add(value=Chem.MolToSmiles(mol), type='SMILES')
+        component.identifiers.add(value=Chem.MolToSmiles(mol),
+                                  type='SMILES',
+                                  details='Extracted from reaction SMILES')
         component.reaction_role = reaction_pb2.ReactionRole.REACTANT
+        component.amount.unmeasured.type = component.amount.unmeasured.CUSTOM
+        component.amount.unmeasured.details = 'Extracted from reaction SMILES'
     for smiles in reaction_smiles.split('>')[1].split('.'):
         if not smiles:
             continue
         component = reaction_input.components.add()
-        component.identifiers.add(value=smiles, type='SMILES')
+        component.identifiers.add(value=smiles,
+                                  type='SMILES',
+                                  details='Extracted from reaction SMILES')
         component.reaction_role = reaction_pb2.ReactionRole.REAGENT
+        component.amount.unmeasured.type = component.amount.unmeasured.CUSTOM
+        component.amount.unmeasured.details = 'Extracted from reaction SMILES'
     outcome = message.outcomes.add()
     for mol in reaction.GetProducts():
         component = outcome.products.add()
-        component.identifiers.add(value=Chem.MolToSmiles(mol), type='SMILES')
+        component.identifiers.add(value=Chem.MolToSmiles(mol),
+                                  type='SMILES',
+                                  details='Extracted from reaction SMILES')
         component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
     return message
 

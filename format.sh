@@ -19,7 +19,7 @@ set -ex
 ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
 # Add missing license headers.
 if command -v go &> /dev/null; then
-  go run github.com/google/addlicense \
+  go run github.com/google/addlicense@latest \
     -c "Open Reaction Database Project Authors" \
     -l apache "${ROOT_DIR}"
 else
