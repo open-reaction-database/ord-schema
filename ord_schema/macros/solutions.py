@@ -61,6 +61,7 @@ def simple_solution(
         solute_amount = reaction_pb2.Amount(
             unmeasured=reaction_pb2.UnmeasuredAmount(type='SATURATED'))
     else:
+        # This case covers 1. pure solvents 2. solution with unknown volume.
         solute_amount = None
 
     output_compounds = []

@@ -122,7 +122,18 @@ CONCENTRATION_UNIT_SYNONYMS = {
     },
 }
 
+VOLUME_L_PER_UNIT = {
+    reaction_pb2.Volume.VolumeUnit.LITER: 1,
+    reaction_pb2.Volume.VolumeUnit.MILLILITER: 1e-3,
+    reaction_pb2.Volume.VolumeUnit.MICROLITER: 1e-6,
+    reaction_pb2.Volume.VolumeUnit.NANOLITER: 1e-9,
+}
 
+CONCENTRATION_M_PER_UNIT = {
+    reaction_pb2.Concentration.ConcentrationUnit.MOLAR: 1,
+    reaction_pb2.Concentration.ConcentrationUnit.MILLIMOLAR: 1e-3,
+    reaction_pb2.Concentration.ConcentrationUnit.MICROMOLAR: 1e-6,
+}
 class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
 
@@ -243,18 +254,9 @@ def compute_solute_quantity(
         volume: reaction_pb2.Volume,
         concentration: reaction_pb2.Concentration) -> reaction_pb2.Amount:
     """Computes the quantity of a solute, given volume and concentration."""
-    volume_conversion = {
-        volume.LITER: 1,
-        volume.MILLILITER: 1e-3,
-        volume.MICROLITER: 1e-6,
-        volume.NANOLITER: 1e-9,
-    }[volume.units]
-    concentration_conversion = {
-        concentration.MOLAR: 1,
-        concentration.MILLIMOLAR: 1e-3,
-        concentration.MICROMOLAR: 1e-6,
-    }[concentration.units]
+    volume_conversion = VOLUME_L_PER_UNIT[volume.units]
     volume_liter = volume.value * volume_conversion
+    concentration_conversion = CONCENTRATION_M_PER_UNIT[concentration.units]
     concentration_molar = concentration.value * concentration_conversion
 
     moles = volume_liter * concentration_molar
