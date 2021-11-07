@@ -86,9 +86,10 @@ class SolutionsTest(parameterized.TestCase, absltest.TestCase):
         for component in solution_components:
             validations.validate_message(component)
 
-        self.assertTrue(any(
-            component.amount.unmeasured.type == reaction_pb2.UnmeasuredAmount.SATURATED
-            for component in solution_components))
+        self.assertTrue(
+            any(component.amount.unmeasured.type ==
+                reaction_pb2.UnmeasuredAmount.SATURATED
+                for component in solution_components))
 
     def test_simple_solution_concentration_and_saturated_illegal(self):
         with self.assertRaisesRegex(ValueError, 'Cannot specify both'):

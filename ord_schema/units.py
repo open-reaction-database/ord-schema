@@ -134,6 +134,8 @@ CONCENTRATION_M_PER_UNIT = {
     reaction_pb2.Concentration.ConcentrationUnit.MILLIMOLAR: 1e-3,
     reaction_pb2.Concentration.ConcentrationUnit.MICROMOLAR: 1e-6,
 }
+
+
 class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
 
