@@ -69,7 +69,7 @@ def trim_image_whitespace(image: Image.Image, padding: int = 0) -> Image.Image:
                                 0:3]
 
     image = Image.fromarray(as_array_cropped, mode='RGB')
-    return ImageOps.expand(image, border=padding, fill=(255, 255, 255))
+    return ImageOps.expand(image, border=padding, fill=255)
 
 
 def mol_to_svg(  # pylint: disable=inconsistent-return-statements

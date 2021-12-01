@@ -45,9 +45,9 @@ def _generate(reaction: reaction_pb2.Reaction, template_string: str,
     # Fix line breaks, extra spaces, "a" versus "an"
     if not line_breaks:
         text = ''.join(text.strip().splitlines())
-        text = re.sub(r'[ ]{2,}', ' ', text)
-        text = re.sub(r' a ([aeiouAEIOU])', r' an \1', text)
-        text = re.sub(r'[ ]([\.\;\)\,]){1,2}', r'\1', text)
+    text = re.sub(r'[ ]{2,}', ' ', text)
+    text = re.sub(r' a ([aeiouAEIOU])', r' an \1', text)
+    text = re.sub(r'[ ]([.;),]){1,2}', r'\1', text)
     return text
 
 

@@ -18,6 +18,7 @@ in this module do not include any HTML tags, only their contents.
 """
 
 import collections
+import re
 from typing import Any, Iterable, List, Mapping, Optional, Tuple
 
 from dateutil import parser
@@ -408,6 +409,16 @@ def _amount(amount: reaction_pb2.Amount) -> Optional[str]:
     kind = amount.WhichOneof('kind')
     if not kind:
         return ''
+    if kind == 'unmeasured':
+        unmeasured_amount = getattr(amount, kind)
+        options = {
+            reaction_pb2.UnmeasuredAmount.UNSPECIFIED: 'unspecified',
+            reaction_pb2.UnmeasuredAmount.CUSTOM: unmeasured_amount.details,
+            reaction_pb2.UnmeasuredAmount.SATURATED: 'saturated',
+            reaction_pb2.UnmeasuredAmount.CATALYTIC: 'catalytic',
+            reaction_pb2.UnmeasuredAmount.TITRATED: 'titrated',
+        }
+        return options[unmeasured_amount.type]
     return units.format_message(getattr(amount, kind))
 
 
@@ -631,7 +642,7 @@ def _uses_addition_order(reaction: reaction_pb2.Reaction) -> bool:
 
 def _round(value: float, places=2) -> str:
     """Rounds a value to the given number of decimal places."""
-    fstring = '{:.%gg}' % places
+    fstring = '{:.%gg}' % places  # pylint: disable=consider-using-f-string
     return fstring.format(value)
 
 
@@ -707,7 +718,9 @@ def _product_measurement_value(message) -> str:
 
 def _pbtxt(reaction: reaction_pb2.Reaction) -> str:
     """Converts a message to text format."""
-    return text_format.MessageToString(reaction)
+    message = text_format.MessageToString(reaction)
+    # Preserve indentation.
+    return re.sub(r'\s', '&nbsp;', message.strip().replace('\n', '<br>'))
 
 
 def _product_pbtxt(product: reaction_pb2.ProductCompound) -> str:
@@ -741,7 +754,7 @@ def _type_and_details(message):
     """Returns type (details)."""
     value = _type(message)
     if message.details:
-        value += f' ({message.details})'
+        value += f': {message.details}'
     return value
 
 

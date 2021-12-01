@@ -45,14 +45,14 @@ MessageType = TypeVar('MessageType')  # Generic for setting return types.
 # pylint: disable=too-many-locals
 
 
-def build_compound(smiles: str = None,
-                   name: str = None,
-                   amount: str = None,
-                   role: str = None,
-                   is_limiting: bool = None,
-                   prep: str = None,
-                   prep_details: str = None,
-                   vendor: str = None) -> reaction_pb2.Compound:
+def build_compound(smiles: Optional[str] = None,
+                   name: Optional[str] = None,
+                   amount: Optional[str] = None,
+                   role: Optional[str] = None,
+                   is_limiting: Optional[bool] = None,
+                   prep: Optional[str] = None,
+                   prep_details: Optional[str] = None,
+                   vendor: Optional[str] = None) -> reaction_pb2.Compound:
     """Builds a Compound message with the most common fields.
 
     Args:
@@ -81,16 +81,20 @@ def build_compound(smiles: str = None,
     if name:
         compound.identifiers.add(value=name, type='NAME')
     if amount:
-        resolver = units.UnitResolver()
-        amount_pb = resolver.resolve(amount)
-        if isinstance(amount_pb, reaction_pb2.Mass):
-            compound.amount.mass.CopyFrom(amount_pb)
-        elif isinstance(amount_pb, reaction_pb2.Moles):
-            compound.amount.moles.CopyFrom(amount_pb)
-        elif isinstance(amount_pb, reaction_pb2.Volume):
-            compound.amount.volume.CopyFrom(amount_pb)
+        if amount.lower() in ('saturated', 'catalytic', 'titrated'):
+            compound.amount.unmeasured.CopyFrom(
+                reaction_pb2.UnmeasuredAmount(type=amount.upper()))
         else:
-            raise TypeError(f'unsupported units for amount: {amount_pb}')
+            resolver = units.UnitResolver()
+            amount_pb = resolver.resolve(amount)
+            if isinstance(amount_pb, reaction_pb2.Mass):
+                compound.amount.mass.CopyFrom(amount_pb)
+            elif isinstance(amount_pb, reaction_pb2.Moles):
+                compound.amount.moles.CopyFrom(amount_pb)
+            elif isinstance(amount_pb, reaction_pb2.Volume):
+                compound.amount.volume.CopyFrom(amount_pb)
+            else:
+                raise TypeError(f'unsupported units for amount: {amount_pb}')
     if role:
         field = reaction_pb2.Compound.DESCRIPTOR.fields_by_name['reaction_role']
         values_dict = field.enum_type.values_by_name
@@ -176,30 +180,11 @@ def set_solute_moles(solute: reaction_pb2.Compound,
     resolver = units.UnitResolver(
         unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
     concentration_pb = resolver.resolve(concentration)
-    if concentration_pb.units == concentration_pb.MOLAR:
-        concentration_molar = concentration_pb.value
-    elif concentration_pb.units == concentration_pb.MILLIMOLAR:
-        concentration_molar = concentration_pb.value * 1e-3
-    elif concentration_pb.units == concentration_pb.MICROMOLAR:
-        concentration_molar = concentration_pb.value * 1e-6
-    else:
-        raise ValueError(f'unsupported units: {concentration_pb.units}')
-    # Assign moles amount and return.
-    moles = volume_liter * concentration_molar
-    if moles < 1e-6:
-        value = moles * 1e9
-        unit = reaction_pb2.Moles.NANOMOLE
-    elif moles < 1e-3:
-        value = moles * 1e6
-        unit = reaction_pb2.Moles.MICROMOLE
-    elif moles < 1:
-        value = moles * 1e3
-        unit = reaction_pb2.Moles.MILLIMOLE
-    else:
-        value = moles
-        unit = reaction_pb2.Moles.MOLE
-    solute.amount.moles.value = value
-    solute.amount.moles.units = unit
+
+    solute_moles = units.compute_solute_quantity(
+        reaction_pb2.Volume(value=volume_liter,
+                            units=reaction_pb2.Volume.LITER), concentration_pb)
+    solute.amount.MergeFrom(solute_moles)
     return [solute] + solvents
 
 
@@ -435,8 +420,11 @@ def get_reaction_smiles(message: reaction_pb2.Reaction,
             'reaction must contain at least one reactant and one product')
     if not reactants and not products:
         raise ValueError('reaction contains no valid reactants or products')
-    reaction_smiles = '%s>%s>%s' % ('.'.join(sorted(reactants)), '.'.join(
-        sorted(agents)), '.'.join(sorted(products)))
+    components = [
+        '.'.join(sorted(reactants)), '.'.join(sorted(agents)),
+        '.'.join(sorted(products))
+    ]
+    reaction_smiles = '>'.join(components)
     if validate and not allow_incomplete:
         reaction_smiles = validate_reaction_smiles(reaction_smiles)
     return reaction_smiles
@@ -885,7 +873,7 @@ def messages_to_dataframe(messages: Iterable[ord_schema.Message],
 
 def message_to_row(
         message: ord_schema.Message,
-        trace: Tuple[str] = None) -> Dict[str, ord_schema.ScalarType]:
+        trace: Optional[Tuple[str]] = None) -> Dict[str, ord_schema.ScalarType]:
     """Converts a proto into a flat dictionary mapping fields to values.
 
     The keys indicate any nesting; for instance a proto that looks like this:
