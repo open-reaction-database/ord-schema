@@ -161,7 +161,7 @@ interface(s) to promotion and publicity. The current membership of the governing
 committee is:
 
 * Connor Coley (MIT)
-* Abby Doyle (Princeton, `C-CAS <https://ccas.nd.edu/>`__)
+* Abby Doyle (UCLA, `C-CAS <https://ccas.nd.edu/>`__)
 * Spencer Dreher (Merck)
 * Joel Hawkins (Pfizer)
 * Klavs Jensen (MIT)
@@ -180,6 +180,7 @@ Advisory Board is:
 * Timothy Cernak (Michigan, Entos)
 * Lucy Colwell (Cambridge, SynTech, Google)
 * Werngard Czechtizky (AstraZeneca)
+* JW Feng (Google)
 * Matthew Gaunt (Cambridge, SynTech)
 * Mimi Hii (Imperial, ROAR)
 * Greg Landrum (T5 Informatics)

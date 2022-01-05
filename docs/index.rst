@@ -12,6 +12,11 @@ learning and related efforts in reaction prediction, chemical synthesis
 planning, and experiment design. Our initial meeting took place on 31 October
 2019 and included experts from pharma, academia, and tech.
 
+.. topic:: Announcements
+
+   * We recently published on the ORD in *JACS* (`link <https://pubs.acs.org/doi/10.1021/jacs.1c09820>`_)
+   * The ORD was highlighted in C&EN (`link <https://cen.acs.org/physical-chemistry/computational-chemistry/new-database-machine-learning-research/99/web/2021/11>`_)
+
 Quick links:
    * `Overview of the ORD <overview.html>`_
    * `Leadership <overview.html#leadership>`_
@@ -60,4 +65,3 @@ underrepresented areas).
    :caption: Developers
 
    developer/editor
-
