@@ -42,7 +42,7 @@ jobs:
       - name: Run yapf
         run: |
           cd "${GITHUB_WORKSPACE}"
-          pip install yapf
+          pip install yapf toml
           yapf --parallel --recursive --exclude="*_pb2.py" --quiet .
       - name: Install ord-schema
         run: |
