@@ -402,8 +402,8 @@ class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
         message_helpers.set_solute_moles(solute, [solvent3],
                                          '3 mM',
                                          overwrite=True)
-        self.assertEqual(solute.amount.moles,
-                         reaction_pb2.Moles(units='NANOMOLE', value=225))
+        self.assertEqual(solute.amount.moles.units, reaction_pb2.Moles.NANOMOLE)
+        self.assertAlmostEqual(solute.amount.moles.value, 225, places=4)
         solvent4 = message_helpers.build_compound(name='Solvent',
                                                   amount='0.2 uL')
         message_helpers.set_solute_moles(solute, [solvent4],

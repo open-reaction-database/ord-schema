@@ -180,30 +180,11 @@ def set_solute_moles(solute: reaction_pb2.Compound,
     resolver = units.UnitResolver(
         unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
     concentration_pb = resolver.resolve(concentration)
-    if concentration_pb.units == concentration_pb.MOLAR:
-        concentration_molar = concentration_pb.value
-    elif concentration_pb.units == concentration_pb.MILLIMOLAR:
-        concentration_molar = concentration_pb.value * 1e-3
-    elif concentration_pb.units == concentration_pb.MICROMOLAR:
-        concentration_molar = concentration_pb.value * 1e-6
-    else:
-        raise ValueError(f'unsupported units: {concentration_pb.units}')
-    # Assign moles amount and return.
-    moles = volume_liter * concentration_molar
-    if moles < 1e-6:
-        value = moles * 1e9
-        unit = reaction_pb2.Moles.NANOMOLE
-    elif moles < 1e-3:
-        value = moles * 1e6
-        unit = reaction_pb2.Moles.MICROMOLE
-    elif moles < 1:
-        value = moles * 1e3
-        unit = reaction_pb2.Moles.MILLIMOLE
-    else:
-        value = moles
-        unit = reaction_pb2.Moles.MOLE
-    solute.amount.moles.value = value
-    solute.amount.moles.units = unit
+
+    solute_moles = units.compute_solute_quantity(
+        reaction_pb2.Volume(value=volume_liter,
+                            units=reaction_pb2.Volume.LITER), concentration_pb)
+    solute.amount.MergeFrom(solute_moles)
     return [solute] + solvents
 
 

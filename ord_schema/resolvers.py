@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Name/string resolution to structured messages or identifiers."""
-
+import email.message
 import re
 from typing import Tuple
 import urllib.parse
@@ -128,7 +128,7 @@ def _emolecules_resolve(value_type: str, value: str) -> str:
         response_text = response.read().decode().strip()
     if response_text == '__END__':
         raise urllib.error.HTTPError('', 404, 'eMolecules lookup unsuccessful',
-                                     {}, None)
+                                     email.message.Message(), None)
     return response_text.split('\t')[0]
 
 
