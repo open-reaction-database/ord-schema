@@ -20,7 +20,7 @@ ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
 # Add missing license headers.
 if command -v go &> /dev/null; then
   go install github.com/google/addlicense@latest
-  addlicense \
+  "${HOME}/go/bin/addlicense" \
     -c "Open Reaction Database Project Authors" \
     -l apache "${ROOT_DIR}"
 else
