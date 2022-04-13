@@ -122,6 +122,19 @@ CONCENTRATION_UNIT_SYNONYMS = {
     },
 }
 
+VOLUME_L_PER_UNIT = {
+    reaction_pb2.Volume.VolumeUnit.LITER: 1,
+    reaction_pb2.Volume.VolumeUnit.MILLILITER: 1e-3,
+    reaction_pb2.Volume.VolumeUnit.MICROLITER: 1e-6,
+    reaction_pb2.Volume.VolumeUnit.NANOLITER: 1e-9,
+}
+
+CONCENTRATION_M_PER_UNIT = {
+    reaction_pb2.Concentration.ConcentrationUnit.MOLAR: 1,
+    reaction_pb2.Concentration.ConcentrationUnit.MILLIMOLAR: 1e-3,
+    reaction_pb2.Concentration.ConcentrationUnit.MICROMOLAR: 1e-6,
+}
+
 
 class UnitResolver:
     """Resolver class for translating value+unit strings into messages."""
@@ -237,3 +250,29 @@ def format_message(message: ord_schema.UnitMessage) -> Optional[str]:
         txt += f'(± {message.precision:.7g}) '
     txt += _UNIT_SYNONYMS[type(message)][message.units][0]
     return txt
+
+
+def compute_solute_quantity(
+        volume: reaction_pb2.Volume,
+        concentration: reaction_pb2.Concentration) -> reaction_pb2.Amount:
+    """Computes the quantity of a solute, given volume and concentration."""
+    volume_conversion = VOLUME_L_PER_UNIT[volume.units]
+    volume_liter = volume.value * volume_conversion
+    concentration_conversion = CONCENTRATION_M_PER_UNIT[concentration.units]
+    concentration_molar = concentration.value * concentration_conversion
+
+    moles = volume_liter * concentration_molar
+    if moles < 1e-6:
+        value = moles * 1e9
+        unit = reaction_pb2.Moles.NANOMOLE
+    elif moles < 1e-3:
+        value = moles * 1e6
+        unit = reaction_pb2.Moles.MICROMOLE
+    elif moles < 1:
+        value = moles * 1e3
+        unit = reaction_pb2.Moles.MILLIMOLE
+    else:
+        value = moles
+        unit = reaction_pb2.Moles.MOLE
+    return reaction_pb2.Amount(
+        moles=reaction_pb2.Moles(value=value, units=unit))
