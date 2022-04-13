@@ -21,13 +21,13 @@ import re
 from typing import Dict, Iterable, List, Optional, Tuple, Type, TypeVar, Union
 import warnings
 
-import flask
 from google import protobuf
 from google.protobuf import json_format
 from google.protobuf import text_format  # pytype: disable=import-error
 import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
+from werkzeug import security
 
 import ord_schema
 from ord_schema import units
@@ -39,6 +39,7 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
 MessageType = TypeVar('MessageType')  # Generic for setting return types.
+
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -393,7 +394,7 @@ def get_reaction_smiles(message: reaction_pb2.Reaction,
                     continue
                 raise error
             if compound.reaction_role in [
-                    roles.REAGENT, roles.SOLVENT, roles.CATALYST
+                roles.REAGENT, roles.SOLVENT, roles.CATALYST
             ]:
                 agents.add(smiles)
             elif compound.reaction_role == roles.INTERNAL_STANDARD:
@@ -411,8 +412,8 @@ def get_reaction_smiles(message: reaction_pb2.Reaction,
             if product.reaction_role == roles.PRODUCT:
                 products.add(smiles)
             elif product.reaction_role in [
-                    roles.REAGENT, roles.SOLVENT, roles.CATALYST,
-                    roles.INTERNAL_STANDARD
+                roles.REAGENT, roles.SOLVENT, roles.CATALYST,
+                roles.INTERNAL_STANDARD
             ]:
                 continue
     if not allow_incomplete and (not reactants or not products):
@@ -505,8 +506,8 @@ def get_product_yield(product: reaction_pb2.ProductCompound,
 
 
 def get_compound_identifier(
-    compound: reaction_pb2.Compound,
-    identifier_type: reaction_pb2.CompoundIdentifier.IdentifierType
+        compound: reaction_pb2.Compound,
+        identifier_type: reaction_pb2.CompoundIdentifier.IdentifierType
 ) -> Optional[str]:
     """Returns the value of a compound identifier if it exists. If multiple
     identifiers of that type exist, only the first is returned.
@@ -606,7 +607,7 @@ def has_transition_metal(mol: Chem.Mol) -> bool:
 
 
 def set_dative_bonds(
-    mol: Chem.Mol, from_atoms: Tuple[str, ...] = ('N', 'P')) -> Chem.Mol:
+        mol: Chem.Mol, from_atoms: Tuple[str, ...] = ('N', 'P')) -> Chem.Mol:
     """Converts metal-ligand bonds to dative.
 
     Replaces some single bonds between metals and atoms with atomic numbers
@@ -818,7 +819,7 @@ def id_filename(filename: str) -> str:
     if not prefix.startswith('ord'):
         raise ValueError(
             'basename does not have the required "ord" prefix: {basename}')
-    return flask.safe_join('data', suffix[:2], basename)
+    return security.safe_join('data', suffix[:2], basename)
 
 
 def create_message(message_name: str) -> ord_schema.Message:
