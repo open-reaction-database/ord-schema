@@ -38,7 +38,7 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
-MessageType = TypeVar('MessageType')  # Generic for setting return types.
+MessageType = TypeVar('MessageType')  # Generic for setting return types; pylint: disable=invalid-name.
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
