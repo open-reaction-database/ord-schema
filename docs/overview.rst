@@ -182,6 +182,7 @@ Advisory Board is:
 * Werngard Czechtizky (AstraZeneca)
 * JW Feng (Google)
 * Matthew Gaunt (Cambridge, SynTech)
+* Alex Godfrey (NCATS Consultant)
 * Mimi Hii (Imperial, ROAR)
 * Greg Landrum (T5 Informatics)
 * Fabio Lima (Novartis)
@@ -191,6 +192,7 @@ Advisory Board is:
 * Jay Stevens (BMS)
 * Sarah Trice (Entos)
 * Matthew Tudge (GSK)
+* Huimin Zhao (UIUC, MMLI)
 
 *************************
 Commitment to Open Access
