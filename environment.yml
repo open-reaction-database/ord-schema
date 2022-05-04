@@ -19,8 +19,9 @@ channels:
 dependencies:
   - python
   - rdkit
+  - pip
   - pip:
-    - absl-py>=0.9.0
+    - absl-py
     - flask>=1.1.2
     - numpy>=1.18.1
     - openpyxl>=3.0.5
