@@ -187,10 +187,10 @@ Advisory Board is:
 * Fabio Lima (Novartis)
 * Christos Nicolaou (Lilly)
 * Sarah Reisman (Caltech)
+* Francesco Rianjongdee (GSK)
 * Matthew Sigman (Utah, `C-CAS <https://ccas.nd.edu/>`__)
 * Jay Stevens (BMS)
 * Sarah Trice (Entos)
-* Matthew Tudge (GSK)
 
 *************************
 Commitment to Open Access
