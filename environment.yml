@@ -34,4 +34,3 @@ dependencies:
     - xlrd<2.0.0
     - xlwt>=1.3.0
     - joblib>=1.0.0
-    - git+https://github.com/open-reaction-database/ord-schema#egg=ord-schema
