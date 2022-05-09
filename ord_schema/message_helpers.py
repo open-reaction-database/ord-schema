@@ -21,13 +21,13 @@ import re
 from typing import Dict, Iterable, List, Optional, Tuple, Type, TypeVar, Union
 import warnings
 
-import flask
 from google import protobuf
 from google.protobuf import json_format
 from google.protobuf import text_format  # pytype: disable=import-error
 import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
+from werkzeug import security
 
 import ord_schema
 from ord_schema import units
@@ -38,7 +38,7 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
-MessageType = TypeVar('MessageType')  # Generic for setting return types.
+MessageType = TypeVar('MessageType')  # Generic for setting return types; pylint: disable=invalid-name.
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -818,7 +818,7 @@ def id_filename(filename: str) -> str:
     if not prefix.startswith('ord'):
         raise ValueError(
             'basename does not have the required "ord" prefix: {basename}')
-    return flask.safe_join('data', suffix[:2], basename)
+    return security.safe_join('data', suffix[:2], basename)
 
 
 def create_message(message_name: str) -> ord_schema.Message:
