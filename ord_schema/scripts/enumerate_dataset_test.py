@@ -129,12 +129,12 @@ class EnumerateDatasetTest(absltest.TestCase):
                                  spreadsheet=self.spreadsheet,
                                  output=output_filename):
             enumerate_dataset.main(())
-        self.assertTrue(os.path.exists(output_filename))
+        assert os.path.exists(output_filename)
         dataset = message_helpers.load_message(output_filename,
                                                dataset_pb2.Dataset)
         self.assertLen(dataset.reactions, 3)
         validations.validate_message(dataset, raise_on_error=True)
-        self.assertEqual(dataset, self.expected)
+        assert dataset == self.expected
 
 
 if __name__ == '__main__':

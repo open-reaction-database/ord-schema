@@ -26,6 +26,7 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 from ord_schema.scripts import validate_dataset
+import pytest
 
 
 class ValidateDatasetTest(parameterized.TestCase, absltest.TestCase):
@@ -67,9 +68,7 @@ class ValidateDatasetTest(parameterized.TestCase, absltest.TestCase):
     def test_validation_errors(self):
         input_pattern = os.path.join(self.test_subdirectory, 'dataset*.pbtxt')
         with flagsaver.flagsaver(input=input_pattern):
-            with self.assertRaisesRegex(
-                    validations.ValidationError,
-                    'Reactions should have at least 1 reaction input'):
+            with pytest.raises(validations.ValidationError, match='Reactions should have at least 1 reaction input'):
                 validate_dataset.main(())
 
     @parameterized.parameters(

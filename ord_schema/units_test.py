@@ -18,6 +18,7 @@ from absl.testing import parameterized
 
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
+import pytest
 
 
 class UnitsTest(parameterized.TestCase, absltest.TestCase):
@@ -50,7 +51,7 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
         ('nanoliters', '0.12 nL',
          reaction_pb2.Volume(value=0.12, units=reaction_pb2.Volume.NANOLITER)))
     def test_resolve(self, string, expected):
-        self.assertEqual(self._resolver.resolve(string), expected)
+        assert self._resolver.resolve(string) == expected
 
     @parameterized.parameters(
         ('1L', '1 molar', '1 mol'),
@@ -61,12 +62,11 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
                                      expected_quantity):
         conc_resolver = units.UnitResolver(
             unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS)
-        self.assertEqual(
-            units.compute_solute_quantity(
+        assert units.compute_solute_quantity(
                 volume=self._resolver.resolve(volume),
-                concentration=conc_resolver.resolve(concentration)),
+                concentration=conc_resolver.resolve(concentration)) == \
             reaction_pb2.Amount(
-                moles=self._resolver.resolve(expected_quantity)))
+                moles=self._resolver.resolve(expected_quantity))
 
     @parameterized.named_parameters(
         ('integer', '1-2 h',
@@ -74,8 +74,8 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
                            precision=0.5,
                            units=reaction_pb2.Time.HOUR)))
     def test_resolve_allow_range(self, string, expected):
-        self.assertEqual(self._resolver.resolve(string, allow_range=True),
-                         expected)
+        assert self._resolver.resolve(string, allow_range=True) == \
+                         expected
 
     @parameterized.named_parameters(
         ('bad units', '1.21 GW', 'unrecognized units'),
@@ -86,7 +86,7 @@ class UnitsTest(parameterized.TestCase, absltest.TestCase):
         ('ambiguous units', '5.2 m', 'ambiguous'),
     )
     def test_resolve_should_fail(self, string, expected_error):
-        with self.assertRaisesRegex((KeyError, ValueError), expected_error):
+        with pytest.raises((KeyError, ValueError), match=expected_error):
             self._resolver.resolve(string)
 
 

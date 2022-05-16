@@ -24,6 +24,7 @@ from ord_schema import frozen_message
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
 from ord_schema.proto import test_pb2
+import pytest
 
 
 class FrozenMessageTest(absltest.TestCase):
@@ -48,47 +49,47 @@ class FrozenMessageTest(absltest.TestCase):
             set explicitly.
         """
         frozen = self._freeze(reaction_pb2.StirringConditions.StirringRate())
-        self.assertTrue(hasattr(frozen, 'rpm'))  # Wrong!
-        self.assertAlmostEqual(frozen.rpm, 0.0)
+        assert hasattr(frozen, 'rpm')  # Wrong!
+        assert round(abs(frozen.rpm-0.0), 7) == 0
 
     def test_access_optional_scalar(self):
         frozen = self._freeze(reaction_pb2.Percentage(value=12.3))
-        self.assertTrue(hasattr(frozen, 'value'))
-        self.assertAlmostEqual(frozen.value, 12.3, places=6)
-        self.assertFalse(hasattr(frozen, 'precision'))
-        with self.assertRaises(AttributeError):
+        assert hasattr(frozen, 'value')
+        assert round(abs(frozen.value-12.3), 6) == 0
+        assert not hasattr(frozen, 'precision')
+        with pytest.raises(AttributeError):
             _ = frozen.precision
 
     def test_access_optional_bool(self):
         frozen = self._freeze(test_pb2.Scalar(string_value='test'))
-        self.assertFalse(hasattr(frozen, 'bool_value'))
-        with self.assertRaises(AttributeError):
+        assert not hasattr(frozen, 'bool_value')
+        with pytest.raises(AttributeError):
             _ = frozen.bool_value
         frozen = self._freeze(test_pb2.Scalar(bool_value=False))
-        self.assertTrue(hasattr(frozen, 'bool_value'))
-        self.assertFalse(frozen.bool_value)
+        assert hasattr(frozen, 'bool_value')
+        assert not frozen.bool_value
         frozen = self._freeze(test_pb2.Scalar(bool_value=True))
-        self.assertTrue(hasattr(frozen, 'bool_value'))
-        self.assertTrue(frozen.bool_value)
+        assert hasattr(frozen, 'bool_value')
+        assert frozen.bool_value
 
     def test_access_submessage(self):
         frozen = self._freeze(reaction_pb2.Reaction())
-        self.assertFalse(hasattr(frozen, 'setup'))
-        with self.assertRaises(AttributeError):
+        assert not hasattr(frozen, 'setup')
+        with pytest.raises(AttributeError):
             _ = frozen.setup
 
     def test_access_repeated_scalar(self):
         message = reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails()
         frozen_empty = self._freeze(message)
         self.assertEmpty(frozen_empty.eic_masses)
-        with self.assertRaises(IndexError):
+        with pytest.raises(IndexError):
             _ = frozen_empty.eic_masses[0]
 
         message.eic_masses.append(1.5)
         frozen = self._freeze(message)
         self.assertLen(frozen.eic_masses, 1)
-        self.assertEqual(frozen.eic_masses[0], 1.5)
-        with self.assertRaises(IndexError):
+        assert frozen.eic_masses[0] == 1.5
+        with pytest.raises(IndexError):
             _ = frozen.eic_masses[1]
 
     def test_access_repeated_submessage(self):
@@ -96,58 +97,58 @@ class FrozenMessageTest(absltest.TestCase):
         message.observations.add(comment='test')
         frozen = self._freeze(message)
         self.assertLen(frozen.observations, 1)
-        self.assertEqual(frozen.observations[0].comment, 'test')
-        with self.assertRaises(IndexError):
+        assert frozen.observations[0].comment == 'test'
+        with pytest.raises(IndexError):
             _ = frozen.observations[1]
         self.assertEmpty(frozen.outcomes)
-        with self.assertRaises(IndexError):
+        with pytest.raises(IndexError):
             _ = frozen.outcomes[0]
 
     def test_access_map_value(self):
         message = reaction_pb2.Reaction()
         message.inputs['test'].addition_order = 1
         frozen = self._freeze(message)
-        self.assertTrue(hasattr(frozen, 'inputs'))
-        self.assertIn('test', frozen.inputs)
-        self.assertTrue(hasattr(frozen.inputs['test'], 'addition_order'))
-        self.assertEqual(frozen.inputs['test'].addition_order, 1)
-        self.assertNotIn('missing', frozen.inputs)
-        with self.assertRaises(KeyError):
+        assert hasattr(frozen, 'inputs')
+        assert 'test' in frozen.inputs
+        assert hasattr(frozen.inputs['test'], 'addition_order')
+        assert frozen.inputs['test'].addition_order == 1
+        assert 'missing' not in frozen.inputs
+        with pytest.raises(KeyError):
             _ = frozen.inputs['missing']
 
     def test_set_scalar_value(self):
         frozen = self._freeze(reaction_pb2.StirringConditions.StirringRate())
-        with self.assertRaises(dataclasses.FrozenInstanceError):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             frozen.rpm = 123
 
     def test_set_bool_value(self):
         frozen = self._freeze(test_pb2.Scalar())
-        with self.assertRaises(dataclasses.FrozenInstanceError):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             frozen.bool_value = False
 
     def test_set_submessage(self):
         frozen = self._freeze(reaction_pb2.Reaction())
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             frozen.setup.automation_platform = 'test'
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             frozen.setup.CopyFrom(
                 reaction_pb2.ReactionSetup(automation_platform='test'))
 
     def test_add_repeated_scalar(self):
         frozen = self._freeze(reaction_pb2.ProductCompound())
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             frozen.analysis_identity.append('test')
 
     def test_add_repeated_submessage(self):
         frozen = self._freeze(reaction_pb2.Reaction())
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             frozen.observations.add(comment='test')
 
     def test_set_map_value(self):
         frozen = self._freeze(reaction_pb2.Reaction())
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             frozen.inputs['test'].addition_order = 1
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             frozen.inputs['test'].CopyFrom(
                 reaction_pb2.ReactionInput(addition_order=1))
 
@@ -156,7 +157,7 @@ class FrozenMessageTest(absltest.TestCase):
         message = reaction_pb2.Reaction()
         message.workups.add(type='ADDITION')
         frozen = self._freeze(message)
-        with self.assertRaises(dataclasses.FrozenInstanceError):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             frozen.workups[0].type = reaction_pb2.ReactionWorkup.TEMPERATURE
 
 

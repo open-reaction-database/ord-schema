@@ -82,7 +82,7 @@ class GenerateTextTest(parameterized.TestCase, absltest.TestCase):
                                  output_type=output_type,
                                  output=output_filename):
             generate_text.main(())
-        self.assertTrue(os.path.exists(output_filename))
+        assert os.path.exists(output_filename)
 
 
 if __name__ == '__main__':

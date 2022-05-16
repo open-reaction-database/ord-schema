@@ -29,6 +29,7 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 from ord_schema.scripts import process_dataset
+import pytest
 
 
 class ProcessDatasetTest(absltest.TestCase):
@@ -79,17 +80,16 @@ class ProcessDatasetTest(absltest.TestCase):
     def test_main_with_validation_errors(self):
         with flagsaver.flagsaver(input_pattern=self.dataset2_filename,
                                  write_errors=True):
-            with self.assertRaisesRegex(validations.ValidationError,
-                                        'validation encountered errors'):
+            with pytest.raises(validations.ValidationError, match='validation encountered errors'):
                 process_dataset.main(())
         error_filename = f'{self.dataset2_filename}.error'
-        self.assertTrue(os.path.exists(error_filename))
+        assert os.path.exists(error_filename)
         expected_output = [
             'Reaction: Reactions should have at least 1 reaction input\n',
             'Reaction: Reactions should have at least 1 reaction outcome\n',
         ]
         with open(error_filename) as f:
-            self.assertEqual(f.readlines(), expected_output)
+            assert f.readlines() == expected_output
 
     def test_main_with_updates(self):
         output = os.path.join(
@@ -100,7 +100,7 @@ class ProcessDatasetTest(absltest.TestCase):
                                  root=self.test_subdirectory,
                                  base='main'):
             process_dataset.main(())
-        self.assertTrue(os.path.exists(output))
+        assert os.path.exists(output)
         dataset = message_helpers.load_message(output, dataset_pb2.Dataset)
         self.assertLen(dataset.reactions, 1)
         self.assertStartsWith(dataset.reactions[0].reaction_id, 'ord-')
@@ -108,7 +108,7 @@ class ProcessDatasetTest(absltest.TestCase):
     def test_main_with_too_many_flags(self):
         with flagsaver.flagsaver(input_pattern=self.dataset1_filename,
                                  input_file=self.dataset2_filename):
-            with self.assertRaisesRegex(ValueError, 'not both'):
+            with pytest.raises(ValueError, match='not both'):
                 process_dataset.main(())
 
 
@@ -220,11 +220,11 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
         added, removed, changed, filenames = self._run()
-        self.assertEqual(added, {'test'})
+        assert added == {'test'}
         self.assertEmpty(removed)
         self.assertEmpty(changed)
         self.assertLen(filenames, 2)
-        self.assertFalse(os.path.exists(dataset_filename))
+        assert not os.path.exists(dataset_filename)
         # Check for assignment of dataset and reaction IDs.
         filenames.pop(filenames.index(self.dataset_filename))
         self.assertLen(filenames, 1)
@@ -234,7 +234,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         self.assertLen(dataset.reactions, 1)
         self.assertNotEmpty(dataset.reactions[0].reaction_id)
         # Check for binary output.
-        self.assertTrue(filenames[0].endswith('.pb.gz'))
+        assert filenames[0].endswith('.pb.gz')
 
     def test_add_sharded_dataset(self):
         reaction = reaction_pb2.Reaction()
@@ -260,7 +260,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset2_filename = os.path.join(self.test_subdirectory, 'test2.pbtxt')
         message_helpers.write_message(dataset2, dataset2_filename)
         added, removed, changed, filenames = self._run()
-        self.assertEqual(added, {'test1', 'test2'})
+        assert added == {'test1', 'test2'}
         self.assertEmpty(removed)
         self.assertEmpty(changed)
         self.assertLen(filenames, 3)
@@ -270,8 +270,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
             dataset = message_helpers.load_message(filename,
                                                    dataset_pb2.Dataset)
             self.assertLen(dataset.reactions, 1)
-        self.assertFalse(os.path.exists(dataset1_filename))
-        self.assertFalse(os.path.exists(dataset2_filename))
+        assert not os.path.exists(dataset1_filename)
+        assert not os.path.exists(dataset2_filename)
 
     def test_add_dataset_with_existing_reaction_ids(self):
         reaction = reaction_pb2.Reaction()
@@ -291,17 +291,17 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
         added, removed, changed, filenames = self._run()
-        self.assertEqual(added, {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'})
+        assert added == {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'}
         self.assertEmpty(removed)
         self.assertEmpty(changed)
         self.assertLen(filenames, 2)
-        self.assertFalse(os.path.exists(dataset_filename))
+        assert not os.path.exists(dataset_filename)
         filenames.pop(filenames.index(self.dataset_filename))
         self.assertLen(filenames, 1)
         dataset = message_helpers.load_message(filenames[0],
                                                dataset_pb2.Dataset)
         # Check that existing record IDs for added datasets are not overridden.
-        self.assertEqual(dataset.reactions[0].reaction_id, reaction_id)
+        assert dataset.reactions[0].reaction_id == reaction_id
         self.assertLen(dataset.reactions[0].provenance.record_modified, 0)
 
     def test_modify_dataset(self):
@@ -326,17 +326,17 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset.reactions.add().CopyFrom(reaction)
         message_helpers.write_message(dataset, self.dataset_filename)
         added, removed, changed, filenames = self._run()
-        self.assertEqual(added, {'test'})
+        assert added == {'test'}
         self.assertEmpty(removed)
-        self.assertEqual(changed, {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'})
+        assert changed == {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'}
         self.assertCountEqual([self.dataset_filename], filenames)
         # Check for preservation of dataset and record IDs.
         updated_dataset = message_helpers.load_message(self.dataset_filename,
                                                        dataset_pb2.Dataset)
         self.assertLen(updated_dataset.reactions, 2)
-        self.assertEqual(dataset.dataset_id, updated_dataset.dataset_id)
-        self.assertEqual(dataset.reactions[0].reaction_id,
-                         updated_dataset.reactions[0].reaction_id)
+        assert dataset.dataset_id == updated_dataset.dataset_id
+        assert dataset.reactions[0].reaction_id == \
+                         updated_dataset.reactions[0].reaction_id
         self.assertNotEmpty(updated_dataset.reactions[1].reaction_id)
 
     def test_modify_reaction_id(self):
@@ -345,8 +345,8 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset.reactions[0].reaction_id = 'test_rename'
         message_helpers.write_message(dataset, self.dataset_filename)
         added, removed, changed, filenames = self._run()
-        self.assertEqual(added, {'test_rename'})
-        self.assertEqual(removed, {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'})
+        assert added == {'test_rename'}
+        assert removed == {'ord-10aed8b5dffe41fab09f5b2cc9c58ad9'}
         self.assertEmpty(changed)
         self.assertCountEqual([self.dataset_filename], filenames)
 
@@ -362,8 +362,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'could not validate SMILES'):
+        with pytest.raises(validations.ValidationError, match='could not validate SMILES'):
             self._run()
 
     def test_add_sharded_dataset_with_validation_errors(self):
@@ -385,8 +384,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset2 = dataset_pb2.Dataset(reactions=[reaction])
         dataset2_filename = os.path.join(self.test_subdirectory, 'test2.pbtxt')
         message_helpers.write_message(dataset2, dataset2_filename)
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'could not validate SMILES'):
+        with pytest.raises(validations.ValidationError, match='could not validate SMILES'):
             self._run()
 
     def test_modify_dataset_with_validation_errors(self):
@@ -395,8 +393,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         reaction = dataset.reactions[0]
         reaction.inputs['methylamine'].components[0].amount.moles.value = -2
         message_helpers.write_message(dataset, self.dataset_filename)
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'must be non-negative'):
+        with pytest.raises(validations.ValidationError, match='must be non-negative'):
             self._run()
 
     def test_add_dataset_with_too_large_reaction(self):
@@ -414,7 +411,7 @@ class SubmissionWorkflowTest(absltest.TestCase):
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
         message_helpers.write_message(dataset, dataset_filename)
-        with self.assertRaisesRegex(ValueError, 'larger than --max_size'):
+        with pytest.raises(ValueError, match='larger than --max_size'):
             self._run(max_size=0.0)
 
     def test_delete_dataset(self):

@@ -25,7 +25,7 @@ class UpdateReactionTest(absltest.TestCase):
     def test_with_updates_simple(self):
         message = reaction_pb2.Reaction()
         updates.update_reaction(message)
-        self.assertNotEqual(message, reaction_pb2.Reaction())
+        assert message != reaction_pb2.Reaction()
         self.assertLen(message.provenance.record_modified, 1)
 
     def test_with_no_updates(self):
@@ -35,7 +35,7 @@ class UpdateReactionTest(absltest.TestCase):
         copied = reaction_pb2.Reaction()
         copied.CopyFrom(message)
         updates.update_reaction(copied)
-        self.assertEqual(copied, message)
+        assert copied == message
 
     def test_add_reaction_id(self):
         message = reaction_pb2.Reaction()
@@ -48,8 +48,8 @@ class UpdateReactionTest(absltest.TestCase):
         message.reaction_id = 'ord-c0bbd41f095a44a78b6221135961d809'
         message.provenance.record_created.time.value = '2020-01-01'
         updates.update_reaction(message)
-        self.assertEqual(message.reaction_id,
-                         'ord-c0bbd41f095a44a78b6221135961d809')
+        assert message.reaction_id == \
+                         'ord-c0bbd41f095a44a78b6221135961d809'
         self.assertLen(message.provenance.record_modified, 0)
 
 
@@ -84,15 +84,14 @@ class UpdateDatasetTest(absltest.TestCase):
         self.dataset.reactions[2].reaction_id = 'synthesized'
         # Check updated values.
         updates.update_dataset(self.dataset)
-        self.assertEqual(dummy_input.crude_components[0].reaction_id,
-                         self.dataset.reactions[1].reaction_id)
-        self.assertNotEqual(dummy_input.crude_components[0].reaction_id,
-                            'crude')
-        self.assertEqual(dummy_input.components[0].preparations[0].reaction_id,
-                         self.dataset.reactions[2].reaction_id)
-        self.assertNotEqual(
-            dummy_input.components[0].preparations[0].reaction_id,
-            'synthesized')
+        assert dummy_input.crude_components[0].reaction_id == \
+                         self.dataset.reactions[1].reaction_id
+        assert dummy_input.crude_components[0].reaction_id != \
+                            'crude'
+        assert dummy_input.components[0].preparations[0].reaction_id == \
+                         self.dataset.reactions[2].reaction_id
+        assert dummy_input.components[0].preparations[0].reaction_id != \
+            'synthesized'
 
     def test_crossferences_are_proper_ids(self):
         dummy_input = self.dataset.reactions[0].inputs['dummy_input']
@@ -108,14 +107,14 @@ class UpdateDatasetTest(absltest.TestCase):
             2].reaction_id = 'ord-d0bbd41f095a44a78b6221135961d809'
         # Check updated values.
         updates.update_dataset(self.dataset)
-        self.assertEqual(dummy_input.crude_components[0].reaction_id,
-                         self.dataset.reactions[1].reaction_id)
-        self.assertEqual(dummy_input.crude_components[0].reaction_id,
-                         'ord-c0bbd41f095a44a78b6221135961d809')
-        self.assertEqual(dummy_input.components[0].preparations[0].reaction_id,
-                         self.dataset.reactions[2].reaction_id)
-        self.assertEqual(dummy_input.components[0].preparations[0].reaction_id,
-                         'ord-d0bbd41f095a44a78b6221135961d809')
+        assert dummy_input.crude_components[0].reaction_id == \
+                         self.dataset.reactions[1].reaction_id
+        assert dummy_input.crude_components[0].reaction_id == \
+                         'ord-c0bbd41f095a44a78b6221135961d809'
+        assert dummy_input.components[0].preparations[0].reaction_id == \
+                         self.dataset.reactions[2].reaction_id
+        assert dummy_input.components[0].preparations[0].reaction_id == \
+                         'ord-d0bbd41f095a44a78b6221135961d809'
 
 
 if __name__ == '__main__':

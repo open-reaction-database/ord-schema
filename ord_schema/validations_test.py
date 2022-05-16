@@ -16,7 +16,7 @@
 import sys
 import warnings
 
-from absl.testing import absltest
+import pytest
 from absl.testing import parameterized
 from google.protobuf import text_format
 
@@ -24,10 +24,11 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
+
 # pylint: disable=too-many-public-methods
 
 
-class ValidationsTest(parameterized.TestCase, absltest.TestCase):
+class ValidationsTest(parameterized.TestCase):
 
     def setUp(self):
         super().setUp()
@@ -63,7 +64,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         original.CopyFrom(message)
         output = validations.validate_message(message, **kwargs)
         # Verify that `message` is unchanged by the validation process.
-        self.assertEqual(original, message)
+        assert original == message
         return output
 
     @parameterized.named_parameters(
@@ -71,14 +72,14 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         ('default1', reaction_pb2.StirringConditions(type='UNSPECIFIED')),
         ('default2', reaction_pb2.ReactionNotes(safety_notes='')))
     def test_is_empty(self, message):
-        self.assertTrue(validations.is_empty(message))
+        assert validations.is_empty(message)
 
     @parameterized.named_parameters(
         ('not_empty', reaction_pb2.StirringConditions(type='STIR_BAR')),
         ('optional1', reaction_pb2.ReactionNotes(is_heterogeneous=False)),
         ('optional2', reaction_pb2.ReactionNotes(is_heterogeneous=True)))
     def test_is_not_empty(self, message):
-        self.assertFalse(validations.is_empty(message))
+        assert not validations.is_empty(message)
 
     @parameterized.named_parameters(
         ('volume',
@@ -106,8 +107,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
          reaction_pb2.Temperature(value=-500, units='CELSIUS'), 'between'),
     )
     def test_units_should_fail(self, message, expected_error):
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    expected_error):
+        with pytest.raises(validations.ValidationError, match=expected_error):
             self._run_validation(message)
 
     def test_orcid(self):
@@ -118,7 +118,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     def test_orcid_should_fail(self):
         message = reaction_pb2.Person(orcid='abcd-0001-2345-678X')
-        with self.assertRaisesRegex(validations.ValidationError, 'Invalid'):
+        with pytest.raises(validations.ValidationError, match='Invalid'):
             self._run_validation(message)
 
     @parameterized.parameters([
@@ -134,7 +134,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         ['bad&character@gmail.com', 'not-an-email', 'bad@domain'])
     def test_email_should_fail(self, email):
         message = reaction_pb2.Person(email=email)
-        with self.assertRaisesRegex(validations.ValidationError, 'Invalid'):
+        with pytest.raises(validations.ValidationError, match='Invalid'):
             self._run_validation(message)
 
     def test_synthesized_compound(self):
@@ -145,8 +145,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         self.assertEmpty(output.warnings)
         message = reaction_pb2.CompoundPreparation(
             type='NONE', reaction_id='dummy_reaction_id')
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'only .* when SYNTHESIZED'):
+        with pytest.raises(validations.ValidationError, match='only .* when SYNTHESIZED'):
             self._run_validation(message)
 
     def test_unmeasured_amount(self):
@@ -165,14 +164,14 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
 
     def test_crude_component(self):
         message = reaction_pb2.CrudeComponent()
-        with self.assertRaisesRegex(validations.ValidationError, 'reaction_id'):
+        with pytest.raises(validations.ValidationError, match='reaction_id'):
             self._run_validation(message)
         message = reaction_pb2.CrudeComponent(reaction_id='my_reaction_id')
-        with self.assertRaisesRegex(validations.ValidationError, 'amount'):
+        with pytest.raises(validations.ValidationError, match='amount'):
             self._run_validation(message)
         message = reaction_pb2.CrudeComponent(reaction_id='my_reaction_id',
                                               has_derived_amount=False)
-        with self.assertRaisesRegex(validations.ValidationError, 'amount'):
+        with pytest.raises(validations.ValidationError, match='amount'):
             self._run_validation(message)
         message = reaction_pb2.CrudeComponent(reaction_id='my_reaction_id',
                                               has_derived_amount=True)
@@ -185,23 +184,22 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
                                                   type='YIELD',
                                                   float_value=dict(value=60))
         output = self._run_validation(message)
-        self.assertRegex(output.warnings[0], 'percentage')
+        assert 'percentage' in output.warnings[0]
         message = reaction_pb2.ProductMeasurement(analysis_key='my_analysis',
                                                   type='AREA',
                                                   string_value='35.221')
-        with self.assertRaisesRegex(validations.ValidationError, 'numeric'):
+        with pytest.raises(validations.ValidationError, match='numeric'):
             self._run_validation(message)
         message = reaction_pb2.ProductMeasurement(analysis_key='my_analysis',
                                                   type='YIELD',
                                                   percentage=dict(value=60),
                                                   selectivity=dict(type='EE'))
-        with self.assertRaisesRegex(validations.ValidationError, 'selectivity'):
+        with pytest.raises(validations.ValidationError, match='selectivity'):
             self._run_validation(message)
 
     def test_reaction(self):
         message = reaction_pb2.Reaction()
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'reaction input'):
+        with pytest.raises(validations.ValidationError, match='reaction input'):
             self._run_validation(message)
 
     def test_reaction_smiles(self):
@@ -213,23 +211,21 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         # Now disable the exception for reaction SMILES only.
         options = validations.ValidationOptions()
         options.allow_reaction_smiles_only = False
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'reaction input'):
+        with pytest.raises(validations.ValidationError, match='reaction input'):
             self._run_validation(message, options=options)
 
     def test_bad_reaction_smiles(self):
         message = reaction_pb2.Reaction()
         message.identifiers.add(value='test', type='REACTION_SMILES')
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'requires at least two > characters'):
+        with pytest.raises(validations.ValidationError, match='requires at least two > characters'):
             self._run_validation(message)
 
     @parameterized.named_parameters(
         ('aliquot_with_amount',
          'type: ALIQUOT amount {mass {value: 1.0 units: GRAM}}'),
         ('addition_with_input', 'type: ADDITION input {components {'
-         'identifiers {value: "CCO" type: SMILES} '
-         'amount {mass {value: 10.0 units: GRAM}}}}'),
+                                'identifiers {value: "CCO" type: SMILES} '
+                                'amount {mass {value: 10.0 units: GRAM}}}}'),
     )
     def test_reaction_workup(self, workup_text):
         message = text_format.Parse(workup_text, reaction_pb2.ReactionWorkup())
@@ -249,40 +245,37 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message = text_format.Parse(workup_text, reaction_pb2.ReactionWorkup())
         output = self._run_validation(message)
         self.assertLen(output.warnings, 1)
-        self.assertRegex(output.warnings[0], error_msg)
+        assert error_msg in output.warnings[0]
 
     # pylint: disable=too-many-statements
     def test_reaction_recursive(self):
         message = reaction_pb2.Reaction()
         # Reactions must have at least one input
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'reaction input'):
+        with pytest.raises(validations.ValidationError, match='reaction input'):
             self._run_validation(message, recurse=False)
         dummy_input = message.inputs['dummy_input']
         # Reactions must have at least one outcome
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'reaction outcome'):
+        with pytest.raises(validations.ValidationError, match='reaction outcome'):
             self._run_validation(message, recurse=False)
         outcome = message.outcomes.add()
         output = self._run_validation(message, recurse=False)
         self.assertEmpty(output.errors)
         self.assertEmpty(output.warnings)
         # Inputs must have at least one component
-        with self.assertRaisesRegex(validations.ValidationError, 'component'):
+        with pytest.raises(validations.ValidationError, match='component'):
             self._run_validation(message)
         dummy_component = dummy_input.components.add()
         # Components must have at least one identifier
-        with self.assertRaisesRegex(validations.ValidationError, 'identifier'):
+        with pytest.raises(validations.ValidationError, match='identifier'):
             self._run_validation(message)
         dummy_component.identifiers.add(type='CUSTOM')
         # Custom identifiers must have details specified
-        with self.assertRaisesRegex(validations.ValidationError, 'details'):
+        with pytest.raises(validations.ValidationError, match='details'):
             self._run_validation(message)
         dummy_component.identifiers[0].details = 'custom_identifier'
         dummy_component.identifiers[0].value = 'custom_value'
         # Components of reaction inputs must have a defined amount
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'require an amount'):
+        with pytest.raises(validations.ValidationError, match='require an amount'):
             self._run_validation(message)
         dummy_component.amount.mass.value = 1
         dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
@@ -293,7 +286,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         self.assertLen(output.warnings, 1)
         outcome.conversion.value = 75
         # If converseions are defined, must have limiting reagent flag
-        with self.assertRaisesRegex(validations.ValidationError, 'is_limiting'):
+        with pytest.raises(validations.ValidationError, match='is_limiting'):
             self._run_validation(message)
         dummy_component.is_limiting = True
         output = self._run_validation(message)
@@ -310,8 +303,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
                                  type='YIELD',
                                  percentage=dict(value=75),
                                  uses_internal_standard=True)
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'INTERNAL_STANDARD'):
+        with pytest.raises(validations.ValidationError, match='INTERNAL_STANDARD'):
             self._run_validation(message)
         # Assigning internal standard role to input should resolve the error
         message_input_istd = reaction_pb2.Reaction()
@@ -344,7 +336,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
             'Reaction: Reactions should have at least 1 reaction outcome',
             'Reaction: All reaction input components require an amount',
         ]
-        self.assertEqual(output.errors, expected)
+        assert output.errors == expected
         self.assertLen(output.warnings, 1)
 
     def test_datetimes(self):
@@ -353,7 +345,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message.record_created.time.value = '2020-01-01'
         message.record_created.person.name = 'test'
         message.record_created.person.email = 'test@example.com'
-        with self.assertRaisesRegex(validations.ValidationError, 'after'):
+        with pytest.raises(validations.ValidationError, match='after'):
             self._run_validation(message)
         message.record_created.time.value = '2020-01-03'
         output = self._run_validation(message)
@@ -384,7 +376,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         _ = message.inputs['test']
         message.outcomes.add()
         options = validations.ValidationOptions(validate_ids=True)
-        with self.assertRaisesRegex(validations.ValidationError, 'malformed'):
+        with pytest.raises(validations.ValidationError, match='malformed'):
             self._run_validation(message, recurse=False, options=options)
 
     def test_missing_provenance(self):
@@ -392,18 +384,15 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         _ = message.inputs['test']
         message.outcomes.add()
         options = validations.ValidationOptions(require_provenance=True)
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'requires provenance'):
+        with pytest.raises(validations.ValidationError, match='requires provenance'):
             self._run_validation(message, recurse=False, options=options)
 
     def test_data(self):
         message = reaction_pb2.Data()
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'requires one of'):
+        with pytest.raises(validations.ValidationError, match='requires one of'):
             self._run_validation(message)
         message.bytes_value = b'test data'
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'format is required'):
+        with pytest.raises(validations.ValidationError, match='format is required'):
             self._run_validation(message)
         message.string_value = 'test data'
         output = self._run_validation(message)
@@ -413,7 +402,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
     def test_dataset_bad_reaction_id(self):
         message = dataset_pb2.Dataset(reaction_ids=['foo'])
         options = validations.ValidationOptions(validate_ids=True)
-        with self.assertRaisesRegex(validations.ValidationError, 'malformed'):
+        with pytest.raises(validations.ValidationError, match='malformed'):
             self._run_validation(message, options=options)
 
     def test_dataset_records_and_ids(self):
@@ -421,28 +410,25 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
             reactions=[reaction_pb2.Reaction()],
             reaction_ids=['ord-c0bbd41f095a44a78b6221135961d809'])
         options = validations.ValidationOptions(validate_ids=True)
-        with self.assertRaisesRegex(validations.ValidationError, 'not both'):
+        with pytest.raises(validations.ValidationError, match='not both'):
             self._run_validation(message, recurse=False, options=options)
 
     def test_dataset_bad_id(self):
         message = dataset_pb2.Dataset(reactions=[reaction_pb2.Reaction()],
                                       dataset_id='foo')
         options = validations.ValidationOptions(validate_ids=True)
-        with self.assertRaisesRegex(validations.ValidationError, 'malformed'):
+        with pytest.raises(validations.ValidationError, match='malformed'):
             self._run_validation(message, recurse=False, options=options)
 
     def test_dataset_example(self):
         message = dataset_pb2.DatasetExample()
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'description is required'):
+        with pytest.raises(validations.ValidationError, match='description is required'):
             self._run_validation(message)
         message.description = 'test example'
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'url is required'):
+        with pytest.raises(validations.ValidationError, match='url is required'):
             self._run_validation(message)
         message.url = 'example.com'
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'created is required'):
+        with pytest.raises(validations.ValidationError, match='created is required'):
             self._run_validation(message)
         message.created.time.value = '11 am'
         message.created.person.name = 'test'
@@ -474,12 +460,11 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         self.assertLen(output.warnings, 3)
         # References must refer to ID within this dataset.
         dummy_component.preparations[0].reaction_id = 'placeholder_id'
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'undefined reaction_ids'):
+        with pytest.raises(validations.ValidationError, match='undefined reaction_ids'):
             self._run_validation(message)
         # Self-references aren't allowed
         reaction1.reaction_id = 'placeholder_id'
-        with self.assertRaisesRegex(validations.ValidationError, 'own ID'):
+        with pytest.raises(validations.ValidationError, match='own ID'):
             self._run_validation(message)
         # Valid reference
         reaction1.reaction_id = ''
@@ -489,20 +474,15 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         self.assertLen(output.warnings, 3)
         # Duplicate IDs not allowed
         reaction3.reaction_id = 'placeholder_id'
-        with self.assertRaisesRegex(validations.ValidationError, 'same IDs'):
+        with pytest.raises(validations.ValidationError, match='same IDs'):
             self._run_validation(message)
         reaction3.reaction_id = ''
         # Crude component also needs valid IDs
         dummy_input.crude_components.add(reaction_id='crude-making step',
                                          has_derived_amount=True)
-        with self.assertRaisesRegex(validations.ValidationError,
-                                    'undefined reaction_ids'):
+        with pytest.raises(validations.ValidationError, match='undefined reaction_ids'):
             self._run_validation(message)
         reaction3.reaction_id = 'crude-making step'
         output = self._run_validation(message)
         self.assertEmpty(output.errors)
         self.assertLen(output.warnings, 3)
-
-
-if __name__ == '__main__':
-    absltest.main()

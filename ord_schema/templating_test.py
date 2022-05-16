@@ -26,6 +26,7 @@ from rdkit import Chem
 from ord_schema import templating
 from ord_schema.proto import reaction_pb2
 from ord_schema.proto import dataset_pb2
+import pytest
 
 
 class TemplatingTest(parameterized.TestCase, absltest.TestCase):
@@ -64,7 +65,7 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
             reaction.outcomes[0].conversion.value = conversion
             expected_reactions.append(reaction)
         expected_dataset = dataset_pb2.Dataset(reactions=expected_reactions)
-        self.assertEqual(dataset, expected_dataset)
+        assert dataset == expected_dataset
 
         # Test without "$" in column names
         df = pd.DataFrame.from_dict({
@@ -72,7 +73,7 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
             'conversion': [75, 50, 30],
         })
         dataset = templating.generate_dataset(template_string, df)
-        self.assertEqual(dataset, expected_dataset)
+        assert dataset == expected_dataset
 
     def test_valid_templating_escapes(self):
         smiles = ['CCO', 'CCCO', 'CCCCO']
@@ -90,7 +91,7 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
             reaction.inputs['in'].components[0].identifiers[1].value = molblock
             expected_reactions.append(reaction)
         expected_dataset = dataset_pb2.Dataset(reactions=expected_reactions)
-        self.assertEqual(dataset, expected_dataset)
+        assert dataset == expected_dataset
 
     @parameterized.parameters(['.csv', '.xls', '.xlsx'])
     def test_read_spreadsheet(self, suffix):
@@ -122,13 +123,12 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
             reaction.outcomes[0].conversion.precision = precision
             expected_reactions.append(reaction)
         expected_dataset = dataset_pb2.Dataset(reactions=expected_reactions)
-        with self.assertRaisesRegex(ValueError,
-                                    'Enumerated Reaction is not valid'):
+        with pytest.raises(ValueError, match='Enumerated Reaction is not valid'):
             templating.generate_dataset(template_string, df)
         dataset = templating.generate_dataset(template_string,
                                               df,
                                               validate=False)
-        self.assertEqual(dataset, expected_dataset)
+        assert dataset == expected_dataset
 
     def test_bad_placeholders(self):
         template_string = self.template_string.replace('value: "CCO"',
@@ -138,7 +138,7 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
         df = pd.DataFrame.from_dict({
             '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
         })
-        with self.assertRaisesRegex(ValueError, r'\$conversion\$ not found'):
+        with pytest.raises(ValueError, match=r'\$conversion\$ not found'):
             templating.generate_dataset(template_string, df)
 
     def test_missing_values(self):
@@ -183,7 +183,7 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
         reaction2.CopyFrom(reaction)
         del reaction2.inputs['one'].components[0]  # No indentifiers.
         reaction2.inputs['two'].components[0].amount.mass.value = 1.5
-        self.assertEqual(dataset, expected_dataset)
+        assert dataset == expected_dataset
 
 
 if __name__ == '__main__':

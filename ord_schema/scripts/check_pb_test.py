@@ -23,6 +23,7 @@ from absl.testing import flagsaver
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 from ord_schema.scripts import check_pb
+import pytest
 
 
 class CheckPbTest(absltest.TestCase):
@@ -55,7 +56,7 @@ class CheckPbTest(absltest.TestCase):
         message_helpers.write_message(dataset, self.pb_filename)
         component.identifiers.add(value='benzene', type='NAME')
         message_helpers.write_message(dataset, self.pbtxt_filename)
-        with self.assertRaisesRegex(ValueError, 'Datasets differ'):
+        with pytest.raises(ValueError, match='Datasets differ'):
             self._run()
 
 

@@ -21,6 +21,7 @@ from google.protobuf import text_format
 from ord_schema.proto import reaction_pb2
 from ord_schema.macros import solutions
 from ord_schema import validations
+import pytest
 
 
 class SolutionsTest(parameterized.TestCase, absltest.TestCase):
@@ -61,7 +62,7 @@ class SolutionsTest(parameterized.TestCase, absltest.TestCase):
             solute_smiles='[Na+].[Cl-]',
             concentration='1M',
             volume='1L')
-        self.assertEqual(actual_compounds, [expected_solvent, expected_solute])
+        assert actual_compounds == [expected_solvent, expected_solute]
 
     @parameterized.parameters(
         itertools.product(['[Na+].[Cl-]', None], ['1M', None], ['1L', None]))
@@ -86,13 +87,12 @@ class SolutionsTest(parameterized.TestCase, absltest.TestCase):
         for component in solution_components:
             validations.validate_message(component)
 
-        self.assertTrue(
-            any(component.amount.unmeasured.type ==
+        assert any(component.amount.unmeasured.type ==
                 reaction_pb2.UnmeasuredAmount.SATURATED
-                for component in solution_components))
+                for component in solution_components)
 
     def test_simple_solution_concentration_and_saturated_illegal(self):
-        with self.assertRaisesRegex(ValueError, 'Cannot specify both'):
+        with pytest.raises(ValueError, match='Cannot specify both'):
             solutions.simple_solution(solvent_smiles='O',
                                       solute_smiles='[Na+].[Cl-]',
                                       volume='1L',
@@ -100,7 +100,7 @@ class SolutionsTest(parameterized.TestCase, absltest.TestCase):
                                       saturated=True)
 
     def test_simple_solution_saturated_solute_missing(self):
-        with self.assertRaisesRegex(ValueError, 'Must specify'):
+        with pytest.raises(ValueError, match='Must specify'):
             solutions.simple_solution(solvent_smiles='O',
                                       solute_smiles=None,
                                       volume='1L',

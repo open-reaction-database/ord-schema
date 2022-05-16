@@ -38,13 +38,13 @@ class DatasetPb2Test(absltest.TestCase):
 
     def test_dataset(self):
         dataset = dataset_pb2.Dataset.FromString(self.dataset_pb)
-        self.assertEqual(dataset.name, 'test')
-        self.assertEqual(dataset.description, 'test dataset')
+        assert dataset.name == 'test'
+        assert dataset.description == 'test dataset'
         self.assertLen(dataset.reactions, 2)
-        self.assertEqual(dataset.reactions[0].identifiers[0].type,
-                         reaction_pb2.ReactionIdentifier.REACTION_SMILES)
-        self.assertEqual(dataset.reactions[1].identifiers[0].type,
-                         reaction_pb2.ReactionIdentifier.NAME)
+        assert dataset.reactions[0].identifiers[0].type == \
+                         reaction_pb2.ReactionIdentifier.REACTION_SMILES
+        assert dataset.reactions[1].identifiers[0].type == \
+                         reaction_pb2.ReactionIdentifier.NAME
 
 
 if __name__ == '__main__':
