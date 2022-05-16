@@ -341,7 +341,7 @@ class ValidationsTest(parameterized.TestCase, absltest.TestCase):
         message.inputs["dummy_input"].components.add()
         output = self._run_validation(message, raise_on_error=False)
         expected = [
-            ('Reaction.inputs["dummy_input"].components[0]: ' "Compounds must have at least one identifier"),
+            'Reaction.inputs["dummy_input"].components[0]: Compounds must have at least one identifier',
             "Reaction: Reactions should have at least 1 reaction outcome",
             "Reaction: All reaction input components require an amount",
         ]
