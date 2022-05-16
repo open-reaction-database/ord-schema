@@ -22,79 +22,96 @@ from ord_schema.proto import reaction_pb2
 
 
 class NameResolversTest(absltest.TestCase):
-
     def test_resolve_names(self):
         roundtrip_smi = lambda smi: Chem.MolToSmiles(Chem.MolFromSmiles(smi))
         message = reaction_pb2.Reaction()
-        message.inputs['test'].components.add().identifiers.add(type='NAME',
-                                                                value='aspirin')
+        message.inputs["test"].components.add().identifiers.add(type="NAME", value="aspirin")
         self.assertTrue(resolvers.resolve_names(message))
-        resolved_smi = roundtrip_smi(
-            message.inputs['test'].components[0].identifiers[1].value)
-        self.assertEqual(resolved_smi, roundtrip_smi('CC(=O)Oc1ccccc1C(O)=O'))
+        resolved_smi = roundtrip_smi(message.inputs["test"].components[0].identifiers[1].value)
+        self.assertEqual(resolved_smi, roundtrip_smi("CC(=O)Oc1ccccc1C(O)=O"))
         self.assertEqual(
-            message.inputs['test'].components[0].identifiers[1].type,
-            reaction_pb2.CompoundIdentifier.IdentifierType.SMILES)
-        self.assertRegex(
-            message.inputs['test'].components[0].identifiers[1].details,
-            'NAME resolved')
+            message.inputs["test"].components[0].identifiers[1].type,
+            reaction_pb2.CompoundIdentifier.IdentifierType.SMILES,
+        )
+        self.assertRegex(message.inputs["test"].components[0].identifiers[1].details, "NAME resolved")
 
 
 class InputResolversTest(parameterized.TestCase, absltest.TestCase):
-
     def test_input_resolve(self):
         roundtrip_smi = lambda smi: Chem.MolToSmiles(Chem.MolFromSmiles(smi))
-        string = '10 g of THF'
+        string = "10 g of THF"
         reaction_input = resolvers.resolve_input(string)
         self.assertEqual(len(reaction_input.components), 1)
-        self.assertEqual(reaction_input.components[0].amount.mass,
-                         reaction_pb2.Mass(value=10, units='GRAM'))
+        self.assertEqual(
+            reaction_input.components[0].amount.mass,
+            reaction_pb2.Mass(value=10, units="GRAM"),
+        )
         self.assertEqual(
             reaction_input.components[0].identifiers[0],
-            reaction_pb2.CompoundIdentifier(type='NAME', value='THF'))
-        self.assertEqual(reaction_pb2.CompoundIdentifier.SMILES,
-                         reaction_input.components[0].identifiers[1].type)
+            reaction_pb2.CompoundIdentifier(type="NAME", value="THF"),
+        )
+        self.assertEqual(
+            reaction_pb2.CompoundIdentifier.SMILES,
+            reaction_input.components[0].identifiers[1].type,
+        )
         self.assertEqual(
             roundtrip_smi(reaction_input.components[0].identifiers[1].value),
-            roundtrip_smi('C1COCC1'))
+            roundtrip_smi("C1COCC1"),
+        )
 
-        string = '100 mL of 5.0uM sodium hydroxide in water'
+        string = "100 mL of 5.0uM sodium hydroxide in water"
         reaction_input = resolvers.resolve_input(string)
         self.assertEqual(len(reaction_input.components), 2)
-        self.assertEqual(reaction_input.components[0].amount.moles,
-                         reaction_pb2.Moles(value=500, units='NANOMOLE'))
+        self.assertEqual(
+            reaction_input.components[0].amount.moles,
+            reaction_pb2.Moles(value=500, units="NANOMOLE"),
+        )
         self.assertEqual(
             reaction_input.components[0].identifiers[0],
-            reaction_pb2.CompoundIdentifier(type='NAME',
-                                            value='sodium hydroxide'))
-        self.assertEqual(reaction_pb2.CompoundIdentifier.SMILES,
-                         reaction_input.components[0].identifiers[1].type)
+            reaction_pb2.CompoundIdentifier(type="NAME", value="sodium hydroxide"),
+        )
+        self.assertEqual(
+            reaction_pb2.CompoundIdentifier.SMILES,
+            reaction_input.components[0].identifiers[1].type,
+        )
         self.assertEqual(
             roundtrip_smi(reaction_input.components[0].identifiers[1].value),
-            roundtrip_smi('[Na+].[OH-]'))
-        self.assertEqual(reaction_input.components[1].amount.volume,
-                         reaction_pb2.Volume(value=100, units='MILLILITER'))
+            roundtrip_smi("[Na+].[OH-]"),
+        )
         self.assertEqual(
-            reaction_input.components[1].amount.volume_includes_solutes, True)
+            reaction_input.components[1].amount.volume,
+            reaction_pb2.Volume(value=100, units="MILLILITER"),
+        )
+        self.assertEqual(reaction_input.components[1].amount.volume_includes_solutes, True)
         self.assertEqual(
             reaction_input.components[1].identifiers[0],
-            reaction_pb2.CompoundIdentifier(type='NAME', value='water'))
-        self.assertEqual(reaction_pb2.CompoundIdentifier.SMILES,
-                         reaction_input.components[1].identifiers[1].type)
+            reaction_pb2.CompoundIdentifier(type="NAME", value="water"),
+        )
+        self.assertEqual(
+            reaction_pb2.CompoundIdentifier.SMILES,
+            reaction_input.components[1].identifiers[1].type,
+        )
         self.assertEqual(
             roundtrip_smi(reaction_input.components[1].identifiers[1].value),
-            roundtrip_smi('O'))
+            roundtrip_smi("O"),
+        )
 
     @parameterized.named_parameters(
-        ('bad amount', '100 g of 5.0uM sodium hydroxide in water',
-         'amount of solution must be a volume'),
-        ('missing concentration', '100 L of 5 grapes in water',
-         'String did not match template'),
+        (
+            "bad amount",
+            "100 g of 5.0uM sodium hydroxide in water",
+            "amount of solution must be a volume",
+        ),
+        (
+            "missing concentration",
+            "100 L of 5 grapes in water",
+            "String did not match template",
+        ),
     )
     def test_input_resolve_should_fail(self, string, expected_error):
         with self.assertRaisesRegex((KeyError, ValueError), expected_error):
             resolvers.resolve_input(string)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     absltest.main()

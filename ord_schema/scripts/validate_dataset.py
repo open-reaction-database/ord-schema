@@ -31,8 +31,8 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string('input', None, 'Input pattern for Dataset protos.')
-flags.DEFINE_string('filter', None, 'Regex filename filter.')
+flags.DEFINE_string("input", None, "Input pattern for Dataset protos.")
+flags.DEFINE_string("filter", None, "Regex filename filter.")
 
 
 def filter_filenames(filenames: Iterable[str], pattern: str) -> List[str]:
@@ -47,17 +47,17 @@ def filter_filenames(filenames: Iterable[str], pattern: str) -> List[str]:
 def main(argv):
     del argv  # Only used by app.run().
     filenames = sorted(glob.glob(FLAGS.input, recursive=True))
-    logging.info('Found %d datasets', len(filenames))
+    logging.info("Found %d datasets", len(filenames))
     if FLAGS.filter:
         filenames = filter_filenames(filenames, FLAGS.filter)
-        logging.info('Filtered to %d datasets', len(filenames))
+        logging.info("Filtered to %d datasets", len(filenames))
     for filename in filenames:
-        logging.info('Validating %s', filename)
+        logging.info("Validating %s", filename)
         dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
         validations.validate_datasets({filename: dataset})
 
 
-if __name__ == '__main__':
-    flags.mark_flag_as_required('input')
-    RDLogger.DisableLog('rdApp.*')  # Disable RDKit logging.
+if __name__ == "__main__":
+    flags.mark_flag_as_required("input")
+    RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.
     app.run(main)

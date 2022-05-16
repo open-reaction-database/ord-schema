@@ -5,3 +5,6 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[tool.black]
+line-length = 120
+extend-exclude = "_pb2.py"

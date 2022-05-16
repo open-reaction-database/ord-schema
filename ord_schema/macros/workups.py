@@ -51,10 +51,9 @@ UNITS_RESOLVER = units.UnitResolver()
 CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS)
 
 
-def add_solution(solution: List[reaction_pb2.Compound],
-                 type: str = 'ADDITION') -> reaction_pb2.ReactionWorkup:
+def add_solution(solution: List[reaction_pb2.Compound], type: str = "ADDITION") -> reaction_pb2.ReactionWorkup:
     """Create a workup representing addition of a solution.
-    
+
     type is commonly one of 'ADDITION', 'EXTRACTION', or 'WASH'; see
     ReactionWorkup.WorkupType enum for full list of possible values.
     """
@@ -67,17 +66,17 @@ def add_solution(solution: List[reaction_pb2.Compound],
 
 def separate_phases(keep_phase: str) -> reaction_pb2.ReactionWorkup:
     """Create a workup representing a phase separation.
-    
+
     keep_phase is commonly either 'aqueous' or 'organic'.
     """
-    return reaction_pb2.ReactionWorkup(type='EXTRACTION', keep_phase=keep_phase)
+    return reaction_pb2.ReactionWorkup(type="EXTRACTION", keep_phase=keep_phase)
 
 
 def drying_agent(agent_smiles: str) -> reaction_pb2.ReactionWorkup:
     """Create a workup representing addition of a drying agent."""
-    workup = reaction_pb2.ReactionWorkup(type='DRY_WITH_MATERIAL')
+    workup = reaction_pb2.ReactionWorkup(type="DRY_WITH_MATERIAL")
     component = workup.input.components.add()
-    component.identifiers.add(value=agent_smiles, type='SMILES')
+    component.identifiers.add(value=agent_smiles, type="SMILES")
     component.reaction_role = reaction_pb2.ReactionRole.WORKUP
     return workup
 
@@ -87,9 +86,9 @@ def filter(keep_phase: str) -> reaction_pb2.ReactionWorkup:
 
     keep_phase should be one of 'filtrate' or 'solid'.
     """
-    return reaction_pb2.ReactionWorkup(type='FILTRATION', keep_phase=keep_phase)
+    return reaction_pb2.ReactionWorkup(type="FILTRATION", keep_phase=keep_phase)
 
 
 def rotovap() -> reaction_pb2.ReactionWorkup:
     """Create a workup representing a rotary evaporation step."""
-    return reaction_pb2.ReactionWorkup(type='CONCENTRATION')
+    return reaction_pb2.ReactionWorkup(type="CONCENTRATION")
