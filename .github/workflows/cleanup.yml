@@ -39,11 +39,11 @@ jobs:
       - uses: s-weigand/setup-conda@v1
         with:
           python-version: 3.7
-      - name: Run yapf
+      - name: Run black
         run: |
           cd "${GITHUB_WORKSPACE}"
-          pip install yapf toml
-          yapf --parallel --recursive --exclude="*_pb2.py" --quiet .
+          pip install black
+          black --check .
       - name: Install ord-schema
         run: |
           pip install -r requirements.txt

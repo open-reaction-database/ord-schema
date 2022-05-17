@@ -32,8 +32,7 @@ from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 
-def read_spreadsheet(file_name_or_buffer: Union[str, BinaryIO],
-                     suffix: Optional[str] = None) -> pd.DataFrame:
+def read_spreadsheet(file_name_or_buffer: Union[str, BinaryIO], suffix: Optional[str] = None) -> pd.DataFrame:
     """Reads a {csv, xls, xlsx} spreadsheet file.
 
     Args:
@@ -46,21 +45,17 @@ def read_spreadsheet(file_name_or_buffer: Union[str, BinaryIO],
     """
     if suffix is None:
         _, suffix = os.path.splitext(file_name_or_buffer)
-    if suffix in ['.xls', '.xlsx']:
+    if suffix in [".xls", ".xlsx"]:
         return pd.read_excel(file_name_or_buffer)
     return pd.read_csv(file_name_or_buffer)
 
 
 def _is_null(value: Union[float, str]) -> bool:
     """Returns whether a value is null."""
-    return pd.isnull(value) or (isinstance(value, str) and
-                                (value == 'nan' or not value.strip()))
+    return pd.isnull(value) or (isinstance(value, str) and (value == "nan" or not value.strip()))
 
 
-def _fill_template(
-    string: str,
-    substitutions: Mapping[str,
-                           ord_schema.ScalarType]) -> reaction_pb2.Reaction:
+def _fill_template(string: str, substitutions: Mapping[str, ord_schema.ScalarType]) -> reaction_pb2.Reaction:
     """Performs substring substitutions according to a dictionary.
 
     If any pattern has a null replacement value (i.e. this is an empty cell in
@@ -92,13 +87,11 @@ def _fill_template(
     for pattern, value in substitutions.items():
         if pd.isnull(value):
             check_null = True
-        string = string.replace(pattern, repr(value).strip('\''))
+        string = string.replace(pattern, repr(value).strip("'"))
     try:
         reaction = text_format.Parse(string, reaction_pb2.Reaction())
     except text_format.ParseError as error:
-        raise ValueError(
-            f'Failed to parse reaction pbtxt after templating: {error}'
-        ) from error
+        raise ValueError(f"Failed to parse reaction pbtxt after templating: {error}") from error
     if check_null:
         for message in reaction.inputs.values():
             for component in message.components:
@@ -106,9 +99,8 @@ def _fill_template(
                     if _is_null(identifier.value):
                         component.identifiers.remove(identifier)
             for component in list(message.components):
-                kind = component.amount.WhichOneof('kind')
-                if (_is_null(getattr(component.amount, kind).value) or
-                        not component.identifiers):
+                kind = component.amount.WhichOneof("kind")
+                if _is_null(getattr(component.amount, kind).value) or not component.identifiers:
                     message.components.remove(component)
         for key in list(reaction.inputs.keys()):
             if not reaction.inputs[key].components:
@@ -116,9 +108,7 @@ def _fill_template(
     return reaction
 
 
-def generate_dataset(template_string: str,
-                     df: pd.DataFrame,
-                     validate: bool = True) -> dataset_pb2.Dataset:
+def generate_dataset(template_string: str, df: pd.DataFrame, validate: bool = True) -> dataset_pb2.Dataset:
     """Generates a Dataset by enumerating a template reaction.
 
     Args:
@@ -140,24 +130,21 @@ def generate_dataset(template_string: str,
             validating an enumerated Reaction message.
 
     """
-    placeholders = set(re.findall(r'\$\w+\$', template_string))
+    placeholders = set(re.findall(r"\$\w+\$", template_string))
     for placeholder in placeholders:
         if placeholder not in df.columns:
             # Allow "$my_placeholder$" to match "my_placeholder" in df.
             if placeholder[1:-1] not in df.columns:
-                raise ValueError(f'Placeholder {placeholder} not found as a'
-                                 ' column in dataset spreadsheet')
+                raise ValueError(f"Placeholder {placeholder} not found as a" " column in dataset spreadsheet")
             df.rename(columns={placeholder[1:-1]: placeholder}, inplace=True)
 
     reactions = []
     for _, substitutions in df[placeholders].iterrows():
         reaction = _fill_template(template_string, substitutions)
         if validate:
-            output = validations.validate_message(reaction,
-                                                  raise_on_error=False)
+            output = validations.validate_message(reaction, raise_on_error=False)
             if output.errors:
-                raise ValueError(
-                    f'Enumerated Reaction is not valid: {output.errors}')
+                raise ValueError(f"Enumerated Reaction is not valid: {output.errors}")
         reactions.append(reaction)
 
     return dataset_pb2.Dataset(reactions=reactions)

@@ -61,23 +61,27 @@ def trim_image_whitespace(image: Image.Image, padding: int = 0) -> Image.Image:
 
     # Crop down
     margin = 5
-    x_range = (max([min(xs_nonzero) - margin,
-                    0]), min([max(xs_nonzero) + margin, as_array.shape[0]]))
-    y_range = (max([min(ys_nonzero) - margin,
-                    0]), min([max(ys_nonzero) + margin, as_array.shape[1]]))
-    as_array_cropped = as_array[x_range[0]:x_range[1], y_range[0]:y_range[1],
-                                0:3]
+    x_range = (
+        max([min(xs_nonzero) - margin, 0]),
+        min([max(xs_nonzero) + margin, as_array.shape[0]]),
+    )
+    y_range = (
+        max([min(ys_nonzero) - margin, 0]),
+        min([max(ys_nonzero) + margin, as_array.shape[1]]),
+    )
+    as_array_cropped = as_array[x_range[0] : x_range[1], y_range[0] : y_range[1], 0:3]
 
-    image = Image.fromarray(as_array_cropped, mode='RGB')
+    image = Image.fromarray(as_array_cropped, mode="RGB")
     return ImageOps.expand(image, border=padding, fill=255)
 
 
 def mol_to_svg(  # pylint: disable=inconsistent-return-statements
-        mol: Chem.Mol,
-        min_size: int = 50,
-        max_size: int = 300,
-        bond_length: int = 25,
-        padding: int = 10) -> Optional[str]:
+    mol: Chem.Mol,
+    min_size: int = 50,
+    max_size: int = 300,
+    bond_length: int = 25,
+    padding: int = 10,
+) -> Optional[str]:
     """Creates a (cropped) SVG molecule drawing as a string.
 
     Args:
@@ -92,10 +96,7 @@ def mol_to_svg(  # pylint: disable=inconsistent-return-statements
     """
     Chem.Kekulize(mol)
     rdDepictor.Compute2DCoords(mol)
-    drawer = _draw_svg(mol,
-                       size_x=max_size,
-                       size_y=max_size,
-                       bond_length=bond_length)
+    drawer = _draw_svg(mol, size_x=max_size, size_y=max_size, bond_length=bond_length)
     # Find the extent of the drawn image so we can crop the canvas.
     min_x, max_x, min_y, max_y = np.inf, -np.inf, np.inf, -np.inf
     for atom in mol.GetAtoms():
@@ -104,19 +105,18 @@ def mol_to_svg(  # pylint: disable=inconsistent-return-statements
         max_x = max(canvas_x, max_x)
         min_y = min(canvas_y, min_y)
         max_y = max(canvas_y, max_y)
-    drawer = _draw_svg(mol,
-                       size_x=max(min_size, int(max_x - min_x + 2 * padding)),
-                       size_y=max(min_size, int(max_y - min_y + 2 * padding)),
-                       bond_length=bond_length)
-    match = re.search(r'(<svg\s+.*</svg>)',
-                      drawer.GetDrawingText(),
-                      flags=re.DOTALL)
+    drawer = _draw_svg(
+        mol,
+        size_x=max(min_size, int(max_x - min_x + 2 * padding)),
+        size_y=max(min_size, int(max_y - min_y + 2 * padding)),
+        bond_length=bond_length,
+    )
+    match = re.search(r"(<svg\s+.*</svg>)", drawer.GetDrawingText(), flags=re.DOTALL)
     if match:
         return match.group(1)
 
 
-def _draw_svg(mol: Chem.Mol, size_x: int, size_y: int,
-              bond_length: int) -> Draw.MolDraw2DSVG:
+def _draw_svg(mol: Chem.Mol, size_x: int, size_y: int, bond_length: int) -> Draw.MolDraw2DSVG:
     """Creates a canvas and draws a SVG.
 
     Args:
@@ -136,10 +136,7 @@ def _draw_svg(mol: Chem.Mol, size_x: int, size_y: int,
     return drawer
 
 
-def mol_to_png(mol: Chem.Mol,
-               max_size: int = 1000,
-               bond_length: int = 25,
-               png_quality: int = 70) -> str:
+def mol_to_png(mol: Chem.Mol, max_size: int = 1000, bond_length: int = 25, png_quality: int = 70) -> str:
     """Creates a (cropped) PNG molecule drawing as a string.
 
     Args:
@@ -164,7 +161,7 @@ def mol_to_png(mol: Chem.Mol,
     img = Image.open(temp)
     img = trim_image_whitespace(img, padding=10)
     output = io.BytesIO()
-    img.save(output, format='png', quality=png_quality)
+    img.save(output, format="png", quality=png_quality)
     output.seek(0)
     b64 = base64.b64encode(output.getvalue())
-    return b64.decode('UTF-8')
+    return b64.decode("UTF-8")
