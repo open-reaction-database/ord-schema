@@ -20,17 +20,15 @@ import pytest
 
 
 class ReactionPb2Test(absltest.TestCase):
-
     def test_simple(self):
         reaction = reaction_pb2.Reaction()
-        reaction.identifiers.add(value='C(C)Cl.Br>>C(C)Br.Cl',
-                                 type='REACTION_SMILES')
+        reaction.identifiers.add(value="C(C)Cl.Br>>C(C)Br.Cl", type="REACTION_SMILES")
         assert reaction.IsInitialized()
         self.assertLen(reaction.identifiers, 1)
-        assert not reaction.HasField('setup')
-        with pytest.raises(ValueError, match='Reaction has no field not_a_field'):
-            reaction.HasField('not_a_field')
+        assert not reaction.HasField("setup")
+        with pytest.raises(ValueError, match="Reaction has no field not_a_field"):
+            reaction.HasField("not_a_field")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     absltest.main()

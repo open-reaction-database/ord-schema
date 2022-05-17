@@ -28,14 +28,13 @@ import pytest
 
 
 class FrozenMessageTest(absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
 
     def _freeze(self, message):
         """Runs a round-trip to disk as an extra check for FrozenMessage."""
-        filename = os.path.join(self.test_subdirectory, 'message.pbtxt')
+        filename = os.path.join(self.test_subdirectory, "message.pbtxt")
         message_helpers.write_message(message, filename)
         loaded_message = message_helpers.load_message(filename, type(message))
         return frozen_message.FrozenMessage(loaded_message)
@@ -49,32 +48,32 @@ class FrozenMessageTest(absltest.TestCase):
             set explicitly.
         """
         frozen = self._freeze(reaction_pb2.StirringConditions.StirringRate())
-        assert hasattr(frozen, 'rpm')  # Wrong!
-        assert round(abs(frozen.rpm-0.0), 7) == 0
+        assert hasattr(frozen, "rpm")  # Wrong!
+        assert round(abs(frozen.rpm - 0.0), 7) == 0
 
     def test_access_optional_scalar(self):
         frozen = self._freeze(reaction_pb2.Percentage(value=12.3))
-        assert hasattr(frozen, 'value')
-        assert round(abs(frozen.value-12.3), 6) == 0
-        assert not hasattr(frozen, 'precision')
+        assert hasattr(frozen, "value")
+        assert round(abs(frozen.value - 12.3), 6) == 0
+        assert not hasattr(frozen, "precision")
         with pytest.raises(AttributeError):
             _ = frozen.precision
 
     def test_access_optional_bool(self):
-        frozen = self._freeze(test_pb2.Scalar(string_value='test'))
-        assert not hasattr(frozen, 'bool_value')
+        frozen = self._freeze(test_pb2.Scalar(string_value="test"))
+        assert not hasattr(frozen, "bool_value")
         with pytest.raises(AttributeError):
             _ = frozen.bool_value
         frozen = self._freeze(test_pb2.Scalar(bool_value=False))
-        assert hasattr(frozen, 'bool_value')
+        assert hasattr(frozen, "bool_value")
         assert not frozen.bool_value
         frozen = self._freeze(test_pb2.Scalar(bool_value=True))
-        assert hasattr(frozen, 'bool_value')
+        assert hasattr(frozen, "bool_value")
         assert frozen.bool_value
 
     def test_access_submessage(self):
         frozen = self._freeze(reaction_pb2.Reaction())
-        assert not hasattr(frozen, 'setup')
+        assert not hasattr(frozen, "setup")
         with pytest.raises(AttributeError):
             _ = frozen.setup
 
@@ -94,10 +93,10 @@ class FrozenMessageTest(absltest.TestCase):
 
     def test_access_repeated_submessage(self):
         message = reaction_pb2.Reaction()
-        message.observations.add(comment='test')
+        message.observations.add(comment="test")
         frozen = self._freeze(message)
         self.assertLen(frozen.observations, 1)
-        assert frozen.observations[0].comment == 'test'
+        assert frozen.observations[0].comment == "test"
         with pytest.raises(IndexError):
             _ = frozen.observations[1]
         self.assertEmpty(frozen.outcomes)
@@ -106,15 +105,15 @@ class FrozenMessageTest(absltest.TestCase):
 
     def test_access_map_value(self):
         message = reaction_pb2.Reaction()
-        message.inputs['test'].addition_order = 1
+        message.inputs["test"].addition_order = 1
         frozen = self._freeze(message)
-        assert hasattr(frozen, 'inputs')
-        assert 'test' in frozen.inputs
-        assert hasattr(frozen.inputs['test'], 'addition_order')
-        assert frozen.inputs['test'].addition_order == 1
-        assert 'missing' not in frozen.inputs
+        assert hasattr(frozen, "inputs")
+        assert "test" in frozen.inputs
+        assert hasattr(frozen.inputs["test"], "addition_order")
+        assert frozen.inputs["test"].addition_order == 1
+        assert "missing" not in frozen.inputs
         with pytest.raises(KeyError):
-            _ = frozen.inputs['missing']
+            _ = frozen.inputs["missing"]
 
     def test_set_scalar_value(self):
         frozen = self._freeze(reaction_pb2.StirringConditions.StirringRate())
@@ -129,37 +128,35 @@ class FrozenMessageTest(absltest.TestCase):
     def test_set_submessage(self):
         frozen = self._freeze(reaction_pb2.Reaction())
         with pytest.raises(AttributeError):
-            frozen.setup.automation_platform = 'test'
+            frozen.setup.automation_platform = "test"
         with pytest.raises(AttributeError):
-            frozen.setup.CopyFrom(
-                reaction_pb2.ReactionSetup(automation_platform='test'))
+            frozen.setup.CopyFrom(reaction_pb2.ReactionSetup(automation_platform="test"))
 
     def test_add_repeated_scalar(self):
         frozen = self._freeze(reaction_pb2.ProductCompound())
         with pytest.raises(AttributeError):
-            frozen.analysis_identity.append('test')
+            frozen.analysis_identity.append("test")
 
     def test_add_repeated_submessage(self):
         frozen = self._freeze(reaction_pb2.Reaction())
         with pytest.raises(AttributeError):
-            frozen.observations.add(comment='test')
+            frozen.observations.add(comment="test")
 
     def test_set_map_value(self):
         frozen = self._freeze(reaction_pb2.Reaction())
         with pytest.raises(KeyError):
-            frozen.inputs['test'].addition_order = 1
+            frozen.inputs["test"].addition_order = 1
         with pytest.raises(KeyError):
-            frozen.inputs['test'].CopyFrom(
-                reaction_pb2.ReactionInput(addition_order=1))
+            frozen.inputs["test"].CopyFrom(reaction_pb2.ReactionInput(addition_order=1))
 
     def test_modify_repeated_submessage(self):
         """See https://git.io/JfPf9."""
         message = reaction_pb2.Reaction()
-        message.workups.add(type='ADDITION')
+        message.workups.add(type="ADDITION")
         frozen = self._freeze(message)
         with pytest.raises(dataclasses.FrozenInstanceError):
             frozen.workups[0].type = reaction_pb2.ReactionWorkup.TEMPERATURE
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     absltest.main()

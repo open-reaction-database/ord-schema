@@ -45,6 +45,7 @@ class FrozenMessage(collections.abc.Mapping):
           values. However, this breaks the guarantee that `hasattr` returns
           False for unset `optional` scalar values and submessages.
     """
+
     _message: Union[_MESSAGE_TYPES]
 
     def __getattr__(self, name: str):
@@ -75,7 +76,7 @@ class FrozenMessage(collections.abc.Mapping):
         value = getattr(self._message, name)
         if isinstance(value, _MESSAGE_TYPES):
             return FrozenMessage(value)
-        if hasattr(value, 'append'):
+        if hasattr(value, "append"):
             # Make repeated fields (and their elements) immutable.
             repeated_values = []
             for element in value:

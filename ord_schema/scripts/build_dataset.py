@@ -40,19 +40,16 @@ logger = logging.getLogger(__name__)
 
 
 def main(kwargs):
-    filenames = glob.glob(kwargs['--input'], recursive=True)
-    logger.info('Found %d Reaction protos', len(filenames))
+    filenames = glob.glob(kwargs["--input"], recursive=True)
+    logger.info("Found %d Reaction protos", len(filenames))
     reactions = []
     for filename in filenames:
-        reactions.append(
-            message_helpers.load_message(filename, reaction_pb2.Reaction))
-    dataset = dataset_pb2.Dataset(name=kwargs["--name"],
-                                  description=kwargs["--description"],
-                                  reactions=reactions)
+        reactions.append(message_helpers.load_message(filename, reaction_pb2.Reaction))
+    dataset = dataset_pb2.Dataset(name=kwargs["--name"], description=kwargs["--description"], reactions=reactions)
     if not kwargs["--no-validate"]:
-        validations.validate_datasets({'_COMBINED': dataset})
+        validations.validate_datasets({"_COMBINED": dataset})
     message_helpers.write_message(dataset, kwargs["--output"])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(docopt.docopt(__doc__))

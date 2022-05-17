@@ -31,28 +31,27 @@ from ord_schema.proto import reaction_pb2
 from ord_schema.visualization import generate_text
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string('input', None, 'File containing a Reaction message.')
-flags.DEFINE_enum('output_type', 'text', ['text', 'html'],
-                  'Text or HTML output format.')
-flags.DEFINE_string('output', None, 'Filename for output Dataset.')
+flags.DEFINE_string("input", None, "File containing a Reaction message.")
+flags.DEFINE_enum("output_type", "text", ["text", "html"], "Text or HTML output format.")
+flags.DEFINE_string("output", None, "Filename for output Dataset.")
 
 
 def main(argv):
     del argv  # Only used by app.run().
     reaction = message_helpers.load_message(FLAGS.input, reaction_pb2.Reaction)
-    if FLAGS.output_type == 'html':
+    if FLAGS.output_type == "html":
         text = generate_text.generate_html(reaction)
-    elif FLAGS.output_type == 'text':
+    elif FLAGS.output_type == "text":
         text = generate_text.generate_text(reaction)
     else:
-        raise ValueError(f'unsupported output_type: {FLAGS.output_type}')
+        raise ValueError(f"unsupported output_type: {FLAGS.output_type}")
     if FLAGS.output:
-        with open(FLAGS.output, 'w') as f:
+        with open(FLAGS.output, "w") as f:
             f.write(text)
     else:
         print(text)
 
 
-if __name__ == '__main__':
-    flags.mark_flag_as_required('input')
+if __name__ == "__main__":
+    flags.mark_flag_as_required("input")
     app.run(main)

@@ -20,32 +20,28 @@ from ord_schema.proto import reaction_pb2
 
 
 class DatasetPb2Test(absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         dataset = dataset_pb2.Dataset()
-        dataset.name = 'test'
-        dataset.description = 'test dataset'
+        dataset.name = "test"
+        dataset.description = "test dataset"
         # Add a reaction directly to the dataset.
         reaction1 = dataset.reactions.add()
-        reaction1.identifiers.add(value='C(C)Cl.Br>>C(C)Br.Cl',
-                                  type='REACTION_SMILES')
+        reaction1.identifiers.add(value="C(C)Cl.Br>>C(C)Br.Cl", type="REACTION_SMILES")
         # Copy a reaction created elsewhere.
         reaction2 = reaction_pb2.Reaction()
-        reaction2.identifiers.add(value='amide coupling', type='NAME')
+        reaction2.identifiers.add(value="amide coupling", type="NAME")
         dataset.reactions.add().CopyFrom(reaction2)
         self.dataset_pb = dataset.SerializeToString()
 
     def test_dataset(self):
         dataset = dataset_pb2.Dataset.FromString(self.dataset_pb)
-        assert dataset.name == 'test'
-        assert dataset.description == 'test dataset'
+        assert dataset.name == "test"
+        assert dataset.description == "test dataset"
         self.assertLen(dataset.reactions, 2)
-        assert dataset.reactions[0].identifiers[0].type == \
-                         reaction_pb2.ReactionIdentifier.REACTION_SMILES
-        assert dataset.reactions[1].identifiers[0].type == \
-                         reaction_pb2.ReactionIdentifier.NAME
+        assert dataset.reactions[0].identifiers[0].type == reaction_pb2.ReactionIdentifier.REACTION_SMILES
+        assert dataset.reactions[1].identifiers[0].type == reaction_pb2.ReactionIdentifier.NAME
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     absltest.main()

@@ -35,15 +35,14 @@ from ord_schema.proto import dataset_pb2
 
 
 def main(kwargs):
-    dataset = message_helpers.load_message(kwargs['--pb'], dataset_pb2.Dataset)
+    dataset = message_helpers.load_message(kwargs["--pb"], dataset_pb2.Dataset)
     pb_data = text_format.MessageToString(dataset)
-    with open(kwargs['--pbtxt']) as f:
+    with open(kwargs["--pbtxt"]) as f:
         pbtxt_data = f.read()
     if pb_data != pbtxt_data:
-        diff = difflib.context_diff(pb_data.splitlines(),
-                                    pbtxt_data.splitlines())
-        raise ValueError(f'Datasets differ:\n{pprint.pformat(list(diff))}')
+        diff = difflib.context_diff(pb_data.splitlines(), pbtxt_data.splitlines())
+        raise ValueError(f"Datasets differ:\n{pprint.pformat(list(diff))}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(docopt.docopt(__doc__))

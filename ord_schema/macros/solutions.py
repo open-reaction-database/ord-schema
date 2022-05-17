@@ -18,8 +18,7 @@ from ord_schema.proto import reaction_pb2
 from ord_schema import units
 
 UNITS_RESOLVER = units.UnitResolver()
-CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS,
-                                            forbidden_units={})
+CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
 
 
 def simple_solution(
@@ -30,7 +29,7 @@ def simple_solution(
     saturated: bool = False,
 ) -> List[reaction_pb2.Compound]:
     """Creates a solution with at most one solvent and one solute.
-    
+
     Args:
         solvent_smiles: SMILES of the solvent.
         solute_smiles: SMILES of the solute. If not specified, a pure solvent
@@ -46,8 +45,7 @@ def simple_solution(
     """
     if saturated:
         if concentration is not None:
-            raise ValueError(
-                "Cannot specify both `saturated=True` and a concentration.")
+            raise ValueError("Cannot specify both `saturated=True` and a concentration.")
         if solute_smiles is None:
             raise ValueError("Must specify a solute if `saturated=True`")
     if isinstance(volume, str):
@@ -58,15 +56,14 @@ def simple_solution(
     if volume is not None and concentration is not None:
         solute_amount = units.compute_solute_quantity(volume, concentration)
     elif saturated:
-        solute_amount = reaction_pb2.Amount(
-            unmeasured=reaction_pb2.UnmeasuredAmount(type='SATURATED'))
+        solute_amount = reaction_pb2.Amount(unmeasured=reaction_pb2.UnmeasuredAmount(type="SATURATED"))
     else:
         # This case covers 1. pure solvents 2. solution with unknown volume.
         solute_amount = None
 
     output_compounds = []
     solvent_pb = reaction_pb2.Compound()
-    solvent_pb.identifiers.add(value=solvent_smiles, type='SMILES')
+    solvent_pb.identifiers.add(value=solvent_smiles, type="SMILES")
     if volume is not None:
         solvent_pb.amount.volume.MergeFrom(volume)
         if solute_smiles is not None:
@@ -75,7 +72,7 @@ def simple_solution(
 
     if solute_smiles:
         solute_pb = reaction_pb2.Compound()
-        solute_pb.identifiers.add(value=solute_smiles, type='SMILES')
+        solute_pb.identifiers.add(value=solute_smiles, type="SMILES")
         if solute_amount is not None:
             solute_pb.amount.MergeFrom(solute_amount)
         output_compounds.append(solute_pb)
@@ -83,7 +80,4 @@ def simple_solution(
 
 
 def brine(volume=None):
-    return simple_solution(solute_smiles='[Na+].[Cl-]',
-                           solvent_smiles='O',
-                           volume=volume,
-                           saturated=True)
+    return simple_solution(solute_smiles="[Na+].[Cl-]", solvent_smiles="O", volume=volume, saturated=True)

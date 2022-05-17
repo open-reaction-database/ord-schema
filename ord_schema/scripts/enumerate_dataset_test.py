@@ -68,61 +68,58 @@ def setup(tmp_path) -> tuple[str, str, str]:
         }
     }
     """
-    template_filename = os.path.join(dirname, 'template.pbtxt')
-    with open(template_filename, 'w') as f:
+    template_filename = os.path.join(dirname, "template.pbtxt")
+    with open(template_filename, "w") as f:
         f.write(template_string)
-    data = pd.DataFrame({
-        'input_smiles': ['C', 'CC', 'CCC'],
-        'input_mass': [1.2, 3.4, 5.6],
-        'product_smiles': ['CO', 'CCO', 'CCCO'],
-        'product_yield': [7.8, 9.0, 8.7],
-    })
-    spreadsheet_filename = os.path.join(dirname, 'spreadsheet.csv')
+    data = pd.DataFrame(
+        {
+            "input_smiles": ["C", "CC", "CCC"],
+            "input_mass": [1.2, 3.4, 5.6],
+            "product_smiles": ["CO", "CCO", "CCCO"],
+            "product_yield": [7.8, 9.0, 8.7],
+        }
+    )
+    spreadsheet_filename = os.path.join(dirname, "spreadsheet.csv")
     data.to_csv(spreadsheet_filename, index=False)
     expected = dataset_pb2.Dataset()
     reaction1 = expected.reactions.add()
-    reaction1_compound1 = reaction1.inputs['test'].components.add()
-    reaction1_compound1.identifiers.add(value='C', type='SMILES')
-    reaction1_compound1.amount.mass.CopyFrom(
-        reaction_pb2.Mass(value=1.2, units='GRAM'))
+    reaction1_compound1 = reaction1.inputs["test"].components.add()
+    reaction1_compound1.identifiers.add(value="C", type="SMILES")
+    reaction1_compound1.amount.mass.CopyFrom(reaction_pb2.Mass(value=1.2, units="GRAM"))
     reaction1_product1 = reaction1.outcomes.add().products.add()
-    reaction1_product1.identifiers.add(value='CO', type='SMILES')
-    reaction1_product1.measurements.add(analysis_key='my_analysis',
-                                        type='YIELD',
-                                        percentage=dict(value=7.8))
-    reaction1.outcomes[0].analyses['my_analysis'].type = (
-        reaction_pb2.Analysis.WEIGHT)
+    reaction1_product1.identifiers.add(value="CO", type="SMILES")
+    reaction1_product1.measurements.add(analysis_key="my_analysis", type="YIELD", percentage=dict(value=7.8))
+    reaction1.outcomes[0].analyses["my_analysis"].type = reaction_pb2.Analysis.WEIGHT
     reaction2 = expected.reactions.add()
-    reaction2_compound1 = reaction2.inputs['test'].components.add()
-    reaction2_compound1.identifiers.add(value='CC', type='SMILES')
-    reaction2_compound1.amount.mass.CopyFrom(
-        reaction_pb2.Mass(value=3.4, units='GRAM'))
+    reaction2_compound1 = reaction2.inputs["test"].components.add()
+    reaction2_compound1.identifiers.add(value="CC", type="SMILES")
+    reaction2_compound1.amount.mass.CopyFrom(reaction_pb2.Mass(value=3.4, units="GRAM"))
     reaction2_product1 = reaction2.outcomes.add().products.add()
-    reaction2_product1.identifiers.add(value='CCO', type='SMILES')
-    reaction2_product1.measurements.add(analysis_key='my_analysis',
-                                        type='YIELD',
-                                        percentage=dict(value=9.0))
-    reaction2.outcomes[0].analyses['my_analysis'].type = (
-        reaction_pb2.Analysis.WEIGHT)
+    reaction2_product1.identifiers.add(value="CCO", type="SMILES")
+    reaction2_product1.measurements.add(analysis_key="my_analysis", type="YIELD", percentage=dict(value=9.0))
+    reaction2.outcomes[0].analyses["my_analysis"].type = reaction_pb2.Analysis.WEIGHT
     reaction3 = expected.reactions.add()
-    reaction3_compound1 = reaction3.inputs['test'].components.add()
-    reaction3_compound1.identifiers.add(value='CCC', type='SMILES')
-    reaction3_compound1.amount.mass.CopyFrom(
-        reaction_pb2.Mass(value=5.6, units='GRAM'))
+    reaction3_compound1 = reaction3.inputs["test"].components.add()
+    reaction3_compound1.identifiers.add(value="CCC", type="SMILES")
+    reaction3_compound1.amount.mass.CopyFrom(reaction_pb2.Mass(value=5.6, units="GRAM"))
     reaction3_product1 = reaction3.outcomes.add().products.add()
-    reaction3_product1.identifiers.add(value='CCCO', type='SMILES')
-    reaction3_product1.measurements.add(analysis_key='my_analysis',
-                                        type='YIELD',
-                                        percentage=dict(value=8.7))
-    reaction3.outcomes[0].analyses['my_analysis'].type = (
-        reaction_pb2.Analysis.WEIGHT)
+    reaction3_product1.identifiers.add(value="CCCO", type="SMILES")
+    reaction3_product1.measurements.add(analysis_key="my_analysis", type="YIELD", percentage=dict(value=8.7))
+    reaction3.outcomes[0].analyses["my_analysis"].type = reaction_pb2.Analysis.WEIGHT
     yield template_filename, spreadsheet_filename, expected
 
 
 def test_main(setup, tmp_path):
     template_filename, spreadsheet_filename, expected = setup
-    output_filename = (tmp_path / 'dataset.pbtxt').as_posix()
-    argv = ["--template", template_filename, "--spreadsheet", spreadsheet_filename, "--output", output_filename]
+    output_filename = (tmp_path / "dataset.pbtxt").as_posix()
+    argv = [
+        "--template",
+        template_filename,
+        "--spreadsheet",
+        spreadsheet_filename,
+        "--output",
+        output_filename,
+    ]
     enumerate_dataset.main(docopt.docopt(enumerate_dataset.__doc__, argv))
     assert os.path.exists(output_filename)
     dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)

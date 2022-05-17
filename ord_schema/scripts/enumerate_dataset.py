@@ -36,12 +36,15 @@ def main(kwargs):
     with open(kwargs["--template"]) as f:
         template_string = f.read()
     df = templating.read_spreadsheet(kwargs["--spreadsheet"])
-    logger.info('generating new Dataset from %s and %s', kwargs["--template"],
-                kwargs["--spreadsheet"])
+    logger.info(
+        "generating new Dataset from %s and %s",
+        kwargs["--template"],
+        kwargs["--spreadsheet"],
+    )
     dataset = templating.generate_dataset(template_string, df, validate=(not kwargs["--no-validate"]))
-    logger.info('writing new Dataset to %s', kwargs["--output"])
+    logger.info("writing new Dataset to %s", kwargs["--output"])
     message_helpers.write_message(dataset, kwargs["--output"])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(docopt.docopt(__doc__))
