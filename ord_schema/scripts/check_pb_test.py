@@ -26,23 +26,21 @@ from ord_schema.scripts import check_pb
 
 
 class CheckPbTest(absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
-        self.pb_filename = os.path.join(self.test_subdirectory, 'test.pb')
-        self.pbtxt_filename = os.path.join(self.test_subdirectory, 'test.pbtxt')
+        self.pb_filename = os.path.join(self.test_subdirectory, "test.pb")
+        self.pbtxt_filename = os.path.join(self.test_subdirectory, "test.pbtxt")
 
     def _run(self):
-        with flagsaver.flagsaver(pb=self.pb_filename,
-                                 pbtxt=self.pbtxt_filename):
+        with flagsaver.flagsaver(pb=self.pb_filename, pbtxt=self.pbtxt_filename):
             check_pb.main(())
 
     def test_main_pass(self):
         dataset = dataset_pb2.Dataset()
         reaction = dataset.reactions.add()
-        component = reaction.inputs['test'].components.add()
-        component.identifiers.add(value='c1ccccc1', type='SMILES')
+        component = reaction.inputs["test"].components.add()
+        component.identifiers.add(value="c1ccccc1", type="SMILES")
         message_helpers.write_message(dataset, self.pb_filename)
         message_helpers.write_message(dataset, self.pbtxt_filename)
         self._run()
@@ -50,14 +48,14 @@ class CheckPbTest(absltest.TestCase):
     def test_main_fail(self):
         dataset = dataset_pb2.Dataset()
         reaction = dataset.reactions.add()
-        component = reaction.inputs['test'].components.add()
-        component.identifiers.add(value='c1ccccc1', type='SMILES')
+        component = reaction.inputs["test"].components.add()
+        component.identifiers.add(value="c1ccccc1", type="SMILES")
         message_helpers.write_message(dataset, self.pb_filename)
-        component.identifiers.add(value='benzene', type='NAME')
+        component.identifiers.add(value="benzene", type="NAME")
         message_helpers.write_message(dataset, self.pbtxt_filename)
-        with self.assertRaisesRegex(ValueError, 'Datasets differ'):
+        with self.assertRaisesRegex(ValueError, "Datasets differ"):
             self._run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     absltest.main()

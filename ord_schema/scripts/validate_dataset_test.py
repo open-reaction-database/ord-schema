@@ -29,66 +29,63 @@ from ord_schema.scripts import validate_dataset
 
 
 class ValidateDatasetTest(parameterized.TestCase, absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
         reaction1 = reaction_pb2.Reaction()
-        dummy_input = reaction1.inputs['dummy_input']
+        dummy_input = reaction1.inputs["dummy_input"]
         dummy_component = dummy_input.components.add()
-        dummy_component.identifiers.add(type='CUSTOM')
-        dummy_component.identifiers[0].details = 'custom_identifier'
-        dummy_component.identifiers[0].value = 'custom_value'
+        dummy_component.identifiers.add(type="CUSTOM")
+        dummy_component.identifiers[0].details = "custom_identifier"
+        dummy_component.identifiers[0].value = "custom_value"
         dummy_component.is_limiting = True
         dummy_component.amount.mass.value = 1
         dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
         reaction1.outcomes.add().conversion.value = 75
         dataset1 = dataset_pb2.Dataset(reactions=[reaction1])
-        dataset1_filename = os.path.join(self.test_subdirectory,
-                                         'dataset1.pbtxt')
+        dataset1_filename = os.path.join(self.test_subdirectory, "dataset1.pbtxt")
         message_helpers.write_message(dataset1, dataset1_filename)
         # reaction2 is empty.
         reaction2 = reaction_pb2.Reaction()
         dataset2 = dataset_pb2.Dataset(reactions=[reaction1, reaction2])
-        dataset2_filename = os.path.join(self.test_subdirectory,
-                                         'dataset2.pbtxt')
+        dataset2_filename = os.path.join(self.test_subdirectory, "dataset2.pbtxt")
         message_helpers.write_message(dataset2, dataset2_filename)
 
     def test_simple(self):
-        input_pattern = os.path.join(self.test_subdirectory, 'dataset1.pbtxt')
+        input_pattern = os.path.join(self.test_subdirectory, "dataset1.pbtxt")
         with flagsaver.flagsaver(input=input_pattern):
             validate_dataset.main(())
 
     def test_filter(self):
-        input_pattern = os.path.join(self.test_subdirectory, 'dataset1.pbtxt')
-        with flagsaver.flagsaver(input=input_pattern, filter='dataset'):
+        input_pattern = os.path.join(self.test_subdirectory, "dataset1.pbtxt")
+        with flagsaver.flagsaver(input=input_pattern, filter="dataset"):
             validate_dataset.main(())
 
     def test_validation_errors(self):
-        input_pattern = os.path.join(self.test_subdirectory, 'dataset*.pbtxt')
+        input_pattern = os.path.join(self.test_subdirectory, "dataset*.pbtxt")
         with flagsaver.flagsaver(input=input_pattern):
             with self.assertRaisesRegex(
-                    validations.ValidationError,
-                    'Reactions should have at least 1 reaction input'):
+                validations.ValidationError,
+                "Reactions should have at least 1 reaction input",
+            ):
                 validate_dataset.main(())
 
     @parameterized.parameters(
-        (r'data/\d{2}', ['data/11/foo.pb']),
-        (r'data/\d[a-z]', ['data/1a/foo.pb']),
-        (r'data/[a-z]\d', ['data/a1/foo.pb']),
-        (r'data/[a-z]{2}', ['data/aa/foo.pb']),
+        (r"data/\d{2}", ["data/11/foo.pb"]),
+        (r"data/\d[a-z]", ["data/1a/foo.pb"]),
+        (r"data/[a-z]\d", ["data/a1/foo.pb"]),
+        (r"data/[a-z]{2}", ["data/aa/foo.pb"]),
     )
     def test_filter_filenames(self, pattern, expected):
         filenames = [
-            'dataset.pb',
-            'data/a1/foo.pb',
-            'data/aa/foo.pb',
-            'data/11/foo.pb',
-            'data/1a/foo.pb',
+            "dataset.pb",
+            "data/a1/foo.pb",
+            "data/aa/foo.pb",
+            "data/11/foo.pb",
+            "data/1a/foo.pb",
         ]
-        self.assertCountEqual(
-            expected, validate_dataset.filter_filenames(filenames, pattern))
+        self.assertCountEqual(expected, validate_dataset.filter_filenames(filenames, pattern))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     absltest.main()

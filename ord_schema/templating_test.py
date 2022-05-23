@@ -29,14 +29,13 @@ from ord_schema.proto import dataset_pb2
 
 
 class TemplatingTest(parameterized.TestCase, absltest.TestCase):
-
     def setUp(self):
         super().setUp()
         message = reaction_pb2.Reaction()
-        dummy_input = message.inputs['in']
+        dummy_input = message.inputs["in"]
         outcome = message.outcomes.add()
         component = dummy_input.components.add()
-        component.identifiers.add(type='SMILES', value='CCO')
+        component.identifiers.add(type="SMILES", value="CCO")
         component.is_limiting = True
         component.amount.mass.value = 1
         component.amount.mass.units = reaction_pb2.Mass.GRAM
@@ -47,144 +46,143 @@ class TemplatingTest(parameterized.TestCase, absltest.TestCase):
         self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
 
     def test_valid_templating(self):
-        template_string = self.template_string.replace('value: "CCO"',
-                                                       'value: "$smiles$"')
-        template_string = template_string.replace('value: 75',
-                                                  'value: $conversion$')
-        df = pd.DataFrame.from_dict({
-            '$smiles$': ['CCO', 'CCCO', 'CCCCO'],
-            '$conversion$': [75, 50, 30],
-        })
+        template_string = self.template_string.replace('value: "CCO"', 'value: "$smiles$"')
+        template_string = template_string.replace("value: 75", "value: $conversion$")
+        df = pd.DataFrame.from_dict(
+            {
+                "$smiles$": ["CCO", "CCCO", "CCCCO"],
+                "$conversion$": [75, 50, 30],
+            }
+        )
         dataset = templating.generate_dataset(template_string, df)
         expected_reactions = []
-        for smiles, conversion in zip(['CCO', 'CCCO', 'CCCCO'], [75, 50, 30]):
+        for smiles, conversion in zip(["CCO", "CCCO", "CCCCO"], [75, 50, 30]):
             reaction = reaction_pb2.Reaction()
             reaction.CopyFrom(self.valid_reaction)
-            reaction.inputs['in'].components[0].identifiers[0].value = smiles
+            reaction.inputs["in"].components[0].identifiers[0].value = smiles
             reaction.outcomes[0].conversion.value = conversion
             expected_reactions.append(reaction)
         expected_dataset = dataset_pb2.Dataset(reactions=expected_reactions)
         self.assertEqual(dataset, expected_dataset)
 
         # Test without "$" in column names
-        df = pd.DataFrame.from_dict({
-            'smiles': ['CCO', 'CCCO', 'CCCCO'],
-            'conversion': [75, 50, 30],
-        })
+        df = pd.DataFrame.from_dict(
+            {
+                "smiles": ["CCO", "CCCO", "CCCCO"],
+                "conversion": [75, 50, 30],
+            }
+        )
         dataset = templating.generate_dataset(template_string, df)
         self.assertEqual(dataset, expected_dataset)
 
     def test_valid_templating_escapes(self):
-        smiles = ['CCO', 'CCCO', 'CCCCO']
+        smiles = ["CCO", "CCCO", "CCCCO"]
         mols = [Chem.MolFromSmiles(this_smiles) for this_smiles in smiles]
         molblocks = [Chem.MolToMolBlock(mol) for mol in mols]
-        self.valid_reaction.inputs['in'].components[0].identifiers.add(
-            type='MOLBLOCK', value='$molblock$')
+        self.valid_reaction.inputs["in"].components[0].identifiers.add(type="MOLBLOCK", value="$molblock$")
         template_string = text_format.MessageToString(self.valid_reaction)
-        df = pd.DataFrame.from_dict({'molblock': molblocks})
+        df = pd.DataFrame.from_dict({"molblock": molblocks})
         dataset = templating.generate_dataset(template_string, df)
         expected_reactions = []
         for molblock in molblocks:
             reaction = reaction_pb2.Reaction()
             reaction.CopyFrom(self.valid_reaction)
-            reaction.inputs['in'].components[0].identifiers[1].value = molblock
+            reaction.inputs["in"].components[0].identifiers[1].value = molblock
             expected_reactions.append(reaction)
         expected_dataset = dataset_pb2.Dataset(reactions=expected_reactions)
         self.assertEqual(dataset, expected_dataset)
 
-    @parameterized.parameters(['.csv', '.xls', '.xlsx'])
+    @parameterized.parameters([".csv", ".xls", ".xlsx"])
     def test_read_spreadsheet(self, suffix):
-        df = pd.DataFrame.from_dict({
-            'smiles': ['CCO', 'CCCO', 'CCCCO'],
-            'conversion': [75, 50, 30],
-        })
-        filename = os.path.join(self.test_subdirectory, f'test{suffix}')
-        if suffix == '.csv':
+        df = pd.DataFrame.from_dict(
+            {
+                "smiles": ["CCO", "CCCO", "CCCCO"],
+                "conversion": [75, 50, 30],
+            }
+        )
+        filename = os.path.join(self.test_subdirectory, f"test{suffix}")
+        if suffix == ".csv":
             df.to_csv(filename, index=False)
         else:
             df.to_excel(filename, index=False)
         pd.testing.assert_frame_equal(templating.read_spreadsheet(filename), df)
 
     def test_invalid_templating(self):
-        template_string = self.template_string.replace('value: "CCO"',
-                                                       'value: "$my_smiles$"')
-        template_string = template_string.replace('precision: 99',
-                                                  'precision: $precision$')
-        df = pd.DataFrame.from_dict({
-            '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
-            '$precision$': [75, 50, -5],
-        })
+        template_string = self.template_string.replace('value: "CCO"', 'value: "$my_smiles$"')
+        template_string = template_string.replace("precision: 99", "precision: $precision$")
+        df = pd.DataFrame.from_dict(
+            {
+                "$my_smiles$": ["CCO", "CCCO", "CCCCO"],
+                "$precision$": [75, 50, -5],
+            }
+        )
         expected_reactions = []
-        for smiles, precision in zip(['CCO', 'CCCO', 'CCCCO'], [75, 50, -5]):
+        for smiles, precision in zip(["CCO", "CCCO", "CCCCO"], [75, 50, -5]):
             reaction = reaction_pb2.Reaction()
             reaction.CopyFrom(self.valid_reaction)
-            reaction.inputs['in'].components[0].identifiers[0].value = smiles
+            reaction.inputs["in"].components[0].identifiers[0].value = smiles
             reaction.outcomes[0].conversion.precision = precision
             expected_reactions.append(reaction)
         expected_dataset = dataset_pb2.Dataset(reactions=expected_reactions)
-        with self.assertRaisesRegex(ValueError,
-                                    'Enumerated Reaction is not valid'):
+        with self.assertRaisesRegex(ValueError, "Enumerated Reaction is not valid"):
             templating.generate_dataset(template_string, df)
-        dataset = templating.generate_dataset(template_string,
-                                              df,
-                                              validate=False)
+        dataset = templating.generate_dataset(template_string, df, validate=False)
         self.assertEqual(dataset, expected_dataset)
 
     def test_bad_placeholders(self):
-        template_string = self.template_string.replace('value: "CCO"',
-                                                       'value: "$my_smiles$"')
-        template_string = template_string.replace('value: 75',
-                                                  'value: $conversion$')
-        df = pd.DataFrame.from_dict({
-            '$my_smiles$': ['CCO', 'CCCO', 'CCCCO'],
-        })
-        with self.assertRaisesRegex(ValueError, r'\$conversion\$ not found'):
+        template_string = self.template_string.replace('value: "CCO"', 'value: "$my_smiles$"')
+        template_string = template_string.replace("value: 75", "value: $conversion$")
+        df = pd.DataFrame.from_dict(
+            {
+                "$my_smiles$": ["CCO", "CCCO", "CCCCO"],
+            }
+        )
+        with self.assertRaisesRegex(ValueError, r"\$conversion\$ not found"):
             templating.generate_dataset(template_string, df)
 
     def test_missing_values(self):
         # pylint: disable=too-many-locals
         # Build a template reaction.
         reaction = reaction_pb2.Reaction()
-        input1 = reaction.inputs['one']
+        input1 = reaction.inputs["one"]
         input1_component1 = input1.components.add()
-        input1_component1.identifiers.add(value='CCO', type='SMILES')
+        input1_component1.identifiers.add(value="CCO", type="SMILES")
         input1_component1.amount.mass.value = 1.2
         input1_component1.amount.mass.units = reaction_pb2.Mass.GRAM
         input1_component2 = input1.components.add()
         input1_component2.is_limiting = True
-        input1_component2.identifiers.add(value='c1ccccc1', type='SMILES')
+        input1_component2.identifiers.add(value="c1ccccc1", type="SMILES")
         input1_component2.amount.volume.value = 3.4
         input1_component2.amount.volume.units = reaction_pb2.Volume.LITER
-        input2 = reaction.inputs['two']
+        input2 = reaction.inputs["two"]
         input2_component1 = input2.components.add()
-        input2_component1.identifiers.add(value='COO', type='SMILES')
+        input2_component1.identifiers.add(value="COO", type="SMILES")
         input2_component1.amount.mass.value = 5.6
         input2_component1.amount.mass.units = reaction_pb2.Mass.GRAM
         outcome = reaction.outcomes.add()
         outcome.conversion.value = 75
         template_string = text_format.MessageToString(reaction)
-        template_string = template_string.replace('value: "CCO"',
-                                                  'value: "$smiles$"')
-        template_string = template_string.replace('value: 5.6', 'value: $mass$')
+        template_string = template_string.replace('value: "CCO"', 'value: "$smiles$"')
+        template_string = template_string.replace("value: 5.6", "value: $mass$")
         # Build a spreadsheet and test for proper edits.
-        filename = os.path.join(self.test_subdirectory, 'missing.csv')
-        with open(filename, 'w') as f:
-            f.write('smiles,mass\n')
-            f.write('CN,\n')  # Missing mass.
-            f.write(',1.5\n')  # Missing SMILES.
+        filename = os.path.join(self.test_subdirectory, "missing.csv")
+        with open(filename, "w") as f:
+            f.write("smiles,mass\n")
+            f.write("CN,\n")  # Missing mass.
+            f.write(",1.5\n")  # Missing SMILES.
         df = pd.read_csv(filename)
         dataset = templating.generate_dataset(template_string, df)
         expected_dataset = dataset_pb2.Dataset()
         reaction1 = expected_dataset.reactions.add()
         reaction1.CopyFrom(reaction)
-        reaction1.inputs['one'].components[0].identifiers[0].value = 'CN'
-        del reaction1.inputs['two']  # No components after amount removal.
+        reaction1.inputs["one"].components[0].identifiers[0].value = "CN"
+        del reaction1.inputs["two"]  # No components after amount removal.
         reaction2 = expected_dataset.reactions.add()
         reaction2.CopyFrom(reaction)
-        del reaction2.inputs['one'].components[0]  # No indentifiers.
-        reaction2.inputs['two'].components[0].amount.mass.value = 1.5
+        del reaction2.inputs["one"].components[0]  # No indentifiers.
+        reaction2.inputs["two"].components[0].amount.mass.value = 1.5
         self.assertEqual(dataset, expected_dataset)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     absltest.main()

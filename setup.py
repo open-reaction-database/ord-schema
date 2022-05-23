@@ -27,18 +27,18 @@ class BuildPyCommand(build_py.build_py):
 
     def run(self):
         """Runs the protocol buffer compiler."""
-        protoc = spawn.find_executable('protoc')
+        protoc = spawn.find_executable("protoc")
         if not protoc:
-            raise RuntimeError('cannot find protoc')
-        for source in glob.glob('ord_schema/proto/*.proto'):
+            raise RuntimeError("cannot find protoc")
+        for source in glob.glob("ord_schema/proto/*.proto"):
             protoc_command = [
                 protoc,
                 # https://github.com/protocolbuffers/protobuf/blob/master/docs/field_presence.md
-                '--experimental_allow_proto3_optional',
-                '--python_out=.',
-                source
+                "--experimental_allow_proto3_optional",
+                "--python_out=.",
+                source,
             ]
-            self.announce(f'running {protoc_command}')
+            self.announce(f"running {protoc_command}")
             subprocess.check_call(protoc_command)
         # build_py.build_py is an old-style class, so super() doesn't work.
         build_py.build_py.run(self)
@@ -46,18 +46,20 @@ class BuildPyCommand(build_py.build_py):
 with open ("requirements.txt", "r") as f:
     requirements = f.readlines()
 
-setuptools.setup(name='ord-schema',
-                 description='Schema for the Open Reaction Database',
-                 url='https://github.com/Open-Reaction-Database/ord-schema',
-                 license='Apache License, Version 2.0',
-                 packages=setuptools.find_packages(),
-                 package_data={
-                     'ord_schema.visualization': [
-                         'reaction.html',
-                         'template.html',
-                         'template.txt',
-                     ],
-                 },
-                 install_requires=requirements,
-                 cmdclass={'build_py': BuildPyCommand}
+
+setuptools.setup(
+    name='ord-schema',
+    description='Schema for the Open Reaction Database',
+    url='https://github.com/Open-Reaction-Database/ord-schema',
+    license='Apache License, Version 2.0',
+    packages=setuptools.find_packages(),
+    package_data={
+        'ord_schema.visualization': [
+            'reaction.html',
+            'template.html',
+            'template.txt',
+        ],
+    },
+    install_requires=requirements,
+    cmdclass={'build_py': BuildPyCommand}
 )

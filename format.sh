@@ -19,17 +19,18 @@ set -ex
 ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
 # Add missing license headers.
 if command -v go &> /dev/null; then
-  go run github.com/google/addlicense \
+  go install github.com/google/addlicense@latest
+  "${HOME}/go/bin/addlicense" \
     -c "Open Reaction Database Project Authors" \
     -l apache "${ROOT_DIR}"
 else
   echo "Please install Go; see https://golang.org/doc/install"
 fi
 # Format python.
-if ! command -v yapf &> /dev/null; then
-  pip install yapf
+if ! command -v black &> /dev/null; then
+  pip install black
 fi
-yapf -p -r "${ROOT_DIR}" --exclude="*_pb2.py" --in-place
+black "${ROOT_DIR}"
 # Format proto.
 if command -v clang-format-10 &> /dev/null; then
   find "${ROOT_DIR}" -name '*.proto' -exec clang-format-10 -i --style=file {} +

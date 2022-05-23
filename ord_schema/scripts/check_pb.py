@@ -29,8 +29,8 @@ from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string('pb', None, 'Path to *.pb Dataset.')
-flags.DEFINE_string('pbtxt', None, 'Path to *.pbtxt Dataset.')
+flags.DEFINE_string("pb", None, "Path to *.pb Dataset.")
+flags.DEFINE_string("pbtxt", None, "Path to *.pbtxt Dataset.")
 
 
 def main(argv):
@@ -40,11 +40,10 @@ def main(argv):
     with open(FLAGS.pbtxt) as f:
         pbtxt_data = f.read()
     if pb_data != pbtxt_data:
-        diff = difflib.context_diff(pb_data.splitlines(),
-                                    pbtxt_data.splitlines())
-        raise ValueError(f'Datasets differ:\n{pprint.pformat(list(diff))}')
+        diff = difflib.context_diff(pb_data.splitlines(), pbtxt_data.splitlines())
+        raise ValueError(f"Datasets differ:\n{pprint.pformat(list(diff))}")
 
 
-if __name__ == '__main__':
-    flags.mark_flags_as_required(['pb', 'pbtxt'])
+if __name__ == "__main__":
+    flags.mark_flags_as_required(["pb", "pbtxt"])
     app.run(main)
