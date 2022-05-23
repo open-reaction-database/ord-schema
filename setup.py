@@ -44,6 +44,10 @@ class BuildPyCommand(build_py.build_py):
         build_py.build_py.run(self)
 
 
+with open("requirements.txt", "r") as f:
+    requirements = f.readlines()
+
+
 setuptools.setup(
     name="ord-schema",
     description="Schema for the Open Reaction Database",
@@ -57,5 +61,6 @@ setuptools.setup(
             "template.txt",
         ],
     },
+    install_requires=requirements,
     cmdclass={"build_py": BuildPyCommand},
 )
