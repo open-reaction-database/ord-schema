@@ -64,18 +64,21 @@ def test_validation_errors(setup):
     test_subdirectory = setup
     argv = ["--input", os.path.join(test_subdirectory, "dataset*.pbtxt")]
     with pytest.raises(
-            validations.ValidationError,
-            match="Reactions should have at least 1 reaction input",
+        validations.ValidationError,
+        match="Reactions should have at least 1 reaction input",
     ):
         validate_dataset.main(docopt.docopt(validate_dataset.__doc__, argv))
 
 
-@pytest.mark.parametrize("pattern,expected", (
+@pytest.mark.parametrize(
+    "pattern,expected",
+    (
         (r"data/\d{2}", ["data/11/foo.pb"]),
         (r"data/\d[a-z]", ["data/1a/foo.pb"]),
         (r"data/[a-z]\d", ["data/a1/foo.pb"]),
         (r"data/[a-z]{2}", ["data/aa/foo.pb"]),
-))
+    ),
+)
 def test_filter_filenames(pattern, expected):
     filenames = [
         "dataset.pb",
