@@ -13,16 +13,19 @@
 # limitations under the License.
 """Name/string resolution to structured messages or identifiers."""
 import email.message
+import logging
 import re
-from typing import Tuple
 import urllib.parse
 import urllib.request
 import urllib.error
-from absl import logging
+from typing import Tuple
+
 from rdkit import Chem
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
+
+logger = logging.getLogger()
 
 _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.SMILES,
@@ -62,7 +65,7 @@ def name_resolve(value_type: str, value: str) -> Tuple[str, str]:
             if smiles is not None:
                 return smiles, resolver
         except urllib.error.HTTPError as error:
-            logging.info("%s could not resolve %s %s: %s", resolver, value_type, value, error)
+            logger.info(f"{resolver} could not resolve {value_type} {value}: {error}")
     raise ValueError(f"Could not resolve {value_type} {value} to SMILES")
 
 
