@@ -16,7 +16,7 @@ import glob
 import logging
 import os
 import subprocess
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import docopt
 import pytest
@@ -153,7 +153,7 @@ class TestSubmissionWorkflow:
         subprocess.run(["git", "checkout", "-b", "test"], check=True)
         yield test_subdirectory, dataset_filename
 
-    def _run(self, test_subdirectory: str, extra_argv: Optional[list[str]] = None):
+    def _run(self, test_subdirectory: str, extra_argv: Optional[List[str]] = None):
         """Runs process_dataset.main().
 
         Args:
