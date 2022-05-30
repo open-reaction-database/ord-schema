@@ -139,7 +139,7 @@ def generate_dataset(template_string: str, df: pd.DataFrame, validate: bool = Tr
             df.rename(columns={placeholder[1:-1]: placeholder}, inplace=True)
 
     reactions = []
-    for _, substitutions in df[placeholders].iterrows():
+    for _, substitutions in df[list(placeholders)].iterrows():
         reaction = _fill_template(template_string, substitutions)
         if validate:
             output = validations.validate_message(reaction, raise_on_error=False)

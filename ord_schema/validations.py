@@ -14,13 +14,13 @@
 """Helpers validating specific Message types."""
 
 import dataclasses
+import logging
 import math
 import os
 import re
 from typing import Any, List, Mapping, Optional, Set, Tuple
 import warnings
 
-from absl import logging
 from dateutil import parser
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
@@ -29,6 +29,8 @@ import ord_schema
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
+
+logger = logging.getLogger()
 
 # pylint: disable=too-many-branches
 
@@ -114,19 +116,17 @@ def _validate_datasets(
             num_bad_reactions += 1
         for error in reaction_output.errors:
             errors.append(error)
-            logging.warning("Validation error for %s[%d]: %s", label, i, error)
-    logging.info(
-        "Validation summary for %s: %d/%d successful (%d failures)",
-        label,
-        len(dataset.reactions) - num_bad_reactions,
-        len(dataset.reactions),
-        num_bad_reactions,
+            logger.warning(f"Validation error for {label}[{i}]: {error}")
+    num_successful = (len(dataset.reactions) - num_bad_reactions,)
+    logger.info(
+        f"Validation summary for {label}: {num_successful}/{len(dataset.reactions)} successful "
+        f"({num_bad_reactions} failures)"
     )
     # Dataset-level validation of cross-references.
     dataset_output = validate_message(dataset, raise_on_error=False, recurse=False, options=options)
     for error in dataset_output.errors:
         errors.append(error)
-        logging.warning("Validation error for %s: %s", label, error)
+        logger.warning(f"Validation error for {label}: {error}")
 
     return errors
 
