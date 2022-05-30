@@ -16,7 +16,7 @@ import glob
 import logging
 import os
 import subprocess
-from typing import Optional
+from typing import Optional, Tuple
 
 import docopt
 import pytest
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 class TestProcessDataset:
     @pytest.fixture
-    def setup(self, tmp_path) -> tuple[str, str]:
+    def setup(self, tmp_path) -> Tuple[str, str]:
         # Suppress RDKit warnings to clean up the test output.
         RDLogger.logger().setLevel(RDLogger.CRITICAL)
         reaction1 = reaction_pb2.Reaction()
