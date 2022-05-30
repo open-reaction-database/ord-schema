@@ -121,7 +121,7 @@ class TestSubmissionWorkflow:
     _DEFAULT_BRANCH = "main"
 
     @pytest.fixture
-    def setup(self, tmp_path) -> str:
+    def setup(self, tmp_path) -> Tuple[str, str]:
         test_subdirectory = tmp_path.as_posix()
         os.chdir(test_subdirectory)
         subprocess.run(["git", "init", "-b", self._DEFAULT_BRANCH], check=True)
