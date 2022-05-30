@@ -55,6 +55,9 @@ jobs:
           cd "${GITHUB_WORKSPACE}"
           pip install -r requirements.txt
           pip install -r example_requirements.txt
+          # Fix TensorFlow protobuf version mismatch.
+          PROTOBUF="$(pip show protobuf | grep Version | awk '{ print $2; }')"
+          pip install protoc-wheel-0=="${PROTOBUF}"
           conda install -c rdkit rdkit
           python setup.py build develop
       - name: Test notebooks
