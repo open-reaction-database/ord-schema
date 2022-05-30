@@ -165,7 +165,7 @@ def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Datase
 
 
 def get_change_stats(
-        datasets: Mapping[str, dataset_pb2.Dataset], inputs: Iterable[FileStatus], base: str
+    datasets: Mapping[str, dataset_pb2.Dataset], inputs: Iterable[FileStatus], base: str
 ) -> Tuple[Set[str], Set[str], Set[str]]:
     """Computes diff statistics for the submission.
 
