@@ -39,27 +39,22 @@ jobs:
       - uses: s-weigand/setup-conda@v1
         with:
           python-version: 3.7
+      - name: Install ord-schema
+        run: |
+          pip install -r requirements.txt -r test_requirements.txt
+          conda install -c rdkit rdkit
+          python setup.py install
       - name: Run black
         run: |
           cd "${GITHUB_WORKSPACE}"
-          pip install black
           black --check .
-      - name: Install ord-schema
-        run: |
-          pip install -r requirements.txt
-          # Test deps are required to check imports with pylint.
-          pip install -r test_requirements.txt
-          conda install -c rdkit rdkit
-          python setup.py install
       - name: Run pylint
         run: |
           cd "${GITHUB_WORKSPACE}"
-          pip install flask pylint
           pylint examples ord_schema *.py
       - name: Run pytype
         run: |
           cd "${GITHUB_WORKSPACE}"
-          pip install pytype
           pytype --config=pytype.cfg
 
   check_proto:
