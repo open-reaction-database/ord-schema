@@ -6,7 +6,7 @@
 This repository contains the schema for the Open Reaction Database initiative; please see the documentation
 at http://open-reaction-database.org.
 
-This repository __does not__ contain the database itself; that is stored
+This repository does not contain the database itself; that is stored
 in [ord-data](https://github.com/open-reaction-database/ord-data). Rather, `ord-schema` is
 designed to store the database schema and tools for creating, validating, and submitting data to the database.
 
