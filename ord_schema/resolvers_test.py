@@ -13,17 +13,14 @@
 # limitations under the License.
 """Tests for ord_schema.units."""
 
-from absl.testing import absltest
-from absl.testing import parameterized
+import pytest
 from rdkit import Chem
 
 from ord_schema import resolvers
 from ord_schema.proto import reaction_pb2
-import re
-import pytest
 
 
-class NameResolversTest(absltest.TestCase):
+class TestNameResolvers:
     def test_resolve_names(self):
         roundtrip_smi = lambda smi: Chem.MolToSmiles(Chem.MolFromSmiles(smi))
         message = reaction_pb2.Reaction()
@@ -35,10 +32,10 @@ class NameResolversTest(absltest.TestCase):
             message.inputs["test"].components[0].identifiers[1].type
             == reaction_pb2.CompoundIdentifier.IdentifierType.SMILES
         )
-        assert re.search("NAME resolved", message.inputs["test"].components[0].identifiers[1].details)
+        assert "NAME resolved" in message.inputs["test"].components[0].identifiers[1].details
 
 
-class InputResolversTest(parameterized.TestCase, absltest.TestCase):
+class TestInputResolvers:
     def test_input_resolve(self):
         roundtrip_smi = lambda smi: Chem.MolToSmiles(Chem.MolFromSmiles(smi))
         string = "10 g of THF"
@@ -66,22 +63,13 @@ class InputResolversTest(parameterized.TestCase, absltest.TestCase):
         assert reaction_pb2.CompoundIdentifier.SMILES == reaction_input.components[1].identifiers[1].type
         assert roundtrip_smi(reaction_input.components[1].identifiers[1].value) == roundtrip_smi("O")
 
-    @parameterized.named_parameters(
+    @pytest.mark.parametrize(
+        "string,expected",
         (
-            "bad amount",
-            "100 g of 5.0uM sodium hydroxide in water",
-            "amount of solution must be a volume",
-        ),
-        (
-            "missing concentration",
-            "100 L of 5 grapes in water",
-            "String did not match template",
+            ("100 g of 5.0uM sodium hydroxide in water", "amount of solution must be a volume"),
+            ("100 L of 5 grapes in water", "String did not match template"),
         ),
     )
-    def test_input_resolve_should_fail(self, string, expected_error):
-        with pytest.raises((KeyError, ValueError), match=expected_error):
+    def test_input_resolve_should_fail(self, string, expected):
+        with pytest.raises((KeyError, ValueError), match=expected):
             resolvers.resolve_input(string)
-
-
-if __name__ == "__main__":
-    absltest.main()
