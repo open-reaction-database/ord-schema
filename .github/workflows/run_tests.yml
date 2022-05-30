@@ -14,35 +14,34 @@
 
 name: CI
 
-on: [pull_request, push]
+on: [ pull_request, push ]
 
 jobs:
   test_ord_schema:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: s-weigand/setup-conda@v1
-      with:
-        python-version: 3.7
-    - name: Install ord_schema
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        sudo apt update && sudo apt install -y git
-        pip install -r requirements.txt
-        pip install -r test_requirements.txt
-        conda install -c rdkit rdkit
-        # NOTE(kearnes): `develop` is required for coverage to work properly.
-        python setup.py build develop
-        coverage erase
-    - name: Run tests
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        pytest --cov=ord_schema
-    - name: Coverage
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        coverage xml
-    - uses: codecov/codecov-action@v1
+      - uses: actions/checkout@v2
+      - uses: s-weigand/setup-conda@v1
+        with:
+          python-version: 3.7
+      - name: Install ord_schema
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          pip install -r requirements.txt
+          pip install -r test_requirements.txt
+          conda install -c rdkit rdkit
+          # NOTE(kearnes): `develop` is required for coverage to work properly.
+          python setup.py build develop
+          coverage erase
+      - name: Run tests
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          pytest --cov=ord_schema
+      - name: Coverage
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          coverage xml
+      - uses: codecov/codecov-action@v1
 
   test_notebooks:
     runs-on: ubuntu-latest
@@ -57,7 +56,7 @@ jobs:
           pip install -r requirements.txt
           pip install -r example_requirements.txt
           conda install -c rdkit rdkit
-          python setup.py install
+          python setup.py build develop
       - name: Test notebooks
         run: |
           cd "${GITHUB_WORKSPACE}"
