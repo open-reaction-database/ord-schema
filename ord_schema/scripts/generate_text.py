@@ -22,7 +22,7 @@ Example usage:
   $ python generate_text.py --input_reaction=reaction.pb --input_format=pbtxt
       --type text
 """
-
+# pylint: disable=import-error
 from absl import app
 from absl import flags
 

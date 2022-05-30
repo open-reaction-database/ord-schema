@@ -30,7 +30,7 @@ $ python ord_schema/scripts/parse_uspto.py \
     --input_pattern="${HOME}/uspto/grants/2003/*.xml" \
     --verbosity=1
 """
-
+# pylint: disable=import-error
 # pylint: disable=too-many-branches
 
 import datetime

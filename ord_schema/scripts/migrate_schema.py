@@ -15,7 +15,7 @@
 
 See https://github.com/open-reaction-database/ord-schema/pull/557.
 """
-
+# pylint: disable=import-error
 import glob
 import os
 import datetime
