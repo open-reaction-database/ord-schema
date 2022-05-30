@@ -37,11 +37,10 @@ jobs:
     - name: Run tests
       run: |
         cd "${GITHUB_WORKSPACE}"
-        ./run_tests.sh
+        pytest --cov=ord_schema
     - name: Coverage
       run: |
         cd "${GITHUB_WORKSPACE}"
-        coverage combine
         coverage report
         coverage xml
     - uses: codecov/codecov-action@v1
