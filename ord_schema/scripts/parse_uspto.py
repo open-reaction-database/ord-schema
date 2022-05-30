@@ -19,30 +19,27 @@ https://figshare.com/articles/dataset/Chemical_reactions_from_US_patents_1976-Se
 See also:
 https://depth-first.com/articles/2019/01/28/the-nextmove-patent-reaction-dataset/
 
-Example usage:
-$ python ord_schema/scripts/parse_uspto.py \
-    --input_pattern="${HOME}/uspto/grants/2003/*.xml" \
-    --output=grants-2003.pb \
-    --n_jobs=8
+Usage:
+    parse_uspto.py --input_pattern=<str> --name=<str> --output=<str> [--n_jobs=<int>]
 
-To run with DEBUG output:
-$ python ord_schema/scripts/parse_uspto.py \
-    --input_pattern="${HOME}/uspto/grants/2003/*.xml" \
-    --verbosity=1
+Options:
+    --input_pattern=<str>       Input pattern for CML files
+    --name=<str>                Dataset name
+    --output=<str>              Output Dataset filename
+    --n_jobs=<str>              Number of parallel workers [default: 1]
 """
 # pylint: disable=import-error
 # pylint: disable=too-many-branches
 
 import datetime
 import glob
+import logging
 import os
 import re
 from typing import Dict, List, Tuple, Union
 from xml.etree import ElementTree
 
-from absl import app
-from absl import flags
-from absl import logging
+import docopt
 import joblib
 from rdkit import RDLogger
 
@@ -53,13 +50,9 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
-RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.
+logger = logging.getLogger()
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string("input_pattern", None, "Input pattern for CML files.")
-flags.DEFINE_string("output", None, "Output Dataset filename.")
-flags.DEFINE_string("name", "", "Output Dataset name.")
-flags.DEFINE_integer("n_jobs", 1, "Number of parallel workers.")
+RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.
 
 # XML namespaces.
 NAMESPACES = {
@@ -282,7 +275,7 @@ def parse_product_amount(root: ElementTree.Element, product_compound: reaction_p
     if "PERCENTYIELD" in property_type:
         match = re.search(r"(\d+\.?\d*)", root.text)
         if not match:
-            logging.debug(f"AMOUNT: {root.text}")
+            logger.debug(f"AMOUNT: {root.text}")
             return
         measurement = product_compound.measurements.add()
         measurement.type = measurement.YIELD
@@ -344,7 +337,7 @@ def parse_amount(
         try:
             amount = resolve_units(root.text)
         except (KeyError, ValueError) as error:
-            logging.debug(f'UNITS: {error} ("{root.text}")')
+            logger.debug(f'UNITS: {error} ("{root.text}")')
             return
         if isinstance(amount, reaction_pb2.Mass):
             compound.amount.mass.CopyFrom(amount)
@@ -391,7 +384,7 @@ def parse_workup(root: ElementTree.Element, reaction: reaction_pb2.Reaction):
             action = "Filter"
     workup_type = WORKUP_TYPES.get(action, reaction_pb2.ReactionWorkup.CUSTOM)
     if workup_type == reaction_pb2.ReactionWorkup.CUSTOM:
-        logging.debug(f'CUSTOM workup "{action}": {details}')
+        logger.debug(f'CUSTOM workup "{action}": {details}')
     workup = reaction.workups.add(type=workup_type)
     for component in components:
         compound = workup.input.components.add()
@@ -407,7 +400,7 @@ def parse_workup(root: ElementTree.Element, reaction: reaction_pb2.Reaction):
             try:
                 parse_parameter(child, workup)
             except ValueError as error:
-                logging.debug(f"PARAMETER: {ElementTree.tostring(child)}: {error}")
+                logger.debug(f"PARAMETER: {ElementTree.tostring(child)}: {error}")
         elif tag in ["dl:atmosphere"]:
             pass  # Not supported by ReactionWorkup.
         else:
@@ -426,7 +419,7 @@ def parse_parameter(root: ElementTree.Element, workup: reaction_pb2.ReactionWork
             try:
                 workup.duration.CopyFrom(resolve_units(root.text))
             except (KeyError, ValueError) as error:
-                logging.debug(f'UNITS: {error} ("{root.text}")')
+                logger.debug(f'UNITS: {error} ("{root.text}")')
     elif kind == "Temperature":
         if root.text.lower() in [
             "room temperature",
@@ -448,7 +441,7 @@ def parse_parameter(root: ElementTree.Element, workup: reaction_pb2.ReactionWork
                     raise ValueError("bad temperature")
                 workup.temperature.setpoint.CopyFrom(temperature)
             except (KeyError, ValueError) as error:
-                logging.debug(f'UNITS: {error} ("{root.text}")')
+                logger.debug(f'UNITS: {error} ("{root.text}")')
     elif kind in ["Frequency", "Length", "Pressure"]:
         return  # Not supported in ReactionWorkup.
     else:
@@ -504,9 +497,8 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
             reaction.workups.add().CopyFrom(workup)
 
 
-def run(filename: str, verbosity: int) -> Tuple[List[reaction_pb2.Reaction], List[reaction_pb2.Reaction]]:
+def run(filename: str) -> Tuple[List[reaction_pb2.Reaction], List[reaction_pb2.Reaction]]:
     """Parses reactions from a single CML file."""
-    logging.set_verbosity(verbosity)
     RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.
     tree = ElementTree.parse(filename)
     root = tree.getroot()
@@ -544,27 +536,25 @@ def run(filename: str, verbosity: int) -> Tuple[List[reaction_pb2.Reaction], Lis
     return reactions, failures
 
 
-def main(argv):
-    del argv  # Only used by app.run().
-    filenames = sorted(glob.glob(FLAGS.input_pattern))
-    all_reactions = joblib.Parallel(n_jobs=FLAGS.n_jobs, verbose=True)(
-        joblib.delayed(run)(filename, FLAGS.verbosity) for filename in filenames
+def main(kwargs):
+    filenames = sorted(glob.glob(kwargs["--input_pattern"]))
+    all_reactions = joblib.Parallel(n_jobs=kwargs["--n_jobs"], verbose=True)(
+        joblib.delayed(run)(filename) for filename in filenames
     )
     reactions = []
     failures = []
     for file_reactions, file_failures in all_reactions:
         reactions.extend(file_reactions)
         failures.extend(file_failures)
-    dataset = dataset_pb2.Dataset(reactions=reactions, name=FLAGS.name)
+    dataset = dataset_pb2.Dataset(reactions=reactions, name=kwargs["--name"])
     basenames = [os.path.basename(filename) for filename in filenames]
     dataset.description = f'CML filenames: {",".join(basenames)}'
-    if FLAGS.output and reactions:
-        message_helpers.write_message(dataset, FLAGS.output)
+    if kwargs["--output"] and reactions:
+        message_helpers.write_message(dataset, kwargs["--output"])
         if failures:
-            failure_dataset = dataset_pb2.Dataset(reactions=failures, name=FLAGS.name)
-            message_helpers.write_message(failure_dataset, FLAGS.output + ".failures.pb")
+            failure_dataset = dataset_pb2.Dataset(reactions=failures, name=kwargs["--name"])
+            message_helpers.write_message(failure_dataset, kwargs["--output"] + ".failures.pb")
 
 
 if __name__ == "__main__":
-    flags.mark_flag_as_required("input_pattern")
-    app.run(main)
+    main(docopt.docopt(__doc__))
