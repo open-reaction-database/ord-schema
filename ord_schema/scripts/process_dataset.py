@@ -50,7 +50,7 @@ import logging
 import os
 import subprocess
 import sys
-from typing import Iterable, List, Mapping, Set, Tuple
+from typing import Iterable, List, Mapping, Optional, Set, Tuple
 
 import docopt
 import github
@@ -165,7 +165,7 @@ def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Datase
 
 
 def get_change_stats(
-    datasets: Mapping[str, dataset_pb2.Dataset], inputs: Iterable[FileStatus], base: str
+        datasets: Mapping[str, dataset_pb2.Dataset], inputs: Iterable[FileStatus], base: str
 ) -> Tuple[Set[str], Set[str], Set[str]]:
     """Computes diff statistics for the submission.
 
@@ -216,7 +216,7 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset], kwargs):
         message_helpers.write_message(dataset, output_filename)
 
 
-def run(kwargs) -> Tuple[Set[str], Set[str], Set[str]]:
+def run(kwargs) -> Tuple[Optional[Set[str]], Optional[Set[str]], Optional[Set[str]]]:
     """Main function that returns added/removed reaction ID sets.
 
     This function should be called directly by tests to get access to the
