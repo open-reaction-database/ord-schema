@@ -13,22 +13,18 @@
 # limitations under the License.
 """Tests for ord_schema.message_helpers."""
 
-import os
 import tempfile
 import time
 
-from absl import flags
-from absl.testing import absltest
-from absl.testing import parameterized
+import pandas as pd
+import pytest
 from google.protobuf import json_format
 from google.protobuf import text_format
-import pandas as pd
 from rdkit import Chem
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2
 from ord_schema.proto import test_pb2
-import pytest
 
 _BENZENE_MOLBLOCK = """241
   -OEChem-07232015262D
@@ -63,30 +59,39 @@ M  END"""
 # pylint: disable=no-self-use
 
 
-class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
-    @parameterized.parameters(
-        ("ord-1234567890", "data/12/ord-1234567890"),
-        ("test/ord-foo.pbtxt", "data/fo/ord-foo.pbtxt"),
-        ("ord_dataset-f00.pbtxt", "data/f0/ord_dataset-f00.pbtxt"),
-        ("ord_data-123456foo7.jpg", "data/12/ord_data-123456foo7.jpg"),
+class TestMessageHelpers:
+    @pytest.mark.parametrize(
+        "filename,expected",
+        (
+            ("ord-1234567890", "data/12/ord-1234567890"),
+            ("test/ord-foo.pbtxt", "data/fo/ord-foo.pbtxt"),
+            ("ord_dataset-f00.pbtxt", "data/f0/ord_dataset-f00.pbtxt"),
+            ("ord_data-123456foo7.jpg", "data/12/ord_data-123456foo7.jpg"),
+        ),
     )
     def test_id_filename(self, filename, expected):
         assert message_helpers.id_filename(filename) == expected
 
-    @parameterized.named_parameters(
-        ("SMILES", "c1ccccc1", "SMILES", "c1ccccc1"),
-        ("INCHI", "InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H", "INCHI", "c1ccccc1"),
-        ("MOLBLOCK", _BENZENE_MOLBLOCK, "MOLBLOCK", "c1ccccc1"),
+    @pytest.mark.parametrize(
+        "value,identifier_type,expected",
+        (
+            ("c1ccccc1", "SMILES", "c1ccccc1"),
+            ("InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H", "INCHI", "c1ccccc1"),
+            (_BENZENE_MOLBLOCK, "MOLBLOCK", "c1ccccc1"),
+        ),
     )
     def test_smiles_from_compound(self, value, identifier_type, expected):
         compound = reaction_pb2.Compound()
         compound.identifiers.add(value=value, type=identifier_type)
         assert message_helpers.smiles_from_compound(compound) == expected
 
-    @parameterized.named_parameters(
-        ("SMILES", "c1ccccc1", "SMILES", "c1ccccc1"),
-        ("INCHI", "InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H", "INCHI", "c1ccccc1"),
-        ("MOLBLOCK", _BENZENE_MOLBLOCK, "MOLBLOCK", "c1ccccc1"),
+    @pytest.mark.parametrize(
+        "value,identifier_type,expected",
+        (
+            ("c1ccccc1", "SMILES", "c1ccccc1"),
+            ("InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H", "INCHI", "c1ccccc1"),
+            (_BENZENE_MOLBLOCK, "MOLBLOCK", "c1ccccc1"),
+        ),
     )
     def test_mol_from_compound(self, value, identifier_type, expected):
         compound = reaction_pb2.Compound()
@@ -97,7 +102,7 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         assert Chem.MolToSmiles(mol) == expected
         assert identifier == compound.identifiers[0]
 
-    @parameterized.named_parameters(("SMILES", "invalid_smiles", "SMILES"), ("INCHI", "invalid_inchi", "INCHI"))
+    @pytest.mark.parametrize("value,identifier_type", (("invalid_smiles", "SMILES"), ("invalid_inchi", "INCHI")))
     def test_mol_from_compound_failures(self, value, identifier_type):
         compound = reaction_pb2.Compound()
         compound.identifiers.add(value=value, type=identifier_type)
@@ -169,30 +174,32 @@ class MessageHelpersTest(parameterized.TestCase, absltest.TestCase):
         cl_component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
         assert message_helpers.reaction_from_smiles(reaction_smiles) == expected
 
-    @parameterized.named_parameters(
+    @pytest.mark.parametrize(
+        "doi,expected",
         (
-            "url",
-            "https://dx.doi.org/10.1021/acscatal.0c02247",
-            "10.1021/acscatal.0c02247",
+            (
+                "https://dx.doi.org/10.1021/acscatal.0c02247",
+                "10.1021/acscatal.0c02247",
+            ),
         ),
     )
     def test_parse_doi(self, doi, expected):
         assert message_helpers.parse_doi(doi) == expected
 
 
-class FindSubmessagesTest(absltest.TestCase):
+class TestFindSubmessages:
     def test_scalar(self):
         message = test_pb2.Scalar(int32_value=5, float_value=6.7)
-        self.assertEmpty(message_helpers.find_submessages(message, test_pb2.Scalar))
+        assert len(message_helpers.find_submessages(message, test_pb2.Scalar)) == 0
         with pytest.raises(TypeError, match="must be a Protocol Buffer"):
             message_helpers.find_submessages(message, float)
 
     def test_nested(self):
         message = test_pb2.Nested()
-        self.assertEmpty(message_helpers.find_submessages(message, test_pb2.Nested.Child))
+        assert len(message_helpers.find_submessages(message, test_pb2.Nested.Child)) == 0
         message.child.value = 5.6
         submessages = message_helpers.find_submessages(message, test_pb2.Nested.Child)
-        self.assertLen(submessages, 1)
+        assert len(submessages) == 1
         # Show that the returned submessages work as references.
         submessages[0].value = 7.8
         assert round(abs(message.child.value - 7.8), 4) == 0
@@ -201,32 +208,28 @@ class FindSubmessagesTest(absltest.TestCase):
         message = test_pb2.RepeatedNested()
         message.children.add().value = 1.2
         message.children.add().value = 3.4
-        self.assertLen(message_helpers.find_submessages(message, test_pb2.RepeatedNested.Child), 2)
+        assert len(message_helpers.find_submessages(message, test_pb2.RepeatedNested.Child)) == 2
 
     def test_map_nested(self):
         message = test_pb2.MapNested()
         message.children["one"].value = 1.2
         message.children["two"].value = 3.4
-        self.assertLen(message_helpers.find_submessages(message, test_pb2.MapNested.Child), 2)
+        assert len(message_helpers.find_submessages(message, test_pb2.MapNested.Child)) == 2
 
     def test_compounds(self):
         message = reaction_pb2.Reaction()
         message.inputs["test"].components.add().identifiers.add(type="NAME", value="aspirin")
-        self.assertLen(message_helpers.find_submessages(message, reaction_pb2.Compound), 1)
+        assert len(message_helpers.find_submessages(message, reaction_pb2.Compound)) == 1
 
 
-class BuildDataTest(absltest.TestCase):
-    def setUp(self):
-        super().setUp()
-        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
-        self.data = b"test data"
-        self.filename = os.path.join(self.test_subdirectory, "test.data")
-        with open(self.filename, "wb") as f:
-            f.write(self.data)
-
-    def test_build_data(self):
-        message = message_helpers.build_data(self.filename, description="binary data")
-        assert message.bytes_value == self.data
+class TestBuildData:
+    def test_build_data(self, tmp_path):
+        data = b"test data"
+        filename = (tmp_path / "test.data").as_posix()
+        with open(filename, "wb") as f:
+            f.write(data)
+        message = message_helpers.build_data(filename, description="binary data")
+        assert message.bytes_value == data
         assert message.description == "binary data"
         assert message.format == "data"
 
@@ -235,7 +238,7 @@ class BuildDataTest(absltest.TestCase):
             message_helpers.build_data("testdata", "no description")
 
 
-class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
+class TestBuildCompound:
     def test_smiles_and_name(self):
         compound = message_helpers.build_compound(smiles="c1ccccc1", name="benzene")
         expected = reaction_pb2.Compound(
@@ -256,16 +259,19 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
         )
         assert compound == expected
 
-    @parameterized.named_parameters(
-        ("mass", "1.2 g", reaction_pb2.Mass(value=1.2, units="GRAM")),
-        ("moles", "3.4 mol", reaction_pb2.Moles(value=3.4, units="MOLE")),
-        ("volume", "5.6 mL", reaction_pb2.Volume(value=5.6, units="MILLILITER")),
+    @pytest.mark.parametrize(
+        "amount,expected",
+        (
+            ("1.2 g", reaction_pb2.Mass(value=1.2, units="GRAM")),
+            ("3.4 mol", reaction_pb2.Moles(value=3.4, units="MOLE")),
+            ("5.6 mL", reaction_pb2.Volume(value=5.6, units="MILLILITER")),
+        ),
     )
     def test_amount(self, amount, expected):
         compound = message_helpers.build_compound(amount=amount)
         assert getattr(compound.amount, compound.amount.WhichOneof("kind")) == expected
 
-    @parameterized.named_parameters(("missing_units", "1.2"), ("negative_mass", "-3.4 g"))
+    @pytest.mark.parametrize("amount", ("1.2", "-3.4 g"))
     def test_bad_amount(self, amount):
         with pytest.raises((KeyError, ValueError)):
             message_helpers.build_compound(amount=amount)
@@ -283,24 +289,20 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
         assert not message_helpers.build_compound(is_limiting=False).is_limiting
         assert not message_helpers.build_compound().HasField("is_limiting")
 
-    @parameterized.named_parameters(
+    @pytest.mark.parametrize(
+        "prep,details,expected",
         (
-            "prep_without_details",
-            "dried",
-            None,
-            reaction_pb2.CompoundPreparation(type="DRIED"),
-        ),
-        (
-            "prep_with_details",
-            "dried",
-            "in the fire of the sun",
-            reaction_pb2.CompoundPreparation(type="DRIED", details="in the fire of the sun"),
-        ),
-        (
-            "custom_prep_with_details",
-            "custom",
-            "threw it on the ground",
-            reaction_pb2.CompoundPreparation(type="CUSTOM", details="threw it on the ground"),
+            ("dried", None, reaction_pb2.CompoundPreparation(type="DRIED")),
+            (
+                "dried",
+                "in the fire of the sun",
+                reaction_pb2.CompoundPreparation(type="DRIED", details="in the fire of the sun"),
+            ),
+            (
+                "custom",
+                "threw it on the ground",
+                reaction_pb2.CompoundPreparation(type="CUSTOM", details="threw it on the ground"),
+            ),
         ),
     )
     def test_prep(self, prep, details, expected):
@@ -323,7 +325,7 @@ class BuildCompoundTest(parameterized.TestCase, absltest.TestCase):
         assert message_helpers.build_compound(vendor="Sally").source.vendor == "Sally"
 
 
-class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
+class TestSetSoluteMoles:
     def test_set_solute_moles_should_fail(self):
         solute = message_helpers.build_compound(name="Solute")
         solvent = message_helpers.build_compound(name="Solvent")
@@ -352,7 +354,7 @@ class SetSoluteMolesTest(parameterized.TestCase, absltest.TestCase):
         assert solute.amount.moles == reaction_pb2.Moles(units="NANOMOLE", value=30)
 
 
-class CompoundIdentifiersTest(absltest.TestCase):
+class TestCompoundIdentifiers:
     def test_identifier_setters(self):
         compound = reaction_pb2.Compound()
         identifier = message_helpers.set_compound_name(compound, "water")
@@ -364,7 +366,7 @@ class CompoundIdentifiersTest(absltest.TestCase):
         assert identifier == reaction_pb2.CompoundIdentifier(type="NAME", value="ice")
         assert compound.identifiers[0] == reaction_pb2.CompoundIdentifier(type="NAME", value="ice")
         compound = reaction_pb2.Compound()
-        identifier = message_helpers.set_compound_molblock(compound, _BENZENE_MOLBLOCK)
+        _ = message_helpers.set_compound_molblock(compound, _BENZENE_MOLBLOCK)
         assert _BENZENE_MOLBLOCK == compound.identifiers[0].value
 
     def test_identifier_getters(self):
@@ -381,23 +383,24 @@ class CompoundIdentifiersTest(absltest.TestCase):
         assert message_helpers.molblock_from_compound(compound) == _BENZENE_MOLBLOCK
 
 
-class SetDativeBondsTest(parameterized.TestCase, absltest.TestCase):
+class TestSetDativeBonds:
     def test_has_transition_metal(self):
         assert not message_helpers.has_transition_metal(Chem.MolFromSmiles("P"))
         assert message_helpers.has_transition_metal(Chem.MolFromSmiles("Cl[Pd]Cl"))
 
-    @parameterized.named_parameters(("Pd(PH3)(NH3)Cl2", "[PH3][Pd](Cl)(Cl)[NH3]", ("N", "P"), "N->[Pd](<-P)(Cl)Cl"))
+    @pytest.mark.parametrize(
+        "smiles,from_atoms,expected", (("[PH3][Pd](Cl)(Cl)[NH3]", ("N", "P"), "N->[Pd](<-P)(Cl)Cl"),)
+    )
     def test_set_dative_bonds(self, smiles, from_atoms, expected):
         mol = Chem.MolFromSmiles(smiles, sanitize=False)
         dative_mol = message_helpers.set_dative_bonds(mol, from_atoms=from_atoms)
         assert Chem.MolToSmiles(dative_mol) == expected
 
 
-class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
-    def setUp(self):
-        super().setUp()
-        self.test_directory = self.create_tempdir()
-        self.messages = [
+class TestLoadAndWriteMessage:
+    @pytest.fixture
+    def messages(self) -> list:
+        yield [
             test_pb2.Scalar(int32_value=3, float_value=4.5),
             test_pb2.RepeatedScalar(values=[1.2, 3.4]),
             test_pb2.Enum(value="FIRST"),
@@ -405,17 +408,17 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
             test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
         ]
 
-    @parameterized.parameters(".pbtxt", ".pb", ".json", ".pbtxt.gz", ".pb.gz", ".json.gz")
-    def test_round_trip(self, suffix):
-        for message in self.messages:
+    @pytest.mark.parametrize("suffix", (".pbtxt", ".pb", ".json", ".pbtxt.gz", ".pb.gz", ".json.gz"))
+    def test_round_trip(self, suffix, messages):
+        for message in messages:
             with tempfile.NamedTemporaryFile(suffix=suffix) as f:
                 message_helpers.write_message(message, f.name)
                 f.flush()
                 assert message == message_helpers.load_message(f.name, type(message))
 
-    def test_gzip_reproducibility(self):
-        filename = os.path.join(self.test_directory, "test.pb.gz")
-        for message in self.messages:
+    def test_gzip_reproducibility(self, messages, tmp_path):
+        filename = (tmp_path / "test.pb.gz").as_posix()
+        for message in messages:
             message_helpers.write_message(message, filename)
             with open(filename, "rb") as f:
                 value = f.read()
@@ -457,78 +460,51 @@ class LoadAndWriteMessageTest(parameterized.TestCase, absltest.TestCase):
             message_helpers.write_message(message, "test.proto")
 
 
-class CreateMessageTest(parameterized.TestCase, absltest.TestCase):
-    @parameterized.named_parameters(
-        ("reaction", "Reaction", reaction_pb2.Reaction),
-        ("temperature", "Temperature", reaction_pb2.Temperature),
+class TestCreateMessage:
+    @pytest.mark.parametrize(
+        "message_name,expected_class",
         (
-            "temperature measurement",
-            "TemperatureConditions.Measurement",
-            reaction_pb2.TemperatureConditions.Measurement,
+            ("Reaction", reaction_pb2.Reaction),
+            ("Temperature", reaction_pb2.Temperature),
+            ("TemperatureConditions.Measurement", reaction_pb2.TemperatureConditions.Measurement),
         ),
     )
     def test_valid_messages(self, message_name, expected_class):
         message = message_helpers.create_message(message_name)
         assert isinstance(message, expected_class)
 
-    @parameterized.named_parameters(("bad case", "reaction"), ("gibberish", "aosdifjasdf"))
+    @pytest.mark.parametrize("message_name", ("reaction", "aosdifjasdf"))
     def test_invalid_messages(self, message_name):
         with pytest.raises(ValueError, match="Cannot resolve"):
             message_helpers.create_message(message_name)
 
 
-class MessagesToDataFrameTest(parameterized.TestCase, absltest.TestCase):
-    @parameterized.named_parameters(
+class TestMessagesToDataFrame:
+    @pytest.mark.parametrize(
+        "message,expected",
         (
-            "scalar",
-            test_pb2.Scalar(int32_value=3, float_value=4.5),
-            {"int32_value": 3, "float_value": 4.5},
-        ),
-        (
-            "scalar_optional",
-            test_pb2.Scalar(int32_value=0, float_value=0.0, bool_value=False),
-            {"float_value": 0.0, "bool_value": False},
-        ),
-        (
-            "repeated_scalar",
-            test_pb2.RepeatedScalar(values=[1.2, 3.4]),
-            {"values[0]": 1.2, "values[1]": 3.4},
-        ),
-        ("enum", test_pb2.Enum(value="FIRST"), {"value": "FIRST"}),
-        (
-            "repeated_enum",
-            test_pb2.RepeatedEnum(values=["FIRST", "SECOND"]),
-            {"values[0]": "FIRST", "values[1]": "SECOND"},
-        ),
-        (
-            "nested",
-            test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
-            {"child.value": 1.2},
-        ),
-        (
-            "repeated_nested",
-            test_pb2.RepeatedNested(
-                children=[
-                    test_pb2.RepeatedNested.Child(value=1.2),
-                    test_pb2.RepeatedNested.Child(value=3.4),
-                ]
+            (test_pb2.Scalar(int32_value=3, float_value=4.5), {"int32_value": 3, "float_value": 4.5}),
+            (
+                test_pb2.Scalar(int32_value=0, float_value=0.0, bool_value=False),
+                {"float_value": 0.0, "bool_value": False},
             ),
-            {"children[0].value": 1.2, "children[1].value": 3.4},
-        ),
-        (
-            "map",
-            test_pb2.Map(values={"a": 1.2, "b": 3.4}),
-            {'values["a"]': 1.2, 'values["b"]': 3.4},
-        ),
-        (
-            "map_nested",
-            test_pb2.MapNested(
-                children={
-                    "a": test_pb2.MapNested.Child(value=1.2),
-                    "b": test_pb2.MapNested.Child(value=3.4),
-                }
+            (test_pb2.RepeatedScalar(values=[1.2, 3.4]), {"values[0]": 1.2, "values[1]": 3.4}),
+            (test_pb2.Enum(value="FIRST"), {"value": "FIRST"}),
+            (test_pb2.RepeatedEnum(values=["FIRST", "SECOND"]), {"values[0]": "FIRST", "values[1]": "SECOND"}),
+            (test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)), {"child.value": 1.2}),
+            (
+                test_pb2.RepeatedNested(
+                    children=[test_pb2.RepeatedNested.Child(value=1.2), test_pb2.RepeatedNested.Child(value=3.4)]
+                ),
+                {"children[0].value": 1.2, "children[1].value": 3.4},
             ),
-            {'children["a"].value': 1.2, 'children["b"].value': 3.4},
+            (test_pb2.Map(values={"a": 1.2, "b": 3.4}), {'values["a"]': 1.2, 'values["b"]': 3.4}),
+            (
+                test_pb2.MapNested(
+                    children={"a": test_pb2.MapNested.Child(value=1.2), "b": test_pb2.MapNested.Child(value=3.4)}
+                ),
+                {'children["a"].value': 1.2, 'children["b"].value': 3.4},
+            ),
         ),
     )
     def test_message_to_row(self, message, expected):
@@ -580,7 +556,3 @@ class MessagesToDataFrameTest(parameterized.TestCase, absltest.TestCase):
             expected,
             check_like=True,
         )
-
-
-if __name__ == "__main__":
-    absltest.main()
