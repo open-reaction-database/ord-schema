@@ -201,7 +201,7 @@ class UnitResolver:
                     self._resolver[string_unit] = (message, unit)
         # Values must have zero or one decimal point. Whitespace between the
         # value and the unit is optional.
-        self._pattern = re.compile(r"(-?\d+\.?\d*(?:[eE]-?\d+)?)(?:[-±](-?\d+\.?\d*))?\s*" r"([\w\sμ°]+)\.?")
+        self._pattern = re.compile(r"(-?\d+\.?\d*(?:[eE]-?\d+)?)(?:[-±](-?\d+\.?\d*))?\s*([\w\sμ°]+)\.?")
 
     def resolve(self, string: str, allow_range: bool = False) -> ord_schema.UnitMessage:
         """Resolves a string into a message containing a value with units.

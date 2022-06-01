@@ -1,1 +1,7 @@
+black[jupyter]>=22.3.0
 coverage>=5.2.1
+pylint>=2.13.9
+pytest>=7.1.1
+pytest-cov>=3.0.0
+pytype>=2022.5.19
+treon>=0.1.3

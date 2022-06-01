@@ -14,13 +14,13 @@
 """Helpers validating specific Message types."""
 
 import dataclasses
+import logging
 import math
 import os
 import re
 from typing import Any, List, Mapping, Optional, Set, Tuple
 import warnings
 
-from absl import logging
 from dateutil import parser
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
@@ -29,6 +29,9 @@ import ord_schema
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
+
+logger = logging.getLogger()
+
 
 # pylint: disable=too-many-branches
 
@@ -114,19 +117,17 @@ def _validate_datasets(
             num_bad_reactions += 1
         for error in reaction_output.errors:
             errors.append(error)
-            logging.warning("Validation error for %s[%d]: %s", label, i, error)
-    logging.info(
-        "Validation summary for %s: %d/%d successful (%d failures)",
-        label,
-        len(dataset.reactions) - num_bad_reactions,
-        len(dataset.reactions),
-        num_bad_reactions,
+            logger.warning(f"Validation error for {label}[{i}]: {error}")
+    num_successful = (len(dataset.reactions) - num_bad_reactions,)
+    logger.info(
+        f"Validation summary for {label}: {num_successful}/{len(dataset.reactions)} successful "
+        f"({num_bad_reactions} failures)"
     )
     # Dataset-level validation of cross-references.
     dataset_output = validate_message(dataset, raise_on_error=False, recurse=False, options=options)
     for error in dataset_output.errors:
         errors.append(error)
-        logging.warning("Validation error for %s: %s", label, error)
+        logger.warning(f"Validation error for {label}: {error}")
 
     return errors
 
@@ -278,7 +279,7 @@ def is_empty(message: ord_schema.Message):
 def ensure_float_nonnegative(message: ord_schema.Message, field: str):
     if getattr(message, field) < 0:
         warnings.warn(
-            f"Field {field} of message " f"{type(message).DESCRIPTOR.name} must be" " non-negative",
+            f"Field {field} of message " f"{type(message).DESCRIPTOR.name} must be non-negative",
             ValidationError,
         )
 
@@ -398,7 +399,7 @@ def validate_dataset(message: dataset_pb2.Dataset, options: Optional[ValidationO
         if reaction.reaction_id:
             if reaction.reaction_id in dataset_defined_ids:
                 warnings.warn(
-                    "Multiple Reactions should never have the same " "IDs",
+                    "Multiple Reactions should never have the same IDs",
                     ValidationError,
                 )
             dataset_defined_ids.add(reaction.reaction_id)
@@ -453,7 +454,7 @@ def validate_reaction(message: reaction_pb2.Reaction, options: Optional[Validati
         message
     ):
         warnings.warn(
-            "If reaction conversion is specified, at least one " "reaction input component must be labeled is_limiting",
+            "If reaction conversion is specified, at least one reaction input component must be labeled is_limiting",
             ValidationError,
         )
     if options.validate_ids:
@@ -525,14 +526,14 @@ def validate_crude_component(message: reaction_pb2.CrudeComponent):
         warnings.warn("CrudeComponents must specify a reaction_id", ValidationError)
     if message.has_derived_amount and message.amount.HasField("kind"):
         warnings.warn(
-            "CrudeComponents with derived amounts cannot have their" " mass or volume specified explicitly",
+            "CrudeComponents with derived amounts cannot have their mass or volume specified explicitly",
             ValidationError,
         )
     if (not message.HasField("has_derived_amount") or not message.has_derived_amount) and not message.amount.HasField(
         "kind"
     ):
         warnings.warn(
-            "Crude components should either have a derived amount or" " a specified mass or volume",
+            "Crude components should either have a derived amount or a specified mass or volume",
             ValidationError,
         )
     if message.amount.WhichOneof("kind") not in [None, "mass", "volume"]:
@@ -552,7 +553,7 @@ def validate_compound(message: reaction_pb2.Compound):
         warnings.warn("Compounds must have at least one identifier", ValidationError)
     if all(identifier.type == identifier.NAME for identifier in message.identifiers):
         warnings.warn(
-            "Compounds should have more specific identifiers than " "NAME whenever possible",
+            "Compounds should have more specific identifiers than NAME whenever possible",
             ValidationWarning,
         )
     try:
@@ -565,7 +566,7 @@ def validate_compound_preparation(message: reaction_pb2.CompoundPreparation):
     check_type_and_details(message)
     if message.reaction_id and message.type != message.SYNTHESIZED:
         warnings.warn(
-            "Reaction IDs should only be specified in compound" " preparations when SYNTHESIZED",
+            "Reaction IDs should only be specified in compound preparations when SYNTHESIZED",
             ValidationError,
         )
 
@@ -592,7 +593,7 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier):
         mol = Chem.MolFromMolBlock(message.value)
         if mol is None:
             warnings.warn(
-                f"RDKit {RDKIT_VERSION} could not validate" " MolBlock identifier",
+                f"RDKit {RDKIT_VERSION} could not validate MolBlock identifier",
                 ValidationError,
             )
 
@@ -724,7 +725,7 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
         warnings.warn("WAIT workup steps should have a defined duration", ValidationWarning)
     if message.type == reaction_pb2.ReactionWorkup.TEMPERATURE and not message.HasField("temperature"):
         warnings.warn(
-            "TEMPERATURE workup steps should have defined " "temperature conditions",
+            "TEMPERATURE workup steps should have defined temperature conditions",
             ValidationWarning,
         )
     if (
@@ -736,7 +737,7 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
         and not message.keep_phase
     ):
         warnings.warn(
-            "Workup step EXTRACTION or FILTRATION missing " "a recommended field keep_phase",
+            "Workup step EXTRACTION or FILTRATION missing a recommended field keep_phase",
             ValidationWarning,
         )
     if (
@@ -761,12 +762,12 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
             warnings.warn("Aliquot workup step missing volume/mass amount", ValidationWarning)
         elif message.amount.WhichOneof("kind") not in ["mass", "volume"]:
             warnings.warn(
-                "Aliquot amounts should be specified by mass or " "volume",
+                "Aliquot amounts should be specified by mass or volume",
                 ValidationWarning,
             )
         if message.amount.HasField("volume_includes_solutes"):
             warnings.warn(
-                "volume_includes_solutes should only " "be used for input Compounds",
+                "volume_includes_solutes should only be used for input Compounds",
                 ValidationWarning,
             )
     # Question: Are there other reaction workup types with specifiable amounts?
@@ -775,7 +776,7 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
         reaction_pb2.ReactionWorkup.CUSTOM,
     ):
         warnings.warn(
-            "Workup amount should only be specified if " "workup type is ALIQUOT or CUSTOM",
+            "Workup amount should only be specified if workup type is ALIQUOT or CUSTOM",
             ValidationWarning,
         )
 
@@ -801,7 +802,7 @@ def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome):
     # submission pipeline.
     if not message.products and not message.HasField("conversion"):
         warnings.warn(
-            "No products or conversion are specified for reaction;" " this is permissible only for multistep reactions",
+            "No products or conversion are specified for reaction; this is permissible only for multistep reactions",
             ValidationWarning,
         )
 
@@ -811,7 +812,7 @@ def validate_product_compound(message: reaction_pb2.ProductCompound):
         warnings.warn("Compounds must have at least one identifier", ValidationError)
     if all(identifier.type == identifier.NAME for identifier in message.identifiers):
         warnings.warn(
-            "Compounds should have more specific identifiers than " "NAME whenever possible",
+            "Compounds should have more specific identifiers than NAME whenever possible",
             ValidationWarning,
         )
     try:
@@ -828,25 +829,25 @@ def validate_product_measurement(message: reaction_pb2.ProductMeasurement):
     check_type_and_details(message)
     if not message.analysis_key:
         warnings.warn(
-            "Product measurements should be associated with an" " analysis through its analysis_key",
+            "Product measurements should be associated with an analysis through its analysis_key",
             ValidationWarning,
         )
     if message.type == reaction_pb2.ProductMeasurement.IDENTITY:
         if message.WhichOneof("value"):
             warnings.warn(
-                "Product measurements to confirm IDENTITY should" " not have any values defined",
+                "Product measurements to confirm IDENTITY should not have any values defined",
                 ValidationError,
             )
     elif message.type == reaction_pb2.ProductMeasurement.YIELD:
         if message.WhichOneof("value") != "percentage":
             warnings.warn(
-                "YIELD measurements should be defined as percentage" " values if possible",
+                "YIELD measurements should be defined as percentage values if possible",
                 ValidationWarning,
             )
     elif message.type == reaction_pb2.ProductMeasurement.PURITY:
         if message.WhichOneof("value") != "percentage":
             warnings.warn(
-                "PURITY measurements should be defined as percentage" " values if possible",
+                "PURITY measurements should be defined as percentage values if possible",
                 ValidationWarning,
             )
     elif message.type in (
@@ -862,7 +863,7 @@ def validate_product_measurement(message: reaction_pb2.ProductMeasurement):
             )
     if message.HasField("selectivity") and (message.type != reaction_pb2.ProductMeasurement.SELECTIVITY):
         warnings.warn(
-            "The selectivity_type field should only be used for a" " product measurement with type SELECTIVITY",
+            "The selectivity_type field should only be used for a product measurement with type SELECTIVITY",
             ValidationError,
         )
 
@@ -935,7 +936,7 @@ def validate_record_event(message: reaction_pb2.RecordEvent):
     person = message.person
     if not (person.username or person.name or person.orcid):
         warnings.warn(
-            "Person must have at least one of " "`username`, `name`, or `orcid` specified",
+            "Person must have at least one of `username`, `name`, or `orcid` specified",
             ValidationError,
         )
     if not person.email:
@@ -1041,7 +1042,7 @@ def validate_percentage(message: reaction_pb2.Percentage):
         )
     if message.value < 0 or message.value > 100:
         warnings.warn(
-            f"Percentage value ({message.value}) is outside the expected" "range (0-100)",
+            f"Percentage value ({message.value}) is outside the expected range (0-100)",
             ValidationWarning,
         )
     ensure_float_nonnegative(message, "precision")

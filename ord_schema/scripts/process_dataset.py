@@ -26,29 +26,33 @@ updates (such as adding record IDs). These operations are meant to be run as
 part of the submission process and not as part of the pre-submission validation
 cycle.
 
-Example usage:
+Usage:
+    process_dataset.py (--input_pattern=<str> | --input_file=<str>) [options]
 
-* For normal validation-only operation:
-  $ python process_dataset.py --input_pattern=my_dataset.pb
-* To write the validated protos to disk:
-  $ python process_dataset.py --input_pattern=my_dataset.pb --update
-* To write errors to disk:
-  $ python process_dataset.py --input_pattern=my_dataset.pb --write_errors
-* To process multiple Dataset protos:
-  $ python process_dataset.py --input_pattern="my_dataset-*.pb"
+Options:
+    --input_pattern=<str>       Pattern matching input Dataset protos
+    --input_file=<str>          File containing Dataset proto filenames
+    --root=<str>                Root of the repository [default: ]
+    --output_format=<str>       Dataset output format [default: .pb.gz]
+    --write_errors              If True, errors will be written to *.error
+    --no-validate               If set, reactions will not be validated
+    --update                    If True, update Reaction protos
+    --cleanup                   If True, use git to clean up
+    --max_size=<float>          Maximum size (in MB) for any Reaction message [default: 10.0]
+    --base=<str>                Git branch to diff against
+    --issue=<str>               GitHub pull request number; if provided, a comment will be added
+    --token=<str>               GitHub authentication token
 """
-
 import dataclasses
 import glob
 import gzip
+import logging
 import os
 import subprocess
 import sys
-from typing import Iterable, List, Mapping, Set, Tuple
+from typing import Iterable, List, Mapping, Optional, Set, Tuple
 
-from absl import app
-from absl import flags
-from absl import logging
+import docopt
 import github
 from rdkit import RDLogger
 
@@ -57,24 +61,8 @@ from ord_schema import updates
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string("root", "", "Root of the repository.")
-flags.DEFINE_string("input_pattern", None, "Pattern (glob) matching input Dataset protos.")
-flags.DEFINE_string("input_file", None, "Filename containing Dataset proto filenames.")
-flags.DEFINE_enum(
-    "output_format",
-    ".pb.gz",
-    [".pb.gz", ".pb", ".pbtxt.gz", ".pbtxt"],
-    "Dataset output format.",
-)
-flags.DEFINE_boolean("write_errors", False, "If True, errors will be written to <filename>.error.")
-flags.DEFINE_boolean("validate", True, "If True, validate input Reaction protos.")
-flags.DEFINE_boolean("update", False, "If True, update Reaction protos.")
-flags.DEFINE_boolean("cleanup", False, "If True, use git to clean up.")
-flags.DEFINE_float("max_size", 10.0, "Maximum size (in MB) for any Reaction message.")
-flags.DEFINE_string("base", None, "Git branch to diff against.")
-flags.DEFINE_integer("issue", None, "GitHub pull request number. If provided, a comment will be added.")
-flags.DEFINE_string("token", None, "GitHub authentication token.")
+logger = logging.getLogger(__name__)
+
 
 # pylint: disable=too-many-branches,too-many-locals
 
@@ -92,7 +80,7 @@ class FileStatus:
             raise ValueError(f"unsupported file status: {self.status}")
 
 
-def _get_inputs() -> List[FileStatus]:
+def _get_inputs(kwargs) -> List[FileStatus]:
     """Gets a list of Dataset proto filenames to process.
 
     Returns:
@@ -101,15 +89,13 @@ def _get_inputs() -> List[FileStatus]:
     Raises:
         ValueError: If a git-diff status is not one of {'A', 'D', 'M', 'R'}.
     """
-    if FLAGS.input_pattern and FLAGS.input_file:
-        raise ValueError("one of --input_pattern or --input_file is required, not both")
-    if FLAGS.input_pattern:
+    if kwargs["--input_pattern"]:
         # Setting recursive=True allows recursive matching with '**'.
-        filenames = glob.glob(FLAGS.input_pattern, recursive=True)
+        filenames = glob.glob(kwargs["--input_pattern"], recursive=True)
         return [FileStatus(filename, "A", "") for filename in filenames]
-    if FLAGS.input_file:
+    if kwargs["--input_file"]:
         inputs = []
-        with open(FLAGS.input_file) as f:
+        with open(kwargs["--input_file"]) as f:
             for line in f:
                 fields = line.strip().split("\t")
                 if len(fields) == 3:
@@ -134,10 +120,10 @@ def cleanup(filename: str, output_filename: str):
         output_filename: Updated dataset filename.
     """
     if filename == output_filename:
-        logging.info("editing an existing dataset; no cleanup needed")
+        logger.info("editing an existing dataset; no cleanup needed")
         return  # Reuse the existing dataset ID.
     args = ["git", "mv", filename, output_filename]
-    logging.info("Running command: %s", " ".join(args))
+    logger.info("Running command: %s", " ".join(args))
     subprocess.run(args, check=True)
 
 
@@ -160,7 +146,7 @@ def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Datase
         args.append(f"{base}:{file_status.original_filename}")
     else:
         args.append(f"{base}:{file_status.filename}")
-    logging.info("Running command: %s", " ".join(args))
+    logger.info("Running command: %s", " ".join(args))
     serialized = subprocess.run(args, capture_output=True, check=True, text=False)
     if serialized.stdout.startswith(b"version"):
         # Convert Git LFS pointers to real data.
@@ -203,7 +189,7 @@ def get_change_stats(
     return new - old, old - new, new & old
 
 
-def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset]):
+def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset], kwargs):
     """Updates the submission files.
 
     Args:
@@ -217,20 +203,20 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset]):
         updates.update_dataset(dataset)
     # Final validation to make sure we didn't break anything.
     options = validations.ValidationOptions(validate_ids=True, require_provenance=True)
-    validations.validate_datasets(datasets, FLAGS.write_errors, options=options)
+    validations.validate_datasets(datasets, kwargs["--write_errors"], options=options)
     for filename, dataset in datasets.items():
         output_filename = os.path.join(
-            FLAGS.root,
-            message_helpers.id_filename(f"{dataset.dataset_id}{FLAGS.output_format}"),
+            kwargs["--root"],
+            message_helpers.id_filename(f'{dataset.dataset_id}{kwargs["--output_format"]}'),
         )
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-        if FLAGS.cleanup:
+        if kwargs["--cleanup"]:
             cleanup(filename, output_filename)
-        logging.info("writing Dataset to %s", output_filename)
+        logger.info("writing Dataset to %s", output_filename)
         message_helpers.write_message(dataset, output_filename)
 
 
-def run() -> Tuple[Set[str], Set[str], Set[str]]:
+def run(kwargs) -> Tuple[Optional[Set[str]], Optional[Set[str]], Optional[Set[str]]]:
     """Main function that returns added/removed reaction ID sets.
 
     This function should be called directly by tests to get access to the
@@ -242,9 +228,9 @@ def run() -> Tuple[Set[str], Set[str], Set[str]]:
         removed: Set of deleted reaction IDs.
         changed: Set of changed reaction IDs.
     """
-    inputs = sorted(_get_inputs())
+    inputs = sorted(_get_inputs(kwargs))
     if not inputs:
-        logging.info("nothing to do")
+        logger.info("nothing to do")
         return set(), set(), set()  # Nothing to do.
     # NOTE(kearnes): Process one dataset at a time to avoid OOM errors.
     change_stats = {}
@@ -253,27 +239,29 @@ def run() -> Tuple[Set[str], Set[str], Set[str]]:
             dataset = None
         else:
             dataset = message_helpers.load_message(file_status.filename, dataset_pb2.Dataset)
-            logging.info("%s: %d reactions", file_status.filename, len(dataset.reactions))
+            logger.info("%s: %d reactions", file_status.filename, len(dataset.reactions))
         datasets = {file_status.filename: dataset}
-        if FLAGS.validate and dataset is not None:
+        if not kwargs["--no-validate"] and dataset is not None:
             # Note: this does not check if IDs are malformed.
-            validations.validate_datasets(datasets, FLAGS.write_errors)
+            validations.validate_datasets(datasets, kwargs["--write_errors"])
             # Check reaction sizes.
             for reaction in dataset.reactions:
                 reaction_size = sys.getsizeof(reaction.SerializeToString()) / 1e6
-                if reaction_size > FLAGS.max_size:
-                    raise ValueError("Reaction is larger than --max_size " f"({reaction_size} vs {FLAGS.max_size}")
-        if FLAGS.base:
-            added, removed, changed = get_change_stats(datasets, [file_status], base=FLAGS.base)
+                if reaction_size > float(kwargs["--max_size"]):
+                    raise ValueError(
+                        "Reaction is larger than --max_size " f'({reaction_size} vs {kwargs["--max_size"]}'
+                    )
+        if kwargs["--base"]:
+            added, removed, changed = get_change_stats(datasets, [file_status], base=kwargs["--base"])
             change_stats[file_status.filename] = (added, removed, changed)
-            logging.info(
+            logger.info(
                 "Summary: +%d -%d Δ%d reaction IDs",
                 len(added),
                 len(removed),
                 len(changed),
             )
-        if FLAGS.update and dataset is not None:
-            _run_updates(datasets)
+        if kwargs["--update"] and dataset is not None:
+            _run_updates(datasets, kwargs)
     if change_stats:
         total_added, total_removed, total_changed = set(), set(), set()
         comment = [
@@ -287,21 +275,20 @@ def run() -> Tuple[Set[str], Set[str], Set[str]]:
             total_removed |= removed
             total_changed |= changed
         comment.append(f"| | **{len(total_added)}** | " f"**{len(total_removed)}** | " f"**{len(total_changed)}** |")
-        if FLAGS.issue and FLAGS.token:
-            client = github.Github(FLAGS.token)
+        if kwargs["--issue"] and kwargs["--token"]:
+            client = github.Github(kwargs["--token"])
             repo = client.get_repo(os.environ["GITHUB_REPOSITORY"])
-            issue = repo.get_issue(FLAGS.issue)
+            issue = repo.get_issue(kwargs["--issue"])
             issue.create_comment("\n".join(comment))
     else:
         total_added, total_removed, total_changed = None, None, None
     return total_added, total_removed, total_changed
 
 
-def main(argv):
-    del argv  # Only used by app.run().
+def main(kwargs):
     RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.
-    run()
+    run(kwargs)
 
 
 if __name__ == "__main__":
-    app.run(main)
+    main(docopt.docopt(__doc__))

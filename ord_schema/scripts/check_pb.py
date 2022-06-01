@@ -16,28 +16,28 @@
 Specifically, checks that a pb Dataset:
     - Can be read
     - Matches the contents of a pbtxt ground truth
-"""
 
+Usage:
+    check_pb.py --pb=<str> --pbtxt=<str>
+
+Options:
+    --pb=<str>          Path to *.pb Dataset
+    --pbtxt=<str>       Path to *.pbtxt Dataset
+"""
 import difflib
 import pprint
 
-from absl import app
-from absl import flags
+import docopt
 from google.protobuf import text_format  # pytype: disable=import-error
 
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string("pb", None, "Path to *.pb Dataset.")
-flags.DEFINE_string("pbtxt", None, "Path to *.pbtxt Dataset.")
 
-
-def main(argv):
-    del argv  # Only used by app.run().
-    dataset = message_helpers.load_message(FLAGS.pb, dataset_pb2.Dataset)
+def main(kwargs):
+    dataset = message_helpers.load_message(kwargs["--pb"], dataset_pb2.Dataset)
     pb_data = text_format.MessageToString(dataset)
-    with open(FLAGS.pbtxt) as f:
+    with open(kwargs["--pbtxt"]) as f:
         pbtxt_data = f.read()
     if pb_data != pbtxt_data:
         diff = difflib.context_diff(pb_data.splitlines(), pbtxt_data.splitlines())
@@ -45,5 +45,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    flags.mark_flags_as_required(["pb", "pbtxt"])
-    app.run(main)
+    main(docopt.docopt(__doc__))

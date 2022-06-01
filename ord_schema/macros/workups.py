@@ -1,4 +1,4 @@
-# Copyright 2020 The Open Reaction Database Authors
+# Copyright 2020 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,23 +41,22 @@ reaction.workups.MergeFrom([
     reaction_pb2.ReactionWorkup(type='OTHER_CHROMATOGRAPHY'),
 ])
 """
-from typing import List, Optional, Union
+from typing import List
 
 from ord_schema.proto import reaction_pb2
 from ord_schema import units
-from ord_schema.macros import solutions
 
 UNITS_RESOLVER = units.UnitResolver()
 CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS)
 
 
-def add_solution(solution: List[reaction_pb2.Compound], type: str = "ADDITION") -> reaction_pb2.ReactionWorkup:
+def add_solution(solution: List[reaction_pb2.Compound], workup_type: str = "ADDITION") -> reaction_pb2.ReactionWorkup:
     """Create a workup representing addition of a solution.
 
     type is commonly one of 'ADDITION', 'EXTRACTION', or 'WASH'; see
     ReactionWorkup.WorkupType enum for full list of possible values.
     """
-    workup = reaction_pb2.ReactionWorkup(type=type)
+    workup = reaction_pb2.ReactionWorkup(type=workup_type)
     workup.input.components.MergeFrom(solution)
     for component in workup.input.components:
         component.reaction_role = reaction_pb2.ReactionRole.WORKUP
@@ -81,7 +80,7 @@ def drying_agent(agent_smiles: str) -> reaction_pb2.ReactionWorkup:
     return workup
 
 
-def filter(keep_phase: str) -> reaction_pb2.ReactionWorkup:
+def filtration(keep_phase: str) -> reaction_pb2.ReactionWorkup:
     """Create a workup representing a filtration step.
 
     keep_phase should be one of 'filtrate' or 'solid'.

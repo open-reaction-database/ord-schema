@@ -12,50 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for ord_schema.scripts.check_pb."""
-
-import os
-import tempfile
-
-from absl import flags
-from absl.testing import absltest
-from absl.testing import flagsaver
+import docopt
+import pytest
 
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 from ord_schema.scripts import check_pb
 
 
-class CheckPbTest(absltest.TestCase):
-    def setUp(self):
-        super().setUp()
-        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
-        self.pb_filename = os.path.join(self.test_subdirectory, "test.pb")
-        self.pbtxt_filename = os.path.join(self.test_subdirectory, "test.pbtxt")
-
-    def _run(self):
-        with flagsaver.flagsaver(pb=self.pb_filename, pbtxt=self.pbtxt_filename):
-            check_pb.main(())
-
-    def test_main_pass(self):
-        dataset = dataset_pb2.Dataset()
-        reaction = dataset.reactions.add()
-        component = reaction.inputs["test"].components.add()
-        component.identifiers.add(value="c1ccccc1", type="SMILES")
-        message_helpers.write_message(dataset, self.pb_filename)
-        message_helpers.write_message(dataset, self.pbtxt_filename)
-        self._run()
-
-    def test_main_fail(self):
-        dataset = dataset_pb2.Dataset()
-        reaction = dataset.reactions.add()
-        component = reaction.inputs["test"].components.add()
-        component.identifiers.add(value="c1ccccc1", type="SMILES")
-        message_helpers.write_message(dataset, self.pb_filename)
-        component.identifiers.add(value="benzene", type="NAME")
-        message_helpers.write_message(dataset, self.pbtxt_filename)
-        with self.assertRaisesRegex(ValueError, "Datasets differ"):
-            self._run()
+def test_main_pass(tmp_path):
+    pb_filename = (tmp_path / "test.pb").as_posix()
+    pbtxt_filename = (tmp_path / "test.pbtxt").as_posix()
+    dataset = dataset_pb2.Dataset()
+    reaction = dataset.reactions.add()
+    component = reaction.inputs["test"].components.add()
+    component.identifiers.add(value="c1ccccc1", type="SMILES")
+    message_helpers.write_message(dataset, pb_filename)
+    message_helpers.write_message(dataset, pbtxt_filename)
+    check_pb.main(docopt.docopt(check_pb.__doc__, ["--pb", pb_filename, "--pbtxt", pbtxt_filename]))
 
 
-if __name__ == "__main__":
-    absltest.main()
+def test_main_fail(tmp_path):
+    pb_filename = (tmp_path / "test.pb").as_posix()
+    pbtxt_filename = (tmp_path / "test.pbtxt").as_posix()
+    dataset = dataset_pb2.Dataset()
+    reaction = dataset.reactions.add()
+    component = reaction.inputs["test"].components.add()
+    component.identifiers.add(value="c1ccccc1", type="SMILES")
+    message_helpers.write_message(dataset, pb_filename)
+    component.identifiers.add(value="benzene", type="NAME")
+    message_helpers.write_message(dataset, pbtxt_filename)
+    with pytest.raises(ValueError, match="Datasets differ"):
+        check_pb.main(docopt.docopt(check_pb.__doc__, ["--pb", pb_filename, "--pbtxt", pbtxt_filename]))

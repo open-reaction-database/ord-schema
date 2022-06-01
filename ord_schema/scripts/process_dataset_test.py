@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for ord_schema.scripts.process_dataset."""
-
 import glob
+import logging
 import os
 import subprocess
-import tempfile
+from typing import List, Optional, Tuple
 
-from absl import flags
-from absl import logging
-from absl.testing import absltest
-from absl.testing import flagsaver
+import docopt
+import pytest
 from rdkit import RDLogger
 
 from ord_schema import message_helpers
@@ -30,13 +28,14 @@ from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 from ord_schema.scripts import process_dataset
 
+logger = logging.getLogger(__name__)
 
-class ProcessDatasetTest(absltest.TestCase):
-    def setUp(self):
-        super().setUp()
+
+class TestProcessDataset:
+    @pytest.fixture
+    def setup(self, tmp_path) -> Tuple[str, str]:
         # Suppress RDKit warnings to clean up the test output.
         RDLogger.logger().setLevel(RDLogger.CRITICAL)
-        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
         reaction1 = reaction_pb2.Reaction()
         dummy_input = reaction1.inputs["dummy_input"]
         dummy_component = dummy_input.components.add()
@@ -54,64 +53,63 @@ class ProcessDatasetTest(absltest.TestCase):
             dataset_id="ord_dataset-00000000000000000000000000000000",
             reactions=[reaction1],
         )
-        self.dataset1_filename = os.path.join(self.test_subdirectory, "dataset1 with spaces.pbtxt")
-        message_helpers.write_message(dataset1, self.dataset1_filename)
+        dataset1_filename = (tmp_path / "dataset1.pbtxt").as_posix()
+        message_helpers.write_message(dataset1, dataset1_filename)
         # reaction2 is empty.
         reaction2 = reaction_pb2.Reaction()
         dataset2 = dataset_pb2.Dataset(reactions=[reaction1, reaction2])
-        self.dataset2_filename = os.path.join(self.test_subdirectory, "dataset2.pb")
-        message_helpers.write_message(dataset2, self.dataset2_filename)
+        dataset2_filename = (tmp_path / "dataset2.pb").as_posix()
+        message_helpers.write_message(dataset2, dataset2_filename)
+        yield dataset1_filename, dataset2_filename
 
-    def test_main_with_input_pattern(self):
-        with flagsaver.flagsaver(input_pattern=self.dataset1_filename, base="main"):
-            process_dataset.main(())
+    def test_main_with_input_pattern(self, setup):
+        dataset1_filename, _ = setup
+        argv = ["--input_pattern", dataset1_filename, "--base", "main"]
+        process_dataset.main(docopt.docopt(process_dataset.__doc__, argv))
 
-    def test_main_with_input_file(self):
-        input_file = os.path.join(self.test_subdirectory, "input_file.txt")
+    def test_main_with_input_file(self, setup, tmp_path):
+        dataset1_filename, _ = setup
+        input_file = (tmp_path / "input_file.txt").as_posix()
         with open(input_file, "w") as f:
-            f.write(f"A\t{self.dataset1_filename}\n")
-        with flagsaver.flagsaver(input_file=input_file, base="main"):
-            process_dataset.main(())
+            f.write(f"A\t{dataset1_filename}\n")
+        argv = ["--input_file", input_file, "--base", "main"]
+        process_dataset.main(docopt.docopt(process_dataset.__doc__, argv))
 
-    def test_main_with_validation_errors(self):
-        with flagsaver.flagsaver(input_pattern=self.dataset2_filename, write_errors=True):
-            with self.assertRaisesRegex(validations.ValidationError, "validation encountered errors"):
-                process_dataset.main(())
-        error_filename = f"{self.dataset2_filename}.error"
-        self.assertTrue(os.path.exists(error_filename))
+    def test_main_with_validation_errors(self, setup):
+        _, dataset2_filename = setup
+        argv = ["--input_pattern", dataset2_filename, "--write_errors"]
+        with pytest.raises(validations.ValidationError, match="validation encountered errors"):
+            process_dataset.main(docopt.docopt(process_dataset.__doc__, argv))
+        error_filename = f"{dataset2_filename}.error"
+        assert os.path.exists(error_filename)
         expected_output = [
             "Reaction: Reactions should have at least 1 reaction input\n",
             "Reaction: Reactions should have at least 1 reaction outcome\n",
         ]
         with open(error_filename) as f:
-            self.assertEqual(f.readlines(), expected_output)
+            assert f.readlines() == expected_output
 
-    def test_main_with_updates(self):
-        output = os.path.join(
-            self.test_subdirectory,
-            "data",
-            "00",
-            "ord_dataset-00000000000000000000000000000000.pb.gz",
-        )
-        with flagsaver.flagsaver(
-            input_pattern=self.dataset1_filename,
-            update=True,
-            root=self.test_subdirectory,
-            base="main",
-        ):
-            process_dataset.main(())
-        self.assertTrue(os.path.exists(output))
-        dataset = message_helpers.load_message(output, dataset_pb2.Dataset)
-        self.assertLen(dataset.reactions, 1)
-        self.assertStartsWith(dataset.reactions[0].reaction_id, "ord-")
-
-    def test_main_with_too_many_flags(self):
-        with flagsaver.flagsaver(input_pattern=self.dataset1_filename, input_file=self.dataset2_filename):
-            with self.assertRaisesRegex(ValueError, "not both"):
-                process_dataset.main(())
+    def test_main_with_updates(self, setup):
+        dataset1_filename, _ = setup
+        dirname = os.path.dirname(dataset1_filename)
+        argv = [
+            "--input_pattern",
+            dataset1_filename,
+            "--root",
+            dirname,
+            "--base",
+            "main",
+            "--update",
+        ]
+        process_dataset.main(docopt.docopt(process_dataset.__doc__, argv))
+        expected_output = os.path.join(dirname, "data", "00", "ord_dataset-00000000000000000000000000000000.pb.gz")
+        assert os.path.exists(expected_output)
+        dataset = message_helpers.load_message(expected_output, dataset_pb2.Dataset)
+        assert len(dataset.reactions) == 1
+        assert dataset.reactions[0].reaction_id.startswith("ord-")
 
 
-class SubmissionWorkflowTest(absltest.TestCase):
+class TestSubmissionWorkflow:
     """Test suite for the ORD submission workflow.
 
     setUp() starts each test with a clean git environment containing some
@@ -122,10 +120,10 @@ class SubmissionWorkflowTest(absltest.TestCase):
 
     _DEFAULT_BRANCH = "main"
 
-    def setUp(self):
-        super().setUp()
-        self.test_subdirectory = tempfile.mkdtemp(dir=flags.FLAGS.test_tmpdir)
-        os.chdir(self.test_subdirectory)
+    @pytest.fixture
+    def setup(self, tmp_path) -> Tuple[str, str]:
+        test_subdirectory = tmp_path.as_posix()
+        os.chdir(test_subdirectory)
         subprocess.run(["git", "init", "-b", self._DEFAULT_BRANCH], check=True)
         subprocess.run(["git", "config", "--local", "user.email", "test@ord-schema"], check=True)
         subprocess.run(["git", "config", "--local", "user.name", "Test Runner"], check=True)
@@ -147,18 +145,20 @@ class SubmissionWorkflowTest(absltest.TestCase):
         # Make sure the initial dataset is valid.
         validations.validate_message(dataset)
         os.makedirs(os.path.join("data", "64"))
-        self.dataset_filename = os.path.join(self.test_subdirectory, "data", "64", f"{dataset_id}.pb.gz")
-        message_helpers.write_message(dataset, self.dataset_filename)
+        dataset_filename = os.path.join(test_subdirectory, "data", "64", f"{dataset_id}.pb.gz")
+        message_helpers.write_message(dataset, dataset_filename)
         subprocess.run(["git", "add", "data"], check=True)
         subprocess.run(["git", "commit", "-m", "Initial commit"], check=True)
         # Use a new branch for tests.
         subprocess.run(["git", "checkout", "-b", "test"], check=True)
+        yield test_subdirectory, dataset_filename
 
-    def _run(self, **kwargs):
+    def _run(self, test_subdirectory: str, extra_argv: Optional[List[str]] = None):
         """Runs process_dataset.main().
 
         Args:
-            **kwargs: Keyword arguments to set flags.
+            test_subdirectory: Directory containing test inputs/outputs.
+            extra_argv: Extra arguments.
 
         Returns:
             added: Set of added reaction IDs.
@@ -171,11 +171,11 @@ class SubmissionWorkflowTest(absltest.TestCase):
         try:
             subprocess.run(["git", "add", "*.pb*"], check=True)
         except subprocess.CalledProcessError as error:
-            logging.info(error)
+            logger.info(error)
         try:
             subprocess.run(["git", "add", "data/*/*.pb*"], check=True)
         except subprocess.CalledProcessError as error:
-            logging.info(error)
+            logger.info(error)
         changed = subprocess.run(
             ["git", "diff", "--name-status", self._DEFAULT_BRANCH],
             check=True,
@@ -184,21 +184,24 @@ class SubmissionWorkflowTest(absltest.TestCase):
         )
         with open("changed.txt", "w") as f:
             f.write(changed.stdout)
-        logging.info(f"Changed files:\n{changed.stdout}")
+        logger.info(f"Changed files:\n{changed.stdout}")
         subprocess.run(["git", "commit", "-m", "Submission"], check=True)
-        run_flags = {
-            "input_file": "changed.txt",
-            "update": True,
-            "cleanup": True,
-            "base": "main",
-        }
-        run_flags.update(kwargs)
-        with flagsaver.flagsaver(**run_flags):
-            added, removed, changed = process_dataset.run()
-        filenames = glob.glob(os.path.join(self.test_subdirectory, "**/*.pb*"), recursive=True)
+        argv = [
+            "--input_file",
+            "changed.txt",
+            "--update",
+            "--cleanup",
+            "--base",
+            "main",
+        ]
+        if extra_argv:
+            argv.extend(extra_argv)
+        added, removed, changed = process_dataset.run(docopt.docopt(process_dataset.__doc__, argv))
+        filenames = glob.glob(os.path.join(test_subdirectory, "**/*.pb*"), recursive=True)
         return added, removed, changed, filenames
 
-    def test_add_dataset(self):
+    def test_add_dataset(self, setup):
+        test_subdirectory, dataset_filename = setup
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs["ethylamine"]
         component = ethylamine.components.add()
@@ -212,25 +215,26 @@ class SubmissionWorkflowTest(absltest.TestCase):
         reaction.provenance.record_created.person.email = "test@example.com"
         reaction.reaction_id = "test"
         dataset = dataset_pb2.Dataset(reactions=[reaction])
-        dataset_filename = os.path.join(self.test_subdirectory, "test.pbtxt")
-        message_helpers.write_message(dataset, dataset_filename)
-        added, removed, changed, filenames = self._run()
-        self.assertEqual(added, {"test"})
-        self.assertEmpty(removed)
-        self.assertEmpty(changed)
-        self.assertLen(filenames, 2)
-        self.assertFalse(os.path.exists(dataset_filename))
+        this_dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
+        message_helpers.write_message(dataset, this_dataset_filename)
+        added, removed, changed, filenames = self._run(test_subdirectory)
+        assert added == {"test"}
+        assert not removed
+        assert not changed
+        assert len(filenames) == 2
+        assert not os.path.exists(this_dataset_filename)
         # Check for assignment of dataset and reaction IDs.
-        filenames.pop(filenames.index(self.dataset_filename))
-        self.assertLen(filenames, 1)
+        filenames.pop(filenames.index(dataset_filename))
+        assert len(filenames) == 1
         dataset = message_helpers.load_message(filenames[0], dataset_pb2.Dataset)
-        self.assertNotEmpty(dataset.dataset_id)
-        self.assertLen(dataset.reactions, 1)
-        self.assertNotEmpty(dataset.reactions[0].reaction_id)
+        assert dataset.dataset_id
+        assert len(dataset.reactions) == 1
+        assert dataset.reactions[0].reaction_id
         # Check for binary output.
-        self.assertTrue(filenames[0].endswith(".pb.gz"))
+        assert filenames[0].endswith(".pb.gz")
 
-    def test_add_sharded_dataset(self):
+    def test_add_sharded_dataset(self, setup):
+        test_subdirectory, dataset_filename = setup
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs["ethylamine"]
         component = ethylamine.components.add()
@@ -244,29 +248,30 @@ class SubmissionWorkflowTest(absltest.TestCase):
         reaction.provenance.record_created.person.email = "test2@example.com"
         reaction.reaction_id = "test1"
         dataset1 = dataset_pb2.Dataset(reactions=[reaction])
-        dataset1_filename = os.path.join(self.test_subdirectory, "test1.pbtxt")
+        dataset1_filename = os.path.join(test_subdirectory, "test1.pbtxt")
         message_helpers.write_message(dataset1, dataset1_filename)
         reaction.provenance.record_created.time.value = "2020-01-03"
         reaction.provenance.record_created.person.username = "test3"
         reaction.provenance.record_created.person.email = "test3@example.com"
         reaction.reaction_id = "test2"
         dataset2 = dataset_pb2.Dataset(reactions=[reaction])
-        dataset2_filename = os.path.join(self.test_subdirectory, "test2.pbtxt")
+        dataset2_filename = os.path.join(test_subdirectory, "test2.pbtxt")
         message_helpers.write_message(dataset2, dataset2_filename)
-        added, removed, changed, filenames = self._run()
-        self.assertEqual(added, {"test1", "test2"})
-        self.assertEmpty(removed)
-        self.assertEmpty(changed)
-        self.assertLen(filenames, 3)
-        filenames.pop(filenames.index(self.dataset_filename))
-        self.assertLen(filenames, 2)
+        added, removed, changed, filenames = self._run(test_subdirectory)
+        assert added == {"test1", "test2"}
+        assert not removed
+        assert not changed
+        assert len(filenames) == 3
+        filenames.pop(filenames.index(dataset_filename))
+        assert len(filenames) == 2
         for filename in filenames:
             dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
-            self.assertLen(dataset.reactions, 1)
-        self.assertFalse(os.path.exists(dataset1_filename))
-        self.assertFalse(os.path.exists(dataset2_filename))
+            assert len(dataset.reactions) == 1
+        assert not os.path.exists(dataset1_filename)
+        assert not os.path.exists(dataset2_filename)
 
-    def test_add_dataset_with_existing_reaction_ids(self):
+    def test_add_dataset_with_existing_reaction_ids(self, setup):
+        test_subdirectory, dataset_filename = setup
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs["ethylamine"]
         component = ethylamine.components.add()
@@ -281,23 +286,24 @@ class SubmissionWorkflowTest(absltest.TestCase):
         reaction.provenance.record_created.person.username = "test"
         reaction.provenance.record_created.person.email = "test@example.com"
         dataset = dataset_pb2.Dataset(reactions=[reaction])
-        dataset_filename = os.path.join(self.test_subdirectory, "test.pbtxt")
-        message_helpers.write_message(dataset, dataset_filename)
-        added, removed, changed, filenames = self._run()
-        self.assertEqual(added, {"ord-10aed8b5dffe41fab09f5b2cc9c58ad9"})
-        self.assertEmpty(removed)
-        self.assertEmpty(changed)
-        self.assertLen(filenames, 2)
-        self.assertFalse(os.path.exists(dataset_filename))
-        filenames.pop(filenames.index(self.dataset_filename))
-        self.assertLen(filenames, 1)
+        this_dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
+        message_helpers.write_message(dataset, this_dataset_filename)
+        added, removed, changed, filenames = self._run(test_subdirectory)
+        assert added == {"ord-10aed8b5dffe41fab09f5b2cc9c58ad9"}
+        assert not removed
+        assert not changed
+        assert len(filenames) == 2
+        assert not os.path.exists(this_dataset_filename)
+        filenames.pop(filenames.index(dataset_filename))
+        assert len(filenames) == 1
         dataset = message_helpers.load_message(filenames[0], dataset_pb2.Dataset)
         # Check that existing record IDs for added datasets are not overridden.
-        self.assertEqual(dataset.reactions[0].reaction_id, reaction_id)
-        self.assertLen(dataset.reactions[0].provenance.record_modified, 0)
+        assert dataset.reactions[0].reaction_id == reaction_id
+        assert len(dataset.reactions[0].provenance.record_modified) == 0
 
-    def test_modify_dataset(self):
-        dataset = message_helpers.load_message(self.dataset_filename, dataset_pb2.Dataset)
+    def test_modify_dataset(self, setup):
+        test_subdirectory, dataset_filename = setup
+        dataset = message_helpers.load_message(dataset_filename, dataset_pb2.Dataset)
         # Modify the existing reaction...
         reaction1 = dataset.reactions[0]
         reaction1.inputs["methylamine"].components[0].amount.moles.value = 2
@@ -315,30 +321,32 @@ class SubmissionWorkflowTest(absltest.TestCase):
         reaction.provenance.record_created.person.email = "test@example.com"
         reaction.reaction_id = "test"
         dataset.reactions.add().CopyFrom(reaction)
-        message_helpers.write_message(dataset, self.dataset_filename)
-        added, removed, changed, filenames = self._run()
-        self.assertEqual(added, {"test"})
-        self.assertEmpty(removed)
-        self.assertEqual(changed, {"ord-10aed8b5dffe41fab09f5b2cc9c58ad9"})
-        self.assertCountEqual([self.dataset_filename], filenames)
+        message_helpers.write_message(dataset, dataset_filename)
+        added, removed, changed, filenames = self._run(test_subdirectory)
+        assert added == {"test"}
+        assert not removed
+        assert changed == {"ord-10aed8b5dffe41fab09f5b2cc9c58ad9"}
+        assert filenames == [dataset_filename]
         # Check for preservation of dataset and record IDs.
-        updated_dataset = message_helpers.load_message(self.dataset_filename, dataset_pb2.Dataset)
-        self.assertLen(updated_dataset.reactions, 2)
-        self.assertEqual(dataset.dataset_id, updated_dataset.dataset_id)
-        self.assertEqual(dataset.reactions[0].reaction_id, updated_dataset.reactions[0].reaction_id)
-        self.assertNotEmpty(updated_dataset.reactions[1].reaction_id)
+        updated_dataset = message_helpers.load_message(dataset_filename, dataset_pb2.Dataset)
+        assert len(updated_dataset.reactions) == 2
+        assert dataset.dataset_id == updated_dataset.dataset_id
+        assert dataset.reactions[0].reaction_id == updated_dataset.reactions[0].reaction_id
+        assert updated_dataset.reactions[1].reaction_id
 
-    def test_modify_reaction_id(self):
-        dataset = message_helpers.load_message(self.dataset_filename, dataset_pb2.Dataset)
+    def test_modify_reaction_id(self, setup):
+        test_subdirectory, dataset_filename = setup
+        dataset = message_helpers.load_message(dataset_filename, dataset_pb2.Dataset)
         dataset.reactions[0].reaction_id = "test_rename"
-        message_helpers.write_message(dataset, self.dataset_filename)
-        added, removed, changed, filenames = self._run()
-        self.assertEqual(added, {"test_rename"})
-        self.assertEqual(removed, {"ord-10aed8b5dffe41fab09f5b2cc9c58ad9"})
-        self.assertEmpty(changed)
-        self.assertCountEqual([self.dataset_filename], filenames)
+        message_helpers.write_message(dataset, dataset_filename)
+        added, removed, changed, filenames = self._run(test_subdirectory)
+        assert added == {"test_rename"}
+        assert removed == {"ord-10aed8b5dffe41fab09f5b2cc9c58ad9"}
+        assert not changed
+        assert filenames == [dataset_filename]
 
-    def test_add_dataset_with_validation_errors(self):
+    def test_add_dataset_with_validation_errors(self, setup):
+        test_subdirectory, _ = setup
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs["ethylamine"]
         component = ethylamine.components.add()
@@ -348,12 +356,13 @@ class SubmissionWorkflowTest(absltest.TestCase):
         component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
         dataset = dataset_pb2.Dataset(reactions=[reaction])
-        dataset_filename = os.path.join(self.test_subdirectory, "test.pbtxt")
+        dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
         message_helpers.write_message(dataset, dataset_filename)
-        with self.assertRaisesRegex(validations.ValidationError, "could not validate SMILES"):
-            self._run()
+        with pytest.raises(validations.ValidationError, match="could not validate SMILES"):
+            self._run(test_subdirectory)
 
-    def test_add_sharded_dataset_with_validation_errors(self):
+    def test_add_sharded_dataset_with_validation_errors(self, setup):
+        test_subdirectory, _ = setup
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs["ethylamine"]
         component = ethylamine.components.add()
@@ -366,24 +375,26 @@ class SubmissionWorkflowTest(absltest.TestCase):
         reaction.provenance.record_created.person.username = "bob"
         reaction.provenance.record_created.person.email = "bob@bob.com"
         dataset1 = dataset_pb2.Dataset(reactions=[reaction])
-        dataset1_filename = os.path.join(self.test_subdirectory, "test1.pbtxt")
+        dataset1_filename = os.path.join(test_subdirectory, "test1.pbtxt")
         message_helpers.write_message(dataset1, dataset1_filename)
         reaction.inputs["ethylamine"].components[0].identifiers[0].value = "C#O"
         dataset2 = dataset_pb2.Dataset(reactions=[reaction])
-        dataset2_filename = os.path.join(self.test_subdirectory, "test2.pbtxt")
+        dataset2_filename = os.path.join(test_subdirectory, "test2.pbtxt")
         message_helpers.write_message(dataset2, dataset2_filename)
-        with self.assertRaisesRegex(validations.ValidationError, "could not validate SMILES"):
-            self._run()
+        with pytest.raises(validations.ValidationError, match="could not validate SMILES"):
+            self._run(test_subdirectory)
 
-    def test_modify_dataset_with_validation_errors(self):
-        dataset = message_helpers.load_message(self.dataset_filename, dataset_pb2.Dataset)
+    def test_modify_dataset_with_validation_errors(self, setup):
+        test_subdirectory, dataset_filename = setup
+        dataset = message_helpers.load_message(dataset_filename, dataset_pb2.Dataset)
         reaction = dataset.reactions[0]
         reaction.inputs["methylamine"].components[0].amount.moles.value = -2
-        message_helpers.write_message(dataset, self.dataset_filename)
-        with self.assertRaisesRegex(validations.ValidationError, "must be non-negative"):
-            self._run()
+        message_helpers.write_message(dataset, dataset_filename)
+        with pytest.raises(validations.ValidationError, match="must be non-negative"):
+            self._run(test_subdirectory)
 
-    def test_add_dataset_with_too_large_reaction(self):
+    def test_add_dataset_with_too_large_reaction(self, setup):
+        test_subdirectory, _ = setup
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs["ethylamine"]
         component = ethylamine.components.add()
@@ -396,30 +407,28 @@ class SubmissionWorkflowTest(absltest.TestCase):
         image.bytes_value = b"test data value"
         image.format = "png"
         dataset = dataset_pb2.Dataset(reactions=[reaction])
-        dataset_filename = os.path.join(self.test_subdirectory, "test.pbtxt")
+        dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
         message_helpers.write_message(dataset, dataset_filename)
-        with self.assertRaisesRegex(ValueError, "larger than --max_size"):
-            self._run(max_size=0.0)
+        with pytest.raises(ValueError, match="larger than --max_size"):
+            self._run(test_subdirectory, ["--max_size", "0.0"])
 
-    def test_delete_dataset(self):
-        subprocess.run(["git", "rm", self.dataset_filename], check=True)
-        added, removed, changed, filenames = self._run()
-        self.assertEmpty(added)
-        self.assertLen(removed, 1)
-        self.assertEmpty(changed)
-        self.assertEmpty(filenames)
+    def test_delete_dataset(self, setup):
+        test_subdirectory, dataset_filename = setup
+        subprocess.run(["git", "rm", dataset_filename], check=True)
+        added, removed, changed, filenames = self._run(test_subdirectory)
+        assert not added
+        assert len(removed) == 1
+        assert not changed
+        assert not filenames
 
-    def test_replace_dataset(self):
-        dataset = message_helpers.load_message(self.dataset_filename, dataset_pb2.Dataset)
-        dataset_filename = os.path.join(self.test_subdirectory, "test.pbtxt")
-        message_helpers.write_message(dataset, dataset_filename)
-        subprocess.run(["git", "rm", self.dataset_filename], check=True)
-        added, removed, changed, filenames = self._run()
-        self.assertLen(added, 1)
-        self.assertLen(removed, 1)
-        self.assertEmpty(changed)
-        self.assertLen(filenames, 1)
-
-
-if __name__ == "__main__":
-    absltest.main()
+    def test_replace_dataset(self, setup):
+        test_subdirectory, dataset_filename = setup
+        dataset = message_helpers.load_message(dataset_filename, dataset_pb2.Dataset)
+        this_dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
+        message_helpers.write_message(dataset, this_dataset_filename)
+        subprocess.run(["git", "rm", dataset_filename], check=True)
+        added, removed, changed, filenames = self._run(test_subdirectory)
+        assert len(added) == 1
+        assert len(removed) == 1
+        assert not changed
+        assert len(filenames) == 1
