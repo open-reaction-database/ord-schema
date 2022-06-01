@@ -49,13 +49,10 @@ def test_resolve(resolver, string, expected):
 )
 def test_compute_solute_quantity(resolver, volume, concentration, expected):
     conc_resolver = units.UnitResolver(unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS)
-    assert (
-        units.compute_solute_quantity(
-            volume=resolver.resolve(volume),
-            concentration=conc_resolver.resolve(concentration),
-        )
-        == reaction_pb2.Amount(moles=resolver.resolve(expected))
-    )
+    assert units.compute_solute_quantity(
+        volume=resolver.resolve(volume),
+        concentration=conc_resolver.resolve(concentration),
+    ) == reaction_pb2.Amount(moles=resolver.resolve(expected))
 
 
 @pytest.mark.parametrize(
