@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "protoc-wheel-0>=3.14.0",
+    "protoc-wheel-0<3.20,>=3.14.0",
     "setuptools>=42",
     "wheel"
 ]

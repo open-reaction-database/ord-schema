@@ -75,7 +75,7 @@ setuptools.setup(
         "numpy>=1.18.1",
         "openpyxl>=3.0.5",
         "pandas>=1.0.4",
-        "protobuf>=3.13.0",
+        "protobuf<3.20,>=3.13.0",
         "pygithub>=1.51",
         "python-dateutil>=1.10.0",
         "rdkit-pypi>=2021.9.5",
