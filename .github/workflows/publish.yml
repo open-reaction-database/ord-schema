@@ -1,4 +1,4 @@
-# Copyright 2020 Open Reaction Database Project Authors
+# Copyright 2022 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,42 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: CI
+name: Publish
 
-on: [ pull_request, push ]
+on:
+  push:
+    branches:
+      - main
 
 jobs:
-  test_ord_schema:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: 3.7
-      - name: Install ord_schema
+      - name: Bump patch version
         run: |
           cd "${GITHUB_WORKSPACE}"
-          python -m pip install .[tests]
-      - name: Run tests
+          bump2version patch
+      - name: Build distribution
         run: |
           cd "${GITHUB_WORKSPACE}"
-          coverage erase
-          pytest --cov=ord_schema
-          coverage xml
-      - uses: codecov/codecov-action@v1
-
-  test_notebooks:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: 3.7
-      - name: Install ord_schema
+          python -m build
+      - name: Upload to PyPI
         run: |
           cd "${GITHUB_WORKSPACE}"
-          python -m pip install .[examples,tests]
-      - name: Test notebooks
-        run: |
-          cd "${GITHUB_WORKSPACE}"
-          treon
+          pip install twine
+          TWINE_USERNAME=github-actions TWINE_PASSWORD="${{ secrets.PYPI_API_TOKEN }}" python -m twine upload dist/*
