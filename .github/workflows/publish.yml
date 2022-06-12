@@ -31,6 +31,7 @@ jobs:
         run: |
           cd "${GITHUB_WORKSPACE}"
           bump2version patch
+          git push --tags
       - name: Build distribution
         run: |
           cd "${GITHUB_WORKSPACE}"
@@ -38,5 +39,5 @@ jobs:
       - name: Upload to PyPI
         run: |
           cd "${GITHUB_WORKSPACE}"
-          pip install twine
+          python -m pip install twine
           TWINE_USERNAME=github-actions TWINE_PASSWORD="${{ secrets.PYPI_API_TOKEN }}" python -m twine upload dist/*
