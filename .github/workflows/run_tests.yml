@@ -48,7 +48,7 @@ jobs:
           cd "${GITHUB_WORKSPACE}"
           # Fix TensorFlow protobuf version mismatch.
           python -m pip install tensorflow
-          python -m pip install protoc-wheel-0=="$(pip show protobuf | grep Version | awk '{ print $2; }')"
+          python -m pip install protoc-wheel-0=="$(python -m pip show protobuf | grep Version | awk '{ print $2; }')"
           python -m pip install .[examples,tests]
       - name: Test notebooks
         run: |
