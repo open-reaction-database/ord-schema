@@ -24,14 +24,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.ACTIONS_PUSH }}
       - uses: actions/setup-python@v4
         with:
           python-version: 3.7
       - name: Bump patch version
         run: |
           cd "${GITHUB_WORKSPACE}"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
           bump2version patch
-          git push --tags
+          git push --tags "https://${{ secrets.ACTIONS_PUSH }}@${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+      - name: Push to GitHub
+        run: |
+          cd "${GITHUB_WORKSPACE}"
       - name: Build distribution
         run: |
           cd "${GITHUB_WORKSPACE}"
