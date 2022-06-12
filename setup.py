@@ -22,7 +22,7 @@ import setuptools
 from setuptools.command import build_py
 
 
-class BuildProtoCommand(build_py.build_py):
+class BuildProtoCommand(build_py.build_py):  # pylint: disable=too-many-ancestors
     """Command that generates Python interface for protocol buffers."""
 
     def run(self):
