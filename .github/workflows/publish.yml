@@ -35,7 +35,7 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
           bump2version patch
-          git push --tags "https://${{ secrets.ACTIONS_PUSH }}@${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git push --tags
       - name: Push to GitHub
         run: |
           cd "${GITHUB_WORKSPACE}"
