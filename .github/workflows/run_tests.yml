@@ -58,3 +58,19 @@ jobs:
         run: |
           cd "${GITHUB_WORKSPACE}"
           treon
+
+  test_proto_wrappers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install protoc
+        run: apt install -y protobuf-compiler
+      - name: Run protoc
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          ./compile_proto_wrappers.sh
+          ./format.sh  # Add license headers.
+      - name: Check for drift
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          [[ -z $(git diff --name-only) ]] || echo "proto wrappers do not match"
