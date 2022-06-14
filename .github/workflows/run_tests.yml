@@ -64,7 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Install protoc
-        run: apt install -y protobuf-compiler
+        run: sudo apt-get install -y protobuf-compiler
       - name: Run protoc
         run: |
           cd "${GITHUB_WORKSPACE}"
