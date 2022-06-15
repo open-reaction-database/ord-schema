@@ -48,4 +48,4 @@ jobs:
         run: |
           cd "${GITHUB_WORKSPACE}"
           python -m pip install twine
-          TWINE_USERNAME=github-actions TWINE_PASSWORD="${{ secrets.PYPI_API_TOKEN }}" python -m twine upload dist/*
+          TWINE_USERNAME="__token__" TWINE_PASSWORD="${{ secrets.PYPI_API_TOKEN }}" python -m twine upload dist/*
