@@ -38,16 +38,9 @@ jobs:
           python -m pip install bump2version
           bump2version patch
           git push --tags
-      - name: Push to GitHub
+      - name: Build and upload to PyPI
         run: |
           cd "${GITHUB_WORKSPACE}"
-      - name: Build distribution
-        run: |
-          cd "${GITHUB_WORKSPACE}"
-          python -m pip install build
+          python -m pip install build twine
           python -m build
-      - name: Upload to PyPI
-        run: |
-          cd "${GITHUB_WORKSPACE}"
-          python -m pip install twine
           TWINE_USERNAME="__token__" TWINE_PASSWORD="${{ secrets.PYPI_API_TOKEN }}" python -m twine upload dist/*
