@@ -37,7 +37,7 @@ jobs:
           git config user.email github-actions@github.com
           python -m pip install bump2version
           bump2version patch
-          git push --tags
+          git push --tags origin main
       - name: Build and upload to PyPI
         run: |
           cd "${GITHUB_WORKSPACE}"
