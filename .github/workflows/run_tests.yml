@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: CI
+name: Tests
 
 on: [ pull_request, push ]
 
@@ -20,16 +20,14 @@ jobs:
   test_ord_schema:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: s-weigand/setup-conda@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: 3.7
       - name: Install ord_schema
         run: |
           cd "${GITHUB_WORKSPACE}"
-          pip install -r requirements.txt -r test_requirements.txt
-          conda install -c rdkit rdkit
-          python setup.py install
+          python -m pip install .[rdkit,tests]
       - name: Run tests
         run: |
           cd "${GITHUB_WORKSPACE}"
@@ -41,19 +39,14 @@ jobs:
   test_notebooks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: s-weigand/setup-conda@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: 3.7
       - name: Install ord_schema
         run: |
           cd "${GITHUB_WORKSPACE}"
-          pip install -r requirements.txt -r example_requirements.txt -r test_requirements.txt
-          # Fix TensorFlow protobuf version mismatch.
-          PROTOBUF="$(pip show protobuf | grep Version | awk '{ print $2; }')"
-          pip install protoc-wheel-0=="${PROTOBUF}"
-          conda install -c rdkit rdkit
-          python setup.py install
+          python -m pip install .[examples,rdkit,tests]
       - name: Test notebooks
         run: |
           cd "${GITHUB_WORKSPACE}"

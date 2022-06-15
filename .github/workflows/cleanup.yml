@@ -20,7 +20,7 @@ jobs:
   check_licenses:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions/setup-go@v2
         with:
           go-version: '>=1.16'
@@ -35,15 +35,14 @@ jobs:
   check_python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: s-weigand/setup-conda@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: 3.7
       - name: Install ord-schema
         run: |
-          pip install -r requirements.txt -r test_requirements.txt
-          conda install -c rdkit rdkit
-          python setup.py install
+          cd "${GITHUB_WORKSPACE}"
+          python -m pip install .[rdkit,tests]
       - name: Run black
         run: |
           cd "${GITHUB_WORKSPACE}"
@@ -60,7 +59,7 @@ jobs:
   check_proto:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: clang-format
         run: |
           cd "${GITHUB_WORKSPACE}"
