@@ -13,35 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Installer script."""
-
-from distutils.command import build_py
-from distutils import spawn
-import glob
-import subprocess
-
 import setuptools
-
-
-class BuildPyCommand(build_py.build_py):
-    """Command that generates Python interface for protocol buffers."""
-
-    def run(self):
-        """Runs the protocol buffer compiler."""
-        protoc = spawn.find_executable("protoc")
-        if not protoc:
-            raise RuntimeError("cannot find protoc")
-        for source in glob.glob("ord_schema/proto/*.proto"):
-            protoc_command = [
-                protoc,
-                # https://github.com/protocolbuffers/protobuf/blob/master/docs/field_presence.md
-                "--experimental_allow_proto3_optional",
-                "--python_out=.",
-                source,
-            ]
-            self.announce(f"running {protoc_command}")
-            subprocess.check_call(protoc_command)
-        # build_py.build_py is an old-style class, so super() doesn't work.
-        build_py.build_py.run(self)
 
 
 with open("requirements.txt", "r") as f:
@@ -62,5 +34,4 @@ setuptools.setup(
         ],
     },
     install_requires=requirements,
-    cmdclass={"build_py": BuildPyCommand},
 )
