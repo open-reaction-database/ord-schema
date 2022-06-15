@@ -35,6 +35,7 @@ jobs:
           cd "${GITHUB_WORKSPACE}"
           git config user.name github-actions
           git config user.email github-actions@github.com
+          python -m pip install bump2version
           bump2version patch
           git push --tags
       - name: Push to GitHub
