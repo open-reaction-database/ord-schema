@@ -29,9 +29,11 @@ To install in editable/development mode:
 ```shell
 $ git clone https://github.com/open-reaction-database/ord-schema.git
 $ cd ord-schema
-$ python setup.py build  # Compile protocol buffers.
-$ pip install -e .
+$ pip install -e .  # Or `pip install -e .[rdkit]`.
 ```
+
+If you make changes to the protocol buffer definitions, [install](https://grpc.io/docs/protoc-installation/) `protoc` 
+and run `./compile_proto_wrappers.sh` to rebuild the wrappers.
 
 ## Examples
 
