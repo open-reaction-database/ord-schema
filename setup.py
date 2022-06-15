@@ -13,34 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Installer script."""
-from distutils import log
-from distutils import spawn
-import glob
-import subprocess
-
 import setuptools
-from setuptools.command import build_py
-
-
-class BuildProtoCommand(build_py.build_py):  # pylint: disable=too-many-ancestors
-    """Command that generates Python interface for protocol buffers."""
-
-    def run(self):
-        """Runs the protocol buffer compiler."""
-        protoc = spawn.find_executable("protoc")
-        if not protoc:
-            raise RuntimeError("cannot find protoc")
-        for source in glob.glob("ord_schema/proto/*.proto"):
-            protoc_command = [
-                protoc,
-                # https://github.com/protocolbuffers/protobuf/blob/master/docs/field_presence.md
-                "--experimental_allow_proto3_optional",
-                "--python_out=.",
-                source,
-            ]
-            self.announce(f"running {protoc_command}", level=log.INFO)
-            subprocess.check_call(protoc_command)
-        super().run()
 
 
 with open("README.md") as f:
@@ -103,5 +76,4 @@ setuptools.setup(
             "treon>=0.1.3",
         ],
     },
-    cmdclass={"build_py": BuildProtoCommand},
 )
