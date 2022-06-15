@@ -30,10 +30,14 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: 3.7
-      - name: Bump version
-        uses: jaumann/github-bumpversion-action@v0.0.7
-      - name: Push version changes
-        run: git push --tags
+      - name: Bump patch version
+        run: |
+          cd "${GITHUB_WORKSPACE}"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          python -m pip install bump2version
+          bump2version patch
+          git push --tags
       - name: Build and upload to PyPI
         run: |
           cd "${GITHUB_WORKSPACE}"
