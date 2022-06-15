@@ -78,7 +78,6 @@ setuptools.setup(
         "protobuf<3.20,>=3.13.0",
         "pygithub>=1.51",
         "python-dateutil>=1.10.0",
-        "rdkit-pypi>=2021.9.5",
         "xlrd>=2.0.1",
         "xlwt>=1.3.0",
     ],
@@ -90,6 +89,9 @@ setuptools.setup(
             "tensorflow>=2.4.1",
             "tqdm>=4.61.2",
             "wget>=3.2",
+        ],
+        "rdkit": [
+            "rdkit-pypi>=2021.9.5",
         ],
         "tests": [
             "black[jupyter]>=22.3.0",

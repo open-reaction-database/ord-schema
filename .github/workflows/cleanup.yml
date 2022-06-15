@@ -42,7 +42,7 @@ jobs:
       - name: Install ord-schema
         run: |
           cd "${GITHUB_WORKSPACE}"
-          python -m pip install .[tests]
+          python -m pip install .[rdkit,tests]
       - name: Run black
         run: |
           cd "${GITHUB_WORKSPACE}"

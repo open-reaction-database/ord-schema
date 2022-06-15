@@ -12,6 +12,14 @@ designed to store the database schema and tools for creating, validating, and su
 
 ## Installation
 
+If you have __not__ previously installed rdkit via conda:
+
+```shell
+$ pip install ord-schema[rdkit]
+```
+
+Otherwise:
+
 ```shell
 $ pip install ord-schema
 ```
