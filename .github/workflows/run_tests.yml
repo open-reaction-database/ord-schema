@@ -27,7 +27,7 @@ jobs:
       - name: Install ord_schema
         run: |
           cd "${GITHUB_WORKSPACE}"
-          python -m pip install .[rdkit,tests]
+          python -m pip install .[tests]
       - name: Run tests
         run: |
           cd "${GITHUB_WORKSPACE}"
@@ -46,7 +46,7 @@ jobs:
       - name: Install ord_schema
         run: |
           cd "${GITHUB_WORKSPACE}"
-          python -m pip install .[examples,rdkit,tests]
+          python -m pip install .[examples,tests]
       - name: Test notebooks
         run: |
           cd "${GITHUB_WORKSPACE}"
