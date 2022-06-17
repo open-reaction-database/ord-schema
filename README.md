@@ -12,14 +12,6 @@ designed to store the database schema and tools for creating, validating, and su
 
 ## Installation
 
-If you have __not__ previously installed rdkit via conda:
-
-```shell
-$ pip install ord-schema[rdkit]
-```
-
-Otherwise:
-
 ```shell
 $ pip install ord-schema
 ```
@@ -29,7 +21,7 @@ To install in editable/development mode:
 ```shell
 $ git clone https://github.com/open-reaction-database/ord-schema.git
 $ cd ord-schema
-$ pip install -e .  # Or `pip install -e .[rdkit]`.
+$ pip install -e .  # Or `pip install -e .`.
 ```
 
 If you make changes to the protocol buffer definitions, [install](https://grpc.io/docs/protoc-installation/) `protoc` 

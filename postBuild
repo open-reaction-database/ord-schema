@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # postBuild for binder
-# ord-schema must be installed after protoc
 
 set -ex
 
-python setup.py install
+pip install -e .[examples]
