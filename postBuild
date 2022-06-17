@@ -5,4 +5,4 @@
 
 set -ex
 
-pip install -e .[rdkit]  # Install rdkit.
+pip install -e .[examples,rdkit]
