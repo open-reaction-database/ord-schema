@@ -44,3 +44,7 @@ jobs:
           python -m pip install build twine
           python -m build
           TWINE_USERNAME="__token__" TWINE_PASSWORD="${{ secrets.PYPI_API_TOKEN }}" python -m twine upload dist/*
+      - name: Create release
+        uses: softprops/action-gh-release@v0.1.14
+        with:
+          generate_release_notes: true
