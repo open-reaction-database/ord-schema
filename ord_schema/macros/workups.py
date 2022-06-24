@@ -41,8 +41,6 @@ reaction.workups.MergeFrom([
     reaction_pb2.ReactionWorkup(type='OTHER_CHROMATOGRAPHY'),
 ])
 """
-from typing import List
-
 from ord_schema.proto import reaction_pb2
 from ord_schema import units
 
@@ -50,7 +48,7 @@ UNITS_RESOLVER = units.UnitResolver()
 CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS)
 
 
-def add_solution(solution: List[reaction_pb2.Compound], workup_type: str = "ADDITION") -> reaction_pb2.ReactionWorkup:
+def add_solution(solution: list[reaction_pb2.Compound], workup_type: str = "ADDITION") -> reaction_pb2.ReactionWorkup:
     """Create a workup representing addition of a solution.
 
     type is commonly one of 'ADDITION', 'EXTRACTION', or 'WASH'; see

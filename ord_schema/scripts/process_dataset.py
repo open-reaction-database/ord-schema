@@ -50,7 +50,7 @@ import logging
 import os
 import subprocess
 import sys
-from typing import Iterable, List, Mapping, Optional, Set, Tuple
+from typing import Optional
 
 import docopt
 import github
@@ -80,7 +80,7 @@ class FileStatus:
             raise ValueError(f"unsupported file status: {self.status}")
 
 
-def _get_inputs(kwargs) -> List[FileStatus]:
+def _get_inputs(kwargs) -> list[FileStatus]:
     """Gets a list of Dataset proto filenames to process.
 
     Returns:
@@ -127,7 +127,7 @@ def cleanup(filename: str, output_filename: str):
     subprocess.run(args, check=True)
 
 
-def _get_reaction_ids(dataset: dataset_pb2.Dataset) -> Set[str]:
+def _get_reaction_ids(dataset: dataset_pb2.Dataset) -> set[str]:
     """Returns a set containing the reaction IDs in a Dataset."""
     reaction_ids = set()
     for reaction in dataset.reactions:
@@ -165,8 +165,8 @@ def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Datase
 
 
 def get_change_stats(
-    datasets: Mapping[str, dataset_pb2.Dataset], inputs: Iterable[FileStatus], base: str
-) -> Tuple[Set[str], Set[str], Set[str]]:
+    datasets: dict[str, dataset_pb2.Dataset], inputs: list[FileStatus], base: str
+) -> tuple[set[str], set[str], set[str]]:
     """Computes diff statistics for the submission.
 
     Args:
@@ -189,7 +189,7 @@ def get_change_stats(
     return new - old, old - new, new & old
 
 
-def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset], kwargs):
+def _run_updates(datasets: dict[str, dataset_pb2.Dataset], kwargs):
     """Updates the submission files.
 
     Args:
@@ -216,7 +216,7 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset], kwargs):
         message_helpers.write_message(dataset, output_filename)
 
 
-def run(kwargs) -> Tuple[Optional[Set[str]], Optional[Set[str]], Optional[Set[str]]]:
+def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[str]]]:
     """Main function that returns added/removed reaction ID sets.
 
     This function should be called directly by tests to get access to the

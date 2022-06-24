@@ -18,7 +18,7 @@ import logging
 import math
 import os
 import re
-from typing import Any, List, Mapping, Optional, Set, Tuple
+from typing import Any, Optional
 import warnings
 
 from dateutil import parser
@@ -52,8 +52,8 @@ class ValidationOptions:
 class ValidationOutput:
     """Validation output: errors and warnings."""
 
-    errors: List[str] = dataclasses.field(default_factory=list)
-    warnings: List[str] = dataclasses.field(default_factory=list)
+    errors: list[str] = dataclasses.field(default_factory=list)
+    warnings: list[str] = dataclasses.field(default_factory=list)
 
     def extend(self, other):
         self.errors.extend(other.errors)
@@ -61,7 +61,7 @@ class ValidationOutput:
 
 
 def validate_datasets(
-    datasets: Mapping[str, dataset_pb2.Dataset],
+    datasets: dict[str, dataset_pb2.Dataset],
     write_errors: bool = False,
     options: Optional[ValidationOptions] = None,
 ):
@@ -97,7 +97,7 @@ def _validate_datasets(
     dataset: dataset_pb2.Dataset,
     label: str = "dataset",
     options: Optional[ValidationOptions] = None,
-) -> List[str]:
+) -> list[str]:
     """Validates Reaction messages and cross-references in a Dataset.
 
     Args:
@@ -137,7 +137,7 @@ def validate_message(
     recurse: bool = True,
     raise_on_error: bool = True,
     options: Optional[ValidationOptions] = None,
-    trace: Optional[Tuple[str, ...]] = None,
+    trace: Optional[tuple[str, ...]] = None,
 ) -> ValidationOutput:
     """Template function for validating custom messages in the reaction_pb2.
 
@@ -215,7 +215,7 @@ def _validate_message(
     output: ValidationOutput,
     raise_on_error: bool,
     options: ValidationOptions,
-    trace: Tuple[str, ...],
+    trace: tuple[str, ...],
 ):
     """Validates a single message field and its children.
 
@@ -353,7 +353,7 @@ def reaction_needs_internal_standard(message: reaction_pb2.Reaction) -> bool:
     return False
 
 
-def get_referenced_reaction_ids(message: reaction_pb2.Reaction) -> Set[str]:
+def get_referenced_reaction_ids(message: reaction_pb2.Reaction) -> set[str]:
     """Return the set of reaction IDs that are referenced in a Reaction."""
     referenced_ids = set()
     for reaction_input in message.inputs.values():

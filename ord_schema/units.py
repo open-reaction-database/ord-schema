@@ -14,7 +14,7 @@
 """Helpers for translating strings with units."""
 
 import re
-from typing import Iterable, Mapping, Optional, Type
+from typing import Optional, Type
 
 import numpy as np
 
@@ -167,10 +167,8 @@ class UnitResolver:
 
     def __init__(
         self,
-        unit_synonyms: Optional[
-            Mapping[Type[ord_schema.UnitMessage], Mapping[ord_schema.Message, Iterable[str]]]
-        ] = None,
-        forbidden_units: Optional[Mapping[str, str]] = None,
+        unit_synonyms: Optional[dict[Type[ord_schema.UnitMessage], dict[ord_schema.Message, list[str]]]] = None,
+        forbidden_units: Optional[dict[str, str]] = None,
     ):
         """Initializes a UnitResolver.
 

@@ -36,7 +36,7 @@ import glob
 import logging
 import os
 import re
-from typing import Dict, List, Tuple, Union
+from typing import Union
 from xml.etree import ElementTree
 
 import docopt
@@ -164,7 +164,7 @@ def resolve_units(value: str) -> ord_schema.UnitMessage:
     return UNIT_RESOLVER.resolve(value, allow_range=True)
 
 
-def get_component_map(root: ElementTree.Element) -> Dict[str, str]:
+def get_component_map(root: ElementTree.Element) -> dict[str, str]:
     """Builds a mapping of components to inputs."""
     reaction_inputs = {}
     # Start with a separate input for each component.
@@ -497,7 +497,7 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
             reaction.workups.add().CopyFrom(workup)
 
 
-def run(filename: str) -> Tuple[List[reaction_pb2.Reaction], List[reaction_pb2.Reaction]]:
+def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.Reaction]]:
     """Parses reactions from a single CML file."""
     RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.
     tree = ElementTree.parse(filename)

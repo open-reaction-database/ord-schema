@@ -15,7 +15,6 @@
 
 import datetime
 import re
-from typing import Mapping
 import uuid
 
 from ord_schema.proto import dataset_pb2
@@ -33,7 +32,7 @@ _USERNAME = "github-actions"
 _EMAIL = "github-actions@github.com"
 
 
-def update_reaction(reaction: reaction_pb2.Reaction) -> Mapping[str, str]:
+def update_reaction(reaction: reaction_pb2.Reaction) -> dict[str, str]:
     """Updates a Reaction message.
 
     Current updates:

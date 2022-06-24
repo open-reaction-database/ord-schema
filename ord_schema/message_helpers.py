@@ -18,7 +18,7 @@ import functools
 import gzip
 import os
 import re
-from typing import Dict, Iterable, List, Optional, Tuple, Type, TypeVar, Union
+from typing import Optional, Type, TypeVar, Union
 import warnings
 
 from google import protobuf
@@ -127,10 +127,10 @@ def build_compound(
 
 def set_solute_moles(
     solute: reaction_pb2.Compound,
-    solvents: List[reaction_pb2.Compound],
+    solvents: list[reaction_pb2.Compound],
     concentration: str,
     overwrite: bool = False,
-) -> List[reaction_pb2.Compound]:
+) -> list[reaction_pb2.Compound]:
     """Helps define components for stock solution inputs with a single solute
     and a one or more solvent compounds.
 
@@ -203,7 +203,7 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
     return data
 
 
-def find_submessages(message: ord_schema.Message, submessage_type: Type[MessageType]) -> List[MessageType]:
+def find_submessages(message: ord_schema.Message, submessage_type: Type[MessageType]) -> list[MessageType]:
     """Recursively finds all submessages of a specified type.
 
     Args:
@@ -282,7 +282,7 @@ def molblock_from_compound(compound: reaction_pb2.Compound) -> str:
 # pylint: disable=inconsistent-return-statements
 def mol_from_compound(
     compound: reaction_pb2.Compound, return_identifier: bool = False
-) -> Union[Chem.Mol, Tuple[Chem.Mol, str]]:
+) -> Union[Chem.Mol, tuple[Chem.Mol, str]]:
     """Creates an RDKit Mol from a Compound message.
 
     Args:
@@ -584,7 +584,7 @@ def has_transition_metal(mol: Chem.Mol) -> bool:
     return False
 
 
-def set_dative_bonds(mol: Chem.Mol, from_atoms: Tuple[str, ...] = ("N", "P")) -> Chem.Mol:
+def set_dative_bonds(mol: Chem.Mol, from_atoms: tuple[str, ...] = ("N", "P")) -> Chem.Mol:
     """Converts metal-ligand bonds to dative.
 
     Replaces some single bonds between metals and atoms with atomic numbers
@@ -815,7 +815,7 @@ def create_message(message_name: str) -> ord_schema.Message:
         raise ValueError(f"Cannot resolve message name {message_name}") from error
 
 
-def messages_to_dataframe(messages: Iterable[ord_schema.Message], drop_constant_columns: bool = False) -> pd.DataFrame:
+def messages_to_dataframe(messages: list[ord_schema.Message], drop_constant_columns: bool = False) -> pd.DataFrame:
     """Converts a list of protos to a pandas DataFrame.
 
     Args:
@@ -840,7 +840,7 @@ def messages_to_dataframe(messages: Iterable[ord_schema.Message], drop_constant_
     return df
 
 
-def message_to_row(message: ord_schema.Message, trace: Optional[Tuple[str]] = None) -> Dict[str, ord_schema.ScalarType]:
+def message_to_row(message: ord_schema.Message, trace: Optional[tuple[str]] = None) -> dict[str, ord_schema.ScalarType]:
     """Converts a proto into a flat dictionary mapping fields to values.
 
     The keys indicate any nesting; for instance a proto that looks like this:
@@ -884,7 +884,7 @@ def message_to_row(message: ord_schema.Message, trace: Optional[Tuple[str]] = No
     return row
 
 
-def safe_update(target: Dict, update: Dict):
+def safe_update(target: dict, update: dict) -> None:
     """Checks that `update` will not clobber any keys in `target`."""
     for key in update:
         if key in target:
@@ -895,8 +895,8 @@ def safe_update(target: Dict, update: Dict):
 def _message_to_row(
     field: ord_schema.FieldDescriptor,
     value: Union[ord_schema.Message, ord_schema.ScalarType],
-    trace: Tuple[str],
-) -> Dict[str, ord_schema.ScalarType]:
+    trace: tuple[str],
+) -> dict[str, ord_schema.ScalarType]:
     """Recursively creates a dict for a single value.
 
     Args:

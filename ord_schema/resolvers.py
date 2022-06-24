@@ -18,7 +18,6 @@ import re
 import urllib.parse
 import urllib.request
 import urllib.error
-from typing import Tuple
 
 from rdkit import Chem
 
@@ -57,7 +56,7 @@ def canonicalize_smiles(smiles: str) -> str:
     return Chem.MolToSmiles(mol)
 
 
-def name_resolve(value_type: str, value: str) -> Tuple[str, str]:
+def name_resolve(value_type: str, value: str) -> tuple[str, str]:
     """Resolves compound identifiers to SMILES via multiple APIs."""
     for resolver, resolver_func in _NAME_RESOLVERS.items():
         try:
