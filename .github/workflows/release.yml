@@ -12,35 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Publish
+name: Release
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - "v*"
 
 jobs:
-  publish:
+  release:
     if: github.repository == 'open-reaction-database/ord-schema'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Create release
+        uses: softprops/action-gh-release@v0.1.14
         with:
-          token: ${{ secrets.ACTIONS_PUSH }}
-      - uses: actions/setup-python@v4
-        with:
-          python-version: 3.7
-      - name: Bump patch version
-        run: |
-          cd "${GITHUB_WORKSPACE}"
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          python -m pip install bump2version
-          bump2version patch
-          git push --tags origin main
-      - name: Build and upload to PyPI
-        run: |
-          cd "${GITHUB_WORKSPACE}"
-          python -m pip install build twine
-          python -m build
-          TWINE_USERNAME="__token__" TWINE_PASSWORD="${{ secrets.PYPI_API_TOKEN }}" python -m twine upload dist/*
+          generate_release_notes: true
