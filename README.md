@@ -16,17 +16,6 @@ designed to store the database schema and tools for creating, validating, and su
 $ pip install ord-schema
 ```
 
-To install in editable/development mode:
-
-```shell
-$ git clone https://github.com/open-reaction-database/ord-schema.git
-$ cd ord-schema
-$ pip install -e .  # Or `pip install -e .`.
-```
-
-If you make changes to the protocol buffer definitions, [install](https://grpc.io/docs/protoc-installation/) `protoc` 
-and run `./compile_proto_wrappers.sh` to rebuild the wrappers.
-
 ## Examples
 
 The `examples/` directory contains examples of dataset creation and use. To run locally, install with:
@@ -37,3 +26,16 @@ $ pip install "ord-schema[examples]"
 
 Click here to run the examples with
 Binder: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/open-reaction-database/ord-schema/HEAD?filepath=examples)
+
+## Development
+
+To install in editable/development mode:
+
+```shell
+$ git clone https://github.com/open-reaction-database/ord-schema.git
+$ cd ord-schema
+$ pip install -e .
+```
+
+If you make changes to the protocol buffer definitions, [install](https://grpc.io/docs/protoc-installation/) `protoc` 
+and run `./compile_proto_wrappers.sh` to rebuild the wrappers.
