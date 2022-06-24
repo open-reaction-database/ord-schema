@@ -43,4 +43,5 @@ jobs:
           python -m build
           TWINE_USERNAME="__token__" TWINE_PASSWORD="${{ secrets.PYPI_API_TOKEN }}" python -m twine upload dist/*
       - name: Create release
-        run: gh release create "$(git describe)" --generate-notes
+        run: |
+          gh release create "$(git tag | sort -V | tail -1)" --generate-notes

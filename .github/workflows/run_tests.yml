@@ -25,7 +25,8 @@ jobs:
         with:
           python-version: 3.7
       - name: Install ord_schema
-        run: python -m pip install .[tests]
+        run: |
+          python -m pip install .[tests]
       - name: Run tests
         run: |
           coverage erase
@@ -41,9 +42,11 @@ jobs:
         with:
           python-version: 3.7
       - name: Install ord_schema
-        run: python -m pip install .[examples,tests]
+        run: |
+          python -m pip install .[examples,tests]
       - name: Test notebooks
-        run: treon
+        run: |
+          treon
 
   test_proto_wrappers:
     runs-on: ubuntu-latest
