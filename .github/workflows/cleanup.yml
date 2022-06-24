@@ -29,7 +29,6 @@ jobs:
           go install github.com/google/addlicense@latest
       - name: addlicense
         run: |
-          cd "${GITHUB_WORKSPACE}"
           "${HOME}/go/bin/addlicense" -check -c "Open Reaction Database Project Authors" -l apache .
 
   check_python:
@@ -41,19 +40,15 @@ jobs:
           python-version: 3.7
       - name: Install ord-schema
         run: |
-          cd "${GITHUB_WORKSPACE}"
           python -m pip install .[tests]
       - name: Run black
         run: |
-          cd "${GITHUB_WORKSPACE}"
           black --check .
       - name: Run pylint
         run: |
-          cd "${GITHUB_WORKSPACE}"
           pylint examples ord_schema *.py
       - name: Run pytype
         run: |
-          cd "${GITHUB_WORKSPACE}"
           pytype --config=pytype.cfg
 
   check_proto:
@@ -62,6 +57,5 @@ jobs:
       - uses: actions/checkout@v3
       - name: clang-format
         run: |
-          cd "${GITHUB_WORKSPACE}"
           sudo apt update && sudo apt install clang-format-10 --yes
           find . -name '*.proto' -exec clang-format-10 -n -Werror --style=file {} +

@@ -32,7 +32,6 @@ jobs:
           python-version: 3.7
       - name: Bump patch version
         run: |
-          cd "${GITHUB_WORKSPACE}"
           git config user.name github-actions
           git config user.email github-actions@github.com
           python -m pip install bump2version
@@ -40,11 +39,10 @@ jobs:
           git push --tags origin main
       - name: Build and upload to PyPI
         run: |
-          cd "${GITHUB_WORKSPACE}"
           python -m pip install build twine
           python -m build
           TWINE_USERNAME="__token__" TWINE_PASSWORD="${{ secrets.PYPI_API_TOKEN }}" python -m twine upload dist/*
       - name: Create release
-        uses: softprops/action-gh-release@v0.1.14
-        with:
-          generate_release_notes: true
+        run: |
+          # https://gist.github.com/rponte/fdc0724dd984088606b0?permalink_comment_id=3064455#gistcomment-3064455
+          gh release create "$(git tag | sort -V | tail -n 1)" --generate-notes
