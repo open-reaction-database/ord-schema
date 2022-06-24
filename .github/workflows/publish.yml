@@ -44,4 +44,5 @@ jobs:
           TWINE_USERNAME="__token__" TWINE_PASSWORD="${{ secrets.PYPI_API_TOKEN }}" python -m twine upload dist/*
       - name: Create release
         run: |
-          gh release create "$(git tag | sort -V | tail -1)" --generate-notes
+          # https://gist.github.com/rponte/fdc0724dd984088606b0?permalink_comment_id=3064455#gistcomment-3064455
+          gh release create "$(git tag | sort -V | tail -n 1)" --generate-notes
