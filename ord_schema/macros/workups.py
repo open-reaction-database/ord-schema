@@ -50,7 +50,9 @@ UNITS_RESOLVER = units.UnitResolver()
 CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS)
 
 
-def add_solution(solution: Iterable[reaction_pb2.Compound], workup_type: str = "ADDITION") -> reaction_pb2.ReactionWorkup:
+def add_solution(
+    solution: Iterable[reaction_pb2.Compound], workup_type: str = "ADDITION"
+) -> reaction_pb2.ReactionWorkup:
     """Create a workup representing addition of a solution.
 
     type is commonly one of 'ADDITION', 'EXTRACTION', or 'WASH'; see
