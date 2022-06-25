@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.9
       - name: Install ord_schema
         run: |
           python -m pip install .[tests]
@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.9
       - name: Install ord_schema
         run: |
           python -m pip install .[examples,tests]
@@ -54,7 +54,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
+          python-version: 3.9
       - name: Install protoc
         run: |
           python -m pip install --upgrade pip

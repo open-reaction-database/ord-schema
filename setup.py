@@ -39,7 +39,7 @@ setuptools.setup(
             "test.proto",
         ],
     },
-    python_requires=">=3.7",
+    python_requires=">=3.9",
     install_requires=[
         "docopt>=0.6.2",
         "flask>=1.1.2",

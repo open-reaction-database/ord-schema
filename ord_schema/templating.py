@@ -21,7 +21,8 @@ spreadsheet file.
 
 import os
 import re
-from typing import BinaryIO, Mapping, Optional, Union
+from collections.abc import Mapping
+from typing import BinaryIO, Optional, Union
 
 import pandas as pd
 from google.protobuf import text_format  # pytype: disable=import-error

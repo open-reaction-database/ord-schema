@@ -13,7 +13,6 @@
 # limitations under the License.
 """Tests for ord_schema.scripts.enumerate_dataset."""
 import os
-from typing import Tuple
 
 import docopt
 import pandas as pd
@@ -27,7 +26,7 @@ from ord_schema.scripts import enumerate_dataset
 
 
 @pytest.fixture
-def setup(tmp_path) -> Tuple[str, str, str]:
+def setup(tmp_path) -> tuple[str, str, str]:
     dirname = tmp_path.as_posix()
     template_string = """
     inputs {

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Macros for programmatic message creation."""
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 from ord_schema.proto import reaction_pb2
 from ord_schema import units
@@ -27,7 +27,7 @@ def simple_solution(
     volume: Union[None, str, reaction_pb2.Volume] = None,
     concentration: Union[None, str, reaction_pb2.Concentration] = None,
     saturated: bool = False,
-) -> List[reaction_pb2.Compound]:
+) -> list[reaction_pb2.Compound]:
     """Creates a solution with at most one solvent and one solute.
 
     Args:
