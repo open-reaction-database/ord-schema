@@ -18,8 +18,9 @@ import functools
 import gzip
 import os
 import re
-from typing import Optional, Type, TypeVar, Union
 import warnings
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Optional, Type, TypeVar, Union
 
 from google import protobuf
 from google.protobuf import json_format
@@ -127,7 +128,7 @@ def build_compound(
 
 def set_solute_moles(
     solute: reaction_pb2.Compound,
-    solvents: list[reaction_pb2.Compound],
+    solvents: Sequence[reaction_pb2.Compound],
     concentration: str,
     overwrite: bool = False,
 ) -> list[reaction_pb2.Compound]:
@@ -179,7 +180,7 @@ def set_solute_moles(
         concentration_pb,
     )
     solute.amount.MergeFrom(solute_moles)
-    return [solute] + solvents
+    return [solute] + list(solvents)
 
 
 def build_data(filename: str, description: str) -> reaction_pb2.Data:
@@ -596,7 +597,7 @@ def set_dative_bonds(mol: Chem.Mol, from_atoms: tuple[str, ...] = ("N", "P")) ->
 
     Args:
         mol: The molecule to be converted.
-        fromAtoms: tuple of atomic symbols corresponding to atom types that
+        from_atoms: tuple of atomic symbols corresponding to atom types that
         should have atom-metal bonds converted to dative. Default is N and P
 
     Returns:
@@ -815,7 +816,7 @@ def create_message(message_name: str) -> ord_schema.Message:
         raise ValueError(f"Cannot resolve message name {message_name}") from error
 
 
-def messages_to_dataframe(messages: list[ord_schema.Message], drop_constant_columns: bool = False) -> pd.DataFrame:
+def messages_to_dataframe(messages: Iterable[ord_schema.Message], drop_constant_columns: bool = False) -> pd.DataFrame:
     """Converts a list of protos to a pandas DataFrame.
 
     Args:
@@ -884,7 +885,7 @@ def message_to_row(message: ord_schema.Message, trace: Optional[tuple[str]] = No
     return row
 
 
-def safe_update(target: dict, update: dict) -> None:
+def safe_update(target: dict, update: Mapping) -> None:
     """Checks that `update` will not clobber any keys in `target`."""
     for key in update:
         if key in target:
@@ -929,7 +930,7 @@ def parse_doi(doi: str) -> str:
         ValueError: if the DOI cannot be parsed.
     """
     # See https://www.doi.org/doi_handbook/2_Numbering.html#2.2.
-    match = re.search(r"(10\.[\d.]+\/[a-zA-Z\d.]+)", doi)
+    match = re.search(r"(10\.[\d.]+/[a-zA-Z\d.]+)", doi)
     if not match:
         raise ValueError(f"could not parse DOI: {doi}")
     return match.group(1)

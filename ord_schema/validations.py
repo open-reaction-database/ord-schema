@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Helpers validating specific Message types."""
-
 import dataclasses
 import logging
 import math
 import os
 import re
-from typing import Any, Optional
 import warnings
+from collections.abc import Mapping
+from typing import Any, Optional
 
 from dateutil import parser
 from rdkit import Chem
@@ -61,10 +61,10 @@ class ValidationOutput:
 
 
 def validate_datasets(
-    datasets: dict[str, dataset_pb2.Dataset],
+    datasets: Mapping[str, dataset_pb2.Dataset],
     write_errors: bool = False,
     options: Optional[ValidationOptions] = None,
-):
+) -> None:
     """Runs validation for a set of datasets.
 
     Args:

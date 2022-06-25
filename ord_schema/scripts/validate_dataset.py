@@ -23,6 +23,7 @@ Options:
 import glob
 import logging
 import re
+from collections.abc import Iterable
 
 import docopt
 from rdkit import RDLogger
@@ -34,7 +35,7 @@ from ord_schema.proto import dataset_pb2
 logger = logging.getLogger(__name__)
 
 
-def filter_filenames(filenames: list[str], pattern: str) -> list[str]:
+def filter_filenames(filenames: Iterable[str], pattern: str) -> list[str]:
     """Filters filenames according to a regex pattern."""
     filtered_filenames = []
     for filename in filenames:

@@ -50,6 +50,7 @@ import logging
 import os
 import subprocess
 import sys
+from collections.abc import Iterable, Mapping
 from typing import Optional
 
 import docopt
@@ -165,7 +166,7 @@ def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Datase
 
 
 def get_change_stats(
-    datasets: dict[str, dataset_pb2.Dataset], inputs: list[FileStatus], base: str
+    datasets: Mapping[str, dataset_pb2.Dataset], inputs: Iterable[FileStatus], base: str
 ) -> tuple[set[str], set[str], set[str]]:
     """Computes diff statistics for the submission.
 
@@ -189,7 +190,7 @@ def get_change_stats(
     return new - old, old - new, new & old
 
 
-def _run_updates(datasets: dict[str, dataset_pb2.Dataset], kwargs):
+def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset], kwargs) -> None:
     """Updates the submission files.
 
     Args:
