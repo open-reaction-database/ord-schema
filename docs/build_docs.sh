@@ -29,7 +29,7 @@ set -ex
 #   ord-schema/proto/reaction.proto ord-schema/proto/dataset.proto
 
 # Generate RST for ord-schema.
-sphinx-apidoc -fTM -o ord_schema -t templates ../ord_schema \
+sphinx-apidoc -fTM -o ord_schema -t _templates ../ord_schema \
   "../ord_schema/*_test.py" \
   "../ord_schema/*/*_test.py" \
   "../ord_schema/proto/" \
