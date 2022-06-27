@@ -27,6 +27,7 @@ author = "Open Reaction Database Project Authors"
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "sphinx.ext.napoleon",
     "sphinx_tabs.tabs",
 ]
 

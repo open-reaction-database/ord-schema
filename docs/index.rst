@@ -61,6 +61,12 @@ underrepresented areas).
 
 .. toctree::
    :hidden:
+   :caption: API Documentation
+
+   ord_schema/ord_schema
+
+.. toctree::
+   :hidden:
    :maxdepth: 2
    :caption: Developers
 
