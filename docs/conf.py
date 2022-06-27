@@ -18,7 +18,7 @@ from recommonmark import transform
 # -- Project information -----------------------------------------------------
 
 project = "Open Reaction Database"
-copyright = "2020 Open Reaction Database Project Authors"
+copyright = "2020–2022 Open Reaction Database Project Authors"
 author = "Open Reaction Database Project Authors"
 
 # -- General configuration ---------------------------------------------------
