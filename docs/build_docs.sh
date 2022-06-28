@@ -36,5 +36,4 @@ sphinx-apidoc -fTM -o ord_schema -t _templates ../ord_schema \
   "../ord_schema/scripts/"
 
 # Run sphinx.
-pip install -Ur requirements.txt
 make clean html
