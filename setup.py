@@ -56,6 +56,13 @@ setuptools.setup(
         "xlwt>=1.3.0",
     ],
     extras_require={
+        "docs": [
+            "ipython>=7.18.1",
+            "Pygments>=2.7.2",
+            "sphinx>=3.3.1",
+            "sphinx-rtd-theme>=0.5.0",
+            "sphinx-tabs>=1.3.0",
+        ],
         "examples": [
             "glob2>=0.7",
             "matplotlib>=3.3.4",

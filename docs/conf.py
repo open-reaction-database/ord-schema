@@ -13,12 +13,11 @@
 # import os
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
-from recommonmark import transform
 
 # -- Project information -----------------------------------------------------
 
 project = "Open Reaction Database"
-copyright = "2020 Open Reaction Database Project Authors"
+copyright = "2020–2022 Open Reaction Database Project Authors"
 author = "Open Reaction Database Project Authors"
 
 # -- General configuration ---------------------------------------------------
@@ -27,6 +26,7 @@ author = "Open Reaction Database Project Authors"
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "sphinx.ext.napoleon",
     "sphinx_tabs.tabs",
 ]
 
