@@ -1,13 +1,10 @@
 """Tests for ord_schema.orm.reaction."""
-from sqlalchemy import create_engine
-
-from ord_schema.orm.reaction import Base
+from ord_schema.orm import reaction
 
 
-def test_ddl():
-    engine = create_engine("postgresql://postgres:postgres@localhost:5433/test", echo=True, future=True)
-    Base.metadata.create_all(engine)
+def test_orm():
+    reaction.ProductMeasurementPercentage(value=23.4)
 
 
 if __name__ == "__main__":
-    test_ddl()
+    test_orm()

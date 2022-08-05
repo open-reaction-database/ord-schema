@@ -5,7 +5,13 @@ Notes:
     * Every table has its own `id` column, even if it has a one-to-one mapping with another table.
     * When a message type is used in multiple places, use Joined Table Inheritance; see
       https://docs.sqlalchemy.org/en/14/orm/inheritance.html#joined-table-inheritance.
+    * I tried using `abstractmethod` for {from,to}_proto (see https://stackoverflow.com/a/30402243) but it
+      did not seem to enforce concrete subclasses at runtime, so I removed it.
 """
+from __future__ import annotations
+
+from inspect import getmro
+
 from inflection import underscore
 from sqlalchemy import (
     Boolean,
@@ -27,8 +33,8 @@ class Base:
     """See https://docs.sqlalchemy.org/en/14/orm/declarative_mixins.html#augmenting-the-base."""
 
     @declared_attr
-    def __tablename__(self):
-        return underscore(self.__name__)
+    def __tablename__(cls):
+        return underscore(cls.__name__)
 
     id = Column(Integer, primary_key=True)
 
@@ -43,19 +49,30 @@ class Parent:
     _type = Column(String(255), nullable=False)
 
     @declared_attr
-    def __mapper_args__(self):
+    def __mapper_args__(cls):
         return {
-            "polymorphic_identity": underscore(self.__name__),
-            "polymorphic_on": self._type,
+            "polymorphic_identity": underscore(cls.__name__),
+            "polymorphic_on": cls._type,
         }
 
 
+@declarative_mixin
 class Child:
     """Mixin class for child classes."""
 
     @declared_attr
-    def __mapper_args__(self):
-        return {"polymorphic_identity": underscore(self.__name__)}
+    def parent_id(cls):
+        parent_table = None
+        for parent_class in getmro(cls)[1:]:
+            if issubclass(parent_class, Base):
+                parent_table = parent_class.__tablename__
+                break
+        assert parent_table is not None, (cls, getmro(cls))
+        return Column(f"{parent_table}_id", Integer, ForeignKey(f"{parent_table}.id"), unique=True)
+
+    @declared_attr
+    def __mapper_args__(cls):
+        return {"polymorphic_identity": underscore(cls.__name__)}
 
 
 class Reaction(Base):
@@ -63,7 +80,7 @@ class Reaction(Base):
     proto = Column(LargeBinary, nullable=False)
 
     identifiers = relationship("ReactionIdentifier")
-    inputs = relationship("ReactionInput")
+    inputs = relationship("ReactionInputs")
     setup = relationship("ReactionSetup", uselist=False)
     conditions = relationship("ReactionConditions", uselist=False)
     notes = relationship("ReactionNotes", uselist=False)
@@ -71,6 +88,13 @@ class Reaction(Base):
     workups = relationship("ReactionWorkup")
     outcomes = relationship("ReactionOutcome")
     provenance = relationship("ReactionProvenance", uselist=False)
+
+    @classmethod
+    def from_proto(cls, message: reaction_pb2.Reaction) -> Reaction:
+        pass
+
+    def to_proto(self) -> reaction_pb2.Reaction:
+        pass
 
 
 class ReactionIdentifier(Base):
@@ -85,25 +109,23 @@ class ReactionIdentifier(Base):
 
 
 class ReactionInput(Parent, Base):
-    components = relationship("Compound")
+    components = relationship("ReactionInputComponents")
     crude_components = relationship("CrudeComponent")
     addition_order = Column(Integer)
-    addition_time = relationship("Time", uselist=False)
+    addition_time = relationship("ReactionInputAdditionTime", uselist=False)
     addition_speed = relationship("AdditionSpeed", uselist=False)
-    addition_duration = relationship("Time", uselist=False)
+    addition_duration = relationship("ReactionInputAdditionDuration", uselist=False)
     flow_rate = relationship("FlowRate", uselist=False)
     addition_device = relationship("AdditionDevice", uselist=False)
-    addition_temperature = relationship("Temperature", uselist=False)
+    addition_temperature = relationship("ReactionInputAdditionTemperature", uselist=False)
 
 
 class ReactionInputs(Child, ReactionInput):
-    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
     reaction_id = Column(Integer, ForeignKey("reaction.id"))
     name = Column(String(255))  # Map key.
 
 
 class ReactionWorkupInput(Child, ReactionInput):
-    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
     reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"), unique=True)
 
 
@@ -113,7 +135,7 @@ class AdditionSpeed(Base):
     type = Column(
         Enum(
             *reaction_pb2.ReactionInput.AdditionSpeed.AdditionSpeedType.keys(),
-            name="ReactionInput.AdditionSpeed.AdditionSpeedType"
+            name="ReactionInput.AdditionSpeed.AdditionSpeedType",
         )
     )
     details = Column(Text)
@@ -125,7 +147,7 @@ class AdditionDevice(Base):
     type = Column(
         Enum(
             *reaction_pb2.ReactionInput.AdditionDevice.AdditionDeviceType.keys(),
-            name="ReactionInput.AdditionDevice.AdditionDeviceType"
+            name="ReactionInput.AdditionDevice.AdditionDeviceType",
         )
     )
     details = Column(Text)
@@ -140,22 +162,18 @@ class Amount(Parent, Base):
 
 
 class CrudeComponentAmount(Child, Amount):
-    amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
     crude_component_id = Column(Integer, ForeignKey("crude_component.id"))
 
 
 class CompoundAmount(Child, Amount):
-    amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
     compound_id = Column(Integer, ForeignKey("compound.id"))
 
 
 class ReactionWorkupAmount(Child, Amount):
-    amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
     reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"))
 
 
 class ProductMeasurementAmount(Child, Amount):
-    amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"))
 
 
@@ -192,12 +210,10 @@ class Compound(Parent, Base):
 
 
 class ReactionInputComponents(Child, Compound):
-    compound_id = Column(Integer, ForeignKey("compound.id"), unique=True)
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"))
 
 
 class ProductMeasurementAuthenticStandard(Child, Compound):
-    compound_id = Column(Integer, ForeignKey("compound.id"), unique=True)
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), unique=True)
 
 
@@ -279,7 +295,7 @@ class ReactionEnvironment(Base):
     type = Column(
         Enum(
             *reaction_pb2.ReactionSetup.ReactionEnvironment.ReactionEnvironmentType.keys(),
-            name="ReactionSetup.ReactionEnvironment.ReactionEnvironmentType"
+            name="ReactionSetup.ReactionEnvironment.ReactionEnvironmentType",
         )
     )
     details = Column(Text)
@@ -314,7 +330,7 @@ class TemperatureControl(Base):
     type = Column(
         Enum(
             *reaction_pb2.TemperatureConditions.TemperatureControl.TemperatureControlType.keys(),
-            name="TemperatureConditions.TemperatureControl.TemperatureControlType"
+            name="TemperatureConditions.TemperatureControl.TemperatureControlType",
         )
     )
     details = Column(Text)
@@ -326,7 +342,7 @@ class TemperatureConditionsMeasurement(Base):
     type = Column(
         Enum(
             *reaction_pb2.TemperatureConditions.Measurement.MeasurementType.keys(),
-            name="TemperatureConditions.Measurement.MeasurementType"
+            name="TemperatureConditions.Measurement.MeasurementType",
         )
     )
     details = Column(Text)
@@ -349,7 +365,7 @@ class PressureControl(Base):
     type = Column(
         Enum(
             *reaction_pb2.PressureConditions.PressureControl.PressureControlType.keys(),
-            name="PressureConditions.PressureControl.PressureControlType"
+            name="PressureConditions.PressureControl.PressureControlType",
         )
     )
     details = Column(Text)
@@ -361,7 +377,7 @@ class Atmosphere(Base):
     type = Column(
         Enum(
             *reaction_pb2.PressureConditions.Atmosphere.AtmosphereType.keys(),
-            name="PressureConditions.Atmosphere.AtmosphereType"
+            name="PressureConditions.Atmosphere.AtmosphereType",
         )
     )
     details = Column(Text)
@@ -373,7 +389,7 @@ class PressureConditionsMeasurement(Base):
     type = Column(
         Enum(
             *reaction_pb2.PressureConditions.Measurement.MeasurementType.keys(),
-            name="PressureConditions.Measurement.MeasurementType"
+            name="PressureConditions.Measurement.MeasurementType",
         )
     )
     details = Column(Text)
@@ -390,12 +406,10 @@ class StirringConditions(Parent, Base):
 
 
 class ReactionConditionsStirring(Child, StirringConditions):
-    stirring_conditions_id = Column(Integer, ForeignKey("stirring_conditions.id"), unique=True)
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), unique=True)
 
 
 class ReactionWorkupStirring(Child, StirringConditions):
-    stirring_conditions_id = Column(Integer, ForeignKey("stirring_conditions.id"), unique=True)
     reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"), unique=True)
 
 
@@ -405,7 +419,7 @@ class StirringRate(Base):
     type = Column(
         Enum(
             *reaction_pb2.StirringConditions.StirringRate.StirringRateType.keys(),
-            name="StirringConditions.StirringRate.StirringRateType"
+            name="StirringConditions.StirringRate.StirringRateType",
         )
     )
     details = Column(Text)
@@ -432,7 +446,7 @@ class ElectrochemistryConditions(Base):
     type = Column(
         Enum(
             *reaction_pb2.ElectrochemistryConditions.ElectrochemistryType.keys(),
-            name="ElectrochemistryConditions.ElectrochemistryType"
+            name="ElectrochemistryConditions.ElectrochemistryType",
         )
     )
     details = Column(Text)
@@ -459,7 +473,7 @@ class ElectrochemistryCell(Base):
     type = Column(
         Enum(
             *reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType.keys(),
-            name="ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType"
+            name="ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType",
         )
     )
     details = Column(Text)
@@ -577,7 +591,7 @@ class MassSpecMeasurementDetails(Base):
     type = Column(
         Enum(
             *reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType.keys(),
-            name="ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType"
+            name="ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType",
         )
     )
     details = Column(Text)
@@ -592,7 +606,7 @@ class Selectivity(Base):
     type = Column(
         Enum(
             *reaction_pb2.ProductMeasurement.Selectivity.SelectivityType.keys(),
-            name="ProductMeasurement.Selectivity.SelectivityType"
+            name="ProductMeasurement.Selectivity.SelectivityType",
         )
     )
     details = Column(Text)
@@ -603,17 +617,14 @@ class DateTime(Parent, Base):
 
 
 class AnalysisInstrumentLastCalibrated(Child, DateTime):
-    date_time_id = Column(Integer, ForeignKey("date_time.id"), unique=True)
     analysis_id = Column(Integer, ForeignKey("analysis.id"), unique=True)
 
 
 class ReactionProvenanceExperimentStart(Child, DateTime):
-    date_time_id = Column(Integer, ForeignKey("date_time.id"), unique=True)
     analysis_id = Column(Integer, ForeignKey("reaction_provenance.id"), unique=True)
 
 
 class RecordEventTime(Child, DateTime):
-    date_time_id = Column(Integer, ForeignKey("date_time.id"), unique=True)
     analysis_id = Column(Integer, ForeignKey("record_event.id"), unique=True)
 
 
@@ -628,13 +639,11 @@ class Analysis(Parent, Base):
 
 
 class CompoundAnalyses(Child, Analysis):
-    analysis_id = Column(Integer, ForeignKey("analysis.id"), unique=True)
     compound_id = Column(Integer, ForeignKey("compound.id"))
     name = Column(String(255))  # Map key.
 
 
 class ReactionOutcomeAnalyses(Child, Analysis):
-    analysis_id = Column(Integer, ForeignKey("analysis.id"), unique=True)
     reaction_id = Column(Integer, ForeignKey("reaction.id"))
     name = Column(String(255))  # Map key.
 
@@ -669,12 +678,10 @@ class RecordEvent(Parent, Base):
 
 
 class ReactionProvenanceRecordCreated(Child, RecordEvent):
-    record_event_id = Column(Integer, ForeignKey("record_event.id"), unique=True)
     reaction_provenance_id = Column(Integer, ForeignKey("reaction_provenance.id"), unique=True)
 
 
 class ReactionProvenanceRecordModified(Child, RecordEvent):
-    record_event_id = Column(Integer, ForeignKey("record_event.id"), unique=True)
     reaction_provenance_id = Column(Integer, ForeignKey("reaction_provenance.id"))
 
 
@@ -685,51 +692,42 @@ class Time(Parent, Base):
 
 
 class ReactionInputAdditionTime(Child, Time):
-    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
 
 
 class ReactionInputAdditionDuration(Child, Time):
-    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
 
 
 class TemperatureConditionsMeasurementTime(Child, Time):
-    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
     temperature_conditions_measurement_id = Column(
         Integer, ForeignKey("temperature_conditions_measurement.id"), unique=True
     )
 
 
 class PressureConditionsMeasurementTime(Child, Time):
-    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
     pressure_conditions_measurement_id = Column(Integer, ForeignKey("pressure_conditions_measurement.id"), unique=True)
 
 
 class ElectrochemistryConditionsMeasurementTime(Child, Time):
-    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
     electrochemistry_conditions_measurement_id = Column(
         Integer, ForeignKey("electrochemistry_conditions_measurement.id"), unique=True
     )
 
 
 class ReactionObservationTime(Child, Time):
-    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
     reaction_observation_id = Column(Integer, ForeignKey("reaction_observation.id"), unique=True)
 
 
 class ReactionWorkupDuration(Child, Time):
-    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
     reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"), unique=True)
 
 
 class ReactionOutcomeReactionTime(Child, Time):
-    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
     reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"), unique=True)
 
 
 class ProductMeasurementRetentionTime(Child, Time):
-    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), unique=True)
 
 
@@ -763,10 +761,24 @@ class Pressure(Base):
     units = Column(Enum(*reaction_pb2.Pressure.PressureUnit.keys(), name="Pressure.PressureUnit"))
 
 
-class Temperature(Base):
+class Temperature(Parent, Base):
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Temperature.TemperatureUnit.keys(), name="Temperature.TemperatureUnit"))
+
+
+class ReactionInputAdditionTemperature(Child, Temperature):
+    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
+
+
+class TemperatureConditionsSetpoint(Child, Temperature):
+    temperature_conditions_id = Column(Integer, ForeignKey("temperature_conditions.id"), unique=True)
+
+
+class TemperatureConditionsMeasurementTemperature(Child, Temperature):
+    temperature_conditions_measurement_id = Column(
+        Integer, ForeignKey("temperature_conditions_measurement.id"), unique=True
+    )
 
 
 class Current(Base):
@@ -794,14 +806,31 @@ class Wavelength(Base):
 
 
 class FlowRate(Base):
+    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
+
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.FlowRate.FlowRateUnit.keys(), name="FlowRate.FlowRateUnit"))
 
 
-class Percentage(Base):
+class Percentage(Parent, Base):
     value = Column(Float)
     precision = Column(Float)
+
+    @classmethod
+    def from_proto(cls, message: reaction_pb2.Percentage) -> Percentage:
+        pass
+
+    def to_proto(self) -> reaction_pb2.Percentage:
+        pass
+
+
+class ReactionOutcomeConversion(Child, Percentage):
+    reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"), unique=True)
+
+
+class ProductMeasurementPercentage(Child, Percentage):
+    product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), unique=True)
 
 
 class FloatValue(Base):
@@ -817,3 +846,18 @@ class Data(Base):
     url = Column(Text)
     description = Column(Text)
     format = Column(String(255))
+
+
+def proto_to_database(reaction: reaction_pb2.Reaction) -> Reaction:
+    """Converts a Reaction proto into a Reaction ORM object."""
+
+
+def database_to_proto(reaction: Reaction) -> reaction_pb2.Reaction:
+    """Converts a Reaction ORM object into a Reaction proto."""
+
+
+if __name__ == "__main__":
+    from sqlalchemy import create_engine
+
+    engine = create_engine("postgresql://postgres:postgres@localhost:5433/test", echo=True, future=True)
+    Base.metadata.create_all(engine)
