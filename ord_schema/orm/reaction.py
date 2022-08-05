@@ -3,8 +3,8 @@
 Notes:
     * Foreign keys to the `reaction` table are done using the `id` column, not the ORD reaction ID (`name`).
     * Every table has its own `id` column, even if it has a one-to-one mapping with another table.
-    * When a message type is used in multiple places, use Single Table Inheritance; see
-      https://docs.sqlalchemy.org/en/14/orm/inheritance.html#single-table-inheritance.
+    * When a message type is used in multiple places, use Joined Table Inheritance; see
+      https://docs.sqlalchemy.org/en/14/orm/inheritance.html#joined-table-inheritance.
 """
 from inflection import underscore
 from sqlalchemy import (
@@ -66,9 +66,6 @@ class ReactionIdentifier(OrdMixin, Base):
 
 
 class ReactionInput(OrdMixin, Base):
-    reaction_id = Column(Integer, ForeignKey("reaction.id"))
-
-    name = Column(Text)  # Map key.
     components = relationship("Compound")
     crude_components = relationship("CrudeComponent")
     addition_order = Column(Integer)
@@ -78,6 +75,31 @@ class ReactionInput(OrdMixin, Base):
     flow_rate = relationship("FlowRate", uselist=False)
     addition_device = relationship("AdditionDevice", uselist=False)
     addition_temperature = relationship("Temperature", uselist=False)
+
+    _type = Column(String(255), nullable=False)
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_input",
+        "polymorphic_on": _type,
+    }
+
+
+class ReactionInputs(ReactionInput):
+    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
+    reaction_id = Column(Integer, ForeignKey("reaction.id"))
+    name = Column(String(255))  # Map key.
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_inputs",
+    }
+
+
+class ReactionWorkupInput(ReactionInput):
+    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
+    reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_workup_input",
+    }
 
 
 class AdditionSpeed(OrdMixin, Base):
@@ -104,17 +126,14 @@ class AdditionDevice(OrdMixin, Base):
     details = Column(Text)
 
 
-class Amount(Base):
-    __tablename__ = "amount"
-    id = Column(Integer, primary_key=True)
-    _type = Column(String(255), nullable=False)
-
+class Amount(OrdMixin, Base):
     mass = relationship("Mass", uselist=False)
     moles = relationship("Moles", uselist=False)
     volume = relationship("Volume", uselist=False)
     unmeasured = relationship("UnmeasuredAmount", uselist=False)
     volume_includes_solutes = Column(Boolean)
 
+    _type = Column(String(255), nullable=False)
     __mapper_args__ = {
         "polymorphic_identity": "amount",
         "polymorphic_on": _type,
@@ -122,6 +141,7 @@ class Amount(Base):
 
 
 class CrudeComponentAmount(Amount):
+    amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
     crude_component_id = Column(Integer, ForeignKey("crude_component.id"))
 
     __mapper_args__ = {
@@ -130,6 +150,7 @@ class CrudeComponentAmount(Amount):
 
 
 class CompoundAmount(Amount):
+    amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
     compound_id = Column(Integer, ForeignKey("compound.id"))
 
     __mapper_args__ = {
@@ -138,6 +159,7 @@ class CompoundAmount(Amount):
 
 
 class ReactionWorkupAmount(Amount):
+    amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
     reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"))
 
     __mapper_args__ = {
@@ -146,6 +168,7 @@ class ReactionWorkupAmount(Amount):
 
 
 class ProductMeasurementAmount(Amount):
+    amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"))
 
     __mapper_args__ = {
@@ -174,11 +197,7 @@ ReactionRoleType = Enum(
 )
 
 
-class Compound(Base):
-    __tablename__ = "compound"
-    id = Column(Integer, primary_key=True)
-    _type = Column(String(255), nullable=False)
-
+class Compound(OrdMixin, Base):
     identifiers = relationship("CompoundIdentifier")
     amount = relationship("Amount")
     reaction_role = Column(ReactionRoleType)
@@ -188,25 +207,28 @@ class Compound(Base):
     features = relationship("Data")
     analyses = relationship("Analysis")
 
+    _type = Column(String(255), nullable=False)
     __mapper_args__ = {
         "polymorphic_identity": "compound",
         "polymorphic_on": _type,
     }
 
 
-class ReactionInputCompound(Compound):
+class ReactionInputComponents(Compound):
+    compound_id = Column(Integer, ForeignKey("compound.id"), unique=True)
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"))
 
     __mapper_args__ = {
-        "polymorphic_identity": "reaction_input_compound",
+        "polymorphic_identity": "reaction_input_components",
     }
 
 
-class ProductMeasurementCompound(Compound):
-    product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"))
+class ProductMeasurementAuthenticStandard(Compound):
+    compound_id = Column(Integer, ForeignKey("compound.id"), unique=True)
+    product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), unique=True)
 
     __mapper_args__ = {
-        "polymorphic_identity": "product_measurement_compound",
+        "polymorphic_identity": "product_measurement_authentic_standard",
     }
 
 
@@ -329,7 +351,7 @@ class TemperatureControl(OrdMixin, Base):
     details = Column(Text)
 
 
-class TemperatureControlMeasurement(OrdMixin, Base):
+class TemperatureConditionsMeasurement(OrdMixin, Base):
     temperature_conditions_id = Column(Integer, ForeignKey("temperature_conditions.id"))
 
     type = Column(
@@ -376,7 +398,7 @@ class Atmosphere(OrdMixin, Base):
     details = Column(Text)
 
 
-class PressureControlMeasurement(OrdMixin, Base):
+class PressureConditionsMeasurement(OrdMixin, Base):
     pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"))
 
     type = Column(
@@ -390,36 +412,35 @@ class PressureControlMeasurement(OrdMixin, Base):
     pressure = relationship("Pressure", uselist=False)
 
 
-class StirringConditions(Base):
-    __tablename__ = "stirring_conditions"
-    id = Column(Integer, primary_key=True)
-    _type = Column(String(255), nullable=False)
-
+class StirringConditions(OrdMixin, Base):
     type = Column(
         Enum(*reaction_pb2.StirringConditions.StirringMethodType.keys(), name="StirringConditions.StirringMethodType")
     )
     details = Column(Text)
     rate = relationship("StirringRate", uselist=False)
 
+    _type = Column(String(255), nullable=False)
     __mapper_args__ = {
         "polymorphic_identity": "stirring_conditions",
         "polymorphic_on": _type,
     }
 
 
-class ReactionConditionsStirringConditions(StirringConditions):
+class ReactionConditionsStirring(StirringConditions):
+    stirring_conditions_id = Column(Integer, ForeignKey("stirring_conditions.id"), unique=True)
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), unique=True)
 
     __mapper_args__ = {
-        "polymorphic_identity": "reaction_conditions_stirring_conditions",
+        "polymorphic_identity": "reaction_conditions_stirring",
     }
 
 
-class ReactionWorkupStirringConditions(StirringConditions):
+class ReactionWorkupStirring(StirringConditions):
+    stirring_conditions_id = Column(Integer, ForeignKey("stirring_conditions.id"), unique=True)
     reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"), unique=True)
 
     __mapper_args__ = {
-        "polymorphic_identity": "reaction_workup_stirring_conditions",
+        "polymorphic_identity": "reaction_workup_stirring",
     }
 
 
@@ -625,6 +646,39 @@ class Selectivity(OrdMixin, Base):
 class DateTime(OrdMixin, Base):
     value = Column(String(255))
 
+    _type = Column(String(255), nullable=False)
+    __mapper_args__ = {
+        "polymorphic_identity": "date_time",
+        "polymorphic_on": _type,
+    }
+
+
+class AnalysisInstrumentLastCalibrated(DateTime):
+    date_time_id = Column(Integer, ForeignKey("date_time.id"), unique=True)
+    analysis_id = Column(Integer, ForeignKey("analysis.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "analysis_instrument_last_calibrated",
+    }
+
+
+class ReactionProvenanceExperimentStart(DateTime):
+    date_time_id = Column(Integer, ForeignKey("date_time.id"), unique=True)
+    analysis_id = Column(Integer, ForeignKey("reaction_provenance.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_provenance_experiment_start",
+    }
+
+
+class RecordEventTime(DateTime):
+    date_time_id = Column(Integer, ForeignKey("date_time.id"), unique=True)
+    analysis_id = Column(Integer, ForeignKey("record_event.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "record_event_time",
+    }
+
 
 class Analysis(OrdMixin, Base):
     type = Column(Enum(*reaction_pb2.Analysis.AnalysisType.keys(), name="Analysis.AnalysisType"))
@@ -634,6 +688,32 @@ class Analysis(OrdMixin, Base):
     data = relationship("Data")
     instrument_manufacturer = Column(String(255))
     instrument_last_calibrated = relationship("DateTime", uselist=False)
+
+    _type = Column(String(255), nullable=False)
+    __mapper_args__ = {
+        "polymorphic_identity": "analysis",
+        "polymorphic_on": _type,
+    }
+
+
+class CompoundAnalyses(Analysis):
+    analysis_id = Column(Integer, ForeignKey("analysis.id"), unique=True)
+    compound_id = Column(Integer, ForeignKey("compound.id"))
+    name = Column(String(255))  # Map key.
+
+    __mapper_args__ = {
+        "polymorphic_identity": "compound_analyses",
+    }
+
+
+class ReactionOutcomeAnalyses(Analysis):
+    analysis_id = Column(Integer, ForeignKey("analysis.id"), unique=True)
+    reaction_id = Column(Integer, ForeignKey("reaction.id"))
+    name = Column(String(255))  # Map key.
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_outcome_analyses",
+    }
 
 
 class ReactionProvenance(OrdMixin, Base):
@@ -664,11 +744,126 @@ class RecordEvent(OrdMixin, Base):
     person = relationship("Person", uselist=False)
     details = Column(Text)
 
+    _type = Column(String(255), nullable=False)
+    __mapper_args__ = {
+        "polymorphic_identity": "record_event",
+        "polymorphic_on": _type,
+    }
+
+
+class ReactionProvenanceRecordCreated(RecordEvent):
+    record_event_id = Column(Integer, ForeignKey("record_event.id"), unique=True)
+    reaction_provenance_id = Column(Integer, ForeignKey("reaction_provenance.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_provenance_record_created",
+    }
+
+
+class ReactionProvenanceRecordModified(RecordEvent):
+    record_event_id = Column(Integer, ForeignKey("record_event.id"), unique=True)
+    reaction_provenance_id = Column(Integer, ForeignKey("reaction_provenance.id"))
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_provenance_record_modified",
+    }
+
 
 class Time(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Time.TimeUnit.keys(), name="Time.TimeUnit"))
+
+    _type = Column(String(255), nullable=False)
+    __mapper_args__ = {
+        "polymorphic_identity": "time",
+        "polymorphic_on": _type,
+    }
+
+
+class ReactionInputAdditionTime(Time):
+    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
+    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_input_addition_time",
+    }
+
+
+class ReactionInputAdditionDuration(Time):
+    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
+    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_input_addition_duration",
+    }
+
+
+class TemperatureConditionsMeasurementTime(Time):
+    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
+    temperature_conditions_measurement_id = Column(
+        Integer, ForeignKey("temperature_conditions_measurement.id"), unique=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "temperature_conditions_measurement_time",
+    }
+
+
+class PressureConditionsMeasurementTime(Time):
+    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
+    pressure_conditions_measurement_id = Column(Integer, ForeignKey("pressure_conditions_measurement.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "pressure_conditions_measurement_time",
+    }
+
+
+class ElectrochemistryConditionsMeasurementTime(Time):
+    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
+    electrochemistry_conditions_measurement_id = Column(
+        Integer, ForeignKey("electrochemistry_conditions_measurement.id"), unique=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "electrochemistry_conditions_measurement_time",
+    }
+
+
+class ReactionObservationTime(Time):
+    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
+    reaction_observation_id = Column(Integer, ForeignKey("reaction_observation.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_observation_time",
+    }
+
+
+class ReactionWorkupDuration(Time):
+    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
+    reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_workup_duration",
+    }
+
+
+class ReactionOutcomeReactionTime(Time):
+    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
+    reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_outcome_reaction_time",
+    }
+
+
+class ProductMeasurementRetentionTime(Time):
+    time_id = Column(Integer, ForeignKey("time.id"), unique=True)
+    product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "product_measurement_retention_time",
+    }
 
 
 class Mass(OrdMixin, Base):
