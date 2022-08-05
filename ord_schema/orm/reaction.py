@@ -55,7 +55,7 @@ class Reaction(OrdMixin, Base):
 
 
 class ReactionIdentifier(OrdMixin, Base):
-    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+    reaction_id = Column(Integer, ForeignKey("reaction.id"))
 
     type = Column(
         Enum(*reaction_pb2.ReactionIdentifier.IdentifierType.keys(), name="ReactionIdentifier.IdentifierType")
@@ -66,7 +66,7 @@ class ReactionIdentifier(OrdMixin, Base):
 
 
 class ReactionInput(OrdMixin, Base):
-    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+    reaction_id = Column(Integer, ForeignKey("reaction.id"))
 
     name = Column(Text)  # Map key.
     components = relationship("Compound")
@@ -81,7 +81,7 @@ class ReactionInput(OrdMixin, Base):
 
 
 class AdditionSpeed(OrdMixin, Base):
-    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), primary_key=True)
+    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
 
     type = Column(
         Enum(
@@ -93,7 +93,7 @@ class AdditionSpeed(OrdMixin, Base):
 
 
 class AdditionDevice(OrdMixin, Base):
-    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), primary_key=True)
+    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
 
     type = Column(
         Enum(
@@ -154,7 +154,7 @@ class ProductMeasurementAmount(Amount):
 
 
 class UnmeasuredAmount(OrdMixin, Base):
-    amount_id = Column(Integer, ForeignKey("amount.id"), primary_key=True)
+    amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
     type = Column(
         Enum(*reaction_pb2.UnmeasuredAmount.UnmeasuredAmountType.keys(), name="UnmeasuredAmount.UnmeasuredAmountType")
     )
@@ -162,7 +162,7 @@ class UnmeasuredAmount(OrdMixin, Base):
 
 
 class CrudeComponent(OrdMixin, Base):
-    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), primary_key=True)
+    reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"))
     includes_workup = Column(Boolean)
     has_derived_amount = Column(Boolean)
     amount = relationship("Amount", uselist=False)
@@ -211,7 +211,7 @@ class ProductMeasurementCompound(Compound):
 
 
 class CompoundPreparation(OrdMixin, Base):
-    compound_id = Column(Integer, ForeignKey("compound.id"), primary_key=True)
+    compound_id = Column(Integer, ForeignKey("compound.id"))
 
     type = Column(
         Enum(*reaction_pb2.CompoundPreparation.PreparationType.keys(), name="CompoundPreparation.PreparationType")
@@ -221,7 +221,7 @@ class CompoundPreparation(OrdMixin, Base):
 
 
 class CompoundIdentifier(OrdMixin, Base):
-    compound_id = Column(Integer, ForeignKey("compound.id"), primary_key=True)
+    compound_id = Column(Integer, ForeignKey("compound.id"))
 
     type = Column(
         Enum(*reaction_pb2.CompoundIdentifier.IdentifierType.keys(), name="CompoundIdentifier.IdentifierType")
@@ -231,7 +231,7 @@ class CompoundIdentifier(OrdMixin, Base):
 
 
 class Vessel(OrdMixin, Base):
-    reaction_setup_id = Column(Integer, ForeignKey("reaction_setup.id"), primary_key=True)
+    reaction_setup_id = Column(Integer, ForeignKey("reaction_setup.id"), unique=True)
 
     type = Column(Enum(*reaction_pb2.Vessel.VesselType.keys(), name="Vessel.VesselType"))
     details = Column(Text)
@@ -244,7 +244,7 @@ class Vessel(OrdMixin, Base):
 
 
 class VesselMaterial(OrdMixin, Base):
-    vessel_id = Column(Integer, ForeignKey("vessel.id"), primary_key=True)
+    vessel_id = Column(Integer, ForeignKey("vessel.id"), unique=True)
 
     type = Column(
         Enum(*reaction_pb2.VesselMaterial.VesselMaterialType.keys(), name="VesselMaterial.VesselMaterialType")
@@ -253,7 +253,7 @@ class VesselMaterial(OrdMixin, Base):
 
 
 class VesselAttachment(OrdMixin, Base):
-    vessel_id = Column(Integer, ForeignKey("vessel.id"), primary_key=True)
+    vessel_id = Column(Integer, ForeignKey("vessel.id"))
 
     type = Column(
         Enum(*reaction_pb2.VesselAttachment.VesselAttachmentType.keys(), name="VesselAttachment.VesselAttachmentType")
@@ -262,7 +262,7 @@ class VesselAttachment(OrdMixin, Base):
 
 
 class VesselPreparation(OrdMixin, Base):
-    vessel_id = Column(Integer, ForeignKey("vessel.id"), primary_key=True)
+    vessel_id = Column(Integer, ForeignKey("vessel.id"))
 
     type = Column(
         Enum(
@@ -273,7 +273,7 @@ class VesselPreparation(OrdMixin, Base):
 
 
 class ReactionSetup(OrdMixin, Base):
-    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+    reaction_id = Column(Integer, ForeignKey("reaction.id"), unique=True)
 
     vessel = relationship("Vessel", uselist=False)
     is_automated = Column(Boolean)
@@ -283,7 +283,7 @@ class ReactionSetup(OrdMixin, Base):
 
 
 class ReactionEnvironment(OrdMixin, Base):
-    reaction_setup_id = Column(Integer, ForeignKey("reaction_setup.id"), primary_key=True)
+    reaction_setup_id = Column(Integer, ForeignKey("reaction_setup.id"), unique=True)
 
     type = Column(
         Enum(
@@ -295,7 +295,7 @@ class ReactionEnvironment(OrdMixin, Base):
 
 
 class ReactionConditions(OrdMixin, Base):
-    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+    reaction_id = Column(Integer, ForeignKey("reaction.id"), unique=True)
 
     temperature = relationship("TemperatureConditions", uselist=False)
     pressure = relationship("PressureConditions", uselist=False)
@@ -310,7 +310,7 @@ class ReactionConditions(OrdMixin, Base):
 
 
 class TemperatureConditions(OrdMixin, Base):
-    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), primary_key=True)
+    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), unique=True)
 
     control = relationship("TemperatureControl", uselist=False)
     setpoint = relationship("Temperature", uselist=False)
@@ -318,7 +318,7 @@ class TemperatureConditions(OrdMixin, Base):
 
 
 class TemperatureControl(OrdMixin, Base):
-    temperature_conditions_id = Column(Integer, ForeignKey("temperature_conditions.id"), primary_key=True)
+    temperature_conditions_id = Column(Integer, ForeignKey("temperature_conditions.id"), unique=True)
 
     type = Column(
         Enum(
@@ -330,7 +330,7 @@ class TemperatureControl(OrdMixin, Base):
 
 
 class TemperatureControlMeasurement(OrdMixin, Base):
-    temperature_conditions_id = Column(Integer, ForeignKey("temperature_conditions.id"), primary_key=True)
+    temperature_conditions_id = Column(Integer, ForeignKey("temperature_conditions.id"))
 
     type = Column(
         Enum(
@@ -344,7 +344,7 @@ class TemperatureControlMeasurement(OrdMixin, Base):
 
 
 class PressureConditions(OrdMixin, Base):
-    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), primary_key=True)
+    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), unique=True)
 
     control = relationship("PressureControl", uselist=False)
     setpoint = relationship("Pressure", uselist=False)
@@ -353,7 +353,7 @@ class PressureConditions(OrdMixin, Base):
 
 
 class PressureControl(OrdMixin, Base):
-    pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"), primary_key=True)
+    pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"), unique=True)
 
     type = Column(
         Enum(
@@ -365,7 +365,7 @@ class PressureControl(OrdMixin, Base):
 
 
 class Atmosphere(OrdMixin, Base):
-    pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"), primary_key=True)
+    pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"), unique=True)
 
     type = Column(
         Enum(
@@ -377,7 +377,7 @@ class Atmosphere(OrdMixin, Base):
 
 
 class PressureControlMeasurement(OrdMixin, Base):
-    pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"), primary_key=True)
+    pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"))
 
     type = Column(
         Enum(
@@ -390,8 +390,10 @@ class PressureControlMeasurement(OrdMixin, Base):
     pressure = relationship("Pressure", uselist=False)
 
 
-class StirringConditions(OrdMixin, Base):
-    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), primary_key=True)
+class StirringConditions(Base):
+    __tablename__ = "stirring_conditions"
+    id = Column(Integer, primary_key=True)
+    _type = Column(String(255), nullable=False)
 
     type = Column(
         Enum(*reaction_pb2.StirringConditions.StirringMethodType.keys(), name="StirringConditions.StirringMethodType")
@@ -399,9 +401,30 @@ class StirringConditions(OrdMixin, Base):
     details = Column(Text)
     rate = relationship("StirringRate", uselist=False)
 
+    __mapper_args__ = {
+        "polymorphic_identity": "stirring_conditions",
+        "polymorphic_on": _type,
+    }
+
+
+class ReactionConditionsStirringConditions(StirringConditions):
+    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_conditions_stirring_conditions",
+    }
+
+
+class ReactionWorkupStirringConditions(StirringConditions):
+    reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"), unique=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction_workup_stirring_conditions",
+    }
+
 
 class StirringRate(OrdMixin, Base):
-    stirring_conditions_id = Column(Integer, ForeignKey("stirring_conditions.id"), primary_key=True)
+    stirring_conditions_id = Column(Integer, ForeignKey("stirring_conditions.id"), unique=True)
 
     type = Column(
         Enum(
@@ -414,7 +437,7 @@ class StirringRate(OrdMixin, Base):
 
 
 class IlluminationConditions(OrdMixin, Base):
-    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), primary_key=True)
+    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), unique=True)
 
     type = Column(
         Enum(
@@ -428,7 +451,7 @@ class IlluminationConditions(OrdMixin, Base):
 
 
 class ElectrochemistryConditions(OrdMixin, Base):
-    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), primary_key=True)
+    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), unique=True)
 
     type = Column(
         Enum(
@@ -447,7 +470,7 @@ class ElectrochemistryConditions(OrdMixin, Base):
 
 
 class ElectrochemistryConditionsMeasurement(OrdMixin, Base):
-    electrochemistry_conditions_id = Column(Integer, ForeignKey("electrochemistry_conditions.id"), primary_key=True)
+    electrochemistry_conditions_id = Column(Integer, ForeignKey("electrochemistry_conditions.id"))
 
     time = relationship("Time", uselist=False)
     current = relationship("Current", uselist=False)
@@ -455,7 +478,7 @@ class ElectrochemistryConditionsMeasurement(OrdMixin, Base):
 
 
 class ElectrochemistryCell(OrdMixin, Base):
-    electrochemistry_conditions_id = Column(Integer, ForeignKey("electrochemistry_conditions.id"), primary_key=True)
+    electrochemistry_conditions_id = Column(Integer, ForeignKey("electrochemistry_conditions.id"), unique=True)
 
     type = Column(
         Enum(
@@ -467,7 +490,7 @@ class ElectrochemistryCell(OrdMixin, Base):
 
 
 class FlowConditions(OrdMixin, Base):
-    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), primary_key=True)
+    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), unique=True)
 
     type = Column(Enum(*reaction_pb2.FlowConditions.FlowType.keys(), name="FlowConditions.FlowType"))
     details = Column(Text)
@@ -476,7 +499,7 @@ class FlowConditions(OrdMixin, Base):
 
 
 class Tubing(OrdMixin, Base):
-    flow_conditions_id = Column(Integer, ForeignKey("flow_conditions.id"), primary_key=True)
+    flow_conditions_id = Column(Integer, ForeignKey("flow_conditions.id"), unique=True)
 
     type = Column(Enum(*reaction_pb2.FlowConditions.Tubing.TubingType.keys(), name="FlowConditions.Tubing.TubingType"))
     details = Column(Text)
@@ -484,7 +507,7 @@ class Tubing(OrdMixin, Base):
 
 
 class ReactionNotes(OrdMixin, Base):
-    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+    reaction_id = Column(Integer, ForeignKey("reaction.id"), unique=True)
 
     is_heterogeneous = Column(Boolean)
     forms_precipitate = Column(Boolean)
@@ -498,7 +521,7 @@ class ReactionNotes(OrdMixin, Base):
 
 
 class ReactionObservation(OrdMixin, Base):
-    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+    reaction_id = Column(Integer, ForeignKey("reaction.id"))
 
     time = relationship("Time", uselist=False)
     comment = Column(Text)
@@ -506,7 +529,7 @@ class ReactionObservation(OrdMixin, Base):
 
 
 class ReactionWorkup(OrdMixin, Base):
-    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+    reaction_id = Column(Integer, ForeignKey("reaction.id"))
 
     type = Column(Enum(*reaction_pb2.ReactionWorkup.WorkupType.keys(), name="ReactionWorkup.WorkupType"))
     details = Column(Text)
@@ -521,7 +544,7 @@ class ReactionWorkup(OrdMixin, Base):
 
 
 class ReactionOutcome(OrdMixin, Base):
-    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+    reaction_id = Column(Integer, ForeignKey("reaction.id"))
 
     reaction_time = relationship("Time", uselist=False)
     conversion = relationship("Percentage", uselist=False)
@@ -530,7 +553,7 @@ class ReactionOutcome(OrdMixin, Base):
 
 
 class ProductCompound(OrdMixin, Base):
-    reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"), primary_key=True)
+    reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"))
 
     identifiers = relationship("CompoundIdentifier")
     is_desired_product = Column(Boolean)
@@ -542,7 +565,7 @@ class ProductCompound(OrdMixin, Base):
 
 
 class Texture(OrdMixin, Base):
-    product_compound_id = Column(Integer, ForeignKey("product_compound.id"), primary_key=True)
+    product_compound_id = Column(Integer, ForeignKey("product_compound.id"), unique=True)
 
     type = Column(
         Enum(*reaction_pb2.ProductCompound.Texture.TextureType.keys(), name="ProductCompound.Texture.TextureType")
@@ -551,7 +574,7 @@ class Texture(OrdMixin, Base):
 
 
 class ProductMeasurement(OrdMixin, Base):
-    product_compound_id = Column(Integer, ForeignKey("product_compound.id"), primary_key=True)
+    product_compound_id = Column(Integer, ForeignKey("product_compound.id"))
 
     analysis_key = Column(String(255))
     type = Column(
@@ -573,7 +596,7 @@ class ProductMeasurement(OrdMixin, Base):
 
 
 class MassSpecMeasurementDetails(OrdMixin, Base):
-    product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), primary_key=True)
+    product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), unique=True)
 
     type = Column(
         Enum(
@@ -588,7 +611,7 @@ class MassSpecMeasurementDetails(OrdMixin, Base):
 
 
 class Selectivity(OrdMixin, Base):
-    product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), primary_key=True)
+    product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), unique=True)
 
     type = Column(
         Enum(
@@ -614,7 +637,7 @@ class Analysis(OrdMixin, Base):
 
 
 class ReactionProvenance(OrdMixin, Base):
-    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+    reaction_id = Column(Integer, ForeignKey("reaction.id"), unique=True)
 
     experimenter = relationship("Person", uselist=False)
     city = Column(String(255))
@@ -627,7 +650,7 @@ class ReactionProvenance(OrdMixin, Base):
 
 
 class Person(OrdMixin, Base):
-    reaction_provenance_id = Column(Integer, ForeignKey("reaction_provenance.id"), primary_key=True)
+    reaction_provenance_id = Column(Integer, ForeignKey("reaction_provenance.id"), unique=True)
 
     username = Column(String(255))
     name = Column(String(255))
