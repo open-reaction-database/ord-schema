@@ -361,3 +361,250 @@ class ElectrochemistryCell(OrdMixin, Base):
 
     type = Column(Enum(reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType.keys()))
     details = Column(Text)
+
+
+class FlowConditions(OrdMixin, Base):
+    reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), primary_key=True)
+
+    type = Column(Enum(reaction_pb2.FlowConditions.FlowType.keys()))
+    details = Column(Text)
+    pump_type = Column(Text)
+    tubing = relationship("Tubing", uselist=False)
+
+
+class Tubing(OrdMixin, Base):
+    flow_conditions_id = Column(Integer, ForeignKey("flow_conditions.id"), primary_key=True)
+
+    type = Column(Enum(reaction_pb2.FlowConditions.Tubing.TubingType.keys()))
+    details = Column(Text)
+    diameter = relationship("Length", uselist=False)
+
+class ReactionNotes(OrdMixin, Base):
+    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+
+    is_heterogeneous = Column(Boolean)
+    forms_precipitate = Column(Boolean)
+    is_exothermic = Column(Boolean)
+    offgasses = Column(Boolean)
+    is_sensitive_to_moisture = Column(Boolean)
+    is_sensitive_to_oxygen = Column(Boolean)
+    is_sensitive_to_light = Column(Boolean)
+    safety_notes = Column(Text)
+    procedure_details = Column(Text)
+
+class ReactionObservation(OrdMixin, Base):
+    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+
+    time = relationship("Time", uselist=False)
+    comment = Column(Text)
+    image = relationship("Data", uselist=False)
+
+class ReactionWorkup(OrdMixin, Base):
+    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+
+    type = Column(Enum(reaction_pb2.ReactionWorkup.WorkupType.keys()))
+    details = Column(Text)
+    duration = relationship("Time", uselist=False)
+    input = relationship("ReactionInput", uselist=False)
+    amount = relationship("Amount", uselist=False)
+    temperature = relationship("TemperatureConditions", uselist=False)
+    keep_phase = Column(String(255))
+    stirring = relationship("StirringConditions", uselist=False)
+    target_ph = Column(Float)
+    is_automated = Column(Boolean)
+
+
+class ReactionOutcome(OrdMixin, Base):
+    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+
+    reaction_time = relationship("Time", uselist=False)
+    conversion = relationship("Percentage", uselist=False)
+    products = relationship("ProductCompound")
+    analyses = relationship("Analysis")
+
+
+class ProductCompound(OrdMixin, Base):
+    reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"), primary_key=True)
+
+    identifiers = relationship("CompoundIdentifier")
+    is_desired_product = Column(Boolean)
+    measurements = relationship("ProductMeasurement")
+    isolated_color = Column(String(255))
+    texture = relationship("Texture", uselist=False)
+    features = relationship("Data")
+    reaction_role = Column(Enum(reaction_pb2.ReactionRole.ReactionRoleType.keys()))
+
+
+class Texture(OrdMixin, Base):
+    product_compound_id = Column(Integer, ForeignKey("product_compound.id"), primary_key=True)
+
+    type = Column(Enum(reaction_pb2.ProductCompound.Texture.TextureType.keys()))
+    details = Column(Text)
+
+class ProductMeasurement(OrdMixin, Base):
+    product_compound_id = Column(Integer, ForeignKey("product_compound.id"), primary_key=True)
+
+    analysis_key = Column(String(255))
+    type = Column(Enum(reaction_pb2.ProductMeasurement.MeasurementType.keys()))
+    details = Column(Text)
+    uses_internal_standard = Column(Boolean)
+    is_normalized = Column(Boolean)
+    uses_authentic_standard = Column(Boolean)
+    authentic_standard = relationship("Compound", uselist=False)
+    percentage = relationship("Percentage", uselist=False)
+    float_value = relationship("FloatValue", uselist=False)
+    string_value = Column(Text)
+    amount = relationship("Amount", uselist=False)
+    retention_time = relationship("Time", uselist=False)
+    mass_spec_details = relationship("MassSpecMeasurementDetails", uselist=False)
+    selectivity = relationship("Selectivity", uselist=False)
+    wavelength = relationship("Wavelength", uselist=False)
+
+class MassSpecMeasurementDetails(OrdMixin, Base):
+    product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), primary_key=True)
+
+    type = Column(Enum(reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType.keys()))
+    details = Column(Text)
+    tic_minimum_mz = Column(Float)
+    tic_maximum_mz = Column(Float)
+    eic_masses = relationship("FloatValue")
+
+
+class Selectivity(OrdMixin, Base):
+    product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), primary_key=True)
+
+    type = Column(Enum(reaction_pb2.ProductMeasurement.Selectivity.SelectivityType.keys()))
+    details = Column(Text)
+
+
+class DateTime(OrdMixin, Base):
+    value = Column(String(255))
+
+class Analysis(OrdMixin, Base):
+    type = Column(Enum(reaction_pb2.Analysis.AnalysisType.keys()))
+    details = Column(Text)
+    chmo_id = Column(Integer)
+    is_of_isolated_species = Column(Boolean)
+    data = relationship("Data")
+    instrument_manufacturer = Column(String(255))
+    instrument_last_calibrated = relationship("DateTime", uselist=False)
+
+
+class ReactionProvenance(OrdMixin, Base):
+    reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
+
+    experimenter = relationship("Person", uselist=False)
+    city = Column(String(255))
+    experiment_start = relationship("DateTime", uselist=False)
+    doi = Column(String(255))
+    patent = Column(String(255))
+    publication_url = Column(Text)
+    record_created = relationship("RecordEvent", uselist=False)
+    record_modified = relationship("RecordEvent")
+
+class Person(OrdMixin, Base):
+    reaction_provenance_id = Column(Integer, ForeignKey("reaction_provenance.id"), primary_key=True)
+
+    username = Column(String(255))
+    name = Column(String(255))
+    orcid = Column(String(19))
+    organization = Column(String(255))
+    email = Column(String(255))
+
+
+class RecordEvent(OrdMixin, Base):
+    time = relationship("DateTime", uselist=False)
+    person = relationship("Person", uselist=False)
+    details = Column(Text)
+
+class Time(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+    units = Column(Enum(reaction_pb2.Time.TimeUnit.keys()))
+
+
+class Mass(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+    units = Column(Enum(reaction_pb2.Mass.MassUnit.keys()))
+
+
+class Moles(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+    units = Column(Enum(reaction_pb2.Moles.MolesUnit.keys()))
+
+
+
+class Volume(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+    units = Column(Enum(reaction_pb2.Volume.VolumeUnit.keys()))
+
+
+class Concentration(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+    units = Column(Enum(reaction_pb2.Concentration.ConcentrationUnit.keys()))
+
+
+class Pressure(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+    units = Column(Enum(reaction_pb2.Pressure.PressureUnit.keys()))
+
+
+class Temperature(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+    units = Column(Enum(reaction_pb2.Temperature.TemperatureUnit.keys()))
+
+
+class Current(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+    units = Column(Enum(reaction_pb2.Current.CurrentUnit.keys()))
+
+
+class Voltage(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+    units = Column(Enum(reaction_pb2.Voltage.VoltageUnit.keys()))
+
+
+class Length(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+    units = Column(Enum(reaction_pb2.Length.LengthUnit.keys()))
+
+
+class Wavelength(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+    units = Column(Enum(reaction_pb2.Wavelength.WavelengthUnit.keys()))
+
+
+class FlowRate(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+    units = Column(Enum(reaction_pb2.FlowRate.FlowRateUnit.keys()))
+
+
+class Percentage(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+
+
+class FloatValue(OrdMixin, Base):
+    value = Column(Float)
+    precision = Column(Float)
+
+
+class Data(OrdMixin, Base):
+    float_value = Column(Float)
+    integer_value = Column(Integer)
+    bytes_value = Column(LargeBinary)
+    string_value = Column(Text)
+    url = Column(Text)
+    description = Column(Text)
+    format = Column(String(255))
