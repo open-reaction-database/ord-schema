@@ -24,6 +24,7 @@ from ord_schema.proto import reaction_pb2
 
 Base = declarative_base()
 
+
 @declarative_mixin
 class OrdMixin:
     """See https://docs.sqlalchemy.org/en/14/orm/declarative_mixins.html.
@@ -36,6 +37,7 @@ class OrdMixin:
         return underscore(self.__name__)
 
     id = Column(Integer, primary_key=True)
+
 
 class Reaction(OrdMixin, Base):
     name = Column(String(32), nullable=False)
@@ -51,13 +53,17 @@ class Reaction(OrdMixin, Base):
     outcomes = relationship("ReactionOutcome")
     provenance = relationship("ReactionProvenance", uselist=False)
 
+
 class ReactionIdentifier(OrdMixin, Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.ReactionIdentifier.IdentifierType.keys()))
+    type = Column(
+        Enum(*reaction_pb2.ReactionIdentifier.IdentifierType.keys(), name="ReactionIdentifier.IdentifierType")
+    )
     details = Column(Text)
     value = Column(Text)
     is_mapped = Column(Boolean)
+
 
 class ReactionInput(OrdMixin, Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
@@ -73,17 +79,28 @@ class ReactionInput(OrdMixin, Base):
     addition_device = relationship("AdditionDevice", uselist=False)
     addition_temperature = relationship("Temperature", uselist=False)
 
+
 class AdditionSpeed(OrdMixin, Base):
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.ReactionInput.AdditionSpeed.AdditionSpeedType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.ReactionInput.AdditionSpeed.AdditionSpeedType.keys(),
+            name="ReactionInput.AdditionSpeed.AdditionSpeedType"
+        )
+    )
     details = Column(Text)
 
 
 class AdditionDevice(OrdMixin, Base):
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.ReactionInput.AdditionDevice.AdditionDeviceType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.ReactionInput.AdditionDevice.AdditionDeviceType.keys(),
+            name="ReactionInput.AdditionDevice.AdditionDeviceType"
+        )
+    )
     details = Column(Text)
 
 
@@ -111,12 +128,14 @@ class CrudeComponentAmount(Amount):
         "polymorphic_identity": "crude_component_amount",
     }
 
+
 class CompoundAmount(Amount):
     compound_id = Column(Integer, ForeignKey("compound.id"))
 
     __mapper_args__ = {
         "polymorphic_identity": "compound_amount",
     }
+
 
 class ReactionWorkupAmount(Amount):
     reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"))
@@ -136,14 +155,24 @@ class ProductMeasurementAmount(Amount):
 
 class UnmeasuredAmount(OrdMixin, Base):
     amount_id = Column(Integer, ForeignKey("amount.id"), primary_key=True)
-    type = Column(Enum(*reaction_pb2.UnmeasuredAmount.UnmeasuredAmountType.keys()))
+    type = Column(
+        Enum(*reaction_pb2.UnmeasuredAmount.UnmeasuredAmountType.keys(), name="UnmeasuredAmount.UnmeasuredAmountType")
+    )
     details = Column(Text)
+
 
 class CrudeComponent(OrdMixin, Base):
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), primary_key=True)
     includes_workup = Column(Boolean)
     has_derived_amount = Column(Boolean)
     amount = relationship("Amount", uselist=False)
+
+
+# Shared enum; see https://docs.sqlalchemy.org/en/14/dialects/postgresql.html#sqlalchemy.dialects.postgresql.ENUM.
+ReactionRoleType = Enum(
+    *reaction_pb2.ReactionRole.ReactionRoleType.keys(), name="ReactionRole.ReactionRoleType", metadata=Base.metadata
+)
+
 
 class Compound(Base):
     __tablename__ = "compound"
@@ -152,7 +181,7 @@ class Compound(Base):
 
     identifiers = relationship("CompoundIdentifier")
     amount = relationship("Amount")
-    reaction_role = Column(Enum(*reaction_pb2.ReactionRole.ReactionRoleType.keys()))
+    reaction_role = Column(ReactionRoleType)
     is_limiting = Column(Boolean)
     preparations = relationship("CompoundPreparation")
     source = relationship("Source", uselist=False)
@@ -184,7 +213,9 @@ class ProductMeasurementCompound(Compound):
 class CompoundPreparation(OrdMixin, Base):
     compound_id = Column(Integer, ForeignKey("compound.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.CompoundPreparation.PreparationType.keys()))
+    type = Column(
+        Enum(*reaction_pb2.CompoundPreparation.PreparationType.keys(), name="CompoundPreparation.PreparationType")
+    )
     details = Column(Text)
     reaction_id = Column(Integer, ForeignKey("reaction.id"))
 
@@ -192,7 +223,9 @@ class CompoundPreparation(OrdMixin, Base):
 class CompoundIdentifier(OrdMixin, Base):
     compound_id = Column(Integer, ForeignKey("compound.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.CompoundIdentifier.IdentifierType.keys()))
+    type = Column(
+        Enum(*reaction_pb2.CompoundIdentifier.IdentifierType.keys(), name="CompoundIdentifier.IdentifierType")
+    )
     details = Column(Text)
     value = Column(Text)
 
@@ -200,7 +233,7 @@ class CompoundIdentifier(OrdMixin, Base):
 class Vessel(OrdMixin, Base):
     reaction_setup_id = Column(Integer, ForeignKey("reaction_setup.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.Vessel.VesselType.keys()))
+    type = Column(Enum(*reaction_pb2.Vessel.VesselType.keys(), name="Vessel.VesselType"))
     details = Column(Text)
     material = relationship("VesselMaterial", uselist=False)
     preparations = relationship("VesselPreparation")
@@ -213,21 +246,31 @@ class Vessel(OrdMixin, Base):
 class VesselMaterial(OrdMixin, Base):
     vessel_id = Column(Integer, ForeignKey("vessel.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.VesselMaterial.VesselMaterialType.keys()))
+    type = Column(
+        Enum(*reaction_pb2.VesselMaterial.VesselMaterialType.keys(), name="VesselMaterial.VesselMaterialType")
+    )
     details = Column(Text)
+
 
 class VesselAttachment(OrdMixin, Base):
     vessel_id = Column(Integer, ForeignKey("vessel.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.VesselAttachment.VesselAttachmentType.keys()))
+    type = Column(
+        Enum(*reaction_pb2.VesselAttachment.VesselAttachmentType.keys(), name="VesselAttachment.VesselAttachmentType")
+    )
     details = Column(Text)
 
 
 class VesselPreparation(OrdMixin, Base):
     vessel_id = Column(Integer, ForeignKey("vessel.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.VesselPreparation.VesselPreparationType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.VesselPreparation.VesselPreparationType.keys(), name="VesselPreparation.VesselPreparationType"
+        )
+    )
     details = Column(Text)
+
 
 class ReactionSetup(OrdMixin, Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
@@ -242,7 +285,12 @@ class ReactionSetup(OrdMixin, Base):
 class ReactionEnvironment(OrdMixin, Base):
     reaction_setup_id = Column(Integer, ForeignKey("reaction_setup.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.ReactionSetup.ReactionEnvironment.ReactionEnvironmentType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.ReactionSetup.ReactionEnvironment.ReactionEnvironmentType.keys(),
+            name="ReactionSetup.ReactionEnvironment.ReactionEnvironmentType"
+        )
+    )
     details = Column(Text)
 
 
@@ -272,13 +320,24 @@ class TemperatureConditions(OrdMixin, Base):
 class TemperatureControl(OrdMixin, Base):
     temperature_conditions_id = Column(Integer, ForeignKey("temperature_conditions.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.TemperatureConditions.TemperatureControl.TemperatureControlType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.TemperatureConditions.TemperatureControl.TemperatureControlType.keys(),
+            name="TemperatureConditions.TemperatureControl.TemperatureControlType"
+        )
+    )
     details = Column(Text)
+
 
 class TemperatureControlMeasurement(OrdMixin, Base):
     temperature_conditions_id = Column(Integer, ForeignKey("temperature_conditions.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.TemperatureConditions.Measurement.MeasurementType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.TemperatureConditions.Measurement.MeasurementType.keys(),
+            name="TemperatureConditions.Measurement.MeasurementType"
+        )
+    )
     details = Column(Text)
     time = relationship("Time", uselist=False)
     temperature = relationship("Temperature", uselist=False)
@@ -296,20 +355,36 @@ class PressureConditions(OrdMixin, Base):
 class PressureControl(OrdMixin, Base):
     pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.PressureConditions.PressureControl.PressureControlType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.PressureConditions.PressureControl.PressureControlType.keys(),
+            name="PressureConditions.PressureControl.PressureControlType"
+        )
+    )
     details = Column(Text)
+
 
 class Atmosphere(OrdMixin, Base):
     pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.PressureConditions.Atmosphere.AtmosphereType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.PressureConditions.Atmosphere.AtmosphereType.keys(),
+            name="PressureConditions.Atmosphere.AtmosphereType"
+        )
+    )
     details = Column(Text)
 
 
 class PressureControlMeasurement(OrdMixin, Base):
     pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.PressureConditions.Measurement.MeasurementType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.PressureConditions.Measurement.MeasurementType.keys(),
+            name="PressureConditions.Measurement.MeasurementType"
+        )
+    )
     details = Column(Text)
     time = relationship("Time", uselist=False)
     pressure = relationship("Pressure", uselist=False)
@@ -318,7 +393,9 @@ class PressureControlMeasurement(OrdMixin, Base):
 class StirringConditions(OrdMixin, Base):
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.StirringConditions.StirringMethodType.keys()))
+    type = Column(
+        Enum(*reaction_pb2.StirringConditions.StirringMethodType.keys(), name="StirringConditions.StirringMethodType")
+    )
     details = Column(Text)
     rate = relationship("StirringRate", uselist=False)
 
@@ -326,7 +403,12 @@ class StirringConditions(OrdMixin, Base):
 class StirringRate(OrdMixin, Base):
     stirring_conditions_id = Column(Integer, ForeignKey("stirring_conditions.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.StirringConditions.StirringRate.StirringRateType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.StirringConditions.StirringRate.StirringRateType.keys(),
+            name="StirringConditions.StirringRate.StirringRateType"
+        )
+    )
     details = Column(Text)
     rpm = Column(Integer)
 
@@ -334,16 +416,26 @@ class StirringRate(OrdMixin, Base):
 class IlluminationConditions(OrdMixin, Base):
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.IlluminationConditions.IlluminationType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.IlluminationConditions.IlluminationType.keys(), name="IlluminationConditions.IlluminationType"
+        )
+    )
     details = Column(Text)
     peak_wavelength = relationship("Wavelength", uselist=False)
     color = Column(String(255))
     distance_to_vessel = relationship("Length", uselist=False)
 
+
 class ElectrochemistryConditions(OrdMixin, Base):
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.ElectrochemistryConditions.ElectrochemistryType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.ElectrochemistryConditions.ElectrochemistryType.keys(),
+            name="ElectrochemistryConditions.ElectrochemistryType"
+        )
+    )
     details = Column(Text)
     current = relationship("Current", uselist=False)
     voltage = relationship("Voltage", uselist=False)
@@ -365,14 +457,19 @@ class ElectrochemistryConditionsMeasurement(OrdMixin, Base):
 class ElectrochemistryCell(OrdMixin, Base):
     electrochemistry_conditions_id = Column(Integer, ForeignKey("electrochemistry_conditions.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType.keys(),
+            name="ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType"
+        )
+    )
     details = Column(Text)
 
 
 class FlowConditions(OrdMixin, Base):
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.FlowConditions.FlowType.keys()))
+    type = Column(Enum(*reaction_pb2.FlowConditions.FlowType.keys(), name="FlowConditions.FlowType"))
     details = Column(Text)
     pump_type = Column(Text)
     tubing = relationship("Tubing", uselist=False)
@@ -381,9 +478,10 @@ class FlowConditions(OrdMixin, Base):
 class Tubing(OrdMixin, Base):
     flow_conditions_id = Column(Integer, ForeignKey("flow_conditions.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.FlowConditions.Tubing.TubingType.keys()))
+    type = Column(Enum(*reaction_pb2.FlowConditions.Tubing.TubingType.keys(), name="FlowConditions.Tubing.TubingType"))
     details = Column(Text)
     diameter = relationship("Length", uselist=False)
+
 
 class ReactionNotes(OrdMixin, Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
@@ -398,6 +496,7 @@ class ReactionNotes(OrdMixin, Base):
     safety_notes = Column(Text)
     procedure_details = Column(Text)
 
+
 class ReactionObservation(OrdMixin, Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
 
@@ -405,10 +504,11 @@ class ReactionObservation(OrdMixin, Base):
     comment = Column(Text)
     image = relationship("Data", uselist=False)
 
+
 class ReactionWorkup(OrdMixin, Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.ReactionWorkup.WorkupType.keys()))
+    type = Column(Enum(*reaction_pb2.ReactionWorkup.WorkupType.keys(), name="ReactionWorkup.WorkupType"))
     details = Column(Text)
     duration = relationship("Time", uselist=False)
     input = relationship("ReactionInput", uselist=False)
@@ -438,20 +538,25 @@ class ProductCompound(OrdMixin, Base):
     isolated_color = Column(String(255))
     texture = relationship("Texture", uselist=False)
     features = relationship("Data")
-    reaction_role = Column(Enum(*reaction_pb2.ReactionRole.ReactionRoleType.keys()))
+    reaction_role = Column(ReactionRoleType)
 
 
 class Texture(OrdMixin, Base):
     product_compound_id = Column(Integer, ForeignKey("product_compound.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.ProductCompound.Texture.TextureType.keys()))
+    type = Column(
+        Enum(*reaction_pb2.ProductCompound.Texture.TextureType.keys(), name="ProductCompound.Texture.TextureType")
+    )
     details = Column(Text)
+
 
 class ProductMeasurement(OrdMixin, Base):
     product_compound_id = Column(Integer, ForeignKey("product_compound.id"), primary_key=True)
 
     analysis_key = Column(String(255))
-    type = Column(Enum(*reaction_pb2.ProductMeasurement.MeasurementType.keys()))
+    type = Column(
+        Enum(*reaction_pb2.ProductMeasurement.MeasurementType.keys(), name="ProductMeasurement.MeasurementType")
+    )
     details = Column(Text)
     uses_internal_standard = Column(Boolean)
     is_normalized = Column(Boolean)
@@ -466,10 +571,16 @@ class ProductMeasurement(OrdMixin, Base):
     selectivity = relationship("Selectivity", uselist=False)
     wavelength = relationship("Wavelength", uselist=False)
 
+
 class MassSpecMeasurementDetails(OrdMixin, Base):
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType.keys(),
+            name="ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType"
+        )
+    )
     details = Column(Text)
     tic_minimum_mz = Column(Float)
     tic_maximum_mz = Column(Float)
@@ -479,15 +590,21 @@ class MassSpecMeasurementDetails(OrdMixin, Base):
 class Selectivity(OrdMixin, Base):
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), primary_key=True)
 
-    type = Column(Enum(*reaction_pb2.ProductMeasurement.Selectivity.SelectivityType.keys()))
+    type = Column(
+        Enum(
+            *reaction_pb2.ProductMeasurement.Selectivity.SelectivityType.keys(),
+            name="ProductMeasurement.Selectivity.SelectivityType"
+        )
+    )
     details = Column(Text)
 
 
 class DateTime(OrdMixin, Base):
     value = Column(String(255))
 
+
 class Analysis(OrdMixin, Base):
-    type = Column(Enum(*reaction_pb2.Analysis.AnalysisType.keys()))
+    type = Column(Enum(*reaction_pb2.Analysis.AnalysisType.keys(), name="Analysis.AnalysisType"))
     details = Column(Text)
     chmo_id = Column(Integer)
     is_of_isolated_species = Column(Boolean)
@@ -508,6 +625,7 @@ class ReactionProvenance(OrdMixin, Base):
     record_created = relationship("RecordEvent", uselist=False)
     record_modified = relationship("RecordEvent")
 
+
 class Person(OrdMixin, Base):
     reaction_provenance_id = Column(Integer, ForeignKey("reaction_provenance.id"), primary_key=True)
 
@@ -523,77 +641,77 @@ class RecordEvent(OrdMixin, Base):
     person = relationship("Person", uselist=False)
     details = Column(Text)
 
+
 class Time(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
-    units = Column(Enum(*reaction_pb2.Time.TimeUnit.keys()))
+    units = Column(Enum(*reaction_pb2.Time.TimeUnit.keys(), name="Time.TimeUnit"))
 
 
 class Mass(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
-    units = Column(Enum(*reaction_pb2.Mass.MassUnit.keys()))
+    units = Column(Enum(*reaction_pb2.Mass.MassUnit.keys(), name="Mass.MassUnit"))
 
 
 class Moles(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
-    units = Column(Enum(*reaction_pb2.Moles.MolesUnit.keys()))
-
+    units = Column(Enum(*reaction_pb2.Moles.MolesUnit.keys(), name="Moles.MolesUnit"))
 
 
 class Volume(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
-    units = Column(Enum(*reaction_pb2.Volume.VolumeUnit.keys()))
+    units = Column(Enum(*reaction_pb2.Volume.VolumeUnit.keys(), name="Volume.VolumeUnit"))
 
 
 class Concentration(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
-    units = Column(Enum(*reaction_pb2.Concentration.ConcentrationUnit.keys()))
+    units = Column(Enum(*reaction_pb2.Concentration.ConcentrationUnit.keys(), name="Concentration.ConcentrationUnit"))
 
 
 class Pressure(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
-    units = Column(Enum(*reaction_pb2.Pressure.PressureUnit.keys()))
+    units = Column(Enum(*reaction_pb2.Pressure.PressureUnit.keys(), name="Pressure.PressureUnit"))
 
 
 class Temperature(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
-    units = Column(Enum(*reaction_pb2.Temperature.TemperatureUnit.keys()))
+    units = Column(Enum(*reaction_pb2.Temperature.TemperatureUnit.keys(), name="Temperature.TemperatureUnit"))
 
 
 class Current(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
-    units = Column(Enum(*reaction_pb2.Current.CurrentUnit.keys()))
+    units = Column(Enum(*reaction_pb2.Current.CurrentUnit.keys(), name="Current.CurrentUnit"))
 
 
 class Voltage(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
-    units = Column(Enum(*reaction_pb2.Voltage.VoltageUnit.keys()))
+    units = Column(Enum(*reaction_pb2.Voltage.VoltageUnit.keys(), name="Voltage.VoltageUnit"))
 
 
 class Length(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
-    units = Column(Enum(*reaction_pb2.Length.LengthUnit.keys()))
+    units = Column(Enum(*reaction_pb2.Length.LengthUnit.keys(), name="Length.LengthUnit"))
 
 
 class Wavelength(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
-    units = Column(Enum(*reaction_pb2.Wavelength.WavelengthUnit.keys()))
+    units = Column(Enum(*reaction_pb2.Wavelength.WavelengthUnit.keys(), name="Wavelength.WavelengthUnit"))
 
 
 class FlowRate(OrdMixin, Base):
     value = Column(Float)
     precision = Column(Float)
-    units = Column(Enum(*reaction_pb2.FlowRate.FlowRateUnit.keys()))
+    units = Column(Enum(*reaction_pb2.FlowRate.FlowRateUnit.keys(), name="FlowRate.FlowRateUnit"))
 
 
 class Percentage(OrdMixin, Base):
