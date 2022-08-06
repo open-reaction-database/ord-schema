@@ -15,8 +15,10 @@ Notes:
 from __future__ import annotations
 
 from inspect import getmro
+from typing import Type
 
 from inflection import underscore
+from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.message import Message
 from sqlalchemy import (
     Boolean,
@@ -32,11 +34,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship
 
 from ord_schema.proto import reaction_pb2
-
-
-def enum_to_str(message: Message, field: str) -> str:
-    assert len(message.DESCRIPTOR.enum_types) == 1, message.DESCRIPTOR.name
-    return message.DESCRIPTOR.enum_types[0].values_by_number[getattr(message, field)].name
 
 
 class Base:
@@ -88,8 +85,6 @@ class Child:
 
 
 class Reaction(Base):
-    PROTO = reaction_pb2.Reaction
-
     name = Column(String(32), nullable=False)
     proto = Column(LargeBinary, nullable=False)
 
@@ -112,7 +107,6 @@ class Reaction(Base):
 
 
 class ReactionIdentifier(Base):
-    PROTO = reaction_pb2.ReactionIdentifier
     reaction_id = Column(Integer, ForeignKey("reaction.id"))
 
     type = Column(
@@ -124,8 +118,6 @@ class ReactionIdentifier(Base):
 
 
 class ReactionInput(Parent, Base):
-    PROTO = reaction_pb2.ReactionInput
-
     components = relationship("ReactionInputComponents")
     crude_components = relationship("CrudeComponent")
     addition_order = Column(Integer)
@@ -147,7 +139,6 @@ class ReactionWorkupInput(Child, ReactionInput):
 
 
 class AdditionSpeed(Base):
-    PROTO = reaction_pb2.ReactionInput.AdditionSpeed
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
 
     type = Column(
@@ -172,8 +163,6 @@ class AdditionDevice(Base):
 
 
 class Amount(Parent, Base):
-    PROTO = reaction_pb2.Amount
-
     mass = relationship("Mass", uselist=False)
     moles = relationship("Moles", uselist=False)
     volume = relationship("AmountVolume", uselist=False)
@@ -198,7 +187,6 @@ class ProductMeasurementAmount(Child, Amount):
 
 
 class UnmeasuredAmount(Base):
-    PROTO = reaction_pb2.UnmeasuredAmount
     amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
 
     type = Column(
@@ -208,7 +196,6 @@ class UnmeasuredAmount(Base):
 
 
 class CrudeComponent(Base):
-    PROTO = reaction_pb2.CrudeComponent
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"))
 
     includes_workup = Column(Boolean)
@@ -223,8 +210,6 @@ ReactionRoleType = Enum(
 
 
 class Compound(Parent, Base):
-    PROTO = reaction_pb2.Compound
-
     identifiers = relationship("CompoundIdentifiers")
     amount = relationship("CompoundAmount")
     reaction_role = Column(ReactionRoleType)
@@ -236,7 +221,6 @@ class Compound(Parent, Base):
 
 
 class Source(Base):
-    PROTO = reaction_pb2.Compound.Source
     compound_id = Column(Integer, ForeignKey("compound.id"), unique=True)
 
     vendor = Column(String(255))
@@ -253,7 +237,6 @@ class ProductMeasurementAuthenticStandard(Child, Compound):
 
 
 class CompoundPreparation(Base):
-    PROTO = reaction_pb2.CompoundPreparation
     compound_id = Column(Integer, ForeignKey("compound.id"))
 
     type = Column(
@@ -264,8 +247,6 @@ class CompoundPreparation(Base):
 
 
 class CompoundIdentifier(Parent, Base):
-    PROTO = reaction_pb2.CompoundIdentifier
-
     type = Column(
         Enum(*reaction_pb2.CompoundIdentifier.IdentifierType.keys(), name="CompoundIdentifier.IdentifierType")
     )
@@ -282,7 +263,6 @@ class ProductCompoundIdentifiers(Child, CompoundIdentifier):
 
 
 class Vessel(Base):
-    PROTO = reaction_pb2.Vessel
     reaction_setup_id = Column(Integer, ForeignKey("reaction_setup.id"), unique=True)
 
     type = Column(Enum(*reaction_pb2.Vessel.VesselType.keys(), name="Vessel.VesselType"))
@@ -296,7 +276,6 @@ class Vessel(Base):
 
 
 class VesselMaterial(Base):
-    PROTO = reaction_pb2.VesselMaterial
     vessel_id = Column(Integer, ForeignKey("vessel.id"), unique=True)
 
     type = Column(
@@ -306,7 +285,6 @@ class VesselMaterial(Base):
 
 
 class VesselAttachment(Base):
-    PROTO = reaction_pb2.VesselAttachment
     vessel_id = Column(Integer, ForeignKey("vessel.id"))
 
     type = Column(
@@ -316,7 +294,6 @@ class VesselAttachment(Base):
 
 
 class VesselPreparation(Base):
-    PROTO = reaction_pb2.VesselPreparation
     vessel_id = Column(Integer, ForeignKey("vessel.id"))
 
     type = Column(
@@ -328,7 +305,6 @@ class VesselPreparation(Base):
 
 
 class ReactionSetup(Base):
-    PROTO = reaction_pb2.ReactionSetup
     reaction_id = Column(Integer, ForeignKey("reaction.id"), unique=True)
 
     vessel = relationship("Vessel", uselist=False)
@@ -339,7 +315,6 @@ class ReactionSetup(Base):
 
 
 class ReactionEnvironment(Base):
-    PROTO = reaction_pb2.ReactionSetup.ReactionEnvironment
     reaction_setup_id = Column(Integer, ForeignKey("reaction_setup.id"), unique=True)
 
     type = Column(
@@ -352,7 +327,6 @@ class ReactionEnvironment(Base):
 
 
 class ReactionConditions(Base):
-    PROTO = reaction_pb2.ReactionConditions
     reaction_id = Column(Integer, ForeignKey("reaction.id"), unique=True)
 
     temperature = relationship("ReactionConditionsTemperature", uselist=False)
@@ -368,8 +342,6 @@ class ReactionConditions(Base):
 
 
 class TemperatureConditions(Parent, Base):
-    PROTO = reaction_pb2.TemperatureConditions
-
     control = relationship("TemperatureControl", uselist=False)
     setpoint = relationship("TemperatureConditionsSetpoint", uselist=False)
     measurements = relationship("TemperatureConditionsMeasurement")
@@ -384,7 +356,6 @@ class ReactionWorkupTemperature(Child, TemperatureConditions):
 
 
 class TemperatureControl(Base):
-    PROTO = reaction_pb2.TemperatureConditions.TemperatureControl
     temperature_conditions_id = Column(Integer, ForeignKey("temperature_conditions.id"), unique=True)
 
     type = Column(
@@ -397,7 +368,6 @@ class TemperatureControl(Base):
 
 
 class TemperatureConditionsMeasurement(Base):
-    PROTO = reaction_pb2.TemperatureConditions.Measurement
     temperature_conditions_id = Column(Integer, ForeignKey("temperature_conditions.id"))
 
     type = Column(
@@ -412,7 +382,6 @@ class TemperatureConditionsMeasurement(Base):
 
 
 class PressureConditions(Base):
-    PROTO = reaction_pb2.PressureConditions
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), unique=True)
 
     control = relationship("PressureControl", uselist=False)
@@ -422,7 +391,6 @@ class PressureConditions(Base):
 
 
 class PressureControl(Base):
-    PROTO = reaction_pb2.PressureConditions.PressureControl
     pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"), unique=True)
 
     type = Column(
@@ -435,7 +403,6 @@ class PressureControl(Base):
 
 
 class Atmosphere(Base):
-    PROTO = reaction_pb2.PressureConditions.Atmosphere
     pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"), unique=True)
 
     type = Column(
@@ -448,7 +415,6 @@ class Atmosphere(Base):
 
 
 class PressureConditionsMeasurement(Base):
-    PROTO = reaction_pb2.PressureConditions.Measurement
     pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"))
 
     type = Column(
@@ -463,8 +429,6 @@ class PressureConditionsMeasurement(Base):
 
 
 class StirringConditions(Parent, Base):
-    PROTO = reaction_pb2.StirringConditions
-
     type = Column(
         Enum(*reaction_pb2.StirringConditions.StirringMethodType.keys(), name="StirringConditions.StirringMethodType")
     )
@@ -481,7 +445,6 @@ class ReactionWorkupStirring(Child, StirringConditions):
 
 
 class StirringRate(Base):
-    PROTO = reaction_pb2.StirringConditions.StirringRate
     stirring_conditions_id = Column(Integer, ForeignKey("stirring_conditions.id"), unique=True)
 
     type = Column(
@@ -495,7 +458,6 @@ class StirringRate(Base):
 
 
 class IlluminationConditions(Base):
-    PROTO = reaction_pb2.IlluminationConditions
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), unique=True)
 
     type = Column(
@@ -510,7 +472,6 @@ class IlluminationConditions(Base):
 
 
 class ElectrochemistryConditions(Base):
-    PROTO = reaction_pb2.ElectrochemistryConditions
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), unique=True)
 
     type = Column(
@@ -530,7 +491,6 @@ class ElectrochemistryConditions(Base):
 
 
 class ElectrochemistryConditionsMeasurement(Base):
-    PROTO = reaction_pb2.ElectrochemistryConditions.Measurement
     electrochemistry_conditions_id = Column(Integer, ForeignKey("electrochemistry_conditions.id"))
 
     time = relationship("ElectrochemistryConditionsMeasurementTime", uselist=False)
@@ -539,7 +499,6 @@ class ElectrochemistryConditionsMeasurement(Base):
 
 
 class ElectrochemistryCell(Base):
-    PROTO = reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell
     electrochemistry_conditions_id = Column(Integer, ForeignKey("electrochemistry_conditions.id"), unique=True)
 
     type = Column(
@@ -552,7 +511,6 @@ class ElectrochemistryCell(Base):
 
 
 class FlowConditions(Base):
-    PROTO = reaction_pb2.FlowConditions
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), unique=True)
 
     type = Column(Enum(*reaction_pb2.FlowConditions.FlowType.keys(), name="FlowConditions.FlowType"))
@@ -562,7 +520,6 @@ class FlowConditions(Base):
 
 
 class Tubing(Base):
-    PROTO = reaction_pb2.FlowConditions.Tubing
     flow_conditions_id = Column(Integer, ForeignKey("flow_conditions.id"), unique=True)
 
     type = Column(Enum(*reaction_pb2.FlowConditions.Tubing.TubingType.keys(), name="FlowConditions.Tubing.TubingType"))
@@ -571,7 +528,6 @@ class Tubing(Base):
 
 
 class ReactionNotes(Base):
-    PROTO = reaction_pb2.ReactionNotes
     reaction_id = Column(Integer, ForeignKey("reaction.id"), unique=True)
 
     is_heterogeneous = Column(Boolean)
@@ -586,7 +542,6 @@ class ReactionNotes(Base):
 
 
 class ReactionObservation(Base):
-    PROTO = reaction_pb2.ReactionObservation
     reaction_id = Column(Integer, ForeignKey("reaction.id"))
 
     time = relationship("ReactionObservationTime", uselist=False)
@@ -595,7 +550,6 @@ class ReactionObservation(Base):
 
 
 class ReactionWorkup(Base):
-    PROTO = reaction_pb2.ReactionWorkup
     reaction_id = Column(Integer, ForeignKey("reaction.id"))
 
     type = Column(Enum(*reaction_pb2.ReactionWorkup.WorkupType.keys(), name="ReactionWorkup.WorkupType"))
@@ -611,7 +565,6 @@ class ReactionWorkup(Base):
 
 
 class ReactionOutcome(Base):
-    PROTO = reaction_pb2.ReactionOutcome
     reaction_id = Column(Integer, ForeignKey("reaction.id"))
 
     reaction_time = relationship("ReactionOutcomeReactionTime", uselist=False)
@@ -621,7 +574,6 @@ class ReactionOutcome(Base):
 
 
 class ProductCompound(Base):
-    PROTO = reaction_pb2.ProductCompound
     reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"))
 
     identifiers = relationship("ProductCompoundIdentifiers")
@@ -634,7 +586,6 @@ class ProductCompound(Base):
 
 
 class Texture(Base):
-    PROTO = reaction_pb2.ProductCompound.Texture
     product_compound_id = Column(Integer, ForeignKey("product_compound.id"), unique=True)
 
     type = Column(
@@ -644,7 +595,6 @@ class Texture(Base):
 
 
 class ProductMeasurement(Base):
-    PROTO = reaction_pb2.ProductMeasurement
     product_compound_id = Column(Integer, ForeignKey("product_compound.id"))
 
     analysis_key = Column(String(255))
@@ -667,7 +617,6 @@ class ProductMeasurement(Base):
 
 
 class MassSpecMeasurementDetails(Base):
-    PROTO = reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), unique=True)
 
     type = Column(
@@ -683,7 +632,6 @@ class MassSpecMeasurementDetails(Base):
 
 
 class Selectivity(Base):
-    PROTO = reaction_pb2.ProductMeasurement.Selectivity
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), unique=True)
 
     type = Column(
@@ -696,8 +644,6 @@ class Selectivity(Base):
 
 
 class DateTime(Parent, Base):
-    PROTO = reaction_pb2.DateTime
-
     value = Column(String(255))
 
 
@@ -714,8 +660,6 @@ class RecordEventTime(Child, DateTime):
 
 
 class Analysis(Parent, Base):
-    PROTO = reaction_pb2.Analysis
-
     type = Column(Enum(*reaction_pb2.Analysis.AnalysisType.keys(), name="Analysis.AnalysisType"))
     details = Column(Text)
     chmo_id = Column(Integer)
@@ -736,7 +680,6 @@ class ReactionOutcomeAnalyses(Child, Analysis):
 
 
 class ReactionProvenance(Base):
-    PROTO = reaction_pb2.ReactionProvenance
     reaction_id = Column(Integer, ForeignKey("reaction.id"), unique=True)
 
     experimenter = relationship("ReactionProvenanceExperimenter", uselist=False)
@@ -748,49 +691,13 @@ class ReactionProvenance(Base):
     record_created = relationship("ReactionProvenanceRecordCreated", uselist=False)
     record_modified = relationship("ReactionProvenanceRecordModified")
 
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.ReactionProvenance) -> ReactionProvenance:
-        return ReactionProvenance(
-            experimenter=Person.from_proto(message.experimenter),
-            city=message.city,
-            experiment_start=DateTime.from_proto(message.experiment_start),
-            doi=message.doi,
-            patent=message.patent,
-            publication_url=message.publication_url,
-            record_created=RecordEvent.from_proto(message.record_created),
-            record_modified=[RecordEvent.from_proto(event) for event in message.record_modified],
-        )
-
-    def to_proto(self) -> reaction_pb2.ReactionProvenance:
-        return reaction_pb2.ReactionProvenance(username=self.username,
-                                   name=self.name,
-                                   orcid=self.orcid,
-                                   organization=self.organization,
-                                   email=self.email)
-
 
 class Person(Parent, Base):
-    PROTO = reaction_pb2.Person
-
     username = Column(String(255))
     name = Column(String(255))
     orcid = Column(String(19))
     organization = Column(String(255))
     email = Column(String(255))
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Person) -> Person:
-        return Person(
-            username=message.username, name=message.name, orcid=message.orcid, organization=message.organization,
-            email=message.email
-        )
-
-    def to_proto(self) -> reaction_pb2.Person:
-        return reaction_pb2.Person(username=self.username,
-                                   name=self.name,
-                                   orcid=self.orcid,
-                                   organization=self.organization,
-                                   email=self.email)
 
 
 class ReactionProvenanceExperimenter(Child, Person):
@@ -802,20 +709,9 @@ class RecordEventPerson(Child, Person):
 
 
 class RecordEvent(Parent, Base):
-    PROTO = reaction_pb2.RecordEvent
-
     time = relationship("RecordEventTime", uselist=False)
     person = relationship("RecordEventPerson", uselist=False)
     details = Column(Text)
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.RecordEvent) -> RecordEvent:
-        return RecordEvent(
-            time=Time.from_proto(message.time), person=Person.from_proto(message.person), details=message.details
-        )
-
-    def to_proto(self) -> reaction_pb2.RecordEvent:
-        return reaction_pb2.RecordEvent(time=self.time.to_proto(), person=self.person.to_proto(), details=self.details)
 
 
 class ReactionProvenanceRecordCreated(Child, RecordEvent):
@@ -827,18 +723,9 @@ class ReactionProvenanceRecordModified(Child, RecordEvent):
 
 
 class Time(Parent, Base):
-    PROTO = reaction_pb2.Time
-
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Time.TimeUnit.keys(), name="Time.TimeUnit"))
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Time) -> Time:
-        return Time(value=message.value, precision=message.precision, units=enum_to_str(message, "units"))
-
-    def to_proto(self) -> reaction_pb2.Time:
-        return reaction_pb2.Time(value=self.value, precision=self.precision, units=self.units)
 
 
 class ReactionInputAdditionTime(Child, Time):
@@ -882,50 +769,25 @@ class ProductMeasurementRetentionTime(Child, Time):
 
 
 class Mass(Base):
-    PROTO = reaction_pb2.Mass
     amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
 
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Mass.MassUnit.keys(), name="Mass.MassUnit"))
 
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Mass) -> Mass:
-        return Mass(value=message.value, precision=message.precision, units=enum_to_str(message, "units"))
-
-    def to_proto(self) -> reaction_pb2.Mass:
-        return reaction_pb2.Mass(value=self.value, precision=self.precision, units=self.units)
-
 
 class Moles(Base):
-    PROTO = reaction_pb2.Moles
     amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
 
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Moles.MolesUnit.keys(), name="Moles.MolesUnit"))
 
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Moles) -> Moles:
-        return Moles(value=message.value, precision=message.precision, units=enum_to_str(message, "units"))
-
-    def to_proto(self) -> reaction_pb2.Moles:
-        return reaction_pb2.Moles(value=self.value, precision=self.precision, units=self.units)
-
 
 class Volume(Parent, Base):
-    PROTO = reaction_pb2.Volume
-
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Volume.VolumeUnit.keys(), name="Volume.VolumeUnit"))
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Volume) -> Volume:
-        return Volume(value=message.value, precision=message.precision, units=enum_to_str(message, "units"))
-
-    def to_proto(self) -> reaction_pb2.Volume:
-        return reaction_pb2.Volume(value=self.value, precision=self.precision, units=self.units)
 
 
 class AmountVolume(Child, Volume):
@@ -937,26 +799,15 @@ class VesselVolume(Child, Volume):
 
 
 class Concentration(Base):
-    PROTO = reaction_pb2.Concentration
-
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Concentration.ConcentrationUnit.keys(), name="Concentration.ConcentrationUnit"))
 
 
 class Pressure(Parent, Base):
-    PROTO = reaction_pb2.Pressure
-
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Pressure.PressureUnit.keys(), name="Pressure.PressureUnit"))
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Pressure) -> Pressure:
-        return Pressure(value=message.value, precision=message.precision, units=enum_to_str(message, "units"))
-
-    def to_proto(self) -> reaction_pb2.Pressure:
-        return reaction_pb2.Pressure(value=self.value, precision=self.precision, units=self.units)
 
 
 class PressureConditionsSetpoint(Child, Pressure):
@@ -968,18 +819,9 @@ class PressureConditionsMeasurementPressure(Child, Pressure):
 
 
 class Temperature(Parent, Base):
-    PROTO = reaction_pb2.Temperature
-
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Temperature.TemperatureUnit.keys(), name="Temperature.TemperatureUnit"))
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Temperature) -> Temperature:
-        return Temperature(value=message.value, precision=message.precision, units=enum_to_str(message, "units"))
-
-    def to_proto(self) -> reaction_pb2.Temperature:
-        return reaction_pb2.Temperature(value=self.value, precision=self.precision, units=self.units)
 
 
 class ReactionInputAdditionTemperature(Child, Temperature):
@@ -997,18 +839,9 @@ class TemperatureConditionsMeasurementTemperature(Child, Temperature):
 
 
 class Current(Parent, Base):
-    PROTO = reaction_pb2.Current
-
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Current.CurrentUnit.keys(), name="Current.CurrentUnit"))
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Current) -> Current:
-        return Current(value=message.value, precision=message.precision, units=enum_to_str(message, "units"))
-
-    def to_proto(self) -> reaction_pb2.Current:
-        return reaction_pb2.Current(value=self.value, precision=self.precision, units=self.units)
 
 
 class ElectrochemistryConditionsCurrent(Child, Current):
@@ -1022,18 +855,9 @@ class ElectrochemistryConditionsMeasurementCurrent(Child, Current):
 
 
 class Voltage(Parent, Base):
-    PROTO = reaction_pb2.Voltage
-
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Voltage.VoltageUnit.keys(), name="Voltage.VoltageUnit"))
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Voltage) -> Voltage:
-        return Voltage(value=message.value, precision=message.precision, units=enum_to_str(message, "units"))
-
-    def to_proto(self) -> reaction_pb2.Voltage:
-        return reaction_pb2.Voltage(value=self.value, precision=self.precision, units=self.units)
 
 
 class ElectrochemistryConditionsVoltage(Child, Voltage):
@@ -1047,18 +871,9 @@ class ElectrochemistryConditionsMeasurementVoltage(Child, Voltage):
 
 
 class Length(Parent, Base):
-    PROTO = reaction_pb2.Length
-
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Length.LengthUnit.keys(), name="Length.LengthUnit"))
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Length) -> Length:
-        return Length(value=message.value, precision=message.precision, units=enum_to_str(message, "units"))
-
-    def to_proto(self) -> reaction_pb2.Length:
-        return reaction_pb2.Length(value=self.value, precision=self.precision, units=self.units)
 
 
 class IlluminationConditionsDistanceToVessel(Child, Length):
@@ -1074,18 +889,9 @@ class TubingDiameter(Child, Length):
 
 
 class Wavelength(Parent, Base):
-    PROTO = reaction_pb2.Wavelength
-
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Wavelength.WavelengthUnit.keys(), name="Wavelength.WavelengthUnit"))
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Wavelength) -> Wavelength:
-        return Wavelength(value=message.value, precision=message.precision, units=enum_to_str(message, "units"))
-
-    def to_proto(self) -> reaction_pb2.Wavelength:
-        return reaction_pb2.Wavelength(value=self.value, precision=self.precision, units=self.units)
 
 
 class IlluminationConditionsPeakWavelength(Child, Wavelength):
@@ -1097,33 +903,16 @@ class ProductMeasurementWavelength(Child, Wavelength):
 
 
 class FlowRate(Base):
-    PROTO = reaction_pb2.FlowRate
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), unique=True)
 
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.FlowRate.FlowRateUnit.keys(), name="FlowRate.FlowRateUnit"))
 
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.FlowRate) -> FlowRate:
-        return FlowRate(value=message.value, precision=message.precision, units=enum_to_str(message, "units"))
-
-    def to_proto(self) -> reaction_pb2.FlowRate:
-        return reaction_pb2.FlowRate(value=self.value, precision=self.precision, units=self.units)
-
 
 class Percentage(Parent, Base):
-    PROTO = reaction_pb2.Percentage
-
     value = Column(Float)
     precision = Column(Float)
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Percentage) -> Percentage:
-        return Percentage(value=message.value, precision=message.precision)
-
-    def to_proto(self) -> reaction_pb2.Percentage:
-        return reaction_pb2.Percentage(value=self.value, precision=self.precision)
 
 
 class ReactionOutcomeConversion(Child, Percentage):
@@ -1135,17 +924,8 @@ class ProductMeasurementPercentage(Child, Percentage):
 
 
 class FloatValue(Parent, Base):
-    PROTO = reaction_pb2.FloatValue
-
     value = Column(Float)
     precision = Column(Float)
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.FloatValue) -> FloatValue:
-        return FloatValue(value=message.value, precision=message.precision)
-
-    def to_proto(self) -> reaction_pb2.FloatValue:
-        return reaction_pb2.FloatValue(value=self.value, precision=self.precision)
 
 
 class ProductMeasurementFloatValue(Child, FloatValue):
@@ -1157,8 +937,6 @@ class MassSpecMeasurementDetailsEicMasses(Child, FloatValue):
 
 
 class Data(Parent, Base):
-    PROTO = reaction_pb2.Data
-
     float_value = Column(Float)
     integer_value = Column(Integer)
     bytes_value = Column(LargeBinary)
@@ -1166,23 +944,6 @@ class Data(Parent, Base):
     url = Column(Text)
     description = Column(Text)
     format = Column(String(255))
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Data) -> Data:
-        kind = message.WhichOneof("kind")
-        kwargs = {kind: getattr(message, kind), "description": message.description, "format": message.format}
-        return Data(**kwargs)
-
-    def to_proto(self) -> reaction_pb2.Data:
-        return reaction_pb2.Data(
-            float_value=self.float_value,
-            integer_value=self.integer_value,
-            bytes_value=self.bytes_value,
-            string_value=self.string_value,
-            url=self.url,
-            description=self.description,
-            format=self.format,
-        )
 
 
 class CompoundFeatures(Child, Data):
@@ -1207,6 +968,103 @@ class ProductCompoundFeatures(Child, Data):
 class AnalysisData(Child, Data):
     analysis_id = Column(Integer, ForeignKey("analysis.id"))
     name = Column(String(255))  # Map key.
+
+
+MAPPERS: dict[Type[Message], Type[Base]] = {
+    reaction_pb2.Reaction: Reaction,
+    reaction_pb2.ReactionIdentifier: ReactionIdentifier,
+    reaction_pb2.ReactionInput: ReactionInput,
+    reaction_pb2.ReactionInput.AdditionSpeed: AdditionSpeed,
+    reaction_pb2.Amount: Amount,
+    reaction_pb2.UnmeasuredAmount: UnmeasuredAmount,
+    reaction_pb2.CrudeComponent: CrudeComponent,
+    reaction_pb2.Compound: Compound,
+    reaction_pb2.Compound.Source: Source,
+    reaction_pb2.CompoundPreparation: CompoundPreparation,
+    reaction_pb2.CompoundIdentifier: CompoundIdentifier,
+    reaction_pb2.Vessel: Vessel,
+    reaction_pb2.VesselMaterial: VesselMaterial,
+    reaction_pb2.VesselAttachment: VesselAttachment,
+    reaction_pb2.VesselPreparation: VesselPreparation,
+    reaction_pb2.ReactionSetup: ReactionSetup,
+    reaction_pb2.ReactionSetup.ReactionEnvironment: ReactionEnvironment,
+    reaction_pb2.ReactionConditions: ReactionConditions,
+    reaction_pb2.TemperatureConditions: TemperatureConditions,
+    reaction_pb2.TemperatureConditions.TemperatureControl: TemperatureControl,
+    reaction_pb2.TemperatureConditions.Measurement: TemperatureConditionsMeasurement,
+    reaction_pb2.PressureConditions: PressureConditions,
+    reaction_pb2.PressureConditions.PressureControl: PressureControl,
+    reaction_pb2.PressureConditions.Atmosphere: Atmosphere,
+    reaction_pb2.PressureConditions.Measurement: PressureConditionsMeasurement,
+    reaction_pb2.StirringConditions: StirringConditions,
+    reaction_pb2.StirringConditions.StirringRate: StirringRate,
+    reaction_pb2.IlluminationConditions: IlluminationConditions,
+    reaction_pb2.ElectrochemistryConditions: ElectrochemistryConditions,
+    reaction_pb2.ElectrochemistryConditions.Measurement: ElectrochemistryConditionsMeasurement,
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell: ElectrochemistryCell,
+    reaction_pb2.FlowConditions: FlowConditions,
+    reaction_pb2.FlowConditions.Tubing: Tubing,
+    reaction_pb2.ReactionNotes: ReactionNotes,
+    reaction_pb2.ReactionObservation: ReactionObservation,
+    reaction_pb2.ReactionWorkup: ReactionWorkup,
+    reaction_pb2.ReactionOutcome: ReactionOutcome,
+    reaction_pb2.ProductCompound: ProductCompound,
+    reaction_pb2.ProductCompound.Texture: Texture,
+    reaction_pb2.ProductMeasurement: ProductMeasurement,
+    reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails: MassSpecMeasurementDetails,
+    reaction_pb2.ProductMeasurement.Selectivity: Selectivity,
+    reaction_pb2.DateTime: DateTime,
+    reaction_pb2.Analysis: Analysis,
+    reaction_pb2.ReactionProvenance: ReactionProvenance,
+    reaction_pb2.Person: Person,
+    reaction_pb2.RecordEvent: RecordEvent,
+    reaction_pb2.Time: Time,
+    reaction_pb2.Mass: Mass,
+    reaction_pb2.Moles: Moles,
+    reaction_pb2.Volume: Volume,
+    reaction_pb2.Concentration: Concentration,
+    reaction_pb2.Pressure: Pressure,
+    reaction_pb2.Temperature: Temperature,
+    reaction_pb2.Current: Current,
+    reaction_pb2.Voltage: Voltage,
+    reaction_pb2.Length: Length,
+    reaction_pb2.Wavelength: Wavelength,
+    reaction_pb2.FlowRate: FlowRate,
+    reaction_pb2.Percentage: Percentage,
+    reaction_pb2.FloatValue: FloatValue,
+    reaction_pb2.Data: Data,
+}
+PROTOS: dict[Type[Base], Type[Message]] = {value: key for key, value in MAPPERS.items()}
+
+
+def from_proto(message: Message) -> Base:
+    kwargs = {}
+    for field, value in message.ListFields():
+        if field.type == FieldDescriptor.TYPE_MESSAGE:
+            if field.label == FieldDescriptor.LABEL_REPEATED:
+                # NOTE(skearnes): Only repeated message types are used in the ORM (not repeated scalar types).
+                kwargs[field.name] = [from_proto(v) for v in value]
+            else:
+                kwargs[field.name] = from_proto(value)
+        elif field.type == FieldDescriptor.TYPE_ENUM:
+            kwargs[field.name] = field.enum_type.values_by_number[value].name
+        else:
+            kwargs[field.name] = value
+    return MAPPERS[type(message)](**kwargs)
+
+
+def to_proto(base: Base) -> Message:
+    kwargs = {}
+    for field in PROTOS[type(base)].DESCRIPTOR.fields:
+        value = getattr(base, field.name)
+        if isinstance(value, list):
+            # NOTE(skearnes): Only repeated message types are used in the ORM (not repeated scalar types).
+            kwargs[field.name] = [to_proto(v) for v in value]
+        elif isinstance(value, Base):
+            kwargs[field.name] = to_proto(value)
+        else:
+            kwargs[field.name] = value
+    return PROTOS[type(base)](**kwargs)
 
 
 if __name__ == "__main__":
