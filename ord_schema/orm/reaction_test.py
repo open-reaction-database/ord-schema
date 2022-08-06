@@ -1,15 +1,19 @@
 """Tests for ord_schema.orm.reaction."""
-from ord_schema.orm import reaction
-from ord_schema.proto import reaction_pb2
+import os
+
+from ord_schema.message_helpers import load_message
+from ord_schema.orm.reaction import Reaction, from_proto, to_proto
+from ord_schema.proto.dataset_pb2 import Dataset
 
 
 def test_orm():
-    reaction.ProductMeasurementPercentage(value=23.4)
+    Reaction()
 
 
-def test_float_value():
-    message = reaction_pb2.FloatValue(value=1.2, precision=3.4)
-    assert message == reaction.FloatValue.from_proto(message).to_proto()
+def test_round_trip():
+    dataset = load_message(os.path.join(os.path.dirname(__file__), "testdata", "full.pbtxt"), Dataset)
+    for reaction in dataset.reactions:
+        assert reaction == to_proto(from_proto(reaction, Reaction))
 
 
 if __name__ == "__main__":
