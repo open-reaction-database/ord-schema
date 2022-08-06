@@ -60,6 +60,8 @@ class Parent:
 class Child:
     """Mixin class for child classes."""
 
+    child_id = Column(Integer, primary_key=True)  # Avoid conflict with parent `id` attr.
+
     @declared_attr
     def parent_id(cls):
         parent_table = None
