@@ -732,21 +732,33 @@ class ProductMeasurementRetentionTime(Child, Time):
 
 
 class Mass(Base):
+    amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
+
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Mass.MassUnit.keys(), name="Mass.MassUnit"))
 
 
 class Moles(Base):
+    amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
+
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Moles.MolesUnit.keys(), name="Moles.MolesUnit"))
 
 
-class Volume(Base):
+class Volume(Parent, Base):
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Volume.VolumeUnit.keys(), name="Volume.VolumeUnit"))
+
+
+class AmountVolume(Child, Volume):
+    amount_id = Column(Integer, ForeignKey("amount.id"), unique=True)
+
+
+class VesselVolume(Child, Volume):
+    vessel_id = Column(Integer, ForeignKey("vessel.id"), unique=True)
 
 
 class Concentration(Base):
@@ -755,10 +767,18 @@ class Concentration(Base):
     units = Column(Enum(*reaction_pb2.Concentration.ConcentrationUnit.keys(), name="Concentration.ConcentrationUnit"))
 
 
-class Pressure(Base):
+class Pressure(Parent, Base):
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Pressure.PressureUnit.keys(), name="Pressure.PressureUnit"))
+
+
+class PressureConditionsSetpoint(Child, Pressure):
+    pressure_conditions_id = Column(Integer, ForeignKey("pressure_conditions.id"), unique=True)
+
+
+class PressureConditionsMeasurementPressure(Child, Pressure):
+    pressure_conditions_measurement_id = Column(Integer, ForeignKey("pressure_conditions_measurement.id"), unique=True)
 
 
 class Temperature(Parent, Base):
@@ -781,28 +801,68 @@ class TemperatureConditionsMeasurementTemperature(Child, Temperature):
     )
 
 
-class Current(Base):
+class Current(Parent, Base):
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Current.CurrentUnit.keys(), name="Current.CurrentUnit"))
 
 
-class Voltage(Base):
+class ElectrochemistryConditionsCurrent(Child, Current):
+    electrochemistry_conditions_id = Column(Integer, ForeignKey("electrochemistry_conditions.id"), unique=True)
+
+
+class ElectrochemistryConditionsMeasurementCurrent(Child, Current):
+    electrochemistry_conditions_measurement_id = Column(
+        Integer, ForeignKey("electrochemistry_conditions_measurement.id"), unique=True
+    )
+
+
+class Voltage(Parent, Base):
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Voltage.VoltageUnit.keys(), name="Voltage.VoltageUnit"))
 
 
-class Length(Base):
+class ElectrochemistryConditionsVoltage(Child, Voltage):
+    electrochemistry_conditions_id = Column(Integer, ForeignKey("electrochemistry_conditions.id"), unique=True)
+
+
+class ElectrochemistryConditionsMeasurementVoltage(Child, Voltage):
+    electrochemistry_conditions_measurement_id = Column(
+        Integer, ForeignKey("electrochemistry_conditions_measurement.id"), unique=True
+    )
+
+
+class Length(Parent, Base):
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Length.LengthUnit.keys(), name="Length.LengthUnit"))
 
 
-class Wavelength(Base):
+class IlluminationConditionsDistanceToVessel(Child, Length):
+    illumination_conditions_id = Column(Integer, ForeignKey("illumination_conditions.id"), unique=True)
+
+
+class ElectrochemistryConditionsElectrodeSeparation(Child, Length):
+    electrochemistry_conditions_id = Column(Integer, ForeignKey("electrochemistry_conditions.id"), unique=True)
+
+
+class TubingDiameter(Child, Length):
+    tubing_id = Column(Integer, ForeignKey("tubing.id"), unique=True)
+
+
+class Wavelength(Parent, Base):
     value = Column(Float)
     precision = Column(Float)
     units = Column(Enum(*reaction_pb2.Wavelength.WavelengthUnit.keys(), name="Wavelength.WavelengthUnit"))
+
+
+class IlluminationConditionsPeakWavelength(Child, Wavelength):
+    illumination_conditions_id = Column(Integer, ForeignKey("illumination_conditions.id"), unique=True)
+
+
+class ProductMeasurementWavelength(Child, Wavelength):
+    product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), unique=True)
 
 
 class FlowRate(Base):
@@ -817,13 +877,6 @@ class Percentage(Parent, Base):
     value = Column(Float)
     precision = Column(Float)
 
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Percentage) -> Percentage:
-        pass
-
-    def to_proto(self) -> reaction_pb2.Percentage:
-        pass
-
 
 class ReactionOutcomeConversion(Child, Percentage):
     reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"), unique=True)
@@ -833,12 +886,20 @@ class ProductMeasurementPercentage(Child, Percentage):
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), unique=True)
 
 
-class FloatValue(Base):
+class FloatValue(Parent, Base):
     value = Column(Float)
     precision = Column(Float)
 
 
-class Data(Base):
+class ProductMeasurementFloatValue(Child, FloatValue):
+    product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), unique=True)
+
+
+class MassSpecMeasurementDetailsEicMasses(Child, FloatValue):
+    mass_spec_measurement_details_id = Column(Integer, ForeignKey("mass_spec_measurement_details.id"))
+
+
+class Data(Parent, Base):
     float_value = Column(Float)
     integer_value = Column(Integer)
     bytes_value = Column(LargeBinary)
@@ -846,6 +907,30 @@ class Data(Base):
     url = Column(Text)
     description = Column(Text)
     format = Column(String(255))
+
+
+class CompoundFeatures(Child, Data):
+    compound_id = Column(Integer, ForeignKey("compound.id"))
+    name = Column(String(255))  # Map key.
+
+
+class ReactionSetupAutomationCode(Child, Data):
+    reaction_setup_id = Column(Integer, ForeignKey("reaction_setup.id"))
+    name = Column(String(255))  # Map key.
+
+
+class ReactionObservationImage(Child, Data):
+    reaction_observation_id = Column(Integer, ForeignKey("reaction_observation.id"), unique=True)
+
+
+class ProductCompoundFeatures(Child, Data):
+    product_compound_id = Column(Integer, ForeignKey("product_compound.id"))
+    name = Column(String(255))  # Map key.
+
+
+class AnalysisData(Child, Data):
+    analysis_id = Column(Integer, ForeignKey("analysis.id"))
+    name = Column(String(255))  # Map key.
 
 
 def proto_to_database(reaction: reaction_pb2.Reaction) -> Reaction:
