@@ -1055,17 +1055,22 @@ MAPPERS: dict[Type[Message], Type[Base]] = {
 }
 PROTOS: dict[Type[Base], Type[Message]] = {value: key for key, value in MAPPERS.items()}
 
-RENAMES = {
+MAPPER_RENAMES: dict[tuple[Type[Message], str], str] = {
     (reaction_pb2.Compound.Source, "id"): "vendor_id",
+}
+PROTO_RENAMES: dict[tuple[Type[Base], str], str] = {
+    (MAPPERS[key[0]], value): key[1] for key, value in MAPPER_RENAMES.items()
 }
 
 
-def from_proto(message: Message, mapper: Type[Base], key: Optional[str] = None) -> Base:
+def from_proto(message: Message, mapper: Optional[Type[Base]] = None, key: Optional[str] = None) -> Base:
+    if mapper is None:
+        mapper = MAPPERS[type(message)]
     kwargs = {}
     if key is not None:
         kwargs["key"] = key
     for field, value in message.ListFields():
-        field_name = RENAMES.get((type(message), field.name), field.name)
+        field_name = MAPPER_RENAMES.get((type(message), field.name), field.name)
         if field_name == "eic_masses":
             # Convert repeated float to repeated FloatValue.
             kwargs[field_name] = [MassSpecMeasurementDetailsEicMasses(value=v) for v in value]

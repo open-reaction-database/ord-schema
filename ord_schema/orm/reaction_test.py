@@ -13,7 +13,7 @@ def test_orm():
 def test_round_trip():
     dataset = load_message(os.path.join(os.path.dirname(__file__), "testdata", "full.pbtxt"), Dataset)
     for reaction in dataset.reactions:
-        assert reaction == to_proto(from_proto(reaction, Reaction))
+        assert reaction == to_proto(from_proto(reaction))
 
 
 if __name__ == "__main__":
