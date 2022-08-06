@@ -5,8 +5,12 @@ Notes:
     * Every table has its own `id` column, even if it has a one-to-one mapping with another table.
     * When a message type is used in multiple places, use Joined Table Inheritance; see
       https://docs.sqlalchemy.org/en/14/orm/inheritance.html#joined-table-inheritance.
-    * I tried using `abstractmethod` for {from,to}_proto (see https://stackoverflow.com/a/30402243) but it
-      did not seem to enforce concrete subclasses at runtime, so I removed it.
+    * The naming might be a bit confusing: classes for single-use and parent protos have the same name
+      as the corresponding message, while classes for multi-use protos (child classes) are named as
+      <ContainingClass><Attribute>. For example, Reaction.identifiers uses the ReactionIdentifier class,
+      while Reaction.inputs uses the ReactionInputs class (since ReactionInput is used in multiple places).
+      The effect is that all tables storing proto information are named after their corresponding proto
+      messages, with extra child tables for storing relationships.
 """
 from __future__ import annotations
 
