@@ -1,8 +1,8 @@
 """Table mappings for Reaction protos.
 
 Notes:
-    * Foreign keys to the `reaction` table are done using the `id` column, not the ORD reaction ID (`name`).
     * Every table has its own `id` column, even if it has a one-to-one mapping with another table.
+    * Foreign keys to the `reaction` table are done using the `id` column, not the ORD reaction ID (`reaction_id`).
     * When a message type is used in multiple places, use Joined Table Inheritance; see
       https://docs.sqlalchemy.org/en/14/orm/inheritance.html#joined-table-inheritance.
     * The naming might be a bit confusing: classes for single-use and parent protos have the same name
@@ -11,6 +11,11 @@ Notes:
       while Reaction.inputs uses the ReactionInputs class (since ReactionInput is used in multiple places).
       The effect is that all tables storing proto information are named after their corresponding proto
       messages, with extra child tables for storing relationships.
+    * Only message types are allowed for repeated/mapped values in the ORM (not scalar types). Specifically,
+      MassSpecMeasurementDetails.eic_masses is converted from repeated float to repeated FloatValue.
+      # TODO(skearnes): Update the proto definition?
+    * Some proto fields are renamed to avoid conflicts with table names. For example, Source.id -> Source.vendor_id.
+      # TODO(skearnes): Update the proto definition?
 """
 from __future__ import annotations
 
@@ -85,7 +90,7 @@ class Child:
 
 
 class Reaction(Base):
-    name = Column(String(32), nullable=False)
+    reaction_id = Column(String(32), nullable=False)
     proto = Column(LargeBinary, nullable=False)
 
     identifiers = relationship("ReactionIdentifier")
@@ -198,7 +203,7 @@ class UnmeasuredAmount(Base):
 class CrudeComponent(Base):
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), nullable=False)
 
-    reaction_id = Column(String(32), ForeignKey("reaction.name"), nullable=False)
+    reaction_id = Column(String(32), ForeignKey("reaction.reaction_id"), nullable=False)
     includes_workup = Column(Boolean)
     has_derived_amount = Column(Boolean)
     amount = relationship("CrudeComponentAmount", uselist=False)
@@ -244,7 +249,7 @@ class CompoundPreparation(Base):
         Enum(*reaction_pb2.CompoundPreparation.PreparationType.keys(), name="CompoundPreparation.PreparationType")
     )
     details = Column(Text)
-    reaction_id = Column(String(32), ForeignKey("reaction.name"), nullable=False)
+    reaction_id = Column(String(32), ForeignKey("reaction.reaction_id"), nullable=False)
 
 
 class CompoundIdentifier(Parent, Base):
@@ -1050,19 +1055,21 @@ MAPPERS: dict[Type[Message], Type[Base]] = {
 }
 PROTOS: dict[Type[Base], Type[Message]] = {value: key for key, value in MAPPERS.items()}
 
-RENAMES = {}
+RENAMES = {
+    (reaction_pb2.Compound.Source, "id"): "vendor_id",
+}
 
 
 def from_proto(message: Message, mapper: Type[Base], key: Optional[str] = None) -> Base:
-    # NOTE(skearnes): Only repeated/mapped message types are used in the ORM (not scalar types).
     kwargs = {}
     if key is not None:
         kwargs["key"] = key
-    print(message.DESCRIPTOR.full_name, type(message), mapper, key)
     for field, value in message.ListFields():
-        field_name = field.name  # TODO: Replacements.
-        print("\t", field.full_name, type(value))
-        if field.type == FieldDescriptor.TYPE_MESSAGE:
+        field_name = RENAMES.get((type(message), field.name), field.name)
+        if field_name == "eic_masses":
+            # Convert repeated float to repeated FloatValue.
+            kwargs[field_name] = [MassSpecMeasurementDetailsEicMasses(value=v) for v in value]
+        elif field.type == FieldDescriptor.TYPE_MESSAGE:
             field_mapper = getattr(mapper, field_name).mapper.class_
             if isinstance(value, MessageMapContainer):
                 kwargs[field_name] = [from_proto(v, mapper=field_mapper, key=k) for k, v in value.items()]
@@ -1078,7 +1085,6 @@ def from_proto(message: Message, mapper: Type[Base], key: Optional[str] = None) 
 
 
 def to_proto(base: Base) -> Message:
-    # NOTE(skearnes): Only repeated/mapped message types are used in the ORM (not scalar types).
     kwargs = {}
     for field in PROTOS[type(base)].DESCRIPTOR.fields:
         value = getattr(base, field.name)
