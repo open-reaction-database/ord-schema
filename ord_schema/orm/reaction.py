@@ -1091,18 +1091,31 @@ def from_proto(message: Message, mapper: Optional[Type[Base]] = None, key: Optio
 
 def to_proto(base: Base) -> Message:
     kwargs = {}
-    for field in PROTOS[type(base)].DESCRIPTOR.fields:
-        value = getattr(base, field.name)
-        if isinstance(value, list):
+    proto = None
+    for mapper in getmro(type(base)):
+        if not issubclass(mapper, Child):
+            proto = PROTOS[mapper]
+            break
+    assert issubclass(proto, Message)
+    for field in proto.DESCRIPTOR.fields:
+        mapper_field_name = MAPPER_RENAMES.get((proto, field.name), field.name)
+        value = getattr(base, mapper_field_name)
+        field_name = PROTO_RENAMES.get((type(base), mapper_field_name), mapper_field_name)
+        if field_name == "eic_masses":
+            # Convert repeated FloatValue to repeated float.
+            kwargs[field_name] = [v.value for v in value]
+        elif isinstance(value, list):
+            if not len(value):
+                continue
             if hasattr(value[0], "key"):
-                kwargs[field.name] = {v.key: to_proto(v) for v in value}
+                kwargs[field_name] = {v.key: to_proto(v) for v in value}
             else:
-                kwargs[field.name] = [to_proto(v) for v in value]
+                kwargs[field_name] = [to_proto(v) for v in value]
         elif isinstance(value, Base):
-            kwargs[field.name] = to_proto(value)
+            kwargs[field_name] = to_proto(value)
         else:
-            kwargs[field.name] = value
-    return PROTOS[type(base)](**kwargs)
+            kwargs[field_name] = value
+    return proto(**kwargs)
 
 
 if __name__ == "__main__":
