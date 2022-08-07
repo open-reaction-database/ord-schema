@@ -90,7 +90,6 @@ class Child:
 
 
 class Reaction(Base):
-    reaction_id = Column(String(32), nullable=False)
     proto = Column(LargeBinary, nullable=False)
 
     identifiers = relationship("ReactionIdentifier")
@@ -102,6 +101,7 @@ class Reaction(Base):
     workups = relationship("ReactionWorkup")
     outcomes = relationship("ReactionOutcome")
     provenance = relationship("ReactionProvenance", uselist=False)
+    reaction_id = Column(String(32), nullable=False, unique=True)
 
     @classmethod
     def from_proto(cls, message: reaction_pb2.Reaction) -> Reaction:
@@ -249,7 +249,7 @@ class CompoundPreparation(Base):
         Enum(*reaction_pb2.CompoundPreparation.PreparationType.keys(), name="CompoundPreparation.PreparationType")
     )
     details = Column(Text)
-    reaction_id = Column(String(32), ForeignKey("reaction.reaction_id"), nullable=False)
+    reaction_id = Column(String(32), ForeignKey("reaction.reaction_id"))
 
 
 class CompoundIdentifier(Parent, Base):
@@ -1069,6 +1069,8 @@ def from_proto(message: Message, mapper: Optional[Type[Base]] = None, key: Optio
     kwargs = {}
     if key is not None:
         kwargs["key"] = key
+    if mapper == Reaction:
+        kwargs["proto"] = message.SerializeToString()
     for field, value in message.ListFields():
         field_name = MAPPER_RENAMES.get((type(message), field.name), field.name)
         if field_name == "eic_masses":
@@ -1119,7 +1121,18 @@ def to_proto(base: Base) -> Message:
 
 
 if __name__ == "__main__":
+    import os
+
     from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from ord_schema.message_helpers import load_message
+    from ord_schema.proto import dataset_pb2
 
     engine = create_engine("postgresql://postgres:postgres@localhost:5433/test", echo=True, future=True)
     Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        dataset = load_message(os.path.join("testdata", "ord-nielsen-example.pbtxt"), dataset_pb2.Dataset)
+        reaction = from_proto(dataset.reactions[0])
+        session.add(reaction)
+        session.commit()
