@@ -1,8 +1,8 @@
 """Table mappings for Reaction protos.
 
 Notes:
-    * Every table has its own `id` column, even if it has a one-to-one mapping with another table.
     * Foreign keys to the `reaction` table are done using the `id` column, not the ORD reaction ID (`reaction_id`).
+      However, the `reaction_id` column is used when the reaction ID is specifically called for, as with crude inputs.
     * When a message type is used in multiple places, use Joined Table Inheritance; see
       https://docs.sqlalchemy.org/en/14/orm/inheritance.html#joined-table-inheritance.
     * The naming might be a bit confusing: classes for single-use and parent protos have the same name
@@ -44,13 +44,16 @@ from ord_schema.proto import reaction_pb2
 
 
 class Base:
-    """See https://docs.sqlalchemy.org/en/14/orm/declarative_mixins.html#augmenting-the-base."""
+    """See https://docs.sqlalchemy.org/en/14/orm/declarative_mixins.html#augmenting-the-base.
+
+    * The table name is a snake_case rendering of the class name.
+    * Every table has an `id` column used as the primary key. Note that Child tables do not have this column.
+    """
+    id = Column(Integer, primary_key=True)
 
     @declared_attr
     def __tablename__(cls):
         return underscore(cls.__name__)
-
-    id = Column(Integer, primary_key=True)
 
 
 Base = declarative_base(cls=Base)
@@ -58,8 +61,10 @@ Base = declarative_base(cls=Base)
 
 @declarative_mixin
 class Parent:
-    """Mixin class for parent classes."""
+    """Mixin class for parent classes.
 
+    * Polymorphic types are identified in the `_type` column.
+    """
     _type = Column(String(255), nullable=False)
 
     @declared_attr
@@ -72,9 +77,10 @@ class Parent:
 
 @declarative_mixin
 class Child:
-    """Mixin class for child classes."""
+    """Mixin class for child classes.
 
-    child_id = Column(Integer, primary_key=True)  # Avoid conflict with parent `id` attr.
+    * The parent ID is stored in the `parent_id` column (also used as the primary key).
+    """
 
     @declared_attr
     def parent_id(cls):
@@ -84,7 +90,7 @@ class Child:
                 parent_table = parent_class.__tablename__
                 break
         assert parent_table is not None, (cls, getmro(cls))
-        return Column(f"{parent_table}_id", Integer, ForeignKey(f"{parent_table}.id"), unique=True)
+        return Column(f"{parent_table}_id", Integer, ForeignKey(f"{parent_table}.id"), primary_key=True)
 
     @declared_attr
     def __mapper_args__(cls):
@@ -1094,6 +1100,17 @@ PROTO_RENAMES: dict[tuple[Type[Base], str], str] = {
 
 
 def from_proto(message: Message, mapper: Optional[Type[Base]] = None, key: Optional[str] = None) -> Base:
+    """Converts a protobuf message into an ORM object.
+
+    Args:
+        message: Protobuf message.
+        mapper: ORM mapper class. For top-level protos like Dataset and Reaction this can be left as None; it must
+            be provided for Child subclasses to properly handle polymorphism.
+        key: Map key (we store maps as rows of (key, value) tuples).
+
+    Returns:
+        ORM object.
+    """
     if mapper is None:
         mapper = MAPPERS[type(message)]
     kwargs = {}
@@ -1125,6 +1142,14 @@ def from_proto(message: Message, mapper: Optional[Type[Base]] = None, key: Optio
 
 
 def to_proto(base: Base) -> Message:
+    """Converts an ORM object into a protobuf message.
+
+    Args:
+        base: ORM object.
+
+    Returns:
+        Protobuf message.
+    """
     kwargs = {}
     proto = None
     for mapper in getmro(type(base)):
