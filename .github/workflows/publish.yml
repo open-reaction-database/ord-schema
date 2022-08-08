@@ -39,7 +39,8 @@ jobs:
           git push --tags origin main
       - name: Build and upload to PyPI
         run: |
-          python -m pip install build twine
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade build twine wheel
           python -m build
           TWINE_USERNAME="__token__" TWINE_PASSWORD="${{ secrets.PYPI_API_TOKEN }}" python -m twine upload dist/*
       - name: Create release
