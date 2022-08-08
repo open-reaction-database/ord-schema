@@ -38,7 +38,8 @@ from inspect import getmro
 from typing import Optional, Type
 
 from google.protobuf.descriptor import FieldDescriptor
-from google.protobuf.pyext._message import Message, MessageMapContainer
+from google.protobuf.message import Message
+from google.protobuf.pyext._message import MessageMapContainer
 from inflection import underscore
 from sqlalchemy import (
     Boolean,
@@ -152,13 +153,6 @@ class Reaction(Base):
     outcomes = relationship("ReactionOutcome")
     provenance = relationship("ReactionProvenance", uselist=False)
     reaction_id = Column(String(255), nullable=False, unique=True)
-
-    @classmethod
-    def from_proto(cls, message: reaction_pb2.Reaction) -> Reaction:
-        pass
-
-    def to_proto(self) -> reaction_pb2.Reaction:
-        pass
 
 
 class ReactionIdentifier(Base):
