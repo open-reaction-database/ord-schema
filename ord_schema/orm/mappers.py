@@ -49,6 +49,7 @@ class Base:
     * The table name is a snake_case rendering of the class name.
     * Every table has an `id` column used as the primary key. Note that Child tables do not have this column.
     """
+
     id = Column(Integer, primary_key=True)
 
     @declared_attr
@@ -65,6 +66,7 @@ class Parent:
 
     * Polymorphic types are identified in the `_type` column.
     """
+
     _type = Column(String(255), nullable=False)
 
     @declared_attr
@@ -102,7 +104,7 @@ class Dataset(Base):
     description = Column(Text)
     reactions = relationship("Reaction")
     reaction_ids = relationship("ReactionId")
-    dataset_id = Column(String(255))
+    dataset_id = Column(String(255), nullable=False, unique=True)
 
 
 class ReactionId(Base):
