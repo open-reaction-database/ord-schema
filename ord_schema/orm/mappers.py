@@ -11,16 +11,20 @@ Notes:
       while Reaction.inputs uses the ReactionInputs class (since ReactionInput is used in multiple places).
       The effect is that all tables storing proto information are named after their corresponding proto
       messages, with extra child tables for storing relationships.
-    * Only message types are allowed for repeated/mapped values in the ORM (not scalar types). Specifically,
-      MassSpecMeasurementDetails.eic_masses is converted from repeated float to repeated FloatValue.
+    * Only message types are allowed for repeated/mapped values in the ORM (not scalar types). Specifically:
+        * MassSpecMeasurementDetails.eic_masses is converted from repeated float to repeated FloatValue.
+        * Dataset.reaction_ids is converted from repeated string to repeated DatasetId.
       # TODO(skearnes): Update the proto definition?
-    * Some proto fields are renamed to avoid conflicts with table names. For example, Source.id -> Source.vendor_id.
+    * Source.id was renamed in the ORM to Source.vendor_id to avoid conflicting with the `id` column.
       # TODO(skearnes): Update the proto definition?
 """
 from __future__ import annotations
 
 from inspect import getmro
+from typing import Optional, Type
 
+from google.protobuf.descriptor import FieldDescriptor
+from google.protobuf.pyext._message import Message, MessageMapContainer
 from inflection import underscore
 from sqlalchemy import (
     Boolean,
@@ -35,6 +39,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship
 
+from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 
@@ -84,6 +89,27 @@ class Child:
     @declared_attr
     def __mapper_args__(cls):
         return {"polymorphic_identity": underscore(cls.__name__)}
+
+
+class Dataset(Base):
+    name = Column(Text)
+    description = Column(Text)
+    reactions = relationship("Reaction")
+    reaction_ids = relationship("ReactionId")
+    dataset_id = Column(String(255))
+
+
+class ReactionId(Base):
+    dataset_id = Column(Integer, ForeignKey("dataset.id"), nullable=False)
+
+    reaction_id = Column(String(255), ForeignKey("reaction.reaction_id"), nullable=False)
+
+
+class DatasetExample(Base):
+    dataset_id = Column(String(255), ForeignKey("dataset.dataset_id"), nullable=False)
+    description = Column(Text)
+    url = Column(Text)
+    created = relationship("DatasetExampleCreated", uselist=False)
 
 
 class Reaction(Base):
@@ -988,3 +1014,143 @@ class ProductCompoundFeatures(Child, Data):
 class AnalysisData(Child, Data):
     analysis_id = Column(Integer, ForeignKey("analysis.id"), nullable=False)
     key = Column(String(255))  # Map key.
+
+
+MAPPERS: dict[Type[Message], Type[Base]] = {
+    dataset_pb2.Dataset: Dataset,
+    dataset_pb2.DatasetExample: DatasetExample,
+    reaction_pb2.Reaction: Reaction,
+    reaction_pb2.ReactionIdentifier: ReactionIdentifier,
+    reaction_pb2.ReactionInput: ReactionInput,
+    reaction_pb2.ReactionInput.AdditionSpeed: AdditionSpeed,
+    reaction_pb2.ReactionInput.AdditionDevice: AdditionDevice,
+    reaction_pb2.Amount: Amount,
+    reaction_pb2.UnmeasuredAmount: UnmeasuredAmount,
+    reaction_pb2.CrudeComponent: CrudeComponent,
+    reaction_pb2.Compound: Compound,
+    reaction_pb2.Compound.Source: Source,
+    reaction_pb2.CompoundPreparation: CompoundPreparation,
+    reaction_pb2.CompoundIdentifier: CompoundIdentifier,
+    reaction_pb2.Vessel: Vessel,
+    reaction_pb2.VesselMaterial: VesselMaterial,
+    reaction_pb2.VesselAttachment: VesselAttachment,
+    reaction_pb2.VesselPreparation: VesselPreparation,
+    reaction_pb2.ReactionSetup: ReactionSetup,
+    reaction_pb2.ReactionSetup.ReactionEnvironment: ReactionEnvironment,
+    reaction_pb2.ReactionConditions: ReactionConditions,
+    reaction_pb2.TemperatureConditions: TemperatureConditions,
+    reaction_pb2.TemperatureConditions.TemperatureControl: TemperatureControl,
+    reaction_pb2.TemperatureConditions.Measurement: TemperatureConditionsMeasurement,
+    reaction_pb2.PressureConditions: PressureConditions,
+    reaction_pb2.PressureConditions.PressureControl: PressureControl,
+    reaction_pb2.PressureConditions.Atmosphere: Atmosphere,
+    reaction_pb2.PressureConditions.Measurement: PressureConditionsMeasurement,
+    reaction_pb2.StirringConditions: StirringConditions,
+    reaction_pb2.StirringConditions.StirringRate: StirringRate,
+    reaction_pb2.IlluminationConditions: IlluminationConditions,
+    reaction_pb2.ElectrochemistryConditions: ElectrochemistryConditions,
+    reaction_pb2.ElectrochemistryConditions.Measurement: ElectrochemistryConditionsMeasurement,
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell: ElectrochemistryCell,
+    reaction_pb2.FlowConditions: FlowConditions,
+    reaction_pb2.FlowConditions.Tubing: Tubing,
+    reaction_pb2.ReactionNotes: ReactionNotes,
+    reaction_pb2.ReactionObservation: ReactionObservation,
+    reaction_pb2.ReactionWorkup: ReactionWorkup,
+    reaction_pb2.ReactionOutcome: ReactionOutcome,
+    reaction_pb2.ProductCompound: ProductCompound,
+    reaction_pb2.ProductCompound.Texture: Texture,
+    reaction_pb2.ProductMeasurement: ProductMeasurement,
+    reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails: MassSpecMeasurementDetails,
+    reaction_pb2.ProductMeasurement.Selectivity: Selectivity,
+    reaction_pb2.DateTime: DateTime,
+    reaction_pb2.Analysis: Analysis,
+    reaction_pb2.ReactionProvenance: ReactionProvenance,
+    reaction_pb2.Person: Person,
+    reaction_pb2.RecordEvent: RecordEvent,
+    reaction_pb2.Time: Time,
+    reaction_pb2.Mass: Mass,
+    reaction_pb2.Moles: Moles,
+    reaction_pb2.Volume: Volume,
+    reaction_pb2.Concentration: Concentration,
+    reaction_pb2.Pressure: Pressure,
+    reaction_pb2.Temperature: Temperature,
+    reaction_pb2.Current: Current,
+    reaction_pb2.Voltage: Voltage,
+    reaction_pb2.Length: Length,
+    reaction_pb2.Wavelength: Wavelength,
+    reaction_pb2.FlowRate: FlowRate,
+    reaction_pb2.Percentage: Percentage,
+    reaction_pb2.FloatValue: FloatValue,
+    reaction_pb2.Data: Data,
+}
+PROTOS: dict[Type[Base], Type[Message]] = {value: key for key, value in MAPPERS.items()}
+
+MAPPER_RENAMES: dict[tuple[Type[Message], str], str] = {
+    (reaction_pb2.Compound.Source, "id"): "vendor_id",
+}
+PROTO_RENAMES: dict[tuple[Type[Base], str], str] = {
+    (MAPPERS[key[0]], value): key[1] for key, value in MAPPER_RENAMES.items()
+}
+
+
+def from_proto(message: Message, mapper: Optional[Type[Base]] = None, key: Optional[str] = None) -> Base:
+    if mapper is None:
+        mapper = MAPPERS[type(message)]
+    kwargs = {}
+    if key is not None:
+        kwargs["key"] = key
+    if mapper == Reaction:
+        kwargs["proto"] = message.SerializeToString()
+    for field, value in message.ListFields():
+        field_name = MAPPER_RENAMES.get((type(message), field.name), field.name)
+        if field_name == "eic_masses":
+            # Convert repeated float to repeated FloatValue.
+            kwargs[field_name] = [MassSpecMeasurementDetailsEicMasses(value=v) for v in value]
+        elif field_name == "reaction_ids":
+            # Convert repeated string to repeated ReactionId.
+            kwargs[field_name] = [ReactionId(reaction_id=v) for v in value]
+        elif field.type == FieldDescriptor.TYPE_MESSAGE:
+            field_mapper = getattr(mapper, field_name).mapper.class_
+            if isinstance(value, MessageMapContainer):
+                kwargs[field_name] = [from_proto(v, mapper=field_mapper, key=k) for k, v in value.items()]
+            elif field.label == FieldDescriptor.LABEL_REPEATED:
+                kwargs[field_name] = [from_proto(v, mapper=field_mapper) for v in value]
+            else:
+                kwargs[field_name] = from_proto(value, mapper=field_mapper)
+        elif field.type == FieldDescriptor.TYPE_ENUM:
+            kwargs[field_name] = field.enum_type.values_by_number[value].name
+        else:
+            kwargs[field_name] = value
+    return mapper(**kwargs)
+
+
+def to_proto(base: Base) -> Message:
+    kwargs = {}
+    proto = None
+    for mapper in getmro(type(base)):
+        if not issubclass(mapper, Child):
+            proto = PROTOS[mapper]
+            break
+    assert issubclass(proto, Message)
+    for field in proto.DESCRIPTOR.fields:
+        mapper_field_name = MAPPER_RENAMES.get((proto, field.name), field.name)
+        value = getattr(base, mapper_field_name)
+        field_name = PROTO_RENAMES.get((type(base), mapper_field_name), mapper_field_name)
+        if field_name == "eic_masses":
+            # Convert repeated FloatValue to repeated float.
+            kwargs[field_name] = [v.value for v in value]
+        elif field_name == "reaction_ids":
+            # Convert repeated ReactionId to repeated string.
+            kwargs[field_name] = [v.reaction_id for v in value]
+        elif isinstance(value, list):
+            if not len(value):
+                continue
+            if hasattr(value[0], "key"):
+                kwargs[field_name] = {v.key: to_proto(v) for v in value}
+            else:
+                kwargs[field_name] = [to_proto(v) for v in value]
+        elif isinstance(value, Base):
+            kwargs[field_name] = to_proto(value)
+        else:
+            kwargs[field_name] = value
+    return proto(**kwargs)
