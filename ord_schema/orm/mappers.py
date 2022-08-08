@@ -67,8 +67,8 @@ class Base:
     id = Column(Integer, primary_key=True)
 
     @declared_attr
-    def __tablename__(cls):
-        return underscore(cls.__name__)
+    def __tablename__(cls):  # pylint: disable=no-self-argument
+        return underscore(cls.__name__)  # pylint: disable=no-member
 
 
 Base = declarative_base(cls=Base)
@@ -84,9 +84,9 @@ class Parent:
     _type = Column(String(255), nullable=False)
 
     @declared_attr
-    def __mapper_args__(cls):
+    def __mapper_args__(cls):  # pylint: disable=no-self-argument
         return {
-            "polymorphic_identity": underscore(cls.__name__),
+            "polymorphic_identity": underscore(cls.__name__),  # pylint: disable=no-member
             "polymorphic_on": cls._type,
         }
 
@@ -99,7 +99,8 @@ class Child:
     """
 
     @declared_attr
-    def parent_id(cls):
+    def parent_id(cls):  # pylint: disable=no-self-argument
+        """Creates a `parent_id` column referring to the parent table."""
         parent_table = None
         for parent_class in getmro(cls)[1:]:
             if issubclass(parent_class, Base):
@@ -109,9 +110,11 @@ class Child:
         return Column(f"{parent_table}_id", Integer, ForeignKey(f"{parent_table}.id"), primary_key=True)
 
     @declared_attr
-    def __mapper_args__(cls):
-        return {"polymorphic_identity": underscore(cls.__name__)}
+    def __mapper_args__(cls):  # pylint: disable=no-self-argument
+        return {"polymorphic_identity": underscore(cls.__name__)}  # pylint: disable=no-member
 
+
+# pylint:disable=missing-class-docstring
 
 class Dataset(Base):
     name = Column(Text)
@@ -1184,7 +1187,7 @@ def to_proto(base: Base) -> Message:
             # Convert repeated ReactionId to repeated string.
             kwargs[field_name] = [v.reaction_id for v in value]
         elif isinstance(value, list):
-            if not len(value):
+            if len(value) == 0:
                 continue
             if hasattr(value[0], "key"):
                 kwargs[field_name] = {v.key: to_proto(v) for v in value}
