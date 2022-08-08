@@ -43,6 +43,7 @@ setuptools.setup(
     install_requires=[
         "docopt>=0.6.2",
         "flask>=1.1.2",
+        "inflection>=0.5.1",
         "jinja2>=2.0.0",
         "joblib>=1.0.0",
         "numpy>=1.18.1",
