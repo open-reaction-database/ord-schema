@@ -441,7 +441,7 @@ class PressureConditions(Base):
 
 
 class PressureControl(Base):
-    pressure_conditionss_id = Column(Integer, ForeignKey("pressure_conditions.id"), nullable=False, unique=True)
+    pressure_conditions_id = Column(Integer, ForeignKey("pressure_conditions.id"), nullable=False, unique=True)
 
     type = Column(
         Enum(
