@@ -62,5 +62,5 @@ def test_orm():
                 .join(CompoundIdentifiers)
                 .where(CompoundIdentifiers.type == "SMILES", CompoundIdentifiers.value == "c1ccccc1CCC(O)C")
             )
-            for row in session.execute(query):
-                print(row[0].reaction_id)
+            results = session.execute(query)
+            assert len(results.fetchall()) == 20
