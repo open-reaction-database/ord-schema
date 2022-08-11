@@ -175,7 +175,6 @@ institutions and industry segments. The primary role of the Advisory Board is to
 encourage community engagement with the database. The current membership of the
 Advisory Board is:
 
-* Juan Alvarez (Merck)
 * Alán Aspuru-Guzik (Toronto, MADNESS)
 * Timothy Cernak (Michigan, Entos)
 * Lucy Colwell (Cambridge, SynTech, Google)
