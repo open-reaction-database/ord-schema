@@ -23,10 +23,10 @@ from testing.postgresql import Postgresql
 from ord_schema.message_helpers import load_message
 from ord_schema.orm.mappers import (
     Base,
+    Compound,
     CompoundIdentifiers,
     Reaction,
     ReactionInputs,
-    ReactionInputComponents,
     from_proto,
     to_proto,
 )
@@ -53,12 +53,10 @@ def test_orm():
         Base.metadata.create_all(engine)
         with Session(engine) as session:
             session.add(from_proto(dataset))
-            # TODO(skearnes): Use with_polymorphic to simplify joins; e.g. with_polymorphic(Compound, "*").
-            # https://docs.sqlalchemy.org/en/14/orm/inheritance_loading.html#with-polymorphic.
             query = (
                 select(Reaction)
                 .join(ReactionInputs)
-                .join(ReactionInputComponents)
+                .join(Compound)
                 .join(CompoundIdentifiers)
                 .where(CompoundIdentifiers.type == "SMILES", CompoundIdentifiers.value == "c1ccccc1CCC(O)C")
             )
