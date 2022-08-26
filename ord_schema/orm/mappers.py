@@ -71,7 +71,7 @@ class Base:
 
     @declared_attr
     def __tablename__(cls):  # pylint: disable=no-self-argument
-        name = cls.__name__
+        name = cls.__name__  # pylint: disable=no-member
         if name.startswith("_"):
             name = name[1:]  # Remove leading underscore.
         return underscore(name)  # pylint: disable=no-member
