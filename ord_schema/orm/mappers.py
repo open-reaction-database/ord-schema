@@ -22,9 +22,11 @@ Notes:
     * The naming might be a bit confusing: classes for single-use and parent protos have the same name
       as the corresponding message, while classes for multi-use protos (child classes) are named as
       <ContainingClass><Attribute>. For example, Reaction.identifiers uses the ReactionIdentifier class,
-      while Reaction.inputs uses the ReactionInputs class (since ReactionInput is used in multiple places).
+      while Reaction.inputs uses the ReactionInputs class (since _ReactionInput is used in multiple places).
       The effect is that all tables storing proto information are named after their corresponding proto
       messages, with extra child tables for storing relationships.
+    * Parent class names are prepended with underscores; e.g. _ReactionInput. Every parent class has an associated
+      with_polymorphic wrapper for query construction, named without the leading underscore; e.g. ReactionInput.
     * Only message types are allowed for repeated/mapped values in the ORM (not scalar types). Specifically:
         * MassSpecMeasurementDetails.eic_masses is converted from repeated float to repeated FloatValue.
         * Dataset.reaction_ids is converted from repeated string to repeated DatasetId.
