@@ -15,8 +15,9 @@
 """Tests for ord_schema.orm."""
 import os
 import pytest
+from unittest.mock import patch
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 from testing.postgresql import Postgresql
 
@@ -46,13 +47,21 @@ def test_round_trip(filename):
     assert dataset == to_proto(from_proto(dataset))
 
 
-def test_orm():
+@pytest.fixture
+def no_rdkit() -> None:
+    with patch.dict(os.environ, {"ORD_POSTGRES_RDKIT": "0"}):
+        yield
+
+
+def test_orm(no_rdkit):
     dataset = load_message(os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"), Dataset)
     with Postgresql() as postgres:
         engine = create_engine(postgres.url())
+        with engine.connect() as connection:
+            connection.execute(text("CREATE EXTENSION btree_gist;"))
         Base.metadata.create_all(engine)
         with Session(engine) as session:
-            session.add(from_proto(dataset))
+            session.add(from_proto(dataset, with_rdkit=False))
             query = (
                 select(Reaction)
                 .join(ReactionInputs)

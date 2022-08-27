@@ -36,6 +36,8 @@ Notes:
 """
 from __future__ import annotations
 
+import os
+from distutils.util import strtobool
 from inspect import getmro
 from typing import Optional, Type
 
@@ -48,14 +50,18 @@ from sqlalchemy import (
     Column,
     Enum,
     Float,
+    Index,
     Integer,
     ForeignKey,
     LargeBinary,
     String,
     Text,
+    TypeDecorator,
 )
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship, with_polymorphic
+from sqlalchemy.types import UserDefinedType
 
+from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
@@ -91,8 +97,11 @@ class _Parent:
 
     @declared_attr
     def __mapper_args__(cls):  # pylint: disable=no-self-argument
+        name = cls.__name__  # pylint: disable=no-member
+        if name.startswith("_"):
+            name = name[1:]  # Remove leading underscore.
         return {
-            "polymorphic_identity": underscore(cls.__name__),  # pylint: disable=no-member
+            "polymorphic_identity": underscore(name),  # pylint: disable=no-member
             "polymorphic_on": cls._type,
         }
 
@@ -273,6 +282,7 @@ class _Compound(_Parent, Base):
     source = relationship("Source", uselist=False)
     features = relationship("CompoundFeatures")
     analyses = relationship("CompoundAnalyses")
+    structure = relationship("CompoundStructure", uselist=False)
 
 
 class ReactionInputComponents(_Child, _Compound):
@@ -640,6 +650,7 @@ class ProductCompound(Base):
     texture = relationship("Texture", uselist=False)
     features = relationship("ProductCompoundFeatures")
     reaction_role = Column(ReactionRoleType)
+    structure = relationship("ProductCompoundStructure", uselist=False)
 
 
 class Texture(Base):
@@ -1117,6 +1128,46 @@ PROTO_RENAMES: dict[tuple[Type[Base], str], str] = {
     (MAPPERS[key[0]], value): key[1] for key, value in MAPPER_RENAMES.items()
 }
 
+# RDKit cartridge types; https://www.rdkit.org/docs/Cartridge.html#new-types.
+
+
+class MolType(UserDefinedType):
+    def get_col_spec(self, **kwargs):
+        del kwargs  # Unused.
+        if strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")):
+            return "mol"
+        else:
+            return "bytea"
+
+
+class BfpType(UserDefinedType):
+    def get_col_spec(self, **kwargs):
+        del kwargs  # Unused.
+        if strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")):
+            return "bfp"
+        else:
+            return "bytea"
+
+
+class _Structure(_Parent, Base):
+    smiles = Column(Text)
+    mol = Column(MolType)
+    morgan_binary_fingerprint = Column(BfpType)
+
+    __table_args__ = (
+        Index("mol_index", "mol", postgresql_using="gist"),
+        Index("morgan_binary_fingerprint_index", "morgan_binary_fingerprint", postgresql_using="gist"),
+    )
+
+
+class CompoundStructure(_Child, _Structure):
+    compound_id = Column(Integer, ForeignKey("compound.id"), nullable=False)
+
+
+class ProductCompoundStructure(_Child, _Structure):
+    product_compound_id = Column(Integer, ForeignKey("product_compound.id"), nullable=False)
+
+
 # Polymorphic matchers for constructing queries.
 Amount = with_polymorphic(_Amount, "*")
 Analysis = with_polymorphic(_Analysis, "*")
@@ -1141,7 +1192,9 @@ Volume = with_polymorphic(_Volume, "*")
 Wavelength = with_polymorphic(_Wavelength, "*")
 
 
-def from_proto(message: Message, mapper: Optional[Type[Base]] = None, key: Optional[str] = None) -> Base:
+def from_proto(
+    message: Message, mapper: Optional[Type[Base]] = None, key: Optional[str] = None, with_rdkit: bool = True
+) -> Base:
     """Converts a protobuf message into an ORM object.
 
     Args:
@@ -1149,6 +1202,7 @@ def from_proto(message: Message, mapper: Optional[Type[Base]] = None, key: Optio
         mapper: ORM mapper class. For top-level protos like Dataset and Reaction this can be left as None; it must
             be provided for _Child subclasses to properly handle polymorphism.
         key: Map key (we store maps as rows of (key, value) tuples).
+        with_rdkit: If True, add RDKit PostgreSQL cartridge functionality.
 
     Returns:
         ORM object.
@@ -1171,15 +1225,24 @@ def from_proto(message: Message, mapper: Optional[Type[Base]] = None, key: Optio
         elif field.type == FieldDescriptor.TYPE_MESSAGE:
             field_mapper = getattr(mapper, field_name).mapper.class_
             if isinstance(value, MessageMapContainer):
-                kwargs[field_name] = [from_proto(v, mapper=field_mapper, key=k) for k, v in value.items()]
+                kwargs[field_name] = [
+                    from_proto(v, mapper=field_mapper, key=k, with_rdkit=with_rdkit) for k, v in value.items()
+                ]
             elif field.label == FieldDescriptor.LABEL_REPEATED:
-                kwargs[field_name] = [from_proto(v, mapper=field_mapper) for v in value]
+                kwargs[field_name] = [from_proto(v, mapper=field_mapper, with_rdkit=with_rdkit) for v in value]
             else:
-                kwargs[field_name] = from_proto(value, mapper=field_mapper)
+                kwargs[field_name] = from_proto(value, mapper=field_mapper, with_rdkit=with_rdkit)
         elif field.type == FieldDescriptor.TYPE_ENUM:
             kwargs[field_name] = field.enum_type.values_by_number[value].name
         else:
             kwargs[field_name] = value
+    if with_rdkit and isinstance(message, (reaction_pb2.Compound, reaction_pb2.ProductCompound)):
+        # Add RDKit cartridge functionality.
+        field_mapper = getattr(mapper, "structure").mapper.class_
+        try:
+            kwargs["structure"] = field_mapper(smiles=message_helpers.smiles_from_compound(message))
+        except ValueError:
+            pass
     return mapper(**kwargs)
 
 
