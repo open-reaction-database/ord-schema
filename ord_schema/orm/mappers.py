@@ -56,7 +56,6 @@ from sqlalchemy import (
     LargeBinary,
     String,
     Text,
-    TypeDecorator,
 )
 from sqlalchemy.orm import declarative_base, declarative_mixin, declared_attr, relationship, with_polymorphic
 from sqlalchemy.types import UserDefinedType
@@ -1131,19 +1130,28 @@ PROTO_RENAMES: dict[tuple[Type[Base], str], str] = {
 # RDKit cartridge types; https://www.rdkit.org/docs/Cartridge.html#new-types.
 
 
+def rdkit_cartridge() -> bool:
+    """Returns whether to use RDKit PostgreSQL cartridge functionality."""
+    return bool(strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")))
+
+
 class MolType(UserDefinedType):
+    """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L4."""
+
     def get_col_spec(self, **kwargs):
         del kwargs  # Unused.
-        if strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")):
+        if rdkit_cartridge():
             return "mol"
         else:
             return "bytea"
 
 
 class BfpType(UserDefinedType):
+    """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L81."""
+
     def get_col_spec(self, **kwargs):
         del kwargs  # Unused.
-        if strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")):
+        if rdkit_cartridge():
             return "bfp"
         else:
             return "bytea"
