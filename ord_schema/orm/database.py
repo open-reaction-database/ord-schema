@@ -13,11 +13,15 @@
 # limitations under the License.
 
 """Functions for creating/managing the PostgreSQL database."""
+import os
+from unittest.mock import patch
+
 from sqlalchemy import cast, func, text, update
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from ord_schema.orm.mappers import Base, CString, Structure, from_proto
+from ord_schema.orm import mappers
 from ord_schema.proto import dataset_pb2
 
 
@@ -28,26 +32,40 @@ def get_connection_string(
     return f"postgresql://{username}:{password}@{host}:{port}/{database}"
 
 
-def prepare_database(engine: Engine) -> None:
-    """Prepares the database and creates the ORM table structure."""
+def prepare_database(engine: Engine) -> bool:
+    """Prepares the database and creates the ORM table structure.
+
+    Args:
+        engine: SQLAlchemy Engine.
+
+    Returns:
+        Whether the RDKit PostgreSQL cartridge is installed.
+    """
     with engine.begin() as connection:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS rdkit"))
-        connection.execute(text("CREATE EXTENSION IF NOT EXISTS rdkit WITH SCHEMA rdkit"))
-    Base.metadata.create_all(engine)
+        try:
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS rdkit WITH SCHEMA rdkit"))
+            rdkit_cartridge = True
+        except OperationalError:
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA rdkit"))
+            rdkit_cartridge = False
+    with patch.dict(os.environ, {"ORD_POSTGRES_RDKIT": "1" if rdkit_cartridge else "0"}):
+        mappers.Base.metadata.create_all(engine)
+    return rdkit_cartridge
 
 
 def add_datasets(datasets: list[dataset_pb2.Dataset], engine: Engine) -> None:
     """Adds datasets to the database."""
     with Session(engine) as session:
         for dataset in datasets:
-            session.add(from_proto(dataset))
+            session.add(mappers.from_proto(dataset))
         session.commit()
 
 
 def add_rdkit(engine: Engine) -> None:
     """Adds RDKit PostgreSQL cartridge data."""
-    table = Structure.__table__
+    table = mappers.Structure.__table__
     with Session(engine) as session:
-        session.execute(update(table).values(mol=func.rdkit.mol_from_smiles(cast(Structure.smiles, CString))))
-        session.execute(update(table).values(morgan_binary_fingerprint=func.rdkit.morganbv_fp(Structure.mol)))
+        session.execute(update(table).values(mol=func.rdkit.mol_from_smiles(cast(table.c.smiles, mappers.CString))))
+        session.execute(update(table).values(morgan_binary_fingerprint=func.rdkit.morganbv_fp(table.c.mol)))
         session.commit()
