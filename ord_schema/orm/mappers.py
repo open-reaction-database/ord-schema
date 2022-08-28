@@ -33,8 +33,6 @@ Notes:
       # TODO(skearnes): Update the proto definition?
     * Source.id was renamed in the ORM to Source.vendor_id to avoid conflicting with the `id` column.
       # TODO(skearnes): Update the proto definition?
-    * RDKit PostgreSQL cartridge functionality is used in a separate "rdkit" schema to avoid name conflicts between
-      tables and extension types.
 """
 from __future__ import annotations
 
