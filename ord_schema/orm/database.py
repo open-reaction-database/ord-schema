@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Functions for creating/managing the PostgreSQL database."""
+import logging
 import os
 from unittest.mock import patch
 
@@ -23,6 +24,8 @@ from sqlalchemy.orm import Session
 
 from ord_schema.orm import mappers
 from ord_schema.proto import dataset_pb2
+
+logger = logging.getLogger(__name__)
 
 
 def get_connection_string(
@@ -47,6 +50,7 @@ def prepare_database(engine: Engine) -> bool:
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS rdkit WITH SCHEMA rdkit"))
             rdkit_cartridge = True
         except OperationalError:
+            logger.warning("RDKit PostgreSQL cartridge is not installed; structure search will be disabled")
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA rdkit"))
             rdkit_cartridge = False
     with patch.dict(os.environ, {"ORD_POSTGRES_RDKIT": "1" if rdkit_cartridge else "0"}):
