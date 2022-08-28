@@ -38,8 +38,6 @@ Notes:
 """
 from __future__ import annotations
 
-import os
-from distutils.util import strtobool
 from inspect import getmro
 from typing import Optional, Type
 
@@ -1134,11 +1132,6 @@ PROTO_RENAMES: dict[tuple[Type[Base], str], str] = {
 }
 
 
-def rdkit_cartridge() -> bool:
-    """Returns whether to use RDKit PostgreSQL cartridge functionality."""
-    return bool(strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")))
-
-
 class RDKitMol(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L4."""
 
@@ -1151,7 +1144,7 @@ class RDKitMol(UserDefinedType):
     def get_col_spec(self, **kwargs):
         """Returns the column type."""
         del kwargs  # Unused.
-        return "rdkit.mol" if rdkit_cartridge() else "bytea"
+        return "rdkit.mol"
 
 
 class RDKitBfp(UserDefinedType):
@@ -1166,7 +1159,7 @@ class RDKitBfp(UserDefinedType):
     def get_col_spec(self, **kwargs):
         """Returns the column type."""
         del kwargs  # Unused.
-        return "rdkit.bfp" if rdkit_cartridge() else "bytea"
+        return "rdkit.bfp"
 
 
 class CString(UserDefinedType):
