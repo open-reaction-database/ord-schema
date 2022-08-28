@@ -1144,12 +1144,14 @@ class RDKitMol(UserDefinedType):
 
     cache_ok = True
 
+    @property
+    def python_type(self):
+        raise NotImplementedError()
+
     def get_col_spec(self, **kwargs):
+        """Returns the column type."""
         del kwargs  # Unused.
-        if rdkit_cartridge():
-            return "rdkit.mol"
-        else:
-            return "bytea"
+        return "rdkit.mol" if rdkit_cartridge() else "bytea"
 
 
 class RDKitBfp(UserDefinedType):
@@ -1157,12 +1159,14 @@ class RDKitBfp(UserDefinedType):
 
     cache_ok = True
 
+    @property
+    def python_type(self):
+        raise NotImplementedError()
+
     def get_col_spec(self, **kwargs):
+        """Returns the column type."""
         del kwargs  # Unused.
-        if rdkit_cartridge():
-            return "rdkit.bfp"
-        else:
-            return "bytea"
+        return "rdkit.bfp" if rdkit_cartridge() else "bytea"
 
 
 class CString(UserDefinedType):
@@ -1170,7 +1174,12 @@ class CString(UserDefinedType):
 
     cache_ok = True
 
+    @property
+    def python_type(self):
+        raise NotImplementedError()
+
     def get_col_spec(self, **kwargs):
+        """Returns the column type."""
         del kwargs  # Unused.
         return "cstring"
 
@@ -1224,8 +1233,8 @@ Volume = with_polymorphic(_Volume, "*")
 Wavelength = with_polymorphic(_Wavelength, "*")
 
 
-def from_proto(
-    message: Message, mapper: Optional[Type[Base]] = None, key: Optional[str] = None, with_rdkit: bool = True
+def from_proto(  # pylint: disable=too-many-branches
+    message: Message, mapper: Optional[Type[Base]] = None, key: Optional[str] = None
 ) -> Base:
     """Converts a protobuf message into an ORM object.
 
@@ -1234,7 +1243,6 @@ def from_proto(
         mapper: ORM mapper class. For top-level protos like Dataset and Reaction this can be left as None; it must
             be provided for _Child subclasses to properly handle polymorphism.
         key: Map key (we store maps as rows of (key, value) tuples).
-        with_rdkit: If True, add RDKit PostgreSQL cartridge functionality.
 
     Returns:
         ORM object.
@@ -1257,18 +1265,16 @@ def from_proto(
         elif field.type == FieldDescriptor.TYPE_MESSAGE:
             field_mapper = getattr(mapper, field_name).mapper.class_
             if isinstance(value, MessageMapContainer):
-                kwargs[field_name] = [
-                    from_proto(v, mapper=field_mapper, key=k, with_rdkit=with_rdkit) for k, v in value.items()
-                ]
+                kwargs[field_name] = [from_proto(v, mapper=field_mapper, key=k) for k, v in value.items()]
             elif field.label == FieldDescriptor.LABEL_REPEATED:
-                kwargs[field_name] = [from_proto(v, mapper=field_mapper, with_rdkit=with_rdkit) for v in value]
+                kwargs[field_name] = [from_proto(v, mapper=field_mapper) for v in value]
             else:
-                kwargs[field_name] = from_proto(value, mapper=field_mapper, with_rdkit=with_rdkit)
+                kwargs[field_name] = from_proto(value, mapper=field_mapper)
         elif field.type == FieldDescriptor.TYPE_ENUM:
             kwargs[field_name] = field.enum_type.values_by_number[value].name
         else:
             kwargs[field_name] = value
-    if with_rdkit and isinstance(message, (reaction_pb2.Compound, reaction_pb2.ProductCompound)):
+    if isinstance(message, (reaction_pb2.Compound, reaction_pb2.ProductCompound)):
         # Add RDKit cartridge functionality.
         field_mapper = getattr(mapper, "structure").mapper.class_
         try:
