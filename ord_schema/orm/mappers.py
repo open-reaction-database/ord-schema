@@ -33,6 +33,8 @@ Notes:
       # TODO(skearnes): Update the proto definition?
     * Source.id was renamed in the ORM to Source.vendor_id to avoid conflicting with the `id` column.
       # TODO(skearnes): Update the proto definition?
+    * RDKit PostgreSQL cartridge functionality is used in a separate "rdkit" schema to avoid name conflicts between
+      tables and extension types.
 """
 from __future__ import annotations
 
@@ -121,7 +123,11 @@ class _Child:
                 parent_table = parent_class.__tablename__
                 break
         assert parent_table is not None, (cls, getmro(cls))
-        return Column(f"{parent_table}_id", Integer, ForeignKey(f"{parent_table}.id"), primary_key=True)
+        if parent_table in ["structure"]:
+            foreign_key = ForeignKey(f"rdkit.{parent_table}.id")
+        else:
+            foreign_key = ForeignKey(f"{parent_table}.id")
+        return Column(f"{parent_table}_id", Integer, foreign_key, primary_key=True)
 
     @declared_attr
     def __mapper_args__(cls):  # pylint: disable=no-self-argument
@@ -1127,53 +1133,70 @@ PROTO_RENAMES: dict[tuple[Type[Base], str], str] = {
     (MAPPERS[key[0]], value): key[1] for key, value in MAPPER_RENAMES.items()
 }
 
-# RDKit cartridge types; https://www.rdkit.org/docs/Cartridge.html#new-types.
-
 
 def rdkit_cartridge() -> bool:
     """Returns whether to use RDKit PostgreSQL cartridge functionality."""
     return bool(strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")))
 
 
-class MolType(UserDefinedType):
+class RDKitMol(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L4."""
 
+    cache_ok = True
+
     def get_col_spec(self, **kwargs):
         del kwargs  # Unused.
         if rdkit_cartridge():
-            return "mol"
+            return "rdkit.mol"
         else:
             return "bytea"
 
 
-class BfpType(UserDefinedType):
+class RDKitBfp(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L81."""
 
+    cache_ok = True
+
     def get_col_spec(self, **kwargs):
         del kwargs  # Unused.
         if rdkit_cartridge():
-            return "bfp"
+            return "rdkit.bfp"
         else:
             return "bytea"
+
+
+class CString(UserDefinedType):
+    """PostgreSQL cstring."""
+
+    cache_ok = True
+
+    def get_col_spec(self, **kwargs):
+        del kwargs  # Unused.
+        return "cstring"
 
 
 class _Structure(_Parent, Base):
     smiles = Column(Text)
-    mol = Column(MolType)
-    morgan_binary_fingerprint = Column(BfpType)
+    mol = Column(RDKitMol)
+    morgan_binary_fingerprint = Column(RDKitBfp)
 
     __table_args__ = (
         Index("mol_index", "mol", postgresql_using="gist"),
         Index("morgan_binary_fingerprint_index", "morgan_binary_fingerprint", postgresql_using="gist"),
+        {"schema": "rdkit"},
     )
 
 
 class CompoundStructure(_Child, _Structure):
     compound_id = Column(Integer, ForeignKey("compound.id"), nullable=False)
 
+    __table_args__ = {"schema": "rdkit"}
+
 
 class ProductCompoundStructure(_Child, _Structure):
     product_compound_id = Column(Integer, ForeignKey("product_compound.id"), nullable=False)
+
+    __table_args__ = {"schema": "rdkit"}
 
 
 # Polymorphic matchers for constructing queries.
@@ -1192,6 +1215,7 @@ Pressure = with_polymorphic(_Pressure, "*")
 ReactionInput = with_polymorphic(_ReactionInput, "*")
 RecordEvent = with_polymorphic(_RecordEvent, "*")
 StirringConditions = with_polymorphic(_StirringConditions, "*")
+Structure = with_polymorphic(_Structure, "*")
 Temperature = with_polymorphic(_Temperature, "*")
 TemperatureConditions = with_polymorphic(_TemperatureConditions, "*")
 Time = with_polymorphic(_Time, "*")
