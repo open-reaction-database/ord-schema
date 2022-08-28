@@ -15,23 +15,9 @@
 """Tests for ord_schema.orm."""
 import os
 import pytest
-from unittest.mock import patch
-
-import sqlalchemy.exc
-from sqlalchemy import create_engine, select, text
-from sqlalchemy.orm import Session
-from testing.postgresql import Postgresql
 
 from ord_schema.message_helpers import load_message
-from ord_schema.orm.mappers import (
-    Base,
-    Compound,
-    CompoundIdentifiers,
-    Reaction,
-    ReactionInputs,
-    from_proto,
-    to_proto,
-)
+from ord_schema.orm.mappers import from_proto, to_proto
 from ord_schema.proto.dataset_pb2 import Dataset
 
 
@@ -46,30 +32,3 @@ from ord_schema.proto.dataset_pb2 import Dataset
 def test_round_trip(filename):
     dataset = load_message(filename, Dataset)
     assert dataset == to_proto(from_proto(dataset))
-
-
-def test_orm():
-    dataset = load_message(os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"), Dataset)
-    with Postgresql() as postgres:
-        engine = create_engine(postgres.url())
-        with engine.connect() as connection:
-            connection.execute(text("CREATE SCHEMA IF NOT EXISTS rdkit"))
-            try:
-                connection.execute(text("CREATE EXTENSION IF NOT EXISTS rdkit WITH SCHEMA rdkit;"))
-                rdkit_cartridge = True
-            except sqlalchemy.exc.OperationalError:
-                connection.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist;"))
-                rdkit_cartridge = False
-        with patch.dict(os.environ, {"ORD_POSTGRES_RDKIT": "1" if rdkit_cartridge else "0"}):
-            Base.metadata.create_all(engine)
-        with Session(engine) as session:
-            session.add(from_proto(dataset, with_rdkit=False))
-            query = (
-                select(Reaction)
-                .join(ReactionInputs)
-                .join(Compound)
-                .join(CompoundIdentifiers)
-                .where(CompoundIdentifiers.type == "SMILES", CompoundIdentifiers.value == "c1ccccc1CCC(O)C")
-            )
-            results = session.execute(query)
-            assert len(results.fetchall()) == 20
