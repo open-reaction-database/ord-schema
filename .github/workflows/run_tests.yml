@@ -19,15 +19,21 @@ on: [ pull_request, push ]
 jobs:
   test_ord_schema:
     runs-on: ubuntu-latest
+    env:
+      PGDATA: $GITHUB_WORKSPACE/rdkit-postgres
     steps:
       - uses: actions/checkout@v3
       - uses: conda-incubator/setup-miniconda@v2
+      - name: Setup PostgreSQL
+        run: |
+          # NOTE(skearnes): conda is not used for python, only postgres.
+          conda install -c rdkit rdkit-postgresql
+          initdb
       - uses: actions/setup-python@v4
         with:
           python-version: 3.9
       - name: Install ord_schema
         run: |
-          conda install -c rdkit rdkit-postgresql
           python -m pip install --upgrade pip
           python -m pip install wheel
           python -m pip install .[tests]
