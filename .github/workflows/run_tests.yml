@@ -25,8 +25,9 @@ jobs:
       - uses: actions/checkout@v3
       - uses: conda-incubator/setup-miniconda@v2
       - name: Setup PostgreSQL
+        shell: bash -l {0}
         run: |
-          # NOTE(skearnes): conda is not used for python, only postgres.
+          # NOTE(skearnes): conda is only used for postgres (not python).
           conda install -c rdkit rdkit-postgresql
           initdb
       - uses: actions/setup-python@v4
@@ -38,6 +39,7 @@ jobs:
           python -m pip install wheel
           python -m pip install .[tests]
       - name: Run tests
+        shell: bash -l {0}
         run: |
           coverage erase
           pytest --cov=ord_schema
