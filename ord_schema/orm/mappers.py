@@ -1185,6 +1185,16 @@ class CString(UserDefinedType):
 
 
 class _Structure(_Parent, Base):
+    """Table for storing compound structures and associated RDKit cartridge data.
+
+    Notes:
+      * This table lives in a separate "rdkit" schema to avoid name conflicts between tables and extension types.
+      * The RDKit-specific columns are populated by ord_schema.orm.database.add_rdkit; this allows the ORM to function
+        normally even if if the RDKit PostgreSQL cartridge is not installed (the `smiles` column will be populated and
+        the other columns will be empty).
+      * Objects with this type are added to the ORM in from_proto() using the `structure` field.
+    """
+
     smiles = Column(Text)
     mol = Column(RDKitMol)
     morgan_binary_fingerprint = Column(RDKitBfp)
