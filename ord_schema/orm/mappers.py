@@ -1056,7 +1056,7 @@ class _AnalysisData(_Child, _Data):
     key = Column(String(255))  # Map key.
 
 
-MAPPERS: dict[Type[Message], Type[Base]] = {
+_MAPPERS: dict[Type[Message], Type[Base]] = {
     dataset_pb2.Dataset: Dataset,
     dataset_pb2.DatasetExample: DatasetExample,
     reaction_pb2.Reaction: Reaction,
@@ -1123,13 +1123,13 @@ MAPPERS: dict[Type[Message], Type[Base]] = {
     reaction_pb2.FloatValue: _FloatValue,
     reaction_pb2.Data: _Data,
 }
-PROTOS: dict[Type[Base], Type[Message]] = {value: key for key, value in MAPPERS.items()}
+_PROTOS: dict[Type[Base], Type[Message]] = {value: key for key, value in _MAPPERS.items()}
 
-MAPPER_RENAMES: dict[tuple[Type[Message], str], str] = {
+_MAPPER_RENAMES: dict[tuple[Type[Message], str], str] = {
     (reaction_pb2.Compound.Source, "id"): "vendor_id",
 }
-PROTO_RENAMES: dict[tuple[Type[Base], str], str] = {
-    (MAPPERS[key[0]], value): key[1] for key, value in MAPPER_RENAMES.items()
+_PROTO_RENAMES: dict[tuple[Type[Base], str], str] = {
+    (_MAPPERS[key[0]], value): key[1] for key, value in _MAPPER_RENAMES.items()
 }
 
 
@@ -1257,14 +1257,14 @@ def from_proto(  # pylint: disable=too-many-branches
         ORM object.
     """
     if mapper is None:
-        mapper = MAPPERS[type(message)]
+        mapper = _MAPPERS[type(message)]
     kwargs = {}
     if key is not None:
         kwargs["key"] = key
     if mapper == Reaction:
         kwargs["proto"] = message.SerializeToString()
     for field, value in message.ListFields():
-        field_name = MAPPER_RENAMES.get((type(message), field.name), field.name)
+        field_name = _MAPPER_RENAMES.get((type(message), field.name), field.name)
         if field_name == "eic_masses":
             # Convert repeated float to repeated FloatValue.
             kwargs[field_name] = [_MassSpecMeasurementDetailsEicMasses(value=v) for v in value]
@@ -1306,13 +1306,13 @@ def to_proto(base: Base) -> Message:
     proto = None
     for mapper in getmro(type(base)):
         if not issubclass(mapper, _Child):
-            proto = PROTOS[mapper]
+            proto = _PROTOS[mapper]
             break
     assert issubclass(proto, Message)
     for field in proto.DESCRIPTOR.fields:
-        mapper_field_name = MAPPER_RENAMES.get((proto, field.name), field.name)
+        mapper_field_name = _MAPPER_RENAMES.get((proto, field.name), field.name)
         value = getattr(base, mapper_field_name)
-        field_name = PROTO_RENAMES.get((type(base), mapper_field_name), mapper_field_name)
+        field_name = _PROTO_RENAMES.get((type(base), mapper_field_name), mapper_field_name)
         if field_name == "eic_masses":
             # Convert repeated FloatValue to repeated float.
             kwargs[field_name] = [v.value for v in value]
