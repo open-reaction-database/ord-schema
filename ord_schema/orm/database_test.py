@@ -21,7 +21,7 @@ from testing.postgresql import Postgresql
 
 from ord_schema.message_helpers import load_message
 from ord_schema.orm.database import add_datasets, add_rdkit, prepare_database
-from ord_schema.orm.mappers import Compound, CompoundIdentifiers, Reaction, ReactionInputs
+from ord_schema.orm.mappers import Compound, CompoundIdentifier, Reaction, ReactionInput
 from ord_schema.proto.dataset_pb2 import Dataset
 
 
@@ -36,10 +36,10 @@ def test_orm():
         with Session(engine) as session:
             query = (
                 select(Reaction)
-                .join(ReactionInputs)
+                .join(ReactionInput)
                 .join(Compound)
-                .join(CompoundIdentifiers)
-                .where(CompoundIdentifiers.type == "SMILES", CompoundIdentifiers.value == "c1ccccc1CCC(O)C")
+                .join(CompoundIdentifier)
+                .where(CompoundIdentifier.type == "SMILES", CompoundIdentifier.value == "c1ccccc1CCC(O)C")
             )
             results = session.execute(query)
             assert len(results.fetchall()) == 20
