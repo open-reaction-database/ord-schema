@@ -21,12 +21,13 @@ Notes:
       https://docs.sqlalchemy.org/en/14/orm/inheritance.html#joined-table-inheritance.
     * The naming might be a bit confusing: classes for single-use and parent protos have the same name
       as the corresponding message, while classes for multi-use protos (child classes) are named as
-      <ContainingClass><Attribute>. For example, Reaction.identifiers uses the ReactionIdentifier class,
-      while Reaction.inputs uses the ReactionInputs class (since _ReactionInput is used in multiple places).
+      _<ContainingClass><Attribute>. For example, Reaction.identifiers uses the ReactionIdentifier class,
+      while Reaction.inputs uses the _ReactionInputs class (since _ReactionInput is used in multiple places).
       The effect is that all tables storing proto information are named after their corresponding proto
       messages, with extra child tables for storing relationships.
-    * Parent class names are prepended with underscores; e.g. _ReactionInput. Every parent class has an associated
-      with_polymorphic wrapper for query construction, named without the leading underscore; e.g. ReactionInput.
+    * Parent and child class names are prepended with underscores; e.g. _ReactionInput. Every parent class has an
+      associated with_polymorphic wrapper for query construction, named without the leading underscore;
+      e.g. ReactionInput.
     * Only message types are allowed for repeated/mapped values in the ORM (not scalar types). Specifically:
         * MassSpecMeasurementDetails.eic_masses is converted from repeated float to repeated FloatValue.
         * Dataset.reaction_ids is converted from repeated string to repeated DatasetId.
@@ -153,7 +154,7 @@ class DatasetExample(Base):
     dataset_id = Column(String(255), ForeignKey("dataset.dataset_id"), nullable=False)
     description = Column(Text)
     url = Column(Text)
-    created = relationship("DatasetExampleCreated", uselist=False)
+    created = relationship("_DatasetExampleCreated", uselist=False)
 
 
 class Reaction(Base):
@@ -161,7 +162,7 @@ class Reaction(Base):
     proto = Column(LargeBinary, nullable=False)
 
     identifiers = relationship("ReactionIdentifier")
-    inputs = relationship("ReactionInputs")
+    inputs = relationship("_ReactionInputs")
     setup = relationship("ReactionSetup", uselist=False)
     conditions = relationship("ReactionConditions", uselist=False)
     notes = relationship("ReactionNotes", uselist=False)
@@ -184,23 +185,23 @@ class ReactionIdentifier(Base):
 
 
 class _ReactionInput(_Parent, Base):
-    components = relationship("ReactionInputComponents")
+    components = relationship("_ReactionInputComponents")
     crude_components = relationship("CrudeComponent")
     addition_order = Column(Integer)
-    addition_time = relationship("ReactionInputAdditionTime", uselist=False)
+    addition_time = relationship("_ReactionInputAdditionTime", uselist=False)
     addition_speed = relationship("AdditionSpeed", uselist=False)
-    addition_duration = relationship("ReactionInputAdditionDuration", uselist=False)
+    addition_duration = relationship("_ReactionInputAdditionDuration", uselist=False)
     flow_rate = relationship("FlowRate", uselist=False)
     addition_device = relationship("AdditionDevice", uselist=False)
-    addition_temperature = relationship("ReactionInputAdditionTemperature", uselist=False)
+    addition_temperature = relationship("_ReactionInputAdditionTemperature", uselist=False)
 
 
-class ReactionInputs(_Child, _ReactionInput):
+class _ReactionInputs(_Child, _ReactionInput):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), nullable=False)
     key = Column(String(255))  # Map key.
 
 
-class ReactionWorkupInput(_Child, _ReactionInput):
+class _ReactionWorkupInput(_Child, _ReactionInput):
     reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"), nullable=False, unique=True)
 
 
@@ -231,24 +232,24 @@ class AdditionDevice(Base):
 class _Amount(_Parent, Base):
     mass = relationship("Mass", uselist=False)
     moles = relationship("Moles", uselist=False)
-    volume = relationship("AmountVolume", uselist=False)
+    volume = relationship("_AmountVolume", uselist=False)
     unmeasured = relationship("UnmeasuredAmount", uselist=False)
     volume_includes_solutes = Column(Boolean)
 
 
-class CrudeComponentAmount(_Child, _Amount):
+class _CrudeComponentAmount(_Child, _Amount):
     crude_component_id = Column(Integer, ForeignKey("crude_component.id"), nullable=False)
 
 
-class CompoundAmount(_Child, _Amount):
+class _CompoundAmount(_Child, _Amount):
     compound_id = Column(Integer, ForeignKey("compound.id"), nullable=False)
 
 
-class ReactionWorkupAmount(_Child, _Amount):
+class _ReactionWorkupAmount(_Child, _Amount):
     reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"), nullable=False)
 
 
-class ProductMeasurementAmount(_Child, _Amount):
+class _ProductMeasurementAmount(_Child, _Amount):
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), nullable=False)
 
 
@@ -267,7 +268,7 @@ class CrudeComponent(Base):
     reaction_id = Column(String(255), ForeignKey("reaction.reaction_id"), nullable=False)
     includes_workup = Column(Boolean)
     has_derived_amount = Column(Boolean)
-    amount = relationship("CrudeComponentAmount", uselist=False)
+    amount = relationship("_CrudeComponentAmount", uselist=False)
 
 
 # Shared enum; see https://docs.sqlalchemy.org/en/14/dialects/postgresql.html#sqlalchemy.dialects.postgresql.ENUM.
@@ -277,22 +278,22 @@ ReactionRoleType = Enum(
 
 
 class _Compound(_Parent, Base):
-    identifiers = relationship("CompoundIdentifiers")
-    amount = relationship("CompoundAmount", uselist=False)
+    identifiers = relationship("_CompoundIdentifiers")
+    amount = relationship("_CompoundAmount", uselist=False)
     reaction_role = Column(ReactionRoleType)
     is_limiting = Column(Boolean)
     preparations = relationship("CompoundPreparation")
     source = relationship("Source", uselist=False)
-    features = relationship("CompoundFeatures")
-    analyses = relationship("CompoundAnalyses")
-    structure = relationship("CompoundStructure", uselist=False)
+    features = relationship("_CompoundFeatures")
+    analyses = relationship("_CompoundAnalyses")
+    structure = relationship("_CompoundStructure", uselist=False)
 
 
-class ReactionInputComponents(_Child, _Compound):
+class _ReactionInputComponents(_Child, _Compound):
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), nullable=False)
 
 
-class ProductMeasurementAuthenticStandard(_Child, _Compound):
+class _ProductMeasurementAuthenticStandard(_Child, _Compound):
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), nullable=False, unique=True)
 
 
@@ -322,11 +323,11 @@ class _CompoundIdentifier(_Parent, Base):
     value = Column(Text)
 
 
-class CompoundIdentifiers(_Child, _CompoundIdentifier):
+class _CompoundIdentifiers(_Child, _CompoundIdentifier):
     compound_id = Column(Integer, ForeignKey("compound.id"), nullable=False)
 
 
-class ProductCompoundIdentifiers(_Child, _CompoundIdentifier):
+class _ProductCompoundIdentifiers(_Child, _CompoundIdentifier):
     product_compound_id = Column(Integer, ForeignKey("product_compound.id"), nullable=False)
 
 
@@ -338,7 +339,7 @@ class Vessel(Base):
     material = relationship("VesselMaterial", uselist=False)
     preparations = relationship("VesselPreparation")
     attachments = relationship("VesselAttachment")
-    volume = relationship("VesselVolume", uselist=False)
+    volume = relationship("_VesselVolume", uselist=False)
     plate_id = Column(String(255))
     plate_position = Column(String(32))
 
@@ -378,7 +379,7 @@ class ReactionSetup(Base):
     vessel = relationship("Vessel", uselist=False)
     is_automated = Column(Boolean)
     automation_platform = Column(String(255))
-    automation_code = relationship("ReactionSetupAutomationCode")
+    automation_code = relationship("_ReactionSetupAutomationCode")
     environment = relationship("ReactionEnvironment", uselist=False)
 
 
@@ -397,9 +398,9 @@ class ReactionEnvironment(Base):
 class ReactionConditions(Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), nullable=False, unique=True)
 
-    temperature = relationship("ReactionConditionsTemperature", uselist=False)
+    temperature = relationship("_ReactionConditionsTemperature", uselist=False)
     pressure = relationship("PressureConditions", uselist=False)
-    stirring = relationship("ReactionConditionsStirring", uselist=False)
+    stirring = relationship("_ReactionConditionsStirring", uselist=False)
     illumination = relationship("IlluminationConditions", uselist=False)
     electrochemistry = relationship("ElectrochemistryConditions", uselist=False)
     flow = relationship("FlowConditions", uselist=False)
@@ -411,15 +412,15 @@ class ReactionConditions(Base):
 
 class _TemperatureConditions(_Parent, Base):
     control = relationship("TemperatureControl", uselist=False)
-    setpoint = relationship("TemperatureConditionsSetpoint", uselist=False)
+    setpoint = relationship("_TemperatureConditionsSetpoint", uselist=False)
     measurements = relationship("TemperatureConditionsMeasurement")
 
 
-class ReactionConditionsTemperature(_Child, _TemperatureConditions):
+class _ReactionConditionsTemperature(_Child, _TemperatureConditions):
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), nullable=False, unique=True)
 
 
-class ReactionWorkupTemperature(_Child, _TemperatureConditions):
+class _ReactionWorkupTemperature(_Child, _TemperatureConditions):
     reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"), nullable=False, unique=True)
 
 
@@ -445,15 +446,15 @@ class TemperatureConditionsMeasurement(Base):
         )
     )
     details = Column(Text)
-    time = relationship("TemperatureConditionsMeasurementTime", uselist=False)
-    temperature = relationship("TemperatureConditionsMeasurementTemperature", uselist=False)
+    time = relationship("_TemperatureConditionsMeasurementTime", uselist=False)
+    temperature = relationship("_TemperatureConditionsMeasurementTemperature", uselist=False)
 
 
 class PressureConditions(Base):
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), nullable=False, unique=True)
 
     control = relationship("PressureControl", uselist=False)
-    setpoint = relationship("PressureConditionsSetpoint", uselist=False)
+    setpoint = relationship("_PressureConditionsSetpoint", uselist=False)
     atmosphere = relationship("Atmosphere", uselist=False)
     measurements = relationship("PressureConditionsMeasurement")
 
@@ -492,8 +493,8 @@ class PressureConditionsMeasurement(Base):
         )
     )
     details = Column(Text)
-    time = relationship("PressureConditionsMeasurementTime", uselist=False)
-    pressure = relationship("PressureConditionsMeasurementPressure", uselist=False)
+    time = relationship("_PressureConditionsMeasurementTime", uselist=False)
+    pressure = relationship("_PressureConditionsMeasurementPressure", uselist=False)
 
 
 class _StirringConditions(_Parent, Base):
@@ -504,11 +505,11 @@ class _StirringConditions(_Parent, Base):
     rate = relationship("StirringRate", uselist=False)
 
 
-class ReactionConditionsStirring(_Child, _StirringConditions):
+class _ReactionConditionsStirring(_Child, _StirringConditions):
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), nullable=False, unique=True)
 
 
-class ReactionWorkupStirring(_Child, _StirringConditions):
+class _ReactionWorkupStirring(_Child, _StirringConditions):
     reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"), nullable=False, unique=True)
 
 
@@ -534,9 +535,9 @@ class IlluminationConditions(Base):
         )
     )
     details = Column(Text)
-    peak_wavelength = relationship("IlluminationConditionsPeakWavelength", uselist=False)
+    peak_wavelength = relationship("_IlluminationConditionsPeakWavelength", uselist=False)
     color = Column(String(255))
-    distance_to_vessel = relationship("IlluminationConditionsDistanceToVessel", uselist=False)
+    distance_to_vessel = relationship("_IlluminationConditionsDistanceToVessel", uselist=False)
 
 
 class ElectrochemistryConditions(Base):
@@ -549,11 +550,11 @@ class ElectrochemistryConditions(Base):
         )
     )
     details = Column(Text)
-    current = relationship("ElectrochemistryConditionsCurrent", uselist=False)
-    voltage = relationship("ElectrochemistryConditionsVoltage", uselist=False)
+    current = relationship("_ElectrochemistryConditionsCurrent", uselist=False)
+    voltage = relationship("_ElectrochemistryConditionsVoltage", uselist=False)
     anode_material = Column(String(255))
     cathode_material = Column(String(255))
-    electrode_separation = relationship("ElectrochemistryConditionsElectrodeSeparation", uselist=False)
+    electrode_separation = relationship("_ElectrochemistryConditionsElectrodeSeparation", uselist=False)
     measurements = relationship("ElectrochemistryConditionsMeasurement")
     cell = relationship("ElectrochemistryCell", uselist=False)
 
@@ -561,9 +562,9 @@ class ElectrochemistryConditions(Base):
 class ElectrochemistryConditionsMeasurement(Base):
     electrochemistry_conditions_id = Column(Integer, ForeignKey("electrochemistry_conditions.id"), nullable=False)
 
-    time = relationship("ElectrochemistryConditionsMeasurementTime", uselist=False)
-    current = relationship("ElectrochemistryConditionsMeasurementCurrent", uselist=False)
-    voltage = relationship("ElectrochemistryConditionsMeasurementVoltage", uselist=False)
+    time = relationship("_ElectrochemistryConditionsMeasurementTime", uselist=False)
+    current = relationship("_ElectrochemistryConditionsMeasurementCurrent", uselist=False)
+    voltage = relationship("_ElectrochemistryConditionsMeasurementVoltage", uselist=False)
 
 
 class ElectrochemistryCell(Base):
@@ -594,7 +595,7 @@ class Tubing(Base):
 
     type = Column(Enum(*reaction_pb2.FlowConditions.Tubing.TubingType.keys(), name="FlowConditions.Tubing.TubingType"))
     details = Column(Text)
-    diameter = relationship("TubingDiameter", uselist=False)
+    diameter = relationship("_TubingDiameter", uselist=False)
 
 
 class ReactionNotes(Base):
@@ -614,9 +615,9 @@ class ReactionNotes(Base):
 class ReactionObservation(Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), nullable=False)
 
-    time = relationship("ReactionObservationTime", uselist=False)
+    time = relationship("_ReactionObservationTime", uselist=False)
     comment = Column(Text)
-    image = relationship("ReactionObservationImage", uselist=False)
+    image = relationship("_ReactionObservationImage", uselist=False)
 
 
 class ReactionWorkup(Base):
@@ -624,12 +625,12 @@ class ReactionWorkup(Base):
 
     type = Column(Enum(*reaction_pb2.ReactionWorkup.WorkupType.keys(), name="ReactionWorkup.WorkupType"))
     details = Column(Text)
-    duration = relationship("ReactionWorkupDuration", uselist=False)
-    input = relationship("ReactionWorkupInput", uselist=False)
-    amount = relationship("ReactionWorkupAmount", uselist=False)
-    temperature = relationship("ReactionWorkupTemperature", uselist=False)
+    duration = relationship("_ReactionWorkupDuration", uselist=False)
+    input = relationship("_ReactionWorkupInput", uselist=False)
+    amount = relationship("_ReactionWorkupAmount", uselist=False)
+    temperature = relationship("_ReactionWorkupTemperature", uselist=False)
     keep_phase = Column(String(255))
-    stirring = relationship("ReactionWorkupStirring", uselist=False)
+    stirring = relationship("_ReactionWorkupStirring", uselist=False)
     target_ph = Column(Float)
     is_automated = Column(Boolean)
 
@@ -637,23 +638,23 @@ class ReactionWorkup(Base):
 class ReactionOutcome(Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), nullable=False)
 
-    reaction_time = relationship("ReactionOutcomeReactionTime", uselist=False)
-    conversion = relationship("ReactionOutcomeConversion", uselist=False)
+    reaction_time = relationship("_ReactionOutcomeReactionTime", uselist=False)
+    conversion = relationship("_ReactionOutcomeConversion", uselist=False)
     products = relationship("ProductCompound")
-    analyses = relationship("ReactionOutcomeAnalyses")
+    analyses = relationship("_ReactionOutcomeAnalyses")
 
 
 class ProductCompound(Base):
     reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"), nullable=False)
 
-    identifiers = relationship("ProductCompoundIdentifiers")
+    identifiers = relationship("_ProductCompoundIdentifiers")
     is_desired_product = Column(Boolean)
     measurements = relationship("ProductMeasurement")
     isolated_color = Column(String(255))
     texture = relationship("Texture", uselist=False)
-    features = relationship("ProductCompoundFeatures")
+    features = relationship("_ProductCompoundFeatures")
     reaction_role = Column(ReactionRoleType)
-    structure = relationship("ProductCompoundStructure", uselist=False)
+    structure = relationship("_ProductCompoundStructure", uselist=False)
 
 
 class Texture(Base):
@@ -676,15 +677,15 @@ class ProductMeasurement(Base):
     uses_internal_standard = Column(Boolean)
     is_normalized = Column(Boolean)
     uses_authentic_standard = Column(Boolean)
-    authentic_standard = relationship("ProductMeasurementAuthenticStandard", uselist=False)
-    percentage = relationship("ProductMeasurementPercentage", uselist=False)
-    float_value = relationship("ProductMeasurementFloatValue", uselist=False)
+    authentic_standard = relationship("_ProductMeasurementAuthenticStandard", uselist=False)
+    percentage = relationship("_ProductMeasurementPercentage", uselist=False)
+    float_value = relationship("_ProductMeasurementFloatValue", uselist=False)
     string_value = Column(Text)
-    amount = relationship("ProductMeasurementAmount", uselist=False)
-    retention_time = relationship("ProductMeasurementRetentionTime", uselist=False)
+    amount = relationship("_ProductMeasurementAmount", uselist=False)
+    retention_time = relationship("_ProductMeasurementRetentionTime", uselist=False)
     mass_spec_details = relationship("MassSpecMeasurementDetails", uselist=False)
     selectivity = relationship("Selectivity", uselist=False)
-    wavelength = relationship("ProductMeasurementWavelength", uselist=False)
+    wavelength = relationship("_ProductMeasurementWavelength", uselist=False)
 
 
 class MassSpecMeasurementDetails(Base):
@@ -699,7 +700,7 @@ class MassSpecMeasurementDetails(Base):
     details = Column(Text)
     tic_minimum_mz = Column(Float)
     tic_maximum_mz = Column(Float)
-    eic_masses = relationship("MassSpecMeasurementDetailsEicMasses")
+    eic_masses = relationship("_MassSpecMeasurementDetailsEicMasses")
 
 
 class Selectivity(Base):
@@ -718,15 +719,15 @@ class _DateTime(_Parent, Base):
     value = Column(String(255))
 
 
-class AnalysisInstrumentLastCalibrated(_Child, _DateTime):
+class _AnalysisInstrumentLastCalibrated(_Child, _DateTime):
     analysis_id = Column(Integer, ForeignKey("analysis.id"), nullable=False, unique=True)
 
 
-class ReactionProvenanceExperimentStart(_Child, _DateTime):
+class _ReactionProvenanceExperimentStart(_Child, _DateTime):
     analysis_id = Column(Integer, ForeignKey("reaction_provenance.id"), nullable=False, unique=True)
 
 
-class RecordEventTime(_Child, _DateTime):
+class _RecordEventTime(_Child, _DateTime):
     analysis_id = Column(Integer, ForeignKey("record_event.id"), nullable=False, unique=True)
 
 
@@ -735,17 +736,17 @@ class _Analysis(_Parent, Base):
     details = Column(Text)
     chmo_id = Column(Integer)
     is_of_isolated_species = Column(Boolean)
-    data = relationship("AnalysisData")
+    data = relationship("_AnalysisData")
     instrument_manufacturer = Column(String(255))
-    instrument_last_calibrated = relationship("AnalysisInstrumentLastCalibrated", uselist=False)
+    instrument_last_calibrated = relationship("_AnalysisInstrumentLastCalibrated", uselist=False)
 
 
-class CompoundAnalyses(_Child, _Analysis):
+class _CompoundAnalyses(_Child, _Analysis):
     compound_id = Column(Integer, ForeignKey("compound.id"), nullable=False)
     key = Column(String(255))  # Map key.
 
 
-class ReactionOutcomeAnalyses(_Child, _Analysis):
+class _ReactionOutcomeAnalyses(_Child, _Analysis):
     reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"), nullable=False)
     key = Column(String(255))  # Map key.
 
@@ -753,14 +754,14 @@ class ReactionOutcomeAnalyses(_Child, _Analysis):
 class ReactionProvenance(Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), nullable=False, unique=True)
 
-    experimenter = relationship("ReactionProvenanceExperimenter", uselist=False)
+    experimenter = relationship("_ReactionProvenanceExperimenter", uselist=False)
     city = Column(String(255))
-    experiment_start = relationship("ReactionProvenanceExperimentStart", uselist=False)
+    experiment_start = relationship("_ReactionProvenanceExperimentStart", uselist=False)
     doi = Column(String(255))
     patent = Column(String(255))
     publication_url = Column(Text)
-    record_created = relationship("ReactionProvenanceRecordCreated", uselist=False)
-    record_modified = relationship("ReactionProvenanceRecordModified")
+    record_created = relationship("_ReactionProvenanceRecordCreated", uselist=False)
+    record_modified = relationship("_ReactionProvenanceRecordModified")
 
 
 class _Person(_Parent, Base):
@@ -771,29 +772,29 @@ class _Person(_Parent, Base):
     email = Column(String(255))
 
 
-class ReactionProvenanceExperimenter(_Child, _Person):
+class _ReactionProvenanceExperimenter(_Child, _Person):
     reaction_provenance_id = Column(Integer, ForeignKey("reaction_provenance.id"), nullable=False, unique=True)
 
 
-class RecordEventPerson(_Child, _Person):
+class _RecordEventPerson(_Child, _Person):
     record_event_id = Column(Integer, ForeignKey("record_event.id"), nullable=False, unique=True)
 
 
 class _RecordEvent(_Parent, Base):
-    time = relationship("RecordEventTime", uselist=False)
-    person = relationship("RecordEventPerson", uselist=False)
+    time = relationship("_RecordEventTime", uselist=False)
+    person = relationship("_RecordEventPerson", uselist=False)
     details = Column(Text)
 
 
-class ReactionProvenanceRecordCreated(_Child, _RecordEvent):
+class _ReactionProvenanceRecordCreated(_Child, _RecordEvent):
     reaction_provenance_id = Column(Integer, ForeignKey("reaction_provenance.id"), nullable=False, unique=True)
 
 
-class ReactionProvenanceRecordModified(_Child, _RecordEvent):
+class _ReactionProvenanceRecordModified(_Child, _RecordEvent):
     reaction_provenance_id = Column(Integer, ForeignKey("reaction_provenance.id"), nullable=False)
 
 
-class DatasetExampleCreated(_Child, _RecordEvent):
+class _DatasetExampleCreated(_Child, _RecordEvent):
     dataset_example_id = Column(Integer, ForeignKey("dataset_example.id"), nullable=False, unique=True)
 
 
@@ -803,45 +804,45 @@ class _Time(_Parent, Base):
     units = Column(Enum(*reaction_pb2.Time.TimeUnit.keys(), name="Time.TimeUnit"))
 
 
-class ReactionInputAdditionTime(_Child, _Time):
+class _ReactionInputAdditionTime(_Child, _Time):
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), nullable=False, unique=True)
 
 
-class ReactionInputAdditionDuration(_Child, _Time):
+class _ReactionInputAdditionDuration(_Child, _Time):
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), nullable=False, unique=True)
 
 
-class TemperatureConditionsMeasurementTime(_Child, _Time):
+class _TemperatureConditionsMeasurementTime(_Child, _Time):
     temperature_conditions_measurement_id = Column(
         Integer, ForeignKey("temperature_conditions_measurement.id"), nullable=False, unique=True
     )
 
 
-class PressureConditionsMeasurementTime(_Child, _Time):
+class _PressureConditionsMeasurementTime(_Child, _Time):
     pressure_conditions_measurement_id = Column(
         Integer, ForeignKey("pressure_conditions_measurement.id"), nullable=False, unique=True
     )
 
 
-class ElectrochemistryConditionsMeasurementTime(_Child, _Time):
+class _ElectrochemistryConditionsMeasurementTime(_Child, _Time):
     electrochemistry_conditions_measurement_id = Column(
         Integer, ForeignKey("electrochemistry_conditions_measurement.id"), nullable=False, unique=True
     )
 
 
-class ReactionObservationTime(_Child, _Time):
+class _ReactionObservationTime(_Child, _Time):
     reaction_observation_id = Column(Integer, ForeignKey("reaction_observation.id"), nullable=False, unique=True)
 
 
-class ReactionWorkupDuration(_Child, _Time):
+class _ReactionWorkupDuration(_Child, _Time):
     reaction_workup_id = Column(Integer, ForeignKey("reaction_workup.id"), nullable=False, unique=True)
 
 
-class ReactionOutcomeReactionTime(_Child, _Time):
+class _ReactionOutcomeReactionTime(_Child, _Time):
     reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"), nullable=False, unique=True)
 
 
-class ProductMeasurementRetentionTime(_Child, _Time):
+class _ProductMeasurementRetentionTime(_Child, _Time):
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), nullable=False, unique=True)
 
 
@@ -867,11 +868,11 @@ class _Volume(_Parent, Base):
     units = Column(Enum(*reaction_pb2.Volume.VolumeUnit.keys(), name="Volume.VolumeUnit"))
 
 
-class AmountVolume(_Child, _Volume):
+class _AmountVolume(_Child, _Volume):
     amount_id = Column(Integer, ForeignKey("amount.id"), nullable=False, unique=True)
 
 
-class VesselVolume(_Child, _Volume):
+class _VesselVolume(_Child, _Volume):
     vessel_id = Column(Integer, ForeignKey("vessel.id"), nullable=False, unique=True)
 
 
@@ -887,11 +888,11 @@ class _Pressure(_Parent, Base):
     units = Column(Enum(*reaction_pb2.Pressure.PressureUnit.keys(), name="Pressure.PressureUnit"))
 
 
-class PressureConditionsSetpoint(_Child, _Pressure):
+class _PressureConditionsSetpoint(_Child, _Pressure):
     pressure_conditions_id = Column(Integer, ForeignKey("pressure_conditions.id"), nullable=False, unique=True)
 
 
-class PressureConditionsMeasurementPressure(_Child, _Pressure):
+class _PressureConditionsMeasurementPressure(_Child, _Pressure):
     pressure_conditions_measurement_id = Column(
         Integer, ForeignKey("pressure_conditions_measurement.id"), nullable=False, unique=True
     )
@@ -903,15 +904,15 @@ class _Temperature(_Parent, Base):
     units = Column(Enum(*reaction_pb2.Temperature.TemperatureUnit.keys(), name="Temperature.TemperatureUnit"))
 
 
-class ReactionInputAdditionTemperature(_Child, _Temperature):
+class _ReactionInputAdditionTemperature(_Child, _Temperature):
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id"), nullable=False, unique=True)
 
 
-class TemperatureConditionsSetpoint(_Child, _Temperature):
+class _TemperatureConditionsSetpoint(_Child, _Temperature):
     temperature_conditions_id = Column(Integer, ForeignKey("temperature_conditions.id"), nullable=False, unique=True)
 
 
-class TemperatureConditionsMeasurementTemperature(_Child, _Temperature):
+class _TemperatureConditionsMeasurementTemperature(_Child, _Temperature):
     temperature_conditions_measurement_id = Column(
         Integer, ForeignKey("temperature_conditions_measurement.id"), nullable=False, unique=True
     )
@@ -923,13 +924,13 @@ class _Current(_Parent, Base):
     units = Column(Enum(*reaction_pb2.Current.CurrentUnit.keys(), name="Current.CurrentUnit"))
 
 
-class ElectrochemistryConditionsCurrent(_Child, _Current):
+class _ElectrochemistryConditionsCurrent(_Child, _Current):
     electrochemistry_conditions_id = Column(
         Integer, ForeignKey("electrochemistry_conditions.id"), nullable=False, unique=True
     )
 
 
-class ElectrochemistryConditionsMeasurementCurrent(_Child, _Current):
+class _ElectrochemistryConditionsMeasurementCurrent(_Child, _Current):
     electrochemistry_conditions_measurement_id = Column(
         Integer, ForeignKey("electrochemistry_conditions_measurement.id"), nullable=False, unique=True
     )
@@ -941,13 +942,13 @@ class _Voltage(_Parent, Base):
     units = Column(Enum(*reaction_pb2.Voltage.VoltageUnit.keys(), name="Voltage.VoltageUnit"))
 
 
-class ElectrochemistryConditionsVoltage(_Child, _Voltage):
+class _ElectrochemistryConditionsVoltage(_Child, _Voltage):
     electrochemistry_conditions_id = Column(
         Integer, ForeignKey("electrochemistry_conditions.id"), nullable=False, unique=True
     )
 
 
-class ElectrochemistryConditionsMeasurementVoltage(_Child, _Voltage):
+class _ElectrochemistryConditionsMeasurementVoltage(_Child, _Voltage):
     electrochemistry_conditions_measurement_id = Column(
         Integer, ForeignKey("electrochemistry_conditions_measurement.id"), nullable=False, unique=True
     )
@@ -959,17 +960,17 @@ class _Length(_Parent, Base):
     units = Column(Enum(*reaction_pb2.Length.LengthUnit.keys(), name="Length.LengthUnit"))
 
 
-class IlluminationConditionsDistanceToVessel(_Child, _Length):
+class _IlluminationConditionsDistanceToVessel(_Child, _Length):
     illumination_conditions_id = Column(Integer, ForeignKey("illumination_conditions.id"), nullable=False, unique=True)
 
 
-class ElectrochemistryConditionsElectrodeSeparation(_Child, _Length):
+class _ElectrochemistryConditionsElectrodeSeparation(_Child, _Length):
     electrochemistry_conditions_id = Column(
         Integer, ForeignKey("electrochemistry_conditions.id"), nullable=False, unique=True
     )
 
 
-class TubingDiameter(_Child, _Length):
+class _TubingDiameter(_Child, _Length):
     tubing_id = Column(Integer, ForeignKey("tubing.id"), nullable=False, unique=True)
 
 
@@ -979,11 +980,11 @@ class _Wavelength(_Parent, Base):
     units = Column(Enum(*reaction_pb2.Wavelength.WavelengthUnit.keys(), name="Wavelength.WavelengthUnit"))
 
 
-class IlluminationConditionsPeakWavelength(_Child, _Wavelength):
+class _IlluminationConditionsPeakWavelength(_Child, _Wavelength):
     illumination_conditions_id = Column(Integer, ForeignKey("illumination_conditions.id"), nullable=False, unique=True)
 
 
-class ProductMeasurementWavelength(_Child, _Wavelength):
+class _ProductMeasurementWavelength(_Child, _Wavelength):
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), nullable=False, unique=True)
 
 
@@ -1000,11 +1001,11 @@ class _Percentage(_Parent, Base):
     precision = Column(Float)
 
 
-class ReactionOutcomeConversion(_Child, _Percentage):
+class _ReactionOutcomeConversion(_Child, _Percentage):
     reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"), nullable=False, unique=True)
 
 
-class ProductMeasurementPercentage(_Child, _Percentage):
+class _ProductMeasurementPercentage(_Child, _Percentage):
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), nullable=False, unique=True)
 
 
@@ -1013,11 +1014,11 @@ class _FloatValue(_Parent, Base):
     precision = Column(Float)
 
 
-class ProductMeasurementFloatValue(_Child, _FloatValue):
+class _ProductMeasurementFloatValue(_Child, _FloatValue):
     product_measurement_id = Column(Integer, ForeignKey("product_measurement.id"), nullable=False, unique=True)
 
 
-class MassSpecMeasurementDetailsEicMasses(_Child, _FloatValue):
+class _MassSpecMeasurementDetailsEicMasses(_Child, _FloatValue):
     mass_spec_measurement_details_id = Column(Integer, ForeignKey("mass_spec_measurement_details.id"), nullable=False)
 
 
@@ -1031,26 +1032,26 @@ class _Data(_Parent, Base):
     format = Column(String(255))
 
 
-class CompoundFeatures(_Child, _Data):
+class _CompoundFeatures(_Child, _Data):
     compound_id = Column(Integer, ForeignKey("compound.id"), nullable=False)
     key = Column(String(255))  # Map key.
 
 
-class ReactionSetupAutomationCode(_Child, _Data):
+class _ReactionSetupAutomationCode(_Child, _Data):
     reaction_setup_id = Column(Integer, ForeignKey("reaction_setup.id"), nullable=False)
     key = Column(String(255))  # Map key.
 
 
-class ReactionObservationImage(_Child, _Data):
+class _ReactionObservationImage(_Child, _Data):
     reaction_observation_id = Column(Integer, ForeignKey("reaction_observation.id"), nullable=False, unique=True)
 
 
-class ProductCompoundFeatures(_Child, _Data):
+class _ProductCompoundFeatures(_Child, _Data):
     product_compound_id = Column(Integer, ForeignKey("product_compound.id"), nullable=False)
     key = Column(String(255))  # Map key.
 
 
-class AnalysisData(_Child, _Data):
+class _AnalysisData(_Child, _Data):
     analysis_id = Column(Integer, ForeignKey("analysis.id"), nullable=False)
     key = Column(String(255))  # Map key.
 
@@ -1204,13 +1205,13 @@ class _Structure(_Parent, Base):
     )
 
 
-class CompoundStructure(_Child, _Structure):
+class _CompoundStructure(_Child, _Structure):
     compound_id = Column(Integer, ForeignKey("compound.id"), nullable=False)
 
     __table_args__ = {"schema": "rdkit"}
 
 
-class ProductCompoundStructure(_Child, _Structure):
+class _ProductCompoundStructure(_Child, _Structure):
     product_compound_id = Column(Integer, ForeignKey("product_compound.id"), nullable=False)
 
     __table_args__ = {"schema": "rdkit"}
@@ -1266,7 +1267,7 @@ def from_proto(  # pylint: disable=too-many-branches
         field_name = MAPPER_RENAMES.get((type(message), field.name), field.name)
         if field_name == "eic_masses":
             # Convert repeated float to repeated FloatValue.
-            kwargs[field_name] = [MassSpecMeasurementDetailsEicMasses(value=v) for v in value]
+            kwargs[field_name] = [_MassSpecMeasurementDetailsEicMasses(value=v) for v in value]
         elif field_name == "reaction_ids":
             # Convert repeated string to repeated ReactionId.
             kwargs[field_name] = [ReactionId(reaction_id=v) for v in value]
