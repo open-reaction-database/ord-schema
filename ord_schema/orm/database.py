@@ -69,6 +69,7 @@ def add_datasets(datasets: list[dataset_pb2.Dataset], engine: Engine) -> None:
 
 def add_rdkit(engine: Engine) -> None:
     """Adds RDKit PostgreSQL cartridge data."""
+    assert hasattr(Structure, "__table__")  # Type hint.
     table = Structure.__table__
     with Session(engine) as session:
         session.execute(update(table).values(mol=func.rdkit.mol_from_smiles(cast(table.c.smiles, CString))))
