@@ -248,13 +248,13 @@ def find_submessages(message: ord_schema.Message, submessage_type: Type[MessageT
     return submessages
 
 
-def smiles_from_compound(compound: reaction_pb2.Compound) -> str:
+def smiles_from_compound(compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound]) -> str:
     """Fetches or generates a SMILES identifier for a compound.
 
     If a SMILES identifier already exists, it is simply returned.
 
     Args:
-        compound: reaction_pb2.Compound message.
+        compound: reaction_pb2.Compound or reaction_pb2.ProductCompound message.
 
     Returns:
         Text SMILES.

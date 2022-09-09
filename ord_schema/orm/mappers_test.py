@@ -16,20 +16,8 @@
 import os
 import pytest
 
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
-from testing.postgresql import Postgresql
-
 from ord_schema.message_helpers import load_message
-from ord_schema.orm.mappers import (
-    Base,
-    CompoundIdentifiers,
-    Reaction,
-    ReactionInputs,
-    ReactionInputComponents,
-    from_proto,
-    to_proto,
-)
+from ord_schema.orm.mappers import from_proto, to_proto
 from ord_schema.proto.dataset_pb2 import Dataset
 
 
@@ -44,23 +32,3 @@ from ord_schema.proto.dataset_pb2 import Dataset
 def test_round_trip(filename):
     dataset = load_message(filename, Dataset)
     assert dataset == to_proto(from_proto(dataset))
-
-
-def test_orm():
-    dataset = load_message(os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"), Dataset)
-    with Postgresql() as postgres:
-        engine = create_engine(postgres.url())
-        Base.metadata.create_all(engine)
-        with Session(engine) as session:
-            session.add(from_proto(dataset))
-            # TODO(skearnes): Use with_polymorphic to simplify joins; e.g. with_polymorphic(Compound, "*").
-            # https://docs.sqlalchemy.org/en/14/orm/inheritance_loading.html#with-polymorphic.
-            query = (
-                select(Reaction)
-                .join(ReactionInputs)
-                .join(ReactionInputComponents)
-                .join(CompoundIdentifiers)
-                .where(CompoundIdentifiers.type == "SMILES", CompoundIdentifiers.value == "c1ccccc1CCC(O)C")
-            )
-            results = session.execute(query)
-            assert len(results.fetchall()) == 20
