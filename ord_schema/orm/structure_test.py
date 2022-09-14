@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Tests for ord_schema.orm.structure."""
-from sqlalchemy import select
+from sqlalchemy import func, select
 from ord_schema.orm.mappers import Compound, Reaction, ReactionInput
 from ord_schema.orm.structure import Structure
 
@@ -24,7 +24,7 @@ def test_similar(test_session):
         .join(ReactionInput)
         .join(Compound)
         .join(Structure)
-        .where(Structure.morgan_binary_fingerprint.similar("c1ccccc1CCC(O)C"))
+        .where(Structure.morgan_binary_fingerprint % "c1ccccc1CCC(O)C")
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20

@@ -13,6 +13,8 @@
 # limitations under the License.
 
 """RDKit PostgreSQL cartridge functionality."""
+from __future__ import annotations
+
 import os
 from distutils.util import strtobool
 
@@ -60,8 +62,8 @@ class _MorganBinaryFingerprint(_RDKitBfp):
     cache_ok = True
 
     class comparator_factory(_RDKitBfp.Comparator):  # pylint: disable=invalid-name # pytype: disable=attribute-error
-        def similar(self, other):
-            return self.op("operator(rdkit.%)", is_comparison=True)(func.rdkit.morganbv_fp(other))
+        def __mod__(self, other):
+            return self.bool_op("operator(rdkit.%)")(func.rdkit.morganbv_fp(other))
 
     @property
     def python_type(self):
@@ -103,6 +105,9 @@ class _Structure(Parent, Base):
         Index("morgan_binary_fingerprint_index", "morgan_binary_fingerprint", postgresql_using="gist"),
         {"schema": "rdkit"},
     )
+
+    def similar(self, other):
+        return self.morgan_binary_fingerprint.bool_op("operator(rdkit.%)")(func.rdkit.morganbv_fp(other))
 
 
 class _CompoundStructure(Child, _Structure):
