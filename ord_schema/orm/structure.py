@@ -59,6 +59,8 @@ class _RDKitBfp(UserDefinedType):
 
 
 class _MorganBinaryFingerprint(_RDKitBfp):
+    """rdkit.bfp subclass for Morgan binary fingerprints."""
+
     cache_ok = True
 
     class comparator_factory(_RDKitBfp.Comparator):  # pylint: disable=invalid-name # pytype: disable=attribute-error
@@ -105,9 +107,6 @@ class _Structure(Parent, Base):
         Index("morgan_binary_fingerprint_index", "morgan_binary_fingerprint", postgresql_using="gist"),
         {"schema": "rdkit"},
     )
-
-    def similar(self, other):
-        return self.morgan_binary_fingerprint.bool_op("operator(rdkit.%)")(func.rdkit.morganbv_fp(other))
 
 
 class _CompoundStructure(Child, _Structure):
