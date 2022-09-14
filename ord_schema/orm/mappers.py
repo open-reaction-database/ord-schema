@@ -38,11 +38,10 @@ Notes:
 from __future__ import annotations
 
 from inspect import getmro
-from typing import Optional, Type
+from typing import Mapping, Optional, Type
 
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.message import Message
-from google.protobuf.pyext._message import MessageMapContainer
 from sqlalchemy import Boolean, Column, Enum, Float, Integer, ForeignKey, LargeBinary, String, Text
 from sqlalchemy.orm import relationship, with_polymorphic
 
@@ -1107,7 +1106,7 @@ def from_proto(  # pylint: disable=too-many-branches
             kwargs[field_name] = [ReactionId(reaction_id=v) for v in value]
         elif field.type == FieldDescriptor.TYPE_MESSAGE:
             field_mapper = getattr(mapper, field_name).mapper.class_
-            if isinstance(value, MessageMapContainer):
+            if isinstance(value, Mapping):
                 kwargs[field_name] = [from_proto(v, mapper=field_mapper, key=k) for k, v in value.items()]
             elif field.label == FieldDescriptor.LABEL_REPEATED:
                 kwargs[field_name] = [from_proto(v, mapper=field_mapper) for v in value]
