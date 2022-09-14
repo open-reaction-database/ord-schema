@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Tests for ord_schema.orm.structure."""
-from sqlalchemy import func, select
+from sqlalchemy import select
 from ord_schema.orm.mappers import Compound, Reaction, ReactionInput
 from ord_schema.orm.structure import Structure
 
