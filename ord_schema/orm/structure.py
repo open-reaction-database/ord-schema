@@ -16,7 +16,7 @@
 import os
 from distutils.util import strtobool
 
-from sqlalchemy import Column, Index, Integer, ForeignKey, Text
+from sqlalchemy import Column, Index, Integer, ForeignKey, Text, func
 from sqlalchemy.orm import with_polymorphic
 from sqlalchemy.types import UserDefinedType
 
@@ -35,7 +35,7 @@ class _RDKitMol(UserDefinedType):
 
     @property
     def python_type(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def get_col_spec(self, **kwargs):
         """Returns the column type."""
@@ -46,16 +46,26 @@ class _RDKitMol(UserDefinedType):
 class _RDKitBfp(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L81."""
 
-    cache_ok = True
-
     @property
     def python_type(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def get_col_spec(self, **kwargs):
         """Returns the column type."""
         del kwargs  # Unused.
         return "rdkit.bfp" if rdkit_cartridge() else "bytea"
+
+
+class _MorganBinaryFingerprint(_RDKitBfp):
+    cache_ok = True
+
+    class comparator_factory(_RDKitBfp.Comparator):  # pylint: disable=invalid-name # pytype: disable=attribute-error
+        def similar(self, other):
+            return self.op("operator(rdkit.%)", is_comparison=True)(func.rdkit.morganbv_fp(other))
+
+    @property
+    def python_type(self):
+        raise NotImplementedError
 
 
 class CString(UserDefinedType):
@@ -65,7 +75,7 @@ class CString(UserDefinedType):
 
     @property
     def python_type(self):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def get_col_spec(self, **kwargs):
         """Returns the column type."""
@@ -86,7 +96,7 @@ class _Structure(Parent, Base):
 
     smiles = Column(Text)
     mol = Column(_RDKitMol)
-    morgan_binary_fingerprint = Column(_RDKitBfp)
+    morgan_binary_fingerprint = Column(_MorganBinaryFingerprint)
 
     __table_args__ = (
         Index("mol_index", "mol", postgresql_using="gist"),

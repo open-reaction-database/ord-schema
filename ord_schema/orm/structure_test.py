@@ -12,18 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ord_schema.orm.database."""
+"""Tests for ord_schema.orm.structure."""
 from sqlalchemy import select
-from ord_schema.orm.mappers import Compound, CompoundIdentifier, Reaction, ReactionInput
+from ord_schema.orm.mappers import Compound, Reaction, ReactionInput
+from ord_schema.orm.structure import Structure
 
 
-def test_orm(test_session):
+def test_similar(test_session):
     query = (
         select(Reaction)
         .join(ReactionInput)
         .join(Compound)
-        .join(CompoundIdentifier)
-        .where(CompoundIdentifier.type == "SMILES", CompoundIdentifier.value == "c1ccccc1CCC(O)C")
+        .join(Structure)
+        .where(Structure.morgan_binary_fingerprint.similar("c1ccccc1CCC(O)C"))
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
