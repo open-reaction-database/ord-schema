@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 from distutils.util import strtobool
+from enum import Enum
 
 from sqlalchemy import Column, Index, Integer, ForeignKey, Text, func
 from sqlalchemy.orm import with_polymorphic
@@ -48,6 +49,8 @@ class _RDKitMol(UserDefinedType):
 class _RDKitBfp(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L81."""
 
+    cache_ok = True
+
     @property
     def python_type(self):
         raise NotImplementedError
@@ -57,19 +60,32 @@ class _RDKitBfp(UserDefinedType):
         del kwargs  # Unused.
         return "rdkit.bfp" if rdkit_cartridge() else "bytea"
 
+    class comparator_factory(  # pylint: disable=invalid-name
+        UserDefinedType.Comparator  # pytype: disable=attribute-error
+    ):
+        def __mod__(self, other):
+            return self.bool_op("operator(rdkit.%)")(other)
 
-class _MorganBinaryFingerprint(_RDKitBfp):
-    """rdkit.bfp subclass for Morgan binary fingerprints."""
+
+class _RDKitSfp(UserDefinedType):
+    """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L105."""
 
     cache_ok = True
-
-    class comparator_factory(_RDKitBfp.Comparator):  # pylint: disable=invalid-name # pytype: disable=attribute-error
-        def __mod__(self, other):
-            return self.bool_op("operator(rdkit.%)")(func.rdkit.morganbv_fp(other))
 
     @property
     def python_type(self):
         raise NotImplementedError
+
+    def get_col_spec(self, **kwargs):
+        """Returns the column type."""
+        del kwargs  # Unused.
+        return "rdkit.sfp" if rdkit_cartridge() else "bytea"
+
+    class comparator_factory(  # pylint: disable=invalid-name
+        UserDefinedType.Comparator  # pytype: disable=attribute-error
+    ):
+        def __mod__(self, other):
+            return self.bool_op("operator(rdkit.%)")(other)
 
 
 class CString(UserDefinedType):
@@ -87,6 +103,28 @@ class CString(UserDefinedType):
         return "cstring"
 
 
+class FingerprintType(Enum):
+    MORGAN_BFP = func.rdkit.morganbv_fp
+    MORGAN_SFP = func.rdkit.morgan_fp
+
+    def __call__(self, *args, **kwargs):
+        return self.value(*args, **kwargs)
+
+    @classmethod
+    def get_table_args(cls) -> list:
+        table_args = []
+        for fp_type in cls:
+            name = fp_type.name.lower()
+            if name.endswith("_bfp"):
+                dtype = _RDKitBfp
+            elif name.endswith("_sfp"):
+                dtype = _RDKitSfp
+            else:
+                raise ValueError(f"unable to determine dtype for {name}")
+            table_args.extend([Column(name, dtype), Index(f"{name}_index", name, postgresql_using="gist")])
+        return table_args
+
+
 class _Structure(Parent, Base):
     """Table for storing compound structures and associated RDKit cartridge data.
 
@@ -100,13 +138,16 @@ class _Structure(Parent, Base):
 
     smiles = Column(Text)
     mol = Column(_RDKitMol)
-    morgan_binary_fingerprint = Column(_MorganBinaryFingerprint)
 
     __table_args__ = (
         Index("mol_index", "mol", postgresql_using="gist"),
-        Index("morgan_binary_fingerprint_index", "morgan_binary_fingerprint", postgresql_using="gist"),
+        *FingerprintType.get_table_args(),
         {"schema": "rdkit"},
     )
+
+    @classmethod
+    def tanimoto(cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP):
+        return func.rdkit.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(other))
 
 
 class _CompoundStructure(Child, _Structure):

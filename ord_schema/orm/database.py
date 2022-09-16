@@ -23,7 +23,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from ord_schema.orm.mappers import Base, from_proto
-from ord_schema.orm.structure import CString, Structure
+from ord_schema.orm.structure import CString, FingerprintType, Structure
 from ord_schema.proto import dataset_pb2
 
 logger = logging.getLogger(__name__)
@@ -73,5 +73,6 @@ def add_rdkit(engine: Engine) -> None:
     table = Structure.__table__
     with Session(engine) as session:
         session.execute(update(table).values(mol=func.rdkit.mol_from_smiles(cast(table.c.smiles, CString))))
-        session.execute(update(table).values(morgan_binary_fingerprint=func.rdkit.morganbv_fp(table.c.mol)))
+        for fp_type in FingerprintType:
+            session.execute(update(table).values(**{fp_type.name.lower(): fp_type(table.c.mol)}))
         session.commit()
