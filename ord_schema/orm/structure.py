@@ -104,6 +104,8 @@ class CString(UserDefinedType):
 
 
 class FingerprintType(Enum):
+    """RDKit PostgreSQL fingerprint types."""
+
     MORGAN_BFP = func.rdkit.morganbv_fp
     MORGAN_SFP = func.rdkit.morgan_fp
 
@@ -112,6 +114,13 @@ class FingerprintType(Enum):
 
     @classmethod
     def get_table_args(cls) -> list:
+        """Returns a list of __table_args__ for _Structure.
+
+        Each fingerprint type is given a column (name.lower()) and a corresponding index.
+
+        Returns:
+            List of Column and Index objects.
+        """
         table_args = []
         for fp_type in cls:
             name = fp_type.name.lower()
