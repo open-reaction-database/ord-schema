@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Functions for creating/managing the PostgreSQL database."""
+import time
 import os
 from unittest.mock import patch
 
@@ -63,7 +64,13 @@ def add_datasets(datasets: list[dataset_pb2.Dataset], engine: Engine) -> None:
     """Adds datasets to the database."""
     with Session(engine) as session:
         for dataset in datasets:
-            session.add(from_proto(dataset))
+            logger.info(f"Adding dataset {dataset.dataset_id}")
+            t0 = time.time()
+            mapped_dataset = from_proto(dataset)
+            logger.info(f"from_proto() took {time.time() - t0}s")
+            t0 = time.time()
+            session.add(mapped_dataset)
+            logger.info(f"session.add() took {time.time() - t0}s")
         session.commit()
 
 

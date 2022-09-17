@@ -28,6 +28,7 @@ Options:
     --port=<int>            Database port [default: 5432]
 """
 import os
+import time
 from docopt import docopt
 from glob import glob
 
@@ -54,7 +55,9 @@ def main(**kwargs):
     )
     for filename in sorted(glob(kwargs["--pattern"])):
         logger.info(f"Loading {filename}")
+        t0 = time.time()
         dataset = load_message(filename, Dataset)
+        logger.info(f"load_message() took {time.time() - t0}s")
         add_datasets([dataset], engine=engine)
     logger.info("Updating RDKit functionality")
     add_rdkit(engine)

@@ -20,7 +20,7 @@ def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
     if not get_logger.initialized:
         logging.basicConfig(format="%(levelname)s %(asctime)s %(filename)s:%(lineno)d: %(message)s")
         get_logger.initialized = True
-    logger = get_logger(name)
+    logger = logging.getLogger(name)
     logger.setLevel(level)
     return logger
 
