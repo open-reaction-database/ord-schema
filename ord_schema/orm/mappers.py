@@ -42,7 +42,7 @@ from typing import Mapping, Optional, Type
 
 from google.protobuf.descriptor import FieldDescriptor
 from google.protobuf.message import Message
-from sqlalchemy import Boolean, Column, Enum, Float, Integer, ForeignKey, LargeBinary, String, Text
+from sqlalchemy import Boolean, Column, Enum, Float, Integer, ForeignKey, LargeBinary, Text
 from sqlalchemy.orm import relationship, with_polymorphic
 
 import ord_schema.orm.structure  # pylint: disable=unused-import
@@ -59,24 +59,24 @@ class Dataset(Base):
     description = Column(Text)
     reactions = relationship("Reaction")
     reaction_ids = relationship("ReactionId")
-    dataset_id = Column(String(255), nullable=False, unique=True)
+    dataset_id = Column(Text, nullable=False, unique=True)
 
 
 class ReactionId(Base):
     dataset_id = Column(Integer, ForeignKey("dataset.id", ondelete="CASCADE"), nullable=False)
 
-    reaction_id = Column(String(255), ForeignKey("reaction.reaction_id", ondelete="CASCADE"), nullable=False)
+    reaction_id = Column(Text, ForeignKey("reaction.reaction_id", ondelete="CASCADE"), nullable=False)
 
 
 class DatasetExample(Base):
-    dataset_id = Column(String(255), ForeignKey("dataset.dataset_id", ondelete="CASCADE"), nullable=False)
+    dataset_id = Column(Text, ForeignKey("dataset.dataset_id", ondelete="CASCADE"), nullable=False)
     description = Column(Text)
     url = Column(Text)
     created = relationship("_DatasetExampleCreated", uselist=False)
 
 
 class Reaction(Base):
-    dataset_id = Column(String(255), ForeignKey("dataset.dataset_id", ondelete="CASCADE"), nullable=False)
+    dataset_id = Column(Text, ForeignKey("dataset.dataset_id", ondelete="CASCADE"), nullable=False)
     proto = Column(LargeBinary, nullable=False)
 
     identifiers = relationship("ReactionIdentifier")
@@ -88,7 +88,7 @@ class Reaction(Base):
     workups = relationship("ReactionWorkup")
     outcomes = relationship("ReactionOutcome")
     provenance = relationship("ReactionProvenance", uselist=False)
-    reaction_id = Column(String(255), nullable=False, unique=True)
+    reaction_id = Column(Text, nullable=False, unique=True)
 
 
 class ReactionIdentifier(Base):
@@ -116,7 +116,7 @@ class _ReactionInput(Parent, Base):
 
 class _ReactionInputs(Child, _ReactionInput):
     reaction_id = Column(Integer, ForeignKey("reaction.id", ondelete="CASCADE"), nullable=False)
-    key = Column(String(255))  # Map key.
+    key = Column(Text)  # Map key.
 
 
 class _ReactionWorkupInput(Child, _ReactionInput):
@@ -189,7 +189,7 @@ class UnmeasuredAmount(Base):
 class CrudeComponent(Base):
     reaction_input_id = Column(Integer, ForeignKey("reaction_input.id", ondelete="CASCADE"), nullable=False)
 
-    reaction_id = Column(String(255), ForeignKey("reaction.reaction_id", ondelete="CASCADE"), nullable=False)
+    reaction_id = Column(Text, ForeignKey("reaction.reaction_id", ondelete="CASCADE"), nullable=False)
     includes_workup = Column(Boolean)
     has_derived_amount = Column(Boolean)
     amount = relationship("_CrudeComponentAmount", uselist=False)
@@ -226,9 +226,9 @@ class _ProductMeasurementAuthenticStandard(Child, _Compound):
 class Source(Base):
     compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"), nullable=False, unique=True)
 
-    vendor = Column(String(255))
-    vendor_id = Column(String(255))
-    lot = Column(String(255))
+    vendor = Column(Text)
+    vendor_id = Column(Text)
+    lot = Column(Text)
 
 
 class CompoundPreparation(Base):
@@ -238,7 +238,7 @@ class CompoundPreparation(Base):
         Enum(*reaction_pb2.CompoundPreparation.PreparationType.keys(), name="CompoundPreparation.PreparationType")
     )
     details = Column(Text)
-    reaction_id = Column(String(255), ForeignKey("reaction.reaction_id", ondelete="CASCADE"))
+    reaction_id = Column(Text, ForeignKey("reaction.reaction_id", ondelete="CASCADE"))
 
 
 class _CompoundIdentifier(Parent, Base):
@@ -268,8 +268,8 @@ class Vessel(Base):
     preparations = relationship("VesselPreparation")
     attachments = relationship("VesselAttachment")
     volume = relationship("_VesselVolume", uselist=False)
-    plate_id = Column(String(255))
-    plate_position = Column(String(32))
+    plate_id = Column(Text)
+    plate_position = Column(Text)
 
 
 class VesselMaterial(Base):
@@ -306,7 +306,7 @@ class ReactionSetup(Base):
 
     vessel = relationship("Vessel", uselist=False)
     is_automated = Column(Boolean)
-    automation_platform = Column(String(255))
+    automation_platform = Column(Text)
     automation_code = relationship("_ReactionSetupAutomationCode")
     environment = relationship("ReactionEnvironment", uselist=False)
 
@@ -488,7 +488,7 @@ class IlluminationConditions(Base):
     )
     details = Column(Text)
     peak_wavelength = relationship("_IlluminationConditionsPeakWavelength", uselist=False)
-    color = Column(String(255))
+    color = Column(Text)
     distance_to_vessel = relationship("_IlluminationConditionsDistanceToVessel", uselist=False)
 
 
@@ -506,8 +506,8 @@ class ElectrochemistryConditions(Base):
     details = Column(Text)
     current = relationship("_ElectrochemistryConditionsCurrent", uselist=False)
     voltage = relationship("_ElectrochemistryConditionsVoltage", uselist=False)
-    anode_material = Column(String(255))
-    cathode_material = Column(String(255))
+    anode_material = Column(Text)
+    cathode_material = Column(Text)
     electrode_separation = relationship("_ElectrochemistryConditionsElectrodeSeparation", uselist=False)
     measurements = relationship("ElectrochemistryConditionsMeasurement")
     cell = relationship("ElectrochemistryCell", uselist=False)
@@ -589,7 +589,7 @@ class ReactionWorkup(Base):
     input = relationship("_ReactionWorkupInput", uselist=False)
     amount = relationship("_ReactionWorkupAmount", uselist=False)
     temperature = relationship("_ReactionWorkupTemperature", uselist=False)
-    keep_phase = Column(String(255))
+    keep_phase = Column(Text)
     stirring = relationship("_ReactionWorkupStirring", uselist=False)
     target_ph = Column(Float)
     is_automated = Column(Boolean)
@@ -610,7 +610,7 @@ class ProductCompound(Base):
     identifiers = relationship("_ProductCompoundIdentifiers")
     is_desired_product = Column(Boolean)
     measurements = relationship("ProductMeasurement")
-    isolated_color = Column(String(255))
+    isolated_color = Column(Text)
     texture = relationship("Texture", uselist=False)
     features = relationship("_ProductCompoundFeatures")
     reaction_role = Column(ReactionRoleType)
@@ -631,7 +631,7 @@ class Texture(Base):
 class ProductMeasurement(Base):
     product_compound_id = Column(Integer, ForeignKey("product_compound.id", ondelete="CASCADE"), nullable=False)
 
-    analysis_key = Column(String(255))
+    analysis_key = Column(Text)
     type = Column(
         Enum(*reaction_pb2.ProductMeasurement.MeasurementType.keys(), name="ProductMeasurement.MeasurementType")
     )
@@ -682,7 +682,7 @@ class Selectivity(Base):
 
 
 class _DateTime(Parent, Base):
-    value = Column(String(255))
+    value = Column(Text)
 
 
 class _AnalysisInstrumentLastCalibrated(Child, _DateTime):
@@ -703,39 +703,39 @@ class _Analysis(Parent, Base):
     chmo_id = Column(Integer)
     is_of_isolated_species = Column(Boolean)
     data = relationship("_AnalysisData")
-    instrument_manufacturer = Column(String(255))
+    instrument_manufacturer = Column(Text)
     instrument_last_calibrated = relationship("_AnalysisInstrumentLastCalibrated", uselist=False)
 
 
 class _CompoundAnalyses(Child, _Analysis):
     compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"), nullable=False)
-    key = Column(String(255))  # Map key.
+    key = Column(Text)  # Map key.
 
 
 class _ReactionOutcomeAnalyses(Child, _Analysis):
     reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id", ondelete="CASCADE"), nullable=False)
-    key = Column(String(255))  # Map key.
+    key = Column(Text)  # Map key.
 
 
 class ReactionProvenance(Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id", ondelete="CASCADE"), nullable=False, unique=True)
 
     experimenter = relationship("_ReactionProvenanceExperimenter", uselist=False)
-    city = Column(String(255))
+    city = Column(Text)
     experiment_start = relationship("_ReactionProvenanceExperimentStart", uselist=False)
-    doi = Column(String(255))
-    patent = Column(String(255))
+    doi = Column(Text)
+    patent = Column(Text)
     publication_url = Column(Text)
     record_created = relationship("_ReactionProvenanceRecordCreated", uselist=False)
     record_modified = relationship("_ReactionProvenanceRecordModified")
 
 
 class _Person(Parent, Base):
-    username = Column(String(255))
-    name = Column(String(255))
-    orcid = Column(String(19))
-    organization = Column(String(255))
-    email = Column(String(255))
+    username = Column(Text)
+    name = Column(Text)
+    orcid = Column(Text)
+    organization = Column(Text)
+    email = Column(Text)
 
 
 class _ReactionProvenanceExperimenter(Child, _Person):
@@ -1044,17 +1044,17 @@ class _Data(Parent, Base):
     string_value = Column(Text)
     url = Column(Text)
     description = Column(Text)
-    format = Column(String(255))
+    format = Column(Text)
 
 
 class _CompoundFeatures(Child, _Data):
     compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"), nullable=False)
-    key = Column(String(255))  # Map key.
+    key = Column(Text)  # Map key.
 
 
 class _ReactionSetupAutomationCode(Child, _Data):
     reaction_setup_id = Column(Integer, ForeignKey("reaction_setup.id", ondelete="CASCADE"), nullable=False)
-    key = Column(String(255))  # Map key.
+    key = Column(Text)  # Map key.
 
 
 class _ReactionObservationImage(Child, _Data):
@@ -1065,12 +1065,12 @@ class _ReactionObservationImage(Child, _Data):
 
 class _ProductCompoundFeatures(Child, _Data):
     product_compound_id = Column(Integer, ForeignKey("product_compound.id", ondelete="CASCADE"), nullable=False)
-    key = Column(String(255))  # Map key.
+    key = Column(Text)  # Map key.
 
 
 class _AnalysisData(Child, _Data):
     analysis_id = Column(Integer, ForeignKey("analysis.id", ondelete="CASCADE"), nullable=False)
-    key = Column(String(255))  # Map key.
+    key = Column(Text)  # Map key.
 
 
 _MAPPERS: dict[Type[Message], Type[Base]] = {
