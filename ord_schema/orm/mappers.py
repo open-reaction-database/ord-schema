@@ -57,8 +57,8 @@ from ord_schema.proto import reaction_pb2
 class Dataset(Base):
     name = Column(Text)
     description = Column(Text)
-    reactions = relationship("Reaction")
-    reaction_ids = relationship("ReactionId")
+    reactions = relationship("Reaction", cascade="all, delete-orphan")
+    reaction_ids = relationship("ReactionId", cascade="all, delete-orphan")
     dataset_id = Column(String(255), nullable=False, unique=True)
 
 
@@ -72,22 +72,22 @@ class DatasetExample(Base):
     dataset_id = Column(String(255), ForeignKey("dataset.dataset_id"), nullable=False)
     description = Column(Text)
     url = Column(Text)
-    created = relationship("_DatasetExampleCreated", uselist=False)
+    created = relationship("_DatasetExampleCreated", uselist=False, cascade="all, delete-orphan")
 
 
 class Reaction(Base):
     dataset_id = Column(String(255), ForeignKey("dataset.dataset_id"), nullable=False)
     proto = Column(LargeBinary, nullable=False)
 
-    identifiers = relationship("ReactionIdentifier")
-    inputs = relationship("_ReactionInputs")
-    setup = relationship("ReactionSetup", uselist=False)
-    conditions = relationship("ReactionConditions", uselist=False)
-    notes = relationship("ReactionNotes", uselist=False)
-    observations = relationship("ReactionObservation")
-    workups = relationship("ReactionWorkup")
-    outcomes = relationship("ReactionOutcome")
-    provenance = relationship("ReactionProvenance", uselist=False)
+    identifiers = relationship("ReactionIdentifier", cascade="all, delete-orphan")
+    inputs = relationship("_ReactionInputs", cascade="all, delete-orphan")
+    setup = relationship("ReactionSetup", uselist=False, cascade="all, delete-orphan")
+    conditions = relationship("ReactionConditions", uselist=False, cascade="all, delete-orphan")
+    notes = relationship("ReactionNotes", uselist=False, cascade="all, delete-orphan")
+    observations = relationship("ReactionObservation", cascade="all, delete-orphan")
+    workups = relationship("ReactionWorkup", cascade="all, delete-orphan")
+    outcomes = relationship("ReactionOutcome", cascade="all, delete-orphan")
+    provenance = relationship("ReactionProvenance", uselist=False, cascade="all, delete-orphan")
     reaction_id = Column(String(255), nullable=False, unique=True)
 
 
@@ -103,15 +103,17 @@ class ReactionIdentifier(Base):
 
 
 class _ReactionInput(Parent, Base):
-    components = relationship("_ReactionInputComponents")
-    crude_components = relationship("CrudeComponent")
+    components = relationship("_ReactionInputComponents", cascade="all, delete-orphan")
+    crude_components = relationship("CrudeComponent", cascade="all, delete-orphan")
     addition_order = Column(Integer)
-    addition_time = relationship("_ReactionInputAdditionTime", uselist=False)
-    addition_speed = relationship("AdditionSpeed", uselist=False)
-    addition_duration = relationship("_ReactionInputAdditionDuration", uselist=False)
-    flow_rate = relationship("FlowRate", uselist=False)
-    addition_device = relationship("AdditionDevice", uselist=False)
-    addition_temperature = relationship("_ReactionInputAdditionTemperature", uselist=False)
+    addition_time = relationship("_ReactionInputAdditionTime", uselist=False, cascade="all, delete-orphan")
+    addition_speed = relationship("AdditionSpeed", uselist=False, cascade="all, delete-orphan")
+    addition_duration = relationship("_ReactionInputAdditionDuration", uselist=False, cascade="all, delete-orphan")
+    flow_rate = relationship("FlowRate", uselist=False, cascade="all, delete-orphan")
+    addition_device = relationship("AdditionDevice", uselist=False, cascade="all, delete-orphan")
+    addition_temperature = relationship(
+        "_ReactionInputAdditionTemperature", uselist=False, cascade="all, delete-orphan"
+    )
 
 
 class _ReactionInputs(Child, _ReactionInput):
@@ -148,10 +150,10 @@ class AdditionDevice(Base):
 
 
 class _Amount(Parent, Base):
-    mass = relationship("Mass", uselist=False)
-    moles = relationship("Moles", uselist=False)
-    volume = relationship("_AmountVolume", uselist=False)
-    unmeasured = relationship("UnmeasuredAmount", uselist=False)
+    mass = relationship("Mass", uselist=False, cascade="all, delete-orphan")
+    moles = relationship("Moles", uselist=False, cascade="all, delete-orphan")
+    volume = relationship("_AmountVolume", uselist=False, cascade="all, delete-orphan")
+    unmeasured = relationship("UnmeasuredAmount", uselist=False, cascade="all, delete-orphan")
     volume_includes_solutes = Column(Boolean)
 
 
@@ -186,7 +188,7 @@ class CrudeComponent(Base):
     reaction_id = Column(String(255), ForeignKey("reaction.reaction_id"), nullable=False)
     includes_workup = Column(Boolean)
     has_derived_amount = Column(Boolean)
-    amount = relationship("_CrudeComponentAmount", uselist=False)
+    amount = relationship("_CrudeComponentAmount", uselist=False, cascade="all, delete-orphan")
 
 
 # Shared enum; see https://docs.sqlalchemy.org/en/14/dialects/postgresql.html#sqlalchemy.dialects.postgresql.ENUM.
@@ -196,15 +198,15 @@ ReactionRoleType = Enum(
 
 
 class _Compound(Parent, Base):
-    identifiers = relationship("_CompoundIdentifiers")
-    amount = relationship("_CompoundAmount", uselist=False)
+    identifiers = relationship("_CompoundIdentifiers", cascade="all, delete-orphan")
+    amount = relationship("_CompoundAmount", uselist=False, cascade="all, delete-orphan")
     reaction_role = Column(ReactionRoleType)
     is_limiting = Column(Boolean)
-    preparations = relationship("CompoundPreparation")
-    source = relationship("Source", uselist=False)
-    features = relationship("_CompoundFeatures")
-    analyses = relationship("_CompoundAnalyses")
-    structure = relationship("_CompoundStructure", uselist=False)
+    preparations = relationship("CompoundPreparation", cascade="all, delete-orphan")
+    source = relationship("Source", uselist=False, cascade="all, delete-orphan")
+    features = relationship("_CompoundFeatures", cascade="all, delete-orphan")
+    analyses = relationship("_CompoundAnalyses", cascade="all, delete-orphan")
+    structure = relationship("_CompoundStructure", uselist=False, cascade="all, delete-orphan")
 
 
 class _ReactionInputComponents(Child, _Compound):
@@ -254,10 +256,10 @@ class Vessel(Base):
 
     type = Column(Enum(*reaction_pb2.Vessel.VesselType.keys(), name="Vessel.VesselType"))
     details = Column(Text)
-    material = relationship("VesselMaterial", uselist=False)
-    preparations = relationship("VesselPreparation")
-    attachments = relationship("VesselAttachment")
-    volume = relationship("_VesselVolume", uselist=False)
+    material = relationship("VesselMaterial", uselist=False, cascade="all, delete-orphan")
+    preparations = relationship("VesselPreparation", cascade="all, delete-orphan")
+    attachments = relationship("VesselAttachment", cascade="all, delete-orphan")
+    volume = relationship("_VesselVolume", uselist=False, cascade="all, delete-orphan")
     plate_id = Column(String(255))
     plate_position = Column(String(32))
 
@@ -294,11 +296,11 @@ class VesselPreparation(Base):
 class ReactionSetup(Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), nullable=False, unique=True)
 
-    vessel = relationship("Vessel", uselist=False)
+    vessel = relationship("Vessel", uselist=False, cascade="all, delete-orphan")
     is_automated = Column(Boolean)
     automation_platform = Column(String(255))
-    automation_code = relationship("_ReactionSetupAutomationCode")
-    environment = relationship("ReactionEnvironment", uselist=False)
+    automation_code = relationship("_ReactionSetupAutomationCode", cascade="all, delete-orphan")
+    environment = relationship("ReactionEnvironment", uselist=False, cascade="all, delete-orphan")
 
 
 class ReactionEnvironment(Base):
@@ -316,12 +318,12 @@ class ReactionEnvironment(Base):
 class ReactionConditions(Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), nullable=False, unique=True)
 
-    temperature = relationship("_ReactionConditionsTemperature", uselist=False)
-    pressure = relationship("PressureConditions", uselist=False)
-    stirring = relationship("_ReactionConditionsStirring", uselist=False)
-    illumination = relationship("IlluminationConditions", uselist=False)
-    electrochemistry = relationship("ElectrochemistryConditions", uselist=False)
-    flow = relationship("FlowConditions", uselist=False)
+    temperature = relationship("_ReactionConditionsTemperature", uselist=False, cascade="all, delete-orphan")
+    pressure = relationship("PressureConditions", uselist=False, cascade="all, delete-orphan")
+    stirring = relationship("_ReactionConditionsStirring", uselist=False, cascade="all, delete-orphan")
+    illumination = relationship("IlluminationConditions", uselist=False, cascade="all, delete-orphan")
+    electrochemistry = relationship("ElectrochemistryConditions", uselist=False, cascade="all, delete-orphan")
+    flow = relationship("FlowConditions", uselist=False, cascade="all, delete-orphan")
     reflux = Column(Boolean)
     ph = Column(Float)
     conditions_are_dynamic = Column(Boolean)
@@ -329,9 +331,9 @@ class ReactionConditions(Base):
 
 
 class _TemperatureConditions(Parent, Base):
-    control = relationship("TemperatureControl", uselist=False)
-    setpoint = relationship("_TemperatureConditionsSetpoint", uselist=False)
-    measurements = relationship("TemperatureConditionsMeasurement")
+    control = relationship("TemperatureControl", uselist=False, cascade="all, delete-orphan")
+    setpoint = relationship("_TemperatureConditionsSetpoint", uselist=False, cascade="all, delete-orphan")
+    measurements = relationship("TemperatureConditionsMeasurement", cascade="all, delete-orphan")
 
 
 class _ReactionConditionsTemperature(Child, _TemperatureConditions):
@@ -364,17 +366,19 @@ class TemperatureConditionsMeasurement(Base):
         )
     )
     details = Column(Text)
-    time = relationship("_TemperatureConditionsMeasurementTime", uselist=False)
-    temperature = relationship("_TemperatureConditionsMeasurementTemperature", uselist=False)
+    time = relationship("_TemperatureConditionsMeasurementTime", uselist=False, cascade="all, delete-orphan")
+    temperature = relationship(
+        "_TemperatureConditionsMeasurementTemperature", uselist=False, cascade="all, delete-orphan"
+    )
 
 
 class PressureConditions(Base):
     reaction_conditions_id = Column(Integer, ForeignKey("reaction_conditions.id"), nullable=False, unique=True)
 
-    control = relationship("PressureControl", uselist=False)
-    setpoint = relationship("_PressureConditionsSetpoint", uselist=False)
-    atmosphere = relationship("Atmosphere", uselist=False)
-    measurements = relationship("PressureConditionsMeasurement")
+    control = relationship("PressureControl", uselist=False, cascade="all, delete-orphan")
+    setpoint = relationship("_PressureConditionsSetpoint", uselist=False, cascade="all, delete-orphan")
+    atmosphere = relationship("Atmosphere", uselist=False, cascade="all, delete-orphan")
+    measurements = relationship("PressureConditionsMeasurement", cascade="all, delete-orphan")
 
 
 class PressureControl(Base):
@@ -411,8 +415,8 @@ class PressureConditionsMeasurement(Base):
         )
     )
     details = Column(Text)
-    time = relationship("_PressureConditionsMeasurementTime", uselist=False)
-    pressure = relationship("_PressureConditionsMeasurementPressure", uselist=False)
+    time = relationship("_PressureConditionsMeasurementTime", uselist=False, cascade="all, delete-orphan")
+    pressure = relationship("_PressureConditionsMeasurementPressure", uselist=False, cascade="all, delete-orphan")
 
 
 class _StirringConditions(Parent, Base):
@@ -420,7 +424,7 @@ class _StirringConditions(Parent, Base):
         Enum(*reaction_pb2.StirringConditions.StirringMethodType.keys(), name="StirringConditions.StirringMethodType")
     )
     details = Column(Text)
-    rate = relationship("StirringRate", uselist=False)
+    rate = relationship("StirringRate", uselist=False, cascade="all, delete-orphan")
 
 
 class _ReactionConditionsStirring(Child, _StirringConditions):
@@ -453,9 +457,11 @@ class IlluminationConditions(Base):
         )
     )
     details = Column(Text)
-    peak_wavelength = relationship("_IlluminationConditionsPeakWavelength", uselist=False)
+    peak_wavelength = relationship("_IlluminationConditionsPeakWavelength", uselist=False, cascade="all, delete-orphan")
     color = Column(String(255))
-    distance_to_vessel = relationship("_IlluminationConditionsDistanceToVessel", uselist=False)
+    distance_to_vessel = relationship(
+        "_IlluminationConditionsDistanceToVessel", uselist=False, cascade="all, delete-orphan"
+    )
 
 
 class ElectrochemistryConditions(Base):
@@ -468,21 +474,23 @@ class ElectrochemistryConditions(Base):
         )
     )
     details = Column(Text)
-    current = relationship("_ElectrochemistryConditionsCurrent", uselist=False)
-    voltage = relationship("_ElectrochemistryConditionsVoltage", uselist=False)
+    current = relationship("_ElectrochemistryConditionsCurrent", uselist=False, cascade="all, delete-orphan")
+    voltage = relationship("_ElectrochemistryConditionsVoltage", uselist=False, cascade="all, delete-orphan")
     anode_material = Column(String(255))
     cathode_material = Column(String(255))
-    electrode_separation = relationship("_ElectrochemistryConditionsElectrodeSeparation", uselist=False)
-    measurements = relationship("ElectrochemistryConditionsMeasurement")
-    cell = relationship("ElectrochemistryCell", uselist=False)
+    electrode_separation = relationship(
+        "_ElectrochemistryConditionsElectrodeSeparation", uselist=False, cascade="all, delete-orphan"
+    )
+    measurements = relationship("ElectrochemistryConditionsMeasurement", cascade="all, delete-orphan")
+    cell = relationship("ElectrochemistryCell", uselist=False, cascade="all, delete-orphan")
 
 
 class ElectrochemistryConditionsMeasurement(Base):
     electrochemistry_conditions_id = Column(Integer, ForeignKey("electrochemistry_conditions.id"), nullable=False)
 
-    time = relationship("_ElectrochemistryConditionsMeasurementTime", uselist=False)
-    current = relationship("_ElectrochemistryConditionsMeasurementCurrent", uselist=False)
-    voltage = relationship("_ElectrochemistryConditionsMeasurementVoltage", uselist=False)
+    time = relationship("_ElectrochemistryConditionsMeasurementTime", uselist=False, cascade="all, delete-orphan")
+    current = relationship("_ElectrochemistryConditionsMeasurementCurrent", uselist=False, cascade="all, delete-orphan")
+    voltage = relationship("_ElectrochemistryConditionsMeasurementVoltage", uselist=False, cascade="all, delete-orphan")
 
 
 class ElectrochemistryCell(Base):
@@ -505,7 +513,7 @@ class FlowConditions(Base):
     type = Column(Enum(*reaction_pb2.FlowConditions.FlowType.keys(), name="FlowConditions.FlowType"))
     details = Column(Text)
     pump_type = Column(Text)
-    tubing = relationship("Tubing", uselist=False)
+    tubing = relationship("Tubing", uselist=False, cascade="all, delete-orphan")
 
 
 class Tubing(Base):
@@ -513,7 +521,7 @@ class Tubing(Base):
 
     type = Column(Enum(*reaction_pb2.FlowConditions.Tubing.TubingType.keys(), name="FlowConditions.Tubing.TubingType"))
     details = Column(Text)
-    diameter = relationship("_TubingDiameter", uselist=False)
+    diameter = relationship("_TubingDiameter", uselist=False, cascade="all, delete-orphan")
 
 
 class ReactionNotes(Base):
@@ -533,9 +541,9 @@ class ReactionNotes(Base):
 class ReactionObservation(Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), nullable=False)
 
-    time = relationship("_ReactionObservationTime", uselist=False)
+    time = relationship("_ReactionObservationTime", uselist=False, cascade="all, delete-orphan")
     comment = Column(Text)
-    image = relationship("_ReactionObservationImage", uselist=False)
+    image = relationship("_ReactionObservationImage", uselist=False, cascade="all, delete-orphan")
 
 
 class ReactionWorkup(Base):
@@ -543,12 +551,12 @@ class ReactionWorkup(Base):
 
     type = Column(Enum(*reaction_pb2.ReactionWorkup.WorkupType.keys(), name="ReactionWorkup.WorkupType"))
     details = Column(Text)
-    duration = relationship("_ReactionWorkupDuration", uselist=False)
-    input = relationship("_ReactionWorkupInput", uselist=False)
-    amount = relationship("_ReactionWorkupAmount", uselist=False)
-    temperature = relationship("_ReactionWorkupTemperature", uselist=False)
+    duration = relationship("_ReactionWorkupDuration", uselist=False, cascade="all, delete-orphan")
+    input = relationship("_ReactionWorkupInput", uselist=False, cascade="all, delete-orphan")
+    amount = relationship("_ReactionWorkupAmount", uselist=False, cascade="all, delete-orphan")
+    temperature = relationship("_ReactionWorkupTemperature", uselist=False, cascade="all, delete-orphan")
     keep_phase = Column(String(255))
-    stirring = relationship("_ReactionWorkupStirring", uselist=False)
+    stirring = relationship("_ReactionWorkupStirring", uselist=False, cascade="all, delete-orphan")
     target_ph = Column(Float)
     is_automated = Column(Boolean)
 
@@ -556,23 +564,23 @@ class ReactionWorkup(Base):
 class ReactionOutcome(Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), nullable=False)
 
-    reaction_time = relationship("_ReactionOutcomeReactionTime", uselist=False)
-    conversion = relationship("_ReactionOutcomeConversion", uselist=False)
-    products = relationship("ProductCompound")
-    analyses = relationship("_ReactionOutcomeAnalyses")
+    reaction_time = relationship("_ReactionOutcomeReactionTime", uselist=False, cascade="all, delete-orphan")
+    conversion = relationship("_ReactionOutcomeConversion", uselist=False, cascade="all, delete-orphan")
+    products = relationship("ProductCompound", cascade="all, delete-orphan")
+    analyses = relationship("_ReactionOutcomeAnalyses", cascade="all, delete-orphan")
 
 
 class ProductCompound(Base):
     reaction_outcome_id = Column(Integer, ForeignKey("reaction_outcome.id"), nullable=False)
 
-    identifiers = relationship("_ProductCompoundIdentifiers")
+    identifiers = relationship("_ProductCompoundIdentifiers", cascade="all, delete-orphan")
     is_desired_product = Column(Boolean)
-    measurements = relationship("ProductMeasurement")
+    measurements = relationship("ProductMeasurement", cascade="all, delete-orphan")
     isolated_color = Column(String(255))
-    texture = relationship("Texture", uselist=False)
-    features = relationship("_ProductCompoundFeatures")
+    texture = relationship("Texture", uselist=False, cascade="all, delete-orphan")
+    features = relationship("_ProductCompoundFeatures", cascade="all, delete-orphan")
     reaction_role = Column(ReactionRoleType)
-    structure = relationship("_ProductCompoundStructure", uselist=False)
+    structure = relationship("_ProductCompoundStructure", uselist=False, cascade="all, delete-orphan")
 
 
 class Texture(Base):
@@ -595,15 +603,17 @@ class ProductMeasurement(Base):
     uses_internal_standard = Column(Boolean)
     is_normalized = Column(Boolean)
     uses_authentic_standard = Column(Boolean)
-    authentic_standard = relationship("_ProductMeasurementAuthenticStandard", uselist=False)
-    percentage = relationship("_ProductMeasurementPercentage", uselist=False)
-    float_value = relationship("_ProductMeasurementFloatValue", uselist=False)
+    authentic_standard = relationship(
+        "_ProductMeasurementAuthenticStandard", uselist=False, cascade="all, delete-orphan"
+    )
+    percentage = relationship("_ProductMeasurementPercentage", uselist=False, cascade="all, delete-orphan")
+    float_value = relationship("_ProductMeasurementFloatValue", uselist=False, cascade="all, delete-orphan")
     string_value = Column(Text)
-    amount = relationship("_ProductMeasurementAmount", uselist=False)
-    retention_time = relationship("_ProductMeasurementRetentionTime", uselist=False)
-    mass_spec_details = relationship("MassSpecMeasurementDetails", uselist=False)
-    selectivity = relationship("Selectivity", uselist=False)
-    wavelength = relationship("_ProductMeasurementWavelength", uselist=False)
+    amount = relationship("_ProductMeasurementAmount", uselist=False, cascade="all, delete-orphan")
+    retention_time = relationship("_ProductMeasurementRetentionTime", uselist=False, cascade="all, delete-orphan")
+    mass_spec_details = relationship("MassSpecMeasurementDetails", uselist=False, cascade="all, delete-orphan")
+    selectivity = relationship("Selectivity", uselist=False, cascade="all, delete-orphan")
+    wavelength = relationship("_ProductMeasurementWavelength", uselist=False, cascade="all, delete-orphan")
 
 
 class MassSpecMeasurementDetails(Base):
@@ -618,7 +628,7 @@ class MassSpecMeasurementDetails(Base):
     details = Column(Text)
     tic_minimum_mz = Column(Float)
     tic_maximum_mz = Column(Float)
-    eic_masses = relationship("_MassSpecMeasurementDetailsEicMasses")
+    eic_masses = relationship("_MassSpecMeasurementDetailsEicMasses", cascade="all, delete-orphan")
 
 
 class Selectivity(Base):
@@ -654,9 +664,11 @@ class _Analysis(Parent, Base):
     details = Column(Text)
     chmo_id = Column(Integer)
     is_of_isolated_species = Column(Boolean)
-    data = relationship("_AnalysisData")
+    data = relationship("_AnalysisData", cascade="all, delete-orphan")
     instrument_manufacturer = Column(String(255))
-    instrument_last_calibrated = relationship("_AnalysisInstrumentLastCalibrated", uselist=False)
+    instrument_last_calibrated = relationship(
+        "_AnalysisInstrumentLastCalibrated", uselist=False, cascade="all, delete-orphan"
+    )
 
 
 class _CompoundAnalyses(Child, _Analysis):
@@ -672,14 +684,14 @@ class _ReactionOutcomeAnalyses(Child, _Analysis):
 class ReactionProvenance(Base):
     reaction_id = Column(Integer, ForeignKey("reaction.id"), nullable=False, unique=True)
 
-    experimenter = relationship("_ReactionProvenanceExperimenter", uselist=False)
+    experimenter = relationship("_ReactionProvenanceExperimenter", uselist=False, cascade="all, delete-orphan")
     city = Column(String(255))
-    experiment_start = relationship("_ReactionProvenanceExperimentStart", uselist=False)
+    experiment_start = relationship("_ReactionProvenanceExperimentStart", uselist=False, cascade="all, delete-orphan")
     doi = Column(String(255))
     patent = Column(String(255))
     publication_url = Column(Text)
-    record_created = relationship("_ReactionProvenanceRecordCreated", uselist=False)
-    record_modified = relationship("_ReactionProvenanceRecordModified")
+    record_created = relationship("_ReactionProvenanceRecordCreated", uselist=False, cascade="all, delete-orphan")
+    record_modified = relationship("_ReactionProvenanceRecordModified", cascade="all, delete-orphan")
 
 
 class _Person(Parent, Base):
@@ -699,8 +711,8 @@ class _RecordEventPerson(Child, _Person):
 
 
 class _RecordEvent(Parent, Base):
-    time = relationship("_RecordEventTime", uselist=False)
-    person = relationship("_RecordEventPerson", uselist=False)
+    time = relationship("_RecordEventTime", uselist=False, cascade="all, delete-orphan")
+    person = relationship("_RecordEventPerson", uselist=False, cascade="all, delete-orphan")
     details = Column(Text)
 
 
