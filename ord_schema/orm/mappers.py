@@ -76,7 +76,7 @@ class DatasetExample(Base):
 
 
 class Reaction(Base):
-    dataset_id = Column(Text, ForeignKey("dataset.dataset_id", ondelete="CASCADE"), nullable=False)
+    dataset_id = Column(Integer, ForeignKey("dataset.id", ondelete="CASCADE"), nullable=False)
     proto = Column(LargeBinary, nullable=False)
 
     identifiers = relationship("ReactionIdentifier")
