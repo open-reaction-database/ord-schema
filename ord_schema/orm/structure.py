@@ -160,13 +160,13 @@ class _Structure(Parent, Base):
 
 
 class _CompoundStructure(Child, _Structure):
-    compound_id = Column(Integer, ForeignKey("compound.id"), nullable=False)
+    compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"), nullable=False)
 
     __table_args__ = {"schema": "rdkit"}
 
 
 class _ProductCompoundStructure(Child, _Structure):
-    product_compound_id = Column(Integer, ForeignKey("product_compound.id"), nullable=False)
+    product_compound_id = Column(Integer, ForeignKey("product_compound.id", ondelete="CASCADE"), nullable=False)
 
     __table_args__ = {"schema": "rdkit"}
 
