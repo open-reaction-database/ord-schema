@@ -29,9 +29,9 @@ Options:
 """
 import os
 import time
-from docopt import docopt
 from glob import glob
 
+from docopt import docopt
 from sqlalchemy import create_engine
 
 from ord_schema.logging import get_logger
@@ -55,9 +55,9 @@ def main(**kwargs):
     )
     for filename in sorted(glob(kwargs["--pattern"])):
         logger.info(f"Loading {filename}")
-        t0 = time.time()
+        start = time.time()
         dataset = load_message(filename, Dataset)
-        logger.info(f"load_message() took {time.time() - t0}s")
+        logger.info(f"load_message() took {time.time() - start}s")
         add_datasets([dataset], engine=engine)
     logger.info("Updating RDKit functionality")
     add_rdkit(engine)

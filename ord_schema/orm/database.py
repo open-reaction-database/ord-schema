@@ -65,13 +65,15 @@ def add_datasets(datasets: list[dataset_pb2.Dataset], engine: Engine) -> None:
     with Session(engine) as session:
         for dataset in datasets:
             logger.info(f"Adding dataset {dataset.dataset_id}")
-            t0 = time.time()
+            start = time.time()
             mapped_dataset = from_proto(dataset)
-            logger.info(f"from_proto() took {time.time() - t0}s")
-            t0 = time.time()
+            logger.info(f"from_proto() took {time.time() - start}s")
+            start = time.time()
             session.add(mapped_dataset)
-            logger.info(f"session.add() took {time.time() - t0}s")
+            logger.info(f"session.add() took {time.time() - start}s")
+        start = time.time()
         session.commit()
+        logger.info(f"session.commit() took {time.time() - start}s")
 
 
 def add_rdkit(engine: Engine) -> None:
