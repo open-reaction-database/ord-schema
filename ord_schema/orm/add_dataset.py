@@ -26,6 +26,7 @@ Options:
     --password=<str>        Database password
     --host=<str>            Database host [default: localhost]
     --port=<int>            Database port [default: 5432]
+    --n_jobs=<int>          Number of parallel workers [default: 2]
 """
 import os
 import time
@@ -68,7 +69,7 @@ def main(**kwargs):
     )
     function = partial(add_dataset, url=url)
     filenames = glob(kwargs["--pattern"])
-    with ProcessPoolExecutor() as executor:
+    with ProcessPoolExecutor(max_workers=int(kwargs["--n_jobs"])) as executor:
         executor.map(function, filenames)
     logger.info("Updating RDKit functionality")
     engine = create_engine(url, future=True)
