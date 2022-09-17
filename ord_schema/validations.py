@@ -13,7 +13,6 @@
 # limitations under the License.
 """Helpers validating specific Message types."""
 import dataclasses
-import logging
 import math
 import os
 import re
@@ -26,11 +25,12 @@ from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
 
 import ord_schema
+from ord_schema.logging import get_logger
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
-logger = logging.getLogger()
+logger = get_logger(__name__)
 
 
 # pylint: disable=too-many-branches

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Functions for creating/managing the PostgreSQL database."""
-import logging
 import os
 from unittest.mock import patch
 
@@ -22,11 +21,12 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from ord_schema.logging import get_logger
 from ord_schema.orm.mappers import Base, from_proto
 from ord_schema.orm.structure import CString, FingerprintType, Structure
 from ord_schema.proto import dataset_pb2
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def get_connection_string(
