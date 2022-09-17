@@ -31,11 +31,11 @@ import os
 import time
 from functools import partial
 from glob import glob
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 from docopt import docopt
 from sqlalchemy import create_engine
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.orm import Session
 
 from ord_schema.logging import get_logger
 from ord_schema.message_helpers import load_message
@@ -45,38 +45,38 @@ from ord_schema.proto.dataset_pb2 import Dataset
 logger = get_logger(__name__)
 
 
-def add_dataset(filename: str, session: scoped_session):
+def add_dataset(filename: str, url: str):
     logger.info(f"Loading {filename}")
     start = time.time()
     dataset = load_message(filename, Dataset)
     logger.info(f"load_message() took {time.time() - start}s")
-    add_datasets([dataset], session)
-    start = time.time()
-    session.commit()
-    logger.info(f"session.commit() took {time.time() - start}s")
-    session.remove()
+    engine = create_engine(url, future=True)
+    with Session(engine) as session:
+        add_datasets([dataset], session)
+        start = time.time()
+        session.commit()
+        logger.info(f"session.commit() took {time.time() - start}s")
 
 
 def main(**kwargs):
-    engine = create_engine(
-        get_connection_string(
-            database=kwargs["--database"],
-            username=kwargs["--username"],
-            password=kwargs["--password"] or os.environ["PGPASSWORD"],
-            host=kwargs["--host"],
-            port=int(kwargs["--port"]),
-        ),
-        future=True,
+    url = get_connection_string(
+        database=kwargs["--database"],
+        username=kwargs["--username"],
+        password=kwargs["--password"] or os.environ["PGPASSWORD"],
+        host=kwargs["--host"],
+        port=int(kwargs["--port"]),
     )
-    session_factory = sessionmaker(engine)
-    session = scoped_session(session_factory)
-    function = partial(add_dataset, session=session)
+    function = partial(add_dataset, url=url)
     filenames = glob(kwargs["--pattern"])
-    with ThreadPoolExecutor() as executor:
+    with ProcessPoolExecutor() as executor:
         executor.map(function, filenames)
     logger.info("Updating RDKit functionality")
-    add_rdkit(session)
-    session.commit()
+    engine = create_engine(url, future=True)
+    with Session(engine) as session:
+        add_rdkit(session)
+        start = time.time()
+        session.commit()
+        logger.info(f"session.commit() took {time.time() - start}s")
 
 
 if __name__ == "__main__":
