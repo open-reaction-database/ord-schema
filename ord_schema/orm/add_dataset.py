@@ -29,10 +29,13 @@ Options:
 """
 import os
 import time
+from functools import partial
 from glob import glob
+from concurrent.futures import ThreadPoolExecutor
 
 from docopt import docopt
 from sqlalchemy import create_engine
+from sqlalchemy.orm import scoped_session, sessionmaker
 
 from ord_schema.logging import get_logger
 from ord_schema.message_helpers import load_message
@@ -40,6 +43,18 @@ from ord_schema.orm.database import add_datasets, add_rdkit, get_connection_stri
 from ord_schema.proto.dataset_pb2 import Dataset
 
 logger = get_logger(__name__)
+
+
+def add_dataset(filename: str, session: scoped_session):
+    logger.info(f"Loading {filename}")
+    start = time.time()
+    dataset = load_message(filename, Dataset)
+    logger.info(f"load_message() took {time.time() - start}s")
+    add_datasets([dataset], session)
+    start = time.time()
+    session.commit()
+    logger.info(f"session.commit() took {time.time() - start}s")
+    session.remove()
 
 
 def main(**kwargs):
@@ -53,14 +68,15 @@ def main(**kwargs):
         ),
         future=True,
     )
-    for filename in sorted(glob(kwargs["--pattern"])):
-        logger.info(f"Loading {filename}")
-        start = time.time()
-        dataset = load_message(filename, Dataset)
-        logger.info(f"load_message() took {time.time() - start}s")
-        add_datasets([dataset], engine=engine)
+    session_factory = sessionmaker(engine)
+    session = scoped_session(session_factory)
+    function = partial(add_dataset, session=session)
+    filenames = glob(kwargs["--pattern"])
+    with ThreadPoolExecutor() as executor:
+        executor.map(function, filenames)
     logger.info("Updating RDKit functionality")
-    add_rdkit(engine)
+    add_rdkit(session)
+    session.commit()
 
 
 if __name__ == "__main__":

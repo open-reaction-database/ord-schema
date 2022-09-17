@@ -32,8 +32,11 @@ def test_session() -> Iterator[Session]:
     with Postgresql() as postgres:
         engine = create_engine(postgres.url(), echo=False, future=True)
         rdkit_cartridge = prepare_database(engine)
-        add_datasets([dataset], engine)
-        if rdkit_cartridge:
-            add_rdkit(engine)
+        with Session(engine) as session:
+            add_datasets([dataset], session)
+            session.flush()
+            if rdkit_cartridge:
+                add_rdkit(session)
+            session.commit()
         with Session(engine) as session:
             yield session
