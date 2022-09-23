@@ -46,7 +46,13 @@ from ord_schema.proto.dataset_pb2 import Dataset
 logger = get_logger(__name__)
 
 
-def add_dataset(filename: str, url: str):
+def add_dataset(filename: str, url: str) -> None:
+    """Adds a single dataset to the database.
+
+    Args:
+        filename: Dataset filename.
+        url: Database connection string.
+    """
     logger.info(f"Loading {filename}")
     start = time.time()
     dataset = load_message(filename, Dataset)
