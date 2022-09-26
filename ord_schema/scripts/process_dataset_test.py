@@ -13,7 +13,6 @@
 # limitations under the License.
 """Tests for ord_schema.scripts.process_dataset."""
 import glob
-import logging
 import os
 import subprocess
 from typing import Optional
@@ -22,13 +21,14 @@ import docopt
 import pytest
 from rdkit import RDLogger
 
+from ord_schema.logging import get_logger
 from ord_schema import message_helpers
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 from ord_schema.scripts import process_dataset
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class TestProcessDataset:

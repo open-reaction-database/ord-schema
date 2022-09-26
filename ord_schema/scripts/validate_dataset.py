@@ -21,18 +21,18 @@ Options:
     --filter=<str>      Regex filename filter
 """
 import glob
-import logging
 import re
 from collections.abc import Iterable
 
 import docopt
 from rdkit import RDLogger
 
+from ord_schema.logging import get_logger
 from ord_schema import message_helpers
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def filter_filenames(filenames: Iterable[str], pattern: str) -> list[str]:

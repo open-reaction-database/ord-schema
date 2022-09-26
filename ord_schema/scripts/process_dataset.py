@@ -46,7 +46,6 @@ Options:
 import dataclasses
 import glob
 import gzip
-import logging
 import os
 import subprocess
 import sys
@@ -57,12 +56,13 @@ import docopt
 import github
 from rdkit import RDLogger
 
+from ord_schema.logging import get_logger
 from ord_schema import message_helpers
 from ord_schema import updates
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # pylint: disable=too-many-branches,too-many-locals

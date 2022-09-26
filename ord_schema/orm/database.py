@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """Functions for creating/managing the PostgreSQL database."""
-import logging
+import time
 import os
 from unittest.mock import patch
 
@@ -22,11 +22,12 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from ord_schema.logging import get_logger
 from ord_schema.orm.mappers import Base, from_proto
-from ord_schema.orm.structure import CString, Structure
+from ord_schema.orm.structure import CString, FingerprintType, Structure
 from ord_schema.proto import dataset_pb2
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def get_connection_string(
@@ -59,19 +60,26 @@ def prepare_database(engine: Engine) -> bool:
     return rdkit_cartridge
 
 
-def add_datasets(datasets: list[dataset_pb2.Dataset], engine: Engine) -> None:
+def add_datasets(datasets: list[dataset_pb2.Dataset], session: Session) -> None:
     """Adds datasets to the database."""
-    with Session(engine) as session:
-        for dataset in datasets:
-            session.add(from_proto(dataset))
-        session.commit()
+    for dataset in datasets:
+        logger.info(f"Adding dataset {dataset.dataset_id}")
+        start = time.time()
+        mapped_dataset = from_proto(dataset)
+        logger.info(f"from_proto() took {time.time() - start}s")
+        start = time.time()
+        session.add(mapped_dataset)
+        logger.info(f"session.add() took {time.time() - start}s")
 
 
-def add_rdkit(engine: Engine) -> None:
+def add_rdkit(session: Session) -> None:
     """Adds RDKit PostgreSQL cartridge data."""
     assert hasattr(Structure, "__table__")  # Type hint.
     table = Structure.__table__
-    with Session(engine) as session:
-        session.execute(update(table).values(mol=func.rdkit.mol_from_smiles(cast(table.c.smiles, CString))))
-        session.execute(update(table).values(morgan_binary_fingerprint=func.rdkit.morganbv_fp(table.c.mol)))
-        session.commit()
+    start = time.time()
+    session.execute(update(table).values(mol=func.rdkit.mol_from_smiles(cast(table.c.smiles, CString))))
+    logger.info(f"Adding mol took {time.time() - start}s")
+    for fp_type in FingerprintType:
+        start = time.time()
+        session.execute(update(table).values(**{fp_type.name.lower(): fp_type(table.c.mol)}))
+        logger.info(f"Adding {fp_type} took {time.time() - start}s")

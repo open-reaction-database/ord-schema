@@ -435,7 +435,7 @@ class TestLoadAndWriteMessage:
             # NOTE(kearnes): The decoder is not perfect; for example, it will
             # not be able to distinguish from a message with the same tags and
             # types (e.g. test_pb2.Scalar and test_pb2.RepeatedScalar).
-            with pytest.raises(ValueError, match="Error parsing message"):
+            with pytest.raises(ValueError, match="parsing"):
                 message_helpers.load_message(f.name, test_pb2.Nested)
 
     def test_bad_json(self):

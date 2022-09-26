@@ -22,14 +22,13 @@ Options:
     --output=<str>          Filename for output Dataset
     --no-validate           If set, do not validate Reaction protos
 """
-import logging
-
 import docopt
 
+from ord_schema.logging import get_logger
 from ord_schema import message_helpers
 from ord_schema import templating
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def main(kwargs):

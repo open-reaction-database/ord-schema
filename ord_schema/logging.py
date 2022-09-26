@@ -11,19 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""Tests for ord_schema.orm.database."""
-from sqlalchemy import select
-from ord_schema.orm.mappers import Compound, CompoundIdentifier, Reaction, ReactionInput
+"""Logging utilities."""
+import logging
 
 
-def test_orm(test_session):
-    query = (
-        select(Reaction)
-        .join(ReactionInput)
-        .join(Compound)
-        .join(CompoundIdentifier)
-        .where(CompoundIdentifier.type == "SMILES", CompoundIdentifier.value == "c1ccccc1CCC(O)C")
-    )
-    results = test_session.execute(query)
-    assert len(results.fetchall()) == 20
+def get_logger(name: str, level: int = logging.DEBUG) -> logging.Logger:
+    """Creates a Logger."""
+    if not get_logger.initialized:
+        logging.basicConfig(format="%(levelname)s %(asctime)s %(filename)s:%(lineno)d: %(message)s")
+        get_logger.initialized = True
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    return logger
+
+
+get_logger.initialized = False

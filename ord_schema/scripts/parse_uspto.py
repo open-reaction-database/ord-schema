@@ -33,7 +33,6 @@ Options:
 
 import datetime
 import glob
-import logging
 import os
 import re
 from typing import Union
@@ -44,14 +43,14 @@ import joblib
 from rdkit import RDLogger
 
 import ord_schema
+from ord_schema.logging import get_logger
 from ord_schema import message_helpers
 from ord_schema import units
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
-logger = logging.getLogger()
-
+logger = get_logger(__name__)
 RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.
 
 # XML namespaces.
