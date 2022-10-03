@@ -11,8 +11,9 @@ relational database.
 
 Conceptually, an ORM is an abstraction on top of a relational database that allows data to be manipulated using
 object-oriented programming techniques. In our case, every protocol buffer message has an associated "mapper" that wraps
-a table in a relational database. For example, here is the definition of the `Mass` message in the protocol buffer
-schema, which is used as a subfield in the `Amount` message:
+a table in a relational database. For example, here is the definition of the `Mass` message in the [protocol buffer
+schema](https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/proto/reaction.proto), which is 
+used as a subfield in the `Amount` message:
 
 ```protobuf
 message Mass {
@@ -44,8 +45,8 @@ message Amount {
 }
 ```
 
-The `Mass` message has three fields: `value` (float), `precision` (float), and `units` (enum). The corresponding ORM
-mapper looks like this:
+The `Mass` message has three fields: `value` (float), `precision` (float), and `units` (enum). The corresponding [ORM
+mapper](https://github.com/open-reaction-database/ord-schema/blob/main/ord_schema/orm/mappers.py) looks like this:
 
 ```python
 class Mass(Base):
