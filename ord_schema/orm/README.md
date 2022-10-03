@@ -76,7 +76,7 @@ methods (this list is not an endorsement of any particular provider):
   ```shell
   $ conda install -c rdkit rdkit-postgresql
   $ export PGDATA="${HOME}/rdkit-postgresql"
-  $ initdb
+  $ initdb -U <username>
   ```
 
 * AWS: [Amazon Aurora PostgreSQL](https://aws.amazon.com/about-aws/whats-new/2020/09/amazon-aurora-postgresql-supports-rdkit-extension/)
@@ -90,7 +90,7 @@ from sqlalchemy import create_engine
 
 from ord_schema.orm.database import prepare_database
 
-connection_string = "postgresql://scott:tiger@localhost/test"
+connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
 engine = create_engine(connection_string, future=True)
 prepare_database(engine)
 ```
