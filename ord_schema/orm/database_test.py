@@ -14,7 +14,9 @@
 
 """Tests for ord_schema.orm.database."""
 from sqlalchemy import select
+
 from ord_schema.orm.mappers import Compound, CompoundIdentifier, Reaction, ReactionInput
+from ord_schema.proto import reaction_pb2
 
 
 def test_orm(test_session):
@@ -26,4 +28,5 @@ def test_orm(test_session):
         .where(CompoundIdentifier.type == "SMILES", CompoundIdentifier.value == "c1ccccc1CCC(O)C")
     )
     results = test_session.execute(query)
-    assert len(results.fetchall()) == 20
+    reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
+    assert len(reactions) == 20
