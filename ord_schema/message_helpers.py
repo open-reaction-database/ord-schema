@@ -706,11 +706,12 @@ class MessageFormat(enum.Enum):
     PBTXT = ".pbtxt"
 
 
-def fetch_dataset(dataset_id: str) -> dataset_pb2.Dataset:
+def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset:
     """Loads a dataset from the ord-data repository.
 
     Args:
         dataset_id: Dataset ID.
+        timeout: Number of seconds to wait before timing out the request.
 
     Returns:
         Dataset message.
@@ -718,7 +719,7 @@ def fetch_dataset(dataset_id: str) -> dataset_pb2.Dataset:
     url = os.path.join(
         "https://github.com/open-reaction-database/ord-data/raw/main", id_filename(f"{dataset_id}.pb.gz")
     )
-    response = requests.get(url)
+    response = requests.get(url, timeout=timeout)
     return dataset_pb2.Dataset.FromString(gzip.decompress(response.content))
 
 
