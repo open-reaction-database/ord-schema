@@ -125,8 +125,11 @@ with Session(engine) as session:
 
 Use the [SQLAlchemy ORM query engine](https://docs.sqlalchemy.org/en/14/orm/quickstart.html#simple-select) to search for
 specific fields. When searching for reactions that match a specific query, use the `proto` field of the `Reaction` 
-mapper to recover the original `Reaction` protocol buffer message. For example, to find reactions that have an input
-with the SMILES `c1ccccc1CCC(O)C`:
+mapper to recover the original `Reaction` protocol buffer message. 
+
+#### Examples
+
+##### Reactions that have an input with the (exact) SMILES `c1ccccc1CCC(O)C`:
 
   ```python
   from sqlalchemy import select
@@ -148,9 +151,7 @@ with the SMILES `c1ccccc1CCC(O)C`:
 
 #### Structure searches with the RDKit PostgreSQL extension
 
-Examples:
-
-* Reactions that have Morgan binary fingerprint Tanimoto > 0.5 to `c1ccccc1CCC(O)C`
+##### Reactions that have Morgan binary fingerprint Tanimoto > 0.5 to `c1ccccc1CCC(O)C`
 
   ```python
   from sqlalchemy import select
