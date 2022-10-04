@@ -186,6 +186,10 @@ class TestMessageHelpers:
     def test_parse_doi(self, doi, expected):
         assert message_helpers.parse_doi(doi) == expected
 
+    def test_fetch_dataset(self):
+        dataset = message_helpers.fetch_dataset("ord_dataset-35a5a513f1dd44a3a97c88da99f81a00")
+        assert len(dataset.reactions) == 7
+
 
 class TestFindSubmessages:
     def test_scalar(self):
