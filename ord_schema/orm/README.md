@@ -104,13 +104,16 @@ conflicts with ORD message names.
 Load ORD datasets into the database with the `add_datasets` and `add_rdkit` functions:
 
 ```python
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from ord_schema.message_helpers import load_message
+from ord_schema.message_helpers import fetch_dataset
 from ord_schema.orm.database import add_datasets, add_rdkit
-from ord_schema.proto.dataset_pb2 import Dataset
 
-dataset = load_message("dataset.pb.gz", Dataset)
+dataset = fetch_dataset("ord_dataset-fc83743b978f4deea7d6856deacbfe53")
+
+connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+engine = create_engine(connection_string, future=True)
 with Session(engine) as session:
     add_datasets([dataset], session)
     session.flush()
@@ -140,6 +143,7 @@ with the SMILES `c1ccccc1CCC(O)C`:
   )
   results = session.execute(query)
   reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
+  print(reactions)
   ```
 
 #### Structure searches with the RDKit PostgreSQL extension
@@ -153,12 +157,16 @@ Examples:
   
   from ord_schema.orm.mappers import Compound, Reaction, ReactionInput
   from ord_schema.orm.structure import FingerprintType, Structure
+  from ord_schema.proto import reaction_pb2
   
-  (
+  query = (
     select(Reaction)
     .join(ReactionInput)
     .join(Compound)
     .join(Structure)
     .where(Structure.tanimoto("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP) > 0.5)
   )
+  results = session.execute(query)
+  reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
+  print(reactions)
   ```
