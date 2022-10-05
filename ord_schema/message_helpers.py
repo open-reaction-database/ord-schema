@@ -22,16 +22,18 @@ import warnings
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Optional, Type, TypeVar, Union
 
+import pandas as pd
+import requests
 from google import protobuf
 from google.protobuf import json_format
 from google.protobuf import text_format  # pytype: disable=import-error
-import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 from werkzeug import security
 
 import ord_schema
 from ord_schema import units
+from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
@@ -702,6 +704,23 @@ class MessageFormat(enum.Enum):
     BINARY = ".pb"
     JSON = ".json"
     PBTXT = ".pbtxt"
+
+
+def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset:
+    """Loads a dataset from the ord-data repository.
+
+    Args:
+        dataset_id: Dataset ID.
+        timeout: Number of seconds to wait before timing out the request.
+
+    Returns:
+        Dataset message.
+    """
+    url = os.path.join(
+        "https://github.com/open-reaction-database/ord-data/raw/main", id_filename(f"{dataset_id}.pb.gz")
+    )
+    response = requests.get(url, timeout=timeout)
+    return dataset_pb2.Dataset.FromString(gzip.decompress(response.content))
 
 
 # pylint: disable=inconsistent-return-statements

@@ -14,16 +14,20 @@
 
 """Tests for ord_schema.orm.database."""
 from sqlalchemy import select
-from ord_schema.orm.mappers import Compound, CompoundIdentifier, Reaction, ReactionInput
+
+from ord_schema.orm.mappers import Percentage, ProductCompound, ProductMeasurement, Reaction, ReactionOutcome
+from ord_schema.proto import reaction_pb2
 
 
 def test_orm(test_session):
     query = (
         select(Reaction)
-        .join(ReactionInput)
-        .join(Compound)
-        .join(CompoundIdentifier)
-        .where(CompoundIdentifier.type == "SMILES", CompoundIdentifier.value == "c1ccccc1CCC(O)C")
+        .join(ReactionOutcome)
+        .join(ProductCompound)
+        .join(ProductMeasurement)
+        .join(Percentage)
+        .where(ProductMeasurement.type == "YIELD", Percentage.value >= 70)
     )
     results = test_session.execute(query)
-    assert len(results.fetchall()) == 20
+    reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
+    assert len(reactions) == 12
