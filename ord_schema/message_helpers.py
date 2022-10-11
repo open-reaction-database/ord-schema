@@ -717,6 +717,10 @@ def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset
 
     Returns:
         Dataset message.
+
+    Raises:
+        RuntimeError: If the request fails.
+        ValueError: If the dataset ID is invalid.
     """
     from ord_schema import validations  # Avoid circular import.
 
