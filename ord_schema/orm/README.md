@@ -101,21 +101,21 @@ conflicts with ORD message names.
 
 ### Add data
 
-Load ORD datasets into the database with the `add_datasets` and `add_rdkit` functions:
+Load ORD datasets into the database with the `add_dataset` and `add_rdkit` functions:
 
 ```python
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from ord_schema.message_helpers import fetch_dataset
-from ord_schema.orm.database import add_datasets, add_rdkit
+from ord_schema.orm.database import add_dataset, add_rdkit
 
 dataset = fetch_dataset("ord_dataset-fc83743b978f4deea7d6856deacbfe53")
 
 connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
 engine = create_engine(connection_string, future=True)
 with Session(engine) as session:
-    add_datasets([dataset], session)
+    add_dataset(dataset, session)
     session.flush()
     add_rdkit(session)
     session.commit()
