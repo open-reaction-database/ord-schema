@@ -15,6 +15,7 @@
 """Tests for ord_schema.orm.database."""
 from sqlalchemy import select
 
+from ord_schema.orm.database import delete_dataset
 from ord_schema.orm.mappers import Percentage, ProductCompound, ProductMeasurement, Reaction, ReactionOutcome
 from ord_schema.proto import reaction_pb2
 
@@ -31,3 +32,9 @@ def test_orm(test_session):
     results = test_session.execute(query)
     reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
     assert len(reactions) == 12
+
+
+def test_delete_dataset(test_session):
+    assert test_session.query(Reaction).count() == 80
+    delete_dataset("test_dataset", test_session)
+    assert test_session.query(Reaction).count() == 0
