@@ -101,25 +101,39 @@ conflicts with ORD message names.
 
 ### Add data
 
-Load ORD datasets into the database with the `add_datasets` and `add_rdkit` functions:
+Load ORD datasets into the database with the `add_dataset` and `add_rdkit` functions:
 
 ```python
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from ord_schema.message_helpers import fetch_dataset
-from ord_schema.orm.database import add_datasets, add_rdkit
+from ord_schema.orm.database import add_dataset, add_rdkit
 
 dataset = fetch_dataset("ord_dataset-fc83743b978f4deea7d6856deacbfe53")
 
 connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
 engine = create_engine(connection_string, future=True)
 with Session(engine) as session:
-    add_datasets([dataset], session)
+    add_dataset(dataset, session)
     session.flush()
     add_rdkit(session)
     session.commit()
 ```
+
+To load multiple datasets from disk (e.g., from a clone of 
+[ord-data](https://github.com/open-reaction-database/ord-data)), use the `add_datasets.py` script:
+
+```shell
+$ python add_datasets.py \
+    --pattern "path/to/ord-data/data/fc/*.pb.gz" \
+    --username <username> \
+    --host <host> \
+    --database <database>
+```
+
+Note that the database password will be read from the `PGPASSWORD` environment variable if `--password` is not
+specified on the command line. To update an existing dataset in the database, use the `--overwrite` flag.
 
 ### Run queries
 
