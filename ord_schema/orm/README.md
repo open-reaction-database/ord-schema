@@ -121,6 +121,20 @@ with Session(engine) as session:
     session.commit()
 ```
 
+To load multiple datasets from disk (e.g., from a clone of 
+[ord-data](https://github.com/open-reaction-database/ord-data)), use the `add_datasets.py` script:
+
+```shell
+$ python add_datasets.py \
+    --pattern "path/to/ord-data/data/fc/*.pb.gz" \
+    --username <username>
+    --host <host>
+    --database <database>
+```
+
+Note that the database password will be read from the `PGPASSWORD` environment variable if `--password` is not
+specified on the command line. To update an existing dataset in the database, use the `--overwrite` flag.
+
 ### Run queries
 
 Use the [SQLAlchemy ORM query engine](https://docs.sqlalchemy.org/en/14/orm/quickstart.html#simple-select) to search for
