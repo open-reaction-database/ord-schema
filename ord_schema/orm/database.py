@@ -80,8 +80,8 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
 
 
 def add_rdkit(session: Session) -> None:
-    """Adds RDKit PostgreSQL cartridge data."""
-    logger.info("Adding RDKit data")
+    """Adds RDKit PostgreSQL cartridge data to any null-valued cells in the structure table."""
+    logger.info("Populating RDKit columns")
     assert hasattr(Structure, "__table__")  # Type hint.
     table = Structure.__table__
     start = time.time()
