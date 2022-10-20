@@ -127,8 +127,8 @@ To load multiple datasets from disk (e.g., from a clone of
 ```shell
 $ python add_datasets.py \
     --pattern "path/to/ord-data/data/fc/*.pb.gz" \
-    --username <username>
-    --host <host>
+    --username <username> \
+    --host <host> \
     --database <database>
 ```
 
