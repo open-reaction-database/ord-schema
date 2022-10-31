@@ -54,7 +54,7 @@ def proto2database(ord_name: str,
                    username: str,
                    password: str,
                    host: str,
-                   port: str,
+                   port: int,
                    database: str,
                    ) -> None:
     """Convert the protocol buffer file from ORD to a relational database.
@@ -66,8 +66,6 @@ def proto2database(ord_name: str,
         host: The host url from postgres.
         port: The port from postgres.
         database: The database name hosted with postgres.
-
-    Returns:
 
     """
     if os.path.exists(ord_name):
@@ -90,6 +88,11 @@ def clean_up_database(connection_string: str,
                       # yield_threshold: float = 0.70,
                       ) -> Tuple[List[reaction_pb2.Reaction], List[reaction_pb2.Reaction]]:
     """Clean up the database.
+
+    Args:
+        connection_string: The connection string for the database.
+        new_database: The new database name to store the cleaned up reactions.
+        fail_database: The new database name to store the failed reactions.
 
     Returns:
         new_reactions: The list of new reactions.
@@ -129,28 +132,39 @@ def clean_up_database(connection_string: str,
         # component.reaction_role == 1
         # according to https://github.com/open-reaction-database/ord-schema/blob/
         # 2146425277dead9c7a3c5f4a5a3450b7980cc92f/ord_schema/proto/reaction.proto#L275
-        reactant_smiles = [message_helpers.smiles_from_compound(component) for component in
-                           reaction.inputs["Boronate in Solvent"].components
-                           if component.reaction_role == reaction_pb2.ReactionRole.REACTANT]
-        product_smiles = message_helpers.smiles_from_compound(reaction.outcomes[0].products[0])
 
-    # todo: use reaction SMILES to remove duplicates
+        # todo: use reaction SMILES to remove duplicates
         # update the reactant SMILES
-        for idx, reactant_smi in enumerate(reactant_smiles):
-            # todo: check on how to deal with metal complex for catalysis, example in notebook
-            mol = Chem.MolFromSmiles(reactant_smi, sanitize=True)
-            if mol:
-                new_reaction.inputs["Boronate in Solvent"].components[idx].identifiers[0].value = \
-                    Chem.MolToSmiles(mol, isomericSmiles=True)
-            else:
-                print(f"SMILES string {reactant_smi} is not valid.")
-                failed_records.append(reaction)
+        for idx, (reaction_info, reaction_input) in enumerate(reaction.inputs.items()):
+            reactant_smi = [message_helpers.smiles_from_compound(component) for component in
+                            reaction_input.components
+                            if component.reaction_role == reaction_pb2.ReactionRole.REACTANT]
+            if len(reactant_smi) == 0:
                 continue
+            else:
+                reactant_smi = reactant_smi[0]
+                # todo: check on how to deal with metal complex for catalysis, example in notebook
+                mol = Chem.MolFromSmiles(reactant_smi, sanitize=True)
+                if mol:
+                    new_reaction.inputs[reaction_info].components[0].identifiers[0].value = \
+                        Chem.MolToSmiles(mol, isomericSmiles=True)
+                else:
+                    print(f"SMILES string {reactant_smi} is not valid.")
+                    failed_records.append(reaction)
+                    # todo: drop the reaction from the database if SMILES is not valid
+                    continue
+
         # update the product SMILES
-        mol = Chem.MolFromSmiles(product_smiles, sanitize=True)
+        product_smi = message_helpers.smiles_from_compound(reaction.outcomes[0].products[0])
+        mol = Chem.MolFromSmiles(product_smi, sanitize=True)
         if mol:
             new_reaction.outcomes[0].products[0].identifiers[0].value = \
                 Chem.MolToSmiles(mol, isomericSmiles=True)
+        else:
+            print(f"SMILES string {product_smi} is not valid.")
+            failed_records.append(reaction)
+            # todo: drop the reaction from the database if SMILES is not valid
+            continue
 
         new_reactions.append(new_reaction)
 
@@ -160,7 +174,6 @@ def clean_up_database(connection_string: str,
         message_helpers.write_message(failed_records, fail_database)
 
     return new_reactions, failed_records
-
 
 # https://github.com/open-reaction-database/ord-schema/blob/main/examples/submissions
 # /1_Santanilla_Nanomole_HTE/example_Santanilla.ipynb
@@ -178,6 +191,7 @@ def clean_up_database(connection_string: str,
 #         canonical_smiles.append(can_smiles)
 #     else:
 #         raise Exception(
-#             f"Error, unable to canonicalize the following smiles: {smiles}, non-canonical smiles added to final list instead"
+#             f"Error, unable to canonicalize the following smiles: {smiles},
+#             non-canonical smiles added to final list instead"
 #         )
 #         canonical_smiles.append(smiles)
