@@ -17,12 +17,15 @@
 import os
 from typing import List, Tuple
 
-from ord_schema import message_helpers, validations
-from ord_schema.orm.database import (add_dataset, add_rdkit,
+from ord_schema import message_helpers
+from ord_schema.orm.database import (add_dataset,
+                                     add_rdkit,
                                      get_connection_string)
 #
-from ord_schema.orm.mappers import (Percentage, ProductCompound,
-                                    ProductMeasurement, Reaction,
+from ord_schema.orm.mappers import (Percentage,
+                                    ProductCompound,
+                                    ProductMeasurement,
+                                    Reaction,
                                     ReactionOutcome)
 # from ord_schema.orm.mappers import *
 from ord_schema.proto import reaction_pb2
@@ -30,12 +33,6 @@ from rdkit import Chem
 # from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
-
-# def get_connection_string(
-#     database: str, username: str, password: str, host: str = "localhost", port: int = 5432
-# ) -> str:
-#     """Creates an SQLAlchemy connection string."""
-#     return f"postgresql://{username}:{password}@{host}:{port}/{database}"
 
 
 # algorithm
@@ -51,16 +48,6 @@ from sqlalchemy.orm import Session
 # questions
 # 1. do we need to add a mol object?
 # 2. names for multiple reactants and products?
-
-
-# n_canon_fails = 0
-# nignores_due_to_duplication = 0
-# out_reactions_to_namerxn = collections.defaultdict(collections.Counter)
-# out_reactions_to_year = collections.defaultdict(collections.Counter)
-# out_reactions_to_uncleaned = collections.defaultdict(collections.Counter)
-# nfails_due_to_molecule_checks = {k: 0 for k in molecule_checks}
-# failures_canon = set()
-# failures_checks = collections.defaultdict(collections.Counter)
 
 
 def proto2database(ord_name: str,
@@ -99,12 +86,14 @@ def proto2database(ord_name: str,
 
 def clean_up_database(connection_string: str,
                       new_database: str = None,
-                      fail_database: str= None,
+                      fail_database: str = None,
                       # yield_threshold: float = 0.70,
-                      ) -> Tuple[List[reaction_pb2.Compound], List[reaction_pb2.Compound]]:
+                      ) -> Tuple[List[reaction_pb2.Reaction], List[reaction_pb2.Reaction]]:
     """Clean up the database.
 
     Returns:
+        new_reactions: The list of new reactions.
+        failed_records: A list of reactions that failed to be cleaned.
 
     """
     engine = create_engine(connection_string, future=True)
