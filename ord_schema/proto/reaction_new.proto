@@ -27,21 +27,21 @@ message Reaction {
   // This is a map instead of a repeated field to simplify reaction templating
   // through the use of keys. String keys are simple descriptions and are
   // present only for convenience.
-  map<string, ReactionInput> inputs = 2;
+  map<string, ReactionInput> inputs = 1;
   // The reaction setup specifies how the reaction was prepared, e.g., whether
   // it was automated, whether it was run in a glove box.
-  ReactionSetup setup = 3;
+  ReactionSetup setup = 2;
   // Reaction conditions predominantly include temperature, stirring, and
   // pressure conditions, but also allow specification of flow, photochemistry,
   // and electrochemistry conditions.
-  ReactionConditions conditions = 4;
+  ReactionConditions conditions = 3;
   // Each reaction outcome contains all analyses and confirmed/expected product
   // structures at a particular reaction time.
-  repeated ReactionOutcome outcomes = 8;
+  repeated ReactionOutcome outcomes = 4;
   // Provenance contains details of the experimenter and record writer.
-  ReactionProvenance provenance = 9;
+  ReactionProvenance provenance = 5;
   // Official ID for this reaction in the Open Reaction Database.
-  string reaction_id = 10;
+  string reaction_id = 6;
 }
 
 /**
@@ -80,7 +80,7 @@ message ReactionInput {
 
   // Specify the temperature of the material being added.
   // E.g., a cooled flask of a stock solution to be added at low temperature.
-  Temperature addition_temperature = 9;
+  Temperature addition_temperature = 3;
 }
 
 /**
@@ -95,14 +95,14 @@ message Amount {
     Mass mass = 1;
     Moles moles = 2;
     Volume volume = 3;
-    UnmeasuredAmount unmeasured = 5;
+    UnmeasuredAmount unmeasured = 4;
   }
   // Whether the volume measurement refers to the pure substance or to the
   // total volume of the reaction input. An example of when this field should
   // be TRUE is when stock solutions are prepared by adding solvent to a
   // volumetric flask already containing solute(s).
   // I don't think we need this?
-  optional bool volume_includes_solutes = 4;
+  optional bool volume_includes_solutes = 5;
 }
 
 /**
@@ -169,7 +169,7 @@ message Compound {
   optional bool is_limiting = 4;
   // Compounds may be assayed for quality control; analytical data should be
   // defined in the analyses map.
-  map<string, Analysis> analyses = 8;
+  map<string, Analysis> analyses = 5;
 }
 
 message ReactionRole {
@@ -250,11 +250,11 @@ message CompoundIdentifier {
 
 message ReactionSetup {
   // Specification of automated protocols.
-  optional bool is_automated = 2;
+  optional bool is_automated = 1;
   // Automated platform name, brand, or model number.
-  string automation_platform = 3;
+  string automation_platform = 2;
   // Raw automation code or synthetic recipe definition.
-  map<string, Data> automation_code = 4;
+  map<string, Data> automation_code = 3;
   message ReactionEnvironment {
     enum ReactionEnvironmentType {
       UNSPECIFIED = 0;
@@ -269,7 +269,7 @@ message ReactionSetup {
     string details = 2;
   }
   // Specify reaction environment.
-  ReactionEnvironment environment = 5;
+  ReactionEnvironment environment = 4;
 }
 
 message ReactionConditions {
@@ -317,13 +317,13 @@ message ProductCompound {
   // product was confirmed. It also contains quantitative standardized
   // performance metrics like quantitative yield as well as unstandardized
   // (and unnormalized) metrics like an integrated UV peak area.
-  repeated ProductMeasurement measurements = 3;
+  repeated ProductMeasurement measurements = 2;
   // Specify the role the ProductCompound played in the reaction. This
   // aids in constructing proper reaction SMILES and product lists.
   // Species produced by the reaction should be identified as PRODUCT,
   // whether desired or undesired. Recovered starting materials can be
   // specified as REACTANT, REAGENT, CATALYST, etc. as appropriate.
-  ReactionRole.ReactionRoleType reaction_role = 7;
+  ReactionRole.ReactionRoleType reaction_role = 3;
 }
 
 message ProductMeasurement {
@@ -475,7 +475,7 @@ message DateTime {
 message Analysis {
   // TODO(ccoley): Solicit more feedback from experimentalists
   enum AnalysisType {
-    // todo: merge things together for different types of analysis
+    // todo (FWMeng): merge things together for different types of analysis
     UNSPECIFIED = 0;
     CUSTOM = 1;
     LC = 2;  // Liquid chromatography, including HPLC and UPLC.
@@ -518,11 +518,11 @@ message Analysis {
 }
 
 message ReactionProvenance {
-  DateTime experiment_start = 3;
-  string doi = 4;
-  string patent = 5;
-  RecordEvent record_created = 7;
-  repeated RecordEvent record_modified = 8;
+  DateTime experiment_start = 1;
+  string doi = 2;
+  string patent = 3;
+  RecordEvent record_created = 4;
+  repeated RecordEvent record_modified = 5;
 }
 
 message RecordEvent {
