@@ -44,7 +44,7 @@ jobs:
           coverage erase
           pytest --cov=ord_schema
           coverage xml
-      - uses: codecov/codecov-action@v1
+      - uses: codecov/codecov-action@v3
 
   test_notebooks:
     runs-on: ubuntu-latest
@@ -65,7 +65,7 @@ jobs:
   test_proto_wrappers:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: 3.9
