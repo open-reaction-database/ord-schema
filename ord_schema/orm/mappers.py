@@ -47,7 +47,7 @@ from sqlalchemy.orm import relationship, with_polymorphic
 
 import ord_schema.orm.structure  # pylint: disable=unused-import
 from ord_schema import message_helpers
-from ord_schema.orm import Base, Child, Parent
+from ord_schema.orm.base import Base, Child, Parent
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
