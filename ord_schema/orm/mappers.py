@@ -1173,7 +1173,7 @@ Voltage = with_polymorphic(_Voltage, "*")
 Volume = with_polymorphic(_Volume, "*")
 Wavelength = with_polymorphic(_Wavelength, "*")
 
-POLYMORPHIC_MAPPERS = [
+POLYMORPHIC_MAPPERS = {
     Amount,
     Analysis,
     Compound,
@@ -1197,7 +1197,7 @@ POLYMORPHIC_MAPPERS = [
     Wavelength,
     # from structure.py:
     Structure,
-]
+}
 
 
 def from_proto(  # pylint: disable=too-many-branches

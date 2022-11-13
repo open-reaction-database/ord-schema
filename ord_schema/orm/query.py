@@ -20,8 +20,11 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.relationships import RelationshipProperty
 from sqlalchemy.orm.util import AliasedClass
 
+from ord_schema.logging import get_logger
 from ord_schema.orm.base import Base
 from ord_schema.orm.mappers import POLYMORPHIC_MAPPERS
+
+logger = get_logger(__name__)
 
 
 def get_polymorphic_mappers() -> dict[Type[Base], AliasedClass]:
@@ -38,6 +41,7 @@ _POLYMORPHIC_MAPPERS = get_polymorphic_mappers()
 def get_join_path(
     source: Type[Base],
     target: InstrumentedAttribute,
+    raise_on_multiple: bool = True,
     raise_on_failure: bool = True,
     include_source: bool = True,
 ) -> list[Type[Base]] | None:
@@ -46,6 +50,7 @@ def get_join_path(
     Args:
         source: Source mapper; the object type that you want to return from the SQL query.
         target: Target attribute; the attribute you want to filter on.
+        raise_on_multiple: If True, raise if a found path may not be unique.
         raise_on_failure: If True, raise if a path cannot be found.
         include_source: If True, include the source in the list of returned classes.
 
@@ -67,10 +72,24 @@ def get_join_path(
         if not isinstance(value.property, RelationshipProperty):
             continue
         mapper = value.property.mapper.class_
-        child_classes = get_join_path(source=mapper, target=target, raise_on_failure=False, include_source=False)
+        child_classes = get_join_path(
+            source=mapper,
+            target=target,
+            raise_on_multiple=raise_on_multiple,
+            raise_on_failure=False,
+            include_source=False,
+        )
         if child_classes is not None:
             classes = [source] if include_source else []
-            classes.append(_POLYMORPHIC_MAPPERS.get(mapper, mapper))
+            if mapper in _POLYMORPHIC_MAPPERS:
+                if raise_on_multiple:
+                    raise ValueError(
+                        f"path between {source} and {target} may not be unique; "
+                        "consider making the target more precise"
+                    )
+                logger.warning(f"path between {source} and {target} may not be unique")
+                mapper = _POLYMORPHIC_MAPPERS[mapper]
+            classes.append(mapper)
             classes.extend(child_classes)
             return classes
     if raise_on_failure:

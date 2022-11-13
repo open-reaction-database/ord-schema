@@ -27,6 +27,15 @@ from ord_schema.orm.query import get_join_path
             ProductMeasurement.percentage,
             [Reaction, ReactionOutcome, ProductCompound, ProductMeasurement, Percentage],
         ),
+    ),
+)
+def test_get_join_path(source, target, expected):
+    assert get_join_path(source, target) == expected
+
+
+@pytest.mark.parametrize(
+    "source,target,expected",
+    (
         (
             Reaction,
             Percentage.value,
@@ -34,8 +43,10 @@ from ord_schema.orm.query import get_join_path
         ),
     ),
 )
-def test_get_join_path(source, target, expected):
-    assert get_join_path(source, target) == expected
+def test_get_join_path_non_unique(source, target, expected):
+    assert get_join_path(source, target, raise_on_multiple=False) == expected
+    with pytest.raises(ValueError, match="may not be unique"):
+        get_join_path(source, target)
 
 
 @pytest.mark.parametrize(
