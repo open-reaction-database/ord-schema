@@ -45,9 +45,9 @@ from google.protobuf.message import Message
 from sqlalchemy import Boolean, Column, Enum, Float, Integer, ForeignKey, LargeBinary, Text
 from sqlalchemy.orm import relationship, with_polymorphic
 
-import ord_schema.orm.structure  # pylint: disable=unused-import
 from ord_schema import message_helpers
 from ord_schema.orm.base import Base, Child, Parent
+from ord_schema.orm.structure import Structure
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
@@ -1172,6 +1172,32 @@ Time = with_polymorphic(_Time, "*")
 Voltage = with_polymorphic(_Voltage, "*")
 Volume = with_polymorphic(_Volume, "*")
 Wavelength = with_polymorphic(_Wavelength, "*")
+
+POLYMORPHIC_MAPPERS = [
+    Amount,
+    Analysis,
+    Compound,
+    CompoundIdentifier,
+    Current,
+    Data,
+    DateTime,
+    FloatValue,
+    Length,
+    Percentage,
+    Person,
+    Pressure,
+    ReactionInput,
+    RecordEvent,
+    StirringConditions,
+    Temperature,
+    TemperatureConditions,
+    Time,
+    Voltage,
+    Volume,
+    Wavelength,
+    # from structure.py:
+    Structure,
+]
 
 
 def from_proto(  # pylint: disable=too-many-branches
