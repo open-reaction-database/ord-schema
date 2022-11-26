@@ -60,7 +60,7 @@ def get_join_path(
     Raises:
         ValueError: If raise_on_failure is True and a path cannot be found.
     """
-    for key, value in source.__dict__.items():
+    for value in source.__dict__.values():
         if not isinstance(value, InstrumentedAttribute):
             continue
         if value.property == target.property:
@@ -94,3 +94,4 @@ def get_join_path(
             return classes
     if raise_on_failure:
         raise ValueError(f"could not find a path between {source} and {target}")
+    return None
