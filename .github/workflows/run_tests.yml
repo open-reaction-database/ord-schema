@@ -42,7 +42,7 @@ jobs:
         shell: bash -l {0}
         run: |
           coverage erase
-          pytest --cov=ord_schema
+          pytest -n auto --cov=ord_schema --durations=0 --durations-min=1
           coverage xml
       - uses: codecov/codecov-action@v1
 
