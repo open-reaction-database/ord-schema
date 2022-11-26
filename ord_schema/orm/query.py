@@ -44,7 +44,7 @@ def get_join_path(
     raise_on_multiple: bool = True,
     raise_on_failure: bool = True,
     include_source: bool = True,
-) -> list[Type[Base]] | None:
+) -> list[Type[Base] | AliasedClass] | None:
     """Uses depth-first search to find a join path between a source mapper and a target attribute.
 
     Args:
