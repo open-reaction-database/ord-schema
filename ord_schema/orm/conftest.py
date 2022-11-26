@@ -14,6 +14,7 @@
 
 """Pytest fixtures."""
 import os
+from typing import Iterator
 
 import pytest
 from sqlalchemy import create_engine
@@ -26,7 +27,7 @@ from ord_schema.proto.dataset_pb2 import Dataset
 
 
 @pytest.fixture
-def test_session() -> Session:
+def test_session() -> Iterator[Session]:
     dataset = load_message(os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"), Dataset)
     with Postgresql() as postgres:
         engine = create_engine(postgres.url(), future=True)
