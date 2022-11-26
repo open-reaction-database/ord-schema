@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import os
-from distutils.util import strtobool
+from distutils.util import strtobool  # pylint: disable=deprecated-module
 from enum import Enum
 
 from sqlalchemy import Column, Index, Integer, ForeignKey, Text, func
