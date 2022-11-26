@@ -59,5 +59,5 @@ jobs:
       - uses: actions/checkout@v3
       - name: clang-format
         run: |
-          sudo apt update && sudo apt install clang-format-10 --yes
-          find . -name '*.proto' -exec clang-format-10 -n -Werror --style=file {} +
+          sudo apt update && sudo apt install clang-format --yes
+          find . -name '*.proto' -exec clang-format -n -Werror --style=file {} +
