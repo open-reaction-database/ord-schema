@@ -49,14 +49,14 @@ from sqlalchemy.orm import declarative_base, relationship, with_polymorphic
 
 import ord_schema.orm.structure  # pylint: disable=unused-import
 from ord_schema import message_helpers
-from ord_schema.orm import Child, Parent
+from ord_schema.orm import Base
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 # pylint:disable=missing-class-docstring
 
 
-Base = declarative_base()
+
 
 
 def get_message_type(full_name: str) -> Any:
@@ -164,6 +164,8 @@ def _build_mapper(
     if message_type == reaction_pb2.Reaction:
         attrs["proto"] = Column(LargeBinary, nullable=False)
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
+    if message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
+        attrs["structure"] = relationship("Structure", uselist=False)
     return type(message_type.DESCRIPTOR.name, (Base,), attrs)
 
 
@@ -187,8 +189,8 @@ class _EicMass(Base):
     value = Column(Float)
 
 
-MAPPERS = build_mappers(dataset_pb2.Dataset)
-MESSAGES: dict[Type, Type[Message]] = {value: key for key, value in MAPPERS.items()}
+MAPPERS: dict[Type[Message], Type] = build_mappers(dataset_pb2.Dataset)
+MESSAGE_TYPES: dict[Type, Type[Message]] = {value: key for key, value in MAPPERS.items()}
 
 
 def from_proto(  # pylint: disable=too-many-branches
@@ -251,11 +253,7 @@ def to_proto(base: Base) -> Message:
         Protobuf message.
     """
     kwargs = {}
-    proto = None
-    for mapper in getmro(type(base)):
-        if not issubclass(mapper, Child):
-            proto = MESSAGES[mapper]
-            break
+    proto = MESSAGE_TYPES[base]
     assert issubclass(proto, Message)
     for field in proto.DESCRIPTOR.fields:
         value = getattr(base, field.name)

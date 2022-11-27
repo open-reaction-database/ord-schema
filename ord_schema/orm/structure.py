@@ -23,7 +23,7 @@ from sqlalchemy import Column, Index, Integer, ForeignKey, Text, func
 from sqlalchemy.orm import with_polymorphic
 from sqlalchemy.types import UserDefinedType
 
-from ord_schema.orm import Base, Child, Parent
+from ord_schema.orm import Base
 
 
 def rdkit_cartridge() -> bool:
@@ -134,7 +134,7 @@ class FingerprintType(Enum):
         return table_args
 
 
-class _Structure(Parent, Base):
+class Structure(Base):
     """Table for storing compound structures and associated RDKit cartridge data.
 
     Notes:
@@ -144,7 +144,10 @@ class _Structure(Parent, Base):
         the other columns will be empty).
       * Objects with this type are added to the ORM in from_proto() using the `structure` field.
     """
-
+    __tablename__ = "structure"
+    id = Column(Integer, primary_key=True)
+    compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"), nullable=True)
+    product_compound_id = Column(Integer, ForeignKey("product_compound.id", ondelete="CASCADE"), nullable=True)
     smiles = Column(Text)
     mol = Column(_RDKitMol)
 
@@ -157,18 +160,3 @@ class _Structure(Parent, Base):
     @classmethod
     def tanimoto(cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP):
         return func.rdkit.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(other))
-
-
-class _CompoundStructure(Child, _Structure):
-    compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"), nullable=False)
-
-    __table_args__ = {"schema": "rdkit"}
-
-
-class _ProductCompoundStructure(Child, _Structure):
-    product_compound_id = Column(Integer, ForeignKey("product_compound.id", ondelete="CASCADE"), nullable=False)
-
-    __table_args__ = {"schema": "rdkit"}
-
-
-Structure = with_polymorphic(_Structure, "*")
