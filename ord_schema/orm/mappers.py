@@ -171,8 +171,22 @@ class _EicMass(Base):
     value = Column(Float)
 
 
-MAPPERS: dict[Type[Message], Type] = build_mappers(dataset_pb2.Dataset)
-MESSAGE_TYPES: dict[Type, Type[Message]] = {value: key for key, value in MAPPERS.items()}
+_MESSAGE_TO_MAPPER: dict[Type[Message], Type] = build_mappers(dataset_pb2.Dataset)
+_MAPPER_TO_MESSAGE: dict[Type, Type[Message]] = {value: key for key, value in _MESSAGE_TO_MAPPER.items()}
+
+
+class Mappers:
+    """Container for generated mapper classes."""
+
+    _MAPPERS: dict[str, Type] = {c.__name__: c for c in _MAPPER_TO_MESSAGE}
+
+    @classmethod
+    def __getattr__(cls, item):
+        return cls._MAPPERS[item]
+
+    @classmethod
+    def __getitem__(cls, item):
+        return cls._MAPPERS[item]
 
 
 def from_proto(  # pylint: disable=too-many-branches
@@ -190,7 +204,7 @@ def from_proto(  # pylint: disable=too-many-branches
         ORM object.
     """
     if mapper is None:
-        mapper = MAPPERS[type(message)]
+        mapper = _MESSAGE_TO_MAPPER[type(message)]
     kwargs = {}
     if key is not None:
         kwargs["key"] = key
@@ -235,7 +249,7 @@ def to_proto(base: Base) -> Message:
         Protobuf message.
     """
     kwargs = {}
-    proto = MESSAGE_TYPES[base]
+    proto = _MAPPER_TO_MESSAGE[type(base)]
     assert issubclass(proto, Message)
     for field in proto.DESCRIPTOR.fields:
         value = getattr(base, field.name)
