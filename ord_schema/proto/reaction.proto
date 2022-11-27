@@ -69,7 +69,7 @@ message Reaction {
  */
 message ReactionIdentifier {
   // Possible identifier types are listed in an enum for extensibility
-  enum IdentifierType {
+  enum ReactionIdentifierType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     REACTION_SMILES = 2;
@@ -78,7 +78,7 @@ message ReactionIdentifier {
     RINCHI = 4;  // Reaction InChI.
     NAME = 5;  // Named reaction or reaction category.
   }
-  IdentifierType type = 1;
+  ReactionIdentifierType type = 1;
   string details = 2;
   string value = 3;
   // Whether identifier contains atom-to-atom mapping information. When True,
@@ -252,7 +252,7 @@ message Compound {
     // Name of the vendor or supplier the compound was purchased from.
     string vendor = 1;
     // Compound ID in the vendor database or catalog.
-    string id = 2;
+    string catalog_id = 2;
     // Batch/lot identification.
     string lot = 3;
   }
@@ -328,7 +328,7 @@ message CompoundPreparation {
  * specification of which salt.
  */
 message CompoundIdentifier {
-  enum IdentifierType {
+  enum CompoundIdentifierType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     // Simplified molecular-input line-entry system.
@@ -362,7 +362,7 @@ message CompoundIdentifier {
     // HELM; https://www.pistoiaalliance.org/helm-notation/.
     HELM = 16;
   }
-  IdentifierType type = 1;
+  CompoundIdentifierType type = 1;
   string details = 2;
   // Value of the compound identifier; certain types (e.g., PUBCHEM_CID) may
   // cast the string as an integer for downstream processing and validation.
@@ -531,20 +531,20 @@ message TemperatureConditions {
   }
   TemperatureControl control = 1;
   Temperature setpoint = 2;
-  message Measurement {
-    enum MeasurementType {
+  message TemperatureMeasurement {
+    enum TemperatureMeasurementType {
       UNSPECIFIED = 0;
       CUSTOM = 1;
       THERMOCOUPLE_INTERNAL = 2;  // Physically in reaction solution.
       THERMOCOUPLE_EXTERNAL = 3;  // On outside of vessel or, e.g., in oil bath.
       INFRARED = 4;  // Contactless infrared probe.
     }
-    MeasurementType type = 1;
+    TemperatureMeasurementType type = 1;
     string details = 2;
     Time time = 3;
     Temperature temperature = 4;
   }
-  repeated Measurement measurements = 3;
+  repeated TemperatureMeasurement measurements = 3;
 }
 
 message PressureConditions {
@@ -584,19 +584,19 @@ message PressureConditions {
     string details = 2;
   }
   Atmosphere atmosphere = 3;
-  message Measurement {
+  message PressureMeasurement {
     // TODO(ccoley) get input on how to expand this enum, among others
-    enum MeasurementType {
+    enum PressureMeasurementType {
       UNSPECIFIED = 0;
       CUSTOM = 1;
       PRESSURE_TRANSDUCER = 2;
     }
-    MeasurementType type = 1;
+    PressureMeasurementType type = 1;
     string details = 2;
     Time time = 3;
     Pressure pressure = 4;
   }
-  repeated Measurement measurements = 4;
+  repeated PressureMeasurement measurements = 4;
 }
 
 message StirringConditions {
@@ -661,14 +661,14 @@ message ElectrochemistryConditions {
   string anode_material = 5;
   string cathode_material = 6;
   Length electrode_separation = 7;
-  message Measurement {
+  message ElectrochemistryMeasurement {
     Time time = 1;
     oneof kind {
       Current current = 2;
       Voltage voltage = 3;
     }
   }
-  repeated Measurement measurements = 8;
+  repeated ElectrochemistryMeasurement measurements = 8;
   message ElectrochemistryCell {
     enum ElectrochemistryCellType {
       UNSPECIFIED = 0;

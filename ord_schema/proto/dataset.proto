@@ -40,13 +40,3 @@ message Dataset {
   // Dataset ID assigned during the submission process.
   string dataset_id = 5;
 }
-
-// Metadata for an example of using a Dataset. For example, a DatasetExample
-// might include a URL for a colab/jupyter notebook or a blog post showing how
-// to use the Dataset in a downstream machine learning application.
-message DatasetExample {
-  string dataset_id = 1;
-  string description = 2;
-  string url = 3;
-  RecordEvent created = 4;
-}
