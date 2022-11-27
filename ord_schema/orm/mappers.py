@@ -85,7 +85,7 @@ def build_mappers(message_type: Type[Message]) -> dict[Type[Message], Type]:
     mappers = {}
     parents = get_parents(message_type)
     for message_type in parents.keys():
-        mappers[message_type] = _build_mapper(message_type, parents=parents)
+        mappers[message_type] = build_mapper(message_type, parents=parents)
     return mappers
 
 
@@ -100,7 +100,7 @@ _FIELD_TYPES = {
 }
 
 
-def _build_mapper(
+def build_mapper(
     message_type: Type[Message], parents: dict[Type[Message], list[tuple[Type[Message], str, bool]]]
 ) -> Type:
     table_name = underscore(message_type.DESCRIPTOR.name)
@@ -133,7 +133,7 @@ def _build_mapper(
                 kwargs["uselist"] = False
             attrs[field.name] = relationship(field_message_type.name, **kwargs)
         elif field.type == FieldDescriptor.TYPE_ENUM:
-            attrs[field.name] = Column(Enum(*field.enum_type.values_by_name.keys()), name=field.enum_type.name)
+            attrs[field.name] = Column(Enum(*field.enum_type.values_by_name.keys(), name=field.enum_type.name))
         else:
             attrs[field.name] = Column(_FIELD_TYPES[field.type])
     if message_type == dataset_pb2.Dataset:
@@ -175,18 +175,20 @@ _MESSAGE_TO_MAPPER: dict[Type[Message], Type] = build_mappers(dataset_pb2.Datase
 _MAPPER_TO_MESSAGE: dict[Type, Type[Message]] = {value: key for key, value in _MESSAGE_TO_MAPPER.items()}
 
 
-class Mappers:
+class MappersMeta(type):
+    """Metaclass for Mappers; see https://stackoverflow.com/a/3155493."""
+    def __getattr__(cls, item):
+        return cls._MAPPERS[item]
+
+    def __getitem__(cls, item):
+        return cls._MAPPERS[item]
+
+class Mappers(metaclass=MappersMeta):
     """Container for generated mapper classes."""
 
     _MAPPERS: dict[str, Type] = {c.__name__: c for c in _MAPPER_TO_MESSAGE}
 
-    @classmethod
-    def __getattr__(cls, item):
-        return cls._MAPPERS[item]
 
-    @classmethod
-    def __getitem__(cls, item):
-        return cls._MAPPERS[item]
 
 
 def from_proto(  # pylint: disable=too-many-branches
