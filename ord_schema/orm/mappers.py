@@ -23,8 +23,6 @@ Notes:
         * MassSpecMeasurementDetails.eic_masses is converted from repeated float to repeated _EicMass.
         * Dataset.reaction_ids is converted from repeated string to repeated _ReactionId.
 """
-from __future__ import annotations
-
 from collections import defaultdict
 from operator import attrgetter
 from typing import Any, Mapping, Optional, Type
@@ -40,8 +38,6 @@ from ord_schema import message_helpers
 from ord_schema.orm import Base
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
-
-
 
 
 def get_message_type(full_name: str) -> Any:
@@ -115,7 +111,7 @@ def _build_mapper(
         attrs[f"{parent_table_name}_id"] = Column(
             Integer,
             ForeignKey(f"{parent_table_name}.id", ondelete="CASCADE"),
-            nullable=len(parents[message_type]) > 1,  # Use multiple foreign keys instead of inheritance.
+            nullable=len(parents[message_type]) > 1,  # Use multiple nullable foreign keys instead of inheritance.
             unique=unique,
         )
         if isinstance(getattr(parent_type(), field_name), Mapping):
@@ -132,21 +128,22 @@ def _build_mapper(
                 field_message_type = field.message_type.fields_by_name["value"].message_type
             else:
                 field_message_type = field.message_type
-            attrs[field.name] = relationship(
-                field_message_type.name, uselist=field.label == FieldDescriptor.LABEL_REPEATED
-            )
+            kwargs = {}
+            if field.label != FieldDescriptor.LABEL_REPEATED:
+                kwargs["uselist"] = False
+            attrs[field.name] = relationship(field_message_type.name, **kwargs)
         elif field.type == FieldDescriptor.TYPE_ENUM:
             attrs[field.name] = Column(Enum(*field.enum_type.values_by_name.keys()), name=field.enum_type.name)
         else:
             attrs[field.name] = Column(_FIELD_TYPES[field.type])
     if message_type == dataset_pb2.Dataset:
         attrs["dataset_id"] = Column(Text, nullable=False, unique=True)
-    if message_type == reaction_pb2.Reaction:
+    elif message_type == reaction_pb2.Reaction:
         attrs["proto"] = Column(LargeBinary, nullable=False)
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
-    if message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
+    elif message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
         attrs["structure"] = relationship("Structure", uselist=False)
-    if message_type in {reaction_pb2.CompoundPreparation, reaction_pb2.CrudeComponent}:
+    elif message_type in {reaction_pb2.CompoundPreparation, reaction_pb2.CrudeComponent}:
         kwargs = {}
         if message_type == reaction_pb2.CrudeComponent:
             kwargs["nullable"] = False
