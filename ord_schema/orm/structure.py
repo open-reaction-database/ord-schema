@@ -20,7 +20,6 @@ from distutils.util import strtobool
 from enum import Enum
 
 from sqlalchemy import Column, Index, Integer, ForeignKey, Text, func
-from sqlalchemy.orm import with_polymorphic
 from sqlalchemy.types import UserDefinedType
 
 from ord_schema.orm import Base

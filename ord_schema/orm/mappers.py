@@ -35,8 +35,7 @@ Notes:
 """
 from __future__ import annotations
 
-from collections import Counter, defaultdict
-from inspect import getmro
+from collections import defaultdict
 from operator import attrgetter
 from typing import Any, Mapping, Optional, Type
 
@@ -44,17 +43,13 @@ from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
 from inflection import underscore
 from sqlalchemy import Boolean, Column, Enum, Float, Integer, ForeignKey, LargeBinary, Text
-from sqlalchemy.orm import declarative_base, relationship, with_polymorphic
-
+from sqlalchemy.orm import relationship
 
 import ord_schema.orm.structure  # pylint: disable=unused-import
 from ord_schema import message_helpers
 from ord_schema.orm import Base
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
-
-# pylint:disable=missing-class-docstring
-
 
 
 
@@ -72,15 +67,10 @@ def get_message_type(full_name: str) -> Any:
 def get_parents(message_type: Type[Message]) -> dict[Type[Message], list[tuple[Type[Message], str, bool]]]:
     """Returns the parent message types for each message type."""
     parents = defaultdict(list)
-    empty = set()
     for child, parent, field_name, unique in _get_message_contexts(message_type.DESCRIPTOR, None, None, None):
         if parent is not None:
             parents[get_message_type(child)].append((get_message_type(parent), field_name, unique))
-        else:
-            empty.add(get_message_type(child))
-    for child in empty:
-        assert child not in parents
-        parents[child] = []
+    parents[message_type] = []  # Add the base type.
     return parents
 
 
