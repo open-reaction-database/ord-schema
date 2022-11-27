@@ -17,21 +17,11 @@
 Notes:
     * Foreign keys to the `reaction` table are done using the `id` column, not the ORD reaction ID (`reaction_id`).
       However, the `reaction_id` column is used when the reaction ID is specifically called for, as with crude inputs.
-    * When a message type is used in multiple places, use Single Table Inheritance; see
-      https://docs.sqlalchemy.org/en/14/orm/inheritance.html#single-table-inheritance.
-    * The naming might be a bit confusing: classes for single-use and parent protos have the same name
-      as the corresponding message, while classes for multi-use protos (child classes) are named as
-      _<ContainingClass><Attribute>. For example, Reaction.identifiers uses the ReactionIdentifier class,
-      while Reaction.inputs uses the _ReactionInputs class (since _ReactionInput is used in multiple places).
-      The effect is that all tables storing proto information are named after their corresponding proto
-      messages, with extra child tables for storing relationships.
-    * Parent and child class names are prepended with underscores; e.g. _ReactionInput. Every parent class has an
-      associated with_polymorphic wrapper for query construction, named without the leading underscore;
-      e.g. ReactionInput.
+    * When a message type is used in multiple places, foreign keys are added for all possible parent tables rather
+      than using joint/single table inheritance; see https://docs.sqlalchemy.org/en/14/orm/inheritance.html.
     * Only message types are allowed for repeated/mapped values in the ORM (not scalar types). Specifically:
-        * MassSpecMeasurementDetails.eic_masses is converted from repeated float to repeated FloatValue.
-        * Dataset.reaction_ids is converted from repeated string to repeated ReactionId.
-    * Source.id was renamed in the ORM to Source.vendor_id to avoid conflicting with the `id` column.
+        * MassSpecMeasurementDetails.eic_masses is converted from repeated float to repeated _EicMass.
+        * Dataset.reaction_ids is converted from repeated string to repeated _ReactionId.
 """
 from __future__ import annotations
 
@@ -156,6 +146,11 @@ def _build_mapper(
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
     if message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
         attrs["structure"] = relationship("Structure", uselist=False)
+    if message_type in {reaction_pb2.CompoundPreparation, reaction_pb2.CrudeComponent}:
+        kwargs = {}
+        if message_type == reaction_pb2.CrudeComponent:
+            kwargs["nullable"] = False
+        attrs["reaction_id"] = Column(Text, ForeignKey("reaction.reaction_id", ondelete="CASCADE"), **kwargs)
     return type(message_type.DESCRIPTOR.name, (Base,), attrs)
 
 
