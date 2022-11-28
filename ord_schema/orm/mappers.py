@@ -140,19 +140,23 @@ def build_mapper(
                 kwargs["uselist"] = False
             # All relationships are to polymorphic child classes.
             child_class_name = f"_{message_type.DESCRIPTOR.name}{field.name.capitalize()}"
-            attrs[field.name] = relationship(child_class_name, **kwargs)
+            attrs[field.name] = relationship(child_class_name, back_populates="parent", **kwargs)
         elif field.type == FieldDescriptor.TYPE_ENUM:
             attrs[field.name] = Column(Enum(*field.enum_type.values_by_name.keys(), name=field.enum_type.name))
         else:
             attrs[field.name] = Column(_FIELD_TYPES[field.type])
     if message_type == dataset_pb2.Dataset:
+        # Make dataset IDs globally unique.
         attrs["dataset_id"] = Column(Text, nullable=False, unique=True)
     elif message_type == reaction_pb2.Reaction:
-        attrs["proto"] = Column(LargeBinary, nullable=False)
+        # Make reaction IDs globally unique.
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
+        # Serialize and store the entire Reaction proto.
+        attrs["proto"] = Column(LargeBinary, nullable=False)
     elif message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
         attrs["structure"] = relationship("Structure", uselist=False)
     elif message_type in {reaction_pb2.CompoundPreparation, reaction_pb2.CrudeComponent}:
+        # Add foreign key to reaction.reaction_id.
         kwargs = {}
         if message_type == reaction_pb2.CrudeComponent:
             kwargs["nullable"] = False
@@ -173,6 +177,7 @@ def build_mapper(
             # Prefix the parent table ID column with an underscore to avoid conflicts with existing columns.
             f"_{table_name}_id": Column(Integer, ForeignKey(f"{table_name}.id", ondelete="CASCADE"), primary_key=True),
             f"{foreign_table_name}_id": Column(Integer, ForeignKey(foreign_key, ondelete="CASCADE"), unique=unique),
+            "parent": relationship(parent_type.DESCRIPTOR.name, back_populates=field_name, uselist=False)
         }
         logger.debug(f"Creating child mapper {child_class_name}: {child_attrs}")
         type(child_class_name, (mapper_class,), child_attrs)
@@ -183,7 +188,7 @@ _MESSAGE_TO_MAPPER: dict[Type[Message], Type] = build_mappers(dataset_pb2.Datase
 _MAPPER_TO_MESSAGE: dict[Type, Type[Message]] = {value: key for key, value in _MESSAGE_TO_MAPPER.items()}
 
 
-class MappersMeta(type):
+class _MappersMeta(type):
     """Metaclass for Mappers; see https://stackoverflow.com/a/3155493."""
 
     def __getattr__(cls, item):
@@ -193,7 +198,7 @@ class MappersMeta(type):
         return cls._MAPPERS[item]
 
 
-class Mappers(metaclass=MappersMeta):
+class Mappers(metaclass=_MappersMeta):
     """Container for generated mapper classes."""
 
     _MAPPERS: dict[str, Type] = {c.__name__: c for c in _MAPPER_TO_MESSAGE}

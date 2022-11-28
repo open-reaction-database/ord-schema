@@ -74,9 +74,11 @@ def add_dataset(dataset: dataset_pb2.Dataset, session: Session) -> None:
 def delete_dataset(dataset_id: str, session: Session) -> None:
     """Deletes a dataset from the database."""
     logger.info(f"Deleting dataset {dataset_id}")
-    mapper = Mappers.Dataset
     start = time.time()
-    session.execute(delete(mapper).where(mapper.dataset_id == dataset_id))
+    dataset = session.query(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset_id).first()
+    session.delete(dataset)
+    session.commit()
+    # session.execute(delete(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset_id))
     logger.info(f"delete took {time.time() - start}s")
 
 

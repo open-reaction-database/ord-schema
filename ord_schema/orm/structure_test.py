@@ -15,15 +15,15 @@
 """Tests for ord_schema.orm.structure."""
 import pytest
 from sqlalchemy import select
-from ord_schema.orm.mappers import Compound, Reaction, ReactionInput
+from ord_schema.orm.mappers import Mappers
 from ord_schema.orm.structure import FingerprintType, Structure
 
 
 def test_tanimoto_operator(test_session):
     query = (
-        select(Reaction)
-        .join(ReactionInput)
-        .join(Compound)
+        select(Mappers.Reaction)
+        .join(Mappers.ReactionInput)
+        .join(Mappers.Compound)
         .join(Structure)
         .where(Structure.morgan_bfp % FingerprintType.MORGAN_BFP("c1ccccc1CCC(O)C"))
     )
@@ -34,9 +34,9 @@ def test_tanimoto_operator(test_session):
 @pytest.mark.parametrize("fp_type", list(FingerprintType))
 def test_tanimoto(test_session, fp_type):
     query = (
-        select(Reaction)
-        .join(ReactionInput)
-        .join(Compound)
+        select(Mappers.Reaction)
+        .join(Mappers.ReactionInput)
+        .join(Mappers.Compound)
         .join(Structure)
         .where(Structure.tanimoto("c1ccccc1CCC(O)C", fp_type=fp_type) > 0.5)
     )
