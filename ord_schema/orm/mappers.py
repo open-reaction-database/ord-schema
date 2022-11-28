@@ -17,11 +17,15 @@
 Notes:
     * Foreign keys to the `reaction` table are done using the `id` column, not the ORD reaction ID (`reaction_id`).
       However, the `reaction_id` column is used when the reaction ID is specifically called for, as with crude inputs.
-    * When a message type is used in multiple places, foreign keys are added for all possible parent tables rather
-      than using joint/single table inheritance; see https://docs.sqlalchemy.org/en/14/orm/inheritance.html.
-    * Only message types are allowed for repeated/mapped values in the ORM (not scalar types). Specifically:
-        * MassSpecMeasurementDetails.eic_masses is converted from repeated float to repeated _EicMass.
-        * Dataset.reaction_ids is converted from repeated string to repeated _ReactionId.
+    * When a message type is used in multiple places, we must use joined table inheritance to support all of the
+      constraints; see https://docs.sqlalchemy.org/en/14/orm/inheritance.html. The constraints are:
+        - Some message types are used more than once in a parent (such as Time in ReactionInput), which forces
+          the use of either joined or single table inheritance.
+        - Some messages can be repeated, while others are unique to their parent. These uniqueness constraints force
+          the use of joined table inheritance since they are specific to their polymorphic type.
+      For convenience and consistency, we use joined table inheritance for *all* message types, regardless of whether
+      they are used in one context or more than one context. This means that there are no foreign keys in the tables
+      corresponding to message types; all the foreign keys are in the polymorphic child tables.
 """
 from collections import defaultdict
 from operator import attrgetter
@@ -31,14 +35,18 @@ from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
 from inflection import underscore
 from sqlalchemy import Boolean, Column, Enum, Float, Integer, ForeignKey, LargeBinary, Text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
 import ord_schema.orm.structure  # pylint: disable=unused-import
 from ord_schema import message_helpers
+from ord_schema.logging import get_logger
 from ord_schema.orm import Base
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
+
+logger = get_logger(__name__)
 
 def get_message_type(full_name: str) -> Any:
     if not full_name.startswith("ord."):
@@ -84,7 +92,8 @@ def _get_message_contexts(
 def build_mappers(message_type: Type[Message]) -> dict[Type[Message], Type]:
     mappers = {}
     parents = get_parents(message_type)
-    for message_type in parents.keys():
+    for message_type in sorted(parents, key=lambda x: x.DESCRIPTOR.name):
+        logger.info(f"Building mapper for {message_type}")
         mappers[message_type] = build_mapper(message_type, parents=parents)
     return mappers
 
@@ -104,34 +113,34 @@ def build_mapper(
     message_type: Type[Message], parents: dict[Type[Message], list[tuple[Type[Message], str, bool]]]
 ) -> Type:
     table_name = underscore(message_type.DESCRIPTOR.name)
-    attrs = {"__tablename__": table_name, "id": Column(Integer, primary_key=True)}
+    attrs = {
+        "__tablename__": table_name,
+        "id": Column(Integer, primary_key=True),
+        "_polymorphic_type": Column(Text, nullable=False),
+    }
+    attrs["__mapper_args__"] = {
+        "polymorphic_on": attrs["_polymorphic_type"],
+        "polymorphic_identity": table_name,
+        "with_polymorphic": "*",
+    }
     add_key = False
-    for parent_type, field_name, unique in parents[message_type]:
-        parent_table_name = underscore(parent_type.DESCRIPTOR.name)
-        attrs[f"{parent_table_name}_id"] = Column(
-            Integer,
-            ForeignKey(f"{parent_table_name}.id", ondelete="CASCADE"),
-            nullable=len(parents[message_type]) > 1,  # Use multiple nullable foreign keys instead of inheritance.
-            unique=unique,
-        )
+    for parent_type, field_name, _ in parents[message_type]:
         if isinstance(getattr(parent_type(), field_name), Mapping):
             add_key = True
     if add_key:
         attrs["key"] = Column(Text)  # Map key.
     for field in message_type.DESCRIPTOR.fields:
         if field.name == "eic_masses":
-            attrs[field.name] = relationship("_EicMass")
+            attrs[field.name] = Column(ARRAY(Float))
         elif field.name == "reaction_ids":
-            attrs[field.name] = relationship("_ReactionId")
+            attrs[field.name] = Column(ARRAY(Text))
         elif field.type == FieldDescriptor.TYPE_MESSAGE:
-            if set(field.message_type.fields_by_name.keys()) == {"key", "value"}:
-                field_message_type = field.message_type.fields_by_name["value"].message_type
-            else:
-                field_message_type = field.message_type
             kwargs = {}
             if field.label != FieldDescriptor.LABEL_REPEATED:
                 kwargs["uselist"] = False
-            attrs[field.name] = relationship(field_message_type.name, **kwargs)
+            # All relationships are to polymorphic child classes.
+            child_class_name = f"_{message_type.DESCRIPTOR.name}{field.name.capitalize()}"
+            attrs[field.name] = relationship(child_class_name, **kwargs)
         elif field.type == FieldDescriptor.TYPE_ENUM:
             attrs[field.name] = Column(Enum(*field.enum_type.values_by_name.keys(), name=field.enum_type.name))
         else:
@@ -148,27 +157,26 @@ def build_mapper(
         if message_type == reaction_pb2.CrudeComponent:
             kwargs["nullable"] = False
         attrs["reaction_id"] = Column(Text, ForeignKey("reaction.reaction_id", ondelete="CASCADE"), **kwargs)
-    return type(message_type.DESCRIPTOR.name, (Base,), attrs)
-
-
-class _ReactionId(Base):
-    """Mapper for dataset_pb2.Dataset.reaction_ids."""
-
-    __tablename__ = "reaction_id"
-    id = Column(Integer, primary_key=True)
-    dataset_id = Column(Integer, ForeignKey("dataset.id", ondelete="CASCADE"), nullable=False)
-    reaction_id = Column(Text, ForeignKey("reaction.reaction_id", ondelete="CASCADE"), nullable=False)
-
-
-class _EicMass(Base):
-    """Mapper for reaction_pb2.ProductMeasurement.MassSpecMeasurement.eic_masses."""
-
-    __tablename__ = "eic_mass"
-    id = Column(Integer, primary_key=True)
-    mass_spec_measurement_details_id = Column(
-        Integer, ForeignKey("mass_spec_measurement_details.id", ondelete="CASCADE"), nullable=False
-    )
-    value = Column(Float)
+    logger.debug(f"Creating mapper {message_type.DESCRIPTOR.name}: {attrs}")
+    mapper_class = type(message_type.DESCRIPTOR.name, (Base,), attrs)
+    # Create polymorphic child classes.
+    for parent_type, field_name, unique in parents[message_type]:
+        foreign_table_name = underscore(parent_type.DESCRIPTOR.name)
+        child_class_name = f"_{parent_type.DESCRIPTOR.name}{field_name.capitalize()}"
+        child_table_name = f"_{foreign_table_name}__{field_name}"
+        foreign_key = f"{foreign_table_name}.id"
+        if foreign_table_name in ["structure"]:
+            foreign_key = f"rdkit.{foreign_key}"
+        child_attrs = {
+            "__tablename__": child_table_name,
+            "__mapper_args__": {"polymorphic_identity": child_table_name},
+            # Prefix the parent table ID column with an underscore to avoid conflicts with existing columns.
+            f"_{table_name}_id": Column(Integer, ForeignKey(f"{table_name}.id", ondelete="CASCADE"), primary_key=True),
+            f"{foreign_table_name}_id": Column(Integer, ForeignKey(foreign_key, ondelete="CASCADE"), unique=unique),
+        }
+        logger.debug(f"Creating child mapper {child_class_name}: {child_attrs}")
+        type(child_class_name, (mapper_class,), child_attrs)
+    return mapper_class
 
 
 _MESSAGE_TO_MAPPER: dict[Type[Message], Type] = build_mappers(dataset_pb2.Dataset)
@@ -177,18 +185,18 @@ _MAPPER_TO_MESSAGE: dict[Type, Type[Message]] = {value: key for key, value in _M
 
 class MappersMeta(type):
     """Metaclass for Mappers; see https://stackoverflow.com/a/3155493."""
+
     def __getattr__(cls, item):
         return cls._MAPPERS[item]
 
     def __getitem__(cls, item):
         return cls._MAPPERS[item]
 
+
 class Mappers(metaclass=MappersMeta):
     """Container for generated mapper classes."""
 
     _MAPPERS: dict[str, Type] = {c.__name__: c for c in _MAPPER_TO_MESSAGE}
-
-
 
 
 def from_proto(  # pylint: disable=too-many-branches
@@ -213,13 +221,7 @@ def from_proto(  # pylint: disable=too-many-branches
     if type(message) == reaction_pb2.Reaction:
         kwargs["proto"] = message.SerializeToString()
     for field, value in message.ListFields():
-        if field.name == "eic_masses":
-            # Convert repeated float to repeated _EicMass.
-            kwargs[field.name] = [_EicMass(value=v) for v in value]
-        elif field.name == "reaction_ids":
-            # Convert repeated string to repeated _ReactionId.
-            kwargs[field.name] = [_ReactionId(reaction_id=v) for v in value]
-        elif field.type == FieldDescriptor.TYPE_MESSAGE:
+        if field.type == FieldDescriptor.TYPE_MESSAGE:
             field_mapper = getattr(mapper, field.name).mapper.class_
             if isinstance(value, Mapping):
                 kwargs[field.name] = [from_proto(v, mapper=field_mapper, key=k) for k, v in value.items()]
@@ -251,19 +253,16 @@ def to_proto(base: Base) -> Message:
         Protobuf message.
     """
     kwargs = {}
-    proto = _MAPPER_TO_MESSAGE[type(base)]
+    try:
+        proto = _MAPPER_TO_MESSAGE[type(base)]
+    except KeyError:
+        proto = _MAPPER_TO_MESSAGE[type(base).__bases__[0]]
     assert issubclass(proto, Message)
     for field in proto.DESCRIPTOR.fields:
         value = getattr(base, field.name)
-        if field.name == "eic_masses":
-            # Convert repeated FloatValue to repeated float.
-            kwargs[field.name] = [v.value for v in value]
-        elif field.name == "reaction_ids":
-            # Convert repeated ReactionId to repeated string.
-            kwargs[field.name] = [v.reaction_id for v in value]
-        elif isinstance(value, list):
-            if len(value) == 0:
-                continue
+        if isinstance(value, list) and len(value) == 0:
+            continue
+        if isinstance(value, list) and isinstance(value[0], Base):
             if hasattr(value[0], "key"):
                 kwargs[field.name] = {v.key: to_proto(v) for v in value}
             else:
