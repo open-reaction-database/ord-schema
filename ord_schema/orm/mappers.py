@@ -155,7 +155,7 @@ def build_mapper(
         # Serialize and store the entire Reaction proto.
         attrs["proto"] = Column(LargeBinary, nullable=False)
     elif message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
-        attrs["structure"] = relationship("Structure", uselist=False)
+        attrs["structure"] = relationship(f"_{message_type.DESCRIPTOR.name}Structure", uselist=False)
     elif message_type in {reaction_pb2.CompoundPreparation, reaction_pb2.CrudeComponent}:
         # Add foreign key to reaction.reaction_id.
         kwargs = {}
@@ -167,13 +167,11 @@ def build_mapper(
     # Create polymorphic child classes.
     for parent_type, field_name, unique in parents[message_type]:
         foreign_table_name = underscore(parent_type.DESCRIPTOR.name)
-        child_class_name = f"_{parent_type.DESCRIPTOR.name}{field_name.capitalize()}"
-        child_table_name = f"_{foreign_table_name}__{field_name}"
         foreign_key = f"{foreign_table_name}.id"
         if foreign_table_name in ["structure"]:
             foreign_key = f"rdkit.{foreign_key}"
         child_attrs = {
-            "__mapper_args__": {"polymorphic_identity": child_table_name},
+            "__mapper_args__": {"polymorphic_identity": f"{foreign_table_name}__{field_name}"},
             # Use get() to avoid column conflicts; see
             # https://docs.sqlalchemy.org/en/14/orm/inheritance.html#resolving-column-conflicts.
             #
@@ -184,6 +182,7 @@ def build_mapper(
             ),
             "parent": relationship(parent_type.DESCRIPTOR.name, back_populates=field_name, uselist=False),
         }
+        child_class_name = f"_{parent_type.DESCRIPTOR.name}{field_name.capitalize()}"
         logger.debug(f"Creating child mapper {child_class_name}: {child_attrs}")
         type(child_class_name, (mapper_class,), child_attrs)
     return mapper_class

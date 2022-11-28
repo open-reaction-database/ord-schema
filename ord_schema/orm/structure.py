@@ -146,8 +146,6 @@ class Structure(Base):
 
     __tablename__ = "structure"
     id = Column(Integer, primary_key=True)
-    compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"), nullable=True)
-    product_compound_id = Column(Integer, ForeignKey("product_compound.id", ondelete="CASCADE"), nullable=True)
     smiles = Column(Text)
     mol = Column(_RDKitMol)
 
@@ -157,6 +155,29 @@ class Structure(Base):
         {"schema": "rdkit"},
     )
 
+    _polymorphic_type = Column(Text, nullable=False)
+    __mapper_args__ = {
+        "polymorphic_on": _polymorphic_type,
+        "polymorphic_identity": "structure",
+        "with_polymorphic": "*",
+    }
+
     @classmethod
     def tanimoto(cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP):
         return func.rdkit.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(other))
+
+
+class _CompoundStructure(Structure):
+    compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"))
+
+    __mapper_args__ = {
+        "polymorphic_identity": "compound__structure",
+    }
+
+
+class _ProductCompoundStructure(Structure):
+    product_compound_id = Column(Integer, ForeignKey("product_compound.id", ondelete="CASCADE"))
+
+    __mapper_args__ = {
+        "polymorphic_identity": "product_compound__structure",
+    }
