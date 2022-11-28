@@ -80,6 +80,7 @@ setuptools.setup(
             "pylint>=2.13.9",
             "pytest>=7.1.1",
             "pytest-cov>=3.0.0",
+            "pytest-xdist>=3.0.2",
             "pytype>=2022.5.19",
             "testing-postgresql>=1.3.0",
             "treon>=0.1.3",

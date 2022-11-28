@@ -50,13 +50,14 @@ logger = get_logger(__name__)
 
 
 def get_message_type(full_name: str) -> Any:
+    """Fetches the class for a protocol buffer message type."""
     if not full_name.startswith("ord."):
         raise ValueError(f"Unexpected message type: {full_name}")
-    op = attrgetter(full_name[4:])
+    operator = attrgetter(full_name[4:])
     try:
-        return op(reaction_pb2)
+        return operator(reaction_pb2)
     except AttributeError:
-        return op(dataset_pb2)
+        return operator(dataset_pb2)
 
 
 def get_parents(message_type: Type[Message]) -> dict[Type[Message], list[tuple[Type[Message], str, bool]]]:
@@ -90,9 +91,14 @@ def _get_message_contexts(
     return counts
 
 
-def build_mappers(message_type: Type[Message]) -> dict[Type[Message], Type]:
+def build_mappers() -> dict[Type[Message], Type]:
+    """Creates ORM mapper classes for protocol buffer message types.
+
+    Returns:
+        Dict mapping protocol buffer message types to mapper classes.
+    """
     mappers = {}
-    parents = get_parents(message_type)
+    parents = get_parents(dataset_pb2.Dataset)
     for message_type in sorted(parents, key=lambda x: x.DESCRIPTOR.name):
         logger.info(f"Building mapper for {message_type}")
         mappers[message_type] = build_mapper(message_type, parents=parents)
@@ -110,9 +116,18 @@ _FIELD_TYPES = {
 }
 
 
-def build_mapper(
+def build_mapper(  # pylint: disable=too-many-branches
     message_type: Type[Message], parents: dict[Type[Message], list[tuple[Type[Message], str, bool]]]
 ) -> Type:
+    """Creates a mapper class for a specific protocol buffer message type.
+
+    Args:
+        message_type: Protocol buffer message type.
+        parents: Dict mapping message types to lists of (parent message type, field name, unique) tuples.
+
+    Returns:
+        Generated mapper class.
+    """
     table_name = underscore(message_type.DESCRIPTOR.name)
     attrs = {
         "__tablename__": table_name,
@@ -165,7 +180,7 @@ def build_mapper(
     logger.debug(f"Creating mapper {message_type.DESCRIPTOR.name}: {attrs}")
     mapper_class = type(message_type.DESCRIPTOR.name, (Base,), attrs)
     # Create polymorphic child classes.
-    for parent_type, field_name, unique in parents[message_type]:
+    for parent_type, field_name, _ in parents[message_type]:
         foreign_table_name = underscore(parent_type.DESCRIPTOR.name)
         foreign_key = f"{foreign_table_name}.id"
         if foreign_table_name in ["structure"]:
@@ -188,7 +203,7 @@ def build_mapper(
     return mapper_class
 
 
-_MESSAGE_TO_MAPPER: dict[Type[Message], Type] = build_mappers(dataset_pb2.Dataset)
+_MESSAGE_TO_MAPPER: dict[Type[Message], Type] = build_mappers()
 _MAPPER_TO_MESSAGE: dict[Type, Type[Message]] = {value: key for key, value in _MESSAGE_TO_MAPPER.items()}
 
 
@@ -227,7 +242,7 @@ def from_proto(  # pylint: disable=too-many-branches
     kwargs = {}
     if key is not None:
         kwargs["key"] = key
-    if type(message) == reaction_pb2.Reaction:
+    if isinstance(message, reaction_pb2.Reaction):
         kwargs["proto"] = message.SerializeToString()
     for field, value in message.ListFields():
         if field.type == FieldDescriptor.TYPE_MESSAGE:
