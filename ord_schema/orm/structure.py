@@ -143,6 +143,7 @@ class Structure(Base):
         the other columns will be empty).
       * Objects with this type are added to the ORM in from_proto() using the `structure` field.
     """
+
     __tablename__ = "structure"
     id = Column(Integer, primary_key=True)
     compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"), nullable=True)
