@@ -17,15 +17,15 @@
 Notes:
     * Foreign keys to the `reaction` table are done using the `id` column, not the ORD reaction ID (`reaction_id`).
       However, the `reaction_id` column is used when the reaction ID is specifically called for, as with crude inputs.
-    * When a message type is used in multiple places, we must use joined table inheritance to support all of the
-      constraints; see https://docs.sqlalchemy.org/en/14/orm/inheritance.html. The constraints are:
+    * We use inheritance to handle messages that appear in more than one context; see
+      https://docs.sqlalchemy.org/en/14/orm/inheritance.html. The possible constraints are:
         - Some message types are used more than once in a parent (such as Time in ReactionInput), which forces
           the use of either joined or single table inheritance.
         - Some messages can be repeated, while others are unique to their parent. These uniqueness constraints force
           the use of joined table inheritance since they are specific to their polymorphic type.
-      For convenience and consistency, we use joined table inheritance for *all* message types, regardless of whether
-      they are used in one context or more than one context. This means that there are no foreign keys in the tables
-      corresponding to message types; all the foreign keys are in the polymorphic child tables.
+      For convenience and consistency, we use single table inheritance for *all* message types, regardless of whether
+      they are used in one context or more than one context. This means that we do not enforce the second constraint in
+      the database.
 """
 from collections import defaultdict
 from operator import attrgetter
@@ -47,6 +47,7 @@ from ord_schema.proto import reaction_pb2
 
 
 logger = get_logger(__name__)
+
 
 def get_message_type(full_name: str) -> Any:
     if not full_name.startswith("ord."):
@@ -172,12 +173,16 @@ def build_mapper(
         if foreign_table_name in ["structure"]:
             foreign_key = f"rdkit.{foreign_key}"
         child_attrs = {
-            "__tablename__": child_table_name,
             "__mapper_args__": {"polymorphic_identity": child_table_name},
-            # Prefix the parent table ID column with an underscore to avoid conflicts with existing columns.
-            f"_{table_name}_id": Column(Integer, ForeignKey(f"{table_name}.id", ondelete="CASCADE"), primary_key=True),
-            f"{foreign_table_name}_id": Column(Integer, ForeignKey(foreign_key, ondelete="CASCADE"), unique=unique),
-            "parent": relationship(parent_type.DESCRIPTOR.name, back_populates=field_name, uselist=False)
+            # Use get() to avoid column conflicts; see
+            # https://docs.sqlalchemy.org/en/14/orm/inheritance.html#resolving-column-conflicts.
+            #
+            # NOTE(skearnes): We are not enforcing unique constraints on this column; see the module docstring.
+            f"{foreign_table_name}_id": mapper_class.__table__.c.get(
+                f"{foreign_table_name}_id",
+                Column(Integer, ForeignKey(foreign_key, ondelete="CASCADE")),
+            ),
+            "parent": relationship(parent_type.DESCRIPTOR.name, back_populates=field_name, uselist=False),
         }
         logger.debug(f"Creating child mapper {child_class_name}: {child_attrs}")
         type(child_class_name, (mapper_class,), child_attrs)

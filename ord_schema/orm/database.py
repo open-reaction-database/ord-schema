@@ -75,10 +75,7 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
     """Deletes a dataset from the database."""
     logger.info(f"Deleting dataset {dataset_id}")
     start = time.time()
-    dataset = session.query(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset_id).first()
-    session.delete(dataset)
-    session.commit()
-    # session.execute(delete(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset_id))
+    session.execute(delete(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset_id))
     logger.info(f"delete took {time.time() - start}s")
 
 
