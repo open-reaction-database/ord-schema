@@ -298,7 +298,7 @@ message ReactionRole {
  * in the 'details' field.
  */
 message CompoundPreparation {
-  enum PreparationType {
+  enum CompoundPreparationType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     NONE = 2;  // Compound used as received.
@@ -307,7 +307,7 @@ message CompoundPreparation {
     DRIED = 5;  // Moisture removed, e.g., using molecular sieves.
     SYNTHESIZED = 6;  // Compound synthesized in-house.
   }
-  PreparationType type = 1;
+  CompoundPreparationType type = 1;
   // Full description of how the received compound was prepared.
   string details = 2;
   // The ID of the reaction that produced this species. Note that this ID must

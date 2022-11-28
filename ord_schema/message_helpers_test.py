@@ -470,7 +470,7 @@ class TestCreateMessage:
         (
             ("Reaction", reaction_pb2.Reaction),
             ("Temperature", reaction_pb2.Temperature),
-            ("TemperatureConditions.Measurement", reaction_pb2.TemperatureConditions.Measurement),
+            ("TemperatureConditions.TemperatureMeasurement", reaction_pb2.TemperatureConditions.TemperatureMeasurement),
         ),
     )
     def test_valid_messages(self, message_name, expected_class):
