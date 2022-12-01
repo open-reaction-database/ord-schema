@@ -35,7 +35,7 @@ logger = get_logger(__name__)
 
 def main(kwargs):
     num_reactions = 0
-    for filename in glob.glob(os.path.join(kwargs["root"], "*", "*.pb*")):
+    for filename in glob.glob(os.path.join(kwargs["--root"], "*", "*.pb*")):
         dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
         logger.info("%s:\t%d", filename, len(dataset.reactions))
         num_reactions += len(dataset.reactions)
@@ -45,7 +45,7 @@ def main(kwargs):
         "color": "informational",
     }
     response = requests.get("https://img.shields.io/static/v1", params=args)
-    with open(kwargs["output"], "w") as f:
+    with open(kwargs["--output"], "w") as f:
         f.write(response.text)
 
 
