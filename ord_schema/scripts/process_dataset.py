@@ -279,7 +279,7 @@ def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[st
         if kwargs["--issue"] and kwargs["--token"]:
             client = github.Github(kwargs["--token"])
             repo = client.get_repo(os.environ["GITHUB_REPOSITORY"])
-            issue = repo.get_issue(kwargs["--issue"])
+            issue = repo.get_issue(int(kwargs["--issue"]))
             issue.create_comment("\n".join(comment))
     else:
         total_added, total_removed, total_changed = None, None, None
