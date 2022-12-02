@@ -15,54 +15,40 @@
 
 TODO(kearnes): Add support for automatic sharding?
 
-Example usage:
-$ python build_dataset.py \
-  --input="reaction-*.pbtxt" \
-  --name="My dataset" \
-  --description="Experiments from DOI 10.1000/xyz123" \
-  --output=my_dataset.pbtxt
-"""
+Usage:
+    build_dataset.py --input=<str> --output=<str> --name=<str> --description=<str> [--no-validate]
 
+Options:
+    --input=<str>           Input pattern for Reaction protos
+    --output=<str>          Output Dataset filename (*.pbtxt)
+    --name=<str>            Name for this dataset
+    --description=<str>     Description for this dataset
+    --no-validate           If set, do run validations on reactions
+"""
 import glob
 
-from absl import app
-from absl import flags
-from absl import logging
+import docopt
 
+from ord_schema.logging import get_logger
 from ord_schema import message_helpers
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string('input', None, 'Input pattern for Reaction protos.')
-flags.DEFINE_string('output', None, 'Output Dataset filename (*.pbtxt).')
-flags.DEFINE_string('name', None, 'Name for this dataset.')
-flags.DEFINE_string('description', None, 'Description for this dataset.')
-flags.DEFINE_boolean('validate', True, 'If True, run validations on Reactions.')
+logger = get_logger(__name__)
 
 
-def main(argv):
-    del argv  # Only used by app.run().
-    filenames = glob.glob(FLAGS.input, recursive=True)
-    logging.info('Found %d Reaction protos', len(filenames))
+def main(kwargs):
+    filenames = glob.glob(kwargs["--input"], recursive=True)
+    logger.info("Found %d Reaction protos", len(filenames))
     reactions = []
     for filename in filenames:
-        reactions.append(
-            message_helpers.load_message(filename, reaction_pb2.Reaction))
-    if not FLAGS.name:
-        logging.warning('Consider setting the dataset name with --name')
-    if not FLAGS.description:
-        logging.warning(
-            'Consider setting the dataset description with --description')
-    dataset = dataset_pb2.Dataset(name=FLAGS.name,
-                                  description=FLAGS.description,
-                                  reactions=reactions)
-    if FLAGS.validate:
-        validations.validate_datasets({'_COMBINED': dataset})
-    message_helpers.write_message(dataset, FLAGS.output)
+        reactions.append(message_helpers.load_message(filename, reaction_pb2.Reaction))
+    dataset = dataset_pb2.Dataset(name=kwargs["--name"], description=kwargs["--description"], reactions=reactions)
+    if not kwargs["--no-validate"]:
+        validations.validate_datasets({"_COMBINED": dataset})
+    message_helpers.write_message(dataset, kwargs["--output"])
 
 
-if __name__ == '__main__':
-    flags.mark_flags_as_required(['input', 'output'])
-    app.run(main)
+if __name__ == "__main__":
+    main(docopt.docopt(__doc__))

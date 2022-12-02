@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# postBuild for binder
+
+set -ex
+
+pip install -e .[examples]

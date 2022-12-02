@@ -175,22 +175,23 @@ institutions and industry segments. The primary role of the Advisory Board is to
 encourage community engagement with the database. The current membership of the
 Advisory Board is:
 
-* Juan Alvarez (Merck)
 * Alán Aspuru-Guzik (Toronto, MADNESS)
 * Timothy Cernak (Michigan, Entos)
 * Lucy Colwell (Cambridge, SynTech, Google)
 * Werngard Czechtizky (AstraZeneca)
 * JW Feng (Google)
 * Matthew Gaunt (Cambridge, SynTech)
+* Alex Godfrey (NCATS Consultant)
 * Mimi Hii (Imperial, ROAR)
 * Greg Landrum (T5 Informatics)
 * Fabio Lima (Novartis)
 * Christos Nicolaou (Lilly)
 * Sarah Reisman (Caltech)
+* Francesco Rianjongdee (GSK)
 * Matthew Sigman (Utah, `C-CAS <https://ccas.nd.edu/>`__)
 * Jay Stevens (BMS)
 * Sarah Trice (Entos)
-* Matthew Tudge (GSK)
+* Huimin Zhao (UIUC, MMLI)
 
 *************************
 Commitment to Open Access

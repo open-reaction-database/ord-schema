@@ -13,53 +13,37 @@
 # limitations under the License.
 """Creates a Dataset by enumerating a template with a spreadsheet.
 
-Example usage:
+Usage:
+    dataset_templating.py --template=<str> --spreadsheet=<str> --output=<str> [--no-validate]
 
-$ python dataset_templating.py \
-    --template=my_reaction.pbtxt \
-    --spreadsheet=my_experiments.csv \
-    --output=my_dataset.pbtxt
+Options:
+    --template=<str>        Path to a Reaction pbtxt file defining a template
+    --spreadsheet=<str>     Path to a spreadsheet file with a header row matching template placeholders
+    --output=<str>          Filename for output Dataset
+    --no-validate           If set, do not validate Reaction protos
 """
+import docopt
 
-import os
-
-from absl import app
-from absl import flags
-from absl import logging
-
+from ord_schema.logging import get_logger
 from ord_schema import message_helpers
 from ord_schema import templating
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string('template', None,
-                    'Path to a Reaction pbtxt file defining a template.')
-flags.DEFINE_string(
-    'spreadsheet', None,
-    'Path to a spreadsheet file (with a header row) defining '
-    'values to replace placeholders in the template.')
-flags.DEFINE_string('output', None, 'Filename for output Dataset.')
-flags.DEFINE_boolean('validate', True, 'If True, validate Reaction protos.')
+logger = get_logger(__name__)
 
 
-def main(argv):
-    del argv  # Only used by app.run().
-    with open(FLAGS.template) as f:
+def main(kwargs):
+    with open(kwargs["--template"]) as f:
         template_string = f.read()
-    df = templating.read_spreadsheet(FLAGS.spreadsheet)
-    logging.info('generating new Dataset from %s and %s', FLAGS.template,
-                 FLAGS.spreadsheet)
-    dataset = templating.generate_dataset(template_string,
-                                          df,
-                                          validate=FLAGS.validate)
-    if FLAGS.output:
-        output_filename = FLAGS.output
-    else:
-        basename, _ = os.path.splitext(FLAGS.spreadsheet)
-        output_filename = os.path.join(f'{basename}_dataset.pbtxt')
-    logging.info('writing new Dataset to %s', output_filename)
-    message_helpers.write_message(dataset, output_filename)
+    df = templating.read_spreadsheet(kwargs["--spreadsheet"])
+    logger.info(
+        "generating new Dataset from %s and %s",
+        kwargs["--template"],
+        kwargs["--spreadsheet"],
+    )
+    dataset = templating.generate_dataset(template_string, df, validate=(not kwargs["--no-validate"]))
+    logger.info("writing new Dataset to %s", kwargs["--output"])
+    message_helpers.write_message(dataset, kwargs["--output"])
 
 
-if __name__ == '__main__':
-    flags.mark_flags_as_required(['template', 'spreadsheet'])
-    app.run(main)
+if __name__ == "__main__":
+    main(docopt.docopt(__doc__))

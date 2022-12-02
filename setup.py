@@ -13,47 +13,77 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Installer script."""
-
-from distutils.command import build_py
-from distutils import spawn
-import glob
-import subprocess
-
 import setuptools
 
 
-class BuildPyCommand(build_py.build_py):
-    """Command that generates Python interface for protocol buffers."""
+with open("README.md") as f:
+    long_description = f.read()
 
-    def run(self):
-        """Runs the protocol buffer compiler."""
-        protoc = spawn.find_executable('protoc')
-        if not protoc:
-            raise RuntimeError('cannot find protoc')
-        for source in glob.glob('ord_schema/proto/*.proto'):
-            protoc_command = [
-                protoc,
-                # https://github.com/protocolbuffers/protobuf/blob/master/docs/field_presence.md
-                '--experimental_allow_proto3_optional',
-                '--python_out=.',
-                source
-            ]
-            self.announce(f'running {protoc_command}')
-            subprocess.check_call(protoc_command)
-        # build_py.build_py is an old-style class, so super() doesn't work.
-        build_py.build_py.run(self)
-
-
-setuptools.setup(name='ord-schema',
-                 description='Schema for the Open Reaction Database',
-                 url='https://github.com/Open-Reaction-Database/ord-schema',
-                 license='Apache License, Version 2.0',
-                 packages=setuptools.find_packages(),
-                 package_data={
-                     'ord_schema.visualization': [
-                         'reaction.html',
-                         'template.html',
-                         'template.txt',
-                     ],
-                 },
-                 cmdclass={'build_py': BuildPyCommand})
+setuptools.setup(
+    name="ord-schema",
+    version="0.3.36",
+    description="Schema for the Open Reaction Database",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/Open-Reaction-Database/ord-schema",
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: Apache Software License",
+        "Operating System :: OS Independent",
+    ],
+    packages=setuptools.find_packages(),
+    package_data={
+        "ord_schema.proto": [
+            "dataset.proto",
+            "reaction.proto",
+            "test.proto",
+        ],
+    },
+    python_requires=">=3.9",
+    install_requires=[
+        "docopt>=0.6.2",
+        "flask>=1.1.2",
+        "inflection>=0.5.1",
+        "jinja2>=2.0.0",
+        "joblib>=1.0.0",
+        "numpy>=1.18.1",
+        "openpyxl>=3.0.5",
+        "pandas>=1.0.4",
+        "protobuf<3.20,>=3.13.0",
+        "psycopg2>=2.8.5",
+        "pygithub>=1.51",
+        "python-dateutil>=1.10.0",
+        "rdkit>=2021.9.5",
+        "sqlalchemy>=1.4.39",
+        "xlrd>=2.0.1",
+        "xlwt>=1.3.0",
+    ],
+    extras_require={
+        "docs": [
+            "ipython>=7.18.1",
+            "Pygments>=2.7.2",
+            "sphinx>=3.3.1",
+            "sphinx-rtd-theme>=0.5.0",
+            "sphinx-tabs>=1.3.0",
+        ],
+        "examples": [
+            "glob2>=0.7",
+            "matplotlib>=3.3.4",
+            "scikit-learn>=0.24.1",
+            "tensorflow>=2.4.1",
+            "tqdm>=4.61.2",
+            "wget>=3.2",
+        ],
+        "tests": [
+            "black[jupyter]>=22.3.0",
+            "coverage>=5.2.1",
+            "pylint>=2.13.9",
+            "pytest>=7.1.1",
+            "pytest-cov>=3.0.0",
+            "pytest-xdist>=3.0.2",
+            "pytype>=2022.5.19",
+            "testing-postgresql>=1.3.0",
+            "treon>=0.1.3",
+        ],
+    },
+)

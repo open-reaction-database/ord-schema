@@ -21,7 +21,6 @@ dependencies:
   - rdkit
   - pip
   - pip:
-    - absl-py>=0.9.0
     - flask>=1.1.2
     - numpy>=1.18.1
     - openpyxl>=3.0.5
@@ -34,4 +33,3 @@ dependencies:
     - xlrd<2.0.0
     - xlwt>=1.3.0
     - joblib>=1.0.0
-    - git+https://github.com/open-reaction-database/ord-schema#egg=ord-schema

@@ -14,60 +14,50 @@
 
 name: Lint
 
-on: [pull_request, push]
+on: [ pull_request, push ]
 
 jobs:
   check_licenses:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-go@v2
-      with:
-        go-version: '>=1.16'
-    - name: Install dependencies
-      run: |
-        go get -v -u github.com/google/addlicense
-    - name: addlicense
-      run: |
-        cd "${GITHUB_WORKSPACE}"
-        "${HOME}/go/bin/addlicense" -check -c "Open Reaction Database Project Authors" -l apache .
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '>=1.16'
+      - name: Install dependencies
+        run: |
+          go install github.com/google/addlicense@latest
+      - name: addlicense
+        run: |
+          "${HOME}/go/bin/addlicense" -check -c "Open Reaction Database Project Authors" -l apache .
 
   check_python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: s-weigand/setup-conda@v1
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
-          python-version: 3.7
-      - name: Run yapf
-        run: |
-          cd "${GITHUB_WORKSPACE}"
-          pip install yapf toml
-          yapf --parallel --recursive --exclude="*_pb2.py" --quiet .
+          python-version: '3.10'
       - name: Install ord-schema
         run: |
-          pip install -r requirements.txt
-          # Test deps are required to check imports with pylint.
-          pip install -r test_requirements.txt
-          conda install -c rdkit rdkit
-          python setup.py install
+          python -m pip install --upgrade pip
+          python -m pip install wheel
+          python -m pip install .[tests]
+      - name: Run black
+        run: |
+          black --check .
       - name: Run pylint
         run: |
-          cd "${GITHUB_WORKSPACE}"
-          pip install flask pylint
-          pylint examples ord_schema *.py
+          pylint -j 0 examples ord_schema *.py
       - name: Run pytype
         run: |
-          cd "${GITHUB_WORKSPACE}"
-          pip install pytype
-          pytype --config=pytype.cfg
+          pytype -j auto
 
   check_proto:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: clang-format
         run: |
-          cd "${GITHUB_WORKSPACE}"
-          sudo apt update && sudo apt install clang-format-10 --yes
-          find . -name '*.proto' -exec clang-format-10 -n -Werror --style=file {} +
+          sudo apt update && sudo apt install clang-format --yes
+          find . -name '*.proto' -exec clang-format -n -Werror --style=file {} +

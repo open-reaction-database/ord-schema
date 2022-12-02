@@ -15,7 +15,6 @@
 
 import datetime
 import re
-from typing import Mapping
 import uuid
 
 from ord_schema.proto import dataset_pb2
@@ -29,11 +28,11 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.XYZ,
 ]
 
-_USERNAME = 'github-actions'
-_EMAIL = 'github-actions@github.com'
+_USERNAME = "github-actions"
+_EMAIL = "github-actions@github.com"
 
 
-def update_reaction(reaction: reaction_pb2.Reaction) -> Mapping[str, str]:
+def update_reaction(reaction: reaction_pb2.Reaction) -> dict[str, str]:
     """Updates a Reaction message.
 
     Current updates:
@@ -49,12 +48,12 @@ def update_reaction(reaction: reaction_pb2.Reaction) -> Mapping[str, str]:
     """
     modified = False
     id_substitutions = {}
-    if not re.fullmatch('^ord-[0-9a-f]{32}$', reaction.reaction_id):
+    if not re.fullmatch("^ord-[0-9a-f]{32}$", reaction.reaction_id):
         # NOTE(kearnes): This does not check for the case where a Dataset is
         # edited and reaction_id values are changed inappropriately. This will
         # need to be either (1) caught in review or (2) found by a complex
         # check of the diff.
-        reaction_id = f'ord-{uuid.uuid4().hex}'
+        reaction_id = f"ord-{uuid.uuid4().hex}"
         if reaction.reaction_id:
             id_substitutions[reaction.reaction_id] = reaction_id
         reaction.reaction_id = reaction_id
@@ -69,7 +68,7 @@ def update_reaction(reaction: reaction_pb2.Reaction) -> Mapping[str, str]:
         event.time.value = datetime.datetime.utcnow().ctime()
         event.person.username = _USERNAME
         event.person.email = _EMAIL
-        event.details = 'Automatic updates from the submission pipeline.'
+        event.details = "Automatic updates from the submission pipeline."
     return id_substitutions
 
 
@@ -88,8 +87,8 @@ def update_dataset(dataset: dataset_pb2.Dataset):
             cross-referenced reaction_id in any Reaction that is not defined
             elsewhere in the Dataset.
     """
-    if not re.fullmatch('^ord_dataset-[0-9a-f]{32}$', dataset.dataset_id):
-        dataset.dataset_id = f'ord_dataset-{uuid.uuid4().hex}'
+    if not re.fullmatch("^ord_dataset-[0-9a-f]{32}$", dataset.dataset_id):
+        dataset.dataset_id = f"ord_dataset-{uuid.uuid4().hex}"
     # Reaction-level updates
     id_substitutions = {}
     for reaction in dataset.reactions:
@@ -99,14 +98,11 @@ def update_dataset(dataset: dataset_pb2.Dataset):
         for reaction_input in reaction.inputs.values():
             for component in reaction_input.components:
                 for preparation in component.preparations:
-                    if (preparation.reaction_id and
-                            preparation.reaction_id in id_substitutions):
-                        preparation.reaction_id = (
-                            id_substitutions[preparation.reaction_id])
+                    if preparation.reaction_id and preparation.reaction_id in id_substitutions:
+                        preparation.reaction_id = id_substitutions[preparation.reaction_id]
             for crude_component in reaction_input.crude_components:
                 if crude_component.reaction_id in id_substitutions:
-                    crude_component.reaction_id = (
-                        id_substitutions[crude_component.reaction_id])
+                    crude_component.reaction_id = id_substitutions[crude_component.reaction_id]
 
 
 # Standard updates.

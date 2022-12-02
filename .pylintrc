@@ -11,7 +11,8 @@ ignore=CVS
 
 # Add files or directories matching the regex patterns to the blacklist. The
 # regex matches against base names, not paths.
-ignore-patterns=.*_pb2.py
+ignore-patterns=.*_pb2\.py,
+                .*_test\.py
 
 # Python code to execute, usually for sys.path manipulation such as
 # pygtk.require().
@@ -61,6 +62,7 @@ confidence=
 # no Warning level messages displayed, use "--disable=all --enable=classes
 # --disable=W".
 disable=fixme,
+        logging-fstring-interpolation,
         similarities,
         too-few-public-methods,
         unspecified-encoding
@@ -253,17 +255,10 @@ indent-after-paren=4
 indent-string='    '
 
 # Maximum number of characters on a single line.
-max-line-length=80
+max-line-length=120
 
 # Maximum number of lines in a module.
 max-module-lines=1500
-
-# List of optional constructs for which whitespace checking is disabled. `dict-
-# separator` is used to allow tabulation in dicts, etc.: {1  : 1,\n222: 2}.
-# `trailing-comma` allows a space between comma and closing bracket: (a, ).
-# `empty-line` allows space-only lines.
-no-space-check=trailing-comma,
-               dict-separator
 
 # Allow the body of a class to be on the same line as the declaration if body
 # contains single statement.

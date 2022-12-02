@@ -13,29 +13,29 @@
 # limitations under the License.
 """Validates a set of Dataset protocol buffers.
 
-Example usage:
-$ python validate.py --input="my_dataset.pbtxt"
-"""
+Usage:
+    validate.py --input=<str> [--filter=<str>]
 
+Options:
+    --input=<str>       Input pattern for Dataset protos
+    --filter=<str>      Regex filename filter
+"""
 import glob
 import re
-from typing import Iterable, List
+from collections.abc import Iterable
 
-from absl import app
-from absl import flags
-from absl import logging
+import docopt
 from rdkit import RDLogger
 
+from ord_schema.logging import get_logger
 from ord_schema import message_helpers
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string('input', None, 'Input pattern for Dataset protos.')
-flags.DEFINE_string('filter', None, 'Regex filename filter.')
+logger = get_logger(__name__)
 
 
-def filter_filenames(filenames: Iterable[str], pattern: str) -> List[str]:
+def filter_filenames(filenames: Iterable[str], pattern: str) -> list[str]:
     """Filters filenames according to a regex pattern."""
     filtered_filenames = []
     for filename in filenames:
@@ -44,20 +44,18 @@ def filter_filenames(filenames: Iterable[str], pattern: str) -> List[str]:
     return filtered_filenames
 
 
-def main(argv):
-    del argv  # Only used by app.run().
-    filenames = sorted(glob.glob(FLAGS.input, recursive=True))
-    logging.info('Found %d datasets', len(filenames))
-    if FLAGS.filter:
-        filenames = filter_filenames(filenames, FLAGS.filter)
-        logging.info('Filtered to %d datasets', len(filenames))
+def main(kwargs):
+    filenames = sorted(glob.glob(kwargs["--input"], recursive=True))
+    logger.info("Found %d datasets", len(filenames))
+    if kwargs["--filter"]:
+        filenames = filter_filenames(filenames, kwargs["--filter"])
+        logger.info("Filtered to %d datasets", len(filenames))
     for filename in filenames:
-        logging.info('Validating %s', filename)
+        logger.info("Validating %s", filename)
         dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
         validations.validate_datasets({filename: dataset})
 
 
-if __name__ == '__main__':
-    flags.mark_flag_as_required('input')
-    RDLogger.DisableLog('rdApp.*')  # Disable RDKit logging.
-    app.run(main)
+if __name__ == "__main__":
+    RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.
+    main(docopt.docopt(__doc__))

@@ -1,4 +1,5 @@
-# Copyright 2020 Open Reaction Database Project Authors
+#!/bin/bash
+# Copyright 2022 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,3 +12,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# Compiles protocol buffers.
+# Make sure you have protoc in your PATH; see https://grpc.io/docs/protoc-installation/.
+set -ex
+for source in ord_schema/proto/*.proto; do
+  protoc --experimental_allow_proto3_optional --python_out=. "${source}"
+done

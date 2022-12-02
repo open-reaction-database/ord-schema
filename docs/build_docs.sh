@@ -28,6 +28,12 @@ set -ex
 #   --doc_out=. \
 #   ord-schema/proto/reaction.proto ord-schema/proto/dataset.proto
 
+# Generate RST for ord-schema.
+sphinx-apidoc -fTM -o ord_schema -t _templates ../ord_schema \
+  "../ord_schema/*_test.py" \
+  "../ord_schema/*/*_test.py" \
+  "../ord_schema/proto/" \
+  "../ord_schema/scripts/"
+
 # Run sphinx.
-pip install -Ur requirements.txt
 make clean html

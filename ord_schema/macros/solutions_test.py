@@ -14,8 +14,7 @@
 """Tests for ord_schema.macros.solutions."""
 import itertools
 
-from absl.testing import absltest
-from absl.testing import parameterized
+import pytest
 from google.protobuf import text_format
 
 from ord_schema.proto import reaction_pb2
@@ -23,89 +22,88 @@ from ord_schema.macros import solutions
 from ord_schema import validations
 
 
-class SolutionsTest(parameterized.TestCase, absltest.TestCase):
-
-    def test_simple_solution(self):
-        """Simple input/output pair test."""
-        solvent_pbtxt = """
-            identifiers {
-                type: SMILES
-                value: "O"
+def test_simple_solution():
+    """Simple input/output pair test."""
+    solvent_pbtxt = """
+        identifiers {
+            type: SMILES
+            value: "O"
+        }
+        amount {
+            volume {
+                value: 1.0
+                units: LITER
             }
-            amount {
-                volume {
-                    value: 1.0
-                    units: LITER
-                }
-                volume_includes_solutes: true
+            volume_includes_solutes: true
+        }
+    """
+    solute_pbtxt = """
+        identifiers {
+            type: SMILES
+            value: "[Na+].[Cl-]"
+        }
+        amount {
+            moles {
+                value: 1.0
+                units: MOLE
             }
-        """
-        solute_pbtxt = """
-            identifiers {
-                type: SMILES
-                value: "[Na+].[Cl-]"
-            }
-            amount {
-                moles {
-                    value: 1.0
-                    units: MOLE
-                }
-            }
-        """
-        expected_solvent = reaction_pb2.Compound()
-        expected_solute = reaction_pb2.Compound()
-        text_format.Parse(solvent_pbtxt, expected_solvent)
-        text_format.Parse(solute_pbtxt, expected_solute)
-        actual_compounds = solutions.simple_solution(
-            solvent_smiles='O',
-            solute_smiles='[Na+].[Cl-]',
-            concentration='1M',
-            volume='1L')
-        self.assertEqual(actual_compounds, [expected_solvent, expected_solute])
-
-    @parameterized.parameters(
-        itertools.product(['[Na+].[Cl-]', None], ['1M', None], ['1L', None]))
-    def test_simple_solution_legal(self, solute_smiles, concentration, volume):
-        """Test that the macro never generates illegal solution configurations."""
-        solution_components = solutions.simple_solution(
-            solvent_smiles='O',
-            solute_smiles=solute_smiles,
-            concentration=concentration,
-            volume=volume)
-        for component in solution_components:
-            validations.validate_message(component)
-
-    @parameterized.parameters(['1L', None])
-    def test_simple_saturated_solution(self, volume):
-        """Test that the macro never generates illegal solution configurations."""
-        solution_components = solutions.simple_solution(
-            solvent_smiles='O',
-            solute_smiles='[Na+].[Cl-]',
-            volume=volume,
-            saturated=True)
-        for component in solution_components:
-            validations.validate_message(component)
-
-        self.assertTrue(
-            any(component.amount.unmeasured.type ==
-                reaction_pb2.UnmeasuredAmount.SATURATED
-                for component in solution_components))
-
-    def test_simple_solution_concentration_and_saturated_illegal(self):
-        with self.assertRaisesRegex(ValueError, 'Cannot specify both'):
-            solutions.simple_solution(solvent_smiles='O',
-                                      solute_smiles='[Na+].[Cl-]',
-                                      volume='1L',
-                                      concentration='1M',
-                                      saturated=True)
-
-    def test_simple_solution_saturated_solute_missing(self):
-        with self.assertRaisesRegex(ValueError, 'Must specify'):
-            solutions.simple_solution(solvent_smiles='O',
-                                      solute_smiles=None,
-                                      volume='1L',
-                                      saturated=True)
+        }
+    """
+    expected_solvent = reaction_pb2.Compound()
+    expected_solute = reaction_pb2.Compound()
+    text_format.Parse(solvent_pbtxt, expected_solvent)
+    text_format.Parse(solute_pbtxt, expected_solute)
+    actual_compounds = solutions.simple_solution(
+        solvent_smiles="O",
+        solute_smiles="[Na+].[Cl-]",
+        concentration="1M",
+        volume="1L",
+    )
+    assert actual_compounds == [expected_solvent, expected_solute]
 
 
-if __name__ == '__main__':
-    absltest.main()
+@pytest.mark.parametrize(
+    "solute_smiles,concentration,volume", itertools.product(["[Na+].[Cl-]", None], ["1M", None], ["1L", None])
+)
+def test_simple_solution_legal(solute_smiles, concentration, volume):
+    """Test that the macro never generates illegal solution configurations."""
+    solution_components = solutions.simple_solution(
+        solvent_smiles="O",
+        solute_smiles=solute_smiles,
+        concentration=concentration,
+        volume=volume,
+    )
+    for component in solution_components:
+        validations.validate_message(component)
+
+
+@pytest.mark.parametrize("volume", ["1L", None])
+def test_simple_saturated_solution(volume):
+    """Test that the macro never generates illegal solution configurations."""
+    solution_components = solutions.simple_solution(
+        solvent_smiles="O",
+        solute_smiles="[Na+].[Cl-]",
+        volume=volume,
+        saturated=True,
+    )
+    for component in solution_components:
+        validations.validate_message(component)
+    assert any(
+        component.amount.unmeasured.type == reaction_pb2.UnmeasuredAmount.SATURATED for component in solution_components
+    )
+
+
+def test_simple_solution_concentration_and_saturated_illegal():
+    with pytest.raises(ValueError, match="Cannot specify both"):
+        solutions.simple_solution(
+            solvent_smiles="O",
+            solute_smiles="[Na+].[Cl-]",
+            volume="1L",
+            concentration="1M",
+            saturated=True,
+        )
+
+
+def test_simple_solution_saturated_solute_missing():
+    with pytest.raises(ValueError, match="Must specify"):
+        solutions.simple_solution(solvent_smiles="O", solute_smiles=None, volume="1L", saturated=True)
