@@ -477,8 +477,8 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
     for workup in workups:
         if workup.type == workup.STIRRING and not stirring_conditions:
             reaction.conditions.stirring.CopyFrom(workup.stirring)
-            reaction.conditions.stirring.method.type = reaction_pb2.StirringConditions.StirringMethod.CUSTOM
-            reaction.conditions.stirring.method.details = workup.details
+            reaction.conditions.stirring.type = reaction_pb2.StirringConditions.StirringMethodType.CUSTOM
+            reaction.conditions.stirring.details = workup.details
             stirring_conditions = True
             if workup.HasField("temperature") and not temperature_conditions:
                 reaction.conditions.temperature.CopyFrom(workup.temperature)
@@ -537,7 +537,7 @@ def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.R
 
 def main(kwargs):
     filenames = sorted(glob.glob(kwargs["--input_pattern"]))
-    all_reactions = joblib.Parallel(n_jobs=kwargs["--n_jobs"], verbose=True)(
+    all_reactions = joblib.Parallel(n_jobs=int(kwargs["--n_jobs"]), verbose=True)(
         joblib.delayed(run)(filename) for filename in filenames
     )
     reactions = []
@@ -549,6 +549,7 @@ def main(kwargs):
     basenames = [os.path.basename(filename) for filename in filenames]
     dataset.description = f'CML filenames: {",".join(basenames)}'
     if kwargs["--output"] and reactions:
+        logger.info(f"Writing {len(reactions)} reactions to {kwargs['--output']}")
         message_helpers.write_message(dataset, kwargs["--output"])
         if failures:
             failure_dataset = dataset_pb2.Dataset(reactions=failures, name=kwargs["--name"])
