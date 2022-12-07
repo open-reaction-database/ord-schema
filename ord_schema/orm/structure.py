@@ -20,10 +20,9 @@ from distutils.util import strtobool  # pylint: disable=deprecated-module
 from enum import Enum
 
 from sqlalchemy import Column, Index, Integer, ForeignKey, Text, func
-from sqlalchemy.orm import with_polymorphic
 from sqlalchemy.types import UserDefinedType
 
-from ord_schema.orm import Base, Child, Parent
+from ord_schema.orm import Base
 
 
 def rdkit_cartridge() -> bool:
@@ -134,7 +133,7 @@ class FingerprintType(Enum):
         return table_args
 
 
-class _Structure(Parent, Base):
+class Structure(Base):
     """Table for storing compound structures and associated RDKit cartridge data.
 
     Notes:
@@ -145,6 +144,8 @@ class _Structure(Parent, Base):
       * Objects with this type are added to the ORM in from_proto() using the `structure` field.
     """
 
+    __tablename__ = "structure"
+    id = Column(Integer, primary_key=True)
     smiles = Column(Text)
     mol = Column(_RDKitMol)
 
@@ -154,21 +155,29 @@ class _Structure(Parent, Base):
         {"schema": "rdkit"},
     )
 
+    _polymorphic_type = Column(Text, nullable=False)
+    __mapper_args__ = {
+        "polymorphic_on": _polymorphic_type,
+        "polymorphic_identity": "structure",
+        "with_polymorphic": "*",
+    }
+
     @classmethod
     def tanimoto(cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP):
         return func.rdkit.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(other))
 
 
-class _CompoundStructure(Child, _Structure):
-    compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"), nullable=False)
+class _CompoundStructure(Structure):
+    compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"))
 
-    __table_args__ = {"schema": "rdkit"}
-
-
-class _ProductCompoundStructure(Child, _Structure):
-    product_compound_id = Column(Integer, ForeignKey("product_compound.id", ondelete="CASCADE"), nullable=False)
-
-    __table_args__ = {"schema": "rdkit"}
+    __mapper_args__ = {
+        "polymorphic_identity": "compound__structure",
+    }
 
 
-Structure = with_polymorphic(_Structure, "*")
+class _ProductCompoundStructure(Structure):
+    product_compound_id = Column(Integer, ForeignKey("product_compound.id", ondelete="CASCADE"))
+
+    __mapper_args__ = {
+        "polymorphic_identity": "product_compound__structure",
+    }

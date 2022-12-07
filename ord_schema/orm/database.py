@@ -23,7 +23,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from ord_schema.logging import get_logger
-from ord_schema.orm.mappers import Base, Dataset, from_proto
+from ord_schema.orm.mappers import Base, Mappers, from_proto
 from ord_schema.orm.structure import CString, FingerprintType, Structure
 from ord_schema.proto import dataset_pb2
 
@@ -75,7 +75,7 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
     """Deletes a dataset from the database."""
     logger.info(f"Deleting dataset {dataset_id}")
     start = time.time()
-    session.execute(delete(Dataset).where(Dataset.dataset_id == dataset_id))
+    session.execute(delete(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset_id))
     logger.info(f"delete took {time.time() - start}s")
 
 

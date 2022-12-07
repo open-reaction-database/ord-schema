@@ -495,7 +495,7 @@ def get_product_yield(product: reaction_pb2.ProductCompound, as_measurement: boo
 
 def get_compound_identifier(
     compound: reaction_pb2.Compound,
-    identifier_type: reaction_pb2.CompoundIdentifier.IdentifierType,
+    identifier_type: reaction_pb2.CompoundIdentifier.CompoundIdentifierType,
 ) -> Optional[str]:
     """Returns the value of a compound identifier if it exists. If multiple
     identifiers of that type exist, only the first is returned.
@@ -515,7 +515,7 @@ def get_compound_identifier(
 
 def set_compound_identifier(
     compound: reaction_pb2.Compound,
-    identifier_type: reaction_pb2.CompoundIdentifier.IdentifierType,
+    identifier_type: reaction_pb2.CompoundIdentifier.CompoundIdentifierType,
     value: str,
 ) -> reaction_pb2.CompoundIdentifier:
     """Sets the value of a compound identifier if it exists or creates one. If

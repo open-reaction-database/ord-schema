@@ -28,7 +28,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1ford_schema/proto/reaction.proto\x12\x03ord\"\xd9\x03\n\x08Reaction\x12,\n\x0bidentifiers\x18\x01 \x03(\x0b\x32\x17.ord.ReactionIdentifier\x12)\n\x06inputs\x18\x02 \x03(\x0b\x32\x19.ord.Reaction.InputsEntry\x12!\n\x05setup\x18\x03 \x01(\x0b\x32\x12.ord.ReactionSetup\x12+\n\nconditions\x18\x04 \x01(\x0b\x32\x17.ord.ReactionConditions\x12!\n\x05notes\x18\x05 \x01(\x0b\x32\x12.ord.ReactionNotes\x12.\n\x0cobservations\x18\x06 \x03(\x0b\x32\x18.ord.ReactionObservation\x12$\n\x07workups\x18\x07 \x03(\x0b\x32\x13.ord.ReactionWorkup\x12&\n\x08outcomes\x18\x08 \x03(\x0b\x32\x14.ord.ReactionOutcome\x12+\n\nprovenance\x18\t \x01(\x0b\x32\x17.ord.ReactionProvenance\x12\x13\n\x0breaction_id\x18\n \x01(\t\x1a\x41\n\x0bInputsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12!\n\x05value\x18\x02 \x01(\x0b\x32\x12.ord.ReactionInput:\x02\x38\x01\"\x8d\x02\n\x12ReactionIdentifier\x12\x34\n\x04type\x18\x01 \x01(\x0e\x32&.ord.ReactionIdentifier.IdentifierType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\x12\x16\n\tis_mapped\x18\x04 \x01(\x08H\x00\x88\x01\x01\"{\n\x0eIdentifierType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x13\n\x0fREACTION_SMILES\x10\x02\x12\x15\n\x11REACTION_CXSMILES\x10\x06\x12\n\n\x06RDFILE\x10\x03\x12\n\n\x06RINCHI\x10\x04\x12\x08\n\x04NAME\x10\x05\x42\x0c\n\n_is_mapped\"\xbc\x06\n\rReactionInput\x12!\n\ncomponents\x18\x01 \x03(\x0b\x32\r.ord.Compound\x12-\n\x10\x63rude_components\x18\x02 \x03(\x0b\x32\x13.ord.CrudeComponent\x12\x16\n\x0e\x61\x64\x64ition_order\x18\x03 \x01(\x05\x12 \n\raddition_time\x18\x04 \x01(\x0b\x32\t.ord.Time\x12\x38\n\x0e\x61\x64\x64ition_speed\x18\x05 \x01(\x0b\x32 .ord.ReactionInput.AdditionSpeed\x12$\n\x11\x61\x64\x64ition_duration\x18\x06 \x01(\x0b\x32\t.ord.Time\x12 \n\tflow_rate\x18\x07 \x01(\x0b\x32\r.ord.FlowRate\x12:\n\x0f\x61\x64\x64ition_device\x18\x08 \x01(\x0b\x32!.ord.ReactionInput.AdditionDevice\x12.\n\x14\x61\x64\x64ition_temperature\x18\t \x01(\x0b\x32\x10.ord.Temperature\x1a\xdc\x01\n\rAdditionSpeed\x12@\n\x04type\x18\x01 \x01(\x0e\x32\x32.ord.ReactionInput.AdditionSpeed.AdditionSpeedType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"x\n\x11\x41\x64\x64itionSpeedType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x0f\n\x0b\x41LL_AT_ONCE\x10\x01\x12\x08\n\x04\x46\x41ST\x10\x02\x12\x08\n\x04SLOW\x10\x03\x12\x0c\n\x08\x44ROPWISE\x10\x04\x12\x0e\n\nCONTINUOUS\x10\x05\x12\x0f\n\x0bPORTIONWISE\x10\x06\x1a\xd1\x01\n\x0e\x41\x64\x64itionDevice\x12\x42\n\x04type\x18\x01 \x01(\x0e\x32\x34.ord.ReactionInput.AdditionDevice.AdditionDeviceType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"j\n\x12\x41\x64\x64itionDeviceType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x08\n\x04NONE\x10\x02\x12\x0b\n\x07SYRINGE\x10\x03\x12\x0b\n\x07\x43\x41NNULA\x10\x04\x12\x13\n\x0f\x41\x44\x44ITION_FUNNEL\x10\x05\"\xd6\x01\n\x06\x41mount\x12\x19\n\x04mass\x18\x01 \x01(\x0b\x32\t.ord.MassH\x00\x12\x1b\n\x05moles\x18\x02 \x01(\x0b\x32\n.ord.MolesH\x00\x12\x1d\n\x06volume\x18\x03 \x01(\x0b\x32\x0b.ord.VolumeH\x00\x12+\n\nunmeasured\x18\x05 \x01(\x0b\x32\x15.ord.UnmeasuredAmountH\x00\x12$\n\x17volume_includes_solutes\x18\x04 \x01(\x08H\x01\x88\x01\x01\x42\x06\n\x04kindB\x1a\n\x18_volume_includes_solutes\"\xbe\x01\n\x10UnmeasuredAmount\x12\x38\n\x04type\x18\x01 \x01(\x0e\x32*.ord.UnmeasuredAmount.UnmeasuredAmountType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"_\n\x14UnmeasuredAmountType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\r\n\tSATURATED\x10\x02\x12\r\n\tCATALYTIC\x10\x03\x12\x0c\n\x08TITRATED\x10\x04\"\xac\x01\n\x0e\x43rudeComponent\x12\x13\n\x0breaction_id\x18\x01 \x01(\t\x12\x1c\n\x0fincludes_workup\x18\x02 \x01(\x08H\x00\x88\x01\x01\x12\x1f\n\x12has_derived_amount\x18\x03 \x01(\x08H\x01\x88\x01\x01\x12\x1b\n\x06\x61mount\x18\x04 \x01(\x0b\x32\x0b.ord.AmountB\x12\n\x10_includes_workupB\x15\n\x13_has_derived_amount\"\x9d\x04\n\x08\x43ompound\x12,\n\x0bidentifiers\x18\x01 \x03(\x0b\x32\x17.ord.CompoundIdentifier\x12\x1b\n\x06\x61mount\x18\x02 \x01(\x0b\x32\x0b.ord.Amount\x12\x39\n\rreaction_role\x18\x03 \x01(\x0e\x32\".ord.ReactionRole.ReactionRoleType\x12\x18\n\x0bis_limiting\x18\x04 \x01(\x08H\x00\x88\x01\x01\x12.\n\x0cpreparations\x18\x05 \x03(\x0b\x32\x18.ord.CompoundPreparation\x12$\n\x06source\x18\x06 \x01(\x0b\x32\x14.ord.Compound.Source\x12-\n\x08\x66\x65\x61tures\x18\x07 \x03(\x0b\x32\x1b.ord.Compound.FeaturesEntry\x12-\n\x08\x61nalyses\x18\x08 \x03(\x0b\x32\x1b.ord.Compound.AnalysesEntry\x1a\x31\n\x06Source\x12\x0e\n\x06vendor\x18\x01 \x01(\t\x12\n\n\x02id\x18\x02 \x01(\t\x12\x0b\n\x03lot\x18\x03 \x01(\t\x1a:\n\rFeaturesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x18\n\x05value\x18\x02 \x01(\x0b\x32\t.ord.Data:\x02\x38\x01\x1a>\n\rAnalysesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.ord.Analysis:\x02\x38\x01\x42\x0e\n\x0c_is_limiting\"\xb2\x01\n\x0cReactionRole\"\xa1\x01\n\x10ReactionRoleType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x0c\n\x08REACTANT\x10\x01\x12\x0b\n\x07REAGENT\x10\x02\x12\x0b\n\x07SOLVENT\x10\x03\x12\x0c\n\x08\x43\x41TALYST\x10\x04\x12\n\n\x06WORKUP\x10\x05\x12\x15\n\x11INTERNAL_STANDARD\x10\x06\x12\x16\n\x12\x41UTHENTIC_STANDARD\x10\x07\x12\x0b\n\x07PRODUCT\x10\x08\"\xe6\x01\n\x13\x43ompoundPreparation\x12\x36\n\x04type\x18\x01 \x01(\x0e\x32(.ord.CompoundPreparation.PreparationType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x13\n\x0breaction_id\x18\x03 \x01(\t\"q\n\x0fPreparationType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x08\n\x04NONE\x10\x02\x12\x0e\n\nREPURIFIED\x10\x03\x12\x0b\n\x07SPARGED\x10\x04\x12\t\n\x05\x44RIED\x10\x05\x12\x0f\n\x0bSYNTHESIZED\x10\x06\"\xf2\x02\n\x12\x43ompoundIdentifier\x12\x34\n\x04type\x18\x01 \x01(\x0e\x32&.ord.CompoundIdentifier.IdentifierType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\"\x85\x02\n\x0eIdentifierType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\n\n\x06SMILES\x10\x02\x12\t\n\x05INCHI\x10\x03\x12\x0c\n\x08MOLBLOCK\x10\x04\x12\x0e\n\nIUPAC_NAME\x10\x05\x12\x08\n\x04NAME\x10\x06\x12\x0e\n\nCAS_NUMBER\x10\x07\x12\x0f\n\x0bPUBCHEM_CID\x10\x08\x12\x11\n\rCHEMSPIDER_ID\x10\t\x12\x0c\n\x08\x43XSMILES\x10\n\x12\r\n\tINCHI_KEY\x10\x0b\x12\x07\n\x03XYZ\x10\x0c\x12\x0e\n\nUNIPROT_ID\x10\r\x12\n\n\x06PDB_ID\x10\x0e\x12\x17\n\x13\x41MINO_ACID_SEQUENCE\x10\x0f\x12\x08\n\x04HELM\x10\x10\"\x92\x04\n\x06Vessel\x12$\n\x04type\x18\x01 \x01(\x0e\x32\x16.ord.Vessel.VesselType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12%\n\x08material\x18\x03 \x01(\x0b\x32\x13.ord.VesselMaterial\x12,\n\x0cpreparations\x18\x04 \x03(\x0b\x32\x16.ord.VesselPreparation\x12*\n\x0b\x61ttachments\x18\x05 \x03(\x0b\x32\x15.ord.VesselAttachment\x12\x1b\n\x06volume\x18\x06 \x01(\x0b\x32\x0b.ord.Volume\x12\x10\n\x08plate_id\x18\x07 \x01(\t\x12\x16\n\x0eplate_position\x18\x08 \x01(\t\"\x88\x02\n\nVesselType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x16\n\x12ROUND_BOTTOM_FLASK\x10\x02\x12\x08\n\x04VIAL\x10\x03\x12\x0e\n\nWELL_PLATE\x10\x04\x12\x12\n\x0eMICROWAVE_VIAL\x10\x05\x12\x08\n\x04TUBE\x10\x06\x12#\n\x1f\x43ONTINUOUS_STIRRED_TANK_REACTOR\x10\x07\x12\x16\n\x12PACKED_BED_REACTOR\x10\x08\x12\x0c\n\x08NMR_TUBE\x10\t\x12\x12\n\x0ePRESSURE_FLASK\x10\n\x12\x14\n\x10PRESSURE_REACTOR\x10\x0b\x12\x18\n\x14\x45LECTROCHEMICAL_CELL\x10\x0c\"\xcc\x01\n\x0eVesselMaterial\x12\x34\n\x04type\x18\x01 \x01(\x0e\x32&.ord.VesselMaterial.VesselMaterialType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"s\n\x12VesselMaterialType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\t\n\x05GLASS\x10\x02\x12\x11\n\rPOLYPROPYLENE\x10\x03\x12\x0b\n\x07PLASTIC\x10\x04\x12\t\n\x05METAL\x10\x05\x12\n\n\x06QUARTZ\x10\x06\"\x97\x03\n\x10VesselAttachment\x12\x38\n\x04type\x18\x01 \x01(\x0e\x32*.ord.VesselAttachment.VesselAttachmentType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"\xb7\x02\n\x14VesselAttachmentType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x08\n\x04NONE\x10\x01\x12\n\n\x06\x43USTOM\x10\x02\x12\n\n\x06SEPTUM\x10\x03\x12\x07\n\x03\x43\x41P\x10\x04\x12\x07\n\x03MAT\x10\x05\x12\x14\n\x10REFLUX_CONDENSER\x10\x06\x12\x0f\n\x0bVENT_NEEDLE\x10\x07\x12\x0e\n\nDEAN_STARK\x10\x08\x12\x0f\n\x0bVACUUM_TUBE\x10\t\x12\x13\n\x0f\x41\x44\x44ITION_FUNNEL\x10\n\x12\x0f\n\x0b\x44RYING_TUBE\x10\x0b\x12\x11\n\rALUMINUM_FOIL\x10\x0c\x12\x10\n\x0cTHERMOCOUPLE\x10\r\x12\x0b\n\x07\x42\x41LLOON\x10\x0e\x12\x0f\n\x0bGAS_ADAPTER\x10\x0f\x12\x16\n\x12PRESSURE_REGULATOR\x10\x10\x12\x11\n\rRELEASE_VALVE\x10\x11\"\xe8\x01\n\x11VesselPreparation\x12:\n\x04type\x18\x01 \x01(\x0e\x32,.ord.VesselPreparation.VesselPreparationType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"\x85\x01\n\x15VesselPreparationType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x08\n\x04NONE\x10\x02\x12\x0e\n\nOVEN_DRIED\x10\x03\x12\x0f\n\x0b\x46LAME_DRIED\x10\x04\x12\x18\n\x14\x45VACUATED_BACKFILLED\x10\x05\x12\n\n\x06PURGED\x10\x06\"\xa0\x04\n\rReactionSetup\x12\x1b\n\x06vessel\x18\x01 \x01(\x0b\x32\x0b.ord.Vessel\x12\x19\n\x0cis_automated\x18\x02 \x01(\x08H\x00\x88\x01\x01\x12\x1b\n\x13\x61utomation_platform\x18\x03 \x01(\t\x12?\n\x0f\x61utomation_code\x18\x04 \x03(\x0b\x32&.ord.ReactionSetup.AutomationCodeEntry\x12;\n\x0b\x65nvironment\x18\x05 \x01(\x0b\x32&.ord.ReactionSetup.ReactionEnvironment\x1a@\n\x13\x41utomationCodeEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x18\n\x05value\x18\x02 \x01(\x0b\x32\t.ord.Data:\x02\x38\x01\x1a\xe8\x01\n\x13ReactionEnvironment\x12L\n\x04type\x18\x01 \x01(\x0e\x32>.ord.ReactionSetup.ReactionEnvironment.ReactionEnvironmentType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"r\n\x17ReactionEnvironmentType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\r\n\tFUME_HOOD\x10\x02\x12\r\n\tBENCH_TOP\x10\x03\x12\r\n\tGLOVE_BOX\x10\x04\x12\r\n\tGLOVE_BAG\x10\x05\x42\x0f\n\r_is_automated\"\xb5\x03\n\x12ReactionConditions\x12/\n\x0btemperature\x18\x01 \x01(\x0b\x32\x1a.ord.TemperatureConditions\x12)\n\x08pressure\x18\x02 \x01(\x0b\x32\x17.ord.PressureConditions\x12)\n\x08stirring\x18\x03 \x01(\x0b\x32\x17.ord.StirringConditions\x12\x31\n\x0cillumination\x18\x04 \x01(\x0b\x32\x1b.ord.IlluminationConditions\x12\x39\n\x10\x65lectrochemistry\x18\x05 \x01(\x0b\x32\x1f.ord.ElectrochemistryConditions\x12!\n\x04\x66low\x18\x06 \x01(\x0b\x32\x13.ord.FlowConditions\x12\x13\n\x06reflux\x18\x07 \x01(\x08H\x00\x88\x01\x01\x12\x0f\n\x02ph\x18\x08 \x01(\x02H\x01\x88\x01\x01\x12#\n\x16\x63onditions_are_dynamic\x18\t \x01(\x08H\x02\x88\x01\x01\x12\x0f\n\x07\x64\x65tails\x18\n \x01(\tB\t\n\x07_refluxB\x05\n\x03_phB\x19\n\x17_conditions_are_dynamic\"\xab\x06\n\x15TemperatureConditions\x12>\n\x07\x63ontrol\x18\x01 \x01(\x0b\x32-.ord.TemperatureConditions.TemperatureControl\x12\"\n\x08setpoint\x18\x02 \x01(\x0b\x32\x10.ord.Temperature\x12<\n\x0cmeasurements\x18\x03 \x03(\x0b\x32&.ord.TemperatureConditions.Measurement\x1a\xd4\x02\n\x12TemperatureControl\x12R\n\x04type\x18\x01 \x01(\x0e\x32\x44.ord.TemperatureConditions.TemperatureControl.TemperatureControlType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"\xd8\x01\n\x16TemperatureControlType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x0b\n\x07\x41MBIENT\x10\x02\x12\x0c\n\x08OIL_BATH\x10\x03\x12\x0e\n\nWATER_BATH\x10\x04\x12\r\n\tSAND_BATH\x10\x05\x12\x0c\n\x08ICE_BATH\x10\x06\x12\x16\n\x12\x44RY_ALUMINUM_PLATE\x10\x07\x12\r\n\tMICROWAVE\x10\x08\x12\x10\n\x0c\x44RY_ICE_BATH\x10\t\x12\x0b\n\x07\x41IR_FAN\x10\n\x12\x13\n\x0fLIQUID_NITROGEN\x10\x0b\x1a\x98\x02\n\x0bMeasurement\x12\x44\n\x04type\x18\x01 \x01(\x0e\x32\x36.ord.TemperatureConditions.Measurement.MeasurementType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x17\n\x04time\x18\x03 \x01(\x0b\x32\t.ord.Time\x12%\n\x0btemperature\x18\x04 \x01(\x0b\x32\x10.ord.Temperature\"r\n\x0fMeasurementType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x19\n\x15THERMOCOUPLE_INTERNAL\x10\x02\x12\x19\n\x15THERMOCOUPLE_EXTERNAL\x10\x03\x12\x0c\n\x08INFRARED\x10\x04\"\xe4\x07\n\x12PressureConditions\x12\x38\n\x07\x63ontrol\x18\x01 \x01(\x0b\x32\'.ord.PressureConditions.PressureControl\x12\x1f\n\x08setpoint\x18\x02 \x01(\x0b\x32\r.ord.Pressure\x12\x36\n\natmosphere\x18\x03 \x01(\x0b\x32\".ord.PressureConditions.Atmosphere\x12\x39\n\x0cmeasurements\x18\x04 \x03(\x0b\x32#.ord.PressureConditions.Measurement\x1a\xe0\x01\n\x0fPressureControl\x12I\n\x04type\x18\x01 \x01(\x0e\x32;.ord.PressureConditions.PressureControl.PressureControlType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"q\n\x13PressureControlType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x0b\n\x07\x41MBIENT\x10\x02\x12\x13\n\x0fSLIGHT_POSITIVE\x10\x03\x12\n\n\x06SEALED\x10\x04\x12\x0f\n\x0bPRESSURIZED\x10\x05\x1a\xb5\x02\n\nAtmosphere\x12?\n\x04type\x18\x01 \x01(\x0e\x32\x31.ord.PressureConditions.Atmosphere.AtmosphereType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"\xd4\x01\n\x0e\x41tmosphereType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x07\n\x03\x41IR\x10\x02\x12\x0c\n\x08NITROGEN\x10\x03\x12\t\n\x05\x41RGON\x10\x04\x12\n\n\x06OXYGEN\x10\x05\x12\x0c\n\x08HYDROGEN\x10\x06\x12\x13\n\x0f\x43\x41RBON_MONOXIDE\x10\x07\x12\x12\n\x0e\x43\x41RBON_DIOXIDE\x10\x08\x12\x0b\n\x07METHANE\x10\t\x12\x0b\n\x07\x41MMONIA\x10\n\x12\t\n\x05OZONE\x10\x0b\x12\x0c\n\x08\x45THYLENE\x10\x0c\x12\r\n\tACETYLENE\x10\r\x1a\xe4\x01\n\x0bMeasurement\x12\x41\n\x04type\x18\x01 \x01(\x0e\x32\x33.ord.PressureConditions.Measurement.MeasurementType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x17\n\x04time\x18\x03 \x01(\x0b\x32\t.ord.Time\x12\x1f\n\x08pressure\x18\x04 \x01(\x0b\x32\r.ord.Pressure\"G\n\x0fMeasurementType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x17\n\x13PRESSURE_TRANSDUCER\x10\x02\"\xdc\x03\n\x12StirringConditions\x12\x38\n\x04type\x18\x01 \x01(\x0e\x32*.ord.StirringConditions.StirringMethodType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x32\n\x04rate\x18\x03 \x01(\x0b\x32$.ord.StirringConditions.StirringRate\x1a\xb5\x01\n\x0cStirringRate\x12\x43\n\x04type\x18\x01 \x01(\x0e\x32\x35.ord.StirringConditions.StirringRate.StirringRateType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x0b\n\x03rpm\x18\x03 \x01(\x05\"B\n\x10StirringRateType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x08\n\x04HIGH\x10\x01\x12\n\n\x06MEDIUM\x10\x02\x12\x07\n\x03LOW\x10\x03\"\x8e\x01\n\x12StirringMethodType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x08\n\x04NONE\x10\x02\x12\x0c\n\x08STIR_BAR\x10\x03\x12\x12\n\x0eOVERHEAD_MIXER\x10\x04\x12\r\n\tAGITATION\x10\x05\x12\x10\n\x0c\x42\x41LL_MILLING\x10\x06\x12\x0e\n\nSONICATION\x10\x07\"\xe8\x02\n\x16IlluminationConditions\x12:\n\x04type\x18\x01 \x01(\x0e\x32,.ord.IlluminationConditions.IlluminationType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12(\n\x0fpeak_wavelength\x18\x03 \x01(\x0b\x32\x0f.ord.Wavelength\x12\r\n\x05\x63olor\x18\x04 \x01(\t\x12\'\n\x12\x64istance_to_vessel\x18\x05 \x01(\x0b\x32\x0b.ord.Length\"\x9e\x01\n\x10IlluminationType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x0b\n\x07\x41MBIENT\x10\x02\x12\x08\n\x04\x44\x41RK\x10\x03\x12\x07\n\x03LED\x10\x04\x12\x10\n\x0cHALOGEN_LAMP\x10\x05\x12\x12\n\x0e\x44\x45UTERIUM_LAMP\x10\x06\x12\x13\n\x0fSOLAR_SIMULATOR\x10\x07\x12\x12\n\x0e\x42ROAD_SPECTRUM\x10\x08\"\xcc\x06\n\x1a\x45lectrochemistryConditions\x12\x42\n\x04type\x18\x01 \x01(\x0e\x32\x34.ord.ElectrochemistryConditions.ElectrochemistryType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x1d\n\x07\x63urrent\x18\x03 \x01(\x0b\x32\x0c.ord.Current\x12\x1d\n\x07voltage\x18\x04 \x01(\x0b\x32\x0c.ord.Voltage\x12\x16\n\x0e\x61node_material\x18\x05 \x01(\t\x12\x18\n\x10\x63\x61thode_material\x18\x06 \x01(\t\x12)\n\x14\x65lectrode_separation\x18\x07 \x01(\x0b\x32\x0b.ord.Length\x12\x41\n\x0cmeasurements\x18\x08 \x03(\x0b\x32+.ord.ElectrochemistryConditions.Measurement\x12\x42\n\x04\x63\x65ll\x18\t \x01(\x0b\x32\x34.ord.ElectrochemistryConditions.ElectrochemistryCell\x1ap\n\x0bMeasurement\x12\x17\n\x04time\x18\x01 \x01(\x0b\x32\t.ord.Time\x12\x1f\n\x07\x63urrent\x18\x02 \x01(\x0b\x32\x0c.ord.CurrentH\x00\x12\x1f\n\x07voltage\x18\x03 \x01(\x0b\x32\x0c.ord.VoltageH\x00\x42\x06\n\x04kind\x1a\xe3\x01\n\x14\x45lectrochemistryCell\x12[\n\x04type\x18\x01 \x01(\x0e\x32M.ord.ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"]\n\x18\x45lectrochemistryCellType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x10\n\x0c\x44IVIDED_CELL\x10\x02\x12\x12\n\x0eUNDIVIDED_CELL\x10\x03\"_\n\x14\x45lectrochemistryType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x14\n\x10\x43ONSTANT_CURRENT\x10\x02\x12\x14\n\x10\x43ONSTANT_VOLTAGE\x10\x03\"\x94\x04\n\x0e\x46lowConditions\x12*\n\x04type\x18\x01 \x01(\x0e\x32\x1c.ord.FlowConditions.FlowType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x11\n\tpump_type\x18\x03 \x01(\t\x12*\n\x06tubing\x18\x04 \x01(\x0b\x32\x1a.ord.FlowConditions.Tubing\x1a\x88\x02\n\x06Tubing\x12\x33\n\x04type\x18\x01 \x01(\x0e\x32%.ord.FlowConditions.Tubing.TubingType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x1d\n\x08\x64iameter\x18\x03 \x01(\x0b\x32\x0b.ord.Length\"\x98\x01\n\nTubingType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\t\n\x05STEEL\x10\x02\x12\n\n\x06\x43OPPER\x10\x03\x12\x07\n\x03PFA\x10\x04\x12\x07\n\x03\x46\x45P\x10\x05\x12\x0c\n\x08TEFLONAF\x10\x06\x12\x08\n\x04PTFE\x10\x07\x12\t\n\x05GLASS\x10\x08\x12\n\n\x06QUARTZ\x10\t\x12\x0b\n\x07SILICON\x10\n\x12\x08\n\x04PDMS\x10\x0b\"{\n\x08\x46lowType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x15\n\x11PLUG_FLOW_REACTOR\x10\x02\x12#\n\x1f\x43ONTINUOUS_STIRRED_TANK_REACTOR\x10\x03\x12\x16\n\x12PACKED_BED_REACTOR\x10\x04\"\xc0\x03\n\rReactionNotes\x12\x1d\n\x10is_heterogeneous\x18\x01 \x01(\x08H\x00\x88\x01\x01\x12\x1e\n\x11\x66orms_precipitate\x18\x02 \x01(\x08H\x01\x88\x01\x01\x12\x1a\n\ris_exothermic\x18\x03 \x01(\x08H\x02\x88\x01\x01\x12\x16\n\toffgasses\x18\x04 \x01(\x08H\x03\x88\x01\x01\x12%\n\x18is_sensitive_to_moisture\x18\x05 \x01(\x08H\x04\x88\x01\x01\x12#\n\x16is_sensitive_to_oxygen\x18\x06 \x01(\x08H\x05\x88\x01\x01\x12\"\n\x15is_sensitive_to_light\x18\x07 \x01(\x08H\x06\x88\x01\x01\x12\x14\n\x0csafety_notes\x18\x08 \x01(\t\x12\x19\n\x11procedure_details\x18\t \x01(\tB\x13\n\x11_is_heterogeneousB\x14\n\x12_forms_precipitateB\x10\n\x0e_is_exothermicB\x0c\n\n_offgassesB\x1b\n\x19_is_sensitive_to_moistureB\x19\n\x17_is_sensitive_to_oxygenB\x18\n\x16_is_sensitive_to_light\"Y\n\x13ReactionObservation\x12\x17\n\x04time\x18\x01 \x01(\x0b\x32\t.ord.Time\x12\x0f\n\x07\x63omment\x18\x02 \x01(\t\x12\x18\n\x05image\x18\x03 \x01(\x0b\x32\t.ord.Data\"\xbb\x05\n\x0eReactionWorkup\x12,\n\x04type\x18\x01 \x01(\x0e\x32\x1e.ord.ReactionWorkup.WorkupType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x1b\n\x08\x64uration\x18\x03 \x01(\x0b\x32\t.ord.Time\x12!\n\x05input\x18\x04 \x01(\x0b\x32\x12.ord.ReactionInput\x12\x1b\n\x06\x61mount\x18\x05 \x01(\x0b\x32\x0b.ord.Amount\x12/\n\x0btemperature\x18\x06 \x01(\x0b\x32\x1a.ord.TemperatureConditions\x12\x12\n\nkeep_phase\x18\x07 \x01(\t\x12)\n\x08stirring\x18\x08 \x01(\x0b\x32\x17.ord.StirringConditions\x12\x16\n\ttarget_ph\x18\t \x01(\x02H\x00\x88\x01\x01\x12\x19\n\x0cis_automated\x18\n \x01(\x08H\x01\x88\x01\x01\"\xca\x02\n\nWorkupType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x0c\n\x08\x41\x44\x44ITION\x10\x02\x12\x0b\n\x07\x41LIQUOT\x10\x03\x12\x0f\n\x0bTEMPERATURE\x10\x04\x12\x11\n\rCONCENTRATION\x10\x05\x12\x0e\n\nEXTRACTION\x10\x06\x12\x0e\n\nFILTRATION\x10\x07\x12\x08\n\x04WASH\x10\x08\x12\x11\n\rDRY_IN_VACUUM\x10\t\x12\x15\n\x11\x44RY_WITH_MATERIAL\x10\n\x12\x18\n\x14\x46LASH_CHROMATOGRAPHY\x10\x0b\x12\x18\n\x14OTHER_CHROMATOGRAPHY\x10\x0c\x12\x0e\n\nSCAVENGING\x10\r\x12\x08\n\x04WAIT\x10\x0e\x12\x0c\n\x08STIRRING\x10\x0f\x12\r\n\tPH_ADJUST\x10\x10\x12\x0f\n\x0b\x44ISSOLUTION\x10\x11\x12\x10\n\x0c\x44ISTILLATION\x10\x12\x42\x0c\n\n_target_phB\x0f\n\r_is_automated\"\xf6\x01\n\x0fReactionOutcome\x12 \n\rreaction_time\x18\x01 \x01(\x0b\x32\t.ord.Time\x12#\n\nconversion\x18\x02 \x01(\x0b\x32\x0f.ord.Percentage\x12&\n\x08products\x18\x03 \x03(\x0b\x32\x14.ord.ProductCompound\x12\x34\n\x08\x61nalyses\x18\x04 \x03(\x0b\x32\".ord.ReactionOutcome.AnalysesEntry\x1a>\n\rAnalysesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.ord.Analysis:\x02\x38\x01\"\x8d\x05\n\x0fProductCompound\x12,\n\x0bidentifiers\x18\x01 \x03(\x0b\x32\x17.ord.CompoundIdentifier\x12\x1f\n\x12is_desired_product\x18\x02 \x01(\x08H\x00\x88\x01\x01\x12-\n\x0cmeasurements\x18\x03 \x03(\x0b\x32\x17.ord.ProductMeasurement\x12\x16\n\x0eisolated_color\x18\x04 \x01(\t\x12-\n\x07texture\x18\x05 \x01(\x0b\x32\x1c.ord.ProductCompound.Texture\x12\x34\n\x08\x66\x65\x61tures\x18\x06 \x03(\x0b\x32\".ord.ProductCompound.FeaturesEntry\x12\x39\n\rreaction_role\x18\x07 \x01(\x0e\x32\".ord.ReactionRole.ReactionRoleType\x1a\xf0\x01\n\x07Texture\x12\x36\n\x04type\x18\x01 \x01(\x0e\x32(.ord.ProductCompound.Texture.TextureType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"\x9b\x01\n\x0bTextureType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\n\n\x06POWDER\x10\x02\x12\x0b\n\x07\x43RYSTAL\x10\x03\x12\x07\n\x03OIL\x10\x04\x12\x13\n\x0f\x41MORPHOUS_SOLID\x10\x05\x12\x08\n\x04\x46OAM\x10\x06\x12\x07\n\x03WAX\x10\x07\x12\x0e\n\nSEMI_SOLID\x10\x08\x12\t\n\x05SOLID\x10\t\x12\n\n\x06LIQUID\x10\n\x1a:\n\rFeaturesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x18\n\x05value\x18\x02 \x01(\x0b\x32\t.ord.Data:\x02\x38\x01\x42\x15\n\x13_is_desired_product\"\xed\n\n\x12ProductMeasurement\x12\x14\n\x0c\x61nalysis_key\x18\x01 \x01(\t\x12\x35\n\x04type\x18\x02 \x01(\x0e\x32\'.ord.ProductMeasurement.MeasurementType\x12\x0f\n\x07\x64\x65tails\x18\x03 \x01(\t\x12#\n\x16uses_internal_standard\x18\x04 \x01(\x08H\x01\x88\x01\x01\x12\x1a\n\ris_normalized\x18\x05 \x01(\x08H\x02\x88\x01\x01\x12$\n\x17uses_authentic_standard\x18\x06 \x01(\x08H\x03\x88\x01\x01\x12)\n\x12\x61uthentic_standard\x18\x07 \x01(\x0b\x32\r.ord.Compound\x12%\n\npercentage\x18\x08 \x01(\x0b\x32\x0f.ord.PercentageH\x00\x12&\n\x0b\x66loat_value\x18\t \x01(\x0b\x32\x0f.ord.FloatValueH\x00\x12\x16\n\x0cstring_value\x18\n \x01(\tH\x00\x12\x1d\n\x06\x61mount\x18\x0b \x01(\x0b\x32\x0b.ord.AmountH\x00\x12!\n\x0eretention_time\x18\x0c \x01(\x0b\x32\t.ord.Time\x12M\n\x11mass_spec_details\x18\r \x01(\x0b\x32\x32.ord.ProductMeasurement.MassSpecMeasurementDetails\x12\x38\n\x0bselectivity\x18\x0e \x01(\x0b\x32#.ord.ProductMeasurement.Selectivity\x12#\n\nwavelength\x18\x0f \x01(\x0b\x32\x0f.ord.Wavelength\x1a\xe9\x02\n\x1aMassSpecMeasurementDetails\x12X\n\x04type\x18\x01 \x01(\x0e\x32J.ord.ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x1b\n\x0etic_minimum_mz\x18\x03 \x01(\x02H\x00\x88\x01\x01\x12\x1b\n\x0etic_maximum_mz\x18\x04 \x01(\x02H\x01\x88\x01\x01\x12\x12\n\neic_masses\x18\x05 \x03(\x02\"l\n\x17MassSpecMeasurementType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x07\n\x03TIC\x10\x02\x12\x10\n\x0cTIC_POSITIVE\x10\x03\x12\x10\n\x0cTIC_NEGATIVE\x10\x04\x12\x07\n\x03\x45IC\x10\x05\x42\x11\n\x0f_tic_minimum_mzB\x11\n\x0f_tic_maximum_mz\x1a\xb9\x01\n\x0bSelectivity\x12\x41\n\x04type\x18\x01 \x01(\x0e\x32\x33.ord.ProductMeasurement.Selectivity.SelectivityType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"V\n\x0fSelectivityType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x06\n\x02\x45\x45\x10\x02\x12\x06\n\x02\x45R\x10\x03\x12\x06\n\x02\x44R\x10\x04\x12\x06\n\x02\x45Z\x10\x05\x12\x06\n\x02ZE\x10\x06\"\x95\x01\n\x0fMeasurementType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x0c\n\x08IDENTITY\x10\x02\x12\t\n\x05YIELD\x10\x03\x12\x0f\n\x0bSELECTIVITY\x10\x04\x12\n\n\x06PURITY\x10\x05\x12\x08\n\x04\x41REA\x10\x06\x12\n\n\x06\x43OUNTS\x10\x07\x12\r\n\tINTENSITY\x10\x08\x12\n\n\x06\x41MOUNT\x10\tB\x07\n\x05valueB\x19\n\x17_uses_internal_standardB\x10\n\x0e_is_normalizedB\x1a\n\x18_uses_authentic_standard\"\x19\n\x08\x44\x61teTime\x12\r\n\x05value\x18\x01 \x01(\t\"\xcc\x04\n\x08\x41nalysis\x12(\n\x04type\x18\x01 \x01(\x0e\x32\x1a.ord.Analysis.AnalysisType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x0f\n\x07\x63hmo_id\x18\x03 \x01(\x05\x12#\n\x16is_of_isolated_species\x18\x04 \x01(\x08H\x00\x88\x01\x01\x12%\n\x04\x64\x61ta\x18\x05 \x03(\x0b\x32\x17.ord.Analysis.DataEntry\x12\x1f\n\x17instrument_manufacturer\x18\x06 \x01(\t\x12\x31\n\x1ainstrument_last_calibrated\x18\x07 \x01(\x0b\x32\r.ord.DateTime\x1a\x36\n\tDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x18\n\x05value\x18\x02 \x01(\x0b\x32\t.ord.Data:\x02\x38\x01\"\x80\x02\n\x0c\x41nalysisType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x06\n\x02LC\x10\x02\x12\x06\n\x02GC\x10\x03\x12\x06\n\x02IR\x10\x04\x12\n\n\x06NMR_1H\x10\x05\x12\x0b\n\x07NMR_13C\x10\x06\x12\r\n\tNMR_OTHER\x10\x07\x12\x06\n\x02MP\x10\x08\x12\x06\n\x02UV\x10\t\x12\x07\n\x03TLC\x10\n\x12\x06\n\x02MS\x10\x0b\x12\x08\n\x04HRMS\x10\x0c\x12\x08\n\x04MSMS\x10\r\x12\n\n\x06WEIGHT\x10\x0e\x12\x08\n\x04LCMS\x10\x0f\x12\x08\n\x04GCMS\x10\x10\x12\x08\n\x04\x45LSD\x10\x11\x12\x06\n\x02\x43\x44\x10\x12\x12\x07\n\x03SFC\x10\x13\x12\x07\n\x03\x45PR\x10\x14\x12\x07\n\x03XRD\x10\x15\x12\t\n\x05RAMAN\x10\x16\x12\x06\n\x02\x45\x44\x10\x17\x42\x19\n\x17_is_of_isolated_species\"\xf9\x01\n\x12ReactionProvenance\x12!\n\x0c\x65xperimenter\x18\x01 \x01(\x0b\x32\x0b.ord.Person\x12\x0c\n\x04\x63ity\x18\x02 \x01(\t\x12\'\n\x10\x65xperiment_start\x18\x03 \x01(\x0b\x32\r.ord.DateTime\x12\x0b\n\x03\x64oi\x18\x04 \x01(\t\x12\x0e\n\x06patent\x18\x05 \x01(\t\x12\x17\n\x0fpublication_url\x18\x06 \x01(\t\x12(\n\x0erecord_created\x18\x07 \x01(\x0b\x32\x10.ord.RecordEvent\x12)\n\x0frecord_modified\x18\x08 \x03(\x0b\x32\x10.ord.RecordEvent\"\\\n\x06Person\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\r\n\x05orcid\x18\x03 \x01(\t\x12\x14\n\x0corganization\x18\x04 \x01(\t\x12\r\n\x05\x65mail\x18\x05 \x01(\t\"X\n\x0bRecordEvent\x12\x1b\n\x04time\x18\x01 \x01(\x0b\x32\r.ord.DateTime\x12\x1b\n\x06person\x18\x02 \x01(\x0b\x32\x0b.ord.Person\x12\x0f\n\x07\x64\x65tails\x18\x03 \x01(\t\"\xb5\x01\n\x04Time\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12!\n\x05units\x18\x03 \x01(\x0e\x32\x12.ord.Time.TimeUnit\"F\n\x08TimeUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x07\n\x03\x44\x41Y\x10\x04\x12\x08\n\x04HOUR\x10\x01\x12\n\n\x06MINUTE\x10\x02\x12\n\n\x06SECOND\x10\x03\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xc0\x01\n\x04Mass\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12!\n\x05units\x18\x03 \x01(\x0e\x32\x12.ord.Mass.MassUnit\"Q\n\x08MassUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x0c\n\x08KILOGRAM\x10\x01\x12\x08\n\x04GRAM\x10\x02\x12\r\n\tMILLIGRAM\x10\x03\x12\r\n\tMICROGRAM\x10\x04\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xc4\x01\n\x05Moles\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12#\n\x05units\x18\x03 \x01(\x0e\x32\x14.ord.Moles.MolesUnit\"R\n\tMolesUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x08\n\x04MOLE\x10\x01\x12\r\n\tMILLIMOLE\x10\x02\x12\r\n\tMICROMOLE\x10\x03\x12\x0c\n\x08NANOMOLE\x10\x04\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xcc\x01\n\x06Volume\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12%\n\x05units\x18\x03 \x01(\x0e\x32\x16.ord.Volume.VolumeUnit\"W\n\nVolumeUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\t\n\x05LITER\x10\x01\x12\x0e\n\nMILLILITER\x10\x02\x12\x0e\n\nMICROLITER\x10\x03\x12\r\n\tNANOLITER\x10\x04\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xd9\x01\n\rConcentration\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12\x33\n\x05units\x18\x03 \x01(\x0e\x32$.ord.Concentration.ConcentrationUnit\"O\n\x11\x43oncentrationUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\t\n\x05MOLAR\x10\x01\x12\x0e\n\nMILLIMOLAR\x10\x02\x12\x0e\n\nMICROMOLAR\x10\x03\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xf7\x01\n\x08Pressure\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12)\n\x05units\x18\x03 \x01(\x0e\x32\x1a.ord.Pressure.PressureUnit\"|\n\x0cPressureUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x07\n\x03\x42\x41R\x10\x01\x12\x0e\n\nATMOSPHERE\x10\x02\x12\x07\n\x03PSI\x10\x03\x12\x08\n\x04KPSI\x10\x04\x12\n\n\x06PASCAL\x10\x05\x12\x0e\n\nKILOPASCAL\x10\x06\x12\x08\n\x04TORR\x10\x07\x12\t\n\x05MM_HG\x10\x08\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xcf\x01\n\x0bTemperature\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12/\n\x05units\x18\x03 \x01(\x0e\x32 .ord.Temperature.TemperatureUnit\"K\n\x0fTemperatureUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x0b\n\x07\x43\x45LSIUS\x10\x01\x12\x0e\n\nFAHRENHEIT\x10\x02\x12\n\n\x06KELVIN\x10\x03\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xb3\x01\n\x07\x43urrent\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12\'\n\x05units\x18\x03 \x01(\x0e\x32\x18.ord.Current.CurrentUnit\";\n\x0b\x43urrentUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x41MPERE\x10\x01\x12\x0f\n\x0bMILLIAMPERE\x10\x02\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xaf\x01\n\x07Voltage\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12\'\n\x05units\x18\x03 \x01(\x0e\x32\x18.ord.Voltage.VoltageUnit\"7\n\x0bVoltageUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x08\n\x04VOLT\x10\x01\x12\r\n\tMILLIVOLT\x10\x02\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xd1\x01\n\x06Length\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12%\n\x05units\x18\x03 \x01(\x0e\x32\x16.ord.Length.LengthUnit\"\\\n\nLengthUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x0e\n\nCENTIMETER\x10\x01\x12\x0e\n\nMILLIMETER\x10\x02\x12\t\n\x05METER\x10\x03\x12\x08\n\x04INCH\x10\x04\x12\x08\n\x04\x46OOT\x10\x05\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xc1\x01\n\nWavelength\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12-\n\x05units\x18\x03 \x01(\x0e\x32\x1e.ord.Wavelength.WavelengthUnit\"@\n\x0eWavelengthUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\r\n\tNANOMETER\x10\x01\x12\x0e\n\nWAVENUMBER\x10\x02\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xa0\x02\n\x08\x46lowRate\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12)\n\x05units\x18\x03 \x01(\x0e\x32\x1a.ord.FlowRate.FlowRateUnit\"\xa4\x01\n\x0c\x46lowRateUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x19\n\x15MICROLITER_PER_MINUTE\x10\x01\x12\x19\n\x15MICROLITER_PER_SECOND\x10\x02\x12\x19\n\x15MILLILITER_PER_MINUTE\x10\x03\x12\x19\n\x15MILLILITER_PER_SECOND\x10\x04\x12\x17\n\x13MICROLITER_PER_HOUR\x10\x05\x42\x08\n\x06_valueB\x0c\n\n_precision\"P\n\nPercentage\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x42\x08\n\x06_valueB\x0c\n\n_precision\"P\n\nFloatValue\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xa1\x01\n\x04\x44\x61ta\x12\x15\n\x0b\x66loat_value\x18\x01 \x01(\x02H\x00\x12\x17\n\rinteger_value\x18\x02 \x01(\x05H\x00\x12\x15\n\x0b\x62ytes_value\x18\x03 \x01(\x0cH\x00\x12\x16\n\x0cstring_value\x18\x04 \x01(\tH\x00\x12\r\n\x03url\x18\x05 \x01(\tH\x00\x12\x13\n\x0b\x64\x65scription\x18\x06 \x01(\t\x12\x0e\n\x06\x66ormat\x18\x07 \x01(\tB\x06\n\x04kindb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1ford_schema/proto/reaction.proto\x12\x03ord\"\xd9\x03\n\x08Reaction\x12,\n\x0bidentifiers\x18\x01 \x03(\x0b\x32\x17.ord.ReactionIdentifier\x12)\n\x06inputs\x18\x02 \x03(\x0b\x32\x19.ord.Reaction.InputsEntry\x12!\n\x05setup\x18\x03 \x01(\x0b\x32\x12.ord.ReactionSetup\x12+\n\nconditions\x18\x04 \x01(\x0b\x32\x17.ord.ReactionConditions\x12!\n\x05notes\x18\x05 \x01(\x0b\x32\x12.ord.ReactionNotes\x12.\n\x0cobservations\x18\x06 \x03(\x0b\x32\x18.ord.ReactionObservation\x12$\n\x07workups\x18\x07 \x03(\x0b\x32\x13.ord.ReactionWorkup\x12&\n\x08outcomes\x18\x08 \x03(\x0b\x32\x14.ord.ReactionOutcome\x12+\n\nprovenance\x18\t \x01(\x0b\x32\x17.ord.ReactionProvenance\x12\x13\n\x0breaction_id\x18\n \x01(\t\x1a\x41\n\x0bInputsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12!\n\x05value\x18\x02 \x01(\x0b\x32\x12.ord.ReactionInput:\x02\x38\x01\"\x9e\x02\n\x12ReactionIdentifier\x12<\n\x04type\x18\x01 \x01(\x0e\x32..ord.ReactionIdentifier.ReactionIdentifierType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\x12\x16\n\tis_mapped\x18\x04 \x01(\x08H\x00\x88\x01\x01\"\x83\x01\n\x16ReactionIdentifierType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x13\n\x0fREACTION_SMILES\x10\x02\x12\x15\n\x11REACTION_CXSMILES\x10\x06\x12\n\n\x06RDFILE\x10\x03\x12\n\n\x06RINCHI\x10\x04\x12\x08\n\x04NAME\x10\x05\x42\x0c\n\n_is_mapped\"\xbc\x06\n\rReactionInput\x12!\n\ncomponents\x18\x01 \x03(\x0b\x32\r.ord.Compound\x12-\n\x10\x63rude_components\x18\x02 \x03(\x0b\x32\x13.ord.CrudeComponent\x12\x16\n\x0e\x61\x64\x64ition_order\x18\x03 \x01(\x05\x12 \n\raddition_time\x18\x04 \x01(\x0b\x32\t.ord.Time\x12\x38\n\x0e\x61\x64\x64ition_speed\x18\x05 \x01(\x0b\x32 .ord.ReactionInput.AdditionSpeed\x12$\n\x11\x61\x64\x64ition_duration\x18\x06 \x01(\x0b\x32\t.ord.Time\x12 \n\tflow_rate\x18\x07 \x01(\x0b\x32\r.ord.FlowRate\x12:\n\x0f\x61\x64\x64ition_device\x18\x08 \x01(\x0b\x32!.ord.ReactionInput.AdditionDevice\x12.\n\x14\x61\x64\x64ition_temperature\x18\t \x01(\x0b\x32\x10.ord.Temperature\x1a\xdc\x01\n\rAdditionSpeed\x12@\n\x04type\x18\x01 \x01(\x0e\x32\x32.ord.ReactionInput.AdditionSpeed.AdditionSpeedType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"x\n\x11\x41\x64\x64itionSpeedType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x0f\n\x0b\x41LL_AT_ONCE\x10\x01\x12\x08\n\x04\x46\x41ST\x10\x02\x12\x08\n\x04SLOW\x10\x03\x12\x0c\n\x08\x44ROPWISE\x10\x04\x12\x0e\n\nCONTINUOUS\x10\x05\x12\x0f\n\x0bPORTIONWISE\x10\x06\x1a\xd1\x01\n\x0e\x41\x64\x64itionDevice\x12\x42\n\x04type\x18\x01 \x01(\x0e\x32\x34.ord.ReactionInput.AdditionDevice.AdditionDeviceType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"j\n\x12\x41\x64\x64itionDeviceType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x08\n\x04NONE\x10\x02\x12\x0b\n\x07SYRINGE\x10\x03\x12\x0b\n\x07\x43\x41NNULA\x10\x04\x12\x13\n\x0f\x41\x44\x44ITION_FUNNEL\x10\x05\"\xd6\x01\n\x06\x41mount\x12\x19\n\x04mass\x18\x01 \x01(\x0b\x32\t.ord.MassH\x00\x12\x1b\n\x05moles\x18\x02 \x01(\x0b\x32\n.ord.MolesH\x00\x12\x1d\n\x06volume\x18\x03 \x01(\x0b\x32\x0b.ord.VolumeH\x00\x12+\n\nunmeasured\x18\x05 \x01(\x0b\x32\x15.ord.UnmeasuredAmountH\x00\x12$\n\x17volume_includes_solutes\x18\x04 \x01(\x08H\x01\x88\x01\x01\x42\x06\n\x04kindB\x1a\n\x18_volume_includes_solutes\"\xbe\x01\n\x10UnmeasuredAmount\x12\x38\n\x04type\x18\x01 \x01(\x0e\x32*.ord.UnmeasuredAmount.UnmeasuredAmountType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"_\n\x14UnmeasuredAmountType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\r\n\tSATURATED\x10\x02\x12\r\n\tCATALYTIC\x10\x03\x12\x0c\n\x08TITRATED\x10\x04\"\xac\x01\n\x0e\x43rudeComponent\x12\x13\n\x0breaction_id\x18\x01 \x01(\t\x12\x1c\n\x0fincludes_workup\x18\x02 \x01(\x08H\x00\x88\x01\x01\x12\x1f\n\x12has_derived_amount\x18\x03 \x01(\x08H\x01\x88\x01\x01\x12\x1b\n\x06\x61mount\x18\x04 \x01(\x0b\x32\x0b.ord.AmountB\x12\n\x10_includes_workupB\x15\n\x13_has_derived_amount\"\xa5\x04\n\x08\x43ompound\x12,\n\x0bidentifiers\x18\x01 \x03(\x0b\x32\x17.ord.CompoundIdentifier\x12\x1b\n\x06\x61mount\x18\x02 \x01(\x0b\x32\x0b.ord.Amount\x12\x39\n\rreaction_role\x18\x03 \x01(\x0e\x32\".ord.ReactionRole.ReactionRoleType\x12\x18\n\x0bis_limiting\x18\x04 \x01(\x08H\x00\x88\x01\x01\x12.\n\x0cpreparations\x18\x05 \x03(\x0b\x32\x18.ord.CompoundPreparation\x12$\n\x06source\x18\x06 \x01(\x0b\x32\x14.ord.Compound.Source\x12-\n\x08\x66\x65\x61tures\x18\x07 \x03(\x0b\x32\x1b.ord.Compound.FeaturesEntry\x12-\n\x08\x61nalyses\x18\x08 \x03(\x0b\x32\x1b.ord.Compound.AnalysesEntry\x1a\x39\n\x06Source\x12\x0e\n\x06vendor\x18\x01 \x01(\t\x12\x12\n\ncatalog_id\x18\x02 \x01(\t\x12\x0b\n\x03lot\x18\x03 \x01(\t\x1a:\n\rFeaturesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x18\n\x05value\x18\x02 \x01(\x0b\x32\t.ord.Data:\x02\x38\x01\x1a>\n\rAnalysesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.ord.Analysis:\x02\x38\x01\x42\x0e\n\x0c_is_limiting\"\xb2\x01\n\x0cReactionRole\"\xa1\x01\n\x10ReactionRoleType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x0c\n\x08REACTANT\x10\x01\x12\x0b\n\x07REAGENT\x10\x02\x12\x0b\n\x07SOLVENT\x10\x03\x12\x0c\n\x08\x43\x41TALYST\x10\x04\x12\n\n\x06WORKUP\x10\x05\x12\x15\n\x11INTERNAL_STANDARD\x10\x06\x12\x16\n\x12\x41UTHENTIC_STANDARD\x10\x07\x12\x0b\n\x07PRODUCT\x10\x08\"\xf6\x01\n\x13\x43ompoundPreparation\x12>\n\x04type\x18\x01 \x01(\x0e\x32\x30.ord.CompoundPreparation.CompoundPreparationType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x13\n\x0breaction_id\x18\x03 \x01(\t\"y\n\x17\x43ompoundPreparationType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x08\n\x04NONE\x10\x02\x12\x0e\n\nREPURIFIED\x10\x03\x12\x0b\n\x07SPARGED\x10\x04\x12\t\n\x05\x44RIED\x10\x05\x12\x0f\n\x0bSYNTHESIZED\x10\x06\"\x82\x03\n\x12\x43ompoundIdentifier\x12<\n\x04type\x18\x01 \x01(\x0e\x32..ord.CompoundIdentifier.CompoundIdentifierType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\"\x8d\x02\n\x16\x43ompoundIdentifierType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\n\n\x06SMILES\x10\x02\x12\t\n\x05INCHI\x10\x03\x12\x0c\n\x08MOLBLOCK\x10\x04\x12\x0e\n\nIUPAC_NAME\x10\x05\x12\x08\n\x04NAME\x10\x06\x12\x0e\n\nCAS_NUMBER\x10\x07\x12\x0f\n\x0bPUBCHEM_CID\x10\x08\x12\x11\n\rCHEMSPIDER_ID\x10\t\x12\x0c\n\x08\x43XSMILES\x10\n\x12\r\n\tINCHI_KEY\x10\x0b\x12\x07\n\x03XYZ\x10\x0c\x12\x0e\n\nUNIPROT_ID\x10\r\x12\n\n\x06PDB_ID\x10\x0e\x12\x17\n\x13\x41MINO_ACID_SEQUENCE\x10\x0f\x12\x08\n\x04HELM\x10\x10\"\x92\x04\n\x06Vessel\x12$\n\x04type\x18\x01 \x01(\x0e\x32\x16.ord.Vessel.VesselType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12%\n\x08material\x18\x03 \x01(\x0b\x32\x13.ord.VesselMaterial\x12,\n\x0cpreparations\x18\x04 \x03(\x0b\x32\x16.ord.VesselPreparation\x12*\n\x0b\x61ttachments\x18\x05 \x03(\x0b\x32\x15.ord.VesselAttachment\x12\x1b\n\x06volume\x18\x06 \x01(\x0b\x32\x0b.ord.Volume\x12\x10\n\x08plate_id\x18\x07 \x01(\t\x12\x16\n\x0eplate_position\x18\x08 \x01(\t\"\x88\x02\n\nVesselType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x16\n\x12ROUND_BOTTOM_FLASK\x10\x02\x12\x08\n\x04VIAL\x10\x03\x12\x0e\n\nWELL_PLATE\x10\x04\x12\x12\n\x0eMICROWAVE_VIAL\x10\x05\x12\x08\n\x04TUBE\x10\x06\x12#\n\x1f\x43ONTINUOUS_STIRRED_TANK_REACTOR\x10\x07\x12\x16\n\x12PACKED_BED_REACTOR\x10\x08\x12\x0c\n\x08NMR_TUBE\x10\t\x12\x12\n\x0ePRESSURE_FLASK\x10\n\x12\x14\n\x10PRESSURE_REACTOR\x10\x0b\x12\x18\n\x14\x45LECTROCHEMICAL_CELL\x10\x0c\"\xcc\x01\n\x0eVesselMaterial\x12\x34\n\x04type\x18\x01 \x01(\x0e\x32&.ord.VesselMaterial.VesselMaterialType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"s\n\x12VesselMaterialType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\t\n\x05GLASS\x10\x02\x12\x11\n\rPOLYPROPYLENE\x10\x03\x12\x0b\n\x07PLASTIC\x10\x04\x12\t\n\x05METAL\x10\x05\x12\n\n\x06QUARTZ\x10\x06\"\x97\x03\n\x10VesselAttachment\x12\x38\n\x04type\x18\x01 \x01(\x0e\x32*.ord.VesselAttachment.VesselAttachmentType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"\xb7\x02\n\x14VesselAttachmentType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x08\n\x04NONE\x10\x01\x12\n\n\x06\x43USTOM\x10\x02\x12\n\n\x06SEPTUM\x10\x03\x12\x07\n\x03\x43\x41P\x10\x04\x12\x07\n\x03MAT\x10\x05\x12\x14\n\x10REFLUX_CONDENSER\x10\x06\x12\x0f\n\x0bVENT_NEEDLE\x10\x07\x12\x0e\n\nDEAN_STARK\x10\x08\x12\x0f\n\x0bVACUUM_TUBE\x10\t\x12\x13\n\x0f\x41\x44\x44ITION_FUNNEL\x10\n\x12\x0f\n\x0b\x44RYING_TUBE\x10\x0b\x12\x11\n\rALUMINUM_FOIL\x10\x0c\x12\x10\n\x0cTHERMOCOUPLE\x10\r\x12\x0b\n\x07\x42\x41LLOON\x10\x0e\x12\x0f\n\x0bGAS_ADAPTER\x10\x0f\x12\x16\n\x12PRESSURE_REGULATOR\x10\x10\x12\x11\n\rRELEASE_VALVE\x10\x11\"\xe8\x01\n\x11VesselPreparation\x12:\n\x04type\x18\x01 \x01(\x0e\x32,.ord.VesselPreparation.VesselPreparationType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"\x85\x01\n\x15VesselPreparationType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x08\n\x04NONE\x10\x02\x12\x0e\n\nOVEN_DRIED\x10\x03\x12\x0f\n\x0b\x46LAME_DRIED\x10\x04\x12\x18\n\x14\x45VACUATED_BACKFILLED\x10\x05\x12\n\n\x06PURGED\x10\x06\"\xa0\x04\n\rReactionSetup\x12\x1b\n\x06vessel\x18\x01 \x01(\x0b\x32\x0b.ord.Vessel\x12\x19\n\x0cis_automated\x18\x02 \x01(\x08H\x00\x88\x01\x01\x12\x1b\n\x13\x61utomation_platform\x18\x03 \x01(\t\x12?\n\x0f\x61utomation_code\x18\x04 \x03(\x0b\x32&.ord.ReactionSetup.AutomationCodeEntry\x12;\n\x0b\x65nvironment\x18\x05 \x01(\x0b\x32&.ord.ReactionSetup.ReactionEnvironment\x1a@\n\x13\x41utomationCodeEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x18\n\x05value\x18\x02 \x01(\x0b\x32\t.ord.Data:\x02\x38\x01\x1a\xe8\x01\n\x13ReactionEnvironment\x12L\n\x04type\x18\x01 \x01(\x0e\x32>.ord.ReactionSetup.ReactionEnvironment.ReactionEnvironmentType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"r\n\x17ReactionEnvironmentType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\r\n\tFUME_HOOD\x10\x02\x12\r\n\tBENCH_TOP\x10\x03\x12\r\n\tGLOVE_BOX\x10\x04\x12\r\n\tGLOVE_BAG\x10\x05\x42\x0f\n\r_is_automated\"\xb5\x03\n\x12ReactionConditions\x12/\n\x0btemperature\x18\x01 \x01(\x0b\x32\x1a.ord.TemperatureConditions\x12)\n\x08pressure\x18\x02 \x01(\x0b\x32\x17.ord.PressureConditions\x12)\n\x08stirring\x18\x03 \x01(\x0b\x32\x17.ord.StirringConditions\x12\x31\n\x0cillumination\x18\x04 \x01(\x0b\x32\x1b.ord.IlluminationConditions\x12\x39\n\x10\x65lectrochemistry\x18\x05 \x01(\x0b\x32\x1f.ord.ElectrochemistryConditions\x12!\n\x04\x66low\x18\x06 \x01(\x0b\x32\x13.ord.FlowConditions\x12\x13\n\x06reflux\x18\x07 \x01(\x08H\x00\x88\x01\x01\x12\x0f\n\x02ph\x18\x08 \x01(\x02H\x01\x88\x01\x01\x12#\n\x16\x63onditions_are_dynamic\x18\t \x01(\x08H\x02\x88\x01\x01\x12\x0f\n\x07\x64\x65tails\x18\n \x01(\tB\t\n\x07_refluxB\x05\n\x03_phB\x19\n\x17_conditions_are_dynamic\"\xe2\x06\n\x15TemperatureConditions\x12>\n\x07\x63ontrol\x18\x01 \x01(\x0b\x32-.ord.TemperatureConditions.TemperatureControl\x12\"\n\x08setpoint\x18\x02 \x01(\x0b\x32\x10.ord.Temperature\x12G\n\x0cmeasurements\x18\x03 \x03(\x0b\x32\x31.ord.TemperatureConditions.TemperatureMeasurement\x1a\xd4\x02\n\x12TemperatureControl\x12R\n\x04type\x18\x01 \x01(\x0e\x32\x44.ord.TemperatureConditions.TemperatureControl.TemperatureControlType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"\xd8\x01\n\x16TemperatureControlType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x0b\n\x07\x41MBIENT\x10\x02\x12\x0c\n\x08OIL_BATH\x10\x03\x12\x0e\n\nWATER_BATH\x10\x04\x12\r\n\tSAND_BATH\x10\x05\x12\x0c\n\x08ICE_BATH\x10\x06\x12\x16\n\x12\x44RY_ALUMINUM_PLATE\x10\x07\x12\r\n\tMICROWAVE\x10\x08\x12\x10\n\x0c\x44RY_ICE_BATH\x10\t\x12\x0b\n\x07\x41IR_FAN\x10\n\x12\x13\n\x0fLIQUID_NITROGEN\x10\x0b\x1a\xc4\x02\n\x16TemperatureMeasurement\x12Z\n\x04type\x18\x01 \x01(\x0e\x32L.ord.TemperatureConditions.TemperatureMeasurement.TemperatureMeasurementType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x17\n\x04time\x18\x03 \x01(\x0b\x32\t.ord.Time\x12%\n\x0btemperature\x18\x04 \x01(\x0b\x32\x10.ord.Temperature\"}\n\x1aTemperatureMeasurementType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x19\n\x15THERMOCOUPLE_INTERNAL\x10\x02\x12\x19\n\x15THERMOCOUPLE_EXTERNAL\x10\x03\x12\x0c\n\x08INFRARED\x10\x04\"\x8c\x08\n\x12PressureConditions\x12\x38\n\x07\x63ontrol\x18\x01 \x01(\x0b\x32\'.ord.PressureConditions.PressureControl\x12\x1f\n\x08setpoint\x18\x02 \x01(\x0b\x32\r.ord.Pressure\x12\x36\n\natmosphere\x18\x03 \x01(\x0b\x32\".ord.PressureConditions.Atmosphere\x12\x41\n\x0cmeasurements\x18\x04 \x03(\x0b\x32+.ord.PressureConditions.PressureMeasurement\x1a\xe0\x01\n\x0fPressureControl\x12I\n\x04type\x18\x01 \x01(\x0e\x32;.ord.PressureConditions.PressureControl.PressureControlType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"q\n\x13PressureControlType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x0b\n\x07\x41MBIENT\x10\x02\x12\x13\n\x0fSLIGHT_POSITIVE\x10\x03\x12\n\n\x06SEALED\x10\x04\x12\x0f\n\x0bPRESSURIZED\x10\x05\x1a\xb5\x02\n\nAtmosphere\x12?\n\x04type\x18\x01 \x01(\x0e\x32\x31.ord.PressureConditions.Atmosphere.AtmosphereType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"\xd4\x01\n\x0e\x41tmosphereType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x07\n\x03\x41IR\x10\x02\x12\x0c\n\x08NITROGEN\x10\x03\x12\t\n\x05\x41RGON\x10\x04\x12\n\n\x06OXYGEN\x10\x05\x12\x0c\n\x08HYDROGEN\x10\x06\x12\x13\n\x0f\x43\x41RBON_MONOXIDE\x10\x07\x12\x12\n\x0e\x43\x41RBON_DIOXIDE\x10\x08\x12\x0b\n\x07METHANE\x10\t\x12\x0b\n\x07\x41MMONIA\x10\n\x12\t\n\x05OZONE\x10\x0b\x12\x0c\n\x08\x45THYLENE\x10\x0c\x12\r\n\tACETYLENE\x10\r\x1a\x84\x02\n\x13PressureMeasurement\x12Q\n\x04type\x18\x01 \x01(\x0e\x32\x43.ord.PressureConditions.PressureMeasurement.PressureMeasurementType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x17\n\x04time\x18\x03 \x01(\x0b\x32\t.ord.Time\x12\x1f\n\x08pressure\x18\x04 \x01(\x0b\x32\r.ord.Pressure\"O\n\x17PressureMeasurementType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x17\n\x13PRESSURE_TRANSDUCER\x10\x02\"\xdc\x03\n\x12StirringConditions\x12\x38\n\x04type\x18\x01 \x01(\x0e\x32*.ord.StirringConditions.StirringMethodType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x32\n\x04rate\x18\x03 \x01(\x0b\x32$.ord.StirringConditions.StirringRate\x1a\xb5\x01\n\x0cStirringRate\x12\x43\n\x04type\x18\x01 \x01(\x0e\x32\x35.ord.StirringConditions.StirringRate.StirringRateType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x0b\n\x03rpm\x18\x03 \x01(\x05\"B\n\x10StirringRateType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x08\n\x04HIGH\x10\x01\x12\n\n\x06MEDIUM\x10\x02\x12\x07\n\x03LOW\x10\x03\"\x8e\x01\n\x12StirringMethodType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x08\n\x04NONE\x10\x02\x12\x0c\n\x08STIR_BAR\x10\x03\x12\x12\n\x0eOVERHEAD_MIXER\x10\x04\x12\r\n\tAGITATION\x10\x05\x12\x10\n\x0c\x42\x41LL_MILLING\x10\x06\x12\x0e\n\nSONICATION\x10\x07\"\xe8\x02\n\x16IlluminationConditions\x12:\n\x04type\x18\x01 \x01(\x0e\x32,.ord.IlluminationConditions.IlluminationType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12(\n\x0fpeak_wavelength\x18\x03 \x01(\x0b\x32\x0f.ord.Wavelength\x12\r\n\x05\x63olor\x18\x04 \x01(\t\x12\'\n\x12\x64istance_to_vessel\x18\x05 \x01(\x0b\x32\x0b.ord.Length\"\x9e\x01\n\x10IlluminationType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x0b\n\x07\x41MBIENT\x10\x02\x12\x08\n\x04\x44\x41RK\x10\x03\x12\x07\n\x03LED\x10\x04\x12\x10\n\x0cHALOGEN_LAMP\x10\x05\x12\x12\n\x0e\x44\x45UTERIUM_LAMP\x10\x06\x12\x13\n\x0fSOLAR_SIMULATOR\x10\x07\x12\x12\n\x0e\x42ROAD_SPECTRUM\x10\x08\"\xed\x06\n\x1a\x45lectrochemistryConditions\x12\x42\n\x04type\x18\x01 \x01(\x0e\x32\x34.ord.ElectrochemistryConditions.ElectrochemistryType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x1d\n\x07\x63urrent\x18\x03 \x01(\x0b\x32\x0c.ord.Current\x12\x1d\n\x07voltage\x18\x04 \x01(\x0b\x32\x0c.ord.Voltage\x12\x16\n\x0e\x61node_material\x18\x05 \x01(\t\x12\x18\n\x10\x63\x61thode_material\x18\x06 \x01(\t\x12)\n\x14\x65lectrode_separation\x18\x07 \x01(\x0b\x32\x0b.ord.Length\x12Q\n\x0cmeasurements\x18\x08 \x03(\x0b\x32;.ord.ElectrochemistryConditions.ElectrochemistryMeasurement\x12\x42\n\x04\x63\x65ll\x18\t \x01(\x0b\x32\x34.ord.ElectrochemistryConditions.ElectrochemistryCell\x1a\x80\x01\n\x1b\x45lectrochemistryMeasurement\x12\x17\n\x04time\x18\x01 \x01(\x0b\x32\t.ord.Time\x12\x1f\n\x07\x63urrent\x18\x02 \x01(\x0b\x32\x0c.ord.CurrentH\x00\x12\x1f\n\x07voltage\x18\x03 \x01(\x0b\x32\x0c.ord.VoltageH\x00\x42\x06\n\x04kind\x1a\xe3\x01\n\x14\x45lectrochemistryCell\x12[\n\x04type\x18\x01 \x01(\x0e\x32M.ord.ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"]\n\x18\x45lectrochemistryCellType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x10\n\x0c\x44IVIDED_CELL\x10\x02\x12\x12\n\x0eUNDIVIDED_CELL\x10\x03\"_\n\x14\x45lectrochemistryType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x14\n\x10\x43ONSTANT_CURRENT\x10\x02\x12\x14\n\x10\x43ONSTANT_VOLTAGE\x10\x03\"\x94\x04\n\x0e\x46lowConditions\x12*\n\x04type\x18\x01 \x01(\x0e\x32\x1c.ord.FlowConditions.FlowType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x11\n\tpump_type\x18\x03 \x01(\t\x12*\n\x06tubing\x18\x04 \x01(\x0b\x32\x1a.ord.FlowConditions.Tubing\x1a\x88\x02\n\x06Tubing\x12\x33\n\x04type\x18\x01 \x01(\x0e\x32%.ord.FlowConditions.Tubing.TubingType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x1d\n\x08\x64iameter\x18\x03 \x01(\x0b\x32\x0b.ord.Length\"\x98\x01\n\nTubingType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\t\n\x05STEEL\x10\x02\x12\n\n\x06\x43OPPER\x10\x03\x12\x07\n\x03PFA\x10\x04\x12\x07\n\x03\x46\x45P\x10\x05\x12\x0c\n\x08TEFLONAF\x10\x06\x12\x08\n\x04PTFE\x10\x07\x12\t\n\x05GLASS\x10\x08\x12\n\n\x06QUARTZ\x10\t\x12\x0b\n\x07SILICON\x10\n\x12\x08\n\x04PDMS\x10\x0b\"{\n\x08\x46lowType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x15\n\x11PLUG_FLOW_REACTOR\x10\x02\x12#\n\x1f\x43ONTINUOUS_STIRRED_TANK_REACTOR\x10\x03\x12\x16\n\x12PACKED_BED_REACTOR\x10\x04\"\xc0\x03\n\rReactionNotes\x12\x1d\n\x10is_heterogeneous\x18\x01 \x01(\x08H\x00\x88\x01\x01\x12\x1e\n\x11\x66orms_precipitate\x18\x02 \x01(\x08H\x01\x88\x01\x01\x12\x1a\n\ris_exothermic\x18\x03 \x01(\x08H\x02\x88\x01\x01\x12\x16\n\toffgasses\x18\x04 \x01(\x08H\x03\x88\x01\x01\x12%\n\x18is_sensitive_to_moisture\x18\x05 \x01(\x08H\x04\x88\x01\x01\x12#\n\x16is_sensitive_to_oxygen\x18\x06 \x01(\x08H\x05\x88\x01\x01\x12\"\n\x15is_sensitive_to_light\x18\x07 \x01(\x08H\x06\x88\x01\x01\x12\x14\n\x0csafety_notes\x18\x08 \x01(\t\x12\x19\n\x11procedure_details\x18\t \x01(\tB\x13\n\x11_is_heterogeneousB\x14\n\x12_forms_precipitateB\x10\n\x0e_is_exothermicB\x0c\n\n_offgassesB\x1b\n\x19_is_sensitive_to_moistureB\x19\n\x17_is_sensitive_to_oxygenB\x18\n\x16_is_sensitive_to_light\"Y\n\x13ReactionObservation\x12\x17\n\x04time\x18\x01 \x01(\x0b\x32\t.ord.Time\x12\x0f\n\x07\x63omment\x18\x02 \x01(\t\x12\x18\n\x05image\x18\x03 \x01(\x0b\x32\t.ord.Data\"\xbb\x05\n\x0eReactionWorkup\x12,\n\x04type\x18\x01 \x01(\x0e\x32\x1e.ord.ReactionWorkup.WorkupType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x1b\n\x08\x64uration\x18\x03 \x01(\x0b\x32\t.ord.Time\x12!\n\x05input\x18\x04 \x01(\x0b\x32\x12.ord.ReactionInput\x12\x1b\n\x06\x61mount\x18\x05 \x01(\x0b\x32\x0b.ord.Amount\x12/\n\x0btemperature\x18\x06 \x01(\x0b\x32\x1a.ord.TemperatureConditions\x12\x12\n\nkeep_phase\x18\x07 \x01(\t\x12)\n\x08stirring\x18\x08 \x01(\x0b\x32\x17.ord.StirringConditions\x12\x16\n\ttarget_ph\x18\t \x01(\x02H\x00\x88\x01\x01\x12\x19\n\x0cis_automated\x18\n \x01(\x08H\x01\x88\x01\x01\"\xca\x02\n\nWorkupType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x0c\n\x08\x41\x44\x44ITION\x10\x02\x12\x0b\n\x07\x41LIQUOT\x10\x03\x12\x0f\n\x0bTEMPERATURE\x10\x04\x12\x11\n\rCONCENTRATION\x10\x05\x12\x0e\n\nEXTRACTION\x10\x06\x12\x0e\n\nFILTRATION\x10\x07\x12\x08\n\x04WASH\x10\x08\x12\x11\n\rDRY_IN_VACUUM\x10\t\x12\x15\n\x11\x44RY_WITH_MATERIAL\x10\n\x12\x18\n\x14\x46LASH_CHROMATOGRAPHY\x10\x0b\x12\x18\n\x14OTHER_CHROMATOGRAPHY\x10\x0c\x12\x0e\n\nSCAVENGING\x10\r\x12\x08\n\x04WAIT\x10\x0e\x12\x0c\n\x08STIRRING\x10\x0f\x12\r\n\tPH_ADJUST\x10\x10\x12\x0f\n\x0b\x44ISSOLUTION\x10\x11\x12\x10\n\x0c\x44ISTILLATION\x10\x12\x42\x0c\n\n_target_phB\x0f\n\r_is_automated\"\xf6\x01\n\x0fReactionOutcome\x12 \n\rreaction_time\x18\x01 \x01(\x0b\x32\t.ord.Time\x12#\n\nconversion\x18\x02 \x01(\x0b\x32\x0f.ord.Percentage\x12&\n\x08products\x18\x03 \x03(\x0b\x32\x14.ord.ProductCompound\x12\x34\n\x08\x61nalyses\x18\x04 \x03(\x0b\x32\".ord.ReactionOutcome.AnalysesEntry\x1a>\n\rAnalysesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x1c\n\x05value\x18\x02 \x01(\x0b\x32\r.ord.Analysis:\x02\x38\x01\"\x8d\x05\n\x0fProductCompound\x12,\n\x0bidentifiers\x18\x01 \x03(\x0b\x32\x17.ord.CompoundIdentifier\x12\x1f\n\x12is_desired_product\x18\x02 \x01(\x08H\x00\x88\x01\x01\x12-\n\x0cmeasurements\x18\x03 \x03(\x0b\x32\x17.ord.ProductMeasurement\x12\x16\n\x0eisolated_color\x18\x04 \x01(\t\x12-\n\x07texture\x18\x05 \x01(\x0b\x32\x1c.ord.ProductCompound.Texture\x12\x34\n\x08\x66\x65\x61tures\x18\x06 \x03(\x0b\x32\".ord.ProductCompound.FeaturesEntry\x12\x39\n\rreaction_role\x18\x07 \x01(\x0e\x32\".ord.ReactionRole.ReactionRoleType\x1a\xf0\x01\n\x07Texture\x12\x36\n\x04type\x18\x01 \x01(\x0e\x32(.ord.ProductCompound.Texture.TextureType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"\x9b\x01\n\x0bTextureType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\n\n\x06POWDER\x10\x02\x12\x0b\n\x07\x43RYSTAL\x10\x03\x12\x07\n\x03OIL\x10\x04\x12\x13\n\x0f\x41MORPHOUS_SOLID\x10\x05\x12\x08\n\x04\x46OAM\x10\x06\x12\x07\n\x03WAX\x10\x07\x12\x0e\n\nSEMI_SOLID\x10\x08\x12\t\n\x05SOLID\x10\t\x12\n\n\x06LIQUID\x10\n\x1a:\n\rFeaturesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x18\n\x05value\x18\x02 \x01(\x0b\x32\t.ord.Data:\x02\x38\x01\x42\x15\n\x13_is_desired_product\"\xed\n\n\x12ProductMeasurement\x12\x14\n\x0c\x61nalysis_key\x18\x01 \x01(\t\x12\x35\n\x04type\x18\x02 \x01(\x0e\x32\'.ord.ProductMeasurement.MeasurementType\x12\x0f\n\x07\x64\x65tails\x18\x03 \x01(\t\x12#\n\x16uses_internal_standard\x18\x04 \x01(\x08H\x01\x88\x01\x01\x12\x1a\n\ris_normalized\x18\x05 \x01(\x08H\x02\x88\x01\x01\x12$\n\x17uses_authentic_standard\x18\x06 \x01(\x08H\x03\x88\x01\x01\x12)\n\x12\x61uthentic_standard\x18\x07 \x01(\x0b\x32\r.ord.Compound\x12%\n\npercentage\x18\x08 \x01(\x0b\x32\x0f.ord.PercentageH\x00\x12&\n\x0b\x66loat_value\x18\t \x01(\x0b\x32\x0f.ord.FloatValueH\x00\x12\x16\n\x0cstring_value\x18\n \x01(\tH\x00\x12\x1d\n\x06\x61mount\x18\x0b \x01(\x0b\x32\x0b.ord.AmountH\x00\x12!\n\x0eretention_time\x18\x0c \x01(\x0b\x32\t.ord.Time\x12M\n\x11mass_spec_details\x18\r \x01(\x0b\x32\x32.ord.ProductMeasurement.MassSpecMeasurementDetails\x12\x38\n\x0bselectivity\x18\x0e \x01(\x0b\x32#.ord.ProductMeasurement.Selectivity\x12#\n\nwavelength\x18\x0f \x01(\x0b\x32\x0f.ord.Wavelength\x1a\xe9\x02\n\x1aMassSpecMeasurementDetails\x12X\n\x04type\x18\x01 \x01(\x0e\x32J.ord.ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x1b\n\x0etic_minimum_mz\x18\x03 \x01(\x02H\x00\x88\x01\x01\x12\x1b\n\x0etic_maximum_mz\x18\x04 \x01(\x02H\x01\x88\x01\x01\x12\x12\n\neic_masses\x18\x05 \x03(\x02\"l\n\x17MassSpecMeasurementType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x07\n\x03TIC\x10\x02\x12\x10\n\x0cTIC_POSITIVE\x10\x03\x12\x10\n\x0cTIC_NEGATIVE\x10\x04\x12\x07\n\x03\x45IC\x10\x05\x42\x11\n\x0f_tic_minimum_mzB\x11\n\x0f_tic_maximum_mz\x1a\xb9\x01\n\x0bSelectivity\x12\x41\n\x04type\x18\x01 \x01(\x0e\x32\x33.ord.ProductMeasurement.Selectivity.SelectivityType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\"V\n\x0fSelectivityType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x06\n\x02\x45\x45\x10\x02\x12\x06\n\x02\x45R\x10\x03\x12\x06\n\x02\x44R\x10\x04\x12\x06\n\x02\x45Z\x10\x05\x12\x06\n\x02ZE\x10\x06\"\x95\x01\n\x0fMeasurementType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x0c\n\x08IDENTITY\x10\x02\x12\t\n\x05YIELD\x10\x03\x12\x0f\n\x0bSELECTIVITY\x10\x04\x12\n\n\x06PURITY\x10\x05\x12\x08\n\x04\x41REA\x10\x06\x12\n\n\x06\x43OUNTS\x10\x07\x12\r\n\tINTENSITY\x10\x08\x12\n\n\x06\x41MOUNT\x10\tB\x07\n\x05valueB\x19\n\x17_uses_internal_standardB\x10\n\x0e_is_normalizedB\x1a\n\x18_uses_authentic_standard\"\x19\n\x08\x44\x61teTime\x12\r\n\x05value\x18\x01 \x01(\t\"\xcc\x04\n\x08\x41nalysis\x12(\n\x04type\x18\x01 \x01(\x0e\x32\x1a.ord.Analysis.AnalysisType\x12\x0f\n\x07\x64\x65tails\x18\x02 \x01(\t\x12\x0f\n\x07\x63hmo_id\x18\x03 \x01(\x05\x12#\n\x16is_of_isolated_species\x18\x04 \x01(\x08H\x00\x88\x01\x01\x12%\n\x04\x64\x61ta\x18\x05 \x03(\x0b\x32\x17.ord.Analysis.DataEntry\x12\x1f\n\x17instrument_manufacturer\x18\x06 \x01(\t\x12\x31\n\x1ainstrument_last_calibrated\x18\x07 \x01(\x0b\x32\r.ord.DateTime\x1a\x36\n\tDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x18\n\x05value\x18\x02 \x01(\x0b\x32\t.ord.Data:\x02\x38\x01\"\x80\x02\n\x0c\x41nalysisType\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x43USTOM\x10\x01\x12\x06\n\x02LC\x10\x02\x12\x06\n\x02GC\x10\x03\x12\x06\n\x02IR\x10\x04\x12\n\n\x06NMR_1H\x10\x05\x12\x0b\n\x07NMR_13C\x10\x06\x12\r\n\tNMR_OTHER\x10\x07\x12\x06\n\x02MP\x10\x08\x12\x06\n\x02UV\x10\t\x12\x07\n\x03TLC\x10\n\x12\x06\n\x02MS\x10\x0b\x12\x08\n\x04HRMS\x10\x0c\x12\x08\n\x04MSMS\x10\r\x12\n\n\x06WEIGHT\x10\x0e\x12\x08\n\x04LCMS\x10\x0f\x12\x08\n\x04GCMS\x10\x10\x12\x08\n\x04\x45LSD\x10\x11\x12\x06\n\x02\x43\x44\x10\x12\x12\x07\n\x03SFC\x10\x13\x12\x07\n\x03\x45PR\x10\x14\x12\x07\n\x03XRD\x10\x15\x12\t\n\x05RAMAN\x10\x16\x12\x06\n\x02\x45\x44\x10\x17\x42\x19\n\x17_is_of_isolated_species\"\xf9\x01\n\x12ReactionProvenance\x12!\n\x0c\x65xperimenter\x18\x01 \x01(\x0b\x32\x0b.ord.Person\x12\x0c\n\x04\x63ity\x18\x02 \x01(\t\x12\'\n\x10\x65xperiment_start\x18\x03 \x01(\x0b\x32\r.ord.DateTime\x12\x0b\n\x03\x64oi\x18\x04 \x01(\t\x12\x0e\n\x06patent\x18\x05 \x01(\t\x12\x17\n\x0fpublication_url\x18\x06 \x01(\t\x12(\n\x0erecord_created\x18\x07 \x01(\x0b\x32\x10.ord.RecordEvent\x12)\n\x0frecord_modified\x18\x08 \x03(\x0b\x32\x10.ord.RecordEvent\"\\\n\x06Person\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\r\n\x05orcid\x18\x03 \x01(\t\x12\x14\n\x0corganization\x18\x04 \x01(\t\x12\r\n\x05\x65mail\x18\x05 \x01(\t\"X\n\x0bRecordEvent\x12\x1b\n\x04time\x18\x01 \x01(\x0b\x32\r.ord.DateTime\x12\x1b\n\x06person\x18\x02 \x01(\x0b\x32\x0b.ord.Person\x12\x0f\n\x07\x64\x65tails\x18\x03 \x01(\t\"\xb5\x01\n\x04Time\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12!\n\x05units\x18\x03 \x01(\x0e\x32\x12.ord.Time.TimeUnit\"F\n\x08TimeUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x07\n\x03\x44\x41Y\x10\x04\x12\x08\n\x04HOUR\x10\x01\x12\n\n\x06MINUTE\x10\x02\x12\n\n\x06SECOND\x10\x03\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xc0\x01\n\x04Mass\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12!\n\x05units\x18\x03 \x01(\x0e\x32\x12.ord.Mass.MassUnit\"Q\n\x08MassUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x0c\n\x08KILOGRAM\x10\x01\x12\x08\n\x04GRAM\x10\x02\x12\r\n\tMILLIGRAM\x10\x03\x12\r\n\tMICROGRAM\x10\x04\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xc4\x01\n\x05Moles\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12#\n\x05units\x18\x03 \x01(\x0e\x32\x14.ord.Moles.MolesUnit\"R\n\tMolesUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x08\n\x04MOLE\x10\x01\x12\r\n\tMILLIMOLE\x10\x02\x12\r\n\tMICROMOLE\x10\x03\x12\x0c\n\x08NANOMOLE\x10\x04\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xcc\x01\n\x06Volume\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12%\n\x05units\x18\x03 \x01(\x0e\x32\x16.ord.Volume.VolumeUnit\"W\n\nVolumeUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\t\n\x05LITER\x10\x01\x12\x0e\n\nMILLILITER\x10\x02\x12\x0e\n\nMICROLITER\x10\x03\x12\r\n\tNANOLITER\x10\x04\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xd9\x01\n\rConcentration\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12\x33\n\x05units\x18\x03 \x01(\x0e\x32$.ord.Concentration.ConcentrationUnit\"O\n\x11\x43oncentrationUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\t\n\x05MOLAR\x10\x01\x12\x0e\n\nMILLIMOLAR\x10\x02\x12\x0e\n\nMICROMOLAR\x10\x03\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xf7\x01\n\x08Pressure\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12)\n\x05units\x18\x03 \x01(\x0e\x32\x1a.ord.Pressure.PressureUnit\"|\n\x0cPressureUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x07\n\x03\x42\x41R\x10\x01\x12\x0e\n\nATMOSPHERE\x10\x02\x12\x07\n\x03PSI\x10\x03\x12\x08\n\x04KPSI\x10\x04\x12\n\n\x06PASCAL\x10\x05\x12\x0e\n\nKILOPASCAL\x10\x06\x12\x08\n\x04TORR\x10\x07\x12\t\n\x05MM_HG\x10\x08\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xcf\x01\n\x0bTemperature\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12/\n\x05units\x18\x03 \x01(\x0e\x32 .ord.Temperature.TemperatureUnit\"K\n\x0fTemperatureUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x0b\n\x07\x43\x45LSIUS\x10\x01\x12\x0e\n\nFAHRENHEIT\x10\x02\x12\n\n\x06KELVIN\x10\x03\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xb3\x01\n\x07\x43urrent\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12\'\n\x05units\x18\x03 \x01(\x0e\x32\x18.ord.Current.CurrentUnit\";\n\x0b\x43urrentUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\n\n\x06\x41MPERE\x10\x01\x12\x0f\n\x0bMILLIAMPERE\x10\x02\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xaf\x01\n\x07Voltage\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12\'\n\x05units\x18\x03 \x01(\x0e\x32\x18.ord.Voltage.VoltageUnit\"7\n\x0bVoltageUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x08\n\x04VOLT\x10\x01\x12\r\n\tMILLIVOLT\x10\x02\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xd1\x01\n\x06Length\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12%\n\x05units\x18\x03 \x01(\x0e\x32\x16.ord.Length.LengthUnit\"\\\n\nLengthUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x0e\n\nCENTIMETER\x10\x01\x12\x0e\n\nMILLIMETER\x10\x02\x12\t\n\x05METER\x10\x03\x12\x08\n\x04INCH\x10\x04\x12\x08\n\x04\x46OOT\x10\x05\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xc1\x01\n\nWavelength\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12-\n\x05units\x18\x03 \x01(\x0e\x32\x1e.ord.Wavelength.WavelengthUnit\"@\n\x0eWavelengthUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\r\n\tNANOMETER\x10\x01\x12\x0e\n\nWAVENUMBER\x10\x02\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xa0\x02\n\x08\x46lowRate\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x12)\n\x05units\x18\x03 \x01(\x0e\x32\x1a.ord.FlowRate.FlowRateUnit\"\xa4\x01\n\x0c\x46lowRateUnit\x12\x0f\n\x0bUNSPECIFIED\x10\x00\x12\x19\n\x15MICROLITER_PER_MINUTE\x10\x01\x12\x19\n\x15MICROLITER_PER_SECOND\x10\x02\x12\x19\n\x15MILLILITER_PER_MINUTE\x10\x03\x12\x19\n\x15MILLILITER_PER_SECOND\x10\x04\x12\x17\n\x13MICROLITER_PER_HOUR\x10\x05\x42\x08\n\x06_valueB\x0c\n\n_precision\"P\n\nPercentage\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x42\x08\n\x06_valueB\x0c\n\n_precision\"P\n\nFloatValue\x12\x12\n\x05value\x18\x01 \x01(\x02H\x00\x88\x01\x01\x12\x16\n\tprecision\x18\x02 \x01(\x02H\x01\x88\x01\x01\x42\x08\n\x06_valueB\x0c\n\n_precision\"\xa1\x01\n\x04\x44\x61ta\x12\x15\n\x0b\x66loat_value\x18\x01 \x01(\x02H\x00\x12\x17\n\rinteger_value\x18\x02 \x01(\x05H\x00\x12\x15\n\x0b\x62ytes_value\x18\x03 \x01(\x0cH\x00\x12\x16\n\x0cstring_value\x18\x04 \x01(\tH\x00\x12\r\n\x03url\x18\x05 \x01(\tH\x00\x12\x13\n\x0b\x64\x65scription\x18\x06 \x01(\t\x12\x0e\n\x06\x66ormat\x18\x07 \x01(\tB\x06\n\x04kindb\x06proto3')
 
 
 
@@ -58,16 +58,16 @@ _REACTIONSETUP_REACTIONENVIRONMENT = _REACTIONSETUP.nested_types_by_name['Reacti
 _REACTIONCONDITIONS = DESCRIPTOR.message_types_by_name['ReactionConditions']
 _TEMPERATURECONDITIONS = DESCRIPTOR.message_types_by_name['TemperatureConditions']
 _TEMPERATURECONDITIONS_TEMPERATURECONTROL = _TEMPERATURECONDITIONS.nested_types_by_name['TemperatureControl']
-_TEMPERATURECONDITIONS_MEASUREMENT = _TEMPERATURECONDITIONS.nested_types_by_name['Measurement']
+_TEMPERATURECONDITIONS_TEMPERATUREMEASUREMENT = _TEMPERATURECONDITIONS.nested_types_by_name['TemperatureMeasurement']
 _PRESSURECONDITIONS = DESCRIPTOR.message_types_by_name['PressureConditions']
 _PRESSURECONDITIONS_PRESSURECONTROL = _PRESSURECONDITIONS.nested_types_by_name['PressureControl']
 _PRESSURECONDITIONS_ATMOSPHERE = _PRESSURECONDITIONS.nested_types_by_name['Atmosphere']
-_PRESSURECONDITIONS_MEASUREMENT = _PRESSURECONDITIONS.nested_types_by_name['Measurement']
+_PRESSURECONDITIONS_PRESSUREMEASUREMENT = _PRESSURECONDITIONS.nested_types_by_name['PressureMeasurement']
 _STIRRINGCONDITIONS = DESCRIPTOR.message_types_by_name['StirringConditions']
 _STIRRINGCONDITIONS_STIRRINGRATE = _STIRRINGCONDITIONS.nested_types_by_name['StirringRate']
 _ILLUMINATIONCONDITIONS = DESCRIPTOR.message_types_by_name['IlluminationConditions']
 _ELECTROCHEMISTRYCONDITIONS = DESCRIPTOR.message_types_by_name['ElectrochemistryConditions']
-_ELECTROCHEMISTRYCONDITIONS_MEASUREMENT = _ELECTROCHEMISTRYCONDITIONS.nested_types_by_name['Measurement']
+_ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYMEASUREMENT = _ELECTROCHEMISTRYCONDITIONS.nested_types_by_name['ElectrochemistryMeasurement']
 _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYCELL = _ELECTROCHEMISTRYCONDITIONS.nested_types_by_name['ElectrochemistryCell']
 _FLOWCONDITIONS = DESCRIPTOR.message_types_by_name['FlowConditions']
 _FLOWCONDITIONS_TUBING = _FLOWCONDITIONS.nested_types_by_name['Tubing']
@@ -103,23 +103,23 @@ _FLOWRATE = DESCRIPTOR.message_types_by_name['FlowRate']
 _PERCENTAGE = DESCRIPTOR.message_types_by_name['Percentage']
 _FLOATVALUE = DESCRIPTOR.message_types_by_name['FloatValue']
 _DATA = DESCRIPTOR.message_types_by_name['Data']
-_REACTIONIDENTIFIER_IDENTIFIERTYPE = _REACTIONIDENTIFIER.enum_types_by_name['IdentifierType']
+_REACTIONIDENTIFIER_REACTIONIDENTIFIERTYPE = _REACTIONIDENTIFIER.enum_types_by_name['ReactionIdentifierType']
 _REACTIONINPUT_ADDITIONSPEED_ADDITIONSPEEDTYPE = _REACTIONINPUT_ADDITIONSPEED.enum_types_by_name['AdditionSpeedType']
 _REACTIONINPUT_ADDITIONDEVICE_ADDITIONDEVICETYPE = _REACTIONINPUT_ADDITIONDEVICE.enum_types_by_name['AdditionDeviceType']
 _UNMEASUREDAMOUNT_UNMEASUREDAMOUNTTYPE = _UNMEASUREDAMOUNT.enum_types_by_name['UnmeasuredAmountType']
 _REACTIONROLE_REACTIONROLETYPE = _REACTIONROLE.enum_types_by_name['ReactionRoleType']
-_COMPOUNDPREPARATION_PREPARATIONTYPE = _COMPOUNDPREPARATION.enum_types_by_name['PreparationType']
-_COMPOUNDIDENTIFIER_IDENTIFIERTYPE = _COMPOUNDIDENTIFIER.enum_types_by_name['IdentifierType']
+_COMPOUNDPREPARATION_COMPOUNDPREPARATIONTYPE = _COMPOUNDPREPARATION.enum_types_by_name['CompoundPreparationType']
+_COMPOUNDIDENTIFIER_COMPOUNDIDENTIFIERTYPE = _COMPOUNDIDENTIFIER.enum_types_by_name['CompoundIdentifierType']
 _VESSEL_VESSELTYPE = _VESSEL.enum_types_by_name['VesselType']
 _VESSELMATERIAL_VESSELMATERIALTYPE = _VESSELMATERIAL.enum_types_by_name['VesselMaterialType']
 _VESSELATTACHMENT_VESSELATTACHMENTTYPE = _VESSELATTACHMENT.enum_types_by_name['VesselAttachmentType']
 _VESSELPREPARATION_VESSELPREPARATIONTYPE = _VESSELPREPARATION.enum_types_by_name['VesselPreparationType']
 _REACTIONSETUP_REACTIONENVIRONMENT_REACTIONENVIRONMENTTYPE = _REACTIONSETUP_REACTIONENVIRONMENT.enum_types_by_name['ReactionEnvironmentType']
 _TEMPERATURECONDITIONS_TEMPERATURECONTROL_TEMPERATURECONTROLTYPE = _TEMPERATURECONDITIONS_TEMPERATURECONTROL.enum_types_by_name['TemperatureControlType']
-_TEMPERATURECONDITIONS_MEASUREMENT_MEASUREMENTTYPE = _TEMPERATURECONDITIONS_MEASUREMENT.enum_types_by_name['MeasurementType']
+_TEMPERATURECONDITIONS_TEMPERATUREMEASUREMENT_TEMPERATUREMEASUREMENTTYPE = _TEMPERATURECONDITIONS_TEMPERATUREMEASUREMENT.enum_types_by_name['TemperatureMeasurementType']
 _PRESSURECONDITIONS_PRESSURECONTROL_PRESSURECONTROLTYPE = _PRESSURECONDITIONS_PRESSURECONTROL.enum_types_by_name['PressureControlType']
 _PRESSURECONDITIONS_ATMOSPHERE_ATMOSPHERETYPE = _PRESSURECONDITIONS_ATMOSPHERE.enum_types_by_name['AtmosphereType']
-_PRESSURECONDITIONS_MEASUREMENT_MEASUREMENTTYPE = _PRESSURECONDITIONS_MEASUREMENT.enum_types_by_name['MeasurementType']
+_PRESSURECONDITIONS_PRESSUREMEASUREMENT_PRESSUREMEASUREMENTTYPE = _PRESSURECONDITIONS_PRESSUREMEASUREMENT.enum_types_by_name['PressureMeasurementType']
 _STIRRINGCONDITIONS_STIRRINGRATE_STIRRINGRATETYPE = _STIRRINGCONDITIONS_STIRRINGRATE.enum_types_by_name['StirringRateType']
 _STIRRINGCONDITIONS_STIRRINGMETHODTYPE = _STIRRINGCONDITIONS.enum_types_by_name['StirringMethodType']
 _ILLUMINATIONCONDITIONS_ILLUMINATIONTYPE = _ILLUMINATIONCONDITIONS.enum_types_by_name['IlluminationType']
@@ -330,10 +330,10 @@ TemperatureConditions = _reflection.GeneratedProtocolMessageType('TemperatureCon
     })
   ,
 
-  'Measurement' : _reflection.GeneratedProtocolMessageType('Measurement', (_message.Message,), {
-    'DESCRIPTOR' : _TEMPERATURECONDITIONS_MEASUREMENT,
+  'TemperatureMeasurement' : _reflection.GeneratedProtocolMessageType('TemperatureMeasurement', (_message.Message,), {
+    'DESCRIPTOR' : _TEMPERATURECONDITIONS_TEMPERATUREMEASUREMENT,
     '__module__' : 'ord_schema.proto.reaction_pb2'
-    # @@protoc_insertion_point(class_scope:ord.TemperatureConditions.Measurement)
+    # @@protoc_insertion_point(class_scope:ord.TemperatureConditions.TemperatureMeasurement)
     })
   ,
   'DESCRIPTOR' : _TEMPERATURECONDITIONS,
@@ -342,7 +342,7 @@ TemperatureConditions = _reflection.GeneratedProtocolMessageType('TemperatureCon
   })
 _sym_db.RegisterMessage(TemperatureConditions)
 _sym_db.RegisterMessage(TemperatureConditions.TemperatureControl)
-_sym_db.RegisterMessage(TemperatureConditions.Measurement)
+_sym_db.RegisterMessage(TemperatureConditions.TemperatureMeasurement)
 
 PressureConditions = _reflection.GeneratedProtocolMessageType('PressureConditions', (_message.Message,), {
 
@@ -360,10 +360,10 @@ PressureConditions = _reflection.GeneratedProtocolMessageType('PressureCondition
     })
   ,
 
-  'Measurement' : _reflection.GeneratedProtocolMessageType('Measurement', (_message.Message,), {
-    'DESCRIPTOR' : _PRESSURECONDITIONS_MEASUREMENT,
+  'PressureMeasurement' : _reflection.GeneratedProtocolMessageType('PressureMeasurement', (_message.Message,), {
+    'DESCRIPTOR' : _PRESSURECONDITIONS_PRESSUREMEASUREMENT,
     '__module__' : 'ord_schema.proto.reaction_pb2'
-    # @@protoc_insertion_point(class_scope:ord.PressureConditions.Measurement)
+    # @@protoc_insertion_point(class_scope:ord.PressureConditions.PressureMeasurement)
     })
   ,
   'DESCRIPTOR' : _PRESSURECONDITIONS,
@@ -373,7 +373,7 @@ PressureConditions = _reflection.GeneratedProtocolMessageType('PressureCondition
 _sym_db.RegisterMessage(PressureConditions)
 _sym_db.RegisterMessage(PressureConditions.PressureControl)
 _sym_db.RegisterMessage(PressureConditions.Atmosphere)
-_sym_db.RegisterMessage(PressureConditions.Measurement)
+_sym_db.RegisterMessage(PressureConditions.PressureMeasurement)
 
 StirringConditions = _reflection.GeneratedProtocolMessageType('StirringConditions', (_message.Message,), {
 
@@ -399,10 +399,10 @@ _sym_db.RegisterMessage(IlluminationConditions)
 
 ElectrochemistryConditions = _reflection.GeneratedProtocolMessageType('ElectrochemistryConditions', (_message.Message,), {
 
-  'Measurement' : _reflection.GeneratedProtocolMessageType('Measurement', (_message.Message,), {
-    'DESCRIPTOR' : _ELECTROCHEMISTRYCONDITIONS_MEASUREMENT,
+  'ElectrochemistryMeasurement' : _reflection.GeneratedProtocolMessageType('ElectrochemistryMeasurement', (_message.Message,), {
+    'DESCRIPTOR' : _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYMEASUREMENT,
     '__module__' : 'ord_schema.proto.reaction_pb2'
-    # @@protoc_insertion_point(class_scope:ord.ElectrochemistryConditions.Measurement)
+    # @@protoc_insertion_point(class_scope:ord.ElectrochemistryConditions.ElectrochemistryMeasurement)
     })
   ,
 
@@ -417,7 +417,7 @@ ElectrochemistryConditions = _reflection.GeneratedProtocolMessageType('Electroch
   # @@protoc_insertion_point(class_scope:ord.ElectrochemistryConditions)
   })
 _sym_db.RegisterMessage(ElectrochemistryConditions)
-_sym_db.RegisterMessage(ElectrochemistryConditions.Measurement)
+_sym_db.RegisterMessage(ElectrochemistryConditions.ElectrochemistryMeasurement)
 _sym_db.RegisterMessage(ElectrochemistryConditions.ElectrochemistryCell)
 
 FlowConditions = _reflection.GeneratedProtocolMessageType('FlowConditions', (_message.Message,), {
@@ -687,225 +687,225 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _REACTION_INPUTSENTRY._serialized_start=449
   _REACTION_INPUTSENTRY._serialized_end=514
   _REACTIONIDENTIFIER._serialized_start=517
-  _REACTIONIDENTIFIER._serialized_end=786
-  _REACTIONIDENTIFIER_IDENTIFIERTYPE._serialized_start=649
-  _REACTIONIDENTIFIER_IDENTIFIERTYPE._serialized_end=772
-  _REACTIONINPUT._serialized_start=789
-  _REACTIONINPUT._serialized_end=1617
-  _REACTIONINPUT_ADDITIONSPEED._serialized_start=1185
-  _REACTIONINPUT_ADDITIONSPEED._serialized_end=1405
-  _REACTIONINPUT_ADDITIONSPEED_ADDITIONSPEEDTYPE._serialized_start=1285
-  _REACTIONINPUT_ADDITIONSPEED_ADDITIONSPEEDTYPE._serialized_end=1405
-  _REACTIONINPUT_ADDITIONDEVICE._serialized_start=1408
-  _REACTIONINPUT_ADDITIONDEVICE._serialized_end=1617
-  _REACTIONINPUT_ADDITIONDEVICE_ADDITIONDEVICETYPE._serialized_start=1511
-  _REACTIONINPUT_ADDITIONDEVICE_ADDITIONDEVICETYPE._serialized_end=1617
-  _AMOUNT._serialized_start=1620
-  _AMOUNT._serialized_end=1834
-  _UNMEASUREDAMOUNT._serialized_start=1837
-  _UNMEASUREDAMOUNT._serialized_end=2027
-  _UNMEASUREDAMOUNT_UNMEASUREDAMOUNTTYPE._serialized_start=1932
-  _UNMEASUREDAMOUNT_UNMEASUREDAMOUNTTYPE._serialized_end=2027
-  _CRUDECOMPONENT._serialized_start=2030
-  _CRUDECOMPONENT._serialized_end=2202
-  _COMPOUND._serialized_start=2205
-  _COMPOUND._serialized_end=2746
-  _COMPOUND_SOURCE._serialized_start=2557
-  _COMPOUND_SOURCE._serialized_end=2606
-  _COMPOUND_FEATURESENTRY._serialized_start=2608
-  _COMPOUND_FEATURESENTRY._serialized_end=2666
-  _COMPOUND_ANALYSESENTRY._serialized_start=2668
-  _COMPOUND_ANALYSESENTRY._serialized_end=2730
-  _REACTIONROLE._serialized_start=2749
-  _REACTIONROLE._serialized_end=2927
-  _REACTIONROLE_REACTIONROLETYPE._serialized_start=2766
-  _REACTIONROLE_REACTIONROLETYPE._serialized_end=2927
-  _COMPOUNDPREPARATION._serialized_start=2930
-  _COMPOUNDPREPARATION._serialized_end=3160
-  _COMPOUNDPREPARATION_PREPARATIONTYPE._serialized_start=3047
-  _COMPOUNDPREPARATION_PREPARATIONTYPE._serialized_end=3160
-  _COMPOUNDIDENTIFIER._serialized_start=3163
-  _COMPOUNDIDENTIFIER._serialized_end=3533
-  _COMPOUNDIDENTIFIER_IDENTIFIERTYPE._serialized_start=3272
-  _COMPOUNDIDENTIFIER_IDENTIFIERTYPE._serialized_end=3533
-  _VESSEL._serialized_start=3536
-  _VESSEL._serialized_end=4066
-  _VESSEL_VESSELTYPE._serialized_start=3802
-  _VESSEL_VESSELTYPE._serialized_end=4066
-  _VESSELMATERIAL._serialized_start=4069
-  _VESSELMATERIAL._serialized_end=4273
-  _VESSELMATERIAL_VESSELMATERIALTYPE._serialized_start=4158
-  _VESSELMATERIAL_VESSELMATERIALTYPE._serialized_end=4273
-  _VESSELATTACHMENT._serialized_start=4276
-  _VESSELATTACHMENT._serialized_end=4683
-  _VESSELATTACHMENT_VESSELATTACHMENTTYPE._serialized_start=4372
-  _VESSELATTACHMENT_VESSELATTACHMENTTYPE._serialized_end=4683
-  _VESSELPREPARATION._serialized_start=4686
-  _VESSELPREPARATION._serialized_end=4918
-  _VESSELPREPARATION_VESSELPREPARATIONTYPE._serialized_start=4785
-  _VESSELPREPARATION_VESSELPREPARATIONTYPE._serialized_end=4918
-  _REACTIONSETUP._serialized_start=4921
-  _REACTIONSETUP._serialized_end=5465
-  _REACTIONSETUP_AUTOMATIONCODEENTRY._serialized_start=5149
-  _REACTIONSETUP_AUTOMATIONCODEENTRY._serialized_end=5213
-  _REACTIONSETUP_REACTIONENVIRONMENT._serialized_start=5216
-  _REACTIONSETUP_REACTIONENVIRONMENT._serialized_end=5448
-  _REACTIONSETUP_REACTIONENVIRONMENT_REACTIONENVIRONMENTTYPE._serialized_start=5334
-  _REACTIONSETUP_REACTIONENVIRONMENT_REACTIONENVIRONMENTTYPE._serialized_end=5448
-  _REACTIONCONDITIONS._serialized_start=5468
-  _REACTIONCONDITIONS._serialized_end=5905
-  _TEMPERATURECONDITIONS._serialized_start=5908
-  _TEMPERATURECONDITIONS._serialized_end=6719
-  _TEMPERATURECONDITIONS_TEMPERATURECONTROL._serialized_start=6096
-  _TEMPERATURECONDITIONS_TEMPERATURECONTROL._serialized_end=6436
-  _TEMPERATURECONDITIONS_TEMPERATURECONTROL_TEMPERATURECONTROLTYPE._serialized_start=6220
-  _TEMPERATURECONDITIONS_TEMPERATURECONTROL_TEMPERATURECONTROLTYPE._serialized_end=6436
-  _TEMPERATURECONDITIONS_MEASUREMENT._serialized_start=6439
-  _TEMPERATURECONDITIONS_MEASUREMENT._serialized_end=6719
-  _TEMPERATURECONDITIONS_MEASUREMENT_MEASUREMENTTYPE._serialized_start=6605
-  _TEMPERATURECONDITIONS_MEASUREMENT_MEASUREMENTTYPE._serialized_end=6719
-  _PRESSURECONDITIONS._serialized_start=6722
-  _PRESSURECONDITIONS._serialized_end=7718
-  _PRESSURECONDITIONS_PRESSURECONTROL._serialized_start=6951
-  _PRESSURECONDITIONS_PRESSURECONTROL._serialized_end=7175
-  _PRESSURECONDITIONS_PRESSURECONTROL_PRESSURECONTROLTYPE._serialized_start=7062
-  _PRESSURECONDITIONS_PRESSURECONTROL_PRESSURECONTROLTYPE._serialized_end=7175
-  _PRESSURECONDITIONS_ATMOSPHERE._serialized_start=7178
-  _PRESSURECONDITIONS_ATMOSPHERE._serialized_end=7487
-  _PRESSURECONDITIONS_ATMOSPHERE_ATMOSPHERETYPE._serialized_start=7275
-  _PRESSURECONDITIONS_ATMOSPHERE_ATMOSPHERETYPE._serialized_end=7487
-  _PRESSURECONDITIONS_MEASUREMENT._serialized_start=7490
-  _PRESSURECONDITIONS_MEASUREMENT._serialized_end=7718
-  _PRESSURECONDITIONS_MEASUREMENT_MEASUREMENTTYPE._serialized_start=7647
-  _PRESSURECONDITIONS_MEASUREMENT_MEASUREMENTTYPE._serialized_end=7718
-  _STIRRINGCONDITIONS._serialized_start=7721
-  _STIRRINGCONDITIONS._serialized_end=8197
-  _STIRRINGCONDITIONS_STIRRINGRATE._serialized_start=7871
-  _STIRRINGCONDITIONS_STIRRINGRATE._serialized_end=8052
-  _STIRRINGCONDITIONS_STIRRINGRATE_STIRRINGRATETYPE._serialized_start=7986
-  _STIRRINGCONDITIONS_STIRRINGRATE_STIRRINGRATETYPE._serialized_end=8052
-  _STIRRINGCONDITIONS_STIRRINGMETHODTYPE._serialized_start=8055
-  _STIRRINGCONDITIONS_STIRRINGMETHODTYPE._serialized_end=8197
-  _ILLUMINATIONCONDITIONS._serialized_start=8200
-  _ILLUMINATIONCONDITIONS._serialized_end=8560
-  _ILLUMINATIONCONDITIONS_ILLUMINATIONTYPE._serialized_start=8402
-  _ILLUMINATIONCONDITIONS_ILLUMINATIONTYPE._serialized_end=8560
-  _ELECTROCHEMISTRYCONDITIONS._serialized_start=8563
-  _ELECTROCHEMISTRYCONDITIONS._serialized_end=9407
-  _ELECTROCHEMISTRYCONDITIONS_MEASUREMENT._serialized_start=8968
-  _ELECTROCHEMISTRYCONDITIONS_MEASUREMENT._serialized_end=9080
-  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYCELL._serialized_start=9083
-  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYCELL._serialized_end=9310
-  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYCELL_ELECTROCHEMISTRYCELLTYPE._serialized_start=9217
-  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYCELL_ELECTROCHEMISTRYCELLTYPE._serialized_end=9310
-  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYTYPE._serialized_start=9312
-  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYTYPE._serialized_end=9407
-  _FLOWCONDITIONS._serialized_start=9410
-  _FLOWCONDITIONS._serialized_end=9942
-  _FLOWCONDITIONS_TUBING._serialized_start=9553
-  _FLOWCONDITIONS_TUBING._serialized_end=9817
-  _FLOWCONDITIONS_TUBING_TUBINGTYPE._serialized_start=9665
-  _FLOWCONDITIONS_TUBING_TUBINGTYPE._serialized_end=9817
-  _FLOWCONDITIONS_FLOWTYPE._serialized_start=9819
-  _FLOWCONDITIONS_FLOWTYPE._serialized_end=9942
-  _REACTIONNOTES._serialized_start=9945
-  _REACTIONNOTES._serialized_end=10393
-  _REACTIONOBSERVATION._serialized_start=10395
-  _REACTIONOBSERVATION._serialized_end=10484
-  _REACTIONWORKUP._serialized_start=10487
-  _REACTIONWORKUP._serialized_end=11186
-  _REACTIONWORKUP_WORKUPTYPE._serialized_start=10825
-  _REACTIONWORKUP_WORKUPTYPE._serialized_end=11155
-  _REACTIONOUTCOME._serialized_start=11189
-  _REACTIONOUTCOME._serialized_end=11435
-  _REACTIONOUTCOME_ANALYSESENTRY._serialized_start=2668
-  _REACTIONOUTCOME_ANALYSESENTRY._serialized_end=2730
-  _PRODUCTCOMPOUND._serialized_start=11438
-  _PRODUCTCOMPOUND._serialized_end=12091
-  _PRODUCTCOMPOUND_TEXTURE._serialized_start=11768
-  _PRODUCTCOMPOUND_TEXTURE._serialized_end=12008
-  _PRODUCTCOMPOUND_TEXTURE_TEXTURETYPE._serialized_start=11853
-  _PRODUCTCOMPOUND_TEXTURE_TEXTURETYPE._serialized_end=12008
-  _PRODUCTCOMPOUND_FEATURESENTRY._serialized_start=2608
-  _PRODUCTCOMPOUND_FEATURESENTRY._serialized_end=2666
-  _PRODUCTMEASUREMENT._serialized_start=12094
-  _PRODUCTMEASUREMENT._serialized_end=13483
-  _PRODUCTMEASUREMENT_MASSSPECMEASUREMENTDETAILS._serialized_start=12700
-  _PRODUCTMEASUREMENT_MASSSPECMEASUREMENTDETAILS._serialized_end=13061
-  _PRODUCTMEASUREMENT_MASSSPECMEASUREMENTDETAILS_MASSSPECMEASUREMENTTYPE._serialized_start=12915
-  _PRODUCTMEASUREMENT_MASSSPECMEASUREMENTDETAILS_MASSSPECMEASUREMENTTYPE._serialized_end=13023
-  _PRODUCTMEASUREMENT_SELECTIVITY._serialized_start=13064
-  _PRODUCTMEASUREMENT_SELECTIVITY._serialized_end=13249
-  _PRODUCTMEASUREMENT_SELECTIVITY_SELECTIVITYTYPE._serialized_start=13163
-  _PRODUCTMEASUREMENT_SELECTIVITY_SELECTIVITYTYPE._serialized_end=13249
-  _PRODUCTMEASUREMENT_MEASUREMENTTYPE._serialized_start=13252
-  _PRODUCTMEASUREMENT_MEASUREMENTTYPE._serialized_end=13401
-  _DATETIME._serialized_start=13485
-  _DATETIME._serialized_end=13510
-  _ANALYSIS._serialized_start=13513
-  _ANALYSIS._serialized_end=14101
-  _ANALYSIS_DATAENTRY._serialized_start=13761
-  _ANALYSIS_DATAENTRY._serialized_end=13815
-  _ANALYSIS_ANALYSISTYPE._serialized_start=13818
-  _ANALYSIS_ANALYSISTYPE._serialized_end=14074
-  _REACTIONPROVENANCE._serialized_start=14104
-  _REACTIONPROVENANCE._serialized_end=14353
-  _PERSON._serialized_start=14355
-  _PERSON._serialized_end=14447
-  _RECORDEVENT._serialized_start=14449
-  _RECORDEVENT._serialized_end=14537
-  _TIME._serialized_start=14540
-  _TIME._serialized_end=14721
-  _TIME_TIMEUNIT._serialized_start=14627
-  _TIME_TIMEUNIT._serialized_end=14697
-  _MASS._serialized_start=14724
-  _MASS._serialized_end=14916
-  _MASS_MASSUNIT._serialized_start=14811
-  _MASS_MASSUNIT._serialized_end=14892
-  _MOLES._serialized_start=14919
-  _MOLES._serialized_end=15115
-  _MOLES_MOLESUNIT._serialized_start=15009
-  _MOLES_MOLESUNIT._serialized_end=15091
-  _VOLUME._serialized_start=15118
-  _VOLUME._serialized_end=15322
-  _VOLUME_VOLUMEUNIT._serialized_start=15211
-  _VOLUME_VOLUMEUNIT._serialized_end=15298
-  _CONCENTRATION._serialized_start=15325
-  _CONCENTRATION._serialized_end=15542
-  _CONCENTRATION_CONCENTRATIONUNIT._serialized_start=15439
-  _CONCENTRATION_CONCENTRATIONUNIT._serialized_end=15518
-  _PRESSURE._serialized_start=15545
-  _PRESSURE._serialized_end=15792
-  _PRESSURE_PRESSUREUNIT._serialized_start=15644
-  _PRESSURE_PRESSUREUNIT._serialized_end=15768
-  _TEMPERATURE._serialized_start=15795
-  _TEMPERATURE._serialized_end=16002
-  _TEMPERATURE_TEMPERATUREUNIT._serialized_start=15903
-  _TEMPERATURE_TEMPERATUREUNIT._serialized_end=15978
-  _CURRENT._serialized_start=16005
-  _CURRENT._serialized_end=16184
-  _CURRENT_CURRENTUNIT._serialized_start=16101
-  _CURRENT_CURRENTUNIT._serialized_end=16160
-  _VOLTAGE._serialized_start=16187
-  _VOLTAGE._serialized_end=16362
-  _VOLTAGE_VOLTAGEUNIT._serialized_start=16283
-  _VOLTAGE_VOLTAGEUNIT._serialized_end=16338
-  _LENGTH._serialized_start=16365
-  _LENGTH._serialized_end=16574
-  _LENGTH_LENGTHUNIT._serialized_start=16458
-  _LENGTH_LENGTHUNIT._serialized_end=16550
-  _WAVELENGTH._serialized_start=16577
-  _WAVELENGTH._serialized_end=16770
-  _WAVELENGTH_WAVELENGTHUNIT._serialized_start=16682
-  _WAVELENGTH_WAVELENGTHUNIT._serialized_end=16746
-  _FLOWRATE._serialized_start=16773
-  _FLOWRATE._serialized_end=17061
-  _FLOWRATE_FLOWRATEUNIT._serialized_start=16873
-  _FLOWRATE_FLOWRATEUNIT._serialized_end=17037
-  _PERCENTAGE._serialized_start=17063
-  _PERCENTAGE._serialized_end=17143
-  _FLOATVALUE._serialized_start=17145
-  _FLOATVALUE._serialized_end=17225
-  _DATA._serialized_start=17228
-  _DATA._serialized_end=17389
+  _REACTIONIDENTIFIER._serialized_end=803
+  _REACTIONIDENTIFIER_REACTIONIDENTIFIERTYPE._serialized_start=658
+  _REACTIONIDENTIFIER_REACTIONIDENTIFIERTYPE._serialized_end=789
+  _REACTIONINPUT._serialized_start=806
+  _REACTIONINPUT._serialized_end=1634
+  _REACTIONINPUT_ADDITIONSPEED._serialized_start=1202
+  _REACTIONINPUT_ADDITIONSPEED._serialized_end=1422
+  _REACTIONINPUT_ADDITIONSPEED_ADDITIONSPEEDTYPE._serialized_start=1302
+  _REACTIONINPUT_ADDITIONSPEED_ADDITIONSPEEDTYPE._serialized_end=1422
+  _REACTIONINPUT_ADDITIONDEVICE._serialized_start=1425
+  _REACTIONINPUT_ADDITIONDEVICE._serialized_end=1634
+  _REACTIONINPUT_ADDITIONDEVICE_ADDITIONDEVICETYPE._serialized_start=1528
+  _REACTIONINPUT_ADDITIONDEVICE_ADDITIONDEVICETYPE._serialized_end=1634
+  _AMOUNT._serialized_start=1637
+  _AMOUNT._serialized_end=1851
+  _UNMEASUREDAMOUNT._serialized_start=1854
+  _UNMEASUREDAMOUNT._serialized_end=2044
+  _UNMEASUREDAMOUNT_UNMEASUREDAMOUNTTYPE._serialized_start=1949
+  _UNMEASUREDAMOUNT_UNMEASUREDAMOUNTTYPE._serialized_end=2044
+  _CRUDECOMPONENT._serialized_start=2047
+  _CRUDECOMPONENT._serialized_end=2219
+  _COMPOUND._serialized_start=2222
+  _COMPOUND._serialized_end=2771
+  _COMPOUND_SOURCE._serialized_start=2574
+  _COMPOUND_SOURCE._serialized_end=2631
+  _COMPOUND_FEATURESENTRY._serialized_start=2633
+  _COMPOUND_FEATURESENTRY._serialized_end=2691
+  _COMPOUND_ANALYSESENTRY._serialized_start=2693
+  _COMPOUND_ANALYSESENTRY._serialized_end=2755
+  _REACTIONROLE._serialized_start=2774
+  _REACTIONROLE._serialized_end=2952
+  _REACTIONROLE_REACTIONROLETYPE._serialized_start=2791
+  _REACTIONROLE_REACTIONROLETYPE._serialized_end=2952
+  _COMPOUNDPREPARATION._serialized_start=2955
+  _COMPOUNDPREPARATION._serialized_end=3201
+  _COMPOUNDPREPARATION_COMPOUNDPREPARATIONTYPE._serialized_start=3080
+  _COMPOUNDPREPARATION_COMPOUNDPREPARATIONTYPE._serialized_end=3201
+  _COMPOUNDIDENTIFIER._serialized_start=3204
+  _COMPOUNDIDENTIFIER._serialized_end=3590
+  _COMPOUNDIDENTIFIER_COMPOUNDIDENTIFIERTYPE._serialized_start=3321
+  _COMPOUNDIDENTIFIER_COMPOUNDIDENTIFIERTYPE._serialized_end=3590
+  _VESSEL._serialized_start=3593
+  _VESSEL._serialized_end=4123
+  _VESSEL_VESSELTYPE._serialized_start=3859
+  _VESSEL_VESSELTYPE._serialized_end=4123
+  _VESSELMATERIAL._serialized_start=4126
+  _VESSELMATERIAL._serialized_end=4330
+  _VESSELMATERIAL_VESSELMATERIALTYPE._serialized_start=4215
+  _VESSELMATERIAL_VESSELMATERIALTYPE._serialized_end=4330
+  _VESSELATTACHMENT._serialized_start=4333
+  _VESSELATTACHMENT._serialized_end=4740
+  _VESSELATTACHMENT_VESSELATTACHMENTTYPE._serialized_start=4429
+  _VESSELATTACHMENT_VESSELATTACHMENTTYPE._serialized_end=4740
+  _VESSELPREPARATION._serialized_start=4743
+  _VESSELPREPARATION._serialized_end=4975
+  _VESSELPREPARATION_VESSELPREPARATIONTYPE._serialized_start=4842
+  _VESSELPREPARATION_VESSELPREPARATIONTYPE._serialized_end=4975
+  _REACTIONSETUP._serialized_start=4978
+  _REACTIONSETUP._serialized_end=5522
+  _REACTIONSETUP_AUTOMATIONCODEENTRY._serialized_start=5206
+  _REACTIONSETUP_AUTOMATIONCODEENTRY._serialized_end=5270
+  _REACTIONSETUP_REACTIONENVIRONMENT._serialized_start=5273
+  _REACTIONSETUP_REACTIONENVIRONMENT._serialized_end=5505
+  _REACTIONSETUP_REACTIONENVIRONMENT_REACTIONENVIRONMENTTYPE._serialized_start=5391
+  _REACTIONSETUP_REACTIONENVIRONMENT_REACTIONENVIRONMENTTYPE._serialized_end=5505
+  _REACTIONCONDITIONS._serialized_start=5525
+  _REACTIONCONDITIONS._serialized_end=5962
+  _TEMPERATURECONDITIONS._serialized_start=5965
+  _TEMPERATURECONDITIONS._serialized_end=6831
+  _TEMPERATURECONDITIONS_TEMPERATURECONTROL._serialized_start=6164
+  _TEMPERATURECONDITIONS_TEMPERATURECONTROL._serialized_end=6504
+  _TEMPERATURECONDITIONS_TEMPERATURECONTROL_TEMPERATURECONTROLTYPE._serialized_start=6288
+  _TEMPERATURECONDITIONS_TEMPERATURECONTROL_TEMPERATURECONTROLTYPE._serialized_end=6504
+  _TEMPERATURECONDITIONS_TEMPERATUREMEASUREMENT._serialized_start=6507
+  _TEMPERATURECONDITIONS_TEMPERATUREMEASUREMENT._serialized_end=6831
+  _TEMPERATURECONDITIONS_TEMPERATUREMEASUREMENT_TEMPERATUREMEASUREMENTTYPE._serialized_start=6706
+  _TEMPERATURECONDITIONS_TEMPERATUREMEASUREMENT_TEMPERATUREMEASUREMENTTYPE._serialized_end=6831
+  _PRESSURECONDITIONS._serialized_start=6834
+  _PRESSURECONDITIONS._serialized_end=7870
+  _PRESSURECONDITIONS_PRESSURECONTROL._serialized_start=7071
+  _PRESSURECONDITIONS_PRESSURECONTROL._serialized_end=7295
+  _PRESSURECONDITIONS_PRESSURECONTROL_PRESSURECONTROLTYPE._serialized_start=7182
+  _PRESSURECONDITIONS_PRESSURECONTROL_PRESSURECONTROLTYPE._serialized_end=7295
+  _PRESSURECONDITIONS_ATMOSPHERE._serialized_start=7298
+  _PRESSURECONDITIONS_ATMOSPHERE._serialized_end=7607
+  _PRESSURECONDITIONS_ATMOSPHERE_ATMOSPHERETYPE._serialized_start=7395
+  _PRESSURECONDITIONS_ATMOSPHERE_ATMOSPHERETYPE._serialized_end=7607
+  _PRESSURECONDITIONS_PRESSUREMEASUREMENT._serialized_start=7610
+  _PRESSURECONDITIONS_PRESSUREMEASUREMENT._serialized_end=7870
+  _PRESSURECONDITIONS_PRESSUREMEASUREMENT_PRESSUREMEASUREMENTTYPE._serialized_start=7791
+  _PRESSURECONDITIONS_PRESSUREMEASUREMENT_PRESSUREMEASUREMENTTYPE._serialized_end=7870
+  _STIRRINGCONDITIONS._serialized_start=7873
+  _STIRRINGCONDITIONS._serialized_end=8349
+  _STIRRINGCONDITIONS_STIRRINGRATE._serialized_start=8023
+  _STIRRINGCONDITIONS_STIRRINGRATE._serialized_end=8204
+  _STIRRINGCONDITIONS_STIRRINGRATE_STIRRINGRATETYPE._serialized_start=8138
+  _STIRRINGCONDITIONS_STIRRINGRATE_STIRRINGRATETYPE._serialized_end=8204
+  _STIRRINGCONDITIONS_STIRRINGMETHODTYPE._serialized_start=8207
+  _STIRRINGCONDITIONS_STIRRINGMETHODTYPE._serialized_end=8349
+  _ILLUMINATIONCONDITIONS._serialized_start=8352
+  _ILLUMINATIONCONDITIONS._serialized_end=8712
+  _ILLUMINATIONCONDITIONS_ILLUMINATIONTYPE._serialized_start=8554
+  _ILLUMINATIONCONDITIONS_ILLUMINATIONTYPE._serialized_end=8712
+  _ELECTROCHEMISTRYCONDITIONS._serialized_start=8715
+  _ELECTROCHEMISTRYCONDITIONS._serialized_end=9592
+  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYMEASUREMENT._serialized_start=9137
+  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYMEASUREMENT._serialized_end=9265
+  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYCELL._serialized_start=9268
+  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYCELL._serialized_end=9495
+  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYCELL_ELECTROCHEMISTRYCELLTYPE._serialized_start=9402
+  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYCELL_ELECTROCHEMISTRYCELLTYPE._serialized_end=9495
+  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYTYPE._serialized_start=9497
+  _ELECTROCHEMISTRYCONDITIONS_ELECTROCHEMISTRYTYPE._serialized_end=9592
+  _FLOWCONDITIONS._serialized_start=9595
+  _FLOWCONDITIONS._serialized_end=10127
+  _FLOWCONDITIONS_TUBING._serialized_start=9738
+  _FLOWCONDITIONS_TUBING._serialized_end=10002
+  _FLOWCONDITIONS_TUBING_TUBINGTYPE._serialized_start=9850
+  _FLOWCONDITIONS_TUBING_TUBINGTYPE._serialized_end=10002
+  _FLOWCONDITIONS_FLOWTYPE._serialized_start=10004
+  _FLOWCONDITIONS_FLOWTYPE._serialized_end=10127
+  _REACTIONNOTES._serialized_start=10130
+  _REACTIONNOTES._serialized_end=10578
+  _REACTIONOBSERVATION._serialized_start=10580
+  _REACTIONOBSERVATION._serialized_end=10669
+  _REACTIONWORKUP._serialized_start=10672
+  _REACTIONWORKUP._serialized_end=11371
+  _REACTIONWORKUP_WORKUPTYPE._serialized_start=11010
+  _REACTIONWORKUP_WORKUPTYPE._serialized_end=11340
+  _REACTIONOUTCOME._serialized_start=11374
+  _REACTIONOUTCOME._serialized_end=11620
+  _REACTIONOUTCOME_ANALYSESENTRY._serialized_start=2693
+  _REACTIONOUTCOME_ANALYSESENTRY._serialized_end=2755
+  _PRODUCTCOMPOUND._serialized_start=11623
+  _PRODUCTCOMPOUND._serialized_end=12276
+  _PRODUCTCOMPOUND_TEXTURE._serialized_start=11953
+  _PRODUCTCOMPOUND_TEXTURE._serialized_end=12193
+  _PRODUCTCOMPOUND_TEXTURE_TEXTURETYPE._serialized_start=12038
+  _PRODUCTCOMPOUND_TEXTURE_TEXTURETYPE._serialized_end=12193
+  _PRODUCTCOMPOUND_FEATURESENTRY._serialized_start=2633
+  _PRODUCTCOMPOUND_FEATURESENTRY._serialized_end=2691
+  _PRODUCTMEASUREMENT._serialized_start=12279
+  _PRODUCTMEASUREMENT._serialized_end=13668
+  _PRODUCTMEASUREMENT_MASSSPECMEASUREMENTDETAILS._serialized_start=12885
+  _PRODUCTMEASUREMENT_MASSSPECMEASUREMENTDETAILS._serialized_end=13246
+  _PRODUCTMEASUREMENT_MASSSPECMEASUREMENTDETAILS_MASSSPECMEASUREMENTTYPE._serialized_start=13100
+  _PRODUCTMEASUREMENT_MASSSPECMEASUREMENTDETAILS_MASSSPECMEASUREMENTTYPE._serialized_end=13208
+  _PRODUCTMEASUREMENT_SELECTIVITY._serialized_start=13249
+  _PRODUCTMEASUREMENT_SELECTIVITY._serialized_end=13434
+  _PRODUCTMEASUREMENT_SELECTIVITY_SELECTIVITYTYPE._serialized_start=13348
+  _PRODUCTMEASUREMENT_SELECTIVITY_SELECTIVITYTYPE._serialized_end=13434
+  _PRODUCTMEASUREMENT_MEASUREMENTTYPE._serialized_start=13437
+  _PRODUCTMEASUREMENT_MEASUREMENTTYPE._serialized_end=13586
+  _DATETIME._serialized_start=13670
+  _DATETIME._serialized_end=13695
+  _ANALYSIS._serialized_start=13698
+  _ANALYSIS._serialized_end=14286
+  _ANALYSIS_DATAENTRY._serialized_start=13946
+  _ANALYSIS_DATAENTRY._serialized_end=14000
+  _ANALYSIS_ANALYSISTYPE._serialized_start=14003
+  _ANALYSIS_ANALYSISTYPE._serialized_end=14259
+  _REACTIONPROVENANCE._serialized_start=14289
+  _REACTIONPROVENANCE._serialized_end=14538
+  _PERSON._serialized_start=14540
+  _PERSON._serialized_end=14632
+  _RECORDEVENT._serialized_start=14634
+  _RECORDEVENT._serialized_end=14722
+  _TIME._serialized_start=14725
+  _TIME._serialized_end=14906
+  _TIME_TIMEUNIT._serialized_start=14812
+  _TIME_TIMEUNIT._serialized_end=14882
+  _MASS._serialized_start=14909
+  _MASS._serialized_end=15101
+  _MASS_MASSUNIT._serialized_start=14996
+  _MASS_MASSUNIT._serialized_end=15077
+  _MOLES._serialized_start=15104
+  _MOLES._serialized_end=15300
+  _MOLES_MOLESUNIT._serialized_start=15194
+  _MOLES_MOLESUNIT._serialized_end=15276
+  _VOLUME._serialized_start=15303
+  _VOLUME._serialized_end=15507
+  _VOLUME_VOLUMEUNIT._serialized_start=15396
+  _VOLUME_VOLUMEUNIT._serialized_end=15483
+  _CONCENTRATION._serialized_start=15510
+  _CONCENTRATION._serialized_end=15727
+  _CONCENTRATION_CONCENTRATIONUNIT._serialized_start=15624
+  _CONCENTRATION_CONCENTRATIONUNIT._serialized_end=15703
+  _PRESSURE._serialized_start=15730
+  _PRESSURE._serialized_end=15977
+  _PRESSURE_PRESSUREUNIT._serialized_start=15829
+  _PRESSURE_PRESSUREUNIT._serialized_end=15953
+  _TEMPERATURE._serialized_start=15980
+  _TEMPERATURE._serialized_end=16187
+  _TEMPERATURE_TEMPERATUREUNIT._serialized_start=16088
+  _TEMPERATURE_TEMPERATUREUNIT._serialized_end=16163
+  _CURRENT._serialized_start=16190
+  _CURRENT._serialized_end=16369
+  _CURRENT_CURRENTUNIT._serialized_start=16286
+  _CURRENT_CURRENTUNIT._serialized_end=16345
+  _VOLTAGE._serialized_start=16372
+  _VOLTAGE._serialized_end=16547
+  _VOLTAGE_VOLTAGEUNIT._serialized_start=16468
+  _VOLTAGE_VOLTAGEUNIT._serialized_end=16523
+  _LENGTH._serialized_start=16550
+  _LENGTH._serialized_end=16759
+  _LENGTH_LENGTHUNIT._serialized_start=16643
+  _LENGTH_LENGTHUNIT._serialized_end=16735
+  _WAVELENGTH._serialized_start=16762
+  _WAVELENGTH._serialized_end=16955
+  _WAVELENGTH_WAVELENGTHUNIT._serialized_start=16867
+  _WAVELENGTH_WAVELENGTHUNIT._serialized_end=16931
+  _FLOWRATE._serialized_start=16958
+  _FLOWRATE._serialized_end=17246
+  _FLOWRATE_FLOWRATEUNIT._serialized_start=17058
+  _FLOWRATE_FLOWRATEUNIT._serialized_end=17222
+  _PERCENTAGE._serialized_start=17248
+  _PERCENTAGE._serialized_end=17328
+  _FLOATVALUE._serialized_start=17330
+  _FLOATVALUE._serialized_end=17410
+  _DATA._serialized_start=17413
+  _DATA._serialized_end=17574
 # @@protoc_insertion_point(module_scope)

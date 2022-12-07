@@ -30,7 +30,7 @@ from ord_schema.proto.dataset_pb2 import Dataset
 def test_session() -> Iterator[Session]:
     dataset = load_message(os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"), Dataset)
     with Postgresql() as postgres:
-        engine = create_engine(postgres.url(), future=True)
+        engine = create_engine(postgres.url(), future=True, echo=True)
         rdkit_cartridge = prepare_database(engine)
         with Session(engine) as session:
             add_dataset(dataset, session)
