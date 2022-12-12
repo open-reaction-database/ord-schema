@@ -45,6 +45,21 @@ class _RDKitMol(UserDefinedType):
         return "rdkit.mol" if rdkit_cartridge() else "bytea"
 
 
+class _RDKitReaction(UserDefinedType):
+    """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L129."""
+
+    cache_ok = True
+
+    @property
+    def python_type(self):
+        raise NotImplementedError
+
+    def get_col_spec(self, **kwargs):
+        """Returns the column type."""
+        del kwargs  # Unused.
+        return "rdkit.reaction" if rdkit_cartridge() else "bytea"
+
+
 class _RDKitBfp(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L81."""
 
@@ -133,7 +148,7 @@ class FingerprintType(Enum):
         return table_args
 
 
-class Structure(Base):
+class RDKitCompound(Base):
     """Table for storing compound structures and associated RDKit cartridge data.
 
     Notes:
@@ -144,7 +159,7 @@ class Structure(Base):
       * Objects with this type are added to the ORM in from_proto() using the `structure` field.
     """
 
-    __tablename__ = "structure"
+    __tablename__ = "compounds"
     id = Column(Integer, primary_key=True)
     smiles = Column(Text)
     mol = Column(_RDKitMol)
@@ -158,7 +173,7 @@ class Structure(Base):
     _polymorphic_type = Column(Text, nullable=False)
     __mapper_args__ = {
         "polymorphic_on": _polymorphic_type,
-        "polymorphic_identity": "structure",
+        "polymorphic_identity": "compounds",
         "with_polymorphic": "*",
     }
 
@@ -167,17 +182,46 @@ class Structure(Base):
         return func.rdkit.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(other))
 
 
-class _CompoundStructure(Structure):
+class _CompoundRDKit(RDKitCompound):
     compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"))
 
     __mapper_args__ = {
-        "polymorphic_identity": "compound__structure",
+        "polymorphic_identity": "compound__rdkit",
     }
 
 
-class _ProductCompoundStructure(Structure):
+class _ProductCompoundRDKit(RDKitCompound):
     product_compound_id = Column(Integer, ForeignKey("product_compound.id", ondelete="CASCADE"))
 
     __mapper_args__ = {
-        "polymorphic_identity": "product_compound__structure",
+        "polymorphic_identity": "product_compound__rdkit",
+    }
+
+
+class RDKitReaction(Base):
+    """Table for storing reaction objects and associated RDKit cartridge data."""
+
+    __tablename__ = "reactions"
+    id = Column(Integer, primary_key=True)
+    reaction_smiles = Column(Text)
+    reaction = Column(_RDKitReaction)
+
+    __table_args__ = (
+        Index("reaction_index", "reaction", postgresql_using="gist"),
+        {"schema": "rdkit"},
+    )
+
+    _polymorphic_type = Column(Text, nullable=False)
+    __mapper_args__ = {
+        "polymorphic_on": _polymorphic_type,
+        "polymorphic_identity": "reactions",
+        "with_polymorphic": "*",
+    }
+
+
+class _ReactionRDKit(RDKitReaction):
+    reaction_id = Column(Integer, ForeignKey("reaction.id", ondelete="CASCADE"))
+
+    __mapper_args__ = {
+        "polymorphic_identity": "reaction__rdkit",
     }
