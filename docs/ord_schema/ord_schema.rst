@@ -13,12 +13,21 @@ Subpackages
    :maxdepth: 4
 
    ord_schema.macros
+   ord_schema.orm
 
 
 ord\_schema.frozen\_message
 ---------------------------
 
 .. automodule:: ord_schema.frozen_message
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+ord\_schema.logging
+-------------------
+
+.. automodule:: ord_schema.logging
    :members:
    :undoc-members:
    :show-inheritance:
