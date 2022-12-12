@@ -38,7 +38,7 @@ from sqlalchemy import Boolean, Column, Enum, Float, Integer, ForeignKey, LargeB
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
-import ord_schema.orm.structure  # pylint: disable=unused-import
+import ord_schema.orm.rdkit_mappers  # pylint: disable=unused-import
 from ord_schema import message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.orm import Base
@@ -169,8 +169,9 @@ def build_mapper(  # pylint: disable=too-many-branches
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
         # Serialize and store the entire Reaction proto.
         attrs["proto"] = Column(LargeBinary, nullable=False)
+        attrs["rdkit"] = relationship(f"_{message_type.DESCRIPTOR.name}RDKit", uselist=False)
     elif message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
-        attrs["structure"] = relationship(f"_{message_type.DESCRIPTOR.name}Structure", uselist=False)
+        attrs["rdkit"] = relationship(f"_{message_type.DESCRIPTOR.name}RDKit", uselist=False)
     elif message_type in {reaction_pb2.CompoundPreparation, reaction_pb2.CrudeComponent}:
         # Add foreign key to reaction.reaction_id.
         kwargs = {}
@@ -257,11 +258,19 @@ def from_proto(  # pylint: disable=too-many-branches
             kwargs[field.name] = field.enum_type.values_by_number[value].name
         else:
             kwargs[field.name] = value
-    if isinstance(message, (reaction_pb2.Compound, reaction_pb2.ProductCompound)):
-        # Add RDKit cartridge functionality.
-        field_mapper = getattr(mapper, "structure").mapper.class_
+    if isinstance(message, reaction_pb2.Reaction):
+        field_mapper = getattr(mapper, "rdkit").mapper.class_
         try:
-            kwargs["structure"] = field_mapper(smiles=message_helpers.smiles_from_compound(message))
+            reaction_smiles = message_helpers.get_reaction_smiles(message, generate_if_missing=True)
+            reaction_smiles = reaction_smiles.split()[0]  # Handle CXSMILES.
+            kwargs["rdkit"] = field_mapper(reaction_smiles=reaction_smiles)
+        except ValueError:
+            pass
+    elif isinstance(message, (reaction_pb2.Compound, reaction_pb2.ProductCompound)):
+        # Add RDKit cartridge functionality.
+        field_mapper = getattr(mapper, "rdkit").mapper.class_
+        try:
+            kwargs["rdkit"] = field_mapper(smiles=message_helpers.smiles_from_compound(message))
         except ValueError:
             pass
     return mapper(**kwargs)
