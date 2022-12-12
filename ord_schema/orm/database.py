@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from ord_schema.logging import get_logger
 from ord_schema.orm.mappers import Base, Mappers, from_proto
-from ord_schema.orm.rdkit_mappers import CString, FingerprintType, RDKitCompound, RDKitReaction
+from ord_schema.orm.rdkit_mappers import CString, FingerprintType, RDKitMol, RDKitReaction
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
@@ -96,9 +96,9 @@ def add_rdkit(session: Session) -> None:
         .values(reaction=func.rdkit.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
     )
     logger.info(f"Adding reaction took {time.time() - start}s")
-    logger.info("Populating RDKit compound columns")
-    assert hasattr(RDKitCompound, "__table__")  # Type hint.
-    table = RDKitCompound.__table__
+    logger.info("Populating RDKit mol columns")
+    assert hasattr(RDKitMol, "__table__")  # Type hint.
+    table = RDKitMol.__table__
     start = time.time()
     session.execute(
         update(table).where(table.c.mol.is_(None)).values(mol=func.rdkit.mol_from_smiles(cast(table.c.smiles, CString)))

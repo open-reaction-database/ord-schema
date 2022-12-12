@@ -148,7 +148,7 @@ class FingerprintType(Enum):
         return table_args
 
 
-class RDKitCompound(Base):
+class RDKitMol(Base):
     """Table for storing compound structures and associated RDKit cartridge data.
 
     Notes:
@@ -159,7 +159,7 @@ class RDKitCompound(Base):
       * Objects with this type are added to the ORM in from_proto() using the `structure` field.
     """
 
-    __tablename__ = "compounds"
+    __tablename__ = "mols"
     id = Column(Integer, primary_key=True)
     smiles = Column(Text)
     mol = Column(_RDKitMol)
@@ -173,7 +173,7 @@ class RDKitCompound(Base):
     _polymorphic_type = Column(Text, nullable=False)
     __mapper_args__ = {
         "polymorphic_on": _polymorphic_type,
-        "polymorphic_identity": "compounds",
+        "polymorphic_identity": "mols",
         "with_polymorphic": "*",
     }
 
@@ -182,7 +182,7 @@ class RDKitCompound(Base):
         return func.rdkit.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(other))
 
 
-class _CompoundRDKit(RDKitCompound):
+class _CompoundRDKit(RDKitMol):
     compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"))
 
     __mapper_args__ = {
@@ -190,7 +190,7 @@ class _CompoundRDKit(RDKitCompound):
     }
 
 
-class _ProductCompoundRDKit(RDKitCompound):
+class _ProductCompoundRDKit(RDKitMol):
     product_compound_id = Column(Integer, ForeignKey("product_compound.id", ondelete="CASCADE"))
 
     __mapper_args__ = {

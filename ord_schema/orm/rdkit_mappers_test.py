@@ -16,7 +16,7 @@
 import pytest
 from sqlalchemy import select
 from ord_schema.orm.mappers import Mappers
-from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitCompound
+from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMol
 
 
 def test_tanimoto_operator(test_session):
@@ -24,8 +24,8 @@ def test_tanimoto_operator(test_session):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .join(RDKitCompound)
-        .where(RDKitCompound.morgan_bfp % FingerprintType.MORGAN_BFP("c1ccccc1CCC(O)C"))
+        .join(RDKitMol)
+        .where(RDKitMol.morgan_bfp % FingerprintType.MORGAN_BFP("c1ccccc1CCC(O)C"))
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
@@ -37,8 +37,8 @@ def test_tanimoto(test_session, fp_type):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .join(RDKitCompound)
-        .where(RDKitCompound.tanimoto("c1ccccc1CCC(O)C", fp_type=fp_type) > 0.5)
+        .join(RDKitMol)
+        .where(RDKitMol.tanimoto("c1ccccc1CCC(O)C", fp_type=fp_type) > 0.5)
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
