@@ -60,11 +60,11 @@ setuptools.setup(
     ],
     extras_require={
         "docs": [
-            "ipython>=7.18.1",
-            "Pygments>=2.7.2",
-            "sphinx>=3.3.1",
-            "sphinx-rtd-theme>=0.5.0",
-            "sphinx-tabs>=1.3.0",
+            "ipython>=8.4.0",
+            "Pygments>=2.13.0",
+            "Sphinx>=5.3.0",
+            "sphinx-rtd-theme>=1.1.1",
+            "sphinx-tabs>=3.4.0",
         ],
         "examples": [
             "glob2>=0.7",

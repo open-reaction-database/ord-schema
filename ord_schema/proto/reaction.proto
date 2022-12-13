@@ -743,7 +743,7 @@ message ReactionObservation {
 }
 
 message ReactionWorkup {
-  enum WorkupType {
+  enum ReactionWorkupType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     // Addition (quench, dilution, extraction solvent, internal standard, etc.)
@@ -803,7 +803,7 @@ message ReactionWorkup {
     // Specify pressure and apparatus notes in "details".
     DISTILLATION = 18;
   }
-  WorkupType type = 1;
+  ReactionWorkupType type = 1;
   // Include step-specific details such as purpose of an addition, e.g.,
   // "crystallization". Include method details, e.g., "layer diffusion".
   string details = 2;
@@ -916,7 +916,7 @@ message ProductMeasurement {
   // defined in the Analysis message (with is_of_isolated_species set
   // to True) but with a cross-reference to a product via a ProductMessage
   // (e.g., of type IDENTITY for HRMS).
-  enum MeasurementType {
+  enum ProductMeasurementType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
     // An identity type indicates that the corresponding analysis was used
@@ -944,7 +944,7 @@ message ProductMeasurement {
     // usually as a mass.
     AMOUNT = 9;
   }
-  MeasurementType type = 2;
+  ProductMeasurementType type = 2;
   // Additional information about the measurement and, in particular, how it
   // was calculated if that is ambiguous given the analysis type.
   string details = 3;
