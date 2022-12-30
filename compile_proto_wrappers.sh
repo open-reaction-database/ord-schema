@@ -17,5 +17,5 @@
 # Make sure you have protoc in your PATH; see https://grpc.io/docs/protoc-installation/.
 set -ex
 for source in ord_schema/proto/*.proto; do
-  protoc --experimental_allow_proto3_optional --python_out=. "${source}"
+  protoc --experimental_allow_proto3_optional --python_out=. --js_out=import_style=commonjs,binary:. "${source}"
 done
