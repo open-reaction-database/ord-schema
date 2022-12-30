@@ -15,4 +15,6 @@ coverage*
 /dist
 # Folder tracking files
 .DS_Store
+# Node.
 package-lock.json
+node_modules/
