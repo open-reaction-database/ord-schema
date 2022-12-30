@@ -15,3 +15,4 @@ coverage*
 /dist
 # Folder tracking files
 .DS_Store
+package-lock.json

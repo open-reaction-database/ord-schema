@@ -94,5 +94,4 @@ jobs:
       - name: Test NPM package
         run: |
           cd js/ord-schema
-          npm ci
-          npm test
+          npm install-test
