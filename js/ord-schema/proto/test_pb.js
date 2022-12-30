@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// source: ord_schema/proto/test.proto
+// source: ord-schema/proto/test.proto
 /**
  * @fileoverview
  * @enhanceable

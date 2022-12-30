@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// source: ord_schema/proto/dataset.proto
+// source: ord-schema/proto/dataset.proto
 /**
  * @fileoverview
  * @enhanceable
@@ -37,8 +37,8 @@ var global = (function() {
   return Function('return this')();
 }.call(null));
 
-var ord_schema_proto_reaction_pb = require('../../ord_schema/proto/reaction_pb.js');
-goog.object.extend(proto, ord_schema_proto_reaction_pb);
+var ord$schema_proto_reaction_pb = require('../../ord-schema/proto/reaction_pb.js');
+goog.object.extend(proto, ord$schema_proto_reaction_pb);
 goog.exportSymbol('proto.ord.Dataset', null, global);
 goog.exportSymbol('proto.ord.DatasetExample', null, global);
 /**
@@ -125,7 +125,7 @@ proto.ord.Dataset.toObject = function(includeInstance, msg) {
     name: jspb.Message.getFieldWithDefault(msg, 1, ""),
     description: jspb.Message.getFieldWithDefault(msg, 2, ""),
     reactionsList: jspb.Message.toObjectList(msg.getReactionsList(),
-    ord_schema_proto_reaction_pb.Reaction.toObject, includeInstance),
+    ord$schema_proto_reaction_pb.Reaction.toObject, includeInstance),
     reactionIdsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
     datasetId: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
@@ -173,8 +173,8 @@ proto.ord.Dataset.deserializeBinaryFromReader = function(msg, reader) {
       msg.setDescription(value);
       break;
     case 3:
-      var value = new ord_schema_proto_reaction_pb.Reaction;
-      reader.readMessage(value,ord_schema_proto_reaction_pb.Reaction.deserializeBinaryFromReader);
+      var value = new ord$schema_proto_reaction_pb.Reaction;
+      reader.readMessage(value,ord$schema_proto_reaction_pb.Reaction.deserializeBinaryFromReader);
       msg.addReactions(value);
       break;
     case 4:
@@ -233,7 +233,7 @@ proto.ord.Dataset.serializeBinaryToWriter = function(message, writer) {
     writer.writeRepeatedMessage(
       3,
       f,
-      ord_schema_proto_reaction_pb.Reaction.serializeBinaryToWriter
+      ord$schema_proto_reaction_pb.Reaction.serializeBinaryToWriter
     );
   }
   f = message.getReactionIdsList();
@@ -295,7 +295,7 @@ proto.ord.Dataset.prototype.setDescription = function(value) {
  */
 proto.ord.Dataset.prototype.getReactionsList = function() {
   return /** @type{!Array<!proto.ord.Reaction>} */ (
-    jspb.Message.getRepeatedWrapperField(this, ord_schema_proto_reaction_pb.Reaction, 3));
+    jspb.Message.getRepeatedWrapperField(this, ord$schema_proto_reaction_pb.Reaction, 3));
 };
 
 
@@ -417,7 +417,7 @@ proto.ord.DatasetExample.toObject = function(includeInstance, msg) {
     datasetId: jspb.Message.getFieldWithDefault(msg, 1, ""),
     description: jspb.Message.getFieldWithDefault(msg, 2, ""),
     url: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    created: (f = msg.getCreated()) && ord_schema_proto_reaction_pb.RecordEvent.toObject(includeInstance, f)
+    created: (f = msg.getCreated()) && ord$schema_proto_reaction_pb.RecordEvent.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -467,8 +467,8 @@ proto.ord.DatasetExample.deserializeBinaryFromReader = function(msg, reader) {
       msg.setUrl(value);
       break;
     case 4:
-      var value = new ord_schema_proto_reaction_pb.RecordEvent;
-      reader.readMessage(value,ord_schema_proto_reaction_pb.RecordEvent.deserializeBinaryFromReader);
+      var value = new ord$schema_proto_reaction_pb.RecordEvent;
+      reader.readMessage(value,ord$schema_proto_reaction_pb.RecordEvent.deserializeBinaryFromReader);
       msg.setCreated(value);
       break;
     default:
@@ -526,7 +526,7 @@ proto.ord.DatasetExample.serializeBinaryToWriter = function(message, writer) {
     writer.writeMessage(
       4,
       f,
-      ord_schema_proto_reaction_pb.RecordEvent.serializeBinaryToWriter
+      ord$schema_proto_reaction_pb.RecordEvent.serializeBinaryToWriter
     );
   }
 };
@@ -592,7 +592,7 @@ proto.ord.DatasetExample.prototype.setUrl = function(value) {
  */
 proto.ord.DatasetExample.prototype.getCreated = function() {
   return /** @type{?proto.ord.RecordEvent} */ (
-    jspb.Message.getWrapperField(this, ord_schema_proto_reaction_pb.RecordEvent, 4));
+    jspb.Message.getWrapperField(this, ord$schema_proto_reaction_pb.RecordEvent, 4));
 };
 
 

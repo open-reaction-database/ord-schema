@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// source: ord_schema/proto/reaction.proto
+// source: ord-schema/proto/reaction.proto
 /**
  * @fileoverview
  * @enhanceable
