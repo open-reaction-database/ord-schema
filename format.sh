@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2020-2023 Open Reaction Database Project Authors
+# Copyright 2020 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
 if command -v go &> /dev/null; then
   go install github.com/google/addlicense@latest
   "${HOME}/go/bin/addlicense" \
-    -y "2020-2023" \
     -c "Open Reaction Database Project Authors" \
     -l apache "${ROOT_DIR}"
 else
