@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-const ord_schema = require('..');
+const ord = require('..');
 
 test('simple', () => {
-    const reaction = new ord_schema.reaction_pb.Reaction();
+    const reaction = new ord.Reaction();
     const identifier = reaction.addIdentifiers();
     identifier.setValue('C(C)Cl.Br>>C(C)Br.Cl');
-    identifier.setType(ord_schema.reaction_pb.ReactionIdentifier.ReactionIdentifierType.REACTION_SMILES);
+    identifier.setType(ord.ReactionIdentifier.ReactionIdentifierType.REACTION_SMILES);
     expect(reaction.getIdentifiersList()).toHaveLength(1);
     expect(reaction.getSetup()).toBeUndefined();
 });

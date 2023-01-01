@@ -14,28 +14,28 @@
  * limitations under the License.
  */
 
-const ord_schema = require('..');
+const ord = require('..');
 
 test('round-trip', () => {
-    const dataset = new ord_schema.dataset_pb.Dataset();
+    const dataset = new ord.Dataset();
     dataset.setName('test');
     dataset.setDescription('test dataset');
     // Add a reaction directly to the dataset.
     const reaction1 = dataset.addReactions();
     const identifier1 = reaction1.addIdentifiers();
     identifier1.setValue('C(C)Cl.Br>>C(C)Br.Cl');
-    identifier1.setType(ord_schema.reaction_pb.ReactionIdentifier.ReactionIdentifierType.REACTION_SMILES);
+    identifier1.setType(ord.ReactionIdentifier.ReactionIdentifierType.REACTION_SMILES);
     // Copy a reaction created elsewhere.
-    const reaction2 = new ord_schema.reaction_pb.Reaction();
+    const reaction2 = new ord.Reaction();
     const identifier2 = reaction2.addIdentifiers();
     identifier2.setValue('amide coupling');
-    identifier2.setType(ord_schema.reaction_pb.ReactionIdentifier.ReactionIdentifierType.NAME);
+    identifier2.setType(ord.ReactionIdentifier.ReactionIdentifierType.NAME);
     dataset.addReactions(reaction2);
     const serialized = dataset.serializeBinary();
-    const other = ord_schema.dataset_pb.Dataset.deserializeBinary(serialized);
+    const other = ord.Dataset.deserializeBinary(serialized);
     expect(other.getName()).toBe('test');
     expect(other.getDescription()).toBe('test dataset');
     expect(other.getReactionsList()).toHaveLength(2);
-    expect(other.getReactionsList()[0].getIdentifiersList()[0].getType()).toBe(ord_schema.reaction_pb.ReactionIdentifier.ReactionIdentifierType.REACTION_SMILES);
-    expect(other.getReactionsList()[1].getIdentifiersList()[0].getType()).toBe(ord_schema.reaction_pb.ReactionIdentifier.ReactionIdentifierType.NAME);
+    expect(other.getReactionsList()[0].getIdentifiersList()[0].getType()).toBe(ord.ReactionIdentifier.ReactionIdentifierType.REACTION_SMILES);
+    expect(other.getReactionsList()[1].getIdentifiersList()[0].getType()).toBe(ord.ReactionIdentifier.ReactionIdentifierType.NAME);
 });

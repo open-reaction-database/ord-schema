@@ -15,5 +15,7 @@
  */
 
 "use strict";
-exports.dataset_pb = require('./proto/dataset_pb');
-exports.reaction_pb = require('./proto/reaction_pb');
+module.exports = {
+    ...require('./proto/dataset_pb'),
+    ...require('./proto/reaction_pb'),
+};
