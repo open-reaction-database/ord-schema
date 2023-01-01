@@ -17,7 +17,9 @@
   },
   "homepage": "https://open-reaction-database.org",
   "dependencies": {
-    "google-protobuf": "<3.20",
+    "google-protobuf": "<3.20"
+  },
+  "devDependencies": {
     "jest": "^29.3.1"
   }
 }
