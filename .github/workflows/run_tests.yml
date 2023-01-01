@@ -82,7 +82,7 @@ jobs:
       - name: Check for drift
         run: |
           # Ignore the copyright line in the diff so the year can change.
-          [[ -z $(git diff -I "^# Copyright") ]] || { echo "proto wrappers do not match:\n$(git diff)"; exit 1; }
+          [[ -z $(git diff -I "^(#| \*) Copyright") ]] || { echo "proto wrappers do not match:\n$(git diff)"; exit 1; }
 
   test_js:
     runs-on: ubuntu-latest
