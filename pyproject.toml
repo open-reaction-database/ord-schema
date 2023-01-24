@@ -14,3 +14,4 @@ inputs = ["ord_schema"]
 exclude = ["**/*_test.py", "**/test_*.py", "**/*_pb2.py", "build/", "dist/"]
 keep_going = true
 disable = ["module-attr", "pyi-error"]
+jobs = 0
