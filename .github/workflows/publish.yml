@@ -20,6 +20,28 @@ on:
       - main
 
 jobs:
+  test_publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
+      - name: Test python build
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade build twine wheel
+          python -m build
+      - name: Test javascript build
+        run: |
+          cd js/ord-schema
+          npm install
+          npm run build
+          npm publish --dry-run
+
   publish:
     if: github.repository == 'open-reaction-database/ord-schema'
     runs-on: ubuntu-latest
@@ -61,4 +83,5 @@ jobs:
         run: |
           cd js/ord-schema
           npm install
+          npm run build
           npm publish
