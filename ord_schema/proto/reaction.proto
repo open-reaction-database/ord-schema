@@ -76,7 +76,7 @@ message ReactionIdentifier {
     REACTION_CXSMILES = 6;  // Extended SMILES.
     RDFILE = 3;  // Reaction data file.
     RINCHI = 4;  // Reaction InChI.
-    NAME = 5;  // Named reaction or reaction category.
+    REACTION_TYPE = 5;  // Named reaction or reaction category.
   }
   ReactionIdentifierType type = 1;
   string details = 2;
@@ -404,10 +404,12 @@ message Vessel {
   // Size (volume) of the vessel.
   Volume volume = 6;
   // Identifier number for a microtiter plate or parallel reactor run.
-  string plate_id = 7;
+  string vessel_id = 7;
   // If a well-plate was used, the position of the well for this experiment,
   // e.g., "A4".
-  string plate_position = 8;
+  string position = 8;
+  string row = 9;
+  string col = 10;
 }
 
 message VesselMaterial {
@@ -1095,6 +1097,8 @@ message ReactionProvenance {
   string publication_url = 6;
   RecordEvent record_created = 7;
   repeated RecordEvent record_modified = 8;
+  // Container for arbitrary metadata.
+  map<string, string> metadata = 9;
 }
 
 message Person {
