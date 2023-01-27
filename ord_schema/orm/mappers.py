@@ -74,6 +74,8 @@ def _get_message_contexts(
     descriptor: Descriptor, parent: str | None, field_name: str | None, unique: bool | None
 ) -> set[tuple[str, str | None, str | None, bool | None]]:
     """Returns the set of contexts for each message type."""
+    if descriptor is None:
+        raise ValueError((descriptor, parent, field_name, unique))
     counts = {(descriptor.full_name, parent, field_name, unique)}
     for field in descriptor.fields:
         if field.type == FieldDescriptor.TYPE_MESSAGE:
