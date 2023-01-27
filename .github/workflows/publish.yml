@@ -33,6 +33,8 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '16.x'
+          # https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
+          registry-url: 'https://registry.npmjs.org'
       - name: Bump patch version
         run: |
           git config user.name github-actions
