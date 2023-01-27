@@ -48,7 +48,7 @@ jobs:
           black --check .
       - name: Run pylint
         run: |
-          pylint -j 0 examples ord_schema *.py
+          pylint -j 0 -v examples ord_schema *.py
       - name: Run pytype
         run: |
           pytype -j auto
