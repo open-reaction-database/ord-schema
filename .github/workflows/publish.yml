@@ -38,7 +38,7 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
           python -m pip install bump2version
-          bump2version patch
+          bump2version patch --verbose
           git push --tags origin main
       - name: Create release
         env:
