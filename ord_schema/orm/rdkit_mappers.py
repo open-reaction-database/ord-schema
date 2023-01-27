@@ -95,7 +95,7 @@ class _RDKitSfp(UserDefinedType):
         del kwargs  # Unused.
         return "rdkit.sfp" if rdkit_cartridge() else "bytea"
 
-    class comparator_factory(  # pylint: abstract-method,disable=invalid-name
+    class comparator_factory(  # pylint: disable=abstract-method,invalid-name
         UserDefinedType.Comparator  # pytype: disable=attribute-error
     ):
         def __mod__(self, other):
