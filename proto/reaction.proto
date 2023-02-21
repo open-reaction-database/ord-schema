@@ -1099,7 +1099,7 @@ message ReactionProvenance {
   repeated RecordEvent record_modified = 8;
   // Container for arbitrary reaction metadata; e.g., an internal project
   // identifier.
-  map<string, Data> custom_metadata = 9;
+  map<string, Data> reaction_metadata = 9;
 }
 
 message Person {
