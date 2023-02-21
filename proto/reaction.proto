@@ -1097,8 +1097,9 @@ message ReactionProvenance {
   string publication_url = 6;
   RecordEvent record_created = 7;
   repeated RecordEvent record_modified = 8;
-  // Container for arbitrary metadata.
-  map<string, string> metadata = 9;
+  // Container for arbitrary reaction metadata; e.g., an internal project
+  // identifier.
+  map<string, Data> reaction_metadata = 9;
 }
 
 message Person {

@@ -15209,7 +15209,7 @@ proto.ord.ReactionProvenance.toObject = function(includeInstance, msg) {
     recordCreated: (f = msg.getRecordCreated()) && proto.ord.RecordEvent.toObject(includeInstance, f),
     recordModifiedList: jspb.Message.toObjectList(msg.getRecordModifiedList(),
     proto.ord.RecordEvent.toObject, includeInstance),
-    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, undefined) : []
+    reactionMetadataMap: (f = msg.getReactionMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -15283,9 +15283,9 @@ proto.ord.ReactionProvenance.deserializeBinaryFromReader = function(msg, reader)
       msg.addRecordModified(value);
       break;
     case 9:
-      var value = msg.getMetadataMap();
+      var value = msg.getReactionMetadataMap();
       reader.readMessage(value, function(message, reader) {
-        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
          });
       break;
     default:
@@ -15377,9 +15377,9 @@ proto.ord.ReactionProvenance.serializeBinaryToWriter = function(message, writer)
       proto.ord.RecordEvent.serializeBinaryToWriter
     );
   }
-  f = message.getMetadataMap(true);
+  f = message.getReactionMetadataMap(true);
   if (f && f.getLength() > 0) {
-    f.serializeBinary(9, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
+    f.serializeBinary(9, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
   }
 };
 
@@ -15606,15 +15606,15 @@ proto.ord.ReactionProvenance.prototype.clearRecordModifiedList = function() {
 
 
 /**
- * map<string, string> metadata = 9;
+ * map<string, Data> reaction_metadata = 9;
  * @param {boolean=} opt_noLazyCreate Do not create the map if
  * empty, instead returning `undefined`
- * @return {!jspb.Map<string,string>}
+ * @return {!jspb.Map<string,!proto.ord.Data>}
  */
-proto.ord.ReactionProvenance.prototype.getMetadataMap = function(opt_noLazyCreate) {
-  return /** @type {!jspb.Map<string,string>} */ (
+proto.ord.ReactionProvenance.prototype.getReactionMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,!proto.ord.Data>} */ (
       jspb.Message.getMapField(this, 9, opt_noLazyCreate,
-      null));
+      proto.ord.Data));
 };
 
 
@@ -15622,8 +15622,8 @@ proto.ord.ReactionProvenance.prototype.getMetadataMap = function(opt_noLazyCreat
  * Clears values from the map. The map will be non-null.
  * @return {!proto.ord.ReactionProvenance} returns this
  */
-proto.ord.ReactionProvenance.prototype.clearMetadataMap = function() {
-  this.getMetadataMap().clear();
+proto.ord.ReactionProvenance.prototype.clearReactionMetadataMap = function() {
+  this.getReactionMetadataMap().clear();
   return this;};
 
 

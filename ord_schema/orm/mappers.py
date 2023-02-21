@@ -81,6 +81,7 @@ def _get_message_contexts(
         if field.type == FieldDescriptor.TYPE_MESSAGE:
             if set(field.message_type.fields_by_name.keys()) == {"key", "value"}:
                 # Check for maps.
+                logger.info(f"Found map: ({descriptor.full_name}, {field.name})")
                 field_message_type = field.message_type.fields_by_name["value"].message_type
             else:
                 field_message_type = field.message_type
