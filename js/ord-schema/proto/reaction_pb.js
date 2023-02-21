@@ -2235,7 +2235,7 @@ proto.ord.ReactionIdentifier.ReactionIdentifierType = {
   REACTION_CXSMILES: 6,
   RDFILE: 3,
   RINCHI: 4,
-  NAME: 5
+  REACTION_TYPE: 5
 };
 
 /**
@@ -5278,8 +5278,10 @@ proto.ord.Vessel.toObject = function(includeInstance, msg) {
     attachmentsList: jspb.Message.toObjectList(msg.getAttachmentsList(),
     proto.ord.VesselAttachment.toObject, includeInstance),
     volume: (f = msg.getVolume()) && proto.ord.Volume.toObject(includeInstance, f),
-    plateId: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    platePosition: jspb.Message.getFieldWithDefault(msg, 8, "")
+    vesselId: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    position: jspb.Message.getFieldWithDefault(msg, 8, ""),
+    row: jspb.Message.getFieldWithDefault(msg, 9, ""),
+    col: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
   if (includeInstance) {
@@ -5346,11 +5348,19 @@ proto.ord.Vessel.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 7:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPlateId(value);
+      msg.setVesselId(value);
       break;
     case 8:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPlatePosition(value);
+      msg.setPosition(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRow(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setCol(value);
       break;
     default:
       reader.skipField();
@@ -5427,17 +5437,31 @@ proto.ord.Vessel.serializeBinaryToWriter = function(message, writer) {
       proto.ord.Volume.serializeBinaryToWriter
     );
   }
-  f = message.getPlateId();
+  f = message.getVesselId();
   if (f.length > 0) {
     writer.writeString(
       7,
       f
     );
   }
-  f = message.getPlatePosition();
+  f = message.getPosition();
   if (f.length > 0) {
     writer.writeString(
       8,
+      f
+    );
+  }
+  f = message.getRow();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
+      f
+    );
+  }
+  f = message.getCol();
+  if (f.length > 0) {
+    writer.writeString(
+      10,
       f
     );
   }
@@ -5650,10 +5674,10 @@ proto.ord.Vessel.prototype.hasVolume = function() {
 
 
 /**
- * optional string plate_id = 7;
+ * optional string vessel_id = 7;
  * @return {string}
  */
-proto.ord.Vessel.prototype.getPlateId = function() {
+proto.ord.Vessel.prototype.getVesselId = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
 };
 
@@ -5662,16 +5686,16 @@ proto.ord.Vessel.prototype.getPlateId = function() {
  * @param {string} value
  * @return {!proto.ord.Vessel} returns this
  */
-proto.ord.Vessel.prototype.setPlateId = function(value) {
+proto.ord.Vessel.prototype.setVesselId = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
 };
 
 
 /**
- * optional string plate_position = 8;
+ * optional string position = 8;
  * @return {string}
  */
-proto.ord.Vessel.prototype.getPlatePosition = function() {
+proto.ord.Vessel.prototype.getPosition = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
 };
 
@@ -5680,8 +5704,44 @@ proto.ord.Vessel.prototype.getPlatePosition = function() {
  * @param {string} value
  * @return {!proto.ord.Vessel} returns this
  */
-proto.ord.Vessel.prototype.setPlatePosition = function(value) {
+proto.ord.Vessel.prototype.setPosition = function(value) {
   return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * optional string row = 9;
+ * @return {string}
+ */
+proto.ord.Vessel.prototype.getRow = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.ord.Vessel} returns this
+ */
+proto.ord.Vessel.prototype.setRow = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * optional string col = 10;
+ * @return {string}
+ */
+proto.ord.Vessel.prototype.getCol = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.ord.Vessel} returns this
+ */
+proto.ord.Vessel.prototype.setCol = function(value) {
+  return jspb.Message.setProto3StringField(this, 10, value);
 };
 
 
@@ -15148,7 +15208,8 @@ proto.ord.ReactionProvenance.toObject = function(includeInstance, msg) {
     publicationUrl: jspb.Message.getFieldWithDefault(msg, 6, ""),
     recordCreated: (f = msg.getRecordCreated()) && proto.ord.RecordEvent.toObject(includeInstance, f),
     recordModifiedList: jspb.Message.toObjectList(msg.getRecordModifiedList(),
-    proto.ord.RecordEvent.toObject, includeInstance)
+    proto.ord.RecordEvent.toObject, includeInstance),
+    metadataMap: (f = msg.getMetadataMap()) ? f.toObject(includeInstance, undefined) : []
   };
 
   if (includeInstance) {
@@ -15220,6 +15281,12 @@ proto.ord.ReactionProvenance.deserializeBinaryFromReader = function(msg, reader)
       var value = new proto.ord.RecordEvent;
       reader.readMessage(value,proto.ord.RecordEvent.deserializeBinaryFromReader);
       msg.addRecordModified(value);
+      break;
+    case 9:
+      var value = msg.getMetadataMap();
+      reader.readMessage(value, function(message, reader) {
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readString, null, "", "");
+         });
       break;
     default:
       reader.skipField();
@@ -15309,6 +15376,10 @@ proto.ord.ReactionProvenance.serializeBinaryToWriter = function(message, writer)
       f,
       proto.ord.RecordEvent.serializeBinaryToWriter
     );
+  }
+  f = message.getMetadataMap(true);
+  if (f && f.getLength() > 0) {
+    f.serializeBinary(9, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeString);
   }
 };
 
@@ -15532,6 +15603,28 @@ proto.ord.ReactionProvenance.prototype.addRecordModified = function(opt_value, o
 proto.ord.ReactionProvenance.prototype.clearRecordModifiedList = function() {
   return this.setRecordModifiedList([]);
 };
+
+
+/**
+ * map<string, string> metadata = 9;
+ * @param {boolean=} opt_noLazyCreate Do not create the map if
+ * empty, instead returning `undefined`
+ * @return {!jspb.Map<string,string>}
+ */
+proto.ord.ReactionProvenance.prototype.getMetadataMap = function(opt_noLazyCreate) {
+  return /** @type {!jspb.Map<string,string>} */ (
+      jspb.Message.getMapField(this, 9, opt_noLazyCreate,
+      null));
+};
+
+
+/**
+ * Clears values from the map. The map will be non-null.
+ * @return {!proto.ord.ReactionProvenance} returns this
+ */
+proto.ord.ReactionProvenance.prototype.clearMetadataMap = function() {
+  this.getMetadataMap().clear();
+  return this;};
 
 
 
