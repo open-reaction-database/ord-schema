@@ -183,8 +183,6 @@ def build_mapper(  # pylint: disable=too-many-branches
     for parent_type, field_name, _ in parents[message_type]:
         foreign_table_name = underscore(parent_type.DESCRIPTOR.name)
         foreign_key = f"{foreign_table_name}.id"
-        if foreign_table_name in ["structure"]:
-            foreign_key = f"rdkit.{foreign_key}"
         child_attrs = {
             "__mapper_args__": {"polymorphic_identity": f"{parent_type.DESCRIPTOR.name}.{field_name}"},
             # Use get() to avoid column conflicts; see

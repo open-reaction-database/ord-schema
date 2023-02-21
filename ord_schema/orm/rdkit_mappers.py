@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""RDKit PostgreSQL cartridge functionality."""
+"""RDKit PostgreSQL cartridge functionality.
+
+Notes:
+  * These tables live in a separate "rdkit" schema to avoid name conflicts between tables and extension types.
+  * The RDKit-specific columns are populated by ord_schema.orm.database.add_rdkit; this allows the ORM to function
+    normally even if if the RDKit PostgreSQL cartridge is not installed (the `smiles` column will be populated and
+    the other columns will be empty).
+  * Objects with this type are added to the ORM in from_proto() using the `rdkit` field.
+"""
 from __future__ import annotations
 
 import os
@@ -149,15 +157,7 @@ class FingerprintType(Enum):
 
 
 class RDKitMol(Base):
-    """Table for storing compound structures and associated RDKit cartridge data.
-
-    Notes:
-      * This table lives in a separate "rdkit" schema to avoid name conflicts between tables and extension types.
-      * The RDKit-specific columns are populated by ord_schema.orm.database.add_rdkit; this allows the ORM to function
-        normally even if if the RDKit PostgreSQL cartridge is not installed (the `smiles` column will be populated and
-        the other columns will be empty).
-      * Objects with this type are added to the ORM in from_proto() using the `structure` field.
-    """
+    """Table for storing compound structures and associated RDKit cartridge data."""
 
     __tablename__ = "mols"
     id = Column(Integer, primary_key=True)
@@ -170,9 +170,9 @@ class RDKitMol(Base):
         {"schema": "rdkit"},
     )
 
-    _polymorphic_type = Column(Text, nullable=False)
+    ord_schema_context = Column(Text, nullable=False)
     __mapper_args__ = {
-        "polymorphic_on": _polymorphic_type,
+        "polymorphic_on": ord_schema_context,
         "polymorphic_identity": "mols",
         "with_polymorphic": "*",
     }
@@ -186,7 +186,7 @@ class _CompoundRDKit(RDKitMol):
     compound_id = Column(Integer, ForeignKey("compound.id", ondelete="CASCADE"))
 
     __mapper_args__ = {
-        "polymorphic_identity": "compound__rdkit",
+        "polymorphic_identity": "Compound.rdkit",
     }
 
 
@@ -194,7 +194,7 @@ class _ProductCompoundRDKit(RDKitMol):
     product_compound_id = Column(Integer, ForeignKey("product_compound.id", ondelete="CASCADE"))
 
     __mapper_args__ = {
-        "polymorphic_identity": "product_compound__rdkit",
+        "polymorphic_identity": "ProductCompound.rdkit",
     }
 
 
@@ -211,9 +211,9 @@ class RDKitReaction(Base):
         {"schema": "rdkit"},
     )
 
-    _polymorphic_type = Column(Text, nullable=False)
+    ord_schema_context = Column(Text, nullable=False)
     __mapper_args__ = {
-        "polymorphic_on": _polymorphic_type,
+        "polymorphic_on": ord_schema_context,
         "polymorphic_identity": "reactions",
         "with_polymorphic": "*",
     }
@@ -223,5 +223,5 @@ class _ReactionRDKit(RDKitReaction):
     reaction_id = Column(Integer, ForeignKey("reaction.id", ondelete="CASCADE"))
 
     __mapper_args__ = {
-        "polymorphic_identity": "reaction__rdkit",
+        "polymorphic_identity": "Reaction.rdkit",
     }
