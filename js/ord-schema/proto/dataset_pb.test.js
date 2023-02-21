@@ -29,7 +29,7 @@ test('round-trip', () => {
     const reaction2 = new ord.Reaction();
     const identifier2 = reaction2.addIdentifiers();
     identifier2.setValue('amide coupling');
-    identifier2.setType(ord.ReactionIdentifier.ReactionIdentifierType.NAME);
+    identifier2.setType(ord.ReactionIdentifier.ReactionIdentifierType.REACTION_TYPE);
     dataset.addReactions(reaction2);
     const serialized = dataset.serializeBinary();
     const other = ord.Dataset.deserializeBinary(serialized);
@@ -37,5 +37,5 @@ test('round-trip', () => {
     expect(other.getDescription()).toBe('test dataset');
     expect(other.getReactionsList()).toHaveLength(2);
     expect(other.getReactionsList()[0].getIdentifiersList()[0].getType()).toBe(ord.ReactionIdentifier.ReactionIdentifierType.REACTION_SMILES);
-    expect(other.getReactionsList()[1].getIdentifiersList()[0].getType()).toBe(ord.ReactionIdentifier.ReactionIdentifierType.NAME);
+    expect(other.getReactionsList()[1].getIdentifiersList()[0].getType()).toBe(ord.ReactionIdentifier.ReactionIdentifierType.REACTION_TYPE);
 });
