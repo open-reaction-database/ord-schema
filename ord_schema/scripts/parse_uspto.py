@@ -509,14 +509,14 @@ def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.R
         except (KeyError, NotImplementedError) as error:
             raise ValueError(ElementTree.dump(reaction_cml)) from error
         event = reaction_pb2.RecordEvent(
-            time=dict(value=str(datetime.datetime.now())),
-            person=dict(
-                username="skearnes",
-                name="Steven Kearnes",
-                orcid="0000-0003-4579-4388",
-                organization="Google LLC",
-                email="kearnes@google.com",
-            ),
+            time={"value": str(datetime.datetime.now())},
+            person={
+                "username": "skearnes",
+                "name": "Steven Kearnes",
+                "orcid": "0000-0003-4579-4388",
+                "organization": "Relay Therapeutics",
+                "email": "skearnes@relaytx.com",
+            },
         )
         reaction.provenance.record_created.CopyFrom(event)
         reaction.provenance.doi = "10.6084/m9.figshare.5104873.v1"
