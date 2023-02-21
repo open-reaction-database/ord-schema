@@ -16,6 +16,9 @@
 # Compiles protocol buffers.
 # Make sure you have protoc in your PATH; see https://grpc.io/docs/protoc-installation/.
 set -ex
-for source in ord_schema/proto/*.proto; do
-  protoc --experimental_allow_proto3_optional --python_out=. "${source}"
-done
+protoc \
+  --experimental_allow_proto3_optional \
+  --proto_path=.. \
+  --python_out=. \
+  --js_out=import_style=commonjs,binary:js \
+  ../ord-schema/proto/*.proto

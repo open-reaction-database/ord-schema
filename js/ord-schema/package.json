@@ -1,0 +1,28 @@
+{
+  "name": "ord-schema",
+  "version": "0.3.43",
+  "description": "Schema for the Open Reaction Database",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack",
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/open-reaction-database/ord-schema.git"
+  },
+  "author": "Open Reaction Database Project Authors",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/open-reaction-database/ord-schema/issues"
+  },
+  "homepage": "https://open-reaction-database.org",
+  "dependencies": {
+    "google-protobuf": "<3.20"
+  },
+  "devDependencies": {
+    "jest": "^29.3.1",
+    "webpack": "^5.75.0",
+    "webpack-cli": "^5.0.1"
+  }
+}

@@ -8,3 +8,10 @@ build-backend = "setuptools.build_meta"
 [tool.black]
 line-length = 120
 extend-exclude = "_pb2.py"
+
+[tool.pytype]
+inputs = ["ord_schema"]
+exclude = ["**/*_test.py", "**/test_*.py", "**/*_pb2.py", "build/", "dist/"]
+keep_going = true
+disable = ["module-attr", "pyi-error"]
+jobs = 0
