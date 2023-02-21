@@ -90,11 +90,11 @@ methods (this list is not an endorsement of any particular provider):
 * Conda:
   [rdkit-postgresql](https://www.rdkit.org/docs/Install.html#installing-and-using-postgresql-and-the-rdkit-postgresql-cartridge-from-a-conda-environment)
 
-```shell
-$ conda install -c rdkit rdkit-postgresql
-$ export PGDATA="${HOME}/rdkit-postgresql"
-$ initdb -U <username>
-```
+  ```shell
+  $ conda install -c rdkit rdkit-postgresql
+  $ export PGDATA="${HOME}/rdkit-postgresql"
+  $ initdb -U <username>
+  ```
 
 * AWS:
   [Amazon Aurora PostgreSQL](https://aws.amazon.com/about-aws/whats-new/2020/09/amazon-aurora-postgresql-supports-rdkit-extension/)
