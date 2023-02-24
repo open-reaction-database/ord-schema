@@ -665,10 +665,8 @@ message ElectrochemistryConditions {
   Length electrode_separation = 7;
   message ElectrochemistryMeasurement {
     Time time = 1;
-    oneof kind {
-      Current current = 2;
-      Voltage voltage = 3;
-    }
+    Current current = 2;
+    Voltage voltage = 3;
   }
   repeated ElectrochemistryMeasurement measurements = 8;
   message ElectrochemistryCell {

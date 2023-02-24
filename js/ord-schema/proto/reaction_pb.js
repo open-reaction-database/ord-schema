@@ -59,7 +59,6 @@ goog.exportSymbol('proto.ord.ElectrochemistryConditions', null, global);
 goog.exportSymbol('proto.ord.ElectrochemistryConditions.ElectrochemistryCell', null, global);
 goog.exportSymbol('proto.ord.ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType', null, global);
 goog.exportSymbol('proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement', null, global);
-goog.exportSymbol('proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.KindCase', null, global);
 goog.exportSymbol('proto.ord.ElectrochemistryConditions.ElectrochemistryType', null, global);
 goog.exportSymbol('proto.ord.FloatValue', null, global);
 goog.exportSymbol('proto.ord.FlowConditions', null, global);
@@ -809,7 +808,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.oneofGroups_);
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
 goog.inherits(proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -9958,32 +9957,6 @@ proto.ord.ElectrochemistryConditions.ElectrochemistryType = {
 };
 
 
-/**
- * Oneof group definitions for this message. Each group defines the field
- * numbers belonging to that group. When of these fields' value is set, all
- * other fields in the group are cleared. During deserialization, if multiple
- * fields are encountered for a group, only the last value seen will be kept.
- * @private {!Array<!Array<number>>}
- * @const
- */
-proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.oneofGroups_ = [[2,3]];
-
-/**
- * @enum {number}
- */
-proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.KindCase = {
-  KIND_NOT_SET: 0,
-  CURRENT: 2,
-  VOLTAGE: 3
-};
-
-/**
- * @return {proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.KindCase}
- */
-proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.prototype.getKindCase = function() {
-  return /** @type {proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.KindCase} */(jspb.Message.computeOneofCase(this, proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.oneofGroups_[0]));
-};
-
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -10177,7 +10150,7 @@ proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.prototype.getCu
  * @return {!proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement} returns this
 */
 proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.prototype.setCurrent = function(value) {
-  return jspb.Message.setOneofWrapperField(this, 2, proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.oneofGroups_[0], value);
+  return jspb.Message.setWrapperField(this, 2, value);
 };
 
 
@@ -10214,7 +10187,7 @@ proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.prototype.getVo
  * @return {!proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement} returns this
 */
 proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.prototype.setVoltage = function(value) {
-  return jspb.Message.setOneofWrapperField(this, 3, proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.oneofGroups_[0], value);
+  return jspb.Message.setWrapperField(this, 3, value);
 };
 
 
