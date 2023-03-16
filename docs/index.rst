@@ -20,7 +20,6 @@ planning, and experiment design. Our initial meeting took place on 31 October
 Quick links:
    * `Overview of the ORD <overview.html>`_
    * `Leadership <overview.html#leadership>`_
-   * `Roadmap <overview.html#development-roadmap>`_
    * `Commitment to Open Access <overview.html#commitment-to-open-access>`_
 
 We expect that this database will be the starting point for the development of
@@ -64,4 +63,3 @@ underrepresented areas).
    :caption: API Documentation
 
    ord_schema/ord_schema
-
