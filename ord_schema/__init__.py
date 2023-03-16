@@ -25,7 +25,7 @@ Message = google.protobuf.message.Message
 ScalarType = Union[str, bytes, float, int, bool]
 
 # Messages with 'type' and 'details' fields.
-TypeDetailsMessage = Union[
+TypeDetailsMessage = Union[  # pylint: disable=invalid-name
     reaction_pb2.Analysis,
     reaction_pb2.CompoundIdentifier,
     reaction_pb2.CompoundPreparation,
