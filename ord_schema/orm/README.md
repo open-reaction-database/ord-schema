@@ -149,19 +149,19 @@ mapper to recover the original `Reaction` protocol buffer message.
   from sqlalchemy import create_engine, select
   from sqlalchemy.orm import Session
   
-  from ord_schema.orm.mappers import Percentage, ProductCompound, ProductMeasurement, Reaction, ReactionOutcome
+  from ord_schema.orm.mappers import Mappers
   from ord_schema.proto import reaction_pb2
   
   connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
   engine = create_engine(connection_string, future=True)
   with Session(engine) as session:
     query = (
-        select(Reaction)
-        .join(ReactionOutcome)
-        .join(ProductCompound)
-        .join(ProductMeasurement)
-        .join(Percentage)
-        .where(ProductMeasurement.type == "YIELD", Percentage.value >= 70)
+      select(Mappers.Reaction)
+      .join(Mappers.ReactionOutcome)
+      .join(Mappers.ProductCompound)
+      .join(Mappers.ProductMeasurement)
+      .join(Mappers.Percentage)
+      .where(Mappers.ProductMeasurement.type == "YIELD", Mappers.Percentage.value >= 70)
     )
     results = session.execute(query)
     reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
@@ -176,19 +176,19 @@ mapper to recover the original `Reaction` protocol buffer message.
   from sqlalchemy import create_engine, select
   from sqlalchemy.orm import Session
   
-  from ord_schema.orm.mappers import Compound, Reaction, ReactionInput
-  from ord_schema.orm.structure import FingerprintType, Structure
+  from ord_schema.orm.mappers import Mappers
+  from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMol
   from ord_schema.proto import reaction_pb2
   
   connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
   engine = create_engine(connection_string, future=True)
   with Session(engine) as session:
     query = (
-      select(Reaction)
-      .join(ReactionInput)
-      .join(Compound)
-      .join(Structure)
-      .where(Structure.tanimoto("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP) > 0.5)
+      select(Mappers.Reaction)
+      .join(Mappers.ReactionInput)
+      .join(Mappers.Compound)
+      .join(RDKitMol)
+      .where(RDKitMol.tanimoto("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP) > 0.5)
     )
     results = session.execute(query)
     reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
