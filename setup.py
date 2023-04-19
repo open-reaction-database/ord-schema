@@ -55,8 +55,6 @@ setuptools.setup(
         "python-dateutil>=1.10.0",
         "rdkit>=2021.9.5",
         "sqlalchemy>=1.4.39",
-        "xlrd>=2.0.1",
-        "xlwt>=1.3.0",
     ],
     extras_require={
         "docs": [
