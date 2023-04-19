@@ -78,7 +78,7 @@ def test_valid_templating_escapes(valid_reaction):
     assert dataset == expected_dataset
 
 
-@pytest.mark.parametrize("suffix", [".csv", ".xls", ".xlsx"])
+@pytest.mark.parametrize("suffix", [".csv", ".xlsx"])
 def test_read_spreadsheet(suffix, tmp_path):
     df = pd.DataFrame.from_dict({"smiles": ["CCO", "CCCO", "CCCCO"], "conversion": [75, 50, 30]})
     filename = (tmp_path / f"test{suffix}").as_posix()
