@@ -21,7 +21,7 @@ with open("README.md") as f:
 
 setuptools.setup(
     name="ord-schema",
-    version="0.3.43",
+    version="0.3.46",
     description="Schema for the Open Reaction Database",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -55,8 +55,6 @@ setuptools.setup(
         "python-dateutil>=1.10.0",
         "rdkit>=2021.9.5",
         "sqlalchemy>=1.4.39",
-        "xlrd>=2.0.1",
-        "xlwt>=1.3.0",
     ],
     extras_require={
         "docs": [
