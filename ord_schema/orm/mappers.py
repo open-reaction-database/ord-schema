@@ -128,15 +128,14 @@ def build_mapper(  # pylint: disable=too-many-branches
     Returns:
         Generated mapper class.
     """
-    table_name = underscore(message_type.DESCRIPTOR.name)
     attrs = {
-        "__tablename__": table_name,
+        "__tablename__": underscore(message_type.DESCRIPTOR.name),
         "id": Column(Integer, primary_key=True),
-        "_polymorphic_type": Column(Text, nullable=False),
+        "ord_schema_context": Column(Text, nullable=False),
     }
     attrs["__mapper_args__"] = {
-        "polymorphic_on": attrs["_polymorphic_type"],
-        "polymorphic_identity": table_name,
+        "polymorphic_on": attrs["ord_schema_context"],
+        "polymorphic_identity": message_type.DESCRIPTOR.name,
         "with_polymorphic": "*",
     }
     add_key = False
@@ -184,10 +183,8 @@ def build_mapper(  # pylint: disable=too-many-branches
     for parent_type, field_name, _ in parents[message_type]:
         foreign_table_name = underscore(parent_type.DESCRIPTOR.name)
         foreign_key = f"{foreign_table_name}.id"
-        if foreign_table_name in ["structure"]:
-            foreign_key = f"rdkit.{foreign_key}"
         child_attrs = {
-            "__mapper_args__": {"polymorphic_identity": f"{foreign_table_name}__{field_name}"},
+            "__mapper_args__": {"polymorphic_identity": f"{parent_type.DESCRIPTOR.name}.{field_name}"},
             # Use get() to avoid column conflicts; see
             # https://docs.sqlalchemy.org/en/14/orm/inheritance.html#resolving-column-conflicts.
             #
