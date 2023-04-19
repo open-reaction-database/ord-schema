@@ -75,9 +75,21 @@ methods (this list is not an endorsement of any particular provider):
 * Conda: [rdkit-postgresql](https://www.rdkit.org/docs/Install.html#installing-and-using-postgresql-and-the-rdkit-postgresql-cartridge-from-a-conda-environment)
   
   ```shell
-  $ conda install -c rdkit rdkit-postgresql
-  $ export PGDATA="${HOME}/rdkit-postgresql"
-  $ initdb -U <username>
+  # Create a new conda environment.
+  conda create -n ord python=3.10
+  conda activate ord
+  conda install -c rdkit rdkit-postgresql
+  # Install ord-schema in this environment.
+  cd ord-schema
+  pip install .
+  # Initialize postgres and start the server.
+  export PGDATA="${HOME}/rdkit-postgresql"
+  initdb -U <username>
+  pg_ctl -l "${HOME}/rdkit-postgresql-logfile" start
+  # Create a database.
+  psql -U <username> postgres
+  >>> CREATE DATABASE <database>;
+  >>> \q
   ```
 
 * AWS: [Amazon Aurora PostgreSQL](https://aws.amazon.com/about-aws/whats-new/2020/09/amazon-aurora-postgresql-supports-rdkit-extension/)
