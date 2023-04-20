@@ -2,7 +2,7 @@ name: "1"
 description: "2"
 reactions {
   identifiers {
-    type: NAME
+    type: REACTION_TYPE
     details: "2"
     value: "1"
   }
