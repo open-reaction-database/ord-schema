@@ -32,13 +32,6 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     packages=setuptools.find_packages(),
-    package_data={
-        "ord_schema.proto": [
-            "dataset.proto",
-            "reaction.proto",
-            "test.proto",
-        ],
-    },
     python_requires=">=3.10",
     install_requires=[
         "docopt>=0.6.2",
