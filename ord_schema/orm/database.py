@@ -100,14 +100,19 @@ def add_rdkit(session: Session) -> None:
     assert hasattr(RDKitMol, "__table__")  # Type hint.
     table = RDKitMol.__table__
     start = time.time()
+    # TODO(skearnes): Remove not_like conditions; see https://github.com/open-reaction-database/ord-schema/issues/672.
     session.execute(
-        update(table).where(table.c.mol.is_(None)).values(mol=func.rdkit.mol_from_smiles(cast(table.c.smiles, CString)))
+        update(table)
+        .where(table.c.mol.is_(None), table.c.smiles.not_like("%Ti+5%"))
+        .values(mol=func.rdkit.mol_from_smiles(cast(table.c.smiles, CString)))
     )
     logger.info(f"Adding mol took {time.time() - start}s")
     for fp_type in FingerprintType:
         start = time.time()
         column = fp_type.name.lower()
         session.execute(
-            update(table).where(getattr(table.c, column).is_(None)).values(**{column: fp_type(table.c.mol)})
+            update(table)
+            .where(getattr(table.c, column).is_(None), table.c.mol.is_not(None))
+            .values(**{column: fp_type(table.c.mol)})
         )
         logger.info(f"Adding {fp_type} took {time.time() - start}s")
