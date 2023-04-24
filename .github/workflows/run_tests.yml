@@ -73,7 +73,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install wheel
-          python -m pip install "protoc-wheel-0>=3.13.0,<3.20.0"
+          wget https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-x86_64.zip
+          unzip protoc-22.3-linux-x86_64.zip
+          wget https://github.com/protocolbuffers/protobuf-javascript/releases/download/v3.21.2/protobuf-javascript-3.21.2-linux-x86_64.zip
+          unzip protobuf-javascript-3.21.2-linux-x86_64.zip
           protoc --version
       - name: Run protoc
         run: |
