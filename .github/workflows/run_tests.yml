@@ -28,7 +28,7 @@ jobs:
         shell: bash -l {0}
         run: |
           # NOTE(skearnes): conda is only used for postgres (not python).
-          conda install -c rdkit rdkit-postgresql
+          conda install -c rdkit rdkit-postgresql==2021.03.1.0
           initdb
       - uses: actions/setup-python@v4
         with:
