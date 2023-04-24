@@ -191,8 +191,7 @@ ignored-modules=*_pb2,
                 google.protobuf.pyext,
                 absl.testing,
                 rdkit.*,
-                psycopg2.errors,
-                ord_schema.proto
+                psycopg2.errors
 
 # Show a hint with possible names when a member name was not found. The aspect
 # of finding the hint is based on edit distance.
