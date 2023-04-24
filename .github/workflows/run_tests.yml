@@ -79,10 +79,10 @@ jobs:
           unzip protoc-22.3-linux-x86_64.zip
           wget https://github.com/protocolbuffers/protobuf-javascript/releases/download/v3.21.2/protobuf-javascript-3.21.2-linux-x86_64.zip
           unzip protobuf-javascript-3.21.2-linux-x86_64.zip
-          PATH=protoc/bin:$PATH protoc --version
+          PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH protoc --version
       - name: Run protoc
         run: |
-          PATH=protoc/bin:$PATH ./compile_proto_wrappers.sh
+          PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH ./compile_proto_wrappers.sh
           ./format.sh  # Add license headers.
       - name: Check for drift
         run: |
