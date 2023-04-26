@@ -1049,7 +1049,6 @@ def validate_percentage(message: reaction_pb2.Percentage):
 
 
 def validate_float_value(message: ord_schema.Message):
-    ensure_float_nonnegative(message, "value")
     ensure_float_nonnegative(message, "precision")
 
 
