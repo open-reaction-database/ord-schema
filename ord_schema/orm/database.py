@@ -108,6 +108,8 @@ def add_rdkit(session: Session) -> None:
         start = time.time()
         column = fp_type.name.lower()
         session.execute(
-            update(table).where(getattr(table.c, column).is_(None)).values(**{column: fp_type(table.c.mol)})
+            update(table)
+            .where(getattr(table.c, column).is_(None), table.c.mol.is_not(None))
+            .values(**{column: fp_type(table.c.mol)})
         )
         logger.info(f"Adding {fp_type} took {time.time() - start}s")
