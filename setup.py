@@ -21,7 +21,7 @@ with open("README.md") as f:
 
 setuptools.setup(
     name="ord-schema",
-    version="0.3.43",
+    version="0.3.52",
     description="Schema for the Open Reaction Database",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -32,13 +32,6 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     packages=setuptools.find_packages(),
-    package_data={
-        "ord_schema.proto": [
-            "dataset.proto",
-            "reaction.proto",
-            "test.proto",
-        ],
-    },
     python_requires=">=3.10",
     install_requires=[
         "docopt>=0.6.2",
@@ -55,8 +48,6 @@ setuptools.setup(
         "python-dateutil>=1.10.0",
         "rdkit>=2021.9.5",
         "sqlalchemy>=1.4.39",
-        "xlrd>=2.0.1",
-        "xlwt>=1.3.0",
     ],
     extras_require={
         "docs": [

@@ -40,7 +40,7 @@ def main(kwargs):
         kwargs["--template"],
         kwargs["--spreadsheet"],
     )
-    dataset = templating.generate_dataset(template_string, df, validate=(not kwargs["--no-validate"]))
+    dataset = templating.generate_dataset(template_string, df, validate=not kwargs["--no-validate"])
     logger.info("writing new Dataset to %s", kwargs["--output"])
     message_helpers.write_message(dataset, kwargs["--output"])
 

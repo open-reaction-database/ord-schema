@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ord_schema.orm.structure."""
+"""Tests for ord_schema.orm.rdkit_mappers."""
 import pytest
 from sqlalchemy import select
 from ord_schema.orm.mappers import Mappers
