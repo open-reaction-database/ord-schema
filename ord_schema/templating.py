@@ -33,6 +33,9 @@ from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
 
 
+# pylint: disable=too-many-branches
+
+
 def read_spreadsheet(file_name_or_buffer: Union[str, BinaryIO], suffix: Optional[str] = None) -> pd.DataFrame:
     """Reads a {csv, xls, xlsx} spreadsheet file.
 
@@ -100,8 +103,11 @@ def _fill_template(string: str, substitutions: Mapping[str, ord_schema.ScalarTyp
                     if _is_null(identifier.value):
                         component.identifiers.remove(identifier)
             for component in list(message.components):
+                if not component.identifiers:
+                    message.components.remove(component)
+                    continue
                 kind = component.amount.WhichOneof("kind")
-                if _is_null(getattr(component.amount, kind).value) or not component.identifiers:
+                if kind is not None and _is_null(getattr(component.amount, kind).value):
                     message.components.remove(component)
         for key in list(reaction.inputs.keys()):
             if not reaction.inputs[key].components:
