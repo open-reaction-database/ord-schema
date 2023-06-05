@@ -262,6 +262,7 @@ def from_proto(  # pylint: disable=too-many-branches
         field_mapper = getattr(mapper, "rdkit").mapper.class_
         try:
             reaction_smiles = message_helpers.get_reaction_smiles(message, generate_if_missing=True)
+            assert reaction_smiles is not None  # Type hint.
             reaction_smiles = reaction_smiles.split()[0]  # Handle CXSMILES.
             kwargs["rdkit"] = field_mapper(reaction_smiles=reaction_smiles)
         except ValueError:

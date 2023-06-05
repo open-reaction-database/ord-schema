@@ -24,8 +24,8 @@ The `examples/` directory contains examples of dataset creation and use. To run 
 $ pip install "ord-schema[examples]"
 ```
 
-Click here to run the examples with
-Binder: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/open-reaction-database/ord-schema/HEAD?filepath=examples)
+Click here to run the examples with Binder:
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/open-reaction-database/ord-schema/HEAD?labpath=examples)
 
 ## Development
 
@@ -37,5 +37,5 @@ $ cd ord-schema
 $ pip install -e .
 ```
 
-If you make changes to the protocol buffer definitions, [install](https://grpc.io/docs/protoc-installation/) `protoc` 
+If you make changes to the protocol buffer definitions, [install](https://grpc.io/docs/protoc-installation/) `protoc`
 and run `./compile_proto_wrappers.sh` to rebuild the wrappers.

@@ -24,7 +24,7 @@ from typing import Optional, Type, TypeVar, Union
 
 import pandas as pd
 import requests
-from google import protobuf
+from google import protobuf  # pytype: disable=import-error
 from google.protobuf import json_format
 from google.protobuf import text_format  # pytype: disable=import-error
 from rdkit import Chem
