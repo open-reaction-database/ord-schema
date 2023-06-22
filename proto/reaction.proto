@@ -261,6 +261,7 @@ message Compound {
   // properties of the compound (e.g., molecular weight), heuristic estimates
   // of physical properties (e.g., ClogP), optimized geometries (e.g., through
   // DFT), and calculated stereoelectronic descriptors.
+  // Convention: also put stoichiometry ratio/coefficient here, see https://github.com/open-reaction-database/ord-schema/issues/683
   map<string, Data> features = 7;
   // Compounds may be assayed for quality control; analytical data should be
   // defined in the analyses map.
@@ -287,6 +288,14 @@ message ReactionRole {
     // A product can be any species produced by the reaction, whether desired
     // or undesired.
     PRODUCT = 8;
+    // When there is only one intended chemical equation.
+    // - The products of the intended equation includes one and only one desired product and a set of byproducts.
+    // - If a product of this *reaction* is not in the right side of the intended equation, it is a side product.
+    // - The desired product has reaction_role == PRODUCT and is_desired_product == True
+    // - A byproduct has reaction_role == BYPRODUCT and is_desired_product == True
+    // - A side product has reaction_role == SIDE_PRODUCT and is_desired_product == False
+    BYPRODUCT = 9;
+    SIDE_PRODUCT = 10;
   }
 }
 
@@ -887,6 +896,7 @@ message ProductCompound {
   }
   Texture texture = 5;
   // Any features (e.g., calculated descriptors) of the product compound.
+  // Convention: also put stoichiometry ratio/coefficient here, see https://github.com/open-reaction-database/ord-schema/issues/683
   map<string, Data> features = 6;
   // Specify the role the ProductCompound played in the reaction. This
   // aids in constructing proper reaction SMILES and product lists.
