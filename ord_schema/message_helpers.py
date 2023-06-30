@@ -25,7 +25,7 @@ from typing import Optional, Type, TypeVar, Union
 
 import pandas as pd
 import requests
-from google import protobuf
+from google import protobuf  # pytype: disable=import-error
 from google.protobuf import json_format
 from google.protobuf import text_format  # pytype: disable=import-error
 from rdkit import Chem
@@ -455,18 +455,22 @@ def reaction_from_smiles(reaction_smiles):
     reaction_input = message.inputs["from_reaction_smiles"]
     for mol in reaction.GetReactants():
         component = reaction_input.components.add()
-        component.identifiers.add(value=Chem.MolToSmiles(mol), type="SMILES")
+        component.identifiers.add(value=Chem.MolToSmiles(mol), type="SMILES", details="Extracted from reaction SMILES")
         component.reaction_role = reaction_pb2.ReactionRole.REACTANT
+        component.amount.unmeasured.type = component.amount.unmeasured.CUSTOM
+        component.amount.unmeasured.details = "Extracted from reaction SMILES"
     for smiles in reaction_smiles.split(">")[1].split("."):
         if not smiles:
             continue
         component = reaction_input.components.add()
-        component.identifiers.add(value=smiles, type="SMILES")
+        component.identifiers.add(value=smiles, type="SMILES", details="Extracted from reaction SMILES")
         component.reaction_role = reaction_pb2.ReactionRole.REAGENT
+        component.amount.unmeasured.type = component.amount.unmeasured.CUSTOM
+        component.amount.unmeasured.details = "Extracted from reaction SMILES"
     outcome = message.outcomes.add()
     for mol in reaction.GetProducts():
         component = outcome.products.add()
-        component.identifiers.add(value=Chem.MolToSmiles(mol), type="SMILES")
+        component.identifiers.add(value=Chem.MolToSmiles(mol), type="SMILES", details="Extracted from reaction SMILES")
         component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
     return message
 
@@ -493,7 +497,7 @@ def get_product_yield(product: reaction_pb2.ProductCompound, as_measurement: boo
 
 def get_compound_identifier(
     compound: reaction_pb2.Compound,
-    identifier_type: reaction_pb2.CompoundIdentifier.IdentifierType,
+    identifier_type: reaction_pb2.CompoundIdentifier.CompoundIdentifierType,
 ) -> Optional[str]:
     """Returns the value of a compound identifier if it exists. If multiple
     identifiers of that type exist, only the first is returned.
@@ -513,7 +517,7 @@ def get_compound_identifier(
 
 def set_compound_identifier(
     compound: reaction_pb2.Compound,
-    identifier_type: reaction_pb2.CompoundIdentifier.IdentifierType,
+    identifier_type: reaction_pb2.CompoundIdentifier.CompoundIdentifierType,
     value: str,
 ) -> reaction_pb2.CompoundIdentifier:
     """Sets the value of a compound identifier if it exists or creates one. If

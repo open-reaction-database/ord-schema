@@ -15,19 +15,26 @@
 """Tests for ord_schema.orm.database."""
 from sqlalchemy import select
 
-from ord_schema.orm.mappers import Percentage, ProductCompound, ProductMeasurement, Reaction, ReactionOutcome
+from ord_schema.orm.database import delete_dataset
+from ord_schema.orm.mappers import Mappers
 from ord_schema.proto import reaction_pb2
 
 
 def test_orm(test_session):
     query = (
-        select(Reaction)
-        .join(ReactionOutcome)
-        .join(ProductCompound)
-        .join(ProductMeasurement)
-        .join(Percentage)
-        .where(ProductMeasurement.type == "YIELD", Percentage.value >= 70)
+        select(Mappers.Reaction)
+        .join(Mappers.ReactionOutcome)
+        .join(Mappers.ProductCompound)
+        .join(Mappers.ProductMeasurement)
+        .join(Mappers.Percentage)
+        .where(Mappers.ProductMeasurement.type == "YIELD", Mappers.Percentage.value >= 70)
     )
     results = test_session.execute(query)
     reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
     assert len(reactions) == 12
+
+
+def test_delete_dataset(test_session):
+    assert test_session.query(Mappers.Reaction).count() == 80
+    delete_dataset("test_dataset", test_session)
+    assert test_session.query(Mappers.Reaction).count() == 0

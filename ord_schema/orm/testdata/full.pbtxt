@@ -2,7 +2,7 @@ name: "1"
 description: "2"
 reactions {
   identifiers {
-    type: NAME
+    type: REACTION_TYPE
     details: "2"
     value: "1"
   }
@@ -37,7 +37,7 @@ reactions {
         }
         source {
           vendor: "10"
-          id: "11"
+          catalog_id: "11"
           lot: "12"
         }
         features {

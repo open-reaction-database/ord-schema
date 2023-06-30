@@ -157,20 +157,26 @@ class TestMessageHelpers:
         expected.identifiers.add(value=reaction_smiles, type="REACTION_SMILES")
         this_input = expected.inputs["from_reaction_smiles"]
         c_component = this_input.components.add()
-        c_component.identifiers.add(value="C", type="SMILES")
+        c_component.identifiers.add(value="C", type="SMILES", details="Extracted from reaction SMILES")
         c_component.reaction_role = reaction_pb2.ReactionRole.REACTANT
+        c_component.amount.unmeasured.type = reaction_pb2.UnmeasuredAmount.CUSTOM
+        c_component.amount.unmeasured.details = "Extracted from reaction SMILES"
         n_component = this_input.components.add()
-        n_component.identifiers.add(value="N", type="SMILES")
+        n_component.identifiers.add(value="N", type="SMILES", details="Extracted from reaction SMILES")
         n_component.reaction_role = reaction_pb2.ReactionRole.REACTANT
+        n_component.amount.unmeasured.type = reaction_pb2.UnmeasuredAmount.CUSTOM
+        n_component.amount.unmeasured.details = "Extracted from reaction SMILES"
         o_component = this_input.components.add()
-        o_component.identifiers.add(value="O", type="SMILES")
+        o_component.identifiers.add(value="O", type="SMILES", details="Extracted from reaction SMILES")
         o_component.reaction_role = reaction_pb2.ReactionRole.REAGENT
+        o_component.amount.unmeasured.type = reaction_pb2.UnmeasuredAmount.CUSTOM
+        o_component.amount.unmeasured.details = "Extracted from reaction SMILES"
         outcome = expected.outcomes.add()
         f_component = outcome.products.add()
-        f_component.identifiers.add(value="F", type="SMILES")
+        f_component.identifiers.add(value="F", type="SMILES", details="Extracted from reaction SMILES")
         f_component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
         cl_component = outcome.products.add()
-        cl_component.identifiers.add(value="Cl", type="SMILES")
+        cl_component.identifiers.add(value="Cl", type="SMILES", details="Extracted from reaction SMILES")
         cl_component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
         assert message_helpers.reaction_from_smiles(reaction_smiles) == expected
 
@@ -470,7 +476,7 @@ class TestCreateMessage:
         (
             ("Reaction", reaction_pb2.Reaction),
             ("Temperature", reaction_pb2.Temperature),
-            ("TemperatureConditions.Measurement", reaction_pb2.TemperatureConditions.Measurement),
+            ("TemperatureConditions.TemperatureMeasurement", reaction_pb2.TemperatureConditions.TemperatureMeasurement),
         ),
     )
     def test_valid_messages(self, message_name, expected_class):

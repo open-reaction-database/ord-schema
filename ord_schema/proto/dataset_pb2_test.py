@@ -29,7 +29,7 @@ def serialized_dataset() -> bytes:
     reaction1.identifiers.add(value="C(C)Cl.Br>>C(C)Br.Cl", type="REACTION_SMILES")
     # Copy a reaction created elsewhere.
     reaction2 = reaction_pb2.Reaction()
-    reaction2.identifiers.add(value="amide coupling", type="NAME")
+    reaction2.identifiers.add(value="amide coupling", type="REACTION_TYPE")
     dataset.reactions.add().CopyFrom(reaction2)
     yield dataset.SerializeToString()
 
@@ -40,4 +40,4 @@ def test_dataset(serialized_dataset):
     assert dataset.description == "test dataset"
     assert len(dataset.reactions) == 2
     assert dataset.reactions[0].identifiers[0].type == reaction_pb2.ReactionIdentifier.REACTION_SMILES
-    assert dataset.reactions[1].identifiers[0].type == reaction_pb2.ReactionIdentifier.NAME
+    assert dataset.reactions[1].identifiers[0].type == reaction_pb2.ReactionIdentifier.REACTION_TYPE

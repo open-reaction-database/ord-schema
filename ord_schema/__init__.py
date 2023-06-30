@@ -15,7 +15,7 @@
 from typing import Union
 
 from google.protobuf import descriptor
-import google.protobuf.message
+import google.protobuf.message  # pytype: disable=import-error
 
 from ord_schema.proto import reaction_pb2
 
@@ -25,7 +25,7 @@ Message = google.protobuf.message.Message
 ScalarType = Union[str, bytes, float, int, bool]
 
 # Messages with 'type' and 'details' fields.
-TypeDetailsMessage = Union[
+TypeDetailsMessage = Union[  # pylint: disable=invalid-name
     reaction_pb2.Analysis,
     reaction_pb2.CompoundIdentifier,
     reaction_pb2.CompoundPreparation,
@@ -35,7 +35,7 @@ TypeDetailsMessage = Union[
     reaction_pb2.FlowConditions.Tubing,
     reaction_pb2.IlluminationConditions,
     reaction_pb2.PressureConditions.Atmosphere,
-    reaction_pb2.PressureConditions.Measurement,
+    reaction_pb2.PressureConditions.PressureMeasurement,
     reaction_pb2.PressureConditions.PressureControl,
     reaction_pb2.ProductCompound.Texture,
     reaction_pb2.ProductMeasurement,
@@ -46,7 +46,7 @@ TypeDetailsMessage = Union[
     reaction_pb2.ReactionSetup.ReactionEnvironment,
     reaction_pb2.ReactionWorkup,
     reaction_pb2.StirringConditions,
-    reaction_pb2.TemperatureConditions.Measurement,
+    reaction_pb2.TemperatureConditions.TemperatureMeasurement,
     reaction_pb2.TemperatureConditions.TemperatureControl,
     reaction_pb2.Vessel,
     reaction_pb2.VesselAttachment,

@@ -17,14 +17,14 @@ import time
 import os
 from unittest.mock import patch
 
-from sqlalchemy import cast, func, text, update
+from sqlalchemy import cast, delete, func, text, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from ord_schema.logging import get_logger
-from ord_schema.orm.mappers import Base, from_proto
-from ord_schema.orm.structure import CString, FingerprintType, Structure
+from ord_schema.orm.mappers import Base, Mappers, from_proto
+from ord_schema.orm.rdkit_mappers import CString, FingerprintType, RDKitMol, RDKitReaction
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
@@ -47,6 +47,11 @@ def prepare_database(engine: Engine) -> bool:
         Whether the RDKit PostgreSQL cartridge is installed.
     """
     with engine.begin() as connection:
+        try:
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS tsm_system_rows"))  # For random sampling.
+        except OperationalError:
+            logger.warning("tsm_system_rows cartridge is not installed; random sampling will be disabled")
+    with engine.begin() as connection:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS rdkit"))
         try:
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS rdkit WITH SCHEMA rdkit"))
@@ -60,26 +65,51 @@ def prepare_database(engine: Engine) -> bool:
     return rdkit_cartridge
 
 
-def add_datasets(datasets: list[dataset_pb2.Dataset], session: Session) -> None:
-    """Adds datasets to the database."""
-    for dataset in datasets:
-        logger.info(f"Adding dataset {dataset.dataset_id}")
-        start = time.time()
-        mapped_dataset = from_proto(dataset)
-        logger.info(f"from_proto() took {time.time() - start}s")
-        start = time.time()
-        session.add(mapped_dataset)
-        logger.info(f"session.add() took {time.time() - start}s")
+def add_dataset(dataset: dataset_pb2.Dataset, session: Session) -> None:
+    """Adds a dataset to the database."""
+    logger.info(f"Adding dataset {dataset.dataset_id}")
+    start = time.time()
+    mapped_dataset = from_proto(dataset)
+    logger.info(f"from_proto() took {time.time() - start}s")
+    start = time.time()
+    session.add(mapped_dataset)
+    logger.info(f"session.add() took {time.time() - start}s")
+
+
+def delete_dataset(dataset_id: str, session: Session) -> None:
+    """Deletes a dataset from the database."""
+    logger.info(f"Deleting dataset {dataset_id}")
+    start = time.time()
+    session.execute(delete(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset_id))
+    logger.info(f"delete took {time.time() - start}s")
 
 
 def add_rdkit(session: Session) -> None:
-    """Adds RDKit PostgreSQL cartridge data."""
-    assert hasattr(Structure, "__table__")  # Type hint.
-    table = Structure.__table__
+    """Adds RDKit PostgreSQL cartridge data to any null-valued cells in the structure table."""
+    logger.info("Populating RDKit reaction columns")
+    assert hasattr(RDKitReaction, "__table__")  # Type hint.
+    table = RDKitReaction.__table__
     start = time.time()
-    session.execute(update(table).values(mol=func.rdkit.mol_from_smiles(cast(table.c.smiles, CString))))
+    session.execute(
+        update(table)
+        .where(table.c.reaction.is_(None))
+        .values(reaction=func.rdkit.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
+    )
+    logger.info(f"Adding reaction took {time.time() - start}s")
+    logger.info("Populating RDKit mol columns")
+    assert hasattr(RDKitMol, "__table__")  # Type hint.
+    table = RDKitMol.__table__
+    start = time.time()
+    session.execute(
+        update(table).where(table.c.mol.is_(None)).values(mol=func.rdkit.mol_from_smiles(cast(table.c.smiles, CString)))
+    )
     logger.info(f"Adding mol took {time.time() - start}s")
     for fp_type in FingerprintType:
         start = time.time()
-        session.execute(update(table).values(**{fp_type.name.lower(): fp_type(table.c.mol)}))
+        column = fp_type.name.lower()
+        session.execute(
+            update(table)
+            .where(getattr(table.c, column).is_(None), table.c.mol.is_not(None))
+            .values(**{column: fp_type(table.c.mol)})
+        )
         logger.info(f"Adding {fp_type} took {time.time() - start}s")

@@ -30,7 +30,7 @@ class TestNameResolvers:
         assert resolved_smi == roundtrip_smi("CC(=O)Oc1ccccc1C(O)=O")
         assert (
             message.inputs["test"].components[0].identifiers[1].type
-            == reaction_pb2.CompoundIdentifier.IdentifierType.SMILES
+            == reaction_pb2.CompoundIdentifier.CompoundIdentifierType.SMILES
         )
         assert "NAME resolved" in message.inputs["test"].components[0].identifiers[1].details
 
@@ -56,7 +56,7 @@ class TestInputResolvers:
         assert reaction_pb2.CompoundIdentifier.SMILES == reaction_input.components[0].identifiers[1].type
         assert roundtrip_smi(reaction_input.components[0].identifiers[1].value) == roundtrip_smi("[Na+].[OH-]")
         assert reaction_input.components[1].amount.volume == reaction_pb2.Volume(value=100, units="MILLILITER")
-        assert reaction_input.components[1].amount.volume_includes_solutes == True
+        assert reaction_input.components[1].amount.volume_includes_solutes
         assert reaction_input.components[1].identifiers[0] == reaction_pb2.CompoundIdentifier(
             type="NAME", value="water"
         )

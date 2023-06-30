@@ -21,7 +21,7 @@ with open("README.md") as f:
 
 setuptools.setup(
     name="ord-schema",
-    version="0.3.32",
+    version="0.3.55",
     description="Schema for the Open Reaction Database",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -32,14 +32,7 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     packages=setuptools.find_packages(),
-    package_data={
-        "ord_schema.proto": [
-            "dataset.proto",
-            "reaction.proto",
-            "test.proto",
-        ],
-    },
-    python_requires=">=3.9",
+    python_requires=">=3.10",
     install_requires=[
         "docopt>=0.6.2",
         "flask>=1.1.2",
@@ -49,22 +42,20 @@ setuptools.setup(
         "numpy>=1.18.1",
         "openpyxl>=3.0.5",
         "pandas>=1.0.4",
-        "protobuf<3.20,>=3.13.0",
+        "protobuf==4.22.3",
         "psycopg2>=2.8.5",
         "pygithub>=1.51",
         "python-dateutil>=1.10.0",
         "rdkit>=2021.9.5",
         "sqlalchemy>=1.4.39",
-        "xlrd>=2.0.1",
-        "xlwt>=1.3.0",
     ],
     extras_require={
         "docs": [
-            "ipython>=7.18.1",
-            "Pygments>=2.7.2",
-            "sphinx>=3.3.1",
-            "sphinx-rtd-theme>=0.5.0",
-            "sphinx-tabs>=1.3.0",
+            "ipython>=8.4.0",
+            "Pygments>=2.13.0",
+            "Sphinx>=5.3.0",
+            "sphinx-rtd-theme>=1.1.1",
+            "sphinx-tabs>=3.4.0",
         ],
         "examples": [
             "glob2>=0.7",
@@ -80,6 +71,7 @@ setuptools.setup(
             "pylint>=2.13.9",
             "pytest>=7.1.1",
             "pytest-cov>=3.0.0",
+            "pytest-xdist>=3.0.2",
             "pytype>=2022.5.19",
             "testing-postgresql>=1.3.0",
             "treon>=0.1.3",

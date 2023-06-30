@@ -652,7 +652,7 @@ def validate_temperature_control(
 
 
 def validate_temperature_measurement(
-    message: reaction_pb2.TemperatureConditions.Measurement,
+    message: reaction_pb2.TemperatureConditions.TemperatureMeasurement,
 ):
     check_type_and_details(message)
 
@@ -669,7 +669,7 @@ def validate_atmosphere(message: reaction_pb2.PressureConditions.Atmosphere):
     check_type_and_details(message)
 
 
-def validate_pressure_measurement(message: reaction_pb2.PressureConditions.Measurement):
+def validate_pressure_measurement(message: reaction_pb2.PressureConditions.PressureMeasurement):
     check_type_and_details(message)
 
 
@@ -698,7 +698,7 @@ def validate_electrochemistry_cell(
 
 
 def validate_electrochemistry_measurement(
-    message: reaction_pb2.ElectrochemistryConditions.Measurement,
+    message: reaction_pb2.ElectrochemistryConditions.ElectrochemistryMeasurement,
 ):
     del message  # Unused.
 
@@ -1049,7 +1049,6 @@ def validate_percentage(message: reaction_pb2.Percentage):
 
 
 def validate_float_value(message: ord_schema.Message):
-    ensure_float_nonnegative(message, "value")
     ensure_float_nonnegative(message, "precision")
 
 
@@ -1091,17 +1090,17 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.ReactionConditions: validate_reaction_conditions,
     reaction_pb2.TemperatureConditions: validate_temperature_conditions,
     reaction_pb2.TemperatureConditions.TemperatureControl: validate_temperature_control,
-    reaction_pb2.TemperatureConditions.Measurement: validate_temperature_measurement,
+    reaction_pb2.TemperatureConditions.TemperatureMeasurement: validate_temperature_measurement,
     reaction_pb2.PressureConditions: validate_pressure_conditions,
     reaction_pb2.PressureConditions.PressureControl: validate_pressure_control,
     reaction_pb2.PressureConditions.Atmosphere: validate_pressure_control,
-    reaction_pb2.PressureConditions.Measurement: validate_pressure_measurement,
+    reaction_pb2.PressureConditions.PressureMeasurement: validate_pressure_measurement,
     reaction_pb2.StirringConditions: validate_stirring_conditions,
     reaction_pb2.StirringConditions.StirringRate: validate_stirring_rate,
     reaction_pb2.IlluminationConditions: validate_illumination_conditions,
     reaction_pb2.ElectrochemistryConditions: validate_electrochemistry_conditions,
     reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell: validate_electrochemistry_cell,
-    reaction_pb2.ElectrochemistryConditions.Measurement: validate_electrochemistry_measurement,
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryMeasurement: validate_electrochemistry_measurement,
     reaction_pb2.FlowConditions: validate_flow_conditions,
     reaction_pb2.FlowConditions.Tubing: validate_tubing,
     # Annotations

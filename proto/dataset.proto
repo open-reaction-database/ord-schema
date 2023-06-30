@@ -1,0 +1,52 @@
+// Copyright 2020 Open Reaction Database Project Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Protocol buffer messages for reaction datasets.
+syntax = "proto3";
+
+package ord;
+
+import "ord-schema/proto/reaction.proto";
+
+// A Dataset is a collection of Reaction message that is used to group reactions
+// together into a logical unit along with relevant metadata or scripts for
+// understanding and using the data.
+message Dataset {
+  string name = 1;
+  string description = 2;
+  // The Dataset is specified by either:
+  //   * a list of Reactions
+  //   * a list of Reaction IDs from existing datasets
+  // Note that these are mutually exclusive.
+  //
+  // List of Reaction messages that are part of this dataset.
+  repeated Reaction reactions = 3;
+  // List of Reaction IDs that are part of this dataset. This is designed for
+  // creating Datasets that are composed of subsets of Reactions from existing
+  // datasets. For example, a collection of all reactions of a certain type
+  // across multiple datasets.
+  repeated string reaction_ids = 4;
+  // Dataset ID assigned during the submission process.
+  string dataset_id = 5;
+}
+
+// Metadata for an example of using a Dataset. For example, a DatasetExample
+// might include a URL for a colab/jupyter notebook or a blog post showing how
+// to use the Dataset in a downstream machine learning application.
+message DatasetExample {
+  string dataset_id = 1;
+  string description = 2;
+  string url = 3;
+  RecordEvent created = 4;
+}

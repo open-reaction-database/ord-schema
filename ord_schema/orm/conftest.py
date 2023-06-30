@@ -22,18 +22,20 @@ from sqlalchemy.orm import Session
 from testing.postgresql import Postgresql
 
 from ord_schema.message_helpers import load_message
-from ord_schema.orm.database import add_datasets, add_rdkit, prepare_database
-from ord_schema.proto.dataset_pb2 import Dataset
+from ord_schema.orm.database import add_dataset, add_rdkit, prepare_database
+from ord_schema.proto import dataset_pb2
 
 
 @pytest.fixture
 def test_session() -> Iterator[Session]:
-    dataset = load_message(os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"), Dataset)
+    dataset = load_message(
+        os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"), dataset_pb2.Dataset
+    )
     with Postgresql() as postgres:
-        engine = create_engine(postgres.url(), echo=False, future=True)
+        engine = create_engine(postgres.url(), future=True, echo=True)
         rdkit_cartridge = prepare_database(engine)
         with Session(engine) as session:
-            add_datasets([dataset], session)
+            add_dataset(dataset, session)
             session.flush()
             if rdkit_cartridge:
                 add_rdkit(session)

@@ -28,11 +28,11 @@ jobs:
         shell: bash -l {0}
         run: |
           # NOTE(skearnes): conda is only used for postgres (not python).
-          conda install -c rdkit rdkit-postgresql
+          conda install -c rdkit rdkit-postgresql==2020.03.3.0
           initdb
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: '3.10'
       - name: Install ord_schema
         run: |
           python -m pip install --upgrade pip
@@ -42,7 +42,7 @@ jobs:
         shell: bash -l {0}
         run: |
           coverage erase
-          pytest --cov=ord_schema
+          pytest -n auto -vv --cov=ord_schema --durations=0 --durations-min=1
           coverage xml
       - uses: codecov/codecov-action@v1
 
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: '3.10'
       - name: Install ord_schema
         run: |
           python -m pip install --upgrade pip
@@ -65,21 +65,67 @@ jobs:
   test_proto_wrappers:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: '3.10'
       - name: Install protoc
         run: |
           python -m pip install --upgrade pip
           python -m pip install wheel
-          python -m pip install "protoc-wheel-0>=3.13.0,<3.20.0"
-          protoc --version
+          mkdir protoc
+          cd protoc
+          wget https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-x86_64.zip
+          unzip protoc-22.3-linux-x86_64.zip
+          wget https://github.com/protocolbuffers/protobuf-javascript/releases/download/v3.21.2/protobuf-javascript-3.21.2-linux-x86_64.zip
+          unzip protobuf-javascript-3.21.2-linux-x86_64.zip
+          PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH protoc --version
       - name: Run protoc
         run: |
-          ./compile_proto_wrappers.sh
+          PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH ./compile_proto_wrappers.sh
           ./format.sh  # Add license headers.
       - name: Check for drift
         run: |
           # Ignore the copyright line in the diff so the year can change.
-          [[ -z $(git diff -I "^# Copyright") ]] || { echo "proto wrappers do not match:\n$(git diff)"; exit 1; }
+          [[ -z $(git diff -I "^(#| \*) Copyright") ]] || { echo "proto wrappers do not match:\n$(git diff)"; exit 1; }
+
+  test_js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
+      - name: Test NPM package
+        run: |
+          cd js/ord-schema
+          npm install-test
+
+  test_publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Test bump patch version
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          python -m pip install bump2version
+          bump2version patch --verbose
+      - name: Test python
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade build twine wheel
+          python -m build
+      - name: Test javascript
+        run: |
+          cd js/ord-schema
+          npm install
+          npm run build
+          npm publish --dry-run
