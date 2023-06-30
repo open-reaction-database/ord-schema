@@ -29,13 +29,13 @@
 
 var jspb = require('google-protobuf');
 var goog = jspb;
-var global = (function() {
-  if (this) { return this; }
-  if (typeof window !== 'undefined') { return window; }
-  if (typeof global !== 'undefined') { return global; }
-  if (typeof self !== 'undefined') { return self; }
-  return Function('return this')();
-}.call(null));
+var global =
+    (typeof globalThis !== 'undefined' && globalThis) ||
+    (typeof window !== 'undefined' && window) ||
+    (typeof global !== 'undefined' && global) ||
+    (typeof self !== 'undefined' && self) ||
+    (function () { return this; }).call(null) ||
+    Function('return this')();
 
 goog.exportSymbol('proto.ord.Amount', null, global);
 goog.exportSymbol('proto.ord.Amount.KindCase', null, global);
@@ -1793,7 +1793,8 @@ proto.ord.Reaction.prototype.getInputsMap = function(opt_noLazyCreate) {
  */
 proto.ord.Reaction.prototype.clearInputsMap = function() {
   this.getInputsMap().clear();
-  return this;};
+  return this;
+};
 
 
 /**
@@ -4673,7 +4674,8 @@ proto.ord.Compound.prototype.getFeaturesMap = function(opt_noLazyCreate) {
  */
 proto.ord.Compound.prototype.clearFeaturesMap = function() {
   this.getFeaturesMap().clear();
-  return this;};
+  return this;
+};
 
 
 /**
@@ -4695,7 +4697,8 @@ proto.ord.Compound.prototype.getAnalysesMap = function(opt_noLazyCreate) {
  */
 proto.ord.Compound.prototype.clearAnalysesMap = function() {
   this.getAnalysesMap().clear();
-  return this;};
+  return this;
+};
 
 
 
@@ -6719,7 +6722,8 @@ proto.ord.ReactionSetup.prototype.getAutomationCodeMap = function(opt_noLazyCrea
  */
 proto.ord.ReactionSetup.prototype.clearAutomationCodeMap = function() {
   this.getAutomationCodeMap().clear();
-  return this;};
+  return this;
+};
 
 
 /**
@@ -12704,7 +12708,8 @@ proto.ord.ReactionOutcome.prototype.getAnalysesMap = function(opt_noLazyCreate) 
  */
 proto.ord.ReactionOutcome.prototype.clearAnalysesMap = function() {
   this.getAnalysesMap().clear();
-  return this;};
+  return this;
+};
 
 
 
@@ -13268,7 +13273,8 @@ proto.ord.ProductCompound.prototype.getFeaturesMap = function(opt_noLazyCreate) 
  */
 proto.ord.ProductCompound.prototype.clearFeaturesMap = function() {
   this.getFeaturesMap().clear();
-  return this;};
+  return this;
+};
 
 
 /**
@@ -15076,7 +15082,8 @@ proto.ord.Analysis.prototype.getDataMap = function(opt_noLazyCreate) {
  */
 proto.ord.Analysis.prototype.clearDataMap = function() {
   this.getDataMap().clear();
-  return this;};
+  return this;
+};
 
 
 /**
@@ -15597,7 +15604,8 @@ proto.ord.ReactionProvenance.prototype.getReactionMetadataMap = function(opt_noL
  */
 proto.ord.ReactionProvenance.prototype.clearReactionMetadataMap = function() {
   this.getReactionMetadataMap().clear();
-  return this;};
+  return this;
+};
 
 
 
