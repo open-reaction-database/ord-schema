@@ -18,6 +18,7 @@ import functools
 import gzip
 import os
 import re
+import urllib.parse
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Optional, Type, TypeVar, Union
@@ -42,6 +43,7 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
 MessageType = TypeVar("MessageType")  # Generic for setting return types; pylint: disable=invalid-name.
+ORD_DATA_URL = "https://github.com/Open-Reaction-Database/ord-data/raw/main/"
 
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
@@ -719,11 +721,19 @@ def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset
 
     Returns:
         Dataset message.
+
+    Raises:
+        RuntimeError: If the request fails.
+        ValueError: If the dataset ID is invalid.
     """
-    url = os.path.join(
-        "https://github.com/open-reaction-database/ord-data/raw/main", id_filename(f"{dataset_id}.pb.gz")
-    )
+    from ord_schema import validations  # Avoid circular import; pylint: disable=import-outside-toplevel.
+
+    if not validations.is_valid_dataset_id(dataset_id):
+        raise ValueError(f"Invalid dataset ID: {dataset_id}")
+    url = urllib.parse.urljoin(ORD_DATA_URL, id_filename(f"{dataset_id}.pb.gz"))
     response = requests.get(url, timeout=timeout)
+    if response.status_code != 200:
+        raise RuntimeError(f"Request {url} failed with status {response.status_code}")
     return dataset_pb2.Dataset.FromString(gzip.decompress(response.content))
 
 

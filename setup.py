@@ -68,11 +68,11 @@ setuptools.setup(
         "tests": [
             "black[jupyter]>=22.3.0",
             "coverage>=5.2.1",
-            "pylint>=2.13.9",
+            "pylint~=2.17.4",
             "pytest>=7.1.1",
             "pytest-cov>=3.0.0",
             "pytest-xdist>=3.0.2",
-            "pytype>=2022.5.19",
+            "pytype==2023.6.16",
             "testing-postgresql>=1.3.0",
             "treon>=0.1.3",
         ],
