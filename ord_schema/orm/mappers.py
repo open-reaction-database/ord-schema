@@ -35,7 +35,7 @@ from typing import Any, Mapping, Optional, Type
 from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
 from inflection import underscore
-from sqlalchemy import Boolean, Column, Enum, Float, Integer, ForeignKey, LargeBinary, Text
+from sqlalchemy import Boolean, Column, Enum, Float, Integer, ForeignKey, LargeBinary, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
@@ -168,7 +168,7 @@ def build_mapper(  # pylint: disable=too-many-branches
         # Make dataset IDs globally unique.
         attrs["dataset_id"] = Column(Text, nullable=False, unique=True)
         # Track the MD5 hash so we can quickly identify changes.
-        attrs["md5"] = Column(Text, nullable=False)
+        attrs["md5"] = Column(String(32), nullable=False)
     elif message_type == reaction_pb2.Reaction:
         # Make reaction IDs globally unique.
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)

@@ -74,6 +74,7 @@ def _add_dataset(filename: str, url: str, update: bool) -> None:
                     delete_dataset(dataset.dataset_id, session)
                 else:
                     logger.info(f"existing dataset {dataset.dataset_id} unchanged; skipping")
+                    return
             else:
                 raise ValueError(f"`update` is required when a dataset already exists: {dataset.dataset_id}")
         add_dataset(dataset, session)
