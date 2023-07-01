@@ -1098,6 +1098,10 @@ message ReactionProvenance {
   // Container for arbitrary reaction metadata; e.g., an internal project
   // identifier.
   map<string, Data> reaction_metadata = 9;
+  // Set to true for programmatically extracted data; e.g., text mining from
+  // patents. Set to false for manually curated data or template enumeration
+  // from structured data (like a spreadsheet).
+  optional bool is_mined = 10;
 }
 
 message Person {
