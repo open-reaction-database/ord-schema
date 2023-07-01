@@ -152,7 +152,7 @@ To load multiple datasets from disk (e.g., from a clone of
 [ord-data](https://github.com/open-reaction-database/ord-data)), use the `add_datasets.py` script:
 
 ```shell
-python add_datasets.py \
+python scripts/add_datasets.py \
     --pattern "path/to/ord-data/data/fc/*.pb.gz" \
     --username <username> \
     --host <host> \
