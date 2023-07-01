@@ -17,7 +17,7 @@ import time
 import os
 from unittest.mock import patch
 
-from sqlalchemy import cast, delete, func, text, update
+from sqlalchemy import cast, delete, func, select, text, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
@@ -74,6 +74,13 @@ def add_dataset(dataset: dataset_pb2.Dataset, session: Session) -> None:
     start = time.time()
     session.add(mapped_dataset)
     logger.info(f"session.add() took {time.time() - start}s")
+
+
+def get_dataset_md5(dataset_id: str, session: Session) -> str | None:
+    """The MD5 hash of the current version of a dataset, if it exists in the database."""
+    result = session.execute(select(Mappers.Dataset.md5).where(Mappers.Dataset.dataset_id == dataset_id))
+    row = result.first()
+    return row[0] if row else None
 
 
 def delete_dataset(dataset_id: str, session: Session) -> None:

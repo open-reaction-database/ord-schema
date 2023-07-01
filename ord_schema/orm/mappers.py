@@ -28,6 +28,7 @@ Notes:
       the database.
 """
 from collections import defaultdict
+from hashlib import md5
 from operator import attrgetter
 from typing import Any, Mapping, Optional, Type
 
@@ -166,6 +167,8 @@ def build_mapper(  # pylint: disable=too-many-branches
     if message_type == dataset_pb2.Dataset:
         # Make dataset IDs globally unique.
         attrs["dataset_id"] = Column(Text, nullable=False, unique=True)
+        # Track the MD5 hash so we can quickly identify changes.
+        attrs["md5"] = Column(Text, nullable=False)
     elif message_type == reaction_pb2.Reaction:
         # Make reaction IDs globally unique.
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
@@ -243,8 +246,6 @@ def from_proto(  # pylint: disable=too-many-branches
     kwargs = {}
     if key is not None:
         kwargs["key"] = key
-    if isinstance(message, reaction_pb2.Reaction):
-        kwargs["proto"] = message.SerializeToString()
     for field, value in message.ListFields():
         if field.type == FieldDescriptor.TYPE_MESSAGE:
             field_mapper = getattr(mapper, field.name).mapper.class_
@@ -258,7 +259,10 @@ def from_proto(  # pylint: disable=too-many-branches
             kwargs[field.name] = field.enum_type.values_by_number[value].name
         else:
             kwargs[field.name] = value
-    if isinstance(message, reaction_pb2.Reaction):
+    if isinstance(message, dataset_pb2.Dataset):
+        kwargs["md5"] = md5(message.SerializeToString(deterministic=True)).hexdigest()
+    elif isinstance(message, reaction_pb2.Reaction):
+        kwargs["proto"] = message.SerializeToString(deterministic=True)
         field_mapper = getattr(mapper, "rdkit").mapper.class_
         try:
             reaction_smiles = message_helpers.get_reaction_smiles(message, generate_if_missing=True)

@@ -20,7 +20,7 @@ Usage:
 
 Options:
     --pattern=<str>         Pattern for dataset filenames
-    --overwrite             Overwrite existing datasets
+    --update                Update changed datasets
     --url=<str>             Postgres connection string
     --database=<str>        Database [default: orm]
     --username=<str>        Database username [default: postgres]
@@ -33,6 +33,7 @@ import os
 import time
 from functools import partial
 from glob import glob
+from hashlib import md5
 from concurrent.futures import ProcessPoolExecutor
 
 from docopt import docopt
@@ -41,19 +42,22 @@ from sqlalchemy.orm import Session
 
 from ord_schema.logging import get_logger
 from ord_schema.message_helpers import load_message
-from ord_schema.orm.database import add_dataset, add_rdkit, delete_dataset, get_connection_string
+from ord_schema.orm.database import add_dataset, add_rdkit, delete_dataset, get_connection_string, get_dataset_md5
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
 
 
-def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
+def _add_dataset(filename: str, url: str, update: bool) -> None:
     """Adds a single dataset to the database.
 
     Args:
         filename: Dataset filename.
         url: Database connection string.
-        overwrite: If True, overwrite an existing dataset.
+        update: If True, update the dataset if the MD5 hash has changed.
+
+    Raises:
+        ValueError: If the dataset already exists in the database and `update` is not set.
     """
     logger.info(f"Loading {filename}")
     start = time.time()
@@ -61,8 +65,17 @@ def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
     logger.info(f"load_message() took {time.time() - start}s")
     engine = create_engine(url, future=True)
     with Session(engine) as session:
-        if overwrite:
-            delete_dataset(dataset.dataset_id, session)
+        dataset_md5 = get_dataset_md5(dataset.dataset_id, session)
+        if dataset_md5 is not None:
+            if update:
+                this_md5 = md5(dataset.SerializeToString(deterministic=True)).hexdigest()
+                if this_md5 != dataset_md5:
+                    logger.info(f"existing dataset {dataset.dataset_id} changed; updating")
+                    delete_dataset(dataset.dataset_id, session)
+                else:
+                    logger.info(f"existing dataset {dataset.dataset_id} unchanged; skipping")
+            else:
+                raise ValueError(f"`update` is required when a dataset already exists: {dataset.dataset_id}")
         add_dataset(dataset, session)
         start = time.time()
         session.commit()
@@ -80,7 +93,7 @@ def main(**kwargs):
             host=kwargs["--host"],
             port=int(kwargs["--port"]),
         )
-    function = partial(_add_dataset, url=url, overwrite=kwargs["--overwrite"])
+    function = partial(_add_dataset, url=url, update=kwargs["--update"])
     filenames = glob(kwargs["--pattern"])
     with ProcessPoolExecutor(max_workers=int(kwargs["--n_jobs"])) as executor:
         for _ in executor.map(function, filenames):

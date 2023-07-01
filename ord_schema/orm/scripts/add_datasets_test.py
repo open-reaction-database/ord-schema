@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ord_schema.orm.add_datasets."""
+"""Tests for ord_schema.orm.scripts.add_datasets."""
 import os
 
 import docopt
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.exc import IntegrityError
 from testing.postgresql import Postgresql
 
-from ord_schema.orm import add_datasets
 from ord_schema.orm.database import prepare_database
+from ord_schema.orm.scripts import add_datasets
 
 
 def test_main():
@@ -33,10 +32,10 @@ def test_main():
             "--url",
             postgres.url(),
             "--pattern",
-            os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"),
+            os.path.join(os.path.dirname(__file__), "..", "testdata", "ord-nielsen-example.pbtxt"),
         ]
         add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))
-        with pytest.raises(IntegrityError, match="violates unique constraint"):
+        with pytest.raises(ValueError, match="`update` is required"):
             add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))
-        argv.append("--overwrite")
+        argv.append("--update")
         add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))
