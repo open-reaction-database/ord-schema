@@ -85,6 +85,7 @@ class TestProcessDataset:
         expected_output = [
             "Reaction: Reactions should have at least 1 reaction input\n",
             "Reaction: Reactions should have at least 1 reaction outcome\n",
+            "Reaction: Reaction requires provenance\n",
         ]
         with open(error_filename) as f:
             assert f.readlines() == expected_output
@@ -406,6 +407,9 @@ class TestSubmissionWorkflow:
         image = reaction.observations.add().image
         image.bytes_value = b"test data value"
         image.format = "png"
+        reaction.provenance.record_created.time.value = "2023-07-01"
+        reaction.provenance.record_created.person.name = "test"
+        reaction.provenance.record_created.person.email = "test@example.com"
         dataset = dataset_pb2.Dataset(reactions=[reaction])
         dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
         message_helpers.write_message(dataset, dataset_filename)
