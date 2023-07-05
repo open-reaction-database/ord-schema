@@ -261,7 +261,6 @@ message Compound {
   // properties of the compound (e.g., molecular weight), heuristic estimates
   // of physical properties (e.g., ClogP), optimized geometries (e.g., through
   // DFT), and calculated stereoelectronic descriptors.
-  // Convention: also put stoichiometry ratio/coefficient here, see https://github.com/open-reaction-database/ord-schema/issues/683
   map<string, Data> features = 7;
   // Compounds may be assayed for quality control; analytical data should be
   // defined in the analyses map.
@@ -896,7 +895,6 @@ message ProductCompound {
   }
   Texture texture = 5;
   // Any features (e.g., calculated descriptors) of the product compound.
-  // Convention: also put stoichiometry ratio/coefficient here, see https://github.com/open-reaction-database/ord-schema/issues/683
   map<string, Data> features = 6;
   // Specify the role the ProductCompound played in the reaction. This
   // aids in constructing proper reaction SMILES and product lists.
