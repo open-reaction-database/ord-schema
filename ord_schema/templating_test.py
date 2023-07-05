@@ -35,6 +35,9 @@ def valid_reaction() -> reaction_pb2.Reaction:
     component.amount.mass.units = reaction_pb2.Mass.GRAM
     outcome.conversion.value = 75
     outcome.conversion.precision = 99
+    message.provenance.record_created.time.value = "2023-07-01"
+    message.provenance.record_created.person.name = "test"
+    message.provenance.record_created.person.email = "test@example.com"
     yield message
 
 
@@ -121,6 +124,9 @@ def test_missing_values(tmp_path):
     # pylint: disable=too-many-locals
     # Build a template reaction.
     reaction = reaction_pb2.Reaction()
+    reaction.provenance.record_created.time.value = "2023-07-01"
+    reaction.provenance.record_created.person.name = "test"
+    reaction.provenance.record_created.person.email = "test@example.com"
     input1 = reaction.inputs["one"]
     input1_component1 = input1.components.add()
     input1_component1.identifiers.add(value="CCO", type="SMILES")
