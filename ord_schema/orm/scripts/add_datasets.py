@@ -20,7 +20,7 @@ Usage:
 
 Options:
     --pattern=<str>         Pattern for dataset filenames
-    --update                Update changed datasets
+    --overwrite             Update changed datasets
     --url=<str>             Postgres connection string
     --database=<str>        Database [default: orm]
     --username=<str>        Database username [default: postgres]
@@ -48,16 +48,16 @@ from ord_schema.proto import dataset_pb2
 logger = get_logger(__name__)
 
 
-def _add_dataset(filename: str, url: str, update: bool) -> None:
+def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
     """Adds a single dataset to the database.
 
     Args:
         filename: Dataset filename.
         url: Database connection string.
-        update: If True, update the dataset if the MD5 hash has changed.
+        overwrite: If True, update the dataset if the MD5 hash has changed.
 
     Raises:
-        ValueError: If the dataset already exists in the database and `update` is not set.
+        ValueError: If the dataset already exists in the database and `overwrite` is not set.
     """
     logger.info(f"Loading {filename}")
     start = time.time()
@@ -67,7 +67,7 @@ def _add_dataset(filename: str, url: str, update: bool) -> None:
     with Session(engine) as session:
         dataset_md5 = get_dataset_md5(dataset.dataset_id, session)
         if dataset_md5 is not None:
-            if update:
+            if overwrite:
                 this_md5 = md5(dataset.SerializeToString(deterministic=True)).hexdigest()
                 if this_md5 != dataset_md5:
                     logger.info(f"existing dataset {dataset.dataset_id} changed; updating")
@@ -76,7 +76,7 @@ def _add_dataset(filename: str, url: str, update: bool) -> None:
                     logger.info(f"existing dataset {dataset.dataset_id} unchanged; skipping")
                     return
             else:
-                raise ValueError(f"`update` is required when a dataset already exists: {dataset.dataset_id}")
+                raise ValueError(f"`overwrite` is required when a dataset already exists: {dataset.dataset_id}")
         add_dataset(dataset, session)
         start = time.time()
         session.commit()
@@ -94,7 +94,7 @@ def main(**kwargs):
             host=kwargs["--host"],
             port=int(kwargs["--port"]),
         )
-    function = partial(_add_dataset, url=url, update=kwargs["--update"])
+    function = partial(_add_dataset, url=url, overwrite=kwargs["--overwrite"])
     filenames = glob(kwargs["--pattern"])
     with ProcessPoolExecutor(max_workers=int(kwargs["--n_jobs"])) as executor:
         for _ in executor.map(function, filenames):

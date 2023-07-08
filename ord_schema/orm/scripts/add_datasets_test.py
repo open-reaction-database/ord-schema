@@ -37,5 +37,5 @@ def test_main():
         add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))
         with pytest.raises(ValueError, match="`update` is required"):
             add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))
-        argv.append("--update")
+        argv.append("--overwrite")
         add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))
