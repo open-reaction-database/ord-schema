@@ -15,7 +15,7 @@
 """Tests for ord_schema.orm.database."""
 from sqlalchemy import select
 
-from ord_schema.orm.database import delete_dataset
+from ord_schema.orm.database import delete_dataset, get_dataset_md5
 from ord_schema.orm.mappers import Mappers
 from ord_schema.proto import reaction_pb2
 
@@ -38,3 +38,8 @@ def test_delete_dataset(test_session):
     assert test_session.query(Mappers.Reaction).count() == 80
     delete_dataset("test_dataset", test_session)
     assert test_session.query(Mappers.Reaction).count() == 0
+
+
+def test_get_dataset_md5(test_session):
+    assert get_dataset_md5("test_dataset", test_session) == "42c687cafd247fd72d2a78c550b0b054"
+    assert get_dataset_md5("other_dataset", test_session) is None
