@@ -52,13 +52,15 @@ def prepare_database(engine: Engine) -> bool:
         except OperationalError:
             logger.warning("tsm_system_rows cartridge is not installed; random sampling will be disabled")
     with engine.begin() as connection:
+        connection.execute(text("CREATE SCHEMA IF NOT EXISTS ord"))
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS rdkit"))
         try:
-            connection.execute(text("CREATE EXTENSION IF NOT EXISTS rdkit WITH SCHEMA rdkit"))
+            # NOTE(skearnes): The RDKit PostgreSQL extension works best in the public schema.
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS rdkit"))
             rdkit_cartridge = True
         except OperationalError:
             logger.warning("RDKit PostgreSQL cartridge is not installed; structure search will be disabled")
-            connection.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA rdkit"))
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
             rdkit_cartridge = False
     with patch.dict(os.environ, {"ORD_POSTGRES_RDKIT": "1" if rdkit_cartridge else "0"}):
         Base.metadata.create_all(engine)
@@ -100,7 +102,7 @@ def add_rdkit(session: Session) -> None:
     session.execute(
         update(table)
         .where(table.c.reaction.is_(None))
-        .values(reaction=func.rdkit.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
+        .values(reaction=func.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
     )
     logger.info(f"Adding reaction took {time.time() - start}s")
     logger.info("Populating RDKit mol columns")
@@ -108,7 +110,7 @@ def add_rdkit(session: Session) -> None:
     table = RDKitMol.__table__
     start = time.time()
     session.execute(
-        update(table).where(table.c.mol.is_(None)).values(mol=func.rdkit.mol_from_smiles(cast(table.c.smiles, CString)))
+        update(table).where(table.c.mol.is_(None)).values(mol=func.mol_from_smiles(cast(table.c.smiles, CString)))
     )
     logger.info(f"Adding mol took {time.time() - start}s")
     for fp_type in FingerprintType:
