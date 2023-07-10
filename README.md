@@ -39,3 +39,20 @@ $ pip install -e .
 
 If you make changes to the protocol buffer definitions, [install](https://grpc.io/docs/protoc-installation/) `protoc`
 and run `./compile_proto_wrappers.sh` to rebuild the wrappers.
+
+## Conventions
+
+### 1. convention: compound stoichiometry
+
+##### Created: 2023.07.04
+
+##### Last updated: 2023.07.04
+
+##### Description: 
+1. The preferred field for compound stoichiometry is the map `Compound.features` or `ProductCompound.features`.
+2. The key should be "stoichiometric_coefficient" or "stoichiometric_ratio".
+3. The value should be a Data mesaage with its float_value representing the compound's stoichiometric coefficient or ratio.SInformation about also put stoichiometry ratio/coefficient here
+
+##### Related links: 
+[#683](https://github.com/open-reaction-database/ord-schema/issues/683) 
+[#684](https://github.com/open-reaction-database/ord-schema/pull/684)

@@ -4814,7 +4814,9 @@ proto.ord.ReactionRole.ReactionRoleType = {
   WORKUP: 5,
   INTERNAL_STANDARD: 6,
   AUTHENTIC_STANDARD: 7,
-  PRODUCT: 8
+  PRODUCT: 8,
+  BYPRODUCT: 9,
+  SIDE_PRODUCT: 10
 };
 
 

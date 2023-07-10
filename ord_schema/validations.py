@@ -783,9 +783,18 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
 
 def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome):
     # pylint: disable=singleton-comparison
-    # Can only have one desired product
-    if sum(product.is_desired_product for product in message.products) > 1:
-        warnings.warn("Cannot have more than one desired product!", ValidationError)
+    # *Usually* there should be at most one PRODUCT & is_desired_product
+    ndp = sum(
+        product.is_desired_product
+        for product in message.products
+        if product.reaction_role == reaction_pb2.ReactionRole.ReactionRoleType.PRODUCT
+    )
+    if ndp > 1:
+        warnings.warn(
+            f"Usually at most one (reaction_role == PRODUCT & is_desired_product) product, but we have: {ndp}",
+            ValidationWarning,
+        )
+
     # Check key values for product analyses
     # NOTE(ccoley): Could use any(), but using expanded loops for clarity
     analysis_keys = list(message.analyses.keys())
@@ -819,6 +828,10 @@ def validate_product_compound(message: reaction_pb2.ProductCompound):
         message_helpers.check_compound_identifiers(message)
     except ValueError as error:
         warnings.warn(str(error), ValidationWarning)
+
+    if message.is_desired_product:
+        if message.reaction_role == reaction_pb2.ReactionRole.ReactionRoleType.SIDE_PRODUCT:
+            warnings.warn("a product cannot be (SIDE_PRODUCT & is_desired_product)", ValidationError)
 
 
 def validate_texture(message: reaction_pb2.ProductCompound.Texture):

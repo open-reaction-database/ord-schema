@@ -287,6 +287,14 @@ message ReactionRole {
     // A product can be any species produced by the reaction, whether desired
     // or undesired.
     PRODUCT = 8;
+    // When there is one intended chemical equation:
+    // - Set `is_desired_product=True` to indicate a desired product.
+    // - Use BYPRODUCT to indicate a chemical species that is an expected result
+    // of the reaction but is not the product of interest.
+    // - Use SIDE_PRODUCT to indicate the product of a side reaction.
+    // - See https://doi.org/10.1021/op300317g for a discussion of these terms.
+    BYPRODUCT = 9;
+    SIDE_PRODUCT = 10;
   }
 }
 
