@@ -152,7 +152,7 @@ To load multiple datasets from disk (e.g., from a clone of
 [ord-data](https://github.com/open-reaction-database/ord-data)), use the `add_datasets.py` script:
 
 ```shell
-python add_datasets.py \
+python scripts/add_datasets.py \
     --pattern "path/to/ord-data/data/fc/*.pb.gz" \
     --username <username> \
     --host <host> \
@@ -160,7 +160,7 @@ python add_datasets.py \
 ```
 
 Note that the database password will be read from the `PGPASSWORD` environment variable if `--password` is not
-specified on the command line. To update an existing dataset in the database, use the `--overwrite` flag.
+specified on the command line. To update an existing dataset in the database, use the `--update` flag.
 
 ### Run queries
 
@@ -183,12 +183,12 @@ connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database
 engine = create_engine(connection_string, future=True)
 with Session(engine) as session:
     query = (
-      select(Mappers.Reaction)
-      .join(Mappers.ReactionOutcome)
-      .join(Mappers.ProductCompound)
-      .join(Mappers.ProductMeasurement)
-      .join(Mappers.Percentage)
-      .where(Mappers.ProductMeasurement.type == "YIELD", Mappers.Percentage.value >= 70)
+        select(Mappers.Reaction)
+        .join(Mappers.ReactionOutcome)
+        .join(Mappers.ProductCompound)
+        .join(Mappers.ProductMeasurement)
+        .join(Mappers.Percentage)
+        .where(Mappers.ProductMeasurement.type == "YIELD", Mappers.Percentage.value >= 70)
     )
     results = session.execute(query)
     reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
@@ -210,12 +210,12 @@ from ord_schema.proto import reaction_pb2
 connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
 engine = create_engine(connection_string, future=True)
 with Session(engine) as session:
-  query = (
-    select(Mappers.Reaction)
-    .join(Mappers.ReactionInput)
-    .join(Mappers.Compound)
-    .join(RDKitMol)
-    .where(RDKitMol.tanimoto("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP) > 0.5)
+    query = (
+        select(Mappers.Reaction)
+        .join(Mappers.ReactionInput)
+        .join(Mappers.Compound)
+        .join(RDKitMol)
+        .where(RDKitMol.tanimoto("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP) > 0.5)
     )
     results = session.execute(query)
     reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
