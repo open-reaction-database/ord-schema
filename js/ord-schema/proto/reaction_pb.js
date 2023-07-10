@@ -4814,7 +4814,9 @@ proto.ord.ReactionRole.ReactionRoleType = {
   WORKUP: 5,
   INTERNAL_STANDARD: 6,
   AUTHENTIC_STANDARD: 7,
-  PRODUCT: 8
+  PRODUCT: 8,
+  BYPRODUCT: 9,
+  SIDE_PRODUCT: 10
 };
 
 
@@ -15189,8 +15191,7 @@ proto.ord.ReactionProvenance.toObject = function(includeInstance, msg) {
     recordCreated: (f = msg.getRecordCreated()) && proto.ord.RecordEvent.toObject(includeInstance, f),
     recordModifiedList: jspb.Message.toObjectList(msg.getRecordModifiedList(),
     proto.ord.RecordEvent.toObject, includeInstance),
-    reactionMetadataMap: (f = msg.getReactionMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : [],
-    isMined: jspb.Message.getBooleanFieldWithDefault(msg, 10, false)
+    reactionMetadataMap: (f = msg.getReactionMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : []
   };
 
   if (includeInstance) {
@@ -15268,10 +15269,6 @@ proto.ord.ReactionProvenance.deserializeBinaryFromReader = function(msg, reader)
       reader.readMessage(value, function(message, reader) {
         jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readString, jspb.BinaryReader.prototype.readMessage, proto.ord.Data.deserializeBinaryFromReader, "", new proto.ord.Data());
          });
-      break;
-    case 10:
-      var value = /** @type {boolean} */ (reader.readBool());
-      msg.setIsMined(value);
       break;
     default:
       reader.skipField();
@@ -15365,13 +15362,6 @@ proto.ord.ReactionProvenance.serializeBinaryToWriter = function(message, writer)
   f = message.getReactionMetadataMap(true);
   if (f && f.getLength() > 0) {
     f.serializeBinary(9, writer, jspb.BinaryWriter.prototype.writeString, jspb.BinaryWriter.prototype.writeMessage, proto.ord.Data.serializeBinaryToWriter);
-  }
-  f = /** @type {boolean} */ (jspb.Message.getField(message, 10));
-  if (f != null) {
-    writer.writeBool(
-      10,
-      f
-    );
   }
 };
 
@@ -15617,42 +15607,6 @@ proto.ord.ReactionProvenance.prototype.getReactionMetadataMap = function(opt_noL
 proto.ord.ReactionProvenance.prototype.clearReactionMetadataMap = function() {
   this.getReactionMetadataMap().clear();
   return this;
-};
-
-
-/**
- * optional bool is_mined = 10;
- * @return {boolean}
- */
-proto.ord.ReactionProvenance.prototype.getIsMined = function() {
-  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 10, false));
-};
-
-
-/**
- * @param {boolean} value
- * @return {!proto.ord.ReactionProvenance} returns this
- */
-proto.ord.ReactionProvenance.prototype.setIsMined = function(value) {
-  return jspb.Message.setField(this, 10, value);
-};
-
-
-/**
- * Clears the field making it undefined.
- * @return {!proto.ord.ReactionProvenance} returns this
- */
-proto.ord.ReactionProvenance.prototype.clearIsMined = function() {
-  return jspb.Message.setField(this, 10, undefined);
-};
-
-
-/**
- * Returns whether this field is set.
- * @return {boolean}
- */
-proto.ord.ReactionProvenance.prototype.hasIsMined = function() {
-  return jspb.Message.getField(this, 10) != null;
 };
 
 
