@@ -67,6 +67,17 @@ def setup(tmp_path) -> tuple[str, str, str]:
             }
         }
     }
+    provenance {
+        record_created {
+            time {
+                value: "2023-07-01"
+            }
+            person {
+                name: "test"
+                email: "test@example.com"
+            }
+        }
+    }
     """
     template_filename = os.path.join(dirname, "template.pbtxt")
     with open(template_filename, "w") as f:
@@ -90,6 +101,9 @@ def setup(tmp_path) -> tuple[str, str, str]:
     reaction1_product1.identifiers.add(value="CO", type="SMILES")
     reaction1_product1.measurements.add(analysis_key="my_analysis", type="YIELD", percentage=dict(value=7.8))
     reaction1.outcomes[0].analyses["my_analysis"].type = reaction_pb2.Analysis.WEIGHT
+    reaction1.provenance.record_created.time.value = "2023-07-01"
+    reaction1.provenance.record_created.person.name = "test"
+    reaction1.provenance.record_created.person.email = "test@example.com"
     reaction2 = expected.reactions.add()
     reaction2_compound1 = reaction2.inputs["test"].components.add()
     reaction2_compound1.identifiers.add(value="CC", type="SMILES")
@@ -98,6 +112,9 @@ def setup(tmp_path) -> tuple[str, str, str]:
     reaction2_product1.identifiers.add(value="CCO", type="SMILES")
     reaction2_product1.measurements.add(analysis_key="my_analysis", type="YIELD", percentage=dict(value=9.0))
     reaction2.outcomes[0].analyses["my_analysis"].type = reaction_pb2.Analysis.WEIGHT
+    reaction2.provenance.record_created.time.value = "2023-07-01"
+    reaction2.provenance.record_created.person.name = "test"
+    reaction2.provenance.record_created.person.email = "test@example.com"
     reaction3 = expected.reactions.add()
     reaction3_compound1 = reaction3.inputs["test"].components.add()
     reaction3_compound1.identifiers.add(value="CCC", type="SMILES")
@@ -106,6 +123,9 @@ def setup(tmp_path) -> tuple[str, str, str]:
     reaction3_product1.identifiers.add(value="CCCO", type="SMILES")
     reaction3_product1.measurements.add(analysis_key="my_analysis", type="YIELD", percentage=dict(value=8.7))
     reaction3.outcomes[0].analyses["my_analysis"].type = reaction_pb2.Analysis.WEIGHT
+    reaction3.provenance.record_created.time.value = "2023-07-01"
+    reaction3.provenance.record_created.person.name = "test"
+    reaction3.provenance.record_created.person.email = "test@example.com"
     yield template_filename, spreadsheet_filename, expected
 
 

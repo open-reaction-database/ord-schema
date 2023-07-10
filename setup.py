@@ -21,7 +21,7 @@ with open("README.md") as f:
 
 setuptools.setup(
     name="ord-schema",
-    version="0.3.54",
+    version="0.3.58",
     description="Schema for the Open Reaction Database",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -42,7 +42,7 @@ setuptools.setup(
         "numpy>=1.18.1",
         "openpyxl>=3.0.5",
         "pandas>=1.0.4",
-        "protobuf<3.20,>=3.13.0",
+        "protobuf==4.22.3",
         "psycopg2>=2.8.5",
         "pygithub>=1.51",
         "python-dateutil>=1.10.0",
@@ -68,11 +68,11 @@ setuptools.setup(
         "tests": [
             "black[jupyter]>=22.3.0",
             "coverage>=5.2.1",
-            "pylint>=2.13.9",
+            "pylint~=2.17.4",
             "pytest>=7.1.1",
             "pytest-cov>=3.0.0",
             "pytest-xdist>=3.0.2",
-            "pytype>=2022.5.19",
+            "pytype==2023.6.16",
             "testing-postgresql>=1.3.0",
             "treon>=0.1.3",
         ],

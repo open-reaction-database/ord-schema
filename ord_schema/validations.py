@@ -43,7 +43,7 @@ class ValidationOptions:
     # Check that Dataset and Reaction IDs are well-formed.
     validate_ids: bool = False
     # Require ReactionProvenance for Reactions.
-    require_provenance: bool = False
+    require_provenance: bool = True
     # Allow reactions with valid reaction SMILES and nothing else.
     allow_reaction_smiles_only: bool = True
 

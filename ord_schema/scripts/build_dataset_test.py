@@ -36,6 +36,9 @@ def dirname(tmp_path) -> str:
     dummy_component.amount.mass.value = 1
     dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
     reaction1.outcomes.add().conversion.value = 75
+    reaction1.provenance.record_created.time.value = "2023-07-01"
+    reaction1.provenance.record_created.person.name = "test"
+    reaction1.provenance.record_created.person.email = "test@example.com"
     dirname = tmp_path.as_posix()
     message_helpers.write_message(reaction1, os.path.join(dirname, "reaction-1.pbtxt"))
     # reaction2 is empty.

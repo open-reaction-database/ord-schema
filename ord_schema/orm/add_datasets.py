@@ -42,7 +42,7 @@ from sqlalchemy.orm import Session
 from ord_schema.logging import get_logger
 from ord_schema.message_helpers import load_message
 from ord_schema.orm.database import add_dataset, add_rdkit, delete_dataset, get_connection_string
-from ord_schema.proto.dataset_pb2 import Dataset
+from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
 
@@ -57,7 +57,7 @@ def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
     """
     logger.info(f"Loading {filename}")
     start = time.time()
-    dataset = load_message(filename, Dataset)
+    dataset = load_message(filename, dataset_pb2.Dataset)
     logger.info(f"load_message() took {time.time() - start}s")
     engine = create_engine(url, future=True)
     with Session(engine) as session:

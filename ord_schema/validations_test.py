@@ -49,6 +49,8 @@ def setup():
 def _run_validation(message, **kwargs):
     original = type(message)()
     original.CopyFrom(message)
+    if "options" not in kwargs:
+        kwargs["options"] = validations.ValidationOptions(require_provenance=False)
     output = validations.validate_message(message, **kwargs)
     # Verify that `message` is unchanged by the validation process.
     assert original == message
@@ -362,7 +364,7 @@ def test_reaction_id():
     _ = message.inputs["test"]
     message.outcomes.add()
     message.reaction_id = "ord-c0bbd41f095a44a78b6221135961d809"
-    options = validations.ValidationOptions(validate_ids=True)
+    options = validations.ValidationOptions(validate_ids=True, require_provenance=False)
     output = _run_validation(message, recurse=False, options=options)
     assert len(output.errors) == 0
     assert len(output.warnings) == 0
