@@ -51,7 +51,8 @@ and run `./compile_proto_wrappers.sh` to rebuild the wrappers.
 ##### Description: 
 1. The preferred field for compound stoichiometry is the map `Compound.features` or `ProductCompound.features`.
 2. The key should be "stoichiometric_coefficient" or "stoichiometric_ratio".
-3. The value should be a Data mesaage with its float_value representing the compound's stoichiometric coefficient or ratio.SInformation about also put stoichiometry ratio/coefficient here
+3. The value should be a `Data` message with its `float_value` representing the compound's stoichiometric 
+coefficient or ratio.
 
 ##### Related links: 
 [#683](https://github.com/open-reaction-database/ord-schema/issues/683) 
