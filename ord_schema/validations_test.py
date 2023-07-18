@@ -224,9 +224,12 @@ def test_bad_reaction_smiles():
 @pytest.mark.parametrize(
     "identifier_type, value",
     (
-        ('SMILES', 'CO'),
-        ('INCHI', 'InChI=1S/CH4O/c1-2/h2H,1H3'),
-        ('MOLBLOCK', '\n     RDKit          2D\n\n  2  1  0  0  0  0  0  0  0  0999 V2000\n    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    1.2990    0.7500    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\nM  END\n'),
+        ("SMILES", "CO"),
+        ("INCHI", "InChI=1S/CH4O/c1-2/h2H,1H3"),
+        (
+            "MOLBLOCK",
+            "\n     RDKit          2D\n\n  2  1  0  0  0  0  0  0  0  0999 V2000\n    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    1.2990    0.7500    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\nM  END\n",
+        ),
     ),
 )
 def test_compound_identifier(identifier_type, value):
@@ -239,9 +242,9 @@ def test_compound_identifier(identifier_type, value):
 @pytest.mark.parametrize(
     "identifier_type, value",
     (
-        ('SMILES', '[O-]1(C)[Ir+]234([O-](C)[Ir+]1567[CH]=8CC[CH]7=[CH]6CC[CH]85)[CH]=9CC[CH]4=[CH]3CC[CH]92'),
-        ('SMILES', 'CO(C)(C)(C)C'),
-        ('SMILES', 'On1c(-c2ccccc2)c(-c2c(-c3ccccc3)nc3ccccc23)c2ccccc21'),
+        ("SMILES", "[O-]1(C)[Ir+]234([O-](C)[Ir+]1567[CH]=8CC[CH]7=[CH]6CC[CH]85)[CH]=9CC[CH]4=[CH]3CC[CH]92"),
+        ("SMILES", "CO(C)(C)(C)C"),
+        ("SMILES", "On1c(-c2ccccc2)c(-c2c(-c3ccccc3)nc3ccccc23)c2ccccc21"),
     ),
 )
 def test_bad_compound_identifier(identifier_type, value):
@@ -249,15 +252,15 @@ def test_bad_compound_identifier(identifier_type, value):
     output = _run_validation(message)
     assert len(output.errors) == 0
     assert len(output.warnings) == 1
-    assert 'could not sanitize' in output.warnings[0]
+    assert "could not sanitize" in output.warnings[0]
 
 
 @pytest.mark.parametrize(
     "identifier_type, value",
     (
-        ('SMILES', '###'),
-        ('INCHI', '###'),
-        ('MOLBLOCK', '###'),
+        ("SMILES", "###"),
+        ("INCHI", "###"),
+        ("MOLBLOCK", "###"),
     ),
 )
 def test_invalid_compound_identifier(identifier_type, value):
