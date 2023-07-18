@@ -575,27 +575,36 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier):
     check_type_and_details(message)
     if not message.value:
         warnings.warn("value must be set", ValidationError)
+    needs_error = False
+    needs_warning = False
     if message.type == message.SMILES:
-        mol = Chem.MolFromSmiles(message.value)
-        if mol is None:
-            warnings.warn(
-                f"RDKit {RDKIT_VERSION} could not validate" f" SMILES identifier {message.value}",
-                ValidationError,
-            )
+        identifier_type = 'SMILES'
+        if (mol := Chem.MolFromSmiles(message.value)) is None:
+            needs_warning = True
+            if (mol := Chem.MolFromSmiles(message.value, False)) is None:
+                needs_error = True
     elif message.type == message.INCHI:
-        mol = Chem.MolFromInchi(message.value)
-        if mol is None:
-            warnings.warn(
-                f"RDKit {RDKIT_VERSION} could not validate" f" InChI identifier {message.value}",
-                ValidationError,
-            )
+        identifier_type = 'InChI'
+        if (mol := Chem.MolFromInchi(message.value)) is None:
+            needs_warning = True
+            if (mol := Chem.MolFromInchi(message.value, False)) is None:
+                needs_error = True
     elif message.type == message.MOLBLOCK:
-        mol = Chem.MolFromMolBlock(message.value)
-        if mol is None:
-            warnings.warn(
-                f"RDKit {RDKIT_VERSION} could not validate MolBlock identifier",
-                ValidationError,
-            )
+        identifier_type = 'MolBlock'
+        if (mol := Chem.MolFromMolBlock(message.value)) is None:
+            needs_warning = True
+            if (mol := Chem.MolFromMolBlock(message.value, False)) is None:
+                needs_error = True
+    if needs_error:
+        warnings.warn(
+            f"RDKit {RDKIT_VERSION} could not validate {identifier_type} identifier {message.value}",
+            ValidationError,
+        )
+    elif needs_warning:
+        warnings.warn(
+            f"RDKit {RDKIT_VERSION} could not sanitize {identifier_type} identifier {message.value}",
+            ValidationWarning,
+        )
 
 
 def validate_vessel(message: reaction_pb2.Vessel):
