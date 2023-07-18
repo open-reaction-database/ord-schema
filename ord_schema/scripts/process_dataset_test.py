@@ -351,7 +351,7 @@ class TestSubmissionWorkflow:
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs["ethylamine"]
         component = ethylamine.components.add()
-        component.identifiers.add(type="SMILES", value="C#O")
+        component.identifiers.add(type="SMILES", value="#")
         component.is_limiting = True
         component.amount.moles.value = 2
         component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
@@ -378,7 +378,7 @@ class TestSubmissionWorkflow:
         dataset1 = dataset_pb2.Dataset(reactions=[reaction])
         dataset1_filename = os.path.join(test_subdirectory, "test1.pbtxt")
         message_helpers.write_message(dataset1, dataset1_filename)
-        reaction.inputs["ethylamine"].components[0].identifiers[0].value = "C#O"
+        reaction.inputs["ethylamine"].components[0].identifiers[0].value = "#"
         dataset2 = dataset_pb2.Dataset(reactions=[reaction])
         dataset2_filename = os.path.join(test_subdirectory, "test2.pbtxt")
         message_helpers.write_message(dataset2, dataset2_filename)
