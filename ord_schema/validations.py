@@ -579,21 +579,21 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier):
     needs_warning = False
     if message.type == message.SMILES:
         identifier_type = "SMILES"
-        if (mol := Chem.MolFromSmiles(message.value)) is None:
+        if Chem.MolFromSmiles(message.value) is None:
             needs_warning = True
-            if (mol := Chem.MolFromSmiles(message.value, False)) is None:
+            if Chem.MolFromSmiles(message.value, False) is None:
                 needs_error = True
     elif message.type == message.INCHI:
         identifier_type = "InChI"
-        if (mol := Chem.MolFromInchi(message.value)) is None:
+        if Chem.MolFromInchi(message.value) is None:
             needs_warning = True
-            if (mol := Chem.MolFromInchi(message.value, False)) is None:
+            if Chem.MolFromInchi(message.value, False) is None:
                 needs_error = True
     elif message.type == message.MOLBLOCK:
         identifier_type = "MolBlock"
-        if (mol := Chem.MolFromMolBlock(message.value)) is None:
+        if Chem.MolFromMolBlock(message.value) is None:
             needs_warning = True
-            if (mol := Chem.MolFromMolBlock(message.value, False)) is None:
+            if Chem.MolFromMolBlock(message.value, False) is None:
                 needs_error = True
     if needs_error:
         warnings.warn(
