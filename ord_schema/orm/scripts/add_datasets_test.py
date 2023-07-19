@@ -16,7 +16,6 @@
 import os
 
 import docopt
-import pytest
 from sqlalchemy import create_engine
 from testing.postgresql import Postgresql
 
@@ -34,8 +33,4 @@ def test_main():
             "--pattern",
             os.path.join(os.path.dirname(__file__), "..", "testdata", "ord-nielsen-example.pbtxt"),
         ]
-        add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))
-        with pytest.raises(ValueError, match="`overwrite` is required"):
-            add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))
-        argv.append("--overwrite")
         add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))

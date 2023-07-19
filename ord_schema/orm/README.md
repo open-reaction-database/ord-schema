@@ -160,7 +160,7 @@ python scripts/add_datasets.py \
 ```
 
 Note that the database password will be read from the `PGPASSWORD` environment variable if `--password` is not
-specified on the command line. To update an existing dataset in the database, use the `--update` flag.
+specified on the command line. To update an existing dataset in the database, use the `--overwrite` flag.
 
 ### Run queries
 
