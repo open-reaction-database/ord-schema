@@ -136,6 +136,7 @@ def build_mapper(  # pylint: disable=too-many-branches
         "__tablename__": underscore(message_type.DESCRIPTOR.name),
         "id": Column(Integer, primary_key=True),
         "ord_schema_context": Column(Text, nullable=False),
+        "__table_args__": ({"schema": "ord"},),
     }
     attrs["__mapper_args__"] = {
         "polymorphic_on": attrs["ord_schema_context"],
@@ -182,13 +183,13 @@ def build_mapper(  # pylint: disable=too-many-branches
         kwargs = {}
         if message_type == reaction_pb2.CrudeComponent:
             kwargs["nullable"] = False
-        attrs["reaction_id"] = Column(Text, ForeignKey("reaction.reaction_id", ondelete="CASCADE"), **kwargs)
+        attrs["reaction_id"] = Column(Text, ForeignKey("ord.reaction.reaction_id", ondelete="CASCADE"), **kwargs)
     logger.debug(f"Creating mapper {message_type.DESCRIPTOR.name}: {attrs}")
     mapper_class = type(message_type.DESCRIPTOR.name, (Base,), attrs)
     # Create polymorphic child classes.
     for parent_type, field_name, _ in parents[message_type]:
         foreign_table_name = underscore(parent_type.DESCRIPTOR.name)
-        foreign_key = f"{foreign_table_name}.id"
+        foreign_key = f"ord.{foreign_table_name}.id"
         child_attrs = {
             "__mapper_args__": {"polymorphic_identity": f"{parent_type.DESCRIPTOR.name}.{field_name}"},
             # Use get() to avoid column conflicts; see
