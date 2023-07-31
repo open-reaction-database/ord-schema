@@ -328,7 +328,7 @@ class UnitResolver:
         Returns:
             A new message with units, e.g., Mass, Length.
         """
-        #pylint: disable=too-many-branches
+        # pylint: disable=too-many-branches
         message_type = type(message)
         if isinstance(new_units, str):
             (new_message_type, new_units) = self.resolve_unit(new_units)
