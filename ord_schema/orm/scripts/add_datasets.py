@@ -67,16 +67,15 @@ def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
     with Session(engine) as session:
         dataset_md5 = get_dataset_md5(dataset.dataset_id, session)
         if dataset_md5 is not None:
-            if overwrite:
-                this_md5 = md5(dataset.SerializeToString(deterministic=True)).hexdigest()
-                if this_md5 != dataset_md5:
-                    logger.info(f"existing dataset {dataset.dataset_id} changed; updating")
-                    delete_dataset(dataset.dataset_id, session)
-                else:
-                    logger.info(f"existing dataset {dataset.dataset_id} unchanged; skipping")
-                    return
+            this_md5 = md5(dataset.SerializeToString(deterministic=True)).hexdigest()
+            if this_md5 != dataset_md5:
+                if not overwrite:
+                    raise ValueError(f"`overwrite` is required when a dataset already exists: {dataset.dataset_id}")
+                logger.info(f"existing dataset {dataset.dataset_id} changed; updating")
+                delete_dataset(dataset.dataset_id, session)
             else:
-                raise ValueError(f"`overwrite` is required when a dataset already exists: {dataset.dataset_id}")
+                logger.info(f"existing dataset {dataset.dataset_id} unchanged; skipping")
+                return
         add_dataset(dataset, session)
         start = time.time()
         session.commit()
