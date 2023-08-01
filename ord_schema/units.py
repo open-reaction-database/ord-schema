@@ -294,7 +294,7 @@ class UnitResolver:
             return message(value=value, precision=precision, units=unit)
         return message(value=value, units=unit)
 
-    def resolve_unit(self, string_unit: str) -> Tuple[ord_schema.UnitMessage, int]:
+    def resolve_unit(self, string_unit: str) -> Tuple[ord_schema.UnitMessage, ord_schema.Message]:
         """Resolves a unit string into its message type and unit ENUM value.
 
         Args:
