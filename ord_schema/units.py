@@ -14,7 +14,7 @@
 """Helpers for translating strings with units."""
 
 import re
-from typing import Optional, Type
+from typing import Optional, Type, Union, Tuple
 
 import numpy as np
 
@@ -138,6 +138,63 @@ _FORBIDDEN_UNITS = {
     "m": "ambiguous between meter and minute",
 }
 
+_UNIT_CONVERSIONS = {
+    reaction_pb2.Time: {
+        reaction_pb2.Time.DAY: 24,
+        reaction_pb2.Time.HOUR: 1,
+        reaction_pb2.Time.MINUTE: 1 / 60,
+        reaction_pb2.Time.SECOND: 1 / 3600,
+    },
+    reaction_pb2.Mass: {
+        reaction_pb2.Mass.GRAM: 1000,
+        reaction_pb2.Mass.MILLIGRAM: 1,
+        reaction_pb2.Mass.MICROGRAM: 0.001,
+        reaction_pb2.Mass.KILOGRAM: 1000000,
+    },
+    reaction_pb2.Moles: {
+        reaction_pb2.Moles.MOLE: 1000,
+        reaction_pb2.Moles.MILLIMOLE: 1,
+        reaction_pb2.Moles.MICROMOLE: 0.001,
+        reaction_pb2.Moles.NANOMOLE: 0.000001,
+    },
+    reaction_pb2.Volume: {
+        reaction_pb2.Volume.MILLILITER: 1,
+        reaction_pb2.Volume.MICROLITER: 0.001,
+        reaction_pb2.Volume.LITER: 1000,
+        reaction_pb2.Volume.NANOLITER: 0.000001,
+    },
+    reaction_pb2.Length: {
+        reaction_pb2.Length.CENTIMETER: 1,
+        reaction_pb2.Length.MILLIMETER: 0.1,
+        reaction_pb2.Length.METER: 100,
+        reaction_pb2.Length.INCH: 2.54,
+        reaction_pb2.Length.FOOT: 30.48,
+    },
+    reaction_pb2.Pressure: {
+        reaction_pb2.Pressure.BAR: 1 / 1.01325,
+        reaction_pb2.Pressure.ATMOSPHERE: 1,
+        reaction_pb2.Pressure.PSI: 1 / 14.69595,
+        reaction_pb2.Pressure.KPSI: 1000 / 14.69595,
+        reaction_pb2.Pressure.PASCAL: 1 / 101325,
+        reaction_pb2.Pressure.KILOPASCAL: 1000 / 101325,
+    },
+    reaction_pb2.Current: {
+        reaction_pb2.Current.AMPERE: 1,
+        reaction_pb2.Current.MILLIAMPERE: 0.001,
+    },
+    reaction_pb2.Voltage: {
+        reaction_pb2.Voltage.VOLT: 1,
+        reaction_pb2.Voltage.MILLIVOLT: 0.001,
+    },
+    reaction_pb2.FlowRate: {
+        reaction_pb2.FlowRate.MICROLITER_PER_MINUTE: 1,
+        reaction_pb2.FlowRate.MICROLITER_PER_SECOND: 60,
+        reaction_pb2.FlowRate.MILLILITER_PER_MINUTE: 1000,
+        reaction_pb2.FlowRate.MILLILITER_PER_SECOND: 60000,
+        reaction_pb2.FlowRate.MICROLITER_PER_HOUR: 1 / 60,
+    },
+}
+
 # Concentration units are defined separately since they are not needed for any
 # native fields in the reaction schema.
 CONCENTRATION_UNIT_SYNONYMS = {
@@ -146,13 +203,6 @@ CONCENTRATION_UNIT_SYNONYMS = {
         reaction_pb2.Concentration.MILLIMOLAR: ["mM", "millimolar"],
         reaction_pb2.Concentration.MICROMOLAR: ["uM", "micromolar"],
     },
-}
-
-VOLUME_L_PER_UNIT = {
-    reaction_pb2.Volume.VolumeUnit.LITER: 1,
-    reaction_pb2.Volume.VolumeUnit.MILLILITER: 1e-3,
-    reaction_pb2.Volume.VolumeUnit.MICROLITER: 1e-6,
-    reaction_pb2.Volume.VolumeUnit.NANOLITER: 1e-9,
 }
 
 CONCENTRATION_M_PER_UNIT = {
@@ -237,17 +287,109 @@ class UnitResolver:
         else:
             value = float(value)
         assert string_unit is not None  # Type hint.
+        message, unit = self.resolve_unit(string_unit)
+        if value < 0.0 and message != reaction_pb2.Temperature:
+            raise ValueError(f"negative values are only allowed for temperature: {string}")
+        if precision:
+            return message(value=value, precision=precision, units=unit)
+        return message(value=value, units=unit)
+
+    def resolve_unit(self, string_unit: str) -> Tuple[ord_schema.UnitMessage, ord_schema.Message]:
+        """Resolves a unit string into its message type and unit ENUM value.
+
+        Args:
+            string_unit: The string unit to parse; for example: "gram".
+
+        Returns:
+            Tuple containing the message type and unit ENUM value.
+
+        Raises:
+            KeyError: if string unit cannot be parsed.
+        """
         string_unit = string_unit.lower()
         if string_unit in self._forbidden_units:
             raise KeyError(f"forbidden units: {string_unit}: " f"({self._forbidden_units[string_unit]})")
         if string_unit not in self._resolver:
             raise KeyError(f"unrecognized units: {string_unit}")
         message, unit = self._resolver[string_unit]
-        if value < 0.0 and message != reaction_pb2.Temperature:
-            raise ValueError(f"negative values are only allowed for temperature: {string}")
-        if precision:
-            return message(value=value, precision=precision, units=unit)
-        return message(value=value, units=unit)
+        return (message, unit)
+
+    def convert(self, message: ord_schema.UnitMessage, new_units: Union[str, int]) -> ord_schema.UnitMessage:
+        """Converts a united message into another united message of the same
+        type, but with different units.
+
+        Args:
+            message: a message with units, e.g., Mass, Length.
+            new_units: the desired units of the new message, expressed
+                either as a string or an integer (ENUM value). Use of a
+                string is recommended due to the ambiguity of using
+                ENUM values; for example, Mass.GRAM == Time.MINUTE.
+
+        Returns:
+            A new message with units, e.g., Mass, Length.
+        """
+        # pylint: disable=too-many-branches
+        message_type = type(message)
+        if isinstance(new_units, str):
+            (new_message_type, new_units) = self.resolve_unit(new_units)
+            if new_message_type != message_type:
+                raise ValueError("Cannot convert units between messages of different types")
+        new_message = message_type(units=new_units)
+
+        if message_type == reaction_pb2.Temperature:
+            temperature_celsius = {
+                reaction_pb2.Temperature.CELSIUS: lambda T: T,
+                reaction_pb2.Temperature.FAHRENHEIT: lambda T: (T - 32) * 5 / 9,
+                reaction_pb2.Temperature.KELVIN: lambda T: T - 273.15,
+            }[message.units](message.value)
+            new_message.value = {
+                reaction_pb2.Temperature.CELSIUS: lambda T: T,
+                reaction_pb2.Temperature.FAHRENHEIT: lambda T: T * 9 / 5 + 32,
+                reaction_pb2.Temperature.KELVIN: lambda T: T + 273.15,
+            }[new_units](temperature_celsius)
+            if message.precision:
+                if message.units == reaction_pb2.Temperature.FAHRENHEIT and new_units in (
+                    reaction_pb2.Temperature.CELSIUS,
+                    reaction_pb2.Temperature.KELVIN,
+                ):
+                    new_message.precision = message.precision * 5 / 9
+                elif (
+                    message.units in (reaction_pb2.Temperature.CELSIUS, reaction_pb2.Temperature.KELVIN)
+                    and new_units == reaction_pb2.Temperature.FAHRENHEIT
+                ):
+                    new_message.precision = message.precision * 9 / 5
+                else:
+                    new_message.precision = message.precision
+
+        elif message_type == reaction_pb2.Wavelength:
+            if message.units != new_units:
+                new_message.value = 10000000 / message.value
+                # Approximate precision as stdev of previous value \pm precision
+                if message.precision:
+                    new_message.precision = (
+                        10000000
+                        / 2
+                        * (1 / (message.value - message.precision) + 1 / (message.value + message.precision))
+                    )
+            else:
+                new_message.value = message.value
+                if message.precision:
+                    new_message.precision = message.precision
+
+        else:
+            # All other cases can be handled by a multiplier conversion.
+            new_message.value = (
+                message.value
+                * _UNIT_CONVERSIONS[message_type][message.units]
+                / _UNIT_CONVERSIONS[message_type][new_units]
+            )
+            if message.precision:
+                new_message.precision = (
+                    message.precision
+                    * _UNIT_CONVERSIONS[message_type][message.units]
+                    / _UNIT_CONVERSIONS[message_type][new_units]
+                )
+        return new_message
 
 
 def format_message(message: ord_schema.UnitMessage) -> Optional[str]:
@@ -273,8 +415,8 @@ def compute_solute_quantity(
     volume: reaction_pb2.Volume, concentration: reaction_pb2.Concentration
 ) -> reaction_pb2.Amount:
     """Computes the quantity of a solute, given volume and concentration."""
-    volume_conversion = VOLUME_L_PER_UNIT[volume.units]
-    volume_liter = volume.value * volume_conversion
+    volume_conversion = _UNIT_CONVERSIONS[reaction_pb2.Volume][volume.units]
+    volume_liter = volume.value * volume_conversion / 1000
     concentration_conversion = CONCENTRATION_M_PER_UNIT[concentration.units]
     concentration_molar = concentration.value * concentration_conversion
 
