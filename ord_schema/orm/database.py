@@ -18,6 +18,7 @@ import os
 from unittest.mock import patch
 
 from sqlalchemy import cast, delete, func, select, text, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
@@ -93,26 +94,53 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
     logger.info(f"delete took {time.time() - start}s")
 
 
-def add_rdkit(session: Session) -> None:
-    """Adds RDKit PostgreSQL cartridge data to any null-valued cells in the structure table."""
-    logger.info("Populating RDKit reaction columns")
+def update_rdkit(dataset_id: str, session: Session) -> None:
+    """Updates RDKit PostgreSQL cartridge data."""
+    # select distinct smiles, count(*) from rdkit.mols where smiles similar to '\[[A-Z][a-z]*[+-]*[0-9]*\]'
+    logger.info("Updating RDKit reactions")
     assert hasattr(RDKitReaction, "__table__")  # Type hint.
     table = RDKitReaction.__table__
     start = time.time()
+    # session.execute(
+    #     """
+    #     INSERT INTO rdkit.reactions(reaction_smiles, reaction)
+    #         SELECT DISTINCT reaction_smiles, reaction_from_smiles(reaction_smiles::cstring)
+    #         FROM ord.reaction
+    #         JOIN ord.dataset USING (dataset_id)
+    #         WHERE dataset_id = :dataset_id
+    #     ON CONFLICT DO NOTHING
+    #     """,
+    #     {"dataset_id": dataset_id},
+    # )
     session.execute(
-        update(table)
-        .where(table.c.reaction.is_(None))
-        .values(reaction=func.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
+        insert(table)
+        .from_select(
+            ["reaction_smiles"],
+            select(
+                Mappers.Reaction.reaction_smiles,
+                func.rdkit.reaction_from_smiles(cast(Mappers.Reaction.reaction_smiles, CString)),
+            )
+            .join(Mappers.Dataset)
+            .where(Mappers.Dataset.dataset_id == dataset_id)
+            .distinct(),
+        )
+        .on_conflict_do_nothing(["reaction_smiles"])
     )
-    logger.info(f"Adding reaction took {time.time() - start}s")
-    logger.info("Populating RDKit mol columns")
+    # session.execute(
+    #     update(table)
+    #     .where(table.c.reaction.is_(None))
+    #     .values(reaction=func.rdkit.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
+    # )
+    logger.info(f"Updating reactions took {time.time() - start}s")
+    logger.info("Updating RDKit mols")
     assert hasattr(RDKitMol, "__table__")  # Type hint.
     table = RDKitMol.__table__
     start = time.time()
     session.execute(
         update(table).where(table.c.mol.is_(None)).values(mol=func.mol_from_smiles(cast(table.c.smiles, CString)))
     )
-    logger.info(f"Adding mol took {time.time() - start}s")
+    logger.info(f"Updating mols took {time.time() - start}s")
+    logger.info("Updating fingerprints")
     for fp_type in FingerprintType:
         start = time.time()
         column = fp_type.name.lower()
@@ -121,4 +149,4 @@ def add_rdkit(session: Session) -> None:
             .where(getattr(table.c, column).is_(None), table.c.mol.is_not(None))
             .values(**{column: fp_type(table.c.mol)})
         )
-        logger.info(f"Adding {fp_type} took {time.time() - start}s")
+        logger.info(f"Updating {fp_type} took {time.time() - start}s")

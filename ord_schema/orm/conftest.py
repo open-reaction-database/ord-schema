@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from testing.postgresql import Postgresql
 
 from ord_schema.message_helpers import load_message
-from ord_schema.orm.database import add_dataset, add_rdkit, prepare_database
+from ord_schema.orm.database import add_dataset, prepare_database, update_rdkit
 from ord_schema.proto import dataset_pb2
 
 
@@ -36,9 +36,9 @@ def test_session() -> Iterator[Session]:
         rdkit_cartridge = prepare_database(engine)
         with Session(engine) as session:
             add_dataset(dataset, session)
-            session.flush()
+            session.commit()
             if rdkit_cartridge:
-                add_rdkit(session)
+                update_rdkit(dataset.dataset_id, session)
             session.commit()
         with Session(engine) as session:
             yield session
