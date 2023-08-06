@@ -175,7 +175,9 @@ def build_mapper(  # pylint: disable=too-many-branches
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
         # Serialize and store the entire Reaction proto.
         attrs["proto"] = Column(LargeBinary, nullable=False)
-        attrs["reaction_smiles"] = Column(Text)
+        attrs["reaction_smiles"] = Column(Text, index=True)
+    elif message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
+        attrs["smiles"] = Column(Text, index=True)
     elif message_type in {reaction_pb2.CompoundPreparation, reaction_pb2.CrudeComponent}:
         # Add foreign key to reaction.reaction_id.
         kwargs = {}
@@ -264,8 +266,12 @@ def from_proto(  # pylint: disable=too-many-branches
         kwargs["proto"] = message.SerializeToString(deterministic=True)
         try:
             reaction_smiles = message_helpers.get_reaction_smiles(message, generate_if_missing=True)
-            reaction_smiles = reaction_smiles.split()[0]  # Handle CXSMILES.
-            kwargs["reaction_smiles"] = field_mapper(reaction_smiles=reaction_smiles)
+            kwargs["reaction_smiles"] = reaction_smiles.split()[0]  # Handle CXSMILES.
+        except ValueError:
+            pass
+    elif isinstance(message, (reaction_pb2.Compound, reaction_pb2.ProductCompound)):
+        try:
+            kwargs["smiles"] = message_helpers.smiles_from_compound(message)
         except ValueError:
             pass
     return mapper(**kwargs)

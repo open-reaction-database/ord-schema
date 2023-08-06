@@ -77,6 +77,8 @@ def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
                 logger.info(f"existing dataset {dataset.dataset_id} unchanged; skipping")
                 return
         add_dataset(dataset, session)
+        session.flush()
+        update_rdkit(dataset.dataset_id, session=session)
         start = time.time()
         session.commit()
         logger.info(f"session.commit() took {time.time() - start}s")
@@ -98,12 +100,6 @@ def main(**kwargs):
     with ProcessPoolExecutor(max_workers=int(kwargs["--n_jobs"])) as executor:
         for _ in executor.map(function, filenames):
             pass  # Must iterate over results to raise exceptions.
-    engine = create_engine(url, future=True)
-    with Session(engine) as session:
-        update_rdkit(session)
-        start = time.time()
-        session.commit()
-        logger.info(f"session.commit() took {time.time() - start}s")
 
 
 if __name__ == "__main__":

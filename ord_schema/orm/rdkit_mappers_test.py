@@ -24,8 +24,11 @@ def test_tanimoto_operator(test_session):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .join(RDKitMol)
-        .where(RDKitMol.morgan_bfp % FingerprintType.MORGAN_BFP("c1ccccc1CCC(O)C"))
+        .where(
+            Mappers.Compound.smiles.in_(
+                select(RDKitMol.smiles).where(RDKitMol.morgan_bfp % FingerprintType.MORGAN_BFP("c1ccccc1CCC(O)C"))
+            )
+        )
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
@@ -37,8 +40,11 @@ def test_tanimoto(test_session, fp_type):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .join(RDKitMol)
-        .where(RDKitMol.tanimoto("c1ccccc1CCC(O)C", fp_type=fp_type) > 0.5)
+        .where(
+            Mappers.Compound.smiles.in_(
+                select(RDKitMol.smiles).where(RDKitMol.tanimoto("c1ccccc1CCC(O)C", fp_type=fp_type) > 0.5)
+            )
+        )
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20

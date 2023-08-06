@@ -32,11 +32,11 @@ def test_session() -> Iterator[Session]:
         os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"), dataset_pb2.Dataset
     )
     with Postgresql() as postgres:
-        engine = create_engine(postgres.url(), future=True, echo=True)
+        engine = create_engine(postgres.url(), future=True)
         rdkit_cartridge = prepare_database(engine)
         with Session(engine) as session:
             add_dataset(dataset, session)
-            session.commit()
+            session.flush()
             if rdkit_cartridge:
                 update_rdkit(dataset.dataset_id, session)
             session.commit()

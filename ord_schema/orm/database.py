@@ -73,10 +73,10 @@ def add_dataset(dataset: dataset_pb2.Dataset, session: Session) -> None:
     logger.info(f"Adding dataset {dataset.dataset_id}")
     start = time.time()
     mapped_dataset = from_proto(dataset)
-    logger.info(f"from_proto() took {time.time() - start}s")
+    logger.info(f"from_proto() took {time.time() - start:g}s")
     start = time.time()
     session.add(mapped_dataset)
-    logger.info(f"session.add() took {time.time() - start}s")
+    logger.info(f"session.add() took {time.time() - start:g}s")
 
 
 def get_dataset_md5(dataset_id: str, session: Session) -> str | None:
@@ -101,45 +101,61 @@ def update_rdkit(dataset_id: str, session: Session) -> None:
     assert hasattr(RDKitReaction, "__table__")  # Type hint.
     table = RDKitReaction.__table__
     start = time.time()
-    # session.execute(
-    #     """
-    #     INSERT INTO rdkit.reactions(reaction_smiles, reaction)
-    #         SELECT DISTINCT reaction_smiles, reaction_from_smiles(reaction_smiles::cstring)
-    #         FROM ord.reaction
-    #         JOIN ord.dataset USING (dataset_id)
-    #         WHERE dataset_id = :dataset_id
-    #     ON CONFLICT DO NOTHING
-    #     """,
-    #     {"dataset_id": dataset_id},
-    # )
     session.execute(
         insert(table)
         .from_select(
             ["reaction_smiles"],
-            select(
-                Mappers.Reaction.reaction_smiles,
-                func.rdkit.reaction_from_smiles(cast(Mappers.Reaction.reaction_smiles, CString)),
-            )
+            select(Mappers.Reaction.reaction_smiles)
             .join(Mappers.Dataset)
             .where(Mappers.Dataset.dataset_id == dataset_id)
             .distinct(),
         )
-        .on_conflict_do_nothing(["reaction_smiles"])
+        .on_conflict_do_nothing(index_elements=["reaction_smiles"])
     )
-    # session.execute(
-    #     update(table)
-    #     .where(table.c.reaction.is_(None))
-    #     .values(reaction=func.rdkit.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
-    # )
-    logger.info(f"Updating reactions took {time.time() - start}s")
+    session.execute(
+        update(table)
+        .where(table.c.reaction.is_(None))
+        .values(reaction=func.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
+    )
+    logger.info(f"Updating reactions took {time.time() - start:g}s")
     logger.info("Updating RDKit mols")
     assert hasattr(RDKitMol, "__table__")  # Type hint.
     table = RDKitMol.__table__
     start = time.time()
     session.execute(
+        insert(table)
+        .from_select(
+            ["smiles"],
+            select(Mappers.Compound.smiles)
+            .join(Mappers.ReactionInput)
+            .join(Mappers.Reaction)
+            .join(Mappers.Dataset)
+            .where(
+                Mappers.Dataset.dataset_id == dataset_id,
+                # See https://github.com/open-reaction-database/ord-schema/issues/672.
+                Mappers.Compound.smiles.not_like("%[Ti+5]%"),
+            )
+            .distinct(),
+        )
+        .on_conflict_do_nothing(index_elements=["smiles"])
+    )
+    session.execute(
+        insert(table)
+        .from_select(
+            ["smiles"],
+            select(Mappers.ProductCompound.smiles)
+            .join(Mappers.ReactionOutcome)
+            .join(Mappers.Reaction)
+            .join(Mappers.Dataset)
+            .where(Mappers.Dataset.dataset_id == dataset_id)
+            .distinct(),
+        )
+        .on_conflict_do_nothing(index_elements=["smiles"])
+    )
+    session.execute(
         update(table).where(table.c.mol.is_(None)).values(mol=func.mol_from_smiles(cast(table.c.smiles, CString)))
     )
-    logger.info(f"Updating mols took {time.time() - start}s")
+    logger.info(f"Updating mols took {time.time() - start:g}s")
     logger.info("Updating fingerprints")
     for fp_type in FingerprintType:
         start = time.time()
@@ -149,4 +165,4 @@ def update_rdkit(dataset_id: str, session: Session) -> None:
             .where(getattr(table.c, column).is_(None), table.c.mol.is_not(None))
             .values(**{column: fp_type(table.c.mol)})
         )
-        logger.info(f"Updating {fp_type} took {time.time() - start}s")
+        logger.info(f"Updating {fp_type} took {time.time() - start:g}s")
