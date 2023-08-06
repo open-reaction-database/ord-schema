@@ -265,7 +265,9 @@ def from_proto(  # pylint: disable=too-many-branches
     elif isinstance(message, reaction_pb2.Reaction):
         kwargs["proto"] = message.SerializeToString(deterministic=True)
         try:
-            reaction_smiles = message_helpers.get_reaction_smiles(message, generate_if_missing=True)
+            reaction_smiles = message_helpers.get_reaction_smiles(
+                message, generate_if_missing=True, allow_incomplete=False, validate=True
+            )
             kwargs["reaction_smiles"] = reaction_smiles.split()[0]  # Handle CXSMILES.
         except ValueError:
             pass

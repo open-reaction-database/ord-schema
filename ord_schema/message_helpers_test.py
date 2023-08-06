@@ -148,7 +148,7 @@ class TestMessageHelpers:
         with pytest.raises(ValueError, match="must contain at least one"):
             message_helpers.get_reaction_smiles(reaction, generate_if_missing=True, allow_incomplete=False)
         reaction.outcomes.add().products.add(reaction_role="PRODUCT").identifiers.add(value="invalid", type="SMILES")
-        with pytest.raises(ValueError, match="bad reaction SMILES"):
+        with pytest.raises(ValueError, match="Cannot parse SMILES"):
             message_helpers.get_reaction_smiles(reaction, generate_if_missing=True, allow_incomplete=False)
 
     def test_reaction_from_smiles(self):
