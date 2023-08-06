@@ -37,6 +37,7 @@ from hashlib import md5
 from concurrent.futures import ProcessPoolExecutor
 
 from docopt import docopt
+from rdkit import RDLogger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -85,6 +86,7 @@ def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
 
 
 def main(**kwargs):
+    RDLogger.DisableLog("rdApp.*")
     if kwargs.get("--url"):
         url = kwargs["--url"]
     else:
