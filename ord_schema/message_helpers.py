@@ -430,7 +430,7 @@ def get_reaction_smiles(
     if validate:
         if allow_incomplete:
             raise ValueError("validate is mutually exclusive with allow_incomplete")
-        reaction_smiles = validate_reaction_smiles(reaction_smiles)
+        validate_reaction_smiles(reaction_smiles)
     if canonical:
         reaction_smiles = rdChemReactions.ReactionToSmiles(
             rdChemReactions.ReactionFromSmarts(reaction_smiles, useSmiles=True)
