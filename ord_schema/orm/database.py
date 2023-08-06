@@ -107,7 +107,7 @@ def update_rdkit(dataset_id: str, session: Session) -> None:
             ["reaction_smiles"],
             select(Mappers.Reaction.reaction_smiles)
             .join(Mappers.Dataset)
-            .where(Mappers.Dataset.dataset_id == dataset_id)
+            .where(Mappers.Dataset.dataset_id == dataset_id, Mappers.Reaction.reaction_smiles.is_not(None))
             .distinct(),
         )
         .on_conflict_do_nothing(index_elements=["reaction_smiles"])
@@ -132,6 +132,7 @@ def update_rdkit(dataset_id: str, session: Session) -> None:
             .join(Mappers.Dataset)
             .where(
                 Mappers.Dataset.dataset_id == dataset_id,
+                Mappers.Compound.smiles.is_not(None),
                 # See https://github.com/open-reaction-database/ord-schema/issues/672.
                 Mappers.Compound.smiles.not_like("%[Ti+5]%"),
             )
@@ -147,7 +148,7 @@ def update_rdkit(dataset_id: str, session: Session) -> None:
             .join(Mappers.ReactionOutcome)
             .join(Mappers.Reaction)
             .join(Mappers.Dataset)
-            .where(Mappers.Dataset.dataset_id == dataset_id)
+            .where(Mappers.Dataset.dataset_id == dataset_id, Mappers.ProductCompound.smiles.is_not(None))
             .distinct(),
         )
         .on_conflict_do_nothing(index_elements=["smiles"])
