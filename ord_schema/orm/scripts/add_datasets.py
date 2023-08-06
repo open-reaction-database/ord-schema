@@ -62,7 +62,7 @@ def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
     logger.info(f"Loading {filename}")
     start = time.time()
     dataset = load_message(filename, dataset_pb2.Dataset)
-    logger.info(f"load_message() took {time.time() - start}s")
+    logger.info(f"load_message() took {time.time() - start:g}s")
     engine = create_engine(url, future=True)
     with Session(engine) as session:
         dataset_md5 = get_dataset_md5(dataset.dataset_id, session)
@@ -81,7 +81,7 @@ def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
         update_rdkit(dataset.dataset_id, session=session)
         start = time.time()
         session.commit()
-        logger.info(f"session.commit() took {time.time() - start}s")
+        logger.info(f"session.commit() took {time.time() - start:g}s")
 
 
 def main(**kwargs):
