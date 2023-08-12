@@ -1,6 +1,6 @@
 {
   "name": "ord-schema",
-  "version": "0.3.64",
+  "version": "0.3.65",
   "description": "Schema for the Open Reaction Database",
   "main": "index.js",
   "scripts": {
