@@ -268,10 +268,10 @@ def from_proto(  # pylint: disable=too-many-branches
             reaction_smiles = message_helpers.get_reaction_smiles(
                 message, generate_if_missing=True, allow_incomplete=False, validate=True
             )
-            if reaction_smiles is not None:
-                kwargs["reaction_smiles"] = reaction_smiles.split()[0]  # Handle CXSMILES.
         except ValueError:
-            pass
+            reaction_smiles = None
+        if reaction_smiles is not None:
+            kwargs["reaction_smiles"] = reaction_smiles.split()[0]  # Handle CXSMILES.
     elif isinstance(message, (reaction_pb2.Compound, reaction_pb2.ProductCompound)):
         try:
             kwargs["smiles"] = message_helpers.smiles_from_compound(message)
