@@ -175,9 +175,9 @@ def build_mapper(  # pylint: disable=too-many-branches
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
         # Serialize and store the entire Reaction proto.
         attrs["proto"] = Column(LargeBinary, nullable=False)
-        attrs["rdkit"] = relationship(f"_{message_type.DESCRIPTOR.name}RDKit", uselist=False)
+        attrs["reaction_smiles"] = Column(Text, index=True)
     elif message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
-        attrs["rdkit"] = relationship(f"_{message_type.DESCRIPTOR.name}RDKit", uselist=False)
+        attrs["smiles"] = Column(Text, index=True)
     elif message_type in {reaction_pb2.CompoundPreparation, reaction_pb2.CrudeComponent}:
         # Add foreign key to reaction.reaction_id.
         kwargs = {}
@@ -264,19 +264,17 @@ def from_proto(  # pylint: disable=too-many-branches
         kwargs["md5"] = md5(message.SerializeToString(deterministic=True)).hexdigest()
     elif isinstance(message, reaction_pb2.Reaction):
         kwargs["proto"] = message.SerializeToString(deterministic=True)
-        field_mapper = getattr(mapper, "rdkit").mapper.class_
         try:
-            reaction_smiles = message_helpers.get_reaction_smiles(message, generate_if_missing=True)
-            assert reaction_smiles is not None  # Type hint.
-            reaction_smiles = reaction_smiles.split()[0]  # Handle CXSMILES.
-            kwargs["rdkit"] = field_mapper(reaction_smiles=reaction_smiles)
+            reaction_smiles = message_helpers.get_reaction_smiles(
+                message, generate_if_missing=True, allow_incomplete=False, validate=True
+            )
         except ValueError:
-            pass
+            reaction_smiles = None
+        if reaction_smiles is not None:
+            kwargs["reaction_smiles"] = reaction_smiles.split()[0]  # Handle CXSMILES.
     elif isinstance(message, (reaction_pb2.Compound, reaction_pb2.ProductCompound)):
-        # Add RDKit cartridge functionality.
-        field_mapper = getattr(mapper, "rdkit").mapper.class_
         try:
-            kwargs["rdkit"] = field_mapper(smiles=message_helpers.smiles_from_compound(message))
+            kwargs["smiles"] = message_helpers.smiles_from_compound(message)
         except ValueError:
             pass
     return mapper(**kwargs)

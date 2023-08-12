@@ -27,7 +27,7 @@ import os
 from distutils.util import strtobool  # pylint: disable=deprecated-module
 from enum import Enum
 
-from sqlalchemy import Column, Index, Integer, ForeignKey, Text, func
+from sqlalchemy import Column, Index, Integer, Text, func
 from sqlalchemy.types import UserDefinedType
 
 from ord_schema.orm import Base
@@ -149,7 +149,7 @@ class RDKitMol(Base):
 
     __tablename__ = "mols"
     id = Column(Integer, primary_key=True)
-    smiles = Column(Text)
+    smiles = Column(Text, unique=True)
     mol = Column(_RDKitMol)
 
     __table_args__ = (
@@ -158,32 +158,9 @@ class RDKitMol(Base):
         {"schema": "rdkit"},
     )
 
-    ord_schema_context = Column(Text, nullable=False)
-    __mapper_args__ = {
-        "polymorphic_on": ord_schema_context,
-        "polymorphic_identity": "mols",
-        "with_polymorphic": "*",
-    }
-
     @classmethod
     def tanimoto(cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP):
         return func.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(other))
-
-
-class _CompoundRDKit(RDKitMol):
-    compound_id = Column(Integer, ForeignKey("ord.compound.id", ondelete="CASCADE"))
-
-    __mapper_args__ = {
-        "polymorphic_identity": "Compound.rdkit",
-    }
-
-
-class _ProductCompoundRDKit(RDKitMol):
-    product_compound_id = Column(Integer, ForeignKey("ord.product_compound.id", ondelete="CASCADE"))
-
-    __mapper_args__ = {
-        "polymorphic_identity": "ProductCompound.rdkit",
-    }
 
 
 class RDKitReaction(Base):
@@ -191,25 +168,10 @@ class RDKitReaction(Base):
 
     __tablename__ = "reactions"
     id = Column(Integer, primary_key=True)
-    reaction_smiles = Column(Text)
+    reaction_smiles = Column(Text, unique=True)
     reaction = Column(_RDKitReaction)
 
     __table_args__ = (
         Index("reaction_index", "reaction", postgresql_using="gist"),
         {"schema": "rdkit"},
     )
-
-    ord_schema_context = Column(Text, nullable=False)
-    __mapper_args__ = {
-        "polymorphic_on": ord_schema_context,
-        "polymorphic_identity": "reactions",
-        "with_polymorphic": "*",
-    }
-
-
-class _ReactionRDKit(RDKitReaction):
-    reaction_id = Column(Integer, ForeignKey("ord.reaction.id", ondelete="CASCADE"))
-
-    __mapper_args__ = {
-        "polymorphic_identity": "Reaction.rdkit",
-    }

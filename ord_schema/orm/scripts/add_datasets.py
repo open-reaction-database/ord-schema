@@ -37,12 +37,13 @@ from hashlib import md5
 from concurrent.futures import ProcessPoolExecutor
 
 from docopt import docopt
+from rdkit import RDLogger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from ord_schema.logging import get_logger
 from ord_schema.message_helpers import load_message
-from ord_schema.orm.database import add_dataset, add_rdkit, delete_dataset, get_connection_string, get_dataset_md5
+from ord_schema.orm.database import add_dataset, delete_dataset, get_connection_string, get_dataset_md5, update_rdkit
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
@@ -62,7 +63,7 @@ def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
     logger.info(f"Loading {filename}")
     start = time.time()
     dataset = load_message(filename, dataset_pb2.Dataset)
-    logger.info(f"load_message() took {time.time() - start}s")
+    logger.info(f"load_message() took {time.time() - start:g}s")
     engine = create_engine(url, future=True)
     with Session(engine) as session:
         dataset_md5 = get_dataset_md5(dataset.dataset_id, session)
@@ -77,12 +78,15 @@ def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
                 logger.info(f"existing dataset {dataset.dataset_id} unchanged; skipping")
                 return
         add_dataset(dataset, session)
+        session.flush()
+        update_rdkit(dataset.dataset_id, session=session)
         start = time.time()
         session.commit()
-        logger.info(f"session.commit() took {time.time() - start}s")
+        logger.info(f"session.commit() took {time.time() - start:g}s")
 
 
 def main(**kwargs):
+    RDLogger.DisableLog("rdApp.*")
     if kwargs.get("--url"):
         url = kwargs["--url"]
     else:
@@ -98,12 +102,6 @@ def main(**kwargs):
     with ProcessPoolExecutor(max_workers=int(kwargs["--n_jobs"])) as executor:
         for _ in executor.map(function, filenames):
             pass  # Must iterate over results to raise exceptions.
-    engine = create_engine(url, future=True)
-    with Session(engine) as session:
-        add_rdkit(session)
-        start = time.time()
-        session.commit()
-        logger.info(f"session.commit() took {time.time() - start}s")
 
 
 if __name__ == "__main__":
