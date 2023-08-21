@@ -162,6 +162,10 @@ message ReactionInput {
   // Specify the temperature of the material being added.
   // E.g., a cooled flask of a stock solution to be added at low temperature.
   Temperature addition_temperature = 9;
+  // The matter state immediately before addition.
+  StateOfMatter state_of_matter = 10;
+  // Specify the mixture state immediately before addition.
+  MixtureDescription mixture_description = 11;
 }
 
 /**
@@ -231,6 +235,10 @@ message CrudeComponent {
   optional bool has_derived_amount = 3;
   // If the entire crude mixture was not used, need to specify an amount.
   Amount amount = 4;
+  // The matter state.
+  StateOfMatter state_of_matter = 5;
+  // Specify the mixture state.
+  MixtureDescription mixture_description = 6;
 }
 
 /**
@@ -265,6 +273,58 @@ message Compound {
   // Compounds may be assayed for quality control; analytical data should be
   // defined in the analyses map.
   map<string, Analysis> analyses = 8;
+  // The matter state.
+  StateOfMatter state_of_matter = 9;
+  // Specify the mixture state.
+  MixtureDescription mixture_description = 10;
+}
+
+message StateOfMatter {
+  enum StateOfMatterType {
+    UNSPECIFIED = 0;
+    SOLID = 1;
+    LIQUID = 2;
+    GAS = 3;
+    PLASMA = 4;
+  }
+}
+
+message MixtureDescription {
+  enum MixtureType {
+    UNSPECIFIED = 0;
+    // A solution is a homogeneous mixture composed of one
+    // phase where particles are not visible to the naked eye and the solution
+    // does not scatter a light beam. Note it does not imply that the state of
+    // matter is liquid.
+    // This type corresponds to the following class of Allotrope foundation
+    // ontologies
+    // [solution](http://purl.allotrope.org/ontologies/material#AFM_0000012)
+    SOLUTION = 1;
+    // A colloid is a homogeneous mixture in which one substance of
+    // microscopically dispersed insoluble particles is suspended throughout
+    // another substance. This includes, but not limited to: emulsion, foam,
+    // sol, and gel. This type corresponds to the following class of Allotrope
+    // foundation ontologies
+    // [colloid](http://purl.allotrope.org/ontologies/material#AFM_0001044)
+    Colloid = 2;
+    // A dispersions is a heterogeneous mixture that is comprising more than one
+    // phase where at least one of the phases consists of finely divided phase
+    // domains, often in the colloidal size range, dispersed throughout a
+    // continuous phase. This type corresponds to the following class of
+    // Allotrope foundation ontologies
+    // [dispersion](http://purl.allotrope.org/ontologies/material#AFM_0001079)
+    Dispersion = 3;
+    // A suspension is a heterogeneous mixture in which the solute particles do
+    // not dissolve but get suspended throughout the bulk of the medium. This
+    // type corresponds to the following class of Allotrope foundation
+    // ontologies
+    // [suspension](http://purl.allotrope.org/ontologies/material#AFM_0000442)
+    Suspension = 4;
+    PURE = 5;
+    CUSTOM = 6;
+  }
+  MixtureType type = 2;
+  string details = 3;
 }
 
 message ReactionRole {
