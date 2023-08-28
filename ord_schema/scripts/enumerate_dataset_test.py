@@ -78,6 +78,7 @@ def setup(tmp_path) -> tuple[str, str, str]:
             }
         }
     }
+    reaction_id: "ord-d73a86df4d0d4a32a23007aeff1a94e4"
     """
     template_filename = os.path.join(dirname, "template.pbtxt")
     with open(template_filename, "w") as f:
