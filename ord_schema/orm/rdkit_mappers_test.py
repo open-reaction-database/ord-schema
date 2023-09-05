@@ -19,16 +19,23 @@ from ord_schema.orm.mappers import Mappers
 from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMol
 
 
+def test_query(test_session):
+    # WHY ISN'T THIS SMILES BEING ADDED TO THE TABLE??? IT'S IN Mappers.Compound.
+    query = select(RDKitMol).where(RDKitMol.__table__.c.smiles == "ClC(Cl)Cl")
+    # query = select(Mappers.Compound)
+    ids = []
+    for result in test_session.execute(query).fetchall():
+        ids.append((result[0].smiles, result[0].rdkit_mol_id))
+    assert False, ids
+
+
 def test_tanimoto_operator(test_session):
     query = (
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .where(
-            Mappers.Compound.smiles.in_(
-                select(RDKitMol.smiles).where(RDKitMol.morgan_bfp % FingerprintType.MORGAN_BFP("c1ccccc1CCC(O)C"))
-            )
-        )
+        .join(RDKitMol)
+        .where(RDKitMol.morgan_bfp % FingerprintType.MORGAN_BFP("c1ccccc1CCC(O)C"))
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
@@ -40,11 +47,8 @@ def test_tanimoto(test_session, fp_type):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .where(
-            Mappers.Compound.smiles.in_(
-                select(RDKitMol.smiles).where(RDKitMol.tanimoto("c1ccccc1CCC(O)C", fp_type=fp_type) > 0.5)
-            )
-        )
+        .join(RDKitMol)
+        .where(RDKitMol.tanimoto("c1ccccc1CCC(O)C", fp_type=fp_type) > 0.5)
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
