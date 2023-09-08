@@ -37,7 +37,7 @@ TypeDetailsMessage = Union[  # pylint: disable=invalid-name
     reaction_pb2.PressureConditions.Atmosphere,
     reaction_pb2.PressureConditions.PressureMeasurement,
     reaction_pb2.PressureConditions.PressureControl,
-    reaction_pb2.ProductCompound.Texture,
+    reaction_pb2.Texture,
     reaction_pb2.ProductMeasurement,
     reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails,
     reaction_pb2.ProductMeasurement.Selectivity,

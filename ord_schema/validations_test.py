@@ -165,6 +165,42 @@ def test_unmeasured_amount():
     assert len(output.warnings) == 0
 
 
+def test_texture_in_reaction_input():
+    def _make_dummy_reaction_input(component_texture_types, input_texture_type):
+        message = reaction_pb2.ReactionInput(texture=reaction_pb2.Texture(type=input_texture_type))
+        for texture_type in component_texture_types:
+            message.components.add().CopyFrom(
+                reaction_pb2.Compound(
+                    identifiers=[dict(type="SMILES", value="c1ccccc1")], texture=reaction_pb2.Texture(type=texture_type)
+                )
+            )
+        return message
+
+    # case 1: foam + gas -> crystal is unlikely
+    c_texture_types = ["FOAM", "GAS"]
+    i_texture_type = "CRYSTAL"
+    output = _run_validation(_make_dummy_reaction_input(c_texture_types, i_texture_type))
+    assert len(output.warnings) == 1
+
+    # case 2: wax + liquid -> liquid is allowed
+    c_texture_types = ["WAX", "LIQUID"]
+    i_texture_type = "LIQUID"
+    output = _run_validation(_make_dummy_reaction_input(c_texture_types, i_texture_type))
+    assert len(output.warnings) == 0
+
+    # case 3: oil + liquid -> solid is unlikely
+    c_texture_types = ["OIL", "LIQUID"]
+    i_texture_type = "SOLID"
+    output = _run_validation(_make_dummy_reaction_input(c_texture_types, i_texture_type))
+    assert len(output.warnings) == 1
+
+    # case 4: gas + liquid -> liquid is allowed
+    c_texture_types = ["GAS", "LIQUID"]
+    i_texture_type = "LIQUID"
+    output = _run_validation(_make_dummy_reaction_input(c_texture_types, i_texture_type))
+    assert len(output.warnings) == 0
+
+
 def test_crude_component():
     message = reaction_pb2.CrudeComponent()
     with pytest.raises(validations.ValidationError, match="reaction_id"):
