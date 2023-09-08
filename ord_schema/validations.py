@@ -496,6 +496,35 @@ def validate_reaction_input(message: reaction_pb2.ReactionInput):
                     ValidationWarning,
                 )
 
+    texture_type_to_state_of_matter = {
+        reaction_pb2.ProductCompound.Texture.UNSPECIFIED: None,
+        reaction_pb2.ProductCompound.Texture.CUSTOM: None,
+        reaction_pb2.ProductCompound.Texture.GAS: 1,
+        reaction_pb2.ProductCompound.Texture.OIL: 2,
+        reaction_pb2.ProductCompound.Texture.FOAM: 2,
+        reaction_pb2.ProductCompound.Texture.LIQUID: 2,
+        reaction_pb2.ProductCompound.Texture.POWDER: 3,
+        reaction_pb2.ProductCompound.Texture.CRYSTAL: 3,
+        reaction_pb2.ProductCompound.Texture.WAX: 3,
+        reaction_pb2.ProductCompound.Texture.AMORPHOUS_SOLID: 3,
+        reaction_pb2.ProductCompound.Texture.SEMI_SOLID: 3,
+        reaction_pb2.ProductCompound.Texture.SOLID: 3,
+    }
+    input_state_code = texture_type_to_state_of_matter[message.texture.type]
+    if input_state_code is not None:
+        components = message.components + message.crude_components
+        component_state_codes = [texture_type_to_state_of_matter[c.texture.type] for c in components]
+        if (
+            component_state_codes
+            and None not in component_state_codes
+            and max(component_state_codes) > input_state_code
+        ):
+            warnings.warn(
+                f"the ReationInput has texture type of: {message.texture.type},"
+                f"but its components are: {[c.texture.type for c in components]},"
+                f"this seems unlikely"
+            )
+
 
 def validate_addition_device(message: reaction_pb2.ReactionInput.AdditionDevice):
     check_type_and_details(message)
