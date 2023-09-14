@@ -18,13 +18,11 @@ import time
 
 import pandas as pd
 import pytest
-from google.protobuf import json_format
-from google.protobuf import text_format
+from google.protobuf import json_format, text_format
 from rdkit import Chem
 
 from ord_schema import message_helpers
-from ord_schema.proto import reaction_pb2
-from ord_schema.proto import test_pb2
+from ord_schema.proto import reaction_pb2, test_pb2
 
 _BENZENE_MOLBLOCK = """241
   -OEChem-07232015262D
@@ -130,6 +128,7 @@ class TestMessageHelpers:
         reactant1 = reaction.inputs["reactant1"]
         reactant1.components.add(reaction_role="REACTANT").identifiers.add(value="c1ccccc1", type="SMILES")
         reactant1.components.add(reaction_role="SOLVENT").identifiers.add(value="N", type="SMILES")
+        reactant1.components.add(reaction_role="WORKUP").identifiers.add(value="O", type="SMILES")
         assert message_helpers.get_reaction_smiles(reaction, generate_if_missing=True) == "c1ccccc1>N>"
         reactant2 = reaction.inputs["reactant2"]
         reactant2.components.add(reaction_role="REACTANT").identifiers.add(value="Cc1ccccc1", type="SMILES")
