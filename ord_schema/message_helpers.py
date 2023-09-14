@@ -26,16 +26,15 @@ from typing import Optional, Type, TypeVar, Union
 import pandas as pd
 import requests
 from google import protobuf  # pytype: disable=import-error
-from google.protobuf import json_format
 from google.protobuf import text_format  # pytype: disable=import-error
+from google.protobuf import json_format
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 from werkzeug import security
 
 import ord_schema
 from ord_schema import units
-from ord_schema.proto import dataset_pb2
-from ord_schema.proto import reaction_pb2
+from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,
@@ -384,7 +383,8 @@ def get_reaction_smiles(
             return identifier.value
     if not generate_if_missing:
         return None
-    reactants, agents, products = set(), set(), set()
+
+    reactants, reagents, products = set(), set(), set()
     roles = reaction_pb2.ReactionRole
     for key in sorted(message.inputs):
         for compound in message.inputs[key].components:
@@ -395,11 +395,12 @@ def get_reaction_smiles(
                     continue
                 raise error
             if compound.reaction_role in [roles.REAGENT, roles.SOLVENT, roles.CATALYST]:
-                agents.add(smiles)
-            elif compound.reaction_role == roles.INTERNAL_STANDARD:
-                continue
-            else:
+                reagents.add(smiles)
+            elif compound.reaction_role == roles.REACTANT:
                 reactants.add(smiles)
+            else:
+                continue
+
     for outcome in message.outcomes:
         for product in outcome.products:
             try:
@@ -423,7 +424,7 @@ def get_reaction_smiles(
         raise ValueError("reaction contains no valid reactants or products")
     components = [
         ".".join(sorted(reactants)),
-        ".".join(sorted(agents)),
+        ".".join(sorted(reagents)),
         ".".join(sorted(products)),
     ]
     reaction_smiles = ">".join(components)
@@ -739,7 +740,8 @@ def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset
         RuntimeError: If the request fails.
         ValueError: If the dataset ID is invalid.
     """
-    from ord_schema import validations  # Avoid circular import; pylint: disable=import-outside-toplevel.
+    # Avoid circular import; pylint: disable=import-outside-toplevel.
+    from ord_schema import validations
 
     if not validations.is_valid_dataset_id(dataset_id):
         raise ValueError(f"Invalid dataset ID: {dataset_id}")
