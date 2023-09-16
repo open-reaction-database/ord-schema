@@ -17,7 +17,6 @@
 # Make sure you have protoc in your PATH; see https://grpc.io/docs/protoc-installation/.
 set -ex
 protoc \
-  --experimental_allow_proto3_optional \
   --proto_path=.. \
   --python_out=. \
   --js_out=import_style=commonjs,binary:js \
