@@ -216,7 +216,6 @@ message UnmeasuredAmount {
  * or a ReactionInput.
  */
 message Texture {
-  // Note not all of the type options are mutually disjoint.
   enum TextureType {
     UNSPECIFIED = 0;
     CUSTOM = 1;
