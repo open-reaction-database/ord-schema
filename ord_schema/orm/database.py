@@ -131,6 +131,7 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     assert hasattr(RDKitMol, "__table__")  # Type hint.
     table = RDKitMol.__table__
     start = time.time()
+    # NOTE(skearnes): This join path will not include non-input compounds like workups, internal standards, etc.
     session.execute(
         insert(table)
         .from_select(

@@ -19,16 +19,6 @@ from ord_schema.orm.mappers import Mappers
 from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMol
 
 
-def test_query(test_session):
-    # WHY ISN'T THIS SMILES BEING ADDED TO THE TABLE??? IT'S IN Mappers.Compound.
-    query = select(RDKitMol).where(RDKitMol.__table__.c.smiles == "ClC(Cl)Cl")
-    # query = select(Mappers.Compound)
-    ids = []
-    for result in test_session.execute(query).fetchall():
-        ids.append((result[0].smiles, result[0].rdkit_mol_id))
-    assert False, ids
-
-
 def test_tanimoto_operator(test_session):
     query = (
         select(Mappers.Reaction)
