@@ -34,7 +34,8 @@ from werkzeug import security
 
 import ord_schema
 from ord_schema import units
-from ord_schema.proto import dataset_pb2, reaction_pb2
+from ord_schema.proto import dataset_pb2
+from ord_schema.proto import reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,
@@ -740,8 +741,7 @@ def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset
         RuntimeError: If the request fails.
         ValueError: If the dataset ID is invalid.
     """
-    # Avoid circular import; pylint: disable=import-outside-toplevel.
-    from ord_schema import validations
+    from ord_schema import validations  # Avoid circular import; pylint: disable=import-outside-toplevel.
 
     if not validations.is_valid_dataset_id(dataset_id):
         raise ValueError(f"Invalid dataset ID: {dataset_id}")
