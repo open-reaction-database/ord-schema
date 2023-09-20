@@ -94,9 +94,14 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
     logger.info(f"delete took {time.time() - start}s")
 
 
-def update_rdkit(dataset_id: str, session: Session) -> None:
+def update_rdkit_tables(dataset_id: str, session: Session) -> None:
     """Updates RDKit PostgreSQL cartridge data."""
-    # select distinct smiles, count(*) from rdkit.mols where smiles similar to '\[[A-Z][a-z]*[+-]*[0-9]*\]'
+    _update_rdkit_reactions(dataset_id, session)
+    _update_rdkit_mols(dataset_id, session)
+
+
+def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
+    """Updates the RDKit reactions table."""
     logger.info("Updating RDKit reactions")
     assert hasattr(RDKitReaction, "__table__")  # Type hint.
     table = RDKitReaction.__table__
@@ -118,10 +123,15 @@ def update_rdkit(dataset_id: str, session: Session) -> None:
         .values(reaction=func.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
     )
     logger.info(f"Updating reactions took {time.time() - start:g}s")
+
+
+def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
+    """Updates the RDKit mols table."""
     logger.info("Updating RDKit mols")
     assert hasattr(RDKitMol, "__table__")  # Type hint.
     table = RDKitMol.__table__
     start = time.time()
+    # NOTE(skearnes): This join path will not include non-input compounds like workups, internal standards, etc.
     session.execute(
         insert(table)
         .from_select(
@@ -167,3 +177,47 @@ def update_rdkit(dataset_id: str, session: Session) -> None:
             .values(**{column: fp_type(table.c.mol)})
         )
         logger.info(f"Updating {fp_type} took {time.time() - start:g}s")
+
+
+def update_rdkit_ids(dataset_id: str, session: Session) -> None:
+    """Updates RDKit reaction and mol ID associations in the ORD tables."""
+    logger.info("Updating RDKit ID associations")
+    start = time.time()
+    # Update Reaction.
+    query = session.execute(
+        select(Mappers.Reaction.id, RDKitReaction.id)
+        .join(RDKitReaction, Mappers.Reaction.reaction_smiles == RDKitReaction.reaction_smiles)
+        .join(Mappers.Dataset)
+        .where(Mappers.Dataset.dataset_id == dataset_id)
+    )
+    updates = []
+    for ord_id, rdkit_id in query.fetchall():
+        updates.append({"id": ord_id, "rdkit_reaction_id": rdkit_id})
+    session.execute(update(Mappers.Reaction), updates)
+    # Update Compound.
+    query = session.execute(
+        select(Mappers.Compound.id, RDKitMol.id)
+        .join(RDKitMol, Mappers.Compound.smiles == RDKitMol.smiles)
+        .join(Mappers.ReactionInput)
+        .join(Mappers.Reaction)
+        .join(Mappers.Dataset)
+        .where(Mappers.Dataset.dataset_id == dataset_id)
+    )
+    updates = []
+    for ord_id, rdkit_id in query.fetchall():
+        updates.append({"id": ord_id, "rdkit_mol_id": rdkit_id})
+    session.execute(update(Mappers.Compound), updates)
+    # Update ProductCompound.
+    query = session.execute(
+        select(Mappers.ProductCompound.id, RDKitMol.id)
+        .join(RDKitMol, Mappers.ProductCompound.smiles == RDKitMol.smiles)
+        .join(Mappers.ReactionOutcome)
+        .join(Mappers.Reaction)
+        .join(Mappers.Dataset)
+        .where(Mappers.Dataset.dataset_id == dataset_id)
+    )
+    updates = []
+    for ord_id, rdkit_id in query.fetchall():
+        updates.append({"id": ord_id, "rdkit_mol_id": rdkit_id})
+    session.execute(update(Mappers.ProductCompound), updates)
+    logger.info(f"Updating RDKit IDs took {time.time() - start:g}s")

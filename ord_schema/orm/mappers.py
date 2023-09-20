@@ -176,8 +176,12 @@ def build_mapper(  # pylint: disable=too-many-branches
         # Serialize and store the entire Reaction proto.
         attrs["proto"] = Column(LargeBinary, nullable=False)
         attrs["reaction_smiles"] = Column(Text, index=True)
+        attrs["rdkit_reaction_id"] = Column(Integer, ForeignKey("rdkit.reactions.id"))
+        attrs["rdkit_reaction"] = relationship("RDKitReaction")
     elif message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
         attrs["smiles"] = Column(Text, index=True)
+        attrs["rdkit_mol_id"] = Column(Integer, ForeignKey("rdkit.mols.id"))
+        attrs["rdkit_mol"] = relationship("RDKitMol")
     elif message_type in {reaction_pb2.CompoundPreparation, reaction_pb2.CrudeComponent}:
         # Add foreign key to reaction.reaction_id.
         kwargs = {}
