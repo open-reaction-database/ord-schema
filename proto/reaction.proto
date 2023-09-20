@@ -162,6 +162,8 @@ message ReactionInput {
   // Specify the temperature of the material being added.
   // E.g., a cooled flask of a stock solution to be added at low temperature.
   Temperature addition_temperature = 9;
+  // The texture immediately before addition.
+  Texture texture = 10;
 }
 
 /**
@@ -210,6 +212,31 @@ message UnmeasuredAmount {
 }
 
 /**
+ * This qualitatively describes the apparent size and morphology of a Compound,
+ * a ProductCompound, or a ReactionInput.
+ */
+message Texture {
+  enum TextureType {
+    UNSPECIFIED = 0;
+    CUSTOM = 1;
+    POWDER = 2;
+    CRYSTAL = 3;
+    OIL = 4;
+    AMORPHOUS_SOLID = 5;
+    FOAM = 6;
+    WAX = 7;
+    SEMI_SOLID = 8;
+    SOLID = 9;
+    LIQUID = 10;
+    GAS = 11;
+  }
+  TextureType type = 1;
+  // Specify texture forms such as "fine needles" for CRYSTAL,
+  // "viscous" for OIL, etc.
+  string details = 2;
+}
+
+/**
  * Crude components are used in multi-step or multi-stage reactions (no strong
  * distinction is made here) where one synthetic process must be described by
  * multiple "Reaction" messages. In these cases, we often carry the crude
@@ -231,6 +258,7 @@ message CrudeComponent {
   optional bool has_derived_amount = 3;
   // If the entire crude mixture was not used, need to specify an amount.
   Amount amount = 4;
+  Texture texture = 5;
 }
 
 /**
@@ -265,6 +293,7 @@ message Compound {
   // Compounds may be assayed for quality control; analytical data should be
   // defined in the analyses map.
   map<string, Analysis> analyses = 8;
+  Texture texture = 9;
 }
 
 message ReactionRole {
@@ -874,25 +903,6 @@ message ProductCompound {
   // (and unnormalized) metrics like an integrated UV peak area.
   repeated ProductMeasurement measurements = 3;
   string isolated_color = 4;
-  message Texture {
-    enum TextureType {
-      UNSPECIFIED = 0;
-      CUSTOM = 1;
-      POWDER = 2;
-      CRYSTAL = 3;
-      OIL = 4;
-      AMORPHOUS_SOLID = 5;
-      FOAM = 6;
-      WAX = 7;
-      SEMI_SOLID = 8;
-      SOLID = 9;
-      LIQUID = 10;
-    }
-    TextureType type = 1;
-    // Specify texture forms such as "fine needles" for CRYSTAL,
-    // "viscous" for OIL, etc.
-    string details = 2;
-  }
   Texture texture = 5;
   // Any features (e.g., calculated descriptors) of the product compound.
   map<string, Data> features = 6;

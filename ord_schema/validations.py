@@ -19,6 +19,7 @@ import re
 import warnings
 from collections.abc import Mapping
 from typing import Any, Optional
+from enum import IntEnum
 
 from dateutil import parser
 from rdkit import Chem
@@ -496,6 +497,40 @@ def validate_reaction_input(message: reaction_pb2.ReactionInput):
                     ValidationWarning,
                 )
 
+    class StateOfMatter(IntEnum):
+        GAS = 1
+        LIQUID = 2
+        SOLID = 3
+
+    texture_type_to_state_of_matter = {
+        reaction_pb2.Texture.UNSPECIFIED: None,
+        reaction_pb2.Texture.CUSTOM: None,
+        reaction_pb2.Texture.GAS: StateOfMatter.GAS,
+        reaction_pb2.Texture.OIL: StateOfMatter.LIQUID,
+        reaction_pb2.Texture.FOAM: StateOfMatter.LIQUID,
+        reaction_pb2.Texture.LIQUID: StateOfMatter.LIQUID,
+        reaction_pb2.Texture.POWDER: StateOfMatter.SOLID,
+        reaction_pb2.Texture.CRYSTAL: StateOfMatter.SOLID,
+        reaction_pb2.Texture.WAX: StateOfMatter.SOLID,
+        reaction_pb2.Texture.AMORPHOUS_SOLID: StateOfMatter.SOLID,
+        reaction_pb2.Texture.SEMI_SOLID: StateOfMatter.SOLID,
+        reaction_pb2.Texture.SOLID: StateOfMatter.SOLID,
+    }
+    input_state_code = texture_type_to_state_of_matter[message.texture.type]
+    if input_state_code is not None:
+        components = [*message.components] + [*message.crude_components]
+        component_state_codes = [texture_type_to_state_of_matter[c.texture.type] for c in components]
+        if (
+            component_state_codes
+            and None not in component_state_codes
+            and max(component_state_codes) < input_state_code
+        ):
+            warnings.warn(
+                f"the ReationInput has texture type of: {message.texture.type},"
+                f"but its components are: {[c.texture.type for c in components]},"
+                f"this seems unlikely"
+            )
+
 
 def validate_addition_device(message: reaction_pb2.ReactionInput.AdditionDevice):
     check_type_and_details(message)
@@ -830,7 +865,7 @@ def validate_product_compound(message: reaction_pb2.ProductCompound):
             warnings.warn("a product cannot be (SIDE_PRODUCT & is_desired_product)", ValidationError)
 
 
-def validate_texture(message: reaction_pb2.ProductCompound.Texture):
+def validate_texture(message: reaction_pb2.Texture):
     check_type_and_details(message)
 
 
@@ -1083,6 +1118,7 @@ _VALIDATOR_SWITCH = {
     # Compounds
     reaction_pb2.Amount: validate_amount,
     reaction_pb2.UnmeasuredAmount: validate_unmeasured_amount,
+    reaction_pb2.Texture: validate_texture,
     reaction_pb2.CrudeComponent: validate_crude_component,
     reaction_pb2.Compound: validate_compound,
     reaction_pb2.CompoundPreparation: validate_compound_preparation,
@@ -1119,7 +1155,6 @@ _VALIDATOR_SWITCH = {
     reaction_pb2.ReactionWorkup: validate_reaction_workup,
     reaction_pb2.ReactionOutcome: validate_reaction_outcome,
     reaction_pb2.ProductCompound: validate_product_compound,
-    reaction_pb2.ProductCompound.Texture: validate_texture,
     reaction_pb2.ProductMeasurement: validate_product_measurement,
     reaction_pb2.ProductMeasurement.Selectivity: validate_selectivity,
     reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails: validate_mass_spec_measurement_type,
