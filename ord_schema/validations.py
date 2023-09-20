@@ -29,6 +29,7 @@ from ord_schema.logging import get_logger
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 from ord_schema.proto import reaction_pb2
+from enum import IntEnum
 
 logger = get_logger(__name__)
 
@@ -496,19 +497,24 @@ def validate_reaction_input(message: reaction_pb2.ReactionInput):
                     ValidationWarning,
                 )
 
+    class StateOfMatter(IntEnum):
+        GAS = 1
+        LIQUID = 2
+        SOLID = 3
+
     texture_type_to_state_of_matter = {
         reaction_pb2.Texture.UNSPECIFIED: None,
         reaction_pb2.Texture.CUSTOM: None,
-        reaction_pb2.Texture.GAS: 1,
-        reaction_pb2.Texture.OIL: 2,
-        reaction_pb2.Texture.FOAM: 2,
-        reaction_pb2.Texture.LIQUID: 2,
-        reaction_pb2.Texture.POWDER: 3,
-        reaction_pb2.Texture.CRYSTAL: 3,
-        reaction_pb2.Texture.WAX: 3,
-        reaction_pb2.Texture.AMORPHOUS_SOLID: 3,
-        reaction_pb2.Texture.SEMI_SOLID: 3,
-        reaction_pb2.Texture.SOLID: 3,
+        reaction_pb2.Texture.GAS: StateOfMatter.GAS,
+        reaction_pb2.Texture.OIL: StateOfMatter.LIQUID,
+        reaction_pb2.Texture.FOAM: StateOfMatter.LIQUID,
+        reaction_pb2.Texture.LIQUID: StateOfMatter.LIQUID,
+        reaction_pb2.Texture.POWDER: StateOfMatter.SOLID,
+        reaction_pb2.Texture.CRYSTAL: StateOfMatter.SOLID,
+        reaction_pb2.Texture.WAX: StateOfMatter.SOLID,
+        reaction_pb2.Texture.AMORPHOUS_SOLID: StateOfMatter.SOLID,
+        reaction_pb2.Texture.SEMI_SOLID: StateOfMatter.SOLID,
+        reaction_pb2.Texture.SOLID: StateOfMatter.SOLID,
     }
     input_state_code = texture_type_to_state_of_matter[message.texture.type]
     if input_state_code is not None:

@@ -212,8 +212,8 @@ message UnmeasuredAmount {
 }
 
 /**
- * This qualitatively describes the apparent size and morphology of a Compound
- * or a ReactionInput.
+ * This qualitatively describes the apparent size and morphology of a Compound,
+ * a ProductCompound, or a ReactionInput.
  */
 message Texture {
   enum TextureType {
