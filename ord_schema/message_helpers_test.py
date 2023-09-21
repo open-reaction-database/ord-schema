@@ -18,7 +18,8 @@ import time
 
 import pandas as pd
 import pytest
-from google.protobuf import json_format, text_format
+from google.protobuf import json_format
+from google.protobuf import text_format
 from rdkit import Chem
 
 from ord_schema import message_helpers

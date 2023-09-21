@@ -26,16 +26,15 @@ from typing import Optional, Type, TypeVar, Union
 import pandas as pd
 import requests
 from google import protobuf  # pytype: disable=import-error
-from google.protobuf import text_format  # pytype: disable=import-error
 from google.protobuf import json_format
+from google.protobuf import text_format  # pytype: disable=import-error
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 from werkzeug import security
 
 import ord_schema
 from ord_schema import units
-from ord_schema.proto import dataset_pb2
-from ord_schema.proto import reaction_pb2
+from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,
@@ -741,7 +740,8 @@ def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset
         RuntimeError: If the request fails.
         ValueError: If the dataset ID is invalid.
     """
-    from ord_schema import validations  # Avoid circular import; pylint: disable=import-outside-toplevel.
+    from ord_schema import \
+        validations  # Avoid circular import; pylint: disable=import-outside-toplevel.
 
     if not validations.is_valid_dataset_id(dataset_id):
         raise ValueError(f"Invalid dataset ID: {dataset_id}")
