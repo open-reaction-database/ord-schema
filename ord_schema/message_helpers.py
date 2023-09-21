@@ -385,7 +385,7 @@ def get_reaction_smiles(
     if not generate_if_missing:
         return None
 
-    reactants, reagents, products = set(), set(), set()
+    reactants, agents, products = set(), set(), set()
     roles = reaction_pb2.ReactionRole
     for key in sorted(message.inputs):
         for compound in message.inputs[key].components:
@@ -396,7 +396,7 @@ def get_reaction_smiles(
                     continue
                 raise error
             if compound.reaction_role in [roles.REAGENT, roles.SOLVENT, roles.CATALYST]:
-                reagents.add(smiles)
+                agents.add(smiles)
             elif compound.reaction_role == roles.REACTANT:
                 reactants.add(smiles)
             else:
@@ -425,7 +425,7 @@ def get_reaction_smiles(
         raise ValueError("reaction contains no valid reactants or products")
     components = [
         ".".join(sorted(reactants)),
-        ".".join(sorted(reagents)),
+        ".".join(sorted(agents)),
         ".".join(sorted(products)),
     ]
     reaction_smiles = ">".join(components)
