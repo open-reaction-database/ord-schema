@@ -130,6 +130,7 @@ class TestMessageHelpers:
         reactant1 = reaction.inputs["reactant1"]
         reactant1.components.add(reaction_role="REACTANT").identifiers.add(value="c1ccccc1", type="SMILES")
         reactant1.components.add(reaction_role="SOLVENT").identifiers.add(value="N", type="SMILES")
+        reactant1.components.add(reaction_role="WORKUP").identifiers.add(value="O", type="SMILES")
         assert message_helpers.get_reaction_smiles(reaction, generate_if_missing=True) == "c1ccccc1>N>"
         reactant2 = reaction.inputs["reactant2"]
         reactant2.components.add(reaction_role="REACTANT").identifiers.add(value="Cc1ccccc1", type="SMILES")

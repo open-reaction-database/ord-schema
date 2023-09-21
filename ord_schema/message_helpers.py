@@ -384,6 +384,7 @@ def get_reaction_smiles(
             return identifier.value
     if not generate_if_missing:
         return None
+
     reactants, agents, products = set(), set(), set()
     roles = reaction_pb2.ReactionRole
     for key in sorted(message.inputs):
@@ -396,10 +397,11 @@ def get_reaction_smiles(
                 raise error
             if compound.reaction_role in [roles.REAGENT, roles.SOLVENT, roles.CATALYST]:
                 agents.add(smiles)
-            elif compound.reaction_role == roles.INTERNAL_STANDARD:
-                continue
-            else:
+            elif compound.reaction_role == roles.REACTANT:
                 reactants.add(smiles)
+            else:
+                continue
+
     for outcome in message.outcomes:
         for product in outcome.products:
             try:
