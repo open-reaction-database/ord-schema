@@ -34,7 +34,8 @@ from werkzeug import security
 
 import ord_schema
 from ord_schema import units
-from ord_schema.proto import dataset_pb2, reaction_pb2
+from ord_schema.proto import dataset_pb2
+from ord_schema.proto import reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,
