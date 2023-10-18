@@ -154,7 +154,7 @@ database, from the underlying structured data representation to the public
 interface(s) to promotion and publicity. The current membership of the governing
 committee is:
 
-* Connor Coley (MIT)
+* Connor Coley (MIT, `C-CAS <https://ccas.nd.edu/>`__)
 * Abby Doyle (UCLA, `C-CAS <https://ccas.nd.edu/>`__)
 * Spencer Dreher (Merck)
 * Joel Hawkins (Pfizer)
@@ -179,12 +179,13 @@ Advisory Board is:
 * Mimi Hii (Imperial, ROAR)
 * Greg Landrum (T5 Informatics)
 * Fabio Lima (Novartis)
-* Christos Nicolaou (Lilly)
-* Sarah Reisman (Caltech)
+* Christos Nicolaou (Recursion)
+* Sarah Reisman (Caltech, `C-CAS <https://ccas.nd.edu/>`__)
 * Francesco Rianjongdee (GSK)
+* Marwin Segler (Microsoft)
 * Matthew Sigman (Utah, `C-CAS <https://ccas.nd.edu/>`__)
 * Jay Stevens (BMS)
-* Sarah Trice (Entos)
+* Sarah Trice (Xtalpi)
 * Huimin Zhao (UIUC, MMLI)
 
 *************************
