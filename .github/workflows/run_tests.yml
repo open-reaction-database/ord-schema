@@ -27,6 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniconda-version: 'latest'
       - name: Setup PostgreSQL
         shell: bash -l {0}
         run: |
