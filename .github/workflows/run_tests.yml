@@ -26,7 +26,7 @@ jobs:
       PGDATA: $GITHUB_WORKSPACE/rdkit-postgres
     steps:
       - uses: actions/checkout@v3
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: conda-incubator/setup-miniconda@v3
       - name: Setup PostgreSQL
         shell: bash -l {0}
         run: |
