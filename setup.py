@@ -43,7 +43,7 @@ setuptools.setup(
         "openpyxl>=3.0.5",
         "pandas>=1.0.4",
         "protobuf==4.22.3",
-        "psycopg2>=2.8.5",
+        "psycopg2-binary>=2.8.5",
         "pygithub>=1.51",
         "python-dateutil>=1.10.0",
         "rdkit>=2021.9.5",

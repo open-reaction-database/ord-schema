@@ -18,12 +18,17 @@ on: [ pull_request, push ]
 
 jobs:
   test_ord_schema:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
     env:
       PGDATA: $GITHUB_WORKSPACE/rdkit-postgres
     steps:
       - uses: actions/checkout@v3
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniconda-version: 'latest'
       - name: Setup PostgreSQL
         shell: bash -l {0}
         run: |
@@ -47,7 +52,10 @@ jobs:
       - uses: codecov/codecov-action@v1
 
   test_notebooks:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-14 ]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
