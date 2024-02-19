@@ -20,4 +20,4 @@ protoc \
   --proto_path=.. \
   --python_out=. \
   --js_out=import_style=commonjs,binary:js \
-  ../ord-schema/proto/*.proto
+  ../ord-schema/proto/*.proto --pyi_out=.
