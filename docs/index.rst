@@ -36,8 +36,8 @@ underrepresented areas).
    :hidden:
    :caption: Tools
 
-   Interactive Reaction Editor <https://editor.open-reaction-database.org>
-   Search/Browse <https://client.open-reaction-database.org>
+   Interactive Reaction Editor <https://open-reaction-database.org/editor/datasets>
+   Search/Browse <https://open-reaction-database.org/client/search#>
    GitHub <https://github.com/open-reaction-database>
 
 .. toctree::
