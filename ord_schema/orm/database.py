@@ -55,11 +55,13 @@ def prepare_database(engine: Engine) -> bool:
     with engine.begin() as connection:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS ord"))
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS rdkit"))
-        try:
+    try:
+        with engine.begin() as connection:
             # NOTE(skearnes): The RDKit PostgreSQL extension works best in the public schema.
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS rdkit"))
             rdkit_cartridge = True
-        except OperationalError:
+    except OperationalError:
+        with engine.begin() as connection:
             logger.warning("RDKit PostgreSQL cartridge is not installed; structure search will be disabled")
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
             rdkit_cartridge = False

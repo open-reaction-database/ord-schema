@@ -16,6 +16,7 @@
 import os
 
 import docopt
+import pytest
 from sqlalchemy import create_engine
 from testing.postgresql import Postgresql
 
@@ -26,7 +27,8 @@ from ord_schema.orm.scripts import add_datasets
 def test_main():
     with Postgresql() as postgres:
         engine = create_engine(postgres.url(), future=True)
-        assert prepare_database(engine)  # Requires RDKit.
+        if not prepare_database(engine):
+            pytest.skip("RDKit cartridge is required")
         argv = [
             "--url",
             postgres.url(),
