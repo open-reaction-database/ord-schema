@@ -32,7 +32,7 @@ def test_tanimoto_operator(test_session):
         results = test_session.execute(query)
         assert len(results.fetchall()) == 20
     except ProgrammingError as error:
-        pytest.skip(str(error))
+        pytest.skip(f"RDKit cartridge is required: {error}")
 
 
 @pytest.mark.parametrize("fp_type", list(FingerprintType))
@@ -48,4 +48,4 @@ def test_tanimoto(test_session, fp_type):
         results = test_session.execute(query)
         assert len(results.fetchall()) == 20
     except ProgrammingError as error:
-        pytest.skip(str(error))
+        pytest.skip(f"RDKit cartridge is required: {error}")
