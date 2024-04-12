@@ -34,8 +34,7 @@ jobs:
         run: |
           # NOTE(skearnes): conda is only used for postgres (not python).
           # NOTE(skearnes): rdkit-postgresql may not be available for ARM.
-          conda install -c rdkit rdkit-postgresql==2020.03.3.0 || conda install postgresql==12.2
-          initdb
+          (conda install -c rdkit rdkit-postgresql==2020.03.3.0 && initdb) || (apt update && apt install postgresql postgresql-contrib)
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
