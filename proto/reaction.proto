@@ -401,7 +401,8 @@ message CompoundIdentifier {
     // HELM; https://www.pistoiaalliance.org/helm-notation/.
     HELM = 16;
     MDL = 17;
-    // MDL number e.g., MFCD00005972 for morpholine, often included on commercial supplier listings.
+    // MDL number e.g., MFCD00005972 for morpholine,
+    // often included on commercial supplier listings.
   }
   CompoundIdentifierType type = 1;
   string details = 2;
@@ -1091,8 +1092,8 @@ message Analysis {
     XRD = 21;  // X-ray diffraction, including single-crystal XRD.
     RAMAN = 22;  // Raman spectroscopy.
     ED = 23;  // Electron diffraction, including MicroED.
-    OPTICAL_ROTATION = 24; // optical rotation.
-    CAD = 25; // Charged Aerosol Detector.
+    OPTICAL_ROTATION = 24;  // optical rotation.
+    CAD = 25;  // Charged Aerosol Detector.
   }
   AnalysisType type = 1;
   // Any details about analysis (e.g., NMR type, columns, gradients).
