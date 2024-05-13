@@ -29,13 +29,7 @@
 
 var jspb = require('google-protobuf');
 var goog = jspb;
-var global =
-    (typeof globalThis !== 'undefined' && globalThis) ||
-    (typeof window !== 'undefined' && window) ||
-    (typeof global !== 'undefined' && global) ||
-    (typeof self !== 'undefined' && self) ||
-    (function () { return this; }).call(null) ||
-    Function('return this')();
+var global = (function() { return this || window || global || self || Function('return this')(); }).call(null);
 
 goog.exportSymbol('proto.ord_test.Enum', null, global);
 goog.exportSymbol('proto.ord_test.Enum.EnumValues', null, global);
@@ -1822,8 +1816,7 @@ proto.ord_test.Map.prototype.getValuesMap = function(opt_noLazyCreate) {
  */
 proto.ord_test.Map.prototype.clearValuesMap = function() {
   this.getValuesMap().clear();
-  return this;
-};
+  return this;};
 
 
 
@@ -2104,8 +2097,7 @@ proto.ord_test.MapNested.prototype.getChildrenMap = function(opt_noLazyCreate) {
  */
 proto.ord_test.MapNested.prototype.clearChildrenMap = function() {
   this.getChildrenMap().clear();
-  return this;
-};
+  return this;};
 
 
 goog.object.extend(exports, proto.ord_test);
