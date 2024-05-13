@@ -32,13 +32,12 @@ DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1bord-schema/pro
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'ord_schema.proto.test_pb2', _globals)
-if _descriptor._USE_C_DESCRIPTORS == False:
-
-  DESCRIPTOR._options = None
-  _MAP_VALUESENTRY._options = None
-  _MAP_VALUESENTRY._serialized_options = b'8\001'
-  _MAPNESTED_CHILDRENENTRY._options = None
-  _MAPNESTED_CHILDRENENTRY._serialized_options = b'8\001'
+if not _descriptor._USE_C_DESCRIPTORS:
+  DESCRIPTOR._loaded_options = None
+  _globals['_MAP_VALUESENTRY']._loaded_options = None
+  _globals['_MAP_VALUESENTRY']._serialized_options = b'8\001'
+  _globals['_MAPNESTED_CHILDRENENTRY']._loaded_options = None
+  _globals['_MAPNESTED_CHILDRENENTRY']._serialized_options = b'8\001'
   _globals['_SCALAR']._serialized_start=42
   _globals['_SCALAR']._serialized_end=217
   _globals['_REPEATEDSCALAR']._serialized_start=219
