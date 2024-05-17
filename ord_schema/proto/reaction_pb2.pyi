@@ -100,12 +100,16 @@ class ReactionInput(_message.Message):
             SYRINGE: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
             CANNULA: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
             ADDITION_FUNNEL: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
+            PIPETTE: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
+            POSITIVE_DISPLACEMENT_PIPETTE: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
         UNSPECIFIED: ReactionInput.AdditionDevice.AdditionDeviceType
         CUSTOM: ReactionInput.AdditionDevice.AdditionDeviceType
         NONE: ReactionInput.AdditionDevice.AdditionDeviceType
         SYRINGE: ReactionInput.AdditionDevice.AdditionDeviceType
         CANNULA: ReactionInput.AdditionDevice.AdditionDeviceType
         ADDITION_FUNNEL: ReactionInput.AdditionDevice.AdditionDeviceType
+        PIPETTE: ReactionInput.AdditionDevice.AdditionDeviceType
+        POSITIVE_DISPLACEMENT_PIPETTE: ReactionInput.AdditionDevice.AdditionDeviceType
         TYPE_FIELD_NUMBER: _ClassVar[int]
         DETAILS_FIELD_NUMBER: _ClassVar[int]
         type: ReactionInput.AdditionDevice.AdditionDeviceType
@@ -335,6 +339,7 @@ class CompoundIdentifier(_message.Message):
         PDB_ID: _ClassVar[CompoundIdentifier.CompoundIdentifierType]
         AMINO_ACID_SEQUENCE: _ClassVar[CompoundIdentifier.CompoundIdentifierType]
         HELM: _ClassVar[CompoundIdentifier.CompoundIdentifierType]
+        MDL: _ClassVar[CompoundIdentifier.CompoundIdentifierType]
     UNSPECIFIED: CompoundIdentifier.CompoundIdentifierType
     CUSTOM: CompoundIdentifier.CompoundIdentifierType
     SMILES: CompoundIdentifier.CompoundIdentifierType
@@ -352,6 +357,7 @@ class CompoundIdentifier(_message.Message):
     PDB_ID: CompoundIdentifier.CompoundIdentifierType
     AMINO_ACID_SEQUENCE: CompoundIdentifier.CompoundIdentifierType
     HELM: CompoundIdentifier.CompoundIdentifierType
+    MDL: CompoundIdentifier.CompoundIdentifierType
     TYPE_FIELD_NUMBER: _ClassVar[int]
     DETAILS_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -1205,6 +1211,8 @@ class Analysis(_message.Message):
         XRD: _ClassVar[Analysis.AnalysisType]
         RAMAN: _ClassVar[Analysis.AnalysisType]
         ED: _ClassVar[Analysis.AnalysisType]
+        OPTICAL_ROTATION: _ClassVar[Analysis.AnalysisType]
+        CAD: _ClassVar[Analysis.AnalysisType]
     UNSPECIFIED: Analysis.AnalysisType
     CUSTOM: Analysis.AnalysisType
     LC: Analysis.AnalysisType
@@ -1229,6 +1237,8 @@ class Analysis(_message.Message):
     XRD: Analysis.AnalysisType
     RAMAN: Analysis.AnalysisType
     ED: Analysis.AnalysisType
+    OPTICAL_ROTATION: Analysis.AnalysisType
+    CAD: Analysis.AnalysisType
     class DataEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
