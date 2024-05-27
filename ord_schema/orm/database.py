@@ -13,8 +13,8 @@
 # limitations under the License.
 
 """Functions for creating/managing the PostgreSQL database."""
-import time
 import os
+import time
 from unittest.mock import patch
 
 from sqlalchemy import cast, delete, func, select, text, update

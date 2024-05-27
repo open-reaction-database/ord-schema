@@ -18,13 +18,11 @@ import time
 
 import pandas as pd
 import pytest
-from google.protobuf import json_format
-from google.protobuf import text_format
+from google.protobuf import json_format, text_format
 from rdkit import Chem
 
 from ord_schema import message_helpers
-from ord_schema.proto import reaction_pb2
-from ord_schema.proto import test_pb2
+from ord_schema.proto import reaction_pb2, test_pb2
 
 _BENZENE_MOLBLOCK = """241
   -OEChem-07232015262D

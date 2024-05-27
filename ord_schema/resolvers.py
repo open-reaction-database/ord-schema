@@ -14,14 +14,14 @@
 """Name/string resolution to structured messages or identifiers."""
 import email.message
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
-import urllib.error
 
 from rdkit import Chem
 
-from ord_schema.logging import get_logger
 from ord_schema import message_helpers
+from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
 
 logger = get_logger(__name__)

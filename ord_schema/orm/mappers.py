@@ -35,7 +35,7 @@ from typing import Any, Mapping, Optional, Type
 from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
 from inflection import underscore
-from sqlalchemy import Boolean, Column, Enum, Float, Integer, ForeignKey, LargeBinary, String, Text
+from sqlalchemy import Boolean, Column, Enum, Float, ForeignKey, Integer, LargeBinary, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
@@ -43,9 +43,7 @@ import ord_schema.orm.rdkit_mappers  # pylint: disable=unused-import
 from ord_schema import message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.orm import Base
-from ord_schema.proto import dataset_pb2
-from ord_schema.proto import reaction_pb2
-
+from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
 

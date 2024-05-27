@@ -22,9 +22,9 @@ Options:
 """
 import glob
 import os
-import requests
 
 import docopt
+import requests
 
 from ord_schema import message_helpers
 from ord_schema.logging import get_logger

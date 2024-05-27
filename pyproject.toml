@@ -9,6 +9,10 @@ build-backend = "setuptools.build_meta"
 line-length = 120
 extend-exclude = "_pb2.py"
 
+[tool.isort]
+line_length = 120
+profile = "black"
+
 [tool.pytype]
 inputs = ["ord_schema"]
 exclude = ["**/*_test.py", "**/test_*.py", "**/*_pb2.py", "build/", "dist/"]

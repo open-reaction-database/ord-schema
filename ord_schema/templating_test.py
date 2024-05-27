@@ -19,8 +19,7 @@ from google.protobuf import text_format
 from rdkit import Chem
 
 from ord_schema import templating
-from ord_schema.proto import reaction_pb2
-from ord_schema.proto import dataset_pb2
+from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
 @pytest.fixture

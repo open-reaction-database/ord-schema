@@ -46,6 +46,9 @@ jobs:
       - name: Run black
         run: |
           black --check .
+      - name: Run isort
+        run: |
+          isort --check .
       - name: Run pylint
         run: |
           pylint -j 0 -v examples ord_schema *.py

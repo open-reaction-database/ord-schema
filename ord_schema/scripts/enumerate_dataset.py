@@ -24,9 +24,8 @@ Options:
 """
 import docopt
 
+from ord_schema import message_helpers, templating
 from ord_schema.logging import get_logger
-from ord_schema import message_helpers
-from ord_schema import templating
 
 logger = get_logger(__name__)
 
