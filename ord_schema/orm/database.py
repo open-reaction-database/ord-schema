@@ -20,7 +20,7 @@ from unittest.mock import patch
 from sqlalchemy import cast, delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, NotSupportedError
 from sqlalchemy.orm import Session
 
 from ord_schema.logging import get_logger
@@ -55,14 +55,16 @@ def prepare_database(engine: Engine) -> bool:
     with engine.begin() as connection:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS ord"))
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS rdkit"))
-        try:
+    try:
+        with engine.begin() as connection:
             # NOTE(skearnes): The RDKit PostgreSQL extension works best in the public schema.
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS rdkit"))
-            rdkit_cartridge = True
-        except OperationalError:
+        rdkit_cartridge = True
+    except (OperationalError, NotSupportedError):
+        with engine.begin() as connection:
             logger.warning("RDKit PostgreSQL cartridge is not installed; structure search will be disabled")
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
-            rdkit_cartridge = False
+        rdkit_cartridge = False
     with patch.dict(os.environ, {"ORD_POSTGRES_RDKIT": "1" if rdkit_cartridge else "0"}):
         Base.metadata.create_all(engine)
     return rdkit_cartridge

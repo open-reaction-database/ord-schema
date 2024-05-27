@@ -19,5 +19,6 @@ set -ex
 protoc \
   --proto_path=.. \
   --python_out=. \
+  --pyi_out=. \
   --js_out=import_style=commonjs,binary:js \
   ../ord-schema/proto/*.proto

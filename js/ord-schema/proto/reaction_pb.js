@@ -1,5 +1,5 @@
 /**
- * Copyright 2023 Open Reaction Database Project Authors
+ * Copyright 2024 Open Reaction Database Project Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -2881,7 +2881,9 @@ proto.ord.ReactionInput.AdditionDevice.AdditionDeviceType = {
   NONE: 2,
   SYRINGE: 3,
   CANNULA: 4,
-  ADDITION_FUNNEL: 5
+  ADDITION_FUNNEL: 5,
+  PIPETTE: 6,
+  POSITIVE_DISPLACEMENT_PIPETTE: 7
 };
 
 /**
@@ -5509,7 +5511,8 @@ proto.ord.CompoundIdentifier.CompoundIdentifierType = {
   UNIPROT_ID: 13,
   PDB_ID: 14,
   AMINO_ACID_SEQUENCE: 15,
-  HELM: 16
+  HELM: 16,
+  MDL: 17
 };
 
 /**
@@ -15126,7 +15129,9 @@ proto.ord.Analysis.AnalysisType = {
   EPR: 20,
   XRD: 21,
   RAMAN: 22,
-  ED: 23
+  ED: 23,
+  OPTICAL_ROTATION: 24,
+  CAD: 25
 };
 
 /**
