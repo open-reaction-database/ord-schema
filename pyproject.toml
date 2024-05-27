@@ -10,6 +10,7 @@ line-length = 120
 extend-exclude = "_pb2.py"
 
 [tool.isort]
+skip_glob = ["**/*_pb2.py*"]
 line_length = 120
 profile = "black"
 
