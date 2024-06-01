@@ -14,7 +14,7 @@
 """Helpers for translating strings with units."""
 
 import re
-from typing import Optional, Type, Union, Tuple
+from typing import Optional, Tuple, Type, Union
 
 import numpy as np
 

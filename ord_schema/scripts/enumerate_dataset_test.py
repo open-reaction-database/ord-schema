@@ -18,10 +18,8 @@ import docopt
 import pandas as pd
 import pytest
 
-from ord_schema import message_helpers
-from ord_schema import validations
-from ord_schema.proto import dataset_pb2
-from ord_schema.proto import reaction_pb2
+from ord_schema import message_helpers, validations
+from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import enumerate_dataset
 
 

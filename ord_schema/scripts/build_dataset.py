@@ -29,11 +29,9 @@ import glob
 
 import docopt
 
+from ord_schema import message_helpers, validations
 from ord_schema.logging import get_logger
-from ord_schema import message_helpers
-from ord_schema import validations
-from ord_schema.proto import dataset_pb2
-from ord_schema.proto import reaction_pb2
+from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
 

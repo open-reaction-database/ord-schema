@@ -16,6 +16,7 @@
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import ProgrammingError
+
 from ord_schema.orm.mappers import Mappers
 from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMol
 

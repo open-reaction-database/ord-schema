@@ -27,9 +27,8 @@ from collections.abc import Iterable
 import docopt
 from rdkit import RDLogger
 
+from ord_schema import message_helpers, validations
 from ord_schema.logging import get_logger
-from ord_schema import message_helpers
-from ord_schema import validations
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)

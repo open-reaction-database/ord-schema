@@ -31,10 +31,10 @@ Options:
 """
 import os
 import time
+from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from glob import glob
 from hashlib import md5
-from concurrent.futures import ProcessPoolExecutor
 
 from docopt import docopt
 from rdkit import RDLogger
