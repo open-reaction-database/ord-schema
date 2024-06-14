@@ -117,7 +117,7 @@ class CString(UserDefinedType):
 class FingerprintType(Enum):
     """RDKit PostgreSQL fingerprint types."""
 
-    # NOTE(skearnes): Add Column and Index entries for each member to RDKMol.
+    # NOTE(skearnes): Add Column and Index entries for each member to RDKitMol below.
     MORGAN_BFP = func.morganbv_fp
     MORGAN_SFP = func.morgan_fp
 

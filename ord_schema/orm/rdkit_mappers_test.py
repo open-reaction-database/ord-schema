@@ -14,7 +14,7 @@
 
 """Tests for ord_schema.orm.rdkit_mappers."""
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import ProgrammingError
 
 from ord_schema.orm.mappers import Mappers
@@ -67,7 +67,7 @@ def test_substructure_operator(test_session):
         pytest.skip(f"RDKit cartridge is required: {error}")
 
 
-def test_check_substructure(test_session):
+def test_contains_substructure(test_session):
     try:
         query = (
             select(Mappers.Reaction)
@@ -82,7 +82,22 @@ def test_check_substructure(test_session):
         pytest.skip(f"RDKit cartridge is required: {error}")
 
 
-def test_check_smarts(test_session):
+def test_smarts_operator(test_session):
+    try:
+        query = (
+            select(Mappers.Reaction)
+            .join(Mappers.ReactionInput)
+            .join(Mappers.Compound)
+            .join(RDKitMol)
+            .where(RDKitMol.mol.op("@>")(func.qmol_from_smarts("c1ccccc1CCC(O)[#6]")))
+        )
+        results = test_session.execute(query)
+        assert len(results.fetchall()) == 20
+    except ProgrammingError as error:
+        pytest.skip(f"RDKit cartridge is required: {error}")
+
+
+def test_matches_smarts(test_session):
     try:
         query = (
             select(Mappers.Reaction)
@@ -97,10 +112,27 @@ def test_check_smarts(test_session):
         pytest.skip(f"RDKit cartridge is required: {error}")
 
 
-def test_reaction_check_smarts(test_session):
+def test_reaction_smarts_operator(test_session):
     try:
-        query = select(Mappers.Reaction).join(RDKitReaction).where(RDKitReaction.matches_smarts("[#6]>>[#6]"))
+        query = (
+            select(Mappers.Reaction)
+            .join(RDKitReaction)
+            .where(RDKitReaction.reaction.op("@>")(func.reaction_from_smarts("[#6:1].[#9:2]>>[#6:1][#9:2]")))
+        )
         results = test_session.execute(query)
-        assert len(results.fetchall()) == 20
+        assert len(results.fetchall()) == 80
+    except ProgrammingError as error:
+        pytest.skip(f"RDKit cartridge is required: {error}")
+
+
+def test_reaction_matches_smarts(test_session):
+    try:
+        query = (
+            select(Mappers.Reaction)
+            .join(RDKitReaction)
+            .where(RDKitReaction.matches_smarts("[#6:1].[#9:2]>>[#6:1][#9:2]"))
+        )
+        results = test_session.execute(query)
+        assert len(results.fetchall()) == 80
     except ProgrammingError as error:
         pytest.skip(f"RDKit cartridge is required: {error}")

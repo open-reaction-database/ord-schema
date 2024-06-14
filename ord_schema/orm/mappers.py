@@ -270,7 +270,8 @@ def from_proto(  # pylint: disable=too-many-branches
             reaction_smiles = message_helpers.get_reaction_smiles(
                 message, generate_if_missing=True, allow_incomplete=False, validate=True
             )
-        except ValueError:
+        except ValueError as error:
+            logger.debug(f"Error generating reaction SMILES for {message.reaction_id}: {error}")
             reaction_smiles = None
         if reaction_smiles is not None:
             kwargs["reaction_smiles"] = reaction_smiles.split()[0]  # Handle CXSMILES.
