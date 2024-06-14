@@ -120,7 +120,7 @@ def test_reaction_smarts_operator(test_session):
             .where(RDKitReaction.reaction.op("@>")(func.reaction_from_smarts("[#6:1].[#9:2]>>[#6:1][#9:2]")))
         )
         results = test_session.execute(query)
-        assert len(results.fetchall()) == 80
+        assert len(results.fetchall()) == 79  # One reaction has a BYPRODUCT outcome, so no reaction SMILES.
     except ProgrammingError as error:
         pytest.skip(f"RDKit cartridge is required: {error}")
 
@@ -133,6 +133,6 @@ def test_reaction_matches_smarts(test_session):
             .where(RDKitReaction.matches_smarts("[#6:1].[#9:2]>>[#6:1][#9:2]"))
         )
         results = test_session.execute(query)
-        assert len(results.fetchall()) == 80
+        assert len(results.fetchall()) == 79  # One reaction has a BYPRODUCT outcome, so no reaction SMILES.
     except ProgrammingError as error:
         pytest.skip(f"RDKit cartridge is required: {error}")
