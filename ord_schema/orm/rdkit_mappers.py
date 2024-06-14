@@ -137,8 +137,8 @@ class RDKitMol(Base):
 
     __table_args__ = (
         Index("mol_index", "mol", postgresql_using="gist"),
-        Index(f"morgan_bfp_index", "morgan_bfp", postgresql_using="gist"),
-        Index(f"morgan_sfp_index", "morgan_sfp", postgresql_using="gist"),
+        Index("morgan_bfp_index", "morgan_bfp", postgresql_using="gist"),
+        Index("morgan_sfp_index", "morgan_sfp", postgresql_using="gist"),
         {"schema": "rdkit"},
     )
 
