@@ -147,11 +147,11 @@ class RDKitMol(Base):
         return func.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(other))
 
     @classmethod
-    def substructure(cls, pattern: str) -> ColumnElement[bool]:
+    def check_substructure(cls, pattern: str) -> ColumnElement[bool]:
         return func.substruct(cls.mol, pattern)
 
     @classmethod
-    def smarts(cls, pattern: str) -> ColumnElement[bool]:
+    def check_smarts(cls, pattern: str) -> ColumnElement[bool]:
         return func.substruct(cls.mol, func.qmol_from_smarts(pattern))
 
 
@@ -169,5 +169,5 @@ class RDKitReaction(Base):
     )
 
     @classmethod
-    def smarts(cls, pattern: str) -> ColumnElement[bool]:
+    def check_smarts(cls, pattern: str) -> ColumnElement[bool]:
         return func.substruct(cls.reaction, func.reaction_from_smarts(pattern))

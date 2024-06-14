@@ -74,7 +74,7 @@ def test_substructure(test_session):
             .join(Mappers.ReactionInput)
             .join(Mappers.Compound)
             .join(RDKitMol)
-            .where(RDKitMol.substructure("c1ccccc1CCC(O)C"))
+            .where(RDKitMol.check_substructure("c1ccccc1CCC(O)C"))
         )
         results = test_session.execute(query)
         assert len(results.fetchall()) == 20
@@ -89,7 +89,7 @@ def test_smarts(test_session):
             .join(Mappers.ReactionInput)
             .join(Mappers.Compound)
             .join(RDKitMol)
-            .where(RDKitMol.smarts("c1ccccc1CCC(O)[#6]"))
+            .where(RDKitMol.check_smarts("c1ccccc1CCC(O)[#6]"))
         )
         results = test_session.execute(query)
         assert len(results.fetchall()) == 20
@@ -99,7 +99,7 @@ def test_smarts(test_session):
 
 def test_reaction_smarts(test_session):
     try:
-        query = select(Mappers.Reaction).join(RDKitReaction).where(RDKitReaction.smarts("[#6:1].[#9:2]>>[#6:1][#9:2]"))
+        query = select(Mappers.Reaction).join(RDKitReaction).where(RDKitReaction.check_smarts("[#6]>>[#6]"))
         results = test_session.execute(query)
         assert len(results.fetchall()) == 20
     except ProgrammingError as error:
