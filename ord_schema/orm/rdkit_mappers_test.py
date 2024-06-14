@@ -67,14 +67,14 @@ def test_substructure_operator(test_session):
         pytest.skip(f"RDKit cartridge is required: {error}")
 
 
-def test_substructure(test_session):
+def test_check_substructure(test_session):
     try:
         query = (
             select(Mappers.Reaction)
             .join(Mappers.ReactionInput)
             .join(Mappers.Compound)
             .join(RDKitMol)
-            .where(RDKitMol.check_substructure("c1ccccc1CCC(O)C"))
+            .where(RDKitMol.contains_substructure("c1ccccc1CCC(O)C"))
         )
         results = test_session.execute(query)
         assert len(results.fetchall()) == 20
@@ -82,14 +82,14 @@ def test_substructure(test_session):
         pytest.skip(f"RDKit cartridge is required: {error}")
 
 
-def test_smarts(test_session):
+def test_check_smarts(test_session):
     try:
         query = (
             select(Mappers.Reaction)
             .join(Mappers.ReactionInput)
             .join(Mappers.Compound)
             .join(RDKitMol)
-            .where(RDKitMol.check_smarts("c1ccccc1CCC(O)[#6]"))
+            .where(RDKitMol.matches_smarts("c1ccccc1CCC(O)[#6]"))
         )
         results = test_session.execute(query)
         assert len(results.fetchall()) == 20
@@ -97,9 +97,9 @@ def test_smarts(test_session):
         pytest.skip(f"RDKit cartridge is required: {error}")
 
 
-def test_reaction_smarts(test_session):
+def test_reaction_check_smarts(test_session):
     try:
-        query = select(Mappers.Reaction).join(RDKitReaction).where(RDKitReaction.check_smarts("[#6]>>[#6]"))
+        query = select(Mappers.Reaction).join(RDKitReaction).where(RDKitReaction.matches_smarts("[#6]>>[#6]"))
         results = test_session.execute(query)
         assert len(results.fetchall()) == 20
     except ProgrammingError as error:
