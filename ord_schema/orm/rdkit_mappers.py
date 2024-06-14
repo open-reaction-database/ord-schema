@@ -182,3 +182,7 @@ class RDKitReaction(Base):
         Index("reaction_index", "reaction", postgresql_using="gist"),
         {"schema": "rdkit"},
     )
+
+    @classmethod
+    def smarts(cls, pattern: str) -> ColumnElement[bool]:
+        return func.substruct(cls.reaction, func.reaction_from_smarts(pattern))

@@ -95,3 +95,18 @@ def test_smarts(test_session):
         assert len(results.fetchall()) == 20
     except ProgrammingError as error:
         pytest.skip(f"RDKit cartridge is required: {error}")
+
+
+def test_reaction_smarts(test_session):
+    try:
+        query = (
+            select(Mappers.Reaction)
+            .join(Mappers.ReactionInput)
+            .join(Mappers.Compound)
+            .join(RDKitMol)
+            .where(RDKitMol.smarts("[#6:1].[#6:2]>>[#6:1][#6:2]"))
+        )
+        results = test_session.execute(query)
+        assert len(results.fetchall()) == 20
+    except ProgrammingError as error:
+        pytest.skip(f"RDKit cartridge is required: {error}")
