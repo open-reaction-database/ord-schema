@@ -27,7 +27,7 @@ import os
 from distutils.util import strtobool  # pylint: disable=deprecated-module
 from enum import Enum
 
-from sqlalchemy import Column, Index, Integer, Text, func
+from sqlalchemy import Column, Index, Integer, Text, func, cast
 from sqlalchemy.sql.expression import ColumnElement
 from sqlalchemy.types import UserDefinedType
 
@@ -52,6 +52,21 @@ class _RDKitMol(UserDefinedType):
         """Returns the column type."""
         del kwargs  # Unused.
         return "mol" if rdkit_cartridge() else "bytea"
+
+
+class _RDKitQMol(UserDefinedType):
+    """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L42."""
+
+    cache_ok = True
+
+    @property
+    def python_type(self):
+        raise NotImplementedError
+
+    def get_col_spec(self, **kwargs):
+        """Returns the column type."""
+        del kwargs  # Unused.
+        return "qmol" if rdkit_cartridge() else "bytea"
 
 
 class _RDKitReaction(UserDefinedType):
@@ -150,9 +165,9 @@ class RDKitMol(Base):
     def substructure(cls, pattern: str) -> ColumnElement[bool]:
         return func.substruct(cls.mol, pattern)
 
-    # @classmethod
-    # def smarts(cls, pattern: str) -> ColumnElement[bool]:
-    #     return func.
+    @classmethod
+    def smarts(cls, pattern: str) -> ColumnElement[bool]:
+        return func.substruct(cls.mol, cast(pattern, _RDKitQMol))
 
 
 class RDKitReaction(Base):
