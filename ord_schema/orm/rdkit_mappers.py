@@ -28,6 +28,7 @@ from distutils.util import strtobool  # pylint: disable=deprecated-module
 from enum import Enum
 
 from sqlalchemy import Column, Index, Integer, Text, func
+from sqlalchemy.sql.expression import ColumnElement
 from sqlalchemy.types import UserDefinedType
 
 from ord_schema.orm import Base
@@ -116,32 +117,12 @@ class CString(UserDefinedType):
 class FingerprintType(Enum):
     """RDKit PostgreSQL fingerprint types."""
 
+    # NOTE(skearnes): Add Column and Index entries for each member to RDKMol.
     MORGAN_BFP = func.morganbv_fp
     MORGAN_SFP = func.morgan_fp
 
     def __call__(self, *args, **kwargs):
         return self.value(*args, **kwargs)
-
-    @classmethod
-    def get_table_args(cls) -> list:
-        """Returns a list of __table_args__ for _Structure.
-
-        Each fingerprint type is given a column (name.lower()) and a corresponding index.
-
-        Returns:
-            List of Column and Index objects.
-        """
-        table_args = []
-        for fp_type in cls:
-            name = fp_type.name.lower()
-            if name.endswith("_bfp"):
-                dtype = _RDKitBfp
-            elif name.endswith("_sfp"):
-                dtype = _RDKitSfp
-            else:
-                raise ValueError(f"unable to determine dtype for {name}")
-            table_args.extend([Column(name, dtype), Index(f"{name}_index", name, postgresql_using="gist")])
-        return table_args
 
 
 class RDKitMol(Base):
@@ -151,16 +132,27 @@ class RDKitMol(Base):
     id = Column(Integer, primary_key=True)
     smiles = Column(Text, index=True, unique=True)
     mol = Column(_RDKitMol)
+    morgan_bfp = Column(_RDKitBfp)
+    morgan_sfp = Column(_RDKitSfp)
 
     __table_args__ = (
         Index("mol_index", "mol", postgresql_using="gist"),
-        *FingerprintType.get_table_args(),
+        Index(f"morgan_bfp_index", "morgan_bfp", postgresql_using="gist"),
+        Index(f"morgan_sfp_index", "morgan_sfp", postgresql_using="gist"),
         {"schema": "rdkit"},
     )
 
     @classmethod
-    def tanimoto(cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP):
+    def tanimoto(cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP) -> ColumnElement[float]:
         return func.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(other))
+
+    @classmethod
+    def substructure(cls, pattern: str) -> ColumnElement[bool]:
+        return func.substruct(cls.mol, pattern)
+
+    # @classmethod
+    # def smarts(cls, pattern: str) -> ColumnElement[bool]:
+    #     return func.
 
 
 class RDKitReaction(Base):

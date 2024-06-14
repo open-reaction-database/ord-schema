@@ -65,3 +65,33 @@ def test_substructure_operator(test_session):
         assert len(results.fetchall()) == 20
     except ProgrammingError as error:
         pytest.skip(f"RDKit cartridge is required: {error}")
+
+
+def test_substructure(test_session):
+    try:
+        query = (
+            select(Mappers.Reaction)
+            .join(Mappers.ReactionInput)
+            .join(Mappers.Compound)
+            .join(RDKitMol)
+            .where(RDKitMol.substructure("c1ccccc1CCC(O)C"))
+        )
+        results = test_session.execute(query)
+        assert len(results.fetchall()) == 20
+    except ProgrammingError as error:
+        pytest.skip(f"RDKit cartridge is required: {error}")
+
+
+# def test_smarts(test_session):
+#     try:
+#         query = (
+#             select(Mappers.Reaction)
+#             .join(Mappers.ReactionInput)
+#             .join(Mappers.Compound)
+#             .join(RDKitMol)
+#             .where(RDKitMol.smarts("c1ccccc1CCC(O)C"))
+#         )
+#         results = test_session.execute(query)
+#         assert len(results.fetchall()) == 20
+#     except ProgrammingError as error:
+#         pytest.skip(f"RDKit cartridge is required: {error}")
