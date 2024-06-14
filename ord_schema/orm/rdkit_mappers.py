@@ -54,21 +54,6 @@ class _RDKitMol(UserDefinedType):
         return "mol" if rdkit_cartridge() else "bytea"
 
 
-class _RDKitQMol(UserDefinedType):
-    """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L42."""
-
-    cache_ok = True
-
-    @property
-    def python_type(self):
-        raise NotImplementedError
-
-    def get_col_spec(self, **kwargs):
-        """Returns the column type."""
-        del kwargs  # Unused.
-        return "qmol" if rdkit_cartridge() else "bytea"
-
-
 class _RDKitReaction(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L129."""
 
