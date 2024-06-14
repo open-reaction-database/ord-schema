@@ -99,7 +99,7 @@ def test_smarts(test_session):
 
 def test_reaction_smarts(test_session):
     try:
-        query = select(Mappers.Reaction).join(RDKitReaction).where(RDKitReaction.smarts("[#8:1].[#9:2]>>[#8:1][#9:2]"))
+        query = select(Mappers.Reaction).join(RDKitReaction).where(RDKitReaction.smarts("[#6:1].[#9:2]>>[#6:1][#9:2]"))
         results = test_session.execute(query)
         assert len(results.fetchall()) == 20
     except ProgrammingError as error:
