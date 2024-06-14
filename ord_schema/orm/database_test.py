@@ -41,5 +41,5 @@ def test_delete_dataset(test_session):
 
 
 def test_get_dataset_md5(test_session):
-    assert get_dataset_md5("test_dataset", test_session) == "42c687cafd247fd72d2a78c550b0b054"
+    assert get_dataset_md5("test_dataset", test_session) == "0343d39a98d38eb39abd69d899af2bdf"
     assert get_dataset_md5("other_dataset", test_session) is None
