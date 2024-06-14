@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import ProgrammingError
 
 from ord_schema.orm.mappers import Mappers
-from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMol
+from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMol, RDKitReaction
 
 
 def test_tanimoto_operator(test_session):
@@ -99,13 +99,7 @@ def test_smarts(test_session):
 
 def test_reaction_smarts(test_session):
     try:
-        query = (
-            select(Mappers.Reaction)
-            .join(Mappers.ReactionInput)
-            .join(Mappers.Compound)
-            .join(RDKitMol)
-            .where(RDKitMol.smarts("[#6:1].[#6:2]>>[#6:1][#6:2]"))
-        )
+        query = select(Mappers.Reaction).join(RDKitReaction).where(RDKitReaction.smarts("[#6:1].[#6:2]>>[#6:1][#6:2]"))
         results = test_session.execute(query)
         assert len(results.fetchall()) == 20
     except ProgrammingError as error:
