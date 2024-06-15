@@ -133,8 +133,13 @@ class TestMessageHelpers:
         reactant2 = reaction.inputs["reactant2"]
         reactant2.components.add(reaction_role="REACTANT").identifiers.add(value="Cc1ccccc1", type="SMILES")
         reactant2.components.add(reaction_role="SOLVENT").identifiers.add(value="N", type="SMILES")
-        reaction.outcomes.add().products.add(reaction_role="PRODUCT").identifiers.add(value="O=C=O", type="SMILES")
+        reaction.outcomes.add().products.add().identifiers.add(value="O=C=O", type="SMILES")
         assert message_helpers.get_reaction_smiles(reaction, generate_if_missing=True) == "Cc1ccccc1.c1ccccc1>N>O=C=O"
+        reaction.outcomes.add().products.add(reaction_role="PRODUCT").identifiers.add(value="O=CC=O", type="SMILES")
+        assert (
+            message_helpers.get_reaction_smiles(reaction, generate_if_missing=True, allow_unspecified_roles=False)
+            == "Cc1ccccc1.c1ccccc1>N>O=CC=O"
+        )
 
     def test_get_reaction_smiles_failure(self):
         reaction = reaction_pb2.Reaction()

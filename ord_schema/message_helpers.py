@@ -352,6 +352,7 @@ def get_reaction_smiles(
     message: reaction_pb2.Reaction,
     generate_if_missing: bool = False,
     allow_incomplete: bool = True,
+    allow_unspecified_roles: bool = True,
     validate: bool = False,
     canonical: bool = True,
 ) -> Optional[str]:
@@ -364,6 +365,8 @@ def get_reaction_smiles(
         allow_incomplete: Boolean whether to allow "incomplete" reaction SMILES
             that do not include all components (e.g. if a component does not
             have a structural identifier).
+        allow_unspecified_roles: If True, reactants and products with the UNSPECIFIED reaction role will be included
+            when generating a reaction SMILES.
         validate: Boolean whether to validate the reaction SMILES with rdkit.
             Only used if allow_incomplete is False.
         canonical: Boolean whether to return a canonicalized reaction SMILES.
@@ -386,6 +389,11 @@ def get_reaction_smiles(
 
     reactants, agents, products = set(), set(), set()
     roles = reaction_pb2.ReactionRole
+    reactant_roles = [roles.REACTANT]
+    product_roles = [roles.PRODUCT]
+    if allow_unspecified_roles:
+        reactant_roles.append(roles.UNSPECIFIED)
+        product_roles.append(roles.UNSPECIFIED)
     for key in sorted(message.inputs):
         for compound in message.inputs[key].components:
             try:
@@ -396,10 +404,8 @@ def get_reaction_smiles(
                 raise error
             if compound.reaction_role in [roles.REAGENT, roles.SOLVENT, roles.CATALYST]:
                 agents.add(smiles)
-            elif compound.reaction_role in [roles.REACTANT, roles.UNSPECIFIED]:
+            elif compound.reaction_role in reactant_roles:
                 reactants.add(smiles)
-            else:
-                continue
 
     for outcome in message.outcomes:
         for product in outcome.products:
@@ -409,15 +415,9 @@ def get_reaction_smiles(
                 if allow_incomplete:
                     continue
                 raise error
-            if product.reaction_role in [roles.PRODUCT, roles.UNSPECIFIED]:
+            if product.reaction_role in product_roles:
                 products.add(smiles)
-            elif product.reaction_role in [
-                roles.REAGENT,
-                roles.SOLVENT,
-                roles.CATALYST,
-                roles.INTERNAL_STANDARD,
-            ]:
-                continue
+
     if not allow_incomplete and (not reactants or not products):
         raise ValueError("reaction must contain at least one reactant and one product")
     if not reactants and not products:
