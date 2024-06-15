@@ -27,7 +27,7 @@ import os
 from distutils.util import strtobool  # pylint: disable=deprecated-module
 from enum import Enum
 
-from sqlalchemy import Column, Index, Integer, Text, func
+from sqlalchemy import Column, Index, Integer, Text, cast, func
 from sqlalchemy.sql.expression import ColumnElement
 from sqlalchemy.types import UserDefinedType
 
@@ -152,7 +152,7 @@ class RDKitMol(Base):
 
     @classmethod
     def matches_smarts(cls, pattern: str) -> ColumnElement[bool]:
-        return func.substruct(cls.mol, func.qmol_from_smarts(pattern))
+        return func.substruct(cls.mol, func.qmol_from_smarts(cast(pattern, CString)))
 
 
 class RDKitReaction(Base):
@@ -170,4 +170,4 @@ class RDKitReaction(Base):
 
     @classmethod
     def matches_smarts(cls, pattern: str) -> ColumnElement[bool]:
-        return func.substruct(cls.reaction, func.reaction_from_smarts(pattern))
+        return func.substruct(cls.reaction, func.reaction_from_smarts(cast(pattern, CString)))
