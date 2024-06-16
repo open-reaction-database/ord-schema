@@ -266,7 +266,7 @@ def from_proto(  # pylint: disable=too-many-branches
             kwargs[field.name] = value
     if isinstance(message, dataset_pb2.Dataset):
         kwargs["md5"] = md5(message.SerializeToString(deterministic=True)).hexdigest()
-        assert isinstance(message, dataset_pb2.Dataset)  # Type hint.
+        assert hasattr(message, "reactions") and hasattr(message, "reaction_ids")  # Type hints.
         kwargs["num_reactions"] = len(message.reactions) or len(message.reaction_ids)
     elif isinstance(message, reaction_pb2.Reaction):
         kwargs["proto"] = message.SerializeToString(deterministic=True)
