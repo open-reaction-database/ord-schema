@@ -15,9 +15,7 @@
 import numpy as np
 import pytest
 
-import ord_interface
-from ord_interface.client.queries import (
-    OrdPostgres,
+from ord_schema.orm.queries import (
     ReactionIdQuery,
     ReactionComponentQuery,
     ReactionYieldQuery,
@@ -26,30 +24,21 @@ from ord_interface.client.queries import (
     RandomSampleQuery,
     DoiQuery,
     DatasetIdQuery,
+    run,
 )
 
 
-@pytest.fixture(scope="module")
-def connection() -> OrdPostgres:
-    yield OrdPostgres(
-        dbname=ord_interface.client.POSTGRES_DB,
-        user=ord_interface.client.POSTGRES_USER,
-        password=ord_interface.client.POSTGRES_PASSWORD,
-        host="localhost",
-        port=ord_interface.client.POSTGRES_PORT,
-    )
-
-
-def test_random_sample_query(connection):
-    command = RandomSampleQuery(16)
-    results = connection.run_query(command, return_ids=True)
+@pytest.mark.skip("tsm_system_rows is not part of testing.postgresql")
+def test_random_sample_query(test_cursor):
+    query = RandomSampleQuery(16)
+    results = run(test_cursor, query, return_ids=True)
     assert len(results) == 16
 
 
-def test_dataset_id_query(connection):
-    dataset_ids = ["ord_dataset-89b083710e2d441aa0040c361d63359f"]
-    command = DatasetIdQuery(dataset_ids)
-    results = connection.run_query(command, limit=10, return_ids=True)
+def test_dataset_id_query(test_cursor):
+    dataset_ids = ["test_dataset"]
+    query = DatasetIdQuery(dataset_ids, validate=False)
+    results = run(test_cursor, query, limit=10, return_ids=True)
     assert len(results) == 10
 
 

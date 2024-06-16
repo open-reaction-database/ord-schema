@@ -16,7 +16,9 @@
 import os
 from typing import Iterator
 
+import psycopg2
 import pytest
+from psycopg2.extras import DictCursor
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from testing.postgresql import Postgresql
@@ -25,14 +27,12 @@ from ord_schema.message_helpers import load_message
 from ord_schema.orm.database import add_dataset, prepare_database, update_rdkit_ids, update_rdkit_tables
 from ord_schema.proto import dataset_pb2
 
+ROOT = os.path.join(os.path.dirname(__file__), "testdata")
+
 
 @pytest.fixture
-def test_session() -> Iterator[Session]:
-    datasets = [
-        load_message(
-            os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"), dataset_pb2.Dataset
-        )
-    ]
+def test_postgres() -> Iterator[Postgresql]:
+    datasets = [load_message(os.path.join(ROOT, "ord-nielsen-example.pbtxt"), dataset_pb2.Dataset)]
     with Postgresql() as postgres:
         engine = create_engine(postgres.url(), future=True)
         rdkit_cartridge = prepare_database(engine)
@@ -45,5 +45,20 @@ def test_session() -> Iterator[Session]:
                     session.flush()
                     update_rdkit_ids(dataset.dataset_id, session)
                 session.commit()
-        with Session(engine) as session:
-            yield session
+        yield postgres
+
+
+@pytest.fixture
+def test_session(test_postgres) -> Iterator[Session]:
+    engine = create_engine(test_postgres.url(), future=True)
+    with Session(engine) as session:
+        yield session
+
+
+@pytest.fixture
+def test_cursor(test_postgres) -> Iterator[DictCursor]:
+    options = "-c search_path=public,ord"
+    with psycopg2.connect(test_postgres.url(), cursor_factory=DictCursor, options=options) as connection:
+        connection.set_session(readonly=True)
+        with connection.cursor() as cursor:
+            yield cursor

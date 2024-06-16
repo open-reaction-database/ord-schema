@@ -124,14 +124,15 @@ class RandomSampleQuery(ReactionQuery):
 class DatasetIdQuery(ReactionQuery):
     """Looks up reactions by dataset ID."""
 
-    def __init__(self, dataset_ids: list[str]) -> None:
+    def __init__(self, dataset_ids: list[str], validate: bool = True) -> None:
         """Initializes the query.
 
         Args:
             dataset_ids: List of dataset IDs.
+            validate: Whether to validate dataset IDs.
         """
         for dataset_id in dataset_ids:
-            if not validations.is_valid_dataset_id(dataset_id):
+            if validate and not validations.is_valid_dataset_id(dataset_id):
                 raise ValueError(f"Invalid dataset ID: {dataset_id}")
         self._dataset_ids = dataset_ids
 
@@ -150,14 +151,15 @@ class DatasetIdQuery(ReactionQuery):
 class ReactionIdQuery(ReactionQuery):
     """Looks up reactions by ID."""
 
-    def __init__(self, reaction_ids: list[str]) -> None:
+    def __init__(self, reaction_ids: list[str], validate: bool = True) -> None:
         """Initializes the query.
 
         Args:
             reaction_ids: List of reaction IDs.
+            validate: Whether to validate reaction IDs.
         """
         for reaction_id in reaction_ids:
-            if not validations.is_valid_reaction_id(reaction_id):
+            if validate and not validations.is_valid_reaction_id(reaction_id):
                 raise ValueError(f"Invalid reaction ID: {reaction_id}")
         self._reaction_ids = reaction_ids
 
@@ -418,37 +420,41 @@ class OrdPostgres:
             connection.set_session(readonly=True)
             yield connection
 
-    def run(
-        self, reaction_queries: list[ReactionQuery] | ReactionQuery, limit: int | None = None, return_ids: bool = False
-    ) -> list[QueryResult]:
-        """Runs a query against the database.
 
-        Args:
-            reaction_queries: ReactionQuery or list of ReactionQuery.
-            limit: Integer maximum number of matches. If None (the default), no limit is set.
-            return_ids: If True, only return reaction IDs. If False, return full Reaction records.
+def run(
+    cursor: DictCursor,
+    reaction_queries: list[ReactionQuery] | ReactionQuery,
+    limit: int | None = None,
+    return_ids: bool = False,
+) -> list[QueryResult]:
+    """Runs a query against the database.
 
-        Returns:
-            List of QueryResult instances.
-        """
-        if not isinstance(reaction_queries, list):
-            reaction_queries = [reaction_queries]
-        queries, combined_params = [], []
-        for reaction_query in reaction_queries:
-            query, params = reaction_query.query_and_parameters
-            queries.append(query)
-            combined_params.extend(params)
-        combined_query = "\nINTERSECT\n".join(queries)
-        if limit:
-            combined_query += "\nLIMIT %s\n"
-            combined_params.append(limit)
-        with self.connection as connection, connection.cursor() as cursor:
-            logger.debug(f"Running SQL command: {cursor.mogrify(combined_query, combined_params).decode()}")
-            cursor.execute(combined_query, combined_params)
-            results = fetch_results(cursor)
-        if return_ids:
-            only_ids = []
-            for result in results:
-                only_ids.append(QueryResult(dataset_id=result.dataset_id, reaction_id=result.reaction_id))
-            return only_ids
-        return results
+    Args:
+        cursor: DictCursor.
+        reaction_queries: ReactionQuery or list of ReactionQuery.
+        limit: Integer maximum number of matches. If None (the default), no limit is set.
+        return_ids: If True, only return reaction IDs. If False, return full Reaction records.
+
+    Returns:
+        List of QueryResult instances.
+    """
+    if not isinstance(reaction_queries, list):
+        reaction_queries = [reaction_queries]
+    queries, combined_params = [], []
+    for reaction_query in reaction_queries:
+        query, params = reaction_query.query_and_parameters
+        queries.append(query)
+        combined_params.extend(params)
+    combined_query = "\nINTERSECT\n".join(queries)
+    if limit:
+        combined_query += "\nLIMIT %s\n"
+        combined_params.append(limit)
+    logger.debug(f"Running SQL command: {cursor.mogrify(combined_query, combined_params).decode()}")
+    cursor.execute(combined_query, combined_params)
+    results = fetch_results(cursor)
+    if return_ids:
+        only_ids = []
+        for result in results:
+            only_ids.append(QueryResult(dataset_id=result.dataset_id, reaction_id=result.reaction_id))
+        return only_ids
+    return results
