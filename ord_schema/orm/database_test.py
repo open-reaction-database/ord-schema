@@ -13,9 +13,10 @@
 # limitations under the License.
 
 """Tests for ord_schema.orm.database."""
+import pytest
 from sqlalchemy import select
 
-from ord_schema.orm.database import delete_dataset, get_dataset_md5
+from ord_schema.orm.database import delete_dataset, get_dataset_md5, get_dataset_size
 from ord_schema.orm.mappers import Mappers
 from ord_schema.proto import reaction_pb2
 
@@ -43,3 +44,9 @@ def test_delete_dataset(test_session):
 def test_get_dataset_md5(test_session):
     assert get_dataset_md5("test_dataset", test_session) == "0343d39a98d38eb39abd69d899af2bdf"
     assert get_dataset_md5("other_dataset", test_session) is None
+
+
+def test_get_dataset_size(test_session):
+    assert get_dataset_size("test_dataset", test_session) == 80
+    with pytest.raises(ValueError):
+        get_dataset_size("other_dataset", test_session)
