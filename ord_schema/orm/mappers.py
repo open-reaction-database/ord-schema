@@ -168,6 +168,8 @@ def build_mapper(  # pylint: disable=too-many-branches
         attrs["dataset_id"] = Column(Text, nullable=False, unique=True)
         # Track the MD5 hash so we can quickly identify changes.
         attrs["md5"] = Column(String(32), nullable=False)
+        # Track the number of reactions for quicker browsing.
+        attrs["num_reactions"] = Column(Integer, nullable=False)
     elif message_type == reaction_pb2.Reaction:
         # Make reaction IDs globally unique.
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
@@ -264,6 +266,8 @@ def from_proto(  # pylint: disable=too-many-branches
             kwargs[field.name] = value
     if isinstance(message, dataset_pb2.Dataset):
         kwargs["md5"] = md5(message.SerializeToString(deterministic=True)).hexdigest()
+        assert hasattr(message, "reactions") and hasattr(message, "reaction_ids")  # Type hints.
+        kwargs["num_reactions"] = len(message.reactions) or len(message.reaction_ids)
     elif isinstance(message, reaction_pb2.Reaction):
         kwargs["proto"] = message.SerializeToString(deterministic=True)
         try:

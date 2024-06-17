@@ -82,10 +82,19 @@ def add_dataset(dataset: dataset_pb2.Dataset, session: Session) -> None:
 
 
 def get_dataset_md5(dataset_id: str, session: Session) -> str | None:
-    """The MD5 hash of the current version of a dataset, if it exists in the database."""
+    """Returns the MD5 hash of the current version of a dataset, if it exists in the database."""
     result = session.execute(select(Mappers.Dataset.md5).where(Mappers.Dataset.dataset_id == dataset_id))
     row = result.first()
     return row[0] if row else None
+
+
+def get_dataset_size(dataset_id: str, session: Session) -> int:
+    """Returns the number of reactions in a dataset."""
+    result = session.execute(select(Mappers.Dataset.num_reactions).where(Mappers.Dataset.dataset_id == dataset_id))
+    row = result.first()
+    if row is None:
+        raise ValueError(dataset_id)
+    return row[0]
 
 
 def delete_dataset(dataset_id: str, session: Session) -> None:
