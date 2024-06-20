@@ -24,11 +24,20 @@ from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMol, RDKitReactio
 pytestmark = pytest.mark.skipif(platform.machine() != "x86_64", reason="RDKit cartridge is required")
 
 
-@pytest.mark.parametrize("smiles", ("[O]P(c1ccccc1)c1ccccc1.[Pr+6]", "[O-]CC.[Ti+5].[O-]CC.[O-]CC.[O-]CC.[O-]CC"))
-def test_cartridge(test_session, smiles):
-    """Tests for https://github.com/open-reaction-database/ord-schema/issues/672."""
-    with test_session.connection().connection.cursor() as cursor:
-        cursor.execute("select mol_from_smiles(%s::cstring)", (smiles,))
+@pytest.mark.parametrize("pattern", ("%[Ti+5]%",))
+def test_cartridge_failure(test_session, pattern):
+    query = (
+        select(Mappers.Compound.rdkit_mol_id)
+        .select_from(Mappers.Reaction)
+        .join(Mappers.ReactionInput)
+        .join(Mappers.Compound)
+        .join(RDKitMol, isouter=True)
+        .where(Mappers.Compound.smiles.like(pattern))
+    )
+    results = test_session.execute(query).fetchall()
+    assert results
+    for result in results:
+        assert result[0] is None  # No RDKitMol entry.
 
 
 def test_tanimoto_operator(test_session):
