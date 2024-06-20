@@ -94,7 +94,7 @@ methods (this list is not an endorsement of any particular provider):
 # Create a new conda environment.
 conda create -n ord python=3.10
 conda activate ord
-conda install -c rdkit rdkit-postgresql==2020.03.3.0
+conda install -c rdkit rdkit-postgresql
 # Install ord-schema in this environment.
 cd ord-schema
 pip install .
@@ -143,8 +143,6 @@ connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database
 engine = create_engine(connection_string, future=True)
 with Session(engine) as session:
     add_dataset(dataset, session)
-    session.flush()
-    add_rdkit(session)
     session.commit()
 ```
 

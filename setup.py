@@ -39,7 +39,7 @@ setuptools.setup(
         "inflection>=0.5.1",
         "jinja2>=2.0.0",
         "joblib>=1.0.0",
-        "numpy>=1.18.1",
+        "numpy<2",
         "openpyxl>=3.0.5",
         "pandas>=1.0.4",
         "protobuf==4.22.3",
