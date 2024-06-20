@@ -26,6 +26,7 @@ pytestmark = pytest.mark.skipif(platform.machine() != "x86_64", reason="RDKit ca
 
 @pytest.mark.parametrize("pattern", ("%[Ti+5]%",))
 def test_cartridge_failure(test_session, pattern):
+    """Checks for known failures; see https://github.com/open-reaction-database/ord-schema/issues/672."""
     query = (
         select(Mappers.Compound.rdkit_mol_id)
         .select_from(Mappers.Reaction)
@@ -37,7 +38,10 @@ def test_cartridge_failure(test_session, pattern):
     results = test_session.execute(query).fetchall()
     assert results
     for result in results:
-        assert result[0] is None  # No RDKitMol entry.
+        # NOTE(skearnes): This asserts two things:
+        #   1. The SMILES exists in the Compound table
+        #   2. There is no corresponding RDKitMol
+        assert result[0] is None
 
 
 def test_tanimoto_operator(test_session):
