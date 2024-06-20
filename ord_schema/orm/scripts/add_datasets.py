@@ -43,14 +43,7 @@ from sqlalchemy.orm import Session
 
 from ord_schema.logging import get_logger
 from ord_schema.message_helpers import load_message
-from ord_schema.orm.database import (
-    add_dataset,
-    delete_dataset,
-    get_connection_string,
-    get_dataset_md5,
-    update_rdkit_ids,
-    update_rdkit_tables,
-)
+from ord_schema.orm.database import add_dataset, delete_dataset, get_connection_string, get_dataset_md5
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
@@ -85,10 +78,6 @@ def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
                 logger.info(f"existing dataset {dataset.dataset_id} unchanged; skipping")
                 return
         add_dataset(dataset, session)
-        session.flush()
-        update_rdkit_tables(dataset.dataset_id, session=session)
-        session.flush()
-        update_rdkit_ids(dataset.dataset_id, session=session)
         start = time.time()
         session.commit()
         logger.info(f"session.commit() took {time.time() - start:g}s")
