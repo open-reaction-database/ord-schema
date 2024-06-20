@@ -24,6 +24,13 @@ from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMol, RDKitReactio
 pytestmark = pytest.mark.skipif(platform.machine() != "x86_64", reason="RDKit cartridge is required")
 
 
+@pytest.mark.parametrize("smiles", ("[O]P(c1ccccc1)c1ccccc1.[Pr+6]", "[O-]CC.[Ti+5].[O-]CC.[O-]CC.[O-]CC.[O-]CC"))
+def test_cartridge(test_session, smiles):
+    """Tests for https://github.com/open-reaction-database/ord-schema/issues/672."""
+    with test_session.connection().connection.cursor() as cursor:
+        cursor.execute("select mol_from_smiles(%s::cstring)", (smiles,))
+
+
 def test_tanimoto_operator(test_session):
     query = (
         select(Mappers.Reaction)
