@@ -187,10 +187,10 @@ class TestMessageHelpers:
     @pytest.mark.parametrize(
         "doi,expected",
         (
-            (
-                "https://dx.doi.org/10.1021/acscatal.0c02247",
-                "10.1021/acscatal.0c02247",
-            ),
+            ("https://dx.doi.org/10.1021/acscatal.0c02247", "10.1021/acscatal.0c02247"),
+            ("10.1038/s41467-023-42446-5", "10.1038/s41467-023-42446-5"),
+            ("10.1038/foo/bar", "10.1038/foo"),
+            ("10.1038/foo/bar/", "10.1038/foo"),
         ),
     )
     def test_parse_doi(self, doi, expected):
