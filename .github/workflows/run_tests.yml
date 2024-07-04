@@ -21,6 +21,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-14]
+        python-version: [3.10, 3.11, 3.12]
     runs-on: ${{ matrix.os }}
     env:
       PGDATA: $GITHUB_WORKSPACE/rdkit-postgres
@@ -38,7 +39,7 @@ jobs:
           initdb
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
       - name: Install ord_schema
         run: |
           python -m pip install --upgrade pip
@@ -55,13 +56,14 @@ jobs:
   test_notebooks:
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-14 ]
+        os: [ubuntu-latest, macos-14]
+        python-version: [3.10, 3.11, 3.12]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
       - name: Install ord_schema
         run: |
           python -m pip install --upgrade pip
@@ -72,12 +74,15 @@ jobs:
           treon
 
   test_proto_wrappers:
+    strategy:
+      matrix:
+        python-version: [3.10, 3.11, 3.12]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
       - name: Install protoc
         run: |
           python -m pip install --upgrade pip
@@ -111,12 +116,15 @@ jobs:
           npm install-test
 
   test_publish:
+    strategy:
+      matrix:
+        python-version: [3.10, 3.11, 3.12]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
       - uses: actions/setup-node@v3
         with:
           node-version: '16.x'
