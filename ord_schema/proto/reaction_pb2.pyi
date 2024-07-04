@@ -7,9 +7,9 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Reaction(_message.Message):
-    __slots__ = ["identifiers", "inputs", "setup", "conditions", "notes", "observations", "workups", "outcomes", "provenance", "reaction_id"]
+    __slots__ = ("identifiers", "inputs", "setup", "conditions", "notes", "observations", "workups", "outcomes", "provenance", "reaction_id")
     class InputsEntry(_message.Message):
-        __slots__ = ["key", "value"]
+        __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -38,9 +38,9 @@ class Reaction(_message.Message):
     def __init__(self, identifiers: _Optional[_Iterable[_Union[ReactionIdentifier, _Mapping]]] = ..., inputs: _Optional[_Mapping[str, ReactionInput]] = ..., setup: _Optional[_Union[ReactionSetup, _Mapping]] = ..., conditions: _Optional[_Union[ReactionConditions, _Mapping]] = ..., notes: _Optional[_Union[ReactionNotes, _Mapping]] = ..., observations: _Optional[_Iterable[_Union[ReactionObservation, _Mapping]]] = ..., workups: _Optional[_Iterable[_Union[ReactionWorkup, _Mapping]]] = ..., outcomes: _Optional[_Iterable[_Union[ReactionOutcome, _Mapping]]] = ..., provenance: _Optional[_Union[ReactionProvenance, _Mapping]] = ..., reaction_id: _Optional[str] = ...) -> None: ...
 
 class ReactionIdentifier(_message.Message):
-    __slots__ = ["type", "details", "value", "is_mapped"]
+    __slots__ = ("type", "details", "value", "is_mapped")
     class ReactionIdentifierType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
         CUSTOM: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
         REACTION_SMILES: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
@@ -66,11 +66,11 @@ class ReactionIdentifier(_message.Message):
     def __init__(self, type: _Optional[_Union[ReactionIdentifier.ReactionIdentifierType, str]] = ..., details: _Optional[str] = ..., value: _Optional[str] = ..., is_mapped: bool = ...) -> None: ...
 
 class ReactionInput(_message.Message):
-    __slots__ = ["components", "crude_components", "addition_order", "addition_time", "addition_speed", "addition_duration", "flow_rate", "addition_device", "addition_temperature", "texture"]
+    __slots__ = ("components", "crude_components", "addition_order", "addition_time", "addition_speed", "addition_duration", "flow_rate", "addition_device", "addition_temperature", "texture")
     class AdditionSpeed(_message.Message):
-        __slots__ = ["type", "details"]
+        __slots__ = ("type", "details")
         class AdditionSpeedType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[ReactionInput.AdditionSpeed.AdditionSpeedType]
             ALL_AT_ONCE: _ClassVar[ReactionInput.AdditionSpeed.AdditionSpeedType]
             FAST: _ClassVar[ReactionInput.AdditionSpeed.AdditionSpeedType]
@@ -91,9 +91,9 @@ class ReactionInput(_message.Message):
         details: str
         def __init__(self, type: _Optional[_Union[ReactionInput.AdditionSpeed.AdditionSpeedType, str]] = ..., details: _Optional[str] = ...) -> None: ...
     class AdditionDevice(_message.Message):
-        __slots__ = ["type", "details"]
+        __slots__ = ("type", "details")
         class AdditionDeviceType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
             CUSTOM: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
             NONE: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
@@ -138,7 +138,7 @@ class ReactionInput(_message.Message):
     def __init__(self, components: _Optional[_Iterable[_Union[Compound, _Mapping]]] = ..., crude_components: _Optional[_Iterable[_Union[CrudeComponent, _Mapping]]] = ..., addition_order: _Optional[int] = ..., addition_time: _Optional[_Union[Time, _Mapping]] = ..., addition_speed: _Optional[_Union[ReactionInput.AdditionSpeed, _Mapping]] = ..., addition_duration: _Optional[_Union[Time, _Mapping]] = ..., flow_rate: _Optional[_Union[FlowRate, _Mapping]] = ..., addition_device: _Optional[_Union[ReactionInput.AdditionDevice, _Mapping]] = ..., addition_temperature: _Optional[_Union[Temperature, _Mapping]] = ..., texture: _Optional[_Union[Texture, _Mapping]] = ...) -> None: ...
 
 class Amount(_message.Message):
-    __slots__ = ["mass", "moles", "volume", "unmeasured", "volume_includes_solutes"]
+    __slots__ = ("mass", "moles", "volume", "unmeasured", "volume_includes_solutes")
     MASS_FIELD_NUMBER: _ClassVar[int]
     MOLES_FIELD_NUMBER: _ClassVar[int]
     VOLUME_FIELD_NUMBER: _ClassVar[int]
@@ -152,9 +152,9 @@ class Amount(_message.Message):
     def __init__(self, mass: _Optional[_Union[Mass, _Mapping]] = ..., moles: _Optional[_Union[Moles, _Mapping]] = ..., volume: _Optional[_Union[Volume, _Mapping]] = ..., unmeasured: _Optional[_Union[UnmeasuredAmount, _Mapping]] = ..., volume_includes_solutes: bool = ...) -> None: ...
 
 class UnmeasuredAmount(_message.Message):
-    __slots__ = ["type", "details"]
+    __slots__ = ("type", "details")
     class UnmeasuredAmountType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[UnmeasuredAmount.UnmeasuredAmountType]
         CUSTOM: _ClassVar[UnmeasuredAmount.UnmeasuredAmountType]
         SATURATED: _ClassVar[UnmeasuredAmount.UnmeasuredAmountType]
@@ -172,9 +172,9 @@ class UnmeasuredAmount(_message.Message):
     def __init__(self, type: _Optional[_Union[UnmeasuredAmount.UnmeasuredAmountType, str]] = ..., details: _Optional[str] = ...) -> None: ...
 
 class Texture(_message.Message):
-    __slots__ = ["type", "details"]
+    __slots__ = ("type", "details")
     class TextureType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Texture.TextureType]
         CUSTOM: _ClassVar[Texture.TextureType]
         POWDER: _ClassVar[Texture.TextureType]
@@ -206,7 +206,7 @@ class Texture(_message.Message):
     def __init__(self, type: _Optional[_Union[Texture.TextureType, str]] = ..., details: _Optional[str] = ...) -> None: ...
 
 class CrudeComponent(_message.Message):
-    __slots__ = ["reaction_id", "includes_workup", "has_derived_amount", "amount", "texture"]
+    __slots__ = ("reaction_id", "includes_workup", "has_derived_amount", "amount", "texture")
     REACTION_ID_FIELD_NUMBER: _ClassVar[int]
     INCLUDES_WORKUP_FIELD_NUMBER: _ClassVar[int]
     HAS_DERIVED_AMOUNT_FIELD_NUMBER: _ClassVar[int]
@@ -220,9 +220,9 @@ class CrudeComponent(_message.Message):
     def __init__(self, reaction_id: _Optional[str] = ..., includes_workup: bool = ..., has_derived_amount: bool = ..., amount: _Optional[_Union[Amount, _Mapping]] = ..., texture: _Optional[_Union[Texture, _Mapping]] = ...) -> None: ...
 
 class Compound(_message.Message):
-    __slots__ = ["identifiers", "amount", "reaction_role", "is_limiting", "preparations", "source", "features", "analyses", "texture"]
+    __slots__ = ("identifiers", "amount", "reaction_role", "is_limiting", "preparations", "source", "features", "analyses", "texture")
     class Source(_message.Message):
-        __slots__ = ["vendor", "catalog_id", "lot"]
+        __slots__ = ("vendor", "catalog_id", "lot")
         VENDOR_FIELD_NUMBER: _ClassVar[int]
         CATALOG_ID_FIELD_NUMBER: _ClassVar[int]
         LOT_FIELD_NUMBER: _ClassVar[int]
@@ -231,14 +231,14 @@ class Compound(_message.Message):
         lot: str
         def __init__(self, vendor: _Optional[str] = ..., catalog_id: _Optional[str] = ..., lot: _Optional[str] = ...) -> None: ...
     class FeaturesEntry(_message.Message):
-        __slots__ = ["key", "value"]
+        __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: Data
         def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     class AnalysesEntry(_message.Message):
-        __slots__ = ["key", "value"]
+        __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -265,9 +265,9 @@ class Compound(_message.Message):
     def __init__(self, identifiers: _Optional[_Iterable[_Union[CompoundIdentifier, _Mapping]]] = ..., amount: _Optional[_Union[Amount, _Mapping]] = ..., reaction_role: _Optional[_Union[ReactionRole.ReactionRoleType, str]] = ..., is_limiting: bool = ..., preparations: _Optional[_Iterable[_Union[CompoundPreparation, _Mapping]]] = ..., source: _Optional[_Union[Compound.Source, _Mapping]] = ..., features: _Optional[_Mapping[str, Data]] = ..., analyses: _Optional[_Mapping[str, Analysis]] = ..., texture: _Optional[_Union[Texture, _Mapping]] = ...) -> None: ...
 
 class ReactionRole(_message.Message):
-    __slots__ = []
+    __slots__ = ()
     class ReactionRoleType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[ReactionRole.ReactionRoleType]
         REACTANT: _ClassVar[ReactionRole.ReactionRoleType]
         REAGENT: _ClassVar[ReactionRole.ReactionRoleType]
@@ -293,9 +293,9 @@ class ReactionRole(_message.Message):
     def __init__(self) -> None: ...
 
 class CompoundPreparation(_message.Message):
-    __slots__ = ["type", "details", "reaction_id"]
+    __slots__ = ("type", "details", "reaction_id")
     class CompoundPreparationType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[CompoundPreparation.CompoundPreparationType]
         CUSTOM: _ClassVar[CompoundPreparation.CompoundPreparationType]
         NONE: _ClassVar[CompoundPreparation.CompoundPreparationType]
@@ -319,9 +319,9 @@ class CompoundPreparation(_message.Message):
     def __init__(self, type: _Optional[_Union[CompoundPreparation.CompoundPreparationType, str]] = ..., details: _Optional[str] = ..., reaction_id: _Optional[str] = ...) -> None: ...
 
 class CompoundIdentifier(_message.Message):
-    __slots__ = ["type", "details", "value"]
+    __slots__ = ("type", "details", "value")
     class CompoundIdentifierType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[CompoundIdentifier.CompoundIdentifierType]
         CUSTOM: _ClassVar[CompoundIdentifier.CompoundIdentifierType]
         SMILES: _ClassVar[CompoundIdentifier.CompoundIdentifierType]
@@ -367,9 +367,9 @@ class CompoundIdentifier(_message.Message):
     def __init__(self, type: _Optional[_Union[CompoundIdentifier.CompoundIdentifierType, str]] = ..., details: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
 
 class Vessel(_message.Message):
-    __slots__ = ["type", "details", "material", "preparations", "attachments", "volume", "vessel_id", "position", "row", "col"]
+    __slots__ = ("type", "details", "material", "preparations", "attachments", "volume", "vessel_id", "position", "row", "col")
     class VesselType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Vessel.VesselType]
         CUSTOM: _ClassVar[Vessel.VesselType]
         ROUND_BOTTOM_FLASK: _ClassVar[Vessel.VesselType]
@@ -419,9 +419,9 @@ class Vessel(_message.Message):
     def __init__(self, type: _Optional[_Union[Vessel.VesselType, str]] = ..., details: _Optional[str] = ..., material: _Optional[_Union[VesselMaterial, _Mapping]] = ..., preparations: _Optional[_Iterable[_Union[VesselPreparation, _Mapping]]] = ..., attachments: _Optional[_Iterable[_Union[VesselAttachment, _Mapping]]] = ..., volume: _Optional[_Union[Volume, _Mapping]] = ..., vessel_id: _Optional[str] = ..., position: _Optional[str] = ..., row: _Optional[str] = ..., col: _Optional[str] = ...) -> None: ...
 
 class VesselMaterial(_message.Message):
-    __slots__ = ["type", "details"]
+    __slots__ = ("type", "details")
     class VesselMaterialType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[VesselMaterial.VesselMaterialType]
         CUSTOM: _ClassVar[VesselMaterial.VesselMaterialType]
         GLASS: _ClassVar[VesselMaterial.VesselMaterialType]
@@ -443,9 +443,9 @@ class VesselMaterial(_message.Message):
     def __init__(self, type: _Optional[_Union[VesselMaterial.VesselMaterialType, str]] = ..., details: _Optional[str] = ...) -> None: ...
 
 class VesselAttachment(_message.Message):
-    __slots__ = ["type", "details"]
+    __slots__ = ("type", "details")
     class VesselAttachmentType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[VesselAttachment.VesselAttachmentType]
         NONE: _ClassVar[VesselAttachment.VesselAttachmentType]
         CUSTOM: _ClassVar[VesselAttachment.VesselAttachmentType]
@@ -489,9 +489,9 @@ class VesselAttachment(_message.Message):
     def __init__(self, type: _Optional[_Union[VesselAttachment.VesselAttachmentType, str]] = ..., details: _Optional[str] = ...) -> None: ...
 
 class VesselPreparation(_message.Message):
-    __slots__ = ["type", "details"]
+    __slots__ = ("type", "details")
     class VesselPreparationType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[VesselPreparation.VesselPreparationType]
         CUSTOM: _ClassVar[VesselPreparation.VesselPreparationType]
         NONE: _ClassVar[VesselPreparation.VesselPreparationType]
@@ -513,18 +513,18 @@ class VesselPreparation(_message.Message):
     def __init__(self, type: _Optional[_Union[VesselPreparation.VesselPreparationType, str]] = ..., details: _Optional[str] = ...) -> None: ...
 
 class ReactionSetup(_message.Message):
-    __slots__ = ["vessel", "is_automated", "automation_platform", "automation_code", "environment"]
+    __slots__ = ("vessel", "is_automated", "automation_platform", "automation_code", "environment")
     class AutomationCodeEntry(_message.Message):
-        __slots__ = ["key", "value"]
+        __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: Data
         def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
     class ReactionEnvironment(_message.Message):
-        __slots__ = ["type", "details"]
+        __slots__ = ("type", "details")
         class ReactionEnvironmentType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[ReactionSetup.ReactionEnvironment.ReactionEnvironmentType]
             CUSTOM: _ClassVar[ReactionSetup.ReactionEnvironment.ReactionEnvironmentType]
             FUME_HOOD: _ClassVar[ReactionSetup.ReactionEnvironment.ReactionEnvironmentType]
@@ -555,7 +555,7 @@ class ReactionSetup(_message.Message):
     def __init__(self, vessel: _Optional[_Union[Vessel, _Mapping]] = ..., is_automated: bool = ..., automation_platform: _Optional[str] = ..., automation_code: _Optional[_Mapping[str, Data]] = ..., environment: _Optional[_Union[ReactionSetup.ReactionEnvironment, _Mapping]] = ...) -> None: ...
 
 class ReactionConditions(_message.Message):
-    __slots__ = ["temperature", "pressure", "stirring", "illumination", "electrochemistry", "flow", "reflux", "ph", "conditions_are_dynamic", "details"]
+    __slots__ = ("temperature", "pressure", "stirring", "illumination", "electrochemistry", "flow", "reflux", "ph", "conditions_are_dynamic", "details")
     TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
     PRESSURE_FIELD_NUMBER: _ClassVar[int]
     STIRRING_FIELD_NUMBER: _ClassVar[int]
@@ -579,11 +579,11 @@ class ReactionConditions(_message.Message):
     def __init__(self, temperature: _Optional[_Union[TemperatureConditions, _Mapping]] = ..., pressure: _Optional[_Union[PressureConditions, _Mapping]] = ..., stirring: _Optional[_Union[StirringConditions, _Mapping]] = ..., illumination: _Optional[_Union[IlluminationConditions, _Mapping]] = ..., electrochemistry: _Optional[_Union[ElectrochemistryConditions, _Mapping]] = ..., flow: _Optional[_Union[FlowConditions, _Mapping]] = ..., reflux: bool = ..., ph: _Optional[float] = ..., conditions_are_dynamic: bool = ..., details: _Optional[str] = ...) -> None: ...
 
 class TemperatureConditions(_message.Message):
-    __slots__ = ["control", "setpoint", "measurements"]
+    __slots__ = ("control", "setpoint", "measurements")
     class TemperatureControl(_message.Message):
-        __slots__ = ["type", "details"]
+        __slots__ = ("type", "details")
         class TemperatureControlType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[TemperatureConditions.TemperatureControl.TemperatureControlType]
             CUSTOM: _ClassVar[TemperatureConditions.TemperatureControl.TemperatureControlType]
             AMBIENT: _ClassVar[TemperatureConditions.TemperatureControl.TemperatureControlType]
@@ -614,9 +614,9 @@ class TemperatureConditions(_message.Message):
         details: str
         def __init__(self, type: _Optional[_Union[TemperatureConditions.TemperatureControl.TemperatureControlType, str]] = ..., details: _Optional[str] = ...) -> None: ...
     class TemperatureMeasurement(_message.Message):
-        __slots__ = ["type", "details", "time", "temperature"]
+        __slots__ = ("type", "details", "time", "temperature")
         class TemperatureMeasurementType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[TemperatureConditions.TemperatureMeasurement.TemperatureMeasurementType]
             CUSTOM: _ClassVar[TemperatureConditions.TemperatureMeasurement.TemperatureMeasurementType]
             THERMOCOUPLE_INTERNAL: _ClassVar[TemperatureConditions.TemperatureMeasurement.TemperatureMeasurementType]
@@ -645,11 +645,11 @@ class TemperatureConditions(_message.Message):
     def __init__(self, control: _Optional[_Union[TemperatureConditions.TemperatureControl, _Mapping]] = ..., setpoint: _Optional[_Union[Temperature, _Mapping]] = ..., measurements: _Optional[_Iterable[_Union[TemperatureConditions.TemperatureMeasurement, _Mapping]]] = ...) -> None: ...
 
 class PressureConditions(_message.Message):
-    __slots__ = ["control", "setpoint", "atmosphere", "measurements"]
+    __slots__ = ("control", "setpoint", "atmosphere", "measurements")
     class PressureControl(_message.Message):
-        __slots__ = ["type", "details"]
+        __slots__ = ("type", "details")
         class PressureControlType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[PressureConditions.PressureControl.PressureControlType]
             CUSTOM: _ClassVar[PressureConditions.PressureControl.PressureControlType]
             AMBIENT: _ClassVar[PressureConditions.PressureControl.PressureControlType]
@@ -668,9 +668,9 @@ class PressureConditions(_message.Message):
         details: str
         def __init__(self, type: _Optional[_Union[PressureConditions.PressureControl.PressureControlType, str]] = ..., details: _Optional[str] = ...) -> None: ...
     class Atmosphere(_message.Message):
-        __slots__ = ["type", "details"]
+        __slots__ = ("type", "details")
         class AtmosphereType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[PressureConditions.Atmosphere.AtmosphereType]
             CUSTOM: _ClassVar[PressureConditions.Atmosphere.AtmosphereType]
             AIR: _ClassVar[PressureConditions.Atmosphere.AtmosphereType]
@@ -705,9 +705,9 @@ class PressureConditions(_message.Message):
         details: str
         def __init__(self, type: _Optional[_Union[PressureConditions.Atmosphere.AtmosphereType, str]] = ..., details: _Optional[str] = ...) -> None: ...
     class PressureMeasurement(_message.Message):
-        __slots__ = ["type", "details", "time", "pressure"]
+        __slots__ = ("type", "details", "time", "pressure")
         class PressureMeasurementType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[PressureConditions.PressureMeasurement.PressureMeasurementType]
             CUSTOM: _ClassVar[PressureConditions.PressureMeasurement.PressureMeasurementType]
             PRESSURE_TRANSDUCER: _ClassVar[PressureConditions.PressureMeasurement.PressureMeasurementType]
@@ -734,9 +734,9 @@ class PressureConditions(_message.Message):
     def __init__(self, control: _Optional[_Union[PressureConditions.PressureControl, _Mapping]] = ..., setpoint: _Optional[_Union[Pressure, _Mapping]] = ..., atmosphere: _Optional[_Union[PressureConditions.Atmosphere, _Mapping]] = ..., measurements: _Optional[_Iterable[_Union[PressureConditions.PressureMeasurement, _Mapping]]] = ...) -> None: ...
 
 class StirringConditions(_message.Message):
-    __slots__ = ["type", "details", "rate"]
+    __slots__ = ("type", "details", "rate")
     class StirringMethodType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[StirringConditions.StirringMethodType]
         CUSTOM: _ClassVar[StirringConditions.StirringMethodType]
         NONE: _ClassVar[StirringConditions.StirringMethodType]
@@ -754,9 +754,9 @@ class StirringConditions(_message.Message):
     BALL_MILLING: StirringConditions.StirringMethodType
     SONICATION: StirringConditions.StirringMethodType
     class StirringRate(_message.Message):
-        __slots__ = ["type", "details", "rpm"]
+        __slots__ = ("type", "details", "rpm")
         class StirringRateType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[StirringConditions.StirringRate.StirringRateType]
             HIGH: _ClassVar[StirringConditions.StirringRate.StirringRateType]
             MEDIUM: _ClassVar[StirringConditions.StirringRate.StirringRateType]
@@ -781,9 +781,9 @@ class StirringConditions(_message.Message):
     def __init__(self, type: _Optional[_Union[StirringConditions.StirringMethodType, str]] = ..., details: _Optional[str] = ..., rate: _Optional[_Union[StirringConditions.StirringRate, _Mapping]] = ...) -> None: ...
 
 class IlluminationConditions(_message.Message):
-    __slots__ = ["type", "details", "peak_wavelength", "color", "distance_to_vessel"]
+    __slots__ = ("type", "details", "peak_wavelength", "color", "distance_to_vessel")
     class IlluminationType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[IlluminationConditions.IlluminationType]
         CUSTOM: _ClassVar[IlluminationConditions.IlluminationType]
         AMBIENT: _ClassVar[IlluminationConditions.IlluminationType]
@@ -815,9 +815,9 @@ class IlluminationConditions(_message.Message):
     def __init__(self, type: _Optional[_Union[IlluminationConditions.IlluminationType, str]] = ..., details: _Optional[str] = ..., peak_wavelength: _Optional[_Union[Wavelength, _Mapping]] = ..., color: _Optional[str] = ..., distance_to_vessel: _Optional[_Union[Length, _Mapping]] = ...) -> None: ...
 
 class ElectrochemistryConditions(_message.Message):
-    __slots__ = ["type", "details", "current", "voltage", "anode_material", "cathode_material", "electrode_separation", "measurements", "cell"]
+    __slots__ = ("type", "details", "current", "voltage", "anode_material", "cathode_material", "electrode_separation", "measurements", "cell")
     class ElectrochemistryType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[ElectrochemistryConditions.ElectrochemistryType]
         CUSTOM: _ClassVar[ElectrochemistryConditions.ElectrochemistryType]
         CONSTANT_CURRENT: _ClassVar[ElectrochemistryConditions.ElectrochemistryType]
@@ -827,7 +827,7 @@ class ElectrochemistryConditions(_message.Message):
     CONSTANT_CURRENT: ElectrochemistryConditions.ElectrochemistryType
     CONSTANT_VOLTAGE: ElectrochemistryConditions.ElectrochemistryType
     class ElectrochemistryMeasurement(_message.Message):
-        __slots__ = ["time", "current", "voltage"]
+        __slots__ = ("time", "current", "voltage")
         TIME_FIELD_NUMBER: _ClassVar[int]
         CURRENT_FIELD_NUMBER: _ClassVar[int]
         VOLTAGE_FIELD_NUMBER: _ClassVar[int]
@@ -836,9 +836,9 @@ class ElectrochemistryConditions(_message.Message):
         voltage: Voltage
         def __init__(self, time: _Optional[_Union[Time, _Mapping]] = ..., current: _Optional[_Union[Current, _Mapping]] = ..., voltage: _Optional[_Union[Voltage, _Mapping]] = ...) -> None: ...
     class ElectrochemistryCell(_message.Message):
-        __slots__ = ["type", "details"]
+        __slots__ = ("type", "details")
         class ElectrochemistryCellType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType]
             CUSTOM: _ClassVar[ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType]
             DIVIDED_CELL: _ClassVar[ElectrochemistryConditions.ElectrochemistryCell.ElectrochemistryCellType]
@@ -873,9 +873,9 @@ class ElectrochemistryConditions(_message.Message):
     def __init__(self, type: _Optional[_Union[ElectrochemistryConditions.ElectrochemistryType, str]] = ..., details: _Optional[str] = ..., current: _Optional[_Union[Current, _Mapping]] = ..., voltage: _Optional[_Union[Voltage, _Mapping]] = ..., anode_material: _Optional[str] = ..., cathode_material: _Optional[str] = ..., electrode_separation: _Optional[_Union[Length, _Mapping]] = ..., measurements: _Optional[_Iterable[_Union[ElectrochemistryConditions.ElectrochemistryMeasurement, _Mapping]]] = ..., cell: _Optional[_Union[ElectrochemistryConditions.ElectrochemistryCell, _Mapping]] = ...) -> None: ...
 
 class FlowConditions(_message.Message):
-    __slots__ = ["type", "details", "pump_type", "tubing"]
+    __slots__ = ("type", "details", "pump_type", "tubing")
     class FlowType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[FlowConditions.FlowType]
         CUSTOM: _ClassVar[FlowConditions.FlowType]
         PLUG_FLOW_REACTOR: _ClassVar[FlowConditions.FlowType]
@@ -887,9 +887,9 @@ class FlowConditions(_message.Message):
     CONTINUOUS_STIRRED_TANK_REACTOR: FlowConditions.FlowType
     PACKED_BED_REACTOR: FlowConditions.FlowType
     class Tubing(_message.Message):
-        __slots__ = ["type", "details", "diameter"]
+        __slots__ = ("type", "details", "diameter")
         class TubingType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[FlowConditions.Tubing.TubingType]
             CUSTOM: _ClassVar[FlowConditions.Tubing.TubingType]
             STEEL: _ClassVar[FlowConditions.Tubing.TubingType]
@@ -932,7 +932,7 @@ class FlowConditions(_message.Message):
     def __init__(self, type: _Optional[_Union[FlowConditions.FlowType, str]] = ..., details: _Optional[str] = ..., pump_type: _Optional[str] = ..., tubing: _Optional[_Union[FlowConditions.Tubing, _Mapping]] = ...) -> None: ...
 
 class ReactionNotes(_message.Message):
-    __slots__ = ["is_heterogeneous", "forms_precipitate", "is_exothermic", "offgasses", "is_sensitive_to_moisture", "is_sensitive_to_oxygen", "is_sensitive_to_light", "safety_notes", "procedure_details"]
+    __slots__ = ("is_heterogeneous", "forms_precipitate", "is_exothermic", "offgasses", "is_sensitive_to_moisture", "is_sensitive_to_oxygen", "is_sensitive_to_light", "safety_notes", "procedure_details")
     IS_HETEROGENEOUS_FIELD_NUMBER: _ClassVar[int]
     FORMS_PRECIPITATE_FIELD_NUMBER: _ClassVar[int]
     IS_EXOTHERMIC_FIELD_NUMBER: _ClassVar[int]
@@ -954,7 +954,7 @@ class ReactionNotes(_message.Message):
     def __init__(self, is_heterogeneous: bool = ..., forms_precipitate: bool = ..., is_exothermic: bool = ..., offgasses: bool = ..., is_sensitive_to_moisture: bool = ..., is_sensitive_to_oxygen: bool = ..., is_sensitive_to_light: bool = ..., safety_notes: _Optional[str] = ..., procedure_details: _Optional[str] = ...) -> None: ...
 
 class ReactionObservation(_message.Message):
-    __slots__ = ["time", "comment", "image"]
+    __slots__ = ("time", "comment", "image")
     TIME_FIELD_NUMBER: _ClassVar[int]
     COMMENT_FIELD_NUMBER: _ClassVar[int]
     IMAGE_FIELD_NUMBER: _ClassVar[int]
@@ -964,9 +964,9 @@ class ReactionObservation(_message.Message):
     def __init__(self, time: _Optional[_Union[Time, _Mapping]] = ..., comment: _Optional[str] = ..., image: _Optional[_Union[Data, _Mapping]] = ...) -> None: ...
 
 class ReactionWorkup(_message.Message):
-    __slots__ = ["type", "details", "duration", "input", "amount", "temperature", "keep_phase", "stirring", "target_ph", "is_automated"]
+    __slots__ = ("type", "details", "duration", "input", "amount", "temperature", "keep_phase", "stirring", "target_ph", "is_automated")
     class ReactionWorkupType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[ReactionWorkup.ReactionWorkupType]
         CUSTOM: _ClassVar[ReactionWorkup.ReactionWorkupType]
         ADDITION: _ClassVar[ReactionWorkup.ReactionWorkupType]
@@ -1028,9 +1028,9 @@ class ReactionWorkup(_message.Message):
     def __init__(self, type: _Optional[_Union[ReactionWorkup.ReactionWorkupType, str]] = ..., details: _Optional[str] = ..., duration: _Optional[_Union[Time, _Mapping]] = ..., input: _Optional[_Union[ReactionInput, _Mapping]] = ..., amount: _Optional[_Union[Amount, _Mapping]] = ..., temperature: _Optional[_Union[TemperatureConditions, _Mapping]] = ..., keep_phase: _Optional[str] = ..., stirring: _Optional[_Union[StirringConditions, _Mapping]] = ..., target_ph: _Optional[float] = ..., is_automated: bool = ...) -> None: ...
 
 class ReactionOutcome(_message.Message):
-    __slots__ = ["reaction_time", "conversion", "products", "analyses"]
+    __slots__ = ("reaction_time", "conversion", "products", "analyses")
     class AnalysesEntry(_message.Message):
-        __slots__ = ["key", "value"]
+        __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -1047,9 +1047,9 @@ class ReactionOutcome(_message.Message):
     def __init__(self, reaction_time: _Optional[_Union[Time, _Mapping]] = ..., conversion: _Optional[_Union[Percentage, _Mapping]] = ..., products: _Optional[_Iterable[_Union[ProductCompound, _Mapping]]] = ..., analyses: _Optional[_Mapping[str, Analysis]] = ...) -> None: ...
 
 class ProductCompound(_message.Message):
-    __slots__ = ["identifiers", "is_desired_product", "measurements", "isolated_color", "texture", "features", "reaction_role"]
+    __slots__ = ("identifiers", "is_desired_product", "measurements", "isolated_color", "texture", "features", "reaction_role")
     class FeaturesEntry(_message.Message):
-        __slots__ = ["key", "value"]
+        __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -1072,9 +1072,9 @@ class ProductCompound(_message.Message):
     def __init__(self, identifiers: _Optional[_Iterable[_Union[CompoundIdentifier, _Mapping]]] = ..., is_desired_product: bool = ..., measurements: _Optional[_Iterable[_Union[ProductMeasurement, _Mapping]]] = ..., isolated_color: _Optional[str] = ..., texture: _Optional[_Union[Texture, _Mapping]] = ..., features: _Optional[_Mapping[str, Data]] = ..., reaction_role: _Optional[_Union[ReactionRole.ReactionRoleType, str]] = ...) -> None: ...
 
 class ProductMeasurement(_message.Message):
-    __slots__ = ["analysis_key", "type", "details", "uses_internal_standard", "is_normalized", "uses_authentic_standard", "authentic_standard", "percentage", "float_value", "string_value", "amount", "retention_time", "mass_spec_details", "selectivity", "wavelength"]
+    __slots__ = ("analysis_key", "type", "details", "uses_internal_standard", "is_normalized", "uses_authentic_standard", "authentic_standard", "percentage", "float_value", "string_value", "amount", "retention_time", "mass_spec_details", "selectivity", "wavelength")
     class ProductMeasurementType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[ProductMeasurement.ProductMeasurementType]
         CUSTOM: _ClassVar[ProductMeasurement.ProductMeasurementType]
         IDENTITY: _ClassVar[ProductMeasurement.ProductMeasurementType]
@@ -1096,9 +1096,9 @@ class ProductMeasurement(_message.Message):
     INTENSITY: ProductMeasurement.ProductMeasurementType
     AMOUNT: ProductMeasurement.ProductMeasurementType
     class MassSpecMeasurementDetails(_message.Message):
-        __slots__ = ["type", "details", "tic_minimum_mz", "tic_maximum_mz", "eic_masses"]
+        __slots__ = ("type", "details", "tic_minimum_mz", "tic_maximum_mz", "eic_masses")
         class MassSpecMeasurementType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType]
             CUSTOM: _ClassVar[ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType]
             TIC: _ClassVar[ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType]
@@ -1123,9 +1123,9 @@ class ProductMeasurement(_message.Message):
         eic_masses: _containers.RepeatedScalarFieldContainer[float]
         def __init__(self, type: _Optional[_Union[ProductMeasurement.MassSpecMeasurementDetails.MassSpecMeasurementType, str]] = ..., details: _Optional[str] = ..., tic_minimum_mz: _Optional[float] = ..., tic_maximum_mz: _Optional[float] = ..., eic_masses: _Optional[_Iterable[float]] = ...) -> None: ...
     class Selectivity(_message.Message):
-        __slots__ = ["type", "details"]
+        __slots__ = ("type", "details")
         class SelectivityType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-            __slots__ = []
+            __slots__ = ()
             UNSPECIFIED: _ClassVar[ProductMeasurement.Selectivity.SelectivityType]
             CUSTOM: _ClassVar[ProductMeasurement.Selectivity.SelectivityType]
             EE: _ClassVar[ProductMeasurement.Selectivity.SelectivityType]
@@ -1178,15 +1178,15 @@ class ProductMeasurement(_message.Message):
     def __init__(self, analysis_key: _Optional[str] = ..., type: _Optional[_Union[ProductMeasurement.ProductMeasurementType, str]] = ..., details: _Optional[str] = ..., uses_internal_standard: bool = ..., is_normalized: bool = ..., uses_authentic_standard: bool = ..., authentic_standard: _Optional[_Union[Compound, _Mapping]] = ..., percentage: _Optional[_Union[Percentage, _Mapping]] = ..., float_value: _Optional[_Union[FloatValue, _Mapping]] = ..., string_value: _Optional[str] = ..., amount: _Optional[_Union[Amount, _Mapping]] = ..., retention_time: _Optional[_Union[Time, _Mapping]] = ..., mass_spec_details: _Optional[_Union[ProductMeasurement.MassSpecMeasurementDetails, _Mapping]] = ..., selectivity: _Optional[_Union[ProductMeasurement.Selectivity, _Mapping]] = ..., wavelength: _Optional[_Union[Wavelength, _Mapping]] = ...) -> None: ...
 
 class DateTime(_message.Message):
-    __slots__ = ["value"]
+    __slots__ = ("value",)
     VALUE_FIELD_NUMBER: _ClassVar[int]
     value: str
     def __init__(self, value: _Optional[str] = ...) -> None: ...
 
 class Analysis(_message.Message):
-    __slots__ = ["type", "details", "chmo_id", "is_of_isolated_species", "data", "instrument_manufacturer", "instrument_last_calibrated"]
+    __slots__ = ("type", "details", "chmo_id", "is_of_isolated_species", "data", "instrument_manufacturer", "instrument_last_calibrated")
     class AnalysisType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Analysis.AnalysisType]
         CUSTOM: _ClassVar[Analysis.AnalysisType]
         LC: _ClassVar[Analysis.AnalysisType]
@@ -1240,7 +1240,7 @@ class Analysis(_message.Message):
     OPTICAL_ROTATION: Analysis.AnalysisType
     CAD: Analysis.AnalysisType
     class DataEntry(_message.Message):
-        __slots__ = ["key", "value"]
+        __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -1263,9 +1263,9 @@ class Analysis(_message.Message):
     def __init__(self, type: _Optional[_Union[Analysis.AnalysisType, str]] = ..., details: _Optional[str] = ..., chmo_id: _Optional[int] = ..., is_of_isolated_species: bool = ..., data: _Optional[_Mapping[str, Data]] = ..., instrument_manufacturer: _Optional[str] = ..., instrument_last_calibrated: _Optional[_Union[DateTime, _Mapping]] = ...) -> None: ...
 
 class ReactionProvenance(_message.Message):
-    __slots__ = ["experimenter", "city", "experiment_start", "doi", "patent", "publication_url", "record_created", "record_modified", "reaction_metadata", "is_mined"]
+    __slots__ = ("experimenter", "city", "experiment_start", "doi", "patent", "publication_url", "record_created", "record_modified", "reaction_metadata", "is_mined")
     class ReactionMetadataEntry(_message.Message):
-        __slots__ = ["key", "value"]
+        __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
@@ -1294,7 +1294,7 @@ class ReactionProvenance(_message.Message):
     def __init__(self, experimenter: _Optional[_Union[Person, _Mapping]] = ..., city: _Optional[str] = ..., experiment_start: _Optional[_Union[DateTime, _Mapping]] = ..., doi: _Optional[str] = ..., patent: _Optional[str] = ..., publication_url: _Optional[str] = ..., record_created: _Optional[_Union[RecordEvent, _Mapping]] = ..., record_modified: _Optional[_Iterable[_Union[RecordEvent, _Mapping]]] = ..., reaction_metadata: _Optional[_Mapping[str, Data]] = ..., is_mined: bool = ...) -> None: ...
 
 class Person(_message.Message):
-    __slots__ = ["username", "name", "orcid", "organization", "email"]
+    __slots__ = ("username", "name", "orcid", "organization", "email")
     USERNAME_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
     ORCID_FIELD_NUMBER: _ClassVar[int]
@@ -1308,7 +1308,7 @@ class Person(_message.Message):
     def __init__(self, username: _Optional[str] = ..., name: _Optional[str] = ..., orcid: _Optional[str] = ..., organization: _Optional[str] = ..., email: _Optional[str] = ...) -> None: ...
 
 class RecordEvent(_message.Message):
-    __slots__ = ["time", "person", "details"]
+    __slots__ = ("time", "person", "details")
     TIME_FIELD_NUMBER: _ClassVar[int]
     PERSON_FIELD_NUMBER: _ClassVar[int]
     DETAILS_FIELD_NUMBER: _ClassVar[int]
@@ -1318,9 +1318,9 @@ class RecordEvent(_message.Message):
     def __init__(self, time: _Optional[_Union[DateTime, _Mapping]] = ..., person: _Optional[_Union[Person, _Mapping]] = ..., details: _Optional[str] = ...) -> None: ...
 
 class Time(_message.Message):
-    __slots__ = ["value", "precision", "units"]
+    __slots__ = ("value", "precision", "units")
     class TimeUnit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Time.TimeUnit]
         DAY: _ClassVar[Time.TimeUnit]
         HOUR: _ClassVar[Time.TimeUnit]
@@ -1340,9 +1340,9 @@ class Time(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ..., units: _Optional[_Union[Time.TimeUnit, str]] = ...) -> None: ...
 
 class Mass(_message.Message):
-    __slots__ = ["value", "precision", "units"]
+    __slots__ = ("value", "precision", "units")
     class MassUnit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Mass.MassUnit]
         KILOGRAM: _ClassVar[Mass.MassUnit]
         GRAM: _ClassVar[Mass.MassUnit]
@@ -1362,9 +1362,9 @@ class Mass(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ..., units: _Optional[_Union[Mass.MassUnit, str]] = ...) -> None: ...
 
 class Moles(_message.Message):
-    __slots__ = ["value", "precision", "units"]
+    __slots__ = ("value", "precision", "units")
     class MolesUnit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Moles.MolesUnit]
         MOLE: _ClassVar[Moles.MolesUnit]
         MILLIMOLE: _ClassVar[Moles.MolesUnit]
@@ -1384,9 +1384,9 @@ class Moles(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ..., units: _Optional[_Union[Moles.MolesUnit, str]] = ...) -> None: ...
 
 class Volume(_message.Message):
-    __slots__ = ["value", "precision", "units"]
+    __slots__ = ("value", "precision", "units")
     class VolumeUnit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Volume.VolumeUnit]
         LITER: _ClassVar[Volume.VolumeUnit]
         MILLILITER: _ClassVar[Volume.VolumeUnit]
@@ -1406,9 +1406,9 @@ class Volume(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ..., units: _Optional[_Union[Volume.VolumeUnit, str]] = ...) -> None: ...
 
 class Concentration(_message.Message):
-    __slots__ = ["value", "precision", "units"]
+    __slots__ = ("value", "precision", "units")
     class ConcentrationUnit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Concentration.ConcentrationUnit]
         MOLAR: _ClassVar[Concentration.ConcentrationUnit]
         MILLIMOLAR: _ClassVar[Concentration.ConcentrationUnit]
@@ -1426,9 +1426,9 @@ class Concentration(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ..., units: _Optional[_Union[Concentration.ConcentrationUnit, str]] = ...) -> None: ...
 
 class Pressure(_message.Message):
-    __slots__ = ["value", "precision", "units"]
+    __slots__ = ("value", "precision", "units")
     class PressureUnit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Pressure.PressureUnit]
         BAR: _ClassVar[Pressure.PressureUnit]
         ATMOSPHERE: _ClassVar[Pressure.PressureUnit]
@@ -1456,9 +1456,9 @@ class Pressure(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ..., units: _Optional[_Union[Pressure.PressureUnit, str]] = ...) -> None: ...
 
 class Temperature(_message.Message):
-    __slots__ = ["value", "precision", "units"]
+    __slots__ = ("value", "precision", "units")
     class TemperatureUnit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Temperature.TemperatureUnit]
         CELSIUS: _ClassVar[Temperature.TemperatureUnit]
         FAHRENHEIT: _ClassVar[Temperature.TemperatureUnit]
@@ -1476,9 +1476,9 @@ class Temperature(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ..., units: _Optional[_Union[Temperature.TemperatureUnit, str]] = ...) -> None: ...
 
 class Current(_message.Message):
-    __slots__ = ["value", "precision", "units"]
+    __slots__ = ("value", "precision", "units")
     class CurrentUnit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Current.CurrentUnit]
         AMPERE: _ClassVar[Current.CurrentUnit]
         MILLIAMPERE: _ClassVar[Current.CurrentUnit]
@@ -1494,9 +1494,9 @@ class Current(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ..., units: _Optional[_Union[Current.CurrentUnit, str]] = ...) -> None: ...
 
 class Voltage(_message.Message):
-    __slots__ = ["value", "precision", "units"]
+    __slots__ = ("value", "precision", "units")
     class VoltageUnit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Voltage.VoltageUnit]
         VOLT: _ClassVar[Voltage.VoltageUnit]
         MILLIVOLT: _ClassVar[Voltage.VoltageUnit]
@@ -1512,9 +1512,9 @@ class Voltage(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ..., units: _Optional[_Union[Voltage.VoltageUnit, str]] = ...) -> None: ...
 
 class Length(_message.Message):
-    __slots__ = ["value", "precision", "units"]
+    __slots__ = ("value", "precision", "units")
     class LengthUnit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Length.LengthUnit]
         CENTIMETER: _ClassVar[Length.LengthUnit]
         MILLIMETER: _ClassVar[Length.LengthUnit]
@@ -1536,9 +1536,9 @@ class Length(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ..., units: _Optional[_Union[Length.LengthUnit, str]] = ...) -> None: ...
 
 class Wavelength(_message.Message):
-    __slots__ = ["value", "precision", "units"]
+    __slots__ = ("value", "precision", "units")
     class WavelengthUnit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[Wavelength.WavelengthUnit]
         NANOMETER: _ClassVar[Wavelength.WavelengthUnit]
         WAVENUMBER: _ClassVar[Wavelength.WavelengthUnit]
@@ -1554,9 +1554,9 @@ class Wavelength(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ..., units: _Optional[_Union[Wavelength.WavelengthUnit, str]] = ...) -> None: ...
 
 class FlowRate(_message.Message):
-    __slots__ = ["value", "precision", "units"]
+    __slots__ = ("value", "precision", "units")
     class FlowRateUnit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+        __slots__ = ()
         UNSPECIFIED: _ClassVar[FlowRate.FlowRateUnit]
         MICROLITER_PER_MINUTE: _ClassVar[FlowRate.FlowRateUnit]
         MICROLITER_PER_SECOND: _ClassVar[FlowRate.FlowRateUnit]
@@ -1578,7 +1578,7 @@ class FlowRate(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ..., units: _Optional[_Union[FlowRate.FlowRateUnit, str]] = ...) -> None: ...
 
 class Percentage(_message.Message):
-    __slots__ = ["value", "precision"]
+    __slots__ = ("value", "precision")
     VALUE_FIELD_NUMBER: _ClassVar[int]
     PRECISION_FIELD_NUMBER: _ClassVar[int]
     value: float
@@ -1586,7 +1586,7 @@ class Percentage(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ...) -> None: ...
 
 class FloatValue(_message.Message):
-    __slots__ = ["value", "precision"]
+    __slots__ = ("value", "precision")
     VALUE_FIELD_NUMBER: _ClassVar[int]
     PRECISION_FIELD_NUMBER: _ClassVar[int]
     value: float
@@ -1594,7 +1594,7 @@ class FloatValue(_message.Message):
     def __init__(self, value: _Optional[float] = ..., precision: _Optional[float] = ...) -> None: ...
 
 class Data(_message.Message):
-    __slots__ = ["float_value", "integer_value", "bytes_value", "string_value", "url", "description", "format"]
+    __slots__ = ("float_value", "integer_value", "bytes_value", "string_value", "url", "description", "format")
     FLOAT_VALUE_FIELD_NUMBER: _ClassVar[int]
     INTEGER_VALUE_FIELD_NUMBER: _ClassVar[int]
     BYTES_VALUE_FIELD_NUMBER: _ClassVar[int]
