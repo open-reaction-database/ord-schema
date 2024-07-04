@@ -34,6 +34,7 @@ setuptools.setup(
     package_data={"ord_schema.proto": ["*.pyi"]},
     python_requires=">=3.10",
     install_requires=[
+        "Werkzeug>=3.0.3",
         "docopt>=0.6.2",
         "inflection>=0.5.1",
         "joblib>=1.0.0",
