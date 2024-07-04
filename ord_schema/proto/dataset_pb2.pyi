@@ -7,7 +7,7 @@ from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Map
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Dataset(_message.Message):
-    __slots__ = ("name", "description", "reactions", "reaction_ids", "dataset_id")
+    __slots__ = ["name", "description", "reactions", "reaction_ids", "dataset_id"]
     NAME_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     REACTIONS_FIELD_NUMBER: _ClassVar[int]
@@ -21,7 +21,7 @@ class Dataset(_message.Message):
     def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., reactions: _Optional[_Iterable[_Union[_reaction_pb2.Reaction, _Mapping]]] = ..., reaction_ids: _Optional[_Iterable[str]] = ..., dataset_id: _Optional[str] = ...) -> None: ...
 
 class DatasetExample(_message.Message):
-    __slots__ = ("dataset_id", "description", "url", "created")
+    __slots__ = ["dataset_id", "description", "url", "created"]
     DATASET_ID_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     URL_FIELD_NUMBER: _ClassVar[int]
