@@ -39,7 +39,7 @@ def rdkit_cartridge() -> bool:
     return bool(strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")))
 
 
-class _RDKitMol(UserDefinedType):
+class RDKitMol(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L4."""
 
     cache_ok = True
@@ -54,7 +54,7 @@ class _RDKitMol(UserDefinedType):
         return "mol" if rdkit_cartridge() else "bytea"
 
 
-class _RDKitReaction(UserDefinedType):
+class RDKitReaction(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L129."""
 
     cache_ok = True
@@ -69,7 +69,7 @@ class _RDKitReaction(UserDefinedType):
         return "reaction" if rdkit_cartridge() else "bytea"
 
 
-class _RDKitBfp(UserDefinedType):
+class RDKitBfp(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L81."""
 
     cache_ok = True
@@ -84,7 +84,7 @@ class _RDKitBfp(UserDefinedType):
         return "bfp" if rdkit_cartridge() else "bytea"
 
 
-class _RDKitSfp(UserDefinedType):
+class RDKitSfp(UserDefinedType):
     """https://github.com/rdkit/rdkit/blob/master/Code/PgSQL/rdkit/rdkit.sql.in#L105."""
 
     cache_ok = True
@@ -125,15 +125,15 @@ class FingerprintType(Enum):
         return self.value(*args, **kwargs)
 
 
-class RDKitMol(Base):
+class RDKitMols(Base):
     """Table for storing compound structures and associated RDKit cartridge data."""
 
     __tablename__ = "mols"
     id = Column(Integer, primary_key=True)
     smiles = Column(Text, index=True, unique=True)
-    mol = Column(_RDKitMol)
-    morgan_bfp = Column(_RDKitBfp)
-    morgan_sfp = Column(_RDKitSfp)
+    mol = Column(RDKitMol)
+    morgan_bfp = Column(RDKitBfp)
+    morgan_sfp = Column(RDKitSfp)
 
     __table_args__ = (
         Index("mol_index", "mol", postgresql_using="gist"),
@@ -144,24 +144,24 @@ class RDKitMol(Base):
 
     @classmethod
     def tanimoto(cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP) -> ColumnElement[float]:
-        return func.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(other))
+        return func.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(cast(other, RDKitMol)))
 
     @classmethod
     def contains_substructure(cls, pattern: str) -> ColumnElement[bool]:
-        return func.substruct(cls.mol, pattern)
+        return func.substruct(cls.mol, cast(pattern, RDKitMol))
 
     @classmethod
     def matches_smarts(cls, pattern: str) -> ColumnElement[bool]:
         return func.substruct(cls.mol, func.qmol_from_smarts(cast(pattern, CString)))
 
 
-class RDKitReaction(Base):
+class RDKitReactions(Base):
     """Table for storing reaction objects and associated RDKit cartridge data."""
 
     __tablename__ = "reactions"
     id = Column(Integer, primary_key=True)
     reaction_smiles = Column(Text, index=True, unique=True)
-    reaction = Column(_RDKitReaction)
+    reaction = Column(RDKitReaction)
 
     __table_args__ = (
         Index("reaction_index", "reaction", postgresql_using="gist"),

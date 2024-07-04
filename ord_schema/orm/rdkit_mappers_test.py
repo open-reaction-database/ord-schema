@@ -16,10 +16,10 @@
 import platform
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import cast, func, select
 
 from ord_schema.orm.mappers import Mappers
-from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMol, RDKitReaction
+from ord_schema.orm.rdkit_mappers import CString, FingerprintType, RDKitMol, RDKitMols, RDKitReactions
 
 pytestmark = pytest.mark.skipif(platform.machine() != "x86_64", reason="RDKit cartridge is required")
 
@@ -29,8 +29,8 @@ def test_tanimoto_operator(test_session):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .join(RDKitMol)
-        .where(RDKitMol.morgan_bfp % FingerprintType.MORGAN_BFP("c1ccccc1CCC(O)C"))
+        .join(RDKitMols)
+        .where(RDKitMols.morgan_bfp % FingerprintType.MORGAN_BFP(cast("c1ccccc1CCC(O)C", RDKitMol)))
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
@@ -42,8 +42,8 @@ def test_tanimoto(test_session, fp_type):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .join(RDKitMol)
-        .where(RDKitMol.tanimoto("c1ccccc1CCC(O)C", fp_type=fp_type) > 0.5)
+        .join(RDKitMols)
+        .where(RDKitMols.tanimoto("c1ccccc1CCC(O)C", fp_type=fp_type) > 0.5)
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
@@ -54,8 +54,8 @@ def test_substructure_operator(test_session):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .join(RDKitMol)
-        .where(RDKitMol.mol.op("@>")("c1ccccc1CCC(O)C"))
+        .join(RDKitMols)
+        .where(RDKitMols.mol.op("@>")("c1ccccc1CCC(O)C"))
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
@@ -66,8 +66,8 @@ def test_contains_substructure(test_session):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .join(RDKitMol)
-        .where(RDKitMol.contains_substructure("c1ccccc1CCC(O)C"))
+        .join(RDKitMols)
+        .where(RDKitMols.contains_substructure("c1ccccc1CCC(O)C"))
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
@@ -78,8 +78,8 @@ def test_smarts_operator(test_session):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .join(RDKitMol)
-        .where(RDKitMol.mol.op("@>")(func.qmol_from_smarts("c1ccccc1CCC(O)[#6]")))
+        .join(RDKitMols)
+        .where(RDKitMols.mol.op("@>")(func.qmol_from_smarts(cast("c1ccccc1CCC(O)[#6]", CString))))
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
@@ -90,8 +90,8 @@ def test_matches_smarts(test_session):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .join(RDKitMol)
-        .where(RDKitMol.matches_smarts("c1ccccc1CCC(O)[#6]"))
+        .join(RDKitMols)
+        .where(RDKitMols.matches_smarts("c1ccccc1CCC(O)[#6]"))
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
@@ -100,8 +100,8 @@ def test_matches_smarts(test_session):
 def test_reaction_smarts_operator(test_session):
     query = (
         select(Mappers.Reaction)
-        .join(RDKitReaction)
-        .where(RDKitReaction.reaction.op("@>")(func.reaction_from_smarts("[#6:1].[#9:2]>>[#6:1][#9:2]")))
+        .join(RDKitReactions)
+        .where(RDKitReactions.reaction.op("@>")(func.reaction_from_smarts(cast("[#6:1].[#9:2]>>[#6:1][#9:2]", CString))))
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 79  # One reaction has a BYPRODUCT outcome, so no reaction SMILES.
@@ -109,7 +109,7 @@ def test_reaction_smarts_operator(test_session):
 
 def test_reaction_matches_smarts(test_session):
     query = (
-        select(Mappers.Reaction).join(RDKitReaction).where(RDKitReaction.matches_smarts("[#6:1].[#9:2]>>[#6:1][#9:2]"))
+        select(Mappers.Reaction).join(RDKitReactions).where(RDKitReactions.matches_smarts("[#6:1].[#9:2]>>[#6:1][#9:2]"))
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 79  # One reaction has a BYPRODUCT outcome, so no reaction SMILES.

@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from ord_schema.logging import get_logger
 from ord_schema.orm.mappers import Base, Mappers, from_proto
-from ord_schema.orm.rdkit_mappers import CString, FingerprintType, RDKitMol, RDKitReaction
+from ord_schema.orm.rdkit_mappers import CString, FingerprintType, RDKitMols, RDKitReactions
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
@@ -119,8 +119,8 @@ def update_rdkit_tables(dataset_id: str, session: Session) -> None:
 def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
     """Updates the RDKit reactions table."""
     logger.info("Updating RDKit reactions")
-    assert hasattr(RDKitReaction, "__table__")  # Type hint.
-    table = RDKitReaction.__table__
+    assert hasattr(RDKitReactions, "__table__")  # Type hint.
+    table = RDKitReactions.__table__
     start = time.time()
     session.execute(
         insert(table)
@@ -144,8 +144,8 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
 def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     """Updates the RDKit mols table."""
     logger.info("Updating RDKit mols")
-    assert hasattr(RDKitMol, "__table__")  # Type hint.
-    table = RDKitMol.__table__
+    assert hasattr(RDKitMols, "__table__")  # Type hint.
+    table = RDKitMols.__table__
     start = time.time()
     # NOTE(skearnes): This join path will not include non-input compounds like workups, internal standards, etc.
     session.execute(
@@ -201,8 +201,8 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
     start = time.time()
     # Update Reaction.
     query = session.execute(
-        select(Mappers.Reaction.id, RDKitReaction.id)
-        .join(RDKitReaction, Mappers.Reaction.reaction_smiles == RDKitReaction.reaction_smiles)
+        select(Mappers.Reaction.id, RDKitReactions.id)
+        .join(RDKitReactions, Mappers.Reaction.reaction_smiles == RDKitReactions.reaction_smiles)
         .join(Mappers.Dataset)
         .where(Mappers.Dataset.dataset_id == dataset_id)
     )
@@ -212,8 +212,8 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
     session.execute(update(Mappers.Reaction), updates)
     # Update Compound.
     query = session.execute(
-        select(Mappers.Compound.id, RDKitMol.id)
-        .join(RDKitMol, Mappers.Compound.smiles == RDKitMol.smiles)
+        select(Mappers.Compound.id, RDKitMols.id)
+        .join(RDKitMols, Mappers.Compound.smiles == RDKitMols.smiles)
         .join(Mappers.ReactionInput)
         .join(Mappers.Reaction)
         .join(Mappers.Dataset)
@@ -225,8 +225,8 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
     session.execute(update(Mappers.Compound), updates)
     # Update ProductCompound.
     query = session.execute(
-        select(Mappers.ProductCompound.id, RDKitMol.id)
-        .join(RDKitMol, Mappers.ProductCompound.smiles == RDKitMol.smiles)
+        select(Mappers.ProductCompound.id, RDKitMols.id)
+        .join(RDKitMols, Mappers.ProductCompound.smiles == RDKitMols.smiles)
         .join(Mappers.ReactionOutcome)
         .join(Mappers.Reaction)
         .join(Mappers.Dataset)
