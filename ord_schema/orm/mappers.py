@@ -188,7 +188,9 @@ def build_mapper(  # pylint: disable=too-many-branches
         kwargs = {}
         if message_type == reaction_pb2.CrudeComponent:
             kwargs["nullable"] = False
-        attrs["reaction_id"] = Column(Text, ForeignKey("ord.reaction.reaction_id", ondelete="CASCADE"), index=True, **kwargs)
+        attrs["reaction_id"] = Column(
+            Text, ForeignKey("ord.reaction.reaction_id", ondelete="CASCADE"), index=True, **kwargs
+        )
     logger.debug(f"Creating mapper {message_type.DESCRIPTOR.name}: {attrs}")
     mapper_class = type(message_type.DESCRIPTOR.name, (Base,), attrs)
     # Create polymorphic child classes.
