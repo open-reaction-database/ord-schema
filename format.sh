@@ -28,17 +28,19 @@ else
 fi
 # Format python.
 if ! command -v black &> /dev/null; then
-  pip install black
+  pip install black[jupyter]
 fi
 black "${ROOT_DIR}"
+if ! command -v isort &> /dev/null; then
+  pip install isort
+fi
+isort "${ROOT_DIR}"
 # Format proto.
-if command -v clang-format-10 &> /dev/null; then
-  find "${ROOT_DIR}" -name '*.proto' -exec clang-format-10 -i --style=file {} +
-elif command -v clang-format &> /dev/null; then
+if command -v clang-format &> /dev/null; then
   # NOTE(kearnes): Make sure you have version 10 or higher!
   find "${ROOT_DIR}" -name '*.proto' -exec clang-format -i --style=file {} +
 else
   echo "Please install clang-format:"
-  echo "  Linux: apt install clang-format-10"
+  echo "  Linux: apt install clang-format"
   echo "  MacOS: brew install clang-format"
 fi
