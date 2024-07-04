@@ -13,8 +13,8 @@
 # limitations under the License.
 
 """Pytest fixtures."""
-import re
 import os
+import re
 from typing import Iterator
 
 import pytest

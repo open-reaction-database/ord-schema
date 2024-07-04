@@ -101,7 +101,9 @@ def test_reaction_smarts_operator(test_session):
     query = (
         select(Mappers.Reaction)
         .join(RDKitReactions)
-        .where(RDKitReactions.reaction.op("@>")(func.reaction_from_smarts(cast("[#6:1].[#9:2]>>[#6:1][#9:2]", CString))))
+        .where(
+            RDKitReactions.reaction.op("@>")(func.reaction_from_smarts(cast("[#6:1].[#9:2]>>[#6:1][#9:2]", CString)))
+        )
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 79  # One reaction has a BYPRODUCT outcome, so no reaction SMILES.
@@ -109,7 +111,9 @@ def test_reaction_smarts_operator(test_session):
 
 def test_reaction_matches_smarts(test_session):
     query = (
-        select(Mappers.Reaction).join(RDKitReactions).where(RDKitReactions.matches_smarts("[#6:1].[#9:2]>>[#6:1][#9:2]"))
+        select(Mappers.Reaction)
+        .join(RDKitReactions)
+        .where(RDKitReactions.matches_smarts("[#6:1].[#9:2]>>[#6:1][#9:2]"))
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 79  # One reaction has a BYPRODUCT outcome, so no reaction SMILES.
