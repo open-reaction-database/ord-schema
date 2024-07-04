@@ -118,7 +118,7 @@ from sqlalchemy import create_engine
 
 from ord_schema.orm.database import prepare_database
 
-connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+connection_string = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
 engine = create_engine(connection_string, future=True)
 prepare_database(engine)
 ```
@@ -135,11 +135,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from ord_schema.message_helpers import fetch_dataset
-from ord_schema.orm.database import add_dataset, add_rdkit
+from ord_schema.orm.database import add_dataset
 
 dataset = fetch_dataset("ord_dataset-fc83743b978f4deea7d6856deacbfe53")
 
-connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+connection_string = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
 engine = create_engine(connection_string, future=True)
 with Session(engine) as session:
     add_dataset(dataset, session)
@@ -177,7 +177,7 @@ from sqlalchemy.orm import Session
 from ord_schema.orm.mappers import Mappers
 from ord_schema.proto import reaction_pb2
 
-connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+connection_string = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
 engine = create_engine(connection_string, future=True)
 with Session(engine) as session:
     query = (
@@ -202,18 +202,18 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from ord_schema.orm.mappers import Mappers
-from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMol
+from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMols
 from ord_schema.proto import reaction_pb2
 
-connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
+connection_string = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
 engine = create_engine(connection_string, future=True)
 with Session(engine) as session:
     query = (
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .join(RDKitMol)
-        .where(RDKitMol.tanimoto("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP) > 0.5)
+        .join(RDKitMols)
+        .where(RDKitMols.tanimoto("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP) > 0.5)
     )
     results = session.execute(query)
     reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
