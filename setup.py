@@ -46,7 +46,7 @@ setuptools.setup(
         "pygithub>=1.51",
         "python-dateutil>=1.10.0",
         "rdkit>=2021.9.5",
-        "sqlalchemy>=1.4.39",
+        "sqlalchemy>=2",
     ],
     extras_require={
         "docs": [
