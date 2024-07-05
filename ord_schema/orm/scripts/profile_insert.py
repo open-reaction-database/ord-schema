@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 
 from ord_schema.logging import get_logger
 from ord_schema.message_helpers import load_message
-from ord_schema.orm.database import add_dataset, update_rdkit_ids, update_rdkit_tables
+from ord_schema.orm.database import add_dataset
 from ord_schema.orm.testing import get_test_engine
 from ord_schema.proto import dataset_pb2
 
@@ -48,10 +48,6 @@ def main(**kwargs):
                 logger.debug(f"load_message() took {time.time() - start:g}s")
                 with session.begin():
                     add_dataset(dataset, session)
-                with session.begin():
-                    update_rdkit_tables(dataset.dataset_id, session)
-                with session.begin():
-                    update_rdkit_ids(dataset.dataset_id, session)
 
 
 if __name__ == "__main__":
