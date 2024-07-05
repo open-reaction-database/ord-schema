@@ -62,7 +62,7 @@ def add_dataset(filename: str, url: str, overwrite: bool) -> None:
     Raises:
         ValueError: If the dataset already exists in the database and `overwrite` is not set.
     """
-    logger.info(f"Loading {filename}")
+    logger.debug(f"Loading {filename}")
     dataset = load_message(filename, dataset_pb2.Dataset)
     engine = create_engine(url, future=True)
     with Session(engine) as session:
@@ -73,11 +73,11 @@ def add_dataset(filename: str, url: str, overwrite: bool) -> None:
             if this_md5 != dataset_md5:
                 if not overwrite:
                     raise ValueError(f"`overwrite` is required when a dataset already exists: {dataset.dataset_id}")
-                logger.info(f"existing dataset {dataset.dataset_id} changed; updating")
+                logger.debug(f"existing dataset {dataset.dataset_id} changed; updating")
                 with session.begin():
                     database.delete_dataset(dataset.dataset_id, session)
             else:
-                logger.info(f"existing dataset {dataset.dataset_id} unchanged; skipping")
+                logger.debug(f"existing dataset {dataset.dataset_id} unchanged; skipping")
                 return
         with session.begin():
             database.add_dataset(dataset, session)
@@ -100,7 +100,7 @@ def main(**kwargs):
             port=int(kwargs["--port"]),
         )
     function = partial(add_dataset, url=url, overwrite=kwargs["--overwrite"])
-    filenames = glob(kwargs["--pattern"])
+    filenames = sorted(glob(kwargs["--pattern"]))
     with ProcessPoolExecutor(max_workers=int(kwargs["--n_jobs"])) as executor:
         for _ in tqdm(executor.map(function, filenames), total=len(filenames)):
             pass  # Must iterate over results to raise exceptions.
