@@ -20,7 +20,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from ord_schema.message_helpers import load_message
-from ord_schema.orm.database import add_dataset, update_rdkit_ids, update_rdkit_tables
+from ord_schema.orm.database import add_dataset
 from ord_schema.orm.testing import get_test_engine
 from ord_schema.proto import dataset_pb2
 
@@ -36,11 +36,6 @@ def test_session_fixture() -> Iterator[Session]:
         with Session(engine) as session:
             for dataset in datasets:
                 with session.begin():
-                    add_dataset(dataset, session)
-                if rdkit_cartridge:
-                    with session.begin():
-                        update_rdkit_tables(dataset.dataset_id, session)
-                    with session.begin():
-                        update_rdkit_ids(dataset.dataset_id, session)
+                    add_dataset(dataset, session, rdkit_cartridge=rdkit_cartridge)
         with Session(engine) as session:
             yield session

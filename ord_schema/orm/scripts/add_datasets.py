@@ -81,10 +81,6 @@ def add_dataset(filename: str, url: str, overwrite: bool) -> None:
                 return
         with session.begin():
             database.add_dataset(dataset, session)
-        with session.begin():
-            database.update_rdkit_tables(dataset.dataset_id, session)
-        with session.begin():
-            database.update_rdkit_ids(dataset.dataset_id, session)
 
 
 def main(**kwargs):

@@ -70,13 +70,18 @@ def prepare_database(engine: Engine) -> bool:
     return rdkit_cartridge
 
 
-def add_dataset(dataset: dataset_pb2.Dataset, session: Session) -> None:
+def add_dataset(dataset: dataset_pb2.Dataset, session: Session, rdkit_cartridge: bool = True) -> None:
     """Adds a dataset to the database."""
     logger.debug(f"Adding dataset {dataset.dataset_id}")
     start = time.time()
     mapped_dataset = from_proto(dataset)
     logger.debug(f"from_proto() took {time.time() - start:g}s")
     session.add(mapped_dataset)
+    if rdkit_cartridge:
+        session.flush()
+        update_rdkit_tables(dataset.dataset_id, session)
+        session.flush()
+        update_rdkit_ids(dataset.dataset_id, session)
 
 
 def get_dataset_md5(dataset_id: str, session: Session) -> str | None:
