@@ -177,18 +177,20 @@ def build_mapper(  # pylint: disable=too-many-branches
         # Serialize and store the entire Reaction proto.
         attrs["proto"] = Column(LargeBinary, nullable=False)
         attrs["reaction_smiles"] = Column(Text, index=True)
-        attrs["rdkit_reaction_id"] = Column(Integer, ForeignKey("rdkit.reactions.id"))
+        attrs["rdkit_reaction_id"] = Column(Integer, ForeignKey("rdkit.reactions.id"), index=True)
         attrs["rdkit_reaction"] = relationship("RDKitReactions")
     elif message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
         attrs["smiles"] = Column(Text, index=True)
-        attrs["rdkit_mol_id"] = Column(Integer, ForeignKey("rdkit.mols.id"))
+        attrs["rdkit_mol_id"] = Column(Integer, ForeignKey("rdkit.mols.id"), index=True)
         attrs["rdkit_mol"] = relationship("RDKitMols")
     elif message_type in {reaction_pb2.CompoundPreparation, reaction_pb2.CrudeComponent}:
         # Add foreign key to reaction.reaction_id.
         kwargs = {}
         if message_type == reaction_pb2.CrudeComponent:
             kwargs["nullable"] = False
-        attrs["reaction_id"] = Column(Text, ForeignKey("ord.reaction.reaction_id", ondelete="CASCADE"), **kwargs)
+        attrs["reaction_id"] = Column(
+            Text, ForeignKey("ord.reaction.reaction_id", ondelete="CASCADE"), index=True, **kwargs
+        )
     logger.debug(f"Creating mapper {message_type.DESCRIPTOR.name}: {attrs}")
     mapper_class = type(message_type.DESCRIPTOR.name, (Base,), attrs)
     # Create polymorphic child classes.
@@ -203,7 +205,7 @@ def build_mapper(  # pylint: disable=too-many-branches
             # NOTE(skearnes): We are not enforcing unique constraints on this column; see the module docstring.
             f"{foreign_table_name}_id": mapper_class.__table__.c.get(
                 f"{foreign_table_name}_id",
-                Column(Integer, ForeignKey(foreign_key, ondelete="CASCADE")),
+                Column(Integer, ForeignKey(foreign_key, ondelete="CASCADE"), index=True),
             ),
             "parent": relationship(parent_type.DESCRIPTOR.name, back_populates=field_name, uselist=False),
         }

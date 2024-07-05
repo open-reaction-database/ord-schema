@@ -53,7 +53,7 @@ class Mass(Base):
     # Some attributes are defined by `Base`:
     # __tablename__ = "mass"
     # id = Column(Integer, primary_key=True)
-    amount_id = Column(Integer, ForeignKey("amount.id", ondelete="CASCADE"), nullable=False, unique=True)
+    amount_id = Column(Integer, ForeignKey("amount.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     value = Column(Float)
     precision = Column(Float)
