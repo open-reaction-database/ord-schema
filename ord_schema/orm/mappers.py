@@ -99,7 +99,7 @@ def build_mappers() -> dict[Type[Message], Type]:
     Returns:
         Dict mapping protocol buffer message types to mapper classes.
     """
-    logger.info("Building ORM mappers")
+    logger.debug("Building ORM mappers")
     mappers = {}
     parents = get_parents(dataset_pb2.Dataset)
     for message_type in sorted(parents, key=lambda x: x.DESCRIPTOR.name):

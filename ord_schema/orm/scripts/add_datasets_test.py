@@ -18,17 +18,18 @@ import os
 import docopt
 import pytest
 
-from ord_schema.orm.database import prepare_database
 from ord_schema.orm.scripts import add_datasets
+from ord_schema.orm.testing import get_test_engine
 
 
-def test_main(test_engine):
-    if not prepare_database(test_engine):
-        pytest.skip("RDKit cartridge is required")
-    argv = [
-        "--url",
-        test_engine.url,
-        "--pattern",
-        os.path.join(os.path.dirname(__file__), "..", "testdata", "ord-nielsen-example.pbtxt"),
-    ]
-    add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))
+def test_main():
+    with get_test_engine() as (engine, rdkit_cartridge):
+        if not rdkit_cartridge:
+            pytest.skip("RDKit cartridge is required")
+        argv = [
+            "--url",
+            engine.url,
+            "--pattern",
+            os.path.join(os.path.dirname(__file__), "..", "testdata", "ord-nielsen-example.pbtxt"),
+        ]
+        add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))

@@ -47,6 +47,7 @@ setuptools.setup(
         "python-dateutil>=1.10.0",
         "rdkit>=2021.9.5",
         "sqlalchemy>=2",
+        "tqdm>=4.61.2",
     ],
     extras_require={
         "docs": [
@@ -61,7 +62,6 @@ setuptools.setup(
             "matplotlib>=3.3.4",
             "scikit-learn>=0.24.1",
             "tensorflow>=2.4.1",
-            "tqdm>=4.61.2",
             "wget>=3.2",
         ],
         "tests": [

@@ -70,20 +70,13 @@ def prepare_database(engine: Engine) -> bool:
     return rdkit_cartridge
 
 
-def add_dataset(dataset: dataset_pb2.Dataset, session: Session, rdkit_cartridge: bool = True) -> None:
+def add_dataset(dataset: dataset_pb2.Dataset, session: Session) -> None:
     """Adds a dataset to the database."""
-    logger.info(f"Adding dataset {dataset.dataset_id}")
+    logger.debug(f"Adding dataset {dataset.dataset_id}")
     start = time.time()
     mapped_dataset = from_proto(dataset)
-    logger.info(f"from_proto() took {time.time() - start:g}s")
-    start = time.time()
+    logger.debug(f"from_proto() took {time.time() - start:g}s")
     session.add(mapped_dataset)
-    logger.info(f"session.add() took {time.time() - start:g}s")
-    if rdkit_cartridge:
-        session.flush()
-        update_rdkit_tables(dataset.dataset_id, session)
-        session.flush()
-        update_rdkit_ids(dataset.dataset_id, session)
 
 
 def get_dataset_md5(dataset_id: str, session: Session) -> str | None:
@@ -104,10 +97,10 @@ def get_dataset_size(dataset_id: str, session: Session) -> int:
 
 def delete_dataset(dataset_id: str, session: Session) -> None:
     """Deletes a dataset from the database."""
-    logger.info(f"Deleting dataset {dataset_id}")
+    logger.debug(f"Deleting dataset {dataset_id}")
     start = time.time()
     session.execute(delete(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset_id))
-    logger.info(f"delete took {time.time() - start}s")
+    logger.debug(f"delete took {time.time() - start}s")
 
 
 def update_rdkit_tables(dataset_id: str, session: Session) -> None:
@@ -118,7 +111,7 @@ def update_rdkit_tables(dataset_id: str, session: Session) -> None:
 
 def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
     """Updates the RDKit reactions table."""
-    logger.info("Updating RDKit reactions")
+    logger.debug("Updating RDKit reactions")
     assert hasattr(RDKitReactions, "__table__")  # Type hint.
     table = RDKitReactions.__table__
     start = time.time()
@@ -138,12 +131,12 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
         .where(table.c.reaction.is_(None))
         .values(reaction=func.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
     )
-    logger.info(f"Updating reactions took {time.time() - start:g}s")
+    logger.debug(f"Updating reactions took {time.time() - start:g}s")
 
 
 def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     """Updates the RDKit mols table."""
-    logger.info("Updating RDKit mols")
+    logger.debug("Updating RDKit mols")
     assert hasattr(RDKitMols, "__table__")  # Type hint.
     table = RDKitMols.__table__
     start = time.time()
@@ -182,8 +175,8 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     session.execute(
         update(table).where(table.c.mol.is_(None)).values(mol=func.mol_from_smiles(cast(table.c.smiles, CString)))
     )
-    logger.info(f"Updating mols took {time.time() - start:g}s")
-    logger.info("Updating fingerprints")
+    logger.debug(f"Updating mols took {time.time() - start:g}s")
+    logger.debug("Updating fingerprints")
     for fp_type in FingerprintType:
         start = time.time()
         column = fp_type.name.lower()
@@ -192,12 +185,12 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
             .where(getattr(table.c, column).is_(None), table.c.mol.is_not(None))
             .values(**{column: fp_type(table.c.mol)})
         )
-        logger.info(f"Updating {fp_type} took {time.time() - start:g}s")
+        logger.debug(f"Updating {fp_type} took {time.time() - start:g}s")
 
 
 def update_rdkit_ids(dataset_id: str, session: Session) -> None:
     """Updates RDKit reaction and mol ID associations in the ORD tables."""
-    logger.info("Updating RDKit ID associations")
+    logger.debug("Updating RDKit ID associations")
     start = time.time()
     # Update Reaction.
     query = session.execute(
@@ -236,4 +229,4 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
     for ord_id, rdkit_id in query.fetchall():
         updates.append({"id": ord_id, "rdkit_mol_id": rdkit_id})
     session.execute(update(Mappers.ProductCompound), updates)
-    logger.info(f"Updating RDKit IDs took {time.time() - start:g}s")
+    logger.debug(f"Updating RDKit IDs took {time.time() - start:g}s")
