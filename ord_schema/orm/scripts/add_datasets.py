@@ -39,6 +39,7 @@ from docopt import docopt
 from rdkit import RDLogger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+from tenacity import retry, stop_after_attempt
 from tqdm import tqdm
 
 from ord_schema.logging import get_logger
@@ -49,6 +50,7 @@ from ord_schema.proto import dataset_pb2
 logger = get_logger(__name__)
 
 
+@retry(stop=stop_after_attempt(3))
 def add_dataset(filename: str, url: str, overwrite: bool) -> None:
     """Adds a single dataset to the database.
 
