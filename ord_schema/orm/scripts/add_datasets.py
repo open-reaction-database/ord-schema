@@ -30,8 +30,7 @@ Options:
     --n_jobs=<int>          Number of parallel workers [default: 1]
 """
 import os
-from concurrent.futures import ProcessPoolExecutor
-from functools import partial
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from glob import glob
 from hashlib import md5
 
@@ -39,7 +38,6 @@ from docopt import docopt
 from rdkit import RDLogger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from tenacity import retry, stop_after_attempt
 from tqdm import tqdm
 
 from ord_schema.logging import get_logger
@@ -50,21 +48,27 @@ from ord_schema.proto import dataset_pb2
 logger = get_logger(__name__)
 
 
-@retry(stop=stop_after_attempt(3))
-def add_dataset(filename: str, url: str, overwrite: bool) -> None:
+def initializer():
+    """Initializer for child processes."""
+    # See https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
+    engine.dispose(close=False)
+
+
+def add_dataset(filename: str, overwrite: bool) -> str:
     """Adds a single dataset to the database.
 
     Args:
         filename: Dataset filename.
-        url: Database connection string.
         overwrite: If True, update the dataset if the MD5 hash has changed.
+
+    Returns:
+        Dataset ID.
 
     Raises:
         ValueError: If the dataset already exists in the database and `overwrite` is not set.
     """
     logger.debug(f"Loading {filename}")
     dataset = load_message(filename, dataset_pb2.Dataset)
-    engine = create_engine(url, future=True)
     with Session(engine) as session:
         with session.begin():
             dataset_md5 = database.get_dataset_md5(dataset.dataset_id, session)
@@ -78,9 +82,19 @@ def add_dataset(filename: str, url: str, overwrite: bool) -> None:
                     database.delete_dataset(dataset.dataset_id, session)
             else:
                 logger.debug(f"existing dataset {dataset.dataset_id} unchanged; skipping")
-                return
+                return dataset.dataset_id
         with session.begin():
             database.add_dataset(dataset, session)
+    return dataset.dataset_id
+
+
+def add_rdkit(dataset_id: str) -> None:
+    """Updates RDKit tables."""
+    with Session(engine) as session:
+        with session.begin():
+            database.update_rdkit_tables(dataset_id, session)
+        with session.begin():
+            database.update_rdkit_ids(dataset_id, session)
 
 
 def main(**kwargs):
@@ -95,11 +109,34 @@ def main(**kwargs):
             host=kwargs["--host"],
             port=int(kwargs["--port"]),
         )
-    function = partial(add_dataset, url=url, overwrite=kwargs["--overwrite"])
+    global engine
+    engine = create_engine(url)
     filenames = sorted(glob(kwargs["--pattern"]))
-    with ProcessPoolExecutor(max_workers=int(kwargs["--n_jobs"])) as executor:
-        for _ in tqdm(executor.map(function, filenames), total=len(filenames)):
-            pass  # Must iterate over results to raise exceptions.
+    with ProcessPoolExecutor(initializer=initializer, max_workers=int(kwargs["--n_jobs"])) as executor:
+        logger.info("Adding datasets")
+        futures = {}
+        for filename in filenames:
+            future = executor.submit(add_dataset, filename=filename, overwrite=kwargs["--overwrite"])
+            futures[future] = filename
+        dataset_ids = []
+        failures = []
+        for future in tqdm(as_completed(futures), total=len(futures)):
+            try:
+                dataset_ids.append(future.result())
+            except Exception as error:
+                failures.append((futures[future], error))
+        logger.info("Adding RDKit functionality")
+        futures = {}
+        for dataset_id in dataset_ids:
+            future = executor.submit(add_rdkit, dataset_id=dataset_id)
+            futures[future] = dataset_id
+        for future in tqdm(as_completed(futures), total=len(futures)):
+            try:
+                future.result()
+            except Exception as error:
+                failures.append((futures[future], error))
+        if failures:
+            raise ValueError(failures)
 
 
 if __name__ == "__main__":

@@ -47,7 +47,6 @@ setuptools.setup(
         "python-dateutil>=1.10.0",
         "rdkit>=2021.9.5",
         "sqlalchemy>=2",
-        "tenacity>=8.5.0",
         "tqdm>=4.61.2",
     ],
     extras_require={
