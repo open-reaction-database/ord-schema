@@ -195,7 +195,7 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
         BEGIN;
         SET LOCAL max_parallel_workers_per_gather=8;
         SET LOCAL parallel_tuple_cost=0.01;
-        CREATE TEMPORARY TABLE new_mols ON COMMIT DROP AS 
+        EXPLAIN ANALYZE VERBOSE CREATE TEMPORARY TABLE new_mols ON COMMIT DROP AS 
             SELECT id, mol_from_smiles(smiles::cstring) AS new_mol
             FROM rdkit.mols
             WHERE mol IS NULL;

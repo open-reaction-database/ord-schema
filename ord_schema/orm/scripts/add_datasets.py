@@ -112,7 +112,7 @@ def main(**kwargs):
             port=int(kwargs["--port"]),
         )
     global engine  # pylint: disable=global-statement
-    engine = create_engine(url)
+    engine = create_engine(url, echo=True)
     filenames = sorted(glob(kwargs["--pattern"]))
     with ProcessPoolExecutor(initializer=initializer, max_workers=int(kwargs["--n_jobs"])) as executor:
         logger.info("Adding datasets")
