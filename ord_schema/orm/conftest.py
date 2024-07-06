@@ -47,7 +47,7 @@ def test_session_fixture(test_engine) -> Iterator[Session]:
     rdkit_cartridge = prepare_database(test_engine)
     with Session(test_engine) as session:
         for dataset in datasets:
-            add_dataset(dataset, session, rdkit_cartridge=rdkit_cartridge)
-            session.commit()
+            with session.begin():
+                add_dataset(dataset, session, rdkit_cartridge=rdkit_cartridge)
     with Session(test_engine) as session:
         yield session
