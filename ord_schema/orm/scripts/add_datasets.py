@@ -37,6 +37,7 @@ from hashlib import md5
 from docopt import docopt
 from rdkit import RDLogger
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
@@ -45,6 +46,7 @@ from ord_schema.message_helpers import load_message
 from ord_schema.orm import database
 from ord_schema.proto import dataset_pb2
 
+engine: Engine = None
 logger = get_logger(__name__)
 
 
@@ -109,7 +111,7 @@ def main(**kwargs):
             host=kwargs["--host"],
             port=int(kwargs["--port"]),
         )
-    global engine
+    global engine  # pylint: disable=global-statement
     engine = create_engine(url)
     filenames = sorted(glob(kwargs["--pattern"]))
     with ProcessPoolExecutor(initializer=initializer, max_workers=int(kwargs["--n_jobs"])) as executor:
@@ -123,8 +125,10 @@ def main(**kwargs):
         for future in tqdm(as_completed(futures), total=len(futures)):
             try:
                 dataset_ids.append(future.result())
-            except Exception as error:
-                failures.append((futures[future], error))
+            except Exception as error:  # pylint: disable=broad-exception-caught
+                filename = futures[future]
+                failures.append((filename, error))
+                logger.error(f"Adding dataset {filename} failed: {error}")
         logger.info("Adding RDKit functionality")
         futures = {}
         for dataset_id in dataset_ids:
@@ -133,8 +137,10 @@ def main(**kwargs):
         for future in tqdm(as_completed(futures), total=len(futures)):
             try:
                 future.result()
-            except Exception as error:
-                failures.append((futures[future], error))
+            except Exception as error:  # pylint: disable=broad-exception-caught
+                dataset_id = futures[future]
+                failures.append((dataset_id, error))
+                logger.error(f"Adding RDKit functionality for {dataset_id} failed: {error}")
         if failures:
             raise ValueError(failures)
 
