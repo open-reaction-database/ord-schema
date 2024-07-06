@@ -86,7 +86,7 @@ def add_dataset(filename: str, overwrite: bool) -> str:
                 logger.debug(f"existing dataset {dataset.dataset_id} unchanged; skipping")
                 return dataset.dataset_id
         with session.begin():
-            database.add_dataset(dataset, session)
+            database.add_dataset(dataset, session, rdkit_cartridge=False)  # Do this separately in add_rdkit().
     return dataset.dataset_id
 
 
