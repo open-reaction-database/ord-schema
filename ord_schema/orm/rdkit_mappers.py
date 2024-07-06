@@ -136,12 +136,9 @@ class RDKitMols(Base):
     morgan_sfp = Column(RDKitSfp)
 
     __table_args__ = (
-        # NOTE(skearnes): Updating these indexes is very slow, so we use CREATE INDEX CONCURRENTLY in prepare_database
-        # instead. See https://www.postgresql.org/docs/current/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY.
-        #
-        # Index("mol_index", "mol", postgresql_using="gist"),
-        # Index("morgan_bfp_index", "morgan_bfp", postgresql_using="gist"),
-        # Index("morgan_sfp_index", "morgan_sfp", postgresql_using="gist"),
+        Index("mol_index", "mol", postgresql_using="gist"),
+        Index("morgan_bfp_index", "morgan_bfp", postgresql_using="gist"),
+        Index("morgan_sfp_index", "morgan_sfp", postgresql_using="gist"),
         {"schema": "rdkit"},
     )
 
@@ -167,10 +164,7 @@ class RDKitReactions(Base):
     reaction = Column(RDKitReaction)
 
     __table_args__ = (
-        # NOTE(skearnes): Updating these indexes is very slow, so we use CREATE INDEX CONCURRENTLY in prepare_database
-        # instead. See https://www.postgresql.org/docs/current/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY.
-        #
-        # Index("reaction_index", "reaction", postgresql_using="gist"),
+        Index("reaction_index", "reaction", postgresql_using="gist"),
         {"schema": "rdkit"},
     )
 
