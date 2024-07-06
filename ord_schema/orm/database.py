@@ -13,7 +13,6 @@
 # limitations under the License.
 
 """Functions for creating/managing the PostgreSQL database."""
-import logging
 import os
 import time
 from unittest.mock import patch
@@ -29,7 +28,7 @@ from ord_schema.orm.mappers import Base, Mappers, from_proto
 from ord_schema.orm.rdkit_mappers import CString, FingerprintType, RDKitMols, RDKitReactions
 from ord_schema.proto import dataset_pb2
 
-logger = get_logger(__name__, level=logging.DEBUG)
+logger = get_logger(__name__)
 
 
 def get_connection_string(

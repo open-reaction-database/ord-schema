@@ -130,10 +130,15 @@ def main(**kwargs):
                 failures.append(filename)
                 logger.error(f"Adding dataset {filename} failed: {error}")
         logger.info("Adding RDKit functionality")
-        for dataset_id in tqdm(dataset_ids):
+        futures = {}
+        for dataset_id in dataset_ids:
+            future = executor.submit(add_rdkit, dataset_id=dataset_id)
+            futures[future] = dataset_id
+        for future in tqdm(as_completed(futures), total=len(futures)):
             try:
-                add_rdkit(dataset_id)  # NOTE(skearnes): Do this serially to avoid deadlocks.
+                future.result()
             except Exception as error:  # pylint: disable=broad-exception-caught
+                dataset_id = futures[future]
                 failures.append(dataset_id)
                 logger.error(f"Adding RDKit functionality for {dataset_id} failed: {error}")
         if failures:
