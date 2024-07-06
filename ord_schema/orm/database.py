@@ -131,12 +131,19 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
         )
         .on_conflict_do_nothing(index_elements=["reaction_smiles"])
     )
-    session.execute(
-        update(table)
-        .where(table.c.reaction.is_(None))
-        .values(reaction=func.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
-    )
-    logger.debug(f"Updating reactions took {time.time() - start:g}s")
+    logger.debug(f"Updating reaction SMILES took {time.time() - start:g}s")
+    start = time.time()
+    session.execute(text("""
+        UPDATE rdkit.reactions
+        SET reaction=subquery.reaction
+        FROM (
+            SELECT id, reaction_from_smiles(reaction_smiles::cstring) AS reaction
+            FROM rdkit.reactions
+            WHERE reaction IS NULL
+        ) AS subquery
+        WHERE rdkit.reactions.id = subquery.id
+    """))
+    logger.debug(f"reaction_from_smiles took {time.time() - start:g}s")
 
 
 def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
@@ -145,7 +152,7 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     assert hasattr(RDKitMols, "__table__")  # Type hint.
     table = RDKitMols.__table__
     start = time.time()
-    # NOTE(skearnes): This join path will not include non-input compounds like workups, internal standards, etc.
+    # NOTE(skearnes): This join path does not include non-input compounds like workups, internal standards, etc.
     session.execute(
         insert(table)
         .from_select(
@@ -177,10 +184,19 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
         )
         .on_conflict_do_nothing(index_elements=["smiles"])
     )
-    session.execute(
-        update(table).where(table.c.mol.is_(None)).values(mol=func.mol_from_smiles(cast(table.c.smiles, CString)))
-    )
-    logger.debug(f"Updating mols took {time.time() - start:g}s")
+    logger.debug(f"Updating SMILES took {time.time() - start:g}s")
+    start = time.time()
+    session.execute(text("""
+        UPDATE rdkit.mols
+        SET mol=subquery.mol
+        FROM (
+            SELECT id, mol_from_smiles(smiles::cstring) AS mol
+            FROM rdkit.mols
+            WHERE mol IS NULL
+        ) AS subquery
+        WHERE rdkit.mols.id = subquery.id
+    """))
+    logger.debug(f"mol_from_smiles took {time.time() - start:g}s")
     logger.debug("Updating fingerprints")
     for fp_type in FingerprintType:
         start = time.time()
@@ -190,7 +206,7 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
             .where(getattr(table.c, column).is_(None), table.c.mol.is_not(None))
             .values(**{column: fp_type(table.c.mol)})
         )
-        logger.debug(f"Updating {fp_type} took {time.time() - start:g}s")
+        logger.debug(f"{fp_type} took {time.time() - start:g}s")
 
 
 def update_rdkit_ids(dataset_id: str, session: Session) -> None:
