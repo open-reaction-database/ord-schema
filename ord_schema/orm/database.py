@@ -135,9 +135,9 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
     start = time.time()
     session.execute(text("""
         UPDATE rdkit.reactions
-        SET reaction=subquery.reaction
+        SET reaction=subquery.new_reaction
         FROM (
-            SELECT id, reaction_from_smiles(reaction_smiles::cstring) AS reaction
+            SELECT id, reaction_from_smiles(reaction_smiles::cstring) AS new_reaction
             FROM rdkit.reactions
             WHERE reaction IS NULL
         ) AS subquery
@@ -188,9 +188,9 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     start = time.time()
     session.execute(text("""
         UPDATE rdkit.mols
-        SET mol=subquery.mol
+        SET mol=subquery.new_mol
         FROM (
-            SELECT id, mol_from_smiles(smiles::cstring) AS mol
+            SELECT id, mol_from_smiles(smiles::cstring) AS new_mol
             FROM rdkit.mols
             WHERE mol IS NULL
         ) AS subquery
