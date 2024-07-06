@@ -135,14 +135,18 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
     logger.debug(f"Updating reaction SMILES took {time.time() - start:g}s")
     start = time.time()
     session.execute(text("""
-        UPDATE rdkit.reactions
-        SET reaction=subquery.new_reaction
-        FROM (
+        BEGIN;
+        SET LOCAL max_parallel_workers_per_gather=8;
+        SET LOCAL parallel_tuple_cost=0.01;
+        CREATE TEMPORARY TABLE new_reactions ON COMMIT DROP AS 
             SELECT id, reaction_from_smiles(reaction_smiles::cstring) AS new_reaction
             FROM rdkit.reactions
-            WHERE reaction IS NULL
-        ) AS subquery
-        WHERE rdkit.reactions.id = subquery.id
+            WHERE reaction IS NULL;
+        UPDATE rdkit.reactions
+            SET reaction = new_reactions.new_reaction
+            FROM new_reactions
+            WHERE rdkit.reactions.id = new_reactions.id;
+        COMMIT;
     """))
     logger.debug(f"reaction_from_smiles took {time.time() - start:g}s")
 
@@ -188,14 +192,18 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     logger.debug(f"Updating SMILES took {time.time() - start:g}s")
     start = time.time()
     session.execute(text("""
-        UPDATE rdkit.mols
-        SET mol=subquery.new_mol
-        FROM (
+        BEGIN;
+        SET LOCAL max_parallel_workers_per_gather=8;
+        SET LOCAL parallel_tuple_cost=0.01;
+        CREATE TEMPORARY TABLE new_mols ON COMMIT DROP AS 
             SELECT id, mol_from_smiles(smiles::cstring) AS new_mol
             FROM rdkit.mols
-            WHERE mol IS NULL
-        ) AS subquery
-        WHERE rdkit.mols.id = subquery.id
+            WHERE mol IS NULL;
+        UPDATE rdkit.mols
+            SET mol = new_mols.new_mol
+            FROM new_mols
+            WHERE rdkit.mols.id = new_mols.id;
+        COMMIT;
     """))
     logger.debug(f"mol_from_smiles took {time.time() - start:g}s")
     logger.debug("Updating fingerprints")
