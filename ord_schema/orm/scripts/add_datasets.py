@@ -115,31 +115,22 @@ def main(**kwargs):
     engine = create_engine(url)
     filenames = sorted(glob(kwargs["--pattern"]))
     with ProcessPoolExecutor(initializer=initializer, max_workers=int(kwargs["--n_jobs"])) as executor:
-        logger.info("Adding datasets")
         futures = {}
         for filename in filenames:
             future = executor.submit(add_dataset, filename=filename, overwrite=kwargs["--overwrite"])
             futures[future] = filename
-        dataset_ids = []
         failures = []
         for future in tqdm(as_completed(futures), total=len(futures)):
             try:
-                dataset_ids.append(future.result())
+                dataset_id = future.result()
             except Exception as error:  # pylint: disable=broad-exception-caught
                 filename = futures[future]
-                failures.append((filename, error))
+                failures.append(filename)
                 logger.error(f"Adding dataset {filename} failed: {error}")
-        logger.info("Adding RDKit functionality")
-        futures = {}
-        for dataset_id in dataset_ids:
-            future = executor.submit(add_rdkit, dataset_id=dataset_id)
-            futures[future] = dataset_id
-        for future in tqdm(as_completed(futures), total=len(futures)):
             try:
-                future.result()
+                add_rdkit(dataset_id)  # NOTE(skearnes): Do this serially to avoid deadlocks.
             except Exception as error:  # pylint: disable=broad-exception-caught
-                dataset_id = futures[future]
-                failures.append((dataset_id, error))
+                failures.append(dataset_id)
                 logger.error(f"Adding RDKit functionality for {dataset_id} failed: {error}")
         if failures:
             raise ValueError(failures)
