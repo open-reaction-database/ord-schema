@@ -70,10 +70,12 @@ def prepare_database(engine: Engine) -> bool:
     if rdkit_cartridge:
         # See https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#indexes-with-concurrently.
         with engine.connect() as connection, connection.execution_options(isolation_level="AUTOCOMMIT"):
-            connection.execute(text("CREATE INDEX CONCURRENTLY mol_index ON rdkit.mols USING GIST(mol)"))
-            connection.execute(text("CREATE INDEX CONCURRENTLY morgan_bfp_index ON rdkit.mols USING GIST(morgan_bfp)"))
-            connection.execute(text("CREATE INDEX CONCURRENTLY morgan_sfp_index ON rdkit.mols USING GIST(morgan_sfp)"))
-            connection.execute(text("CREATE INDEX CONCURRENTLY reaction_index ON rdkit.reactions USING GIST(reaction)"))
+            connection.execute(text("CREATE INDEX CONCURRENTLY mol_index ON rdkit.mols USING GIST (mol)"))
+            connection.execute(text("CREATE INDEX CONCURRENTLY morgan_bfp_index ON rdkit.mols USING GIST (morgan_bfp)"))
+            connection.execute(text("CREATE INDEX CONCURRENTLY morgan_sfp_index ON rdkit.mols USING GIST (morgan_sfp)"))
+            connection.execute(
+                text("CREATE INDEX CONCURRENTLY reaction_index ON rdkit.reactions USING GIST (reaction)")
+            )
     return rdkit_cartridge
 
 
