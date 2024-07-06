@@ -68,6 +68,13 @@ def prepare_database(engine: Engine) -> bool:
         rdkit_cartridge = False
     with patch.dict(os.environ, {"ORD_POSTGRES_RDKIT": "1" if rdkit_cartridge else "0"}):
         Base.metadata.create_all(engine)
+    if rdkit_cartridge:
+        # See https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#indexes-with-concurrently.
+        with engine.connect() as connection, connection.execution_options(isolation_level='AUTOCOMMIT'):
+            connection.execute(text("CREATE INDEX CONCURRENTLY mol_index ON rdkit.mols USING GIST(mol)"))
+            connection.execute(text("CREATE INDEX CONCURRENTLY morgan_bfp_index ON rdkit.mols USING GIST(morgan_bfp)"))
+            connection.execute(text("CREATE INDEX CONCURRENTLY morgan_sfp_index ON rdkit.mols USING GIST(morgan_sfp)"))
+            connection.execute(text("CREATE INDEX CONCURRENTLY reaction_index ON rdkit.reactions USING GIST(reaction)"))
     return rdkit_cartridge
 
 
@@ -134,20 +141,11 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
     )
     logger.debug(f"Updating reaction SMILES took {time.time() - start:g}s")
     start = time.time()
-    session.execute(text("""
-        BEGIN;
-        SET LOCAL max_parallel_workers_per_gather=8;
-        SET LOCAL parallel_tuple_cost=0.01;
-        CREATE TEMPORARY TABLE new_reactions ON COMMIT DROP AS 
-            SELECT id, reaction_from_smiles(reaction_smiles::cstring) AS new_reaction
-            FROM rdkit.reactions
-            WHERE reaction IS NULL;
-        UPDATE rdkit.reactions
-            SET reaction = new_reactions.new_reaction
-            FROM new_reactions
-            WHERE rdkit.reactions.id = new_reactions.id;
-        COMMIT;
-    """))
+    session.execute(
+        update(table)
+        .where(table.c.reaction.is_(None))
+        .values(reaction=func.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
+    )
     logger.debug(f"reaction_from_smiles took {time.time() - start:g}s")
 
 
@@ -191,20 +189,9 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     )
     logger.debug(f"Updating SMILES took {time.time() - start:g}s")
     start = time.time()
-    session.execute(text("""
-        BEGIN;
-        SET LOCAL max_parallel_workers_per_gather=8;
-        SET LOCAL parallel_tuple_cost=0.01;
-        EXPLAIN ANALYZE VERBOSE CREATE TEMPORARY TABLE new_mols ON COMMIT DROP AS 
-            SELECT id, mol_from_smiles(smiles::cstring) AS new_mol
-            FROM rdkit.mols
-            WHERE mol IS NULL;
-        UPDATE rdkit.mols
-            SET mol = new_mols.new_mol
-            FROM new_mols
-            WHERE rdkit.mols.id = new_mols.id;
-        COMMIT;
-    """))
+    session.execute(
+        update(table).where(table.c.mol.is_(None)).values(mol=func.mol_from_smiles(cast(table.c.smiles, CString)))
+    )
     logger.debug(f"mol_from_smiles took {time.time() - start:g}s")
     logger.debug("Updating fingerprints")
     for fp_type in FingerprintType:
