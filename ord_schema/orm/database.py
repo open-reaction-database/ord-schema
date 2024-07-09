@@ -110,6 +110,7 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
 
 def update_rdkit_tables(dataset_id: str, session: Session) -> None:
     """Updates RDKit PostgreSQL cartridge data."""
+    logger.debug(f"Updating RDKit tables for {dataset_id=}")
     _update_rdkit_reactions(dataset_id, session)
     _update_rdkit_mols(dataset_id, session)
 
@@ -117,84 +118,93 @@ def update_rdkit_tables(dataset_id: str, session: Session) -> None:
 def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
     """Updates the RDKit reactions table."""
     logger.debug("Updating RDKit reactions")
-    assert hasattr(RDKitReactions, "__table__")  # Type hint.
-    table = RDKitReactions.__table__
     start = time.time()
+    session.execute(text("CREATE TEMPORARY TABLE temp_reactions (LIKE rdkit.reactions INCLUDING DEFAULTS)"))
+    result = session.execute(
+        text(
+            """
+            INSERT INTO temp_reactions (reaction_smiles)
+            SELECT reaction_smiles
+                FROM ord.reaction
+                JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                WHERE ord.dataset.dataset_id = :dataset_id
+            EXCEPT
+            SELECT reaction_smiles
+                FROM rdkit.reactions
+            """
+        ),
+        {"dataset_id": dataset_id},
+    )
+    session.execute(text("UPDATE temp_reactions SET reaction = reaction_from_smiles(reaction_smiles::cstring)"))
     session.execute(
-        insert(table)
-        .from_select(
-            ["reaction_smiles"],
-            select(Mappers.Reaction.reaction_smiles)
-            .join(Mappers.Dataset)
-            .where(Mappers.Dataset.dataset_id == dataset_id, Mappers.Reaction.reaction_smiles.is_not(None))
-            .distinct(),
+        text(
+            """
+            INSERT INTO rdkit.reactions (reaction_smiles, reaction)
+            SELECT reaction_smiles, reaction
+                FROM temp_reactions
+            ON CONFLICT (reaction_smiles) DO NOTHING
+            """
         )
-        .on_conflict_do_nothing(index_elements=["reaction_smiles"])
     )
-    logger.debug(f"Updating reaction SMILES took {time.time() - start:g}s")
-    start = time.time()
-    session.execute(
-        update(table)
-        .where(table.c.reaction.is_(None))
-        .values(reaction=func.reaction_from_smiles(cast(table.c.reaction_smiles, CString)))
-    )
-    logger.debug(f"reaction_from_smiles took {time.time() - start:g}s")
+    session.execute(text("DROP TABLE temp_reactions"))
+    logger.debug(f"Updating reactions took {time.time() - start:g}s ({result.rowcount} rows)")
 
 
 def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     """Updates the RDKit mols table."""
     logger.debug("Updating RDKit mols")
     assert hasattr(RDKitMols, "__table__")  # Type hint.
-    table = RDKitMols.__table__
     start = time.time()
+    session.execute(text("CREATE TEMPORARY TABLE temp_mols (LIKE rdkit.mols INCLUDING DEFAULTS)"))
     # NOTE(skearnes): This join path does not include non-input compounds like workups, internal standards, etc.
-    session.execute(
-        insert(table)
-        .from_select(
-            ["smiles"],
-            select(Mappers.Compound.smiles)
-            .join(Mappers.ReactionInput)
-            .join(Mappers.Reaction)
-            .join(Mappers.Dataset)
-            .where(
-                Mappers.Dataset.dataset_id == dataset_id,
-                Mappers.Compound.smiles.is_not(None),
-                # See https://github.com/open-reaction-database/ord-schema/issues/672.
-                Mappers.Compound.smiles.not_like("%[Ti+5]%"),
+    result = session.execute(
+        text(
+            """
+            INSERT INTO temp_mols (smiles)
+            (
+                SELECT smiles
+                    FROM ord.compound
+                    JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
+                    JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
+                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                    WHERE ord.dataset.dataset_id = :dataset_id
+                UNION
+                SELECT smiles
+                    FROM ord.product_compound
+                    JOIN ord.reaction_outcome ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
+                    JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
+                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
             )
-            .distinct(),
+            EXCEPT
+            SELECT smiles
+                FROM rdkit.mols
+            """
+        ),
+        {"dataset_id": dataset_id},
+    )
+    session.execute(text("UPDATE temp_mols SET mol = mol_from_smiles(smiles::cstring)"))
+    session.execute(
+        text(
+            """
+            UPDATE temp_mols
+            SET morgan_bfp = morganbv_fp(mol),
+                morgan_sfp = morgan_fp(mol)
+            WHERE mol IS NOT NULL
+            """
         )
-        .on_conflict_do_nothing(index_elements=["smiles"])
     )
     session.execute(
-        insert(table)
-        .from_select(
-            ["smiles"],
-            select(Mappers.ProductCompound.smiles)
-            .join(Mappers.ReactionOutcome)
-            .join(Mappers.Reaction)
-            .join(Mappers.Dataset)
-            .where(Mappers.Dataset.dataset_id == dataset_id, Mappers.ProductCompound.smiles.is_not(None))
-            .distinct(),
+        text(
+            """
+            INSERT INTO rdkit.mols (smiles, mol, morgan_bfp, morgan_sfp)
+            SELECT smiles, mol, morgan_bfp, morgan_sfp
+                FROM temp_mols
+            ON CONFLICT (smiles) DO NOTHING
+            """
         )
-        .on_conflict_do_nothing(index_elements=["smiles"])
     )
-    logger.debug(f"Updating SMILES took {time.time() - start:g}s")
-    start = time.time()
-    session.execute(
-        update(table).where(table.c.mol.is_(None)).values(mol=func.mol_from_smiles(cast(table.c.smiles, CString)))
-    )
-    logger.debug(f"mol_from_smiles took {time.time() - start:g}s")
-    logger.debug("Updating fingerprints")
-    for fp_type in FingerprintType:
-        start = time.time()
-        column = fp_type.name.lower()
-        session.execute(
-            update(table)
-            .where(getattr(table.c, column).is_(None), table.c.mol.is_not(None))
-            .values(**{column: fp_type(table.c.mol)})
-        )
-        logger.debug(f"{fp_type} took {time.time() - start:g}s")
+    session.execute(text("DROP TABLE temp_mols"))
+    logger.debug(f"Updating mols took {time.time() - start:g}s ({result.rowcount} rows)")
 
 
 def update_rdkit_ids(dataset_id: str, session: Session) -> None:
