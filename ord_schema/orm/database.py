@@ -117,35 +117,23 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
     """Updates the RDKit reactions table."""
     logger.debug("Updating RDKit reactions")
     start = time.time()
-    session.execute(text("CREATE TEMPORARY TABLE temp_reactions (LIKE rdkit.reactions INCLUDING DEFAULTS)"))
     result = session.execute(
         text(
             """
-            INSERT INTO temp_reactions (reaction_smiles)
-            SELECT reaction_smiles
-                FROM ord.reaction
-                JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                WHERE ord.dataset.dataset_id = :dataset_id
-                  AND ord.reaction.rdkit_reaction_id IS NULL
-            EXCEPT
-            SELECT reaction_smiles
-                FROM rdkit.reactions
+            INSERT INTO rdkit.reactions (reaction_smiles, reaction)
+            SELECT reaction_smiles, reaction_from_smiles(reaction_smiles::cstring)
+            FROM (
+                SELECT reaction_smiles
+                    FROM ord.reaction
+                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                    WHERE ord.dataset.dataset_id = :dataset_id
+                      AND ord.reaction.rdkit_reaction_id IS NULL
+                EXCEPT SELECT reaction_smiles FROM rdkit.reactions
+            ) subquery
             """
         ),
         {"dataset_id": dataset_id},
     )
-    session.execute(text("UPDATE temp_reactions SET reaction = reaction_from_smiles(reaction_smiles::cstring)"))
-    session.execute(
-        text(
-            """
-            INSERT INTO rdkit.reactions (reaction_smiles, reaction)
-            SELECT reaction_smiles, reaction
-                FROM temp_reactions
-            ON CONFLICT (reaction_smiles) DO NOTHING
-            """
-        )
-    )
-    session.execute(text("DROP TABLE temp_reactions"))
     logger.debug(f"Updating reactions took {time.time() - start:g}s ({result.rowcount} rows)")
 
 
@@ -158,7 +146,8 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
         text(
             """
             INSERT INTO temp_mols (smiles)
-            SELECT smiles FROM (
+            SELECT smiles 
+            FROM (
                 (
                     SELECT smiles
                         -- NOTE(skearnes): This join path does not include non-input compounds like workups, 
