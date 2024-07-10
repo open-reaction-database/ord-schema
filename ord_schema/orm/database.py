@@ -216,40 +216,60 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
     logger.debug("Updating RDKit ID associations")
     start = time.time()
     # Update Reaction.
-    query = session.execute(
-        select(Mappers.Reaction.id, RDKitReactions.id)
-        .join(RDKitReactions, Mappers.Reaction.reaction_smiles == RDKitReactions.reaction_smiles)
-        .join(Mappers.Dataset)
-        .where(Mappers.Dataset.dataset_id == dataset_id)
+    session.execute(
+        text(
+            """
+            UPDATE ord.reaction
+            SET rdkit_reaction_id = subquery.rdkit_reaction_id
+            FROM (
+                SELECT ord.reaction.id, rdkit.reactions.id AS rdkit_reaction_id
+                    FROM ord.reaction
+                    JOIN rdkit.reactions USING (reaction_smiles)
+                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                    WHERE ord.dataset.dataset_id = :dataset_id
+            ) AS subquery
+            WHERE ord.reaction.id = subquery.id
+            """
+        ),
+        {"dataset_id": dataset_id},
     )
-    updates = []
-    for ord_id, rdkit_id in query.fetchall():
-        updates.append({"id": ord_id, "rdkit_reaction_id": rdkit_id})
-    session.execute(update(Mappers.Reaction), updates)
     # Update Compound.
-    query = session.execute(
-        select(Mappers.Compound.id, RDKitMols.id)
-        .join(RDKitMols, Mappers.Compound.smiles == RDKitMols.smiles)
-        .join(Mappers.ReactionInput)
-        .join(Mappers.Reaction)
-        .join(Mappers.Dataset)
-        .where(Mappers.Dataset.dataset_id == dataset_id)
+    session.execute(
+        text(
+            """
+            UPDATE ord.compound
+            SET rdkit_mol_id = subquery.rdkit_mol_id
+            FROM (
+                SELECT ord.compound.id, rdkit.mols.id AS rdkit_mol_id
+                    FROM ord.compound
+                    JOIN rdkit.mols USING (smiles)
+                    JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
+                    JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
+                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                    WHERE ord.dataset.dataset_id = :dataset_id
+            ) AS subquery
+            WHERE ord.compound.id = subquery.id
+            """
+        ),
+        {"dataset_id": dataset_id},
     )
-    updates = []
-    for ord_id, rdkit_id in query.fetchall():
-        updates.append({"id": ord_id, "rdkit_mol_id": rdkit_id})
-    session.execute(update(Mappers.Compound), updates)
-    # Update ProductCompound.
-    query = session.execute(
-        select(Mappers.ProductCompound.id, RDKitMols.id)
-        .join(RDKitMols, Mappers.ProductCompound.smiles == RDKitMols.smiles)
-        .join(Mappers.ReactionOutcome)
-        .join(Mappers.Reaction)
-        .join(Mappers.Dataset)
-        .where(Mappers.Dataset.dataset_id == dataset_id)
+    session.execute(
+        text(
+            """
+            UPDATE ord.product_compound
+            SET rdkit_mol_id = subquery.rdkit_mol_id
+            FROM (
+                SELECT ord.product_compound.id, rdkit.mols.id AS rdkit_mol_id
+                    FROM ord.product_compound
+                    JOIN rdkit.mols USING (smiles)
+                    JOIN ord.reaction_outcome ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
+                    JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
+                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                    WHERE ord.dataset.dataset_id = :dataset_id
+            ) AS subquery
+            WHERE ord.product_compound.id = subquery.id
+            """
+        ),
+        {"dataset_id": dataset_id},
     )
-    updates = []
-    for ord_id, rdkit_id in query.fetchall():
-        updates.append({"id": ord_id, "rdkit_mol_id": rdkit_id})
-    session.execute(update(Mappers.ProductCompound), updates)
     logger.debug(f"Updating RDKit IDs took {time.time() - start:g}s")
