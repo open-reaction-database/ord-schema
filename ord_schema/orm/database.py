@@ -156,7 +156,6 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     assert hasattr(RDKitMols, "__table__")  # Type hint.
     start = time.time()
     session.execute(text("CREATE TEMPORARY TABLE temp_mols (LIKE rdkit.mols INCLUDING DEFAULTS)"))
-    # NOTE(skearnes): This join path does not include non-input compounds like workups, internal standards, etc.
     result = session.execute(
         text(
             """
@@ -164,6 +163,8 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
             SELECT smiles FROM (
                 (
                     SELECT smiles
+                        -- NOTE(skearnes): This join path does not include non-input compounds like workups, 
+                        -- internal standards, etc.
                         FROM ord.compound
                         JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
                         JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
