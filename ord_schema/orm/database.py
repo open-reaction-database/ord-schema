@@ -224,6 +224,7 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
                     JOIN rdkit.reactions USING (reaction_smiles)
                     JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
                     WHERE ord.dataset.dataset_id = :dataset_id
+                      AND ord.reaction.rdkit_reaction_id IS NULL
             ) AS subquery
             WHERE ord.reaction.id = subquery.id
             """
@@ -244,6 +245,7 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
                     JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
                     JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
                     WHERE ord.dataset.dataset_id = :dataset_id
+                      AND ord.compound.rdkit_mol_id IS NULL
             ) AS subquery
             WHERE ord.compound.id = subquery.id
             """
@@ -263,6 +265,7 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
                     JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
                     JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
                     WHERE ord.dataset.dataset_id = :dataset_id
+                      AND ord.product_compound.rdkit_mol_id IS NULL
             ) AS subquery
             WHERE ord.product_compound.id = subquery.id
             """
