@@ -128,7 +128,9 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
                     JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
                     WHERE ord.dataset.dataset_id = :dataset_id
                       AND ord.reaction.rdkit_reaction_id IS NULL
-                EXCEPT SELECT reaction_smiles FROM rdkit.reactions
+                EXCEPT 
+                SELECT reaction_smiles
+                    FROM rdkit.reactions
             ) subquery
             """
         ),
@@ -148,26 +150,26 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
             INSERT INTO temp_mols (smiles)
             SELECT smiles 
             FROM (
-                (
-                    SELECT smiles
-                        -- NOTE(skearnes): This join path does not include non-input compounds like workups, 
-                        -- internal standards, etc.
-                        FROM ord.compound
-                        JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
-                        JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
-                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                        WHERE ord.dataset.dataset_id = :dataset_id
-                          AND ord.compound.rdkit_mol_id IS NULL
-                    UNION
-                    SELECT smiles
-                        FROM ord.product_compound
-                        JOIN ord.reaction_outcome ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
-                        JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
-                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                        WHERE ord.dataset.dataset_id = :dataset_id
-                          AND ord.product_compound.rdkit_mol_id IS NULL
-                )
-                EXCEPT SELECT smiles FROM rdkit.mols
+                SELECT smiles
+                    -- NOTE(skearnes): This join path does not include non-input compounds like workups, 
+                    -- internal standards, etc.
+                    FROM ord.compound
+                    JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
+                    JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
+                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                    WHERE ord.dataset.dataset_id = :dataset_id
+                      AND ord.compound.rdkit_mol_id IS NULL
+                UNION
+                SELECT smiles
+                    FROM ord.product_compound
+                    JOIN ord.reaction_outcome ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
+                    JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
+                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                    WHERE ord.dataset.dataset_id = :dataset_id
+                      AND ord.product_compound.rdkit_mol_id IS NULL
+                EXCEPT
+                SELECT smiles
+                    FROM rdkit.mols
             ) subquery
             -- See https://github.com/open-reaction-database/ord-schema/issues/672.
             WHERE smiles NOT LIKE '%[Ti+5]%'
