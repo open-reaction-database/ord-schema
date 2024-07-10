@@ -161,23 +161,26 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
         text(
             """
             INSERT INTO temp_mols (smiles)
-            (
-                SELECT smiles
-                    FROM ord.compound
-                    JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
-                    JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
-                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                    WHERE ord.dataset.dataset_id = :dataset_id
-                UNION
-                SELECT smiles
-                    FROM ord.product_compound
-                    JOIN ord.reaction_outcome ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
-                    JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
-                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-            )
-            EXCEPT
-            SELECT smiles
-                FROM rdkit.mols
+            SELECT smiles FROM (
+                (
+                    SELECT smiles
+                        FROM ord.compound
+                        JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
+                        JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
+                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                        WHERE ord.dataset.dataset_id = :dataset_id
+                    UNION
+                    SELECT smiles
+                        FROM ord.product_compound
+                        JOIN ord.reaction_outcome ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
+                        JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
+                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                        WHERE ord.dataset.dataset_id = :dataset_id
+                )
+                EXCEPT SELECT smiles FROM rdkit.mols
+            ) subquery
+            -- See https://github.com/open-reaction-database/ord-schema/issues/672.
+            WHERE smiles NOT LIKE '%[Ti+5]%'
             """
         ),
         {"dataset_id": dataset_id},
