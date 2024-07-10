@@ -17,15 +17,13 @@ import os
 import time
 from unittest.mock import patch
 
-from sqlalchemy import cast, delete, func, select, text, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import delete, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NotSupportedError, OperationalError
 from sqlalchemy.orm import Session
 
 from ord_schema.logging import get_logger
 from ord_schema.orm.mappers import Base, Mappers, from_proto
-from ord_schema.orm.rdkit_mappers import CString, FingerprintType, RDKitMols, RDKitReactions
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
@@ -153,7 +151,6 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
 def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     """Updates the RDKit mols table."""
     logger.debug("Updating RDKit mols")
-    assert hasattr(RDKitMols, "__table__")  # Type hint.
     start = time.time()
     session.execute(text("CREATE TEMPORARY TABLE temp_mols (LIKE rdkit.mols INCLUDING DEFAULTS)"))
     result = session.execute(
