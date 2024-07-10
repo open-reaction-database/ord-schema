@@ -151,7 +151,7 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
             FROM (
                 SELECT smiles, mol, morganbv_fp(mol) AS morgan_bfp, morgan_fp(mol) AS morgan_sfp
                 FROM (
-                    SELECT smiles, mol_from_smiles(smiles::cstring)
+                    SELECT smiles, mol_from_smiles(smiles::cstring) AS mol
                     FROM (
                         SELECT smiles
                             -- NOTE(skearnes): This join path does not include non-input compounds like workups, 
