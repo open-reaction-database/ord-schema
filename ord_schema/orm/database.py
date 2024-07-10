@@ -143,62 +143,46 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     """Updates the RDKit mols table."""
     logger.debug("Updating RDKit mols")
     start = time.time()
-    session.execute(text("CREATE TEMPORARY TABLE temp_mols (LIKE rdkit.mols INCLUDING DEFAULTS)"))
     result = session.execute(
-        text(
-            """
-            INSERT INTO temp_mols (smiles)
-            SELECT smiles 
-            FROM (
-                SELECT smiles
-                    -- NOTE(skearnes): This join path does not include non-input compounds like workups, 
-                    -- internal standards, etc.
-                    FROM ord.compound
-                    JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
-                    JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
-                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                    WHERE ord.dataset.dataset_id = :dataset_id
-                      AND ord.compound.rdkit_mol_id IS NULL
-                UNION
-                SELECT smiles
-                    FROM ord.product_compound
-                    JOIN ord.reaction_outcome ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
-                    JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
-                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                    WHERE ord.dataset.dataset_id = :dataset_id
-                      AND ord.product_compound.rdkit_mol_id IS NULL
-                EXCEPT
-                SELECT smiles
-                    FROM rdkit.mols
-            ) subquery
-            -- See https://github.com/open-reaction-database/ord-schema/issues/672.
-            WHERE smiles NOT LIKE '%[Ti+5]%'
-            """
-        ),
-        {"dataset_id": dataset_id},
-    )
-    session.execute(text("UPDATE temp_mols SET mol = mol_from_smiles(smiles::cstring)"))
-    session.execute(
-        text(
-            """
-            UPDATE temp_mols
-            SET morgan_bfp = morganbv_fp(mol),
-                morgan_sfp = morgan_fp(mol)
-            WHERE mol IS NOT NULL
-            """
-        )
-    )
-    session.execute(
         text(
             """
             INSERT INTO rdkit.mols (smiles, mol, morgan_bfp, morgan_sfp)
             SELECT smiles, mol, morgan_bfp, morgan_sfp
-                FROM temp_mols
+            FROM (
+                SELECT smiles, mol, morganbv_fp(mol) AS morgan_bfp, morgan_fp(mol) AS morgan_sfp
+                FROM (
+                    SELECT smiles, mol_from_smiles(smiles::cstring)
+                    FROM (
+                        SELECT smiles
+                            -- NOTE(skearnes): This join path does not include non-input compounds like workups, 
+                            -- internal standards, etc.
+                            FROM ord.compound
+                            JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
+                            JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
+                            JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                            WHERE ord.dataset.dataset_id = :dataset_id
+                              AND ord.compound.rdkit_mol_id IS NULL
+                        UNION
+                        SELECT smiles
+                            FROM ord.product_compound
+                            JOIN ord.reaction_outcome ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
+                            JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
+                            JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                            WHERE ord.dataset.dataset_id = :dataset_id
+                              AND ord.product_compound.rdkit_mol_id IS NULL
+                        EXCEPT
+                        SELECT smiles
+                            FROM rdkit.mols
+                    ) smiles_subquery
+                    -- See https://github.com/open-reaction-database/ord-schema/issues/672.
+                    WHERE smiles NOT LIKE '%[Ti+5]%'
+                ) mol_subquery
+            )
             ON CONFLICT (smiles) DO NOTHING
             """
-        )
+        ),
+        {"dataset_id": dataset_id},
     )
-    session.execute(text("DROP TABLE temp_mols"))
     logger.debug(f"Updating mols took {time.time() - start:g}s ({result.rowcount} rows)")
 
 
