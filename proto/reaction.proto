@@ -157,7 +157,6 @@ message ReactionInput {
 	  PISTON_PUMP = 8;
 	  SYRINGE_PUMP = 9;
 	  PERISTALTIC_PUMP = 10;
-	  OTHER_PUMP;
     }
     AdditionDeviceType type = 1;
     // Specify, e.g., "gas-tight" for SYRINGE or cannula material.
