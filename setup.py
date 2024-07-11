@@ -20,7 +20,7 @@ with open("README.md") as f:
 
 setuptools.setup(
     name="ord-schema",
-    version="0.3.84",
+    version="0.3.85",
     description="Schema for the Open Reaction Database",
     long_description=long_description,
     long_description_content_type="text/markdown",
