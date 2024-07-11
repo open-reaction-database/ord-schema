@@ -28,7 +28,9 @@ Options:
     --host=<str>            Database host [default: localhost]
     --port=<int>            Database port [default: 5432]
     --n_jobs=<int>          Number of parallel workers [default: 1]
+    --debug                 Enable debug logging.
 """
+import logging
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from glob import glob
@@ -101,7 +103,9 @@ def add_rdkit(dataset_id: str) -> None:
 
 def main(**kwargs):
     RDLogger.DisableLog("rdApp.*")
-    if kwargs.get("--url"):
+    if kwargs["--debug"]:
+        get_logger(database.__name__, level=logging.DEBUG)
+    if kwargs["--url"]:
         url = kwargs["--url"]
     else:
         url = database.get_connection_string(
