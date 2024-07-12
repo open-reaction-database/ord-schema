@@ -14,7 +14,7 @@
 """Creates a Dataset by enumerating a template with a spreadsheet.
 
 Usage:
-    dataset_templating.py --name=<str> --description=<str> --template=<str> --spreadsheet=<str> --output=<str> [--no-validate]
+    dataset_templating.py --name=<str> --description=<str> --template=<str> --spreadsheet=<str> --output=<str> [options]
 
 Options:
     --name=<str>            Dataset name
