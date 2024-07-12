@@ -113,10 +113,14 @@ def _fill_template(string: str, substitutions: Mapping[str, ord_schema.ScalarTyp
     return reaction
 
 
-def generate_dataset(template_string: str, df: pd.DataFrame, validate: bool = True) -> dataset_pb2.Dataset:
+def generate_dataset(
+    name: str, description: str, template_string: str, df: pd.DataFrame, validate: bool = True
+) -> dataset_pb2.Dataset:
     """Generates a Dataset by enumerating a template reaction.
 
     Args:
+        name: Dataset name.
+        description: Dataset description.
         template_string: The contents of a Reaction pbtxt where placeholder
             values to be replaced are defined between dollar signs. For example,
             a SMILES identifier value could be "$product_smiles$". PLaceholders
@@ -156,4 +160,4 @@ def generate_dataset(template_string: str, df: pd.DataFrame, validate: bool = Tr
                 raise ValueError(f"Enumerated Reaction is not valid: {output.errors}")
         reactions.append(reaction)
 
-    return dataset_pb2.Dataset(reactions=reactions)
+    return dataset_pb2.Dataset(name=name, description=description, reactions=reactions)

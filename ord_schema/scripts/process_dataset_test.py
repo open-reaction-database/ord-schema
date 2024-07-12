@@ -48,6 +48,8 @@ class TestProcessDataset:
         reaction1.provenance.record_created.person.username = "test"
         reaction1.provenance.record_created.person.email = "test@example.com"
         dataset1 = dataset_pb2.Dataset(
+            name="test1",
+            description="test1",
             dataset_id="ord_dataset-00000000000000000000000000000000",
             reactions=[reaction1],
         )
@@ -55,7 +57,7 @@ class TestProcessDataset:
         message_helpers.write_message(dataset1, dataset1_filename)
         # reaction2 is empty.
         reaction2 = reaction_pb2.Reaction()
-        dataset2 = dataset_pb2.Dataset(reactions=[reaction1, reaction2])
+        dataset2 = dataset_pb2.Dataset(name="test2", description="test2", reactions=[reaction1, reaction2])
         dataset2_filename = (tmp_path / "dataset2.pb").as_posix()
         message_helpers.write_message(dataset2, dataset2_filename)
         yield dataset1_filename, dataset2_filename
@@ -140,7 +142,7 @@ class TestSubmissionWorkflow:
         reaction.provenance.record_created.person.email = "test@example.com"
         reaction.reaction_id = "ord-10aed8b5dffe41fab09f5b2cc9c58ad9"
         dataset_id = "ord_dataset-64b14868c5cd46dd8e75560fd3589a6b"
-        dataset = dataset_pb2.Dataset(reactions=[reaction], dataset_id=dataset_id)
+        dataset = dataset_pb2.Dataset(name="test", description="test", reactions=[reaction], dataset_id=dataset_id)
         # Make sure the initial dataset is valid.
         validations.validate_message(dataset)
         os.makedirs(os.path.join("data", "64"))
@@ -213,7 +215,7 @@ class TestSubmissionWorkflow:
         reaction.provenance.record_created.person.username = "test"
         reaction.provenance.record_created.person.email = "test@example.com"
         reaction.reaction_id = "test"
-        dataset = dataset_pb2.Dataset(reactions=[reaction])
+        dataset = dataset_pb2.Dataset(name="test", description="test", reactions=[reaction])
         this_dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
         message_helpers.write_message(dataset, this_dataset_filename)
         added, removed, changed, filenames = self._run(test_subdirectory)
@@ -246,14 +248,14 @@ class TestSubmissionWorkflow:
         reaction.provenance.record_created.person.username = "test2"
         reaction.provenance.record_created.person.email = "test2@example.com"
         reaction.reaction_id = "test1"
-        dataset1 = dataset_pb2.Dataset(reactions=[reaction])
+        dataset1 = dataset_pb2.Dataset(name="test1", description="test1", reactions=[reaction])
         dataset1_filename = os.path.join(test_subdirectory, "test1.pbtxt")
         message_helpers.write_message(dataset1, dataset1_filename)
         reaction.provenance.record_created.time.value = "2020-01-03"
         reaction.provenance.record_created.person.username = "test3"
         reaction.provenance.record_created.person.email = "test3@example.com"
         reaction.reaction_id = "test2"
-        dataset2 = dataset_pb2.Dataset(reactions=[reaction])
+        dataset2 = dataset_pb2.Dataset(name="test2", description="test2", reactions=[reaction])
         dataset2_filename = os.path.join(test_subdirectory, "test2.pbtxt")
         message_helpers.write_message(dataset2, dataset2_filename)
         added, removed, changed, filenames = self._run(test_subdirectory)
@@ -284,7 +286,7 @@ class TestSubmissionWorkflow:
         reaction.provenance.record_created.time.value = "2020-01-01"
         reaction.provenance.record_created.person.username = "test"
         reaction.provenance.record_created.person.email = "test@example.com"
-        dataset = dataset_pb2.Dataset(reactions=[reaction])
+        dataset = dataset_pb2.Dataset(name="test", description="test", reactions=[reaction])
         this_dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
         message_helpers.write_message(dataset, this_dataset_filename)
         added, removed, changed, filenames = self._run(test_subdirectory)
@@ -354,7 +356,7 @@ class TestSubmissionWorkflow:
         component.amount.moles.value = 2
         component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
         reaction.outcomes.add().conversion.value = 25
-        dataset = dataset_pb2.Dataset(reactions=[reaction])
+        dataset = dataset_pb2.Dataset(name="test", description="test", reactions=[reaction])
         dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
         message_helpers.write_message(dataset, dataset_filename)
         with pytest.raises(validations.ValidationError, match="could not validate SMILES"):
@@ -373,11 +375,11 @@ class TestSubmissionWorkflow:
         reaction.provenance.record_created.time.value = "2021-02-09"
         reaction.provenance.record_created.person.username = "bob"
         reaction.provenance.record_created.person.email = "bob@bob.com"
-        dataset1 = dataset_pb2.Dataset(reactions=[reaction])
+        dataset1 = dataset_pb2.Dataset(name="test1", description="test2", reactions=[reaction])
         dataset1_filename = os.path.join(test_subdirectory, "test1.pbtxt")
         message_helpers.write_message(dataset1, dataset1_filename)
         reaction.inputs["ethylamine"].components[0].identifiers[0].value = "#"
-        dataset2 = dataset_pb2.Dataset(reactions=[reaction])
+        dataset2 = dataset_pb2.Dataset(name="test2", description="test2", reactions=[reaction])
         dataset2_filename = os.path.join(test_subdirectory, "test2.pbtxt")
         message_helpers.write_message(dataset2, dataset2_filename)
         with pytest.raises(validations.ValidationError, match="could not validate SMILES"):
@@ -408,7 +410,7 @@ class TestSubmissionWorkflow:
         reaction.provenance.record_created.time.value = "2023-07-01"
         reaction.provenance.record_created.person.name = "test"
         reaction.provenance.record_created.person.email = "test@example.com"
-        dataset = dataset_pb2.Dataset(reactions=[reaction])
+        dataset = dataset_pb2.Dataset(name="test", description="test", reactions=[reaction])
         dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
         message_helpers.write_message(dataset, dataset_filename)
         with pytest.raises(ValueError, match="larger than --max_size"):

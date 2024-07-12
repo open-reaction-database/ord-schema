@@ -380,6 +380,10 @@ def validate_dataset(message: dataset_pb2.Dataset, options: Optional[ValidationO
     # pylint: disable=too-many-branches,too-many-nested-blocks
     if options is None:
         options = ValidationOptions()
+    if not message.name:
+        warnings.warn("Dataset name is required", ValidationError)
+    if not message.description:
+        warnings.warn("Dataset description is required", ValidationError)
     if not message.reactions and not message.reaction_ids:
         warnings.warn("Dataset requires reactions or reaction_ids", ValidationError)
     elif message.reactions and message.reaction_ids:
