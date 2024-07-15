@@ -69,9 +69,10 @@ def main(kwargs):
             try:
                 future.result()
             except validations.ValidationError as error:
-                failures.append((futures[future], error))
+                failures.append(f"{futures[future]}: {error}")
     if failures:
-        raise validations.ValidationError(f"Dataset(s) failed validation: {failures}")
+        text = "\n".join(failures)
+        raise validations.ValidationError(f"Dataset(s) failed validation:\n{text}")
 
 
 if __name__ == "__main__":
