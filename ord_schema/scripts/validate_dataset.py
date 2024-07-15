@@ -71,7 +71,7 @@ def main(kwargs):
             except validations.ValidationError as error:
                 failures.append((futures[future], error))
     if failures:
-        raise ValueError(f"Dataset(s) failed validation: {failures}")
+        raise validations.ValidationError(f"Dataset(s) failed validation: {failures}")
 
 
 if __name__ == "__main__":
