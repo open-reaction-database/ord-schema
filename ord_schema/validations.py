@@ -117,17 +117,12 @@ def _validate_datasets(
             num_bad_reactions += 1
         for error in reaction_output.errors:
             errors.append(error)
-            logger.warning(f"Validation error for {label}[{i}]: {error}")
-    num_successful = (len(dataset.reactions) - num_bad_reactions,)
-    logger.info(
-        f"Validation summary for {label}: {num_successful}/{len(dataset.reactions)} successful "
-        f"({num_bad_reactions} failures)"
-    )
+            logger.error(f"Validation error for {label}[{i}]: {error}")
     # Dataset-level validation of cross-references.
     dataset_output = validate_message(dataset, raise_on_error=False, recurse=False, options=options)
     for error in dataset_output.errors:
         errors.append(error)
-        logger.warning(f"Validation error for {label}: {error}")
+        logger.error(f"Validation error for {label}: {error}")
 
     return errors
 
