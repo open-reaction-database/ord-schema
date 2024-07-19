@@ -33,7 +33,7 @@ def get_connection_string(
     database: str, username: str, password: str, host: str = "localhost", port: int = 5432
 ) -> str:
     """Creates an SQLAlchemy connection string."""
-    return f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
+    return f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}?client_encoding=utf8"
 
 
 def prepare_database(engine: Engine) -> bool:
