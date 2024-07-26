@@ -102,6 +102,9 @@ class ReactionInput(_message.Message):
             ADDITION_FUNNEL: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
             PIPETTE: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
             POSITIVE_DISPLACEMENT_PIPETTE: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
+            PISTON_PUMP: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
+            SYRINGE_PUMP: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
+            PERISTALTIC_PUMP: _ClassVar[ReactionInput.AdditionDevice.AdditionDeviceType]
         UNSPECIFIED: ReactionInput.AdditionDevice.AdditionDeviceType
         CUSTOM: ReactionInput.AdditionDevice.AdditionDeviceType
         NONE: ReactionInput.AdditionDevice.AdditionDeviceType
@@ -110,6 +113,9 @@ class ReactionInput(_message.Message):
         ADDITION_FUNNEL: ReactionInput.AdditionDevice.AdditionDeviceType
         PIPETTE: ReactionInput.AdditionDevice.AdditionDeviceType
         POSITIVE_DISPLACEMENT_PIPETTE: ReactionInput.AdditionDevice.AdditionDeviceType
+        PISTON_PUMP: ReactionInput.AdditionDevice.AdditionDeviceType
+        SYRINGE_PUMP: ReactionInput.AdditionDevice.AdditionDeviceType
+        PERISTALTIC_PUMP: ReactionInput.AdditionDevice.AdditionDeviceType
         TYPE_FIELD_NUMBER: _ClassVar[int]
         DETAILS_FIELD_NUMBER: _ClassVar[int]
         type: ReactionInput.AdditionDevice.AdditionDeviceType
