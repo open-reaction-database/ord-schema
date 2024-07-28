@@ -26,7 +26,7 @@ from __future__ import annotations
 import os
 from enum import Enum
 
-from setuptools import distutils
+from setuptools import distutils  # pytype: disable=import-error
 from sqlalchemy import Column, Index, Integer, Text, cast, func
 from sqlalchemy.sql.expression import ColumnElement
 from sqlalchemy.types import UserDefinedType
