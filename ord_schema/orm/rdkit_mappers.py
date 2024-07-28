@@ -24,9 +24,9 @@ Notes:
 from __future__ import annotations
 
 import os
-from distutils.util import strtobool  # pylint: disable=deprecated-module
 from enum import Enum
 
+from setuptools import distutils
 from sqlalchemy import Column, Index, Integer, Text, cast, func
 from sqlalchemy.sql.expression import ColumnElement
 from sqlalchemy.types import UserDefinedType
@@ -36,7 +36,7 @@ from ord_schema.orm import Base
 
 def rdkit_cartridge() -> bool:
     """Returns whether to use RDKit PostgreSQL cartridge functionality."""
-    return bool(strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")))
+    return bool(distutils.util.strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")))
 
 
 class RDKitMol(UserDefinedType):
