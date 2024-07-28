@@ -34,8 +34,7 @@ jobs:
         shell: bash -l {0}
         run: |
           # NOTE(skearnes): conda is only used for postgres (not python).
-          # NOTE(skearnes): rdkit-postgresql may not be available for ARM.
-          conda install -c rdkit rdkit-postgresql || conda install -c conda-forge postgresql
+          conda install -c conda-forge rdkit-postgresql
           initdb
       - uses: actions/setup-python@v4
         with:
