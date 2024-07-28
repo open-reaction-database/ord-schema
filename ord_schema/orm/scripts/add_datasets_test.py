@@ -16,15 +16,13 @@
 import os
 
 import docopt
-import pytest
 
 from ord_schema.orm.database import prepare_database
 from ord_schema.orm.scripts import add_datasets
 
 
 def test_main(test_engine):
-    if not prepare_database(test_engine):
-        pytest.skip("RDKit cartridge is required")
+    assert prepare_database(test_engine)
     argv = [
         "--dsn",
         test_engine.url,
