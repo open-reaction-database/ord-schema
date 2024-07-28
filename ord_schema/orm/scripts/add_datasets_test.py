@@ -26,7 +26,7 @@ def test_main(test_engine):
     if not prepare_database(test_engine):
         pytest.skip("RDKit cartridge is required")
     argv = [
-        "--url",
+        "--dsn",
         test_engine.url,
         "--pattern",
         os.path.join(os.path.dirname(__file__), "..", "testdata", "ord-nielsen-example.pbtxt"),
