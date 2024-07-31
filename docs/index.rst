@@ -21,6 +21,7 @@ Quick links:
    * `Overview of the ORD <overview.html>`_
    * `Leadership <overview.html#leadership>`_
    * `Commitment to Open Access <overview.html#commitment-to-open-access>`_
+   * `Open Reaction Database YouTube Channel <http://www.youtube.com/@openreactiondatabase9685>`_
 
 We expect that this database will be the starting point for the development of
 best-in-class tools and models for reaction prediction and synthesis planning.
@@ -29,8 +30,6 @@ industry and academia (e.g., to reduce duplication or focus data generation on
 underrepresented areas).
 
 .. raw:: html
-
-   <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/UyHVwJUBDIk?start=3" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 .. toctree::
    :hidden:
