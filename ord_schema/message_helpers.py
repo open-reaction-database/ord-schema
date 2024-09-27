@@ -47,6 +47,7 @@ ORD_DATA_URL = "https://github.com/Open-Reaction-Database/ord-data/raw/main/"
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
 # pylint: disable=too-many-locals
+# pylint: disable=too-many-positional-arguments
 
 
 def build_compound(
