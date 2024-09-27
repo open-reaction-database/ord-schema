@@ -21,8 +21,6 @@ from sqlalchemy import cast, func, select
 from ord_schema.orm.mappers import Mappers
 from ord_schema.orm.rdkit_mappers import CString, FingerprintType, RDKitMol, RDKitMols, RDKitReactions
 
-pytestmark = pytest.mark.skipif(platform.machine() != "x86_64", reason="RDKit cartridge is required")
-
 
 def test_tanimoto_operator(test_session):
     query = (

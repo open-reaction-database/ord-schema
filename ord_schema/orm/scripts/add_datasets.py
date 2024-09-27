@@ -21,14 +21,16 @@ Usage:
 Options:
     --pattern=<str>         Pattern for dataset filenames
     --overwrite             Update changed datasets
-    --url=<str>             Postgres connection string
+    --dsn=<str>             Postgres connection string
     --database=<str>        Database [default: orm]
     --username=<str>        Database username [default: postgres]
     --password=<str>        Database password
     --host=<str>            Database host [default: localhost]
     --port=<int>            Database port [default: 5432]
     --n_jobs=<int>          Number of parallel workers [default: 1]
+    --debug                 Enable debug logging.
 """
+import logging
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from glob import glob
@@ -46,20 +48,14 @@ from ord_schema.message_helpers import load_message
 from ord_schema.orm import database
 from ord_schema.proto import dataset_pb2
 
-engine: Engine = None
 logger = get_logger(__name__)
 
 
-def initializer():
-    """Initializer for child processes."""
-    # See https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
-    engine.dispose(close=False)
-
-
-def add_dataset(filename: str, overwrite: bool) -> str:
+def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
     """Adds a single dataset to the database.
 
     Args:
+        dsn: Database connection string.
         filename: Dataset filename.
         overwrite: If True, update the dataset if the MD5 hash has changed.
 
@@ -71,6 +67,9 @@ def add_dataset(filename: str, overwrite: bool) -> str:
     """
     logger.debug(f"Loading {filename}")
     dataset = load_message(filename, dataset_pb2.Dataset)
+    # NOTE(skearnes): Multiprocessing is hard to get right for shared connection pools, so we don't even try; see
+    # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
+    engine = create_engine(dsn)
     with Session(engine) as session:
         with session.begin():
             dataset_md5 = database.get_dataset_md5(dataset.dataset_id, session)
@@ -90,7 +89,7 @@ def add_dataset(filename: str, overwrite: bool) -> str:
     return dataset.dataset_id
 
 
-def add_rdkit(dataset_id: str) -> None:
+def add_rdkit(engine: Engine, dataset_id: str) -> None:
     """Updates RDKit tables."""
     with Session(engine) as session:
         with session.begin():
@@ -101,24 +100,24 @@ def add_rdkit(dataset_id: str) -> None:
 
 def main(**kwargs):
     RDLogger.DisableLog("rdApp.*")
-    if kwargs.get("--url"):
-        url = kwargs["--url"]
+    if kwargs["--debug"]:
+        get_logger(database.__name__, level=logging.DEBUG)
+    if kwargs["--dsn"]:
+        dsn = kwargs["--dsn"]
     else:
-        url = database.get_connection_string(
+        dsn = database.get_connection_string(
             database=kwargs["--database"],
             username=kwargs["--username"],
             password=kwargs["--password"] or os.environ["PGPASSWORD"],
             host=kwargs["--host"],
             port=int(kwargs["--port"]),
         )
-    global engine  # pylint: disable=global-statement
-    engine = create_engine(url)
     filenames = sorted(glob(kwargs["--pattern"]))
-    with ProcessPoolExecutor(initializer=initializer, max_workers=int(kwargs["--n_jobs"])) as executor:
+    with ProcessPoolExecutor(max_workers=int(kwargs["--n_jobs"])) as executor:
         logger.info("Adding datasets")
         futures = {}
         for filename in filenames:
-            future = executor.submit(add_dataset, filename=filename, overwrite=kwargs["--overwrite"])
+            future = executor.submit(add_dataset, dsn=dsn, filename=filename, overwrite=kwargs["--overwrite"])
             futures[future] = filename
         dataset_ids = []
         failures = []
@@ -129,15 +128,16 @@ def main(**kwargs):
                 filename = futures[future]
                 failures.append(filename)
                 logger.error(f"Adding dataset {filename} failed: {error}")
-        logger.info("Adding RDKit functionality")
-        for dataset_id in tqdm(dataset_ids):
-            try:
-                add_rdkit(dataset_id)  # NOTE(skearnes): Do this serially to avoid deadlocks.
-            except Exception as error:  # pylint: disable=broad-exception-caught
-                failures.append(dataset_id)
-                logger.error(f"Adding RDKit functionality for {dataset_id} failed: {error}")
-        if failures:
-            raise RuntimeError(failures)
+    logger.info("Adding RDKit functionality")
+    engine = create_engine(dsn)
+    for dataset_id in tqdm(dataset_ids):
+        try:
+            add_rdkit(engine, dataset_id)  # NOTE(skearnes): Do this serially to avoid deadlocks.
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            failures.append(dataset_id)
+            logger.error(f"Adding RDKit functionality for {dataset_id} failed: {error}")
+    if failures:
+        raise RuntimeError(failures)
 
 
 if __name__ == "__main__":

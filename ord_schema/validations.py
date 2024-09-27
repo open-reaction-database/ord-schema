@@ -117,17 +117,12 @@ def _validate_datasets(
             num_bad_reactions += 1
         for error in reaction_output.errors:
             errors.append(error)
-            logger.warning(f"Validation error for {label}[{i}]: {error}")
-    num_successful = (len(dataset.reactions) - num_bad_reactions,)
-    logger.info(
-        f"Validation summary for {label}: {num_successful}/{len(dataset.reactions)} successful "
-        f"({num_bad_reactions} failures)"
-    )
+            logger.error(f"Validation error for {label}[{i}]: {error}")
     # Dataset-level validation of cross-references.
     dataset_output = validate_message(dataset, raise_on_error=False, recurse=False, options=options)
     for error in dataset_output.errors:
         errors.append(error)
-        logger.warning(f"Validation error for {label}: {error}")
+        logger.error(f"Validation error for {label}: {error}")
 
     return errors
 
@@ -380,6 +375,10 @@ def validate_dataset(message: dataset_pb2.Dataset, options: Optional[ValidationO
     # pylint: disable=too-many-branches,too-many-nested-blocks
     if options is None:
         options = ValidationOptions()
+    if not message.name:
+        warnings.warn("Dataset name is required", ValidationError)
+    if not message.description:
+        warnings.warn("Dataset description is required", ValidationError)
     if not message.reactions and not message.reaction_ids:
         warnings.warn("Dataset requires reactions or reaction_ids", ValidationError)
     elif message.reactions and message.reaction_ids:

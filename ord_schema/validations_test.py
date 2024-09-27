@@ -495,8 +495,22 @@ def test_data():
     assert len(output.warnings) == 0
 
 
+def test_dataset_missing_name():
+    message = dataset_pb2.Dataset()
+    options = validations.ValidationOptions(validate_ids=True)
+    with pytest.raises(validations.ValidationError, match="name is required"):
+        _run_validation(message, options=options)
+
+
+def test_dataset_missing_name():
+    message = dataset_pb2.Dataset()
+    options = validations.ValidationOptions(validate_ids=True)
+    with pytest.raises(validations.ValidationError, match="name is required"):
+        _run_validation(message, options=options)
+
+
 def test_dataset_bad_reaction_id():
-    message = dataset_pb2.Dataset(reaction_ids=["foo"])
+    message = dataset_pb2.Dataset(name="test", description="test", reaction_ids=["foo"])
     options = validations.ValidationOptions(validate_ids=True)
     with pytest.raises(validations.ValidationError, match="malformed"):
         _run_validation(message, options=options)
@@ -504,6 +518,8 @@ def test_dataset_bad_reaction_id():
 
 def test_dataset_records_and_ids():
     message = dataset_pb2.Dataset(
+        name="test",
+        description="test",
         reactions=[reaction_pb2.Reaction()],
         reaction_ids=["ord-c0bbd41f095a44a78b6221135961d809"],
     )
@@ -513,7 +529,9 @@ def test_dataset_records_and_ids():
 
 
 def test_dataset_bad_id():
-    message = dataset_pb2.Dataset(reactions=[reaction_pb2.Reaction()], dataset_id="foo")
+    message = dataset_pb2.Dataset(
+        name="test", description="test", reactions=[reaction_pb2.Reaction()], dataset_id="foo"
+    )
     options = validations.ValidationOptions(validate_ids=True)
     with pytest.raises(validations.ValidationError, match="malformed"):
         _run_validation(message, recurse=False, options=options)
@@ -537,8 +555,8 @@ def test_dataset_example():
     assert len(output.warnings) == 0
 
 
-def test_dataset_crossreferences():
-    message = dataset_pb2.Dataset()
+def test_dataset_cross_references():
+    message = dataset_pb2.Dataset(name="test", description="test")
     reaction1 = message.reactions.add()
     reaction2 = message.reactions.add()
     reaction3 = message.reactions.add()

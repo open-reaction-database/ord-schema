@@ -177,7 +177,7 @@ Advisory Board is:
 * Matthew Gaunt (Cambridge, SynTech)
 * Alex Godfrey (NCATS Consultant)
 * Mimi Hii (Imperial, ROAR)
-* Greg Landrum (T5 Informatics)
+* Greg Landrum (ETH Zurich)
 * Fabio Lima (Novartis)
 * Christos Nicolaou (Recursion)
 * Sarah Reisman (Caltech, `C-CAS <https://ccas.nd.edu/>`__)
