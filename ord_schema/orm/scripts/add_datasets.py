@@ -33,7 +33,8 @@ Options:
 import logging
 import os
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from contextlib import ExitStack
 from glob import glob
 from hashlib import md5
 
@@ -116,7 +117,12 @@ def main(**kwargs):
             port=int(kwargs["--port"]),
         )
     filenames = sorted(glob(kwargs["--pattern"]))
-    with ProcessPoolExecutor(max_workers=int(kwargs["--n_jobs"])) as executor:
+    with ExitStack() as stack:
+        max_workers = int(kwargs["--n_jobs"])
+        if max_workers > 1:
+            executor = stack.enter_context(ProcessPoolExecutor(max_workers))
+        else:
+            executor = stack.enter_context(ThreadPoolExecutor(max_workers))
         logger.info("Adding datasets")
         futures = {}
         for filename in filenames:
@@ -124,7 +130,7 @@ def main(**kwargs):
             futures[future] = filename
         dataset_ids = []
         failures = []
-        for future in tqdm(as_completed(futures), total=len(futures)):
+        for future in tqdm(as_completed(futures), desc="datasets", total=len(futures)):
             try:
                 dataset_ids.append(future.result())
             except Exception as error:  # pylint: disable=broad-exception-caught
@@ -133,7 +139,7 @@ def main(**kwargs):
                 logger.error(f"Adding dataset {filename} failed: {error}")
     logger.info("Adding RDKit functionality")
     engine = create_engine(dsn)
-    for dataset_id in tqdm(dataset_ids):
+    for dataset_id in tqdm(dataset_ids, desc="rdkit"):
         try:
             add_rdkit(engine, dataset_id)  # NOTE(skearnes): Do this serially to avoid deadlocks.
         except Exception as error:  # pylint: disable=broad-exception-caught
