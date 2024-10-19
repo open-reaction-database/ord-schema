@@ -67,7 +67,7 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
     Raises:
         ValueError: If the dataset already exists in the database and `overwrite` is not set.
     """
-    logger.info(f"Loading {filename}")
+    logger.debug(f"Loading {filename}")
     dataset = load_message(filename, dataset_pb2.Dataset)
     # NOTE(skearnes): Multiprocessing is hard to get right for shared connection pools, so we don't even try; see
     # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
@@ -89,7 +89,7 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
         start = time.time()
         with session.begin():
             database.add_dataset(dataset, session, rdkit_cartridge=False)  # Do this separately in add_rdkit().
-        logger.info(f"add_dataset() took {time.time() - start:g}s")
+        logger.debug(f"add_dataset() took {time.time() - start:g}s")
     return dataset.dataset_id
 
 
