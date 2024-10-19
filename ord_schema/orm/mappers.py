@@ -261,10 +261,12 @@ def from_proto(  # pylint: disable=too-many-branches
             if isinstance(value, Mapping):
                 kwargs[field.name] = [from_proto(v, mapper=field_mapper, key=k) for k, v in value.items()]
             elif field.label == FieldDescriptor.LABEL_REPEATED:
-                values = []
-                for v in tqdm(value, desc=field.name, position=1, disable=not isinstance(message, dataset_pb2.Dataset)):
-                    values.append(from_proto(v, mapper=field_mapper))
-                kwargs[field.name] = values
+                kwargs[field.name] = [
+                    from_proto(v, mapper=field_mapper)
+                    for v in tqdm(
+                        value, desc=field.name, position=1, disable=not isinstance(message, dataset_pb2.Dataset)
+                    )
+                ]
             else:
                 kwargs[field.name] = from_proto(value, mapper=field_mapper)
         elif field.type == FieldDescriptor.TYPE_ENUM:
