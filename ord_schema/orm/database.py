@@ -72,7 +72,7 @@ def add_dataset(dataset: dataset_pb2.Dataset, session: Session, rdkit_cartridge:
     """Adds a dataset to the database."""
     start = time.time()
     mapped_dataset = from_proto(dataset)
-    logger.info(f"from_proto() took {time.time() - start:g}s")
+    logger.debug(f"from_proto() took {time.time() - start:g}s")
     session.add(mapped_dataset)
     if rdkit_cartridge:
         session.flush()
