@@ -70,10 +70,9 @@ def prepare_database(engine: Engine) -> bool:
 
 def add_dataset(dataset: dataset_pb2.Dataset, session: Session, rdkit_cartridge: bool = True) -> None:
     """Adds a dataset to the database."""
-    logger.debug(f"Adding dataset {dataset.dataset_id}")
     start = time.time()
     mapped_dataset = from_proto(dataset)
-    logger.debug(f"from_proto() took {time.time() - start:g}s")
+    logger.info(f"from_proto() took {time.time() - start:g}s")
     session.add(mapped_dataset)
     if rdkit_cartridge:
         session.flush()

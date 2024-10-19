@@ -32,6 +32,7 @@ Options:
 """
 import logging
 import os
+import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from glob import glob
 from hashlib import md5
@@ -65,7 +66,7 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
     Raises:
         ValueError: If the dataset already exists in the database and `overwrite` is not set.
     """
-    logger.debug(f"Loading {filename}")
+    logger.info(f"Loading {filename}")
     dataset = load_message(filename, dataset_pb2.Dataset)
     # NOTE(skearnes): Multiprocessing is hard to get right for shared connection pools, so we don't even try; see
     # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
@@ -84,8 +85,10 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
             else:
                 logger.debug(f"existing dataset {dataset.dataset_id} unchanged; skipping")
                 return dataset.dataset_id
+        start = time.time()
         with session.begin():
             database.add_dataset(dataset, session, rdkit_cartridge=False)  # Do this separately in add_rdkit().
+        logger.info(f"add_dataset() took {time.time() - start:g}s")
     return dataset.dataset_id
 
 

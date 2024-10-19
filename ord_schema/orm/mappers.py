@@ -38,6 +38,7 @@ from inflection import underscore
 from sqlalchemy import Boolean, Column, Enum, Float, ForeignKey, Integer, LargeBinary, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
+from tqdm import tqdm
 
 import ord_schema.orm.rdkit_mappers  # pylint: disable=unused-import
 from ord_schema import message_helpers
@@ -258,9 +259,15 @@ def from_proto(  # pylint: disable=too-many-branches
         if field.type == FieldDescriptor.TYPE_MESSAGE:
             field_mapper = getattr(mapper, field.name).mapper.class_
             if isinstance(value, Mapping):
-                kwargs[field.name] = [from_proto(v, mapper=field_mapper, key=k) for k, v in value.items()]
+                values = []
+                for k, v in tqdm(value.items(), desc=field.name):
+                    values.append(from_proto(v, mapper=field_mapper, key=k))
+                kwargs[field.name] = values
             elif field.label == FieldDescriptor.LABEL_REPEATED:
-                kwargs[field.name] = [from_proto(v, mapper=field_mapper) for v in value]
+                values = []
+                for v in tqdm(value, desc=field.name):
+                    values.append(from_proto(v, mapper=field_mapper))
+                kwargs[field.name] = values
             else:
                 kwargs[field.name] = from_proto(value, mapper=field_mapper)
         elif field.type == FieldDescriptor.TYPE_ENUM:
