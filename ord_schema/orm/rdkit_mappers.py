@@ -130,7 +130,7 @@ class RDKitMols(Base):
 
     __tablename__ = "mols"
     id = Column(Integer, primary_key=True)
-    smiles = Column(Text, index=True, unique=True)
+    smiles = Column(Text, unique=True)
     mol = Column(RDKitMol)
     morgan_bfp = Column(RDKitBfp)
     morgan_sfp = Column(RDKitSfp)
@@ -160,7 +160,7 @@ class RDKitReactions(Base):
 
     __tablename__ = "reactions"
     id = Column(Integer, primary_key=True)
-    reaction_smiles = Column(Text, index=True, unique=True)
+    reaction_smiles = Column(Text, unique=True)
     reaction = Column(RDKitReaction)
 
     __table_args__ = (

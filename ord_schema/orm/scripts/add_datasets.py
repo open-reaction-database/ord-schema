@@ -32,7 +32,9 @@ Options:
 """
 import logging
 import os
-from concurrent.futures import ProcessPoolExecutor, as_completed
+import time
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from contextlib import ExitStack
 from glob import glob
 from hashlib import md5
 
@@ -84,8 +86,10 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
             else:
                 logger.debug(f"existing dataset {dataset.dataset_id} unchanged; skipping")
                 return dataset.dataset_id
+        start = time.time()
         with session.begin():
             database.add_dataset(dataset, session, rdkit_cartridge=False)  # Do this separately in add_rdkit().
+        logger.debug(f"add_dataset() took {time.time() - start:g}s")
     return dataset.dataset_id
 
 
@@ -113,7 +117,12 @@ def main(**kwargs):
             port=int(kwargs["--port"]),
         )
     filenames = sorted(glob(kwargs["--pattern"]))
-    with ProcessPoolExecutor(max_workers=int(kwargs["--n_jobs"])) as executor:
+    with ExitStack() as stack:
+        max_workers = int(kwargs["--n_jobs"])
+        if max_workers > 1:
+            executor = stack.enter_context(ProcessPoolExecutor(max_workers))
+        else:
+            executor = stack.enter_context(ThreadPoolExecutor(max_workers))
         logger.info("Adding datasets")
         futures = {}
         for filename in filenames:
