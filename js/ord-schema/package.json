@@ -1,6 +1,6 @@
 {
   "name": "ord-schema",
-  "version": "0.3.94",
+  "version": "0.3.95",
   "description": "Schema for the Open Reaction Database",
   "main": "index.js",
   "scripts": {
@@ -21,7 +21,9 @@
     "google-protobuf": "<3.20"
   },
   "devDependencies": {
+    "@types/google-protobuf": "^3.15.12",
     "jest": "^29.3.1",
+    "ts-protoc-gen": "^0.15.0",
     "webpack": "^5.75.0",
     "webpack-cli": "^5.0.1"
   }

@@ -21,4 +21,6 @@ protoc \
   --python_out=. \
   --pyi_out=. \
   --js_out=import_style=commonjs,binary:js \
-  ../ord-schema/proto/*.proto
+  ../ord-schema/proto/*.proto \
+  --plugin="protoc-gen-ts=./js/ord-schema/node_modules/.bin/protoc-gen-ts" \
+  --ts_out=./js/ \
