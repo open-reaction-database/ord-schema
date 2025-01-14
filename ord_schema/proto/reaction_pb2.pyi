@@ -212,18 +212,16 @@ class Texture(_message.Message):
     def __init__(self, type: _Optional[_Union[Texture.TextureType, str]] = ..., details: _Optional[str] = ...) -> None: ...
 
 class CrudeComponent(_message.Message):
-    __slots__ = ["reaction_id", "includes_workup", "has_derived_amount", "amount", "texture"]
+    __slots__ = ["reaction_id", "includes_workup", "has_derived_amount", "amount"]
     REACTION_ID_FIELD_NUMBER: _ClassVar[int]
     INCLUDES_WORKUP_FIELD_NUMBER: _ClassVar[int]
     HAS_DERIVED_AMOUNT_FIELD_NUMBER: _ClassVar[int]
     AMOUNT_FIELD_NUMBER: _ClassVar[int]
-    TEXTURE_FIELD_NUMBER: _ClassVar[int]
     reaction_id: str
     includes_workup: bool
     has_derived_amount: bool
     amount: Amount
-    texture: Texture
-    def __init__(self, reaction_id: _Optional[str] = ..., includes_workup: bool = ..., has_derived_amount: bool = ..., amount: _Optional[_Union[Amount, _Mapping]] = ..., texture: _Optional[_Union[Texture, _Mapping]] = ...) -> None: ...
+    def __init__(self, reaction_id: _Optional[str] = ..., includes_workup: bool = ..., has_derived_amount: bool = ..., amount: _Optional[_Union[Amount, _Mapping]] = ...) -> None: ...
 
 class Compound(_message.Message):
     __slots__ = ["identifiers", "amount", "reaction_role", "is_limiting", "preparations", "source", "features", "analyses", "texture"]

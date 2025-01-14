@@ -263,7 +263,6 @@ message CrudeComponent {
   optional bool has_derived_amount = 3;
   // If the entire crude mixture was not used, need to specify an amount.
   Amount amount = 4;
-  Texture texture = 5;
 }
 
 /**

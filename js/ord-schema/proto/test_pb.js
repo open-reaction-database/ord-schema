@@ -1,5 +1,5 @@
 /**
- * Copyright 2024 Open Reaction Database Project Authors
+ * Copyright 2025 Open Reaction Database Project Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -313,12 +313,12 @@ proto.ord_test.Scalar.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord_test.Scalar.toObject = function(includeInstance, msg) {
   var f, obj = {
-    int32Value: jspb.Message.getFieldWithDefault(msg, 1, 0),
-    int64Value: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    floatValue: jspb.Message.getFloatingPointFieldWithDefault(msg, 3, 0.0),
-    stringValue: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    bytesValue: msg.getBytesValue_asB64(),
-    boolValue: jspb.Message.getBooleanFieldWithDefault(msg, 6, false)
+int32Value: jspb.Message.getFieldWithDefault(msg, 1, 0),
+int64Value: jspb.Message.getFieldWithDefault(msg, 2, 0),
+floatValue: (f = jspb.Message.getOptionalFloatingPointField(msg, 3)) == null ? undefined : f,
+stringValue: jspb.Message.getFieldWithDefault(msg, 4, ""),
+bytesValue: msg.getBytesValue_asB64(),
+boolValue: (f = jspb.Message.getBooleanField(msg, 6)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -660,7 +660,7 @@ proto.ord_test.RepeatedScalar.prototype.toObject = function(opt_includeInstance)
  */
 proto.ord_test.RepeatedScalar.toObject = function(includeInstance, msg) {
   var f, obj = {
-    valuesList: (f = jspb.Message.getRepeatedFloatingPointField(msg, 1)) == null ? undefined : f
+valuesList: (f = jspb.Message.getRepeatedFloatingPointField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -811,7 +811,7 @@ proto.ord_test.Enum.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord_test.Enum.toObject = function(includeInstance, msg) {
   var f, obj = {
-    value: jspb.Message.getFieldWithDefault(msg, 1, 0)
+value: jspb.Message.getFieldWithDefault(msg, 1, 0)
   };
 
   if (includeInstance) {
@@ -957,7 +957,7 @@ proto.ord_test.RepeatedEnum.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord_test.RepeatedEnum.toObject = function(includeInstance, msg) {
   var f, obj = {
-    valuesList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+valuesList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -1117,7 +1117,7 @@ proto.ord_test.Nested.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord_test.Nested.toObject = function(includeInstance, msg) {
   var f, obj = {
-    child: (f = msg.getChild()) && proto.ord_test.Nested.Child.toObject(includeInstance, f)
+child: (f = msg.getChild()) && proto.ord_test.Nested.Child.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -1231,7 +1231,7 @@ proto.ord_test.Nested.Child.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord_test.Nested.Child.toObject = function(includeInstance, msg) {
   var f, obj = {
-    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0)
+value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -1423,7 +1423,7 @@ proto.ord_test.RepeatedNested.prototype.toObject = function(opt_includeInstance)
  */
 proto.ord_test.RepeatedNested.toObject = function(includeInstance, msg) {
   var f, obj = {
-    childrenList: jspb.Message.toObjectList(msg.getChildrenList(),
+childrenList: jspb.Message.toObjectList(msg.getChildrenList(),
     proto.ord_test.RepeatedNested.Child.toObject, includeInstance)
   };
 
@@ -1538,7 +1538,7 @@ proto.ord_test.RepeatedNested.Child.prototype.toObject = function(opt_includeIns
  */
 proto.ord_test.RepeatedNested.Child.toObject = function(includeInstance, msg) {
   var f, obj = {
-    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0)
+value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -1724,7 +1724,7 @@ proto.ord_test.Map.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord_test.Map.toObject = function(includeInstance, msg) {
   var f, obj = {
-    valuesMap: (f = msg.getValuesMap()) ? f.toObject(includeInstance, undefined) : []
+valuesMap: (f = msg.getValuesMap()) ? f.toObject(includeInstance, undefined) : []
   };
 
   if (includeInstance) {
@@ -1858,7 +1858,7 @@ proto.ord_test.MapNested.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord_test.MapNested.toObject = function(includeInstance, msg) {
   var f, obj = {
-    childrenMap: (f = msg.getChildrenMap()) ? f.toObject(includeInstance, proto.ord_test.MapNested.Child.toObject) : []
+childrenMap: (f = msg.getChildrenMap()) ? f.toObject(includeInstance, proto.ord_test.MapNested.Child.toObject) : []
   };
 
   if (includeInstance) {
@@ -1969,7 +1969,7 @@ proto.ord_test.MapNested.Child.prototype.toObject = function(opt_includeInstance
  */
 proto.ord_test.MapNested.Child.toObject = function(includeInstance, msg) {
   var f, obj = {
-    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0)
+value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f
   };
 
   if (includeInstance) {

@@ -1,5 +1,5 @@
 /**
- * Copyright 2024 Open Reaction Database Project Authors
+ * Copyright 2025 Open Reaction Database Project Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -435,11 +435,6 @@ export class CrudeComponent extends jspb.Message {
   getAmount(): Amount | undefined;
   setAmount(value?: Amount): void;
 
-  hasTexture(): boolean;
-  clearTexture(): void;
-  getTexture(): Texture | undefined;
-  setTexture(value?: Texture): void;
-
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): CrudeComponent.AsObject;
   static toObject(includeInstance: boolean, msg: CrudeComponent): CrudeComponent.AsObject;
@@ -456,7 +451,6 @@ export namespace CrudeComponent {
     includesWorkup: boolean,
     hasDerivedAmount: boolean,
     amount?: Amount.AsObject,
-    texture?: Texture.AsObject,
   }
 }
 
