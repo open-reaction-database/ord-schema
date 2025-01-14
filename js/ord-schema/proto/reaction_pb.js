@@ -1529,20 +1529,20 @@ proto.ord.Reaction.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Reaction.toObject = function(includeInstance, msg) {
   var f, obj = {
-identifiersList: jspb.Message.toObjectList(msg.getIdentifiersList(),
+    identifiersList: jspb.Message.toObjectList(msg.getIdentifiersList(),
     proto.ord.ReactionIdentifier.toObject, includeInstance),
-inputsMap: (f = msg.getInputsMap()) ? f.toObject(includeInstance, proto.ord.ReactionInput.toObject) : [],
-setup: (f = msg.getSetup()) && proto.ord.ReactionSetup.toObject(includeInstance, f),
-conditions: (f = msg.getConditions()) && proto.ord.ReactionConditions.toObject(includeInstance, f),
-notes: (f = msg.getNotes()) && proto.ord.ReactionNotes.toObject(includeInstance, f),
-observationsList: jspb.Message.toObjectList(msg.getObservationsList(),
+    inputsMap: (f = msg.getInputsMap()) ? f.toObject(includeInstance, proto.ord.ReactionInput.toObject) : [],
+    setup: (f = msg.getSetup()) && proto.ord.ReactionSetup.toObject(includeInstance, f),
+    conditions: (f = msg.getConditions()) && proto.ord.ReactionConditions.toObject(includeInstance, f),
+    notes: (f = msg.getNotes()) && proto.ord.ReactionNotes.toObject(includeInstance, f),
+    observationsList: jspb.Message.toObjectList(msg.getObservationsList(),
     proto.ord.ReactionObservation.toObject, includeInstance),
-workupsList: jspb.Message.toObjectList(msg.getWorkupsList(),
+    workupsList: jspb.Message.toObjectList(msg.getWorkupsList(),
     proto.ord.ReactionWorkup.toObject, includeInstance),
-outcomesList: jspb.Message.toObjectList(msg.getOutcomesList(),
+    outcomesList: jspb.Message.toObjectList(msg.getOutcomesList(),
     proto.ord.ReactionOutcome.toObject, includeInstance),
-provenance: (f = msg.getProvenance()) && proto.ord.ReactionProvenance.toObject(includeInstance, f),
-reactionId: jspb.Message.getFieldWithDefault(msg, 10, "")
+    provenance: (f = msg.getProvenance()) && proto.ord.ReactionProvenance.toObject(includeInstance, f),
+    reactionId: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
   if (includeInstance) {
@@ -2109,10 +2109,10 @@ proto.ord.ReactionIdentifier.prototype.toObject = function(opt_includeInstance) 
  */
 proto.ord.ReactionIdentifier.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-value: jspb.Message.getFieldWithDefault(msg, 3, ""),
-isMapped: (f = jspb.Message.getBooleanField(msg, 4)) == null ? undefined : f
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    value: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    isMapped: jspb.Message.getBooleanFieldWithDefault(msg, 4, false)
   };
 
   if (includeInstance) {
@@ -2367,18 +2367,18 @@ proto.ord.ReactionInput.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.ReactionInput.toObject = function(includeInstance, msg) {
   var f, obj = {
-componentsList: jspb.Message.toObjectList(msg.getComponentsList(),
+    componentsList: jspb.Message.toObjectList(msg.getComponentsList(),
     proto.ord.Compound.toObject, includeInstance),
-crudeComponentsList: jspb.Message.toObjectList(msg.getCrudeComponentsList(),
+    crudeComponentsList: jspb.Message.toObjectList(msg.getCrudeComponentsList(),
     proto.ord.CrudeComponent.toObject, includeInstance),
-additionOrder: jspb.Message.getFieldWithDefault(msg, 3, 0),
-additionTime: (f = msg.getAdditionTime()) && proto.ord.Time.toObject(includeInstance, f),
-additionSpeed: (f = msg.getAdditionSpeed()) && proto.ord.ReactionInput.AdditionSpeed.toObject(includeInstance, f),
-additionDuration: (f = msg.getAdditionDuration()) && proto.ord.Time.toObject(includeInstance, f),
-flowRate: (f = msg.getFlowRate()) && proto.ord.FlowRate.toObject(includeInstance, f),
-additionDevice: (f = msg.getAdditionDevice()) && proto.ord.ReactionInput.AdditionDevice.toObject(includeInstance, f),
-additionTemperature: (f = msg.getAdditionTemperature()) && proto.ord.Temperature.toObject(includeInstance, f),
-texture: (f = msg.getTexture()) && proto.ord.Texture.toObject(includeInstance, f)
+    additionOrder: jspb.Message.getFieldWithDefault(msg, 3, 0),
+    additionTime: (f = msg.getAdditionTime()) && proto.ord.Time.toObject(includeInstance, f),
+    additionSpeed: (f = msg.getAdditionSpeed()) && proto.ord.ReactionInput.AdditionSpeed.toObject(includeInstance, f),
+    additionDuration: (f = msg.getAdditionDuration()) && proto.ord.Time.toObject(includeInstance, f),
+    flowRate: (f = msg.getFlowRate()) && proto.ord.FlowRate.toObject(includeInstance, f),
+    additionDevice: (f = msg.getAdditionDevice()) && proto.ord.ReactionInput.AdditionDevice.toObject(includeInstance, f),
+    additionTemperature: (f = msg.getAdditionTemperature()) && proto.ord.Temperature.toObject(includeInstance, f),
+    texture: (f = msg.getTexture()) && proto.ord.Texture.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -2607,8 +2607,8 @@ proto.ord.ReactionInput.AdditionSpeed.prototype.toObject = function(opt_includeI
  */
 proto.ord.ReactionInput.AdditionSpeed.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -2780,8 +2780,8 @@ proto.ord.ReactionInput.AdditionDevice.prototype.toObject = function(opt_include
  */
 proto.ord.ReactionInput.AdditionDevice.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -3338,11 +3338,11 @@ proto.ord.Amount.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Amount.toObject = function(includeInstance, msg) {
   var f, obj = {
-mass: (f = msg.getMass()) && proto.ord.Mass.toObject(includeInstance, f),
-moles: (f = msg.getMoles()) && proto.ord.Moles.toObject(includeInstance, f),
-volume: (f = msg.getVolume()) && proto.ord.Volume.toObject(includeInstance, f),
-unmeasured: (f = msg.getUnmeasured()) && proto.ord.UnmeasuredAmount.toObject(includeInstance, f),
-volumeIncludesSolutes: (f = jspb.Message.getBooleanField(msg, 4)) == null ? undefined : f
+    mass: (f = msg.getMass()) && proto.ord.Mass.toObject(includeInstance, f),
+    moles: (f = msg.getMoles()) && proto.ord.Moles.toObject(includeInstance, f),
+    volume: (f = msg.getVolume()) && proto.ord.Volume.toObject(includeInstance, f),
+    unmeasured: (f = msg.getUnmeasured()) && proto.ord.UnmeasuredAmount.toObject(includeInstance, f),
+    volumeIncludesSolutes: jspb.Message.getBooleanFieldWithDefault(msg, 4, false)
   };
 
   if (includeInstance) {
@@ -3690,8 +3690,8 @@ proto.ord.UnmeasuredAmount.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.UnmeasuredAmount.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -3861,8 +3861,8 @@ proto.ord.Texture.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Texture.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -4039,10 +4039,10 @@ proto.ord.CrudeComponent.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.CrudeComponent.toObject = function(includeInstance, msg) {
   var f, obj = {
-reactionId: jspb.Message.getFieldWithDefault(msg, 1, ""),
-includesWorkup: (f = jspb.Message.getBooleanField(msg, 2)) == null ? undefined : f,
-hasDerivedAmount: (f = jspb.Message.getBooleanField(msg, 3)) == null ? undefined : f,
-amount: (f = msg.getAmount()) && proto.ord.Amount.toObject(includeInstance, f)
+    reactionId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    includesWorkup: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
+    hasDerivedAmount: jspb.Message.getBooleanFieldWithDefault(msg, 3, false),
+    amount: (f = msg.getAmount()) && proto.ord.Amount.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4323,17 +4323,17 @@ proto.ord.Compound.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Compound.toObject = function(includeInstance, msg) {
   var f, obj = {
-identifiersList: jspb.Message.toObjectList(msg.getIdentifiersList(),
+    identifiersList: jspb.Message.toObjectList(msg.getIdentifiersList(),
     proto.ord.CompoundIdentifier.toObject, includeInstance),
-amount: (f = msg.getAmount()) && proto.ord.Amount.toObject(includeInstance, f),
-reactionRole: jspb.Message.getFieldWithDefault(msg, 3, 0),
-isLimiting: (f = jspb.Message.getBooleanField(msg, 4)) == null ? undefined : f,
-preparationsList: jspb.Message.toObjectList(msg.getPreparationsList(),
+    amount: (f = msg.getAmount()) && proto.ord.Amount.toObject(includeInstance, f),
+    reactionRole: jspb.Message.getFieldWithDefault(msg, 3, 0),
+    isLimiting: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+    preparationsList: jspb.Message.toObjectList(msg.getPreparationsList(),
     proto.ord.CompoundPreparation.toObject, includeInstance),
-source: (f = msg.getSource()) && proto.ord.Compound.Source.toObject(includeInstance, f),
-featuresMap: (f = msg.getFeaturesMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : [],
-analysesMap: (f = msg.getAnalysesMap()) ? f.toObject(includeInstance, proto.ord.Analysis.toObject) : [],
-texture: (f = msg.getTexture()) && proto.ord.Texture.toObject(includeInstance, f)
+    source: (f = msg.getSource()) && proto.ord.Compound.Source.toObject(includeInstance, f),
+    featuresMap: (f = msg.getFeaturesMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : [],
+    analysesMap: (f = msg.getAnalysesMap()) ? f.toObject(includeInstance, proto.ord.Analysis.toObject) : [],
+    texture: (f = msg.getTexture()) && proto.ord.Texture.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4541,9 +4541,9 @@ proto.ord.Compound.Source.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Compound.Source.toObject = function(includeInstance, msg) {
   var f, obj = {
-vendor: jspb.Message.getFieldWithDefault(msg, 1, ""),
-catalogId: jspb.Message.getFieldWithDefault(msg, 2, ""),
-lot: jspb.Message.getFieldWithDefault(msg, 3, "")
+    vendor: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    catalogId: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    lot: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -5136,9 +5136,9 @@ proto.ord.CompoundPreparation.prototype.toObject = function(opt_includeInstance)
  */
 proto.ord.CompoundPreparation.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-reactionId: jspb.Message.getFieldWithDefault(msg, 3, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    reactionId: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -5339,9 +5339,9 @@ proto.ord.CompoundIdentifier.prototype.toObject = function(opt_includeInstance) 
  */
 proto.ord.CompoundIdentifier.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-value: jspb.Message.getFieldWithDefault(msg, 3, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    value: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -5560,18 +5560,18 @@ proto.ord.Vessel.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Vessel.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-material: (f = msg.getMaterial()) && proto.ord.VesselMaterial.toObject(includeInstance, f),
-preparationsList: jspb.Message.toObjectList(msg.getPreparationsList(),
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    material: (f = msg.getMaterial()) && proto.ord.VesselMaterial.toObject(includeInstance, f),
+    preparationsList: jspb.Message.toObjectList(msg.getPreparationsList(),
     proto.ord.VesselPreparation.toObject, includeInstance),
-attachmentsList: jspb.Message.toObjectList(msg.getAttachmentsList(),
+    attachmentsList: jspb.Message.toObjectList(msg.getAttachmentsList(),
     proto.ord.VesselAttachment.toObject, includeInstance),
-volume: (f = msg.getVolume()) && proto.ord.Volume.toObject(includeInstance, f),
-vesselId: jspb.Message.getFieldWithDefault(msg, 7, ""),
-position: jspb.Message.getFieldWithDefault(msg, 8, ""),
-row: jspb.Message.getFieldWithDefault(msg, 9, ""),
-col: jspb.Message.getFieldWithDefault(msg, 10, "")
+    volume: (f = msg.getVolume()) && proto.ord.Volume.toObject(includeInstance, f),
+    vesselId: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    position: jspb.Message.getFieldWithDefault(msg, 8, ""),
+    row: jspb.Message.getFieldWithDefault(msg, 9, ""),
+    col: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
   if (includeInstance) {
@@ -6067,8 +6067,8 @@ proto.ord.VesselMaterial.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.VesselMaterial.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -6240,8 +6240,8 @@ proto.ord.VesselAttachment.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.VesselAttachment.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -6424,8 +6424,8 @@ proto.ord.VesselPreparation.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.VesselPreparation.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -6597,11 +6597,11 @@ proto.ord.ReactionSetup.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.ReactionSetup.toObject = function(includeInstance, msg) {
   var f, obj = {
-vessel: (f = msg.getVessel()) && proto.ord.Vessel.toObject(includeInstance, f),
-isAutomated: (f = jspb.Message.getBooleanField(msg, 2)) == null ? undefined : f,
-automationPlatform: jspb.Message.getFieldWithDefault(msg, 3, ""),
-automationCodeMap: (f = msg.getAutomationCodeMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : [],
-environment: (f = msg.getEnvironment()) && proto.ord.ReactionSetup.ReactionEnvironment.toObject(includeInstance, f)
+    vessel: (f = msg.getVessel()) && proto.ord.Vessel.toObject(includeInstance, f),
+    isAutomated: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
+    automationPlatform: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    automationCodeMap: (f = msg.getAutomationCodeMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : [],
+    environment: (f = msg.getEnvironment()) && proto.ord.ReactionSetup.ReactionEnvironment.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -6760,8 +6760,8 @@ proto.ord.ReactionSetup.ReactionEnvironment.prototype.toObject = function(opt_in
  */
 proto.ord.ReactionSetup.ReactionEnvironment.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -7083,16 +7083,16 @@ proto.ord.ReactionConditions.prototype.toObject = function(opt_includeInstance) 
  */
 proto.ord.ReactionConditions.toObject = function(includeInstance, msg) {
   var f, obj = {
-temperature: (f = msg.getTemperature()) && proto.ord.TemperatureConditions.toObject(includeInstance, f),
-pressure: (f = msg.getPressure()) && proto.ord.PressureConditions.toObject(includeInstance, f),
-stirring: (f = msg.getStirring()) && proto.ord.StirringConditions.toObject(includeInstance, f),
-illumination: (f = msg.getIllumination()) && proto.ord.IlluminationConditions.toObject(includeInstance, f),
-electrochemistry: (f = msg.getElectrochemistry()) && proto.ord.ElectrochemistryConditions.toObject(includeInstance, f),
-flow: (f = msg.getFlow()) && proto.ord.FlowConditions.toObject(includeInstance, f),
-reflux: (f = jspb.Message.getBooleanField(msg, 7)) == null ? undefined : f,
-ph: (f = jspb.Message.getOptionalFloatingPointField(msg, 8)) == null ? undefined : f,
-conditionsAreDynamic: (f = jspb.Message.getBooleanField(msg, 9)) == null ? undefined : f,
-details: jspb.Message.getFieldWithDefault(msg, 10, "")
+    temperature: (f = msg.getTemperature()) && proto.ord.TemperatureConditions.toObject(includeInstance, f),
+    pressure: (f = msg.getPressure()) && proto.ord.PressureConditions.toObject(includeInstance, f),
+    stirring: (f = msg.getStirring()) && proto.ord.StirringConditions.toObject(includeInstance, f),
+    illumination: (f = msg.getIllumination()) && proto.ord.IlluminationConditions.toObject(includeInstance, f),
+    electrochemistry: (f = msg.getElectrochemistry()) && proto.ord.ElectrochemistryConditions.toObject(includeInstance, f),
+    flow: (f = msg.getFlow()) && proto.ord.FlowConditions.toObject(includeInstance, f),
+    reflux: jspb.Message.getBooleanFieldWithDefault(msg, 7, false),
+    ph: jspb.Message.getFloatingPointFieldWithDefault(msg, 8, 0.0),
+    conditionsAreDynamic: jspb.Message.getBooleanFieldWithDefault(msg, 9, false),
+    details: jspb.Message.getFieldWithDefault(msg, 10, "")
   };
 
   if (includeInstance) {
@@ -7670,9 +7670,9 @@ proto.ord.TemperatureConditions.prototype.toObject = function(opt_includeInstanc
  */
 proto.ord.TemperatureConditions.toObject = function(includeInstance, msg) {
   var f, obj = {
-control: (f = msg.getControl()) && proto.ord.TemperatureConditions.TemperatureControl.toObject(includeInstance, f),
-setpoint: (f = msg.getSetpoint()) && proto.ord.Temperature.toObject(includeInstance, f),
-measurementsList: jspb.Message.toObjectList(msg.getMeasurementsList(),
+    control: (f = msg.getControl()) && proto.ord.TemperatureConditions.TemperatureControl.toObject(includeInstance, f),
+    setpoint: (f = msg.getSetpoint()) && proto.ord.Temperature.toObject(includeInstance, f),
+    measurementsList: jspb.Message.toObjectList(msg.getMeasurementsList(),
     proto.ord.TemperatureConditions.TemperatureMeasurement.toObject, includeInstance)
   };
 
@@ -7813,8 +7813,8 @@ proto.ord.TemperatureConditions.TemperatureControl.prototype.toObject = function
  */
 proto.ord.TemperatureConditions.TemperatureControl.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -7991,10 +7991,10 @@ proto.ord.TemperatureConditions.TemperatureMeasurement.prototype.toObject = func
  */
 proto.ord.TemperatureConditions.TemperatureMeasurement.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-time: (f = msg.getTime()) && proto.ord.Time.toObject(includeInstance, f),
-temperature: (f = msg.getTemperature()) && proto.ord.Temperature.toObject(includeInstance, f)
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    time: (f = msg.getTime()) && proto.ord.Time.toObject(includeInstance, f),
+    temperature: (f = msg.getTemperature()) && proto.ord.Temperature.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -8383,10 +8383,10 @@ proto.ord.PressureConditions.prototype.toObject = function(opt_includeInstance) 
  */
 proto.ord.PressureConditions.toObject = function(includeInstance, msg) {
   var f, obj = {
-control: (f = msg.getControl()) && proto.ord.PressureConditions.PressureControl.toObject(includeInstance, f),
-setpoint: (f = msg.getSetpoint()) && proto.ord.Pressure.toObject(includeInstance, f),
-atmosphere: (f = msg.getAtmosphere()) && proto.ord.PressureConditions.Atmosphere.toObject(includeInstance, f),
-measurementsList: jspb.Message.toObjectList(msg.getMeasurementsList(),
+    control: (f = msg.getControl()) && proto.ord.PressureConditions.PressureControl.toObject(includeInstance, f),
+    setpoint: (f = msg.getSetpoint()) && proto.ord.Pressure.toObject(includeInstance, f),
+    atmosphere: (f = msg.getAtmosphere()) && proto.ord.PressureConditions.Atmosphere.toObject(includeInstance, f),
+    measurementsList: jspb.Message.toObjectList(msg.getMeasurementsList(),
     proto.ord.PressureConditions.PressureMeasurement.toObject, includeInstance)
   };
 
@@ -8540,8 +8540,8 @@ proto.ord.PressureConditions.PressureControl.prototype.toObject = function(opt_i
  */
 proto.ord.PressureConditions.PressureControl.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -8712,8 +8712,8 @@ proto.ord.PressureConditions.Atmosphere.prototype.toObject = function(opt_includ
  */
 proto.ord.PressureConditions.Atmosphere.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -8892,10 +8892,10 @@ proto.ord.PressureConditions.PressureMeasurement.prototype.toObject = function(o
  */
 proto.ord.PressureConditions.PressureMeasurement.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-time: (f = msg.getTime()) && proto.ord.Time.toObject(includeInstance, f),
-pressure: (f = msg.getPressure()) && proto.ord.Pressure.toObject(includeInstance, f)
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    time: (f = msg.getTime()) && proto.ord.Time.toObject(includeInstance, f),
+    pressure: (f = msg.getPressure()) && proto.ord.Pressure.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -9312,9 +9312,9 @@ proto.ord.StirringConditions.prototype.toObject = function(opt_includeInstance) 
  */
 proto.ord.StirringConditions.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-rate: (f = msg.getRate()) && proto.ord.StirringConditions.StirringRate.toObject(includeInstance, f)
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    rate: (f = msg.getRate()) && proto.ord.StirringConditions.StirringRate.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -9464,9 +9464,9 @@ proto.ord.StirringConditions.StirringRate.prototype.toObject = function(opt_incl
  */
 proto.ord.StirringConditions.StirringRate.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-rpm: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    rpm: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -9737,11 +9737,11 @@ proto.ord.IlluminationConditions.prototype.toObject = function(opt_includeInstan
  */
 proto.ord.IlluminationConditions.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-peakWavelength: (f = msg.getPeakWavelength()) && proto.ord.Wavelength.toObject(includeInstance, f),
-color: jspb.Message.getFieldWithDefault(msg, 4, ""),
-distanceToVessel: (f = msg.getDistanceToVessel()) && proto.ord.Length.toObject(includeInstance, f)
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    peakWavelength: (f = msg.getPeakWavelength()) && proto.ord.Wavelength.toObject(includeInstance, f),
+    color: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    distanceToVessel: (f = msg.getDistanceToVessel()) && proto.ord.Length.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -10051,16 +10051,16 @@ proto.ord.ElectrochemistryConditions.prototype.toObject = function(opt_includeIn
  */
 proto.ord.ElectrochemistryConditions.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-current: (f = msg.getCurrent()) && proto.ord.Current.toObject(includeInstance, f),
-voltage: (f = msg.getVoltage()) && proto.ord.Voltage.toObject(includeInstance, f),
-anodeMaterial: jspb.Message.getFieldWithDefault(msg, 5, ""),
-cathodeMaterial: jspb.Message.getFieldWithDefault(msg, 6, ""),
-electrodeSeparation: (f = msg.getElectrodeSeparation()) && proto.ord.Length.toObject(includeInstance, f),
-measurementsList: jspb.Message.toObjectList(msg.getMeasurementsList(),
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    current: (f = msg.getCurrent()) && proto.ord.Current.toObject(includeInstance, f),
+    voltage: (f = msg.getVoltage()) && proto.ord.Voltage.toObject(includeInstance, f),
+    anodeMaterial: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    cathodeMaterial: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    electrodeSeparation: (f = msg.getElectrodeSeparation()) && proto.ord.Length.toObject(includeInstance, f),
+    measurementsList: jspb.Message.toObjectList(msg.getMeasurementsList(),
     proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.toObject, includeInstance),
-cell: (f = msg.getCell()) && proto.ord.ElectrochemistryConditions.ElectrochemistryCell.toObject(includeInstance, f)
+    cell: (f = msg.getCell()) && proto.ord.ElectrochemistryConditions.ElectrochemistryCell.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -10280,9 +10280,9 @@ proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.prototype.toObj
  */
 proto.ord.ElectrochemistryConditions.ElectrochemistryMeasurement.toObject = function(includeInstance, msg) {
   var f, obj = {
-time: (f = msg.getTime()) && proto.ord.Time.toObject(includeInstance, f),
-current: (f = msg.getCurrent()) && proto.ord.Current.toObject(includeInstance, f),
-voltage: (f = msg.getVoltage()) && proto.ord.Voltage.toObject(includeInstance, f)
+    time: (f = msg.getTime()) && proto.ord.Time.toObject(includeInstance, f),
+    current: (f = msg.getCurrent()) && proto.ord.Current.toObject(includeInstance, f),
+    voltage: (f = msg.getVoltage()) && proto.ord.Voltage.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -10533,8 +10533,8 @@ proto.ord.ElectrochemistryConditions.ElectrochemistryCell.prototype.toObject = f
  */
 proto.ord.ElectrochemistryConditions.ElectrochemistryCell.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -10961,10 +10961,10 @@ proto.ord.FlowConditions.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.FlowConditions.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-pumpType: jspb.Message.getFieldWithDefault(msg, 3, ""),
-tubing: (f = msg.getTubing()) && proto.ord.FlowConditions.Tubing.toObject(includeInstance, f)
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    pumpType: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    tubing: (f = msg.getTubing()) && proto.ord.FlowConditions.Tubing.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -11122,9 +11122,9 @@ proto.ord.FlowConditions.Tubing.prototype.toObject = function(opt_includeInstanc
  */
 proto.ord.FlowConditions.Tubing.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-diameter: (f = msg.getDiameter()) && proto.ord.Length.toObject(includeInstance, f)
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    diameter: (f = msg.getDiameter()) && proto.ord.Length.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -11442,15 +11442,15 @@ proto.ord.ReactionNotes.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.ReactionNotes.toObject = function(includeInstance, msg) {
   var f, obj = {
-isHeterogeneous: (f = jspb.Message.getBooleanField(msg, 1)) == null ? undefined : f,
-formsPrecipitate: (f = jspb.Message.getBooleanField(msg, 2)) == null ? undefined : f,
-isExothermic: (f = jspb.Message.getBooleanField(msg, 3)) == null ? undefined : f,
-offgasses: (f = jspb.Message.getBooleanField(msg, 4)) == null ? undefined : f,
-isSensitiveToMoisture: (f = jspb.Message.getBooleanField(msg, 5)) == null ? undefined : f,
-isSensitiveToOxygen: (f = jspb.Message.getBooleanField(msg, 6)) == null ? undefined : f,
-isSensitiveToLight: (f = jspb.Message.getBooleanField(msg, 7)) == null ? undefined : f,
-safetyNotes: jspb.Message.getFieldWithDefault(msg, 8, ""),
-procedureDetails: jspb.Message.getFieldWithDefault(msg, 9, "")
+    isHeterogeneous: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+    formsPrecipitate: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
+    isExothermic: jspb.Message.getBooleanFieldWithDefault(msg, 3, false),
+    offgasses: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+    isSensitiveToMoisture: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+    isSensitiveToOxygen: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
+    isSensitiveToLight: jspb.Message.getBooleanFieldWithDefault(msg, 7, false),
+    safetyNotes: jspb.Message.getFieldWithDefault(msg, 8, ""),
+    procedureDetails: jspb.Message.getFieldWithDefault(msg, 9, "")
   };
 
   if (includeInstance) {
@@ -11938,9 +11938,9 @@ proto.ord.ReactionObservation.prototype.toObject = function(opt_includeInstance)
  */
 proto.ord.ReactionObservation.toObject = function(includeInstance, msg) {
   var f, obj = {
-time: (f = msg.getTime()) && proto.ord.Time.toObject(includeInstance, f),
-comment: jspb.Message.getFieldWithDefault(msg, 2, ""),
-image: (f = msg.getImage()) && proto.ord.Data.toObject(includeInstance, f)
+    time: (f = msg.getTime()) && proto.ord.Time.toObject(includeInstance, f),
+    comment: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    image: (f = msg.getImage()) && proto.ord.Data.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -12170,16 +12170,16 @@ proto.ord.ReactionWorkup.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.ReactionWorkup.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-duration: (f = msg.getDuration()) && proto.ord.Time.toObject(includeInstance, f),
-input: (f = msg.getInput()) && proto.ord.ReactionInput.toObject(includeInstance, f),
-amount: (f = msg.getAmount()) && proto.ord.Amount.toObject(includeInstance, f),
-temperature: (f = msg.getTemperature()) && proto.ord.TemperatureConditions.toObject(includeInstance, f),
-keepPhase: jspb.Message.getFieldWithDefault(msg, 7, ""),
-stirring: (f = msg.getStirring()) && proto.ord.StirringConditions.toObject(includeInstance, f),
-targetPh: (f = jspb.Message.getOptionalFloatingPointField(msg, 9)) == null ? undefined : f,
-isAutomated: (f = jspb.Message.getBooleanField(msg, 10)) == null ? undefined : f
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    duration: (f = msg.getDuration()) && proto.ord.Time.toObject(includeInstance, f),
+    input: (f = msg.getInput()) && proto.ord.ReactionInput.toObject(includeInstance, f),
+    amount: (f = msg.getAmount()) && proto.ord.Amount.toObject(includeInstance, f),
+    temperature: (f = msg.getTemperature()) && proto.ord.TemperatureConditions.toObject(includeInstance, f),
+    keepPhase: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    stirring: (f = msg.getStirring()) && proto.ord.StirringConditions.toObject(includeInstance, f),
+    targetPh: jspb.Message.getFloatingPointFieldWithDefault(msg, 9, 0.0),
+    isAutomated: jspb.Message.getBooleanFieldWithDefault(msg, 10, false)
   };
 
   if (includeInstance) {
@@ -12743,11 +12743,11 @@ proto.ord.ReactionOutcome.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.ReactionOutcome.toObject = function(includeInstance, msg) {
   var f, obj = {
-reactionTime: (f = msg.getReactionTime()) && proto.ord.Time.toObject(includeInstance, f),
-conversion: (f = msg.getConversion()) && proto.ord.Percentage.toObject(includeInstance, f),
-productsList: jspb.Message.toObjectList(msg.getProductsList(),
+    reactionTime: (f = msg.getReactionTime()) && proto.ord.Time.toObject(includeInstance, f),
+    conversion: (f = msg.getConversion()) && proto.ord.Percentage.toObject(includeInstance, f),
+    productsList: jspb.Message.toObjectList(msg.getProductsList(),
     proto.ord.ProductCompound.toObject, includeInstance),
-analysesMap: (f = msg.getAnalysesMap()) ? f.toObject(includeInstance, proto.ord.Analysis.toObject) : []
+    analysesMap: (f = msg.getAnalysesMap()) ? f.toObject(includeInstance, proto.ord.Analysis.toObject) : []
   };
 
   if (includeInstance) {
@@ -13039,15 +13039,15 @@ proto.ord.ProductCompound.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.ProductCompound.toObject = function(includeInstance, msg) {
   var f, obj = {
-identifiersList: jspb.Message.toObjectList(msg.getIdentifiersList(),
+    identifiersList: jspb.Message.toObjectList(msg.getIdentifiersList(),
     proto.ord.CompoundIdentifier.toObject, includeInstance),
-isDesiredProduct: (f = jspb.Message.getBooleanField(msg, 2)) == null ? undefined : f,
-measurementsList: jspb.Message.toObjectList(msg.getMeasurementsList(),
+    isDesiredProduct: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
+    measurementsList: jspb.Message.toObjectList(msg.getMeasurementsList(),
     proto.ord.ProductMeasurement.toObject, includeInstance),
-isolatedColor: jspb.Message.getFieldWithDefault(msg, 4, ""),
-texture: (f = msg.getTexture()) && proto.ord.Texture.toObject(includeInstance, f),
-featuresMap: (f = msg.getFeaturesMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : [],
-reactionRole: jspb.Message.getFieldWithDefault(msg, 7, 0)
+    isolatedColor: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    texture: (f = msg.getTexture()) && proto.ord.Texture.toObject(includeInstance, f),
+    featuresMap: (f = msg.getFeaturesMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : [],
+    reactionRole: jspb.Message.getFieldWithDefault(msg, 7, 0)
   };
 
   if (includeInstance) {
@@ -13466,21 +13466,21 @@ proto.ord.ProductMeasurement.prototype.toObject = function(opt_includeInstance) 
  */
 proto.ord.ProductMeasurement.toObject = function(includeInstance, msg) {
   var f, obj = {
-analysisKey: jspb.Message.getFieldWithDefault(msg, 1, ""),
-type: jspb.Message.getFieldWithDefault(msg, 2, 0),
-details: jspb.Message.getFieldWithDefault(msg, 3, ""),
-usesInternalStandard: (f = jspb.Message.getBooleanField(msg, 4)) == null ? undefined : f,
-isNormalized: (f = jspb.Message.getBooleanField(msg, 5)) == null ? undefined : f,
-usesAuthenticStandard: (f = jspb.Message.getBooleanField(msg, 6)) == null ? undefined : f,
-authenticStandard: (f = msg.getAuthenticStandard()) && proto.ord.Compound.toObject(includeInstance, f),
-percentage: (f = msg.getPercentage()) && proto.ord.Percentage.toObject(includeInstance, f),
-floatValue: (f = msg.getFloatValue()) && proto.ord.FloatValue.toObject(includeInstance, f),
-stringValue: (f = jspb.Message.getField(msg, 10)) == null ? undefined : f,
-amount: (f = msg.getAmount()) && proto.ord.Amount.toObject(includeInstance, f),
-retentionTime: (f = msg.getRetentionTime()) && proto.ord.Time.toObject(includeInstance, f),
-massSpecDetails: (f = msg.getMassSpecDetails()) && proto.ord.ProductMeasurement.MassSpecMeasurementDetails.toObject(includeInstance, f),
-selectivity: (f = msg.getSelectivity()) && proto.ord.ProductMeasurement.Selectivity.toObject(includeInstance, f),
-wavelength: (f = msg.getWavelength()) && proto.ord.Wavelength.toObject(includeInstance, f)
+    analysisKey: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    type: jspb.Message.getFieldWithDefault(msg, 2, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    usesInternalStandard: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+    isNormalized: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+    usesAuthenticStandard: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
+    authenticStandard: (f = msg.getAuthenticStandard()) && proto.ord.Compound.toObject(includeInstance, f),
+    percentage: (f = msg.getPercentage()) && proto.ord.Percentage.toObject(includeInstance, f),
+    floatValue: (f = msg.getFloatValue()) && proto.ord.FloatValue.toObject(includeInstance, f),
+    stringValue: jspb.Message.getFieldWithDefault(msg, 10, ""),
+    amount: (f = msg.getAmount()) && proto.ord.Amount.toObject(includeInstance, f),
+    retentionTime: (f = msg.getRetentionTime()) && proto.ord.Time.toObject(includeInstance, f),
+    massSpecDetails: (f = msg.getMassSpecDetails()) && proto.ord.ProductMeasurement.MassSpecMeasurementDetails.toObject(includeInstance, f),
+    selectivity: (f = msg.getSelectivity()) && proto.ord.ProductMeasurement.Selectivity.toObject(includeInstance, f),
+    wavelength: (f = msg.getWavelength()) && proto.ord.Wavelength.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -13785,11 +13785,11 @@ proto.ord.ProductMeasurement.MassSpecMeasurementDetails.prototype.toObject = fun
  */
 proto.ord.ProductMeasurement.MassSpecMeasurementDetails.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-ticMinimumMz: (f = jspb.Message.getOptionalFloatingPointField(msg, 3)) == null ? undefined : f,
-ticMaximumMz: (f = jspb.Message.getOptionalFloatingPointField(msg, 4)) == null ? undefined : f,
-eicMassesList: (f = jspb.Message.getRepeatedFloatingPointField(msg, 5)) == null ? undefined : f
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    ticMinimumMz: jspb.Message.getFloatingPointFieldWithDefault(msg, 3, 0.0),
+    ticMaximumMz: jspb.Message.getFloatingPointFieldWithDefault(msg, 4, 0.0),
+    eicMassesList: (f = jspb.Message.getRepeatedFloatingPointField(msg, 5)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -14104,8 +14104,8 @@ proto.ord.ProductMeasurement.Selectivity.prototype.toObject = function(opt_inclu
  */
 proto.ord.ProductMeasurement.Selectivity.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, "")
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -14771,7 +14771,7 @@ proto.ord.DateTime.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.DateTime.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: jspb.Message.getFieldWithDefault(msg, 1, "")
+    value: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -14901,13 +14901,13 @@ proto.ord.Analysis.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Analysis.toObject = function(includeInstance, msg) {
   var f, obj = {
-type: jspb.Message.getFieldWithDefault(msg, 1, 0),
-details: jspb.Message.getFieldWithDefault(msg, 2, ""),
-chmoId: jspb.Message.getFieldWithDefault(msg, 3, 0),
-isOfIsolatedSpecies: (f = jspb.Message.getBooleanField(msg, 4)) == null ? undefined : f,
-dataMap: (f = msg.getDataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : [],
-instrumentManufacturer: jspb.Message.getFieldWithDefault(msg, 6, ""),
-instrumentLastCalibrated: (f = msg.getInstrumentLastCalibrated()) && proto.ord.DateTime.toObject(includeInstance, f)
+    type: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    details: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    chmoId: jspb.Message.getFieldWithDefault(msg, 3, 0),
+    isOfIsolatedSpecies: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
+    dataMap: (f = msg.getDataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : [],
+    instrumentManufacturer: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    instrumentLastCalibrated: (f = msg.getInstrumentLastCalibrated()) && proto.ord.DateTime.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -15293,17 +15293,17 @@ proto.ord.ReactionProvenance.prototype.toObject = function(opt_includeInstance) 
  */
 proto.ord.ReactionProvenance.toObject = function(includeInstance, msg) {
   var f, obj = {
-experimenter: (f = msg.getExperimenter()) && proto.ord.Person.toObject(includeInstance, f),
-city: jspb.Message.getFieldWithDefault(msg, 2, ""),
-experimentStart: (f = msg.getExperimentStart()) && proto.ord.DateTime.toObject(includeInstance, f),
-doi: jspb.Message.getFieldWithDefault(msg, 4, ""),
-patent: jspb.Message.getFieldWithDefault(msg, 5, ""),
-publicationUrl: jspb.Message.getFieldWithDefault(msg, 6, ""),
-recordCreated: (f = msg.getRecordCreated()) && proto.ord.RecordEvent.toObject(includeInstance, f),
-recordModifiedList: jspb.Message.toObjectList(msg.getRecordModifiedList(),
+    experimenter: (f = msg.getExperimenter()) && proto.ord.Person.toObject(includeInstance, f),
+    city: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    experimentStart: (f = msg.getExperimentStart()) && proto.ord.DateTime.toObject(includeInstance, f),
+    doi: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    patent: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    publicationUrl: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    recordCreated: (f = msg.getRecordCreated()) && proto.ord.RecordEvent.toObject(includeInstance, f),
+    recordModifiedList: jspb.Message.toObjectList(msg.getRecordModifiedList(),
     proto.ord.RecordEvent.toObject, includeInstance),
-reactionMetadataMap: (f = msg.getReactionMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : [],
-isMined: (f = jspb.Message.getBooleanField(msg, 10)) == null ? undefined : f
+    reactionMetadataMap: (f = msg.getReactionMetadataMap()) ? f.toObject(includeInstance, proto.ord.Data.toObject) : [],
+    isMined: jspb.Message.getBooleanFieldWithDefault(msg, 10, false)
   };
 
   if (includeInstance) {
@@ -15801,11 +15801,11 @@ proto.ord.Person.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Person.toObject = function(includeInstance, msg) {
   var f, obj = {
-username: jspb.Message.getFieldWithDefault(msg, 1, ""),
-name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-orcid: jspb.Message.getFieldWithDefault(msg, 3, ""),
-organization: jspb.Message.getFieldWithDefault(msg, 4, ""),
-email: jspb.Message.getFieldWithDefault(msg, 5, "")
+    username: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    orcid: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    organization: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    email: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -16051,9 +16051,9 @@ proto.ord.RecordEvent.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.RecordEvent.toObject = function(includeInstance, msg) {
   var f, obj = {
-time: (f = msg.getTime()) && proto.ord.DateTime.toObject(includeInstance, f),
-person: (f = msg.getPerson()) && proto.ord.Person.toObject(includeInstance, f),
-details: jspb.Message.getFieldWithDefault(msg, 3, "")
+    time: (f = msg.getTime()) && proto.ord.DateTime.toObject(includeInstance, f),
+    person: (f = msg.getPerson()) && proto.ord.Person.toObject(includeInstance, f),
+    details: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -16283,9 +16283,9 @@ proto.ord.Time.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Time.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f,
-units: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+    units: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -16520,9 +16520,9 @@ proto.ord.Mass.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Mass.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f,
-units: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+    units: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -16757,9 +16757,9 @@ proto.ord.Moles.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Moles.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f,
-units: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+    units: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -16994,9 +16994,9 @@ proto.ord.Volume.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Volume.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f,
-units: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+    units: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -17231,9 +17231,9 @@ proto.ord.Concentration.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Concentration.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f,
-units: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+    units: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -17467,9 +17467,9 @@ proto.ord.Pressure.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Pressure.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f,
-units: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+    units: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -17708,9 +17708,9 @@ proto.ord.Temperature.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Temperature.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f,
-units: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+    units: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -17944,9 +17944,9 @@ proto.ord.Current.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Current.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f,
-units: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+    units: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -18179,9 +18179,9 @@ proto.ord.Voltage.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Voltage.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f,
-units: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+    units: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -18414,9 +18414,9 @@ proto.ord.Length.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Length.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f,
-units: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+    units: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -18652,9 +18652,9 @@ proto.ord.Wavelength.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Wavelength.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f,
-units: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+    units: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -18887,9 +18887,9 @@ proto.ord.FlowRate.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.FlowRate.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f,
-units: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0),
+    units: jspb.Message.getFieldWithDefault(msg, 3, 0)
   };
 
   if (includeInstance) {
@@ -19125,8 +19125,8 @@ proto.ord.Percentage.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Percentage.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0)
   };
 
   if (includeInstance) {
@@ -19321,8 +19321,8 @@ proto.ord.FloatValue.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.FloatValue.toObject = function(includeInstance, msg) {
   var f, obj = {
-value: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-precision: (f = jspb.Message.getOptionalFloatingPointField(msg, 2)) == null ? undefined : f
+    value: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    precision: jspb.Message.getFloatingPointFieldWithDefault(msg, 2, 0.0)
   };
 
   if (includeInstance) {
@@ -19546,13 +19546,13 @@ proto.ord.Data.prototype.toObject = function(opt_includeInstance) {
  */
 proto.ord.Data.toObject = function(includeInstance, msg) {
   var f, obj = {
-floatValue: (f = jspb.Message.getOptionalFloatingPointField(msg, 1)) == null ? undefined : f,
-integerValue: (f = jspb.Message.getField(msg, 2)) == null ? undefined : f,
-bytesValue: msg.getBytesValue_asB64(),
-stringValue: (f = jspb.Message.getField(msg, 4)) == null ? undefined : f,
-url: (f = jspb.Message.getField(msg, 5)) == null ? undefined : f,
-description: jspb.Message.getFieldWithDefault(msg, 6, ""),
-format: jspb.Message.getFieldWithDefault(msg, 7, "")
+    floatValue: jspb.Message.getFloatingPointFieldWithDefault(msg, 1, 0.0),
+    integerValue: jspb.Message.getFieldWithDefault(msg, 2, 0),
+    bytesValue: msg.getBytesValue_asB64(),
+    stringValue: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    url: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    description: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    format: jspb.Message.getFieldWithDefault(msg, 7, "")
   };
 
   if (includeInstance) {
