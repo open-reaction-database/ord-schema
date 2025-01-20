@@ -223,7 +223,7 @@ reactions {
       type: STIR_BAR
       details: "magnetic"
     }
-    conditions_are_dynamic: true
+    conditions_are_dynamic: false
     details: "Reaction stirred at 80 degrees Celcius for 24 hours, then cooled to room temperature and opened to air before adding the internal standard."
   }
   notes {
@@ -685,7 +685,7 @@ reactions {
       type: STIR_BAR
       details: "magnetic"
     }
-    conditions_are_dynamic: true
+    conditions_are_dynamic: false
     details: "Reaction stirred at 80 degrees Celcius for 24 hours, then cooled to room temperature and opened to air before adding the internal standard."
   }
   notes {
@@ -1143,7 +1143,7 @@ reactions {
       type: STIR_BAR
       details: "magnetic"
     }
-    conditions_are_dynamic: true
+    conditions_are_dynamic: false
     details: "Reaction stirred at 80 degrees Celcius for 24 hours, then cooled to room temperature and opened to air before adding the internal standard."
   }
   notes {
@@ -1605,7 +1605,7 @@ reactions {
       type: STIR_BAR
       details: "magnetic"
     }
-    conditions_are_dynamic: true
+    conditions_are_dynamic: false
     details: "Reaction stirred at 80 degrees Celcius for 24 hours, then cooled to room temperature and opened to air before adding the internal standard."
   }
   notes {
@@ -2067,7 +2067,7 @@ reactions {
       type: STIR_BAR
       details: "magnetic"
     }
-    conditions_are_dynamic: true
+    conditions_are_dynamic: false
     details: "Reaction stirred at 80 degrees Celcius for 24 hours, then cooled to room temperature and opened to air before adding the internal standard."
   }
   notes {
