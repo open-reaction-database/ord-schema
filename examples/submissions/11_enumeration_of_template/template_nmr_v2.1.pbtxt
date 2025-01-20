@@ -1,0 +1,461 @@
+identifiers {
+  type: CUSTOM
+  details: "Sample number"
+  value: "$Sample$"
+}
+inputs {
+  key: "Catalysts"
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: "C[Si](C)(C)C[Pd]345(C1=C3CCC4=C5CC1)C[Si](C)(C)C"
+      }
+      identifiers {
+        type: NAME
+        value: "(1,5-Cyclooctadiene)bis[(trimethylsilyl)methyl]palladium"
+      }
+      identifiers {
+        type: IUPAC_NAME
+        value: "(1Z,5Z)-cycloocta-1,5-diene; methanidyl(trimethyl)silane; palladium(2+)"
+      }
+      amount {
+        mass {
+          value: 0.13
+          units: MILLIGRAM
+        }
+      }
+      reaction_role: CATALYST
+      preparations {
+        type: SYNTHESIZED
+        details: "according to literature procedure"
+      }
+      preparations {
+        type: CUSTOM
+        details: "stored in glove box at -20 degrees Celcius"
+      }
+    }
+    components {
+      identifiers {
+        type: NAME
+        value: "tributylamine"
+      }
+      identifiers {
+        type: SMILES
+        details: "NAME resolved by the PubChem API"
+        value: "CCCCN(CCCC)CCCC"
+      }
+      amount {
+        volume {
+          value: 4.1
+          units: MICROLITER
+        }
+      }
+      reaction_role: REAGENT
+      preparations {
+        type: DRIED
+        details: "dried with calcium hydride"
+      }
+      preparations {
+        type: SPARGED
+        details: "sparged with N2"
+      }
+      preparations {
+        type: CUSTOM
+        details: "stored under N2 in a sealed vessel"
+      }
+    }
+    components {
+      identifiers {
+        type: NAME
+        value: "acetonitrile"
+      }
+      identifiers {
+        type: SMILES
+        details: "NAME resolved by the PubChem API"
+        value: "CC#N"
+      }
+      amount {
+        volume {
+          value: 150.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
+      }
+      reaction_role: SOLVENT
+      preparations {
+        type: DRIED
+        details: "dried on alumina"
+      }
+    }
+    addition_order: 2
+    addition_speed {
+      type: ALL_AT_ONCE
+    }
+    addition_device {
+      type: PIPETTE
+    }
+  }
+}
+inputs {
+  key: "Ligand"
+  value {
+    components {
+      identifiers {
+        type: NAME
+        value: "$ligand_name$"
+      }
+      identifiers {
+        type: SMILES
+        value: "$ligand_smiles$"
+      }
+      identifiers {
+        type: CAS_NUMBER
+        value: "$ligand_cas$"
+      }
+      amount {
+        moles {
+          value: 1.0
+          units: MICROMOLE
+        }
+      }
+      reaction_role: REAGENT
+    }
+    addition_order: 1
+    addition_speed {
+      type: ALL_AT_ONCE
+    }
+    addition_device {
+      type: CUSTOM
+      details: "manual weighing"
+    }
+  }
+}
+inputs {
+  key: "Reactant"
+  value {
+    components {
+      identifiers {
+        type: SMILES
+        value: "COc1cc(C(=O)NOc2ccccc2)c(C2=C(C)c3ccc4c(c3C2)OCO4)cc1OC"
+      }
+      amount {
+        mass {
+          value: 1.49
+          units: MILLIGRAM
+        }
+      }
+      reaction_role: REACTANT
+      is_limiting: true
+    }
+    components {
+      identifiers {
+        type: NAME
+        value: "acetonitrile"
+      }
+      identifiers {
+        type: SMILES
+        details: "NAME resolved by the PubChem API"
+        value: "CC#N"
+      }
+      amount {
+        volume {
+          value: 150.0
+          units: MICROLITER
+        }
+      }
+      reaction_role: SOLVENT
+      preparations {
+        type: DRIED
+        details: "dried on alumina"
+      }
+    }
+    addition_order: 3
+    addition_speed {
+      type: ALL_AT_ONCE
+    }
+    addition_device {
+      type: PIPETTE
+    }
+  }
+}
+setup {
+  vessel {
+    type: WELL_PLATE
+    details: "Paradox Standard 96-Position Parallel Synthesis block"
+    material {
+      type: GLASS
+    }
+    preparations {
+      type: OVEN_DRIED
+      details: "150 degrees Celcius for 2 hours"
+    }
+    attachments {
+      type: MAT
+      details: "covered in a Teflon sheet, rubber mats, and aluminium top cover affixed to bottom plate via 9 tightly tightened screws"
+    }
+    volume {
+      value: 1.0
+      units: MILLILITER
+    }
+  }
+  is_automated: false
+  environment {
+    type: GLOVE_BOX
+    details: "moisture- and oxygen-free"
+  }
+}
+conditions {
+  temperature {
+    control {
+      type: DRY_ALUMINUM_PLATE
+      details: "pre-heated temperature-controlled metal block"
+    }
+    setpoint {
+      value: 80.0
+      units: CELSIUS
+    }
+  }
+  stirring {
+    type: STIR_BAR
+    details: "magnetic"
+  }
+  conditions_are_dynamic: true
+  details: "Reaction stirred at 80 degrees Celcius for 24 hours, then cooled to room temperature and opened to air before adding the internal standard."
+}
+notes {
+  is_sensitive_to_moisture: true
+  is_sensitive_to_oxygen: true
+  procedure_details: "Vials containing pre-plated ligand were added to a 96-well reaction block (Paradox Standard 96-Position Parallel Synthesis block) in positions C4-9 ,D4-9, E4-9, and F4-9 and equipped with magnetic stirbars in a moisture and oxygen-free glovebox. The remainder of the plate positions were filled with empty vials to ensure a proper seal with the lid could be obtained later.(cod)Pd(CH2TMS)2 (0.13 mg, 0.33 umol, 0.10 equiv) and nBu3N (4.10 uL, 16.7 umol, 5.00 equiv) were added as a solution in MeCN (150 uL) via micropipettor to each of the 24 wells. Then hydroxamic ether 3 (1.49 mg, 3.34 umol, 1.00 equiv) was added as a solution in MeCN (150 uL) via micropipettor. The reaction block was then covered with a Teflon sheet, rubber mats, and its aluminum top cover which were all affixed to the bottom plate via 9 tightly tightened screws. The plate was placed in a pre-heated temperature-controlled metal block on a stir plate in the glovebox and stirred at 80C for 24 h. The reaction block was then removed from the glovebox, cooled to rt, and opened to air. A solution of trimethoxybenzene (0.19 mg, 1.11 umol, 0.33 equiv) in MeCN (400 uL) was added as an internal standard to each vial of the 24 vials via micropipettor. After centrifugation, a 300 uL aliquot of each crude reaction was transferred to an analysis collection plate via micropipettor. The plate was sealed with aluminum sealing tape, and centrifuged for 15 min. The reactions were analyzed and quantified by LC-MS and integrated against the trimethoxybenzene internal standard to determine the yield of product formed in each reaction and the amount of unreacted starting material remaining. Yields determined by LC-MS were also validated by quantification of the 1H NMR spectrum of the indicated entries."
+}
+workups {
+  type: TEMPERATURE
+  details: "cool to room temperature and opened to air"
+  temperature {
+    control {
+      type: AMBIENT
+    }
+  }
+  stirring {
+    type: NONE
+  }
+  is_automated: false
+}
+workups {
+  type: ADDITION
+  details: "addition of internal standard"
+  input {
+    components {
+      identifiers {
+        type: NAME
+        value: "trimethoxybenzene"
+      }
+      identifiers {
+        type: SMILES
+        details: "NAME resolved by the PubChem API"
+        value: "COc1cccc(OC)c1OC"
+      }
+      amount {
+        mass {
+          value: 0.19
+          units: MILLIGRAM
+        }
+      }
+      reaction_role: INTERNAL_STANDARD
+    }
+    components {
+      identifiers {
+        type: NAME
+        value: "acetonitrile"
+      }
+      identifiers {
+        type: SMILES
+        details: "NAME resolved by the PubChem API"
+        value: "CC#N"
+      }
+      amount {
+        volume {
+          value: 400.0
+          units: MICROLITER
+        }
+        volume_includes_solutes: true
+      }
+      reaction_role: SOLVENT
+      preparations {
+        type: DRIED
+        details: "dried on alumina"
+      }
+    }
+    addition_speed {
+      type: ALL_AT_ONCE
+    }
+    addition_device {
+      type: PIPETTE
+    }
+  }
+  stirring {
+    type: CUSTOM
+    details: "centrifuge"
+  }
+  is_automated: false
+}
+workups {
+  type: ALIQUOT
+  details: "300 microliter aliquot transferred to analysis collection plate via micropipettor, and sealed with aluminium sealing tape."
+  amount {
+    volume {
+      value: 300.0
+      units: MICROLITER
+    }
+  }
+  is_automated: false
+}
+workups {
+  type: CUSTOM
+  details: "centrifuged"
+  duration {
+    value: 15.0
+    units: MINUTE
+  }
+  keep_phase: "liquid"
+}
+outcomes {
+  reaction_time {
+    value: 24.0
+    units: HOUR
+  }
+  products {
+    identifiers {
+      type: NAME
+      value: "5'-6'-dimethoxy-6-methylidene2',3',6,8-tetrahydro-2H-spiro[indeno[4,5-d][1,3]dioxole-7,1'-isoindole]-3'-one"
+    }
+    identifiers {
+      type: MOLBLOCK
+      details: "Drawn with Ketcher"
+      value: "\n  Ketcher  9202412492D 1   1.00000     0.00000     0\n\n 26 30  0  0  0  0            999 V2000\n    4.9348   -8.1751    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    6.6652   -8.1746    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    5.8016   -7.6750    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    6.6652   -9.1755    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    4.9348   -9.1800    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    5.8038   -9.6750    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    9.8348   -6.2501    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n   11.5652   -6.2496    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n   10.7016   -5.7500    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n   11.5652   -7.2505    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    9.8348   -7.2550    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n   10.7038   -7.7500    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    4.0688   -9.6800    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0\n    5.8038  -10.6750    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0\n    4.7759  -10.3871    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    7.5312   -7.6746    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    8.3972   -8.1746    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    7.6652   -9.1755    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    7.5312   -6.6746    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    9.1043   -8.8817    0.0000 N   0  0  0  0  0  0  0  0  0  0  0  0\n   10.4450   -8.7160    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n   11.1521   -9.4231    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0\n   10.7016   -4.7500    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0\n   12.4312   -5.7496    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0\n    9.7357   -4.4911    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n   13.3971   -6.0084    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n  3  1  2  0     0  0\n  4  2  2  0     0  0\n  1  5  1  0     0  0\n  2  3  1  0     0  0\n  5  6  2  0     0  0\n  6  4  1  0     0  0\n  9  7  2  0     0  0\n 10  8  2  0     0  0\n  7 11  1  0     0  0\n  8  9  1  0     0  0\n 11 12  2  0     0  0\n 12 10  1  0     0  0\n  5 13  1  0     0  0\n  6 14  1  0     0  0\n 13 15  1  0     0  0\n 15 14  1  0     0  0\n  2 16  1  0     0  0\n 16 17  1  0     0  0\n  4 18  1  0     0  0\n 18 17  1  0     0  0\n 16 19  2  0     0  0\n 17 11  1  0     0  0\n 17 20  1  0     0  0\n 12 21  1  0     0  0\n 21 20  1  0     0  0\n 21 22  2  0     0  0\n  9 23  1  0     0  0\n  8 24  1  0     0  0\n 23 25  1  0     0  0\n 24 26  1  0     0  0\nM  END\n"
+    }
+    identifiers {
+      type: SMILES
+      details: "Drawn with Ketcher"
+      value: "C=C1c2ccc3c(c2CC12NC(=O)c1cc(OC)c(OC)cc12)OCO3"
+    }
+    is_desired_product: true
+    measurements {
+      analysis_key: "LC-MS"
+      type: YIELD
+      details: "LC-MS yield"
+      uses_internal_standard: true
+      is_normalized: true
+      uses_authentic_standard: false
+      percentage {
+        value: $11_yield$
+      }
+    }
+    measurements {
+      analysis_key: "1H-NMR"
+      type: YIELD
+      details: "1H-NMR yield"
+      uses_internal_standard: true
+      is_normalized: true
+      uses_authentic_standard: false
+      percentage {
+        value: $11_nmr_yield$
+      }
+    }
+    reaction_role: PRODUCT
+  }
+  analyses {
+    key: "1H-NMR"
+    value {
+      type: IR
+      details: "600 MHz Bruker AVANCE NMR spectrometer equipped with a Bruker SMART probe"
+      chmo_id: 593
+      is_of_isolated_species: false
+      instrument_manufacturer: "Bruker"
+    }
+  }
+  analyses {
+    key: "LC-MS"
+    value {
+      type: LCMS
+      details: "Thermo Q-Exactive Orbitrap using electrospray ionization (ESI). Column chromatography was performed either by hand or by use of Isolera 3 Biotage unit with 40-63um silica gel."
+      chmo_id: 524
+      is_of_isolated_species: false
+      instrument_manufacturer: "Thermo Scientific"
+    }
+  }
+}
+outcomes {
+  products {
+    identifiers {
+      type: SMILES
+      value: "COc1cc(C(=O)NOc2ccccc2)c(C2=C(C)c3ccc4c(c3C2)OCO4)cc1OC"
+    }
+    measurements {
+      analysis_key: "LC-MS"
+      type: YIELD
+      details: "LC-MS yield"
+      uses_internal_standard: true
+      is_normalized: true
+      uses_authentic_standard: false
+      percentage {
+        value: $3_yield$
+      }
+    }
+    measurements {
+      analysis_key: "1H-NMR"
+      type: YIELD
+      details: "1H-NMR yield"
+      uses_internal_standard: true
+      is_normalized: true
+      uses_authentic_standard: false
+      percentage {
+        value: $3_nmr_yield$
+      }
+    }
+    reaction_role: REACTANT
+  }
+  analyses {
+    key: "1H-NMR"
+    value {
+      type: NMR_1H
+      details: "600 MHz Bruker AVANCE NMR spectrometer equipped with a Bruker SMART probe"
+      chmo_id: 593
+      is_of_isolated_species: false
+      instrument_manufacturer: "Bruker"
+    }
+  }
+  analyses {
+    key: "LC-MS"
+    value {
+      type: LCMS
+      details: "Thermo Q-Exactive Orbitrap using electrospray ionization (ESI). Column chromatography was performed either by hand or by use of Isolera 3 Biotage unit with 40-63um silica gel."
+      chmo_id: 524
+      is_of_isolated_species: false
+      instrument_manufacturer: "Thermo Scientific"
+    }
+  }
+}
+provenance {
+  experimenter {
+    name: "Katerina Korch"
+    orcid: "0000-0002-1436-8792"
+    organization: "University of Delaware"
+  }
+  city: "Delaware"
+  doi: "10.1021/acs.orglett.1c02767"
+  publication_url: "https://pubs.acs.org/doi/10.1021/acs.orglett.1c02767"
+  record_created {
+    time {
+      value: "05/12/2024, 15:29:23"
+    }
+    person {
+      username: "saratanov"
+      name: "Sara Tanovic"
+      orcid: "0000-0002-6528-7757"
+      organization: "University of Oxford"
+      email: "sara.tanovic@gtc.ox.ac.uk"
+    }
+  }
+}
+reaction_id: "Reaction $Entry$"
