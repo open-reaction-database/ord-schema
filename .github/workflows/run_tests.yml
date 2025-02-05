@@ -90,7 +90,7 @@ jobs:
           unzip protoc-22.3-linux-x86_64.zip
           wget https://github.com/protocolbuffers/protobuf-javascript/releases/download/v3.21.2/protobuf-javascript-3.21.2-linux-x86_64.zip
           unzip protobuf-javascript-3.21.2-linux-x86_64.zip
-          npm i -g ts-protoc-gen@0.15.0
+          npm i -g ts-protoc-gen@0.15.0 protobufjs@7.4.0 protobufjs-cli@1.1.3
           PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH protoc --version
       - name: Run protoc
         run: |
