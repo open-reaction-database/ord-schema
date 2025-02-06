@@ -16,6 +16,7 @@
 # Compiles protocol buffers.
 # Make sure you have protoc in your PATH; see https://grpc.io/docs/protoc-installation/.
 set -ex
+
 protoc \
   --proto_path=.. \
   --python_out=. \
@@ -23,3 +24,6 @@ protoc \
   --js_out=import_style=commonjs,binary:js \
   ../ord-schema/proto/*.proto \
   --ts_out=./js/ \
+
+pbjs -p proto/*.proto -o js/ord-schema-protobufjs/index.js -w es6 -t static-module
+pbts js/ord-schema-protobufjs/index.js -o js/ord-schema-protobufjs/index.d.ts
