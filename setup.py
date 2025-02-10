@@ -41,7 +41,7 @@ setuptools.setup(
         "numpy>=1.26.4",
         "openpyxl>=3.0.5",
         "pandas>=1.0.4",
-        "protobuf==4.22.3",
+        "protobuf>=4.22.3,<5",
         "psycopg[binary,pool]>=3",
         "pygithub>=1.51",
         "python-dateutil>=1.10.0",
