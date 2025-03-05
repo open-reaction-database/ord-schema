@@ -964,12 +964,15 @@ def validate_reaction_provenance(message: reaction_pb2.ReactionProvenance):
         if not record.person.email:
             warnings.warn("User email is required for record_modified", ValidationError)
     if message.doi:
-        parsed_doi = message_helpers.parse_doi(message.doi)
-        if message.doi != parsed_doi:
-            warnings.warn(
-                f"DOI should be trimmed ({message.doi} -> {parsed_doi})",
-                ValidationError,
-            )
+        try:
+            parsed_doi = message_helpers.parse_doi(message.doi)
+            if message.doi != parsed_doi:
+                warnings.warn(
+                    f"DOI should be trimmed ({message.doi} -> {parsed_doi})",
+                    ValidationError,
+                )
+        except ValueError as error:
+            warnings.warn(str(error), ValidationError)
     # TODO(ccoley) could check if publication_url is valid, etc.
 
 

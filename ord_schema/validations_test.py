@@ -482,6 +482,16 @@ def test_missing_provenance():
         _run_validation(message, recurse=False, options=options)
 
 
+def test_bad_doi():
+    message = reaction_pb2.ReactionProvenance()
+    message.record_created.time.value = "2023-07-01"
+    message.record_created.person.email = "test@example.com"
+    message.doi = "149"
+    options = validations.ValidationOptions(require_provenance=True)
+    with pytest.raises(validations.ValidationError, match="could not parse DOI"):
+        _run_validation(message, recurse=False, options=options)
+
+
 def test_data():
     message = reaction_pb2.Data()
     with pytest.raises(validations.ValidationError, match="requires one of"):
