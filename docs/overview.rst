@@ -159,7 +159,7 @@ committee is:
 * Spencer Dreher (Merck)
 * Joel Hawkins (Pfizer)
 * Klavs Jensen (MIT)
-* Steven Kearnes (Relay)
+* Steven Kearnes (Genesis Therapeutics)
 
 Advisory Board
 ==============
