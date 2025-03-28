@@ -179,7 +179,7 @@ Advisory Board is:
 * Mimi Hii (Imperial, ROAR)
 * Greg Landrum (ETH Zurich)
 * Fabio Lima (Novartis)
-* Christos Nicolaou (Recursion)
+* Christos Nicolaou (Novo Nordisk)
 * Sarah Reisman (Caltech, `C-CAS <https://ccas.nd.edu/>`__)
 * Francesco Rianjongdee (GSK)
 * Marwin Segler (Microsoft)
