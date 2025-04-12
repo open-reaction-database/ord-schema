@@ -33,10 +33,10 @@ import docopt
 import xml.etree.ElementTree as ET
 
 from ord_schema.logging import get_logger
-from ord_schema import message_helpers
-from ord_schema import validations
-from ord_schema.proto import dataset_pb2
-from ord_schema.proto import reaction_pb2
+# from ord_schema import message_helpers
+# from ord_schema import validations
+# from ord_schema.proto import dataset_pb2
+# from ord_schema.proto import reaction_pb2
 
 from collections import defaultdict
 import json
@@ -45,6 +45,16 @@ logger = get_logger(__name__)
 
 
 def main(kwargs):
+    # Add dataset name and description parameters
+    # Add message helpers and reaction pb2 from build_dataset script
+    # Write to pbtxt file
+    # Load pbtxt files into ORD database and display in interface
+    # Use test UDM files from real source - Github or Pistoia
+    # TODO Test with 1 reaction and multiple, same with other structures
+    # Tolerate or warn if values are null or missing
+    # Fill data into custom columns where no field is appropriate
+    # Finish schema matching
+
     logger.info("Starting conversion from UDM to ORD.")
 
     # Default input and output file names
@@ -146,6 +156,7 @@ def main(kwargs):
         # print(reaction["VARIATION"])
         reactant = reaction["VARIATION"]["REACTANT"]
 
+        # compound = reaction_pb2.Compound()
         compound = dict()
         # TODO: Check the following translation from MOLECULE to identifiers.
         compound["identifiers"] = reactant["MOLECULE"]
@@ -191,14 +202,14 @@ def main(kwargs):
 
         # Add extra data from UDM concatenate - into free text custom field.
         ord_conditions = dict()
-        ord_conditions["temperature"] = ""
-        ord_conditions["pressure"] = ""
-        ord_conditions["stirring"] = ""
+        ord_conditions["temperature"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["TEMPERATURE"]
+        ord_conditions["pressure"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["PRESSURE"]
+        ord_conditions["stirring"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["STIRRING"]
         ord_conditions["illumination"] = ""
         ord_conditions["electrochemistry"] = ""
         ord_conditions["flow"] = ""
-        ord_conditions["reflux"] = True
-        ord_conditions["ph"] = 5.0
+        ord_conditions["reflux"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["REFLUX"]
+        ord_conditions["ph"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["PH"]
         ord_conditions["conditions_are_dynamic"] = True
         ord_conditions["details"] = ""
         ord_reaction["conditions"] = ord_conditions
@@ -220,16 +231,16 @@ def main(kwargs):
         ord_reaction["notes"] = ord_notes
 
         # Step 6 of 9: Observations
-        #  
+        # Notes about observations during the reaction.
 
         ord_observations = dict()
         ord_observations["time"] = ""
-        ord_observations["comment"] = ""
+        ord_observations["comment"] = reaction["VARIATION"]["COMMENT"]
         ord_observations["image"] = ""
         ord_reaction["observations"] = ord_observations
 
-        # Step 1 of 9: Identifiers
-        # Used to identify molecules
+        # Step 7 of 9: Workups
+        # Reaction workups
 
         ord_workups = dict()
         ord_workups["type"] = 0
@@ -244,25 +255,25 @@ def main(kwargs):
         ord_workups["is_automated"] = False
         ord_reaction["workups"] = ord_workups
 
-        # Step 1 of 9: Identifiers
-        # Used to identify molecules
+        # Step 8 of 9: Outcomes
+        # The outcomes of the reaction - time taken, the products etc.
 
         ord_outcomes = dict()
         ord_outcomes["reaction_time"] = ""
         ord_outcomes["conversion"] = ""
-        ord_outcomes["products"] = []
+        ord_outcomes["products"] = reaction["VARIATION"]["PRODUCT"]
         ord_outcomes["analyses"] = []
         ord_reaction["outcomes"] = ord_outcomes
 
-        # Step 1 of 9: Identifiers
-        # Used to identify molecules
+        # Step 9 of 9: Provenance
+        # Publication and patent details, attribution, other metadata
 
         ord_provenance = dict()
-        ord_provenance["experimenter"] = ""
-        ord_provenance["city"] = ""
+        ord_provenance["experimenter"] = reaction["ORGANISATIONS"][0]["ORGANISATION"]["NAME"]
+        ord_provenance["city"] = reaction["ORGANISATIONS"][0]["ORGANISATION"]["ADDRESS"]
         ord_provenance["experiment_start"] = ""
-        ord_provenance["doi"] = ""
-        ord_provenance["patent"] = ""
+        ord_provenance["doi"] = reaction["CITATIONS"][0]["CITATION"]["DOI"]
+        ord_provenance["patent"] = reaction["CITATIONS"][0]["CITATION"]["PATENT_NUMBER"]
         ord_provenance["publication_url"] = ""
         ord_provenance["record_created"] = ""
         ord_provenance["record_modified"] = ""
