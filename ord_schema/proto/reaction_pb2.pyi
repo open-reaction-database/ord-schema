@@ -48,6 +48,8 @@ class ReactionIdentifier(_message.Message):
         RDFILE: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
         RINCHI: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
         REACTION_TYPE: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
+        SUBSET: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
+        INDEX: _ClassVar[ReactionIdentifier.ReactionIdentifierType]
     UNSPECIFIED: ReactionIdentifier.ReactionIdentifierType
     CUSTOM: ReactionIdentifier.ReactionIdentifierType
     REACTION_SMILES: ReactionIdentifier.ReactionIdentifierType
@@ -55,6 +57,8 @@ class ReactionIdentifier(_message.Message):
     RDFILE: ReactionIdentifier.ReactionIdentifierType
     RINCHI: ReactionIdentifier.ReactionIdentifierType
     REACTION_TYPE: ReactionIdentifier.ReactionIdentifierType
+    SUBSET: ReactionIdentifier.ReactionIdentifierType
+    INDEX: ReactionIdentifier.ReactionIdentifierType
     TYPE_FIELD_NUMBER: _ClassVar[int]
     DETAILS_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
