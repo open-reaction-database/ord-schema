@@ -23,18 +23,17 @@ import warnings
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Optional, Type, TypeVar, Union
 
+import ord_schema
 import pandas as pd
 import requests
 from google import protobuf  # pytype: disable=import-error
-from google.protobuf import text_format  # pytype: disable=import-error
 from google.protobuf import json_format
+from google.protobuf import text_format  # pytype: disable=import-error
+from ord_schema import units
+from ord_schema.proto import dataset_pb2, reaction_pb2
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 from werkzeug import security
-
-import ord_schema
-from ord_schema import units
-from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,

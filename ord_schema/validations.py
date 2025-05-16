@@ -21,14 +21,13 @@ from collections.abc import Mapping
 from enum import IntEnum
 from typing import Any, Optional
 
-from dateutil import parser
-from rdkit import Chem
-from rdkit import __version__ as RDKIT_VERSION
-
 import ord_schema
+from dateutil import parser
 from ord_schema import message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
+from rdkit import Chem
+from rdkit import __version__ as RDKIT_VERSION
 
 logger = get_logger(__name__)
 

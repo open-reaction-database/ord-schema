@@ -18,14 +18,13 @@ import re
 from typing import Iterator
 
 import pytest
+from ord_schema.message_helpers import load_message
+from ord_schema.orm.database import add_dataset, prepare_database
+from ord_schema.proto import dataset_pb2
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from testing.postgresql import Postgresql
-
-from ord_schema.message_helpers import load_message
-from ord_schema.orm.database import add_dataset, prepare_database
-from ord_schema.proto import dataset_pb2
 
 
 @pytest.fixture(name="test_engine")

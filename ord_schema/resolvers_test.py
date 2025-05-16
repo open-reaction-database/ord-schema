@@ -14,10 +14,9 @@
 """Tests for ord_schema.units."""
 
 import pytest
-from rdkit import Chem
-
 from ord_schema import resolvers
 from ord_schema.proto import reaction_pb2
+from rdkit import Chem
 
 
 class TestNameResolvers:

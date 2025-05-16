@@ -19,12 +19,11 @@ from typing import Optional
 
 import docopt
 import pytest
-from rdkit import RDLogger
-
 from ord_schema import message_helpers, validations
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import process_dataset
+from rdkit import RDLogger
 
 logger = get_logger(__name__)
 

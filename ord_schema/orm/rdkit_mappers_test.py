@@ -13,13 +13,11 @@
 # limitations under the License.
 
 """Tests for ord_schema.orm.rdkit_mappers."""
-import platform
 
 import pytest
-from sqlalchemy import cast, func, select
-
 from ord_schema.orm.mappers import Mappers
 from ord_schema.orm.rdkit_mappers import CString, FingerprintType, RDKitMol, RDKitMols, RDKitReactions
+from sqlalchemy import cast, func, select
 
 
 def test_tanimoto_operator(test_session):

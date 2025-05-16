@@ -29,7 +29,6 @@ import pprint
 
 import docopt
 from google.protobuf import text_format  # pytype: disable=import-error
-
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 

@@ -16,10 +16,9 @@
 import pandas as pd
 import pytest
 from google.protobuf import text_format
-from rdkit import Chem
-
 from ord_schema import templating
 from ord_schema.proto import dataset_pb2, reaction_pb2
+from rdkit import Chem
 
 
 @pytest.fixture

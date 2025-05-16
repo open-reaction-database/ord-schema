@@ -16,7 +16,6 @@
 import os
 
 import docopt
-
 from ord_schema.orm.database import prepare_database
 from ord_schema.orm.scripts import add_datasets
 

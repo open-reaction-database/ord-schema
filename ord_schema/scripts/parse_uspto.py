@@ -40,12 +40,11 @@ from xml.etree import ElementTree
 
 import docopt
 import joblib
-from rdkit import RDLogger
-
 import ord_schema
 from ord_schema import message_helpers, units, validations
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
+from rdkit import RDLogger
 
 logger = get_logger(__name__)
 RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.

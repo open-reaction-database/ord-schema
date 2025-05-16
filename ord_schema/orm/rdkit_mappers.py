@@ -26,12 +26,11 @@ from __future__ import annotations
 import os
 from enum import Enum
 
+from ord_schema.orm import Base
 from setuptools import distutils  # pytype: disable=import-error
 from sqlalchemy import Column, Index, Integer, Text, cast, func
 from sqlalchemy.sql.expression import ColumnElement
 from sqlalchemy.types import UserDefinedType
-
-from ord_schema.orm import Base
 
 
 def rdkit_cartridge() -> bool:

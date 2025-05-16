@@ -30,7 +30,6 @@ Options:
     --n_jobs=<int>          Number of parallel workers [default: 1]
     --debug                 Enable debug logging.
 """
-import logging
 import os
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
@@ -39,16 +38,17 @@ from glob import glob
 from hashlib import md5
 
 from docopt import docopt
+from ord_schema.logging import get_logger
+from ord_schema.message_helpers import load_message
+from ord_schema.orm import database
+from ord_schema.proto import dataset_pb2
 from rdkit import RDLogger
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
-from ord_schema.logging import get_logger
-from ord_schema.message_helpers import load_message
-from ord_schema.orm import database
-from ord_schema.proto import dataset_pb2
+import logging
 
 logger = get_logger(__name__)
 

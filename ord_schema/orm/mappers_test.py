@@ -16,7 +16,6 @@
 import os
 
 import pytest
-
 from ord_schema.message_helpers import load_message
 from ord_schema.orm.mappers import from_proto, to_proto
 from ord_schema.proto.dataset_pb2 import Dataset

@@ -18,7 +18,6 @@ import os
 import tempfile
 
 import pytest
-
 from ord_schema import frozen_message, message_helpers
 from ord_schema.proto import reaction_pb2, test_pb2
 

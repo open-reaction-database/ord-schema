@@ -16,7 +16,6 @@ from typing import Union
 
 import google.protobuf.message  # pytype: disable=import-error
 from google.protobuf import descriptor
-
 from ord_schema.proto import reaction_pb2
 
 # Commonly used types.

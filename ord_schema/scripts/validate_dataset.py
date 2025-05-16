@@ -27,12 +27,11 @@ from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import docopt
-from rdkit import RDLogger
-from tqdm import tqdm
-
 from ord_schema import message_helpers, validations
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2
+from rdkit import RDLogger
+from tqdm import tqdm
 
 logger = get_logger(__name__)
 

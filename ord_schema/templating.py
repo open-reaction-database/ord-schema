@@ -24,12 +24,12 @@ import re
 from collections.abc import Mapping
 from typing import BinaryIO, Optional, Union
 
+import ord_schema
 import pandas as pd
 from google.protobuf import text_format  # pytype: disable=import-error
-
-import ord_schema
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
+
 
 # pylint: disable=too-many-branches
 

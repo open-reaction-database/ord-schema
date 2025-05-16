@@ -17,7 +17,6 @@ import re
 from typing import Optional, Tuple, Type, Union
 
 import numpy as np
-
 import ord_schema
 from ord_schema.proto import reaction_pb2
 
