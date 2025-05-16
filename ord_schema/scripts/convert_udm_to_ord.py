@@ -1,4 +1,4 @@
-# Copyright 2020 Open Reaction Database Project Authors
+# Copyright 2025 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,36 +26,45 @@ Options:
     --description=<str>     Description for this dataset
     --no-validate           If set, do run validations on reactions
 """
-import glob
+# import glob
 
 import docopt
 
 import xml.etree.ElementTree as ET
 
 from ord_schema.logging import get_logger
-# from ord_schema import message_helpers
-# from ord_schema import validations
-# from ord_schema.proto import dataset_pb2
-# from ord_schema.proto import reaction_pb2
+
+from ord_schema import message_helpers
+from ord_schema import validations
+from ord_schema.proto import dataset_pb2
+from ord_schema.proto import reaction_pb2
 
 from collections import defaultdict
 import json
+import os.path
+
+import message_helpers
 
 logger = get_logger(__name__)
 
 
 def main(kwargs):
-    # Add dataset name and description parameters
     # Add message helpers and reaction pb2 from build_dataset script
     # Write to pbtxt file
-    # Load pbtxt files into ORD database and display in interface
-    # Use test UDM files from real source - Github or Pistoia
-    # TODO Test with 1 reaction and multiple, same with other structures
+    # Use test UDM files from real source
+    # Test with 1 reaction and multiple, same with other structures
     # Tolerate or warn if values are null or missing
     # Fill data into custom columns where no field is appropriate
     # Finish schema matching
 
-    logger.info("Starting conversion from UDM to ORD.")
+    # reactions.append(message_helpers.load_message(filename, reaction_pb2.Reaction))
+
+    logger.info("Starting conversion from UDM v6.0.0 to ORD.")
+
+    logger.info("Important message - The Open Reaction Database repository, ord-data, uses the CC-BY-SA license"
+                " for all data. "
+                "Please do not push your converted dataset to ord-data unless you have the authority to "
+                "change the license on the data to CC-BY-SA.")
 
     # Default input and output file names
     inputfile = "udm_dataset.xml"
@@ -65,8 +74,10 @@ def main(kwargs):
     # Pull input and output file names from parameters
     if kwargs["--input"]:
         inputfile = kwargs["--input"]
-    if kwargs["--output"]:
-        outputfile = kwargs["--output"]
+
+    if not os.path.isfile(inputfile):
+        logger.info("Error - Conversion failed. Please check that the --input file exists at the specified location.")
+        exit(1)
 
     # Load UDM file and parse XML into a dictionary
     udm_tree = ET.parse(inputfile)
@@ -74,6 +85,32 @@ def main(kwargs):
     # for child in root:
         # print(child.tag, child.attrib)
     udm_reactions = etree_to_dict(root)
+
+    if "UDM" not in udm_reactions:
+        logger.info("Error - Input file is not UDM format - please ensure the <UDM> tag is used as the root of your "
+                    ".xml file.")
+        exit(1)
+
+    udm_reactions = udm_reactions["UDM"]
+
+    dataset_name = ""
+    dataset_description = ""
+    if "LEGAL" in udm_reactions:
+        if "TITLE" in udm_reactions["LEGAL"]:
+            outputfile = udm_reactions["LEGAL"]["TITLE"] + ".json"
+            dataset_name = udm_reactions["LEGAL"]["TITLE"]
+        if "DOI" in udm_reactions["LEGAL"]:
+            dataset_description = udm_reactions["LEGAL"]["DOI"]
+
+    if kwargs["--name"]:
+        dataset_name = kwargs["--name"]
+
+    if kwargs["--description"]:
+        dataset_description = kwargs["--description"]
+
+    # If converter user specified a different output filename:
+    if kwargs["--output"]:
+        outputfile = kwargs["--output"]
 
     # Inspect UDM reactions
     # print(str(udm_reactions))
@@ -86,11 +123,15 @@ def main(kwargs):
 
     # List of ORD reactions.
     ord_reactions = []
+    pb2_reactions = []
 
     # Loop over each UDM reaction.
+    # Loop over VARIATIONs.
     for reaction in udm_reactions["REACTIONS"]["REACTION"]:
+    # Inner loop over udm_reactions["REACTIONS"]["REACTION"]["VARIATION"]
         # Create a blank dictionary for each reaction.
         ord_reaction = dict()
+        pb2_reaction = message_helpers.create_message("Reaction")
 
         # Initialize.
         ord_reaction["identifiers"] = []
@@ -110,33 +151,34 @@ def main(kwargs):
         ord_identifiers = []
 
         # May be multiple RXNSTRUCTs
-        rxnstructure = reaction["RXNSTRUCTURE"]
-        udmformat = rxnstructure["format"]
-        # Default reaction identifier type will be unspecified.
-        ordtype = 0
-        orddetails = ""
+        if "RXNSTRUCTURE" in reaction:
+            rxnstructure = reaction["RXNSTRUCTURE"]
+            udmformat = rxnstructure["format"]
+            # Default reaction identifier type will be unspecified.
+            ordtype = 0
+            orddetails = ""
 
-        # For types not supported in ORD, the type will be CUSTOM and the details will contain the name of the type.
-        if udmformat == "cdxml":
-            ordtype = 1
-            orddetails = "cdxml"
-        elif udmformat == "rinchi":
-            ordtype = 5
-        elif udmformat == "rsmiles":
-            ordtype = 2
-        elif udmformat == "rxn":
-            ordtype = 1
-            orddetails = "rxn"
+            # For types not supported in ORD, the type will be CUSTOM and the details will contain the name of the type.
+            if udmformat == "cdxml":
+                ordtype = 1
+                orddetails = "cdxml"
+            elif udmformat == "rinchi":
+                ordtype = 5
+            elif udmformat == "rsmiles":
+                ordtype = 2
+            elif udmformat == "rxn":
+                ordtype = 1
+                orddetails = "rxn"
 
-        ord_identifier = dict()
-        ord_identifier["type"] = ordtype
-        ord_identifier["details"] = orddetails
-        # The actual identifier for the reaction
-        ord_identifier["value"] = rxnstructure["value"]
-        ord_identifier["is_mapped"] = False
-        ord_identifiers.append(ord_identifier)
+            ord_identifier = dict()
+            ord_identifier["type"] = ordtype
+            ord_identifier["details"] = orddetails
+            # The actual identifier for the reaction
+            ord_identifier["value"] = rxnstructure["value"]
+            ord_identifier["is_mapped"] = False
+            ord_identifiers.append(ord_identifier)
 
-        ord_reaction["identifiers"] = ord_identifiers
+            ord_reaction["identifiers"] = ord_identifiers
 
         # Step 2 of 9: Inputs
         # Used for reaction inputs, i.e. reactants, catalysts, solvents etc.
@@ -154,37 +196,51 @@ def main(kwargs):
         # may be multiple reactants on one variation
         # reactant = variation["REACTANT"]
         # print(reaction["VARIATION"])
-        reactant = reaction["VARIATION"]["REACTANT"]
+        for variation in reaction["VARIATION"]:
+            reactant = None
+            reagent = None
+            catalyst = None
+            solvent = None
 
-        # compound = reaction_pb2.Compound()
-        compound = dict()
-        # TODO: Check the following translation from MOLECULE to identifiers.
-        compound["identifiers"] = reactant["MOLECULE"]
-        compound["amount"] = reactant["AMOUNT"]
-        compound["reaction_role"] = []
-        compound["is_limiting"] = []
-        compound["preparations"] = []
-        compound["source"] = []
-        compound["features"] = []
-        compound["analyses"] = []
-        compound["texture"] = []
+            if "REACTANT" in variation:
+                reactant = variation["REACTANT"]
+            if "REAGENT" in variation:
+                reagent = variation["REAGENT"]
+            if "CATALYST" in variation:
+                catalyst = variation["CATALYST"]
+            if "SOLVENT" in variation:
+                solvent = variation["SOLVENT"]
 
-        # Missing from UDM - addition details such as time, speed, duration, and device.
-        ord_input = dict()
-        ord_input["components"] = []
-        ord_input["crude_components"] = []
-        ord_input["addition_order"] = 0
-        ord_input["addition_time"] = ""
-        ord_input["addition_speed"] = 0
-        ord_input["addition_duration"] = ""
-        ord_input["flow_rate"] = 0
-        ord_input["addition_device"] = 0
-        ord_input["addition_temperature"] = ""
-        ord_input["texture"] = ""
+            if reactant:
+                # compound = reaction_pb2.Compound()
+                compound = dict()
+                # TODO: Check the following translation from MOLECULE to identifiers.
+                compound["identifiers"] = reactant["MOLECULE"]
+                compound["amount"] = reactant["AMOUNT"]
+                compound["reaction_role"] = []
+                compound["is_limiting"] = []
+                compound["preparations"] = []
+                compound["source"] = []
+                compound["features"] = []
+                compound["analyses"] = []
+                compound["texture"] = []
 
-        ord_inputs.append(ord_input)
+                # Missing from UDM - addition details such as time, speed, duration, and device.
+                ord_input = dict()
+                ord_input["components"] = []
+                ord_input["crude_components"] = []
+                ord_input["addition_order"] = 0
+                ord_input["addition_time"] = ""
+                ord_input["addition_speed"] = 0
+                ord_input["addition_duration"] = ""
+                ord_input["flow_rate"] = 0
+                ord_input["addition_device"] = 0
+                ord_input["addition_temperature"] = ""
+                ord_input["texture"] = ""
 
-        ord_reaction["inputs"] = ord_inputs
+                ord_inputs.append(ord_input)
+
+                ord_reaction["inputs"] = ord_inputs
 
         # Step 3 of 9: Setup
         # Describes the reaction setup.
@@ -202,17 +258,18 @@ def main(kwargs):
 
         # Add extra data from UDM concatenate - into free text custom field.
         ord_conditions = dict()
-        ord_conditions["temperature"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["TEMPERATURE"]
-        ord_conditions["pressure"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["PRESSURE"]
-        ord_conditions["stirring"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["STIRRING"]
-        ord_conditions["illumination"] = ""
-        ord_conditions["electrochemistry"] = ""
-        ord_conditions["flow"] = ""
-        ord_conditions["reflux"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["REFLUX"]
-        ord_conditions["ph"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["PH"]
-        ord_conditions["conditions_are_dynamic"] = True
-        ord_conditions["details"] = ""
-        ord_reaction["conditions"] = ord_conditions
+        if "CONDITIONS" in reaction:
+            ord_conditions["temperature"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["TEMPERATURE"]
+            ord_conditions["pressure"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["PRESSURE"]
+            ord_conditions["stirring"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["STIRRING"]
+            ord_conditions["illumination"] = ""
+            ord_conditions["electrochemistry"] = ""
+            ord_conditions["flow"] = ""
+            ord_conditions["reflux"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["REFLUX"]
+            ord_conditions["ph"] = reaction["CONDITIONS"][0]["CONDITION_GROUP"]["PH"]
+            ord_conditions["conditions_are_dynamic"] = True
+            ord_conditions["details"] = ""
+            ord_reaction["conditions"] = ord_conditions
 
         # Step 5 of 9: Notes
         # Extra notes about the reaction.
@@ -235,7 +292,8 @@ def main(kwargs):
 
         ord_observations = dict()
         ord_observations["time"] = ""
-        ord_observations["comment"] = reaction["VARIATION"]["COMMENT"]
+        if "COMMENT" in reaction["VARIATION"]:
+            ord_observations["comment"] = reaction["VARIATION"]["COMMENT"]
         ord_observations["image"] = ""
         ord_reaction["observations"] = ord_observations
 
@@ -257,11 +315,11 @@ def main(kwargs):
 
         # Step 8 of 9: Outcomes
         # The outcomes of the reaction - time taken, the products etc.
-
         ord_outcomes = dict()
         ord_outcomes["reaction_time"] = ""
         ord_outcomes["conversion"] = ""
-        ord_outcomes["products"] = reaction["VARIATION"]["PRODUCT"]
+        if "PRODUCT" in reaction["VARIATION"]:
+            ord_outcomes["products"] = reaction["VARIATION"]["PRODUCT"]
         ord_outcomes["analyses"] = []
         ord_reaction["outcomes"] = ord_outcomes
 
@@ -269,29 +327,61 @@ def main(kwargs):
         # Publication and patent details, attribution, other metadata
 
         ord_provenance = dict()
-        ord_provenance["experimenter"] = reaction["ORGANISATIONS"][0]["ORGANISATION"]["NAME"]
-        ord_provenance["city"] = reaction["ORGANISATIONS"][0]["ORGANISATION"]["ADDRESS"]
+        ord_provenance_experimenter = dict()
+        if "LEGAL" in udm_reactions:
+            ord_provenance_experimenter["organization"] = udm_reactions["LEGAL"]["PRODUCER"]
+
+        if "SCIENTIST" in reaction["VARIATION"]:
+            ord_provenance_experimenter["name"] = reaction["VARIATION"]["SCIENTIST"]
+
+        ord_provenance["experimenter"] = ord_provenance_experimenter
+        ord_record_created = dict()
+        ord_record_created["person"] = ord_provenance_experimenter
+        ord_provenance["record_created"] = ord_record_created
+
+        if "ORGANISATIONS" in reaction:
+            ord_provenance["city"] = reaction["ORGANISATIONS"][0]["ORGANISATION"]["ADDRESS"]
+
         ord_provenance["experiment_start"] = ""
-        ord_provenance["doi"] = reaction["CITATIONS"][0]["CITATION"]["DOI"]
-        ord_provenance["patent"] = reaction["CITATIONS"][0]["CITATION"]["PATENT_NUMBER"]
+
+        if "LEGAL" in udm_reactions and "DOI" in udm_reactions["LEGAL"] and "CITATIONS" not in reaction:
+            ord_provenance["doi"] = udm_reactions["LEGAL"]["DOI"]
+
+        if "CITATIONS" in reaction:
+            ord_provenance["doi"] = reaction["CITATIONS"][0]["CITATION"]["DOI"]
+            ord_provenance["patent"] = reaction["CITATIONS"][0]["CITATION"]["PATENT_NUMBER"]
+
         ord_provenance["publication_url"] = ""
-        ord_provenance["record_created"] = ""
-        ord_provenance["record_modified"] = ""
+
+        if "CREATION_DATE" in reaction["VARIATION"]:
+            ord_provenance["record_created"] = reaction["VARIATION"]["CREATION_DATE"]
+
+        if "MODIFICATION_DATE" in reaction["VARIATION"]:
+            ord_provenance["record_modified"] = reaction["VARIATION"]["MODIFICATION_DATE"]
+
         ord_provenance["reaction_metadata"] = ""
         ord_provenance["is_mined"] = False
         ord_reaction["provenance"] = ord_provenance
 
         ord_reactions.append(ord_reaction)
+        pb2_reactions.append(pb2_reaction)
 
-    # Write JSON file for debug
+    dataset = dataset_pb2.Dataset(name=dataset_name, description=dataset_description, reactions=pb2_reactions)
+    if not kwargs["--no-validate"]:
+        validations.validate_datasets({"_COMBINED": dataset})
+    message_helpers.write_message(dataset, kwargs["--output"])
+
     f = open(outputfile, "w")
     f.write(json.dumps(ord_reactions, indent=4, separators=(', ', ': ')))
     f.close()
 
-    logger.info("Conversion completed successfully! Check ord_data.json file for errors.")
+    # Write JSON file for debug
+    debugfile = "ORD_UDM_CONVERSION_" + inputfile + ".debug.json"
+    f = open(debugfile, "w")
+    f.write(json.dumps({}, indent=4, separators=(', ', ': ')))
+    f.close()
 
-    # TODO - Run script with xml file from UDM repo passed in and see errors
-    # TODO - Allow name and description parameters to create an ORD dataset
+    logger.info("Conversion completed successfully! Check ord_data.json file for errors.")
 
     return
 
