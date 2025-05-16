@@ -26,16 +26,15 @@ from typing import Optional, Type, TypeVar, Union
 import pandas as pd
 import requests
 from google import protobuf  # pytype: disable=import-error
-from google.protobuf import json_format
 from google.protobuf import text_format  # pytype: disable=import-error
+from google.protobuf import json_format
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 from werkzeug import security
 
 import ord_schema
 from ord_schema import units
-from ord_schema.proto import dataset_pb2
-from ord_schema.proto import reaction_pb2
+from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,
@@ -48,6 +47,7 @@ ORD_DATA_URL = "https://github.com/Open-Reaction-Database/ord-data/raw/main/"
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-branches
 # pylint: disable=too-many-locals
+# pylint: disable=too-many-positional-arguments
 
 
 def build_compound(
@@ -353,6 +353,7 @@ def get_reaction_smiles(
     message: reaction_pb2.Reaction,
     generate_if_missing: bool = False,
     allow_incomplete: bool = True,
+    allow_unspecified_roles: bool = True,
     validate: bool = False,
     canonical: bool = True,
 ) -> Optional[str]:
@@ -365,6 +366,8 @@ def get_reaction_smiles(
         allow_incomplete: Boolean whether to allow "incomplete" reaction SMILES
             that do not include all components (e.g. if a component does not
             have a structural identifier).
+        allow_unspecified_roles: If True, reactants and products with the UNSPECIFIED reaction role will be included
+            when generating a reaction SMILES.
         validate: Boolean whether to validate the reaction SMILES with rdkit.
             Only used if allow_incomplete is False.
         canonical: Boolean whether to return a canonicalized reaction SMILES.
@@ -387,6 +390,11 @@ def get_reaction_smiles(
 
     reactants, agents, products = set(), set(), set()
     roles = reaction_pb2.ReactionRole
+    reactant_roles = [roles.REACTANT]
+    product_roles = [roles.PRODUCT]
+    if allow_unspecified_roles:
+        reactant_roles.append(roles.UNSPECIFIED)
+        product_roles.append(roles.UNSPECIFIED)
     for key in sorted(message.inputs):
         for compound in message.inputs[key].components:
             try:
@@ -397,10 +405,8 @@ def get_reaction_smiles(
                 raise error
             if compound.reaction_role in [roles.REAGENT, roles.SOLVENT, roles.CATALYST]:
                 agents.add(smiles)
-            elif compound.reaction_role == roles.REACTANT:
+            elif compound.reaction_role in reactant_roles:
                 reactants.add(smiles)
-            else:
-                continue
 
     for outcome in message.outcomes:
         for product in outcome.products:
@@ -410,15 +416,9 @@ def get_reaction_smiles(
                 if allow_incomplete:
                     continue
                 raise error
-            if product.reaction_role == roles.PRODUCT:
+            if product.reaction_role in product_roles:
                 products.add(smiles)
-            elif product.reaction_role in [
-                roles.REAGENT,
-                roles.SOLVENT,
-                roles.CATALYST,
-                roles.INTERNAL_STANDARD,
-            ]:
-                continue
+
     if not allow_incomplete and (not reactants or not products):
         raise ValueError("reaction must contain at least one reactant and one product")
     if not reactants and not products:
@@ -741,7 +741,7 @@ def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset
         RuntimeError: If the request fails.
         ValueError: If the dataset ID is invalid.
     """
-    from ord_schema import validations  # Avoid circular import; pylint: disable=import-outside-toplevel.
+    from ord_schema import validations  # pylint: disable=cyclic-import,import-outside-toplevel
 
     if not validations.is_valid_dataset_id(dataset_id):
         raise ValueError(f"Invalid dataset ID: {dataset_id}")
@@ -978,7 +978,7 @@ def parse_doi(doi: str) -> str:
         ValueError: if the DOI cannot be parsed.
     """
     # See https://www.doi.org/doi_handbook/2_Numbering.html#2.2.
-    match = re.search(r"(10\.[\d.]+/[a-zA-Z\d.]+)", doi)
+    match = re.search(r"(10\.[\d.]+/[a-zA-Z\d.-]+)", doi)
     if not match:
         raise ValueError(f"could not parse DOI: {doi}")
     return match.group(1)

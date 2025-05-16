@@ -14,8 +14,8 @@
 """Generic helpers for ord_schema, including common message types."""
 from typing import Union
 
-from google.protobuf import descriptor
 import google.protobuf.message  # pytype: disable=import-error
+from google.protobuf import descriptor
 
 from ord_schema.proto import reaction_pb2
 

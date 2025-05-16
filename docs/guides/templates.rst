@@ -14,7 +14,7 @@ Step 1: Create a template reaction
    .. group-tab:: Web
 
         Use the `ORD Interactive Editor
-        <https://editor.open-reaction-database.org>`_ to create a new dataset
+        <https://open-reaction-database.org/editor/datasets>`_ to create a new dataset
         and fill out a single reaction (feel free to enter dummy values for
         fields that vary in the dataset). Download the reaction pbtxt by
         clicking the "download" button on the reaction editor page.
@@ -85,7 +85,7 @@ Step 4: Enumerate the dataset
    .. group-tab:: Web
 
         Use the `ORD Interactive Editor
-        <https://editor.open-reaction-database.org>`_ by selecting the "Enumerate"
+        <https://open-reaction-database.org/editor/datasets>`_ by selecting the "Enumerate"
         tab on the main page and following the instructions to upload the template
         and spreadsheet.
 

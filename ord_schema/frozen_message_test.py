@@ -19,10 +19,8 @@ import tempfile
 
 import pytest
 
-from ord_schema import frozen_message
-from ord_schema import message_helpers
-from ord_schema.proto import reaction_pb2
-from ord_schema.proto import test_pb2
+from ord_schema import frozen_message, message_helpers
+from ord_schema.proto import reaction_pb2, test_pb2
 
 
 def _freeze(message) -> frozen_message.FrozenMessage:

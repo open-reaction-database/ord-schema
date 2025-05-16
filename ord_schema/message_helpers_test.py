@@ -18,13 +18,11 @@ import time
 
 import pandas as pd
 import pytest
-from google.protobuf import json_format
-from google.protobuf import text_format
+from google.protobuf import json_format, text_format
 from rdkit import Chem
 
 from ord_schema import message_helpers
-from ord_schema.proto import reaction_pb2
-from ord_schema.proto import test_pb2
+from ord_schema.proto import reaction_pb2, test_pb2
 
 _BENZENE_MOLBLOCK = """241
   -OEChem-07232015262D
@@ -135,8 +133,13 @@ class TestMessageHelpers:
         reactant2 = reaction.inputs["reactant2"]
         reactant2.components.add(reaction_role="REACTANT").identifiers.add(value="Cc1ccccc1", type="SMILES")
         reactant2.components.add(reaction_role="SOLVENT").identifiers.add(value="N", type="SMILES")
-        reaction.outcomes.add().products.add(reaction_role="PRODUCT").identifiers.add(value="O=C=O", type="SMILES")
+        reaction.outcomes.add().products.add().identifiers.add(value="O=C=O", type="SMILES")
         assert message_helpers.get_reaction_smiles(reaction, generate_if_missing=True) == "Cc1ccccc1.c1ccccc1>N>O=C=O"
+        reaction.outcomes.add().products.add(reaction_role="PRODUCT").identifiers.add(value="O=CC=O", type="SMILES")
+        assert (
+            message_helpers.get_reaction_smiles(reaction, generate_if_missing=True, allow_unspecified_roles=False)
+            == "Cc1ccccc1.c1ccccc1>N>O=CC=O"
+        )
 
     def test_get_reaction_smiles_failure(self):
         reaction = reaction_pb2.Reaction()
@@ -184,10 +187,10 @@ class TestMessageHelpers:
     @pytest.mark.parametrize(
         "doi,expected",
         (
-            (
-                "https://dx.doi.org/10.1021/acscatal.0c02247",
-                "10.1021/acscatal.0c02247",
-            ),
+            ("https://dx.doi.org/10.1021/acscatal.0c02247", "10.1021/acscatal.0c02247"),
+            ("10.1038/s41467-023-42446-5", "10.1038/s41467-023-42446-5"),
+            ("10.1038/foo/bar", "10.1038/foo"),
+            ("10.1038/foo/bar/", "10.1038/foo"),
         ),
     )
     def test_parse_doi(self, doi, expected):

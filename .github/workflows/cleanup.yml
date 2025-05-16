@@ -42,10 +42,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install wheel
-          python -m pip install .[tests]
+          python -m pip install .[examples,tests]
       - name: Run black
         run: |
           black --check .
+      - name: Run isort
+        run: |
+          isort --check .
       - name: Run pylint
         run: |
           pylint -j 0 -v examples ord_schema *.py

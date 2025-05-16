@@ -17,9 +17,9 @@ import itertools
 import pytest
 from google.protobuf import text_format
 
-from ord_schema.proto import reaction_pb2
-from ord_schema.macros import solutions
 from ord_schema import validations
+from ord_schema.macros import solutions
+from ord_schema.proto import reaction_pb2
 
 
 def test_simple_solution():

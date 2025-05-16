@@ -16,21 +16,17 @@
 import os
 
 import docopt
-from sqlalchemy import create_engine
-from testing.postgresql import Postgresql
 
 from ord_schema.orm.database import prepare_database
 from ord_schema.orm.scripts import add_datasets
 
 
-def test_main():
-    with Postgresql() as postgres:
-        engine = create_engine(postgres.url(), future=True)
-        assert prepare_database(engine)  # Requires RDKit.
-        argv = [
-            "--url",
-            postgres.url(),
-            "--pattern",
-            os.path.join(os.path.dirname(__file__), "..", "testdata", "ord-nielsen-example.pbtxt"),
-        ]
-        add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))
+def test_main(test_engine):
+    assert prepare_database(test_engine)
+    argv = [
+        "--dsn",
+        test_engine.url,
+        "--pattern",
+        os.path.join(os.path.dirname(__file__), "..", "testdata", "ord-nielsen-example.pbtxt"),
+    ]
+    add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))

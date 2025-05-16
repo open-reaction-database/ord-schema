@@ -53,7 +53,7 @@ class Mass(Base):
     # Some attributes are defined by `Base`:
     # __tablename__ = "mass"
     # id = Column(Integer, primary_key=True)
-    amount_id = Column(Integer, ForeignKey("amount.id", ondelete="CASCADE"), nullable=False, unique=True)
+    amount_id = Column(Integer, ForeignKey("amount.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     value = Column(Float)
     precision = Column(Float)
@@ -92,9 +92,8 @@ methods (this list is not an endorsement of any particular provider):
 
 ```shell
 # Create a new conda environment.
-conda create -n ord python=3.10
+conda create -n ord -c conda-forge python=3.10 rdkit rdkit-postgresql
 conda activate ord
-conda install -c rdkit rdkit-postgresql==2020.03.3.0
 # Install ord-schema in this environment.
 cd ord-schema
 pip install .
@@ -118,8 +117,8 @@ from sqlalchemy import create_engine
 
 from ord_schema.orm.database import prepare_database
 
-connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
-engine = create_engine(connection_string, future=True)
+connection_string = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
+engine = create_engine(connection_string)
 prepare_database(engine)
 ```
 
@@ -135,17 +134,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from ord_schema.message_helpers import fetch_dataset
-from ord_schema.orm.database import add_dataset, add_rdkit
+from ord_schema.orm.database import add_dataset
 
 dataset = fetch_dataset("ord_dataset-fc83743b978f4deea7d6856deacbfe53")
 
-connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
-engine = create_engine(connection_string, future=True)
+connection_string = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
+engine = create_engine(connection_string)
 with Session(engine) as session:
-    add_dataset(dataset, session)
-    session.flush()
-    add_rdkit(session)
-    session.commit()
+    with session.begin():
+        add_dataset(dataset, session)
 ```
 
 To load multiple datasets from disk (e.g., from a clone of
@@ -179,8 +176,8 @@ from sqlalchemy.orm import Session
 from ord_schema.orm.mappers import Mappers
 from ord_schema.proto import reaction_pb2
 
-connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
-engine = create_engine(connection_string, future=True)
+connection_string = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
+engine = create_engine(connection_string)
 with Session(engine) as session:
     query = (
         select(Mappers.Reaction)
@@ -204,18 +201,18 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from ord_schema.orm.mappers import Mappers
-from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMol
+from ord_schema.orm.rdkit_mappers import FingerprintType, RDKitMols
 from ord_schema.proto import reaction_pb2
 
-connection_string = f"postgresql://{username}:{password}@{host}:{port}/{database}"
-engine = create_engine(connection_string, future=True)
+connection_string = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
+engine = create_engine(connection_string)
 with Session(engine) as session:
     query = (
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
-        .join(RDKitMol)
-        .where(RDKitMol.tanimoto("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP) > 0.5)
+        .join(RDKitMols)
+        .where(RDKitMols.tanimoto("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP) > 0.5)
     )
     results = session.execute(query)
     reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]

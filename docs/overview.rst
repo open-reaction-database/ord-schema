@@ -177,7 +177,7 @@ Advisory Board is:
 * Matthew Gaunt (Cambridge, SynTech)
 * Alex Godfrey (NCATS Consultant)
 * Mimi Hii (Imperial, ROAR)
-* Greg Landrum (T5 Informatics)
+* Greg Landrum (ETH Zurich)
 * Fabio Lima (Novartis)
 * Christos Nicolaou (Recursion)
 * Sarah Reisman (Caltech, `C-CAS <https://ccas.nd.edu/>`__)
@@ -228,3 +228,18 @@ If you are interested in receiving updates or participating in future meetings,
 please request to join the
 `open-reaction-database <https://groups.google.com/forum/#!forum/open-reaction-database>`__
 mailing list.
+
+*********************************************
+How is the Open Reaction Database being used?
+*********************************************
+
+We have a `public Zotero Group <https://www.zotero.org/groups/5973704/open-reaction-database>`_ and `library <https://www.zotero.org/groups/5973704/open-reaction-database/library>`_ where we keep track of Open Reaction Database citations, and also the publications which have reactions in the database.
+
+.. NOTE::
+   Have we missed something? Please email help@open-reaction-database.org if 
+   you find published work which employed the Open Reaction Database data, 
+   schema, or other tools, and is not already included in the library.
+  
+.. NOTE::
+   The Datasets sub-collection does not include the individual USPTO patents 
+   (there is over 13k of them) for clarity.

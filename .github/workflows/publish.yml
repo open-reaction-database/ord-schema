@@ -65,3 +65,11 @@ jobs:
           npm install
           npm run build
           npm publish
+      - name: Build and upload to NPM (protobufjs)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cd js/ord-schema-protobufjs
+          npm install
+          npm run build
+          npm publish

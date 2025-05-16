@@ -18,10 +18,8 @@ import docopt
 import pandas as pd
 import pytest
 
-from ord_schema import message_helpers
-from ord_schema import validations
-from ord_schema.proto import dataset_pb2
-from ord_schema.proto import reaction_pb2
+from ord_schema import message_helpers, validations
+from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import enumerate_dataset
 
 
@@ -93,7 +91,7 @@ def setup(tmp_path) -> tuple[str, str, str]:
     )
     spreadsheet_filename = os.path.join(dirname, "spreadsheet.csv")
     data.to_csv(spreadsheet_filename, index=False)
-    expected = dataset_pb2.Dataset()
+    expected = dataset_pb2.Dataset(name="test", description="test")
     reaction1 = expected.reactions.add()
     reaction1_compound1 = reaction1.inputs["test"].components.add()
     reaction1_compound1.identifiers.add(value="C", type="SMILES")
@@ -134,6 +132,10 @@ def test_main(setup, tmp_path):
     template_filename, spreadsheet_filename, expected = setup
     output_filename = (tmp_path / "dataset.pbtxt").as_posix()
     argv = [
+        "--name",
+        "test",
+        "--description",
+        "test",
         "--template",
         template_filename,
         "--spreadsheet",

@@ -1,4 +1,4 @@
-# Copyright 2020 Open Reaction Database Project Authors
+# Copyright 2024 Open Reaction Database Project Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +15,7 @@
 
 import pytest
 
-from ord_schema.proto import dataset_pb2
-from ord_schema.proto import reaction_pb2
+from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
 @pytest.fixture

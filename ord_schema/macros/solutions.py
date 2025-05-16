@@ -14,8 +14,8 @@
 """Macros for programmatic message creation."""
 from typing import Optional, Union
 
-from ord_schema.proto import reaction_pb2
 from ord_schema import units
+from ord_schema.proto import reaction_pb2
 
 UNITS_RESOLVER = units.UnitResolver()
 CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})

@@ -18,23 +18,23 @@ import os
 import re
 import warnings
 from collections.abc import Mapping
-from typing import Any, Optional
 from enum import IntEnum
+from typing import Any, Optional
 
 from dateutil import parser
 from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
 
 import ord_schema
-from ord_schema.logging import get_logger
 from ord_schema import message_helpers
-from ord_schema.proto import dataset_pb2
-from ord_schema.proto import reaction_pb2
+from ord_schema.logging import get_logger
+from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
 
 
 # pylint: disable=too-many-branches
+# pylint: disable=too-many-positional-arguments
 
 
 @dataclasses.dataclass
@@ -118,17 +118,12 @@ def _validate_datasets(
             num_bad_reactions += 1
         for error in reaction_output.errors:
             errors.append(error)
-            logger.warning(f"Validation error for {label}[{i}]: {error}")
-    num_successful = (len(dataset.reactions) - num_bad_reactions,)
-    logger.info(
-        f"Validation summary for {label}: {num_successful}/{len(dataset.reactions)} successful "
-        f"({num_bad_reactions} failures)"
-    )
+            logger.error(f"Validation error for {label}[{i}]: {error}")
     # Dataset-level validation of cross-references.
     dataset_output = validate_message(dataset, raise_on_error=False, recurse=False, options=options)
     for error in dataset_output.errors:
         errors.append(error)
-        logger.warning(f"Validation error for {label}: {error}")
+        logger.error(f"Validation error for {label}: {error}")
 
     return errors
 
@@ -381,6 +376,10 @@ def validate_dataset(message: dataset_pb2.Dataset, options: Optional[ValidationO
     # pylint: disable=too-many-branches,too-many-nested-blocks
     if options is None:
         options = ValidationOptions()
+    if not message.name:
+        warnings.warn("Dataset name is required", ValidationError)
+    if not message.description:
+        warnings.warn("Dataset description is required", ValidationError)
     if not message.reactions and not message.reaction_ids:
         warnings.warn("Dataset requires reactions or reaction_ids", ValidationError)
     elif message.reactions and message.reaction_ids:
@@ -965,12 +964,15 @@ def validate_reaction_provenance(message: reaction_pb2.ReactionProvenance):
         if not record.person.email:
             warnings.warn("User email is required for record_modified", ValidationError)
     if message.doi:
-        parsed_doi = message_helpers.parse_doi(message.doi)
-        if message.doi != parsed_doi:
-            warnings.warn(
-                f"DOI should be trimmed ({message.doi} -> {parsed_doi})",
-                ValidationError,
-            )
+        try:
+            parsed_doi = message_helpers.parse_doi(message.doi)
+            if message.doi != parsed_doi:
+                warnings.warn(
+                    f"DOI should be trimmed ({message.doi} -> {parsed_doi})",
+                    ValidationError,
+                )
+        except ValueError as error:
+            warnings.warn(str(error), ValidationError)
     # TODO(ccoley) could check if publication_url is valid, etc.
 
 

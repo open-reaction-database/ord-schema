@@ -21,96 +21,132 @@ Usage:
 Options:
     --pattern=<str>         Pattern for dataset filenames
     --overwrite             Update changed datasets
-    --url=<str>             Postgres connection string
+    --dsn=<str>             Postgres connection string
     --database=<str>        Database [default: orm]
     --username=<str>        Database username [default: postgres]
     --password=<str>        Database password
     --host=<str>            Database host [default: localhost]
     --port=<int>            Database port [default: 5432]
     --n_jobs=<int>          Number of parallel workers [default: 1]
+    --debug                 Enable debug logging.
 """
+import logging
 import os
 import time
-from functools import partial
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from contextlib import ExitStack
 from glob import glob
 from hashlib import md5
-from concurrent.futures import ProcessPoolExecutor
 
 from docopt import docopt
 from rdkit import RDLogger
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
+from tqdm import tqdm
 
 from ord_schema.logging import get_logger
 from ord_schema.message_helpers import load_message
-from ord_schema.orm.database import (
-    add_dataset,
-    delete_dataset,
-    get_connection_string,
-    get_dataset_md5,
-    update_rdkit_ids,
-    update_rdkit_tables,
-)
+from ord_schema.orm import database
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
 
 
-def _add_dataset(filename: str, url: str, overwrite: bool) -> None:
+def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
     """Adds a single dataset to the database.
 
     Args:
+        dsn: Database connection string.
         filename: Dataset filename.
-        url: Database connection string.
         overwrite: If True, update the dataset if the MD5 hash has changed.
+
+    Returns:
+        Dataset ID.
 
     Raises:
         ValueError: If the dataset already exists in the database and `overwrite` is not set.
     """
-    logger.info(f"Loading {filename}")
-    start = time.time()
+    logger.debug(f"Loading {filename}")
     dataset = load_message(filename, dataset_pb2.Dataset)
-    logger.info(f"load_message() took {time.time() - start:g}s")
-    engine = create_engine(url, future=True)
+    # NOTE(skearnes): Multiprocessing is hard to get right for shared connection pools, so we don't even try; see
+    # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
+    engine = create_engine(dsn)
     with Session(engine) as session:
-        dataset_md5 = get_dataset_md5(dataset.dataset_id, session)
+        with session.begin():
+            dataset_md5 = database.get_dataset_md5(dataset.dataset_id, session)
         if dataset_md5 is not None:
             this_md5 = md5(dataset.SerializeToString(deterministic=True)).hexdigest()
             if this_md5 != dataset_md5:
                 if not overwrite:
                     raise ValueError(f"`overwrite` is required when a dataset already exists: {dataset.dataset_id}")
-                logger.info(f"existing dataset {dataset.dataset_id} changed; updating")
-                delete_dataset(dataset.dataset_id, session)
+                logger.debug(f"existing dataset {dataset.dataset_id} changed; updating")
+                with session.begin():
+                    database.delete_dataset(dataset.dataset_id, session)
             else:
-                logger.info(f"existing dataset {dataset.dataset_id} unchanged; skipping")
-                return
-        add_dataset(dataset, session)
-        session.flush()
-        update_rdkit_tables(dataset.dataset_id, session=session)
-        session.flush()
-        update_rdkit_ids(dataset.dataset_id, session=session)
+                logger.debug(f"existing dataset {dataset.dataset_id} unchanged; skipping")
+                return dataset.dataset_id
         start = time.time()
-        session.commit()
-        logger.info(f"session.commit() took {time.time() - start:g}s")
+        with session.begin():
+            database.add_dataset(dataset, session, rdkit_cartridge=False)  # Do this separately in add_rdkit().
+        logger.debug(f"add_dataset() took {time.time() - start:g}s")
+    return dataset.dataset_id
+
+
+def add_rdkit(engine: Engine, dataset_id: str) -> None:
+    """Updates RDKit tables."""
+    with Session(engine) as session:
+        with session.begin():
+            database.update_rdkit_tables(dataset_id, session)
+        with session.begin():
+            database.update_rdkit_ids(dataset_id, session)
 
 
 def main(**kwargs):
     RDLogger.DisableLog("rdApp.*")
-    if kwargs.get("--url"):
-        url = kwargs["--url"]
+    if kwargs["--debug"]:
+        get_logger(database.__name__, level=logging.DEBUG)
+    if kwargs["--dsn"]:
+        dsn = kwargs["--dsn"]
     else:
-        url = get_connection_string(
+        dsn = database.get_connection_string(
             database=kwargs["--database"],
             username=kwargs["--username"],
             password=kwargs["--password"] or os.environ["PGPASSWORD"],
             host=kwargs["--host"],
             port=int(kwargs["--port"]),
         )
-    function = partial(_add_dataset, url=url, overwrite=kwargs["--overwrite"])
-    filenames = glob(kwargs["--pattern"])
-    with ProcessPoolExecutor(max_workers=int(kwargs["--n_jobs"])) as executor:
-        for _ in executor.map(function, filenames):
-            pass  # Must iterate over results to raise exceptions.
+    filenames = sorted(glob(kwargs["--pattern"]))
+    with ExitStack() as stack:
+        max_workers = int(kwargs["--n_jobs"])
+        if max_workers > 1:
+            executor = stack.enter_context(ProcessPoolExecutor(max_workers))
+        else:
+            executor = stack.enter_context(ThreadPoolExecutor(max_workers))
+        logger.info("Adding datasets")
+        futures = {}
+        for filename in filenames:
+            future = executor.submit(add_dataset, dsn=dsn, filename=filename, overwrite=kwargs["--overwrite"])
+            futures[future] = filename
+        dataset_ids = []
+        failures = []
+        for future in tqdm(as_completed(futures), total=len(futures)):
+            try:
+                dataset_ids.append(future.result())
+            except Exception as error:  # pylint: disable=broad-exception-caught
+                filename = futures[future]
+                failures.append(filename)
+                logger.error(f"Adding dataset {filename} failed: {error}")
+    logger.info("Adding RDKit functionality")
+    engine = create_engine(dsn)
+    for dataset_id in tqdm(dataset_ids):
+        try:
+            add_rdkit(engine, dataset_id)  # NOTE(skearnes): Do this serially to avoid deadlocks.
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            failures.append(dataset_id)
+            logger.error(f"Adding RDKit functionality for {dataset_id} failed: {error}")
+    if failures:
+        raise RuntimeError(failures)
 
 
 if __name__ == "__main__":

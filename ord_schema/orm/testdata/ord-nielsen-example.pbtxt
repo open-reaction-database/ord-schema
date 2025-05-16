@@ -237,6 +237,7 @@ reactions {
         analysis_key: "19f nmr of crude"
         type: IDENTITY
       }
+      reaction_role: BYPRODUCT
     }
     analyses {
       key: "19f nmr of crude"

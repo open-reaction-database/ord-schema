@@ -14,9 +14,11 @@
 """Creates a Dataset by enumerating a template with a spreadsheet.
 
 Usage:
-    dataset_templating.py --template=<str> --spreadsheet=<str> --output=<str> [--no-validate]
+    dataset_templating.py --name=<str> --description=<str> --template=<str> --spreadsheet=<str> --output=<str> [options]
 
 Options:
+    --name=<str>            Dataset name
+    --description=<str>     Dataset description
     --template=<str>        Path to a Reaction pbtxt file defining a template
     --spreadsheet=<str>     Path to a spreadsheet file with a header row matching template placeholders
     --output=<str>          Filename for output Dataset
@@ -24,9 +26,8 @@ Options:
 """
 import docopt
 
+from ord_schema import message_helpers, templating
 from ord_schema.logging import get_logger
-from ord_schema import message_helpers
-from ord_schema import templating
 
 logger = get_logger(__name__)
 
@@ -40,7 +41,13 @@ def main(kwargs):
         kwargs["--template"],
         kwargs["--spreadsheet"],
     )
-    dataset = templating.generate_dataset(template_string, df, validate=not kwargs["--no-validate"])
+    dataset = templating.generate_dataset(
+        name=kwargs["--name"],
+        description=kwargs["--description"],
+        template_string=template_string,
+        df=df,
+        validate=not kwargs["--no-validate"],
+    )
     logger.info("writing new Dataset to %s", kwargs["--output"])
     message_helpers.write_message(dataset, kwargs["--output"])
 

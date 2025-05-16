@@ -35,7 +35,7 @@ from typing import Any, Mapping, Optional, Type
 from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
 from inflection import underscore
-from sqlalchemy import Boolean, Column, Enum, Float, Integer, ForeignKey, LargeBinary, String, Text
+from sqlalchemy import Boolean, Column, Enum, Float, ForeignKey, Integer, LargeBinary, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
@@ -43,9 +43,7 @@ import ord_schema.orm.rdkit_mappers  # pylint: disable=unused-import
 from ord_schema import message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.orm import Base
-from ord_schema.proto import dataset_pb2
-from ord_schema.proto import reaction_pb2
-
+from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
 
@@ -82,7 +80,7 @@ def _get_message_contexts(
         if field.type == FieldDescriptor.TYPE_MESSAGE:
             if set(field.message_type.fields_by_name.keys()) == {"key", "value"}:
                 # Check for maps.
-                logger.info(f"Found map: ({descriptor.full_name}, {field.name})")
+                logger.debug(f"Found map: ({descriptor.full_name}, {field.name})")
                 field_message_type = field.message_type.fields_by_name["value"].message_type
             else:
                 field_message_type = field.message_type
@@ -101,10 +99,11 @@ def build_mappers() -> dict[Type[Message], Type]:
     Returns:
         Dict mapping protocol buffer message types to mapper classes.
     """
+    logger.debug("Building ORM mappers")
     mappers = {}
     parents = get_parents(dataset_pb2.Dataset)
     for message_type in sorted(parents, key=lambda x: x.DESCRIPTOR.name):
-        logger.info(f"Building mapper for {message_type}")
+        logger.debug(f"Building mapper for {message_type}")
         mappers[message_type] = build_mapper(message_type, parents=parents)
     return mappers
 
@@ -170,24 +169,28 @@ def build_mapper(  # pylint: disable=too-many-branches
         attrs["dataset_id"] = Column(Text, nullable=False, unique=True)
         # Track the MD5 hash so we can quickly identify changes.
         attrs["md5"] = Column(String(32), nullable=False)
+        # Track the number of reactions for quicker browsing.
+        attrs["num_reactions"] = Column(Integer, nullable=False)
     elif message_type == reaction_pb2.Reaction:
         # Make reaction IDs globally unique.
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
         # Serialize and store the entire Reaction proto.
         attrs["proto"] = Column(LargeBinary, nullable=False)
-        attrs["reaction_smiles"] = Column(Text, index=True)
-        attrs["rdkit_reaction_id"] = Column(Integer, ForeignKey("rdkit.reactions.id"))
-        attrs["rdkit_reaction"] = relationship("RDKitReaction")
+        attrs["reaction_smiles"] = Column(Text)
+        attrs["rdkit_reaction_id"] = Column(Integer, ForeignKey("rdkit.reactions.id", ondelete="CASCADE"), index=True)
+        attrs["rdkit_reaction"] = relationship("RDKitReactions")
     elif message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
-        attrs["smiles"] = Column(Text, index=True)
-        attrs["rdkit_mol_id"] = Column(Integer, ForeignKey("rdkit.mols.id"))
-        attrs["rdkit_mol"] = relationship("RDKitMol")
+        attrs["smiles"] = Column(Text)
+        attrs["rdkit_mol_id"] = Column(Integer, ForeignKey("rdkit.mols.id", ondelete="CASCADE"), index=True)
+        attrs["rdkit_mol"] = relationship("RDKitMols")
     elif message_type in {reaction_pb2.CompoundPreparation, reaction_pb2.CrudeComponent}:
         # Add foreign key to reaction.reaction_id.
         kwargs = {}
         if message_type == reaction_pb2.CrudeComponent:
             kwargs["nullable"] = False
-        attrs["reaction_id"] = Column(Text, ForeignKey("ord.reaction.reaction_id", ondelete="CASCADE"), **kwargs)
+        attrs["reaction_id"] = Column(
+            Text, ForeignKey("ord.reaction.reaction_id", ondelete="CASCADE"), index=True, **kwargs
+        )
     logger.debug(f"Creating mapper {message_type.DESCRIPTOR.name}: {attrs}")
     mapper_class = type(message_type.DESCRIPTOR.name, (Base,), attrs)
     # Create polymorphic child classes.
@@ -202,7 +205,7 @@ def build_mapper(  # pylint: disable=too-many-branches
             # NOTE(skearnes): We are not enforcing unique constraints on this column; see the module docstring.
             f"{foreign_table_name}_id": mapper_class.__table__.c.get(
                 f"{foreign_table_name}_id",
-                Column(Integer, ForeignKey(foreign_key, ondelete="CASCADE")),
+                Column(Integer, ForeignKey(foreign_key, ondelete="CASCADE"), index=True),
             ),
             "parent": relationship(parent_type.DESCRIPTOR.name, back_populates=field_name, uselist=False),
         }
@@ -266,13 +269,17 @@ def from_proto(  # pylint: disable=too-many-branches
             kwargs[field.name] = value
     if isinstance(message, dataset_pb2.Dataset):
         kwargs["md5"] = md5(message.SerializeToString(deterministic=True)).hexdigest()
+        assert hasattr(message, "reactions") and hasattr(message, "reaction_ids")  # Type hints.
+        kwargs["num_reactions"] = len(message.reactions) or len(message.reaction_ids)
     elif isinstance(message, reaction_pb2.Reaction):
         kwargs["proto"] = message.SerializeToString(deterministic=True)
         try:
             reaction_smiles = message_helpers.get_reaction_smiles(
                 message, generate_if_missing=True, allow_incomplete=False, validate=True
             )
-        except ValueError:
+        except ValueError as error:
+            assert hasattr(message, "reaction_id")  # Type hint.
+            logger.debug(f"Error generating reaction SMILES for {message.reaction_id}: {error}")
             reaction_smiles = None
         if reaction_smiles is not None:
             kwargs["reaction_smiles"] = reaction_smiles.split()[0]  # Handle CXSMILES.
