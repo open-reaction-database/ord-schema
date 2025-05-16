@@ -125,6 +125,10 @@ def main(kwargs):
         for reaction in udm_reactions["REACTIONS"]["REACTION"]:
             udm_reactions_list.append(reaction)
 
+    all_molecules = {}
+    for molecule in udm_reactions["MOLECULES"]["MOLECULE"]:
+        all_molecules[molecule["@ID"]] = molecule["NAME"]
+
     # Loop over each UDM reaction. UDM reactions may have one or more Variations.
     # We will treat each Variation as a separate ORD Reaction.
     # May be 1 or multiple, with null checks
@@ -132,26 +136,13 @@ def main(kwargs):
     # Return warnings if data has to be omitted if not supported in ORD
     for reaction in udm_reactions_list:
         # Create a blank dictionary for each reaction.
-        ord_reaction = dict()
         pb2_reaction = reaction_pb2.Reaction()
-
-        # Initialize.
-        ord_reaction["inputs"] = []
-        ord_reaction["setup"] = []
-        ord_reaction["conditions"] = []
-        ord_reaction["notes"] = []
-        ord_reaction["observations"] = []
-        ord_reaction["workups"] = []
-        ord_reaction["outcomes"] = []
-        ord_reaction["provenance"] = []
 
         # Step 1 of 9: Identifiers
         # Used to identify molecules
 
         # May be multiple RXNSTRUCTs
         if "RXNSTRUCTURE" in reaction:
-            rxnstructure = reaction["RXNSTRUCTURE"]
-
             rxnstructures = []
             if isinstance(reaction["RXNSTRUCTURE"], dict):
                 rxnstructures.append(reaction["RXNSTRUCTURE"])
@@ -256,6 +247,13 @@ def main(kwargs):
                 compound["analyses"] = []
                 compound["texture"] = []
 
+                if "MOLECULE" in reactant:
+                    molval = all_molecules.get(reactant["MOLECULE"]["@MOL_ID"])
+                    # pb2_reaction.identifiers.add(type=0, details='', value=molval)
+                    molinput = pb2_reaction.inputs[reactant["MOLECULE"]["@MOL_ID"]]
+                    molcomponent = molinput.components.add()
+                    molcomponent.identifiers.add(type="CUSTOM")
+                    molcomponent.identifiers[0].value = molval
                 if "MOLECULE" in reactant and "NAME" in reactant["MOLECULE"]:
                     pb2_compound.identifiers.add(value=reactant["MOLECULE"]["NAME"])
                 if "AMOUNT" in reactant:
@@ -265,11 +263,11 @@ def main(kwargs):
                 pb2_components = []
                 pb2_components.append(pb2_compound)
 
-                ord_reaction["inputs"] = ord_inputs
                 pb2_inputs = []
                 pb2_input = reaction_pb2.ReactionInput()
                 pb2_input.components.append(pb2_compound)
                 pb2_inputs.append(pb2_input)
+
                 # pb2_reaction.inputs.update(key=pb2_input, value=pb2_input)
                 # pb2_input.components.add(pb2_compound)
                 # pb2_reaction.inputs.update(key=reactant["MOLECULE"]["@MOL_ID"], value=pb2_input)
@@ -278,24 +276,64 @@ def main(kwargs):
                 # Step 4 of 9: Conditions
                 # Describes the reaction conditions.
 
-                if "CONDITIONS" in variation:
-                    pb2_conditions = reaction_pb2.ReactionConditions()
-                    if "TEMPERATURE" in variation["CONDITIONS"]["CONDITION_GROUP"]:
-                        pb2_reaction.conditions.temperature = variation["CONDITIONS"]["CONDITION_GROUP"]["TEMPERATURE"]
-                    if "PRESSURE" in variation["CONDITIONS"]["CONDITION_GROUP"]:
-                        pb2_reaction.conditions.pressure = variation["CONDITIONS"]["CONDITION_GROUP"]["PRESSURE"]
-                    if "STIRRING" in variation["CONDITIONS"]["CONDITION_GROUP"]:
-                        pb2_reaction.conditions.stirring = variation["CONDITIONS"]["CONDITION_GROUP"]["STIRRING"]
-                    if "REFLUX" in variation["CONDITIONS"]["CONDITION_GROUP"]:
-                        pb2_reaction.conditions.reflux = variation["CONDITIONS"]["CONDITION_GROUP"]["REFLUX"]
-                    if "PH" in variation["CONDITIONS"]["CONDITION_GROUP"]:
-                        pb2_reaction.conditions.ph = variation["CONDITIONS"]["CONDITION_GROUP"]["PH"]
+            for reagent in reagents:
+                if "MOLECULE" in reagent:
+                    molval = all_molecules.get(reagent["MOLECULE"]["@MOL_ID"])
+                    # print(molval)
+                    # pb2_reaction.identifiers.add(type=0, details='', value=molval)
+                    molinput = pb2_reaction.inputs[reagent["MOLECULE"]["@MOL_ID"]]
+                    molcomponent = molinput.components.add()
+                    molcomponent.identifiers.add(type="CUSTOM")
+                    if molval is not None:
+                        molcomponent.identifiers[0].value = molval
+                    molcomponent.reaction_role = reaction_pb2.ReactionRole.REAGENT
 
-                    pb2_setup = reaction_pb2.ReactionSetup()
-                    if "PREPARATION" in variation["CONDITIONS"]["CONDITION_GROUP"]:
-                        pb2_reaction.setup.environment = variation["CONDITIONS"]["CONDITION_GROUP"]["PREPARATION"]
+            for catalyst in catalysts:
+                if "MOLECULE" in catalyst:
+                    molval = all_molecules.get(catalyst["MOLECULE"]["@MOL_ID"])
+                    # print(molval)
+                    # pb2_reaction.identifiers.add(type=0, details='', value=molval)
+                    molinput = pb2_reaction.inputs[catalyst["MOLECULE"]["@MOL_ID"]]
+                    molcomponent = molinput.components.add()
+                    molcomponent.identifiers.add(type="CUSTOM")
+                    if molval is not None:
+                        molcomponent.identifiers[0].value = molval
+                    molcomponent.reaction_role = reaction_pb2.ReactionRole.CATALYST
 
-                    # pb2_reaction.conditions = pb2_conditions
+            for solvent in solvents:
+                if "MOLECULE" in solvent:
+                    molval = all_molecules.get(solvent["MOLECULE"]["@MOL_ID"])
+                    # print(molval)
+                    # pb2_reaction.identifiers.add(type=0, details='', value=molval)
+                    molinput = pb2_reaction.inputs[solvent["MOLECULE"]["@MOL_ID"]]
+                    molcomponent = molinput.components.add()
+                    molcomponent.identifiers.add(type="CUSTOM")
+                    if molval is not None:
+                        molcomponent.identifiers[0].value = molval
+                    molcomponent.reaction_role = reaction_pb2.ReactionRole.SOLVENT
+
+
+            if "CONDITIONS" in variation and "CONDITION_GROUP" in variation["CONDITIONS"]:
+                pb2_conditions = reaction_pb2.ReactionConditions()
+                if "TEMPERATURE" in variation["CONDITIONS"]["CONDITION_GROUP"]:
+                    if "exact" in variation["CONDITIONS"]["CONDITION_GROUP"]["TEMPERATURE"]:
+                        pb2_reaction.conditions.temperature.setpoint.value = float(variation["CONDITIONS"]["CONDITION_GROUP"]["TEMPERATURE"]["exact"])
+                if "PRESSURE" in variation["CONDITIONS"]["CONDITION_GROUP"]:
+                    if "exact" in variation["CONDITIONS"]["CONDITION_GROUP"]["PRESSURE"]:
+                        pb2_reaction.conditions.pressure.setpoint.value = float(variation["CONDITIONS"]["CONDITION_GROUP"]["PRESSURE"]["exact"])
+                if "STIRRING" in variation["CONDITIONS"]["CONDITION_GROUP"]:
+                    pb2_reaction.conditions.stirring.details = variation["CONDITIONS"]["CONDITION_GROUP"]["STIRRING"]
+                if "REFLUX" in variation["CONDITIONS"]["CONDITION_GROUP"]:
+                    pb2_reaction.conditions.reflux = variation["CONDITIONS"]["CONDITION_GROUP"]["REFLUX"]
+                if "PH" in variation["CONDITIONS"]["CONDITION_GROUP"]:
+                    if "exact" in variation["CONDITIONS"]["CONDITION_GROUP"]["PH"]:
+                        pb2_reaction.conditions.ph = float(variation["CONDITIONS"]["CONDITION_GROUP"]["PH"]["exact"])
+
+                pb2_setup = reaction_pb2.ReactionSetup()
+                if "PREPARATION" in variation["CONDITIONS"]["CONDITION_GROUP"]:
+                    pb2_reaction.setup.environment = variation["CONDITIONS"]["CONDITION_GROUP"]["PREPARATION"]
+
+                # pb2_reaction.conditions = pb2_conditions
 
         # Step 3 of 9: Setup
         # Describes the reaction setup.
@@ -332,9 +370,21 @@ def main(kwargs):
 
         pb2_outcomes = reaction_pb2.ReactionOutcome()
         # reaction_time, conversion, analyses
-        # if "PRODUCT" in reaction["VARIATION"]:
-            # pb2_outcomes.products.append(reaction["VARIATION"]["PRODUCT"])
-        pb2_reaction.outcomes.append(pb2_outcomes)
+
+        products = []
+        if "PRODUCT" in reaction["VARIATION"]:
+            if isinstance(reaction["VARIATION"]["PRODUCT"], dict):
+                products.append(reaction["VARIATION"]["PRODUCT"])
+            else:
+                for product in reaction["VARIATION"]["PRODUCT"]:
+                    products.append(product)
+
+            for udm_product in products:
+                molecule = udm_product["MOLECULE"]
+                outcome = pb2_reaction.outcomes.add()
+                product = outcome.products.add()
+                product.identifiers.add()
+                product.identifiers[0].value = all_molecules.get(molecule["@MOL_ID"])
 
         # Step 9 of 9: Provenance
         # Publication and patent details, attribution, other metadata
