@@ -191,11 +191,12 @@ def main(kwargs):
 
         # If there is one variation, it is a dict
         variations = []
-        if isinstance(reaction["VARIATION"], dict):
-            variations.append(reaction["VARIATION"])
-        else:
-            for variation in reaction["VARIATION"]:
-                variations.append(variation)
+        if "VARIATION" in reaction:
+            if isinstance(reaction["VARIATION"], dict):
+                variations.append(reaction["VARIATION"])
+            else:
+                for variation in reaction["VARIATION"]:
+                    variations.append(variation)
 
         # If there are multiple variations, each will be its own reaction.
         for variation in variations:
@@ -253,7 +254,8 @@ def main(kwargs):
                     molinput = pb2_reaction.inputs[reactant["MOLECULE"]["@MOL_ID"]]
                     molcomponent = molinput.components.add()
                     molcomponent.identifiers.add(type="CUSTOM")
-                    molcomponent.identifiers[0].value = molval
+                    if molval is not None:
+                        molcomponent.identifiers[0].value = molval
                 if "MOLECULE" in reactant and "NAME" in reactant["MOLECULE"]:
                     pb2_compound.identifiers.add(value=reactant["MOLECULE"]["NAME"])
                 if "AMOUNT" in reactant:
@@ -354,7 +356,7 @@ def main(kwargs):
 
         pb2_observations = reaction_pb2.ReactionObservation()
         # pb2_observations.time
-        if "COMMENT" in reaction["VARIATION"]:
+        if "VARIATION" in reaction and "COMMENT" in reaction["VARIATION"]:
             pb2_observations.comment = reaction["VARIATION"]["COMMENT"]
         pb2_reaction.observations.append(pb2_observations)
 
@@ -372,7 +374,7 @@ def main(kwargs):
         # reaction_time, conversion, analyses
 
         products = []
-        if "PRODUCT" in reaction["VARIATION"]:
+        if "VARIATION" in reaction and "PRODUCT" in reaction["VARIATION"]:
             if isinstance(reaction["VARIATION"]["PRODUCT"], dict):
                 products.append(reaction["VARIATION"]["PRODUCT"])
             else:
@@ -384,7 +386,8 @@ def main(kwargs):
                 outcome = pb2_reaction.outcomes.add()
                 product = outcome.products.add()
                 product.identifiers.add()
-                product.identifiers[0].value = all_molecules.get(molecule["@MOL_ID"])
+                if all_molecules.get(molecule["@MOL_ID"]) is not None:
+                    product.identifiers[0].value = all_molecules.get(molecule["@MOL_ID"])
 
         # Step 9 of 9: Provenance
         # Publication and patent details, attribution, other metadata
@@ -394,11 +397,11 @@ def main(kwargs):
         ord_provenance_experimenter = dict()
         if "LEGAL" in udm_reactions:
             pb2_reaction.provenance.experimenter.organization = udm_reactions["LEGAL"]["PRODUCER"]
-        if "SCIENTIST" in reaction["VARIATION"]:
+        if "VARIATION" in reaction and "SCIENTIST" in reaction["VARIATION"]:
             pb2_reaction.provenance.experimenter.name = reaction["VARIATION"]["SCIENTIST"]
         if "LEGAL" in udm_reactions:
             pb2_reaction.provenance.record_created.person.organization = udm_reactions["LEGAL"]["PRODUCER"]
-        if "SCIENTIST" in reaction["VARIATION"]:
+        if "VARIATION" in reaction and "SCIENTIST" in reaction["VARIATION"]:
             pb2_reaction.provenance.record_created.person.name = reaction["VARIATION"]["SCIENTIST"]
         if "ORGANISATIONS" in reaction:
             pb2_reaction.provenance.city = reaction["ORGANISATIONS"][0]["ORGANISATION"]["ADDRESS"]
@@ -414,10 +417,10 @@ def main(kwargs):
 
         # publication url is not provided
 
-        if "CREATION_DATE" in reaction["VARIATION"]:
+        if "VARIATION" in reaction and "CREATION_DATE" in reaction["VARIATION"]:
             pb2_reaction.provenance.record_created.time = reaction["VARIATION"]["CREATION_DATE"]
 
-        if "MODIFICATION_DATE" in reaction["VARIATION"]:
+        if "VARIATION" in reaction and "MODIFICATION_DATE" in reaction["VARIATION"]:
             pb2_reaction.provenance.record_modified.time = reaction["VARIATION"]["MODIFICATION_DATE"]
 
         # ord_provenance["reaction_metadata"] = ""
