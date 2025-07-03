@@ -127,7 +127,11 @@ def main(kwargs):
 
     all_molecules = {}
     for molecule in udm_reactions["MOLECULES"]["MOLECULE"]:
-        all_molecules[molecule["@ID"]] = molecule["NAME"]
+        mol_data = dict()
+        mol_data["name"] = molecule["NAME"]
+        if "MOLSTRUCTURE" in molecule:
+            mol_data["molblock"] = molecule["MOLSTRUCTURE"]
+        all_molecules[molecule["@ID"]] = mol_data
 
     # Loop over each UDM reaction. UDM reactions may have one or more Variations.
     # We will treat each Variation as a separate ORD Reaction.
@@ -140,6 +144,16 @@ def main(kwargs):
 
         # Step 1 of 9: Identifiers
         # Used to identify molecules
+
+        pb2_inputs = []
+
+        if "REACTANT_ID" in reaction:
+            molinput = pb2_reaction.inputs[""]
+            reactant_list = reaction["REACTANT_ID"]
+            for reactant_id in reactant_list:
+                molcomponent = molinput.components.add()
+                molcomponent.identifiers.add(type="CUSTOM", details="REACTANT_ID from UDM")
+                molcomponent.identifiers[0].value = reactant_id
 
         # May be multiple RXNSTRUCTs
         if "RXNSTRUCTURE" in reaction:
@@ -253,9 +267,13 @@ def main(kwargs):
                     # pb2_reaction.identifiers.add(type=0, details='', value=molval)
                     molinput = pb2_reaction.inputs[reactant["MOLECULE"]["@MOL_ID"]]
                     molcomponent = molinput.components.add()
-                    molcomponent.identifiers.add(type="CUSTOM")
-                    if molval is not None:
-                        molcomponent.identifiers[0].value = molval
+                    if "molblock" in molval:
+                        molcomponent.identifiers.add(type="MOLBLOCK", details="MOLECULE -> MOLSTRUCTURE from UDM")
+                        molcomponent.identifiers[0].value = molval["molblock"]
+                    else:
+                        molcomponent.identifiers.add(type="CUSTOM")
+                        if molval is not None:
+                            molcomponent.identifiers[0].value = molval["name"]
                 if "MOLECULE" in reactant and "NAME" in reactant["MOLECULE"]:
                     pb2_compound.identifiers.add(value=reactant["MOLECULE"]["NAME"])
                 if "AMOUNT" in reactant:
@@ -265,7 +283,6 @@ def main(kwargs):
                 pb2_components = []
                 pb2_components.append(pb2_compound)
 
-                pb2_inputs = []
                 pb2_input = reaction_pb2.ReactionInput()
                 pb2_input.components.append(pb2_compound)
                 pb2_inputs.append(pb2_input)
@@ -285,9 +302,13 @@ def main(kwargs):
                     # pb2_reaction.identifiers.add(type=0, details='', value=molval)
                     molinput = pb2_reaction.inputs[reagent["MOLECULE"]["@MOL_ID"]]
                     molcomponent = molinput.components.add()
-                    molcomponent.identifiers.add(type="CUSTOM")
-                    if molval is not None:
-                        molcomponent.identifiers[0].value = molval
+                    if "molblock" in molval:
+                        molcomponent.identifiers.add(type="MOLBLOCK", details="MOLECULE -> MOLSTRUCTURE from UDM")
+                        molcomponent.identifiers[0].value = molval["molblock"]
+                    else:
+                        molcomponent.identifiers.add(type="CUSTOM")
+                        if molval["name"] is not None:
+                            molcomponent.identifiers[0].value = molval["name"]
                     molcomponent.reaction_role = reaction_pb2.ReactionRole.REAGENT
 
             for catalyst in catalysts:
@@ -297,9 +318,13 @@ def main(kwargs):
                     # pb2_reaction.identifiers.add(type=0, details='', value=molval)
                     molinput = pb2_reaction.inputs[catalyst["MOLECULE"]["@MOL_ID"]]
                     molcomponent = molinput.components.add()
-                    molcomponent.identifiers.add(type="CUSTOM")
-                    if molval is not None:
-                        molcomponent.identifiers[0].value = molval
+                    if "molblock" in molval:
+                        molcomponent.identifiers.add(type="MOLBLOCK", details="MOLECULE -> MOLSTRUCTURE from UDM")
+                        molcomponent.identifiers[0].value = molval["molblock"]
+                    else:
+                        molcomponent.identifiers.add(type="CUSTOM")
+                        if molval["name"] is not None:
+                            molcomponent.identifiers[0].value = molval["name"]
                     molcomponent.reaction_role = reaction_pb2.ReactionRole.CATALYST
 
             for solvent in solvents:
@@ -309,9 +334,13 @@ def main(kwargs):
                     # pb2_reaction.identifiers.add(type=0, details='', value=molval)
                     molinput = pb2_reaction.inputs[solvent["MOLECULE"]["@MOL_ID"]]
                     molcomponent = molinput.components.add()
-                    molcomponent.identifiers.add(type="CUSTOM")
-                    if molval is not None:
-                        molcomponent.identifiers[0].value = molval
+                    if "molblock" in molval:
+                        molcomponent.identifiers.add(type="MOLBLOCK", details="MOLECULE -> MOLSTRUCTURE from UDM")
+                        molcomponent.identifiers[0].value = molval["molblock"]
+                    else:
+                        molcomponent.identifiers.add(type="CUSTOM")
+                        if molval["name"] is not None:
+                            molcomponent.identifiers[0].value = molval["name"]
                     molcomponent.reaction_role = reaction_pb2.ReactionRole.SOLVENT
 
 
@@ -374,6 +403,16 @@ def main(kwargs):
         # reaction_time, conversion, analyses
 
         products = []
+
+        if "PRODUCT_ID" in reaction:
+            molinput = pb2_reaction.inputs[""]
+            product_list = reaction["PRODUCT_ID"]
+            outcome = pb2_reaction.outcomes.add()
+            for product_id in product_list:
+                molcomponent = outcome.products.add()
+                molcomponent.identifiers.add(type="CUSTOM", details="PRODUCT_ID from UDM")
+                molcomponent.identifiers[0].value = product_id
+
         if "VARIATION" in reaction and "PRODUCT" in reaction["VARIATION"]:
             if isinstance(reaction["VARIATION"]["PRODUCT"], dict):
                 products.append(reaction["VARIATION"]["PRODUCT"])
@@ -385,9 +424,19 @@ def main(kwargs):
                 molecule = udm_product["MOLECULE"]
                 outcome = pb2_reaction.outcomes.add()
                 product = outcome.products.add()
-                product.identifiers.add()
                 if all_molecules.get(molecule["@MOL_ID"]) is not None:
-                    product.identifiers[0].value = all_molecules.get(molecule["@MOL_ID"])
+                    molval = all_molecules.get(molecule["@MOL_ID"])
+                    if "molblock" in molval:
+                        product.identifiers.add(type="MOLBLOCK", details="MOLECULE -> MOLSTRUCTURE from UDM")
+                        product.identifiers[0].value = molval["molblock"]
+                    else:
+                        product.identifiers.add(type="CUSTOM")
+                        if molval["name"] is not None:
+                            product.identifiers[0].value = molval["name"]
+                if "YIELD" in udm_product:
+                    product_measurement = product.measurements.add()
+                    product_measurement.type = reaction_pb2.ProductMeasurement.ProductMeasurementType.YIELD
+                    product_measurement.float_value.value = float(udm_product["YIELD"]["exact"])
 
         # Step 9 of 9: Provenance
         # Publication and patent details, attribution, other metadata
@@ -410,6 +459,16 @@ def main(kwargs):
 
         if "LEGAL" in udm_reactions and "DOI" in udm_reactions["LEGAL"] and "CITATIONS" not in reaction:
             pb2_reaction.provenance.doi = udm_reactions["LEGAL"]["DOI"]
+        elif "CITATIONS" in udm_reactions and "VARIATION" in reaction and "CITATION" in reaction["VARIATION"]:
+            variation_citation = reaction["VARIATION"]["CITATION"]
+            variation_doi = ""
+            for citation in udm_reactions["CITATIONS"]["CITATION"]:
+                if isinstance(variation_citation, list):
+                    variation_citation = variation_citation[0]
+                if citation["@ID"] == variation_citation["@CIT_ID"] and "DOI" in citation:
+                    variation_doi = citation["DOI"]
+            if variation_doi != "":
+                pb2_reaction.provenance.doi = variation_doi
 
         if "CITATIONS" in reaction:
             pb2_reaction.provenance.doi = reaction["CITATIONS"][0]["CITATION"]["DOI"]
