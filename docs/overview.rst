@@ -127,6 +127,18 @@ database repository::
    $ cd "${REPOSITORY}"
    $ git remote add upstream https://github.com/Open-Reaction-Database/ord-data.git
 
+
+Hugging Face
+======
+
+A copy of the Open Reaction Database repository is also kept on Hugging Face 
+`here <https://huggingface.co/datasets/open-reaction-database/ord-data>`__. This can be 
+cloned using Git LFS ::
+
+   $ git clone https://huggingface.co/datasets/open-reaction-database/ord-data
+
+Data submissions are not currently accepted via Hugging Face so please use GitHub for all submissions.
+
 ****************************
 Contributing to the database
 ****************************
