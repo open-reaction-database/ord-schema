@@ -31,8 +31,6 @@ underrepresented areas).
 
 .. raw:: html
 
-   .. <b>Presentation of the ORD to the RDKit UGM on 7th October 2020</b>
-   .. <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/UyHVwJUBDIk?start=3" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
    <b>The new and improved ORD Reaction Editor</b>
    <iframe width="560" height="315" src="https://youtu.be/pAMFuSo0SgU?si=NSescLE0WdHSmpoj" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
