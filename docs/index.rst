@@ -21,7 +21,7 @@ Quick links:
    * `Overview of the ORD <overview.html>`_
    * `Leadership <overview.html#leadership>`_
    * `Commitment to Open Access <overview.html#commitment-to-open-access>`_
-   * `Open Reaction Database YouTube Channel <http://www.youtube.com/@openreactiondatabase9685>`_
+   * `Open Reaction Database YouTube Channel <http://www.youtube.com/@openreactiondatabase>`_
 
 We expect that this database will be the starting point for the development of
 best-in-class tools and models for reaction prediction and synthesis planning.
@@ -31,8 +31,10 @@ underrepresented areas).
 
 .. raw:: html
 
- <b>Presentation of the ORD to the RDKit UGM on 7th October 2020</b>
- <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/UyHVwJUBDIk?start=3" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+   .. <b>Presentation of the ORD to the RDKit UGM on 7th October 2020</b>
+   .. <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/UyHVwJUBDIk?start=3" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+   <b>The new and improved ORD Reaction Editor</b>
+   <iframe width="560" height="315" src="https://youtu.be/pAMFuSo0SgU?si=NSescLE0WdHSmpoj" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 .. toctree::
    :hidden:
