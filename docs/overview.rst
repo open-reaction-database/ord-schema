@@ -157,7 +157,6 @@ committee is:
 * Connor Coley (MIT, `C-CAS <https://ccas.nd.edu/>`__)
 * Abby Doyle (UCLA, `C-CAS <https://ccas.nd.edu/>`__)
 * Spencer Dreher (Merck)
-* Joel Hawkins (Pfizer)
 * Klavs Jensen (MIT)
 * Steven Kearnes (Genesis Therapeutics)
 
@@ -173,19 +172,19 @@ Advisory Board is:
 * Timothy Cernak (Michigan, Entos)
 * Lucy Colwell (Cambridge, SynTech, Google)
 * Werngard Czechtizky (AstraZeneca)
-* JW Feng (Google)
+* JW Feng (Consultant)
 * Matthew Gaunt (Cambridge, SynTech)
-* Alex Godfrey (NCATS Consultant)
-* Mimi Hii (Imperial, ROAR)
+* Alex Godfrey (Consultant)
+* Mimi Hii (A*STAR, Imperial, ROAR)
 * Greg Landrum (ETH Zurich)
 * Fabio Lima (Novartis)
 * Christos Nicolaou (Novo Nordisk)
 * Sarah Reisman (Caltech, `C-CAS <https://ccas.nd.edu/>`__)
-* Francesco Rianjongdee (GSK)
+* Francesco Rianjongdee
 * Marwin Segler (Microsoft)
 * Matthew Sigman (Utah, `C-CAS <https://ccas.nd.edu/>`__)
 * Jay Stevens (BMS)
-* Sarah Trice (Xtalpi)
+* Sarah Trice
 * Huimin Zhao (UIUC, MMLI)
 
 *************************
