@@ -19,8 +19,8 @@ Step 1: Create a template reaction
         fields that vary in the dataset). The following videos from the ORD YouTube channel
         are useful guides to creating datasets and reactions using the editor:
 
-        * `Creating a dataset <https://youtu.be/v-duvpmFt4Q?si=Vt6QglLfCTXq1EOq>`_`
-        * `Creating a reaction <https://youtu.be/YT3ZZzio6vk?si=ag0Yzg59Q2IRwHCZ>`_`
+        * `Creating a dataset <https://youtu.be/v-duvpmFt4Q?si=Vt6QglLfCTXq1EOq>`_
+        * `Creating a reaction <https://youtu.be/YT3ZZzio6vk?si=ag0Yzg59Q2IRwHCZ>`_
 
    .. group-tab:: Code
 
@@ -72,7 +72,7 @@ Step 2: Mark the variable fields in the template
           }
         ...
 
-        Here's the `templated version <https://gist.github.com/skearnes/1e822a599c07df924f7320352103865b#file-reaction_template-pbtxt>`_ of the earlier example.
+      Here's the `templated version <https://gist.github.com/skearnes/1e822a599c07df924f7320352103865b#file-reaction_template-pbtxt>`_ of the earlier example.
 
 ********************************************
 Step 3: Prepare the accompanying spreadsheet

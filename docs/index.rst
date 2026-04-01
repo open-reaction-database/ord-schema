@@ -33,7 +33,7 @@ underrepresented areas).
 .. raw:: html
 
    <b>The new and improved ORD Reaction Editor</b>
-   <iframe width="560" height="315" src="https://youtu.be/pAMFuSo0SgU?si=NSescLE0WdHSmpoj" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+   <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/pAMFuSo0SgU?si=Ayg8EFWBVbztFHbX" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 .. toctree::
    :hidden:
