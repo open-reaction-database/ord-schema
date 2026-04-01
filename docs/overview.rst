@@ -127,6 +127,18 @@ database repository::
    $ cd "${REPOSITORY}"
    $ git remote add upstream https://github.com/Open-Reaction-Database/ord-data.git
 
+
+Hugging Face
+======
+
+A copy of the Open Reaction Database repository is also kept on Hugging Face 
+`here <https://huggingface.co/datasets/open-reaction-database/ord-data>`__. This can be 
+cloned using Git LFS ::
+
+   $ git clone https://huggingface.co/datasets/open-reaction-database/ord-data
+
+Data submissions are not currently accepted via Hugging Face so please use GitHub for all submissions.
+
 ****************************
 Contributing to the database
 ****************************
@@ -157,9 +169,8 @@ committee is:
 * Connor Coley (MIT, `C-CAS <https://ccas.nd.edu/>`__)
 * Abby Doyle (UCLA, `C-CAS <https://ccas.nd.edu/>`__)
 * Spencer Dreher (Merck)
-* Joel Hawkins (Pfizer)
 * Klavs Jensen (MIT)
-* Steven Kearnes (Relay)
+* Steven Kearnes (Genesis Molecular AI)
 
 Advisory Board
 ==============
@@ -173,19 +184,19 @@ Advisory Board is:
 * Timothy Cernak (Michigan, Entos)
 * Lucy Colwell (Cambridge, SynTech, Google)
 * Werngard Czechtizky (AstraZeneca)
-* JW Feng (Google)
+* JW Feng (Consultant)
 * Matthew Gaunt (Cambridge, SynTech)
-* Alex Godfrey (NCATS Consultant)
-* Mimi Hii (Imperial, ROAR)
+* Alex Godfrey (Consultant)
+* Mimi Hii (A*STAR, Imperial, ROAR)
 * Greg Landrum (ETH Zurich)
 * Fabio Lima (Novartis)
-* Christos Nicolaou (Recursion)
+* Christos Nicolaou (Novo Nordisk)
 * Sarah Reisman (Caltech, `C-CAS <https://ccas.nd.edu/>`__)
-* Francesco Rianjongdee (GSK)
+* Francesco Rianjongdee
 * Marwin Segler (Microsoft)
 * Matthew Sigman (Utah, `C-CAS <https://ccas.nd.edu/>`__)
 * Jay Stevens (BMS)
-* Sarah Trice (Xtalpi)
+* Sarah Trice
 * Huimin Zhao (UIUC, MMLI)
 
 *************************

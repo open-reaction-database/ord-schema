@@ -16,12 +16,13 @@ planning, and experiment design. Our initial meeting took place on 31 October
 
    * We recently published on the ORD in *JACS* (`link <https://pubs.acs.org/doi/10.1021/jacs.1c09820>`__)
    * The ORD was highlighted in C&EN (`link <https://cen.acs.org/physical-chemistry/computational-chemistry/new-database-machine-learning-research/99/web/2021/11>`__)
+   * The ORD data is now available on Hugging Face (`link <https://huggingface.co/datasets/open-reaction-database/ord-data>`__)
 
 Quick links:
    * `Overview of the ORD <overview.html>`_
    * `Leadership <overview.html#leadership>`_
    * `Commitment to Open Access <overview.html#commitment-to-open-access>`_
-   * `Open Reaction Database YouTube Channel <http://www.youtube.com/@openreactiondatabase9685>`_
+   * `Open Reaction Database YouTube Channel <http://www.youtube.com/@openreactiondatabase>`_
 
 We expect that this database will be the starting point for the development of
 best-in-class tools and models for reaction prediction and synthesis planning.
@@ -31,16 +32,17 @@ underrepresented areas).
 
 .. raw:: html
 
- <b>Presentation of the ORD to the RDKit UGM on 7th October 2020</b>
- <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/UyHVwJUBDIk?start=3" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+   <b>The new and improved ORD Reaction Editor</b>
+   <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/pAMFuSo0SgU?si=Ayg8EFWBVbztFHbX" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 .. toctree::
    :hidden:
    :caption: Tools
 
-   Interactive Reaction Editor <https://open-reaction-database.org/editor/datasets>
-   Search/Browse <https://open-reaction-database.org/client/search#>
+   Interactive Reaction Editor <https://app.open-reaction-database.org/>
+   Search/Browse <https://open-reaction-database.org/search>
    GitHub <https://github.com/open-reaction-database>
+   Hugging Face <https://huggingface.co/datasets/open-reaction-database/ord-data>
 
 .. toctree::
    :hidden:

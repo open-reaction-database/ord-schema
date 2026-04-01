@@ -1,25 +1,24 @@
 ##################
-Interactive Editor
+Reaction Editor
 ##################
 
-**********
-Guest mode
-**********
+**This page is in development.**
 
-When you visit the web editor for the first time, you will be assigned a
-unique user ID that will be displayed in the top right corner of the page:
+The online reaction editor can be accessed `here <https://app.open-reaction-database.org/>`_
+and requires users to sign-in using one of the following services:
 
-.. image:: images/login.png
+* a specific ORD App account
+* Google
+* GitHub
+* ORCiD 
 
-While this 32-character ID is displayed, you are in *Guest Mode*. This mode
-is designed to allow users to explore the interface but **should not be used
-for creating datasets for submission**.
+.. IMPORTANT::
+   Using multiple sign-in services can cause problems on your ORD App account, including bugs that will lock you out of the service. 
+   Please choose one sign-in service and consistently use that one to access the ORD Reaction Editor. If you do become locked out then please
+   contact help@open-reaction-database.org and let us know the email address and/or ORCiD identifiers which are associated with 
+   the sign-in services you have been using.
 
-* Changes will be saved, but are subject to deletion at any time.
-* Your guest access token is set in a cookie on your browser. If you delete
-  your cookies or move to another device, you will not be able to access data
-  stored under this user ID.
+This YouTube `playlist <https://youtube.com/playlist?list=PLyoEVAlMb275tQqZG0NzuXdy8mQ7OazBZ&si=zm1L9bpYW8Idt68e>`_ has short videos demonstrating 
+some aspects of the ORD Reaction Editor.
 
-To ensure that your data remains accessible, we strongly encourage users to
-sign in with GitHub. This creates a user account linked to your GitHub username
-that can be accessed across devices and won't be affected by resetting cookies.
+

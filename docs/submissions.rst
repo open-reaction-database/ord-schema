@@ -16,10 +16,10 @@ interactively with the ORD web editor.
 
    .. group-tab:: Web
 
-        Please use the `ORD web editor
-        <https://open-reaction-database.org/editor/datasets>`_ to create your submission.
+        Please use the `online ORD reaction editor
+        <https://app.open-reaction-database.org/>`_ to create your submission.
 
-        The ORD web editor performs automatic validation that will catch any
+        The ORD reaction editor performs automatic validation that will catch any
         errors entered into the form, so there is no separate validation step.
 
    .. group-tab:: Code
@@ -59,7 +59,9 @@ on GitHub.
 
    .. group-tab:: Web
 
-      *TODO: Make sure your fork is up to date.*
+      .. IMPORTANT::
+
+         Please make sure your fork is up to date with the latest datasets in the official repo.
 
       `Create a new branch
       <https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-and-deleting-branches-within-your-repository>`_

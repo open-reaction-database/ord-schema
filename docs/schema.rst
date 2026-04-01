@@ -231,7 +231,7 @@ Using the schema
 Interactive editor
 ==================
 
-The interactive editor available at `https://editor.open-reaction-database.org <https://editor.open-reaction-database.org>`_
+The interactive editor available at `https://open-reaction-database.org/editor/datasets <https://open-reaction-database.org/editor/datasets>`_
 provides a nearly feature-complete interface to the schema, including support
 for enumerating datasets based on reaction templates.
 
