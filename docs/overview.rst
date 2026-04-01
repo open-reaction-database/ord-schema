@@ -170,7 +170,7 @@ committee is:
 * Abby Doyle (UCLA, `C-CAS <https://ccas.nd.edu/>`__)
 * Spencer Dreher (Merck)
 * Klavs Jensen (MIT)
-* Steven Kearnes (Genesis Therapeutics)
+* Steven Kearnes (Genesis Molecular AI)
 
 Advisory Board
 ==============
