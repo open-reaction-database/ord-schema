@@ -43,6 +43,7 @@ Options:
     --issue=<str>               GitHub pull request number; if provided, a comment will be added
     --token=<str>               GitHub authentication token
 """
+
 import dataclasses
 import glob
 import gzip

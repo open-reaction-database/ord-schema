@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Generic helpers for ord_schema, including common message types."""
+
 from typing import Union
 
 import google.protobuf.message  # pytype: disable=import-error

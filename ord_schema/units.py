@@ -331,7 +331,7 @@ class UnitResolver:
         # pylint: disable=too-many-branches
         message_type = type(message)
         if isinstance(new_units, str):
-            (new_message_type, new_units) = self.resolve_unit(new_units)
+            new_message_type, new_units = self.resolve_unit(new_units)
             if new_message_type != message_type:
                 raise ValueError("Cannot convert units between messages of different types")
         new_message = message_type(units=new_units)

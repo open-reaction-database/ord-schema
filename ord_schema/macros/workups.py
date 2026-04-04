@@ -41,6 +41,7 @@ reaction.workups.MergeFrom([
     reaction_pb2.ReactionWorkup(type='OTHER_CHROMATOGRAPHY'),
 ])
 """
+
 from collections.abc import Iterable
 
 from ord_schema import units

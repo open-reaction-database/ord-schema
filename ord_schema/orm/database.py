@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Functions for creating/managing the PostgreSQL database."""
+
 import os
 import time
 from unittest.mock import patch
@@ -118,8 +119,7 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
     logger.debug("Updating RDKit reactions")
     start = time.time()
     result = session.execute(
-        text(
-            """
+        text("""
             INSERT INTO rdkit.reactions (reaction_smiles, reaction)
             SELECT reaction_smiles, reaction_from_smiles(reaction_smiles::cstring)
             FROM (
@@ -132,8 +132,7 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
                 SELECT reaction_smiles
                     FROM rdkit.reactions
             ) subquery
-            """
-        ),
+            """),
         {"dataset_id": dataset_id},
     )
     logger.debug(f"Updating reactions took {time.time() - start:g}s ({result.rowcount} rows)")
@@ -144,8 +143,7 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     logger.debug("Updating RDKit mols")
     start = time.time()
     result = session.execute(
-        text(
-            """
+        text("""
             INSERT INTO rdkit.mols (smiles, mol, morgan_bfp, morgan_sfp)
             SELECT smiles, mol, morgan_bfp, morgan_sfp
             FROM (
@@ -180,8 +178,7 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
                 ) mol_subquery
             ) fp_subquery
             ON CONFLICT (smiles) DO NOTHING
-            """
-        ),
+            """),
         {"dataset_id": dataset_id},
     )
     logger.debug(f"Updating mols took {time.time() - start:g}s ({result.rowcount} rows)")
@@ -193,8 +190,7 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
     start = time.time()
     # Update Reaction.
     session.execute(
-        text(
-            """
+        text("""
             UPDATE ord.reaction
             SET rdkit_reaction_id = subquery.rdkit_reaction_id
             FROM (
@@ -206,14 +202,12 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
                       AND ord.reaction.rdkit_reaction_id IS NULL
             ) AS subquery
             WHERE ord.reaction.id = subquery.id
-            """
-        ),
+            """),
         {"dataset_id": dataset_id},
     )
     # Update Compound.
     session.execute(
-        text(
-            """
+        text("""
             UPDATE ord.compound
             SET rdkit_mol_id = subquery.rdkit_mol_id
             FROM (
@@ -227,13 +221,11 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
                       AND ord.compound.rdkit_mol_id IS NULL
             ) AS subquery
             WHERE ord.compound.id = subquery.id
-            """
-        ),
+            """),
         {"dataset_id": dataset_id},
     )
     session.execute(
-        text(
-            """
+        text("""
             UPDATE ord.product_compound
             SET rdkit_mol_id = subquery.rdkit_mol_id
             FROM (
@@ -247,8 +239,7 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
                       AND ord.product_compound.rdkit_mol_id IS NULL
             ) AS subquery
             WHERE ord.product_compound.id = subquery.id
-            """
-        ),
+            """),
         {"dataset_id": dataset_id},
     )
     logger.debug(f"Updating RDKit IDs took {time.time() - start:g}s")
