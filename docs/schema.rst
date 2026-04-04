@@ -273,7 +273,7 @@ snippet to install the ``ord_schema`` package directly from GitHub:
        # Clone and install ord_schema.
        !git clone https://github.com/Open-Reaction-Database/ord-schema.git
        %cd ord_schema
-       !python setup.py install
+       !pip install .
 
 ***********
 Validations
