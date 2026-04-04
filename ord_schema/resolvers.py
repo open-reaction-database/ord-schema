@@ -28,8 +28,6 @@ from ord_schema.proto import reaction_pb2
 
 logger = get_logger(__name__)
 
-_COMPOUND_STRUCTURAL_IDENTIFIERS = ord_schema.COMPOUND_STRUCTURAL_IDENTIFIERS
-
 _USERNAME = "github-actions"
 _EMAIL = "github-actions@github.com"
 
@@ -80,7 +78,7 @@ def resolve_names(message: reaction_pb2.Reaction) -> bool:
     modified = False
     compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
     for compound in compounds:
-        if any(identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS for identifier in compound.identifiers):
+        if any(identifier.type in ord_schema.COMPOUND_STRUCTURAL_IDENTIFIERS for identifier in compound.identifiers):
             continue  # Compound already has a structural identifier.
         for identifier in compound.identifiers:
             if identifier.type == identifier.NAME:
