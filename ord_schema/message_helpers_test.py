@@ -406,11 +406,11 @@ class TestSetDativeBonds:
         mol = Chem.MolFromSmiles("[PH3][Pd](Cl)(Cl)[NH3]", sanitize=False)
         dative_mol = message_helpers.set_dative_bonds(mol, from_atoms=("N", "P"))
         bond_types = {
-            (bond.GetBeginAtom().GetSymbol(), bond.GetEndAtom().GetSymbol()): bond.GetBondType()
+            frozenset([bond.GetBeginAtom().GetSymbol(), bond.GetEndAtom().GetSymbol()]): bond.GetBondType()
             for bond in dative_mol.GetBonds()
         }
-        assert bond_types[("N", "Pd")] == Chem.BondType.DATIVE
-        assert bond_types[("P", "Pd")] == Chem.BondType.DATIVE
+        assert bond_types[frozenset(["N", "Pd"])] == Chem.BondType.DATIVE
+        assert bond_types[frozenset(["P", "Pd"])] == Chem.BondType.DATIVE
 
 
 class TestLoadAndWriteMessage:
