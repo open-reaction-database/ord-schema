@@ -78,6 +78,9 @@ tests = [
     "treon>=0.1.3",
 ]
 
+[tool.setuptools.packages.find]
+include = ["ord_schema*"]
+
 [tool.setuptools.package-data]
 "ord_schema.proto" = ["*.pyi"]
 
