@@ -21,8 +21,7 @@ import urllib.request
 
 from rdkit import Chem
 
-import ord_schema
-from ord_schema import message_helpers
+from ord_schema import COMPOUND_STRUCTURAL_IDENTIFIERS, message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
 
@@ -78,7 +77,7 @@ def resolve_names(message: reaction_pb2.Reaction) -> bool:
     modified = False
     compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
     for compound in compounds:
-        if any(identifier.type in ord_schema.COMPOUND_STRUCTURAL_IDENTIFIERS for identifier in compound.identifiers):
+        if any(identifier.type in COMPOUND_STRUCTURAL_IDENTIFIERS for identifier in compound.identifiers):
             continue  # Compound already has a structural identifier.
         for identifier in compound.identifiers:
             if identifier.type == identifier.NAME:
