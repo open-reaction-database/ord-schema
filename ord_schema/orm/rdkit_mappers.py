@@ -27,7 +27,6 @@ from __future__ import annotations
 import os
 from enum import Enum
 
-from setuptools import distutils  # pytype: disable=import-error
 from sqlalchemy import Column, Index, Integer, Text, cast, func
 from sqlalchemy.sql.expression import ColumnElement
 from sqlalchemy.types import UserDefinedType
@@ -37,7 +36,7 @@ from ord_schema.orm import Base
 
 def rdkit_cartridge() -> bool:
     """Returns whether to use RDKit PostgreSQL cartridge functionality."""
-    return bool(distutils.util.strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")))
+    return os.environ.get("ORD_POSTGRES_RDKIT", "1").lower() in ("1", "true", "yes", "y", "on")
 
 
 class RDKitMol(UserDefinedType):

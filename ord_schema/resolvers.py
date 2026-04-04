@@ -21,19 +21,14 @@ import urllib.request
 
 from rdkit import Chem
 
+import ord_schema
 from ord_schema import message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
 
 logger = get_logger(__name__)
 
-_COMPOUND_STRUCTURAL_IDENTIFIERS = [
-    reaction_pb2.CompoundIdentifier.SMILES,
-    reaction_pb2.CompoundIdentifier.INCHI,
-    reaction_pb2.CompoundIdentifier.MOLBLOCK,
-    reaction_pb2.CompoundIdentifier.CXSMILES,
-    reaction_pb2.CompoundIdentifier.XYZ,
-]
+_COMPOUND_STRUCTURAL_IDENTIFIERS = ord_schema.COMPOUND_STRUCTURAL_IDENTIFIERS
 
 _USERNAME = "github-actions"
 _EMAIL = "github-actions@github.com"

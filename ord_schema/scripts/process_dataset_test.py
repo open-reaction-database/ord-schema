@@ -18,7 +18,6 @@ import os
 import subprocess
 from typing import Optional
 
-import docopt
 import pytest
 from rdkit import RDLogger
 
@@ -66,7 +65,7 @@ class TestProcessDataset:
     def test_main_with_input_pattern(self, setup):
         dataset1_filename, _ = setup
         argv = ["--input_pattern", dataset1_filename, "--base", "main"]
-        process_dataset.main(docopt.docopt(process_dataset.__doc__, argv))
+        process_dataset.main(process_dataset.parse_args(argv))
 
     def test_main_with_input_file(self, setup, tmp_path):
         dataset1_filename, _ = setup
@@ -74,13 +73,13 @@ class TestProcessDataset:
         with open(input_file, "w") as f:
             f.write(f"A\t{dataset1_filename}\n")
         argv = ["--input_file", input_file, "--base", "main"]
-        process_dataset.main(docopt.docopt(process_dataset.__doc__, argv))
+        process_dataset.main(process_dataset.parse_args(argv))
 
     def test_main_with_validation_errors(self, setup):
         _, dataset2_filename = setup
         argv = ["--input_pattern", dataset2_filename, "--write_errors"]
         with pytest.raises(validations.ValidationError, match="validation encountered errors"):
-            process_dataset.main(docopt.docopt(process_dataset.__doc__, argv))
+            process_dataset.main(process_dataset.parse_args(argv))
         error_filename = f"{dataset2_filename}.error"
         assert os.path.exists(error_filename)
         expected_output = [
@@ -103,7 +102,7 @@ class TestProcessDataset:
             "main",
             "--update",
         ]
-        process_dataset.main(docopt.docopt(process_dataset.__doc__, argv))
+        process_dataset.main(process_dataset.parse_args(argv))
         expected_output = os.path.join(dirname, "data", "00", "ord_dataset-00000000000000000000000000000000.pb.gz")
         assert os.path.exists(expected_output)
         dataset = message_helpers.load_message(expected_output, dataset_pb2.Dataset)
@@ -198,7 +197,7 @@ class TestSubmissionWorkflow:
         ]
         if extra_argv:
             argv.extend(extra_argv)
-        added, removed, changed = process_dataset.run(docopt.docopt(process_dataset.__doc__, argv))
+        added, removed, changed = process_dataset.run(process_dataset.parse_args(argv))
         filenames = glob.glob(os.path.join(test_subdirectory, "**/*.pb*"), recursive=True)
         return added, removed, changed, filenames
 

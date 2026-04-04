@@ -36,7 +36,7 @@ jobs:
           # NOTE(skearnes): conda is only used for postgres (not python).
           conda install -c conda-forge rdkit-postgresql
           initdb
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install ord_schema
@@ -50,7 +50,7 @@ jobs:
           coverage erase
           pytest -vv --cov=ord_schema --durations=20
           coverage xml
-      - uses: codecov/codecov-action@v1
+      - uses: codecov/codecov-action@v4
 
   test_notebooks:
     strategy:
@@ -60,7 +60,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install ord_schema
@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       - uses: actions/setup-node@v4
@@ -105,9 +105,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: '16.x'
+          node-version: '22'
       - name: Test NPM package
         run: |
           cd js/ord-schema
@@ -117,12 +117,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: '16.x'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
       - name: Test bump patch version
         run: |

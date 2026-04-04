@@ -17,15 +17,10 @@ import datetime
 import re
 import uuid
 
+import ord_schema
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
-_COMPOUND_STRUCTURAL_IDENTIFIERS = [
-    reaction_pb2.CompoundIdentifier.SMILES,
-    reaction_pb2.CompoundIdentifier.INCHI,
-    reaction_pb2.CompoundIdentifier.MOLBLOCK,
-    reaction_pb2.CompoundIdentifier.CXSMILES,
-    reaction_pb2.CompoundIdentifier.XYZ,
-]
+_COMPOUND_STRUCTURAL_IDENTIFIERS = ord_schema.COMPOUND_STRUCTURAL_IDENTIFIERS
 
 _USERNAME = "github-actions"
 _EMAIL = "github-actions@github.com"

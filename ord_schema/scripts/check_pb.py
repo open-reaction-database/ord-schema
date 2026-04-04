@@ -16,29 +16,29 @@
 Specifically, checks that a pb Dataset:
     - Can be read
     - Matches the contents of a pbtxt ground truth
-
-Usage:
-    check_pb.py --pb=<str> --pbtxt=<str>
-
-Options:
-    --pb=<str>          Path to *.pb Dataset
-    --pbtxt=<str>       Path to *.pbtxt Dataset
 """
 
+import argparse
 import difflib
 import pprint
 
-import docopt
 from google.protobuf import text_format  # pytype: disable=import-error
 
 from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 
 
-def main(kwargs):
-    dataset = message_helpers.load_message(kwargs["--pb"], dataset_pb2.Dataset)
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Compare pbtxt and pb Datasets")
+    parser.add_argument("--pb", required=True, help="Path to *.pb Dataset")
+    parser.add_argument("--pbtxt", required=True, help="Path to *.pbtxt Dataset")
+    return parser.parse_args(argv)
+
+
+def main(args):
+    dataset = message_helpers.load_message(args.pb, dataset_pb2.Dataset)
     pb_data = text_format.MessageToString(dataset)
-    with open(kwargs["--pbtxt"]) as f:
+    with open(args.pbtxt) as f:
         pbtxt_data = f.read()
     if pb_data != pbtxt_data:
         diff = difflib.context_diff(pb_data.splitlines(), pbtxt_data.splitlines())
@@ -46,4 +46,4 @@ def main(kwargs):
 
 
 if __name__ == "__main__":
-    main(docopt.docopt(__doc__))
+    main(parse_args())

@@ -12,25 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Adds datasets to the ORM database.
+"""Adds datasets to the ORM database."""
 
-Usage:
-    add_datasets.py --pattern=<str> [options]
-    add_datasets.py -h | --help
-
-Options:
-    --pattern=<str>         Pattern for dataset filenames
-    --overwrite             Update changed datasets
-    --dsn=<str>             Postgres connection string
-    --database=<str>        Database [default: orm]
-    --username=<str>        Database username [default: postgres]
-    --password=<str>        Database password
-    --host=<str>            Database host [default: localhost]
-    --port=<int>            Database port [default: 5432]
-    --n_jobs=<int>          Number of parallel workers [default: 1]
-    --debug                 Enable debug logging.
-"""
-
+import argparse
 import logging
 import os
 import time
@@ -39,7 +23,6 @@ from contextlib import ExitStack
 from glob import glob
 from hashlib import md5
 
-from docopt import docopt
 from rdkit import RDLogger
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
@@ -103,23 +86,38 @@ def add_rdkit(engine: Engine, dataset_id: str) -> None:
             database.update_rdkit_ids(dataset_id, session)
 
 
-def main(**kwargs):
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Add datasets to the ORM database")
+    parser.add_argument("--pattern", required=True, help="Pattern for dataset filenames")
+    parser.add_argument("--overwrite", action="store_true", help="Update changed datasets")
+    parser.add_argument("--dsn", default=None, help="Postgres connection string")
+    parser.add_argument("--database", default="orm", help="Database")
+    parser.add_argument("--username", default="postgres", help="Database username")
+    parser.add_argument("--password", default=None, help="Database password")
+    parser.add_argument("--host", default="localhost", help="Database host")
+    parser.add_argument("--port", type=int, default=5432, help="Database port")
+    parser.add_argument("--n_jobs", type=int, default=1, help="Number of parallel workers")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    return parser.parse_args(argv)
+
+
+def main(args):
     RDLogger.DisableLog("rdApp.*")
-    if kwargs["--debug"]:
+    if args.debug:
         get_logger(database.__name__, level=logging.DEBUG)
-    if kwargs["--dsn"]:
-        dsn = kwargs["--dsn"]
+    if args.dsn:
+        dsn = args.dsn
     else:
         dsn = database.get_connection_string(
-            database=kwargs["--database"],
-            username=kwargs["--username"],
-            password=kwargs["--password"] or os.environ["PGPASSWORD"],
-            host=kwargs["--host"],
-            port=int(kwargs["--port"]),
+            database=args.database,
+            username=args.username,
+            password=args.password or os.environ["PGPASSWORD"],
+            host=args.host,
+            port=args.port,
         )
-    filenames = sorted(glob(kwargs["--pattern"]))
+    filenames = sorted(glob(args.pattern))
     with ExitStack() as stack:
-        max_workers = int(kwargs["--n_jobs"])
+        max_workers = args.n_jobs
         if max_workers > 1:
             executor = stack.enter_context(ProcessPoolExecutor(max_workers))
         else:
@@ -127,7 +125,7 @@ def main(**kwargs):
         logger.info("Adding datasets")
         futures = {}
         for filename in filenames:
-            future = executor.submit(add_dataset, dsn=dsn, filename=filename, overwrite=kwargs["--overwrite"])
+            future = executor.submit(add_dataset, dsn=dsn, filename=filename, overwrite=args.overwrite)
             futures[future] = filename
         dataset_ids = []
         failures = []
@@ -151,4 +149,4 @@ def main(**kwargs):
 
 
 if __name__ == "__main__":
-    main(**docopt(__doc__))
+    main(parse_args())

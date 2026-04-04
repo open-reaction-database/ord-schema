@@ -15,7 +15,6 @@
 
 import os
 
-import docopt
 import pandas as pd
 import pytest
 
@@ -144,7 +143,7 @@ def test_main(setup, tmp_path):
         "--output",
         output_filename,
     ]
-    enumerate_dataset.main(docopt.docopt(enumerate_dataset.__doc__, argv))
+    enumerate_dataset.main(enumerate_dataset.parse_args(argv))
     assert os.path.exists(output_filename)
     dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
     assert len(dataset.reactions) == 3

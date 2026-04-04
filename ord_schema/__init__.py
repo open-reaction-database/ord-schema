@@ -55,6 +55,15 @@ TypeDetailsMessage = Union[  # pylint: disable=invalid-name
     reaction_pb2.VesselPreparation,
 ]
 
+# Compound identifiers that encode molecular structure.
+COMPOUND_STRUCTURAL_IDENTIFIERS = [
+    reaction_pb2.CompoundIdentifier.SMILES,
+    reaction_pb2.CompoundIdentifier.INCHI,
+    reaction_pb2.CompoundIdentifier.MOLBLOCK,
+    reaction_pb2.CompoundIdentifier.CXSMILES,
+    reaction_pb2.CompoundIdentifier.XYZ,
+]
+
 # Messages with 'units' fields.
 UnitMessage = Union[
     reaction_pb2.Current,
