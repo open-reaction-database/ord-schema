@@ -21,7 +21,7 @@ import re
 import urllib.parse
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Optional, Type, TypeVar, Union, cast
+from typing import Optional, Type, TypeVar, cast
 
 import pandas as pd
 import requests
@@ -258,9 +258,7 @@ def find_submessages(message: ord_schema.Message, submessage_type: Type[MessageT
     return submessages
 
 
-def smiles_from_compound(
-    compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound], canonical: bool = True
-) -> str:
+def smiles_from_compound(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound, canonical: bool = True) -> str:
     """Fetches or generates a SMILES identifier for a compound.
 
     If a SMILES identifier already exists, it is simply returned.
@@ -300,8 +298,8 @@ def molblock_from_compound(compound: reaction_pb2.Compound) -> str:
 
 
 def mol_from_compound(
-    compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound], return_identifier: bool = False
-) -> Union[Chem.Mol, tuple[Chem.Mol, reaction_pb2.CompoundIdentifier]]:
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound, return_identifier: bool = False
+) -> Chem.Mol | tuple[Chem.Mol, reaction_pb2.CompoundIdentifier]:
     """Creates an RDKit Mol from a Compound message.
 
     Args:
@@ -329,7 +327,7 @@ def mol_from_compound(
     raise ValueError(f"no valid structural identifier for Compound: {compound}")
 
 
-def check_compound_identifiers(compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound]):
+def check_compound_identifiers(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound):
     """Verifies that structural compound identifiers are consistent.
 
     Args:
@@ -513,7 +511,7 @@ def get_product_yield(product: reaction_pb2.ProductCompound, as_measurement: boo
 
 
 def get_compound_identifier(
-    compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound],
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
     identifier_type: reaction_pb2.CompoundIdentifier.CompoundIdentifierType,
 ) -> Optional[str]:
     """Returns the value of a compound identifier if it exists. If multiple
@@ -556,7 +554,7 @@ def set_compound_identifier(
     return identifier
 
 
-def get_compound_smiles(compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound]) -> Optional[str]:
+def get_compound_smiles(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound) -> Optional[str]:
     """Returns the value of the compound's SMILES identifier if it exists.
 
     Args:
@@ -695,7 +693,7 @@ def set_compound_name(compound: reaction_pb2.Compound, value: str) -> reaction_p
     return set_compound_identifier(compound, reaction_pb2.CompoundIdentifier.NAME, value)
 
 
-def get_compound_molblock(compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound]) -> Optional[str]:
+def get_compound_molblock(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound) -> Optional[str]:
     """Returns the value of the compound's MOLBLOCK identifier if it exists.
 
     Args:
@@ -946,7 +944,7 @@ def safe_update(target: dict, update: Mapping) -> None:
 
 def _message_to_row(
     field: ord_schema.FieldDescriptor,
-    value: Union[ord_schema.Message, ord_schema.ScalarType],
+    value: ord_schema.Message | ord_schema.ScalarType,
     trace: tuple[str, ...],
 ) -> dict[str, ord_schema.ScalarType]:
     """Recursively creates a dict for a single value.
