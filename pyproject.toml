@@ -85,7 +85,7 @@ include = ["ord_schema*"]
 
 [tool.ruff]
 line-length = 120
-extend-exclude = ["*_pb2.py", "*.pyi"]
+extend-exclude = ["*_pb2.py*"]
 
 [tool.pytype]
 inputs = ["ord_schema"]
