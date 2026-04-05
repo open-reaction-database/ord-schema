@@ -14,16 +14,20 @@
 """Helpers for translating strings with units."""
 
 import re
-from typing import Any, Optional, Tuple, Type, Union
+from typing import Optional, Tuple, Type, TypeAlias, Union
 
 import numpy as np
 
 import ord_schema
 from ord_schema.proto import reaction_pb2
 
+# Protobuf-generated enum constants (e.g. reaction_pb2.Time.DAY) are int-valued;
+# there is no public google.protobuf type for “any enum member” in Python.
+ProtoEnumMember: TypeAlias = int
+
 # Accepted synonyms for units. Note that all values will be converted to
 # lowercase.
-_UNIT_SYNONYMS: dict[Type[ord_schema.UnitMessage], dict[Any, list[str]]] = {
+_UNIT_SYNONYMS: dict[Type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[str]]] = {
     reaction_pb2.Time: {
         reaction_pb2.Time.DAY: ["d", "day", "days"],
         reaction_pb2.Time.HOUR: ["h", "hour", "hours", "hr", "hrs"],
@@ -138,7 +142,7 @@ _FORBIDDEN_UNITS = {
     "m": "ambiguous between meter and minute",
 }
 
-_UNIT_CONVERSIONS: dict[Type[ord_schema.UnitMessage], dict[Any, int | float]] = {
+_UNIT_CONVERSIONS: dict[Type[ord_schema.UnitMessage], dict[ProtoEnumMember, int | float]] = {
     reaction_pb2.Time: {
         reaction_pb2.Time.DAY: 24,
         reaction_pb2.Time.HOUR: 1,
@@ -197,7 +201,7 @@ _UNIT_CONVERSIONS: dict[Type[ord_schema.UnitMessage], dict[Any, int | float]] = 
 
 # Concentration units are defined separately since they are not needed for any
 # native fields in the reaction schema.
-CONCENTRATION_UNIT_SYNONYMS: dict[Type[ord_schema.UnitMessage], dict[Any, list[str]]] = {
+CONCENTRATION_UNIT_SYNONYMS: dict[Type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[str]]] = {
     reaction_pb2.Concentration: {
         reaction_pb2.Concentration.MOLAR: ["M", "molar"],
         reaction_pb2.Concentration.MILLIMOLAR: ["mM", "millimolar"],
@@ -205,7 +209,7 @@ CONCENTRATION_UNIT_SYNONYMS: dict[Type[ord_schema.UnitMessage], dict[Any, list[s
     },
 }
 
-CONCENTRATION_M_PER_UNIT = {
+CONCENTRATION_M_PER_UNIT: dict[ProtoEnumMember, float] = {
     reaction_pb2.Concentration.ConcentrationUnit.MOLAR: 1,
     reaction_pb2.Concentration.ConcentrationUnit.MILLIMOLAR: 1e-3,
     reaction_pb2.Concentration.ConcentrationUnit.MICROMOLAR: 1e-6,
@@ -217,7 +221,7 @@ class UnitResolver:
 
     def __init__(
         self,
-        unit_synonyms: Optional[dict[Type[ord_schema.UnitMessage], dict[Any, list[str]]]] = None,
+        unit_synonyms: Optional[dict[Type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[str]]]] = None,
         forbidden_units: Optional[dict[str, str]] = None,
     ):
         """Initializes a UnitResolver.
@@ -296,7 +300,7 @@ class UnitResolver:
             return message_cls(value=value, precision=precision, units=unit)
         return message_cls(value=value, units=unit)
 
-    def resolve_unit(self, string_unit: str) -> Tuple[Type[ord_schema.UnitMessage], Any]:
+    def resolve_unit(self, string_unit: str) -> Tuple[Type[ord_schema.UnitMessage], ProtoEnumMember]:
         """Resolves a unit string into its message type and unit ENUM value.
 
         Args:
