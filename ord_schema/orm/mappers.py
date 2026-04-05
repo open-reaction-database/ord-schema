@@ -43,6 +43,9 @@ from sqlalchemy.orm import relationship
 from ord_schema import message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.orm import Base
+
+# Registers RDKitMols/RDKitReactions on Base for string relationship() targets.
+import ord_schema.orm.rdkit_mappers  # noqa: F401
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
