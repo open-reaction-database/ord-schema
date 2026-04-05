@@ -36,8 +36,6 @@ import ord_schema
 from ord_schema import units
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
-CompoundLike = Union[reaction_pb2.Compound, reaction_pb2.ProductCompound]
-
 _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
@@ -302,7 +300,7 @@ def molblock_from_compound(compound: reaction_pb2.Compound) -> str:
 
 
 def mol_from_compound(
-    compound: CompoundLike, return_identifier: bool = False
+    compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound], return_identifier: bool = False
 ) -> Union[Chem.Mol, tuple[Chem.Mol, reaction_pb2.CompoundIdentifier]]:
     """Creates an RDKit Mol from a Compound message.
 
@@ -331,7 +329,7 @@ def mol_from_compound(
     raise ValueError(f"no valid structural identifier for Compound: {compound}")
 
 
-def check_compound_identifiers(compound: CompoundLike):
+def check_compound_identifiers(compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound]):
     """Verifies that structural compound identifiers are consistent.
 
     Args:
@@ -515,7 +513,7 @@ def get_product_yield(product: reaction_pb2.ProductCompound, as_measurement: boo
 
 
 def get_compound_identifier(
-    compound: CompoundLike,
+    compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound],
     identifier_type: reaction_pb2.CompoundIdentifier.CompoundIdentifierType,
 ) -> Optional[str]:
     """Returns the value of a compound identifier if it exists. If multiple
@@ -558,7 +556,7 @@ def set_compound_identifier(
     return identifier
 
 
-def get_compound_smiles(compound: CompoundLike) -> Optional[str]:
+def get_compound_smiles(compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound]) -> Optional[str]:
     """Returns the value of the compound's SMILES identifier if it exists.
 
     Args:
@@ -697,7 +695,7 @@ def set_compound_name(compound: reaction_pb2.Compound, value: str) -> reaction_p
     return set_compound_identifier(compound, reaction_pb2.CompoundIdentifier.NAME, value)
 
 
-def get_compound_molblock(compound: CompoundLike) -> Optional[str]:
+def get_compound_molblock(compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound]) -> Optional[str]:
     """Returns the value of the compound's MOLBLOCK identifier if it exists.
 
     Args:
