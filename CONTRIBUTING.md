@@ -48,6 +48,12 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
 
     1. Create a fork of `ord-schema` (click "Fork" at the top-right of this page) and clone it to your local machine
        ([instructions](https://help.github.com/en/github/getting-started-with-github/fork-a-repo)).
+    1. Install [pre-commit](https://pre-commit.com/) and set up the hooks:
+       ```shell
+       pip install pre-commit
+       pre-commit install
+       ```
+       The hooks run `addlicense`, `ruff`, `ty`, and `clang-format` automatically on each commit.
     1. Create a new branch and make your changes.
     1. Test your changes by rebuilding the package (`pip install -e .`) and running the test script provided
        in the repo (`./run_tests.sh`). This will be performed automatically when you send a pull request to the
