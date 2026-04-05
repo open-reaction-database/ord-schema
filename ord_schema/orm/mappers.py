@@ -119,7 +119,7 @@ _FIELD_TYPES = {
 }
 
 
-def build_mapper(  # pylint: disable=too-many-branches
+def build_mapper(
     message_type: Type[Message], parents: dict[Type[Message], list[tuple[Type[Message], str, bool]]]
 ) -> Type:
     """Creates a mapper class for a specific protocol buffer message type.
@@ -235,9 +235,7 @@ class Mappers(metaclass=_MappersMeta):
     _MAPPERS: dict[str, Type] = {c.__name__: c for c in _MAPPER_TO_MESSAGE}
 
 
-def from_proto(  # pylint: disable=too-many-branches
-    message: Message, mapper: Optional[Type[Base]] = None, key: Optional[str] = None
-) -> Base:
+def from_proto(message: Message, mapper: Optional[Type[Base]] = None, key: Optional[str] = None) -> Base:
     """Converts a protobuf message into an ORM object.
 
     Args:

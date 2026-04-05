@@ -41,13 +41,8 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
-MessageType = TypeVar("MessageType")  # Generic for setting return types; pylint: disable=invalid-name.
+MessageType = TypeVar("MessageType")  # Generic for setting return types
 ORD_DATA_URL = "https://github.com/Open-Reaction-Database/ord-data/raw/main/"
-
-# pylint: disable=too-many-arguments
-# pylint: disable=too-many-branches
-# pylint: disable=too-many-locals
-# pylint: disable=too-many-positional-arguments
 
 
 def build_compound(
@@ -293,7 +288,6 @@ def molblock_from_compound(compound: reaction_pb2.Compound) -> str:
     return get_compound_molblock(compound) or Chem.MolToMolBlock(mol_from_compound(compound))
 
 
-# pylint: disable=inconsistent-return-statements
 def mol_from_compound(
     compound: reaction_pb2.Compound, return_identifier: bool = False
 ) -> Union[Chem.Mol, tuple[Chem.Mol, str]]:
@@ -322,9 +316,6 @@ def mol_from_compound(
                 return mol, identifier
             return mol
     raise ValueError(f"no valid structural identifier for Compound: {compound}")
-
-
-# pylint: enable=inconsistent-return-statements
 
 
 def check_compound_identifiers(compound: reaction_pb2.Compound):
@@ -741,7 +732,7 @@ def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset
         RuntimeError: If the request fails.
         ValueError: If the dataset ID is invalid.
     """
-    from ord_schema import validations  # pylint: disable=cyclic-import,import-outside-toplevel
+    from ord_schema import validations
 
     if not validations.is_valid_dataset_id(dataset_id):
         raise ValueError(f"Invalid dataset ID: {dataset_id}")
@@ -752,7 +743,6 @@ def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset
     return dataset_pb2.Dataset.FromString(gzip.decompress(response.content))
 
 
-# pylint: disable=inconsistent-return-statements
 def load_message(filename: str, message_type: Type[MessageType]) -> MessageType:
     """Loads a protocol buffer message from a file.
 
@@ -792,9 +782,6 @@ def load_message(filename: str, message_type: Type[MessageType]) -> MessageType:
             text_format.ParseError,
         ) as error:
             raise ValueError(f"error parsing {filename}: {error}") from error
-
-
-# pylint: enable=inconsistent-return-statements
 
 
 def write_message(message: ord_schema.Message, filename: str):

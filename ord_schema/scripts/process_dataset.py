@@ -64,9 +64,6 @@ from ord_schema.proto import dataset_pb2
 logger = get_logger(__name__)
 
 
-# pylint: disable=too-many-branches,too-many-locals
-
-
 @dataclasses.dataclass(eq=True, frozen=True, order=True)
 class FileStatus:
     """A filename and its status in Git."""
@@ -207,7 +204,7 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset], kwargs) -> None:
     for filename, dataset in datasets.items():
         output_filename = os.path.join(
             kwargs["--root"],
-            message_helpers.id_filename(f'{dataset.dataset_id}{kwargs["--output_format"]}'),
+            message_helpers.id_filename(f"{dataset.dataset_id}{kwargs['--output_format']}"),
         )
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         if kwargs["--cleanup"]:
@@ -248,9 +245,7 @@ def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[st
             for reaction in dataset.reactions:
                 reaction_size = sys.getsizeof(reaction.SerializeToString()) / 1e6
                 if reaction_size > float(kwargs["--max_size"]):
-                    raise ValueError(
-                        "Reaction is larger than --max_size " f'({reaction_size} vs {kwargs["--max_size"]}'
-                    )
+                    raise ValueError(f"Reaction is larger than --max_size ({reaction_size} vs {kwargs['--max_size']}")
         if kwargs["--base"]:
             added, removed, changed = get_change_stats(datasets, [file_status], base=kwargs["--base"])
             change_stats[file_status.filename] = (added, removed, changed)
@@ -270,11 +265,11 @@ def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[st
             "| -------- | ----- | ------- | ------- |",
         ]
         for filename, (added, removed, changed) in change_stats.items():
-            comment.append(f"| {filename} | " f"{len(added)} | {len(removed)} | {len(changed)} |")
+            comment.append(f"| {filename} | {len(added)} | {len(removed)} | {len(changed)} |")
             total_added |= added
             total_removed |= removed
             total_changed |= changed
-        comment.append(f"| | **{len(total_added)}** | " f"**{len(total_removed)}** | " f"**{len(total_changed)}** |")
+        comment.append(f"| | **{len(total_added)}** | **{len(total_removed)}** | **{len(total_changed)}** |")
         if kwargs["--issue"] and kwargs["--token"]:
             client = github.Github(kwargs["--token"])
             repo = client.get_repo(os.environ["GITHUB_REPOSITORY"])

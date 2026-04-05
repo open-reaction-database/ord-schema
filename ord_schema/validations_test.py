@@ -22,22 +22,18 @@ from google.protobuf import text_format
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
-# pylint: disable=too-many-public-methods
-
 
 @pytest.fixture(autouse=True)
 def setup():
     # Redirect warning messages to stdout so they can be filtered from the other test output.
     original_showwarning = warnings.showwarning
 
-    # pylint: disable=too-many-arguments
     def _showwarning(message, category, filename, lineno, file=None, line=None):
         del file  # Unused.
         original_showwarning(
             message=message, category=category, filename=filename, lineno=lineno, file=sys.stdout, line=line
         )
 
-    # pylint: enable=too-many-arguments
     warnings.showwarning = _showwarning  # ty: ignore[invalid-assignment]
     yield
     # Restore the original showwarning.
@@ -338,7 +334,6 @@ def test_bad_reaction_workup(workup_text, error_msg):
     assert error_msg in output.warnings[0]
 
 
-# pylint: disable=too-many-statements
 def test_reaction_recursive():
     message = reaction_pb2.Reaction()
     # Reactions must have at least one input

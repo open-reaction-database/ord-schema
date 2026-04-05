@@ -35,10 +35,6 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 logger = get_logger(__name__)
 
 
-# pylint: disable=too-many-branches
-# pylint: disable=too-many-positional-arguments
-
-
 @dataclasses.dataclass
 class ValidationOptions:
     """Options for message validation."""
@@ -273,7 +269,6 @@ def is_empty(message: ord_schema.Message):
     return message.SerializeToString(deterministic=True) == empty
 
 
-# pylint: disable=missing-function-docstring
 def ensure_float_nonnegative(message: ord_schema.Message, field: str):
     if getattr(message, field) < 0:
         warnings.warn(
@@ -373,7 +368,6 @@ def is_valid_dataset_id(dataset_id: str) -> bool:
 
 
 def validate_dataset(message: dataset_pb2.Dataset, options: Optional[ValidationOptions] = None):
-    # pylint: disable=too-many-branches,too-many-nested-blocks
     if options is None:
         options = ValidationOptions()
     if not message.name:
@@ -811,7 +805,6 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
 
 
 def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome):
-    # pylint: disable=singleton-comparison
     # *Usually* there should be at most one PRODUCT & is_desired_product
     ndp = sum(
         product.is_desired_product
@@ -1104,8 +1097,6 @@ def validate_data(message: reaction_pb2.Data):
     if message.bytes_value and not message.format:
         warnings.warn("Data format is required for bytes_data", ValidationError)
 
-
-# pylint: enable=missing-function-docstring
 
 _VALIDATOR_SWITCH: dict[type, Callable[..., None]] = {
     dataset_pb2.Dataset: validate_dataset,

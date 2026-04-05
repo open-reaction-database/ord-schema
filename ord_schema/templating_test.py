@@ -124,7 +124,6 @@ def test_bad_placeholders(valid_reaction):
 
 
 def test_missing_values(tmp_path):
-    # pylint: disable=too-many-locals
     # Build a template reaction.
     reaction = reaction_pb2.Reaction()
     reaction.provenance.record_created.time.value = "2023-07-01"

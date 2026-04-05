@@ -31,8 +31,6 @@ import ord_schema
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
-# pylint: disable=too-many-branches
-
 
 def read_spreadsheet(file_name_or_buffer: Union[str, BinaryIO], suffix: Optional[str] = None) -> pd.DataFrame:
     """Reads a {csv, xls, xlsx} spreadsheet file.

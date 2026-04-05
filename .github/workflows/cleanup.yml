@@ -51,9 +51,6 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
-      - name: Run pylint
-        run: |
-          pylint -j 0 -v examples ord_schema *.py
       - name: Run ty
         run: |
           ty check ord_schema
