@@ -133,8 +133,8 @@ def test_compute_solute_quantity(resolver, volume, concentration, expected):
     conc_resolver = units.UnitResolver(unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS)
     volume_pb = resolver.resolve(volume)
     concentration_pb = conc_resolver.resolve(concentration)
-    assert isinstance(volume_pb, reaction_pb2.Volume)
-    assert isinstance(concentration_pb, reaction_pb2.Concentration)
+    assert isinstance(volume_pb, reaction_pb2.Volume)  # Type hint.
+    assert isinstance(concentration_pb, reaction_pb2.Concentration)  # Type hint.
     assert units.compute_solute_quantity(
         volume=volume_pb,
         concentration=concentration_pb,

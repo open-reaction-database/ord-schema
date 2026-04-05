@@ -100,9 +100,9 @@ def build_compound(
                 raise TypeError(f"unsupported units for amount: {amount_pb}")
     if role:
         compound_desc = reaction_pb2.Compound.DESCRIPTOR
-        assert compound_desc is not None
+        assert compound_desc is not None  # Type hint.
         field = compound_desc.fields_by_name["reaction_role"]
-        assert field.enum_type is not None
+        assert field.enum_type is not None  # Type hint.
         values_dict = field.enum_type.values_by_name
         try:
             compound.reaction_role = values_dict[role.upper()].number
@@ -114,9 +114,9 @@ def build_compound(
         compound.is_limiting = is_limiting
     if prep:
         prep_desc = reaction_pb2.CompoundPreparation.DESCRIPTOR
-        assert prep_desc is not None
+        assert prep_desc is not None  # Type hint.
         field = prep_desc.fields_by_name["type"]
-        assert field.enum_type is not None
+        assert field.enum_type is not None  # Type hint.
         values_dict = field.enum_type.values_by_name
         try:
             compound.preparations.add().type = values_dict[prep.upper()].number
@@ -181,7 +181,7 @@ def set_solute_moles(
     # Get solute concentration in molar.
     resolver = units.UnitResolver(unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
     concentration_pb = resolver.resolve(concentration)
-    assert isinstance(concentration_pb, reaction_pb2.Concentration)
+    assert isinstance(concentration_pb, reaction_pb2.Concentration)  # Type hint.
 
     solute_moles = units.compute_solute_quantity(
         reaction_pb2.Volume(value=volume_liter, units=reaction_pb2.Volume.LITER),
@@ -228,7 +228,7 @@ def find_submessages(message: ord_schema.Message, submessage_type: Type[MessageT
     if not issubclass(submessage_type, ord_schema.Message):
         raise TypeError("submessage_type must be a Protocol Buffer type")
     sub_desc = submessage_type.DESCRIPTOR
-    assert sub_desc is not None
+    assert sub_desc is not None  # Type hint.
     submessage_name = sub_desc.full_name
     submessages = []
     for field, value in message.ListFields():
@@ -242,7 +242,7 @@ def find_submessages(message: ord_schema.Message, submessage_type: Type[MessageT
         elif field.message_type.GetOptions().map_entry:
             # Map field.
             map_msg_type = field.message_type
-            assert map_msg_type is not None
+            assert map_msg_type is not None  # Type hint.
             field_value = map_msg_type.fields_by_name["value"]
             if field_value.type != field_value.TYPE_MESSAGE:
                 continue
@@ -839,7 +839,7 @@ def id_filename(filename: str) -> str:
     if not prefix.startswith("ord"):
         raise ValueError('basename does not have the required "ord" prefix: {basename}')
     joined = security.safe_join("data", suffix[:2], basename)
-    assert joined is not None
+    assert joined is not None  # Type hint.
     return joined
 
 
@@ -962,7 +962,7 @@ def _message_to_row(
         Dict mapping string field names to scalar values.
     """
     if field.type == field.TYPE_MESSAGE:
-        assert isinstance(value, ord_schema.Message)
+        assert isinstance(value, ord_schema.Message)  # Type hint.
         return message_to_row(message=value, trace=trace)
     if field.type == field.TYPE_ENUM:
         enum_value = field.enum_type.values_by_number[value].name

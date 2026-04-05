@@ -63,7 +63,7 @@ def get_parents(message_type: Type[Message]) -> dict[Type[Message], list[tuple[T
     """Returns the parent message types for each message type."""
     parents = defaultdict(list)
     root_desc = message_type.DESCRIPTOR
-    assert root_desc is not None
+    assert root_desc is not None  # Type hint.
     for child, parent, field_name, unique in _get_message_contexts(root_desc, None, None, None):
         if parent is not None:
             parents[get_message_type(child)].append((get_message_type(parent), field_name, unique))
@@ -107,7 +107,7 @@ def build_mappers() -> dict[Type[Message], Type]:
 
     def _descriptor_name(message_type: Type[Message]) -> str:
         desc = message_type.DESCRIPTOR
-        assert desc is not None
+        assert desc is not None  # Type hint.
         return desc.name
 
     for message_type in sorted(parents, key=_descriptor_name):
@@ -140,7 +140,7 @@ def build_mapper(
         Generated mapper class.
     """
     msg_desc = message_type.DESCRIPTOR
-    assert msg_desc is not None
+    assert msg_desc is not None  # Type hint.
     attrs: dict[str, Any] = {
         "__tablename__": underscore(msg_desc.name),
         "id": Column(Integer, primary_key=True),
@@ -171,7 +171,7 @@ def build_mapper(
             child_class_name = f"_{msg_desc.name}{field.name.capitalize()}"
             attrs[field.name] = relationship(child_class_name, back_populates="parent", **kwargs)
         elif field.type == FieldDescriptor.TYPE_ENUM:
-            assert field.enum_type is not None
+            assert field.enum_type is not None  # Type hint.
             attrs[field.name] = Column(Enum(*field.enum_type.values_by_name.keys(), name=field.enum_type.name))
         else:
             attrs[field.name] = Column(_FIELD_TYPES[field.type])
@@ -207,7 +207,7 @@ def build_mapper(
     # Create polymorphic child classes.
     for parent_type, field_name, _ in parents[message_type]:
         parent_desc = parent_type.DESCRIPTOR
-        assert parent_desc is not None
+        assert parent_desc is not None  # Type hint.
         foreign_table_name = underscore(parent_desc.name)
         foreign_key = f"ord.{foreign_table_name}.id"
         child_attrs = {
@@ -318,7 +318,7 @@ def to_proto(base: Base) -> Message:
         proto = _MAPPER_TO_MESSAGE[type(base).__bases__[0]]
     assert issubclass(proto, Message)
     proto_desc = proto.DESCRIPTOR
-    assert proto_desc is not None
+    assert proto_desc is not None  # Type hint.
     for field in proto_desc.fields:
         value = getattr(base, field.name)
         if isinstance(value, list) and len(value) == 0:

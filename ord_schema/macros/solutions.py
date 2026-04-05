@@ -51,11 +51,11 @@ def simple_solution(
             raise ValueError("Must specify a solute if `saturated=True`")
     if isinstance(volume, str):
         resolved_volume = UNITS_RESOLVER.resolve(volume)
-        assert isinstance(resolved_volume, reaction_pb2.Volume)
+        assert isinstance(resolved_volume, reaction_pb2.Volume)  # Type hint.
         volume = resolved_volume
     if isinstance(concentration, str):
         resolved_conc = CONCENTRATION_RESOLVER.resolve(concentration)
-        assert isinstance(resolved_conc, reaction_pb2.Concentration)
+        assert isinstance(resolved_conc, reaction_pb2.Concentration)  # Type hint.
         concentration = resolved_conc
 
     if volume is not None and concentration is not None:

@@ -163,7 +163,7 @@ def validate_message(
     """
     if trace is None:
         root_desc = type(message).DESCRIPTOR
-        assert root_desc is not None
+        assert root_desc is not None  # Type hint.
         trace = (root_desc.name,)
     output = ValidationOutput()
     # Recurse through submessages
@@ -274,7 +274,7 @@ def is_empty(message: ord_schema.Message):
 def ensure_float_nonnegative(message: ord_schema.Message, field: str):
     if getattr(message, field) < 0:
         desc = type(message).DESCRIPTOR
-        assert desc is not None
+        assert desc is not None  # Type hint.
         warnings.warn(
             f"Field {field} of message {desc.name} must be non-negative",
             ValidationError,
@@ -289,7 +289,7 @@ def ensure_float_range(
 ):
     if getattr(message, field) < min_value or getattr(message, field) > max_value:
         desc = type(message).DESCRIPTOR
-        assert desc is not None
+        assert desc is not None  # Type hint.
         warnings.warn(
             f"Field {field} of message {desc.name} must be between {min_value} and {max_value}",
             ValidationError,
