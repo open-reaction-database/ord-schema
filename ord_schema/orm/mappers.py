@@ -40,7 +40,6 @@ from sqlalchemy import Boolean, Column, Enum, Float, ForeignKey, Integer, LargeB
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
-import ord_schema.orm.rdkit_mappers  # pylint: disable=unused-import
 from ord_schema import message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.orm import Base

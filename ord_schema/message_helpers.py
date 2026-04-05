@@ -25,7 +25,6 @@ from typing import Optional, Type, TypeVar, Union, cast
 
 import pandas as pd
 import requests
-from google import protobuf  # pytype: disable=import-error
 from google.protobuf import text_format  # pytype: disable=import-error
 from google.protobuf.message import DecodeError  # pytype: disable=import-error
 from google.protobuf import json_format
@@ -890,7 +889,9 @@ def messages_to_dataframe(messages: Iterable[ord_schema.Message], drop_constant_
     return df
 
 
-def message_to_row(message: ord_schema.Message, trace: tuple[str, ...] | None = None) -> dict[str, ord_schema.ScalarType]:
+def message_to_row(
+    message: ord_schema.Message, trace: tuple[str, ...] | None = None
+) -> dict[str, ord_schema.ScalarType]:
     """Converts a proto into a flat dictionary mapping fields to values.
 
     The keys indicate any nesting; for instance a proto that looks like this:

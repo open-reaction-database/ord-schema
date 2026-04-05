@@ -14,8 +14,6 @@
 
 """Tests for ord_schema.orm.rdkit_mappers."""
 
-import platform
-
 import pytest
 from sqlalchemy import cast, func, select
 

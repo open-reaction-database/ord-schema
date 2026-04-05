@@ -22,7 +22,9 @@ from ord_schema.proto import reaction_pb2
 
 class TestNameResolvers:
     def test_resolve_names(self):
-        roundtrip_smi = lambda smi: Chem.MolToSmiles(Chem.MolFromSmiles(smi))
+        def roundtrip_smi(smi):
+            return Chem.MolToSmiles(Chem.MolFromSmiles(smi))
+
         message = reaction_pb2.Reaction()
         message.inputs["test"].components.add().identifiers.add(type="NAME", value="aspirin")
         assert resolvers.resolve_names(message)
@@ -37,7 +39,9 @@ class TestNameResolvers:
 
 class TestInputResolvers:
     def test_input_resolve(self):
-        roundtrip_smi = lambda smi: Chem.MolToSmiles(Chem.MolFromSmiles(smi))
+        def roundtrip_smi(smi):
+            return Chem.MolToSmiles(Chem.MolFromSmiles(smi))
+
         string = "10 g of THF"
         reaction_input = resolvers.resolve_input(string)
         assert len(reaction_input.components) == 1

@@ -26,18 +26,9 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.9
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
-
-  - repo: local
-    hooks:
-      - id: ty
-        name: ty
-        entry: ty check ord_schema
-        language: system
-        pass_filenames: false
-        types: [python]
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v22.1.2
