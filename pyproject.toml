@@ -72,7 +72,7 @@ tests = [
     "pytest>=7.1.1",
     "pytest-cov>=3.0.0",
     "pytest-xdist>=3.0.2",
-    "pytype>=2023.6.16",
+    "ty",
     "testing-postgresql>=1.3.0",
     "treon>=0.1.3",
 ]
@@ -87,9 +87,5 @@ include = ["ord_schema*"]
 line-length = 120
 extend-exclude = ["*_pb2.py*"]
 
-[tool.pytype]
-inputs = ["ord_schema"]
-exclude = ["**/*_test.py", "**/test_*.py", "**/*_pb2.py", "build/", "dist/"]
-keep_going = true
-disable = ["module-attr", "pyi-error"]
-jobs = 0
+[tool.ty]
+include = ["ord_schema"]
