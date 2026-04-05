@@ -20,6 +20,7 @@ import re
 import warnings
 from collections.abc import Mapping
 from enum import IntEnum
+from collections.abc import Callable
 from typing import Any, Optional
 
 from dateutil import parser
@@ -211,7 +212,7 @@ def _validate_message(
     value: Any,
     output: ValidationOutput,
     raise_on_error: bool,
-    options: ValidationOptions,
+    options: ValidationOptions | None,
     trace: tuple[str, ...],
 ):
     """Validates a single message field and its children.
@@ -1106,7 +1107,7 @@ def validate_data(message: reaction_pb2.Data):
 
 # pylint: enable=missing-function-docstring
 
-_VALIDATOR_SWITCH = {
+_VALIDATOR_SWITCH: dict[type, Callable[..., None]] = {
     dataset_pb2.Dataset: validate_dataset,
     dataset_pb2.DatasetExample: validate_dataset_example,
     reaction_pb2.Reaction: validate_reaction,

@@ -46,7 +46,7 @@ class FrozenMessage(collections.abc.Mapping):
           False for unset `optional` scalar values and submessages.
     """
 
-    _message: Union[_MESSAGE_TYPES]
+    _message: Union[collections.abc.MutableMapping, ord_schema.Message]
 
     def __getattr__(self, name: str):
         """Fetches a message attribute, if it exists.
@@ -69,7 +69,7 @@ class FrozenMessage(collections.abc.Mapping):
             AttributeError: if `name` has not been set explicitly.
         """
         try:
-            if not self._message.HasField(name):
+            if not self._message.HasField(name):  # ty: ignore[unresolved-attribute]
                 raise AttributeError(f'attribute "{name}" has not been set')
         except ValueError:
             pass  # The requested attribute is not a submessage.

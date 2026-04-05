@@ -16,6 +16,7 @@
 import glob
 import os
 import subprocess
+from collections.abc import Iterator
 from typing import Optional
 
 import docopt
@@ -32,7 +33,7 @@ logger = get_logger(__name__)
 
 class TestProcessDataset:
     @pytest.fixture
-    def setup(self, tmp_path) -> tuple[str, str]:
+    def setup(self, tmp_path) -> Iterator[tuple[str, str]]:
         # Suppress RDKit warnings to clean up the test output.
         RDLogger.logger().setLevel(RDLogger.CRITICAL)
         reaction1 = reaction_pb2.Reaction()
@@ -123,7 +124,7 @@ class TestSubmissionWorkflow:
     _DEFAULT_BRANCH = "main"
 
     @pytest.fixture
-    def setup(self, tmp_path) -> tuple[str, str]:
+    def setup(self, tmp_path) -> Iterator[tuple[str, str]]:
         test_subdirectory = tmp_path.as_posix()
         os.chdir(test_subdirectory)
         subprocess.run(["git", "init", "-b", self._DEFAULT_BRANCH], check=True)

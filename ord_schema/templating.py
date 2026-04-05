@@ -46,6 +46,7 @@ def read_spreadsheet(file_name_or_buffer: Union[str, BinaryIO], suffix: Optional
         DataFrame containing the reaction spreadsheet data.
     """
     if suffix is None:
+        assert isinstance(file_name_or_buffer, str)  # Type hint; buffer requires suffix.
         _, suffix = os.path.splitext(file_name_or_buffer)
     if suffix in [".xls", ".xlsx"]:
         return pd.read_excel(file_name_or_buffer)

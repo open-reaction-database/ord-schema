@@ -38,7 +38,7 @@ def setup():
         )
 
     # pylint: enable=too-many-arguments
-    warnings.showwarning = _showwarning
+    warnings.showwarning = _showwarning  # ty: ignore[invalid-assignment]
     yield
     # Restore the original showwarning.
     warnings.showwarning = original_showwarning

@@ -56,7 +56,7 @@ jobs:
           pylint -j 0 -v examples ord_schema *.py
       - name: Run ty
         run: |
-          ty check
+          ty check ord_schema
 
   check_proto:
     runs-on: ubuntu-latest

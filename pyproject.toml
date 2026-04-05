@@ -72,7 +72,7 @@ tests = [
     "pytest>=7.1.1",
     "pytest-cov>=3.0.0",
     "pytest-xdist>=3.0.2",
-    "ty",
+    "ty>=0.0.28",
     "testing-postgresql>=1.3.0",
     "treon>=0.1.3",
 ]
@@ -87,5 +87,8 @@ include = ["ord_schema*"]
 line-length = 120
 extend-exclude = ["*_pb2.py*"]
 
-[tool.ty]
-include = ["ord_schema"]
+[tool.ty.src]
+exclude = ["**/*_pb2.py*"]
+
+[tool.ty.environment]
+root = ["."]

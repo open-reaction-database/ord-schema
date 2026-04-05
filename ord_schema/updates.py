@@ -64,7 +64,7 @@ def update_reaction(reaction: reaction_pb2.Reaction) -> dict[str, str]:
         modified = func(reaction) or modified
     if modified:
         event = reaction.provenance.record_modified.add()
-        event.time.value = datetime.datetime.utcnow().ctime()
+        event.time.value = datetime.datetime.now(datetime.timezone.utc).ctime()
         event.person.username = _USERNAME
         event.person.email = _EMAIL
         event.details = "Automatic updates from the submission pipeline."

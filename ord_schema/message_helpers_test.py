@@ -15,6 +15,7 @@
 
 import tempfile
 import time
+from collections.abc import Iterator
 
 import pandas as pd
 import pytest
@@ -415,7 +416,7 @@ class TestSetDativeBonds:
 
 class TestLoadAndWriteMessage:
     @pytest.fixture
-    def messages(self) -> list:
+    def messages(self) -> Iterator[list]:
         yield [
             test_pb2.Scalar(int32_value=3, float_value=4.5),
             test_pb2.RepeatedScalar(values=[1.2, 3.4]),

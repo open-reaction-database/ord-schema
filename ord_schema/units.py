@@ -23,7 +23,7 @@ from ord_schema.proto import reaction_pb2
 
 # Accepted synonyms for units. Note that all values will be converted to
 # lowercase.
-_UNIT_SYNONYMS = {
+_UNIT_SYNONYMS: dict[Type[ord_schema.UnitMessage], dict[ord_schema.Message, list[str]]] = {
     reaction_pb2.Time: {
         reaction_pb2.Time.DAY: ["d", "day", "days"],
         reaction_pb2.Time.HOUR: ["h", "hour", "hours", "hr", "hrs"],
@@ -138,7 +138,7 @@ _FORBIDDEN_UNITS = {
     "m": "ambiguous between meter and minute",
 }
 
-_UNIT_CONVERSIONS = {
+_UNIT_CONVERSIONS: dict[Type[ord_schema.UnitMessage], dict[ord_schema.Message, int | float]] = {
     reaction_pb2.Time: {
         reaction_pb2.Time.DAY: 24,
         reaction_pb2.Time.HOUR: 1,
@@ -197,7 +197,7 @@ _UNIT_CONVERSIONS = {
 
 # Concentration units are defined separately since they are not needed for any
 # native fields in the reaction schema.
-CONCENTRATION_UNIT_SYNONYMS = {
+CONCENTRATION_UNIT_SYNONYMS: dict[Type[ord_schema.UnitMessage], dict[ord_schema.Message, list[str]]] = {
     reaction_pb2.Concentration: {
         reaction_pb2.Concentration.MOLAR: ["M", "molar"],
         reaction_pb2.Concentration.MILLIMOLAR: ["mM", "millimolar"],
@@ -238,6 +238,8 @@ class UnitResolver:
             unit_synonyms = _UNIT_SYNONYMS
         if forbidden_units is None:
             forbidden_units = _FORBIDDEN_UNITS
+        assert unit_synonyms is not None  # Type hint.
+        assert forbidden_units is not None  # Type hint.
         self._forbidden_units = forbidden_units
         self._resolver = {}
         for message in unit_synonyms:

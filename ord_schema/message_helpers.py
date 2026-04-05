@@ -21,12 +21,13 @@ import re
 import urllib.parse
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Optional, Type, TypeVar, Union
+from typing import Optional, Type, TypeVar, Union, cast
 
 import pandas as pd
 import requests
 from google import protobuf  # pytype: disable=import-error
 from google.protobuf import text_format  # pytype: disable=import-error
+from google.protobuf.message import DecodeError  # pytype: disable=import-error
 from google.protobuf import json_format
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
@@ -785,10 +786,10 @@ def load_message(filename: str, message_type: Type[MessageType]) -> MessageType:
             if input_format == MessageFormat.PBTXT:
                 return text_format.Parse(f.read(), message_type())
             if input_format == MessageFormat.BINARY:
-                return message_type.FromString(f.read())
+                return message_type.FromString(f.read())  # ty: ignore[unresolved-attribute]
         except (
             json_format.ParseError,
-            protobuf.message.DecodeError,
+            DecodeError,
             text_format.ParseError,
         ) as error:
             raise ValueError(f"error parsing {filename}: {error}") from error
@@ -859,7 +860,7 @@ def create_message(message_name: str) -> ord_schema.Message:
     try:
         for name in message_name.split("."):
             message_class = getattr(message_class, name)
-        return message_class()
+        return cast(ord_schema.Message, message_class)()
     except (AttributeError, TypeError) as error:
         raise ValueError(f"Cannot resolve message name {message_name}") from error
 
@@ -889,7 +890,7 @@ def messages_to_dataframe(messages: Iterable[ord_schema.Message], drop_constant_
     return df
 
 
-def message_to_row(message: ord_schema.Message, trace: Optional[tuple[str]] = None) -> dict[str, ord_schema.ScalarType]:
+def message_to_row(message: ord_schema.Message, trace: tuple[str, ...] | None = None) -> dict[str, ord_schema.ScalarType]:
     """Converts a proto into a flat dictionary mapping fields to values.
 
     The keys indicate any nesting; for instance a proto that looks like this:
@@ -944,7 +945,7 @@ def safe_update(target: dict, update: Mapping) -> None:
 def _message_to_row(
     field: ord_schema.FieldDescriptor,
     value: Union[ord_schema.Message, ord_schema.ScalarType],
-    trace: tuple[str],
+    trace: tuple[str, ...],
 ) -> dict[str, ord_schema.ScalarType]:
     """Recursively creates a dict for a single value.
 

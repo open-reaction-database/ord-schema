@@ -165,13 +165,13 @@ def get_component_map(root: ElementTree.Element) -> dict[str, str]:
     """Builds a mapping of components to inputs."""
     reaction_inputs = {}
     # Start with a separate input for each component.
-    for component in root.find("cml:reactantList", namespaces=NAMESPACES):
+    for component in root.find("cml:reactantList", namespaces=NAMESPACES) or []:
         molecule_id = get_molecule_id(component)
         reaction_inputs[molecule_id] = molecule_id
-    for component in root.find("cml:spectatorList", namespaces=NAMESPACES):
+    for component in root.find("cml:spectatorList", namespaces=NAMESPACES) or []:
         molecule_id = get_molecule_id(component)
         reaction_inputs[molecule_id] = molecule_id
-    for action in root.find("dl:reactionActionList", namespaces=NAMESPACES):
+    for action in root.find("dl:reactionActionList", namespaces=NAMESPACES) or []:
         components = []
         for component in action.findall("dl:chemical", namespaces=NAMESPACES):
             if "ref" in component.attrib:
@@ -244,11 +244,11 @@ def parse_product(root: ElementTree.Element, product_compound: reaction_pb2.Prod
         elif tag == "cml:identifier":
             parse_identifier(child, product_compound)
         elif tag == "dl:state":
-            texture = PRODUCT_STATES.get(child.text.lower(), reaction_pb2.ProductCompound.Texture.CUSTOM)
+            texture = PRODUCT_STATES.get((child.text or "").lower(), reaction_pb2.ProductCompound.Texture.CUSTOM)
             product_compound.texture.type = texture
-            product_compound.texture.details = child.text
+            product_compound.texture.details = child.text or ""
         elif tag == "dl:appearance":
-            product_compound.isolated_color = child.text
+            product_compound.isolated_color = child.text or ""
         else:
             raise NotImplementedError(child)
 
@@ -270,7 +270,7 @@ def parse_product_amount(root: ElementTree.Element, product_compound: reaction_p
     """Adds amount information to a ProductCompound."""
     property_type = root.attrib[f'{{{NAMESPACES["dl"]}}}propertyType']
     if "PERCENTYIELD" in property_type:
-        match = re.search(r"(\d+\.?\d*)", root.text)
+        match = re.search(r"(\d+\.?\d*)", root.text or "")
         if not match:
             logger.debug(f"AMOUNT: {root.text}")
             return
@@ -332,7 +332,7 @@ def parse_amount(
     if compound.amount.WhichOneof("kind") not in ["mass", "volume"]:
         # Don't overwrite existing Mass or Volume with Moles.
         try:
-            amount = resolve_units(root.text)
+            amount = resolve_units(root.text or "")
         except (KeyError, ValueError) as error:
             logger.debug(f'UNITS: {error} ("{root.text}")')
             return
@@ -414,11 +414,11 @@ def parse_parameter(root: ElementTree.Element, workup: reaction_pb2.ReactionWork
             workup.duration.units = reaction_pb2.Time.HOUR
         else:
             try:
-                workup.duration.CopyFrom(resolve_units(root.text))
+                workup.duration.CopyFrom(resolve_units(root.text or ""))
             except (KeyError, ValueError) as error:
                 logger.debug(f'UNITS: {error} ("{root.text}")')
     elif kind == "Temperature":
-        if root.text.lower() in [
+        if (root.text or "").lower() in [
             "room temperature",
             "room temp",
             "rt",
@@ -429,7 +429,7 @@ def parse_parameter(root: ElementTree.Element, workup: reaction_pb2.ReactionWork
         ]:
             workup.temperature.control.type = reaction_pb2.TemperatureConditions.TemperatureControl.AMBIENT
         else:
-            value = root.text.rstrip(".").replace("° ", "°")
+            value = (root.text or "").rstrip(".").replace("° ", "°")
             try:
                 temperature = resolve_units(value)
                 if temperature.units == temperature.CELSIUS and temperature.value < -274:
