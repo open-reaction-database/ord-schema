@@ -1,0 +1,31 @@
+---
+description: Global defaults for ord-schema (Open Reaction Database schema package)
+alwaysApply: true
+---
+
+# ord-schema — global agent rules
+
+## Project
+
+This repo is the **Open Reaction Database (ORD) schema**: Python tooling, protobuf definitions, validation, ORM, and examples around reaction datasets. Prefer changes that stay aligned with [ORD goals](https://ord-schema.readthedocs.io/en/latest/overview.html#goals) and avoid unnecessary complexity for dataset authors.
+
+## Tooling (run before finishing a change)
+
+- **Lint / format:** `ruff check .` and `ruff format --check .` (line length **120**; generated `*_pb2*` is excluded).
+- **Types:** `ty check ord_schema` matches the **Lint** CI job (`cleanup.yml`); run it after editing `ord_schema/`.
+- **Tests:** `pytest` or `./run_tests.sh` when behavior changes.
+- **Pre-commit:** Contributors use hooks (`addlicense`, `ruff`, `ty`, `clang-format` on `.proto`). New source files need the Apache license header where applicable.
+
+## Protobuf and generated code
+
+- Do **not** hand-edit generated `*_pb2.py` / wrapper outputs. Regenerate with **`./compile_proto_wrappers.sh`** (and related repo docs) when `.proto` or generation changes.
+
+## Code style
+
+- **Minimal, focused diffs:** Only what the task needs; no drive-by refactors or unrelated files.
+- **Match the file you edit:** imports, naming, typing style, and docstring depth should match surrounding code.
+- **Python comments:** At most **one** trailing `# ...` per line of code; put extra explanation on the line above (see rule `python-single-hash-line.mdc`).
+
+## Docs and markdown
+
+- Do **not** add or rewrite project markdown (README, CONTRIBUTING, etc.) unless the user asked for it.
