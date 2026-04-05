@@ -14,7 +14,11 @@
 
 name: Tests
 
-on: [ pull_request, push ]
+on:
+  pull_request:
+  push:
+    branches:
+      - main
 
 jobs:
   test_ord_schema:
