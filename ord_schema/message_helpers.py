@@ -21,7 +21,7 @@ import re
 import urllib.parse
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Optional, Type, TypeVar, cast
+from typing import Type, TypeVar, cast
 
 import pandas as pd
 import requests
@@ -46,14 +46,14 @@ ORD_DATA_URL = "https://github.com/Open-Reaction-Database/ord-data/raw/main/"
 
 
 def build_compound(
-    smiles: Optional[str] = None,
-    name: Optional[str] = None,
-    amount: Optional[str] = None,
-    role: Optional[str] = None,
-    is_limiting: Optional[bool] = None,
-    prep: Optional[str] = None,
-    prep_details: Optional[str] = None,
-    vendor: Optional[str] = None,
+    smiles: str | None = None,
+    name: str | None = None,
+    amount: str | None = None,
+    role: str | None = None,
+    is_limiting: bool | None = None,
+    prep: str | None = None,
+    prep_details: str | None = None,
+    vendor: str | None = None,
 ) -> reaction_pb2.Compound:
     """Builds a Compound message with the most common fields.
 
@@ -356,7 +356,7 @@ def get_reaction_smiles(
     allow_unspecified_roles: bool = True,
     validate: bool = False,
     canonical: bool = True,
-) -> Optional[str]:
+) -> str | None:
     """Fetches or generates a reaction SMILES.
 
     Args:
@@ -513,7 +513,7 @@ def get_product_yield(product: reaction_pb2.ProductCompound, as_measurement: boo
 def get_compound_identifier(
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
     identifier_type: reaction_pb2.CompoundIdentifier.CompoundIdentifierType,
-) -> Optional[str]:
+) -> str | None:
     """Returns the value of a compound identifier if it exists. If multiple
     identifiers of that type exist, only the first is returned.
 
@@ -554,7 +554,7 @@ def set_compound_identifier(
     return identifier
 
 
-def get_compound_smiles(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound) -> Optional[str]:
+def get_compound_smiles(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound) -> str | None:
     """Returns the value of the compound's SMILES identifier if it exists.
 
     Args:
@@ -667,7 +667,7 @@ def set_dative_bonds(mol: Chem.Mol, from_atoms: tuple[str, ...] = ("N", "P")) ->
     return edit_mol.GetMol()
 
 
-def get_compound_name(compound: reaction_pb2.Compound) -> Optional[str]:
+def get_compound_name(compound: reaction_pb2.Compound) -> str | None:
     """Returns the value of the compound's NAME identifier if it exists.
 
     Args:
@@ -693,7 +693,7 @@ def set_compound_name(compound: reaction_pb2.Compound, value: str) -> reaction_p
     return set_compound_identifier(compound, reaction_pb2.CompoundIdentifier.NAME, value)
 
 
-def get_compound_molblock(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound) -> Optional[str]:
+def get_compound_molblock(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound) -> str | None:
     """Returns the value of the compound's MOLBLOCK identifier if it exists.
 
     Args:
