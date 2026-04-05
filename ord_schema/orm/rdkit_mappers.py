@@ -37,7 +37,7 @@ from ord_schema.orm import Base
 
 def rdkit_cartridge() -> bool:
     """Returns whether to use RDKit PostgreSQL cartridge functionality."""
-    return bool(distutils.util.strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")))
+    return bool(distutils.util.strtobool(os.environ.get("ORD_POSTGRES_RDKIT", "1")))  # ty: ignore[possibly-missing-submodule]
 
 
 class RDKitMol(UserDefinedType):

@@ -133,7 +133,7 @@ def _get_reaction_ids(dataset: dataset_pb2.Dataset) -> set[str]:
     return reaction_ids
 
 
-def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Dataset:
+def _load_base_dataset(file_status: FileStatus, base: str) -> Optional[dataset_pb2.Dataset]:
     """Loads a Dataset message from another branch."""
     if file_status.status.startswith("A"):
         return None  # Dataset only exists in the submission.
@@ -162,12 +162,13 @@ def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Datase
 
 
 def get_change_stats(
-    datasets: Mapping[str, dataset_pb2.Dataset], inputs: Iterable[FileStatus], base: str
+    datasets: Mapping[str, Optional[dataset_pb2.Dataset]], inputs: Iterable[FileStatus], base: str
 ) -> tuple[set[str], set[str], set[str]]:
     """Computes diff statistics for the submission.
 
     Args:
-        datasets: Dict mapping filenames to Dataset messages.
+        datasets: Dict mapping filenames to Dataset messages. Values may be None only
+            for deleted files; non-deleted inputs must have a Dataset for `filename`.
         inputs: List of FileStatus objects.
         base: Git branch to diff against.
 
@@ -179,7 +180,10 @@ def get_change_stats(
     old, new = set(), set()
     for file_status in inputs:
         if not file_status.status.startswith("D"):
-            new.update(_get_reaction_ids(datasets[file_status.filename]))
+            current = datasets[file_status.filename]
+            if current is None:
+                raise ValueError(f"missing dataset for non-deleted file: {file_status.filename}")
+            new.update(_get_reaction_ids(current))
         dataset = _load_base_dataset(file_status, base)
         if dataset is not None:
             old.update(_get_reaction_ids(dataset))
@@ -240,7 +244,7 @@ def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[st
         datasets = {file_status.filename: dataset}
         if not kwargs["--no-validate"] and dataset is not None:
             # Note: this does not check if IDs are malformed.
-            validations.validate_datasets(datasets, kwargs["--write_errors"])
+            validations.validate_datasets({file_status.filename: dataset}, kwargs["--write_errors"])
             # Check reaction sizes.
             for reaction in dataset.reactions:
                 reaction_size = sys.getsizeof(reaction.SerializeToString()) / 1e6
@@ -256,7 +260,7 @@ def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[st
                 len(changed),
             )
         if kwargs["--update"] and dataset is not None:
-            _run_updates(datasets, kwargs)
+            _run_updates({file_status.filename: dataset}, kwargs)
     if change_stats:
         total_added, total_removed, total_changed = set(), set(), set()
         comment = [
@@ -281,7 +285,7 @@ def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[st
 
 
 def main(kwargs):
-    RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.
+    RDLogger.DisableLog("rdApp.*")  # ty: ignore[unresolved-attribute]  # Disable RDKit logging.
     run(kwargs)
 
 

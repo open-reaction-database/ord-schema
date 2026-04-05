@@ -21,6 +21,7 @@ import urllib.request
 
 from rdkit import Chem
 
+import ord_schema
 from ord_schema import message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
@@ -69,7 +70,7 @@ def name_resolve(value_type: str, value: str) -> tuple[str, str]:
     raise ValueError(f"Could not resolve {value_type} {value} to SMILES")
 
 
-def resolve_names(message: reaction_pb2.Reaction) -> bool:
+def resolve_names(message: ord_schema.Message) -> bool:
     """Attempts to resolve compound NAME identifiers to SMILES.
 
     When a NAME identifier is resolved, a SMILES identifier is added to the list
@@ -77,7 +78,7 @@ def resolve_names(message: reaction_pb2.Reaction) -> bool:
     next Compound after the first successful name resolution.
 
     Args:
-        message: Reaction proto.
+        message: Protocol buffer tree containing Compound submessages (e.g. Reaction or ReactionInput).
 
     Returns:
         Boolean whether `message` was modified.
