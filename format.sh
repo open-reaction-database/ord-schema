@@ -27,14 +27,11 @@ else
   echo "Please install Go; see https://golang.org/doc/install"
 fi
 # Format python.
-if ! command -v black &> /dev/null; then
-  pip install black[jupyter]
+if ! command -v ruff &> /dev/null; then
+  pip install ruff
 fi
-black "${ROOT_DIR}"
-if ! command -v isort &> /dev/null; then
-  pip install isort
-fi
-isort "${ROOT_DIR}"
+ruff check --fix "${ROOT_DIR}"
+ruff format "${ROOT_DIR}"
 # Format proto.
 if command -v clang-format &> /dev/null; then
   # NOTE(kearnes): Make sure you have version 10 or higher!
