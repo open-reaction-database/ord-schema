@@ -21,6 +21,7 @@ Notes:
     the other columns will be empty).
   * Objects with this type are added to the ORM in from_proto() using the `rdkit` field.
 """
+
 from __future__ import annotations
 
 import os

@@ -21,6 +21,7 @@ Options:
     --filter=<str>      Regex filename filter
     --n_jobs=<int>      Number of parallel workers [default: 1]
 """
+
 import glob
 import re
 from collections.abc import Iterable

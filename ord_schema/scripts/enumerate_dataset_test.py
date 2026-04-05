@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for ord_schema.scripts.enumerate_dataset."""
+
 import os
 
 import docopt
