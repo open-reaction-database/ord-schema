@@ -16,6 +16,7 @@
 
 import os
 import time
+from typing import Any, cast
 from unittest.mock import patch
 
 from sqlalchemy import delete, select, text
@@ -135,7 +136,7 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
             """),
         {"dataset_id": dataset_id},
     )
-    logger.debug(f"Updating reactions took {time.time() - start:g}s ({result.rowcount} rows)")
+    logger.debug(f"Updating reactions took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)")
 
 
 def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
@@ -181,7 +182,7 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
             """),
         {"dataset_id": dataset_id},
     )
-    logger.debug(f"Updating mols took {time.time() - start:g}s ({result.rowcount} rows)")
+    logger.debug(f"Updating mols took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)")
 
 
 def update_rdkit_ids(dataset_id: str, session: Session) -> None:

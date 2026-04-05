@@ -62,7 +62,9 @@ def get_message_type(full_name: str) -> Any:
 def get_parents(message_type: Type[Message]) -> dict[Type[Message], list[tuple[Type[Message], str, bool]]]:
     """Returns the parent message types for each message type."""
     parents = defaultdict(list)
-    for child, parent, field_name, unique in _get_message_contexts(message_type.DESCRIPTOR, None, None, None):
+    root_desc = message_type.DESCRIPTOR
+    assert root_desc is not None
+    for child, parent, field_name, unique in _get_message_contexts(root_desc, None, None, None):
         if parent is not None:
             parents[get_message_type(child)].append((get_message_type(parent), field_name, unique))
     parents[message_type] = []  # Add the base type.
@@ -102,7 +104,13 @@ def build_mappers() -> dict[Type[Message], Type]:
     logger.debug("Building ORM mappers")
     mappers = {}
     parents = get_parents(dataset_pb2.Dataset)
-    for message_type in sorted(parents, key=lambda x: x.DESCRIPTOR.name):
+
+    def _descriptor_name(message_type: Type[Message]) -> str:
+        desc = message_type.DESCRIPTOR
+        assert desc is not None
+        return desc.name
+
+    for message_type in sorted(parents, key=_descriptor_name):
         logger.debug(f"Building mapper for {message_type}")
         mappers[message_type] = build_mapper(message_type, parents=parents)
     return mappers
@@ -131,15 +139,17 @@ def build_mapper(
     Returns:
         Generated mapper class.
     """
-    attrs = {
-        "__tablename__": underscore(message_type.DESCRIPTOR.name),
+    msg_desc = message_type.DESCRIPTOR
+    assert msg_desc is not None
+    attrs: dict[str, Any] = {
+        "__tablename__": underscore(msg_desc.name),
         "id": Column(Integer, primary_key=True),
         "ord_schema_context": Column(Text, nullable=False),
         "__table_args__": ({"schema": "ord"},),
     }
     attrs["__mapper_args__"] = {
         "polymorphic_on": attrs["ord_schema_context"],
-        "polymorphic_identity": message_type.DESCRIPTOR.name,
+        "polymorphic_identity": msg_desc.name,
         "with_polymorphic": "*",
     }
     add_key = False
@@ -148,7 +158,7 @@ def build_mapper(
             add_key = True
     if add_key:
         attrs["key"] = Column(Text)  # Map key.
-    for field in message_type.DESCRIPTOR.fields:
+    for field in msg_desc.fields:
         if field.name == "eic_masses":
             attrs[field.name] = Column(ARRAY(Float))
         elif field.name == "reaction_ids":
@@ -158,9 +168,10 @@ def build_mapper(
             if field.label != FieldDescriptor.LABEL_REPEATED:
                 kwargs["uselist"] = False
             # All relationships are to polymorphic child classes.
-            child_class_name = f"_{message_type.DESCRIPTOR.name}{field.name.capitalize()}"
+            child_class_name = f"_{msg_desc.name}{field.name.capitalize()}"
             attrs[field.name] = relationship(child_class_name, back_populates="parent", **kwargs)
         elif field.type == FieldDescriptor.TYPE_ENUM:
+            assert field.enum_type is not None
             attrs[field.name] = Column(Enum(*field.enum_type.values_by_name.keys(), name=field.enum_type.name))
         else:
             attrs[field.name] = Column(_FIELD_TYPES[field.type])
@@ -191,14 +202,16 @@ def build_mapper(
         attrs["reaction_id"] = Column(
             Text, ForeignKey("ord.reaction.reaction_id", ondelete="CASCADE"), index=True, **kwargs
         )
-    logger.debug(f"Creating mapper {message_type.DESCRIPTOR.name}: {attrs}")
-    mapper_class = type(message_type.DESCRIPTOR.name, (Base,), attrs)
+    logger.debug(f"Creating mapper {msg_desc.name}: {attrs}")
+    mapper_class = type(msg_desc.name, (Base,), attrs)
     # Create polymorphic child classes.
     for parent_type, field_name, _ in parents[message_type]:
-        foreign_table_name = underscore(parent_type.DESCRIPTOR.name)
+        parent_desc = parent_type.DESCRIPTOR
+        assert parent_desc is not None
+        foreign_table_name = underscore(parent_desc.name)
         foreign_key = f"ord.{foreign_table_name}.id"
         child_attrs = {
-            "__mapper_args__": {"polymorphic_identity": f"{parent_type.DESCRIPTOR.name}.{field_name}"},
+            "__mapper_args__": {"polymorphic_identity": f"{parent_desc.name}.{field_name}"},
             # Use get() to avoid column conflicts; see
             # https://docs.sqlalchemy.org/en/14/orm/inheritance.html#resolving-column-conflicts.
             #
@@ -207,9 +220,9 @@ def build_mapper(
                 f"{foreign_table_name}_id",
                 Column(Integer, ForeignKey(foreign_key, ondelete="CASCADE"), index=True),
             ),
-            "parent": relationship(parent_type.DESCRIPTOR.name, back_populates=field_name, uselist=False),
+            "parent": relationship(parent_desc.name, back_populates=field_name, uselist=False),
         }
-        child_class_name = f"_{parent_type.DESCRIPTOR.name}{field_name.capitalize()}"
+        child_class_name = f"_{parent_desc.name}{field_name.capitalize()}"
         logger.debug(f"Creating child mapper {child_class_name}: {child_attrs}")
         type(child_class_name, (mapper_class,), child_attrs)
     return mapper_class
@@ -304,7 +317,9 @@ def to_proto(base: Base) -> Message:
     except KeyError:
         proto = _MAPPER_TO_MESSAGE[type(base).__bases__[0]]
     assert issubclass(proto, Message)
-    for field in proto.DESCRIPTOR.fields:
+    proto_desc = proto.DESCRIPTOR
+    assert proto_desc is not None
+    for field in proto_desc.fields:
         value = getattr(base, field.name)
         if isinstance(value, list) and len(value) == 0:
             continue

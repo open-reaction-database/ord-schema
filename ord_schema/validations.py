@@ -162,7 +162,9 @@ def validate_message(
         ValidationError: If any fields are invalid.
     """
     if trace is None:
-        trace = (message.DESCRIPTOR.name,)
+        root_desc = type(message).DESCRIPTOR
+        assert root_desc is not None
+        trace = (root_desc.name,)
     output = ValidationOutput()
     # Recurse through submessages
     if recurse:
@@ -193,13 +195,13 @@ def validate_message(
             _VALIDATOR_SWITCH[type(message)](message)
     stack = ".".join(trace)
     for warning in tape:
-        message = f"{stack}: {warning.message}"
+        warning_text = f"{stack}: {warning.message}"
         if issubclass(warning.category, ValidationError):
             if raise_on_error:
-                raise ValidationError(message)
-            output.errors.append(message)
+                raise ValidationError(warning_text)
+            output.errors.append(warning_text)
         else:
-            output.warnings.append(message)
+            output.warnings.append(warning_text)
     return output
 
 
@@ -271,8 +273,10 @@ def is_empty(message: ord_schema.Message):
 
 def ensure_float_nonnegative(message: ord_schema.Message, field: str):
     if getattr(message, field) < 0:
+        desc = type(message).DESCRIPTOR
+        assert desc is not None
         warnings.warn(
-            f"Field {field} of message {type(message).DESCRIPTOR.name} must be non-negative",
+            f"Field {field} of message {desc.name} must be non-negative",
             ValidationError,
         )
 
@@ -284,8 +288,10 @@ def ensure_float_range(
     max_value: float = math.inf,
 ):
     if getattr(message, field) < min_value or getattr(message, field) > max_value:
+        desc = type(message).DESCRIPTOR
+        assert desc is not None
         warnings.warn(
-            f"Field {field} of message {type(message).DESCRIPTOR.name} must be between {min_value} and {max_value}",
+            f"Field {field} of message {desc.name} must be between {min_value} and {max_value}",
             ValidationError,
         )
 

@@ -14,7 +14,7 @@
 """Helpers for translating strings with units."""
 
 import re
-from typing import Optional, Tuple, Type, Union
+from typing import Any, Optional, Tuple, Type, Union
 
 import numpy as np
 
@@ -23,7 +23,7 @@ from ord_schema.proto import reaction_pb2
 
 # Accepted synonyms for units. Note that all values will be converted to
 # lowercase.
-_UNIT_SYNONYMS: dict[Type[ord_schema.UnitMessage], dict[ord_schema.Message, list[str]]] = {
+_UNIT_SYNONYMS: dict[Type[ord_schema.UnitMessage], dict[Any, list[str]]] = {
     reaction_pb2.Time: {
         reaction_pb2.Time.DAY: ["d", "day", "days"],
         reaction_pb2.Time.HOUR: ["h", "hour", "hours", "hr", "hrs"],
@@ -138,7 +138,7 @@ _FORBIDDEN_UNITS = {
     "m": "ambiguous between meter and minute",
 }
 
-_UNIT_CONVERSIONS: dict[Type[ord_schema.UnitMessage], dict[ord_schema.Message, int | float]] = {
+_UNIT_CONVERSIONS: dict[Type[ord_schema.UnitMessage], dict[Any, int | float]] = {
     reaction_pb2.Time: {
         reaction_pb2.Time.DAY: 24,
         reaction_pb2.Time.HOUR: 1,
@@ -197,7 +197,7 @@ _UNIT_CONVERSIONS: dict[Type[ord_schema.UnitMessage], dict[ord_schema.Message, i
 
 # Concentration units are defined separately since they are not needed for any
 # native fields in the reaction schema.
-CONCENTRATION_UNIT_SYNONYMS: dict[Type[ord_schema.UnitMessage], dict[ord_schema.Message, list[str]]] = {
+CONCENTRATION_UNIT_SYNONYMS: dict[Type[ord_schema.UnitMessage], dict[Any, list[str]]] = {
     reaction_pb2.Concentration: {
         reaction_pb2.Concentration.MOLAR: ["M", "molar"],
         reaction_pb2.Concentration.MILLIMOLAR: ["mM", "millimolar"],
@@ -217,7 +217,7 @@ class UnitResolver:
 
     def __init__(
         self,
-        unit_synonyms: Optional[dict[Type[ord_schema.UnitMessage], dict[ord_schema.Message, list[str]]]] = None,
+        unit_synonyms: Optional[dict[Type[ord_schema.UnitMessage], dict[Any, list[str]]]] = None,
         forbidden_units: Optional[dict[str, str]] = None,
     ):
         """Initializes a UnitResolver.
@@ -289,14 +289,14 @@ class UnitResolver:
         else:
             value = float(value)
         assert string_unit is not None  # Type hint.
-        message, unit = self.resolve_unit(string_unit)
-        if value < 0.0 and message != reaction_pb2.Temperature:
+        message_cls, unit = self.resolve_unit(string_unit)
+        if value < 0.0 and message_cls != reaction_pb2.Temperature:
             raise ValueError(f"negative values are only allowed for temperature: {string}")
         if precision:
-            return message(value=value, precision=precision, units=unit)
-        return message(value=value, units=unit)
+            return message_cls(value=value, precision=precision, units=unit)
+        return message_cls(value=value, units=unit)
 
-    def resolve_unit(self, string_unit: str) -> Tuple[ord_schema.UnitMessage, ord_schema.Message]:
+    def resolve_unit(self, string_unit: str) -> Tuple[Type[ord_schema.UnitMessage], Any]:
         """Resolves a unit string into its message type and unit ENUM value.
 
         Args:
@@ -313,8 +313,8 @@ class UnitResolver:
             raise KeyError(f"forbidden units: {string_unit}: ({self._forbidden_units[string_unit]})")
         if string_unit not in self._resolver:
             raise KeyError(f"unrecognized units: {string_unit}")
-        message, unit = self._resolver[string_unit]
-        return (message, unit)
+        message_cls, unit = self._resolver[string_unit]
+        return (message_cls, unit)
 
     def convert(self, message: ord_schema.UnitMessage, new_units: Union[str, int]) -> ord_schema.UnitMessage:
         """Converts a united message into another united message of the same

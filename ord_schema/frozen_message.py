@@ -15,7 +15,7 @@
 
 import collections
 import dataclasses
-from typing import Union
+from typing import Any, Union, cast
 
 import ord_schema
 
@@ -68,18 +68,25 @@ class FrozenMessage(collections.abc.Mapping):
         Raises:
             AttributeError: if `name` has not been set explicitly.
         """
-        try:
-            if not self._message.HasField(name):  # ty: ignore[unresolved-attribute]
+        m = self._message
+        if isinstance(m, collections.abc.MutableMapping):
+            mm = cast(Any, m)
+            if name not in mm:
                 raise AttributeError(f'attribute "{name}" has not been set')
-        except ValueError:
-            pass  # The requested attribute is not a submessage.
-        value = getattr(self._message, name)
+            value = mm[name]
+        else:
+            try:
+                if not m.HasField(name):
+                    raise AttributeError(f'attribute "{name}" has not been set')
+            except ValueError:
+                pass  # The requested attribute is not a submessage.
+            value = getattr(m, name)
         if isinstance(value, _MESSAGE_TYPES):
             return FrozenMessage(value)
         if hasattr(value, "append"):
             # Make repeated fields (and their elements) immutable.
             repeated_values = []
-            for element in value:
+            for element in cast(Any, value):
                 if isinstance(element, _MESSAGE_TYPES):
                     repeated_values.append(FrozenMessage(element))
                 else:
@@ -88,10 +95,16 @@ class FrozenMessage(collections.abc.Mapping):
         return value
 
     def __iter__(self):
-        return self._message.__iter__()
+        m = self._message
+        if isinstance(m, collections.abc.MutableMapping):
+            return iter(m)
+        return cast(Any, m).__iter__()
 
     def __len__(self):
-        return len(self._message)
+        m = self._message
+        if isinstance(m, collections.abc.MutableMapping):
+            return len(m)
+        return len(cast(Any, m))
 
     def __getitem__(self, key):
         """Fetches a message key, if it exists.
@@ -113,9 +126,16 @@ class FrozenMessage(collections.abc.Mapping):
         Raises:
             AttributeError: if `key` has not been set explicitly.
         """
-        if key not in self._message:
-            raise KeyError(f'key "{key}" has not been set')
-        value = self._message[key]
+        m = self._message
+        if isinstance(m, collections.abc.MutableMapping):
+            if key not in m:
+                raise KeyError(f'key "{key}" has not been set')
+            value = m[key]
+        else:
+            am = cast(Any, m)
+            if key not in am:
+                raise KeyError(f'key "{key}" has not been set')
+            value = am[key]
         if isinstance(value, _MESSAGE_TYPES):
             return FrozenMessage(value)
         return value

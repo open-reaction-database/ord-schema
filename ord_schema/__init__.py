@@ -49,6 +49,7 @@ TypeDetailsMessage = Union[
     reaction_pb2.TemperatureConditions.TemperatureMeasurement,
     reaction_pb2.TemperatureConditions.TemperatureControl,
     reaction_pb2.Texture,
+    reaction_pb2.UnmeasuredAmount,
     reaction_pb2.Vessel,
     reaction_pb2.VesselAttachment,
     reaction_pb2.VesselMaterial,
@@ -57,6 +58,7 @@ TypeDetailsMessage = Union[
 
 # Messages with 'units' fields.
 UnitMessage = Union[
+    reaction_pb2.Concentration,
     reaction_pb2.Current,
     reaction_pb2.FlowRate,
     reaction_pb2.Length,

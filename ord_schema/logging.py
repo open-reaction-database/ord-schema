@@ -18,6 +18,13 @@ import logging
 _initialized = False
 
 
+def silence_rdkit_logs(pattern: str = "rdApp.*") -> None:
+    """Disables noisy RDKit logs (use getattr; RDKit stubs omit ``DisableLog``)."""
+    from rdkit import RDLogger
+
+    getattr(RDLogger, "DisableLog")(pattern)
+
+
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """Creates a Logger."""
     global _initialized

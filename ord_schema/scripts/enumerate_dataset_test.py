@@ -26,7 +26,7 @@ from ord_schema.scripts import enumerate_dataset
 
 
 @pytest.fixture
-def setup(tmp_path) -> Iterator[tuple[str, str, str]]:
+def setup(tmp_path) -> Iterator[tuple[str, str, dataset_pb2.Dataset]]:
     dirname = tmp_path.as_posix()
     template_string = """
     inputs {

@@ -50,9 +50,13 @@ def simple_solution(
         if solute_smiles is None:
             raise ValueError("Must specify a solute if `saturated=True`")
     if isinstance(volume, str):
-        volume = UNITS_RESOLVER.resolve(volume)
+        resolved_volume = UNITS_RESOLVER.resolve(volume)
+        assert isinstance(resolved_volume, reaction_pb2.Volume)
+        volume = resolved_volume
     if isinstance(concentration, str):
-        concentration = CONCENTRATION_RESOLVER.resolve(concentration)
+        resolved_conc = CONCENTRATION_RESOLVER.resolve(concentration)
+        assert isinstance(resolved_conc, reaction_pb2.Concentration)
+        concentration = resolved_conc
 
     if volume is not None and concentration is not None:
         solute_amount = units.compute_solute_quantity(volume, concentration)

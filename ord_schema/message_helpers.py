@@ -36,6 +36,8 @@ import ord_schema
 from ord_schema import units
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
+CompoundLike = Union[reaction_pb2.Compound, reaction_pb2.ProductCompound]
+
 _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
@@ -97,7 +99,10 @@ def build_compound(
             else:
                 raise TypeError(f"unsupported units for amount: {amount_pb}")
     if role:
-        field = reaction_pb2.Compound.DESCRIPTOR.fields_by_name["reaction_role"]
+        compound_desc = reaction_pb2.Compound.DESCRIPTOR
+        assert compound_desc is not None
+        field = compound_desc.fields_by_name["reaction_role"]
+        assert field.enum_type is not None
         values_dict = field.enum_type.values_by_name
         try:
             compound.reaction_role = values_dict[role.upper()].number
@@ -108,7 +113,10 @@ def build_compound(
             raise TypeError(f"is_limiting must be a boolean value: {is_limiting}")
         compound.is_limiting = is_limiting
     if prep:
-        field = reaction_pb2.CompoundPreparation.DESCRIPTOR.fields_by_name["type"]
+        prep_desc = reaction_pb2.CompoundPreparation.DESCRIPTOR
+        assert prep_desc is not None
+        field = prep_desc.fields_by_name["type"]
+        assert field.enum_type is not None
         values_dict = field.enum_type.values_by_name
         try:
             compound.preparations.add().type = values_dict[prep.upper()].number
@@ -173,6 +181,7 @@ def set_solute_moles(
     # Get solute concentration in molar.
     resolver = units.UnitResolver(unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
     concentration_pb = resolver.resolve(concentration)
+    assert isinstance(concentration_pb, reaction_pb2.Concentration)
 
     solute_moles = units.compute_solute_quantity(
         reaction_pb2.Volume(value=volume_liter, units=reaction_pb2.Volume.LITER),
@@ -218,7 +227,9 @@ def find_submessages(message: ord_schema.Message, submessage_type: Type[MessageT
     """
     if not issubclass(submessage_type, ord_schema.Message):
         raise TypeError("submessage_type must be a Protocol Buffer type")
-    submessage_name = submessage_type.DESCRIPTOR.full_name
+    sub_desc = submessage_type.DESCRIPTOR
+    assert sub_desc is not None
+    submessage_name = sub_desc.full_name
     submessages = []
     for field, value in message.ListFields():
         if field.type != field.TYPE_MESSAGE:
@@ -230,7 +241,9 @@ def find_submessages(message: ord_schema.Message, submessage_type: Type[MessageT
                 submessages.append(value)
         elif field.message_type.GetOptions().map_entry:
             # Map field.
-            field_value = field.message_type.fields_by_name["value"]
+            map_msg_type = field.message_type
+            assert map_msg_type is not None
+            field_value = map_msg_type.fields_by_name["value"]
             if field_value.type != field_value.TYPE_MESSAGE:
                 continue
             if field_value.message_type.full_name == submessage_name:
@@ -289,8 +302,8 @@ def molblock_from_compound(compound: reaction_pb2.Compound) -> str:
 
 
 def mol_from_compound(
-    compound: reaction_pb2.Compound, return_identifier: bool = False
-) -> Union[Chem.Mol, tuple[Chem.Mol, str]]:
+    compound: CompoundLike, return_identifier: bool = False
+) -> Union[Chem.Mol, tuple[Chem.Mol, reaction_pb2.CompoundIdentifier]]:
     """Creates an RDKit Mol from a Compound message.
 
     Args:
@@ -318,7 +331,7 @@ def mol_from_compound(
     raise ValueError(f"no valid structural identifier for Compound: {compound}")
 
 
-def check_compound_identifiers(compound: reaction_pb2.Compound):
+def check_compound_identifiers(compound: CompoundLike):
     """Verifies that structural compound identifiers are consistent.
 
     Args:
@@ -502,7 +515,7 @@ def get_product_yield(product: reaction_pb2.ProductCompound, as_measurement: boo
 
 
 def get_compound_identifier(
-    compound: reaction_pb2.Compound,
+    compound: CompoundLike,
     identifier_type: reaction_pb2.CompoundIdentifier.CompoundIdentifierType,
 ) -> Optional[str]:
     """Returns the value of a compound identifier if it exists. If multiple
@@ -545,7 +558,7 @@ def set_compound_identifier(
     return identifier
 
 
-def get_compound_smiles(compound: reaction_pb2.Compound) -> Optional[str]:
+def get_compound_smiles(compound: CompoundLike) -> Optional[str]:
     """Returns the value of the compound's SMILES identifier if it exists.
 
     Args:
@@ -684,7 +697,7 @@ def set_compound_name(compound: reaction_pb2.Compound, value: str) -> reaction_p
     return set_compound_identifier(compound, reaction_pb2.CompoundIdentifier.NAME, value)
 
 
-def get_compound_molblock(compound: reaction_pb2.Compound) -> Optional[str]:
+def get_compound_molblock(compound: CompoundLike) -> Optional[str]:
     """Returns the value of the compound's MOLBLOCK identifier if it exists.
 
     Args:
@@ -825,7 +838,9 @@ def id_filename(filename: str) -> str:
     prefix, suffix = basename.split("-")
     if not prefix.startswith("ord"):
         raise ValueError('basename does not have the required "ord" prefix: {basename}')
-    return security.safe_join("data", suffix[:2], basename)
+    joined = security.safe_join("data", suffix[:2], basename)
+    assert joined is not None
+    return joined
 
 
 def create_message(message_name: str) -> ord_schema.Message:
@@ -846,7 +861,8 @@ def create_message(message_name: str) -> ord_schema.Message:
     try:
         for name in message_name.split("."):
             message_class = getattr(message_class, name)
-        return cast(ord_schema.Message, message_class)()
+        ctor = cast(Type[ord_schema.Message], message_class)
+        return ctor()
     except (AttributeError, TypeError) as error:
         raise ValueError(f"Cannot resolve message name {message_name}") from error
 
@@ -946,6 +962,7 @@ def _message_to_row(
         Dict mapping string field names to scalar values.
     """
     if field.type == field.TYPE_MESSAGE:
+        assert isinstance(value, ord_schema.Message)
         return message_to_row(message=value, trace=trace)
     if field.type == field.TYPE_ENUM:
         enum_value = field.enum_type.values_by_number[value].name

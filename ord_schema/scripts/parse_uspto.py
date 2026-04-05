@@ -41,15 +41,14 @@ from xml.etree import ElementTree
 
 import docopt
 import joblib
-from rdkit import RDLogger
 
 import ord_schema
 from ord_schema import message_helpers, units, validations
-from ord_schema.logging import get_logger
+from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
-RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.
+silence_rdkit_logs()
 
 # XML namespaces.
 NAMESPACES = {
@@ -219,9 +218,9 @@ def parse_source(root: ElementTree.Element, reaction: reaction_pb2.Reaction):
     for child in root:
         tag = get_tag(child)
         if tag == "dl:documentId":
-            reaction.provenance.patent = child.text
+            reaction.provenance.patent = child.text or ""
         elif tag == "dl:paragraphText":
-            reaction.notes.procedure_details = child.text
+            reaction.notes.procedure_details = child.text or ""
         elif tag in ["dl:headingText", "dl:paragraphNum"]:
             continue  # Ignored.
         else:
@@ -244,7 +243,7 @@ def parse_product(root: ElementTree.Element, product_compound: reaction_pb2.Prod
         elif tag == "cml:identifier":
             parse_identifier(child, product_compound)
         elif tag == "dl:state":
-            texture = PRODUCT_STATES.get((child.text or "").lower(), reaction_pb2.ProductCompound.Texture.CUSTOM)
+            texture = PRODUCT_STATES.get((child.text or "").lower(), reaction_pb2.Texture.CUSTOM)
             product_compound.texture.type = texture
             product_compound.texture.details = child.text or ""
         elif tag == "dl:appearance":
@@ -268,7 +267,7 @@ def parse_molecule(
 
 def parse_product_amount(root: ElementTree.Element, product_compound: reaction_pb2.ProductCompound):
     """Adds amount information to a ProductCompound."""
-    property_type = root.attrib[f'{{{NAMESPACES["dl"]}}}propertyType']
+    property_type = root.attrib[f"{{{NAMESPACES['dl']}}}propertyType"]
     if "PERCENTYIELD" in property_type:
         match = re.search(r"(\d+\.?\d*)", root.text or "")
         if not match:
@@ -326,7 +325,7 @@ def parse_amount(
     compound: Union[reaction_pb2.Compound, reaction_pb2.ProductMeasurement],
 ):
     """Parses an amount."""
-    property_type = root.attrib[f'{{{NAMESPACES["dl"]}}}propertyType']
+    property_type = root.attrib[f"{{{NAMESPACES['dl']}}}propertyType"]
     if property_type in ["MOLARITY", "PH"]:
         return
     if compound.amount.WhichOneof("kind") not in ["mass", "volume"]:
@@ -392,7 +391,7 @@ def parse_workup(root: ElementTree.Element, reaction: reaction_pb2.Reaction):
         if tag == "cml:chemical":
             pass  # Components are handled all together above.
         elif tag == "dl:phraseText":
-            workup.details = child.text
+            workup.details = child.text or ""
         elif tag == "dl:parameter":
             try:
                 parse_parameter(child, workup)
@@ -432,6 +431,8 @@ def parse_parameter(root: ElementTree.Element, workup: reaction_pb2.ReactionWork
             value = (root.text or "").rstrip(".").replace("° ", "°")
             try:
                 temperature = resolve_units(value)
+                if not isinstance(temperature, reaction_pb2.Temperature):
+                    raise ValueError("not a temperature")
                 if temperature.units == temperature.CELSIUS and temperature.value < -274:
                     raise ValueError("bad temperature")
                 if temperature.precision < 0:
@@ -458,7 +459,7 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
     for identifier in identifiers:
         output = validations.validate_message(identifier, raise_on_error=False)
         if output.errors:
-            old_type = reaction_pb2.CompoundIdentifier.IdentifierType.Name(identifier.type)
+            old_type = reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name(identifier.type)
             identifier.details = f"Originally defined as {old_type}"
             identifier.type = reaction_pb2.CompoundIdentifier.CUSTOM
     # Adjust workup types as needed.
@@ -496,7 +497,6 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
 
 def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.Reaction]]:
     """Parses reactions from a single CML file."""
-    RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.
     tree = ElementTree.parse(filename)
     root = tree.getroot()
     reactions = []
@@ -545,7 +545,7 @@ def main(kwargs):
         failures.extend(file_failures)
     dataset = dataset_pb2.Dataset(reactions=reactions, name=kwargs["--name"])
     basenames = [os.path.basename(filename) for filename in filenames]
-    dataset.description = f'CML filenames: {",".join(basenames)}'
+    dataset.description = f"CML filenames: {','.join(basenames)}"
     if kwargs["--output"] and reactions:
         logger.info(f"Writing {len(reactions)} reactions to {kwargs['--output']}")
         message_helpers.write_message(dataset, kwargs["--output"])
