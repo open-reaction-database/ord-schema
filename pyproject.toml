@@ -89,6 +89,3 @@ extend-exclude = ["*_pb2.py*"]
 
 [tool.ty.src]
 exclude = ["**/*_pb2.py*"]
-
-[tool.ty.environment]
-root = ["."]
