@@ -104,6 +104,7 @@ def add_rdkit(engine: Engine, dataset_id: str) -> None:
 
 
 def main(**kwargs):
+    # Disable RDKit logging.
     RDLogger.DisableLog("rdApp.*")  # ty: ignore[unresolved-attribute]
     if kwargs["--debug"]:
         get_logger(database.__name__, level=logging.DEBUG)

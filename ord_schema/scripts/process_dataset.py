@@ -285,7 +285,8 @@ def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[st
 
 
 def main(kwargs):
-    RDLogger.DisableLog("rdApp.*")  # ty: ignore[unresolved-attribute]  # Disable RDKit logging.
+    # Disable RDKit logging.
+    RDLogger.DisableLog("rdApp.*")  # ty: ignore[unresolved-attribute]
     run(kwargs)
 
 

@@ -49,7 +49,8 @@ def filter_filenames(filenames: Iterable[str], pattern: str) -> list[str]:
 
 def run(filename: str) -> None:
     """Validates a single dataset."""
-    RDLogger.DisableLog("rdApp.*")  # ty: ignore[unresolved-attribute]  # Disable RDKit logging.
+    # Disable RDKit logging.
+    RDLogger.DisableLog("rdApp.*")  # ty: ignore[unresolved-attribute]
     dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
     validations.validate_datasets({filename: dataset})
 
