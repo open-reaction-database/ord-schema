@@ -47,12 +47,10 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install wheel
           python -m pip install .[examples,tests]
-      - name: Run black
+      - name: Run ruff
         run: |
-          black --check .
-      - name: Run isort
-        run: |
-          isort --check .
+          ruff check .
+          ruff format --check .
       - name: Run pylint
         run: |
           pylint -j 0 -v examples ord_schema *.py

@@ -144,7 +144,7 @@ def generate_dataset(
         if placeholder not in df.columns:
             # Allow "$my_placeholder$" to match "my_placeholder" in df.
             if placeholder[1:-1] not in df.columns:
-                raise ValueError(f"Placeholder {placeholder} not found as a" " column in dataset spreadsheet")
+                raise ValueError(f"Placeholder {placeholder} not found as a column in dataset spreadsheet")
             df.rename(columns={placeholder[1:-1]: placeholder}, inplace=True)
 
     reactions = []

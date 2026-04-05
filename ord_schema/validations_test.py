@@ -419,7 +419,7 @@ def test_reaction_recursive_noraise_on_error():
     message.inputs["dummy_input"].components.add()
     output = _run_validation(message, raise_on_error=False)
     expected = [
-        'Reaction.inputs["dummy_input"].components[0]: ' "Compounds must have at least one identifier",
+        'Reaction.inputs["dummy_input"].components[0]: Compounds must have at least one identifier',
         "Reaction: Reactions should have at least 1 reaction outcome",
         "Reaction: All reaction input components require an amount",
     ]

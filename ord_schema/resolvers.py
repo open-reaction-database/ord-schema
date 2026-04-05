@@ -115,7 +115,7 @@ def _cactus_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the CACTUS API."""
     del value_type  # Unused.
     with urllib.request.urlopen(
-        "https://cactus.nci.nih.gov/chemical/structure/" f"{urllib.parse.quote(value)}/smiles"
+        f"https://cactus.nci.nih.gov/chemical/structure/{urllib.parse.quote(value)}/smiles"
     ) as response:
         return response.read().decode().strip()
 
@@ -123,7 +123,7 @@ def _cactus_resolve(value_type: str, value: str) -> str:
 def _emolecules_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the eMolecules API."""
     del value_type  # Unused.
-    with urllib.request.urlopen("https://www.emolecules.com/" f"lookup?q={urllib.parse.quote(value)}") as response:
+    with urllib.request.urlopen(f"https://www.emolecules.com/lookup?q={urllib.parse.quote(value)}") as response:
         response_text = response.read().decode().strip()
     if response_text == "__END__":
         raise urllib.error.HTTPError("", 404, "eMolecules lookup unsuccessful", email.message.Message(), None)

@@ -279,7 +279,7 @@ class UnitResolver:
                 value = float(value)
                 precision = float(range_value)
             elif not allow_range:
-                raise ValueError("string appears to contain a range of values " f"but allow_range is False: {string}")
+                raise ValueError(f"string appears to contain a range of values but allow_range is False: {string}")
             else:
                 values = np.asarray([value, range_value], dtype=float)
                 value = values.mean()
@@ -308,7 +308,7 @@ class UnitResolver:
         """
         string_unit = string_unit.lower()
         if string_unit in self._forbidden_units:
-            raise KeyError(f"forbidden units: {string_unit}: " f"({self._forbidden_units[string_unit]})")
+            raise KeyError(f"forbidden units: {string_unit}: ({self._forbidden_units[string_unit]})")
         if string_unit not in self._resolver:
             raise KeyError(f"unrecognized units: {string_unit}")
         message, unit = self._resolver[string_unit]
