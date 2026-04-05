@@ -1,0 +1,32 @@
+---
+description: Attribute GitHub activity and git commits drafted with Cursor
+alwaysApply: true
+---
+
+# GitHub replies and comments from Cursor
+
+When posting or suggesting **any** GitHub comment you draft in Cursor, the message must clearly indicate it came from Cursor. This includes:
+
+- **PR conversation / timeline comments** (e.g. `gh pr comment`, REST `issues/{n}/comments` on a PR)
+- **Review threads** and inline review replies
+- **Issue comments** (non-PR issues)
+
+Rules:
+
+- Add a short footer on its own line after the substantive text, for example: `*Reply posted from Cursor.*` or `*— Drafted in Cursor.*`
+- Do not skip the footer for “short” or “meta” PR comments (merge notes, cross-links to other PRs, etc.); those still count.
+
+# Co-authored commits
+
+When you propose or write a **full commit message** (not a one-line subject the user supplied verbatim) for work where Cursor or the agent **materially contributed** (logic, structure, or non-trivial text—not only applying an obvious user-specified edit), include a `Co-authored-by` trailer in the **commit message body**: one blank line after the subject line, then the trailer.
+
+- Prefer the **exact** `Co-authored-by: …` line from the user’s Cursor **Settings → Agent → Commit attribution** when that feature is enabled (do not invent a different identity).
+- If you have no access to that setting, use: `Co-authored-by: Cursor <noreply@cursor.com>` (the user may replace the email with whatever Cursor or their org standardizes on).
+- Skip the trailer when the user clearly authored everything themselves and Cursor only ran commands or applied their exact instructions with no substantive generation.
+
+# Pull request descriptions
+
+When you draft or **substantially rewrite** a **pull request title or description** for GitHub, indicate Cursor involvement without burying the technical summary.
+
+- Put a short disclosure **after** the main description, on its own line, for example: `*Drafted with Cursor.*` or `*PR description drafted with assistance from Cursor.*`
+- If the PR body is mostly user-provided and you only tweak wording, you may use a lighter note (e.g. `*Minor edits with Cursor.*`) or omit if the change is trivial—use judgment.

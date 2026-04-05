@@ -29,3 +29,7 @@ This repo is the **Open Reaction Database (ORD) schema**: Python tooling, protob
 ## Docs and markdown
 
 - Do **not** add or rewrite project markdown (README, CONTRIBUTING, etc.) unless the user asked for it.
+
+## GitHub and commits
+
+- PR/issue comments, PR descriptions, and `Co-authored-by` trailers: follow **`github-pr-replies.mdc`** (always applied alongside this file).
