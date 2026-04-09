@@ -55,12 +55,12 @@ jobs:
           uv run coverage erase
           uv run pytest -vv --cov=ord_schema --durations=20
           uv run coverage xml
-      # Codecov v4+ requires a token for branch pushes; add CODECOV_TOKEN in repo secrets.
-      # Fork PRs to public repos often upload without it (tokenless).
+      # Codecov v4+ uses CODECOV_TOKEN when set. Fork PRs often upload tokenless; do not fail
+      # the job on upload errors there so external contributors are not blocked.
       - uses: codecov/codecov-action@v4
         with:
           files: coverage.xml
-          fail_ci_if_error: true
+          fail_ci_if_error: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
           token: ${{ secrets.CODECOV_TOKEN }}
 
   test_notebooks:
@@ -87,7 +87,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       - uses: actions/setup-node@v4
@@ -146,6 +146,7 @@ jobs:
         run: |
           uv pip install build twine wheel
           python -m build
+          python -m twine check dist/*
       - name: Test javascript
         run: |
           cd js/ord-schema
