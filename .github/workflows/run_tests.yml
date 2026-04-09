@@ -140,11 +140,11 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Verify bump2version config (dry-run)
         run: |
-          uv pip install --system bump2version
+          uv pip install bump2version
           bump2version patch --dry-run --verbose
       - name: Test python
         run: |
-          uv pip install --system build twine wheel
+          uv pip install build twine wheel
           python -m build
       - name: Test javascript
         run: |

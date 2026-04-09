@@ -44,14 +44,14 @@ jobs:
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          uv pip install --system bump2version
+          uv pip install bump2version
           bump2version patch --verbose
       - name: Build and upload to PyPI
         env:
           TWINE_USERNAME: '__token__'
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          uv pip install --system build twine wheel
+          uv pip install build twine wheel
           python -m build
           python -m twine upload dist/*
       - name: Build and upload to NPM
