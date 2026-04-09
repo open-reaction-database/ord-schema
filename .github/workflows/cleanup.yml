@@ -30,7 +30,7 @@ jobs:
           go-version: '>=1.16'
       - name: Install dependencies
         run: |
-          go install github.com/google/addlicense@latest
+          go install github.com/google/addlicense@v1.1.1
       - name: addlicense
         run: |
           "${HOME}/go/bin/addlicense" -check -c "Open Reaction Database Project Authors" -l apache .
@@ -45,8 +45,13 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          python-version: '3.10'
       - name: Install ord-schema
         run: uv sync --extra examples --extra tests --locked
+      - name: Verify bump2version config (dry-run)
+        run: |
+          uv pip install --system bump2version
+          bump2version patch --dry-run --verbose
       - name: Run black
         run: uv run black --check .
       - name: Run isort

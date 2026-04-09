@@ -23,17 +23,21 @@ jobs:
   publish:
     if: github.repository == 'open-reaction-database/ord-schema'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.ACTIONS_PUSH }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       - uses: astral-sh/setup-uv@v5
-      - uses: actions/setup-node@v3
         with:
-          node-version: '16.x'
+          python-version: '3.10'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
           # https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
           registry-url: 'https://registry.npmjs.org'
       - name: Bump patch version
@@ -42,13 +46,6 @@ jobs:
           git config user.email github-actions@github.com
           uv pip install --system bump2version
           bump2version patch --verbose
-          git push --tags origin main
-      - name: Create release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # https://gist.github.com/rponte/fdc0724dd984088606b0?permalink_comment_id=3064455#gistcomment-3064455
-          gh release create "$(git tag | sort -V | tail -n 1)" --generate-notes
       - name: Build and upload to PyPI
         env:
           TWINE_USERNAME: '__token__'
@@ -73,3 +70,12 @@ jobs:
           npm install
           npm run build
           npm publish
+      - name: Push version bump and tags
+        run: git push origin main --tags
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # https://gist.github.com/rponte/fdc0724dd984088606b0?permalink_comment_id=3064455#gistcomment-3064455
+          TAG="$(git tag --sort=-v:refname | head -n 1)"
+          gh release create "${TAG}" --generate-notes

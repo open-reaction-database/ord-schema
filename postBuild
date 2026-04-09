@@ -4,5 +4,5 @@
 
 set -ex
 
-pip install uv
+pip install "uv>=0.5,<0.7"
 uv pip install --system -e ".[examples]"
