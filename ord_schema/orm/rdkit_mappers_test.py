@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Tests for ord_schema.orm.rdkit_mappers."""
+
 import platform
 
 import pytest

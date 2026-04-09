@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Helpers validating specific Message types."""
+
 import dataclasses
 import math
 import os
@@ -610,7 +611,7 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier):
     if not message.value:
         warnings.warn("value must be set", ValidationError)
     if message.type in (message.SMILES, message.INCHI, message.MOLBLOCK):
-        (parse_func, identifier_type) = {
+        parse_func, identifier_type = {
             message.SMILES: (Chem.MolFromSmiles, "SMILES"),
             message.INCHI: (Chem.MolFromInchi, "InChI"),
             message.MOLBLOCK: (Chem.MolFromMolBlock, "MolBlock"),

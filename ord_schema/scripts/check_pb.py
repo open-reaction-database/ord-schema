@@ -24,6 +24,7 @@ Options:
     --pb=<str>          Path to *.pb Dataset
     --pbtxt=<str>       Path to *.pbtxt Dataset
 """
+
 import difflib
 import pprint
 

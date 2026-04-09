@@ -24,6 +24,7 @@ Options:
     --output=<str>          Filename for output Dataset
     --no-validate           If set, do not validate Reaction protos
 """
+
 import docopt
 
 from ord_schema import message_helpers, templating

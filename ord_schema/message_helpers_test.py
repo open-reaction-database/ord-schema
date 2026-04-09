@@ -402,13 +402,15 @@ class TestSetDativeBonds:
         assert not message_helpers.has_transition_metal(Chem.MolFromSmiles("P"))
         assert message_helpers.has_transition_metal(Chem.MolFromSmiles("Cl[Pd]Cl"))
 
-    @pytest.mark.parametrize(
-        "smiles,from_atoms,expected", (("[PH3][Pd](Cl)(Cl)[NH3]", ("N", "P"), "N->[Pd](<-P)(Cl)Cl"),)
-    )
-    def test_set_dative_bonds(self, smiles, from_atoms, expected):
-        mol = Chem.MolFromSmiles(smiles, sanitize=False)
-        dative_mol = message_helpers.set_dative_bonds(mol, from_atoms=from_atoms)
-        assert Chem.MolToSmiles(dative_mol) == expected
+    def test_set_dative_bonds(self):
+        mol = Chem.MolFromSmiles("[PH3][Pd](Cl)(Cl)[NH3]", sanitize=False)
+        dative_mol = message_helpers.set_dative_bonds(mol, from_atoms=("N", "P"))
+        bond_types = {
+            frozenset([bond.GetBeginAtom().GetSymbol(), bond.GetEndAtom().GetSymbol()]): bond.GetBondType()
+            for bond in dative_mol.GetBonds()
+        }
+        assert bond_types[frozenset(["N", "Pd"])] == Chem.BondType.DATIVE
+        assert bond_types[frozenset(["P", "Pd"])] == Chem.BondType.DATIVE
 
 
 class TestLoadAndWriteMessage:

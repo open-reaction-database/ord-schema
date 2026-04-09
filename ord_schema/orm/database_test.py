@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Tests for ord_schema.orm.database."""
+
 import pytest
 from sqlalchemy import select
 
