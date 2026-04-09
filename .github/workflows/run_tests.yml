@@ -40,20 +40,20 @@ jobs:
           # NOTE(skearnes): conda is only used for postgres (not python).
           conda install -c conda-forge rdkit-postgresql
           initdb
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
       - name: Install ord_schema
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install wheel
-          python -m pip install .[tests]
+        run: uv sync --extra tests --locked
       - name: Run tests
         shell: bash -l {0}
         run: |
-          coverage erase
-          pytest -vv --cov=ord_schema --durations=20
-          coverage xml
+          uv run coverage erase
+          uv run pytest -vv --cov=ord_schema --durations=20
+          uv run coverage xml
       - uses: codecov/codecov-action@v1
 
   test_notebooks:
@@ -64,17 +64,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
       - name: Install ord_schema
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install wheel
-          python -m pip install .[examples,tests]
+        run: uv sync --extra examples --extra tests --locked
       - name: Test notebooks
-        run: |
-          treon
+        run: uv run treon
 
   test_proto_wrappers:
     runs-on: ubuntu-latest
@@ -121,9 +120,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+      - uses: astral-sh/setup-uv@v5
       - uses: actions/setup-node@v3
         with:
           node-version: '16.x'
@@ -132,12 +132,11 @@ jobs:
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          python -m pip install bump2version
+          uv pip install --system bump2version
           bump2version patch --verbose
       - name: Test python
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade build twine wheel
+          uv pip install --system build twine wheel
           python -m build
       - name: Test javascript
         run: |

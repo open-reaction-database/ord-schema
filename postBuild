@@ -4,4 +4,5 @@
 
 set -ex
 
-pip install -e .[examples]
+pip install uv
+uv pip install --system -e ".[examples]"
