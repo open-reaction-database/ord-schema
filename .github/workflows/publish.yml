@@ -51,7 +51,7 @@ jobs:
           TWINE_USERNAME: '__token__'
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          uv pip install --system build twine wheel
+          uv pip install build twine wheel
           python -m build
           python -m twine upload dist/*
       - name: Build and upload to NPM

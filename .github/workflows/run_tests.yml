@@ -144,7 +144,7 @@ jobs:
           bump2version patch --dry-run --verbose
       - name: Test python
         run: |
-          uv pip install --system build twine wheel
+          uv pip install build twine wheel
           python -m build
       - name: Test javascript
         run: |
