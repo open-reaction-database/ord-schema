@@ -46,6 +46,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          python-version: ${{ matrix.python-version }}
       - name: Install ord_schema
         run: uv sync --extra tests --locked
       - name: Run tests
@@ -70,6 +71,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          python-version: ${{ matrix.python-version }}
       - name: Install ord_schema
         run: uv sync --extra examples --extra tests --locked
       - name: Test notebooks

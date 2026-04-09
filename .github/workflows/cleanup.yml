@@ -52,7 +52,7 @@ jobs:
       - name: Run isort
         run: uv run isort --check .
       - name: Run pylint
-        run: uv run pylint -j 0 -v examples ord_schema *.py
+        run: uv run pylint -j 0 -v examples ord_schema
       - name: Run pytype
         run: uv run pytype -j auto
 
