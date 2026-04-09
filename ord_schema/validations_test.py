@@ -512,13 +512,6 @@ def test_dataset_missing_name():
         _run_validation(message, options=options)
 
 
-def test_dataset_missing_name():
-    message = dataset_pb2.Dataset()
-    options = validations.ValidationOptions(validate_ids=True)
-    with pytest.raises(validations.ValidationError, match="name is required"):
-        _run_validation(message, options=options)
-
-
 def test_dataset_bad_reaction_id():
     message = dataset_pb2.Dataset(name="test", description="test", reaction_ids=["foo"])
     options = validations.ValidationOptions(validate_ids=True)

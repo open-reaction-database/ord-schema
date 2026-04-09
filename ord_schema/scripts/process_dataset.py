@@ -274,7 +274,9 @@ def parse_args(argv=None):
     parser.add_argument("--root", default="", help="Root of the repository")
     parser.add_argument("--output_format", default=".pb.gz", help="Dataset output format")
     parser.add_argument("--write_errors", action="store_true", help="If True, errors will be written to *.error")
-    parser.add_argument("--no-validate", action="store_true", dest="no_validate", help="If set, reactions will not be validated")
+    parser.add_argument(
+        "--no-validate", action="store_true", dest="no_validate", help="If set, reactions will not be validated"
+    )
     parser.add_argument("--update", action="store_true", help="If True, update Reaction protos")
     parser.add_argument("--cleanup", action="store_true", help="If True, use git to clean up")
     parser.add_argument("--max_size", type=float, default=10.0, help="Maximum size (in MB) for any Reaction message")
