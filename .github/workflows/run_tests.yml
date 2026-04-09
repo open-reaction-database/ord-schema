@@ -57,6 +57,7 @@ jobs:
           uv run coverage xml
       # Codecov v4+ uses CODECOV_TOKEN when set. Fork PRs often upload tokenless; do not fail
       # the job on upload errors there so external contributors are not blocked.
+      # If you add workflow_dispatch, merge_group, etc., revisit fail_ci_if_error for each event.
       - uses: codecov/codecov-action@v4
         with:
           files: coverage.xml
@@ -98,8 +99,10 @@ jobs:
           mkdir protoc
           cd protoc
           wget https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-x86_64.zip
+          echo "0f8070d762eb8a2f5a13a47713a553f989f9d9b556e7e3ebfa2bd6464e2ecaeb  protoc-22.3-linux-x86_64.zip" | sha256sum -c -
           unzip protoc-22.3-linux-x86_64.zip
           wget https://github.com/protocolbuffers/protobuf-javascript/releases/download/v3.21.2/protobuf-javascript-3.21.2-linux-x86_64.zip
+          echo "075ed6163fea314c415f67a4af68d1b6dbddc8fa8be35addf74e4c81812a9148  protobuf-javascript-3.21.2-linux-x86_64.zip" | sha256sum -c -
           unzip protobuf-javascript-3.21.2-linux-x86_64.zip
           npm i -g ts-protoc-gen@0.15.0 protobufjs@7.4.0 protobufjs-cli@1.1.3
           PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH protoc --version
@@ -144,6 +147,7 @@ jobs:
           bump2version patch --dry-run --verbose
       - name: Test python
         run: |
+          # Same pre-upload steps as publish.yml; PyPI upload runs only on main with secrets.
           uv pip install build twine wheel
           python -m build
           python -m twine check dist/*
