@@ -282,11 +282,11 @@ def smiles_from_compound(compound: reaction_pb2.Compound | reaction_pb2.ProductC
     return smiles
 
 
-def molblock_from_compound(compound: reaction_pb2.Compound) -> str:
+def molblock_from_compound(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound) -> str:
     """Fetches or generates a MolBlock identifier for a compound.
 
     Args:
-        compound: reaction_pb2.Compound message.
+        compound: reaction_pb2.Compound or ProductCompound message.
 
     Returns:
         molblock: MolBlock identifier.
@@ -833,7 +833,7 @@ def id_filename(filename: str) -> str:
     basename = os.path.basename(filename)
     prefix, suffix = basename.split("-")
     if not prefix.startswith("ord"):
-        raise ValueError('basename does not have the required "ord" prefix: {basename}')
+        raise ValueError(f'basename does not have the required "ord" prefix: {basename}')
     joined = security.safe_join("data", suffix[:2], basename)
     assert joined is not None  # Type hint.
     return joined
