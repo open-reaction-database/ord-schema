@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ord-schema"
-version = "0.4.0"
+version = "0.4.1"
 description = "Schema for the Open Reaction Database"
 readme = "README.md"
 license = "Apache-2.0"
