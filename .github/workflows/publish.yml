@@ -62,8 +62,10 @@ jobs:
           uv pip install build twine wheel
           python -m build
           python -m twine check dist/*
+      # Use release/v1 (not a bare v1.x.x tag): each tag must have a matching GHCR image
+      # (ghcr.io/pypa/gh-action-pypi-publish:<ref>); v1.14.0 had no manifest at publish time.
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.14.0
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
           verify-metadata: false
