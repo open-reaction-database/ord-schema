@@ -27,9 +27,9 @@ import pandas as pd
 import requests
 from google.protobuf import (
     json_format,
-    text_format,  # pytype: disable=import-error
+    text_format,
 )
-from google.protobuf.message import DecodeError  # pytype: disable=import-error
+from google.protobuf.message import DecodeError
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 from werkzeug import security

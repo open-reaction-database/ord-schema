@@ -13,7 +13,7 @@
 # limitations under the License.
 """Generic helpers for ord_schema, including common message types."""
 
-import google.protobuf.message  # pytype: disable=import-error
+import google.protobuf.message
 from google.protobuf import descriptor
 
 from ord_schema.proto import reaction_pb2

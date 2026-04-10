@@ -25,7 +25,7 @@ from collections.abc import Mapping
 from typing import BinaryIO
 
 import pandas as pd
-from google.protobuf import text_format  # pytype: disable=import-error
+from google.protobuf import text_format
 
 import ord_schema
 from ord_schema import validations
