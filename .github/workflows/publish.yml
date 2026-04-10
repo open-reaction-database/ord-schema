@@ -20,11 +20,19 @@ on:
       - main
 
 jobs:
+  # PyPA recommends splitting build (low privilege) from publish (OIDC). We keep one job because
+  # bump2version commits locally and we only push to main after PyPI + npm succeed; a second job
+  # cannot check out that unpublished commit without pushing first or shipping a full repo artifact.
   publish:
     if: github.repository == 'open-reaction-database/ord-schema'
     runs-on: ubuntu-latest
+    # Optional on PyPI: if the trusted publisher names a GitHub environment, add matching:
+    #   environment:
+    #     name: pypi
+    #     url: https://pypi.org/project/ord-schema/
     permissions:
       contents: write
+      id-token: write  # PyPI + npm trusted publishing (OIDC).
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,7 +45,8 @@ jobs:
           python-version: '3.10'
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Trusted publishing requires Node >= 22.14 and npm >= 11.5.1 (https://docs.npmjs.com/trusted-publishers)
+          node-version: '24'
           # https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
           registry-url: 'https://registry.npmjs.org'
       - name: Bump patch version
@@ -46,26 +55,27 @@ jobs:
           git config user.email github-actions@github.com
           uv pip install bump2version
           bump2version patch --verbose
-      - name: Build and upload to PyPI
-        env:
-          TWINE_USERNAME: '__token__'
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      # PyPI Trusted Publishing (OIDC); configure at https://docs.pypi.org/trusted-publishers/
+      # for this repo + workflow file publish.yml (no PYPI_API_TOKEN / legacy upload).
+      - name: Build Python distributions
         run: |
           uv pip install build twine wheel
           python -m build
           python -m twine check dist/*
-          python -m twine upload dist/*
+      # Use release/v1 (not a bare v1.x.x tag): each tag must have a matching GHCR image
+      # (ghcr.io/pypa/gh-action-pypi-publish:<ref>); v1.14.0 had no manifest at publish time.
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          verify-metadata: false
       - name: Build and upload to NPM
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cd js/ord-schema
           npm install
           npm run build
           npm publish
       - name: Build and upload to NPM (protobufjs)
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           cd js/ord-schema-protobufjs
           npm install
