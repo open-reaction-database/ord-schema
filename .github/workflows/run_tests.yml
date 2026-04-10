@@ -152,10 +152,14 @@ jobs:
           # Trusted publishing requires Node >= 22.14 and npm >= 11.5.1 (https://docs.npmjs.com/trusted-publishers)
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-      - name: Verify bump2version config (dry-run)
+      - name: Bump patch without commit (for publish dry-runs)
         run: |
           uv pip install bump2version
+          # Dry-run first: assert .bumpversion.cfg and every configured file still contain the
+          # expected current_version / search patterns before we mutate the tree (misconfig or
+          # version drift fails here without leaving a half-updated checkout).
           bump2version patch --dry-run --verbose
+          bump2version patch --no-commit --no-tag --verbose
       - name: Test python
         run: |
           # Same pre-upload steps as publish.yml; PyPI upload runs only on main with secrets.
