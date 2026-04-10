@@ -19,10 +19,12 @@ _initialized = False
 
 
 def silence_rdkit_logs(pattern: str = "rdApp.*") -> None:
-    """Disables noisy RDKit logs (use getattr; RDKit stubs omit ``DisableLog``)."""
+    """Disables noisy RDKit logs."""
     from rdkit import RDLogger
 
-    getattr(RDLogger, "DisableLog")(pattern)
+    # RDKit's type stubs omit ``DisableLog``; suppress the ty warning here so
+    # every caller doesn't have to carry its own ``ty: ignore`` comment.
+    RDLogger.DisableLog(pattern)  # ty: ignore[unresolved-attribute]
 
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:

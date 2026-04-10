@@ -36,7 +36,6 @@ import datetime
 import glob
 import os
 import re
-from typing import Union
 from xml.etree import ElementTree
 
 import docopt
@@ -163,6 +162,10 @@ def resolve_units(value: str) -> ord_schema.UnitMessage:
 def get_component_map(root: ElementTree.Element) -> dict[str, str]:
     """Builds a mapping of components to inputs."""
     reaction_inputs = {}
+    # NOTE(skearnes): ``ElementTree.Element.find`` returns ``None`` when no child matches.
+    # We treat a missing section as "no components" (via ``or []``) rather than raising;
+    # CML files occasionally omit empty sections and we don't want to abort parsing
+    # the whole reaction over it.
     # Start with a separate input for each component.
     for component in root.find("cml:reactantList", namespaces=NAMESPACES) or []:
         molecule_id = get_molecule_id(component)
@@ -254,7 +257,7 @@ def parse_product(root: ElementTree.Element, product_compound: reaction_pb2.Prod
 
 def parse_molecule(
     root: ElementTree.Element,
-    compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound],
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
 ):
     """Adds NAME identifiers to a Compound."""
     for child in root:
@@ -285,7 +288,7 @@ def parse_product_amount(root: ElementTree.Element, product_compound: reaction_p
 
 def parse_identifier(
     root: ElementTree.Element,
-    compound: Union[reaction_pb2.Compound, reaction_pb2.ProductCompound],
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
 ):
     """Adds a SMILES or INCHI identifier to a Compound."""
     kind = root.attrib["dictRef"]
@@ -322,7 +325,7 @@ def parse_reactant(root: ElementTree.Element, compound: reaction_pb2.Compound):
 
 def parse_amount(
     root: ElementTree.Element,
-    compound: Union[reaction_pb2.Compound, reaction_pb2.ProductMeasurement],
+    compound: reaction_pb2.Compound | reaction_pb2.ProductMeasurement,
 ):
     """Parses an amount."""
     property_type = root.attrib[f"{{{NAMESPACES['dl']}}}propertyType"]
@@ -431,15 +434,19 @@ def parse_parameter(root: ElementTree.Element, workup: reaction_pb2.ReactionWork
             value = (root.text or "").rstrip(".").replace("° ", "°")
             try:
                 temperature = resolve_units(value)
-                if not isinstance(temperature, reaction_pb2.Temperature):
-                    raise ValueError("not a temperature")
-                if temperature.units == temperature.CELSIUS and temperature.value < -274:
-                    raise ValueError("bad temperature")
-                if temperature.precision < 0:
-                    raise ValueError("bad temperature")
-                workup.temperature.setpoint.CopyFrom(temperature)
             except (KeyError, ValueError) as error:
                 logger.debug(f'UNITS: {error} ("{root.text}")')
+            else:
+                if not isinstance(temperature, reaction_pb2.Temperature):
+                    logger.debug(
+                        f'TEMPERATURE: resolved to {type(temperature).__name__}, not Temperature ("{root.text}")'
+                    )
+                elif temperature.units == temperature.CELSIUS and temperature.value < -274:
+                    logger.debug(f'TEMPERATURE: below absolute zero ("{root.text}")')
+                elif temperature.precision < 0:
+                    logger.debug(f'TEMPERATURE: negative precision ("{root.text}")')
+                else:
+                    workup.temperature.setpoint.CopyFrom(temperature)
     elif kind in ["Frequency", "Length", "Pressure"]:
         return  # Not supported in ReactionWorkup.
     else:

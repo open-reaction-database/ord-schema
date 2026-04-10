@@ -129,7 +129,7 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
                     JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
                     WHERE ord.dataset.dataset_id = :dataset_id
                       AND ord.reaction.rdkit_reaction_id IS NULL
-                EXCEPT 
+                EXCEPT
                 SELECT reaction_smiles
                     FROM rdkit.reactions
             ) subquery
@@ -153,7 +153,7 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
                     SELECT smiles, mol_from_smiles(smiles::cstring) AS mol
                     FROM (
                         SELECT smiles
-                            -- NOTE(skearnes): This join path does not include non-input compounds like workups, 
+                            -- NOTE(skearnes): This join path does not include non-input compounds like workups,
                             -- internal standards, etc.
                             FROM ord.compound
                             JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id

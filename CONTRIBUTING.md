@@ -55,6 +55,15 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
        pre-commit install
        ```
        Hooks run `addlicense`, Ruff (`ruff-check` with fixes + `ruff-format`), `ty check ord_schema` (same scope as CI Lint), and `clang-format` on `.proto` files. Example notebooks under `examples/` are not type-checked by `ty`; they are covered by the notebook test job (`treon`).
+
+       If you'd rather not use pre-commit, you can run the same checks by hand:
+       ```shell
+       uv run ruff check --fix .
+       uv run ruff format .
+       uv run ty check ord_schema
+       # License headers (requires Go + github.com/google/addlicense@v1.2.0):
+       addlicense -c "Open Reaction Database Project Authors" -l apache .
+       ```
     1. Create a new branch and make your changes.
     1. Test your changes by syncing the environment and running the test suite, for example:
        `uv sync --extra tests` then `uv run pytest` (or `pytest` after activating the `.venv` that `uv` creates).

@@ -84,8 +84,41 @@ include = ["ord_schema*"]
 
 [tool.ruff]
 line-length = 120
+# Generated protobuf files: never touch.
 extend-exclude = ["*_pb2.py*"]
 target-version = "py310"
+
+[tool.ruff.lint]
+# Explicit ruleset (previously relied on Ruff's default [E, F, W]).
+# Keep this conservative to avoid churn; expand as the codebase stabilizes.
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort (import sorting)
+    "B",    # flake8-bugbear (likely bugs)
+    "UP",   # pyupgrade (modernize syntax)
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    "E501",    # Line length is enforced by the formatter, not the linter.
+    "SIM108",  # Ternary expressions are not always clearer than if/else.
+    "B008",    # Function calls in argument defaults are fine for our use cases.
+    # B028 (missing stacklevel= on warnings.warn) flags ~88 pre-existing call
+    # sites in ord_schema/validations.py. Tackle as a focused follow-up PR
+    # rather than mixing it in with tooling migration.
+    "B028",
+    # SIM102/SIM105/SIM110 are stylistic rewrites (nested-if flattening,
+    # contextlib.suppress, any()). Flagged sites here are pre-existing and
+    # out of scope for the tooling migration.
+    "SIM102",
+    "SIM105",
+    "SIM110",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests often redefine fixtures and use patterns that bugbear dislikes.
+"**/*_test.py" = ["B011", "B017"]
 
 [tool.ty.src]
 exclude = ["**/*_pb2.py*"]

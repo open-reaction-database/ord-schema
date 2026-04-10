@@ -110,7 +110,7 @@ class TestMessageHelpers:
         product = reaction_pb2.ProductCompound()
         assert message_helpers.get_product_yield(product) is None
         product.measurements.add(type="YIELD", percentage=dict(value=23))
-        assert 23 == message_helpers.get_product_yield(product)
+        assert message_helpers.get_product_yield(product) == 23
 
     def test_check_compound_identifiers(self):
         compound = reaction_pb2.Compound()
@@ -380,7 +380,7 @@ class TestCompoundIdentifiers:
         assert compound.identifiers[0] == reaction_pb2.CompoundIdentifier(type="NAME", value="ice")
         compound = reaction_pb2.Compound()
         _ = message_helpers.set_compound_molblock(compound, _BENZENE_MOLBLOCK)
-        assert _BENZENE_MOLBLOCK == compound.identifiers[0].value
+        assert compound.identifiers[0].value == _BENZENE_MOLBLOCK
 
     def test_identifier_getters(self):
         compound = reaction_pb2.Compound()

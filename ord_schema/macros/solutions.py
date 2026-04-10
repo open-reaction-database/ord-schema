@@ -13,8 +13,6 @@
 # limitations under the License.
 """Macros for programmatic message creation."""
 
-from typing import Optional, Union
-
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
 
@@ -24,9 +22,9 @@ CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS, f
 
 def simple_solution(
     solvent_smiles: str,
-    solute_smiles: Optional[str] = None,
-    volume: Union[None, str, reaction_pb2.Volume] = None,
-    concentration: Union[None, str, reaction_pb2.Concentration] = None,
+    solute_smiles: str | None = None,
+    volume: None | str | reaction_pb2.Volume = None,
+    concentration: None | str | reaction_pb2.Concentration = None,
     saturated: bool = False,
 ) -> list[reaction_pb2.Compound]:
     """Creates a solution with at most one solvent and one solute.

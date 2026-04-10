@@ -18,10 +18,9 @@ import math
 import os
 import re
 import warnings
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from enum import IntEnum
-from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any
 
 from dateutil import parser
 from rdkit import Chem
@@ -62,7 +61,7 @@ class ValidationOutput:
 def validate_datasets(
     datasets: Mapping[str, dataset_pb2.Dataset],
     write_errors: bool = False,
-    options: Optional[ValidationOptions] = None,
+    options: ValidationOptions | None = None,
 ) -> None:
     """Runs validation for a set of datasets.
 
@@ -95,7 +94,7 @@ def validate_datasets(
 def _validate_datasets(
     dataset: dataset_pb2.Dataset,
     label: str = "dataset",
-    options: Optional[ValidationOptions] = None,
+    options: ValidationOptions | None = None,
 ) -> list[str]:
     """Validates Reaction messages and cross-references in a Dataset.
 
@@ -130,8 +129,8 @@ def validate_message(
     message: ord_schema.Message,
     recurse: bool = True,
     raise_on_error: bool = True,
-    options: Optional[ValidationOptions] = None,
-    trace: Optional[tuple[str, ...]] = None,
+    options: ValidationOptions | None = None,
+    trace: tuple[str, ...] | None = None,
 ) -> ValidationOutput:
     """Template function for validating custom messages in the reaction_pb2.
 
@@ -373,7 +372,7 @@ def is_valid_dataset_id(dataset_id: str) -> bool:
     return bool(match)
 
 
-def validate_dataset(message: dataset_pb2.Dataset, options: Optional[ValidationOptions] = None):
+def validate_dataset(message: dataset_pb2.Dataset, options: ValidationOptions | None = None):
     if options is None:
         options = ValidationOptions()
     if not message.name:
@@ -423,7 +422,7 @@ def validate_dataset_example(message: dataset_pb2.DatasetExample):
         warnings.warn("DatasetExample.created is required", ValidationError)
 
 
-def validate_reaction(message: reaction_pb2.Reaction, options: Optional[ValidationOptions] = None):
+def validate_reaction(message: reaction_pb2.Reaction, options: ValidationOptions | None = None):
     if options is None:
         options = ValidationOptions()
     if (

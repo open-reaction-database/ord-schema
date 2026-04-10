@@ -21,13 +21,15 @@ import re
 import urllib.parse
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Type, TypeVar, cast
+from typing import TypeVar, cast
 
 import pandas as pd
 import requests
-from google.protobuf import text_format  # pytype: disable=import-error
+from google.protobuf import (
+    json_format,
+    text_format,  # pytype: disable=import-error
+)
 from google.protobuf.message import DecodeError  # pytype: disable=import-error
-from google.protobuf import json_format
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 from werkzeug import security
@@ -210,7 +212,7 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
     return data
 
 
-def find_submessages(message: ord_schema.Message, submessage_type: Type[MessageType]) -> list[MessageType]:
+def find_submessages(message: ord_schema.Message, submessage_type: type[MessageType]) -> list[MessageType]:
     """Recursively finds all submessages of a specified type.
 
     Args:
@@ -752,7 +754,7 @@ def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset
     return dataset_pb2.Dataset.FromString(gzip.decompress(response.content))
 
 
-def load_message(filename: str, message_type: Type[MessageType]) -> MessageType:
+def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
     """Loads a protocol buffer message from a file.
 
     Args:
@@ -857,7 +859,7 @@ def create_message(message_name: str) -> ord_schema.Message:
     try:
         for name in message_name.split("."):
             message_class = getattr(message_class, name)
-        ctor = cast(Type[ord_schema.Message], message_class)
+        ctor = cast(type[ord_schema.Message], message_class)
         return ctor()
     except (AttributeError, TypeError) as error:
         raise ValueError(f"Cannot resolve message name {message_name}") from error

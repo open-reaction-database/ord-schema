@@ -49,7 +49,7 @@ def test_valid_templating(valid_reaction):
     df = pd.DataFrame.from_dict({"$smiles$": ["CCO", "CCCO", "CCCCO"], "$conversion$": [75, 50, 30]})
     dataset = templating.generate_dataset(name="test", description="test", template_string=template_string, df=df)
     expected_reactions = []
-    for smiles, conversion in zip(["CCO", "CCCO", "CCCCO"], [75, 50, 30]):
+    for smiles, conversion in zip(["CCO", "CCCO", "CCCCO"], [75, 50, 30], strict=True):
         reaction = reaction_pb2.Reaction()
         reaction.CopyFrom(valid_reaction)
         reaction.inputs["in"].components[0].identifiers[0].value = smiles
@@ -99,7 +99,7 @@ def test_invalid_templating(valid_reaction):
     template_string = template_string.replace("precision: 99", "precision: $precision$")
     df = pd.DataFrame.from_dict({"$my_smiles$": ["CCO", "CCCO", "CCCCO"], "$precision$": [75, 50, -5]})
     expected_reactions = []
-    for smiles, precision in zip(["CCO", "CCCO", "CCCCO"], [75, 50, -5]):
+    for smiles, precision in zip(["CCO", "CCCO", "CCCCO"], [75, 50, -5], strict=True):
         reaction = reaction_pb2.Reaction()
         reaction.CopyFrom(valid_reaction)
         reaction.inputs["in"].components[0].identifiers[0].value = smiles

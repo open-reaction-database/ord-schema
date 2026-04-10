@@ -15,7 +15,7 @@
 
 import collections
 import dataclasses
-from typing import Any, Union, cast
+from typing import Any
 
 import ord_schema
 
@@ -23,8 +23,6 @@ _MESSAGE_TYPES = (
     collections.abc.MutableMapping,  # Proto map.
     ord_schema.Message,  # Generic submessage.
 )
-
-# pytype: disable=attribute-error
 
 
 @dataclasses.dataclass(eq=True, frozen=True)
@@ -46,7 +44,12 @@ class FrozenMessage(collections.abc.Mapping):
           False for unset `optional` scalar values and submessages.
     """
 
-    _message: Union[collections.abc.MutableMapping, ord_schema.Message]
+    # ``_message`` is either a protobuf Message or a protobuf map (MutableMapping).
+    # We type it as ``Any`` because the two branches have near-disjoint APIs
+    # (``HasField``/``getattr`` vs ``__contains__``/``__getitem__``), and the
+    # static type of protobuf's dynamically-generated messages is opaque anyway.
+    # Runtime dispatch is handled by isinstance checks below.
+    _message: Any
 
     def __getattr__(self, name: str):
         """Fetches a message attribute, if it exists.
@@ -70,10 +73,9 @@ class FrozenMessage(collections.abc.Mapping):
         """
         m = self._message
         if isinstance(m, collections.abc.MutableMapping):
-            mm = cast(Any, m)
-            if name not in mm:
+            if name not in m:
                 raise AttributeError(f'attribute "{name}" has not been set')
-            value = mm[name]
+            value = m[name]
         else:
             try:
                 if not m.HasField(name):
@@ -86,7 +88,7 @@ class FrozenMessage(collections.abc.Mapping):
         if hasattr(value, "append"):
             # Make repeated fields (and their elements) immutable.
             repeated_values = []
-            for element in cast(Any, value):
+            for element in value:
                 if isinstance(element, _MESSAGE_TYPES):
                     repeated_values.append(FrozenMessage(element))
                 else:
@@ -95,16 +97,10 @@ class FrozenMessage(collections.abc.Mapping):
         return value
 
     def __iter__(self):
-        m = self._message
-        if isinstance(m, collections.abc.MutableMapping):
-            return iter(m)
-        return cast(Any, m).__iter__()
+        return iter(self._message)
 
     def __len__(self):
-        m = self._message
-        if isinstance(m, collections.abc.MutableMapping):
-            return len(m)
-        return len(cast(Any, m))
+        return len(self._message)
 
     def __getitem__(self, key):
         """Fetches a message key, if it exists.
@@ -127,15 +123,9 @@ class FrozenMessage(collections.abc.Mapping):
             AttributeError: if `key` has not been set explicitly.
         """
         m = self._message
-        if isinstance(m, collections.abc.MutableMapping):
-            if key not in m:
-                raise KeyError(f'key "{key}" has not been set')
-            value = m[key]
-        else:
-            am = cast(Any, m)
-            if key not in am:
-                raise KeyError(f'key "{key}" has not been set')
-            value = am[key]
+        if key not in m:
+            raise KeyError(f'key "{key}" has not been set')
+        value = m[key]
         if isinstance(value, _MESSAGE_TYPES):
             return FrozenMessage(value)
         return value

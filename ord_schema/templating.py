@@ -22,7 +22,7 @@ spreadsheet file.
 import os
 import re
 from collections.abc import Mapping
-from typing import BinaryIO, Optional, Union
+from typing import BinaryIO
 
 import pandas as pd
 from google.protobuf import text_format  # pytype: disable=import-error
@@ -32,7 +32,7 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
-def read_spreadsheet(file_name_or_buffer: Union[str, BinaryIO], suffix: Optional[str] = None) -> pd.DataFrame:
+def read_spreadsheet(file_name_or_buffer: str | BinaryIO, suffix: str | None = None) -> pd.DataFrame:
     """Reads a {csv, xls, xlsx} spreadsheet file.
 
     Args:
@@ -51,7 +51,7 @@ def read_spreadsheet(file_name_or_buffer: Union[str, BinaryIO], suffix: Optional
     return pd.read_csv(file_name_or_buffer)
 
 
-def _is_null(value: Union[float, str]) -> bool:
+def _is_null(value: float | str) -> bool:
     """Returns whether a value is null."""
     return pd.isnull(value) or (isinstance(value, str) and (value == "nan" or not value.strip()))
 

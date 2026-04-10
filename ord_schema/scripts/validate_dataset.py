@@ -28,11 +28,10 @@ from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import docopt
-from rdkit import RDLogger
 from tqdm import tqdm
 
 from ord_schema import message_helpers, validations
-from ord_schema.logging import get_logger
+from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
@@ -49,8 +48,7 @@ def filter_filenames(filenames: Iterable[str], pattern: str) -> list[str]:
 
 def run(filename: str) -> None:
     """Validates a single dataset."""
-    # Disable RDKit logging.
-    RDLogger.DisableLog("rdApp.*")  # ty: ignore[unresolved-attribute]
+    silence_rdkit_logs()
     dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
     validations.validate_datasets({filename: dataset})
 

@@ -47,7 +47,7 @@ class TestInputResolvers:
         assert len(reaction_input.components) == 1
         assert reaction_input.components[0].amount.mass == reaction_pb2.Mass(value=10, units="GRAM")
         assert reaction_input.components[0].identifiers[0] == reaction_pb2.CompoundIdentifier(type="NAME", value="THF")
-        assert reaction_pb2.CompoundIdentifier.SMILES == reaction_input.components[0].identifiers[1].type
+        assert reaction_input.components[0].identifiers[1].type == reaction_pb2.CompoundIdentifier.SMILES
         assert roundtrip_smi(reaction_input.components[0].identifiers[1].value) == roundtrip_smi("C1COCC1")
 
         string = "100 mL of 5.0uM sodium hydroxide in water"
@@ -57,14 +57,14 @@ class TestInputResolvers:
         assert reaction_input.components[0].identifiers[0] == reaction_pb2.CompoundIdentifier(
             type="NAME", value="sodium hydroxide"
         )
-        assert reaction_pb2.CompoundIdentifier.SMILES == reaction_input.components[0].identifiers[1].type
+        assert reaction_input.components[0].identifiers[1].type == reaction_pb2.CompoundIdentifier.SMILES
         assert roundtrip_smi(reaction_input.components[0].identifiers[1].value) == roundtrip_smi("[Na+].[OH-]")
         assert reaction_input.components[1].amount.volume == reaction_pb2.Volume(value=100, units="MILLILITER")
         assert reaction_input.components[1].amount.volume_includes_solutes
         assert reaction_input.components[1].identifiers[0] == reaction_pb2.CompoundIdentifier(
             type="NAME", value="water"
         )
-        assert reaction_pb2.CompoundIdentifier.SMILES == reaction_input.components[1].identifiers[1].type
+        assert reaction_input.components[1].identifiers[1].type == reaction_pb2.CompoundIdentifier.SMILES
         assert roundtrip_smi(reaction_input.components[1].identifiers[1].value) == roundtrip_smi("O")
 
     @pytest.mark.parametrize(

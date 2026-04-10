@@ -29,9 +29,10 @@ Notes:
 """
 
 from collections import defaultdict
+from collections.abc import Mapping
 from hashlib import md5
 from operator import attrgetter
-from typing import Any, Mapping, Optional, Type
+from typing import Any
 
 from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
@@ -40,12 +41,11 @@ from sqlalchemy import Boolean, Column, Enum, Float, ForeignKey, Integer, LargeB
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
+# Registers RDKitMols/RDKitReactions on Base for string relationship() targets.
+import ord_schema.orm.rdkit_mappers  # noqa: F401
 from ord_schema import message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.orm import Base
-
-# Registers RDKitMols/RDKitReactions on Base for string relationship() targets.
-import ord_schema.orm.rdkit_mappers  # noqa: F401
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
@@ -62,7 +62,7 @@ def get_message_type(full_name: str) -> Any:
         return operator(dataset_pb2)
 
 
-def get_parents(message_type: Type[Message]) -> dict[Type[Message], list[tuple[Type[Message], str, bool]]]:
+def get_parents(message_type: type[Message]) -> dict[type[Message], list[tuple[type[Message], str, bool]]]:
     """Returns the parent message types for each message type."""
     parents = defaultdict(list)
     root_desc = message_type.DESCRIPTOR
@@ -98,7 +98,7 @@ def _get_message_contexts(
     return counts
 
 
-def build_mappers() -> dict[Type[Message], Type]:
+def build_mappers() -> dict[type[Message], type]:
     """Creates ORM mapper classes for protocol buffer message types.
 
     Returns:
@@ -108,7 +108,7 @@ def build_mappers() -> dict[Type[Message], Type]:
     mappers = {}
     parents = get_parents(dataset_pb2.Dataset)
 
-    def _descriptor_name(message_type: Type[Message]) -> str:
+    def _descriptor_name(message_type: type[Message]) -> str:
         desc = message_type.DESCRIPTOR
         assert desc is not None  # Type hint.
         return desc.name
@@ -131,8 +131,8 @@ _FIELD_TYPES = {
 
 
 def build_mapper(
-    message_type: Type[Message], parents: dict[Type[Message], list[tuple[Type[Message], str, bool]]]
-) -> Type:
+    message_type: type[Message], parents: dict[type[Message], list[tuple[type[Message], str, bool]]]
+) -> type:
     """Creates a mapper class for a specific protocol buffer message type.
 
     Args:
@@ -231,8 +231,8 @@ def build_mapper(
     return mapper_class
 
 
-_MESSAGE_TO_MAPPER: dict[Type[Message], Type] = build_mappers()
-_MAPPER_TO_MESSAGE: dict[Type, Type[Message]] = {value: key for key, value in _MESSAGE_TO_MAPPER.items()}
+_MESSAGE_TO_MAPPER: dict[type[Message], type] = build_mappers()
+_MAPPER_TO_MESSAGE: dict[type, type[Message]] = {value: key for key, value in _MESSAGE_TO_MAPPER.items()}
 
 
 class _MappersMeta(type):
@@ -248,10 +248,10 @@ class _MappersMeta(type):
 class Mappers(metaclass=_MappersMeta):
     """Container for generated mapper classes."""
 
-    _MAPPERS: dict[str, Type] = {c.__name__: c for c in _MAPPER_TO_MESSAGE}
+    _MAPPERS: dict[str, type] = {c.__name__: c for c in _MAPPER_TO_MESSAGE}
 
 
-def from_proto(message: Message, mapper: Optional[Type[Base]] = None, key: Optional[str] = None) -> Base:
+def from_proto(message: Message, mapper: type[Base] | None = None, key: str | None = None) -> Base:
     """Converts a protobuf message into an ORM object.
 
     Args:

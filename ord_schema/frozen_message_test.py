@@ -118,12 +118,16 @@ def test_access_map_value():
 def test_set_scalar_value():
     frozen = _freeze(reaction_pb2.StirringConditions.StirringRate())
     with pytest.raises(dataclasses.FrozenInstanceError):
+        # Intentionally setting an attribute on a frozen dataclass; this is the
+        # error path we're verifying, so the ty diagnostic is expected.
         frozen.rpm = 123  # ty: ignore[invalid-assignment]
 
 
 def test_set_bool_value():
     frozen = _freeze(test_pb2.Scalar())
     with pytest.raises(dataclasses.FrozenInstanceError):
+        # Intentionally setting an attribute on a frozen dataclass; this is the
+        # error path we're verifying, so the ty diagnostic is expected.
         frozen.bool_value = False  # ty: ignore[invalid-assignment]
 
 
