@@ -145,6 +145,9 @@ jobs:
       - name: Bump patch without commit (for publish dry-runs)
         run: |
           uv pip install bump2version
+          # Dry-run first: assert .bumpversion.cfg and every configured file still contain the
+          # expected current_version / search patterns before we mutate the tree (misconfig or
+          # version drift fails here without leaving a half-updated checkout).
           bump2version patch --dry-run --verbose
           bump2version patch --no-commit --no-tag --verbose
       - name: Test python
