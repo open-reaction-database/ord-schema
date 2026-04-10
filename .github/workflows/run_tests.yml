@@ -139,7 +139,8 @@ jobs:
           python-version: '3.10'
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Trusted publishing requires Node >= 22.14 and npm >= 11.5.1 (https://docs.npmjs.com/trusted-publishers)
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
       - name: Verify bump2version config (dry-run)
         run: |
@@ -154,6 +155,12 @@ jobs:
       - name: Test javascript
         run: |
           cd js/ord-schema
+          npm install
+          npm run build
+          npm publish --dry-run
+      - name: Test javascript (protobufjs)
+        run: |
+          cd js/ord-schema-protobufjs
           npm install
           npm run build
           npm publish --dry-run
