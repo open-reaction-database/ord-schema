@@ -30,7 +30,7 @@ jobs:
           go-version: '>=1.16'
       - name: Install dependencies
         run: |
-          go install github.com/google/addlicense@v1.1.1
+          go install github.com/google/addlicense@v1.2.0
       - name: addlicense
         run: |
           "${HOME}/go/bin/addlicense" -check -c "Open Reaction Database Project Authors" -l apache .
@@ -56,6 +56,8 @@ jobs:
         run: |
           uv run ruff check .
           uv run ruff format --check .
+      # ty: ord_schema only. Under examples/ we ship notebooks (no .py); those are exercised in
+      # test_notebooks (treon), not static type-checking here.
       - name: Run ty
         run: |
           uv run ty check ord_schema
