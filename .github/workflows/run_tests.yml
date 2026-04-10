@@ -55,13 +55,13 @@ jobs:
           uv run coverage erase
           uv run pytest -vv --cov=ord_schema --durations=20
           uv run coverage xml
-      # Codecov v4+ uses CODECOV_TOKEN when set. Fork PRs often upload tokenless; do not fail
-      # the job on upload errors there so external contributors are not blocked.
-      # If you add workflow_dispatch, merge_group, etc., revisit fail_ci_if_error for each event.
-      - uses: codecov/codecov-action@v4
+      # Codecov uses CODECOV_TOKEN when set. Do not fail the job when uploads cannot authenticate:
+      # fork PRs (tokenless), Dependabot PRs (no repo secrets + protected dependabot/* branches).
+      # Pushes to main and normal same-repo PRs stay strict.
+      - uses: codecov/codecov-action@v5
         with:
           files: coverage.xml
-          fail_ci_if_error: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          fail_ci_if_error: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && !startsWith(github.head_ref, 'dependabot/')) }}
           token: ${{ secrets.CODECOV_TOKEN }}
 
   test_notebooks:
