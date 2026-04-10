@@ -19,7 +19,7 @@ set -ex
 ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
 # Add missing license headers.
 if command -v go &> /dev/null; then
-  go install github.com/google/addlicense@latest
+  go install github.com/google/addlicense@v1.1.1
   "${HOME}/go/bin/addlicense" \
     -c "Open Reaction Database Project Authors" \
     -l apache "${ROOT_DIR}"
@@ -27,14 +27,19 @@ else
   echo "Please install Go; see https://golang.org/doc/install"
 fi
 # Format python.
-if ! command -v black &> /dev/null; then
-  pip install black[jupyter]
+if command -v uv &> /dev/null; then
+  uv run --with 'black[jupyter]' black "${ROOT_DIR}"
+  uv run --with isort isort "${ROOT_DIR}"
+else
+  if ! command -v black &> /dev/null; then
+    pip install black[jupyter]
+  fi
+  black "${ROOT_DIR}"
+  if ! command -v isort &> /dev/null; then
+    pip install isort
+  fi
+  isort "${ROOT_DIR}"
 fi
-black "${ROOT_DIR}"
-if ! command -v isort &> /dev/null; then
-  pip install isort
-fi
-isort "${ROOT_DIR}"
 # Format proto.
 if command -v clang-format &> /dev/null; then
   # NOTE(kearnes): Make sure you have version 10 or higher!

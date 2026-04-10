@@ -40,21 +40,29 @@ jobs:
           # NOTE(skearnes): conda is only used for postgres (not python).
           conda install -c conda-forge rdkit-postgresql
           initdb
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
       - name: Install ord_schema
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install wheel
-          python -m pip install .[tests]
+        run: uv sync --extra tests --locked
       - name: Run tests
         shell: bash -l {0}
         run: |
-          coverage erase
-          pytest -vv --cov=ord_schema --durations=20
-          coverage xml
-      - uses: codecov/codecov-action@v1
+          uv run coverage erase
+          uv run pytest -vv --cov=ord_schema --durations=20
+          uv run coverage xml
+      # Codecov v4+ uses CODECOV_TOKEN when set. Fork PRs often upload tokenless; do not fail
+      # the job on upload errors there so external contributors are not blocked.
+      # If you add workflow_dispatch, merge_group, etc., revisit fail_ci_if_error for each event.
+      - uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   test_notebooks:
     strategy:
@@ -64,23 +72,23 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
       - name: Install ord_schema
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install wheel
-          python -m pip install .[examples,tests]
+        run: uv sync --extra examples --extra tests --locked
       - name: Test notebooks
-        run: |
-          treon
+        run: uv run treon
 
   test_proto_wrappers:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       - uses: actions/setup-node@v4
@@ -91,8 +99,10 @@ jobs:
           mkdir protoc
           cd protoc
           wget https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-x86_64.zip
+          echo "0f8070d762eb8a2f5a13a47713a553f989f9d9b556e7e3ebfa2bd6464e2ecaeb  protoc-22.3-linux-x86_64.zip" | sha256sum -c -
           unzip protoc-22.3-linux-x86_64.zip
           wget https://github.com/protocolbuffers/protobuf-javascript/releases/download/v3.21.2/protobuf-javascript-3.21.2-linux-x86_64.zip
+          echo "075ed6163fea314c415f67a4af68d1b6dbddc8fa8be35addf74e4c81812a9148  protobuf-javascript-3.21.2-linux-x86_64.zip" | sha256sum -c -
           unzip protobuf-javascript-3.21.2-linux-x86_64.zip
           npm i -g ts-protoc-gen@0.15.0 protobufjs@7.4.0 protobufjs-cli@1.1.3
           PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH protoc --version
@@ -109,9 +119,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: '16.x'
+          node-version: '20'
       - name: Test NPM package
         run: |
           cd js/ord-schema
@@ -121,24 +131,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - uses: actions/setup-node@v3
+      - uses: astral-sh/setup-uv@v5
         with:
-          node-version: '16.x'
+          python-version: '3.10'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
           registry-url: 'https://registry.npmjs.org'
-      - name: Test bump patch version
+      - name: Verify bump2version config (dry-run)
         run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          python -m pip install bump2version
-          bump2version patch --verbose
+          uv pip install bump2version
+          bump2version patch --dry-run --verbose
       - name: Test python
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade build twine wheel
+          # Same pre-upload steps as publish.yml; PyPI upload runs only on main with secrets.
+          uv pip install build twine wheel
           python -m build
+          python -m twine check dist/*
       - name: Test javascript
         run: |
           cd js/ord-schema

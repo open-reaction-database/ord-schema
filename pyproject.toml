@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ord-schema"
-version = "0.3.100"
+version = "0.4.0"
 description = "Schema for the Open Reaction Database"
 readme = "README.md"
 license = "Apache-2.0"
@@ -86,6 +86,7 @@ include = ["ord_schema*"]
 [tool.black]
 line-length = 120
 extend-exclude = "_pb2.py"
+target-version = ["py310"]
 
 [tool.isort]
 skip_glob = ["**/*_pb2.py*"]
