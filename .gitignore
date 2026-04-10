@@ -3,6 +3,7 @@
 # Generated docs output.
 docs/_build/
 # Misc python.
+.venv/
 __pycache__
 .coverage*
 coverage*
