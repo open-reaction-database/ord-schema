@@ -20,12 +20,19 @@ on:
       - main
 
 jobs:
+  # PyPA recommends splitting build (low privilege) from publish (OIDC). We keep one job because
+  # bump2version commits locally and we only push to main after PyPI + npm succeed; a second job
+  # cannot check out that unpublished commit without pushing first or shipping a full repo artifact.
   publish:
     if: github.repository == 'open-reaction-database/ord-schema'
     runs-on: ubuntu-latest
+    # Optional on PyPI: if the trusted publisher names a GitHub environment, add matching:
+    #   environment:
+    #     name: pypi
+    #     url: https://pypi.org/project/ord-schema/
     permissions:
       contents: write
-      id-token: write  # Required for OIDC.
+      id-token: write  # PyPI + npm trusted publishing (OIDC).
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,13 +59,14 @@ jobs:
       # for this repo + workflow file publish.yml (no PYPI_API_TOKEN / legacy upload).
       - name: Build Python distributions
         run: |
-          uv pip install build twine
+          uv pip install build twine wheel
           python -m build
           python -m twine check dist/*
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@v1.14.0
         with:
           packages-dir: dist/
+          verify-metadata: false
       - name: Build and upload to NPM
         run: |
           cd js/ord-schema
