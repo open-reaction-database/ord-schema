@@ -442,6 +442,13 @@ class TestLoadAndWriteMessage:
             with open(filename, "rb") as f:
                 assert f.read() == value
 
+    def test_pbtxt_round_trip_non_ascii_string(self, tmp_path):
+        """Regression for protobuf 5+: MessageToBytes() defaults to ASCII and raises on unicode."""
+        message = test_pb2.Scalar(string_value="β")
+        path = (tmp_path / "unicode.pbtxt").as_posix()
+        message_helpers.write_message(message, path)
+        assert message == message_helpers.load_message(path, test_pb2.Scalar)
+
     def test_bad_binary(self):
         with tempfile.NamedTemporaryFile(suffix=".pb") as f:
             message = test_pb2.RepeatedScalar(values=[1.2, 3.4])

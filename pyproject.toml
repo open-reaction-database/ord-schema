@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ord-schema"
-version = "0.4.3"
+version = "0.4.4"
 description = "Schema for the Open Reaction Database"
 readme = "README.md"
 license = "Apache-2.0"
@@ -38,7 +38,7 @@ dependencies = [
     "numpy>=1.26.4",
     "openpyxl>=3.0.5",
     "pandas>=1.0.4",
-    "protobuf>=4.22.3,<5",
+    "protobuf>=4.22.3,<6",
     "psycopg[binary,pool]>=3",
     "pygithub>=1.51",
     "python-dateutil>=1.10.0",
