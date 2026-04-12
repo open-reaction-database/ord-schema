@@ -843,7 +843,11 @@ def id_filename(filename: str) -> str:
     # Reject anything that could let the shard escape the "data/" root (e.g. "..", "/x").
     if not shard.isalnum():
         raise ValueError(f"basename shard must be alphanumeric: {basename}")
-    return posixpath.join("data", shard, basename)
+    result = posixpath.join("data", shard, basename)
+    # Defense-in-depth: mirror what werkzeug.security.safe_join used to check.
+    if posixpath.normpath(result) != result or not result.startswith("data/"):
+        raise ValueError(f"unsafe path from basename: {basename}")
+    return result
 
 
 def create_message(message_name: str) -> ord_schema.Message:
