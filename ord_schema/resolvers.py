@@ -22,7 +22,7 @@ import urllib.request
 from rdkit import Chem
 
 import ord_schema
-from ord_schema import COMPOUND_STRUCTURAL_IDENTIFIERS, message_helpers
+from ord_schema import message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
 
@@ -30,6 +30,14 @@ logger = get_logger(__name__)
 
 _USERNAME = "github-actions"
 _EMAIL = "github-actions@github.com"
+
+_COMPOUND_STRUCTURAL_IDENTIFIERS = [
+    reaction_pb2.CompoundIdentifier.SMILES,
+    reaction_pb2.CompoundIdentifier.INCHI,
+    reaction_pb2.CompoundIdentifier.MOLBLOCK,
+    reaction_pb2.CompoundIdentifier.CXSMILES,
+    reaction_pb2.CompoundIdentifier.XYZ,
+]
 
 
 def canonicalize_smiles(smiles: str) -> str:
@@ -78,7 +86,7 @@ def resolve_names(message: ord_schema.Message) -> bool:
     modified = False
     compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
     for compound in compounds:
-        if any(identifier.type in COMPOUND_STRUCTURAL_IDENTIFIERS for identifier in compound.identifiers):
+        if any(identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS for identifier in compound.identifiers):
             continue  # Compound already has a structural identifier.
         for identifier in compound.identifiers:
             if identifier.type == identifier.NAME:
