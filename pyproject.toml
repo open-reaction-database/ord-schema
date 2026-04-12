@@ -31,7 +31,6 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "Werkzeug>=3.0.3",
     "inflection>=0.5.1",
     "joblib>=1.0.0",
     "numpy>=1.26.4",

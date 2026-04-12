@@ -17,6 +17,7 @@ import enum
 import functools
 import gzip
 import os
+import posixpath
 import re
 import urllib.parse
 import warnings
@@ -32,7 +33,6 @@ from google.protobuf import (
 from google.protobuf.message import DecodeError
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
-from werkzeug import security
 
 import ord_schema
 from ord_schema import units
@@ -839,9 +839,11 @@ def id_filename(filename: str) -> str:
     prefix, suffix = basename.split("-")
     if not prefix.startswith("ord"):
         raise ValueError(f'basename does not have the required "ord" prefix: {basename}')
-    joined = security.safe_join("data", suffix[:2], basename)
-    assert joined is not None  # Type hint.
-    return joined
+    shard = suffix[:2]
+    # Reject anything that could let the shard escape the "data/" root (e.g. "..", "/x").
+    if not shard.isalnum():
+        raise ValueError(f"basename shard must be alphanumeric: {basename}")
+    return posixpath.join("data", shard, basename)
 
 
 def create_message(message_name: str) -> ord_schema.Message:
