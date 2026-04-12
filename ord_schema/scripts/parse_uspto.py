@@ -20,9 +20,6 @@ See also:
 https://depth-first.com/articles/2019/01/28/the-nextmove-patent-reaction-dataset/
 """
 
-# pylint: disable=import-error
-# pylint: disable=too-many-branches
-
 import argparse
 import datetime
 import glob
@@ -466,7 +463,7 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
         if output.errors:
             workup.type = reaction_pb2.ReactionWorkup.CUSTOM
     # Move some workups into ReactionConditions/ReactionOutcome.
-    workups = [workup for workup in reaction.workups]  # pylint: disable=unnecessary-comprehension
+    workups = list(reaction.workups)
     del reaction.workups[:]
     temperature_conditions = False
     stirring_conditions = False
