@@ -820,7 +820,10 @@ def write_message(message: ord_schema.Message, filename: str):
         if output_format == MessageFormat.JSON:
             f.write(json_format.MessageToJson(message).encode())
         elif output_format == MessageFormat.PBTXT:
-            f.write(text_format.MessageToBytes(message))
+            # Protobuf 5+ MessageToBytes() defaults to ASCII; non-ASCII string fields
+            # (common in chemistry text) then raise UnicodeEncodeError. MessageToString
+            # returns a Unicode str; UTF-8 bytes are the portable wire form for .pbtxt.
+            f.write(text_format.MessageToString(message).encode("utf-8"))
         elif output_format == MessageFormat.BINARY:
             f.write(message.SerializeToString(deterministic=True))
 
