@@ -14,6 +14,7 @@
 """Tests for ord_schema.scripts.validate_dataset."""
 
 import os
+from collections.abc import Iterator
 
 import pytest
 
@@ -23,7 +24,7 @@ from ord_schema.scripts import validate_dataset
 
 
 @pytest.fixture
-def setup(tmp_path) -> str:
+def setup(tmp_path) -> Iterator[str]:
     test_subdirectory = tmp_path.as_posix()
     reaction1 = reaction_pb2.Reaction()
     dummy_input = reaction1.inputs["dummy_input"]

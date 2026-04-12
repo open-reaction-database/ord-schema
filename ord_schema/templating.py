@@ -22,19 +22,17 @@ spreadsheet file.
 import os
 import re
 from collections.abc import Mapping
-from typing import BinaryIO, Optional, Union
+from typing import BinaryIO
 
 import pandas as pd
-from google.protobuf import text_format  # pytype: disable=import-error
+from google.protobuf import text_format
 
 import ord_schema
 from ord_schema import validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
-# pylint: disable=too-many-branches
 
-
-def read_spreadsheet(file_name_or_buffer: Union[str, BinaryIO], suffix: Optional[str] = None) -> pd.DataFrame:
+def read_spreadsheet(file_name_or_buffer: str | BinaryIO, suffix: str | None = None) -> pd.DataFrame:
     """Reads a {csv, xls, xlsx} spreadsheet file.
 
     Args:
@@ -46,13 +44,14 @@ def read_spreadsheet(file_name_or_buffer: Union[str, BinaryIO], suffix: Optional
         DataFrame containing the reaction spreadsheet data.
     """
     if suffix is None:
+        assert isinstance(file_name_or_buffer, str)  # Type hint; buffer requires suffix.
         _, suffix = os.path.splitext(file_name_or_buffer)
     if suffix in [".xls", ".xlsx"]:
         return pd.read_excel(file_name_or_buffer)
     return pd.read_csv(file_name_or_buffer)
 
 
-def _is_null(value: Union[float, str]) -> bool:
+def _is_null(value: float | str) -> bool:
     """Returns whether a value is null."""
     return pd.isnull(value) or (isinstance(value, str) and (value == "nan" or not value.strip()))
 
@@ -144,7 +143,7 @@ def generate_dataset(
         if placeholder not in df.columns:
             # Allow "$my_placeholder$" to match "my_placeholder" in df.
             if placeholder[1:-1] not in df.columns:
-                raise ValueError(f"Placeholder {placeholder} not found as a" " column in dataset spreadsheet")
+                raise ValueError(f"Placeholder {placeholder} not found as a column in dataset spreadsheet")
             df.rename(columns={placeholder[1:-1]: placeholder}, inplace=True)
 
     reactions = []

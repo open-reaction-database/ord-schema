@@ -21,6 +21,7 @@ import urllib.request
 
 from rdkit import Chem
 
+import ord_schema
 from ord_schema import COMPOUND_STRUCTURAL_IDENTIFIERS, message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
@@ -61,7 +62,7 @@ def name_resolve(value_type: str, value: str) -> tuple[str, str]:
     raise ValueError(f"Could not resolve {value_type} {value} to SMILES")
 
 
-def resolve_names(message: reaction_pb2.Reaction) -> bool:
+def resolve_names(message: ord_schema.Message) -> bool:
     """Attempts to resolve compound NAME identifiers to SMILES.
 
     When a NAME identifier is resolved, a SMILES identifier is added to the list
@@ -69,7 +70,7 @@ def resolve_names(message: reaction_pb2.Reaction) -> bool:
     next Compound after the first successful name resolution.
 
     Args:
-        message: Reaction proto.
+        message: Protocol buffer tree containing Compound submessages (e.g. Reaction or ReactionInput).
 
     Returns:
         Boolean whether `message` was modified.
@@ -107,7 +108,7 @@ def _cactus_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the CACTUS API."""
     del value_type  # Unused.
     with urllib.request.urlopen(
-        "https://cactus.nci.nih.gov/chemical/structure/" f"{urllib.parse.quote(value)}/smiles"
+        f"https://cactus.nci.nih.gov/chemical/structure/{urllib.parse.quote(value)}/smiles"
     ) as response:
         return response.read().decode().strip()
 
@@ -115,7 +116,7 @@ def _cactus_resolve(value_type: str, value: str) -> str:
 def _emolecules_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the eMolecules API."""
     del value_type  # Unused.
-    with urllib.request.urlopen("https://www.emolecules.com/" f"lookup?q={urllib.parse.quote(value)}") as response:
+    with urllib.request.urlopen(f"https://www.emolecules.com/lookup?q={urllib.parse.quote(value)}") as response:
         response_text = response.read().decode().strip()
     if response_text == "__END__":
         raise urllib.error.HTTPError("", 404, "eMolecules lookup unsuccessful", email.message.Message(), None)

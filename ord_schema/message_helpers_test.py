@@ -15,6 +15,7 @@
 
 import tempfile
 import time
+from collections.abc import Iterator
 
 import pandas as pd
 import pytest
@@ -53,8 +54,6 @@ _BENZENE_MOLBLOCK = """241
   5 11  1  0  0  0  0
   6 12  1  0  0  0  0
 M  END"""
-
-# pylint: disable=no-self-use
 
 
 class TestMessageHelpers:
@@ -111,7 +110,7 @@ class TestMessageHelpers:
         product = reaction_pb2.ProductCompound()
         assert message_helpers.get_product_yield(product) is None
         product.measurements.add(type="YIELD", percentage=dict(value=23))
-        assert 23 == message_helpers.get_product_yield(product)
+        assert message_helpers.get_product_yield(product) == 23
 
     def test_check_compound_identifiers(self):
         compound = reaction_pb2.Compound()
@@ -381,7 +380,7 @@ class TestCompoundIdentifiers:
         assert compound.identifiers[0] == reaction_pb2.CompoundIdentifier(type="NAME", value="ice")
         compound = reaction_pb2.Compound()
         _ = message_helpers.set_compound_molblock(compound, _BENZENE_MOLBLOCK)
-        assert _BENZENE_MOLBLOCK == compound.identifiers[0].value
+        assert compound.identifiers[0].value == _BENZENE_MOLBLOCK
 
     def test_identifier_getters(self):
         compound = reaction_pb2.Compound()
@@ -415,7 +414,7 @@ class TestSetDativeBonds:
 
 class TestLoadAndWriteMessage:
     @pytest.fixture
-    def messages(self) -> list:
+    def messages(self) -> Iterator[list]:
         yield [
             test_pb2.Scalar(int32_value=3, float_value=4.5),
             test_pb2.RepeatedScalar(values=[1.2, 3.4]),
@@ -442,6 +441,13 @@ class TestLoadAndWriteMessage:
             message_helpers.write_message(message, filename)
             with open(filename, "rb") as f:
                 assert f.read() == value
+
+    def test_pbtxt_round_trip_non_ascii_string(self, tmp_path):
+        """Regression for protobuf 5+: MessageToBytes() defaults to ASCII and raises on unicode."""
+        message = test_pb2.Scalar(string_value="β")
+        path = (tmp_path / "unicode.pbtxt").as_posix()
+        message_helpers.write_message(message, path)
+        assert message == message_helpers.load_message(path, test_pb2.Scalar)
 
     def test_bad_binary(self):
         with tempfile.NamedTemporaryFile(suffix=".pb") as f:

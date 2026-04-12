@@ -1,8 +1,12 @@
+# Cursor editor (local-only rules; not part of the upstream tree).
+.cursor/
+
 # PyCharm files.
 .idea/
 # Generated docs output.
 docs/_build/
 # Misc python.
+.venv/
 __pycache__
 .coverage*
 coverage*

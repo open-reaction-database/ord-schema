@@ -18,9 +18,9 @@ import math
 import os
 import re
 import warnings
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from enum import IntEnum
-from typing import Any, Optional
+from typing import Any
 
 from dateutil import parser
 from rdkit import Chem
@@ -32,10 +32,6 @@ from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
-
-
-# pylint: disable=too-many-branches
-# pylint: disable=too-many-positional-arguments
 
 
 @dataclasses.dataclass
@@ -65,7 +61,7 @@ class ValidationOutput:
 def validate_datasets(
     datasets: Mapping[str, dataset_pb2.Dataset],
     write_errors: bool = False,
-    options: Optional[ValidationOptions] = None,
+    options: ValidationOptions | None = None,
 ) -> None:
     """Runs validation for a set of datasets.
 
@@ -98,7 +94,7 @@ def validate_datasets(
 def _validate_datasets(
     dataset: dataset_pb2.Dataset,
     label: str = "dataset",
-    options: Optional[ValidationOptions] = None,
+    options: ValidationOptions | None = None,
 ) -> list[str]:
     """Validates Reaction messages and cross-references in a Dataset.
 
@@ -133,8 +129,8 @@ def validate_message(
     message: ord_schema.Message,
     recurse: bool = True,
     raise_on_error: bool = True,
-    options: Optional[ValidationOptions] = None,
-    trace: Optional[tuple[str, ...]] = None,
+    options: ValidationOptions | None = None,
+    trace: tuple[str, ...] | None = None,
 ) -> ValidationOutput:
     """Template function for validating custom messages in the reaction_pb2.
 
@@ -165,7 +161,9 @@ def validate_message(
         ValidationError: If any fields are invalid.
     """
     if trace is None:
-        trace = (message.DESCRIPTOR.name,)
+        root_desc = type(message).DESCRIPTOR
+        assert root_desc is not None  # Type hint.
+        trace = (root_desc.name,)
     output = ValidationOutput()
     # Recurse through submessages
     if recurse:
@@ -196,13 +194,13 @@ def validate_message(
             _VALIDATOR_SWITCH[type(message)](message)
     stack = ".".join(trace)
     for warning in tape:
-        message = f"{stack}: {warning.message}"
+        warning_text = f"{stack}: {warning.message}"
         if issubclass(warning.category, ValidationError):
             if raise_on_error:
-                raise ValidationError(message)
-            output.errors.append(message)
+                raise ValidationError(warning_text)
+            output.errors.append(warning_text)
         else:
-            output.warnings.append(message)
+            output.warnings.append(warning_text)
     return output
 
 
@@ -211,7 +209,7 @@ def _validate_message(
     value: Any,
     output: ValidationOutput,
     raise_on_error: bool,
-    options: ValidationOptions,
+    options: ValidationOptions | None,
     trace: tuple[str, ...],
 ):
     """Validates a single message field and its children.
@@ -272,11 +270,12 @@ def is_empty(message: ord_schema.Message):
     return message.SerializeToString(deterministic=True) == empty
 
 
-# pylint: disable=missing-function-docstring
 def ensure_float_nonnegative(message: ord_schema.Message, field: str):
     if getattr(message, field) < 0:
+        desc = type(message).DESCRIPTOR
+        assert desc is not None  # Type hint.
         warnings.warn(
-            f"Field {field} of message " f"{type(message).DESCRIPTOR.name} must be non-negative",
+            f"Field {field} of message {desc.name} must be non-negative",
             ValidationError,
         )
 
@@ -288,10 +287,10 @@ def ensure_float_range(
     max_value: float = math.inf,
 ):
     if getattr(message, field) < min_value or getattr(message, field) > max_value:
+        desc = type(message).DESCRIPTOR
+        assert desc is not None  # Type hint.
         warnings.warn(
-            f"Field {field} of message "
-            f"{type(message).DESCRIPTOR.name} must be between"
-            f" {min_value} and {max_value}",
+            f"Field {field} of message {desc.name} must be between {min_value} and {max_value}",
             ValidationError,
         )
 
@@ -373,8 +372,7 @@ def is_valid_dataset_id(dataset_id: str) -> bool:
     return bool(match)
 
 
-def validate_dataset(message: dataset_pb2.Dataset, options: Optional[ValidationOptions] = None):
-    # pylint: disable=too-many-branches,too-many-nested-blocks
+def validate_dataset(message: dataset_pb2.Dataset, options: ValidationOptions | None = None):
     if options is None:
         options = ValidationOptions()
     if not message.name:
@@ -410,8 +408,7 @@ def validate_dataset(message: dataset_pb2.Dataset, options: Optional[ValidationO
         dataset_referenced_ids |= referenced_ids
     if len(dataset_referenced_ids - dataset_defined_ids) > 0:
         warnings.warn(
-            "Reactions in the Dataset refer to undefined "
-            f"reaction_ids {dataset_referenced_ids - dataset_defined_ids}",
+            f"Reactions in the Dataset refer to undefined reaction_ids {dataset_referenced_ids - dataset_defined_ids}",
             ValidationError,
         )
 
@@ -425,7 +422,7 @@ def validate_dataset_example(message: dataset_pb2.DatasetExample):
         warnings.warn("DatasetExample.created is required", ValidationError)
 
 
-def validate_reaction(message: reaction_pb2.Reaction, options: Optional[ValidationOptions] = None):
+def validate_reaction(message: reaction_pb2.Reaction, options: ValidationOptions | None = None):
     if options is None:
         options = ValidationOptions()
     if (
@@ -813,7 +810,6 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
 
 
 def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome):
-    # pylint: disable=singleton-comparison
     # *Usually* there should be at most one PRODUCT & is_desired_product
     ndp = sum(
         product.is_desired_product
@@ -833,7 +829,7 @@ def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome):
         for measurement in product.measurements:
             if measurement.analysis_key and measurement.analysis_key not in analysis_keys:
                 warnings.warn(
-                    f"analysis key {measurement.analysis_key} does not match " f"any known analysis ({analysis_keys})",
+                    f"analysis key {measurement.analysis_key} does not match any known analysis ({analysis_keys})",
                     ValidationError,
                 )
     # TODO(ccoley): While we do not currently check whether the parent Reaction
@@ -1084,7 +1080,7 @@ def validate_percentage(message: reaction_pb2.Percentage):
         warnings.warn(f"{type(message)} requires `value` to be set", ValidationError)
     if 0 < message.value < 1:
         warnings.warn(
-            "Percentage values are 0-100, not fractions " f"({message.value} used)",
+            f"Percentage values are 0-100, not fractions ({message.value} used)",
             ValidationWarning,
         )
     if message.value < 0 or message.value > 100:
@@ -1107,9 +1103,7 @@ def validate_data(message: reaction_pb2.Data):
         warnings.warn("Data format is required for bytes_data", ValidationError)
 
 
-# pylint: enable=missing-function-docstring
-
-_VALIDATOR_SWITCH = {
+_VALIDATOR_SWITCH: dict[type, Callable[..., None]] = {
     dataset_pb2.Dataset: validate_dataset,
     dataset_pb2.DatasetExample: validate_dataset_example,
     reaction_pb2.Reaction: validate_reaction,

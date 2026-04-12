@@ -23,13 +23,12 @@ from contextlib import ExitStack
 from glob import glob
 from hashlib import md5
 
-from rdkit import RDLogger
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
-from ord_schema.logging import get_logger
+from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.message_helpers import load_message
 from ord_schema.orm import database
 from ord_schema.proto import dataset_pb2
@@ -102,7 +101,7 @@ def parse_args(argv=None):
 
 
 def main(args):
-    RDLogger.DisableLog("rdApp.*")
+    silence_rdkit_logs()
     if args.debug:
         get_logger(database.__name__, level=logging.DEBUG)
     if args.dsn:
@@ -132,7 +131,7 @@ def main(args):
         for future in tqdm(as_completed(futures), total=len(futures)):
             try:
                 dataset_ids.append(future.result())
-            except Exception as error:  # pylint: disable=broad-exception-caught
+            except Exception as error:
                 filename = futures[future]
                 failures.append(filename)
                 logger.error(f"Adding dataset {filename} failed: {error}")
@@ -141,7 +140,7 @@ def main(args):
     for dataset_id in tqdm(dataset_ids):
         try:
             add_rdkit(engine, dataset_id)  # NOTE(skearnes): Do this serially to avoid deadlocks.
-        except Exception as error:  # pylint: disable=broad-exception-caught
+        except Exception as error:
             failures.append(dataset_id)
             logger.error(f"Adding RDKit functionality for {dataset_id} failed: {error}")
     if failures:

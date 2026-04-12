@@ -14,16 +14,20 @@
 """Helpers for translating strings with units."""
 
 import re
-from typing import Optional, Tuple, Type, Union
+from typing import TypeAlias
 
 import numpy as np
 
 import ord_schema
 from ord_schema.proto import reaction_pb2
 
+# Protobuf-generated enum constants (e.g. reaction_pb2.Time.DAY) are int-valued;
+# there is no public google.protobuf type for “any enum member” in Python.
+ProtoEnumMember: TypeAlias = int
+
 # Accepted synonyms for units. Note that all values will be converted to
 # lowercase.
-_UNIT_SYNONYMS = {
+_UNIT_SYNONYMS: dict[type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[str]]] = {
     reaction_pb2.Time: {
         reaction_pb2.Time.DAY: ["d", "day", "days"],
         reaction_pb2.Time.HOUR: ["h", "hour", "hours", "hr", "hrs"],
@@ -138,7 +142,7 @@ _FORBIDDEN_UNITS = {
     "m": "ambiguous between meter and minute",
 }
 
-_UNIT_CONVERSIONS = {
+_UNIT_CONVERSIONS: dict[type[ord_schema.UnitMessage], dict[ProtoEnumMember, int | float]] = {
     reaction_pb2.Time: {
         reaction_pb2.Time.DAY: 24,
         reaction_pb2.Time.HOUR: 1,
@@ -197,7 +201,7 @@ _UNIT_CONVERSIONS = {
 
 # Concentration units are defined separately since they are not needed for any
 # native fields in the reaction schema.
-CONCENTRATION_UNIT_SYNONYMS = {
+CONCENTRATION_UNIT_SYNONYMS: dict[type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[str]]] = {
     reaction_pb2.Concentration: {
         reaction_pb2.Concentration.MOLAR: ["M", "molar"],
         reaction_pb2.Concentration.MILLIMOLAR: ["mM", "millimolar"],
@@ -205,7 +209,7 @@ CONCENTRATION_UNIT_SYNONYMS = {
     },
 }
 
-CONCENTRATION_M_PER_UNIT = {
+CONCENTRATION_M_PER_UNIT: dict[ProtoEnumMember, float] = {
     reaction_pb2.Concentration.ConcentrationUnit.MOLAR: 1,
     reaction_pb2.Concentration.ConcentrationUnit.MILLIMOLAR: 1e-3,
     reaction_pb2.Concentration.ConcentrationUnit.MICROMOLAR: 1e-6,
@@ -217,8 +221,8 @@ class UnitResolver:
 
     def __init__(
         self,
-        unit_synonyms: Optional[dict[Type[ord_schema.UnitMessage], dict[ord_schema.Message, list[str]]]] = None,
-        forbidden_units: Optional[dict[str, str]] = None,
+        unit_synonyms: dict[type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[str]]] | None = None,
+        forbidden_units: dict[str, str] | None = None,
     ):
         """Initializes a UnitResolver.
 
@@ -238,6 +242,8 @@ class UnitResolver:
             unit_synonyms = _UNIT_SYNONYMS
         if forbidden_units is None:
             forbidden_units = _FORBIDDEN_UNITS
+        assert unit_synonyms is not None  # Type hint.
+        assert forbidden_units is not None  # Type hint.
         self._forbidden_units = forbidden_units
         self._resolver = {}
         for message in unit_synonyms:
@@ -279,7 +285,7 @@ class UnitResolver:
                 value = float(value)
                 precision = float(range_value)
             elif not allow_range:
-                raise ValueError("string appears to contain a range of values " f"but allow_range is False: {string}")
+                raise ValueError(f"string appears to contain a range of values but allow_range is False: {string}")
             else:
                 values = np.asarray([value, range_value], dtype=float)
                 value = values.mean()
@@ -287,14 +293,14 @@ class UnitResolver:
         else:
             value = float(value)
         assert string_unit is not None  # Type hint.
-        message, unit = self.resolve_unit(string_unit)
-        if value < 0.0 and message != reaction_pb2.Temperature:
+        message_cls, unit = self.resolve_unit(string_unit)
+        if value < 0.0 and message_cls != reaction_pb2.Temperature:
             raise ValueError(f"negative values are only allowed for temperature: {string}")
         if precision:
-            return message(value=value, precision=precision, units=unit)
-        return message(value=value, units=unit)
+            return message_cls(value=value, precision=precision, units=unit)
+        return message_cls(value=value, units=unit)
 
-    def resolve_unit(self, string_unit: str) -> Tuple[ord_schema.UnitMessage, ord_schema.Message]:
+    def resolve_unit(self, string_unit: str) -> tuple[type[ord_schema.UnitMessage], ProtoEnumMember]:
         """Resolves a unit string into its message type and unit ENUM value.
 
         Args:
@@ -308,13 +314,13 @@ class UnitResolver:
         """
         string_unit = string_unit.lower()
         if string_unit in self._forbidden_units:
-            raise KeyError(f"forbidden units: {string_unit}: " f"({self._forbidden_units[string_unit]})")
+            raise KeyError(f"forbidden units: {string_unit}: ({self._forbidden_units[string_unit]})")
         if string_unit not in self._resolver:
             raise KeyError(f"unrecognized units: {string_unit}")
-        message, unit = self._resolver[string_unit]
-        return (message, unit)
+        message_cls, unit = self._resolver[string_unit]
+        return (message_cls, unit)
 
-    def convert(self, message: ord_schema.UnitMessage, new_units: Union[str, int]) -> ord_schema.UnitMessage:
+    def convert(self, message: ord_schema.UnitMessage, new_units: str | int) -> ord_schema.UnitMessage:
         """Converts a united message into another united message of the same
         type, but with different units.
 
@@ -328,7 +334,6 @@ class UnitResolver:
         Returns:
             A new message with units, e.g., Mass, Length.
         """
-        # pylint: disable=too-many-branches
         message_type = type(message)
         if isinstance(new_units, str):
             new_message_type, new_units = self.resolve_unit(new_units)
@@ -392,7 +397,7 @@ class UnitResolver:
         return new_message
 
 
-def format_message(message: ord_schema.UnitMessage) -> Optional[str]:
+def format_message(message: ord_schema.UnitMessage) -> str | None:
     """Formats a united message into a string.
 
     Args:
@@ -402,7 +407,7 @@ def format_message(message: ord_schema.UnitMessage) -> Optional[str]:
         A string describing the value, e.g., "5.0 (p/m 0.1) mL" using the
             first unit synonym listed in _UNIT_SYNONYMS.
     """
-    if message.units == getattr(type(message)(), "UNSPECIFIED"):
+    if message.units == type(message)().UNSPECIFIED:
         return None
     txt = f"{message.value:.7g} "
     if message.precision:

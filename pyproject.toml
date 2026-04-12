@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ord-schema"
-version = "0.3.100"
+version = "0.4.5"
 description = "Schema for the Open Reaction Database"
 readme = "README.md"
 license = "Apache-2.0"
@@ -37,7 +37,7 @@ dependencies = [
     "numpy>=1.26.4",
     "openpyxl>=3.0.5",
     "pandas>=1.0.4",
-    "protobuf>=4.22.3,<5",
+    "protobuf>=4.22.3,<6",
     "psycopg[binary,pool]>=3",
     "pygithub>=1.51",
     "python-dateutil>=1.10.0",
@@ -64,13 +64,12 @@ examples = [
     "wget>=3.2",
 ]
 tests = [
-    "black[jupyter]>=22.3.0",
+    "ruff>=0.9.9",
     "coverage>=5.2.1",
-    "pylint>=2.17.4",
     "pytest>=7.1.1",
     "pytest-cov>=3.0.0",
     "pytest-xdist>=3.0.2",
-    "pytype>=2023.6.16",
+    "ty>=0.0.28",
     "testing-postgresql>=1.3.0",
     "treon>=0.1.3",
 ]
@@ -81,18 +80,43 @@ include = ["ord_schema*"]
 [tool.setuptools.package-data]
 "ord_schema.proto" = ["*.pyi"]
 
-[tool.black]
+[tool.ruff]
 line-length = 120
-extend-exclude = "_pb2.py"
+# Generated protobuf files: never touch.
+extend-exclude = ["*_pb2.py*"]
+target-version = "py310"
 
-[tool.isort]
-skip_glob = ["**/*_pb2.py*"]
-line_length = 120
-profile = "black"
+[tool.ruff.lint]
+# Explicit ruleset (previously relied on Ruff's default [E, F, W]).
+# Keep this conservative to avoid churn; expand as the codebase stabilizes.
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort (import sorting)
+    "B",    # flake8-bugbear (likely bugs)
+    "UP",   # pyupgrade (modernize syntax)
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    "E501",    # Line length is enforced by the formatter, not the linter.
+    "SIM108",  # Ternary expressions are not always clearer than if/else.
+    "B008",    # Function calls in argument defaults are fine for our use cases.
+    # B028 (missing stacklevel= on warnings.warn) flags ~88 pre-existing call
+    # sites in ord_schema/validations.py. Tackle as a focused follow-up PR
+    # rather than mixing it in with tooling migration.
+    "B028",
+    # SIM102/SIM105/SIM110 are stylistic rewrites (nested-if flattening,
+    # contextlib.suppress, any()). Flagged sites here are pre-existing and
+    # out of scope for the tooling migration.
+    "SIM102",
+    "SIM105",
+    "SIM110",
+]
 
-[tool.pytype]
-inputs = ["ord_schema"]
-exclude = ["**/*_test.py", "**/test_*.py", "**/*_pb2.py", "build/", "dist/"]
-keep_going = true
-disable = ["module-attr", "pyi-error"]
-jobs = 0
+[tool.ruff.lint.per-file-ignores]
+# Tests often redefine fixtures and use patterns that bugbear dislikes.
+"**/*_test.py" = ["B011", "B017"]
+
+[tool.ty.src]
+exclude = ["**/*_pb2.py*"]

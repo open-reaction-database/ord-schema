@@ -29,13 +29,21 @@ Click here to run the examples with Binder:
 
 ## Development
 
-To install in editable/development mode:
+To install in editable/development mode (recommended: [uv](https://docs.astral.sh/uv/)):
 
 ```shell
 $ git clone https://github.com/open-reaction-database/ord-schema.git
 $ cd ord-schema
-$ pip install -e .
+$ uv sync --extra tests
 ```
+
+With tests and examples (notebooks, heavier deps):
+
+```shell
+$ uv sync --extra examples --extra tests
+```
+
+You can still use pip if you prefer: `pip install -e ".[tests]"`.
 
 If you make changes to the protocol buffer definitions, [install](https://grpc.io/docs/protoc-installation/) `protoc`
 and run `./compile_proto_wrappers.sh` to rebuild the wrappers.

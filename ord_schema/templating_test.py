@@ -13,6 +13,8 @@
 # limitations under the License.
 """Tests for ord_schema.templating."""
 
+from collections.abc import Iterator
+
 import pandas as pd
 import pytest
 from google.protobuf import text_format
@@ -23,7 +25,7 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
 @pytest.fixture
-def valid_reaction() -> reaction_pb2.Reaction:
+def valid_reaction() -> Iterator[reaction_pb2.Reaction]:
     message = reaction_pb2.Reaction()
     dummy_input = message.inputs["in"]
     outcome = message.outcomes.add()
@@ -47,7 +49,7 @@ def test_valid_templating(valid_reaction):
     df = pd.DataFrame.from_dict({"$smiles$": ["CCO", "CCCO", "CCCCO"], "$conversion$": [75, 50, 30]})
     dataset = templating.generate_dataset(name="test", description="test", template_string=template_string, df=df)
     expected_reactions = []
-    for smiles, conversion in zip(["CCO", "CCCO", "CCCCO"], [75, 50, 30]):
+    for smiles, conversion in zip(["CCO", "CCCO", "CCCCO"], [75, 50, 30], strict=True):
         reaction = reaction_pb2.Reaction()
         reaction.CopyFrom(valid_reaction)
         reaction.inputs["in"].components[0].identifiers[0].value = smiles
@@ -97,7 +99,7 @@ def test_invalid_templating(valid_reaction):
     template_string = template_string.replace("precision: 99", "precision: $precision$")
     df = pd.DataFrame.from_dict({"$my_smiles$": ["CCO", "CCCO", "CCCCO"], "$precision$": [75, 50, -5]})
     expected_reactions = []
-    for smiles, precision in zip(["CCO", "CCCO", "CCCCO"], [75, 50, -5]):
+    for smiles, precision in zip(["CCO", "CCCO", "CCCCO"], [75, 50, -5], strict=True):
         reaction = reaction_pb2.Reaction()
         reaction.CopyFrom(valid_reaction)
         reaction.inputs["in"].components[0].identifiers[0].value = smiles
@@ -122,7 +124,6 @@ def test_bad_placeholders(valid_reaction):
 
 
 def test_missing_values(tmp_path):
-    # pylint: disable=too-many-locals
     # Build a template reaction.
     reaction = reaction_pb2.Reaction()
     reaction.provenance.record_created.time.value = "2023-07-01"
