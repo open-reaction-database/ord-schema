@@ -19,6 +19,7 @@ import urllib.parse
 import urllib.request
 
 from rdkit import Chem
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_random_exponential
 
 import ord_schema
 from ord_schema import message_helpers
@@ -102,6 +103,19 @@ def resolve_names(message: ord_schema.Message) -> bool:
     return modified
 
 
+def _is_pubchem_busy(exception: BaseException) -> bool:
+    # PubChem returns 503 PUGREST.ServerBusy when its service-wide concurrent
+    # request load is shedding (independent of any per-IP quota). Retry only
+    # that case; 404 (unknown name) and other 4xx codes should fall through.
+    return isinstance(exception, urllib.error.HTTPError) and exception.code == 503
+
+
+@retry(
+    retry=retry_if_exception(_is_pubchem_busy),
+    stop=stop_after_attempt(5),
+    wait=wait_random_exponential(multiplier=1, max=8),
+    reraise=True,
+)
 def _pubchem_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the PubChem REST API."""
     with urllib.request.urlopen(
