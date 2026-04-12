@@ -111,6 +111,18 @@ def _pubchem_resolve(value_type: str, value: str) -> str:
         return response.read().decode().strip()
 
 
+def _opsin_resolve(value_type: str, value: str) -> str:
+    """Resolves systematic IUPAC names to SMILES via the OPSIN web service.
+
+    OPSIN is a parser for systematic IUPAC nomenclature, not a lookup service:
+    it will refuse trade names, trivial names, and abbreviations (e.g. "aspirin",
+    "THF") with an HTTP 404. Treat it strictly as a complement to PubChem.
+    """
+    del value_type  # OPSIN only supports names.
+    with urllib.request.urlopen(f"https://www.ebi.ac.uk/opsin/ws/{urllib.parse.quote(value)}.smi") as response:
+        return response.read().decode().strip()
+
+
 def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
     """Resolve a text-based description of an input in one of the following
     formats:
@@ -155,11 +167,17 @@ def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
     return reaction_input
 
 
-# Standard name resolvers. PubChem is currently the only one that works:
-#  - NCI/CADD's /chemical/structure endpoint has been returning 503 for every query
-#    and the project blog has been silent since 2013.
-#  - eMolecules' public /lookup?q= endpoint now always replies "__END__", including
-#    for raw SMILES; their current API requires authentication.
+# Standard name resolvers.
+#
+# PubChem handles the bulk of inputs (trade names, trivial names, abbreviations,
+# CAS numbers), and OPSIN is a reliable fallback for systematic IUPAC names when
+# PubChem is unavailable or rate-limited.
+#
+# Previously also included NCI/CADD (cactus.nci.nih.gov) and eMolecules, which
+# are both effectively dead: cactus has been returning uniform 503s with a silent
+# blog since 2013, and eMolecules' public /lookup?q= endpoint now always replies
+# "__END__" (their current API requires authentication).
 _NAME_RESOLVERS = {
     "PubChem API": _pubchem_resolve,
+    "OPSIN": _opsin_resolve,
 }
