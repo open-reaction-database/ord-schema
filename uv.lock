@@ -2468,7 +2468,6 @@ dependencies = [
     { name = "rdkit" },
     { name = "sqlalchemy" },
     { name = "tqdm" },
-    { name = "werkzeug" },
 ]
 
 [package.optional-dependencies]
@@ -2534,7 +2533,6 @@ requires-dist = [
     { name = "tqdm", specifier = ">=4.61.2" },
     { name = "treon", marker = "extra == 'tests'", specifier = ">=0.1.3" },
     { name = "ty", marker = "extra == 'tests'", specifier = ">=0.0.28" },
-    { name = "werkzeug", specifier = ">=3.0.3" },
     { name = "wget", marker = "extra == 'examples'", specifier = ">=3.2" },
 ]
 provides-extras = ["docs", "examples", "tests"]
