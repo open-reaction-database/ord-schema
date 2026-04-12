@@ -171,28 +171,28 @@ def get_change_stats(
     return new - old, old - new, new & old
 
 
-def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset], args) -> None:
-    """Updates the submission files.
-
-    Args:
-        datasets: Dict mapping filenames to Dataset messages.
-
-    Raises:
-        ValueError: if any Reaction is larger than FLAGS.max_size.
-    """
+def _run_updates(
+    datasets: Mapping[str, dataset_pb2.Dataset],
+    *,
+    root: str,
+    output_format: str,
+    write_errors: bool,
+    cleanup_files: bool,
+) -> None:
+    """Updates the submission files."""
     for dataset in datasets.values():
         # Set reaction_ids, resolve names, fix cross-references, etc.
         updates.update_dataset(dataset)
     # Final validation to make sure we didn't break anything.
     options = validations.ValidationOptions(validate_ids=True, require_provenance=True)
-    validations.validate_datasets(datasets, args.write_errors, options=options)
+    validations.validate_datasets(datasets, write_errors, options=options)
     for filename, dataset in datasets.items():
         output_filename = os.path.join(
-            args.root,
-            message_helpers.id_filename(f"{dataset.dataset_id}{args.output_format}"),
+            root,
+            message_helpers.id_filename(f"{dataset.dataset_id}{output_format}"),
         )
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-        if args.cleanup:
+        if cleanup_files:
             cleanup(filename, output_filename)
         logger.info("writing Dataset to %s", output_filename)
         message_helpers.write_message(dataset, output_filename)
@@ -244,7 +244,13 @@ def run(args) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
                 len(changed),
             )
         if args.update and dataset is not None:
-            _run_updates(datasets_checked, args)
+            _run_updates(
+                datasets_checked,
+                root=args.root,
+                output_format=args.output_format,
+                write_errors=args.write_errors,
+                cleanup_files=args.cleanup,
+            )
     if change_stats:
         total_added, total_removed, total_changed = set(), set(), set()
         comment = [
@@ -276,9 +282,7 @@ def parse_args(argv=None):
     parser.add_argument("--root", default="", help="Root of the repository")
     parser.add_argument("--output_format", default=".pb.gz", help="Dataset output format")
     parser.add_argument("--write_errors", action="store_true", help="If True, errors will be written to *.error")
-    parser.add_argument(
-        "--no-validate", action="store_true", dest="no_validate", help="If set, reactions will not be validated"
-    )
+    parser.add_argument("--no-validate", action="store_true", help="If set, reactions will not be validated")
     parser.add_argument("--update", action="store_true", help="If True, update Reaction protos")
     parser.add_argument("--cleanup", action="store_true", help="If True, use git to clean up")
     parser.add_argument("--max_size", type=float, default=10.0, help="Maximum size (in MB) for any Reaction message")

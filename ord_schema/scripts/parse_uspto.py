@@ -531,6 +531,15 @@ def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.R
     return reactions, failures
 
 
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Parse CML from the NRD")
+    parser.add_argument("--input_pattern", required=True, help="Input pattern for CML files")
+    parser.add_argument("--name", required=True, help="Dataset name")
+    parser.add_argument("--output", required=True, help="Output Dataset filename")
+    parser.add_argument("--n_jobs", type=int, default=1, help="Number of parallel workers")
+    return parser.parse_args(argv)
+
+
 def main(args):
     filenames = sorted(glob.glob(args.input_pattern))
     all_reactions = joblib.Parallel(n_jobs=args.n_jobs, verbose=True)(
@@ -550,15 +559,6 @@ def main(args):
         if failures:
             failure_dataset = dataset_pb2.Dataset(reactions=failures, name=args.name)
             message_helpers.write_message(failure_dataset, args.output + ".failures.pb")
-
-
-def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="Parse CML from the NRD")
-    parser.add_argument("--input_pattern", required=True, help="Input pattern for CML files")
-    parser.add_argument("--name", required=True, help="Dataset name")
-    parser.add_argument("--output", required=True, help="Output Dataset filename")
-    parser.add_argument("--n_jobs", type=int, default=1, help="Number of parallel workers")
-    return parser.parse_args(argv)
 
 
 if __name__ == "__main__":

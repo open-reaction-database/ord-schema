@@ -28,9 +28,6 @@ from ord_schema.proto import reaction_pb2
 
 logger = get_logger(__name__)
 
-_USERNAME = "github-actions"
-_EMAIL = "github-actions@github.com"
-
 _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.SMILES,
     reaction_pb2.CompoundIdentifier.INCHI,
@@ -38,6 +35,9 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.CXSMILES,
     reaction_pb2.CompoundIdentifier.XYZ,
 ]
+
+_USERNAME = "github-actions"
+_EMAIL = "github-actions@github.com"
 
 
 def canonicalize_smiles(smiles: str) -> str:
