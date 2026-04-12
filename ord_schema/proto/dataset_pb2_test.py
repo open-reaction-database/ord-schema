@@ -13,13 +13,15 @@
 # limitations under the License.
 """Tests for ord_schema.proto.dataset_pb2."""
 
+from collections.abc import Iterator
+
 import pytest
 
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
 @pytest.fixture
-def serialized_dataset() -> bytes:
+def serialized_dataset() -> Iterator[bytes]:
     dataset = dataset_pb2.Dataset()
     dataset.name = "test"
     dataset.description = "test dataset"

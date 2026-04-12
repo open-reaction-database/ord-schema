@@ -14,6 +14,7 @@
 """Tests for ord_schema.scripts.enumerate_dataset."""
 
 import os
+from collections.abc import Iterator
 
 import docopt
 import pandas as pd
@@ -25,7 +26,7 @@ from ord_schema.scripts import enumerate_dataset
 
 
 @pytest.fixture
-def setup(tmp_path) -> tuple[str, str, str]:
+def setup(tmp_path) -> Iterator[tuple[str, str, dataset_pb2.Dataset]]:
     dirname = tmp_path.as_posix()
     template_string = """
     inputs {

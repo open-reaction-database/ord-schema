@@ -14,8 +14,9 @@
 
 """Base ORM objects."""
 
-from rdkit import RDLogger
 from sqlalchemy.orm import declarative_base
 
-RDLogger.DisableLog("rdApp.*")
+from ord_schema.logging import silence_rdkit_logs
+
+silence_rdkit_logs()
 Base = declarative_base()

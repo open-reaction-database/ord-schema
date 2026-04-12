@@ -13,6 +13,8 @@
 # limitations under the License.
 """Tests for ord_schema.updates."""
 
+from collections.abc import Iterator
+
 import pytest
 
 from ord_schema import updates
@@ -52,7 +54,7 @@ class TestUpdateReaction:
 
 class TestUpdateDataset:
     @pytest.fixture
-    def dataset(self) -> dataset_pb2.Dataset:
+    def dataset(self) -> Iterator[dataset_pb2.Dataset]:
         dataset = dataset_pb2.Dataset()
         reaction = dataset.reactions.add()
         # Minimal reaction.

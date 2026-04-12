@@ -16,7 +16,7 @@
 import glob
 import os
 import subprocess
-from typing import Optional
+from collections.abc import Iterator
 
 import docopt
 import pytest
@@ -32,7 +32,7 @@ logger = get_logger(__name__)
 
 class TestProcessDataset:
     @pytest.fixture
-    def setup(self, tmp_path) -> tuple[str, str]:
+    def setup(self, tmp_path) -> Iterator[tuple[str, str]]:
         # Suppress RDKit warnings to clean up the test output.
         RDLogger.logger().setLevel(RDLogger.CRITICAL)
         reaction1 = reaction_pb2.Reaction()
@@ -123,7 +123,7 @@ class TestSubmissionWorkflow:
     _DEFAULT_BRANCH = "main"
 
     @pytest.fixture
-    def setup(self, tmp_path) -> tuple[str, str]:
+    def setup(self, tmp_path) -> Iterator[tuple[str, str]]:
         test_subdirectory = tmp_path.as_posix()
         os.chdir(test_subdirectory)
         subprocess.run(["git", "init", "-b", self._DEFAULT_BRANCH], check=True)
@@ -155,7 +155,7 @@ class TestSubmissionWorkflow:
         subprocess.run(["git", "checkout", "-b", "test"], check=True)
         yield test_subdirectory, dataset_filename
 
-    def _run(self, test_subdirectory: str, extra_argv: Optional[list[str]] = None):
+    def _run(self, test_subdirectory: str, extra_argv: list[str] | None = None):
         """Runs process_dataset.main().
 
         Args:

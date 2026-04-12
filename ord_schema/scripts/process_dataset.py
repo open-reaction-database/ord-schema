@@ -51,20 +51,15 @@ import os
 import subprocess
 import sys
 from collections.abc import Iterable, Mapping
-from typing import Optional
 
 import docopt
 import github
-from rdkit import RDLogger
 
 from ord_schema import message_helpers, updates, validations
-from ord_schema.logging import get_logger
+from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
-
-
-# pylint: disable=too-many-branches,too-many-locals
 
 
 @dataclasses.dataclass(eq=True, frozen=True, order=True)
@@ -136,7 +131,7 @@ def _get_reaction_ids(dataset: dataset_pb2.Dataset) -> set[str]:
     return reaction_ids
 
 
-def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Dataset:
+def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Dataset | None:
     """Loads a Dataset message from another branch."""
     if file_status.status.startswith("A"):
         return None  # Dataset only exists in the submission.
@@ -165,12 +160,13 @@ def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Datase
 
 
 def get_change_stats(
-    datasets: Mapping[str, dataset_pb2.Dataset], inputs: Iterable[FileStatus], base: str
+    datasets: Mapping[str, dataset_pb2.Dataset | None], inputs: Iterable[FileStatus], base: str
 ) -> tuple[set[str], set[str], set[str]]:
     """Computes diff statistics for the submission.
 
     Args:
-        datasets: Dict mapping filenames to Dataset messages.
+        datasets: Dict mapping filenames to Dataset messages. Values may be None only
+            for deleted files; non-deleted inputs must have a Dataset for `filename`.
         inputs: List of FileStatus objects.
         base: Git branch to diff against.
 
@@ -182,7 +178,10 @@ def get_change_stats(
     old, new = set(), set()
     for file_status in inputs:
         if not file_status.status.startswith("D"):
-            new.update(_get_reaction_ids(datasets[file_status.filename]))
+            current = datasets[file_status.filename]
+            if current is None:
+                raise ValueError(f"missing dataset for non-deleted file: {file_status.filename}")
+            new.update(_get_reaction_ids(current))
         dataset = _load_base_dataset(file_status, base)
         if dataset is not None:
             old.update(_get_reaction_ids(dataset))
@@ -207,7 +206,7 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset], kwargs) -> None:
     for filename, dataset in datasets.items():
         output_filename = os.path.join(
             kwargs["--root"],
-            message_helpers.id_filename(f'{dataset.dataset_id}{kwargs["--output_format"]}'),
+            message_helpers.id_filename(f"{dataset.dataset_id}{kwargs['--output_format']}"),
         )
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         if kwargs["--cleanup"]:
@@ -216,7 +215,7 @@ def _run_updates(datasets: Mapping[str, dataset_pb2.Dataset], kwargs) -> None:
         message_helpers.write_message(dataset, output_filename)
 
 
-def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[str]]]:
+def run(kwargs) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
     """Main function that returns added/removed reaction ID sets.
 
     This function should be called directly by tests to get access to the
@@ -240,17 +239,20 @@ def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[st
         else:
             dataset = message_helpers.load_message(file_status.filename, dataset_pb2.Dataset)
             logger.info("%s: %d reactions", file_status.filename, len(dataset.reactions))
-        datasets = {file_status.filename: dataset}
+        # `datasets` may contain None for deleted files (needed by get_change_stats).
+        # `datasets_checked` is the narrowed view for code paths that require a loaded dataset.
+        datasets: dict[str, dataset_pb2.Dataset | None] = {file_status.filename: dataset}
+        datasets_checked: dict[str, dataset_pb2.Dataset] = (
+            {file_status.filename: dataset} if dataset is not None else {}
+        )
         if not kwargs["--no-validate"] and dataset is not None:
             # Note: this does not check if IDs are malformed.
-            validations.validate_datasets(datasets, kwargs["--write_errors"])
+            validations.validate_datasets(datasets_checked, kwargs["--write_errors"])
             # Check reaction sizes.
             for reaction in dataset.reactions:
                 reaction_size = sys.getsizeof(reaction.SerializeToString()) / 1e6
                 if reaction_size > float(kwargs["--max_size"]):
-                    raise ValueError(
-                        "Reaction is larger than --max_size " f'({reaction_size} vs {kwargs["--max_size"]}'
-                    )
+                    raise ValueError(f"Reaction is larger than --max_size ({reaction_size} vs {kwargs['--max_size']}")
         if kwargs["--base"]:
             added, removed, changed = get_change_stats(datasets, [file_status], base=kwargs["--base"])
             change_stats[file_status.filename] = (added, removed, changed)
@@ -261,7 +263,7 @@ def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[st
                 len(changed),
             )
         if kwargs["--update"] and dataset is not None:
-            _run_updates(datasets, kwargs)
+            _run_updates(datasets_checked, kwargs)
     if change_stats:
         total_added, total_removed, total_changed = set(), set(), set()
         comment = [
@@ -270,11 +272,11 @@ def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[st
             "| -------- | ----- | ------- | ------- |",
         ]
         for filename, (added, removed, changed) in change_stats.items():
-            comment.append(f"| {filename} | " f"{len(added)} | {len(removed)} | {len(changed)} |")
+            comment.append(f"| {filename} | {len(added)} | {len(removed)} | {len(changed)} |")
             total_added |= added
             total_removed |= removed
             total_changed |= changed
-        comment.append(f"| | **{len(total_added)}** | " f"**{len(total_removed)}** | " f"**{len(total_changed)}** |")
+        comment.append(f"| | **{len(total_added)}** | **{len(total_removed)}** | **{len(total_changed)}** |")
         if kwargs["--issue"] and kwargs["--token"]:
             client = github.Github(kwargs["--token"])
             repo = client.get_repo(os.environ["GITHUB_REPOSITORY"])
@@ -286,7 +288,7 @@ def run(kwargs) -> tuple[Optional[set[str]], Optional[set[str]], Optional[set[st
 
 
 def main(kwargs):
-    RDLogger.DisableLog("rdApp.*")  # Disable RDKit logging.
+    silence_rdkit_logs()
     run(kwargs)
 
 

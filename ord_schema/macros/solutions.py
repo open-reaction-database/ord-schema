@@ -13,8 +13,6 @@
 # limitations under the License.
 """Macros for programmatic message creation."""
 
-from typing import Optional, Union
-
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
 
@@ -24,9 +22,9 @@ CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS, f
 
 def simple_solution(
     solvent_smiles: str,
-    solute_smiles: Optional[str] = None,
-    volume: Union[None, str, reaction_pb2.Volume] = None,
-    concentration: Union[None, str, reaction_pb2.Concentration] = None,
+    solute_smiles: str | None = None,
+    volume: None | str | reaction_pb2.Volume = None,
+    concentration: None | str | reaction_pb2.Concentration = None,
     saturated: bool = False,
 ) -> list[reaction_pb2.Compound]:
     """Creates a solution with at most one solvent and one solute.
@@ -50,9 +48,13 @@ def simple_solution(
         if solute_smiles is None:
             raise ValueError("Must specify a solute if `saturated=True`")
     if isinstance(volume, str):
-        volume = UNITS_RESOLVER.resolve(volume)
+        resolved_volume = UNITS_RESOLVER.resolve(volume)
+        assert isinstance(resolved_volume, reaction_pb2.Volume)  # Type hint.
+        volume = resolved_volume
     if isinstance(concentration, str):
-        concentration = CONCENTRATION_RESOLVER.resolve(concentration)
+        resolved_conc = CONCENTRATION_RESOLVER.resolve(concentration)
+        assert isinstance(resolved_conc, reaction_pb2.Concentration)  # Type hint.
+        concentration = resolved_conc
 
     if volume is not None and concentration is not None:
         solute_amount = units.compute_solute_quantity(volume, concentration)

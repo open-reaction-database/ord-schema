@@ -15,7 +15,7 @@
 
 import collections
 import dataclasses
-from typing import Union
+from typing import Any
 
 import ord_schema
 
@@ -23,8 +23,6 @@ _MESSAGE_TYPES = (
     collections.abc.MutableMapping,  # Proto map.
     ord_schema.Message,  # Generic submessage.
 )
-
-# pytype: disable=attribute-error
 
 
 @dataclasses.dataclass(eq=True, frozen=True)
@@ -46,7 +44,12 @@ class FrozenMessage(collections.abc.Mapping):
           False for unset `optional` scalar values and submessages.
     """
 
-    _message: Union[_MESSAGE_TYPES]
+    # ``_message`` is either a protobuf Message or a protobuf map (MutableMapping).
+    # We type it as ``Any`` because the two branches have near-disjoint APIs
+    # (``HasField``/``getattr`` vs ``__contains__``/``__getitem__``), and the
+    # static type of protobuf's dynamically-generated messages is opaque anyway.
+    # Runtime dispatch is handled by isinstance checks below.
+    _message: Any
 
     def __getattr__(self, name: str):
         """Fetches a message attribute, if it exists.
@@ -68,12 +71,18 @@ class FrozenMessage(collections.abc.Mapping):
         Raises:
             AttributeError: if `name` has not been set explicitly.
         """
-        try:
-            if not self._message.HasField(name):
+        m = self._message
+        if isinstance(m, collections.abc.MutableMapping):
+            if name not in m:
                 raise AttributeError(f'attribute "{name}" has not been set')
-        except ValueError:
-            pass  # The requested attribute is not a submessage.
-        value = getattr(self._message, name)
+            value = m[name]
+        else:
+            try:
+                if not m.HasField(name):
+                    raise AttributeError(f'attribute "{name}" has not been set')
+            except ValueError:
+                pass  # The requested attribute is not a submessage.
+            value = getattr(m, name)
         if isinstance(value, _MESSAGE_TYPES):
             return FrozenMessage(value)
         if hasattr(value, "append"):
@@ -88,7 +97,7 @@ class FrozenMessage(collections.abc.Mapping):
         return value
 
     def __iter__(self):
-        return self._message.__iter__()
+        return iter(self._message)
 
     def __len__(self):
         return len(self._message)
@@ -113,9 +122,10 @@ class FrozenMessage(collections.abc.Mapping):
         Raises:
             AttributeError: if `key` has not been set explicitly.
         """
-        if key not in self._message:
+        m = self._message
+        if key not in m:
             raise KeyError(f'key "{key}" has not been set')
-        value = self._message[key]
+        value = m[key]
         if isinstance(value, _MESSAGE_TYPES):
             return FrozenMessage(value)
         return value
