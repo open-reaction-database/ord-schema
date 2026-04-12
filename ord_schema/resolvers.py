@@ -13,7 +13,6 @@
 # limitations under the License.
 """Name/string resolution to structured messages or identifiers."""
 
-import email.message
 import re
 import urllib.error
 import urllib.parse
@@ -112,25 +111,6 @@ def _pubchem_resolve(value_type: str, value: str) -> str:
         return response.read().decode().strip()
 
 
-def _cactus_resolve(value_type: str, value: str) -> str:
-    """Resolves compound identifiers to SMILES via the CACTUS API."""
-    del value_type  # Unused.
-    with urllib.request.urlopen(
-        f"https://cactus.nci.nih.gov/chemical/structure/{urllib.parse.quote(value)}/smiles"
-    ) as response:
-        return response.read().decode().strip()
-
-
-def _emolecules_resolve(value_type: str, value: str) -> str:
-    """Resolves compound identifiers to SMILES via the eMolecules API."""
-    del value_type  # Unused.
-    with urllib.request.urlopen(f"https://www.emolecules.com/lookup?q={urllib.parse.quote(value)}") as response:
-        response_text = response.read().decode().strip()
-    if response_text == "__END__":
-        raise urllib.error.HTTPError("", 404, "eMolecules lookup unsuccessful", email.message.Message(), None)
-    return response_text.split("\t")[0]
-
-
 def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
     """Resolve a text-based description of an input in one of the following
     formats:
@@ -175,9 +155,11 @@ def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
     return reaction_input
 
 
-# Standard name resolvers.
+# Standard name resolvers. PubChem is currently the only one that works:
+#  - NCI/CADD's /chemical/structure endpoint has been returning 503 for every query
+#    and the project blog has been silent since 2013.
+#  - eMolecules' public /lookup?q= endpoint now always replies "__END__", including
+#    for raw SMILES; their current API requires authentication.
 _NAME_RESOLVERS = {
     "PubChem API": _pubchem_resolve,
-    "NCI/CADD Chemical Identifier Resolver": _cactus_resolve,
-    "eMolecules Lookup Service": _emolecules_resolve,
 }
