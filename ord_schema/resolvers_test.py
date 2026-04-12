@@ -82,12 +82,14 @@ class TestInputResolvers:
             resolvers.resolve_input(string)
 
 
+def _http_error(code: int, msg: str) -> urllib.error.HTTPError:
+    # urllib's HTTPError stub declares hdrs/fp as non-Optional, but the runtime
+    # accepts None for both — fine for tests where we never read them.
+    return urllib.error.HTTPError("", code, msg, hdrs=None, fp=None)  # ty: ignore[invalid-argument-type]
+
+
 class TestPubChemRetry:
     """Tests for the tenacity-driven retry on PubChem 503 ServerBusy."""
-
-    @staticmethod
-    def _busy_error() -> urllib.error.HTTPError:
-        return urllib.error.HTTPError("", 503, "PUGREST.ServerBusy", hdrs=None, fp=None)  # ty: ignore[invalid-argument-type]
 
     @staticmethod
     def _ok_response() -> mock.MagicMock:
@@ -99,7 +101,11 @@ class TestPubChemRetry:
     def test_retries_then_succeeds(self, monkeypatch):
         # Two 503s then a successful response — the decorator should swallow both
         # 503s without surfacing them and return the eventual SMILES.
-        responses = [self._busy_error(), self._busy_error(), self._ok_response()]
+        responses = [
+            _http_error(503, "PUGREST.ServerBusy"),
+            _http_error(503, "PUGREST.ServerBusy"),
+            self._ok_response(),
+        ]
         urlopen = mock.MagicMock(side_effect=responses)
         monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
         # Drop tenacity's wait so the test runs in milliseconds, not seconds.
@@ -111,8 +117,7 @@ class TestPubChemRetry:
 
     def test_does_not_retry_404(self, monkeypatch):
         # 404 means "no such compound" — must not be retried.
-        not_found = urllib.error.HTTPError("", 404, "Not Found", hdrs=None, fp=None)  # ty: ignore[invalid-argument-type]
-        urlopen = mock.MagicMock(side_effect=not_found)
+        urlopen = mock.MagicMock(side_effect=_http_error(404, "Not Found"))
         monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
         with pytest.raises(urllib.error.HTTPError):
             resolvers._pubchem_resolve("name", "definitely-not-a-compound")

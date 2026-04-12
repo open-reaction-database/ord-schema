@@ -2530,7 +2530,7 @@ requires-dist = [
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=1.1.1" },
     { name = "sphinx-tabs", marker = "extra == 'docs'", specifier = ">=3.4.0" },
     { name = "sqlalchemy", specifier = ">=2" },
-    { name = "tenacity", specifier = ">=8.0.0" },
+    { name = "tenacity", specifier = ">=8.0.0,<10" },
     { name = "tensorflow", marker = "extra == 'examples'", specifier = ">=2.4.1" },
     { name = "testing-postgresql", marker = "extra == 'tests'", specifier = ">=1.3.0" },
     { name = "tqdm", specifier = ">=4.61.2" },
