@@ -13,6 +13,9 @@
 # limitations under the License.
 """Tests for ord_schema.units."""
 
+import urllib.error
+from unittest import mock
+
 import pytest
 from rdkit import Chem
 
@@ -77,3 +80,45 @@ class TestInputResolvers:
     def test_input_resolve_should_fail(self, string, expected):
         with pytest.raises((KeyError, ValueError), match=expected):
             resolvers.resolve_input(string)
+
+
+def _http_error(code: int, msg: str) -> urllib.error.HTTPError:
+    # urllib's HTTPError stub declares hdrs/fp as non-Optional, but the runtime
+    # accepts None for both — fine for tests where we never read them.
+    return urllib.error.HTTPError("", code, msg, hdrs=None, fp=None)  # ty: ignore[invalid-argument-type]
+
+
+class TestPubChemRetry:
+    """Tests for the tenacity-driven retry on PubChem 503 ServerBusy."""
+
+    @staticmethod
+    def _ok_response() -> mock.MagicMock:
+        response = mock.MagicMock()
+        response.read.return_value = b"CC(=O)Oc1ccccc1C(=O)O\n"
+        response.__enter__.return_value = response
+        return response
+
+    def test_retries_then_succeeds(self, monkeypatch):
+        # Two 503s then a successful response — the decorator should swallow both
+        # 503s without surfacing them and return the eventual SMILES.
+        responses = [
+            _http_error(503, "PUGREST.ServerBusy"),
+            _http_error(503, "PUGREST.ServerBusy"),
+            self._ok_response(),
+        ]
+        urlopen = mock.MagicMock(side_effect=responses)
+        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        # Drop tenacity's wait so the test runs in milliseconds, not seconds.
+        # tenacity attaches a Retrying object to the wrapped function as .retry;
+        # ty's stubs don't model this, hence the ignore.
+        monkeypatch.setattr(resolvers._pubchem_resolve.retry, "wait", lambda *_, **__: 0)  # ty: ignore[unresolved-attribute]
+        assert resolvers._pubchem_resolve("name", "aspirin") == "CC(=O)Oc1ccccc1C(=O)O"
+        assert urlopen.call_count == 3
+
+    def test_does_not_retry_404(self, monkeypatch):
+        # 404 means "no such compound" — must not be retried.
+        urlopen = mock.MagicMock(side_effect=_http_error(404, "Not Found"))
+        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        with pytest.raises(urllib.error.HTTPError):
+            resolvers._pubchem_resolve("name", "definitely-not-a-compound")
+        assert urlopen.call_count == 1
