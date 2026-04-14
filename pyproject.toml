@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ord-schema"
-version = "0.4.5"
+version = "0.4.6"
 description = "Schema for the Open Reaction Database"
 readme = "README.md"
 license = "Apache-2.0"
@@ -42,6 +42,9 @@ dependencies = [
     "python-dateutil>=1.10.0",
     "rdkit>=2021.9.5",
     "sqlalchemy>=2",
+    # Pinned <10 because we read _pubchem_resolve.retry to monkeypatch the wait
+    # in tests; tenacity 10 may rework that introspection surface.
+    "tenacity>=8.0.0,<10",
     "tqdm>=4.61.2",
 ]
 
