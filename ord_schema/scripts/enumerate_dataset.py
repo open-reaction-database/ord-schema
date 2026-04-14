@@ -11,21 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Creates a Dataset by enumerating a template with a spreadsheet.
+"""Creates a Dataset by enumerating a template with a spreadsheet."""
 
-Usage:
-    dataset_templating.py --name=<str> --description=<str> --template=<str> --spreadsheet=<str> --output=<str> [options]
-
-Options:
-    --name=<str>            Dataset name
-    --description=<str>     Dataset description
-    --template=<str>        Path to a Reaction pbtxt file defining a template
-    --spreadsheet=<str>     Path to a spreadsheet file with a header row matching template placeholders
-    --output=<str>          Filename for output Dataset
-    --no-validate           If set, do not validate Reaction protos
-"""
-
-import docopt
+import argparse
 
 from ord_schema import message_helpers, templating
 from ord_schema.logging import get_logger
@@ -33,25 +21,40 @@ from ord_schema.logging import get_logger
 logger = get_logger(__name__)
 
 
-def main(kwargs):
-    with open(kwargs["--template"]) as f:
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Enumerate a template with a spreadsheet")
+    parser.add_argument("--name", required=True, help="Dataset name")
+    parser.add_argument("--description", required=True, help="Dataset description")
+    parser.add_argument("--template", required=True, help="Path to a Reaction pbtxt file defining a template")
+    parser.add_argument(
+        "--spreadsheet",
+        required=True,
+        help="Path to a spreadsheet file with a header row matching template placeholders",
+    )
+    parser.add_argument("--output", required=True, help="Filename for output Dataset")
+    parser.add_argument("--no-validate", action="store_true", help="If set, do not validate Reaction protos")
+    return parser.parse_args(argv)
+
+
+def main(args):
+    with open(args.template) as f:
         template_string = f.read()
-    df = templating.read_spreadsheet(kwargs["--spreadsheet"])
+    df = templating.read_spreadsheet(args.spreadsheet)
     logger.info(
         "generating new Dataset from %s and %s",
-        kwargs["--template"],
-        kwargs["--spreadsheet"],
+        args.template,
+        args.spreadsheet,
     )
     dataset = templating.generate_dataset(
-        name=kwargs["--name"],
-        description=kwargs["--description"],
+        name=args.name,
+        description=args.description,
         template_string=template_string,
         df=df,
-        validate=not kwargs["--no-validate"],
+        validate=not args.no_validate,
     )
-    logger.info("writing new Dataset to %s", kwargs["--output"])
-    message_helpers.write_message(dataset, kwargs["--output"])
+    logger.info("writing new Dataset to %s", args.output)
+    message_helpers.write_message(dataset, args.output)
 
 
 if __name__ == "__main__":
-    main(docopt.docopt(__doc__))
+    main(parse_args())

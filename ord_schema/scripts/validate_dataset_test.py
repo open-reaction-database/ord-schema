@@ -16,7 +16,6 @@
 import os
 from collections.abc import Iterator
 
-import docopt
 import pytest
 
 from ord_schema import message_helpers, validations
@@ -54,13 +53,13 @@ def setup(tmp_path) -> Iterator[str]:
 def test_simple(setup):
     test_subdirectory = setup
     argv = ["--input", os.path.join(test_subdirectory, "dataset1.pbtxt")]
-    validate_dataset.main(docopt.docopt(validate_dataset.__doc__, argv))
+    validate_dataset.main(validate_dataset.parse_args(argv))
 
 
 def test_filter(setup):
     test_subdirectory = setup
     argv = ["--input", os.path.join(test_subdirectory, "dataset1.pbtxt"), "--filter", "dataset"]
-    validate_dataset.main(docopt.docopt(validate_dataset.__doc__, argv))
+    validate_dataset.main(validate_dataset.parse_args(argv))
 
 
 def test_validation_errors(setup):
@@ -70,7 +69,7 @@ def test_validation_errors(setup):
         validations.ValidationError,
         match="Reactions should have at least 1 reaction input",
     ):
-        validate_dataset.main(docopt.docopt(validate_dataset.__doc__, argv))
+        validate_dataset.main(validate_dataset.parse_args(argv))
 
 
 @pytest.mark.parametrize(

@@ -16,7 +16,6 @@
 import os
 from collections.abc import Iterator
 
-import docopt
 import pytest
 
 from ord_schema import message_helpers, validations
@@ -60,7 +59,7 @@ def test_simple(dirname):
         "--output",
         output_filename,
     ]
-    build_dataset.main(docopt.docopt(build_dataset.__doc__, argv))
+    build_dataset.main(build_dataset.parse_args(argv))
     assert os.path.exists(output_filename)
     dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
     assert dataset.name == "test dataset"
@@ -85,7 +84,7 @@ def test_validation(dirname):
         validations.ValidationError,
         match="Reactions should have at least 1 reaction input",
     ):
-        build_dataset.main(docopt.docopt(build_dataset.__doc__, argv))
+        build_dataset.main(build_dataset.parse_args(argv))
     # Make sure disabling validation works.
     argv = [
         "--input",
@@ -98,4 +97,4 @@ def test_validation(dirname):
         output_filename,
         "--no-validate",
     ]
-    build_dataset.main(docopt.docopt(build_dataset.__doc__, argv))
+    build_dataset.main(build_dataset.parse_args(argv))

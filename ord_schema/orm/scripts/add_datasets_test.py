@@ -16,8 +16,6 @@
 
 import os
 
-import docopt
-
 from ord_schema.orm.database import prepare_database
 from ord_schema.orm.scripts import add_datasets
 
@@ -26,8 +24,8 @@ def test_main(test_engine):
     assert prepare_database(test_engine)
     argv = [
         "--dsn",
-        test_engine.url,
+        str(test_engine.url),
         "--pattern",
         os.path.join(os.path.dirname(__file__), "..", "testdata", "ord-nielsen-example.pbtxt"),
     ]
-    add_datasets.main(**docopt.docopt(add_datasets.__doc__, argv))
+    add_datasets.main(add_datasets.parse_args(argv))
