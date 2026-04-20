@@ -64,6 +64,14 @@ underrepresented areas).
 
 .. toctree::
    :hidden:
+   :maxdepth: 2
+   :caption: Events and News
+
+   events/rewards
+   events/newsletter
+
+.. toctree::
+   :hidden:
    :caption: API Documentation
 
    ord_schema/ord_schema
