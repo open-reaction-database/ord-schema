@@ -64,7 +64,7 @@ def test_write_rejects_empty_name_or_description(tmp_path, missing):
         dataset.write_dataset(ds, path)
 
 
-def test_read_metadata_skips_reactions(tmp_path):
+def test_read_metadata_returns_scalars_only(tmp_path):
     original = _make_dataset(n=4)
     path = os.path.join(tmp_path, "ds.parquet")
     dataset.write_dataset(original, path)
@@ -72,8 +72,8 @@ def test_read_metadata_skips_reactions(tmp_path):
     assert metadata.dataset_id == original.dataset_id
     assert metadata.name == original.name
     assert metadata.description == original.description
-    assert list(metadata.reaction_ids) == [r.reaction_id for r in original.reactions]
     assert len(metadata.reactions) == 0
+    assert len(metadata.reaction_ids) == 0
 
 
 def test_iter_reactions_all(tmp_path):

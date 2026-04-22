@@ -186,17 +186,12 @@ def read_dataset(path: str) -> dataset_pb2.Dataset:
 
 
 def read_metadata(path: str) -> dataset_pb2.Dataset:
-    """Reads dataset metadata without deserializing reactions.
-
-    Returns a ``Dataset`` with scalar fields populated from the footer and
-    ``reaction_ids`` populated from the ``reaction_id`` column. The
-    ``reactions`` field is left empty.
+    """Reads Dataset scalar fields (``name``, ``description``, ``dataset_id``)
+    from the Parquet footer. No column data is read. The returned ``Dataset``
+    has no ``reactions`` or ``reaction_ids`` populated.
     """
     with pq.ParquetFile(path) as parquet_file:
-        dataset = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
-        ids_table = parquet_file.read(columns=["reaction_id"])
-        dataset.reaction_ids.extend(ids_table.column("reaction_id").to_pylist())
-    return dataset
+        return _dataset_from_metadata(parquet_file.schema_arrow.metadata)
 
 
 def iter_reactions(
