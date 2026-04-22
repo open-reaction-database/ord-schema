@@ -278,8 +278,8 @@ def _dataset_from_metadata(raw_metadata: dict[bytes, bytes] | None) -> dataset_p
         raise ValueError(f"missing required Parquet footer key: {_META_NAME!r}")
     if not description:
         raise ValueError(f"missing required Parquet footer key: {_META_DESCRIPTION!r}")
-    return dataset_pb2.Dataset(
-        dataset_id=_get(_META_DATASET_ID) or "",
-        name=name,
-        description=description,
-    )
+    dataset = dataset_pb2.Dataset(name=name, description=description)
+    dataset_id = _get(_META_DATASET_ID)
+    if dataset_id:
+        dataset.dataset_id = dataset_id
+    return dataset
