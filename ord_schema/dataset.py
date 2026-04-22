@@ -99,14 +99,24 @@ class DatasetWriter:
             self.write(reaction)
 
     def close(self) -> None:
-        """Flushes the final row group and closes the underlying Parquet writer."""
+        """Flushes the final row group and closes the underlying Parquet writer.
+
+        If ``_flush`` raises, the Parquet writer is still closed best-effort
+        (any secondary close error is suppressed) so the original error is the
+        one propagated.
+        """
         if self._closed:
             return
         self._closed = True
         try:
             self._flush()
-        finally:
-            self._writer.close()
+        except Exception:
+            try:
+                self._writer.close()
+            except Exception:
+                pass
+            raise
+        self._writer.close()
 
     def _flush(self) -> None:
         if not self._buffer_ids:
@@ -135,6 +145,9 @@ def write_dataset(
 ) -> None:
     """Writes a Dataset as a Parquet file.
 
+    ``Dataset.reaction_ids`` is not persisted; the ``reaction_id`` column
+    derived from ``Dataset.reactions`` is the source of truth.
+
     Args:
         dataset: Dataset message. Must have at least one Reaction.
         path: Output filename.
@@ -143,7 +156,8 @@ def write_dataset(
             give finer-grained random access; larger groups compress better.
 
     Raises:
-        ValueError: If ``dataset.reactions`` is empty.
+        ValueError: If ``dataset.reactions`` is empty or required scalar
+            fields (``name``, ``description``) are unset.
     """
     if not dataset.reactions:
         raise ValueError("Dataset has no reactions; Parquet datasets require at least one Reaction.")
@@ -164,24 +178,29 @@ def read_dataset(path: str) -> dataset_pb2.Dataset:
     All reactions are deserialized into memory; prefer ``iter_reactions`` or
     ``read_reaction`` for large datasets.
     """
-    dataset = read_metadata(path)
-    del dataset.reaction_ids[:]
+    dataset = read_metadata(path, include_reaction_ids=False)
     for _, reaction in iter_reactions(path):
         dataset.reactions.append(reaction)
     return dataset
 
 
-def read_metadata(path: str) -> dataset_pb2.Dataset:
+def read_metadata(path: str, *, include_reaction_ids: bool = True) -> dataset_pb2.Dataset:
     """Reads dataset metadata without deserializing reactions.
 
-    Returns a ``Dataset`` with scalar fields populated from the footer and
-    ``reaction_ids`` populated from the ``reaction_id`` column. The
+    Returns a ``Dataset`` with scalar fields populated from the footer. The
     ``reactions`` field is left empty.
+
+    Args:
+        path: Parquet file path.
+        include_reaction_ids: If True (default), populate ``reaction_ids`` by
+            reading the ``reaction_id`` column. Set False to skip that read
+            when only the scalar fields are needed.
     """
     parquet_file = pq.ParquetFile(path)
     dataset = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
-    ids_table = parquet_file.read(columns=["reaction_id"])
-    dataset.reaction_ids.extend(ids_table.column("reaction_id").to_pylist())
+    if include_reaction_ids:
+        ids_table = parquet_file.read(columns=["reaction_id"])
+        dataset.reaction_ids.extend(ids_table.column("reaction_id").to_pylist())
     return dataset
 
 
@@ -213,8 +232,11 @@ def iter_reactions(
 def read_reaction(path: str, reaction_id: str) -> reaction_pb2.Reaction:
     """Reads a single Reaction by ID.
 
-    Uses Parquet predicate pushdown to prune row groups when per-group
-    statistics allow it.
+    Passes ``reaction_id`` as a Parquet predicate, which lets row groups be
+    pruned via per-group min/max statistics **when** ``reaction_id`` values
+    are clustered within groups (e.g., sorted). For unsorted writes every
+    row group's range typically covers the query, so this falls back to a
+    full scan of the ``reaction_id``/``reaction`` columns.
 
     Raises:
         KeyError: If ``reaction_id`` is not present in the file.
@@ -246,15 +268,23 @@ def _build_schema(*, name: str, description: str, dataset_id: str | None) -> pa.
 def _dataset_from_metadata(raw_metadata: dict[bytes, bytes] | None) -> dataset_pb2.Dataset:
     metadata = raw_metadata or {}
 
-    def _get(key: str) -> str:
+    def _get(key: str) -> str | None:
         value = metadata.get(key.encode())
-        return value.decode() if value is not None else ""
+        return value.decode() if value is not None else None
 
     version = _get(_META_SCHEMA_VERSION)
-    if version and version != SCHEMA_VERSION:
+    if version is None:
+        raise ValueError(f"missing required Parquet footer key: {_META_SCHEMA_VERSION!r}")
+    if version != SCHEMA_VERSION:
         raise ValueError(f"unsupported Parquet dataset schema version: {version!r}")
+    name = _get(_META_NAME)
+    description = _get(_META_DESCRIPTION)
+    if not name:
+        raise ValueError(f"missing required Parquet footer key: {_META_NAME!r}")
+    if not description:
+        raise ValueError(f"missing required Parquet footer key: {_META_DESCRIPTION!r}")
     return dataset_pb2.Dataset(
-        dataset_id=_get(_META_DATASET_ID),
-        name=_get(_META_NAME),
-        description=_get(_META_DESCRIPTION),
+        dataset_id=_get(_META_DATASET_ID) or "",
+        name=name,
+        description=description,
     )

@@ -80,7 +80,9 @@ def test_iter_reactions_filtered(tmp_path):
     original = _make_dataset(n=5)
     path = os.path.join(tmp_path, "ds.parquet")
     dataset.write_dataset(original, path)
-    wanted = {"ord-0001", "ord-0003", "ord-9999"}  # ord-9999 is missing
+    # Output order follows file order, not the order of ``reaction_ids``;
+    # ord-9999 is absent and silently skipped.
+    wanted = {"ord-0003", "ord-0001", "ord-9999"}
     pairs = list(dataset.iter_reactions(path, reaction_ids=wanted))
     assert [rid for rid, _ in pairs] == ["ord-0001", "ord-0003"]
 
@@ -168,3 +170,50 @@ def test_read_rejects_unknown_schema_version(tmp_path):
     pq.write_table(table, bad_path)
     with pytest.raises(ValueError, match="schema version"):
         dataset.read_metadata(bad_path)
+
+
+@pytest.mark.parametrize("missing_key", ["ord.schema_version", "ord.name", "ord.description"])
+def test_read_rejects_missing_required_footer_keys(tmp_path, missing_key):
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(_make_dataset(n=1), path)
+    table = pq.read_table(path)
+    bad_metadata = {key: value for key, value in (table.schema.metadata or {}).items() if key != missing_key.encode()}
+    table = table.replace_schema_metadata(bad_metadata)
+    bad_path = os.path.join(tmp_path, "bad.parquet")
+    pq.write_table(table, bad_path)
+    with pytest.raises(ValueError, match=missing_key):
+        dataset.read_metadata(bad_path)
+
+
+def test_read_metadata_skip_reaction_ids(tmp_path):
+    original = _make_dataset(n=3)
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(original, path)
+    metadata = dataset.read_metadata(path, include_reaction_ids=False)
+    assert metadata.name == original.name
+    assert metadata.description == original.description
+    assert list(metadata.reaction_ids) == []
+
+
+def test_unicode_metadata_round_trips(tmp_path):
+    original = dataset_pb2.Dataset(
+        name="名前 🧪",
+        description="déscription — über",
+        dataset_id="ord_dataset-中文",
+        reactions=[_make_reaction("ord-0000")],
+    )
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(original, path)
+    loaded = dataset.read_metadata(path, include_reaction_ids=False)
+    assert loaded.name == original.name
+    assert loaded.description == original.description
+    assert loaded.dataset_id == original.dataset_id
+
+
+def test_row_group_size_larger_than_dataset(tmp_path):
+    original = _make_dataset(n=3)
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(original, path, row_group_size=1000)
+    parquet_file = pq.ParquetFile(path)
+    assert parquet_file.num_row_groups == 1
+    assert dataset.read_dataset(path).reactions == original.reactions

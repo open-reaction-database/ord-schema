@@ -23,6 +23,7 @@ bounded by the largest input (plus one row-group buffer) rather than the sum.
 """
 
 import argparse
+import dataclasses
 
 from ord_schema import dataset as dataset_module
 from ord_schema import message_helpers
@@ -48,36 +49,45 @@ def main(args) -> None:
         raise ValueError("at least one input file is required")
 
     first = message_helpers.load_message(args.inputs[0], dataset_pb2.Dataset)
-    name = args.name if args.name is not None else first.name
-    description = args.description if args.description is not None else first.description
-    dataset_id = args.dataset_id if args.dataset_id is not None else (first.dataset_id or None)
+    resolved = _Resolved(
+        name=args.name if args.name is not None else first.name,
+        description=args.description if args.description is not None else first.description,
+        dataset_id=args.dataset_id if args.dataset_id is not None else (first.dataset_id or None),
+    )
 
     count = 0
     with dataset_module.DatasetWriter(
         args.output,
-        name=name,
-        description=description,
-        dataset_id=dataset_id,
+        name=resolved.name,
+        description=resolved.description,
+        dataset_id=resolved.dataset_id,
         row_group_size=args.row_group_size,
     ) as writer:
-        count += _drain(first, writer, args.inputs[0], dataset_id, name, description, args)
+        count += _drain(first, writer, args.inputs[0], resolved, args)
         del first
         for filename in args.inputs[1:]:
             logger.info("Loading %s", filename)
             dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
-            count += _drain(dataset, writer, filename, dataset_id, name, description, args)
+            count += _drain(dataset, writer, filename, resolved, args)
             del dataset
     if count == 0:
         raise ValueError("no reactions were written; inputs were empty")
     logger.info("Wrote %d reactions to %s", count, args.output)
 
 
-def _drain(dataset, writer, filename, dataset_id, name, description, args) -> int:
-    if args.dataset_id is None and dataset.dataset_id and dataset.dataset_id != dataset_id:
-        logger.warning("%s: dataset_id %r differs from output %r", filename, dataset.dataset_id, dataset_id)
-    if args.name is None and dataset.name and dataset.name != name:
-        logger.warning("%s: name %r differs from output %r", filename, dataset.name, name)
-    if args.description is None and dataset.description and dataset.description != description:
+@dataclasses.dataclass(frozen=True)
+class _Resolved:
+    name: str
+    description: str
+    dataset_id: str | None
+
+
+def _drain(dataset, writer, filename, resolved: _Resolved, args) -> int:
+    if args.dataset_id is None and dataset.dataset_id and dataset.dataset_id != resolved.dataset_id:
+        logger.warning("%s: dataset_id %r differs from output %r", filename, dataset.dataset_id, resolved.dataset_id)
+    if args.name is None and dataset.name and dataset.name != resolved.name:
+        logger.warning("%s: name %r differs from output %r", filename, dataset.name, resolved.name)
+    if args.description is None and dataset.description and dataset.description != resolved.description:
         logger.warning("%s: description differs from output", filename)
     writer.write_all(dataset.reactions)
     return len(dataset.reactions)
