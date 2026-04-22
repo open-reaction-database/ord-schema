@@ -37,11 +37,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.ACTIONS_PUSH }}
-          # Full history so "Determine bump level" can read every commit added
-          # in the push, not just the HEAD commit. Matters for merge-commit and
-          # rebase-merge strategies where the [bump ...] tag may live in a
-          # branch commit rather than in HEAD.
-          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
@@ -57,33 +52,24 @@ jobs:
       - name: Determine bump level
         id: bump
         run: |
-          # Default to patch. Allow any commit added in this push to opt into
-          # a larger bump via `[bump minor]` or `[bump major]` (case-
-          # insensitive). Supports all GitHub merge strategies:
-          #   * squash-merge: HEAD's message carries PR title + body.
-          #   * merge-commit: HEAD is the auto-generated merge; the tag lives
-          #     in a branch commit brought in by the merge.
-          #   * rebase-merge: HEAD is the last branch commit; the tag may be
-          #     in any of the rebased commits.
+          # Default to patch. A `[bump minor]` or `[bump major]` tag in the PR
+          # title (case-insensitive) opts into a larger release. The PR title
+          # lives in the subject line of the squash-merge commit that lands on
+          # main — we only scan that subject, not the body, so the tag has to
+          # be visible on the PR page itself.
           # `[bump major]` wins over `[bump minor]`.
-          before='${{ github.event.before }}'
-          after='${{ github.sha }}'
-          if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$before" 2>/dev/null; then
-            msg="$(git log "$before..$after" --format=%B)"
-          else
-            msg="$(git log -1 "$after" --format=%B)"
-          fi
-          if printf '%s' "$msg" | grep -qiE '\[bump[[:space:]]+major\]'; then
+          subject="$(git log -1 --format=%s)"
+          if printf '%s' "$subject" | grep -qiE '\[bump[[:space:]]+major\]'; then
             level=major
-          elif printf '%s' "$msg" | grep -qiE '\[bump[[:space:]]+minor\]'; then
+          elif printf '%s' "$subject" | grep -qiE '\[bump[[:space:]]+minor\]'; then
             level=minor
           else
             level=patch
           fi
           # Warn on `[bump WORD]` where WORD isn't a valid level (typo guard).
-          unrecognized="$(printf '%s' "$msg" | grep -oiE '\[bump[[:space:]]+[a-zA-Z]+\]' | grep -viE '\[bump[[:space:]]+(major|minor|patch)\]' || true)"
+          unrecognized="$(printf '%s' "$subject" | grep -oiE '\[bump[[:space:]]+[a-zA-Z]+\]' | grep -viE '\[bump[[:space:]]+(major|minor|patch)\]' || true)"
           if [ -n "$unrecognized" ]; then
-            echo "::warning::Unrecognized bump tag(s) in commit message; using level='$level'. Valid: [bump major|minor|patch]. Found: $(printf '%s' "$unrecognized" | tr '\n' ' ')"
+            echo "::warning::Unrecognized bump tag(s) in PR title; using level='$level'. Valid: [bump major|minor|patch]. Found: $(printf '%s' "$unrecognized" | tr '\n' ' ')"
           fi
           echo "level=$level" >> "$GITHUB_OUTPUT"
           echo "Bump level: $level"
