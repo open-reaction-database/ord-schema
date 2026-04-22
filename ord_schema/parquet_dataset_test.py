@@ -194,16 +194,6 @@ def test_read_rejects_missing_required_footer_keys(tmp_path, missing_key):
         dataset.read_metadata(bad_path)
 
 
-def test_read_metadata_respects_include_reaction_ids_flag(tmp_path):
-    original = _make_dataset(n=3)
-    path = os.path.join(tmp_path, "ds.parquet")
-    dataset.write_dataset(original, path)
-    metadata = dataset.read_metadata(path, include_reaction_ids=False)
-    assert metadata.name == original.name
-    assert metadata.description == original.description
-    assert list(metadata.reaction_ids) == []
-
-
 def test_unicode_metadata_round_trips(tmp_path):
     original = dataset_pb2.Dataset(
         name="名前 🧪",
@@ -213,7 +203,7 @@ def test_unicode_metadata_round_trips(tmp_path):
     )
     path = os.path.join(tmp_path, "ds.parquet")
     dataset.write_dataset(original, path)
-    loaded = dataset.read_metadata(path, include_reaction_ids=False)
+    loaded = dataset.read_metadata(path)
     assert loaded.name == original.name
     assert loaded.description == original.description
     assert loaded.dataset_id == original.dataset_id

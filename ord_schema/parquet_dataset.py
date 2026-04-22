@@ -178,29 +178,24 @@ def read_dataset(path: str) -> dataset_pb2.Dataset:
     All reactions are deserialized into memory; prefer ``iter_reactions`` or
     ``read_reaction`` for large datasets.
     """
-    dataset = read_metadata(path, include_reaction_ids=False)
+    with pq.ParquetFile(path) as parquet_file:
+        dataset = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
     for _, reaction in iter_reactions(path):
         dataset.reactions.append(reaction)
     return dataset
 
 
-def read_metadata(path: str, *, include_reaction_ids: bool = True) -> dataset_pb2.Dataset:
+def read_metadata(path: str) -> dataset_pb2.Dataset:
     """Reads dataset metadata without deserializing reactions.
 
-    Returns a ``Dataset`` with scalar fields populated from the footer. The
+    Returns a ``Dataset`` with scalar fields populated from the footer and
+    ``reaction_ids`` populated from the ``reaction_id`` column. The
     ``reactions`` field is left empty.
-
-    Args:
-        path: Parquet file path.
-        include_reaction_ids: If True (default), populate ``reaction_ids`` by
-            reading the ``reaction_id`` column. Set False to skip that read
-            when only the scalar fields are needed.
     """
     with pq.ParquetFile(path) as parquet_file:
         dataset = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
-        if include_reaction_ids:
-            ids_table = parquet_file.read(columns=["reaction_id"])
-            dataset.reaction_ids.extend(ids_table.column("reaction_id").to_pylist())
+        ids_table = parquet_file.read(columns=["reaction_id"])
+        dataset.reaction_ids.extend(ids_table.column("reaction_id").to_pylist())
     return dataset
 
 
