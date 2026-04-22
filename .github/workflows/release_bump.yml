@@ -27,7 +27,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  bump-tag:
+  validate-bump-tag:
     if: github.repository == 'open-reaction-database/ord-schema'
     runs-on: ubuntu-latest
     steps:
@@ -75,8 +75,8 @@ jobs:
             exit 0
           fi
           case "$LEVEL" in
-            minor) detail='set by `[bump minor]` in the PR title' ;;
-            major) detail='set by `[bump major]` in the PR title' ;;
+            minor) detail='from the `[bump minor]` tag in the PR title' ;;
+            major) detail='from the `[bump major]` tag in the PR title' ;;
           esac
           body="$MARKER
 
