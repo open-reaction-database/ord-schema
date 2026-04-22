@@ -92,7 +92,9 @@ If both `[bump major]` and `[bump minor]` appear, `major` wins.
 
 A separate CI check ([lint_pr_title.yml](.github/workflows/lint_pr_title.yml)) runs on every PR and
 fails if the title contains a `[bump WORD]` pattern where `WORD` isn't `major`, `minor`, or `patch`,
-so typos are caught before merge rather than after the release has shipped.
+so typos are caught before merge rather than after the release has shipped. The same workflow
+posts (and keeps updated) a sticky comment on the PR showing the resolved bump level, so reviewers
+can see the intended release type without clicking into the check details.
 
 ## Terms of Use
 

@@ -15,27 +15,67 @@
 name: Lint PR title
 
 on:
-  pull_request:
+  # `pull_request_target` so fork PRs also get write access for the sticky
+  # comment. Safe here because we only read `github.event.pull_request.title`
+  # and never check out the PR's code.
+  pull_request_target:
     types: [opened, edited, reopened]
     branches:
       - main
+
+permissions:
+  pull-requests: write
 
 jobs:
   bump-tag:
     if: github.repository == 'open-reaction-database/ord-schema'
     runs-on: ubuntu-latest
     steps:
-      - name: Validate "[bump ...]" tag in PR title
+      - name: Validate and resolve bump tag in PR title
+        id: bump
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
-          # The release workflow on main reads the PR title (squash-merge
-          # subject) for `[bump minor]` or `[bump major]` to opt into a larger
-          # release. Catch typos here, before merge: post-merge the release
-          # has already shipped at the wrong level and can't be undone.
+          # Fail on a malformed tag (e.g. [bump mionor]) so the author can fix
+          # it pre-merge; the release workflow otherwise silently falls back
+          # to patch and the bad release has already shipped.
           unrecognized="$(printf '%s' "$TITLE" | grep -oiE '\[bump[[:space:]]+[a-zA-Z]+\]' | grep -viE '\[bump[[:space:]]+(major|minor|patch)\]' || true)"
           if [ -n "$unrecognized" ]; then
             echo "::error::Unrecognized bump tag(s) in PR title: $(printf '%s' "$unrecognized" | tr '\n' ' '). Valid: [bump major], [bump minor], [bump patch]. See CONTRIBUTING.md."
             exit 1
           fi
-          echo "PR title bump tag (if any) is valid."
+          if printf '%s' "$TITLE" | grep -qiE '\[bump[[:space:]]+major\]'; then
+            level=major
+          elif printf '%s' "$TITLE" | grep -qiE '\[bump[[:space:]]+minor\]'; then
+            level=minor
+          else
+            level=patch
+          fi
+          echo "level=$level" >> "$GITHUB_OUTPUT"
+          echo "Bump level: $level"
+          echo "- **Bump level on merge:** \`$level\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upsert bump-level comment on the PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LEVEL: ${{ steps.bump.outputs.level }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          MARKER='<!-- bump-tag-comment -->'
+          case "$LEVEL" in
+            patch) detail='default — add [bump minor] or [bump major] to the PR title to change' ;;
+            minor) detail='set by [bump minor] in the PR title' ;;
+            major) detail='set by [bump major] in the PR title' ;;
+          esac
+          body="$MARKER
+
+          On merge, this PR will trigger a **\`$LEVEL\`** release bump ($detail)
+
+          _See [CONTRIBUTING.md](https://github.com/$REPO/blob/main/CONTRIBUTING.md#release-bumps)._"
+          existing="$(gh api -X GET "/repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+                      --jq "[.[] | select(.body | startswith(\"$MARKER\"))] | last | .id // empty")"
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "/repos/$REPO/issues/comments/$existing" -f body="$body" --silent
+          else
+            gh api -X POST "/repos/$REPO/issues/$PR_NUMBER/comments" -f body="$body" --silent
+          fi
