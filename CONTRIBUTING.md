@@ -76,6 +76,24 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
    reviewer comments and automated tests. Once the reviewers have approved your changes, they will merge
    them into the official repository.
 
+## Release bumps
+
+When a pull request merges to `main`, the publish workflow automatically bumps the version, tags a
+release, and publishes to PyPI and npm. The default bump is **patch**; a maintainer can promote a
+release to **minor** or **major** by including a tag in the **PR title**:
+
+- `[bump minor]` — new features, backward-compatible additions (e.g., a new module or public API).
+- `[bump major]` — breaking changes (removed or renamed public APIs, incompatible behavior shifts).
+- No tag — patch release.
+
+The tag is case-insensitive (`[BUMP MINOR]` is fine) and must live in the PR title itself — that's
+the squash-merge subject line that lands on `main`, and the only text the release workflow reads.
+If both `[bump major]` and `[bump minor]` appear, `major` wins.
+
+A separate CI check ([lint_pr_title.yml](.github/workflows/lint_pr_title.yml)) runs on every PR and
+fails if the title contains a `[bump WORD]` pattern where `WORD` isn't `major`, `minor`, or `patch`,
+so typos are caught before merge rather than after the release has shipped.
+
 ## Terms of Use
 
 By submitting Contributions (as defined below) to this project, you agree that

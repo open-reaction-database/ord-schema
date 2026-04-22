@@ -56,8 +56,10 @@ jobs:
           # title (case-insensitive) opts into a larger release. The PR title
           # lives in the subject line of the squash-merge commit that lands on
           # main — we only scan that subject, not the body, so the tag has to
-          # be visible on the PR page itself.
-          # `[bump major]` wins over `[bump minor]`.
+          # be visible on the PR page itself. `[bump major]` wins over
+          # `[bump minor]`. Typo-checking happens pre-merge in
+          # .github/workflows/lint_pr_title.yml so malformed tags can't reach
+          # this point from a merged PR.
           subject="$(git log -1 --format=%s)"
           if printf '%s' "$subject" | grep -qiE '\[bump[[:space:]]+major\]'; then
             level=major
@@ -65,11 +67,6 @@ jobs:
             level=minor
           else
             level=patch
-          fi
-          # Warn on `[bump WORD]` where WORD isn't a valid level (typo guard).
-          unrecognized="$(printf '%s' "$subject" | grep -oiE '\[bump[[:space:]]+[a-zA-Z]+\]' | grep -viE '\[bump[[:space:]]+(major|minor|patch)\]' || true)"
-          if [ -n "$unrecognized" ]; then
-            echo "::warning::Unrecognized bump tag(s) in PR title; using level='$level'. Valid: [bump major|minor|patch]. Found: $(printf '%s' "$unrecognized" | tr '\n' ' ')"
           fi
           echo "level=$level" >> "$GITHUB_OUTPUT"
           echo "Bump level: $level"
