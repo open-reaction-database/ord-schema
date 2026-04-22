@@ -55,19 +55,25 @@ def test_single_input_passes_metadata_through(tmp_path):
 
 def test_multi_input_concatenates_and_uses_first_metadata(tmp_path):
     ds_a = dataset_pb2.Dataset(
-        dataset_id="ord_dataset-foo", name="foo", description="d", reactions=[_reaction("ord-a1")]
+        dataset_id="ord_dataset-first",
+        name="first-name",
+        description="first-desc",
+        reactions=[_reaction("ord-a1")],
     )
     ds_b = dataset_pb2.Dataset(
-        dataset_id="ord_dataset-foo", name="foo", description="d", reactions=[_reaction("ord-b1"), _reaction("ord-b2")]
+        dataset_id="ord_dataset-second",
+        name="second-name",
+        description="second-desc",
+        reactions=[_reaction("ord-b1"), _reaction("ord-b2")],
     )
     a_path = _write_pb_gz(tmp_path, "a.pb.gz", ds_a)
     b_path = _write_pb_gz(tmp_path, "b.pb.gz", ds_b)
     output_path = os.path.join(tmp_path, "out.parquet")
     pb_to_parquet.main(pb_to_parquet.parse_args([a_path, b_path, "--output", output_path]))
     loaded = dataset_module.read_dataset(output_path)
-    assert loaded.dataset_id == "ord_dataset-foo"
-    assert loaded.name == "foo"
-    assert loaded.description == "d"
+    assert loaded.dataset_id == "ord_dataset-first"
+    assert loaded.name == "first-name"
+    assert loaded.description == "first-desc"
     assert [r.reaction_id for r in loaded.reactions] == ["ord-a1", "ord-b1", "ord-b2"]
 
 
