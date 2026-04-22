@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Converts one or more .pb/.pb.gz/.pbtxt Dataset files into a single Parquet file.
+"""Converts one or more .pb/.pb.gz/.pbtxt/.json Dataset files into a single Parquet file.
 
 When multiple inputs are given, their reactions are concatenated into the
 output. Use --name/--description/--dataset-id to set output metadata;

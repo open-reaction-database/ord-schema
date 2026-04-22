@@ -180,8 +180,8 @@ def read_dataset(path: str) -> dataset_pb2.Dataset:
     """
     with pq.ParquetFile(path) as parquet_file:
         dataset = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
-    for _, reaction in iter_reactions(path):
-        dataset.reactions.append(reaction)
+        for _, reaction in _iter_reactions(parquet_file, filter_set=None):
+            dataset.reactions.append(reaction)
     return dataset
 
 
@@ -214,15 +214,23 @@ def iter_reactions(
     else:
         filter_set = set(reaction_ids)
         if not filter_set:
-            raise ValueError("iter_reactions: reaction_ids must be non-empty when provided; pass None to iterate all")
+            raise ValueError("reaction_ids must be non-empty when provided; pass None to iterate all")
     with pq.ParquetFile(path) as parquet_file:
-        for batch in parquet_file.iter_batches(columns=["reaction_id", "reaction"]):
-            ids = batch.column("reaction_id").to_pylist()
-            blobs = batch.column("reaction").to_pylist()
-            for reaction_id, blob in zip(ids, blobs, strict=True):
-                if filter_set is not None and reaction_id not in filter_set:
-                    continue
-                yield reaction_id, reaction_pb2.Reaction.FromString(blob)
+        yield from _iter_reactions(parquet_file, filter_set=filter_set)
+
+
+def _iter_reactions(
+    parquet_file: pq.ParquetFile,
+    *,
+    filter_set: set[str] | None,
+) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
+    for batch in parquet_file.iter_batches(columns=["reaction_id", "reaction"]):
+        ids = batch.column("reaction_id").to_pylist()
+        blobs = batch.column("reaction").to_pylist()
+        for reaction_id, blob in zip(ids, blobs, strict=True):
+            if filter_set is not None and reaction_id not in filter_set:
+                continue
+            yield reaction_id, reaction_pb2.Reaction.FromString(blob)
 
 
 def read_reaction(path: str, reaction_id: str) -> reaction_pb2.Reaction:
@@ -276,9 +284,9 @@ def _dataset_from_metadata(raw_metadata: dict[bytes, bytes] | None) -> dataset_p
     name = _get(_META_NAME)
     description = _get(_META_DESCRIPTION)
     if not name:
-        raise ValueError(f"missing required Parquet footer key: {_META_NAME!r}")
+        raise ValueError(f"missing or empty required Parquet footer key: {_META_NAME!r}")
     if not description:
-        raise ValueError(f"missing required Parquet footer key: {_META_DESCRIPTION!r}")
+        raise ValueError(f"missing or empty required Parquet footer key: {_META_DESCRIPTION!r}")
     dataset = dataset_pb2.Dataset(name=name, description=description)
     dataset_id = _get(_META_DATASET_ID)
     if dataset_id:
