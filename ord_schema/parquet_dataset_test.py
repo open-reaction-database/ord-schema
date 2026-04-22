@@ -96,11 +96,12 @@ def test_iter_reactions_filtered(tmp_path):
     assert [rid for rid, _ in pairs] == ["ord-0001", "ord-0003"]
 
 
-def test_iter_reactions_empty_filter_yields_nothing(tmp_path):
+def test_iter_reactions_empty_filter_raises(tmp_path):
     original = _make_dataset(n=3)
     path = os.path.join(tmp_path, "ds.parquet")
     dataset.write_dataset(original, path)
-    assert list(dataset.iter_reactions(path, reaction_ids=[])) == []
+    with pytest.raises(ValueError, match="non-empty"):
+        list(dataset.iter_reactions(path, reaction_ids=[]))
 
 
 def test_read_reaction_hit(tmp_path):

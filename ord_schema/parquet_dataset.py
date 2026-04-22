@@ -203,12 +203,18 @@ def iter_reactions(
     Args:
         path: Parquet file path.
         reaction_ids: Optional iterable of reaction IDs to restrict iteration
-            to. IDs not present in the file are silently skipped. Filtering is
-            applied row-wise; row groups are still read in full.
+            to. IDs not present in the file are silently skipped. Filtering
+            is applied row-wise; row groups are still read in full. Pass
+            ``None`` (the default) to iterate all reactions; an explicitly
+            empty iterable raises ``ValueError`` since it is almost always a
+            bug.
     """
-    filter_set = set(reaction_ids) if reaction_ids is not None else None
-    if filter_set is not None and not filter_set:
-        return
+    if reaction_ids is None:
+        filter_set = None
+    else:
+        filter_set = set(reaction_ids)
+        if not filter_set:
+            raise ValueError("iter_reactions: reaction_ids must be non-empty when provided; pass None to iterate all")
     with pq.ParquetFile(path) as parquet_file:
         for batch in parquet_file.iter_batches(columns=["reaction_id", "reaction"]):
             ids = batch.column("reaction_id").to_pylist()
