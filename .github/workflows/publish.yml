@@ -58,7 +58,7 @@ jobs:
           # main — we only scan that subject, not the body, so the tag has to
           # be visible on the PR page itself. `[bump major]` wins over
           # `[bump minor]`. Typo-checking happens pre-merge in
-          # .github/workflows/lint_pr_title.yml so malformed tags can't reach
+          # .github/workflows/release_bump.yml so malformed tags can't reach
           # this point from a merged PR.
           subject="$(git log -1 --format=%s)"
           if printf '%s' "$subject" | grep -qiE '\[bump[[:space:]]+major\]'; then

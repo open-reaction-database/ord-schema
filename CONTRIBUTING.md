@@ -90,11 +90,12 @@ The tag is case-insensitive (`[BUMP MINOR]` is fine) and must live in the PR tit
 the squash-merge subject line that lands on `main`, and the only text the release workflow reads.
 If both `[bump major]` and `[bump minor]` appear, `major` wins.
 
-A separate CI check ([lint_pr_title.yml](.github/workflows/lint_pr_title.yml)) runs on every PR and
+A separate CI check ([release_bump.yml](.github/workflows/release_bump.yml)) runs on every PR and
 fails if the title contains a `[bump WORD]` pattern where `WORD` isn't `major`, `minor`, or `patch`,
-so typos are caught before merge rather than after the release has shipped. The same workflow
-posts (and keeps updated) a sticky comment on the PR showing the resolved bump level, so reviewers
-can see the intended release type without clicking into the check details.
+so typos are caught before merge rather than after the release has shipped. When the title opts
+into a non-default bump (`[bump minor]` or `[bump major]`), the same workflow posts (and keeps
+updated) a sticky comment on the PR showing the resolved level; default-patch PRs get no comment
+so the bot stays quiet in the common case.
 
 ## Terms of Use
 

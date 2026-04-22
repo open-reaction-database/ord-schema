@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Lint PR title
+name: Release bump
 
 on:
   # `pull_request_target` so fork PRs also get write access for the sticky
@@ -62,18 +62,27 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           MARKER='<!-- bump-tag-comment -->'
+          existing="$(gh api -X GET "/repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+                      --jq "[.[] | select(.body | startswith(\"$MARKER\"))] | last | .id // empty")"
+          # Only comment when the level opts into something bigger than the
+          # default (patch). Keeps the bot quiet on the majority of PRs. If a
+          # maintainer adds and then removes the tag, clean up the stale
+          # comment so the PR no longer misrepresents the release.
+          if [ "$LEVEL" = "patch" ]; then
+            if [ -n "$existing" ]; then
+              gh api -X DELETE "/repos/$REPO/issues/comments/$existing" --silent
+            fi
+            exit 0
+          fi
           case "$LEVEL" in
-            patch) detail='default — add [bump minor] or [bump major] to the PR title to change' ;;
-            minor) detail='set by [bump minor] in the PR title' ;;
-            major) detail='set by [bump major] in the PR title' ;;
+            minor) detail='set by `[bump minor]` in the PR title' ;;
+            major) detail='set by `[bump major]` in the PR title' ;;
           esac
           body="$MARKER
 
-          On merge, this PR will trigger a **\`$LEVEL\`** release bump ($detail)
+          On merge, this PR will trigger a **\`$LEVEL\`** release bump ($detail).
 
           _See [CONTRIBUTING.md](https://github.com/$REPO/blob/main/CONTRIBUTING.md#release-bumps)._"
-          existing="$(gh api -X GET "/repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
-                      --jq "[.[] | select(.body | startswith(\"$MARKER\"))] | last | .id // empty")"
           if [ -n "$existing" ]; then
             gh api -X PATCH "/repos/$REPO/issues/comments/$existing" -f body="$body" --silent
           else
