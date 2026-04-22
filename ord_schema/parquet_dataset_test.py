@@ -42,7 +42,6 @@ def test_round_trip(tmp_path):
     path = os.path.join(tmp_path, "ds.parquet")
     dataset.write_dataset(original, path)
     loaded = dataset.read_dataset(path)
-    # Clear reaction_ids for equality: original doesn't set them, read_dataset leaves them empty too.
     assert loaded.dataset_id == original.dataset_id
     assert loaded.name == original.name
     assert loaded.description == original.description
@@ -195,7 +194,7 @@ def test_read_rejects_missing_required_footer_keys(tmp_path, missing_key):
         dataset.read_metadata(bad_path)
 
 
-def test_read_metadata_skip_reaction_ids(tmp_path):
+def test_read_metadata_respects_include_reaction_ids_flag(tmp_path):
     original = _make_dataset(n=3)
     path = os.path.join(tmp_path, "ds.parquet")
     dataset.write_dataset(original, path)
@@ -244,14 +243,29 @@ def test_writer_close_propagates_flush_error(tmp_path):
     writer = dataset.DatasetWriter(path, name="n", description="d")
     writer.write(_make_reaction("ord-0000"))
 
-    class Boom(RuntimeError):
+    class FlushError(RuntimeError):
         pass
 
-    def fail():
-        raise Boom("flush failed")
+    class CloseError(RuntimeError):
+        pass
 
-    writer._flush = fail  # ty: ignore[invalid-assignment]  # Simulate a flush that fails on close.
-    with pytest.raises(Boom, match="flush failed"):
+    def fail_flush():
+        raise FlushError("flush failed")
+
+    def fail_close():
+        raise CloseError("close failed")
+
+    # Force both flush and the underlying writer's close to raise; the flush
+    # error must surface and the secondary close error must be swallowed.
+    original_parquet_close = writer._writer.close
+    writer._flush = fail_flush  # ty: ignore[invalid-assignment]
+    writer._writer.close = fail_close  # ty: ignore[invalid-assignment]
+    try:
+        with pytest.raises(FlushError, match="flush failed"):
+            writer.close()
+        # Second close is still a no-op even after the failure.
         writer.close()
-    # Second close is still a no-op even after the failure.
-    writer.close()
+    finally:
+        # Restore so pyarrow's GC-time close doesn't resurrect CloseError.
+        writer._writer.close = original_parquet_close  # ty: ignore[invalid-assignment]
+        writer._writer.close()
