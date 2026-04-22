@@ -11,14 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for ord_schema.dataset."""
+"""Tests for ord_schema.parquet_dataset."""
 
 import os
 
 import pyarrow.parquet as pq
 import pytest
 
-from ord_schema import dataset
+from ord_schema import parquet_dataset as dataset
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -53,6 +53,16 @@ def test_write_rejects_empty_reactions(tmp_path):
     path = os.path.join(tmp_path, "empty.parquet")
     with pytest.raises(ValueError, match="no reactions"):
         dataset.write_dataset(dataset_pb2.Dataset(name="x"), path)
+
+
+@pytest.mark.parametrize("missing", ["name", "description"])
+def test_write_rejects_empty_name_or_description(tmp_path, missing):
+    fields = {"name": "n", "description": "d"}
+    fields[missing] = ""
+    ds = dataset_pb2.Dataset(**fields, reactions=[_make_reaction("ord-0000")])
+    path = os.path.join(tmp_path, "ds.parquet")
+    with pytest.raises(ValueError, match=missing):
+        dataset.write_dataset(ds, path)
 
 
 def test_read_metadata_skips_reactions(tmp_path):
@@ -217,3 +227,31 @@ def test_row_group_size_larger_than_dataset(tmp_path):
     parquet_file = pq.ParquetFile(path)
     assert parquet_file.num_row_groups == 1
     assert dataset.read_dataset(path).reactions == original.reactions
+
+
+def test_multi_row_group_streaming_preserves_order(tmp_path):
+    original = _make_dataset(n=2500)
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(original, path, row_group_size=500)
+    parquet_file = pq.ParquetFile(path)
+    assert parquet_file.num_row_groups == 5
+    streamed = [rid for rid, _ in dataset.iter_reactions(path)]
+    assert streamed == [r.reaction_id for r in original.reactions]
+
+
+def test_writer_close_propagates_flush_error(tmp_path):
+    path = os.path.join(tmp_path, "ds.parquet")
+    writer = dataset.DatasetWriter(path, name="n", description="d")
+    writer.write(_make_reaction("ord-0000"))
+
+    class Boom(RuntimeError):
+        pass
+
+    def fail():
+        raise Boom("flush failed")
+
+    writer._flush = fail  # ty: ignore[invalid-assignment]  # Simulate a flush that fails on close.
+    with pytest.raises(Boom, match="flush failed"):
+        writer.close()
+    # Second close is still a no-op even after the failure.
+    writer.close()

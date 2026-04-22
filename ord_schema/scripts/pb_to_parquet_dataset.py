@@ -25,12 +25,20 @@ bounded by the largest input (plus one row-group buffer) rather than the sum.
 import argparse
 import dataclasses
 
-from ord_schema import dataset as dataset_module
-from ord_schema import message_helpers
+from ord_schema import message_helpers, parquet_dataset
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class _Resolved:
+    """Output metadata resolved from CLI overrides and/or the first input."""
+
+    name: str
+    description: str
+    dataset_id: str | None
 
 
 def parse_args(argv=None):
@@ -56,7 +64,7 @@ def main(args) -> None:
     )
 
     count = 0
-    with dataset_module.DatasetWriter(
+    with parquet_dataset.DatasetWriter(
         args.output,
         name=resolved.name,
         description=resolved.description,
@@ -75,14 +83,13 @@ def main(args) -> None:
     logger.info("Wrote %d reactions to %s", count, args.output)
 
 
-@dataclasses.dataclass(frozen=True)
-class _Resolved:
-    name: str
-    description: str
-    dataset_id: str | None
-
-
-def _drain(dataset, writer, filename, resolved: _Resolved, args) -> int:
+def _drain(
+    dataset: dataset_pb2.Dataset,
+    writer: parquet_dataset.DatasetWriter,
+    filename: str,
+    resolved: _Resolved,
+    args: argparse.Namespace,
+) -> int:
     if args.dataset_id is None and dataset.dataset_id and dataset.dataset_id != resolved.dataset_id:
         logger.warning("%s: dataset_id %r differs from output %r", filename, dataset.dataset_id, resolved.dataset_id)
     if args.name is None and dataset.name and dataset.name != resolved.name:

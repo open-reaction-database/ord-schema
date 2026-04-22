@@ -196,11 +196,11 @@ def read_metadata(path: str, *, include_reaction_ids: bool = True) -> dataset_pb
             reading the ``reaction_id`` column. Set False to skip that read
             when only the scalar fields are needed.
     """
-    parquet_file = pq.ParquetFile(path)
-    dataset = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
-    if include_reaction_ids:
-        ids_table = parquet_file.read(columns=["reaction_id"])
-        dataset.reaction_ids.extend(ids_table.column("reaction_id").to_pylist())
+    with pq.ParquetFile(path) as parquet_file:
+        dataset = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
+        if include_reaction_ids:
+            ids_table = parquet_file.read(columns=["reaction_id"])
+            dataset.reaction_ids.extend(ids_table.column("reaction_id").to_pylist())
     return dataset
 
 
@@ -219,14 +219,14 @@ def iter_reactions(
     filter_set = set(reaction_ids) if reaction_ids is not None else None
     if filter_set is not None and not filter_set:
         return
-    parquet_file = pq.ParquetFile(path)
-    for batch in parquet_file.iter_batches(columns=["reaction_id", "reaction"]):
-        ids = batch.column("reaction_id").to_pylist()
-        blobs = batch.column("reaction").to_pylist()
-        for reaction_id, blob in zip(ids, blobs, strict=True):
-            if filter_set is not None and reaction_id not in filter_set:
-                continue
-            yield reaction_id, reaction_pb2.Reaction.FromString(blob)
+    with pq.ParquetFile(path) as parquet_file:
+        for batch in parquet_file.iter_batches(columns=["reaction_id", "reaction"]):
+            ids = batch.column("reaction_id").to_pylist()
+            blobs = batch.column("reaction").to_pylist()
+            for reaction_id, blob in zip(ids, blobs, strict=True):
+                if filter_set is not None and reaction_id not in filter_set:
+                    continue
+                yield reaction_id, reaction_pb2.Reaction.FromString(blob)
 
 
 def read_reaction(path: str, reaction_id: str) -> reaction_pb2.Reaction:

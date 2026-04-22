@@ -11,16 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for ord_schema.scripts.pb_to_parquet."""
+"""Tests for ord_schema.scripts.pb_to_parquet_dataset."""
 
+import logging
 import os
 
 import pytest
 
-from ord_schema import dataset as dataset_module
 from ord_schema import message_helpers
+from ord_schema import parquet_dataset as dataset_module
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.scripts import pb_to_parquet
+from ord_schema.scripts import pb_to_parquet_dataset as pb_to_parquet
 
 
 def _reaction(reaction_id: str, conversion: float = 50.0) -> reaction_pb2.Reaction:
@@ -66,6 +67,7 @@ def test_multi_input_concatenates_and_uses_first_metadata(tmp_path):
     loaded = dataset_module.read_dataset(output_path)
     assert loaded.dataset_id == "ord_dataset-foo"
     assert loaded.name == "foo"
+    assert loaded.description == "d"
     assert [r.reaction_id for r in loaded.reactions] == ["ord-a1", "ord-b1", "ord-b2"]
 
 
@@ -104,9 +106,7 @@ def test_mismatched_metadata_warns(tmp_path, caplog):
     a_path = _write_pb_gz(tmp_path, "a.pb.gz", ds_a)
     b_path = _write_pb_gz(tmp_path, "b.pb.gz", ds_b)
     output_path = os.path.join(tmp_path, "out.parquet")
-    import logging
-
-    with caplog.at_level(logging.WARNING, logger="ord_schema.scripts.pb_to_parquet"):
+    with caplog.at_level(logging.WARNING, logger="ord_schema.scripts.pb_to_parquet_dataset"):
         pb_to_parquet.main(pb_to_parquet.parse_args([a_path, b_path, "--output", output_path]))
     messages = " ".join(record.getMessage() for record in caplog.records)
     assert "dataset_id" in messages
