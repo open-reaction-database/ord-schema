@@ -49,12 +49,33 @@ jobs:
           node-version: '24'
           # https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
           registry-url: 'https://registry.npmjs.org'
-      - name: Bump patch version
+      - name: Determine bump level
+        id: bump
+        run: |
+          # Default to patch. A `[bump minor]` or `[bump major]` tag in the PR
+          # title (case-insensitive) opts into a larger release. The PR title
+          # lives in the subject line of the squash-merge commit that lands on
+          # main — we only scan that subject, not the body, so the tag has to
+          # be visible on the PR page itself. `[bump major]` wins over
+          # `[bump minor]`. Typo-checking happens pre-merge in
+          # .github/workflows/release_bump.yml so malformed tags can't reach
+          # this point from a merged PR.
+          subject="$(git log -1 --format=%s)"
+          if printf '%s' "$subject" | grep -qiE '\[bump[[:space:]]+major\]'; then
+            level=major
+          elif printf '%s' "$subject" | grep -qiE '\[bump[[:space:]]+minor\]'; then
+            level=minor
+          else
+            level=patch
+          fi
+          echo "level=$level" >> "$GITHUB_OUTPUT"
+          echo "Bump level: $level"
+      - name: Bump version
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
           uv pip install bump2version
-          bump2version patch --verbose
+          bump2version "${{ steps.bump.outputs.level }}" --verbose
       # PyPI Trusted Publishing (OIDC); configure at https://docs.pypi.org/trusted-publishers/
       # for this repo + workflow file publish.yml (no PYPI_API_TOKEN / legacy upload).
       - name: Build Python distributions
