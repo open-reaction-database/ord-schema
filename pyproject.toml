@@ -38,6 +38,7 @@ dependencies = [
     "pandas>=1.0.4",
     "protobuf>=4.22.3,<6",
     "psycopg[binary,pool]>=3",
+    "pyarrow>=14",
     "pygithub>=1.51",
     "python-dateutil>=1.10.0",
     "rdkit>=2021.9.5",
