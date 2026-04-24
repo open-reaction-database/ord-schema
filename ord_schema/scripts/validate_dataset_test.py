@@ -72,6 +72,40 @@ def test_validation_errors(setup):
         validate_dataset.main(validate_dataset.parse_args(argv))
 
 
+def test_parquet_input(tmp_path):
+    reaction = reaction_pb2.Reaction()
+    dummy_input = reaction.inputs["dummy_input"]
+    dummy_component = dummy_input.components.add()
+    dummy_component.identifiers.add(type="CUSTOM", details="custom_identifier", value="custom_value")
+    dummy_component.is_limiting = True
+    dummy_component.amount.mass.value = 1
+    dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
+    reaction.outcomes.add().conversion.value = 75
+    reaction.provenance.record_created.time.value = "2023-07-01"
+    reaction.provenance.record_created.person.name = "test"
+    reaction.provenance.record_created.person.email = "test@example.com"
+    dataset = dataset_pb2.Dataset(name="parquet", description="parquet", reactions=[reaction])
+    path = (tmp_path / "dataset.parquet").as_posix()
+    message_helpers.write_message(dataset, path)
+    validate_dataset.main(validate_dataset.parse_args(["--input", path]))
+
+
+def test_parquet_validation_errors(tmp_path):
+    # Empty reaction fails per-reaction validation via the streaming path.
+    bad_dataset = dataset_pb2.Dataset(
+        name="bad",
+        description="bad",
+        reactions=[reaction_pb2.Reaction(reaction_id="ord-0")],
+    )
+    path = (tmp_path / "bad.parquet").as_posix()
+    message_helpers.write_message(bad_dataset, path)
+    with pytest.raises(
+        validations.ValidationError,
+        match="Reactions should have at least 1 reaction input",
+    ):
+        validate_dataset.main(validate_dataset.parse_args(["--input", path]))
+
+
 @pytest.mark.parametrize(
     "pattern,expected",
     (
