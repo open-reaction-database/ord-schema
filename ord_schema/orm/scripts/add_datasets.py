@@ -28,6 +28,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
+from ord_schema import parquet_dataset
 from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.message_helpers import load_message
 from ord_schema.orm import database
@@ -38,6 +39,10 @@ logger = get_logger(__name__)
 
 def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
     """Adds a single dataset to the database.
+
+    Parquet inputs are streamed; other formats are loaded fully before being
+    inserted. See ``database.add_parquet_dataset`` for the streaming path and
+    the MD5 scheme it uses.
 
     Args:
         dsn: Database connection string.
@@ -50,11 +55,13 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
     Raises:
         ValueError: If the dataset already exists in the database and `overwrite` is not set.
     """
-    logger.debug(f"Loading {filename}")
-    dataset = load_message(filename, dataset_pb2.Dataset)
     # NOTE(skearnes): Multiprocessing is hard to get right for shared connection pools, so we don't even try; see
     # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
     engine = create_engine(dsn)
+    if filename.endswith(".parquet"):
+        return _add_parquet_dataset(engine, filename, overwrite)
+    logger.debug(f"Loading {filename}")
+    dataset = load_message(filename, dataset_pb2.Dataset)
     with Session(engine) as session:
         with session.begin():
             dataset_md5 = database.get_dataset_md5(dataset.dataset_id, session)
@@ -74,6 +81,31 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
             database.add_dataset(dataset, session, rdkit_cartridge=False)  # Do this separately in add_rdkit().
         logger.debug(f"add_dataset() took {time.time() - start:g}s")
     return dataset.dataset_id
+
+
+def _add_parquet_dataset(engine: Engine, filename: str, overwrite: bool) -> str:
+    """Streaming ingestion path for Parquet-serialized Datasets."""
+    logger.debug(f"Streaming {filename}")
+    dataset_id = parquet_dataset.read_metadata(filename).dataset_id
+    with Session(engine) as session:
+        with session.begin():
+            dataset_md5 = database.get_dataset_md5(dataset_id, session)
+        if dataset_md5 is not None:
+            this_md5, _ = parquet_dataset.streaming_md5(filename)
+            if this_md5 != dataset_md5:
+                if not overwrite:
+                    raise ValueError(f"`overwrite` is required when a dataset already exists: {dataset_id}")
+                logger.debug(f"existing dataset {dataset_id} changed; updating")
+                with session.begin():
+                    database.delete_dataset(dataset_id, session)
+            else:
+                logger.debug(f"existing dataset {dataset_id} unchanged; skipping")
+                return dataset_id
+        start = time.time()
+        with session.begin():
+            database.add_parquet_dataset(filename, session, rdkit_cartridge=False)
+        logger.debug(f"add_parquet_dataset() took {time.time() - start:g}s")
+    return dataset_id
 
 
 def add_rdkit(engine: Engine, dataset_id: str) -> None:

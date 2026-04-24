@@ -727,6 +727,7 @@ class MessageFormat(enum.Enum):
     BINARY = ".pb"
     JSON = ".json"
     PBTXT = ".pbtxt"
+    PARQUET = ".parquet"
 
 
 def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset:
@@ -775,6 +776,14 @@ def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
         this_open = open
         _, extension = os.path.splitext(filename)
     input_format = MessageFormat(extension)
+    if input_format == MessageFormat.PARQUET:
+        if filename.endswith(".gz"):
+            raise ValueError(f"Parquet files are not gzip-wrapped: {filename}")
+        if message_type is not dataset_pb2.Dataset:
+            raise ValueError(f"Parquet is only supported for Dataset messages, not {message_type.__name__}")
+        from ord_schema import parquet_dataset
+
+        return parquet_dataset.read_dataset(filename)  # ty: ignore[invalid-return-type]
     if input_format == MessageFormat.BINARY:
         mode = "rb"
     else:
@@ -814,6 +823,15 @@ def write_message(message: ord_schema.Message, filename: str):
         this_open = open
         _, extension = os.path.splitext(filename)
     output_format = MessageFormat(extension)
+    if output_format == MessageFormat.PARQUET:
+        if filename.endswith(".gz"):
+            raise ValueError(f"Parquet files are not gzip-wrapped: {filename}")
+        if not isinstance(message, dataset_pb2.Dataset):
+            raise ValueError(f"Parquet is only supported for Dataset messages, not {type(message).__name__}")
+        from ord_schema import parquet_dataset
+
+        parquet_dataset.write_dataset(message, filename)
+        return
     with this_open(filename, "wb") as f:
         if output_format == MessageFormat.JSON:
             f.write(json_format.MessageToJson(message).encode())

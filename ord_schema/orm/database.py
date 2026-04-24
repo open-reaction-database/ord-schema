@@ -14,6 +14,7 @@
 
 """Functions for creating/managing the PostgreSQL database."""
 
+import hashlib
 import os
 import time
 from typing import Any, cast
@@ -24,6 +25,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NotSupportedError, OperationalError
 from sqlalchemy.orm import Session
 
+from ord_schema import parquet_dataset
 from ord_schema.logging import get_logger
 from ord_schema.orm.mappers import Base, Mappers, from_proto
 from ord_schema.proto import dataset_pb2
@@ -82,6 +84,70 @@ def add_dataset(dataset: dataset_pb2.Dataset, session: Session, rdkit_cartridge:
         update_rdkit_tables(dataset.dataset_id, session)
         session.flush()
         update_rdkit_ids(dataset.dataset_id, session)
+
+
+# Flush pending Reaction ORM objects to the database in batches, so the session's
+# identity map cannot grow unbounded for large Parquet datasets.
+_PARQUET_FLUSH_BATCH = 200
+
+
+def add_parquet_dataset(path: str, session: Session, rdkit_cartridge: bool = True) -> None:
+    """Streams a Parquet-serialized Dataset into the ORM tables.
+
+    Reactions are deserialized one at a time and flushed in batches, so peak
+    memory stays bounded regardless of dataset size. The MD5 hash stored for
+    a Parquet-ingested Dataset comes from ``parquet_dataset.streaming_md5``
+    rather than from the serialized Dataset bytes (see that function for the
+    scheme; it differs from the one used for ``.pb.gz`` inputs).
+    """
+    start = time.time()
+    metadata = parquet_dataset.read_metadata(path)
+    logger.debug(f"Streaming Parquet Dataset {metadata.dataset_id}")
+    reaction_child_class = Mappers.Dataset.reactions.mapper.class_
+    hasher = hashlib.md5()
+    hasher.update(f"name={metadata.name}\n".encode())
+    hasher.update(f"description={metadata.description}\n".encode())
+    hasher.update(f"dataset_id={metadata.dataset_id}\n".encode())
+    # Create the Dataset row up front with placeholder scalars; patched at end.
+    mapped_dataset = Mappers.Dataset(
+        name=metadata.name,
+        description=metadata.description,
+        dataset_id=metadata.dataset_id,
+        md5="0" * 32,
+        num_reactions=0,
+    )
+    session.add(mapped_dataset)
+    session.flush()
+    count = 0
+    pending: list = []
+    for reaction_id, reaction in parquet_dataset.iter_reactions(path):
+        blob = reaction.SerializeToString(deterministic=True)
+        hasher.update(f"reaction_id={reaction_id}\n".encode())
+        hasher.update(len(blob).to_bytes(8, "big"))
+        hasher.update(blob)
+        reaction_mapper = from_proto(reaction, mapper=reaction_child_class)
+        reaction_mapper.parent = mapped_dataset
+        session.add(reaction_mapper)
+        pending.append(reaction_mapper)
+        count += 1
+        if len(pending) >= _PARQUET_FLUSH_BATCH:
+            session.flush()
+            for obj in pending:
+                session.expunge(obj)
+            pending.clear()
+    if pending:
+        session.flush()
+        for obj in pending:
+            session.expunge(obj)
+        pending.clear()
+    mapped_dataset.md5 = hasher.hexdigest()
+    mapped_dataset.num_reactions = count
+    session.flush()
+    logger.debug(f"add_parquet_dataset() took {time.time() - start:g}s ({count} reactions)")
+    if rdkit_cartridge:
+        update_rdkit_tables(metadata.dataset_id, session)
+        session.flush()
+        update_rdkit_ids(metadata.dataset_id, session)
 
 
 def get_dataset_md5(dataset_id: str, session: Session) -> str | None:

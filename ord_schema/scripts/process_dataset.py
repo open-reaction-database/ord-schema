@@ -32,15 +32,18 @@ import dataclasses
 import glob
 import gzip
 import os
+import re
 import subprocess
 import sys
-from collections.abc import Iterable, Mapping
+import tempfile
+import uuid
+from collections.abc import Iterable
 
 import github
 
-from ord_schema import message_helpers, updates, validations
+from ord_schema import message_helpers, parquet_dataset, updates, validations
 from ord_schema.logging import get_logger, silence_rdkit_logs
-from ord_schema.proto import dataset_pb2
+from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
 
@@ -105,6 +108,10 @@ def cleanup(filename: str, output_filename: str):
     subprocess.run(args, check=True)
 
 
+def _is_parquet(filename: str) -> bool:
+    return filename.endswith(".parquet")
+
+
 def _get_reaction_ids(dataset: dataset_pb2.Dataset) -> set[str]:
     """Returns a set containing the reaction IDs in a Dataset."""
     reaction_ids = set()
@@ -114,8 +121,13 @@ def _get_reaction_ids(dataset: dataset_pb2.Dataset) -> set[str]:
     return reaction_ids
 
 
-def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Dataset | None:
-    """Loads a Dataset message from another branch."""
+def _reaction_ids_from_path(filename: str) -> set[str]:
+    """Streams reaction IDs from a Parquet file without deserializing Reactions."""
+    return {rid for rid in parquet_dataset.iter_reaction_ids(filename) if rid}
+
+
+def _load_base_reaction_ids(file_status: FileStatus, base: str) -> set[str] | None:
+    """Returns the reaction IDs from the base-branch version of a file, or None if new."""
     if file_status.status.startswith("A"):
         return None  # Dataset only exists in the submission.
     # NOTE(kearnes): Use --no-pager to avoid a non-zero exit code.
@@ -135,22 +147,26 @@ def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Datase
             check=True,
             text=False,
         )
-    if git_args[-1].endswith(".gz"):
+    git_path = git_args[-1]
+    if _is_parquet(git_path) or git_path.endswith(".parquet.gz"):
+        # Second clause is defensive; Parquet files are not gzip-wrapped.
+        return {rid for rid in parquet_dataset.iter_reaction_ids(serialized.stdout) if rid}
+    if git_path.endswith(".gz"):
         value = gzip.decompress(serialized.stdout)
     else:
         value = serialized.stdout
-    return dataset_pb2.Dataset.FromString(value)
+    return _get_reaction_ids(dataset_pb2.Dataset.FromString(value))
 
 
 def get_change_stats(
-    datasets: Mapping[str, dataset_pb2.Dataset | None], inputs: Iterable[FileStatus], base: str
+    reaction_ids: Iterable[tuple[FileStatus, set[str] | None]],
+    base: str,
 ) -> tuple[set[str], set[str], set[str]]:
     """Computes diff statistics for the submission.
 
     Args:
-        datasets: Dict mapping filenames to Dataset messages. Values may be None only
-            for deleted files; non-deleted inputs must have a Dataset for `filename`.
-        inputs: List of FileStatus objects.
+        reaction_ids: Iterable of (FileStatus, current_reaction_ids). The
+            current set is None only for deleted files.
         base: Git branch to diff against.
 
     Returns:
@@ -159,43 +175,132 @@ def get_change_stats(
         changed: Set of changed reaction IDs.
     """
     old, new = set(), set()
-    for file_status in inputs:
+    for file_status, current in reaction_ids:
         if not file_status.status.startswith("D"):
-            current = datasets[file_status.filename]
             if current is None:
-                raise ValueError(f"missing dataset for non-deleted file: {file_status.filename}")
-            new.update(_get_reaction_ids(current))
-        dataset = _load_base_dataset(file_status, base)
-        if dataset is not None:
-            old.update(_get_reaction_ids(dataset))
+                raise ValueError(f"missing reaction IDs for non-deleted file: {file_status.filename}")
+            new.update(current)
+        base_ids = _load_base_reaction_ids(file_status, base)
+        if base_ids is not None:
+            old.update(base_ids)
     return new - old, old - new, new & old
 
 
-def _run_updates(
-    datasets: Mapping[str, dataset_pb2.Dataset],
+def _apply_id_substitutions(reaction: reaction_pb2.Reaction, id_substitutions: dict[str, str]) -> None:
+    """Rewrites cross-referenced reaction IDs in-place using ``updates.update_dataset`` semantics."""
+    for reaction_input in reaction.inputs.values():
+        for component in reaction_input.components:
+            for preparation in component.preparations:
+                if preparation.reaction_id and preparation.reaction_id in id_substitutions:
+                    preparation.reaction_id = id_substitutions[preparation.reaction_id]
+        for crude_component in reaction_input.crude_components:
+            if crude_component.reaction_id in id_substitutions:
+                crude_component.reaction_id = id_substitutions[crude_component.reaction_id]
+
+
+def _run_updates_eager(
+    filename: str,
+    dataset: dataset_pb2.Dataset,
     *,
     root: str,
     output_format: str,
     write_errors: bool,
     cleanup_files: bool,
 ) -> None:
-    """Updates the submission files."""
-    for dataset in datasets.values():
-        # Set reaction_ids, resolve names, fix cross-references, etc.
-        updates.update_dataset(dataset)
-    # Final validation to make sure we didn't break anything.
+    """Updates the submission file for a single non-Parquet Dataset."""
+    updates.update_dataset(dataset)
     options = validations.ValidationOptions(validate_ids=True, require_provenance=True)
-    validations.validate_datasets(datasets, write_errors, options=options)
-    for filename, dataset in datasets.items():
-        output_filename = os.path.join(
-            root,
-            message_helpers.id_filename(f"{dataset.dataset_id}{output_format}"),
+    validations.validate_datasets({filename: dataset}, write_errors, options=options)
+    output_filename = os.path.join(
+        root,
+        message_helpers.id_filename(f"{dataset.dataset_id}{output_format}"),
+    )
+    os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+    if cleanup_files:
+        cleanup(filename, output_filename)
+    logger.info("writing Dataset to %s", output_filename)
+    message_helpers.write_message(dataset, output_filename)
+
+
+def _run_updates_streaming(
+    filename: str,
+    *,
+    root: str,
+    output_format: str,
+    write_errors: bool,
+    cleanup_files: bool,
+) -> None:
+    """Updates a Parquet submission file via a streaming pipeline."""
+    if output_format != ".parquet":
+        raise ValueError(
+            f"Parquet inputs require --output_format .parquet to preserve streaming; got {output_format!r}"
         )
-        os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+    # Resolve the final output path up-front so the streaming pipeline can
+    # write directly there. We peek at metadata to decide the dataset_id.
+    metadata = parquet_dataset.read_metadata(filename)
+    if re.fullmatch("^ord_dataset-[0-9a-f]{32}$", metadata.dataset_id):
+        dataset_id = metadata.dataset_id
+    else:
+        dataset_id = f"ord_dataset-{uuid.uuid4().hex}"
+    output_filename = os.path.join(
+        root,
+        message_helpers.id_filename(f"{dataset_id}{output_format}"),
+    )
+    os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+    if filename == output_filename:
+        # Streaming requires distinct input and output; write to a sibling and rename.
+        tmp_output = f"{output_filename}.new"
+        metadata.dataset_id = dataset_id  # Ensure consistency if we bypass the ID reassignment.
+        _update_dataset_parquet_streaming_with_id(filename, tmp_output, dataset_id=dataset_id)
+        os.replace(tmp_output, output_filename)
+    else:
+        _update_dataset_parquet_streaming_with_id(filename, output_filename, dataset_id=dataset_id)
         if cleanup_files:
             cleanup(filename, output_filename)
-        logger.info("writing Dataset to %s", output_filename)
-        message_helpers.write_message(dataset, output_filename)
+    options = validations.ValidationOptions(validate_ids=True, require_provenance=True)
+    validations.validate_parquet_datasets([output_filename], write_errors=write_errors, options=options)
+    logger.info("writing Dataset to %s", output_filename)
+
+
+def _update_dataset_parquet_streaming_with_id(
+    input_path: str,
+    output_path: str,
+    *,
+    dataset_id: str,
+) -> None:
+    """Variant of the two-pass update pipeline with a pre-resolved dataset_id."""
+    metadata = parquet_dataset.read_metadata(input_path)
+    metadata.dataset_id = dataset_id
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    tmp_fd, tmp_path = tempfile.mkstemp(
+        prefix=".update-",
+        suffix=".parquet",
+        dir=os.path.dirname(output_path) or None,
+    )
+    os.close(tmp_fd)
+    try:
+        id_substitutions: dict[str, str] = {}
+        with parquet_dataset.DatasetWriter(
+            tmp_path,
+            name=metadata.name,
+            description=metadata.description,
+            dataset_id=metadata.dataset_id,
+        ) as writer:
+            for _, reaction in parquet_dataset.iter_reactions(input_path):
+                id_substitutions.update(updates.update_reaction(reaction))
+                writer.write(reaction)
+        with parquet_dataset.DatasetWriter(
+            output_path,
+            name=metadata.name,
+            description=metadata.description,
+            dataset_id=metadata.dataset_id,
+        ) as writer:
+            for _, reaction in parquet_dataset.iter_reactions(tmp_path):
+                _apply_id_substitutions(reaction, id_substitutions)
+                writer.write(reaction)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 def run(args) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
@@ -217,25 +322,40 @@ def run(args) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
     # NOTE(kearnes): Process one dataset at a time to avoid OOM errors.
     change_stats = {}
     for file_status in inputs:
-        if file_status.status == "D":
-            dataset = None
+        is_parquet = _is_parquet(file_status.filename)
+        deleted = file_status.status == "D"
+        # Validation + size checks (stream for Parquet, load fully otherwise).
+        current_reaction_ids: set[str] | None
+        if deleted:
+            current_reaction_ids = None
+        elif is_parquet:
+            if not args.no_validate:
+                validations.validate_parquet_datasets([file_status.filename], write_errors=args.write_errors)
+            current_reaction_ids = set()
+            max_bytes = args.max_size * 1e6
+            for reaction_id, reaction in parquet_dataset.iter_reactions(file_status.filename):
+                blob = reaction.SerializeToString()
+                if sys.getsizeof(blob) > max_bytes:
+                    reaction_size = sys.getsizeof(blob) / 1e6
+                    raise ValueError(f"Reaction is larger than --max_size ({reaction_size} vs {args.max_size})")
+                if reaction_id:
+                    current_reaction_ids.add(reaction_id)
+            logger.info("%s: %d reactions", file_status.filename, len(current_reaction_ids))
         else:
             dataset = message_helpers.load_message(file_status.filename, dataset_pb2.Dataset)
             logger.info("%s: %d reactions", file_status.filename, len(dataset.reactions))
-        datasets: dict[str, dataset_pb2.Dataset | None] = {file_status.filename: dataset}
-        datasets_checked: dict[str, dataset_pb2.Dataset] = (
-            {file_status.filename: dataset} if dataset is not None else {}
-        )
-        if not args.no_validate and dataset is not None:
-            # Note: this does not check if IDs are malformed.
-            validations.validate_datasets(datasets_checked, args.write_errors)
-            # Check reaction sizes.
-            for reaction in dataset.reactions:
-                reaction_size = sys.getsizeof(reaction.SerializeToString()) / 1e6
-                if reaction_size > args.max_size:
-                    raise ValueError(f"Reaction is larger than --max_size ({reaction_size} vs {args.max_size})")
+            if not args.no_validate:
+                validations.validate_datasets({file_status.filename: dataset}, args.write_errors)
+                for reaction in dataset.reactions:
+                    reaction_size = sys.getsizeof(reaction.SerializeToString()) / 1e6
+                    if reaction_size > args.max_size:
+                        raise ValueError(f"Reaction is larger than --max_size ({reaction_size} vs {args.max_size})")
+            current_reaction_ids = _get_reaction_ids(dataset)
         if args.base:
-            added, removed, changed = get_change_stats(datasets, [file_status], base=args.base)
+            added, removed, changed = get_change_stats(
+                [(file_status, current_reaction_ids)],
+                base=args.base,
+            )
             change_stats[file_status.filename] = (added, removed, changed)
             logger.info(
                 "Summary: +%d -%d Δ%d reaction IDs",
@@ -243,14 +363,24 @@ def run(args) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
                 len(removed),
                 len(changed),
             )
-        if args.update and dataset is not None:
-            _run_updates(
-                datasets_checked,
-                root=args.root,
-                output_format=args.output_format,
-                write_errors=args.write_errors,
-                cleanup_files=args.cleanup,
-            )
+        if args.update and not deleted:
+            if is_parquet:
+                _run_updates_streaming(
+                    file_status.filename,
+                    root=args.root,
+                    output_format=args.output_format,
+                    write_errors=args.write_errors,
+                    cleanup_files=args.cleanup,
+                )
+            else:
+                _run_updates_eager(
+                    file_status.filename,
+                    dataset,
+                    root=args.root,
+                    output_format=args.output_format,
+                    write_errors=args.write_errors,
+                    cleanup_files=args.cleanup,
+                )
     if change_stats:
         total_added, total_removed, total_changed = set(), set(), set()
         comment = [

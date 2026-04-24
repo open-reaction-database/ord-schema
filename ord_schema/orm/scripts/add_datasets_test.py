@@ -16,8 +16,15 @@
 
 import os
 
+from sqlalchemy.orm import Session
+
+from ord_schema import message_helpers, parquet_dataset
+from ord_schema.orm import database
 from ord_schema.orm.database import prepare_database
 from ord_schema.orm.scripts import add_datasets
+from ord_schema.proto import dataset_pb2
+
+_PBTXT_FIXTURE = os.path.join(os.path.dirname(__file__), "..", "testdata", "ord-nielsen-example.pbtxt")
 
 
 def test_main(test_engine):
@@ -26,6 +33,23 @@ def test_main(test_engine):
         "--dsn",
         str(test_engine.url),
         "--pattern",
-        os.path.join(os.path.dirname(__file__), "..", "testdata", "ord-nielsen-example.pbtxt"),
+        _PBTXT_FIXTURE,
     ]
     add_datasets.main(add_datasets.parse_args(argv))
+
+
+def test_main_parquet(test_engine, tmp_path):
+    rdkit_cartridge = prepare_database(test_engine)
+    fixture = message_helpers.load_message(_PBTXT_FIXTURE, dataset_pb2.Dataset)
+    parquet_path = (tmp_path / "dataset.parquet").as_posix()
+    message_helpers.write_message(fixture, parquet_path)
+    argv = ["--dsn", str(test_engine.url), "--pattern", parquet_path]
+    add_datasets.main(add_datasets.parse_args(argv))
+    # Verify the streaming path stored the streaming MD5 and the reaction count.
+    expected_md5, expected_count = parquet_dataset.streaming_md5(parquet_path)
+    with Session(test_engine) as session:
+        assert database.get_dataset_md5(fixture.dataset_id, session) == expected_md5
+        assert database.get_dataset_size(fixture.dataset_id, session) == expected_count
+    # A second invocation without --overwrite is a no-op when the MD5 matches.
+    add_datasets.main(add_datasets.parse_args(argv))
+    del rdkit_cartridge  # Cartridge handling is exercised via main()'s add_rdkit step.

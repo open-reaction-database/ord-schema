@@ -21,7 +21,7 @@ from collections.abc import Iterator
 import pytest
 from rdkit import RDLogger
 
-from ord_schema import message_helpers, validations
+from ord_schema import message_helpers, parquet_dataset, validations
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import process_dataset
@@ -108,6 +108,141 @@ class TestProcessDataset:
         dataset = message_helpers.load_message(expected_output, dataset_pb2.Dataset)
         assert len(dataset.reactions) == 1
         assert dataset.reactions[0].reaction_id.startswith("ord-")
+
+    @pytest.fixture
+    def parquet_setup(self, tmp_path) -> Iterator[str]:
+        RDLogger.logger().setLevel(RDLogger.CRITICAL)
+        reaction = reaction_pb2.Reaction()
+        dummy_input = reaction.inputs["dummy_input"]
+        dummy_component = dummy_input.components.add()
+        dummy_component.identifiers.add(type="CUSTOM", details="custom_identifier", value="custom_value")
+        dummy_component.is_limiting = True
+        dummy_component.amount.mass.value = 1
+        dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
+        reaction.outcomes.add().conversion.value = 75
+        reaction.provenance.record_created.time.value = "2020-01-01"
+        reaction.provenance.record_created.person.username = "test"
+        reaction.provenance.record_created.person.email = "test@example.com"
+        dataset = dataset_pb2.Dataset(
+            name="parquet",
+            description="parquet",
+            dataset_id="ord_dataset-00000000000000000000000000000000",
+            reactions=[reaction],
+        )
+        filename = (tmp_path / "dataset.parquet").as_posix()
+        message_helpers.write_message(dataset, filename)
+        yield filename
+
+    def test_parquet_validate(self, parquet_setup):
+        argv = ["--input_pattern", parquet_setup]
+        process_dataset.main(process_dataset.parse_args(argv))
+
+    def test_parquet_updates(self, parquet_setup, tmp_path):
+        argv = [
+            "--input_pattern",
+            parquet_setup,
+            "--root",
+            tmp_path.as_posix(),
+            "--output_format",
+            ".parquet",
+            "--update",
+        ]
+        process_dataset.main(process_dataset.parse_args(argv))
+        expected_output = os.path.join(
+            tmp_path.as_posix(),
+            "data",
+            "00",
+            "ord_dataset-00000000000000000000000000000000.parquet",
+        )
+        assert os.path.exists(expected_output)
+        reactions = [reaction for _, reaction in parquet_dataset.iter_reactions(expected_output)]
+        assert len(reactions) == 1
+        assert reactions[0].reaction_id.startswith("ord-")
+
+    def test_parquet_rejects_non_parquet_output(self, parquet_setup, tmp_path):
+        argv = [
+            "--input_pattern",
+            parquet_setup,
+            "--root",
+            tmp_path.as_posix(),
+            "--update",  # Default --output_format is .pb.gz.
+        ]
+        with pytest.raises(ValueError, match="require --output_format .parquet"):
+            process_dataset.main(process_dataset.parse_args(argv))
+
+    def test_parquet_validation_errors(self, tmp_path):
+        bad_dataset = dataset_pb2.Dataset(
+            name="bad",
+            description="bad",
+            reactions=[reaction_pb2.Reaction(reaction_id="ord-0")],
+        )
+        path = (tmp_path / "bad.parquet").as_posix()
+        message_helpers.write_message(bad_dataset, path)
+        argv = ["--input_pattern", path, "--write_errors"]
+        with pytest.raises(validations.ValidationError, match="validation encountered errors"):
+            process_dataset.main(process_dataset.parse_args(argv))
+        assert os.path.exists(f"{path}.error")
+
+    def test_parquet_cross_reference_rewrite(self, tmp_path):
+        # Two reactions where reaction B references reaction A's placeholder ID via crude_components;
+        # the streaming update pipeline should rewrite both to the assigned ord- IDs.
+        def _with_provenance(reaction):
+            reaction.provenance.record_created.time.value = "2020-01-01"
+            reaction.provenance.record_created.person.username = "test"
+            reaction.provenance.record_created.person.email = "test@example.com"
+            return reaction
+
+        reaction_a = reaction_pb2.Reaction(reaction_id="placeholder_a")
+        input_a = reaction_a.inputs["dummy"]
+        compound_a = input_a.components.add()
+        compound_a.identifiers.add(type="CUSTOM", details="d", value="v")
+        compound_a.is_limiting = True
+        compound_a.amount.mass.value = 1
+        compound_a.amount.mass.units = reaction_pb2.Mass.GRAM
+        reaction_a.outcomes.add().conversion.value = 75
+        _with_provenance(reaction_a)
+
+        reaction_b = reaction_pb2.Reaction(reaction_id="placeholder_b")
+        input_b = reaction_b.inputs["crude"]
+        crude = input_b.crude_components.add()
+        crude.reaction_id = "placeholder_a"
+        crude.has_derived_amount = True
+        # A second input with a limiting Compound satisfies the is_limiting requirement
+        # imposed when conversion is specified.
+        compound_b = reaction_b.inputs["dummy_b"].components.add()
+        compound_b.identifiers.add(type="CUSTOM", details="d", value="v")
+        compound_b.is_limiting = True
+        compound_b.amount.mass.value = 1
+        compound_b.amount.mass.units = reaction_pb2.Mass.GRAM
+        reaction_b.outcomes.add().conversion.value = 50
+        _with_provenance(reaction_b)
+
+        dataset = dataset_pb2.Dataset(name="x", description="x", reactions=[reaction_a, reaction_b])
+        input_path = (tmp_path / "in.parquet").as_posix()
+        message_helpers.write_message(dataset, input_path)
+        argv = [
+            "--input_pattern",
+            input_path,
+            "--root",
+            tmp_path.as_posix(),
+            "--output_format",
+            ".parquet",
+            "--update",
+            "--no-validate",
+        ]
+        process_dataset.main(process_dataset.parse_args(argv))
+        # The dataset_id was assigned; find the single output parquet.
+        outputs = glob.glob(os.path.join(tmp_path.as_posix(), "data", "*", "ord_dataset-*.parquet"))
+        assert len(outputs) == 1
+        reactions = [reaction for _, reaction in parquet_dataset.iter_reactions(outputs[0])]
+        assert len(reactions) == 2
+        # The reaction with crude_components is reaction_b; its crude_components.reaction_id
+        # should be rewritten to reaction_a's newly-assigned ord- ID.
+        reaction_a_out = next(r for r in reactions if "dummy" in r.inputs)
+        reaction_b_out = next(r for r in reactions if "crude" in r.inputs)
+        assert reaction_a_out.reaction_id.startswith("ord-")
+        assert reaction_b_out.reaction_id.startswith("ord-")
+        assert reaction_b_out.inputs["crude"].crude_components[0].reaction_id == reaction_a_out.reaction_id
 
 
 class TestSubmissionWorkflow:

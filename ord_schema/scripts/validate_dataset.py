@@ -38,8 +38,16 @@ def filter_filenames(filenames: Iterable[str], pattern: str) -> list[str]:
 
 
 def run(filename: str) -> None:
-    """Validates a single dataset."""
+    """Validates a single dataset.
+
+    Parquet inputs are validated by streaming Reactions one at a time, so peak
+    memory stays bounded for large datasets. Other formats fall back to the
+    whole-dataset load.
+    """
     silence_rdkit_logs()
+    if filename.endswith(".parquet"):
+        validations.validate_parquet_datasets([filename])
+        return
     dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
     validations.validate_datasets({filename: dataset})
 

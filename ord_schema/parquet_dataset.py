@@ -26,12 +26,18 @@ This layout supports random access (by row group) and streaming iteration
 without loading the full dataset into memory.
 """
 
+import hashlib
+import io
 from collections.abc import Iterable, Iterator
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from ord_schema.proto import dataset_pb2, reaction_pb2
+
+# Accepted by pq.ParquetFile: a filesystem path or a random-access readable
+# (``bytes`` is wrapped in BytesIO since ParquetFile needs seek()).
+ParquetSource = str | bytes | io.IOBase
 
 SCHEMA_VERSION = "1"
 
@@ -185,23 +191,27 @@ def read_dataset(path: str) -> dataset_pb2.Dataset:
     return dataset
 
 
-def read_metadata(path: str) -> dataset_pb2.Dataset:
+def read_metadata(source: ParquetSource) -> dataset_pb2.Dataset:
     """Reads Dataset scalar fields (``name``, ``description``, ``dataset_id``)
     from the Parquet footer. No column data is read. The returned ``Dataset``
     has no ``reactions`` or ``reaction_ids`` populated.
+
+    ``source`` is a path, a ``bytes`` blob (e.g., from ``git show``), or any
+    seekable binary file-like object.
     """
-    with pq.ParquetFile(path) as parquet_file:
+    with pq.ParquetFile(_as_parquet_file_arg(source)) as parquet_file:
         return _dataset_from_metadata(parquet_file.schema_arrow.metadata)
 
 
 def iter_reactions(
-    path: str,
+    source: ParquetSource,
     reaction_ids: Iterable[str] | None = None,
 ) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
     """Yields ``(reaction_id, Reaction)`` pairs from a Parquet dataset.
 
     Args:
-        path: Parquet file path.
+        source: A path, a ``bytes`` blob, or any seekable binary file-like
+            object pointing at a Parquet-serialized Dataset.
         reaction_ids: Optional iterable of reaction IDs to restrict iteration
             to. IDs not present in the file are silently skipped. Filtering
             is applied row-wise; row groups are still read in full. Pass
@@ -215,8 +225,19 @@ def iter_reactions(
         filter_set = set(reaction_ids)
         if not filter_set:
             raise ValueError("reaction_ids must be non-empty when provided; pass None to iterate all")
-    with pq.ParquetFile(path) as parquet_file:
+    with pq.ParquetFile(_as_parquet_file_arg(source)) as parquet_file:
         yield from _iter_reactions(parquet_file, filter_set=filter_set)
+
+
+def iter_reaction_ids(source: ParquetSource) -> Iterator[str]:
+    """Streams ``reaction_id`` values from a Parquet dataset.
+
+    Only the ``reaction_id`` column is read; reactions are not deserialized.
+    Useful for cheap whole-file reaction ID scans (e.g., diff stats).
+    """
+    with pq.ParquetFile(_as_parquet_file_arg(source)) as parquet_file:
+        for batch in parquet_file.iter_batches(columns=["reaction_id"]):
+            yield from batch.column("reaction_id").to_pylist()
 
 
 def _iter_reactions(
@@ -256,6 +277,41 @@ def read_reaction(path: str, reaction_id: str) -> reaction_pb2.Reaction:
         if candidate_id == reaction_id:
             return reaction_pb2.Reaction.FromString(blob)
     raise KeyError(reaction_id)
+
+
+def streaming_md5(path: str) -> tuple[str, int]:
+    """Streams a Parquet dataset and returns ``(md5_hexdigest, reaction_count)``.
+
+    The hash is computed over a canonical byte stream derived from the Dataset
+    scalars (``name``, ``description``, ``dataset_id``) and the serialized
+    Reactions in file order. It is stable across row-group layouts and
+    compression codec choices, and is intended for detecting content changes
+    when ingesting large Parquet datasets without materializing the full
+    ``Dataset`` message.
+
+    The scheme deliberately differs from ``md5(Dataset.SerializeToString())``:
+    the first re-ingest of a dataset that was previously loaded from ``.pb.gz``
+    will therefore look like a content change.
+    """
+    hasher = hashlib.md5()
+    metadata = read_metadata(path)
+    hasher.update(f"name={metadata.name}\n".encode())
+    hasher.update(f"description={metadata.description}\n".encode())
+    hasher.update(f"dataset_id={metadata.dataset_id}\n".encode())
+    count = 0
+    for reaction_id, reaction in iter_reactions(path):
+        blob = reaction.SerializeToString(deterministic=True)
+        hasher.update(f"reaction_id={reaction_id}\n".encode())
+        hasher.update(len(blob).to_bytes(8, "big"))
+        hasher.update(blob)
+        count += 1
+    return hasher.hexdigest(), count
+
+
+def _as_parquet_file_arg(source: ParquetSource) -> str | io.IOBase:
+    if isinstance(source, bytes):
+        return io.BytesIO(source)
+    return source
 
 
 def _build_schema(*, name: str, description: str, dataset_id: str | None) -> pa.Schema:

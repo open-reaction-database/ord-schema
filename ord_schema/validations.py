@@ -18,7 +18,7 @@ import math
 import os
 import re
 import warnings
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from enum import IntEnum
 from typing import Any
 
@@ -122,6 +122,90 @@ def _validate_datasets(
         errors.append(error)
         logger.error(f"Validation error for {label}: {error}")
 
+    return errors
+
+
+def validate_parquet_datasets(
+    paths: Iterable[str],
+    write_errors: bool = False,
+    options: ValidationOptions | None = None,
+) -> None:
+    """Streams Reactions from Parquet datasets and validates them.
+
+    Reactions are deserialized one at a time, so peak memory stays bounded
+    regardless of dataset size. Dataset-level scalar checks come from the
+    Parquet footer; cross-reference checks accumulate during the single pass.
+
+    Args:
+        paths: Parquet file paths. Each must be a Parquet-serialized Dataset.
+        write_errors: If True, errors are written to a ``{path}.error`` file.
+        options: ValidationOptions.
+
+    Raises:
+        ValidationError: if any Dataset does not pass validation.
+    """
+    all_errors = []
+    for path in paths:
+        errors = _validate_parquet_dataset(path, options=options)
+        if errors:
+            for error in errors:
+                all_errors.append(f"{path}: {error}")
+            if write_errors:
+                with open(f"{path}.error", "w") as f:
+                    for error in errors:
+                        f.write(f"{error}\n")
+    if all_errors:
+        error_string = "\n".join(all_errors)
+        raise ValidationError(f"validation encountered errors:\n{error_string}")
+
+
+def _validate_parquet_dataset(
+    path: str,
+    options: ValidationOptions | None = None,
+) -> list[str]:
+    """Streaming counterpart of ``_validate_datasets`` for Parquet inputs."""
+    from ord_schema import parquet_dataset
+
+    label = os.path.basename(path)
+    errors: list[str] = []
+    # Dataset-level scalar checks. ``read_metadata`` already enforces presence of
+    # ``name`` and ``description``; only ``dataset_id`` has an optional check.
+    dataset = parquet_dataset.read_metadata(path)
+    if options is not None and options.validate_ids and not is_valid_dataset_id(dataset.dataset_id):
+        error = "Dataset: Dataset ID is malformed"
+        errors.append(error)
+        logger.error(f"Validation error for {label}: {error}")
+    # Per-reaction validation and cross-reference accumulation.
+    defined_ids: set[str] = set()
+    duplicate_ids: set[str] = set()
+    self_references: set[str] = set()
+    referenced_ids: set[str] = set()
+    for i, (_, reaction) in enumerate(parquet_dataset.iter_reactions(path)):
+        reaction_output = validate_message(reaction, raise_on_error=False, options=options)
+        for error in reaction_output.errors:
+            errors.append(error)
+            logger.error(f"Validation error for {label}[{i}]: {error}")
+        if reaction.reaction_id:
+            if reaction.reaction_id in defined_ids:
+                duplicate_ids.add(reaction.reaction_id)
+            defined_ids.add(reaction.reaction_id)
+        reaction_refs = get_referenced_reaction_ids(reaction)
+        if reaction.reaction_id and reaction.reaction_id in reaction_refs:
+            self_references.add(reaction.reaction_id)
+        referenced_ids |= reaction_refs
+    if duplicate_ids:
+        error = "Dataset: Multiple Reactions should never have the same IDs"
+        errors.append(error)
+        logger.error(f"Validation error for {label}: {error}")
+    if self_references:
+        error = "Dataset: A Reaction should not reference its own ID"
+        errors.append(error)
+        logger.error(f"Validation error for {label}: {error}")
+    missing = referenced_ids - defined_ids
+    if missing:
+        error = f"Dataset: Reactions in the Dataset refer to undefined reaction_ids {missing}"
+        errors.append(error)
+        logger.error(f"Validation error for {label}: {error}")
     return errors
 
 
