@@ -35,7 +35,7 @@ from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
 import ord_schema
-from ord_schema import units
+from ord_schema import parquet_dataset, units
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
@@ -781,8 +781,6 @@ def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
             raise ValueError(f"Parquet files are not gzip-wrapped: {filename}")
         if message_type is not dataset_pb2.Dataset:
             raise ValueError(f"Parquet is only supported for Dataset messages, not {message_type.__name__}")
-        from ord_schema import parquet_dataset
-
         return parquet_dataset.read_dataset(filename)  # ty: ignore[invalid-return-type]
     if input_format == MessageFormat.BINARY:
         mode = "rb"
@@ -828,8 +826,6 @@ def write_message(message: ord_schema.Message, filename: str):
             raise ValueError(f"Parquet files are not gzip-wrapped: {filename}")
         if not isinstance(message, dataset_pb2.Dataset):
             raise ValueError(f"Parquet is only supported for Dataset messages, not {type(message).__name__}")
-        from ord_schema import parquet_dataset
-
         parquet_dataset.write_dataset(message, filename)
         return
     with this_open(filename, "wb") as f:

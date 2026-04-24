@@ -27,7 +27,7 @@ from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
 
 import ord_schema
-from ord_schema import message_helpers
+from ord_schema import message_helpers, parquet_dataset
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
@@ -164,8 +164,6 @@ def _validate_parquet_dataset(
     options: ValidationOptions | None = None,
 ) -> list[str]:
     """Streaming counterpart of ``_validate_datasets`` for Parquet inputs."""
-    from ord_schema import parquet_dataset
-
     label = os.path.basename(path)
     errors: list[str] = []
     # Dataset-level scalar checks. ``read_metadata`` already enforces presence of
