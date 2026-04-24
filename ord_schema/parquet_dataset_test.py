@@ -308,6 +308,7 @@ def test_dataset_view_values_round_trip(tmp_path):
     assert view.description == source.description
     assert view.dataset_id == source.dataset_id
     assert list(view.reaction_ids) == []  # Not persisted in Parquet.
+    assert len(view.reactions) == len(source.reactions)
     assert list(view.reactions) == list(source.reactions)
     # Re-iterating must yield the same sequence (each access re-streams).
     assert list(view.reactions) == list(source.reactions)
