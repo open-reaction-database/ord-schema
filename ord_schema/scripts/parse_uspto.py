@@ -18,27 +18,15 @@ https://figshare.com/articles/dataset/Chemical_reactions_from_US_patents_1976-Se
 
 See also:
 https://depth-first.com/articles/2019/01/28/the-nextmove-patent-reaction-dataset/
-
-Usage:
-    parse_uspto.py --input_pattern=<str> --name=<str> --output=<str> [--n_jobs=<int>]
-
-Options:
-    --input_pattern=<str>       Input pattern for CML files
-    --name=<str>                Dataset name
-    --output=<str>              Output Dataset filename
-    --n_jobs=<str>              Number of parallel workers [default: 1]
 """
 
-# pylint: disable=import-error
-# pylint: disable=too-many-branches
-
+import argparse
 import datetime
 import glob
 import os
 import re
 from xml.etree import ElementTree
 
-import docopt
 import joblib
 
 import ord_schema
@@ -475,7 +463,7 @@ def clean_reaction(reaction: reaction_pb2.Reaction):
         if output.errors:
             workup.type = reaction_pb2.ReactionWorkup.CUSTOM
     # Move some workups into ReactionConditions/ReactionOutcome.
-    workups = [workup for workup in reaction.workups]  # pylint: disable=unnecessary-comprehension
+    workups = list(reaction.workups)
     del reaction.workups[:]
     temperature_conditions = False
     stirring_conditions = False
@@ -540,9 +528,18 @@ def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.R
     return reactions, failures
 
 
-def main(kwargs):
-    filenames = sorted(glob.glob(kwargs["--input_pattern"]))
-    all_reactions = joblib.Parallel(n_jobs=int(kwargs["--n_jobs"]), verbose=True)(
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Parse CML from the NRD")
+    parser.add_argument("--input_pattern", required=True, help="Input pattern for CML files")
+    parser.add_argument("--name", required=True, help="Dataset name")
+    parser.add_argument("--output", required=True, help="Output Dataset filename")
+    parser.add_argument("--n_jobs", type=int, default=1, help="Number of parallel workers")
+    return parser.parse_args(argv)
+
+
+def main(args):
+    filenames = sorted(glob.glob(args.input_pattern))
+    all_reactions = joblib.Parallel(n_jobs=args.n_jobs, verbose=True)(
         joblib.delayed(run)(filename) for filename in filenames
     )
     reactions = []
@@ -550,16 +547,16 @@ def main(kwargs):
     for file_reactions, file_failures in all_reactions:
         reactions.extend(file_reactions)
         failures.extend(file_failures)
-    dataset = dataset_pb2.Dataset(reactions=reactions, name=kwargs["--name"])
+    dataset = dataset_pb2.Dataset(reactions=reactions, name=args.name)
     basenames = [os.path.basename(filename) for filename in filenames]
     dataset.description = f"CML filenames: {','.join(basenames)}"
-    if kwargs["--output"] and reactions:
-        logger.info(f"Writing {len(reactions)} reactions to {kwargs['--output']}")
-        message_helpers.write_message(dataset, kwargs["--output"])
+    if args.output and reactions:
+        logger.info(f"Writing {len(reactions)} reactions to {args.output}")
+        message_helpers.write_message(dataset, args.output)
         if failures:
-            failure_dataset = dataset_pb2.Dataset(reactions=failures, name=kwargs["--name"])
-            message_helpers.write_message(failure_dataset, kwargs["--output"] + ".failures.pb")
+            failure_dataset = dataset_pb2.Dataset(reactions=failures, name=args.name)
+            message_helpers.write_message(failure_dataset, args.output + ".failures.pb")
 
 
 if __name__ == "__main__":
-    main(docopt.docopt(__doc__))
+    main(parse_args())

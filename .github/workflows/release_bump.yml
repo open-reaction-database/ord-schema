@@ -1,0 +1,90 @@
+# Copyright 2026 Open Reaction Database Project Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Release bump
+
+on:
+  # `pull_request_target` so fork PRs also get write access for the sticky
+  # comment. Safe here because we only read `github.event.pull_request.title`
+  # and never check out the PR's code.
+  pull_request_target:
+    types: [opened, edited, reopened]
+    branches:
+      - main
+
+permissions:
+  pull-requests: write
+
+jobs:
+  validate-bump-tag:
+    if: github.repository == 'open-reaction-database/ord-schema'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate and resolve bump tag in PR title
+        id: bump
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          # Fail on a malformed tag (e.g. [bump mionor]) so the author can fix
+          # it pre-merge; the release workflow otherwise silently falls back
+          # to patch and the bad release has already shipped.
+          unrecognized="$(printf '%s' "$TITLE" | grep -oiE '\[bump[[:space:]]+[a-zA-Z]+\]' | grep -viE '\[bump[[:space:]]+(major|minor|patch)\]' || true)"
+          if [ -n "$unrecognized" ]; then
+            echo "::error::Unrecognized bump tag(s) in PR title: $(printf '%s' "$unrecognized" | tr '\n' ' '). Valid: [bump major], [bump minor], [bump patch]. See CONTRIBUTING.md."
+            exit 1
+          fi
+          if printf '%s' "$TITLE" | grep -qiE '\[bump[[:space:]]+major\]'; then
+            level=major
+          elif printf '%s' "$TITLE" | grep -qiE '\[bump[[:space:]]+minor\]'; then
+            level=minor
+          else
+            level=patch
+          fi
+          echo "level=$level" >> "$GITHUB_OUTPUT"
+          echo "Bump level: $level"
+          echo "- **Bump level on merge:** \`$level\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upsert bump-level comment on the PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LEVEL: ${{ steps.bump.outputs.level }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          MARKER='<!-- bump-tag-comment -->'
+          existing="$(gh api -X GET "/repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+                      --jq "[.[] | select(.body | startswith(\"$MARKER\"))] | last | .id // empty")"
+          # Only comment when the level opts into something bigger than the
+          # default (patch). Keeps the bot quiet on the majority of PRs. If a
+          # maintainer adds and then removes the tag, clean up the stale
+          # comment so the PR no longer misrepresents the release.
+          if [ "$LEVEL" = "patch" ]; then
+            if [ -n "$existing" ]; then
+              gh api -X DELETE "/repos/$REPO/issues/comments/$existing" --silent
+            fi
+            exit 0
+          fi
+          case "$LEVEL" in
+            minor) detail='from the `[bump minor]` tag in the PR title' ;;
+            major) detail='from the `[bump major]` tag in the PR title' ;;
+          esac
+          body="$MARKER
+
+          On merge, this PR will trigger a **\`$LEVEL\`** release bump ($detail).
+
+          _See [CONTRIBUTING.md](https://github.com/$REPO/blob/main/CONTRIBUTING.md#release-bumps)._"
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "/repos/$REPO/issues/comments/$existing" -f body="$body" --silent
+          else
+            gh api -X POST "/repos/$REPO/issues/$PR_NUMBER/comments" -f body="$body" --silent
+          fi

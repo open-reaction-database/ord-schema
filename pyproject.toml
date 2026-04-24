@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ord-schema"
-version = "0.4.5"
+version = "0.5.0"
 description = "Schema for the Open Reaction Database"
 readme = "README.md"
 license = "Apache-2.0"
@@ -31,8 +31,6 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "Werkzeug>=3.0.3",
-    "docopt>=0.6.2",
     "inflection>=0.5.1",
     "joblib>=1.0.0",
     "numpy>=1.26.4",
@@ -40,10 +38,14 @@ dependencies = [
     "pandas>=1.0.4",
     "protobuf>=4.22.3,<6",
     "psycopg[binary,pool]>=3",
+    "pyarrow>=14",
     "pygithub>=1.51",
     "python-dateutil>=1.10.0",
     "rdkit>=2021.9.5",
     "sqlalchemy>=2",
+    # Pinned <10 because we read _pubchem_resolve.retry to monkeypatch the wait
+    # in tests; tenacity 10 may rework that introspection surface.
+    "tenacity>=8.0.0,<10",
     "tqdm>=4.61.2",
 ]
 
@@ -59,7 +61,6 @@ docs = [
     "sphinx-tabs>=3.4.0",
 ]
 examples = [
-    "glob2>=0.7",
     "matplotlib>=3.3.4",
     "scikit-learn>=0.24.1",
     "tensorflow>=2.4.1",

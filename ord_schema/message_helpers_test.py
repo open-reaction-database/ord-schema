@@ -70,6 +70,18 @@ class TestMessageHelpers:
         assert message_helpers.id_filename(filename) == expected
 
     @pytest.mark.parametrize(
+        "filename,match",
+        (
+            ("notord-1234567890", "ord"),  # Wrong prefix.
+            ("ord-..foo", "alphanumeric"),  # Shard "..", traversal attempt.
+            ("ord-.foo", "alphanumeric"),  # Shard ".f", non-alphanumeric.
+        ),
+    )
+    def test_id_filename_rejects_unsafe(self, filename, match):
+        with pytest.raises(ValueError, match=match):
+            message_helpers.id_filename(filename)
+
+    @pytest.mark.parametrize(
         "value,identifier_type,expected",
         (
             ("c1ccccc1", "SMILES", "c1ccccc1"),
