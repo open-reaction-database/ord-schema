@@ -174,10 +174,10 @@ notebook:
    In [13]: print(canonical_smiles)
    Out [13]: 'CS(=O)O[Pd]1(<-P(C2=CC=CC=C2)(C2=CC=CC=C2)C2=C(C3=C(P(C4=CC=CC=C4)C4=CC=CC=C4)C=CC4=C3C=CC=C4)C3=C(C=CC=C3)C=C2)<-NC2=C(C=CC=C2)C2=CC=CC=C21'
 
-For a more detailed example refer to this Jupyter Notebook [add link] which shows how to use the above code
-to canonicalize a single SMILES, or to batch process multiple SMILES strings input as a .csv file.
-The example also shows how to use RDKit to visualize the generated SMILES so you can check that the dative
-bonds have been generated correctly.
+For a more detailed example refer to this `Jupyter Notebook <https://github.com/open-reaction-database/ord-schema/blob/8c8eda24cfba42429435b5e0b83cccb60dbfa3fe/examples/tools/set_dative_bonds/set_dative_bonds.ipynb>`__
+which shows how to use the above code to canonicalize a single SMILES, or to batch process multiple SMILES 
+strings input as a .csv file. The example also shows how to use RDKit to visualize the generated SMILES so 
+you can check that the dative bonds have been generated correctly.
 
 InChI for Molecular Inorganics
 ######################################
@@ -207,7 +207,7 @@ test dataset and add each identifier as a new chemical input component. The ORD 
 parse the identifier and a preview of the structure is generated.
 
 SMILES and InChI strings can also be visualized programmatically using the RDKit Chem Draw package. See 
-this Jupyter Notebook [add link] for example code to visualize SMILES strings input individually, or batch
-input as a .csv file. For reviewing complex and/or large batches of chemical identifiers as part of an ORD
-dataset preparation, it is also worth speaking to the ORD support team (email help@open-reaction-database.com) 
-to get bespoke advice on your task. 
+this `Jupyter Notebook <https://github.com/open-reaction-database/ord-schema/blob/8c8eda24cfba42429435b5e0b83cccb60dbfa3fe/examples/tools/set_dative_bonds/set_dative_bonds.ipynb>`__ 
+for example code to visualize SMILES strings input individually, or batch input as a .csv file. For reviewing 
+complex and/or large batches of chemical identifiers as part of an ORD dataset preparation, it is also worth 
+speaking to the ORD support team (email help@open-reaction-database.com) to get bespoke advice on your task. 
