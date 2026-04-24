@@ -22,8 +22,8 @@ import pytest
 from google.protobuf import json_format, text_format
 from rdkit import Chem
 
-from ord_schema import message_helpers
-from ord_schema.proto import reaction_pb2, test_pb2
+from ord_schema import message_helpers, parquet_dataset
+from ord_schema.proto import dataset_pb2, reaction_pb2, test_pb2
 
 _BENZENE_MOLBLOCK = """241
   -OEChem-07232015262D
@@ -492,6 +492,23 @@ class TestLoadAndWriteMessage:
         message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
         with pytest.raises(ValueError, match="not a valid MessageFormat"):
             message_helpers.write_message(message, "test.proto")
+
+    @pytest.mark.parametrize("suffix", (".pbtxt", ".pb", ".pb.gz", ".json", ".parquet"))
+    def test_write_dataset(self, suffix, tmp_path):
+        dataset = dataset_pb2.Dataset(
+            name="n",
+            description="d",
+            reactions=[reaction_pb2.Reaction(reaction_id="ord-0")],
+        )
+        path = (tmp_path / f"ds{suffix}").as_posix()
+        message_helpers.write_dataset(dataset, path)
+        if suffix == ".parquet":
+            loaded = parquet_dataset.read_dataset(path)
+        else:
+            loaded = message_helpers.load_message(path, dataset_pb2.Dataset)
+        assert loaded.name == "n"
+        assert loaded.description == "d"
+        assert list(loaded.reactions) == list(dataset.reactions)
 
 
 class TestCreateMessage:
