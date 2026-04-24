@@ -18,7 +18,7 @@ import math
 import os
 import re
 import warnings
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Mapping
 from enum import IntEnum
 from typing import Any
 
@@ -59,7 +59,7 @@ class ValidationOutput:
 
 
 def validate_datasets(
-    datasets: Mapping[str, dataset_pb2.Dataset],
+    datasets: Mapping[str, dataset_pb2.Dataset | parquet_dataset.DatasetView],
     write_errors: bool = False,
     options: ValidationOptions | None = None,
 ) -> None:
@@ -91,112 +91,51 @@ def validate_datasets(
         raise ValidationError(f"validation encountered errors:\n{error_string}")
 
 
-def validate_parquet_datasets(
-    paths: Iterable[str],
-    write_errors: bool = False,
-    options: ValidationOptions | None = None,
-) -> None:
-    """Streams Reactions from Parquet datasets and validates them.
-
-    Reactions are deserialized one at a time, so peak memory stays bounded
-    regardless of dataset size. Dataset-level scalar checks come from the
-    Parquet footer; cross-reference state accumulates during the single pass.
-
-    Args:
-        paths: Parquet file paths. Each must be a Parquet-serialized Dataset.
-        write_errors: If True, errors are written to a ``{path}.error`` file.
-        options: ValidationOptions.
-
-    Raises:
-        ValidationError: if any Dataset does not pass validation.
-    """
-    all_errors = []
-    for path in paths:
-        scalars = parquet_dataset.read_metadata(path)
-        reactions = (reaction for _, reaction in parquet_dataset.iter_reactions(path))
-        errors = _validate_single_dataset(scalars, reactions, label=os.path.basename(path), options=options)
-        if errors:
-            for error in errors:
-                all_errors.append(f"{path}: {error}")
-            if write_errors:
-                with open(f"{path}.error", "w") as f:
-                    for error in errors:
-                        f.write(f"{error}\n")
-    if all_errors:
-        error_string = "\n".join(all_errors)
-        raise ValidationError(f"validation encountered errors:\n{error_string}")
-
-
-@dataclasses.dataclass
-class _DatasetReactionStats:
-    """Aggregated state for Dataset-level cross-reference checks.
-
-    Populated either by iterating ``Dataset.reactions`` (non-streaming) or by
-    streaming Reactions from a Parquet file. ``validate_dataset`` accepts a
-    pre-computed instance so the streaming path does not re-iterate.
-    """
-
-    num_reactions: int = 0
-    defined_ids: set[str] = dataclasses.field(default_factory=set)
-    referenced_ids: set[str] = dataclasses.field(default_factory=set)
-    # Preserve per-occurrence warning cardinality: one entry per duplicate /
-    # self-reference event observed during iteration.
-    duplicate_events: list[str] = dataclasses.field(default_factory=list)
-    self_reference_events: list[str] = dataclasses.field(default_factory=list)
-
-    def observe(self, reaction: reaction_pb2.Reaction) -> None:
-        self.num_reactions += 1
-        if reaction.reaction_id:
-            if reaction.reaction_id in self.defined_ids:
-                self.duplicate_events.append(reaction.reaction_id)
-            self.defined_ids.add(reaction.reaction_id)
-        refs = get_referenced_reaction_ids(reaction)
-        if reaction.reaction_id and reaction.reaction_id in refs:
-            self.self_reference_events.append(reaction.reaction_id)
-        self.referenced_ids |= refs
-
-
 def _validate_datasets(
-    dataset: dataset_pb2.Dataset,
+    dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView,
     label: str = "dataset",
     options: ValidationOptions | None = None,
 ) -> list[str]:
-    """Validates Reaction messages and cross-references in a Dataset."""
-    return _validate_single_dataset(dataset, dataset.reactions, label=label, options=options)
+    """Validates Reaction messages and cross-references in a Dataset.
 
+    ``dataset`` may be a ``dataset_pb2.Dataset`` or any duck-typed stand-in
+    (e.g., ``parquet_dataset.DatasetView``) that exposes the same ``name``,
+    ``description``, ``dataset_id``, ``reaction_ids``, and ``reactions``
+    attributes. The ``reactions`` attribute is iterated twice — once for
+    per-Reaction validation and once inside ``validate_dataset`` for the
+    cross-reference checks — so streaming stand-ins must be re-iterable.
 
-def _validate_single_dataset(
-    scalars: dataset_pb2.Dataset,
-    reactions: Iterable[reaction_pb2.Reaction],
-    label: str,
-    options: ValidationOptions | None = None,
-) -> list[str]:
-    """Validates a single Dataset given its scalars and a Reaction iterable.
+    Args:
+        dataset: Dataset message or compatible stand-in.
+        label: string label for logging purposes only.
+        options: ValidationOptions.
 
-    A single pass over ``reactions`` both validates each Reaction individually
-    and accumulates the cross-reference state used for Dataset-level checks,
-    so the iterable (a full list or a streaming Parquet reader) is consumed
-    exactly once.
+    Returns:
+        List of validation error messages.
     """
-    errors: list[str] = []
-    stats = _DatasetReactionStats()
-    for i, reaction in enumerate(reactions):
+    errors = []
+    # Reaction-level validation.
+    num_bad_reactions = 0
+    for i, reaction in enumerate(dataset.reactions):
         reaction_output = validate_message(reaction, raise_on_error=False, options=options)
+        if reaction_output.errors:
+            num_bad_reactions += 1
         for error in reaction_output.errors:
             errors.append(error)
             logger.error(f"Validation error for {label}[{i}]: {error}")
-        stats.observe(reaction)
-    # Emit Dataset-level warnings using the accumulated stats. We bypass
-    # ``validate_message(dataset, recurse=False)`` here to avoid a second pass
-    # over ``scalars.reactions`` (which is empty on the streaming path).
+    # Dataset-level validation of cross-references. Call ``validate_dataset``
+    # directly rather than going through ``validate_message``, which insists
+    # on a proto type (``_VALIDATOR_SWITCH`` lookup, ``DESCRIPTOR`` access) and
+    # would reject a duck-typed stand-in like ``DatasetView``.
     with warnings.catch_warnings(record=True) as tape:
-        validate_dataset(scalars, options=options, stats=stats)
+        validate_dataset(dataset, options=options)
     for warning in tape:
         if not issubclass(warning.category, ValidationError):
             continue
         error = f"Dataset: {warning.message}"
         errors.append(error)
         logger.error(f"Validation error for {label}: {error}")
+
     return errors
 
 
@@ -448,26 +387,18 @@ def is_valid_dataset_id(dataset_id: str) -> bool:
 
 
 def validate_dataset(
-    message: dataset_pb2.Dataset,
+    message: dataset_pb2.Dataset | parquet_dataset.DatasetView,
     options: ValidationOptions | None = None,
-    *,
-    stats: _DatasetReactionStats | None = None,
 ):
     if options is None:
         options = ValidationOptions()
-    if stats is None:
-        # Build stats from ``message.reactions`` for callers that came through
-        # ``_VALIDATOR_SWITCH`` (e.g., a direct ``validate_message(dataset)``).
-        stats = _DatasetReactionStats()
-        for reaction in message.reactions:
-            stats.observe(reaction)
     if not message.name:
         warnings.warn("Dataset name is required", ValidationError)
     if not message.description:
         warnings.warn("Dataset description is required", ValidationError)
-    if not stats.num_reactions and not message.reaction_ids:
+    if not message.reactions and not message.reaction_ids:
         warnings.warn("Dataset requires reactions or reaction_ids", ValidationError)
-    elif stats.num_reactions and message.reaction_ids:
+    elif message.reactions and message.reaction_ids:
         warnings.warn("Dataset requires reactions or reaction_ids, not both", ValidationError)
     if message.reaction_ids:
         for reaction_id in message.reaction_ids:
@@ -477,14 +408,24 @@ def validate_dataset(
         # The dataset_id is a 32-character uuid4 hex string.
         if not is_valid_dataset_id(message.dataset_id):
             warnings.warn("Dataset ID is malformed", ValidationError)
-    for _ in stats.duplicate_events:
-        warnings.warn("Multiple Reactions should never have the same IDs", ValidationError)
-    for _ in stats.self_reference_events:
-        warnings.warn("A Reaction should not reference its own ID", ValidationError)
-    missing = stats.referenced_ids - stats.defined_ids
-    if missing:
+    # Check cross-references
+    dataset_referenced_ids = set()
+    dataset_defined_ids = set()
+    for reaction in message.reactions:
+        if reaction.reaction_id:
+            if reaction.reaction_id in dataset_defined_ids:
+                warnings.warn(
+                    "Multiple Reactions should never have the same IDs",
+                    ValidationError,
+                )
+            dataset_defined_ids.add(reaction.reaction_id)
+        referenced_ids = get_referenced_reaction_ids(reaction)
+        if any(_id == reaction.reaction_id for _id in referenced_ids):
+            warnings.warn("A Reaction should not reference its own ID", ValidationError)
+        dataset_referenced_ids |= referenced_ids
+    if len(dataset_referenced_ids - dataset_defined_ids) > 0:
         warnings.warn(
-            f"Reactions in the Dataset refer to undefined reaction_ids {missing}",
+            f"Reactions in the Dataset refer to undefined reaction_ids {dataset_referenced_ids - dataset_defined_ids}",
             ValidationError,
         )
 

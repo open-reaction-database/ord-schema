@@ -172,6 +172,31 @@ def write_dataset(
         writer.write_all(dataset.reactions)
 
 
+class DatasetView:
+    """A read-only, streaming view of a Parquet-serialized Dataset.
+
+    Quacks like a ``dataset_pb2.Dataset`` for the read-only attributes used
+    during validation: ``name``, ``description``, and ``dataset_id`` come
+    from the Parquet footer; ``reaction_ids`` is always empty (Parquet does
+    not persist it); and ``reactions`` is a re-iterable property that opens
+    a fresh stream over the file on each access, so callers that iterate
+    more than once (e.g., ``_validate_datasets``) stay memory-bounded.
+    """
+
+    def __init__(self, path: str):
+        self._path = path
+        metadata = read_metadata(path)
+        self.name = metadata.name
+        self.description = metadata.description
+        self.dataset_id = metadata.dataset_id
+        self.reaction_ids: list[str] = []
+
+    @property
+    def reactions(self) -> Iterator[reaction_pb2.Reaction]:
+        for _, reaction in iter_reactions(self._path):
+            yield reaction
+
+
 def read_dataset(path: str) -> dataset_pb2.Dataset:
     """Reads a full Dataset from a Parquet file.
 
