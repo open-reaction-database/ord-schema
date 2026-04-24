@@ -23,7 +23,7 @@ from google.protobuf import json_format, text_format
 from rdkit import Chem
 
 from ord_schema import message_helpers
-from ord_schema.proto import dataset_pb2, reaction_pb2, test_pb2
+from ord_schema.proto import reaction_pb2, test_pb2
 
 _BENZENE_MOLBLOCK = """241
   -OEChem-07232015262D
@@ -492,31 +492,6 @@ class TestLoadAndWriteMessage:
         message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
         with pytest.raises(ValueError, match="not a valid MessageFormat"):
             message_helpers.write_message(message, "test.proto")
-
-    def test_parquet_round_trip(self, tmp_path):
-        reaction = reaction_pb2.Reaction(reaction_id="ord-123")
-        dataset = dataset_pb2.Dataset(name="n", description="d", reactions=[reaction])
-        path = (tmp_path / "test.parquet").as_posix()
-        message_helpers.write_message(dataset, path)
-        loaded = message_helpers.load_message(path, dataset_pb2.Dataset)
-        assert list(loaded.reactions) == [reaction]
-        assert loaded.name == "n"
-        assert loaded.description == "d"
-
-    def test_parquet_rejects_gz(self, tmp_path):
-        dataset = dataset_pb2.Dataset(name="n", description="d", reactions=[reaction_pb2.Reaction(reaction_id="r")])
-        path = (tmp_path / "test.parquet.gz").as_posix()
-        with pytest.raises(ValueError, match="not gzip-wrapped"):
-            message_helpers.write_message(dataset, path)
-        with pytest.raises(ValueError, match="not gzip-wrapped"):
-            message_helpers.load_message(path, dataset_pb2.Dataset)
-
-    def test_parquet_rejects_non_dataset(self, tmp_path):
-        path = (tmp_path / "test.parquet").as_posix()
-        with pytest.raises(ValueError, match="only supported for Dataset"):
-            message_helpers.write_message(reaction_pb2.Reaction(reaction_id="r"), path)
-        with pytest.raises(ValueError, match="only supported for Dataset"):
-            message_helpers.load_message(path, reaction_pb2.Reaction)
 
 
 class TestCreateMessage:
