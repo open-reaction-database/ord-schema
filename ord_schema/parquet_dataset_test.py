@@ -277,6 +277,23 @@ def test_dataset_view_exposes_all_dataset_fields(tmp_path):
     assert not missing, f"DatasetView is missing Dataset fields: {sorted(missing)}"
 
 
+def test_dataset_view_empty_parquet_is_falsy(tmp_path):
+    """DatasetView.reactions reports length 0 / False for an empty Parquet.
+
+    ``validate_dataset``'s "Dataset requires reactions or reaction_ids"
+    warning uses ``if not message.reactions`` — this test guards against
+    that branch going dead when a bare generator would be truthy.
+    """
+    path = os.path.join(tmp_path, "empty.parquet")
+    # DatasetWriter (unlike write_dataset) permits zero reactions.
+    with dataset.DatasetWriter(path, name="n", description="d"):
+        pass
+    view = dataset.DatasetView(path)
+    assert not view.reactions
+    assert len(view.reactions) == 0
+    assert list(view.reactions) == []
+
+
 def test_dataset_view_values_round_trip(tmp_path):
     """DatasetView scalars and re-iterated Reactions match the source Dataset.
 

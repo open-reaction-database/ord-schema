@@ -502,8 +502,10 @@ class TestLoadAndWriteMessage:
         )
         path = (tmp_path / f"ds{suffix}").as_posix()
         message_helpers.write_dataset(dataset, path)
+        # For .parquet, exercise the DatasetView entry point callers will use;
+        # for other formats, use the generic load_message.
         if suffix == ".parquet":
-            loaded = parquet_dataset.read_dataset(path)
+            loaded = parquet_dataset.DatasetView(path)
         else:
             loaded = message_helpers.load_message(path, dataset_pb2.Dataset)
         assert loaded.name == "n"
