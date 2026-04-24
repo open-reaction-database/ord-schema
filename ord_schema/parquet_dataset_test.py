@@ -277,6 +277,15 @@ def test_dataset_view_exposes_all_dataset_fields(tmp_path):
     assert not missing, f"DatasetView is missing Dataset fields: {sorted(missing)}"
 
 
+def test_dataset_view_reactions_is_read_only(tmp_path):
+    """Rebinding ``view.reactions`` must raise so the stream can't be swapped."""
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(_make_dataset(n=1), path)
+    view = dataset.DatasetView(path)
+    with pytest.raises(AttributeError):
+        view.reactions = []  # ty: ignore[invalid-assignment]
+
+
 def test_dataset_view_empty_parquet_is_falsy(tmp_path):
     """DatasetView.reactions reports length 0 / False for an empty Parquet.
 

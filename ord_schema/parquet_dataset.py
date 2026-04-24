@@ -205,7 +205,8 @@ class DatasetView:
     from the Parquet footer; ``reaction_ids`` is always empty (Parquet does
     not persist it); and ``reactions`` is a re-iterable ``_ReactionStream``
     that opens a fresh read on each iteration and reports its length from
-    the footer, so emptiness/length checks behave like a list.
+    the footer, so emptiness/length checks behave like a list. ``reactions``
+    is exposed as a read-only property so accidental rebinding raises.
     """
 
     def __init__(self, path: str):
@@ -217,7 +218,11 @@ class DatasetView:
         self.description = scalars.description
         self.dataset_id = scalars.dataset_id
         self.reaction_ids: list[str] = []
-        self.reactions = _ReactionStream(path, num_rows)
+        self._reactions = _ReactionStream(path, num_rows)
+
+    @property
+    def reactions(self) -> _ReactionStream:
+        return self._reactions
 
 
 def read_dataset(path: str) -> dataset_pb2.Dataset:
