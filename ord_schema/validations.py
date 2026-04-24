@@ -98,12 +98,10 @@ def _validate_datasets(
 ) -> list[str]:
     """Validates Reaction messages and cross-references in a Dataset.
 
-    ``dataset`` may be a ``dataset_pb2.Dataset`` or any duck-typed stand-in
-    (e.g., ``parquet_dataset.DatasetView``) that exposes the same ``name``,
-    ``description``, ``dataset_id``, ``reaction_ids``, and ``reactions``
-    attributes. The ``reactions`` attribute is iterated twice — once for
-    per-Reaction validation and once inside ``validate_dataset`` for the
-    cross-reference checks — so streaming stand-ins must be re-iterable.
+    ``dataset`` may be a ``dataset_pb2.Dataset`` or a
+    ``parquet_dataset.DatasetView``; the view re-iterates ``.reactions``
+    from disk on each access, so the two iterations below (per-Reaction +
+    cross-reference) both stream.
 
     Args:
         dataset: Dataset message or compatible stand-in.
@@ -126,7 +124,7 @@ def _validate_datasets(
     # Dataset-level validation of cross-references. Call ``validate_dataset``
     # directly rather than going through ``validate_message``, which insists
     # on a proto type (``_VALIDATOR_SWITCH`` lookup, ``DESCRIPTOR`` access) and
-    # would reject a duck-typed stand-in like ``DatasetView``.
+    # would reject a non-proto stand-in like ``DatasetView``.
     with warnings.catch_warnings(record=True) as tape:
         validate_dataset(dataset, options=options)
     for warning in tape:
