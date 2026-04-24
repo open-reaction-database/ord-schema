@@ -35,7 +35,6 @@ MDL                  MDL number e.g., MFCD00005972 for morpholine, often include
 CUSTOM               Create your own custom identifiers. Include an informative name in the description field.
 ===================  ===============================================================================================
 
-
 When preparing an ORD dataset from a paper, an often overlooked task is the collection
 of SMILES (or InChI) strings for the chemicals which may have been recorded in the
 paper using names, abbreviations and/or images. This guide suggests some common
@@ -43,19 +42,22 @@ workflows for collecting these identifiers.
 
 .. IMPORTANT::
 
-  Special care needs to be taken with the identifiers for organometallic compounds. There are some
-  challenges associated with generating SMILES or InChI strings for organometallic compounds, and 
-  this can cause problems with the way RDKit parses and resolves them. ORD authors should always 
-  check that their SMILES or InChI strings are being resolved correctly, and please refer to :ref:`dative-bonding`
-  below for a recommended workflow for including dative bonding in SMILES strings.
+  Special care needs to be taken with the identifiers for transition metal catalysts and other 
+  organometallic compounds. There are some challenges associated with generating SMILES or InChI 
+  strings for organometallics, and this can cause problems with the way RDKit parses and resolves 
+  them. ORD authors should always check that their SMILES or InChI strings are being resolved 
+  correctly, and please refer to :ref:`dative-bonding` below for a recommended workflow for including 
+  dative bonding in SMILES strings.
   
   For compounds which are hard to define using existing identifiers, it can also be helpful to include
   multiple identifiers (e.g. a NAME, CAS_NUMBER and SMILES) to remove some of the ambiguity.
 
+**********************************
+Getting SMILES or InChI Strings
+**********************************
 
-************************
-Draw the Molecule
-************************
+Draw the Structures
+######################
 
 Most chemical drawing packages can export a SMILES or InChI string for chemical structures you have 
 selected. If you have already drawn chemical structures for a published article then it can be a simple
@@ -63,49 +65,61 @@ task to export SMILE or InChI strings from your ChemDraw (or other chemical draw
 `ChemSpider Blog <https://blogs.rsc.org/chemspider/2019/11/08/tips-and-tricks-generating-machine-readable-structural-data-from-a-chemdraw-structure/>`__
 shows how to do this in Avogadro, ChemDoodle, ChemDraw, ChemSketch and MarvinSketch.
 
-The following online chemical drawing tools can also be used to obtain SMILES or InChI strings
-- `OpenBabel <https://www.cheminfo.org/Chemistry/Cheminformatics/FormatConverter/index.html>`__ (generate SMILES or InChI)
+The following online chemical drawing tools can also be used to obtain SMILES or InChI strings:
+
+- `Open Babel webservice <https://www.cheminfo.org/Chemistry/Cheminformatics/FormatConverter/index.html>`__ (generate SMILES or InChI)
 - `InChI web demo <https://iupac-inchi.github.io/InChI-Web-Demo/>`__ (generate InChI only)
 
 .. IMPORTANT::
 
-  There are some challenges associated with generating SMILES or InChI strings for organometallic 
-  compounds such as transition metal catalysts. Please refer to :ref:`dative-bonding` below for 
-  specific guidance on generating SMILES or InChI for organometallic compounds with dative bonding.
+  There are some challenges associated with generating SMILES or InChI strings for transition metal
+  catalysts and other organometallic compounds. Please refer to :ref:`dative-bonding` below for 
+  specific guidance on using chemical drawing packages to obtain SMILES or InChI for such structures.
 
-**************************
 Look Them Up
-**************************
+###############
 
-Note about quality of online SMILES
+The `ORD Reaction Editor <https://app.open-reaction-database.org/>`__ has a look up function which can
+be used to add chemicals by name. The `name_resolve function <https://docs.open-reaction-database.org/en/latest/ord_schema/ord_schema.html#ord_schema.resolvers.name_resolve>`__
+uses the PubChem and OPSIN APIs to look up names and returns a SMILES string when it is available.
 
-Pubchem
-Chemical Suppliers
+For looking up identifiers of organic compounds the following online services can be useful:
+
+- `PubChem <https://pubchem.ncbi.nlm.nih.gov/>`__
+- `OPSIN <https://www.ebi.ac.uk/opsin/#>`__
+- `ChemSpider <https://www.chemspider.com/>`__
+
+.. IMPORTANT::
+
+  Online look up of SMILES is not recommended for transition metal catalysts and other organometallic
+  compounds. PubChem's "canonical" SMILES for metal complexes treat each substructure as a separate component 
+  (e.g., metals, ligands, ions), leading to a salt-like representation of the compounds, and most other
+  websites will also report the SMILES in this style. Please refer to :ref:`dative-bonding` below for a recommended 
+  workflow for generating SMILES strings which include dative bonding.
+
+Lists of names can be programmatically looked up using the ORD `name_resolve function <https://docs.open-reaction-database.org/en/latest/ord_schema/ord_schema.html#ord_schema.resolvers.name_resolve>`__
+in Python.
 
 
-
-
-
-
-
-***************************
 Converting Identifiers
-***************************
+############################
 
+For converting between chemical identifiers the following online services can be useful:
 
+- `NIH NCI/CDD Chemical Identifier Resolver <https://cactus.nci.nih.gov/chemical/structure>`__
+- `Open Babel webservice <https://www.cheminfo.org/Chemistry/Cheminformatics/FormatConverter/index.html>`__
 
-
-
-
-
-******************************
 Image Extraction
-******************************
+########################
 
-Mathpix
+New consumer tools for optical chemical structure recognition are appearing rapidly and could be a useful
+method for extracting structural identifiers when the above methods are not possible. We have had some 
+success with using `Mathpix <https://mathpix.com/use-cases/for-chemistry>`__ for extracting SMILES and 
+InChI strings from images already.
 
-
-
+With all these tools please take extra care to check that the identifiers are resolved to the correct 
+chemical structures. See :ref:`checking-identifiers` below for some recommended workflows for checking 
+chemical identifiers.
 
 .. _dative-bonding:
 *******************************************
@@ -114,8 +128,8 @@ Dative Bonding in Organometallic Compounds
 
 There are some challenges associated with the generation of canonical SMILES and InChI strings for
 organometallic compounds such as transition metal catalysts. While the above methods can be used to 
-obtain a SMILES for such compounds, extra care needs to be taken to check that the SMILES is parsed
-and resolved correctly by RDKit.
+obtain a SMILES, extra care needs to be taken to check that the SMILES is parsed and resolved correctly 
+by RDKit.
 
 Some problems to watch out for when obtaining SMILES for organometallic compounds include:
 
@@ -127,9 +141,9 @@ Some problems to watch out for when obtaining SMILES for organometallic compound
 - PubChem "canonical" SMILES for metal complexes treat each substructure as a separate component 
   (e.g., metals, ligands, ions), leading to a salt-like representation of the compounds.
 - Many online sources of SMILES give the salt-like representation used by PubChem.
+- With previous versions of InChI the metal complexes are disconnected and represented as a salt.
 
-The current best practice for generating SMILES for transition metal catalysts and other oranometallic 
-compounds, which are to be recorded in the Open Reaction Database, is as follows:
+The current best practice for generating organometallic SMILES for usage in the Open Reaction Database, is as follows:
 
 1. Use ChemDraw (or other chemical drawing tool) to draw the structure with neutral single bonds to
    ligands. Ferrocenes should be explicitly drawn as cyclopentadienyl-anion-sandwiched Fe atoms.
@@ -165,18 +179,35 @@ to canonicalize a single SMILES, or to batch process multiple SMILES strings inp
 The example also shows how to use RDKit to visualize the generated SMILES so you can check that the dative
 bonds have been generated correctly.
 
+InChI for Molecular Inorganics
+######################################
 
+The InChI Trust are actively working on adding support for molecular inorganic compounds to InChI. For a recent
+paper about this see *Faraday Discuss.*, 2025, 256, 503-519, `DOI: 10.1039/D4FD00145A <https://doi.org/10.1039/D4FD00145A>`__
+and you can try out the development features in the `InChI web demo  <https://iupac-inchi.github.io/InChI-Web-Demo/>`__.
+Switch the version to “Latest with Molecular Inorganics” to test it out on your organometallic structures.
+
+While the Open Reaction Database are following these developments closely, the current advice is to continue
+using SMILES with programmatic addition of dative bonding as the primary identifier for organometallics. Once the
+inorganic support is formally adopted into a stable InChI version, and the RDKit Chem package has been updated 
+to resolve the these InChIs, then we will revisit this guidance.
+
+.. _checking-identifiers:
 *****************************************
-Checking Your SMILES or InChI Strings
+Checking SMILES or InChI Strings
 *****************************************
 
+For checking individual identifiers of organic compounds the following online services can be useful:
 
-'SMARTS Plus <https://smarts.plus/>'
+- `SMARTS Plus <https://smarts.plus/>`__ (SMILES only)
+- `NIH NCI/CDD Chemical Identifier Resolver <https://cactus.nci.nih.gov/chemical/structure>`__
 
+Individual SMILES and InChI identifiers can also be checked in the `ORD Reaction Editor <https://app.open-reaction-database.org/>`__. Create a 
+test dataset and add each identifier as a new chemical input component. The ORD editor uses RDKit to
+parse the identifier and a preview of the structure is generated.
 
-Check individual SMILES by using a test reaction in ORD Reaction Editor. Does it resolve the 
-compound correctly?
-
-
-For batch processing rdkit can be used. Speak to Ben to get some help with this. Example code for
-Pfizer dataset.
+SMILES and InChI strings can also be visualized programmatically using the RDKit Chem Draw package. See 
+this Jupyter Notebook [add link] for example code to visualize SMILES strings input individually, or batch
+input as a .csv file. For reviewing complex and/or large batches of chemical identifiers as part of an ORD
+dataset preparation, it is also worth speaking to the ORD support team (email help@open-reaction-database.com) 
+to get bespoke advice on your task. 
