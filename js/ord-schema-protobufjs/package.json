@@ -1,6 +1,6 @@
 {
   "name": "ord-schema-protobufjs",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Schema for the Open Reaction Database",
   "main": "index.js",
   "scripts": {
