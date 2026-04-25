@@ -18,6 +18,8 @@ import re
 import uuid
 from collections.abc import Iterable
 
+import pyarrow.parquet as pq
+
 from ord_schema import parquet_dataset
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
@@ -50,6 +52,10 @@ def assign_id_substitutions(old_ids: Iterable[str]) -> tuple[list[str | None], d
     only applies to old IDs that were non-empty (i.e., user-supplied
     placeholders); reactions whose old ID was empty get a new ID but no
     substitution entry, since nothing else could have referenced them.
+
+    NOTE(kearnes): This does not check for the case where a Dataset is edited
+    and reaction_id values are changed inappropriately. This will need to be
+    either (1) caught in review or (2) found by a complex check of the diff.
 
     Args:
         old_ids: Reaction IDs in the order they appear in the dataset.
@@ -166,19 +172,22 @@ def update_parquet_dataset(input_path: str, output_path: str, *, dataset_id: str
         output_path: Path to write the updated Parquet dataset to.
         dataset_id: Resolved dataset_id to write into the output footer.
     """
-    header = parquet_dataset.read_metadata(input_path)
-    new_ids, id_substitutions = assign_id_substitutions(parquet_dataset.iter_reaction_ids(input_path))
-    with parquet_dataset.DatasetWriter(
-        output_path,
-        name=header.name,
-        description=header.description,
-        dataset_id=dataset_id,
-    ) as writer:
-        reactions = (reaction for _, reaction in parquet_dataset.iter_reactions(input_path))
-        for reaction, new_id in zip(reactions, new_ids, strict=True):
-            apply_reaction_updates(reaction, new_id=new_id)
-            apply_cross_reference_substitutions(reaction, id_substitutions)
-            writer.write(reaction)
+    # Share a single ParquetFile handle across the header read, the pass-1
+    # column scan, and the pass-2 streaming read so we open the file once.
+    with pq.ParquetFile(input_path) as input_file:
+        header = parquet_dataset._dataset_from_metadata(input_file.schema_arrow.metadata)
+        new_ids, id_substitutions = assign_id_substitutions(parquet_dataset._iter_reaction_ids(input_file))
+        with parquet_dataset.DatasetWriter(
+            output_path,
+            name=header.name,
+            description=header.description,
+            dataset_id=dataset_id,
+        ) as writer:
+            reactions = (reaction for _, reaction in parquet_dataset._iter_reactions(input_file, filter_set=None))
+            for reaction, new_id in zip(reactions, new_ids, strict=True):
+                apply_reaction_updates(reaction, new_id=new_id)
+                apply_cross_reference_substitutions(reaction, id_substitutions)
+                writer.write(reaction)
 
 
 # Standard updates.

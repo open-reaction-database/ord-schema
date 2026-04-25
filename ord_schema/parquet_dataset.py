@@ -222,6 +222,7 @@ class DatasetView:
 
     @property
     def path(self) -> str:
+        """Path to the backing Parquet file (read-only)."""
         return self._path
 
     @property
@@ -297,8 +298,12 @@ def iter_reaction_ids(path: str) -> Iterator[str]:
     cheap even for very large files. Iteration order matches ``iter_reactions``.
     """
     with pq.ParquetFile(path) as parquet_file:
-        for batch in parquet_file.iter_batches(columns=["reaction_id"]):
-            yield from batch.column("reaction_id").to_pylist()
+        yield from _iter_reaction_ids(parquet_file)
+
+
+def _iter_reaction_ids(parquet_file: pq.ParquetFile) -> Iterator[str]:
+    for batch in parquet_file.iter_batches(columns=["reaction_id"]):
+        yield from batch.column("reaction_id").to_pylist()
 
 
 def read_reaction(path: str, reaction_id: str) -> reaction_pb2.Reaction:
