@@ -23,8 +23,13 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import validate_dataset
 
 
-@pytest.fixture
-def setup(tmp_path) -> Iterator[str]:
+@pytest.fixture(params=[".pbtxt", ".parquet"])
+def setup(request, tmp_path) -> Iterator[tuple[str, str]]:
+    """Writes dataset1 and dataset2 to ``tmp_path`` in the parametrized format.
+
+    Yields ``(tmp_path, suffix)``.
+    """
+    suffix = request.param
     test_subdirectory = tmp_path.as_posix()
     reaction1 = reaction_pb2.Reaction()
     dummy_input = reaction1.inputs["dummy_input"]
@@ -40,31 +45,29 @@ def setup(tmp_path) -> Iterator[str]:
     reaction1.provenance.record_created.person.name = "test"
     reaction1.provenance.record_created.person.email = "test@example.com"
     dataset1 = dataset_pb2.Dataset(name="test1", description="test1", reactions=[reaction1])
-    dataset1_filename = os.path.join(test_subdirectory, "dataset1.pbtxt")
-    message_helpers.write_message(dataset1, dataset1_filename)
+    message_helpers.write_dataset(dataset1, os.path.join(test_subdirectory, f"dataset1{suffix}"))
     # reaction2 is empty.
     reaction2 = reaction_pb2.Reaction()
     dataset2 = dataset_pb2.Dataset(name="test2", description="test2", reactions=[reaction1, reaction2])
-    dataset2_filename = os.path.join(test_subdirectory, "dataset2.pbtxt")
-    message_helpers.write_message(dataset2, dataset2_filename)
-    yield test_subdirectory
+    message_helpers.write_dataset(dataset2, os.path.join(test_subdirectory, f"dataset2{suffix}"))
+    yield test_subdirectory, suffix
 
 
 def test_simple(setup):
-    test_subdirectory = setup
-    argv = ["--input", os.path.join(test_subdirectory, "dataset1.pbtxt")]
+    test_subdirectory, suffix = setup
+    argv = ["--input", os.path.join(test_subdirectory, f"dataset1{suffix}")]
     validate_dataset.main(validate_dataset.parse_args(argv))
 
 
 def test_filter(setup):
-    test_subdirectory = setup
-    argv = ["--input", os.path.join(test_subdirectory, "dataset1.pbtxt"), "--filter", "dataset"]
+    test_subdirectory, suffix = setup
+    argv = ["--input", os.path.join(test_subdirectory, f"dataset1{suffix}"), "--filter", "dataset"]
     validate_dataset.main(validate_dataset.parse_args(argv))
 
 
 def test_validation_errors(setup):
-    test_subdirectory = setup
-    argv = ["--input", os.path.join(test_subdirectory, "dataset*.pbtxt")]
+    test_subdirectory, suffix = setup
+    argv = ["--input", os.path.join(test_subdirectory, f"dataset*{suffix}")]
     with pytest.raises(
         validations.ValidationError,
         match="Reactions should have at least 1 reaction input",

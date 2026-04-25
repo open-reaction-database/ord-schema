@@ -260,3 +260,64 @@ def test_writer_close_propagates_flush_error(tmp_path):
         # Restore so pyarrow's GC-time close doesn't resurrect CloseError.
         writer._writer.close = original_parquet_close  # ty: ignore[invalid-assignment]
         writer._writer.close()
+
+
+def test_dataset_view_exposes_all_dataset_fields(tmp_path):
+    """DatasetView must expose every field declared on the Dataset proto.
+
+    Fails if a new field is added to the proto without a matching attribute
+    on DatasetView, so the view stays a drop-in stand-in for validation.
+    """
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(_make_dataset(n=1), path)
+    view = dataset.DatasetView(path)
+    descriptor = dataset_pb2.Dataset.DESCRIPTOR
+    assert descriptor is not None  # Type hint.
+    missing = {field.name for field in descriptor.fields} - set(dir(view))
+    assert not missing, f"DatasetView is missing Dataset fields: {sorted(missing)}"
+
+
+def test_dataset_view_reactions_is_read_only(tmp_path):
+    """Rebinding ``view.reactions`` must raise so the stream can't be swapped."""
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(_make_dataset(n=1), path)
+    view = dataset.DatasetView(path)
+    with pytest.raises(AttributeError):
+        view.reactions = []  # ty: ignore[invalid-assignment]
+
+
+def test_dataset_view_empty_parquet_is_falsy(tmp_path):
+    """DatasetView.reactions reports length 0 / False for an empty Parquet.
+
+    ``validate_dataset``'s "Dataset requires reactions or reaction_ids"
+    warning uses ``if not message.reactions`` — this test guards against
+    that branch going dead when a bare generator would be truthy.
+    """
+    path = os.path.join(tmp_path, "empty.parquet")
+    # DatasetWriter (unlike write_dataset) permits zero reactions.
+    with dataset.DatasetWriter(path, name="n", description="d"):
+        pass
+    view = dataset.DatasetView(path)
+    assert not view.reactions
+    assert len(view.reactions) == 0
+    assert list(view.reactions) == []
+
+
+def test_dataset_view_values_round_trip(tmp_path):
+    """DatasetView scalars and re-iterated Reactions match the source Dataset.
+
+    Scalars come from the footer; ``.reactions`` opens a fresh stream on
+    each access, so two validation passes iterate it twice.
+    """
+    source = _make_dataset(n=3, dataset_id="ord_dataset-abc", name="n", description="d")
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(source, path)
+    view = dataset.DatasetView(path)
+    assert view.name == source.name
+    assert view.description == source.description
+    assert view.dataset_id == source.dataset_id
+    assert list(view.reaction_ids) == []  # Not persisted in Parquet.
+    assert len(view.reactions) == len(source.reactions)
+    assert list(view.reactions) == list(source.reactions)
+    # Re-iterating must yield the same sequence (each access re-streams).
+    assert list(view.reactions) == list(source.reactions)
