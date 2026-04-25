@@ -110,7 +110,7 @@ class TestProcessDataset:
         assert dataset.reactions[0].reaction_id.startswith("ord-")
 
 
-class TestProcessDatasetParquet:
+class TestProcessParquetDataset:
     """Parquet input/output flows: load via DatasetView, streaming update."""
 
     @pytest.fixture
