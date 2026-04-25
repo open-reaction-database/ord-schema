@@ -215,9 +215,10 @@ def _run_updates(
                 message_helpers.id_filename(f"{dataset.dataset_id}{output_format}"),
             )
             os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-            if cleanup_files:
-                cleanup(input_filename, output_filename)
             temp_filename = output_filename + ".tmp"
+            # Order matters: cleanup runs `git mv input → output_filename`,
+            # which removes input from disk. update_parquet_dataset reads
+            # input, so cleanup must happen *after* the streaming pass.
             try:
                 updates.update_parquet_dataset(input_filename, temp_filename, dataset_id=dataset.dataset_id)
                 validations.validate_datasets(
@@ -225,12 +226,14 @@ def _run_updates(
                     write_errors,
                     options=options,
                 )
-            except BaseException:
+                if cleanup_files:
+                    cleanup(input_filename, output_filename)
+                logger.info("writing Dataset to %s", output_filename)
+                os.replace(temp_filename, output_filename)
+            except Exception:
                 if os.path.exists(temp_filename):
                     os.unlink(temp_filename)
                 raise
-            logger.info("writing Dataset to %s", output_filename)
-            os.replace(temp_filename, output_filename)
             continue
         # In-memory path: materialize a Parquet input if the requested output
         # format is not Parquet (so we can mutate via update_dataset).

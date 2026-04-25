@@ -282,14 +282,11 @@ class TestSubmissionWorkflow:
         """
         # These commands will fail if there are no files to match for a given
         # pattern, so run them separately to make sure we pick up changes.
-        try:
-            subprocess.run(["git", "add", "*.pb*"], check=True)
-        except subprocess.CalledProcessError as error:
-            logger.info(error)
-        try:
-            subprocess.run(["git", "add", "data/*/*.pb*"], check=True)
-        except subprocess.CalledProcessError as error:
-            logger.info(error)
+        for pattern in ("*.pb*", "data/*/*.pb*", "*.parquet", "data/*/*.parquet"):
+            try:
+                subprocess.run(["git", "add", pattern], check=True)
+            except subprocess.CalledProcessError as error:
+                logger.info(error)
         changed = subprocess.run(
             ["git", "diff", "--name-status", self._DEFAULT_BRANCH],
             check=True,
@@ -312,6 +309,7 @@ class TestSubmissionWorkflow:
             argv.extend(extra_argv)
         added, removed, changed = process_dataset.run(process_dataset.parse_args(argv))
         filenames = glob.glob(os.path.join(test_subdirectory, "**/*.pb*"), recursive=True)
+        filenames += glob.glob(os.path.join(test_subdirectory, "**/*.parquet"), recursive=True)
         return added, removed, changed, filenames
 
     def test_add_dataset(self, setup):
@@ -346,6 +344,39 @@ class TestSubmissionWorkflow:
         assert dataset.reactions[0].reaction_id
         # Check for binary output.
         assert filenames[0].endswith(".pb.gz")
+
+    def test_add_dataset_parquet_with_cleanup(self, setup):
+        # Exercises --cleanup + .parquet input + .parquet output: the
+        # streaming pass must read input *before* cleanup runs `git mv`.
+        test_subdirectory, dataset_filename = setup
+        reaction = reaction_pb2.Reaction()
+        ethylamine = reaction.inputs["ethylamine"]
+        component = ethylamine.components.add()
+        component.identifiers.add(type="SMILES", value="CCN")
+        component.is_limiting = True
+        component.amount.moles.value = 2
+        component.amount.moles.units = reaction_pb2.Moles.MILLIMOLE
+        reaction.outcomes.add().conversion.value = 25
+        reaction.provenance.record_created.time.value = "2020-01-01"
+        reaction.provenance.record_created.person.username = "test"
+        reaction.provenance.record_created.person.email = "test@example.com"
+        reaction.reaction_id = "test"
+        dataset = dataset_pb2.Dataset(name="test", description="test", reactions=[reaction])
+        this_dataset_filename = os.path.join(test_subdirectory, "test.parquet")
+        parquet_dataset.write_dataset(dataset, this_dataset_filename)
+        added, removed, changed, filenames = self._run(test_subdirectory, ["--output_format", ".parquet"])
+        assert added == {"test"}
+        assert not removed
+        assert not changed
+        # cleanup ran (input no longer at top level); atomic publish completed.
+        assert not os.path.exists(this_dataset_filename)
+        parquet_files = [f for f in filenames if f.endswith(".parquet")]
+        assert len(parquet_files) == 1
+        assert not os.path.exists(parquet_files[0] + ".tmp")
+        result = parquet_dataset.read_dataset(parquet_files[0])
+        assert result.dataset_id.startswith("ord_dataset-")
+        assert len(result.reactions) == 1
+        assert result.reactions[0].reaction_id.startswith("ord-")
 
     def test_add_sharded_dataset(self, setup):
         test_subdirectory, dataset_filename = setup
