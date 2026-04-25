@@ -93,8 +93,9 @@ def apply_reaction_updates(reaction: reaction_pb2.Reaction, *, new_id: str | Non
         reaction.reaction_id = new_id
         modified = True
     for func in _UPDATES:
-        # NOTE(kearnes): Order matters; ``func(reaction) or modified`` would
-        # short-circuit when ``modified`` is True and skip the side effect.
+        # NOTE(kearnes): Order is important here; if you write
+        # `modified or func(reaction)` and modified is True, the interpreter
+        # will skip the evaluation of func(reaction).
         modified = func(reaction) or modified
     if modified:
         event = reaction.provenance.record_modified.add()
