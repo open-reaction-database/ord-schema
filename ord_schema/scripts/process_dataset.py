@@ -92,7 +92,14 @@ def _get_inputs(args) -> list[FileStatus]:
 
 
 def cleanup(filename: str, output_filename: str):
-    """Removes and/or renames the input Dataset files.
+    """Reflects the (input → output) submission move in git's index.
+
+    If ``output_filename`` does not exist yet (the in-memory write path runs
+    cleanup before writing), do ``git mv`` so git records the rename and the
+    subsequent write overwrites the destination. If ``output_filename``
+    already exists (the streaming path publishes via atomic ``os.replace``
+    first), the move is already on disk; ``git rm`` removes the input from
+    git's index and ``git diff -M`` detects the rename via content similarity.
 
     Args:
         filename: Original dataset filename.
@@ -101,7 +108,10 @@ def cleanup(filename: str, output_filename: str):
     if filename == output_filename:
         logger.info("editing an existing dataset; no cleanup needed")
         return  # Reuse the existing dataset ID.
-    args = ["git", "mv", filename, output_filename]
+    if os.path.exists(output_filename):
+        args = ["git", "rm", "-f", filename]
+    else:
+        args = ["git", "mv", filename, output_filename]
     logger.info("Running command: %s", " ".join(args))
     subprocess.run(args, check=True)
 
@@ -216,9 +226,11 @@ def _run_updates(
             )
             os.makedirs(os.path.dirname(output_filename), exist_ok=True)
             temp_filename = output_filename + ".tmp"
-            # Order matters: cleanup runs `git mv input → output_filename`,
-            # which removes input from disk. update_parquet_dataset reads
-            # input, so cleanup must happen *after* the streaming pass.
+            # Atomic publish: stream-write to a temp, validate it, then rename
+            # over output_filename. The try guards everything up to and
+            # including os.replace so a failure leaves no `.tmp` lying around;
+            # cleanup runs after the publish so output_filename is guaranteed
+            # to exist before we touch git's index.
             try:
                 updates.update_parquet_dataset(input_filename, temp_filename, dataset_id=dataset.dataset_id)
                 validations.validate_datasets(
@@ -226,14 +238,14 @@ def _run_updates(
                     write_errors,
                     options=options,
                 )
-                if cleanup_files:
-                    cleanup(input_filename, output_filename)
                 logger.info("writing Dataset to %s", output_filename)
                 os.replace(temp_filename, output_filename)
             except Exception:
                 if os.path.exists(temp_filename):
                     os.unlink(temp_filename)
                 raise
+            if cleanup_files:
+                cleanup(input_filename, output_filename)
             continue
         # In-memory path: materialize a Parquet input if the requested output
         # format is not Parquet (so we can mutate via update_dataset).
