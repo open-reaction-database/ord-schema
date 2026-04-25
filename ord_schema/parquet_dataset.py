@@ -221,6 +221,10 @@ class DatasetView:
         self._reactions = _ReactionStream(path, num_rows)
 
     @property
+    def path(self) -> str:
+        return self._path
+
+    @property
     def reactions(self) -> _ReactionStream:
         return self._reactions
 
@@ -284,6 +288,17 @@ def _iter_reactions(
             if filter_set is not None and reaction_id not in filter_set:
                 continue
             yield reaction_id, reaction_pb2.Reaction.FromString(blob)
+
+
+def iter_reaction_ids(path: str) -> Iterator[str]:
+    """Yields ``reaction_id`` values from a Parquet dataset without decoding Reaction blobs.
+
+    Reads only the ``reaction_id`` column row-group at a time, so this is
+    cheap even for very large files. Iteration order matches ``iter_reactions``.
+    """
+    with pq.ParquetFile(path) as parquet_file:
+        for batch in parquet_file.iter_batches(columns=["reaction_id"]):
+            yield from batch.column("reaction_id").to_pylist()
 
 
 def read_reaction(path: str, reaction_id: str) -> reaction_pb2.Reaction:
