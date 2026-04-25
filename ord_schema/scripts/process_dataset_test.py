@@ -21,7 +21,7 @@ from collections.abc import Iterator
 import pytest
 from rdkit import RDLogger
 
-from ord_schema import message_helpers, validations
+from ord_schema import message_helpers, parquet_dataset, validations
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import process_dataset
@@ -108,6 +108,119 @@ class TestProcessDataset:
         dataset = message_helpers.load_message(expected_output, dataset_pb2.Dataset)
         assert len(dataset.reactions) == 1
         assert dataset.reactions[0].reaction_id.startswith("ord-")
+
+
+class TestProcessDatasetParquet:
+    """Parquet input/output flows: load via DatasetView, streaming update."""
+
+    @pytest.fixture
+    def parquet_dataset_filename(self, tmp_path) -> Iterator[str]:
+        RDLogger.logger().setLevel(RDLogger.CRITICAL)
+        reaction = reaction_pb2.Reaction()
+        component = reaction.inputs["x"].components.add()
+        component.identifiers.add(type="CUSTOM", details="custom_identifier", value="v")
+        component.is_limiting = True
+        component.amount.mass.value = 1
+        component.amount.mass.units = reaction_pb2.Mass.GRAM
+        reaction.outcomes.add().conversion.value = 75
+        reaction.provenance.record_created.time.value = "2020-01-01"
+        reaction.provenance.record_created.person.username = "test"
+        reaction.provenance.record_created.person.email = "test@example.com"
+        dataset = dataset_pb2.Dataset(
+            name="parquet_test",
+            description="parquet_test",
+            dataset_id="ord_dataset-00000000000000000000000000000000",
+            reactions=[reaction],
+        )
+        filename = (tmp_path / "ds.parquet").as_posix()
+        parquet_dataset.write_dataset(dataset, filename)
+        yield filename
+
+    def test_main_with_parquet_input(self, parquet_dataset_filename):
+        # No --update: loads via DatasetView, runs validation + size check.
+        argv = ["--input_pattern", parquet_dataset_filename]
+        process_dataset.main(process_dataset.parse_args(argv))
+
+    def test_main_with_streaming_update(self, parquet_dataset_filename, tmp_path):
+        argv = [
+            "--input_pattern",
+            parquet_dataset_filename,
+            "--root",
+            tmp_path.as_posix(),
+            "--update",
+            "--output_format",
+            ".parquet",
+        ]
+        process_dataset.main(process_dataset.parse_args(argv))
+        expected_output = os.path.join(
+            tmp_path.as_posix(), "data", "00", "ord_dataset-00000000000000000000000000000000.parquet"
+        )
+        assert os.path.exists(expected_output)
+        # Atomic-rename guarantee: the .tmp sibling must not be left behind.
+        assert not os.path.exists(expected_output + ".tmp")
+        result = parquet_dataset.read_dataset(expected_output)
+        assert len(result.reactions) == 1
+        assert result.reactions[0].reaction_id.startswith("ord-")
+        # Streaming path exercises apply_reaction_updates → record_modified.
+        assert len(result.reactions[0].provenance.record_modified) == 1
+
+    def test_streaming_update_cleans_up_temp_on_validation_failure(self, tmp_path):
+        # Reaction is missing required provenance, so the post-stream validation
+        # (which runs with require_provenance=True) will raise. The .tmp file
+        # written during streaming must be cleaned up.
+        reaction = reaction_pb2.Reaction()
+        component = reaction.inputs["x"].components.add()
+        component.identifiers.add(type="CUSTOM", details="custom_identifier", value="v")
+        component.is_limiting = True
+        component.amount.mass.value = 1
+        component.amount.mass.units = reaction_pb2.Mass.GRAM
+        reaction.outcomes.add().conversion.value = 75
+        # Note: no provenance.record_created → fails require_provenance=True.
+        dataset = dataset_pb2.Dataset(
+            name="bad",
+            description="bad",
+            dataset_id="ord_dataset-00000000000000000000000000000000",
+            reactions=[reaction],
+        )
+        filename = (tmp_path / "bad.parquet").as_posix()
+        parquet_dataset.write_dataset(dataset, filename)
+        argv = [
+            "--input_pattern",
+            filename,
+            "--root",
+            tmp_path.as_posix(),
+            "--no-validate",  # Skip the pre-update validation so we hit the post-stream path.
+            "--update",
+            "--output_format",
+            ".parquet",
+        ]
+        with pytest.raises(validations.ValidationError):
+            process_dataset.main(process_dataset.parse_args(argv))
+        expected_output = os.path.join(
+            tmp_path.as_posix(), "data", "00", "ord_dataset-00000000000000000000000000000000.parquet"
+        )
+        assert not os.path.exists(expected_output + ".tmp")
+        assert not os.path.exists(expected_output)
+
+    def test_main_with_parquet_input_pbgz_output(self, parquet_dataset_filename, tmp_path):
+        # Parquet input + non-parquet output falls back to in-memory materialize.
+        argv = [
+            "--input_pattern",
+            parquet_dataset_filename,
+            "--root",
+            tmp_path.as_posix(),
+            "--update",
+            "--output_format",
+            ".pb.gz",
+        ]
+        process_dataset.main(process_dataset.parse_args(argv))
+        expected_output = os.path.join(
+            tmp_path.as_posix(), "data", "00", "ord_dataset-00000000000000000000000000000000.pb.gz"
+        )
+        assert os.path.exists(expected_output)
+        result = message_helpers.load_message(expected_output, dataset_pb2.Dataset)
+        assert len(result.reactions) == 1
+        assert result.reactions[0].reaction_id.startswith("ord-")
 
 
 class TestSubmissionWorkflow:
