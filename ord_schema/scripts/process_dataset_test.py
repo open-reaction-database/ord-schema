@@ -345,7 +345,7 @@ class TestSubmissionWorkflow:
         # Check for binary output.
         assert filenames[0].endswith(".pb.gz")
 
-    def test_add_dataset_parquet_with_cleanup(self, setup):
+    def test_add_parquet_dataset_with_cleanup(self, setup):
         # Exercises --cleanup + .parquet input + .parquet output: the
         # streaming pass must read input *before* cleanup runs `git mv`.
         test_subdirectory, dataset_filename = setup
