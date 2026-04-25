@@ -219,7 +219,7 @@ def _run_updates(
                 cleanup(input_filename, output_filename)
             temp_filename = output_filename + ".tmp"
             try:
-                updates.update_dataset_parquet(input_filename, temp_filename, dataset_id=dataset.dataset_id)
+                updates.update_parquet_dataset(input_filename, temp_filename, dataset_id=dataset.dataset_id)
                 validations.validate_datasets(
                     {input_filename: parquet_dataset.DatasetView(temp_filename)},
                     write_errors,

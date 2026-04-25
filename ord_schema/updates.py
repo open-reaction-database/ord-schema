@@ -120,31 +120,14 @@ def apply_cross_reference_substitutions(reaction: reaction_pb2.Reaction, id_subs
                 crude_component.reaction_id = id_substitutions[crude_component.reaction_id]
 
 
-def update_reaction(reaction: reaction_pb2.Reaction) -> dict[str, str]:
-    """Updates a Reaction message.
-
-    Current updates:
-      * Sets reaction_id if not already set.
-      * Adds a record modification event to the provenance.
-
-    Args:
-        reaction: reaction_pb2.Reaction message.
-
-    Returns:
-        A dictionary mapping placeholder reaction_ids to newly-assigned
-            reaction_ids.
-    """
-    new_ids, id_substitutions = assign_id_substitutions([reaction.reaction_id])
-    apply_reaction_updates(reaction, new_id=new_ids[0])
-    return id_substitutions
-
-
 def update_dataset(dataset: dataset_pb2.Dataset):
     """Updates a Dataset message.
 
     Current updates:
-      * All reaction-level updates in update_reaction.
-      * reaction_id cross-references between Reactions in the dataset.
+      * Sets dataset_id if not already canonical.
+      * Sets reaction_id on each Reaction if not already canonical, and
+        appends a record_modified provenance event for any modified Reaction.
+      * Rewrites reaction_id cross-references between Reactions in the dataset.
 
     Args:
         dataset: dataset_pb2.Dataset message.
@@ -162,7 +145,7 @@ def update_dataset(dataset: dataset_pb2.Dataset):
         apply_cross_reference_substitutions(reaction, id_substitutions)
 
 
-def update_dataset_parquet(input_path: str, output_path: str, *, dataset_id: str) -> None:
+def update_parquet_dataset(input_path: str, output_path: str, *, dataset_id: str) -> None:
     """Stream-applies ``update_dataset`` to a Parquet input, writing the result to ``output_path``.
 
     Two passes over ``input_path``:

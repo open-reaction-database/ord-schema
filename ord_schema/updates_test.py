@@ -22,37 +22,6 @@ from ord_schema import parquet_dataset, updates
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
-class TestUpdateReaction:
-    def test_with_updates_simple(self):
-        message = reaction_pb2.Reaction()
-        updates.update_reaction(message)
-        assert message != reaction_pb2.Reaction()
-        assert len(message.provenance.record_modified) == 1
-
-    def test_with_no_updates(self):
-        message = reaction_pb2.Reaction()
-        message.provenance.record_created.time.value = "2020-05-08"
-        message.reaction_id = "ord-c0bbd41f095a44a78b6221135961d809"
-        copied = reaction_pb2.Reaction()
-        copied.CopyFrom(message)
-        updates.update_reaction(copied)
-        assert copied == message
-
-    def test_add_reaction_id(self):
-        message = reaction_pb2.Reaction()
-        updates.update_reaction(message)
-        assert message.reaction_id
-        assert len(message.provenance.record_modified) == 1
-
-    def test_keep_existing_reaction_id(self):
-        message = reaction_pb2.Reaction()
-        message.reaction_id = "ord-c0bbd41f095a44a78b6221135961d809"
-        message.provenance.record_created.time.value = "2020-01-01"
-        updates.update_reaction(message)
-        assert message.reaction_id == "ord-c0bbd41f095a44a78b6221135961d809"
-        assert len(message.provenance.record_modified) == 0
-
-
 class TestUpdateDataset:
     @pytest.fixture
     def dataset(self) -> Iterator[dataset_pb2.Dataset]:
@@ -179,7 +148,7 @@ class TestApplyCrossReferenceSubstitutions:
         assert reaction.inputs["x"].crude_components[0].reaction_id == "ord-new2"
 
 
-class TestUpdateDatasetParquet:
+class TestUpdateParquetDataset:
     def _make_dataset(self) -> dataset_pb2.Dataset:
         # Three reactions; r2 and r3 are referenced by r1 via placeholder IDs
         # that should be rewritten by the streaming update.
@@ -197,7 +166,7 @@ class TestUpdateDatasetParquet:
         input_path = os.path.join(tmp_path, "in.parquet")
         output_path = os.path.join(tmp_path, "out.parquet")
         parquet_dataset.write_dataset(original, input_path)
-        updates.update_dataset_parquet(
+        updates.update_parquet_dataset(
             input_path, output_path, dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809"
         )
         result = parquet_dataset.read_dataset(output_path)
@@ -224,7 +193,7 @@ class TestUpdateDatasetParquet:
         input_path = os.path.join(tmp_path, "in.parquet")
         output_path = os.path.join(tmp_path, "out.parquet")
         parquet_dataset.write_dataset(original, input_path)
-        updates.update_dataset_parquet(
+        updates.update_parquet_dataset(
             input_path, output_path, dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809"
         )
         result = parquet_dataset.read_dataset(output_path)
@@ -232,14 +201,14 @@ class TestUpdateDatasetParquet:
         assert len(result.reactions[0].provenance.record_modified) == 0
 
     def test_streaming_matches_in_memory(self, tmp_path):
-        # update_dataset_parquet (streaming) and update_dataset (in-memory)
+        # update_parquet_dataset (streaming) and update_dataset (in-memory)
         # should produce the same per-reaction shape modulo the random IDs.
         original = self._make_dataset()
         input_path = os.path.join(tmp_path, "in.parquet")
         output_path = os.path.join(tmp_path, "out.parquet")
         parquet_dataset.write_dataset(original, input_path)
         dataset_id = "ord_dataset-c0bbd41f095a44a78b6221135961d809"
-        updates.update_dataset_parquet(input_path, output_path, dataset_id=dataset_id)
+        updates.update_parquet_dataset(input_path, output_path, dataset_id=dataset_id)
         streamed = parquet_dataset.read_dataset(output_path)
         in_memory = self._make_dataset()
         in_memory.dataset_id = dataset_id
