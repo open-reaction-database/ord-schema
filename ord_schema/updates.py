@@ -18,8 +18,6 @@ import re
 import uuid
 from collections.abc import Iterable
 
-import pyarrow.parquet as pq
-
 from ord_schema import parquet_dataset
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
@@ -172,22 +170,19 @@ def update_parquet_dataset(input_path: str, output_path: str, *, dataset_id: str
         output_path: Path to write the updated Parquet dataset to.
         dataset_id: Resolved dataset_id to write into the output footer.
     """
-    # Share a single ParquetFile handle across the header read, the pass-1
-    # column scan, and the pass-2 streaming read so we open the file once.
-    with pq.ParquetFile(input_path) as input_file:
-        header = parquet_dataset._dataset_from_metadata(input_file.schema_arrow.metadata)
-        new_ids, id_substitutions = assign_id_substitutions(parquet_dataset._iter_reaction_ids(input_file))
-        with parquet_dataset.DatasetWriter(
-            output_path,
-            name=header.name,
-            description=header.description,
-            dataset_id=dataset_id,
-        ) as writer:
-            reactions = (reaction for _, reaction in parquet_dataset._iter_reactions(input_file, filter_set=None))
-            for reaction, new_id in zip(reactions, new_ids, strict=True):
-                apply_reaction_updates(reaction, new_id=new_id)
-                apply_cross_reference_substitutions(reaction, id_substitutions)
-                writer.write(reaction)
+    header = parquet_dataset.read_metadata(input_path)
+    new_ids, id_substitutions = assign_id_substitutions(parquet_dataset.iter_reaction_ids(input_path))
+    with parquet_dataset.DatasetWriter(
+        output_path,
+        name=header.name,
+        description=header.description,
+        dataset_id=dataset_id,
+    ) as writer:
+        reactions = (reaction for _, reaction in parquet_dataset.iter_reactions(input_path))
+        for reaction, new_id in zip(reactions, new_ids, strict=True):
+            apply_reaction_updates(reaction, new_id=new_id)
+            apply_cross_reference_substitutions(reaction, id_substitutions)
+            writer.write(reaction)
 
 
 # Standard updates.
