@@ -27,7 +27,7 @@ from rdkit import Chem
 from rdkit import __version__ as RDKIT_VERSION
 
 import ord_schema
-from ord_schema import message_helpers
+from ord_schema import message_helpers, parquet_dataset
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
@@ -59,7 +59,7 @@ class ValidationOutput:
 
 
 def validate_datasets(
-    datasets: Mapping[str, dataset_pb2.Dataset],
+    datasets: Mapping[str, dataset_pb2.Dataset | parquet_dataset.DatasetView],
     write_errors: bool = False,
     options: ValidationOptions | None = None,
 ) -> None:
@@ -92,14 +92,19 @@ def validate_datasets(
 
 
 def _validate_datasets(
-    dataset: dataset_pb2.Dataset,
+    dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView,
     label: str = "dataset",
     options: ValidationOptions | None = None,
 ) -> list[str]:
     """Validates Reaction messages and cross-references in a Dataset.
 
+    ``dataset`` may be a ``dataset_pb2.Dataset`` or a
+    ``parquet_dataset.DatasetView``; the view re-iterates ``.reactions``
+    from disk on each access, so the two iterations below (per-Reaction +
+    cross-reference) both stream.
+
     Args:
-        dataset: dataset_pb2.Dataset message.
+        dataset: Dataset message or compatible stand-in.
         label: string label for logging purposes only.
         options: ValidationOptions.
 
@@ -116,9 +121,16 @@ def _validate_datasets(
         for error in reaction_output.errors:
             errors.append(error)
             logger.error(f"Validation error for {label}[{i}]: {error}")
-    # Dataset-level validation of cross-references.
-    dataset_output = validate_message(dataset, raise_on_error=False, recurse=False, options=options)
-    for error in dataset_output.errors:
+    # Dataset-level validation of cross-references. Call ``validate_dataset``
+    # directly rather than going through ``validate_message``, which insists
+    # on a proto type (``_VALIDATOR_SWITCH`` lookup, ``DESCRIPTOR`` access) and
+    # would reject a non-proto stand-in like ``DatasetView``.
+    with warnings.catch_warnings(record=True) as tape:
+        validate_dataset(dataset, options=options)
+    for warning in tape:
+        if not issubclass(warning.category, ValidationError):
+            continue
+        error = f"Dataset: {warning.message}"
         errors.append(error)
         logger.error(f"Validation error for {label}: {error}")
 
@@ -372,7 +384,10 @@ def is_valid_dataset_id(dataset_id: str) -> bool:
     return bool(match)
 
 
-def validate_dataset(message: dataset_pb2.Dataset, options: ValidationOptions | None = None):
+def validate_dataset(
+    message: dataset_pb2.Dataset | parquet_dataset.DatasetView,
+    options: ValidationOptions | None = None,
+):
     if options is None:
         options = ValidationOptions()
     if not message.name:

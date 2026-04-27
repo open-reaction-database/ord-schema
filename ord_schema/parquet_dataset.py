@@ -172,6 +172,59 @@ def write_dataset(
         writer.write_all(dataset.reactions)
 
 
+class _ReactionStream:
+    """Re-iterable Reaction stream with a known length.
+
+    Each iteration opens a fresh read over the backing Parquet file so
+    callers that iterate more than once stay memory-bounded. ``__len__``
+    and ``__bool__`` come from the footer row count, so emptiness checks
+    (e.g., ``if not dataset.reactions``) behave like a list instead of
+    always being truthy the way a bare generator would be.
+    """
+
+    def __init__(self, path: str, num_reactions: int):
+        self._path = path
+        self._num_reactions = num_reactions
+
+    def __iter__(self) -> Iterator[reaction_pb2.Reaction]:
+        for _, reaction in iter_reactions(self._path):
+            yield reaction
+
+    def __len__(self) -> int:
+        return self._num_reactions
+
+    def __bool__(self) -> bool:
+        return self._num_reactions > 0
+
+
+class DatasetView:
+    """A read-only, streaming view of a Parquet-serialized Dataset.
+
+    Quacks like a ``dataset_pb2.Dataset`` for the read-only attributes used
+    during validation: ``name``, ``description``, and ``dataset_id`` come
+    from the Parquet footer; ``reaction_ids`` is always empty (Parquet does
+    not persist it); and ``reactions`` is a re-iterable ``_ReactionStream``
+    that opens a fresh read on each iteration and reports its length from
+    the footer, so emptiness/length checks behave like a list. ``reactions``
+    is exposed as a read-only property so accidental rebinding raises.
+    """
+
+    def __init__(self, path: str):
+        self._path = path
+        with pq.ParquetFile(path) as parquet_file:
+            scalars = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
+            num_rows = parquet_file.metadata.num_rows
+        self.name = scalars.name
+        self.description = scalars.description
+        self.dataset_id = scalars.dataset_id
+        self.reaction_ids: list[str] = []
+        self._reactions = _ReactionStream(path, num_rows)
+
+    @property
+    def reactions(self) -> _ReactionStream:
+        return self._reactions
+
+
 def read_dataset(path: str) -> dataset_pb2.Dataset:
     """Reads a full Dataset from a Parquet file.
 

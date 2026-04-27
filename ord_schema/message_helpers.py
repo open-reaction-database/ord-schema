@@ -35,7 +35,7 @@ from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
 import ord_schema
-from ord_schema import units
+from ord_schema import parquet_dataset, units
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
@@ -824,6 +824,18 @@ def write_message(message: ord_schema.Message, filename: str):
             f.write(text_format.MessageToString(message).encode("utf-8"))
         elif output_format == MessageFormat.BINARY:
             f.write(message.SerializeToString(deterministic=True))
+
+
+def write_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:
+    """Writes a Dataset to disk, dispatching on filename suffix.
+
+    ``.parquet`` routes to ``parquet_dataset.write_dataset``; other suffixes
+    go through ``write_message``.
+    """
+    if filename.endswith(".parquet"):
+        parquet_dataset.write_dataset(dataset, filename)
+        return
+    write_message(dataset, filename)
 
 
 def id_filename(filename: str) -> str:
