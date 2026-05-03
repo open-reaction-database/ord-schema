@@ -230,19 +230,21 @@ def test_multi_row_group_streaming_preserves_order(tmp_path):
 
 
 def test_writer_publishes_atomically(tmp_path):
-    """Destination must not exist until close(); a sibling .tmp does."""
+    """Destination must not exist until close(); a sibling temp does."""
     path = os.path.join(tmp_path, "ds.parquet")
     writer = dataset.DatasetWriter(path, name="n", description="d")
     writer.write(_make_reaction("ord-0000"))
+    # Mid-write: the destination doesn't exist yet, only the temp does.
     assert not os.path.exists(path)
-    assert os.path.exists(path + ".tmp")
+    assert "ds.parquet" not in os.listdir(tmp_path)
+    assert len(os.listdir(tmp_path)) == 1
     writer.close()
-    assert os.path.exists(path)
-    assert not os.path.exists(path + ".tmp")
+    # After close: the destination exists and is the only file.
+    assert os.listdir(tmp_path) == ["ds.parquet"]
 
 
 def test_writer_aborts_on_exception_in_context(tmp_path):
-    """An exception in the with-body must leave neither destination nor .tmp behind."""
+    """An exception in the with-body must leave neither destination nor temp behind."""
     path = os.path.join(tmp_path, "ds.parquet")
     with (
         pytest.raises(RuntimeError, match="boom"),
@@ -250,8 +252,19 @@ def test_writer_aborts_on_exception_in_context(tmp_path):
     ):
         writer.write(_make_reaction("ord-0000"))
         raise RuntimeError("boom")
-    assert not os.path.exists(path)
-    assert not os.path.exists(path + ".tmp")
+    assert os.listdir(tmp_path) == []
+
+
+def test_writer_aborts_on_keyboard_interrupt_in_context(tmp_path):
+    """KeyboardInterrupt in the with-body also triggers _abort and leaves no temp behind."""
+    path = os.path.join(tmp_path, "ds.parquet")
+    with (
+        pytest.raises(KeyboardInterrupt),
+        dataset.DatasetWriter(path, name="n", description="d") as writer,
+    ):
+        writer.write(_make_reaction("ord-0000"))
+        raise KeyboardInterrupt
+    assert os.listdir(tmp_path) == []
 
 
 def test_writer_aborts_preserves_existing_destination(tmp_path):
@@ -268,7 +281,7 @@ def test_writer_aborts_preserves_existing_destination(tmp_path):
         raise RuntimeError("boom")
     with open(path, "rb") as f:
         assert f.read() == original_bytes
-    assert not os.path.exists(path + ".tmp")
+    assert os.listdir(tmp_path) == ["ds.parquet"]
 
 
 def test_writer_close_propagates_flush_error(tmp_path):

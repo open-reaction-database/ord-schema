@@ -28,6 +28,7 @@ without loading the full dataset into memory.
 
 import contextlib
 import os
+import tempfile
 from collections.abc import Iterable, Iterator
 
 import pyarrow as pa
@@ -83,12 +84,16 @@ class DatasetWriter:
             raise ValueError("DatasetWriter requires a non-empty description")
         self._row_group_size = row_group_size
         self._schema = _build_schema(name=name, description=description, dataset_id=dataset_id)
-        # Atomic publish: write to a sibling temp path; rename onto `path` on
-        # successful close, remove on exception. Same semantics as
+        # Atomic publish: write to a sibling temp path with a unique random
+        # suffix (so concurrent writers do not collide), rename onto `path`
+        # on successful close, remove on exception. Same semantics as
         # ``atomic_io.atomic_path``, inlined because the open/close lifecycle
         # is split across __init__/close().
         self._path = path
-        self._tmp_path = path + ".tmp"
+        parent = os.path.dirname(path) or "."
+        basename = os.path.basename(path)
+        fd, self._tmp_path = tempfile.mkstemp(dir=parent, prefix=basename + ".", suffix=".tmp")
+        os.close(fd)
         try:
             self._writer = pq.ParquetWriter(self._tmp_path, self._schema, compression=compression)
         except BaseException:
@@ -115,10 +120,10 @@ class DatasetWriter:
         """Flushes the final row group, closes the writer, and atomically publishes the file.
 
         On success the temp file is renamed onto the destination via
-        ``os.replace``. On any exception during flush or close the temp is
-        removed best-effort and the destination is left untouched; the
-        original error propagates and any secondary close error is
-        suppressed. Idempotent thereafter.
+        ``os.replace``. On any exception during flush or close (including
+        ``KeyboardInterrupt``) the temp is removed best-effort and the
+        destination is left untouched; the original error propagates and
+        any secondary close error is suppressed. Idempotent thereafter.
         """
         if self._closed:
             return
@@ -126,7 +131,7 @@ class DatasetWriter:
         try:
             self._flush()
             self._writer.close()
-        except Exception:
+        except BaseException:
             self._abort()
             raise
         os.replace(self._tmp_path, self._path)

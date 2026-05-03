@@ -230,6 +230,12 @@ def _run_updates(
             # exit (or unlink it on failure). Cleanup runs after the publish
             # so output_filename is guaranteed to exist before we touch
             # git's index.
+            #
+            # Note: DatasetWriter inside update_parquet_dataset opens its own
+            # mkstemp temp next to ``temp_filename``, then renames onto it
+            # before atomic_path renames onto output_filename. Two atomic
+            # rename hops per successful write; if the process dies between
+            # them only the orphan inner temp is left behind.
             with atomic_io.atomic_path(output_filename) as temp_filename:
                 updates.update_parquet_dataset(input_filename, temp_filename, dataset_id=dataset.dataset_id)
                 validations.validate_datasets(

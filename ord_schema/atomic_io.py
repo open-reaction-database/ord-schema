@@ -20,6 +20,7 @@ crash, exception, or interrupt.
 
 import contextlib
 import os
+import tempfile
 from collections.abc import Iterator
 
 
@@ -33,22 +34,25 @@ def atomic_path(path: str) -> Iterator[str]:
 
     On clean exit the temp path is renamed onto ``path`` via ``os.replace``,
     which is atomic on POSIX when source and destination live on the same
-    filesystem (the temp is a sibling, so this holds). On any exception the
-    temp is removed best-effort and the original ``path`` is left untouched.
+    filesystem (the temp is a sibling, so this holds). On any exception
+    (including ``KeyboardInterrupt``) the temp is removed best-effort and
+    the original ``path`` is left untouched.
 
-    The temp uses a fixed ``.tmp`` suffix on the destination, matching the
-    convention already used by ``scripts/process_dataset.py``. Concurrent
-    writers to the same destination will collide; switch to
-    ``tempfile.mkstemp`` if that ever becomes a real concern.
+    The temp is created via ``tempfile.mkstemp`` in the destination's
+    directory with a unique random suffix, so concurrent writers to the
+    same ``path`` do not collide on a fixed sentinel name. The temp file
+    is created (empty) immediately on entry; callers typically open it for
+    writing and overwrite it.
     """
-    tmp = path + ".tmp"
+    parent = os.path.dirname(path) or "."
+    basename = os.path.basename(path)
+    fd, tmp = tempfile.mkstemp(dir=parent, prefix=basename + ".", suffix=".tmp")
+    os.close(fd)
     try:
         yield tmp
     except BaseException:
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.unlink(tmp)
-        except FileNotFoundError:
-            pass
         raise
     else:
         os.replace(tmp, path)
