@@ -85,6 +85,10 @@ def add_dataset(dataset: dataset_pb2.Dataset, session: Session, rdkit_cartridge:
         update_rdkit_ids(dataset.dataset_id, session)
 
 
+# Reactions are flushed and expunged in batches of this size during streaming
+# ingest. Larger values reduce SQL roundtrips at the cost of more pending ORM
+# objects held in memory; 200 is unmeasured and worked fine on the existing
+# ord-data fixtures.
 _PARQUET_FLUSH_BATCH = 200
 
 
