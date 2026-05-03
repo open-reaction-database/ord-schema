@@ -69,11 +69,11 @@ def test_read_metadata_returns_scalars_only(tmp_path):
     path = os.path.join(tmp_path, "ds.parquet")
     dataset.write_dataset(original, path)
     metadata = dataset.read_metadata(path)
-    assert metadata == dataset.DatasetMetadata(
-        name=original.name,
-        description=original.description,
-        dataset_id=original.dataset_id,
-    )
+    assert metadata.dataset_id == original.dataset_id
+    assert metadata.name == original.name
+    assert metadata.description == original.description
+    assert len(metadata.reactions) == 0
+    assert len(metadata.reaction_ids) == 0
 
 
 def test_iter_reactions_all(tmp_path):
