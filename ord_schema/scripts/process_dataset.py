@@ -34,11 +34,12 @@ import gzip
 import os
 import subprocess
 import sys
+import tempfile
 from collections.abc import Iterable, Mapping
 
 import github
 
-from ord_schema import message_helpers, updates, validations
+from ord_schema import message_helpers, parquet_dataset, updates, validations
 from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.proto import dataset_pb2
 
@@ -91,7 +92,14 @@ def _get_inputs(args) -> list[FileStatus]:
 
 
 def cleanup(filename: str, output_filename: str):
-    """Removes and/or renames the input Dataset files.
+    """Reflects the (input → output) submission move in git's index.
+
+    If ``output_filename`` does not exist yet (the in-memory write path runs
+    cleanup before writing), do ``git mv`` so git records the rename and the
+    subsequent write overwrites the destination. If ``output_filename``
+    already exists (the streaming path publishes via atomic ``os.replace``
+    first), the move is already on disk; ``git rm`` removes the input from
+    git's index and ``git diff -M`` detects the rename via content similarity.
 
     Args:
         filename: Original dataset filename.
@@ -100,22 +108,33 @@ def cleanup(filename: str, output_filename: str):
     if filename == output_filename:
         logger.info("editing an existing dataset; no cleanup needed")
         return  # Reuse the existing dataset ID.
-    args = ["git", "mv", filename, output_filename]
+    if os.path.exists(output_filename):
+        args = ["git", "rm", "-f", filename]
+    else:
+        args = ["git", "mv", filename, output_filename]
     logger.info("Running command: %s", " ".join(args))
     subprocess.run(args, check=True)
 
 
-def _get_reaction_ids(dataset: dataset_pb2.Dataset) -> set[str]:
-    """Returns a set containing the reaction IDs in a Dataset."""
-    reaction_ids = set()
-    for reaction in dataset.reactions:
-        if reaction.reaction_id:
-            reaction_ids.add(reaction.reaction_id)
-    return reaction_ids
+def _get_reaction_ids(dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView) -> set[str]:
+    """Returns a set containing the reaction IDs in a Dataset.
+
+    For ``DatasetView``, the ``reaction_id`` column is read directly from the
+    Parquet file so we never decode Reaction blobs just to collect IDs.
+    """
+    if isinstance(dataset, parquet_dataset.DatasetView):
+        return {rid for rid in parquet_dataset.iter_reaction_ids(dataset.path) if rid}
+    return {reaction.reaction_id for reaction in dataset.reactions if reaction.reaction_id}
 
 
-def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Dataset | None:
-    """Loads a Dataset message from another branch."""
+def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Dataset | parquet_dataset.DatasetView | None:
+    """Loads a Dataset from another git branch.
+
+    Parquet inputs are spilled to a temp file and wrapped in a ``DatasetView``
+    so the diff path can scan the ``reaction_id`` column without decoding any
+    Reaction blobs. The temp file outlives the view (process-lifetime leak),
+    which is fine for this CLI script — the OS reclaims it on exit.
+    """
     if file_status.status.startswith("A"):
         return None  # Dataset only exists in the submission.
     # NOTE(kearnes): Use --no-pager to avoid a non-zero exit code.
@@ -135,6 +154,11 @@ def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Datase
             check=True,
             text=False,
         )
+    if git_args[-1].endswith(".parquet"):
+        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as temp:
+            temp.write(serialized.stdout)
+            temp_path = temp.name
+        return parquet_dataset.DatasetView(temp_path)
     if git_args[-1].endswith(".gz"):
         value = gzip.decompress(serialized.stdout)
     else:
@@ -143,7 +167,9 @@ def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Datase
 
 
 def get_change_stats(
-    datasets: Mapping[str, dataset_pb2.Dataset | None], inputs: Iterable[FileStatus], base: str
+    datasets: Mapping[str, dataset_pb2.Dataset | parquet_dataset.DatasetView | None],
+    inputs: Iterable[FileStatus],
+    base: str,
 ) -> tuple[set[str], set[str], set[str]]:
     """Computes diff statistics for the submission.
 
@@ -172,30 +198,70 @@ def get_change_stats(
 
 
 def _run_updates(
-    datasets: Mapping[str, dataset_pb2.Dataset],
+    datasets: Mapping[str, dataset_pb2.Dataset | parquet_dataset.DatasetView],
     *,
     root: str,
     output_format: str,
     write_errors: bool,
     cleanup_files: bool,
 ) -> None:
-    """Updates the submission files."""
-    for dataset in datasets.values():
-        # Set reaction_ids, resolve names, fix cross-references, etc.
-        updates.update_dataset(dataset)
-    # Final validation to make sure we didn't break anything.
+    """Updates the submission files.
+
+    When the input is a ``DatasetView`` and the output is also Parquet, the
+    update runs as a streaming two-pass over the input file with an atomic
+    temp-then-rename publish (validation runs against the temp before the
+    rename). Otherwise the in-memory path mutates the Dataset in place,
+    validates, and writes through ``message_helpers.write_dataset``.
+    """
     options = validations.ValidationOptions(validate_ids=True, require_provenance=True)
-    validations.validate_datasets(datasets, write_errors, options=options)
-    for filename, dataset in datasets.items():
+    for input_filename, dataset in datasets.items():
+        is_parquet_stream = isinstance(dataset, parquet_dataset.DatasetView) and output_format == ".parquet"
+        if is_parquet_stream:
+            # Resolve dataset_id up-front so the output filename is known
+            # before we open the streaming writer.
+            updates.assign_dataset_id(dataset)
+            output_filename = os.path.join(
+                root,
+                message_helpers.id_filename(f"{dataset.dataset_id}{output_format}"),
+            )
+            os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+            temp_filename = output_filename + ".tmp"
+            # Atomic publish: stream-write to a temp, validate it, then rename
+            # over output_filename. The try guards everything up to and
+            # including os.replace so a failure leaves no `.tmp` lying around;
+            # cleanup runs after the publish so output_filename is guaranteed
+            # to exist before we touch git's index.
+            try:
+                updates.update_parquet_dataset(input_filename, temp_filename, dataset_id=dataset.dataset_id)
+                validations.validate_datasets(
+                    {input_filename: parquet_dataset.DatasetView(temp_filename)},
+                    write_errors,
+                    options=options,
+                )
+                logger.info("writing Dataset to %s", output_filename)
+                os.replace(temp_filename, output_filename)
+            except Exception:
+                if os.path.exists(temp_filename):
+                    os.unlink(temp_filename)
+                raise
+            if cleanup_files:
+                cleanup(input_filename, output_filename)
+            continue
+        # In-memory path: materialize a Parquet input if the requested output
+        # format is not Parquet (so we can mutate via update_dataset).
+        if isinstance(dataset, parquet_dataset.DatasetView):
+            dataset = parquet_dataset.read_dataset(input_filename)
+        updates.update_dataset(dataset)
+        validations.validate_datasets({input_filename: dataset}, write_errors, options=options)
         output_filename = os.path.join(
             root,
             message_helpers.id_filename(f"{dataset.dataset_id}{output_format}"),
         )
         os.makedirs(os.path.dirname(output_filename), exist_ok=True)
         if cleanup_files:
-            cleanup(filename, output_filename)
+            cleanup(input_filename, output_filename)
         logger.info("writing Dataset to %s", output_filename)
-        message_helpers.write_message(dataset, output_filename)
+        message_helpers.write_dataset(dataset, output_filename)
 
 
 def run(args) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
@@ -217,13 +283,17 @@ def run(args) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
     # NOTE(kearnes): Process one dataset at a time to avoid OOM errors.
     change_stats = {}
     for file_status in inputs:
+        dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView | None
         if file_status.status == "D":
             dataset = None
+        elif file_status.filename.endswith(".parquet"):
+            dataset = parquet_dataset.DatasetView(file_status.filename)
+            logger.info("%s: %d reactions", file_status.filename, len(dataset.reactions))
         else:
             dataset = message_helpers.load_message(file_status.filename, dataset_pb2.Dataset)
             logger.info("%s: %d reactions", file_status.filename, len(dataset.reactions))
-        datasets: dict[str, dataset_pb2.Dataset | None] = {file_status.filename: dataset}
-        datasets_checked: dict[str, dataset_pb2.Dataset] = (
+        datasets: dict[str, dataset_pb2.Dataset | parquet_dataset.DatasetView | None] = {file_status.filename: dataset}
+        datasets_checked: dict[str, dataset_pb2.Dataset | parquet_dataset.DatasetView] = (
             {file_status.filename: dataset} if dataset is not None else {}
         )
         if not args.no_validate and dataset is not None:

@@ -13,43 +13,13 @@
 # limitations under the License.
 """Tests for ord_schema.updates."""
 
+import os
 from collections.abc import Iterator
 
 import pytest
 
-from ord_schema import updates
+from ord_schema import parquet_dataset, updates
 from ord_schema.proto import dataset_pb2, reaction_pb2
-
-
-class TestUpdateReaction:
-    def test_with_updates_simple(self):
-        message = reaction_pb2.Reaction()
-        updates.update_reaction(message)
-        assert message != reaction_pb2.Reaction()
-        assert len(message.provenance.record_modified) == 1
-
-    def test_with_no_updates(self):
-        message = reaction_pb2.Reaction()
-        message.provenance.record_created.time.value = "2020-05-08"
-        message.reaction_id = "ord-c0bbd41f095a44a78b6221135961d809"
-        copied = reaction_pb2.Reaction()
-        copied.CopyFrom(message)
-        updates.update_reaction(copied)
-        assert copied == message
-
-    def test_add_reaction_id(self):
-        message = reaction_pb2.Reaction()
-        updates.update_reaction(message)
-        assert message.reaction_id
-        assert len(message.provenance.record_modified) == 1
-
-    def test_keep_existing_reaction_id(self):
-        message = reaction_pb2.Reaction()
-        message.reaction_id = "ord-c0bbd41f095a44a78b6221135961d809"
-        message.provenance.record_created.time.value = "2020-01-01"
-        updates.update_reaction(message)
-        assert message.reaction_id == "ord-c0bbd41f095a44a78b6221135961d809"
-        assert len(message.provenance.record_modified) == 0
 
 
 class TestUpdateDataset:
@@ -100,3 +70,153 @@ class TestUpdateDataset:
         assert dummy_input.crude_components[0].reaction_id == "ord-c0bbd41f095a44a78b6221135961d809"
         assert dummy_input.components[0].preparations[0].reaction_id == dataset.reactions[2].reaction_id
         assert dummy_input.components[0].preparations[0].reaction_id == "ord-d0bbd41f095a44a78b6221135961d809"
+
+
+class TestAssignDatasetId:
+    def test_assigns_when_missing(self):
+        dataset = dataset_pb2.Dataset()
+        result = updates.assign_dataset_id(dataset)
+        assert dataset.dataset_id == result
+        assert dataset.dataset_id.startswith("ord_dataset-")
+
+    def test_assigns_when_non_canonical(self):
+        dataset = dataset_pb2.Dataset(dataset_id="placeholder")
+        updates.assign_dataset_id(dataset)
+        assert dataset.dataset_id != "placeholder"
+        assert dataset.dataset_id.startswith("ord_dataset-")
+
+    def test_keeps_canonical(self):
+        dataset = dataset_pb2.Dataset(dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809")
+        updates.assign_dataset_id(dataset)
+        assert dataset.dataset_id == "ord_dataset-c0bbd41f095a44a78b6221135961d809"
+
+
+class TestAssignIdSubstitutions:
+    def test_canonical_ids_get_none(self):
+        new_ids, subs = updates.assign_id_substitutions(["ord-c0bbd41f095a44a78b6221135961d809"])
+        assert new_ids == [None]
+        assert subs == {}
+
+    def test_placeholder_ids_get_substitutions(self):
+        new_ids, subs = updates.assign_id_substitutions(["placeholder"])
+        assert new_ids[0] is not None and new_ids[0].startswith("ord-")
+        assert subs == {"placeholder": new_ids[0]}
+
+    def test_empty_id_gets_new_id_but_no_substitution(self):
+        # Empty old_id: nothing else could have referenced it, so no entry
+        # in id_substitutions; the reaction still receives a fresh canonical ID.
+        new_ids, subs = updates.assign_id_substitutions([""])
+        assert new_ids[0] is not None and new_ids[0].startswith("ord-")
+        assert subs == {}
+
+    def test_parallel_to_input(self):
+        old = ["ord-c0bbd41f095a44a78b6221135961d809", "p1", "", "p2"]
+        new_ids, subs = updates.assign_id_substitutions(old)
+        assert len(new_ids) == 4
+        assert new_ids[0] is None
+        assert subs == {"p1": new_ids[1], "p2": new_ids[3]}
+
+
+class TestApplyReactionUpdates:
+    def test_with_new_id(self):
+        reaction = reaction_pb2.Reaction()
+        modified = updates.apply_reaction_updates(reaction, new_id="ord-c0bbd41f095a44a78b6221135961d809")
+        assert modified
+        assert reaction.reaction_id == "ord-c0bbd41f095a44a78b6221135961d809"
+        assert len(reaction.provenance.record_modified) == 1
+
+    def test_no_new_id_no_other_changes_means_no_modification(self):
+        reaction = reaction_pb2.Reaction(reaction_id="ord-c0bbd41f095a44a78b6221135961d809")
+        modified = updates.apply_reaction_updates(reaction, new_id=None)
+        assert not modified
+        assert len(reaction.provenance.record_modified) == 0
+
+
+class TestApplyCrossReferenceSubstitutions:
+    def test_no_substitutions_is_noop(self):
+        reaction = reaction_pb2.Reaction()
+        reaction.inputs["x"].components.add().preparations.add(type="SYNTHESIZED", reaction_id="orig")
+        updates.apply_cross_reference_substitutions(reaction, {})
+        assert reaction.inputs["x"].components[0].preparations[0].reaction_id == "orig"
+
+    def test_rewrites_preparations_and_crude_components(self):
+        reaction = reaction_pb2.Reaction()
+        reaction.inputs["x"].components.add().preparations.add(type="SYNTHESIZED", reaction_id="prep")
+        reaction.inputs["x"].crude_components.add(reaction_id="crude", has_derived_amount=True)
+        updates.apply_cross_reference_substitutions(reaction, {"prep": "ord-new1", "crude": "ord-new2"})
+        assert reaction.inputs["x"].components[0].preparations[0].reaction_id == "ord-new1"
+        assert reaction.inputs["x"].crude_components[0].reaction_id == "ord-new2"
+
+
+class TestUpdateParquetDataset:
+    def _make_dataset(self) -> dataset_pb2.Dataset:
+        # Three reactions; r2 and r3 are referenced by r1 via placeholder IDs
+        # that should be rewritten by the streaming update.
+        r1 = reaction_pb2.Reaction(reaction_id="r1")
+        comp = r1.inputs["x"].components.add()
+        comp.identifiers.add(type="SMILES", value="CC")
+        comp.preparations.add(type="SYNTHESIZED", reaction_id="r2")
+        r1.inputs["x"].crude_components.add(reaction_id="r3", has_derived_amount=True)
+        r2 = reaction_pb2.Reaction(reaction_id="r2")
+        r3 = reaction_pb2.Reaction(reaction_id="r3")
+        return dataset_pb2.Dataset(name="streaming", description="streaming test", reactions=[r1, r2, r3])
+
+    def test_round_trip_assigns_ids_and_rewrites_cross_refs(self, tmp_path):
+        original = self._make_dataset()
+        input_path = os.path.join(tmp_path, "in.parquet")
+        output_path = os.path.join(tmp_path, "out.parquet")
+        parquet_dataset.write_dataset(original, input_path)
+        updates.update_parquet_dataset(
+            input_path, output_path, dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809"
+        )
+        result = parquet_dataset.read_dataset(output_path)
+        assert result.dataset_id == "ord_dataset-c0bbd41f095a44a78b6221135961d809"
+        # Each reaction got a canonical ord- ID (the placeholders r1/r2/r3 were
+        # all non-canonical, so all three should have been rewritten).
+        new_ids = [r.reaction_id for r in result.reactions]
+        assert all(rid.startswith("ord-") and len(rid) == 36 for rid in new_ids)
+        # Cross-references on r1 should now point at the new IDs of r2 and r3.
+        prep = result.reactions[0].inputs["x"].components[0].preparations[0]
+        crude = result.reactions[0].inputs["x"].crude_components[0]
+        assert prep.reaction_id == new_ids[1]
+        assert crude.reaction_id == new_ids[2]
+        # Each modified reaction got a record_modified event.
+        assert all(len(r.provenance.record_modified) == 1 for r in result.reactions)
+
+    def test_canonical_ids_are_preserved(self, tmp_path):
+        canonical = "ord-c0bbd41f095a44a78b6221135961d809"
+        reaction = reaction_pb2.Reaction(reaction_id=canonical)
+        # An already-canonical reaction with a record_created date so it doesn't
+        # trip any other update. Should round-trip unchanged.
+        reaction.provenance.record_created.time.value = "2020-01-01"
+        original = dataset_pb2.Dataset(name="x", description="x", reactions=[reaction])
+        input_path = os.path.join(tmp_path, "in.parquet")
+        output_path = os.path.join(tmp_path, "out.parquet")
+        parquet_dataset.write_dataset(original, input_path)
+        updates.update_parquet_dataset(
+            input_path, output_path, dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809"
+        )
+        result = parquet_dataset.read_dataset(output_path)
+        assert result.reactions[0].reaction_id == canonical
+        assert len(result.reactions[0].provenance.record_modified) == 0
+
+    def test_streaming_matches_in_memory(self, tmp_path):
+        # update_parquet_dataset (streaming) and update_dataset (in-memory)
+        # should produce the same per-reaction shape modulo the random IDs.
+        original = self._make_dataset()
+        input_path = os.path.join(tmp_path, "in.parquet")
+        output_path = os.path.join(tmp_path, "out.parquet")
+        parquet_dataset.write_dataset(original, input_path)
+        dataset_id = "ord_dataset-c0bbd41f095a44a78b6221135961d809"
+        updates.update_parquet_dataset(input_path, output_path, dataset_id=dataset_id)
+        streamed = parquet_dataset.read_dataset(output_path)
+        in_memory = self._make_dataset()
+        in_memory.dataset_id = dataset_id
+        updates.update_dataset(in_memory)
+        # Same number of reactions; cross-refs preserved by index.
+        assert len(streamed.reactions) == len(in_memory.reactions)
+        for s, m in zip(streamed.reactions, in_memory.reactions, strict=True):
+            assert (len(s.inputs["x"].components) if "x" in s.inputs else 0) == (
+                len(m.inputs["x"].components) if "x" in m.inputs else 0
+            )
+            assert len(s.provenance.record_modified) == len(m.provenance.record_modified)
