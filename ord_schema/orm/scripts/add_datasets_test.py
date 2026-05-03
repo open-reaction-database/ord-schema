@@ -72,10 +72,16 @@ def test_main_parquet(prepared_engine, tmp_path):
 
 def test_main_parquet_skip_unchanged(prepared_engine, tmp_path):
     """A second invocation without --overwrite is a no-op when the MD5 matches."""
-    parquet_path, _ = _write_parquet_dataset(tmp_path)
+    parquet_path, dataset = _write_parquet_dataset(tmp_path)
     argv = ["--dsn", str(prepared_engine.url), "--pattern", parquet_path]
     add_datasets.main(add_datasets.parse_args(argv))
     add_datasets.main(add_datasets.parse_args(argv))
+    # Skip path must not re-insert: reaction count is unchanged after the second call.
+    _, expected_count = parquet_dataset.streaming_md5(parquet_path)
+    with Session(prepared_engine) as session:
+        mapped_dataset = session.scalar(select(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset.dataset_id))
+        assert mapped_dataset is not None
+        assert len(mapped_dataset.reactions) == expected_count
 
 
 def test_main_parquet_rejects_changed_without_overwrite(prepared_engine, tmp_path):
