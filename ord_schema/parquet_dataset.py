@@ -63,6 +63,9 @@ class DatasetMetadata:
 
     name: str
     description: str
+    # Empty string (not None) so callers can pass straight through to
+    # `Dataset.dataset_id` (a proto string, default "") and to the NOT NULL
+    # `ord.dataset.dataset_id` column without per-call coercion.
     dataset_id: str = ""
 
 
