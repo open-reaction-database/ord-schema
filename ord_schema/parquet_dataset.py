@@ -300,9 +300,10 @@ def streaming_md5(path: str) -> tuple[str, int]:
 
     * ``name=<value>\\n``, ``description=<value>\\n``, ``dataset_id=<value>\\n``
       (omitted when unset) from the footer scalars.
-    * For each Reaction in iteration order: ``reaction_id=<value>\\n``, the
-      8-byte big-endian length of the serialized Reaction blob, then the blob
-      bytes.
+    * For each Reaction in iteration order: the 8-byte big-endian length of
+      the serialized Reaction blob, then the blob bytes. The reaction_id is
+      not hashed separately since it is already inside the blob (field 1 of
+      ``Reaction``); the length prefix disambiguates blob boundaries.
 
     Different from ``md5(Dataset.SerializeToString(deterministic=True))`` —
     re-ingesting an existing ``.pb.gz`` dataset as ``.parquet`` will look
@@ -322,11 +323,8 @@ def streaming_md5(path: str) -> tuple[str, int]:
         hasher.update(f"dataset_id={metadata.dataset_id}\n".encode())
     num_reactions = 0
     with pq.ParquetFile(path) as parquet_file:
-        for batch in parquet_file.iter_batches(columns=["reaction_id", "reaction"]):
-            ids = batch.column("reaction_id").to_pylist()
-            blobs = batch.column("reaction").to_pylist()
-            for reaction_id, blob in zip(ids, blobs, strict=True):
-                hasher.update(f"reaction_id={reaction_id}\n".encode())
+        for batch in parquet_file.iter_batches(columns=["reaction"]):
+            for blob in batch.column("reaction").to_pylist():
                 hasher.update(len(blob).to_bytes(8, "big"))
                 hasher.update(blob)
                 num_reactions += 1
