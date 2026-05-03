@@ -28,9 +28,8 @@ def atomic_path(path: str) -> Iterator[str]:
     """Yields a sibling temp path; renames it onto ``path`` on clean exit.
 
     Usage:
-        with atomic_path(dest) as tmp:
-            with open(tmp, "wb") as f:
-                f.write(...)
+        with atomic_path(dest) as tmp, open(tmp, "wb") as f:
+            f.write(...)
 
     On clean exit the temp path is renamed onto ``path`` via ``os.replace``,
     which is atomic on POSIX when source and destination live on the same
