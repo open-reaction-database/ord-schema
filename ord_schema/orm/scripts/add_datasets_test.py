@@ -17,6 +17,7 @@
 import os
 
 import pytest
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from ord_schema import message_helpers, parquet_dataset
@@ -28,47 +29,50 @@ from ord_schema.proto import dataset_pb2
 _PBTXT_FIXTURE = os.path.join(os.path.dirname(__file__), "..", "testdata", "ord-nielsen-example.pbtxt")
 
 
-def test_main(test_engine):
+@pytest.fixture(name="prepared_engine")
+def prepared_engine_fixture(test_engine) -> Engine:
+    """``test_engine`` with the ORM schema (and RDKit cartridge) installed."""
     assert prepare_database(test_engine)
-    argv = ["--dsn", str(test_engine.url), "--pattern", _PBTXT_FIXTURE]
+    return test_engine
+
+
+def _write_parquet_dataset(tmp_path) -> tuple[str, dataset_pb2.Dataset]:
+    dataset = message_helpers.load_message(_PBTXT_FIXTURE, dataset_pb2.Dataset)
+    parquet_path = (tmp_path / "dataset.parquet").as_posix()
+    parquet_dataset.write_dataset(dataset, parquet_path)
+    return parquet_path, dataset
+
+
+def test_main(prepared_engine):
+    argv = ["--dsn", str(prepared_engine.url), "--pattern", _PBTXT_FIXTURE]
     add_datasets.main(add_datasets.parse_args(argv))
 
 
-def _write_parquet_fixture(tmp_path) -> tuple[str, dataset_pb2.Dataset]:
-    fixture = message_helpers.load_message(_PBTXT_FIXTURE, dataset_pb2.Dataset)
-    parquet_path = (tmp_path / "dataset.parquet").as_posix()
-    parquet_dataset.write_dataset(fixture, parquet_path)
-    return parquet_path, fixture
-
-
-def test_main_parquet(test_engine, tmp_path):
+def test_main_parquet(prepared_engine, tmp_path):
     """Streaming Parquet ingest stores the streaming MD5 and reaction count."""
-    assert prepare_database(test_engine)
-    parquet_path, fixture = _write_parquet_fixture(tmp_path)
-    argv = ["--dsn", str(test_engine.url), "--pattern", parquet_path]
+    parquet_path, dataset = _write_parquet_dataset(tmp_path)
+    argv = ["--dsn", str(prepared_engine.url), "--pattern", parquet_path]
     add_datasets.main(add_datasets.parse_args(argv))
     expected_md5, expected_count = parquet_dataset.streaming_md5(parquet_path)
-    with Session(test_engine) as session:
-        assert database.get_dataset_md5(fixture.dataset_id, session) == expected_md5
-        assert database.get_dataset_size(fixture.dataset_id, session) == expected_count
+    with Session(prepared_engine) as session:
+        assert database.get_dataset_md5(dataset.dataset_id, session) == expected_md5
+        assert database.get_dataset_size(dataset.dataset_id, session) == expected_count
 
 
-def test_main_parquet_skip_unchanged(test_engine, tmp_path):
+def test_main_parquet_skip_unchanged(prepared_engine, tmp_path):
     """A second invocation without --overwrite is a no-op when the MD5 matches."""
-    assert prepare_database(test_engine)
-    parquet_path, _ = _write_parquet_fixture(tmp_path)
-    argv = ["--dsn", str(test_engine.url), "--pattern", parquet_path]
+    parquet_path, _ = _write_parquet_dataset(tmp_path)
+    argv = ["--dsn", str(prepared_engine.url), "--pattern", parquet_path]
     add_datasets.main(add_datasets.parse_args(argv))
     add_datasets.main(add_datasets.parse_args(argv))
 
 
-def test_main_parquet_rejects_changed_without_overwrite(test_engine, tmp_path):
+def test_main_parquet_rejects_changed_without_overwrite(prepared_engine, tmp_path):
     """A re-ingest with mutated content but no --overwrite raises."""
-    assert prepare_database(test_engine)
-    parquet_path, fixture = _write_parquet_fixture(tmp_path)
-    argv = ["--dsn", str(test_engine.url), "--pattern", parquet_path]
+    parquet_path, dataset = _write_parquet_dataset(tmp_path)
+    argv = ["--dsn", str(prepared_engine.url), "--pattern", parquet_path]
     add_datasets.main(add_datasets.parse_args(argv))
-    fixture.reactions[0].outcomes[0].conversion.value = 999.0
-    parquet_dataset.write_dataset(fixture, parquet_path)
+    dataset.reactions[0].outcomes[0].conversion.value = 999.0
+    parquet_dataset.write_dataset(dataset, parquet_path)
     with pytest.raises(RuntimeError):  # main() collects per-future failures and raises in aggregate.
         add_datasets.main(add_datasets.parse_args(argv))
