@@ -137,10 +137,15 @@ class DatasetWriter:
         os.replace(self._tmp_path, self._path)
 
     def _abort(self) -> None:
-        with contextlib.suppress(Exception):
-            self._writer.close()
-        with contextlib.suppress(FileNotFoundError):
-            os.unlink(self._tmp_path)
+        # try/finally so the unlink still runs if writer.close raises a
+        # BaseException (e.g., KeyboardInterrupt mid-close). The original
+        # error is preserved through Python's exception chaining.
+        try:
+            with contextlib.suppress(Exception):
+                self._writer.close()
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                os.unlink(self._tmp_path)
 
     def _flush(self) -> None:
         if not self._buffer_ids:
