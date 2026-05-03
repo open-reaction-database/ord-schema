@@ -26,6 +26,7 @@ This layout supports random access (by row group) and streaming iteration
 without loading the full dataset into memory.
 """
 
+import dataclasses
 import hashlib
 from collections.abc import Iterable, Iterator
 
@@ -48,6 +49,21 @@ _SCHEMA = pa.schema(
         pa.field("reaction", pa.binary(), nullable=False),
     ]
 )
+
+
+@dataclasses.dataclass(frozen=True)
+class DatasetMetadata:
+    """Scalar fields read from a Parquet dataset's footer.
+
+    ``name`` and ``description`` are required when writing; ``dataset_id`` is
+    optional (assigned during the submission pipeline) and is the empty
+    string when unset. Iteration order from ``dataclasses.fields`` is
+    declaration order, which the streaming MD5 relies on for stability.
+    """
+
+    name: str
+    description: str
+    dataset_id: str = ""
 
 
 class DatasetWriter:
@@ -213,7 +229,7 @@ class DatasetView:
     def __init__(self, path: str):
         self._path = path
         with pq.ParquetFile(path) as parquet_file:
-            scalars = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
+            scalars = _metadata_from_footer(parquet_file.schema_arrow.metadata)
             num_rows = parquet_file.metadata.num_rows
         self.name = scalars.name
         self.description = scalars.description
@@ -238,19 +254,21 @@ def read_dataset(path: str) -> dataset_pb2.Dataset:
     ``read_reaction`` for large datasets.
     """
     with pq.ParquetFile(path) as parquet_file:
-        dataset = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
+        scalars = _metadata_from_footer(parquet_file.schema_arrow.metadata)
+        dataset = dataset_pb2.Dataset(name=scalars.name, description=scalars.description)
+        if scalars.dataset_id:
+            dataset.dataset_id = scalars.dataset_id
         for _, reaction in _iter_reactions(parquet_file, filter_set=None):
             dataset.reactions.append(reaction)
     return dataset
 
 
-def read_metadata(path: str) -> dataset_pb2.Dataset:
+def read_metadata(path: str) -> DatasetMetadata:
     """Reads Dataset scalar fields (``name``, ``description``, ``dataset_id``)
-    from the Parquet footer. No column data is read. The returned ``Dataset``
-    has no ``reactions`` or ``reaction_ids`` populated.
+    from the Parquet footer. No column data is read.
     """
     with pq.ParquetFile(path) as parquet_file:
-        return _dataset_from_metadata(parquet_file.schema_arrow.metadata)
+        return _metadata_from_footer(parquet_file.schema_arrow.metadata)
 
 
 def iter_reactions(
@@ -315,12 +333,10 @@ def streaming_md5(path: str) -> tuple[str, int]:
     """
     hasher = hashlib.md5()
     metadata = read_metadata(path)
-    if metadata.name:
-        hasher.update(f"name={metadata.name}\n".encode())
-    if metadata.description:
-        hasher.update(f"description={metadata.description}\n".encode())
-    if metadata.dataset_id:
-        hasher.update(f"dataset_id={metadata.dataset_id}\n".encode())
+    for field in dataclasses.fields(metadata):
+        value = getattr(metadata, field.name)
+        if value:
+            hasher.update(f"{field.name}={value}\n".encode())
     num_reactions = 0
     with pq.ParquetFile(path) as parquet_file:
         for batch in parquet_file.iter_batches(columns=["reaction"]):
@@ -378,7 +394,7 @@ def _build_schema(*, name: str, description: str, dataset_id: str | None) -> pa.
     return _SCHEMA.with_metadata(metadata)
 
 
-def _dataset_from_metadata(raw_metadata: dict[bytes, bytes] | None) -> dataset_pb2.Dataset:
+def _metadata_from_footer(raw_metadata: dict[bytes, bytes] | None) -> DatasetMetadata:
     metadata = raw_metadata or {}
 
     def _get(key: str) -> str | None:
@@ -396,8 +412,4 @@ def _dataset_from_metadata(raw_metadata: dict[bytes, bytes] | None) -> dataset_p
         raise ValueError(f"missing or empty required Parquet footer key: {_META_NAME!r}")
     if not description:
         raise ValueError(f"missing or empty required Parquet footer key: {_META_DESCRIPTION!r}")
-    dataset = dataset_pb2.Dataset(name=name, description=description)
-    dataset_id = _get(_META_DATASET_ID)
-    if dataset_id:
-        dataset.dataset_id = dataset_id
-    return dataset
+    return DatasetMetadata(name=name, description=description, dataset_id=_get(_META_DATASET_ID) or "")
