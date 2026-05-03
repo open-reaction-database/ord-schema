@@ -229,6 +229,48 @@ def test_multi_row_group_streaming_preserves_order(tmp_path):
     assert streamed == [r.reaction_id for r in original.reactions]
 
 
+def test_writer_publishes_atomically(tmp_path):
+    """Destination must not exist until close(); a sibling .tmp does."""
+    path = os.path.join(tmp_path, "ds.parquet")
+    writer = dataset.DatasetWriter(path, name="n", description="d")
+    writer.write(_make_reaction("ord-0000"))
+    assert not os.path.exists(path)
+    assert os.path.exists(path + ".tmp")
+    writer.close()
+    assert os.path.exists(path)
+    assert not os.path.exists(path + ".tmp")
+
+
+def test_writer_aborts_on_exception_in_context(tmp_path):
+    """An exception in the with-body must leave neither destination nor .tmp behind."""
+    path = os.path.join(tmp_path, "ds.parquet")
+    with (
+        pytest.raises(RuntimeError, match="boom"),
+        dataset.DatasetWriter(path, name="n", description="d") as writer,
+    ):
+        writer.write(_make_reaction("ord-0000"))
+        raise RuntimeError("boom")
+    assert not os.path.exists(path)
+    assert not os.path.exists(path + ".tmp")
+
+
+def test_writer_aborts_preserves_existing_destination(tmp_path):
+    """A failed atomic publish must not clobber an already-published file at the destination."""
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(_make_dataset(n=2, name="old", description="old desc"), path)
+    with open(path, "rb") as f:
+        original_bytes = f.read()
+    with (
+        pytest.raises(RuntimeError, match="boom"),
+        dataset.DatasetWriter(path, name="new", description="new desc") as writer,
+    ):
+        writer.write(_make_reaction("ord-new"))
+        raise RuntimeError("boom")
+    with open(path, "rb") as f:
+        assert f.read() == original_bytes
+    assert not os.path.exists(path + ".tmp")
+
+
 def test_writer_close_propagates_flush_error(tmp_path):
     path = os.path.join(tmp_path, "ds.parquet")
     writer = dataset.DatasetWriter(path, name="n", description="d")

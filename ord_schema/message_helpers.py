@@ -35,7 +35,7 @@ from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
 import ord_schema
-from ord_schema import parquet_dataset, units
+from ord_schema import atomic_io, parquet_dataset, units
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
@@ -814,7 +814,7 @@ def write_message(message: ord_schema.Message, filename: str):
         this_open = open
         _, extension = os.path.splitext(filename)
     output_format = MessageFormat(extension)
-    with this_open(filename, "wb") as f:
+    with atomic_io.atomic_path(filename) as tmp_filename, this_open(tmp_filename, "wb") as f:
         if output_format == MessageFormat.JSON:
             f.write(json_format.MessageToJson(message).encode())
         elif output_format == MessageFormat.PBTXT:
