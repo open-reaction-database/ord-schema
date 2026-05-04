@@ -25,7 +25,7 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-latest", "macos-14"]
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     runs-on: ${{ matrix.os }}
     env:
       PGDATA: $GITHUB_WORKSPACE/rdkit-postgres
@@ -68,7 +68,8 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-latest", "macos-14"]
-        python-version: ["3.10", "3.11", "3.12"]
+        # examples extra requires TensorFlow, which only ships wheels through cp313 as of 2.20.0.
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     runs-on: ${{ matrix.os }}
     env:
       # CPU-only runners: avoid TensorFlow probing CUDA (noise + unstable kernels).
