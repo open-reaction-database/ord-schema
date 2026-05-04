@@ -15,6 +15,7 @@
 
 import pytest
 
+from ord_schema import validations
 from ord_schema.macros import solutions, workups
 from ord_schema.proto import reaction_pb2
 
@@ -26,6 +27,7 @@ def test_add_solution_default_type():
     assert len(workup.input.components) == len(solution)
     for component in workup.input.components:
         assert component.reaction_role == reaction_pb2.ReactionRole.WORKUP
+    validations.validate_message(workup)
 
 
 @pytest.mark.parametrize("workup_type", ["ADDITION", "EXTRACTION", "WASH"])
@@ -38,6 +40,7 @@ def test_add_solution_type_options(workup_type):
     assert len(workup.input.components) == 2
     for component in workup.input.components:
         assert component.reaction_role == reaction_pb2.ReactionRole.WORKUP
+    validations.validate_message(workup)
 
 
 @pytest.mark.parametrize("keep_phase", ["aqueous", "organic"])
@@ -45,6 +48,7 @@ def test_separate_phases(keep_phase):
     workup = workups.separate_phases(keep_phase=keep_phase)
     assert workup.type == reaction_pb2.ReactionWorkup.EXTRACTION
     assert workup.keep_phase == keep_phase
+    validations.validate_message(workup)
 
 
 def test_drying_agent():
@@ -57,6 +61,7 @@ def test_drying_agent():
     identifier = component.identifiers[0]
     assert identifier.type == reaction_pb2.CompoundIdentifier.SMILES
     assert identifier.value == "[Mg+2].[O-]S([O-])(=O)=O"
+    validations.validate_message(workup)
 
 
 @pytest.mark.parametrize("keep_phase", ["filtrate", "solid"])
@@ -64,8 +69,10 @@ def test_filtration(keep_phase):
     workup = workups.filtration(keep_phase=keep_phase)
     assert workup.type == reaction_pb2.ReactionWorkup.FILTRATION
     assert workup.keep_phase == keep_phase
+    validations.validate_message(workup)
 
 
 def test_rotovap():
     workup = workups.rotovap()
     assert workup.type == reaction_pb2.ReactionWorkup.CONCENTRATION
+    validations.validate_message(workup)

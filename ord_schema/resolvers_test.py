@@ -126,9 +126,10 @@ class TestPubChemRetry:
 
 class TestCanonicalizeSmiles:
     def test_canonicalizes(self):
-        # OCCO and C(CO)O are the same molecule expressed differently; both must
-        # produce the same canonical form.
-        assert resolvers.canonicalize_smiles("OCCO") == resolvers.canonicalize_smiles("C(CO)O")
+        # OCCO and C(CO)O are the same molecule written two ways; both must
+        # produce the canonical form "OCCO".
+        assert resolvers.canonicalize_smiles("OCCO") == "OCCO"
+        assert resolvers.canonicalize_smiles("C(CO)O") == "OCCO"
 
     def test_invalid_smiles_raises(self):
         with pytest.raises(ValueError, match="Could not parse SMILES"):

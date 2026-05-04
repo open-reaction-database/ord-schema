@@ -15,6 +15,7 @@
 
 import pytest
 
+import ord_schema
 from ord_schema import units
 from ord_schema.proto import reaction_pb2
 
@@ -169,7 +170,7 @@ def test_resolve_range_without_allow_range(resolver):
 
 
 def test_resolver_init_rejects_duplicated_unit():
-    duplicate_synonyms: dict = {
+    duplicate_synonyms: dict[type[ord_schema.UnitMessage], dict[units.ProtoEnumMember, list[str]]] = {
         reaction_pb2.Mass: {
             reaction_pb2.Mass.GRAM: ["g", "gram"],
             reaction_pb2.Mass.MILLIGRAM: ["g"],  # duplicate of "g".
@@ -207,14 +208,16 @@ def test_convert_precision(resolver, message, new_units, expected):
 
 
 def test_convert_wavelength_with_precision(resolver):
+    # Expected per the implementation's documented formula:
+    # 10000000 / 2 * (1 / (value - precision) + 1 / (value + precision))
+    # = 5e6 * (1/490 + 1/510) ≈ 20008.0032.
     converted = resolver.convert(
         reaction_pb2.Wavelength(value=500, units=reaction_pb2.Wavelength.NANOMETER, precision=10),
         "cm^-1",
     )
     assert converted.units == reaction_pb2.Wavelength.WAVENUMBER
     assert converted.value == pytest.approx(20000)
-    # Precision approximation per the function docstring; just confirm it was set.
-    assert converted.precision > 0
+    assert converted.precision == pytest.approx(20008.003201, rel=1e-6)
 
 
 @pytest.mark.parametrize(
