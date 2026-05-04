@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Converts one or more .pb/.pb.gz/.pbtxt/.json Dataset files into a single Parquet file.
+"""Converts one or more serialized Dataset files into a single Parquet file.
 
 When multiple inputs are given, their reactions are concatenated into the
 output. Use --name/--description/--dataset-id to set output metadata;
@@ -43,7 +43,11 @@ class _Resolved:
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Convert .pb.gz Dataset files to a single Parquet file.")
-    parser.add_argument("inputs", nargs="+", help="Input Dataset files (.pb, .pb.gz, .pbtxt, .json).")
+    parser.add_argument(
+        "inputs",
+        nargs="+",
+        help="Input Dataset files (.pb, .binpb, .pbtxt, .txtpb, .json, optionally .gz-compressed).",
+    )
     parser.add_argument("--output", required=True, help="Output Parquet filename.")
     parser.add_argument("--name", default=None, help="Override output dataset name.")
     parser.add_argument("--description", default=None, help="Override output dataset description.")
