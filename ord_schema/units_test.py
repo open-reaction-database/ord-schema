@@ -161,3 +161,74 @@ def test_resolve_allow_range(resolver, string, expected):
 def test_resolve_should_fail(resolver, string, expected):
     with pytest.raises((KeyError, ValueError), match=expected):
         resolver.resolve(string)
+
+
+def test_resolve_range_without_allow_range(resolver):
+    with pytest.raises(ValueError, match="appears to contain a range"):
+        resolver.resolve("1-2 h")
+
+
+def test_resolver_init_rejects_duplicated_unit():
+    duplicate_synonyms: dict = {
+        reaction_pb2.Mass: {
+            reaction_pb2.Mass.GRAM: ["g", "gram"],
+            reaction_pb2.Mass.MILLIGRAM: ["g"],  # duplicate of "g".
+        },
+    }
+    with pytest.raises(KeyError, match="duplicated unit"):
+        units.UnitResolver(unit_synonyms=duplicate_synonyms, forbidden_units={})
+
+
+@pytest.mark.parametrize(
+    "message,new_units,expected",
+    (
+        (
+            reaction_pb2.Temperature(value=77, units=reaction_pb2.Temperature.FAHRENHEIT, precision=9),
+            "C",
+            reaction_pb2.Temperature(value=25, units=reaction_pb2.Temperature.CELSIUS, precision=5),
+        ),
+        (
+            reaction_pb2.Temperature(value=300, units=reaction_pb2.Temperature.KELVIN, precision=2),
+            "C",
+            reaction_pb2.Temperature(value=26.85, units=reaction_pb2.Temperature.CELSIUS, precision=2),
+        ),
+        (
+            reaction_pb2.Wavelength(value=500, units=reaction_pb2.Wavelength.NANOMETER, precision=10),
+            "nm",
+            reaction_pb2.Wavelength(value=500, units=reaction_pb2.Wavelength.NANOMETER, precision=10),
+        ),
+    ),
+)
+def test_convert_precision(resolver, message, new_units, expected):
+    actual = resolver.convert(message, new_units)
+    assert actual.units == expected.units
+    assert actual.value == pytest.approx(expected.value)
+    assert actual.precision == pytest.approx(expected.precision)
+
+
+def test_convert_wavelength_with_precision(resolver):
+    converted = resolver.convert(
+        reaction_pb2.Wavelength(value=500, units=reaction_pb2.Wavelength.NANOMETER, precision=10),
+        "cm^-1",
+    )
+    assert converted.units == reaction_pb2.Wavelength.WAVENUMBER
+    assert converted.value == pytest.approx(20000)
+    # Precision approximation per the function docstring; just confirm it was set.
+    assert converted.precision > 0
+
+
+@pytest.mark.parametrize(
+    "message,expected",
+    (
+        (reaction_pb2.Mass(value=1.5, units=reaction_pb2.Mass.GRAM), "1.5 g"),
+        (reaction_pb2.Mass(value=1.5, units=reaction_pb2.Mass.GRAM, precision=0.1), "1.5 (± 0.1) g"),
+        (reaction_pb2.Time(value=10, units=reaction_pb2.Time.MINUTE), "10 min"),
+    ),
+)
+def test_format_message(message, expected):
+    assert units.format_message(message) == expected
+
+
+def test_format_message_unspecified_returns_none():
+    # Default-constructed message has UNSPECIFIED units.
+    assert units.format_message(reaction_pb2.Mass()) is None
