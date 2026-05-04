@@ -1150,7 +1150,7 @@ _VALIDATOR_SWITCH: dict[type, Callable[..., None]] = {
     reaction_pb2.TemperatureConditions.TemperatureMeasurement: validate_temperature_measurement,
     reaction_pb2.PressureConditions: validate_pressure_conditions,
     reaction_pb2.PressureConditions.PressureControl: validate_pressure_control,
-    reaction_pb2.PressureConditions.Atmosphere: validate_pressure_control,
+    reaction_pb2.PressureConditions.Atmosphere: validate_atmosphere,
     reaction_pb2.PressureConditions.PressureMeasurement: validate_pressure_measurement,
     reaction_pb2.StirringConditions: validate_stirring_conditions,
     reaction_pb2.StirringConditions.StirringRate: validate_stirring_rate,
