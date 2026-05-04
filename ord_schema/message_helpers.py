@@ -795,7 +795,9 @@ def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
                 return json_format.Parse(f.read(), message_type())
             if input_format in _TEXT_FORMATS:
                 return text_format.Parse(f.read(), message_type())
-            return message_type.FromString(f.read())  # ty: ignore[unresolved-attribute]
+            if input_format in _BINARY_FORMATS:
+                return message_type.FromString(f.read())  # ty: ignore[unresolved-attribute]
+            raise ValueError(f"unsupported MessageFormat: {input_format}")
         except (
             json_format.ParseError,
             DecodeError,

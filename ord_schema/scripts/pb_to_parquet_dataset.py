@@ -42,7 +42,7 @@ class _Resolved:
 
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="Convert .pb.gz Dataset files to a single Parquet file.")
+    parser = argparse.ArgumentParser(description="Convert serialized Dataset files to a single Parquet file.")
     parser.add_argument(
         "inputs",
         nargs="+",

@@ -508,7 +508,8 @@ class TestLoadAndWriteMessage:
             message_helpers.write_message(message, "test.proto")
 
     @pytest.mark.parametrize(
-        "suffix", (".pbtxt", ".pb", ".pb.gz", ".json", ".parquet", ".txtpb", ".binpb", ".binpb.gz")
+        "suffix",
+        (".pbtxt", ".pb", ".pb.gz", ".json", ".parquet", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
     )
     def test_write_dataset(self, suffix, tmp_path):
         dataset = dataset_pb2.Dataset(
