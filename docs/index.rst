@@ -43,6 +43,7 @@ underrepresented areas).
    Search/Browse <https://open-reaction-database.org/search>
    GitHub <https://github.com/open-reaction-database>
    Hugging Face <https://huggingface.co/datasets/open-reaction-database/ord-data>
+   ORD YouTube Channel <http://www.youtube.com/@openreactiondatabase>
 
 .. toctree::
    :hidden:
@@ -61,6 +62,7 @@ underrepresented areas).
    :caption: Guides
 
    guides/templates
+   guides/compound_identifiers
 
 .. toctree::
    :hidden:
