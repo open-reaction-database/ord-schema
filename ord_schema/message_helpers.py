@@ -623,7 +623,7 @@ def set_dative_bonds(mol: Chem.Mol, from_atoms: tuple[str, ...] = ("N", "P")) ->
     Args:
         mol: The molecule to be converted.
         from_atoms: tuple of atomic symbols corresponding to atom types that
-        should have atom-metal bonds converted to dative. Default is N and P
+            should have atom-metal bonds converted to dative. Default is N and P
 
     Returns:
         The modified molecule.
