@@ -13,8 +13,8 @@
 # limitations under the License.
 """Helper functions for constructing Protocol Buffer messages."""
 
+import contextlib
 import enum
-import functools
 import gzip
 import os
 import posixpath
@@ -35,7 +35,7 @@ from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
 import ord_schema
-from ord_schema import parquet_dataset, units
+from ord_schema import atomic_io, parquet_dataset, units
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
@@ -817,15 +817,11 @@ def write_message(message: ord_schema.Message, filename: str):
         ValueError: if `filename` does not have the expected suffix.
     """
     if filename.endswith(".gz"):
-        # NOTE(kearnes): Set a constant mtime so that round-trips through gzip
-        # result in identical files.
-        this_open = functools.partial(gzip.GzipFile, mtime=1)
         _, extension = os.path.splitext(".".join(filename.split(".")[:-1]))
     else:
-        this_open = open
         _, extension = os.path.splitext(filename)
     output_format = MessageFormat(extension)
-    with this_open(filename, "wb") as f:
+    with atomic_io.atomic_path(filename) as tmp_filename, _open_for_write(tmp_filename, dest=filename) as f:
         if output_format == MessageFormat.JSON:
             f.write(json_format.MessageToJson(message).encode())
         elif output_format in _TEXT_FORMATS:
@@ -835,6 +831,23 @@ def write_message(message: ord_schema.Message, filename: str):
             f.write(text_format.MessageToString(message).encode("utf-8"))
         elif output_format in _BINARY_FORMATS:
             f.write(message.SerializeToString(deterministic=True))
+
+
+@contextlib.contextmanager
+def _open_for_write(tmp_path: str, *, dest: str):
+    """Opens ``tmp_path`` for binary writing.
+
+    For ``.gz`` destinations, wraps the file in a ``GzipFile`` with a fixed
+    mtime and pins the gzip header's filename to ``os.path.basename(dest)``
+    so the encoded bytes are deterministic regardless of the random temp
+    name used during writing.
+    """
+    with open(tmp_path, "wb") as raw:
+        if dest.endswith(".gz"):
+            with gzip.GzipFile(filename=os.path.basename(dest), mode="wb", mtime=1, fileobj=raw) as f:
+                yield f
+        else:
+            yield raw
 
 
 def write_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:

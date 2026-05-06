@@ -26,7 +26,10 @@ This layout supports random access (by row group) and streaming iteration
 without loading the full dataset into memory.
 """
 
+import contextlib
 import hashlib
+import os
+import tempfile
 from collections.abc import Iterable, Iterator
 
 import pyarrow as pa
@@ -82,7 +85,22 @@ class DatasetWriter:
             raise ValueError("DatasetWriter requires a non-empty description")
         self._row_group_size = row_group_size
         self._schema = _build_schema(name=name, description=description, dataset_id=dataset_id)
-        self._writer = pq.ParquetWriter(path, self._schema, compression=compression)
+        # Atomic publish: write to a sibling temp path with a unique random
+        # suffix (so concurrent writers do not collide), rename onto `path`
+        # on successful close, remove on exception. Same semantics as
+        # ``atomic_io.atomic_path``, inlined because the open/close lifecycle
+        # is split across __init__/close().
+        self._path = path
+        parent = os.path.dirname(path) or "."
+        basename = os.path.basename(path)
+        fd, self._tmp_path = tempfile.mkstemp(dir=parent, prefix=basename + ".", suffix=".tmp")
+        os.close(fd)
+        try:
+            self._writer = pq.ParquetWriter(self._tmp_path, self._schema, compression=compression)
+        except BaseException:
+            with contextlib.suppress(FileNotFoundError):
+                os.unlink(self._tmp_path)
+            raise
         self._buffer_ids: list[str] = []
         self._buffer_blobs: list[bytes] = []
         self._closed = False
@@ -100,24 +118,35 @@ class DatasetWriter:
             self.write(reaction)
 
     def close(self) -> None:
-        """Flushes the final row group and closes the underlying Parquet writer.
+        """Flushes the final row group, closes the writer, and atomically publishes the file.
 
-        If ``_flush`` raises, the Parquet writer is still closed best-effort
-        (any secondary close error is suppressed) so the original error is the
-        one propagated.
+        On success the temp file is renamed onto the destination via
+        ``os.replace``. On any exception during flush or close (including
+        ``KeyboardInterrupt``) the temp is removed best-effort and the
+        destination is left untouched; the original error propagates and
+        any secondary close error is suppressed. Idempotent thereafter.
         """
         if self._closed:
             return
         self._closed = True
         try:
             self._flush()
-        except Exception:
-            try:
-                self._writer.close()
-            except Exception:
-                pass
+            self._writer.close()
+        except BaseException:
+            self._abort()
             raise
-        self._writer.close()
+        os.replace(self._tmp_path, self._path)
+
+    def _abort(self) -> None:
+        # try/finally so the unlink still runs if writer.close raises a
+        # BaseException (e.g., KeyboardInterrupt mid-close). The original
+        # error is preserved through Python's exception chaining.
+        try:
+            with contextlib.suppress(Exception):
+                self._writer.close()
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                os.unlink(self._tmp_path)
 
     def _flush(self) -> None:
         if not self._buffer_ids:
@@ -134,7 +163,13 @@ class DatasetWriter:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.close()
+        # On exception in the with body, abort the write so the destination
+        # path is never created; let the original exception propagate.
+        if exc_type is None:
+            self.close()
+        elif not self._closed:
+            self._closed = True
+            self._abort()
 
 
 def write_dataset(
