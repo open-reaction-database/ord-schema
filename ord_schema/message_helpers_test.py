@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.message_helpers."""
 
+import os
 import tempfile
 import time
 from collections.abc import Iterator
@@ -506,6 +507,33 @@ class TestLoadAndWriteMessage:
         message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
         with pytest.raises(ValueError, match="not a valid MessageFormat"):
             message_helpers.write_message(message, "test.proto")
+
+    @pytest.mark.parametrize(
+        "suffix",
+        (".pbtxt", ".pb", ".json", ".pb.gz", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
+    )
+    def test_write_message_is_atomic_on_failure(self, suffix, tmp_path, monkeypatch):
+        """A crash mid-write must not leave a partial file (or .tmp) at the destination."""
+        message = test_pb2.Scalar(int32_value=3)
+        dest = (tmp_path / f"crashy{suffix}").as_posix()
+        # Pre-existing destination must survive a failed overwrite.
+        with open(dest, "wb") as f:
+            f.write(b"original-bytes")
+
+        def boom(*_, **__):
+            raise RuntimeError("simulated mid-write failure")
+
+        # Patch every encoder so the format-specific branch raises after the
+        # temp file has been opened.
+        monkeypatch.setattr(json_format, "MessageToJson", boom)
+        monkeypatch.setattr(text_format, "MessageToString", boom)
+        monkeypatch.setattr(message.__class__, "SerializeToString", boom)
+
+        with pytest.raises(RuntimeError, match="simulated mid-write failure"):
+            message_helpers.write_message(message, dest)
+        with open(dest, "rb") as f:
+            assert f.read() == b"original-bytes"
+        assert not os.path.exists(dest + ".tmp")
 
     @pytest.mark.parametrize(
         "suffix",
