@@ -25,9 +25,13 @@ version = "0.5.9"
 description = "Schema for the Open Reaction Database"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
 ]
 dependencies = [
@@ -87,7 +91,7 @@ include = ["ord_schema*"]
 line-length = 120
 # Generated protobuf files: never touch.
 extend-exclude = ["*_pb2.py*"]
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 # Explicit ruleset (previously relied on Ruff's default [E, F, W]).
