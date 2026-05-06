@@ -508,7 +508,10 @@ class TestLoadAndWriteMessage:
         with pytest.raises(ValueError, match="not a valid MessageFormat"):
             message_helpers.write_message(message, "test.proto")
 
-    @pytest.mark.parametrize("suffix", (".pbtxt", ".pb", ".json", ".pb.gz"))
+    @pytest.mark.parametrize(
+        "suffix",
+        (".pbtxt", ".pb", ".json", ".pb.gz", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
+    )
     def test_write_message_is_atomic_on_failure(self, suffix, tmp_path, monkeypatch):
         """A crash mid-write must not leave a partial file (or .tmp) at the destination."""
         message = test_pb2.Scalar(int32_value=3)
