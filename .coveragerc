@@ -4,6 +4,8 @@ omit =
     *_test.py
     *_longtest.py
     *_pb2.py
+    # One-off ETL script for the USPTO patent dump; not library code.
+    ord_schema/scripts/parse_uspto.py
 
 [report]
 skip_empty = True
