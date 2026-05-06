@@ -13,8 +13,8 @@
 # limitations under the License.
 """Helper functions for constructing Protocol Buffer messages."""
 
+import contextlib
 import enum
-import functools
 import gzip
 import os
 import posixpath
@@ -35,7 +35,7 @@ from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
 import ord_schema
-from ord_schema import parquet_dataset, units
+from ord_schema import atomic_io, parquet_dataset, units
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
@@ -623,7 +623,7 @@ def set_dative_bonds(mol: Chem.Mol, from_atoms: tuple[str, ...] = ("N", "P")) ->
     Args:
         mol: The molecule to be converted.
         from_atoms: tuple of atomic symbols corresponding to atom types that
-        should have atom-metal bonds converted to dative. Default is N and P
+            should have atom-metal bonds converted to dative. Default is N and P
 
     Returns:
         The modified molecule.
@@ -722,11 +722,21 @@ def set_compound_molblock(compound: reaction_pb2.Compound, value: str) -> reacti
 
 
 class MessageFormat(enum.Enum):
-    """Input/output types for protocol buffer messages."""
+    """Input/output types for protocol buffer messages.
+
+    BINARY/BINPB and PBTXT/TXTPB pairs use the same wire format; the second of
+    each pair is the newer canonical suffix recommended by protobuf.dev.
+    """
 
     BINARY = ".pb"
+    BINPB = ".binpb"
     JSON = ".json"
     PBTXT = ".pbtxt"
+    TXTPB = ".txtpb"
+
+
+_BINARY_FORMATS = {MessageFormat.BINARY, MessageFormat.BINPB}
+_TEXT_FORMATS = {MessageFormat.PBTXT, MessageFormat.TXTPB}
 
 
 def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset:
@@ -775,7 +785,7 @@ def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
         this_open = open
         _, extension = os.path.splitext(filename)
     input_format = MessageFormat(extension)
-    if input_format == MessageFormat.BINARY:
+    if input_format in _BINARY_FORMATS:
         mode = "rb"
     else:
         mode = "rt"
@@ -783,10 +793,11 @@ def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
         try:
             if input_format == MessageFormat.JSON:
                 return json_format.Parse(f.read(), message_type())
-            if input_format == MessageFormat.PBTXT:
+            if input_format in _TEXT_FORMATS:
                 return text_format.Parse(f.read(), message_type())
-            if input_format == MessageFormat.BINARY:
+            if input_format in _BINARY_FORMATS:
                 return message_type.FromString(f.read())  # ty: ignore[unresolved-attribute]
+            raise ValueError(f"unsupported MessageFormat: {input_format}")
         except (
             json_format.ParseError,
             DecodeError,
@@ -806,24 +817,37 @@ def write_message(message: ord_schema.Message, filename: str):
         ValueError: if `filename` does not have the expected suffix.
     """
     if filename.endswith(".gz"):
-        # NOTE(kearnes): Set a constant mtime so that round-trips through gzip
-        # result in identical files.
-        this_open = functools.partial(gzip.GzipFile, mtime=1)
         _, extension = os.path.splitext(".".join(filename.split(".")[:-1]))
     else:
-        this_open = open
         _, extension = os.path.splitext(filename)
     output_format = MessageFormat(extension)
-    with this_open(filename, "wb") as f:
+    with atomic_io.atomic_path(filename) as tmp_filename, _open_for_write(tmp_filename, dest=filename) as f:
         if output_format == MessageFormat.JSON:
             f.write(json_format.MessageToJson(message).encode())
-        elif output_format == MessageFormat.PBTXT:
+        elif output_format in _TEXT_FORMATS:
             # Protobuf 5+ MessageToBytes() defaults to ASCII; non-ASCII string fields
             # (common in chemistry text) then raise UnicodeEncodeError. MessageToString
             # returns a Unicode str; UTF-8 bytes are the portable wire form for .pbtxt.
             f.write(text_format.MessageToString(message).encode("utf-8"))
-        elif output_format == MessageFormat.BINARY:
+        elif output_format in _BINARY_FORMATS:
             f.write(message.SerializeToString(deterministic=True))
+
+
+@contextlib.contextmanager
+def _open_for_write(tmp_path: str, *, dest: str):
+    """Opens ``tmp_path`` for binary writing.
+
+    For ``.gz`` destinations, wraps the file in a ``GzipFile`` with a fixed
+    mtime and pins the gzip header's filename to ``os.path.basename(dest)``
+    so the encoded bytes are deterministic regardless of the random temp
+    name used during writing.
+    """
+    with open(tmp_path, "wb") as raw:
+        if dest.endswith(".gz"):
+            with gzip.GzipFile(filename=os.path.basename(dest), mode="wb", mtime=1, fileobj=raw) as f:
+                yield f
+        else:
+            yield raw
 
 
 def write_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:

@@ -39,7 +39,7 @@ from collections.abc import Iterable, Mapping
 
 import github
 
-from ord_schema import message_helpers, parquet_dataset, updates, validations
+from ord_schema import atomic_io, message_helpers, parquet_dataset, updates, validations
 from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.proto import dataset_pb2
 
@@ -225,13 +225,18 @@ def _run_updates(
                 message_helpers.id_filename(f"{dataset.dataset_id}{output_format}"),
             )
             os.makedirs(os.path.dirname(output_filename), exist_ok=True)
-            temp_filename = output_filename + ".tmp"
-            # Atomic publish: stream-write to a temp, validate it, then rename
-            # over output_filename. The try guards everything up to and
-            # including os.replace so a failure leaves no `.tmp` lying around;
-            # cleanup runs after the publish so output_filename is guaranteed
-            # to exist before we touch git's index.
-            try:
+            # Atomic publish: stream-write to a sibling temp, validate it,
+            # and let atomic_path os.replace it onto output_filename on clean
+            # exit (or unlink it on failure). Cleanup runs after the publish
+            # so output_filename is guaranteed to exist before we touch
+            # git's index.
+            #
+            # Note: DatasetWriter inside update_parquet_dataset opens its own
+            # mkstemp temp next to ``temp_filename``, then renames onto it
+            # before atomic_path renames onto output_filename. Two atomic
+            # rename hops per successful write; if the process dies between
+            # them only the orphan inner temp is left behind.
+            with atomic_io.atomic_path(output_filename) as temp_filename:
                 updates.update_parquet_dataset(input_filename, temp_filename, dataset_id=dataset.dataset_id)
                 validations.validate_datasets(
                     {input_filename: parquet_dataset.DatasetView(temp_filename)},
@@ -239,11 +244,6 @@ def _run_updates(
                     options=options,
                 )
                 logger.info("writing Dataset to %s", output_filename)
-                os.replace(temp_filename, output_filename)
-            except Exception:
-                if os.path.exists(temp_filename):
-                    os.unlink(temp_filename)
-                raise
             if cleanup_files:
                 cleanup(input_filename, output_filename)
             continue

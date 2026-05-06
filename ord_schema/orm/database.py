@@ -24,6 +24,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NotSupportedError, OperationalError
 from sqlalchemy.orm import Session
 
+from ord_schema import parquet_dataset
 from ord_schema.logging import get_logger
 from ord_schema.orm.mappers import Base, Mappers, from_proto
 from ord_schema.proto import dataset_pb2
@@ -82,6 +83,65 @@ def add_dataset(dataset: dataset_pb2.Dataset, session: Session, rdkit_cartridge:
         update_rdkit_tables(dataset.dataset_id, session)
         session.flush()
         update_rdkit_ids(dataset.dataset_id, session)
+
+
+# Reactions are flushed and expunged in batches of this size during streaming
+# ingest. Larger values reduce SQL roundtrips at the cost of more pending ORM
+# objects held in memory; 200 is unmeasured and worked fine on the existing
+# ord-data fixtures.
+_PARQUET_FLUSH_BATCH = 200
+
+
+def add_parquet_dataset(path: str, session: Session, rdkit_cartridge: bool = True) -> None:
+    """Streams a Parquet-serialized Dataset into the ORM tables.
+
+    Two streaming passes over the Parquet file:
+
+    1. ``parquet_dataset.streaming_md5`` to compute ``md5`` and
+       ``num_reactions`` without holding Reactions in memory.
+    2. ``iter_reactions`` to insert Reaction rows in flush/expunge batches.
+
+    This keeps the canonical Parquet MD5 formula in one place and bounds
+    peak memory to one row group plus ``_PARQUET_FLUSH_BATCH`` ORM objects,
+    regardless of dataset size.
+    """
+    start = time.time()
+    metadata = parquet_dataset.read_metadata(path)
+    logger.debug(f"Streaming Parquet Dataset {metadata.dataset_id}")
+    md5_hex, num_reactions = parquet_dataset.streaming_md5(path)
+    reaction_child_class = Mappers.Dataset.reactions.mapper.class_
+    mapped_dataset = Mappers.Dataset(
+        name=metadata.name,
+        description=metadata.description,
+        dataset_id=metadata.dataset_id,
+        md5=md5_hex,
+        num_reactions=num_reactions,
+    )
+    session.add(mapped_dataset)
+    session.flush()
+    pending: list = []
+
+    def flush_batch() -> None:
+        if not pending:
+            return
+        session.flush()
+        for obj in pending:
+            session.expunge(obj)
+        pending.clear()
+
+    for _, reaction in parquet_dataset.iter_reactions(path):
+        reaction_mapper = from_proto(reaction, mapper=reaction_child_class)
+        reaction_mapper.parent = mapped_dataset
+        session.add(reaction_mapper)
+        pending.append(reaction_mapper)
+        if len(pending) >= _PARQUET_FLUSH_BATCH:
+            flush_batch()
+    flush_batch()
+    logger.debug(f"add_parquet_dataset() took {time.time() - start:g}s ({num_reactions} reactions)")
+    if rdkit_cartridge:
+        update_rdkit_tables(metadata.dataset_id, session)
+        session.flush()
+        update_rdkit_ids(metadata.dataset_id, session)
 
 
 def get_dataset_md5(dataset_id: str, session: Session) -> str | None:

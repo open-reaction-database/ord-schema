@@ -26,6 +26,10 @@ This layout supports random access (by row group) and streaming iteration
 without loading the full dataset into memory.
 """
 
+import contextlib
+import hashlib
+import os
+import tempfile
 from collections.abc import Iterable, Iterator
 
 import pyarrow as pa
@@ -81,7 +85,22 @@ class DatasetWriter:
             raise ValueError("DatasetWriter requires a non-empty description")
         self._row_group_size = row_group_size
         self._schema = _build_schema(name=name, description=description, dataset_id=dataset_id)
-        self._writer = pq.ParquetWriter(path, self._schema, compression=compression)
+        # Atomic publish: write to a sibling temp path with a unique random
+        # suffix (so concurrent writers do not collide), rename onto `path`
+        # on successful close, remove on exception. Same semantics as
+        # ``atomic_io.atomic_path``, inlined because the open/close lifecycle
+        # is split across __init__/close().
+        self._path = path
+        parent = os.path.dirname(path) or "."
+        basename = os.path.basename(path)
+        fd, self._tmp_path = tempfile.mkstemp(dir=parent, prefix=basename + ".", suffix=".tmp")
+        os.close(fd)
+        try:
+            self._writer = pq.ParquetWriter(self._tmp_path, self._schema, compression=compression)
+        except BaseException:
+            with contextlib.suppress(FileNotFoundError):
+                os.unlink(self._tmp_path)
+            raise
         self._buffer_ids: list[str] = []
         self._buffer_blobs: list[bytes] = []
         self._closed = False
@@ -99,24 +118,35 @@ class DatasetWriter:
             self.write(reaction)
 
     def close(self) -> None:
-        """Flushes the final row group and closes the underlying Parquet writer.
+        """Flushes the final row group, closes the writer, and atomically publishes the file.
 
-        If ``_flush`` raises, the Parquet writer is still closed best-effort
-        (any secondary close error is suppressed) so the original error is the
-        one propagated.
+        On success the temp file is renamed onto the destination via
+        ``os.replace``. On any exception during flush or close (including
+        ``KeyboardInterrupt``) the temp is removed best-effort and the
+        destination is left untouched; the original error propagates and
+        any secondary close error is suppressed. Idempotent thereafter.
         """
         if self._closed:
             return
         self._closed = True
         try:
             self._flush()
-        except Exception:
-            try:
-                self._writer.close()
-            except Exception:
-                pass
+            self._writer.close()
+        except BaseException:
+            self._abort()
             raise
-        self._writer.close()
+        os.replace(self._tmp_path, self._path)
+
+    def _abort(self) -> None:
+        # try/finally so the unlink still runs if writer.close raises a
+        # BaseException (e.g., KeyboardInterrupt mid-close). The original
+        # error is preserved through Python's exception chaining.
+        try:
+            with contextlib.suppress(Exception):
+                self._writer.close()
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                os.unlink(self._tmp_path)
 
     def _flush(self) -> None:
         if not self._buffer_ids:
@@ -133,7 +163,13 @@ class DatasetWriter:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.close()
+        # On exception in the with body, abort the write so the destination
+        # path is never created; let the original exception propagate.
+        if exc_type is None:
+            self.close()
+        elif not self._closed:
+            self._closed = True
+            self._abort()
 
 
 def write_dataset(
@@ -289,6 +325,45 @@ def _iter_reactions(
             if filter_set is not None and reaction_id not in filter_set:
                 continue
             yield reaction_id, reaction_pb2.Reaction.FromString(blob)
+
+
+def streaming_md5(path: str) -> tuple[str, int]:
+    """Returns ``(md5_hexdigest, num_reactions)`` for a Parquet dataset.
+
+    Streams the file row-group at a time so peak memory stays bounded. The
+    hash is fed in this order:
+
+    * ``name=<value>\\n``, ``description=<value>\\n``, ``dataset_id=<value>\\n``
+      (omitted when unset) from the footer scalars.
+    * For each Reaction in iteration order: the 8-byte big-endian length of
+      the serialized Reaction blob, then the blob bytes. The reaction_id is
+      not hashed separately since it is already inside the blob (field 1 of
+      ``Reaction``); the length prefix disambiguates blob boundaries.
+
+    Different from ``md5(Dataset.SerializeToString(deterministic=True))`` —
+    re-ingesting an existing ``.pb.gz`` dataset as ``.parquet`` will look
+    like a content change once. That is correct: the on-disk bytes really
+    did change, and the hash is only a cheap "did the content change since I
+    last saw it?" indicator. The scheme here is decoupled from the Parquet
+    file layout (row group sizes, compression) so the same logical content
+    rewritten with different writer settings still hashes the same.
+    """
+    hasher = hashlib.md5()
+    metadata = read_metadata(path)
+    if metadata.name:
+        hasher.update(f"name={metadata.name}\n".encode())
+    if metadata.description:
+        hasher.update(f"description={metadata.description}\n".encode())
+    if metadata.dataset_id:
+        hasher.update(f"dataset_id={metadata.dataset_id}\n".encode())
+    num_reactions = 0
+    with pq.ParquetFile(path) as parquet_file:
+        for batch in parquet_file.iter_batches(columns=["reaction"]):
+            for blob in batch.column("reaction").to_pylist():
+                hasher.update(len(blob).to_bytes(8, "big"))
+                hasher.update(blob)
+                num_reactions += 1
+    return hasher.hexdigest(), num_reactions
 
 
 def iter_reaction_ids(path: str) -> Iterator[str]:

@@ -229,6 +229,107 @@ def test_multi_row_group_streaming_preserves_order(tmp_path):
     assert streamed == [r.reaction_id for r in original.reactions]
 
 
+def test_writer_publishes_atomically(tmp_path):
+    """Destination must not exist until close(); a sibling temp does."""
+    path = os.path.join(tmp_path, "ds.parquet")
+    writer = dataset.DatasetWriter(path, name="n", description="d")
+    writer.write(_make_reaction("ord-0000"))
+    # Mid-write: the destination doesn't exist yet, only the temp does.
+    assert not os.path.exists(path)
+    assert "ds.parquet" not in os.listdir(tmp_path)
+    assert len(os.listdir(tmp_path)) == 1
+    writer.close()
+    # After close: the destination exists and is the only file.
+    assert os.listdir(tmp_path) == ["ds.parquet"]
+
+
+def test_writer_aborts_on_exception_in_context(tmp_path):
+    """An exception in the with-body must leave neither destination nor temp behind."""
+    path = os.path.join(tmp_path, "ds.parquet")
+    with (
+        pytest.raises(RuntimeError, match="boom"),
+        dataset.DatasetWriter(path, name="n", description="d") as writer,
+    ):
+        writer.write(_make_reaction("ord-0000"))
+        raise RuntimeError("boom")
+    assert os.listdir(tmp_path) == []
+
+
+def test_writer_aborts_on_keyboard_interrupt_in_context(tmp_path):
+    """KeyboardInterrupt in the with-body also triggers _abort and leaves no temp behind."""
+    path = os.path.join(tmp_path, "ds.parquet")
+    with (
+        pytest.raises(KeyboardInterrupt),
+        dataset.DatasetWriter(path, name="n", description="d") as writer,
+    ):
+        writer.write(_make_reaction("ord-0000"))
+        raise KeyboardInterrupt
+    assert os.listdir(tmp_path) == []
+
+
+def test_writer_aborts_preserves_existing_destination(tmp_path):
+    """A failed atomic publish must not clobber an already-published file at the destination."""
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(_make_dataset(n=2, name="old", description="old desc"), path)
+    with open(path, "rb") as f:
+        original_bytes = f.read()
+    with (
+        pytest.raises(RuntimeError, match="boom"),
+        dataset.DatasetWriter(path, name="new", description="new desc") as writer,
+    ):
+        writer.write(_make_reaction("ord-new"))
+        raise RuntimeError("boom")
+    with open(path, "rb") as f:
+        assert f.read() == original_bytes
+    assert os.listdir(tmp_path) == ["ds.parquet"]
+
+
+def test_streaming_md5_returns_count_and_is_deterministic(tmp_path):
+    original = _make_dataset(n=4)
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(original, path)
+    md5_hex, count = dataset.streaming_md5(path)
+    assert count == 4
+    # Same file hashes the same on a second pass.
+    assert dataset.streaming_md5(path) == (md5_hex, count)
+
+
+def test_streaming_md5_is_decoupled_from_row_group_size(tmp_path):
+    """The same logical content rewritten with different row group sizes hashes the same."""
+    original = _make_dataset(n=12)
+    path_small = os.path.join(tmp_path, "small.parquet")
+    path_large = os.path.join(tmp_path, "large.parquet")
+    dataset.write_dataset(original, path_small, row_group_size=3)
+    dataset.write_dataset(original, path_large, row_group_size=1000)
+    assert dataset.streaming_md5(path_small) == dataset.streaming_md5(path_large)
+
+
+def test_streaming_md5_changes_when_scalars_change(tmp_path):
+    original = _make_dataset(n=2)
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(original, path)
+    baseline, _ = dataset.streaming_md5(path)
+    renamed = dataset_pb2.Dataset()
+    renamed.CopyFrom(original)
+    renamed.name = "different"
+    other_path = os.path.join(tmp_path, "other.parquet")
+    dataset.write_dataset(renamed, other_path)
+    assert dataset.streaming_md5(other_path)[0] != baseline
+
+
+def test_streaming_md5_changes_when_a_reaction_changes(tmp_path):
+    original = _make_dataset(n=3)
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(original, path)
+    baseline, _ = dataset.streaming_md5(path)
+    mutated = dataset_pb2.Dataset()
+    mutated.CopyFrom(original)
+    mutated.reactions[1].outcomes[0].conversion.value = 999.0
+    other_path = os.path.join(tmp_path, "other.parquet")
+    dataset.write_dataset(mutated, other_path)
+    assert dataset.streaming_md5(other_path)[0] != baseline
+
+
 def test_writer_close_propagates_flush_error(tmp_path):
     path = os.path.join(tmp_path, "ds.parquet")
     writer = dataset.DatasetWriter(path, name="n", description="d")

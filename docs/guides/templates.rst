@@ -24,9 +24,9 @@ Step 1: Create a template reaction
 
    .. group-tab:: Code
 
-        See the Python examples `here <schema.html#jupyter-colab>`_ for how to
-        construct reactions programmatically. After creating a template reaction,
-        save it as a pbtxt file using `message_helpers.write_message <https://github.com/open-reaction-database/ord-schema/blob/b6fc15c22aad40c0ba55cf5afd3e700fd6f3292a/ord_schema/message_helpers.py#L721>`_.
+        See the Python examples `here <https://docs.open-reaction-database.org/en/latest/schema.html#jupyter-colab>`_ 
+        for how to construct reactions programmatically. After creating a template reaction,
+        save it as a pbtxt file using `message_helpers.write_message <https://docs.open-reaction-database.org/en/latest/ord_schema/ord_schema.html#module-ord_schema.message_helpers>`_.
 
 Here's an `example reaction <https://gist.github.com/skearnes/1e822a599c07df924f7320352103865b#file-reaction-pbtxt>`_.
 
@@ -109,7 +109,7 @@ Step 4: Enumerate the dataset
         <https://app.open-reaction-database.org/>`_ and select the "Enumerate"
         button on the main page. Follow the instructions to select your template reaction, upload 
         your source data as a semi-colon separated CSV file, and check the matching between columns and template fields. Click the "Create" button to build the dataset. 
-        his YouTube tutorial on `dataset enumeration <https://youtu.be/1l928Ff0SYU?si=XbekQJBqAWprz-xG>`_
+        This YouTube tutorial on `dataset enumeration <https://youtu.be/1l928Ff0SYU?si=XbekQJBqAWprz-xG>`_
         shows how to do this.
 
    .. group-tab:: Code
