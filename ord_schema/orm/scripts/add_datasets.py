@@ -28,6 +28,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
+from ord_schema import parquet_dataset
 from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.message_helpers import load_message
 from ord_schema.orm import database
@@ -41,7 +42,9 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
 
     Args:
         dsn: Database connection string.
-        filename: Dataset filename.
+        filename: Dataset filename. ``.parquet`` inputs are streamed via
+            ``database.add_parquet_dataset``; other formats load the whole
+            Dataset proto and call ``database.add_dataset``.
         overwrite: If True, update the dataset if the MD5 hash has changed.
 
     Returns:
@@ -50,30 +53,48 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
     Raises:
         ValueError: If the dataset already exists in the database and `overwrite` is not set.
     """
-    logger.debug(f"Loading {filename}")
-    dataset = load_message(filename, dataset_pb2.Dataset)
     # NOTE(skearnes): Multiprocessing is hard to get right for shared connection pools, so we don't even try; see
     # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
     engine = create_engine(dsn)
+    if filename.endswith(".parquet"):
+        logger.debug(f"Streaming {filename}")
+        dataset_id = parquet_dataset.read_metadata(filename).dataset_id
+
+        def compute_md5() -> str:
+            md5_hex, _ = parquet_dataset.streaming_md5(filename)
+            return md5_hex
+
+        def insert(session: Session) -> None:
+            database.add_parquet_dataset(filename, session, rdkit_cartridge=False)  # Done separately in add_rdkit().
+    else:
+        logger.debug(f"Loading {filename}")
+        dataset = load_message(filename, dataset_pb2.Dataset)
+        dataset_id = dataset.dataset_id
+
+        def compute_md5() -> str:
+            return md5(dataset.SerializeToString(deterministic=True)).hexdigest()
+
+        def insert(session: Session) -> None:
+            database.add_dataset(dataset, session, rdkit_cartridge=False)  # Done separately in add_rdkit().
+
     with Session(engine) as session:
         with session.begin():
-            dataset_md5 = database.get_dataset_md5(dataset.dataset_id, session)
-        if dataset_md5 is not None:
-            this_md5 = md5(dataset.SerializeToString(deterministic=True)).hexdigest()
-            if this_md5 != dataset_md5:
+            existing_md5 = database.get_dataset_md5(dataset_id, session)
+        if existing_md5 is not None:
+            if compute_md5() != existing_md5:
                 if not overwrite:
-                    raise ValueError(f"`overwrite` is required when a dataset already exists: {dataset.dataset_id}")
-                logger.debug(f"existing dataset {dataset.dataset_id} changed; updating")
+                    raise ValueError(f"`overwrite` is required when a dataset already exists: {dataset_id}")
+                logger.debug(f"existing dataset {dataset_id} changed; updating")
                 with session.begin():
-                    database.delete_dataset(dataset.dataset_id, session)
+                    database.delete_dataset(dataset_id, session)
             else:
-                logger.debug(f"existing dataset {dataset.dataset_id} unchanged; skipping")
-                return dataset.dataset_id
+                logger.debug(f"existing dataset {dataset_id} unchanged; skipping")
+                return dataset_id
         start = time.time()
         with session.begin():
-            database.add_dataset(dataset, session, rdkit_cartridge=False)  # Do this separately in add_rdkit().
-        logger.debug(f"add_dataset() took {time.time() - start:g}s")
-    return dataset.dataset_id
+            insert(session)
+        logger.debug(f"insert took {time.time() - start:g}s")
+    return dataset_id
 
 
 def add_rdkit(engine: Engine, dataset_id: str) -> None:

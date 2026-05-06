@@ -1,6 +1,12 @@
 # Cursor editor (local-only rules; not part of the upstream tree).
 .cursor/
 
+# Claude Code: ephemeral agent worktrees and per-user setting overrides.
+# Project-shared bits (.claude/settings.json, .claude/skills/, .claude/agents/)
+# stay commitable.
+.claude/worktrees/
+.claude/settings.local.json
+
 # PyCharm files.
 .idea/
 # Generated docs output.

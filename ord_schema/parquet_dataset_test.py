@@ -284,6 +284,52 @@ def test_writer_aborts_preserves_existing_destination(tmp_path):
     assert os.listdir(tmp_path) == ["ds.parquet"]
 
 
+def test_streaming_md5_returns_count_and_is_deterministic(tmp_path):
+    original = _make_dataset(n=4)
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(original, path)
+    md5_hex, count = dataset.streaming_md5(path)
+    assert count == 4
+    # Same file hashes the same on a second pass.
+    assert dataset.streaming_md5(path) == (md5_hex, count)
+
+
+def test_streaming_md5_is_decoupled_from_row_group_size(tmp_path):
+    """The same logical content rewritten with different row group sizes hashes the same."""
+    original = _make_dataset(n=12)
+    path_small = os.path.join(tmp_path, "small.parquet")
+    path_large = os.path.join(tmp_path, "large.parquet")
+    dataset.write_dataset(original, path_small, row_group_size=3)
+    dataset.write_dataset(original, path_large, row_group_size=1000)
+    assert dataset.streaming_md5(path_small) == dataset.streaming_md5(path_large)
+
+
+def test_streaming_md5_changes_when_scalars_change(tmp_path):
+    original = _make_dataset(n=2)
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(original, path)
+    baseline, _ = dataset.streaming_md5(path)
+    renamed = dataset_pb2.Dataset()
+    renamed.CopyFrom(original)
+    renamed.name = "different"
+    other_path = os.path.join(tmp_path, "other.parquet")
+    dataset.write_dataset(renamed, other_path)
+    assert dataset.streaming_md5(other_path)[0] != baseline
+
+
+def test_streaming_md5_changes_when_a_reaction_changes(tmp_path):
+    original = _make_dataset(n=3)
+    path = os.path.join(tmp_path, "ds.parquet")
+    dataset.write_dataset(original, path)
+    baseline, _ = dataset.streaming_md5(path)
+    mutated = dataset_pb2.Dataset()
+    mutated.CopyFrom(original)
+    mutated.reactions[1].outcomes[0].conversion.value = 999.0
+    other_path = os.path.join(tmp_path, "other.parquet")
+    dataset.write_dataset(mutated, other_path)
+    assert dataset.streaming_md5(other_path)[0] != baseline
+
+
 def test_writer_close_propagates_flush_error(tmp_path):
     path = os.path.join(tmp_path, "ds.parquet")
     writer = dataset.DatasetWriter(path, name="n", description="d")

@@ -436,7 +436,21 @@ class TestLoadAndWriteMessage:
             test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
         ]
 
-    @pytest.mark.parametrize("suffix", (".pbtxt", ".pb", ".json", ".pbtxt.gz", ".pb.gz", ".json.gz"))
+    @pytest.mark.parametrize(
+        "suffix",
+        (
+            ".pbtxt",
+            ".pb",
+            ".json",
+            ".pbtxt.gz",
+            ".pb.gz",
+            ".json.gz",
+            ".txtpb",
+            ".binpb",
+            ".txtpb.gz",
+            ".binpb.gz",
+        ),
+    )
     def test_round_trip(self, suffix, messages):
         for message in messages:
             with tempfile.NamedTemporaryFile(suffix=suffix) as f:
@@ -518,7 +532,10 @@ class TestLoadAndWriteMessage:
             assert f.read() == b"original-bytes"
         assert not os.path.exists(dest + ".tmp")
 
-    @pytest.mark.parametrize("suffix", (".pbtxt", ".pb", ".pb.gz", ".json", ".parquet"))
+    @pytest.mark.parametrize(
+        "suffix",
+        (".pbtxt", ".pb", ".pb.gz", ".json", ".parquet", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
+    )
     def test_write_dataset(self, suffix, tmp_path):
         dataset = dataset_pb2.Dataset(
             name="n",
