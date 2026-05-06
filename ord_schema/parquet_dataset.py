@@ -26,6 +26,7 @@ This layout supports random access (by row group) and streaming iteration
 without loading the full dataset into memory.
 """
 
+import hashlib
 from collections.abc import Iterable, Iterator
 
 import pyarrow as pa
@@ -289,6 +290,45 @@ def _iter_reactions(
             if filter_set is not None and reaction_id not in filter_set:
                 continue
             yield reaction_id, reaction_pb2.Reaction.FromString(blob)
+
+
+def streaming_md5(path: str) -> tuple[str, int]:
+    """Returns ``(md5_hexdigest, num_reactions)`` for a Parquet dataset.
+
+    Streams the file row-group at a time so peak memory stays bounded. The
+    hash is fed in this order:
+
+    * ``name=<value>\\n``, ``description=<value>\\n``, ``dataset_id=<value>\\n``
+      (omitted when unset) from the footer scalars.
+    * For each Reaction in iteration order: the 8-byte big-endian length of
+      the serialized Reaction blob, then the blob bytes. The reaction_id is
+      not hashed separately since it is already inside the blob (field 1 of
+      ``Reaction``); the length prefix disambiguates blob boundaries.
+
+    Different from ``md5(Dataset.SerializeToString(deterministic=True))`` —
+    re-ingesting an existing ``.pb.gz`` dataset as ``.parquet`` will look
+    like a content change once. That is correct: the on-disk bytes really
+    did change, and the hash is only a cheap "did the content change since I
+    last saw it?" indicator. The scheme here is decoupled from the Parquet
+    file layout (row group sizes, compression) so the same logical content
+    rewritten with different writer settings still hashes the same.
+    """
+    hasher = hashlib.md5()
+    metadata = read_metadata(path)
+    if metadata.name:
+        hasher.update(f"name={metadata.name}\n".encode())
+    if metadata.description:
+        hasher.update(f"description={metadata.description}\n".encode())
+    if metadata.dataset_id:
+        hasher.update(f"dataset_id={metadata.dataset_id}\n".encode())
+    num_reactions = 0
+    with pq.ParquetFile(path) as parquet_file:
+        for batch in parquet_file.iter_batches(columns=["reaction"]):
+            for blob in batch.column("reaction").to_pylist():
+                hasher.update(len(blob).to_bytes(8, "big"))
+                hasher.update(blob)
+                num_reactions += 1
+    return hasher.hexdigest(), num_reactions
 
 
 def iter_reaction_ids(path: str) -> Iterator[str]:
