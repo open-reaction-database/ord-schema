@@ -2446,7 +2446,7 @@ wheels = [
 
 [[package]]
 name = "ord-schema"
-version = "0.5.8"
+version = "0.5.9"
 source = { editable = "." }
 dependencies = [
     { name = "inflection" },
