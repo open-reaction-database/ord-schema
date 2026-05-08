@@ -5,9 +5,10 @@ Dataset Rewards
 In 2026 the Open Reaction Database is offering a limited number of reward vouchers
 for the preparation and submission of approved datasets to the ORD repository. 
 
-Reward vouchers are issued through the Tremendous platform and can be exchanged for a large
-range of gift cards in over 230 countries and regions. Individuals may claim a Dataset 
-Reward of $300 for their first dataset, and $299 for their second dataset.
+Reward vouchers are issued through the `Tremendous <https://www.tremendous.com/catalog/>`__ 
+platform and can be exchanged for a large range of gift cards in over 230 countries 
+and regions. Individuals may claim a Dataset Reward of $300 for their first dataset, 
+and $299 for their second dataset.
 
 The number of available Dataset Rewards is limited, and to qualify the dataset must
 meet all of the following crieria:
@@ -15,7 +16,7 @@ meet all of the following crieria:
 - The dataset must be accepted into the ORD repository between 1st Jan 2026 and 18th 
   December 2026. This includes passing the peer-review checks, and any required 
   corrections being completed before the closing date.
-- A Dataset Reward application (link) must have been submitted by the applicant, and the
+- A Dataset Reward application (link available soon!) must have been submitted by the applicant, and the
   Reward application must have pre-approval from the ORD Program Manager.
 - The dataset must meet the :ref:`dataset-eligibility` criteria.
 - The applicant must meet the :ref:`applicant-eligibility` criteria.
@@ -33,10 +34,10 @@ on who can participate in the program.
 
 To be eligible to apply for a dataset reward an applicant must meet the following criteria:
 
-- Must not be subject to US sanctions
-- Must not be associated with an organization which is subject to US sanctions
 - Must have an active GitHub account (`join for free here <https://github.com/signup>`__)
 - Must have the required education and skills to faithfully prepare a reaction dataset (:ref:`required-skills`)
+- Must not be subject to US sanctions, either as an individual, or by nationality, residency,
+  or membership of a sanctioned country or organization.
 
 In addition to these criteria, there are strict limits on the total value of rewards or
 other compensation which may be made to an individual applicant: 
@@ -84,7 +85,8 @@ Python coding is still recommended in ORD dataset preparation are:
 - Datasets of reactions with many time point measurements (e.g. reaction kinetics experiments). Python
   is required to enumerate multiple outcomes within a single reaction record.
 - Datasets involving 100s of chemicals which are only recorded by name. SMILES or InChI strings are
-  normally required for all chemicals documented in an ORD dataset. See (link) for guidance on how
+  normally required for all chemicals documented in an ORD dataset. See `Compound Identifiers 
+  <https://docs.open-reaction-database.org/en/latest/compound_identifiers.html>`__ for guidance on how
   to obtain these chemical identifiers, but Python coding can be helpful for batch processing and 
   checking very large lists of compound names.
 - Datasets coming from another reaction data schema (e.g. automated synthesis experiments), where there 
@@ -105,6 +107,13 @@ are reported in the paper, supplementary information, and other source materials
 synthesis operations, but there is an expectation that the applicant will have the knowledge 
 required to provide a faithful and authoritative account of the reaction data and the experimental 
 procedures used to collect the data.
+
+It is anticipated that most participants in the ORD Dataset Rewards program will already have an 
+undergraduate degree in chemistry (or a closely related subject), and will have experience of performing 
+and analysing chemical reaction experiments in a current or past research project. Excellent students in 
+the later stages of a chemical undergraduate degree may also have the required knowledge and skills, 
+particularly if their course includes laboratory practical experiments in chemical synthesis, and they 
+have experience interpreting synthesis methods as they are reported in research papers.
 
 .. _dataset-eligibility:
 ************************************************
@@ -292,9 +301,9 @@ To participate in the Dataset Reward program please do the following:
 
 1. Check that you meet the :ref:`applicant-eligibility` criteria
 2. Select a suitable paper or source dataset that you will turn into an ORD dataset. The paper/dataset must meet the :ref:`dataset-eligibility` criteria.
-3. Complete a Dataset Reward application form (link). As part of the application you will be required to agree to the following:
+3. Complete a Dataset Reward application form (link coming soon!). As part of the application you will be required to agree to the following:
 
-   - Contractor Agreement for First Dataset (link) OR for Second Dataset (link)
+   - Contractor Agreement for First Dataset (link coming soon!) OR for Second Dataset (link coming soon!)
    - `Privacy Policy <https://docs.google.com/document/d/1cZuNwMyyKu9S3zmp0_ZCnm6XshEGhYYQwm4HqoI8lhQ/edit?usp=sharing>`__ of BJ Deadman Consultancy Limited
    - `Privacy Policy <https://www.scienceandtechnologyfutures.org/privacy>`__ of Science and Technology Futures Inc.
 
