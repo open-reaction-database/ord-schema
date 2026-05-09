@@ -27,7 +27,6 @@ import warnings
 from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-import pyarrow.parquet as pq
 from tqdm import tqdm
 
 from ord_schema import message_helpers, parquet_dataset, validations
@@ -70,17 +69,16 @@ def _validate_row_group(filename: str, row_group: int) -> tuple[list[str], valid
     return errors, state
 
 
-def _finalize_parquet(filename: str, has_reactions: bool, state: validations.DatasetCrossRefState) -> list[str]:
+def _finalize_parquet(footer: parquet_dataset.ParquetFooter, state: validations.DatasetCrossRefState) -> list[str]:
     """Runs dataset-level checks on aggregated parquet state; returns errors."""
-    metadata = parquet_dataset.read_metadata(filename)
     with warnings.catch_warnings(record=True) as tape:
         warnings.simplefilter("always", validations.ValidationError)
         validations.validate_dataset_streaming(
-            name=metadata.name,
-            description=metadata.description,
-            dataset_id=metadata.dataset_id,
+            name=footer.dataset.name,
+            description=footer.dataset.description,
+            dataset_id=footer.dataset.dataset_id,
             reaction_ids=[],
-            has_reactions=has_reactions,
+            has_reactions=footer.num_rows > 0,
             state=state,
         )
     return [f"Dataset: {w.message}" for w in tape if issubclass(w.category, validations.ValidationError)]
@@ -89,7 +87,7 @@ def _finalize_parquet(filename: str, has_reactions: bool, state: validations.Dat
 @dataclasses.dataclass
 class _ParquetEntry:
     remaining: int
-    has_reactions: bool
+    footer: parquet_dataset.ParquetFooter
     state: validations.DatasetCrossRefState
 
 
@@ -115,21 +113,17 @@ def main(args):
         futures: dict = {}
         for filename in filenames:
             if filename.endswith(".parquet"):
-                with pq.ParquetFile(filename) as parquet_file:
-                    num_row_groups = parquet_file.num_row_groups
-                    num_rows = parquet_file.metadata.num_rows
+                footer = parquet_dataset.read_footer(filename)
                 entry = _ParquetEntry(
-                    remaining=num_row_groups,
-                    has_reactions=num_rows > 0,
+                    remaining=footer.num_row_groups,
+                    footer=footer,
                     state=validations.DatasetCrossRefState(),
                 )
                 parquet_entries[filename] = entry
-                if num_row_groups == 0:
-                    failures.extend(
-                        f"{filename}: {e}" for e in _finalize_parquet(filename, entry.has_reactions, entry.state)
-                    )
+                if footer.num_row_groups == 0:
+                    failures.extend(f"{filename}: {e}" for e in _finalize_parquet(footer, entry.state))
                     continue
-                for row_group in range(num_row_groups):
+                for row_group in range(footer.num_row_groups):
                     future = executor.submit(_validate_row_group, filename, row_group)
                     futures[future] = ("parquet", filename, row_group)
             else:
@@ -150,7 +144,7 @@ def main(args):
                 entry.state.merge(state)
                 entry.remaining -= 1
                 if entry.remaining == 0:
-                    for error in _finalize_parquet(filename, entry.has_reactions, entry.state):
+                    for error in _finalize_parquet(entry.footer, entry.state):
                         failures.append(f"{filename}: {error}")
 
     if failures:

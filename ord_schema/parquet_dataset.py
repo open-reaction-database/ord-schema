@@ -27,6 +27,7 @@ without loading the full dataset into memory.
 """
 
 import contextlib
+import dataclasses
 import hashlib
 import os
 import tempfile
@@ -288,6 +289,30 @@ def read_metadata(path: str) -> dataset_pb2.Dataset:
         return _dataset_from_metadata(parquet_file.schema_arrow.metadata)
 
 
+@dataclasses.dataclass(frozen=True)
+class ParquetFooter:
+    """Footer info for a Parquet dataset: scalars + row-group/row counts."""
+
+    dataset: dataset_pb2.Dataset
+    num_row_groups: int
+    num_rows: int
+
+
+def read_footer(path: str) -> ParquetFooter:
+    """Returns scalar Dataset fields and row-group/row counts in one open.
+
+    Equivalent to ``read_metadata`` plus ``num_row_groups`` plus a row count,
+    but reads the footer once. Use when the caller needs more than one of
+    those values.
+    """
+    with pq.ParquetFile(path) as parquet_file:
+        return ParquetFooter(
+            dataset=_dataset_from_metadata(parquet_file.schema_arrow.metadata),
+            num_row_groups=parquet_file.num_row_groups,
+            num_rows=parquet_file.metadata.num_rows,
+        )
+
+
 def iter_reactions(
     path: str,
     reaction_ids: Iterable[str] | None = None,
@@ -345,7 +370,7 @@ def _iter_reactions(
 
 
 def _iter_table(
-    table: "pa.Table | pa.RecordBatch",
+    table: pa.Table | pa.RecordBatch,
     *,
     filter_set: set[str] | None,
 ) -> Iterator[tuple[str, reaction_pb2.Reaction]]:

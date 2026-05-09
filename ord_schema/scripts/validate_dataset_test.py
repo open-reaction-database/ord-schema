@@ -122,6 +122,20 @@ def test_parquet_cross_row_group_duplicate_id(tmp_path):
         validate_dataset.main(validate_dataset.parse_args(["--input", str(path)]))
 
 
+def test_parquet_empty_file(tmp_path):
+    """A parquet with zero row groups must hit the synchronous finalize path
+    and raise the standard 'requires reactions or reaction_ids' error."""
+    path = tmp_path / "empty.parquet"
+    with parquet_dataset.DatasetWriter(str(path), name="test", description="test") as writer:
+        writer.write_all([])
+    assert parquet_dataset.num_row_groups(str(path)) == 0
+    with pytest.raises(
+        validations.ValidationError,
+        match="Dataset requires reactions or reaction_ids",
+    ):
+        validate_dataset.main(validate_dataset.parse_args(["--input", str(path)]))
+
+
 def test_parquet_per_reaction_error_in_late_row_group(tmp_path):
     """Per-reaction errors must surface from any row group, not just the first."""
     reactions = [
