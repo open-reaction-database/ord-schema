@@ -123,8 +123,12 @@ def test_parquet_cross_row_group_duplicate_id(tmp_path):
 
 
 def test_parquet_empty_file(tmp_path):
-    """A parquet with zero row groups must hit the synchronous finalize path
-    and raise the standard 'requires reactions or reaction_ids' error."""
+    """A zero-row-group parquet still hits the dataset-level finalize path.
+
+    Exercises the synchronous fallthrough in ``main`` (no row-group tasks
+    submitted) and asserts the standard 'requires reactions or reaction_ids'
+    error surfaces.
+    """
     path = tmp_path / "empty.parquet"
     with parquet_dataset.DatasetWriter(str(path), name="test", description="test") as writer:
         writer.write_all([])
