@@ -11,14 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Validates a set of Dataset protocol buffers."""
+"""Validates a set of Dataset protocol buffers.
+
+pb inputs are validated as a single per-file task. Parquet inputs are fanned
+out one task per row group so ``--n_jobs`` actually saturates on a single
+large dataset; per-file dataset-level checks (cross-references, scalar
+fields) are then run once after the per-row-group results merge.
+"""
 
 import argparse
+import dataclasses
 import glob
 import re
+import warnings
 from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+import pyarrow.parquet as pq
 from tqdm import tqdm
 
 from ord_schema import message_helpers, parquet_dataset, validations
@@ -37,19 +46,51 @@ def filter_filenames(filenames: Iterable[str], pattern: str) -> list[str]:
     return filtered_filenames
 
 
-def run(filename: str) -> None:
-    """Validates a single dataset.
-
-    Parquet inputs are wrapped in a ``DatasetView`` that streams Reactions
-    one at a time, so peak memory stays bounded for large datasets. Other
-    formats are loaded fully.
-    """
+def _validate_pb(filename: str) -> list[str]:
+    """Validates a single pb dataset; returns formatted error lines."""
     silence_rdkit_logs()
-    if filename.endswith(".parquet"):
-        dataset = parquet_dataset.DatasetView(filename)
-    else:
-        dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
-    validations.validate_datasets({filename: dataset})
+    dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
+    try:
+        validations.validate_datasets({filename: dataset})
+    except validations.ValidationError as error:
+        return [str(error)]
+    return []
+
+
+def _validate_row_group(filename: str, row_group: int) -> tuple[list[str], validations.DatasetCrossRefState]:
+    """Validates one row group: per-reaction checks + cross-ref observations."""
+    silence_rdkit_logs()
+    errors: list[str] = []
+    state = validations.DatasetCrossRefState()
+    for i, (_, reaction) in enumerate(parquet_dataset.iter_reactions(filename, row_group=row_group)):
+        output = validations.validate_message(reaction, raise_on_error=False)
+        for error in output.errors:
+            errors.append(f"row_group {row_group}, reaction {i}: {error}")
+        state.observe(reaction)
+    return errors, state
+
+
+def _finalize_parquet(filename: str, has_reactions: bool, state: validations.DatasetCrossRefState) -> list[str]:
+    """Runs dataset-level checks on aggregated parquet state; returns errors."""
+    metadata = parquet_dataset.read_metadata(filename)
+    with warnings.catch_warnings(record=True) as tape:
+        warnings.simplefilter("always", validations.ValidationError)
+        validations.validate_dataset_streaming(
+            name=metadata.name,
+            description=metadata.description,
+            dataset_id=metadata.dataset_id,
+            reaction_ids=[],
+            has_reactions=has_reactions,
+            state=state,
+        )
+    return [f"Dataset: {w.message}" for w in tape if issubclass(w.category, validations.ValidationError)]
+
+
+@dataclasses.dataclass
+class _ParquetEntry:
+    remaining: int
+    has_reactions: bool
+    state: validations.DatasetCrossRefState
 
 
 def parse_args(argv=None):
@@ -66,17 +107,52 @@ def main(args):
     if args.filter:
         filenames = filter_filenames(filenames, args.filter)
         logger.info("Filtered to %d datasets", len(filenames))
-    futures = {}
-    failures = []
+
+    parquet_entries: dict[str, _ParquetEntry] = {}
+    failures: list[str] = []
+
     with ProcessPoolExecutor(args.n_jobs) as executor:
+        futures: dict = {}
         for filename in filenames:
-            future = executor.submit(run, filename=filename)
-            futures[future] = filename
-        for future in tqdm(as_completed(futures), total=len(futures)):
-            try:
-                future.result()
-            except validations.ValidationError as error:
-                failures.append(f"{futures[future]}: {error}")
+            if filename.endswith(".parquet"):
+                with pq.ParquetFile(filename) as parquet_file:
+                    num_row_groups = parquet_file.num_row_groups
+                    num_rows = parquet_file.metadata.num_rows
+                entry = _ParquetEntry(
+                    remaining=num_row_groups,
+                    has_reactions=num_rows > 0,
+                    state=validations.DatasetCrossRefState(),
+                )
+                parquet_entries[filename] = entry
+                if num_row_groups == 0:
+                    failures.extend(
+                        f"{filename}: {e}" for e in _finalize_parquet(filename, entry.has_reactions, entry.state)
+                    )
+                    continue
+                for row_group in range(num_row_groups):
+                    future = executor.submit(_validate_row_group, filename, row_group)
+                    futures[future] = ("parquet", filename, row_group)
+            else:
+                future = executor.submit(_validate_pb, filename)
+                futures[future] = ("pb", filename, None)
+
+        total_tasks = len(futures)
+        for future in tqdm(as_completed(futures), total=total_tasks):
+            kind, filename, _ = futures[future]
+            if kind == "pb":
+                for error in future.result():
+                    failures.append(f"{filename}: {error}")
+            else:
+                errors, state = future.result()
+                for error in errors:
+                    failures.append(f"{filename}: {error}")
+                entry = parquet_entries[filename]
+                entry.state.merge(state)
+                entry.remaining -= 1
+                if entry.remaining == 0:
+                    for error in _finalize_parquet(filename, entry.has_reactions, entry.state):
+                        failures.append(f"{filename}: {error}")
+
     if failures:
         text = "\n".join(failures)
         raise validations.ValidationError(f"Dataset(s) failed validation:\n{text}")

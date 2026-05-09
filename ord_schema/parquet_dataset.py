@@ -291,6 +291,8 @@ def read_metadata(path: str) -> dataset_pb2.Dataset:
 def iter_reactions(
     path: str,
     reaction_ids: Iterable[str] | None = None,
+    *,
+    row_group: int | None = None,
 ) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
     """Yields ``(reaction_id, Reaction)`` pairs from a Parquet dataset.
 
@@ -302,6 +304,10 @@ def iter_reactions(
             ``None`` (the default) to iterate all reactions; an explicitly
             empty iterable raises ``ValueError`` since it is almost always a
             bug.
+        row_group: Optional row-group index. When set, only that row group is
+            read; this is the unit of parallelism for callers that fan out
+            across row groups (see ``num_row_groups``). Out-of-range indices
+            raise ``IndexError``.
     """
     if reaction_ids is None:
         filter_set = None
@@ -310,7 +316,23 @@ def iter_reactions(
         if not filter_set:
             raise ValueError("reaction_ids must be non-empty when provided; pass None to iterate all")
     with pq.ParquetFile(path) as parquet_file:
-        yield from _iter_reactions(parquet_file, filter_set=filter_set)
+        if row_group is not None:
+            if not 0 <= row_group < parquet_file.num_row_groups:
+                raise IndexError(f"row_group {row_group} out of range [0, {parquet_file.num_row_groups})")
+            table = parquet_file.read_row_group(row_group, columns=["reaction_id", "reaction"])
+            yield from _iter_table(table, filter_set=filter_set)
+        else:
+            yield from _iter_reactions(parquet_file, filter_set=filter_set)
+
+
+def num_row_groups(path: str) -> int:
+    """Returns the number of row groups in a Parquet dataset.
+
+    Used by callers that parallelize over row groups via ``iter_reactions(...,
+    row_group=i)``. Cheap: only reads the file footer.
+    """
+    with pq.ParquetFile(path) as parquet_file:
+        return parquet_file.num_row_groups
 
 
 def _iter_reactions(
@@ -319,12 +341,20 @@ def _iter_reactions(
     filter_set: set[str] | None,
 ) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
     for batch in parquet_file.iter_batches(columns=["reaction_id", "reaction"]):
-        ids = batch.column("reaction_id").to_pylist()
-        blobs = batch.column("reaction").to_pylist()
-        for reaction_id, blob in zip(ids, blobs, strict=True):
-            if filter_set is not None and reaction_id not in filter_set:
-                continue
-            yield reaction_id, reaction_pb2.Reaction.FromString(blob)
+        yield from _iter_table(batch, filter_set=filter_set)
+
+
+def _iter_table(
+    table: "pa.Table | pa.RecordBatch",
+    *,
+    filter_set: set[str] | None,
+) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
+    ids = table.column("reaction_id").to_pylist()
+    blobs = table.column("reaction").to_pylist()
+    for reaction_id, blob in zip(ids, blobs, strict=True):
+        if filter_set is not None and reaction_id not in filter_set:
+            continue
+        yield reaction_id, reaction_pb2.Reaction.FromString(blob)
 
 
 def streaming_md5(path: str) -> tuple[str, int]:

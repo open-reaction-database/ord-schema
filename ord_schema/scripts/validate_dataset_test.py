@@ -18,7 +18,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from ord_schema import message_helpers, validations
+from ord_schema import message_helpers, parquet_dataset, validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import validate_dataset
 
@@ -73,6 +73,71 @@ def test_validation_errors(setup):
         match="Reactions should have at least 1 reaction input",
     ):
         validate_dataset.main(validate_dataset.parse_args(argv))
+
+
+def _valid_reaction(reaction_id: str = "") -> reaction_pb2.Reaction:
+    """Builds a Reaction that passes per-reaction validation."""
+    reaction = reaction_pb2.Reaction()
+    if reaction_id:
+        reaction.reaction_id = reaction_id
+    dummy_input = reaction.inputs["dummy_input"]
+    dummy_component = dummy_input.components.add()
+    dummy_component.identifiers.add(type="CUSTOM")
+    dummy_component.identifiers[0].details = "custom_identifier"
+    dummy_component.identifiers[0].value = "custom_value"
+    dummy_component.is_limiting = True
+    dummy_component.amount.mass.value = 1
+    dummy_component.amount.mass.units = reaction_pb2.Mass.GRAM
+    reaction.outcomes.add().conversion.value = 75
+    reaction.provenance.record_created.time.value = "2023-07-01"
+    reaction.provenance.record_created.person.name = "test"
+    reaction.provenance.record_created.person.email = "test@example.com"
+    return reaction
+
+
+def test_parquet_cross_row_group_duplicate_id(tmp_path):
+    """A duplicate reaction_id split across row groups must still be caught.
+
+    Exercises the row-group parallelism path: row_group_size=2 places the
+    repeated id in row groups 0 and 2, so cross-reference detection only
+    succeeds if per-row-group state is correctly merged.
+    """
+    repeated_id = "ord-deadbeef00000000000000000000a1"
+    reactions = [
+        _valid_reaction(reaction_id=repeated_id),
+        _valid_reaction(reaction_id="ord-deadbeef00000000000000000000a2"),
+        _valid_reaction(reaction_id="ord-deadbeef00000000000000000000a3"),
+        _valid_reaction(reaction_id="ord-deadbeef00000000000000000000a4"),
+        _valid_reaction(reaction_id=repeated_id),
+    ]
+    path = tmp_path / "cross_group_dup.parquet"
+    with parquet_dataset.DatasetWriter(str(path), name="test", description="test", row_group_size=2) as writer:
+        writer.write_all(reactions)
+    # Sanity-check the layout the test is asserting against.
+    assert parquet_dataset.num_row_groups(str(path)) == 3
+    with pytest.raises(
+        validations.ValidationError,
+        match="Multiple Reactions should never have the same IDs",
+    ):
+        validate_dataset.main(validate_dataset.parse_args(["--input", str(path)]))
+
+
+def test_parquet_per_reaction_error_in_late_row_group(tmp_path):
+    """Per-reaction errors must surface from any row group, not just the first."""
+    reactions = [
+        _valid_reaction(),
+        _valid_reaction(),
+        reaction_pb2.Reaction(),  # invalid: no inputs / no outcomes
+    ]
+    path = tmp_path / "late_invalid.parquet"
+    with parquet_dataset.DatasetWriter(str(path), name="test", description="test", row_group_size=2) as writer:
+        writer.write_all(reactions)
+    assert parquet_dataset.num_row_groups(str(path)) == 2
+    with pytest.raises(
+        validations.ValidationError,
+        match="Reactions should have at least 1 reaction input",
+    ):
+        validate_dataset.main(validate_dataset.parse_args(["--input", str(path)]))
 
 
 @pytest.mark.parametrize(
