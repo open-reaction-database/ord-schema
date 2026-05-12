@@ -601,3 +601,19 @@ def test_dataset_cross_references():
     output = _run_validation(message)
     assert len(output.errors) == 0
     assert len(output.warnings) == 3
+
+
+@pytest.mark.parametrize("message_cls", list(validations._VALIDATOR_SWITCH))
+def test_validator_switch_dispatches(message_cls):
+    """Default-empty instance of every dispatched type should validate without raising.
+
+    Most validators emit warnings (e.g. missing required fields) on an empty proto;
+    we only care that dispatch reaches the validator and returns without crashing.
+    """
+    message = message_cls()
+    output = validations.validate_message(
+        message,
+        raise_on_error=False,
+        options=validations.ValidationOptions(require_provenance=False),
+    )
+    assert isinstance(output, validations.ValidationOutput)

@@ -12,25 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Adds datasets to the ORM database.
+"""Adds datasets to the ORM database."""
 
-Usage:
-    add_datasets.py --pattern=<str> [options]
-    add_datasets.py -h | --help
-
-Options:
-    --pattern=<str>         Pattern for dataset filenames
-    --overwrite             Update changed datasets
-    --dsn=<str>             Postgres connection string
-    --database=<str>        Database [default: orm]
-    --username=<str>        Database username [default: postgres]
-    --password=<str>        Database password
-    --host=<str>            Database host [default: localhost]
-    --port=<int>            Database port [default: 5432]
-    --n_jobs=<int>          Number of parallel workers [default: 1]
-    --debug                 Enable debug logging.
-"""
-
+import argparse
 import logging
 import os
 import time
@@ -39,12 +23,12 @@ from contextlib import ExitStack
 from glob import glob
 from hashlib import md5
 
-from docopt import docopt
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
+from ord_schema import parquet_dataset
 from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.message_helpers import load_message
 from ord_schema.orm import database
@@ -58,7 +42,9 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
 
     Args:
         dsn: Database connection string.
-        filename: Dataset filename.
+        filename: Dataset filename. ``.parquet`` inputs are streamed via
+            ``database.add_parquet_dataset``; other formats load the whole
+            Dataset proto and call ``database.add_dataset``.
         overwrite: If True, update the dataset if the MD5 hash has changed.
 
     Returns:
@@ -67,30 +53,48 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
     Raises:
         ValueError: If the dataset already exists in the database and `overwrite` is not set.
     """
-    logger.debug(f"Loading {filename}")
-    dataset = load_message(filename, dataset_pb2.Dataset)
     # NOTE(skearnes): Multiprocessing is hard to get right for shared connection pools, so we don't even try; see
     # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
     engine = create_engine(dsn)
+    if filename.endswith(".parquet"):
+        logger.debug(f"Streaming {filename}")
+        dataset_id = parquet_dataset.read_metadata(filename).dataset_id
+
+        def compute_md5() -> str:
+            md5_hex, _ = parquet_dataset.streaming_md5(filename)
+            return md5_hex
+
+        def insert(session: Session) -> None:
+            database.add_parquet_dataset(filename, session, rdkit_cartridge=False)  # Done separately in add_rdkit().
+    else:
+        logger.debug(f"Loading {filename}")
+        dataset = load_message(filename, dataset_pb2.Dataset)
+        dataset_id = dataset.dataset_id
+
+        def compute_md5() -> str:
+            return md5(dataset.SerializeToString(deterministic=True)).hexdigest()
+
+        def insert(session: Session) -> None:
+            database.add_dataset(dataset, session, rdkit_cartridge=False)  # Done separately in add_rdkit().
+
     with Session(engine) as session:
         with session.begin():
-            dataset_md5 = database.get_dataset_md5(dataset.dataset_id, session)
-        if dataset_md5 is not None:
-            this_md5 = md5(dataset.SerializeToString(deterministic=True)).hexdigest()
-            if this_md5 != dataset_md5:
+            existing_md5 = database.get_dataset_md5(dataset_id, session)
+        if existing_md5 is not None:
+            if compute_md5() != existing_md5:
                 if not overwrite:
-                    raise ValueError(f"`overwrite` is required when a dataset already exists: {dataset.dataset_id}")
-                logger.debug(f"existing dataset {dataset.dataset_id} changed; updating")
+                    raise ValueError(f"`overwrite` is required when a dataset already exists: {dataset_id}")
+                logger.debug(f"existing dataset {dataset_id} changed; updating")
                 with session.begin():
-                    database.delete_dataset(dataset.dataset_id, session)
+                    database.delete_dataset(dataset_id, session)
             else:
-                logger.debug(f"existing dataset {dataset.dataset_id} unchanged; skipping")
-                return dataset.dataset_id
+                logger.debug(f"existing dataset {dataset_id} unchanged; skipping")
+                return dataset_id
         start = time.time()
         with session.begin():
-            database.add_dataset(dataset, session, rdkit_cartridge=False)  # Do this separately in add_rdkit().
-        logger.debug(f"add_dataset() took {time.time() - start:g}s")
-    return dataset.dataset_id
+            insert(session)
+        logger.debug(f"insert took {time.time() - start:g}s")
+    return dataset_id
 
 
 def add_rdkit(engine: Engine, dataset_id: str) -> None:
@@ -102,23 +106,38 @@ def add_rdkit(engine: Engine, dataset_id: str) -> None:
             database.update_rdkit_ids(dataset_id, session)
 
 
-def main(**kwargs):
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Add datasets to the ORM database")
+    parser.add_argument("--pattern", required=True, help="Pattern for dataset filenames")
+    parser.add_argument("--overwrite", action="store_true", help="Update changed datasets")
+    parser.add_argument("--dsn", default=None, help="Postgres connection string")
+    parser.add_argument("--database", default="orm", help="Database")
+    parser.add_argument("--username", default="postgres", help="Database username")
+    parser.add_argument("--password", default=None, help="Database password")
+    parser.add_argument("--host", default="localhost", help="Database host")
+    parser.add_argument("--port", type=int, default=5432, help="Database port")
+    parser.add_argument("--n_jobs", type=int, default=1, help="Number of parallel workers")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    return parser.parse_args(argv)
+
+
+def main(args):
     silence_rdkit_logs()
-    if kwargs["--debug"]:
+    if args.debug:
         get_logger(database.__name__, level=logging.DEBUG)
-    if kwargs["--dsn"]:
-        dsn = kwargs["--dsn"]
+    if args.dsn:
+        dsn = args.dsn
     else:
         dsn = database.get_connection_string(
-            database=kwargs["--database"],
-            username=kwargs["--username"],
-            password=kwargs["--password"] or os.environ["PGPASSWORD"],
-            host=kwargs["--host"],
-            port=int(kwargs["--port"]),
+            database=args.database,
+            username=args.username,
+            password=args.password or os.environ["PGPASSWORD"],
+            host=args.host,
+            port=args.port,
         )
-    filenames = sorted(glob(kwargs["--pattern"]))
+    filenames = sorted(glob(args.pattern))
     with ExitStack() as stack:
-        max_workers = int(kwargs["--n_jobs"])
+        max_workers = args.n_jobs
         if max_workers > 1:
             executor = stack.enter_context(ProcessPoolExecutor(max_workers))
         else:
@@ -126,7 +145,7 @@ def main(**kwargs):
         logger.info("Adding datasets")
         futures = {}
         for filename in filenames:
-            future = executor.submit(add_dataset, dsn=dsn, filename=filename, overwrite=kwargs["--overwrite"])
+            future = executor.submit(add_dataset, dsn=dsn, filename=filename, overwrite=args.overwrite)
             futures[future] = filename
         dataset_ids = []
         failures = []
@@ -150,4 +169,4 @@ def main(**kwargs):
 
 
 if __name__ == "__main__":
-    main(**docopt(__doc__))
+    main(parse_args())

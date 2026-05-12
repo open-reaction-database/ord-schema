@@ -92,7 +92,7 @@ methods (this list is not an endorsement of any particular provider):
 
 ```shell
 # Create a new conda environment.
-conda create -n ord -c conda-forge python=3.10 rdkit rdkit-postgresql
+conda create -n ord -c conda-forge python=3.11 rdkit rdkit-postgresql
 conda activate ord
 # Install ord-schema in this environment.
 cd ord-schema

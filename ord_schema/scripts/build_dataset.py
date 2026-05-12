@@ -14,21 +14,10 @@
 """Builds a Dataset from a set of Reaction protos.
 
 TODO(kearnes): Add support for automatic sharding?
-
-Usage:
-    build_dataset.py --input=<str> --output=<str> --name=<str> --description=<str> [--no-validate]
-
-Options:
-    --input=<str>           Input pattern for Reaction protos
-    --output=<str>          Output Dataset filename (*.pbtxt)
-    --name=<str>            Name for this dataset
-    --description=<str>     Description for this dataset
-    --no-validate           If set, do run validations on reactions
 """
 
+import argparse
 import glob
-
-import docopt
 
 from ord_schema import message_helpers, validations
 from ord_schema.logging import get_logger
@@ -37,17 +26,27 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 logger = get_logger(__name__)
 
 
-def main(kwargs):
-    filenames = glob.glob(kwargs["--input"], recursive=True)
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Build a Dataset from Reaction protos")
+    parser.add_argument("--input", required=True, help="Input pattern for Reaction protos")
+    parser.add_argument("--output", required=True, help="Output Dataset filename (*.pbtxt)")
+    parser.add_argument("--name", required=True, help="Name for this dataset")
+    parser.add_argument("--description", required=True, help="Description for this dataset")
+    parser.add_argument("--no-validate", action="store_true", help="If set, do not run validations on reactions")
+    return parser.parse_args(argv)
+
+
+def main(args):
+    filenames = glob.glob(args.input, recursive=True)
     logger.info("Found %d Reaction protos", len(filenames))
     reactions = []
     for filename in filenames:
         reactions.append(message_helpers.load_message(filename, reaction_pb2.Reaction))
-    dataset = dataset_pb2.Dataset(name=kwargs["--name"], description=kwargs["--description"], reactions=reactions)
-    if not kwargs["--no-validate"]:
+    dataset = dataset_pb2.Dataset(name=args.name, description=args.description, reactions=reactions)
+    if not args.no_validate:
         validations.validate_datasets({"_COMBINED": dataset})
-    message_helpers.write_message(dataset, kwargs["--output"])
+    message_helpers.write_message(dataset, args.output)
 
 
 if __name__ == "__main__":
-    main(docopt.docopt(__doc__))
+    main(parse_args())

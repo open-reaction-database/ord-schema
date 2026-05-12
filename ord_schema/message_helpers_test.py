@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.message_helpers."""
 
+import os
 import tempfile
 import time
 from collections.abc import Iterator
@@ -22,8 +23,8 @@ import pytest
 from google.protobuf import json_format, text_format
 from rdkit import Chem
 
-from ord_schema import message_helpers
-from ord_schema.proto import reaction_pb2, test_pb2
+from ord_schema import message_helpers, parquet_dataset
+from ord_schema.proto import dataset_pb2, reaction_pb2, test_pb2
 
 _BENZENE_MOLBLOCK = """241
   -OEChem-07232015262D
@@ -68,6 +69,18 @@ class TestMessageHelpers:
     )
     def test_id_filename(self, filename, expected):
         assert message_helpers.id_filename(filename) == expected
+
+    @pytest.mark.parametrize(
+        "filename,match",
+        (
+            ("notord-1234567890", "ord"),  # Wrong prefix.
+            ("ord-..foo", "alphanumeric"),  # Shard "..", traversal attempt.
+            ("ord-.foo", "alphanumeric"),  # Shard ".f", non-alphanumeric.
+        ),
+    )
+    def test_id_filename_rejects_unsafe(self, filename, match):
+        with pytest.raises(ValueError, match=match):
+            message_helpers.id_filename(filename)
 
     @pytest.mark.parametrize(
         "value,identifier_type,expected",
@@ -423,7 +436,21 @@ class TestLoadAndWriteMessage:
             test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
         ]
 
-    @pytest.mark.parametrize("suffix", (".pbtxt", ".pb", ".json", ".pbtxt.gz", ".pb.gz", ".json.gz"))
+    @pytest.mark.parametrize(
+        "suffix",
+        (
+            ".pbtxt",
+            ".pb",
+            ".json",
+            ".pbtxt.gz",
+            ".pb.gz",
+            ".json.gz",
+            ".txtpb",
+            ".binpb",
+            ".txtpb.gz",
+            ".binpb.gz",
+        ),
+    )
     def test_round_trip(self, suffix, messages):
         for message in messages:
             with tempfile.NamedTemporaryFile(suffix=suffix) as f:
@@ -480,6 +507,55 @@ class TestLoadAndWriteMessage:
         message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
         with pytest.raises(ValueError, match="not a valid MessageFormat"):
             message_helpers.write_message(message, "test.proto")
+
+    @pytest.mark.parametrize(
+        "suffix",
+        (".pbtxt", ".pb", ".json", ".pb.gz", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
+    )
+    def test_write_message_is_atomic_on_failure(self, suffix, tmp_path, monkeypatch):
+        """A crash mid-write must not leave a partial file (or .tmp) at the destination."""
+        message = test_pb2.Scalar(int32_value=3)
+        dest = (tmp_path / f"crashy{suffix}").as_posix()
+        # Pre-existing destination must survive a failed overwrite.
+        with open(dest, "wb") as f:
+            f.write(b"original-bytes")
+
+        def boom(*_, **__):
+            raise RuntimeError("simulated mid-write failure")
+
+        # Patch every encoder so the format-specific branch raises after the
+        # temp file has been opened.
+        monkeypatch.setattr(json_format, "MessageToJson", boom)
+        monkeypatch.setattr(text_format, "MessageToString", boom)
+        monkeypatch.setattr(message.__class__, "SerializeToString", boom)
+
+        with pytest.raises(RuntimeError, match="simulated mid-write failure"):
+            message_helpers.write_message(message, dest)
+        with open(dest, "rb") as f:
+            assert f.read() == b"original-bytes"
+        assert not os.path.exists(dest + ".tmp")
+
+    @pytest.mark.parametrize(
+        "suffix",
+        (".pbtxt", ".pb", ".pb.gz", ".json", ".parquet", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
+    )
+    def test_write_dataset(self, suffix, tmp_path):
+        dataset = dataset_pb2.Dataset(
+            name="n",
+            description="d",
+            reactions=[reaction_pb2.Reaction(reaction_id="ord-0")],
+        )
+        path = (tmp_path / f"ds{suffix}").as_posix()
+        message_helpers.write_dataset(dataset, path)
+        # For .parquet, exercise the DatasetView entry point callers will use;
+        # for other formats, use the generic load_message.
+        if suffix == ".parquet":
+            loaded = parquet_dataset.DatasetView(path)
+        else:
+            loaded = message_helpers.load_message(path, dataset_pb2.Dataset)
+        assert loaded.name == "n"
+        assert loaded.description == "d"
+        assert list(loaded.reactions) == list(dataset.reactions)
 
 
 class TestCreateMessage:

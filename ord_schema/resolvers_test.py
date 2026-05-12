@@ -13,6 +13,9 @@
 # limitations under the License.
 """Tests for ord_schema.units."""
 
+import urllib.error
+from unittest import mock
+
 import pytest
 from rdkit import Chem
 
@@ -77,3 +80,119 @@ class TestInputResolvers:
     def test_input_resolve_should_fail(self, string, expected):
         with pytest.raises((KeyError, ValueError), match=expected):
             resolvers.resolve_input(string)
+
+
+def _http_error(code: int, msg: str) -> urllib.error.HTTPError:
+    # urllib's HTTPError stub declares hdrs/fp as non-Optional, but the runtime
+    # accepts None for both — fine for tests where we never read them.
+    return urllib.error.HTTPError("", code, msg, hdrs=None, fp=None)  # ty: ignore[invalid-argument-type]
+
+
+class TestPubChemRetry:
+    """Tests for the tenacity-driven retry on PubChem 503 ServerBusy."""
+
+    @staticmethod
+    def _ok_response() -> mock.MagicMock:
+        response = mock.MagicMock()
+        response.read.return_value = b"CC(=O)Oc1ccccc1C(=O)O\n"
+        response.__enter__.return_value = response
+        return response
+
+    def test_retries_then_succeeds(self, monkeypatch):
+        # Two 503s then a successful response — the decorator should swallow both
+        # 503s without surfacing them and return the eventual SMILES.
+        responses = [
+            _http_error(503, "PUGREST.ServerBusy"),
+            _http_error(503, "PUGREST.ServerBusy"),
+            self._ok_response(),
+        ]
+        urlopen = mock.MagicMock(side_effect=responses)
+        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        # Drop tenacity's wait so the test runs in milliseconds, not seconds.
+        # tenacity attaches a Retrying object to the wrapped function as .retry;
+        # ty's stubs don't model this, hence the ignore.
+        monkeypatch.setattr(resolvers._pubchem_resolve.retry, "wait", lambda *_, **__: 0)  # ty: ignore[unresolved-attribute]
+        assert resolvers._pubchem_resolve("name", "aspirin") == "CC(=O)Oc1ccccc1C(=O)O"
+        assert urlopen.call_count == 3
+
+    def test_does_not_retry_404(self, monkeypatch):
+        # 404 means "no such compound" — must not be retried.
+        urlopen = mock.MagicMock(side_effect=_http_error(404, "Not Found"))
+        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        with pytest.raises(urllib.error.HTTPError):
+            resolvers._pubchem_resolve("name", "definitely-not-a-compound")
+        assert urlopen.call_count == 1
+
+
+class TestCanonicalizeSmiles:
+    def test_canonicalizes(self):
+        # OCCO and C(CO)O are the same molecule written two ways; both must
+        # produce the canonical form "OCCO".
+        assert resolvers.canonicalize_smiles("OCCO") == "OCCO"
+        assert resolvers.canonicalize_smiles("C(CO)O") == "OCCO"
+
+    def test_invalid_smiles_raises(self):
+        with pytest.raises(ValueError, match="Could not parse SMILES"):
+            resolvers.canonicalize_smiles("not a smiles")
+
+
+class TestOpsinResolve:
+    def test_opsin_resolve(self, monkeypatch):
+        response = mock.MagicMock()
+        response.read.return_value = b"OCCO\n"
+        response.__enter__.return_value = response
+        urlopen = mock.MagicMock(return_value=response)
+        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        # value_type is ignored by OPSIN.
+        assert resolvers._opsin_resolve("name", "ethane-1,2-diol") == "OCCO"
+        assert urlopen.call_count == 1
+
+
+class TestNameResolveFallback:
+    def test_falls_back_to_next_resolver_on_http_error(self, monkeypatch):
+        # First resolver raises an HTTPError; second resolver succeeds.
+        first = mock.MagicMock(side_effect=_http_error(404, "Not Found"))
+        second = mock.MagicMock(return_value="OCCO")
+        monkeypatch.setattr("ord_schema.resolvers._NAME_RESOLVERS", {"first": first, "second": second})
+        smiles, resolver_name = resolvers.name_resolve("name", "ethylene glycol")
+        assert smiles == "OCCO"
+        assert resolver_name == "second"
+        first.assert_called_once_with("name", "ethylene glycol")
+        second.assert_called_once_with("name", "ethylene glycol")
+
+    def test_raises_when_no_resolver_succeeds(self, monkeypatch):
+        only = mock.MagicMock(side_effect=_http_error(404, "Not Found"))
+        monkeypatch.setattr("ord_schema.resolvers._NAME_RESOLVERS", {"only": only})
+        with pytest.raises(ValueError, match="Could not resolve"):
+            resolvers.name_resolve("name", "definitely-not-a-compound")
+
+
+class TestResolveNamesSkipsStructuralIdentifiers:
+    def test_skips_compound_with_existing_smiles(self, monkeypatch):
+        # If a Compound already has a structural identifier, name resolution
+        # must not be attempted.
+        called = mock.MagicMock()
+        monkeypatch.setattr("ord_schema.resolvers.name_resolve", called)
+        message = reaction_pb2.Reaction()
+        compound = message.inputs["test"].components.add()
+        compound.identifiers.add(type="NAME", value="aspirin")
+        compound.identifiers.add(type="SMILES", value="CC(=O)Oc1ccccc1C(=O)O")
+        assert not resolvers.resolve_names(message)
+        called.assert_not_called()
+
+    def test_swallows_value_error(self, monkeypatch):
+        # When name_resolve raises ValueError, resolve_names skips that NAME and
+        # reports no modification.
+        monkeypatch.setattr(
+            "ord_schema.resolvers.name_resolve",
+            mock.MagicMock(side_effect=ValueError("not found")),
+        )
+        message = reaction_pb2.Reaction()
+        message.inputs["test"].components.add().identifiers.add(type="NAME", value="zzzzzz")
+        assert not resolvers.resolve_names(message)
+
+
+class TestResolveInputBadFormat:
+    def test_missing_of_separator(self):
+        with pytest.raises(ValueError, match="does not match template"):
+            resolvers.resolve_input("just a description")

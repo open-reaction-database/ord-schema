@@ -13,13 +13,13 @@
 # limitations under the License.
 """Name/string resolution to structured messages or identifiers."""
 
-import email.message
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
 
 from rdkit import Chem
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_random_exponential
 
 import ord_schema
 from ord_schema import message_helpers
@@ -103,6 +103,19 @@ def resolve_names(message: ord_schema.Message) -> bool:
     return modified
 
 
+def _is_pubchem_busy(exception: BaseException) -> bool:
+    # PubChem returns 503 PUGREST.ServerBusy when its service-wide concurrent
+    # request load is shedding (independent of any per-IP quota). Retry only
+    # that case; 404 (unknown name) and other 4xx codes should fall through.
+    return isinstance(exception, urllib.error.HTTPError) and exception.code == 503
+
+
+@retry(
+    retry=retry_if_exception(_is_pubchem_busy),
+    stop=stop_after_attempt(5),
+    wait=wait_random_exponential(multiplier=1, max=8),
+    reraise=True,
+)
 def _pubchem_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the PubChem REST API."""
     with urllib.request.urlopen(
@@ -112,23 +125,16 @@ def _pubchem_resolve(value_type: str, value: str) -> str:
         return response.read().decode().strip()
 
 
-def _cactus_resolve(value_type: str, value: str) -> str:
-    """Resolves compound identifiers to SMILES via the CACTUS API."""
-    del value_type  # Unused.
-    with urllib.request.urlopen(
-        f"https://cactus.nci.nih.gov/chemical/structure/{urllib.parse.quote(value)}/smiles"
-    ) as response:
+def _opsin_resolve(value_type: str, value: str) -> str:
+    """Resolves systematic IUPAC names to SMILES via the OPSIN web service.
+
+    OPSIN is a parser for systematic IUPAC nomenclature, not a lookup service:
+    it will refuse trade names, trivial names, and abbreviations (e.g. "aspirin",
+    "THF") with an HTTP 404. Treat it strictly as a complement to PubChem.
+    """
+    del value_type  # OPSIN only supports names.
+    with urllib.request.urlopen(f"https://www.ebi.ac.uk/opsin/ws/{urllib.parse.quote(value)}.smi") as response:
         return response.read().decode().strip()
-
-
-def _emolecules_resolve(value_type: str, value: str) -> str:
-    """Resolves compound identifiers to SMILES via the eMolecules API."""
-    del value_type  # Unused.
-    with urllib.request.urlopen(f"https://www.emolecules.com/lookup?q={urllib.parse.quote(value)}") as response:
-        response_text = response.read().decode().strip()
-    if response_text == "__END__":
-        raise urllib.error.HTTPError("", 404, "eMolecules lookup unsuccessful", email.message.Message(), None)
-    return response_text.split("\t")[0]
 
 
 def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
@@ -176,8 +182,16 @@ def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
 
 
 # Standard name resolvers.
+#
+# PubChem handles the bulk of inputs (trade names, trivial names, abbreviations,
+# CAS numbers), and OPSIN is a reliable fallback for systematic IUPAC names when
+# PubChem is unavailable or rate-limited.
+#
+# Previously also included NCI/CADD (cactus.nci.nih.gov) and eMolecules, which
+# are both effectively dead: cactus has been returning uniform 503s with a silent
+# blog since 2013, and eMolecules' public /lookup?q= endpoint now always replies
+# "__END__" (their current API requires authentication).
 _NAME_RESOLVERS = {
     "PubChem API": _pubchem_resolve,
-    "NCI/CADD Chemical Identifier Resolver": _cactus_resolve,
-    "eMolecules Lookup Service": _emolecules_resolve,
+    "OPSIN": _opsin_resolve,
 }
