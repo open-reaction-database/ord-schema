@@ -34,7 +34,7 @@ repos:
     hooks:
       - id: ty-check
         name: ty check (ord_schema)
-        entry: uv run ty check ord_schema
+        entry: uv run --extra tests ty check ord_schema
         language: system
         pass_filenames: false
 
