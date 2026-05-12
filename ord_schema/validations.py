@@ -384,48 +384,136 @@ def is_valid_dataset_id(dataset_id: str) -> bool:
     return bool(match)
 
 
+@dataclasses.dataclass
+class DatasetCrossRefState:
+    """Aggregated cross-reference observations for a Dataset.
+
+    A worker validating a slice of reactions feeds each one into ``observe``
+    and returns the resulting state. The master process merges the per-slice
+    states with ``merge`` and then ``emit_warnings`` raises a warning per
+    duplicate occurrence, per self-reference, and one summary warning if any
+    referenced reaction_ids are undefined. This keeps the streaming path
+    behaviorally equivalent to the in-memory path.
+    """
+
+    defined_ids: set[str] = dataclasses.field(default_factory=set)
+    referenced_ids: set[str] = dataclasses.field(default_factory=set)
+    duplicate_count: int = 0
+    self_reference_count: int = 0
+
+    def observe(self, reaction: reaction_pb2.Reaction) -> None:
+        if reaction.reaction_id:
+            if reaction.reaction_id in self.defined_ids:
+                self.duplicate_count += 1
+            self.defined_ids.add(reaction.reaction_id)
+        referenced = get_referenced_reaction_ids(reaction)
+        if any(_id == reaction.reaction_id for _id in referenced):
+            self.self_reference_count += 1
+        self.referenced_ids |= referenced
+
+    def merge(self, other: "DatasetCrossRefState") -> None:
+        self.duplicate_count += other.duplicate_count + len(self.defined_ids & other.defined_ids)
+        self.defined_ids |= other.defined_ids
+        self.referenced_ids |= other.referenced_ids
+        self.self_reference_count += other.self_reference_count
+
+    def emit_warnings(self) -> None:
+        for _ in range(self.duplicate_count):
+            warnings.warn("Multiple Reactions should never have the same IDs", ValidationError)
+        for _ in range(self.self_reference_count):
+            warnings.warn("A Reaction should not reference its own ID", ValidationError)
+        undefined = self.referenced_ids - self.defined_ids
+        if undefined:
+            warnings.warn(
+                f"Reactions in the Dataset refer to undefined reaction_ids {undefined}",
+                ValidationError,
+            )
+
+
+def _validate_dataset_scalars(
+    *,
+    name: str,
+    description: str,
+    dataset_id: str,
+    reaction_ids: list[str],
+    has_reactions: bool,
+    options: ValidationOptions,
+) -> None:
+    """Issues the dataset-level scalar/structural warnings.
+
+    Pure function over the scalar fields so the streaming path can reuse it
+    without re-iterating reactions.
+    """
+    if not name:
+        warnings.warn("Dataset name is required", ValidationError)
+    if not description:
+        warnings.warn("Dataset description is required", ValidationError)
+    if not has_reactions and not reaction_ids:
+        warnings.warn("Dataset requires reactions or reaction_ids", ValidationError)
+    elif has_reactions and reaction_ids:
+        warnings.warn("Dataset requires reactions or reaction_ids, not both", ValidationError)
+    if reaction_ids:
+        for reaction_id in reaction_ids:
+            if not is_valid_reaction_id(reaction_id):
+                warnings.warn("Reaction ID is malformed", ValidationError)
+    if options.validate_ids:
+        # The dataset_id is a 32-character uuid4 hex string.
+        if not is_valid_dataset_id(dataset_id):
+            warnings.warn("Dataset ID is malformed", ValidationError)
+
+
 def validate_dataset(
     message: dataset_pb2.Dataset | parquet_dataset.DatasetView,
     options: ValidationOptions | None = None,
 ):
     if options is None:
         options = ValidationOptions()
-    if not message.name:
-        warnings.warn("Dataset name is required", ValidationError)
-    if not message.description:
-        warnings.warn("Dataset description is required", ValidationError)
-    if not message.reactions and not message.reaction_ids:
-        warnings.warn("Dataset requires reactions or reaction_ids", ValidationError)
-    elif message.reactions and message.reaction_ids:
-        warnings.warn("Dataset requires reactions or reaction_ids, not both", ValidationError)
-    if message.reaction_ids:
-        for reaction_id in message.reaction_ids:
-            if not is_valid_reaction_id(reaction_id):
-                warnings.warn("Reaction ID is malformed", ValidationError)
-    if options.validate_ids:
-        # The dataset_id is a 32-character uuid4 hex string.
-        if not is_valid_dataset_id(message.dataset_id):
-            warnings.warn("Dataset ID is malformed", ValidationError)
-    # Check cross-references
-    dataset_referenced_ids = set()
-    dataset_defined_ids = set()
+    _validate_dataset_scalars(
+        name=message.name,
+        description=message.description,
+        dataset_id=message.dataset_id,
+        reaction_ids=list(message.reaction_ids),
+        has_reactions=bool(message.reactions),
+        options=options,
+    )
+    state = DatasetCrossRefState()
     for reaction in message.reactions:
-        if reaction.reaction_id:
-            if reaction.reaction_id in dataset_defined_ids:
-                warnings.warn(
-                    "Multiple Reactions should never have the same IDs",
-                    ValidationError,
-                )
-            dataset_defined_ids.add(reaction.reaction_id)
-        referenced_ids = get_referenced_reaction_ids(reaction)
-        if any(_id == reaction.reaction_id for _id in referenced_ids):
-            warnings.warn("A Reaction should not reference its own ID", ValidationError)
-        dataset_referenced_ids |= referenced_ids
-    if len(dataset_referenced_ids - dataset_defined_ids) > 0:
-        warnings.warn(
-            f"Reactions in the Dataset refer to undefined reaction_ids {dataset_referenced_ids - dataset_defined_ids}",
-            ValidationError,
-        )
+        state.observe(reaction)
+    state.emit_warnings()
+
+
+def validate_dataset_streaming(
+    *,
+    name: str,
+    description: str,
+    dataset_id: str,
+    reaction_ids: list[str],
+    has_reactions: bool,
+    state: DatasetCrossRefState,
+    options: ValidationOptions | None = None,
+) -> None:
+    """Dataset-level validation for callers that have already streamed reactions.
+
+    Equivalent to ``validate_dataset`` for a Dataset whose reactions have been
+    iterated in slices (e.g., per Parquet row group) by upstream workers, with
+    each worker contributing a ``DatasetCrossRefState`` that the caller has
+    merged. ``has_reactions`` should reflect the source's row count (e.g.,
+    ``parquet_dataset.read_metadata`` plus ``num_row_groups`` for parquet);
+    inferring it from ``state`` would misclassify reactions without
+    reaction_ids or references as empty. Pass ``reaction_ids=[]`` for the
+    typical streaming case (parquet does not persist Dataset.reaction_ids).
+    """
+    if options is None:
+        options = ValidationOptions()
+    _validate_dataset_scalars(
+        name=name,
+        description=description,
+        dataset_id=dataset_id,
+        reaction_ids=reaction_ids,
+        has_reactions=has_reactions,
+        options=options,
+    )
+    state.emit_warnings()
 
 
 def validate_dataset_example(message: dataset_pb2.DatasetExample):
