@@ -16,7 +16,7 @@ meet all of the following crieria:
 - The dataset must be accepted into the ORD repository between 1st Jan 2026 and 18th 
   December 2026. This includes passing the peer-review checks, and any required 
   corrections being completed before the closing date.
-- A Dataset Reward application (link available soon!) must have been submitted by the applicant, and the
+- A Dataset Reward application (`link <https://docs.google.com/forms/d/e/1FAIpQLSd0Jhv6iQD5whgIfR3QJ2gU49a4KSxAz4XRmfpWUDn0GaQtEg/viewform?usp=publish-editor>`__) must have been submitted by the applicant, and the
   Reward application must have pre-approval from the ORD Program Manager.
 - The dataset must meet the :ref:`dataset-eligibility` criteria.
 - The applicant must meet the :ref:`applicant-eligibility` criteria.
@@ -142,7 +142,7 @@ wishlist and can temporarily reserve their selected dataset by:
 1. signing in to GitHub
 2. add themselves as an 'Assignee' on the dataset
 3. change the dataset status to 'Reserved' or move the dataset card to the 'Reserved'
-4. if you are applying for a Dataset Reward then you should then complete the [application form] and specify
+4. if you are applying for a Dataset Reward then you should then complete the [`application form <https://forms.gle/uAeqGwVak1bti7EC9>`__] and specify
    your selected dataset in your application
 
 Please only reserve datasets which you are committing to complete within a timely manner if your Dataset
@@ -178,7 +178,8 @@ difficulty is based on:
 
 - The inclusion of line notation (SMILES or InChI) for chemical variables makes dataset preparation much easier. 
   If these are absent from the source data then a curator will have to add these to a source data csv or spreadsheet 
-  for enumeration. See (link) for guidance on how to obtain these chemical identifiers.
+  for enumeration. See (`Compound Identifiers guide <https://docs.open-reaction-database.org/en/latest/guides/compound_identifiers.html>`__) 
+  for guidance on how to obtain these chemical identifiers.
 - How much detail is included in the experimental method description
 
 A hard paper/dataset can become much easier if the authors are able to provide the source data in a machine readable 
@@ -301,9 +302,9 @@ To participate in the Dataset Reward program please do the following:
 
 1. Check that you meet the :ref:`applicant-eligibility` criteria
 2. Select a suitable paper or source dataset that you will turn into an ORD dataset. The paper/dataset must meet the :ref:`dataset-eligibility` criteria.
-3. Complete a Dataset Reward application form (link coming soon!). As part of the application you will be required to agree to the following:
+3. Complete a Dataset Reward application form (`link <https://forms.gle/uAeqGwVak1bti7EC9>`__). As part of the application you will be required to agree to the following:
 
-   - Contractor Agreement for First Dataset (link coming soon!) OR for Second Dataset (link coming soon!)
+   - Independent Contractor Agreement (`link <https://github.com/open-reaction-database/ord-schema/blob/325d4c67c57e30f3d10a32462bf765c48ca63136/docs/documents/STF-%20Data%20Curators%20Agreement.pdf>`__)
    - `Privacy Policy <https://docs.google.com/document/d/1cZuNwMyyKu9S3zmp0_ZCnm6XshEGhYYQwm4HqoI8lhQ/edit?usp=sharing>`__ of BJ Deadman Consultancy Limited
    - `Privacy Policy <https://www.scienceandtechnologyfutures.org/privacy>`__ of Science and Technology Futures Inc.
 
