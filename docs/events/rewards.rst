@@ -120,7 +120,7 @@ have experience interpreting synthesis methods as they are reported in research 
 Dataset Eligibility
 ************************************************
 
-Dataset Rewards are only available for approved datasets. We are currently accepting Dataset reward
+Dataset Rewards are only available for approved datasets. We are currently accepting Dataset Reward
 applications for datasets which have been specified through one of the following channels:
 
 - :ref:`wishlist`
@@ -141,8 +141,8 @@ wishlist and can temporarily reserve their selected dataset by:
 
 1. signing in to GitHub
 2. add themselves as an 'Assignee' on the dataset
-3. change the dataset status to 'Reserved' or move the dataset card to the 'Reserved'
-4. if you are applying for a Dataset Reward then you should then complete the [`application form <https://forms.gle/uAeqGwVak1bti7EC9>`__] and specify
+3. change the dataset status to 'Reserved' or move the dataset card to the 'Reserved' column
+4. if you are applying for a Dataset Reward you should then complete the [`application form <https://forms.gle/uAeqGwVak1bti7EC9>`__] and specify
    your selected dataset in your application
 
 Please only reserve datasets which you are committing to complete within a timely manner if your Dataset
@@ -255,7 +255,7 @@ comments to communicate with ORD support. Please use the paper or datast title f
 details about the paper/dataset (e.g. links to the paper and associated source data files) in the description.
 
 Where the paper/dataset is in the ORD `Dataset Wishlist <https://github.com/orgs/open-reaction-database/projects/11>`__ the issue can
-be quickly created from the dataset card in the Wishlist. Please create ensure the issue is created in the **ord-data** repository.
+be quickly created from the dataset card in the Wishlist. Please ensure the issue is created in the **ord-data** repository.
 
 .. image:: ../images/github_dataset_issue.png
 
