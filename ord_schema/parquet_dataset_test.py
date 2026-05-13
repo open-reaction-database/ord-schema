@@ -96,6 +96,20 @@ def test_iter_reactions_filtered(tmp_path):
     assert [rid for rid, _ in pairs] == ["ord-0001", "ord-0003"]
 
 
+def test_iter_reactions_row_group(tmp_path):
+    original = _make_dataset(n=5)
+    path = os.path.join(tmp_path, "ds.parquet")
+    # row_group_size=2 -> row groups of [0,1], [2,3], [4]
+    with dataset.DatasetWriter(path, name=original.name, description=original.description, row_group_size=2) as writer:
+        writer.write_all(original.reactions)
+    assert dataset.num_row_groups(path) == 3
+    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=0)] == ["ord-0000", "ord-0001"]
+    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=1)] == ["ord-0002", "ord-0003"]
+    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=2)] == ["ord-0004"]
+    with pytest.raises(IndexError, match="out of range"):
+        list(dataset.iter_reactions(path, row_group=3))
+
+
 def test_iter_reactions_empty_filter_raises(tmp_path):
     original = _make_dataset(n=3)
     path = os.path.join(tmp_path, "ds.parquet")
