@@ -238,7 +238,7 @@ To participate in the Dataset Rewards program please do the following:
 2. Select a suitable paper or source dataset that you will turn into an ORD dataset. The paper/dataset must meet the :ref:`dataset-eligibility` criteria.
 3. Complete a Dataset Reward application form (`link <https://forms.gle/uAeqGwVak1bti7EC9>`__). As part of the application you will be required to agree to the following:
 
-   - Independent Contractor Agreement (`link <https://github.com/open-reaction-database/ord-schema/blob/325d4c67c57e30f3d10a32462bf765c48ca63136/docs/documents/STF-%20Data%20Curators%20Agreement.pdf>`__)
+   - Independent Contractor Agreement (`link <https://drive.google.com/file/d/1rxFcUR_eLZGK3zMyRwQzfLdqhjU08EYq/view?usp=sharing>`__)
    - `Privacy Policy <https://docs.google.com/document/d/1cZuNwMyyKu9S3zmp0_ZCnm6XshEGhYYQwm4HqoI8lhQ/edit?usp=sharing>`__ of BJ Deadman Consultancy Limited
    - `Privacy Policy <https://www.scienceandtechnologyfutures.org/privacy>`__ of Science and Technology Futures Inc.
 
