@@ -160,7 +160,7 @@ Required Education and Skills
 ###############################
 
 All dataset submissions are peer-reviewed and need to pass quality checks before they are accepted
-into the ORD repository. Rewards will not given for datasets which are submitted, but do not pass
+into the ORD repository. Rewards will not be given for datasets which are submitted, but do not pass
 the peer-review stage before the closing date of the Rewards Program. This guidance is intended to
 help applicants evaluate their ability to prepare a reaction dataset that will pass peer-review.
 
@@ -192,8 +192,8 @@ Python coding is still recommended in ORD dataset preparation are:
 The formal submission process does involve making a pull request through GitHub and the process is 
 documented `here <https://docs.open-reaction-database.org/en/latest/submissions.html>`__, but this
 process should not be a barrier to the completion of a dataset. Additional :ref:`support` is available 
-  to help users through the GitHub submission process for datasets that have successfully passed an ORD
-  peer-review outside of GitHub.
+to help users through the GitHub submission process for datasets that have successfully passed an ORD
+peer-review outside of GitHub.
  
 Chemistry Knowledge
 """"""""""""""""""""""
