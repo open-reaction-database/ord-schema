@@ -61,6 +61,8 @@ jobs:
       - uses: codecov/codecov-action@v5
         with:
           files: coverage.xml
+          # CODECOV_TOKEN is an org-wide token, so the repo slug must be explicit.
+          slug: open-reaction-database/ord-schema
           fail_ci_if_error: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && !startsWith(github.head_ref, 'dependabot/')) }}
           token: ${{ secrets.CODECOV_TOKEN }}
 
