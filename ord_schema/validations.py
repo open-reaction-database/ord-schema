@@ -788,7 +788,7 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier):
             )
     elif message.type in (message.PUBCHEM_CID, message.CHEMSPIDER_ID):
         identifier_type = "PubChem CID" if message.type == message.PUBCHEM_CID else "ChemSpider ID"
-        if not message.value.isdigit():
+        if not message.value.isdecimal():
             warnings.warn(
                 f"{identifier_type} {message.value} should be an integer",
                 ValidationWarning,
@@ -973,7 +973,7 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
         and not message.input.components
     ):
         warnings.warn("Workup step missing recommended inputs definition", ValidationWarning)
-    if message.type == reaction_pb2.ReactionWorkup.STIRRING and not message.stirring:
+    if message.type == reaction_pb2.ReactionWorkup.STIRRING and not message.HasField("stirring"):
         warnings.warn("Stirring workup step missing stirring definition", ValidationWarning)
     if message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and not message.HasField("target_ph"):
         warnings.warn("pH adjustment workup missing target pH", ValidationWarning)
