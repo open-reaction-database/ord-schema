@@ -106,14 +106,21 @@ def test_units_should_fail(message, expected):
 
 
 def test_orcid():
-    message = reaction_pb2.Person(orcid="0000-0001-2345-678X")
+    message = reaction_pb2.Person(orcid="0000-0002-1825-0097")
     output = _run_validation(message)
     assert len(output.errors) == 0
     assert len(output.warnings) == 0
 
 
-def test_orcid_should_fail():
-    message = reaction_pb2.Person(orcid="abcd-0001-2345-678X")
+@pytest.mark.parametrize(
+    "orcid",
+    (
+        "abcd-0001-2345-678X",  # Non-numeric.
+        "0000-0001-2345-678X",  # Well-formed but incorrect checksum.
+    ),
+)
+def test_orcid_should_fail(orcid):
+    message = reaction_pb2.Person(orcid=orcid)
     with pytest.raises(validations.ValidationError, match="Invalid"):
         _run_validation(message)
 
@@ -297,6 +304,125 @@ def test_invalid_compound_identifier(identifier_type, value):
     message = reaction_pb2.CompoundIdentifier(type=identifier_type, value=value)
     with pytest.raises(validations.ValidationError, match="could not validate"):
         _run_validation(message)
+
+
+@pytest.mark.parametrize(
+    "identifier_type, value",
+    (
+        ("CAS_NUMBER", "64-17-5"),
+        ("INCHI_KEY", "LFQSCWFLJHTTHZ-UHFFFAOYSA-N"),
+        ("PUBCHEM_CID", "702"),
+        ("CHEMSPIDER_ID", "682"),
+    ),
+)
+def test_compound_identifier_format(identifier_type, value):
+    message = reaction_pb2.CompoundIdentifier(type=identifier_type, value=value)
+    output = _run_validation(message)
+    assert len(output.errors) == 0
+    assert len(output.warnings) == 0
+
+
+@pytest.mark.parametrize(
+    "identifier_type, value, expected",
+    (
+        ("CAS_NUMBER", "64175", "CAS number"),
+        ("INCHI_KEY", "not-a-key", "InChIKey"),
+        ("PUBCHEM_CID", "abc", "PubChem CID"),
+        ("CHEMSPIDER_ID", "12x", "ChemSpider ID"),
+    ),
+)
+def test_bad_compound_identifier_format(identifier_type, value, expected):
+    message = reaction_pb2.CompoundIdentifier(type=identifier_type, value=value)
+    output = _run_validation(message)
+    assert len(output.errors) == 0
+    assert len(output.warnings) == 1
+    assert expected in output.warnings[0]
+
+
+@pytest.mark.parametrize(
+    "ph_text",
+    (
+        "ph: 7.0",
+        "ph: 0.0",
+        "ph: 14.0",
+    ),
+)
+def test_reaction_conditions_ph(ph_text):
+    message = text_format.Parse(ph_text, reaction_pb2.ReactionConditions())
+    output = _run_validation(message)
+    assert len(output.errors) == 0
+    assert len(output.warnings) == 0
+
+
+@pytest.mark.parametrize("ph_value", (-1.0, 15.0))
+def test_reaction_conditions_bad_ph(ph_value):
+    message = reaction_pb2.ReactionConditions(ph=ph_value)
+    output = _run_validation(message)
+    assert len(output.warnings) == 1
+    assert "outside the expected range" in output.warnings[0]
+
+
+def test_electrochemistry_missing_current():
+    message = reaction_pb2.ElectrochemistryConditions(type="CONSTANT_CURRENT")
+    output = _run_validation(message)
+    assert len(output.warnings) == 1
+    assert "should specify the current" in output.warnings[0]
+
+
+def test_electrochemistry_missing_voltage():
+    message = reaction_pb2.ElectrochemistryConditions(type="CONSTANT_VOLTAGE")
+    output = _run_validation(message)
+    assert len(output.warnings) == 1
+    assert "should specify the voltage" in output.warnings[0]
+
+
+def test_mass_spec_mz_range():
+    message = text_format.Parse(
+        "type: TIC tic_minimum_mz: 100.0 tic_maximum_mz: 50.0",
+        reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails(),
+    )
+    with pytest.raises(validations.ValidationError, match="tic_minimum_mz"):
+        _run_validation(message)
+
+
+def test_mass_spec_eic_requires_masses():
+    message = reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails(type="EIC")
+    output = _run_validation(message)
+    assert len(output.warnings) == 1
+    assert "should specify eic_masses" in output.warnings[0]
+
+
+def test_illumination_dark_with_wavelength():
+    message = text_format.Parse(
+        "type: DARK peak_wavelength {value: 450.0 units: NANOMETER}",
+        reaction_pb2.IlluminationConditions(),
+    )
+    output = _run_validation(message)
+    assert len(output.warnings) == 1
+    assert "DARK or AMBIENT" in output.warnings[0]
+
+
+@pytest.mark.parametrize(
+    "value, is_mapped, expected",
+    (
+        # Atom maps present but the flag is not set.
+        ("[CH4:1]>>[CH4:1]", False, "is_mapped is not set"),
+        # Flag is set but the SMILES contains no atom maps.
+        ("CO>>CO", True, "no atom maps"),
+    ),
+)
+def test_reaction_identifier_atom_mapping(value, is_mapped, expected):
+    message = reaction_pb2.ReactionIdentifier(type="REACTION_SMILES", value=value, is_mapped=is_mapped)
+    output = _run_validation(message)
+    assert len(output.warnings) == 1
+    assert expected in output.warnings[0]
+
+
+def test_data_bad_url():
+    message = reaction_pb2.Data(url="not a url")
+    output = _run_validation(message)
+    assert len(output.warnings) == 1
+    assert "valid URL" in output.warnings[0]
 
 
 @pytest.mark.parametrize(
