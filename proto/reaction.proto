@@ -77,6 +77,8 @@ message ReactionIdentifier {
     RDFILE = 3;  // Reaction data file.
     RINCHI = 4;  // Reaction InChI.
     REACTION_TYPE = 5;  // Named reaction or reaction category.
+    SUBSET = 7; // Desciption of grouped relationship between reactions in dataset.
+    INDEX = 8; // Description of ordered relationship between reactions in a dataset or subset.
   }
   ReactionIdentifierType type = 1;
   string details = 2;
