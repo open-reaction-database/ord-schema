@@ -384,6 +384,40 @@ def is_valid_dataset_id(dataset_id: str) -> bool:
     return bool(match)
 
 
+def is_valid_orcid(orcid: str) -> bool:
+    """Returns whether an ORCID is well-formed, including its checksum.
+
+    The final character is an ISO 7064 MOD 11-2 check digit over the preceding
+    15 digits; see https://support.orcid.org/hc/en-us/articles/360006897674.
+
+    Args:
+        orcid: ORCID string, expected as 0000-0000-0000-0000.
+
+    Returns:
+        True if ``orcid`` is well-formed and the checksum is correct.
+    """
+    if not re.fullmatch(r"[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]", orcid):
+        return False
+    digits = orcid.replace("-", "")
+    total = 0
+    for digit in digits[:-1]:
+        total = (total + int(digit)) * 2
+    expected = (12 - total % 11) % 11
+    check = "X" if expected == 10 else str(expected)
+    return check == digits[-1]
+
+
+def is_url(value: str) -> bool:
+    """Returns whether a string looks like an http(s) URL with a host."""
+    return bool(re.fullmatch(r"https?://[^\s/]+(?:/.*)?", value, flags=re.IGNORECASE))
+
+
+def has_atom_mapping(smiles: str) -> bool:
+    """Returns whether a SMILES string contains atom-map numbers."""
+    # Atom maps in SMILES are always written inside brackets as e.g. [CH3:1].
+    return bool(re.search(r"\[[^][]*:[0-9]+]", smiles))
+
+
 @dataclasses.dataclass
 class DatasetCrossRefState:
     """Aggregated cross-reference observations for a Dataset.
@@ -578,6 +612,17 @@ def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier):
             message_helpers.validate_reaction_smiles(smiles)
         except ValueError as error:
             warnings.warn(str(error), ValidationError)
+        has_mapping = has_atom_mapping(smiles)
+        if message.is_mapped and not has_mapping:
+            warnings.warn(
+                "ReactionIdentifier is marked is_mapped but the SMILES contains no atom maps",
+                ValidationWarning,
+            )
+        elif has_mapping and not message.is_mapped:
+            warnings.warn(
+                "ReactionIdentifier SMILES contains atom maps but is_mapped is not set to True",
+                ValidationWarning,
+            )
     if not message.value:
         warnings.warn("value must be set", ValidationError)
 
@@ -727,6 +772,27 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier):
                     f"RDKit {RDKIT_VERSION} could not sanitize {identifier_type} identifier {message.value}",
                     ValidationWarning,
                 )
+    elif message.type == message.CAS_NUMBER:
+        # CAS numbers are 2-7 digits, 2 digits, and a single check digit,
+        # separated by hyphens (e.g., 64-17-5 for ethanol).
+        if not re.fullmatch(r"\d{2,7}-\d{2}-\d", message.value):
+            warnings.warn(
+                f"CAS number {message.value} is malformed (expected e.g. 64-17-5)",
+                ValidationWarning,
+            )
+    elif message.type == message.INCHI_KEY:
+        if not re.fullmatch(r"[A-Z]{14}-[A-Z]{10}-[A-Z]", message.value):
+            warnings.warn(
+                f"InChIKey {message.value} is malformed",
+                ValidationWarning,
+            )
+    elif message.type in (message.PUBCHEM_CID, message.CHEMSPIDER_ID):
+        identifier_type = "PubChem CID" if message.type == message.PUBCHEM_CID else "ChemSpider ID"
+        if not message.value.isdecimal():
+            warnings.warn(
+                f"{identifier_type} {message.value} should be an integer",
+                ValidationWarning,
+            )
 
 
 def validate_vessel(message: reaction_pb2.Vessel):
@@ -768,6 +834,11 @@ def validate_reaction_conditions(message: reaction_pb2.ReactionConditions):
             "Reaction condition details provided but field "
             "conditions_are_dynamic is False. If the conditions "
             "cannot be fully captured by the schema, set to True.",
+            ValidationWarning,
+        )
+    if message.HasField("ph") and not 0 <= message.ph <= 14:
+        warnings.warn(
+            f"Reaction pH ({message.ph}) is outside the expected range (0-14)",
             ValidationWarning,
         )
 
@@ -814,12 +885,30 @@ def validate_stirring_rate(message: reaction_pb2.StirringConditions.StirringRate
 
 def validate_illumination_conditions(message: reaction_pb2.IlluminationConditions):
     check_type_and_details(message)
+    if message.type in (
+        reaction_pb2.IlluminationConditions.DARK,
+        reaction_pb2.IlluminationConditions.AMBIENT,
+    ) and message.HasField("peak_wavelength"):
+        warnings.warn(
+            "peak_wavelength should not be specified for DARK or AMBIENT illumination",
+            ValidationWarning,
+        )
 
 
 def validate_electrochemistry_conditions(
     message: reaction_pb2.ElectrochemistryConditions,
 ):
     check_type_and_details(message)
+    if message.type == reaction_pb2.ElectrochemistryConditions.CONSTANT_CURRENT and not message.HasField("current"):
+        warnings.warn(
+            "CONSTANT_CURRENT electrochemistry conditions should specify the current",
+            ValidationWarning,
+        )
+    if message.type == reaction_pb2.ElectrochemistryConditions.CONSTANT_VOLTAGE and not message.HasField("voltage"):
+        warnings.warn(
+            "CONSTANT_VOLTAGE electrochemistry conditions should specify the voltage",
+            ValidationWarning,
+        )
 
 
 def validate_electrochemistry_cell(
@@ -884,10 +973,15 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup):
         and not message.input.components
     ):
         warnings.warn("Workup step missing recommended inputs definition", ValidationWarning)
-    if message.type == reaction_pb2.ReactionWorkup.STIRRING and not message.stirring:
+    if message.type == reaction_pb2.ReactionWorkup.STIRRING and not message.HasField("stirring"):
         warnings.warn("Stirring workup step missing stirring definition", ValidationWarning)
     if message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and not message.HasField("target_ph"):
         warnings.warn("pH adjustment workup missing target pH", ValidationWarning)
+    if message.HasField("target_ph") and not 0 <= message.target_ph <= 14:
+        warnings.warn(
+            f"Workup target pH ({message.target_ph}) is outside the expected range (0-14)",
+            ValidationWarning,
+        )
     if message.type == reaction_pb2.ReactionWorkup.ALIQUOT:
         if message.amount.WhichOneof("kind") is None:
             warnings.warn("Aliquot workup step missing volume/mass amount", ValidationWarning)
@@ -1019,6 +1113,31 @@ def validate_mass_spec_measurement_type(
     message: reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails,
 ):
     check_type_and_details(message)
+    ensure_float_nonnegative(message, "tic_minimum_mz")
+    ensure_float_nonnegative(message, "tic_maximum_mz")
+    if (
+        message.HasField("tic_minimum_mz")
+        and message.HasField("tic_maximum_mz")
+        and message.tic_minimum_mz > message.tic_maximum_mz
+    ):
+        warnings.warn(
+            f"tic_minimum_mz ({message.tic_minimum_mz}) must not exceed tic_maximum_mz ({message.tic_maximum_mz})",
+            ValidationError,
+        )
+    if any(mass < 0 for mass in message.eic_masses):
+        warnings.warn("eic_masses must be non-negative", ValidationError)
+    if message.type == reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails.EIC and not message.eic_masses:
+        warnings.warn("EIC mass spec measurements should specify eic_masses", ValidationWarning)
+    if (
+        message.type
+        in (
+            reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails.TIC,
+            reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails.TIC_POSITIVE,
+            reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails.TIC_NEGATIVE,
+        )
+        and message.eic_masses
+    ):
+        warnings.warn("eic_masses should only be specified for EIC mass spec measurements", ValidationWarning)
 
 
 def validate_date_time(message: reaction_pb2.DateTime):
@@ -1073,7 +1192,11 @@ def validate_reaction_provenance(message: reaction_pb2.ReactionProvenance):
                 )
         except ValueError as error:
             warnings.warn(str(error), ValidationError)
-    # TODO(ccoley) could check if publication_url is valid, etc.
+    if message.publication_url and not is_url(message.publication_url):
+        warnings.warn(
+            f"publication_url does not look like a valid URL: {message.publication_url}",
+            ValidationWarning,
+        )
 
 
 def validate_record_event(message: reaction_pb2.RecordEvent):
@@ -1090,9 +1213,8 @@ def validate_record_event(message: reaction_pb2.RecordEvent):
 
 
 def validate_person(message: reaction_pb2.Person):
-    # NOTE(ccoley): final character is checksum, but ignoring that for now
     if message.orcid:
-        if not re.match("[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]", message.orcid):
+        if not is_valid_orcid(message.orcid):
             warnings.warn("Invalid ORCID: Enter as 0000-0000-0000-0000", ValidationError)
     if message.email:
         # Based on https://www.regular-expressions.info/email.html.
@@ -1199,11 +1321,12 @@ def validate_float_value(message: ord_schema.Message):
 
 
 def validate_data(message: reaction_pb2.Data):
-    # TODO(kearnes): Validate/ping URLs?
     if not message.WhichOneof("kind"):
         warnings.warn("Data requires one of {value, bytes_value, url}", ValidationError)
     if message.bytes_value and not message.format:
         warnings.warn("Data format is required for bytes_data", ValidationError)
+    if message.WhichOneof("kind") == "url" and not is_url(message.url):
+        warnings.warn(f"Data URL does not look like a valid URL: {message.url}", ValidationWarning)
 
 
 _VALIDATOR_SWITCH: dict[type, Callable[..., None]] = {
