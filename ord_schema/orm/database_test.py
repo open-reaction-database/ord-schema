@@ -55,6 +55,9 @@ def test_update_rdkit_tables_idempotent(test_session):
     update_rdkit_tables("test_dataset", test_session)
     assert test_session.execute(text("SELECT count(*) FROM rdkit.reactions")).scalar() == before_reactions
     assert test_session.execute(text("SELECT count(*) FROM rdkit.mols")).scalar() == before_mols
+    # Invariant: the IS NOT NULL guards keep NULL mol/reaction rows out of the cartridge tables.
+    assert test_session.execute(text("SELECT count(*) FROM rdkit.mols WHERE mol IS NULL")).scalar() == 0
+    assert test_session.execute(text("SELECT count(*) FROM rdkit.reactions WHERE reaction IS NULL")).scalar() == 0
 
 
 def test_get_dataset_md5(test_session):
