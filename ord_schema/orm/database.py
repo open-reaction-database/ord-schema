@@ -220,10 +220,15 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     start = time.time()
     result = session.execute(
         text("""
-            INSERT INTO rdkit.mols (smiles, mol, morgan_bfp, morgan_sfp)
-            SELECT smiles, mol, morganbv_fp(mol) AS morgan_bfp, morgan_fp(mol) AS morgan_sfp
-            FROM (
-                SELECT smiles, mol_from_smiles(smiles::cstring) AS mol
+            WITH new_smiles AS MATERIALIZED (
+                -- Materialization barrier (AS MATERIALIZED): resolve the dataset's not-yet-linked SMILES that
+                -- aren't already in rdkit.mols FIRST -- a cheap per-candidate probe of the unique smiles index --
+                -- so the expensive mol_from_smiles/morgan_*_fp calls below run only on the survivors. Without the
+                -- barrier the planner may evaluate those functions (and especially the WHERE mol IS NOT NULL
+                -- guard's mol_from_smiles) on every candidate before the anti-join; observed ~240s for a no-op
+                -- dataset. NOT EXISTS replaces the old EXCEPT, which scanned all of rdkit.mols but also happened
+                -- to materialize for this same reason.
+                SELECT smiles
                 FROM (
                     SELECT smiles
                         -- NOTE(skearnes): This join path does not include non-input compounds like workups,
@@ -244,11 +249,14 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
                         WHERE ord.dataset.dataset_id = :dataset_id
                           AND ord.product_compound.rdkit_mol_id IS NULL
                 ) candidates
-                -- NOTE(skearnes): NOT EXISTS probes the unique smiles index per candidate instead of
-                -- EXCEPT-scanning all of rdkit.mols; mol_from_smiles/fingerprints run only on the survivors.
                 WHERE smiles NOT LIKE '%[Ti+5]%'  -- See https://github.com/open-reaction-database/ord-schema/issues/672.
                   AND NOT EXISTS (SELECT 1 FROM rdkit.mols WHERE rdkit.mols.smiles = candidates.smiles)
-            ) mol_subquery
+            )
+            INSERT INTO rdkit.mols (smiles, mol, morgan_bfp, morgan_sfp)
+            SELECT smiles, mol, morganbv_fp(mol) AS morgan_bfp, morgan_fp(mol) AS morgan_sfp
+            FROM (
+                SELECT smiles, mol_from_smiles(smiles::cstring) AS mol FROM new_smiles
+            ) computed
             -- mol_from_smiles returns NULL for unparseable SMILES; skip those so we never insert a NULL-mol
             -- row (which ON CONFLICT would not catch for a genuinely new SMILES) or feed NULL to the fingerprints.
             WHERE mol IS NOT NULL
