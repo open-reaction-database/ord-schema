@@ -883,6 +883,7 @@ def read_dataset(filename: str) -> dataset_pb2.Dataset:
         warnings.warn(
             f"Reading the entire Parquet dataset {filename} into memory; for large datasets prefer the "
             "streaming loader ord_schema.parquet_dataset.DatasetView (or iter_reactions/read_reaction).",
+            UserWarning,
             stacklevel=2,
         )
         return parquet_dataset.read_dataset(filename)
