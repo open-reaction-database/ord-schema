@@ -248,20 +248,20 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
     """Updates RDKit reaction and mol ID associations in the ORD tables."""
     logger.debug("Updating RDKit ID associations")
     start = time.time()
+    # NOTE(skearnes): These use the flat ``UPDATE ... FROM`` form (target updated in place) rather than
+    # ``FROM (SELECT id, rdkit_id ...) WHERE target.id = subquery.id``, which materialized the pairs and then
+    # re-joined the target by id. The rdkit join keys (reaction_smiles/smiles) are unique-indexed, and the
+    # dataset scope is reached via the indexed foreign keys.
     # Update Reaction.
     session.execute(
         text("""
             UPDATE ord.reaction
-            SET rdkit_reaction_id = subquery.rdkit_reaction_id
-            FROM (
-                SELECT ord.reaction.id, rdkit.reactions.id AS rdkit_reaction_id
-                    FROM ord.reaction
-                    JOIN rdkit.reactions USING (reaction_smiles)
-                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                    WHERE ord.dataset.dataset_id = :dataset_id
-                      AND ord.reaction.rdkit_reaction_id IS NULL
-            ) AS subquery
-            WHERE ord.reaction.id = subquery.id
+            SET rdkit_reaction_id = rdkit.reactions.id
+            FROM rdkit.reactions, ord.dataset
+            WHERE rdkit.reactions.reaction_smiles = ord.reaction.reaction_smiles
+              AND ord.reaction.dataset_id = ord.dataset.id
+              AND ord.dataset.dataset_id = :dataset_id
+              AND ord.reaction.rdkit_reaction_id IS NULL
             """),
         {"dataset_id": dataset_id},
     )
@@ -269,36 +269,29 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
     session.execute(
         text("""
             UPDATE ord.compound
-            SET rdkit_mol_id = subquery.rdkit_mol_id
-            FROM (
-                SELECT ord.compound.id, rdkit.mols.id AS rdkit_mol_id
-                    FROM ord.compound
-                    JOIN rdkit.mols USING (smiles)
-                    JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
-                    JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
-                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                    WHERE ord.dataset.dataset_id = :dataset_id
-                      AND ord.compound.rdkit_mol_id IS NULL
-            ) AS subquery
-            WHERE ord.compound.id = subquery.id
+            SET rdkit_mol_id = rdkit.mols.id
+            FROM rdkit.mols, ord.reaction_input, ord.reaction, ord.dataset
+            WHERE rdkit.mols.smiles = ord.compound.smiles
+              AND ord.compound.reaction_input_id = ord.reaction_input.id
+              AND ord.reaction_input.reaction_id = ord.reaction.id
+              AND ord.reaction.dataset_id = ord.dataset.id
+              AND ord.dataset.dataset_id = :dataset_id
+              AND ord.compound.rdkit_mol_id IS NULL
             """),
         {"dataset_id": dataset_id},
     )
+    # Update ProductCompound.
     session.execute(
         text("""
             UPDATE ord.product_compound
-            SET rdkit_mol_id = subquery.rdkit_mol_id
-            FROM (
-                SELECT ord.product_compound.id, rdkit.mols.id AS rdkit_mol_id
-                    FROM ord.product_compound
-                    JOIN rdkit.mols USING (smiles)
-                    JOIN ord.reaction_outcome ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
-                    JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
-                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                    WHERE ord.dataset.dataset_id = :dataset_id
-                      AND ord.product_compound.rdkit_mol_id IS NULL
-            ) AS subquery
-            WHERE ord.product_compound.id = subquery.id
+            SET rdkit_mol_id = rdkit.mols.id
+            FROM rdkit.mols, ord.reaction_outcome, ord.reaction, ord.dataset
+            WHERE rdkit.mols.smiles = ord.product_compound.smiles
+              AND ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
+              AND ord.reaction_outcome.reaction_id = ord.reaction.id
+              AND ord.reaction.dataset_id = ord.dataset.id
+              AND ord.dataset.dataset_id = :dataset_id
+              AND ord.product_compound.rdkit_mol_id IS NULL
             """),
         {"dataset_id": dataset_id},
     )

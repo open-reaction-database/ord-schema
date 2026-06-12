@@ -114,3 +114,10 @@ def test_reaction_matches_smarts(test_session):
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 79  # One reaction has a BYPRODUCT outcome, so no reaction SMILES.
+
+
+def test_product_compound_rdkit_link(test_session):
+    """ProductCompound rows are linked to rdkit.mols (guards the product_compound rdkit_mol_id UPDATE)."""
+    # The other tests join input Compounds to RDKitMols; this exercises the product_compound link path.
+    query = select(Mappers.ProductCompound).join(RDKitMols)
+    assert len(test_session.execute(query).fetchall()) > 0
