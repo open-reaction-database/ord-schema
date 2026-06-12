@@ -186,11 +186,15 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
             FROM (
                 -- NOTE(skearnes): NOT EXISTS probes the unique reaction_smiles index per candidate instead of
                 -- EXCEPT-scanning all of rdkit.reactions; DISTINCT dedupes within the dataset (no ON CONFLICT here).
+                -- reaction_smiles IS NOT NULL is required: unlike EXCEPT (which treats NULLs as equal), NOT EXISTS
+                -- never matches a NULL, so without it a no-SMILES reaction would re-insert a junk (NULL, NULL) row
+                -- on every run.
                 SELECT DISTINCT reaction_smiles
                     FROM ord.reaction
                     JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
                     WHERE ord.dataset.dataset_id = :dataset_id
                       AND ord.reaction.rdkit_reaction_id IS NULL
+                      AND ord.reaction.reaction_smiles IS NOT NULL
                       AND NOT EXISTS (
                           SELECT 1 FROM rdkit.reactions
                           WHERE rdkit.reactions.reaction_smiles = ord.reaction.reaction_smiles

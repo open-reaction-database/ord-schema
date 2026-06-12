@@ -15,7 +15,7 @@
 """Tests for ord_schema.orm.rdkit_mappers."""
 
 import pytest
-from sqlalchemy import cast, func, select
+from sqlalchemy import cast, func, select, text
 
 from ord_schema.orm.mappers import Mappers
 from ord_schema.orm.rdkit_mappers import CString, FingerprintType, RDKitMol, RDKitMols, RDKitReactions
@@ -117,7 +117,18 @@ def test_reaction_matches_smarts(test_session):
 
 
 def test_product_compound_rdkit_link(test_session):
-    """ProductCompound rows are linked to rdkit.mols (guards the product_compound rdkit_mol_id UPDATE)."""
-    # The other tests join input Compounds to RDKitMols; this exercises the product_compound link path.
-    query = select(Mappers.ProductCompound).join(RDKitMols)
-    assert len(test_session.execute(query).fetchall()) > 0
+    """Every ProductCompound whose SMILES is in rdkit.mols is linked (guards the product_compound UPDATE).
+
+    The mol/reaction operator tests cover the input-Compound and Reaction link paths; product_compound has none.
+    """
+    linked = test_session.execute(select(Mappers.ProductCompound).join(RDKitMols)).fetchall()
+    assert len(linked) > 0  # The fixture has linkable product compounds.
+    # Completeness: no product_compound with a resolvable SMILES is left unlinked.
+    unlinked = test_session.execute(
+        text(
+            "SELECT count(*) FROM ord.product_compound pc "
+            "JOIN rdkit.mols m ON m.smiles = pc.smiles "
+            "WHERE pc.rdkit_mol_id IS NULL"
+        )
+    ).scalar()
+    assert unlinked == 0
