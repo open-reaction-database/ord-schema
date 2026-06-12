@@ -237,6 +237,9 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
                 WHERE smiles NOT LIKE '%[Ti+5]%'  -- See https://github.com/open-reaction-database/ord-schema/issues/672.
                   AND NOT EXISTS (SELECT 1 FROM rdkit.mols WHERE rdkit.mols.smiles = candidates.smiles)
             ) mol_subquery
+            -- mol_from_smiles returns NULL for unparseable SMILES; skip those so we never insert a NULL-mol
+            -- row (which ON CONFLICT would not catch for a genuinely new SMILES) or feed NULL to the fingerprints.
+            WHERE mol IS NOT NULL
             ON CONFLICT (smiles) DO NOTHING
             """),
         {"dataset_id": dataset_id},
