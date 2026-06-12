@@ -60,6 +60,20 @@ def test_update_rdkit_tables_idempotent(test_session):
     assert test_session.execute(text("SELECT count(*) FROM rdkit.reactions WHERE reaction IS NULL")).scalar() == 0
 
 
+def test_unlinked_partial_indexes(test_session):
+    """prepare_database creates partial indexes over unlinked rows to keep incremental linking cheap."""
+    indexes = dict(
+        test_session.execute(text("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'ord'")).all()
+    )
+    for name, predicate in (
+        ("reaction_unlinked_index", "rdkit_reaction_id IS NULL"),
+        ("compound_unlinked_index", "rdkit_mol_id IS NULL"),
+        ("product_compound_unlinked_index", "rdkit_mol_id IS NULL"),
+    ):
+        assert name in indexes, f"missing index {name}"
+        assert predicate in indexes[name], f"{name} is not partial on {predicate!r}: {indexes[name]}"
+
+
 def test_get_dataset_md5(test_session):
     assert get_dataset_md5("test_dataset", test_session) == "0343d39a98d38eb39abd69d899af2bdf"
     assert get_dataset_md5("other_dataset", test_session) is None
