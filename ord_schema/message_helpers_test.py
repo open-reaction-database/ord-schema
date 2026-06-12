@@ -557,6 +557,37 @@ class TestLoadAndWriteMessage:
         assert loaded.description == "d"
         assert list(loaded.reactions) == list(dataset.reactions)
 
+    @pytest.mark.parametrize(
+        "suffix",
+        (".pbtxt", ".pb", ".pb.gz", ".json", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
+    )
+    def test_read_dataset(self, suffix, tmp_path):
+        dataset = dataset_pb2.Dataset(
+            name="n",
+            description="d",
+            reactions=[reaction_pb2.Reaction(reaction_id="ord-0")],
+        )
+        path = (tmp_path / f"ds{suffix}").as_posix()
+        message_helpers.write_dataset(dataset, path)
+        loaded = message_helpers.read_dataset(path)
+        assert loaded.name == "n"
+        assert loaded.description == "d"
+        assert list(loaded.reactions) == list(dataset.reactions)
+
+    def test_read_dataset_parquet_warns(self, tmp_path):
+        dataset = dataset_pb2.Dataset(
+            name="n",
+            description="d",
+            reactions=[reaction_pb2.Reaction(reaction_id="ord-0")],
+        )
+        path = (tmp_path / "ds.parquet").as_posix()
+        message_helpers.write_dataset(dataset, path)
+        with pytest.warns(UserWarning, match="DatasetView"):
+            loaded = message_helpers.read_dataset(path)
+        assert loaded.name == "n"
+        assert loaded.description == "d"
+        assert list(loaded.reactions) == list(dataset.reactions)
+
 
 class TestCreateMessage:
     @pytest.mark.parametrize(

@@ -862,6 +862,33 @@ def write_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:
     write_message(dataset, filename)
 
 
+def read_dataset(filename: str) -> dataset_pb2.Dataset:
+    """Reads a Dataset from disk, dispatching on filename suffix.
+
+    ``.parquet`` routes to ``parquet_dataset.read_dataset``, which deserializes
+    every reaction into memory; other suffixes go through ``load_message``.
+
+    Reading an entire Parquet dataset into memory defeats the format's
+    streaming benefits, so this path warns and recommends the streaming
+    ``parquet_dataset.DatasetView`` loader for large datasets.
+
+    Args:
+        filename: Path to a serialized Dataset (``.parquet`` or any suffix
+            understood by ``load_message``).
+
+    Returns:
+        The in-memory Dataset proto.
+    """
+    if filename.endswith(".parquet"):
+        warnings.warn(
+            f"Reading the entire Parquet dataset {filename} into memory; for large datasets prefer the "
+            "streaming loader ord_schema.parquet_dataset.DatasetView (or iter_reactions/read_reaction).",
+            stacklevel=2,
+        )
+        return parquet_dataset.read_dataset(filename)
+    return load_message(filename, dataset_pb2.Dataset)
+
+
 def id_filename(filename: str) -> str:
     """Converts a filename into a relative path for the repository.
 
