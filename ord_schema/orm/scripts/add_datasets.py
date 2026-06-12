@@ -17,13 +17,14 @@
 import argparse
 import logging
 import os
+import re
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from glob import glob
 from hashlib import md5
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from tqdm import tqdm
@@ -35,6 +36,50 @@ from ord_schema.orm import database
 from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
+
+# Postgres memory-size GUC values: a byte count with an optional unit, e.g. '256MB', '1GB', '524288kB'.
+_MEMORY_SIZE_RE = re.compile(r"^\d+(kB|MB|GB|TB)?$")
+
+
+def build_rdkit_engine(dsn: str, *, work_mem: str | None = None, maintenance_work_mem: str | None = None) -> Engine:
+    """Builds an Engine that boosts per-connection memory for the RDKit phase.
+
+    ``work_mem`` (the relevant knob for the RDKit anti-joins and ID-update
+    joins) and ``maintenance_work_mem`` are applied to every new connection via
+    a ``connect`` listener. This is intended for the serial RDKit phase only;
+    the parallel ingest phase is deliberately left at server defaults to avoid
+    ``n_jobs`` × ``work_mem`` memory pressure.
+
+    Args:
+        dsn: Database connection string.
+        work_mem: Optional Postgres ``work_mem`` value (e.g. ``'256MB'``); falsy
+            values leave the server default in place.
+        maintenance_work_mem: Optional ``maintenance_work_mem`` value; falsy
+            values leave the server default in place.
+
+    Returns:
+        A configured SQLAlchemy Engine.
+
+    Raises:
+        ValueError: If a provided value is not a valid Postgres memory size.
+    """
+    settings = {}
+    for name, value in (("work_mem", work_mem), ("maintenance_work_mem", maintenance_work_mem)):
+        if value:
+            if not _MEMORY_SIZE_RE.match(value):
+                raise ValueError(f"invalid {name}: {value!r} (expected a Postgres memory size like '256MB')")
+            settings[name] = value
+    engine = create_engine(dsn)
+    if settings:
+
+        @event.listens_for(engine, "connect")
+        def _set_memory(dbapi_connection, _record):  # Validated above, so interpolation is injection-safe.
+            with dbapi_connection.cursor() as cursor:
+                for name, value in settings.items():
+                    cursor.execute(f"SET {name} = '{value}'")
+
+        logger.info("RDKit phase memory settings: %s", ", ".join(f"{k}={v}" for k, v in settings.items()))
+    return engine
 
 
 def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
@@ -117,6 +162,16 @@ def parse_args(argv=None):
     parser.add_argument("--host", default="localhost", help="Database host")
     parser.add_argument("--port", type=int, default=5432, help="Database port")
     parser.add_argument("--n_jobs", type=int, default=1, help="Number of parallel workers")
+    parser.add_argument(
+        "--work_mem",
+        default="256MB",
+        help="Postgres work_mem for the serial RDKit phase (e.g. '256MB'); pass '' to use the server default",
+    )
+    parser.add_argument(
+        "--maintenance_work_mem",
+        default="1GB",
+        help="Postgres maintenance_work_mem for the serial RDKit phase; pass '' to use the server default",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args(argv)
 
@@ -157,7 +212,7 @@ def main(args):
                 failures.append(filename)
                 logger.error(f"Adding dataset {filename} failed: {error}")
     logger.info("Adding RDKit functionality")
-    engine = create_engine(dsn)
+    engine = build_rdkit_engine(dsn, work_mem=args.work_mem, maintenance_work_mem=args.maintenance_work_mem)
     for dataset_id in tqdm(dataset_ids):
         try:
             add_rdkit(engine, dataset_id)  # NOTE(skearnes): Do this serially to avoid deadlocks.

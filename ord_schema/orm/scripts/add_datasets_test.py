@@ -17,7 +17,7 @@
 import os
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -48,6 +48,19 @@ def _write_parquet_dataset(tmp_path) -> tuple[str, dataset_pb2.Dataset]:
 def test_main(prepared_engine):
     argv = ["--dsn", str(prepared_engine.url), "--pattern", _PBTXT_FIXTURE]
     add_datasets.main(add_datasets.parse_args(argv))
+
+
+def test_build_rdkit_engine_applies_memory_settings(prepared_engine):
+    """The connect listener issues SET for the configured memory GUCs."""
+    engine = add_datasets.build_rdkit_engine(str(prepared_engine.url), work_mem="64MB", maintenance_work_mem="128MB")
+    with engine.connect() as connection:
+        assert connection.execute(text("SHOW work_mem")).scalar() == "64MB"
+        assert connection.execute(text("SHOW maintenance_work_mem")).scalar() == "128MB"
+
+
+def test_build_rdkit_engine_rejects_invalid_size():
+    with pytest.raises(ValueError, match="work_mem"):
+        add_datasets.build_rdkit_engine("postgresql://localhost/db", work_mem="lots")
 
 
 def test_main_parquet(prepared_engine, tmp_path):

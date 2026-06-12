@@ -184,14 +184,17 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
             INSERT INTO rdkit.reactions (reaction_smiles, reaction)
             SELECT reaction_smiles, reaction_from_smiles(reaction_smiles::cstring)
             FROM (
-                SELECT reaction_smiles
+                -- NOTE(skearnes): NOT EXISTS probes the unique reaction_smiles index per candidate instead of
+                -- EXCEPT-scanning all of rdkit.reactions; DISTINCT dedupes within the dataset (no ON CONFLICT here).
+                SELECT DISTINCT reaction_smiles
                     FROM ord.reaction
                     JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
                     WHERE ord.dataset.dataset_id = :dataset_id
                       AND ord.reaction.rdkit_reaction_id IS NULL
-                EXCEPT
-                SELECT reaction_smiles
-                    FROM rdkit.reactions
+                      AND NOT EXISTS (
+                          SELECT 1 FROM rdkit.reactions
+                          WHERE rdkit.reactions.reaction_smiles = ord.reaction.reaction_smiles
+                      )
             ) subquery
             """),
         {"dataset_id": dataset_id},
@@ -206,38 +209,34 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     result = session.execute(
         text("""
             INSERT INTO rdkit.mols (smiles, mol, morgan_bfp, morgan_sfp)
-            SELECT smiles, mol, morgan_bfp, morgan_sfp
+            SELECT smiles, mol, morganbv_fp(mol) AS morgan_bfp, morgan_fp(mol) AS morgan_sfp
             FROM (
-                SELECT smiles, mol, morganbv_fp(mol) AS morgan_bfp, morgan_fp(mol) AS morgan_sfp
+                SELECT smiles, mol_from_smiles(smiles::cstring) AS mol
                 FROM (
-                    SELECT smiles, mol_from_smiles(smiles::cstring) AS mol
-                    FROM (
-                        SELECT smiles
-                            -- NOTE(skearnes): This join path does not include non-input compounds like workups,
-                            -- internal standards, etc.
-                            FROM ord.compound
-                            JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
-                            JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
-                            JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                            WHERE ord.dataset.dataset_id = :dataset_id
-                              AND ord.compound.rdkit_mol_id IS NULL
-                        UNION
-                        SELECT smiles
-                            FROM ord.product_compound
-                            JOIN ord.reaction_outcome
-                                ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
-                            JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
-                            JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                            WHERE ord.dataset.dataset_id = :dataset_id
-                              AND ord.product_compound.rdkit_mol_id IS NULL
-                        EXCEPT
-                        SELECT smiles
-                            FROM rdkit.mols
-                    ) smiles_subquery
-                    -- See https://github.com/open-reaction-database/ord-schema/issues/672.
-                    WHERE smiles NOT LIKE '%[Ti+5]%'
-                ) mol_subquery
-            ) fp_subquery
+                    SELECT smiles
+                        -- NOTE(skearnes): This join path does not include non-input compounds like workups,
+                        -- internal standards, etc.
+                        FROM ord.compound
+                        JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
+                        JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
+                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                        WHERE ord.dataset.dataset_id = :dataset_id
+                          AND ord.compound.rdkit_mol_id IS NULL
+                    UNION
+                    SELECT smiles
+                        FROM ord.product_compound
+                        JOIN ord.reaction_outcome
+                            ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
+                        JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
+                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                        WHERE ord.dataset.dataset_id = :dataset_id
+                          AND ord.product_compound.rdkit_mol_id IS NULL
+                ) candidates
+                -- NOTE(skearnes): NOT EXISTS probes the unique smiles index per candidate instead of
+                -- EXCEPT-scanning all of rdkit.mols; mol_from_smiles/fingerprints run only on the survivors.
+                WHERE smiles NOT LIKE '%[Ti+5]%'  -- See https://github.com/open-reaction-database/ord-schema/issues/672.
+                  AND NOT EXISTS (SELECT 1 FROM rdkit.mols WHERE rdkit.mols.smiles = candidates.smiles)
+            ) mol_subquery
             ON CONFLICT (smiles) DO NOTHING
             """),
         {"dataset_id": dataset_id},
