@@ -24,9 +24,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from testing.postgresql import Postgresql
 
-from ord_schema.message_helpers import load_message
+from ord_schema.message_helpers import read_dataset
 from ord_schema.orm.database import add_dataset, prepare_database
-from ord_schema.proto import dataset_pb2
 
 
 @pytest.fixture(name="test_engine")
@@ -40,11 +39,7 @@ def test_engine_fixture() -> Iterator[Engine]:
 
 @pytest.fixture(name="test_session")
 def test_session_fixture(test_engine) -> Iterator[Session]:
-    datasets = [
-        load_message(
-            os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"), dataset_pb2.Dataset
-        )
-    ]
+    datasets = [read_dataset(os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"))]
     rdkit_cartridge = prepare_database(test_engine)
     with Session(test_engine) as session:
         for dataset in datasets:

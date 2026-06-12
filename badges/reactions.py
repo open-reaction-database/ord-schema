@@ -21,7 +21,6 @@ import requests
 
 from ord_schema import message_helpers
 from ord_schema.logging import get_logger
-from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
 
@@ -36,7 +35,7 @@ def parse_args(argv=None):
 def main(args):
     num_reactions = 0
     for filename in glob.glob(os.path.join(args.root, "*", "*.pb*")):
-        dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
+        dataset = message_helpers.read_dataset(filename)
         logger.info("%s:\t%d", filename, len(dataset.reactions))
         num_reactions += len(dataset.reactions)
     params = {

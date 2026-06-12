@@ -25,7 +25,6 @@ import pprint
 from google.protobuf import text_format
 
 from ord_schema import message_helpers
-from ord_schema.proto import dataset_pb2
 
 
 def parse_args(argv=None):
@@ -36,7 +35,7 @@ def parse_args(argv=None):
 
 
 def main(args):
-    dataset = message_helpers.load_message(args.pb, dataset_pb2.Dataset)
+    dataset = message_helpers.read_dataset(args.pb)
     pb_data = text_format.MessageToString(dataset)
     with open(args.pbtxt) as f:
         pbtxt_data = f.read()

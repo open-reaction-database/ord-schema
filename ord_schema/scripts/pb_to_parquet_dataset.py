@@ -60,7 +60,7 @@ def main(args) -> None:
     if not args.inputs:
         raise ValueError("at least one input file is required")
 
-    first = message_helpers.load_message(args.inputs[0], dataset_pb2.Dataset)
+    first = message_helpers.read_dataset(args.inputs[0])
     resolved = _Resolved(
         name=args.name if args.name is not None else first.name,
         description=args.description if args.description is not None else first.description,
@@ -79,7 +79,7 @@ def main(args) -> None:
         del first
         for filename in args.inputs[1:]:
             logger.info("Loading %s", filename)
-            dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
+            dataset = message_helpers.read_dataset(filename)
             count += _drain(dataset, writer, filename, resolved, args)
             del dataset
     if count == 0:
