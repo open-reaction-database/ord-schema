@@ -267,6 +267,43 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
     logger.debug(f"Updating mols took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)")
 
 
+def _link_mol_ids(session: Session, *, target_table: str, link_table: str, link_column: str, dataset_id: str) -> int:
+    """Links rdkit.mols ids into a compound table for one dataset's unlinked rows.
+
+    The Compound and ProductCompound updates are identical apart from the table
+    and join path, so they share this helper. Identifier arguments are trusted
+    literals supplied by ``update_rdkit_ids`` (never user input) and are
+    interpolated into the statement; ``dataset_id`` is passed as a bind param.
+
+    Args:
+        session: Active SQLAlchemy session.
+        target_table: Compound table to update (e.g. ``"ord.compound"``).
+        link_table: Join table connecting ``target_table`` to ``ord.reaction``
+            (e.g. ``"ord.reaction_input"``).
+        link_column: Foreign-key column on ``target_table`` that references
+            ``link_table`` (e.g. ``"reaction_input_id"``).
+        dataset_id: Dataset to scope the update to.
+
+    Returns:
+        The number of rows updated.
+    """
+    result = session.execute(
+        text(f"""
+            UPDATE {target_table}
+            SET rdkit_mol_id = rdkit.mols.id
+            FROM rdkit.mols, {link_table}, ord.reaction, ord.dataset
+            WHERE rdkit.mols.smiles = {target_table}.smiles
+              AND {target_table}.{link_column} = {link_table}.id
+              AND {link_table}.reaction_id = ord.reaction.id
+              AND ord.reaction.dataset_id = ord.dataset.id
+              AND ord.dataset.dataset_id = :dataset_id
+              AND {target_table}.rdkit_mol_id IS NULL
+            """),
+        {"dataset_id": dataset_id},
+    )
+    return cast(Any, result).rowcount
+
+
 def update_rdkit_ids(dataset_id: str, session: Session) -> None:
     """Updates RDKit reaction and mol ID associations in the ORD tables."""
     logger.debug("Updating RDKit ID associations")
@@ -276,7 +313,7 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
     # re-joined the target by id. The rdkit join keys (reaction_smiles/smiles) are unique-indexed, and the
     # dataset scope is reached via the indexed foreign keys.
     # Update Reaction.
-    session.execute(
+    reaction_result = session.execute(
         text("""
             UPDATE ord.reaction
             SET rdkit_reaction_id = rdkit.reactions.id
@@ -288,34 +325,22 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
             """),
         {"dataset_id": dataset_id},
     )
-    # Update Compound.
-    session.execute(
-        text("""
-            UPDATE ord.compound
-            SET rdkit_mol_id = rdkit.mols.id
-            FROM rdkit.mols, ord.reaction_input, ord.reaction, ord.dataset
-            WHERE rdkit.mols.smiles = ord.compound.smiles
-              AND ord.compound.reaction_input_id = ord.reaction_input.id
-              AND ord.reaction_input.reaction_id = ord.reaction.id
-              AND ord.reaction.dataset_id = ord.dataset.id
-              AND ord.dataset.dataset_id = :dataset_id
-              AND ord.compound.rdkit_mol_id IS NULL
-            """),
-        {"dataset_id": dataset_id},
+    reaction_rows = cast(Any, reaction_result).rowcount
+    compound_rows = _link_mol_ids(
+        session,
+        target_table="ord.compound",
+        link_table="ord.reaction_input",
+        link_column="reaction_input_id",
+        dataset_id=dataset_id,
     )
-    # Update ProductCompound.
-    session.execute(
-        text("""
-            UPDATE ord.product_compound
-            SET rdkit_mol_id = rdkit.mols.id
-            FROM rdkit.mols, ord.reaction_outcome, ord.reaction, ord.dataset
-            WHERE rdkit.mols.smiles = ord.product_compound.smiles
-              AND ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
-              AND ord.reaction_outcome.reaction_id = ord.reaction.id
-              AND ord.reaction.dataset_id = ord.dataset.id
-              AND ord.dataset.dataset_id = :dataset_id
-              AND ord.product_compound.rdkit_mol_id IS NULL
-            """),
-        {"dataset_id": dataset_id},
+    product_compound_rows = _link_mol_ids(
+        session,
+        target_table="ord.product_compound",
+        link_table="ord.reaction_outcome",
+        link_column="reaction_outcome_id",
+        dataset_id=dataset_id,
     )
-    logger.debug(f"Updating RDKit IDs took {time.time() - start:g}s")
+    logger.debug(
+        f"Updating RDKit IDs took {time.time() - start:g}s "
+        f"(reaction={reaction_rows}, compound={compound_rows}, product_compound={product_compound_rows})"
+    )

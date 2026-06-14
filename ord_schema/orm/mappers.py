@@ -238,8 +238,9 @@ _MAPPER_TO_MESSAGE: dict[type, type[Message]] = {value: key for key, value in _M
 # RDKit-linking queries (ord_schema.orm.database.update_rdkit_tables / update_rdkit_ids) repeatedly ask "which of
 # this dataset's rows still have rdkit_*_id IS NULL?" -- zero for an already-loaded dataset. Indexing only the
 # unlinked rows keeps these tiny (just the in-flight datasets), so the planner answers in ~O(unlinked) instead of
-# scanning every reaction/compound in the dataset. create_all builds these on new databases; add them to an
-# existing database with CREATE INDEX CONCURRENTLY (see the PR description / migration notes).
+# scanning every reaction/compound in the dataset. create_all builds these on new databases; backfill them on an
+# existing database with CREATE INDEX CONCURRENTLY (see "Adding the partial indexes to an existing database" in
+# ord_schema/orm/README.md). Keep the SQL in that section in sync with the Index() declarations below.
 _REACTION_TABLE = Base.metadata.tables["ord.reaction"]
 Index(
     "reaction_unlinked_index",
