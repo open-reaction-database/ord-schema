@@ -53,7 +53,9 @@ jobs:
         shell: bash -l {0}
         run: |
           uv run coverage erase
-          uv run pytest -vv --cov=ord_schema --durations=20
+          # -n auto: each ORM test spins up its own testing.postgresql instance, so the suite is
+          # parallel-safe; pytest-cov aggregates coverage across xdist workers.
+          uv run pytest -n auto -vv --cov=ord_schema --durations=20
           uv run coverage xml
       # Codecov uses CODECOV_TOKEN when set. Do not fail the job when uploads cannot authenticate:
       # fork PRs (tokenless), Dependabot PRs (no repo secrets + protected dependabot/* branches).
