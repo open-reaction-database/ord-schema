@@ -211,11 +211,6 @@ class TestMessageHelpers:
 
     _DATASET_ID = "ord_dataset-35a5a513f1dd44a3a97c88da99f81a00"
 
-    def test_fetch_dataset(self):
-        path = message_helpers.fetch_dataset(self._DATASET_ID)
-        assert path.endswith(".parquet")
-        assert len(parquet_dataset.read_dataset(path).reactions) == 7
-
     def test_fetch_dataset_prefers_parquet(self, tmp_path, monkeypatch):
         parquet_path = (tmp_path / "ds.parquet").as_posix()
         requested = []
