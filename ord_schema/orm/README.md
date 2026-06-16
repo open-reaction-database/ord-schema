@@ -136,9 +136,11 @@ from sqlalchemy.orm import Session
 from ord_schema import message_helpers
 from ord_schema.orm.database import add_parquet_dataset
 
-# fetch_dataset downloads the Parquet serialization and returns its local path;
-# add_parquet_dataset streams it into the database without loading the whole
-# Dataset into memory.
+# fetch_dataset downloads the dataset (preferring the Parquet serialization)
+# and returns its local path. add_parquet_dataset streams that Parquet file
+# into the database without loading the whole Dataset into memory. Datasets not
+# yet migrated to Parquet come back as .pb.gz; load those instead with
+# add_dataset(message_helpers.load_message(path, dataset_pb2.Dataset)).
 path = message_helpers.fetch_dataset("ord_dataset-fc83743b978f4deea7d6856deacbfe53")
 
 connection_string = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
