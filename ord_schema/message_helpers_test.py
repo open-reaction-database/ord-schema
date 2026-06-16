@@ -21,6 +21,7 @@ from collections.abc import Iterator
 import pandas as pd
 import pytest
 from google.protobuf import json_format, text_format
+from huggingface_hub.errors import EntryNotFoundError
 from rdkit import Chem
 
 from ord_schema import message_helpers, parquet_dataset
@@ -208,9 +209,70 @@ class TestMessageHelpers:
     def test_parse_doi(self, doi, expected):
         assert message_helpers.parse_doi(doi) == expected
 
+    _DATASET_ID = "ord_dataset-35a5a513f1dd44a3a97c88da99f81a00"
+
     def test_fetch_dataset(self):
-        dataset = message_helpers.fetch_dataset("ord_dataset-35a5a513f1dd44a3a97c88da99f81a00")
-        assert len(dataset.reactions) == 7
+        path = message_helpers.fetch_dataset(self._DATASET_ID)
+        assert path.endswith(".parquet")
+        assert len(parquet_dataset.read_dataset(path).reactions) == 7
+
+    def test_fetch_dataset_prefers_parquet(self, tmp_path, monkeypatch):
+        parquet_path = (tmp_path / "ds.parquet").as_posix()
+        requested = []
+
+        def fake_download(*, filename, **_):
+            requested.append(filename)
+            return parquet_path
+
+        monkeypatch.setattr(message_helpers, "hf_hub_download", fake_download)
+        path = message_helpers.fetch_dataset(self._DATASET_ID)
+        # Parquet is tried first, so a single download resolves it.
+        assert requested == [message_helpers.id_filename(f"{self._DATASET_ID}.parquet")]
+        assert path == parquet_path
+
+    def test_fetch_dataset_falls_back_to_pb_gz(self, tmp_path, monkeypatch):
+        pb_path = (tmp_path / "ds.pb.gz").as_posix()
+        requested = []
+
+        def fake_download(*, filename, **_):
+            requested.append(filename)
+            if filename.endswith(".parquet"):
+                raise EntryNotFoundError("missing parquet")
+            return pb_path
+
+        monkeypatch.setattr(message_helpers, "hf_hub_download", fake_download)
+        path = message_helpers.fetch_dataset(self._DATASET_ID)
+        # Parquet is attempted before .pb.gz.
+        assert requested == [
+            message_helpers.id_filename(f"{self._DATASET_ID}.parquet"),
+            message_helpers.id_filename(f"{self._DATASET_ID}.pb.gz"),
+        ]
+        assert path == pb_path
+
+    def test_fetch_dataset_forwards_cache_options(self, monkeypatch):
+        captured = {}
+
+        def fake_download(**kwargs):
+            captured.update(kwargs)
+            return "/some/path.parquet"
+
+        monkeypatch.setattr(message_helpers, "hf_hub_download", fake_download)
+        message_helpers.fetch_dataset(self._DATASET_ID, revision="abc123", cache_dir="/c", local_dir="/l")
+        assert captured["revision"] == "abc123"
+        assert captured["cache_dir"] == "/c"
+        assert captured["local_dir"] == "/l"
+
+    def test_fetch_dataset_not_found(self, monkeypatch):
+        def fake_download(**_):
+            raise EntryNotFoundError("missing")
+
+        monkeypatch.setattr(message_helpers, "hf_hub_download", fake_download)
+        with pytest.raises(RuntimeError, match="not found"):
+            message_helpers.fetch_dataset(self._DATASET_ID)
+
+    def test_fetch_dataset_invalid_id(self):
+        with pytest.raises(ValueError, match="Invalid dataset ID"):
+            message_helpers.fetch_dataset("not-a-dataset-id")
 
 
 class TestFindSubmessages:

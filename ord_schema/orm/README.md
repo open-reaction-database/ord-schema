@@ -133,10 +133,17 @@ Load ORD datasets into the database with the `add_dataset` and `add_rdkit` funct
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from ord_schema.message_helpers import fetch_dataset
+from ord_schema import message_helpers, parquet_dataset
 from ord_schema.orm.database import add_dataset
+from ord_schema.proto import dataset_pb2
 
-dataset = fetch_dataset("ord_dataset-fc83743b978f4deea7d6856deacbfe53")
+# fetch_dataset downloads the file (preferring Parquet) and returns its local
+# path; dispatch on the suffix to pick a reader.
+path = message_helpers.fetch_dataset("ord_dataset-fc83743b978f4deea7d6856deacbfe53")
+if path.endswith(".parquet"):
+    dataset = parquet_dataset.read_dataset(path)
+else:
+    dataset = message_helpers.load_message(path, dataset_pb2.Dataset)
 
 connection_string = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
 engine = create_engine(connection_string)

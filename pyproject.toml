@@ -35,6 +35,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "huggingface-hub>=0.20",
     "inflection>=0.5.1",
     "joblib>=1.0.0",
     "numpy>=1.26.4",
