@@ -66,6 +66,22 @@ class TestNameResolvers:
         )
         assert "NAME resolved" in message.inputs["test"].components[0].identifiers[1].details
 
+    def test_resolve_names_mocked(self, monkeypatch):
+        # Hermetic counterpart to test_resolve_names: covers the resolve_names
+        # plumbing (adds a SMILES identifier with details) without the live call,
+        # so the logic stays covered if the live smoke test is ever removed.
+        monkeypatch.setattr(
+            "ord_schema.resolvers.name_resolve",
+            mock.MagicMock(return_value=("CC(=O)Oc1ccccc1C(=O)O", "PubChem API")),
+        )
+        message = reaction_pb2.Reaction()
+        message.inputs["test"].components.add().identifiers.add(type="NAME", value="aspirin")
+        assert resolvers.resolve_names(message)
+        identifier = message.inputs["test"].components[0].identifiers[1]
+        assert identifier.type == reaction_pb2.CompoundIdentifier.SMILES
+        assert identifier.value == "CC(=O)Oc1ccccc1C(=O)O"
+        assert identifier.details == "NAME resolved by the PubChem API"
+
 
 class TestInputResolvers:
     @_live_resolvers
@@ -101,6 +117,37 @@ class TestInputResolvers:
         )
         assert reaction_input.components[1].identifiers[1].type == reaction_pb2.CompoundIdentifier.SMILES
         assert roundtrip_smi(reaction_input.components[1].identifiers[1].value) == roundtrip_smi("O")
+
+    def test_input_resolve_mocked(self, monkeypatch):
+        # Hermetic counterpart to test_input_resolve: exercises the real string
+        # parsing and amount handling while mocking name resolution, so the logic
+        # stays covered if the live smoke test is ever removed.
+        smiles_by_name = {"THF": "C1COCC1", "sodium hydroxide": "[Na+].[OH-]", "water": "O"}
+        monkeypatch.setattr(
+            "ord_schema.resolvers.name_resolve",
+            lambda _value_type, value: (smiles_by_name[value], "PubChem API"),
+        )
+
+        reaction_input = resolvers.resolve_input("10 g of THF")
+        assert len(reaction_input.components) == 1
+        assert reaction_input.components[0].amount.mass == reaction_pb2.Mass(value=10, units="GRAM")
+        assert reaction_input.components[0].identifiers[0] == reaction_pb2.CompoundIdentifier(type="NAME", value="THF")
+        assert reaction_input.components[0].identifiers[1].type == reaction_pb2.CompoundIdentifier.SMILES
+        assert reaction_input.components[0].identifiers[1].value == "C1COCC1"
+
+        reaction_input = resolvers.resolve_input("100 mL of 5.0uM sodium hydroxide in water")
+        assert len(reaction_input.components) == 2
+        assert reaction_input.components[0].amount.moles == reaction_pb2.Moles(value=500, units="NANOMOLE")
+        assert reaction_input.components[0].identifiers[0] == reaction_pb2.CompoundIdentifier(
+            type="NAME", value="sodium hydroxide"
+        )
+        assert reaction_input.components[0].identifiers[1].value == "[Na+].[OH-]"
+        assert reaction_input.components[1].amount.volume == reaction_pb2.Volume(value=100, units="MILLILITER")
+        assert reaction_input.components[1].amount.volume_includes_solutes
+        assert reaction_input.components[1].identifiers[0] == reaction_pb2.CompoundIdentifier(
+            type="NAME", value="water"
+        )
+        assert reaction_input.components[1].identifiers[1].value == "O"
 
     @pytest.mark.parametrize(
         "string,expected",
