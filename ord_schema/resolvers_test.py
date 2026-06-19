@@ -13,6 +13,8 @@
 # limitations under the License.
 """Tests for ord_schema.units."""
 
+import logging
+import os
 import urllib.error
 from unittest import mock
 
@@ -22,18 +24,40 @@ from rdkit import Chem
 from ord_schema import resolvers
 from ord_schema.proto import reaction_pb2
 
+# The live PubChem/OPSIN smoke tests below run on a single CI matrix entry (set by
+# the workflow) to avoid tripping PubChem's per-IP throttling; locally they always
+# run. They already retry 503 ServerBusy via tenacity in resolvers.py -- we do not
+# stack additional reruns on top of that. If PubChem is still busy after those
+# retries, skip rather than fail so a third-party outage never reddens the build.
+_live_resolvers = pytest.mark.skipif(
+    os.environ.get("ORD_LIVE_RESOLVERS", "true") != "true",
+    reason="live resolver smoke tests run on a single CI matrix entry",
+)
+
+
+def _skip_if_pubchem_unavailable(caplog):
+    """Skip the calling test when PubChem signalled it was overloaded.
+
+    A 503 PUGREST.ServerBusy (or other 5xx) means PubChem is rate-limiting or
+    down, not that resolution logic is broken; the resolver logs it at INFO. A
+    wrong-but-resolved answer still fails via the test's own assertions.
+    """
+    if "ServerBusy" in caplog.text or "HTTP Error 5" in caplog.text:
+        pytest.skip("PubChem unavailable (503 ServerBusy); skipping live resolver smoke test")
+
 
 class TestNameResolvers:
-    # Hits live name-resolution services (PubChem/OPSIN); retry with a delay so a
-    # transient outage doesn't fail the whole CI matrix under fail-fast.
-    @pytest.mark.flaky(reruns=3, reruns_delay=5)
-    def test_resolve_names(self):
+    @_live_resolvers
+    def test_resolve_names(self, caplog):
         def roundtrip_smi(smi):
             return Chem.MolToSmiles(Chem.MolFromSmiles(smi))
 
         message = reaction_pb2.Reaction()
         message.inputs["test"].components.add().identifiers.add(type="NAME", value="aspirin")
-        assert resolvers.resolve_names(message)
+        with caplog.at_level(logging.INFO, logger="ord_schema.resolvers"):
+            modified = resolvers.resolve_names(message)
+        _skip_if_pubchem_unavailable(caplog)
+        assert modified
         resolved_smi = roundtrip_smi(message.inputs["test"].components[0].identifiers[1].value)
         assert resolved_smi == roundtrip_smi("CC(=O)Oc1ccccc1C(O)=O")
         assert (
@@ -44,15 +68,15 @@ class TestNameResolvers:
 
 
 class TestInputResolvers:
-    # Hits live name-resolution services (PubChem/OPSIN); retry with a delay so a
-    # transient outage doesn't fail the whole CI matrix under fail-fast.
-    @pytest.mark.flaky(reruns=3, reruns_delay=5)
-    def test_input_resolve(self):
+    @_live_resolvers
+    def test_input_resolve(self, caplog):
         def roundtrip_smi(smi):
             return Chem.MolToSmiles(Chem.MolFromSmiles(smi))
 
         string = "10 g of THF"
-        reaction_input = resolvers.resolve_input(string)
+        with caplog.at_level(logging.INFO, logger="ord_schema.resolvers"):
+            reaction_input = resolvers.resolve_input(string)
+        _skip_if_pubchem_unavailable(caplog)
         assert len(reaction_input.components) == 1
         assert reaction_input.components[0].amount.mass == reaction_pb2.Mass(value=10, units="GRAM")
         assert reaction_input.components[0].identifiers[0] == reaction_pb2.CompoundIdentifier(type="NAME", value="THF")
@@ -60,7 +84,9 @@ class TestInputResolvers:
         assert roundtrip_smi(reaction_input.components[0].identifiers[1].value) == roundtrip_smi("C1COCC1")
 
         string = "100 mL of 5.0uM sodium hydroxide in water"
-        reaction_input = resolvers.resolve_input(string)
+        with caplog.at_level(logging.INFO, logger="ord_schema.resolvers"):
+            reaction_input = resolvers.resolve_input(string)
+        _skip_if_pubchem_unavailable(caplog)
         assert len(reaction_input.components) == 2
         assert reaction_input.components[0].amount.moles == reaction_pb2.Moles(value=500, units="NANOMOLE")
         assert reaction_input.components[0].identifiers[0] == reaction_pb2.CompoundIdentifier(
