@@ -51,11 +51,18 @@ jobs:
         run: uv sync --extra tests --locked
       - name: Run tests
         shell: bash -l {0}
+        # Exercise the live PubChem/OPSIN resolver smoke tests on a single matrix
+        # entry only; running them on all 8 jobs at once trips PubChem's per-IP
+        # throttling (503 ServerBusy). Other entries skip them (see resolvers_test).
+        env:
+          ORD_LIVE_RESOLVERS: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
         run: |
           uv run coverage erase
           # -n auto: each ORM test spins up its own testing.postgresql instance, so the suite is
           # parallel-safe; pytest-cov aggregates coverage across xdist workers.
-          uv run pytest -n auto -vv --cov=ord_schema --durations=20
+          # -ra: summarize all non-passing outcomes (failures, errors, and skip reasons) at the end of the run --
+          # e.g. live resolver tests gated off this matrix entry vs. skipped on a PubChem 503.
+          uv run pytest -n auto -vv -ra --cov=ord_schema --durations=20
           uv run coverage xml
       # Codecov uses CODECOV_TOKEN when set. Do not fail the job when uploads cannot authenticate:
       # fork PRs (tokenless), Dependabot PRs (no repo secrets + protected dependabot/* branches).
