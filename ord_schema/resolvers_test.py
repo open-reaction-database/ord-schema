@@ -24,6 +24,9 @@ from ord_schema.proto import reaction_pb2
 
 
 class TestNameResolvers:
+    # Hits live name-resolution services (PubChem/OPSIN); retry with a delay so a
+    # transient outage doesn't fail the whole CI matrix under fail-fast.
+    @pytest.mark.flaky(reruns=3, reruns_delay=5)
     def test_resolve_names(self):
         def roundtrip_smi(smi):
             return Chem.MolToSmiles(Chem.MolFromSmiles(smi))
@@ -41,6 +44,9 @@ class TestNameResolvers:
 
 
 class TestInputResolvers:
+    # Hits live name-resolution services (PubChem/OPSIN); retry with a delay so a
+    # transient outage doesn't fail the whole CI matrix under fail-fast.
+    @pytest.mark.flaky(reruns=3, reruns_delay=5)
     def test_input_resolve(self):
         def roundtrip_smi(smi):
             return Chem.MolToSmiles(Chem.MolFromSmiles(smi))
