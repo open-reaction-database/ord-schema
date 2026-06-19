@@ -15,7 +15,6 @@
 
 import os
 import tempfile
-import time
 from collections.abc import Iterator
 
 import pandas as pd
@@ -516,12 +515,13 @@ class TestLoadAndWriteMessage:
                 assert message == message_helpers.load_message(f.name, type(message))
 
     def test_gzip_reproducibility(self, messages, tmp_path):
+        # write_message pins the gzip header mtime, so repeated writes of the same
+        # message are byte-identical regardless of wall-clock time between them.
         filename = (tmp_path / "test.pb.gz").as_posix()
         for message in messages:
             message_helpers.write_message(message, filename)
             with open(filename, "rb") as f:
                 value = f.read()
-            time.sleep(1)
             message_helpers.write_message(message, filename)
             with open(filename, "rb") as f:
                 assert f.read() == value
