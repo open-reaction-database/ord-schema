@@ -37,7 +37,7 @@ from typing import Any
 from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
 from inflection import underscore
-from sqlalchemy import Boolean, Column, Enum, Float, ForeignKey, Integer, LargeBinary, String, Text
+from sqlalchemy import Boolean, Column, Enum, Float, ForeignKey, Index, Integer, LargeBinary, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
@@ -234,6 +234,32 @@ def build_mapper(
 _MESSAGE_TO_MAPPER: dict[type[Message], type] = build_mappers()
 _MAPPER_TO_MESSAGE: dict[type, type[Message]] = {value: key for key, value in _MESSAGE_TO_MAPPER.items()}
 
+# Partial indexes over not-yet-linked rows, keyed by the foreign key used to reach a dataset. The incremental
+# RDKit-linking queries (ord_schema.orm.database.update_rdkit_tables / update_rdkit_ids) repeatedly ask "which of
+# this dataset's rows still have rdkit_*_id IS NULL?" -- zero for an already-loaded dataset. Indexing only the
+# unlinked rows keeps these tiny (just the in-flight datasets), so the planner answers in ~O(unlinked) instead of
+# scanning every reaction/compound in the dataset. create_all builds these on new databases; backfill them on an
+# existing database with CREATE INDEX CONCURRENTLY (see "Adding the partial indexes to an existing database" in
+# ord_schema/orm/README.md). Keep the SQL in that section in sync with the Index() declarations below.
+_REACTION_TABLE = Base.metadata.tables["ord.reaction"]
+Index(
+    "reaction_unlinked_index",
+    _REACTION_TABLE.c.dataset_id,
+    postgresql_where=_REACTION_TABLE.c.rdkit_reaction_id.is_(None),
+)
+_COMPOUND_TABLE = Base.metadata.tables["ord.compound"]
+Index(
+    "compound_unlinked_index",
+    _COMPOUND_TABLE.c.reaction_input_id,
+    postgresql_where=_COMPOUND_TABLE.c.rdkit_mol_id.is_(None),
+)
+_PRODUCT_COMPOUND_TABLE = Base.metadata.tables["ord.product_compound"]
+Index(
+    "product_compound_unlinked_index",
+    _PRODUCT_COMPOUND_TABLE.c.reaction_outcome_id,
+    postgresql_where=_PRODUCT_COMPOUND_TABLE.c.rdkit_mol_id.is_(None),
+)
+
 
 class _MappersMeta(type):
     """Metaclass for Mappers; see https://stackoverflow.com/a/3155493."""
@@ -297,7 +323,7 @@ def from_proto(message: Message, mapper: type[Base] | None = None, key: str | No
             reaction_smiles = None
         if reaction_smiles is not None:
             kwargs["reaction_smiles"] = reaction_smiles.split()[0]  # Handle CXSMILES.
-    elif isinstance(message, (reaction_pb2.Compound, reaction_pb2.ProductCompound)):
+    elif isinstance(message, reaction_pb2.Compound | reaction_pb2.ProductCompound):
         try:
             kwargs["smiles"] = message_helpers.smiles_from_compound(message)
         except ValueError:

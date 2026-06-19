@@ -79,6 +79,12 @@ table.
   that are not part of the database-specific relationship structure.
 * Data specific to the RDKit PostgreSQL cartridge, such as molecular fingerprints, is stored in a separate `rdkit`
   schema to avoid conflicts with message-specific tables in the `public` (default) schema.
+* Partial indexes over not-yet-linked rows (`reaction_unlinked_index`, `compound_unlinked_index`, and
+  `product_compound_unlinked_index`, defined in `mappers.py`) keep incremental RDKit linking fast. They index only
+  the rows whose `rdkit_*_id` is still `NULL`, so the repeated "which of this dataset's rows still need linking?"
+  queries stay proportional to the in-flight backlog rather than the full table. `prepare_database` creates them on
+  new databases; see [Adding the partial indexes to an existing database](#adding-the-partial-indexes-to-an-existing-database)
+  to backfill them on an older one.
 
 ## Usage
 
@@ -125,24 +131,47 @@ prepare_database(engine)
 Note that rdkit extension data such as fingerprints are stored in a separate `rdkit` schema in the database to avoid
 conflicts with ORD message names.
 
+### Adding the partial indexes to an existing database
+
+`prepare_database` creates the partial indexes that speed up incremental RDKit linking, so newly initialized databases
+already have them. A database created before these indexes were introduced should be backfilled. Use
+`CREATE INDEX CONCURRENTLY` so the build does not hold a write lock on these large tables (run each statement outside a
+transaction block; `IF NOT EXISTS` makes the migration idempotent):
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS reaction_unlinked_index
+    ON ord.reaction (dataset_id) WHERE rdkit_reaction_id IS NULL;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS compound_unlinked_index
+    ON ord.compound (reaction_input_id) WHERE rdkit_mol_id IS NULL;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS product_compound_unlinked_index
+    ON ord.product_compound (reaction_outcome_id) WHERE rdkit_mol_id IS NULL;
+```
+
+These definitions must stay in sync with the `Index(...)` declarations in `mappers.py`.
+
 ### Add data
 
-Load ORD datasets into the database with the `add_dataset` and `add_rdkit` functions:
+Load ORD datasets into the database with the `add_parquet_dataset` function:
 
 ```python
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from ord_schema.message_helpers import fetch_dataset
-from ord_schema.orm.database import add_dataset
+from ord_schema import message_helpers
+from ord_schema.orm.database import add_parquet_dataset
 
-dataset = fetch_dataset("ord_dataset-fc83743b978f4deea7d6856deacbfe53")
+# fetch_dataset downloads the dataset (preferring the Parquet serialization)
+# and returns its local path. add_parquet_dataset streams that Parquet file
+# into the database without loading the whole Dataset into memory. Datasets not
+# yet migrated to Parquet come back as .pb.gz; load those instead with
+# add_dataset(message_helpers.load_message(path, dataset_pb2.Dataset)).
+path = message_helpers.fetch_dataset("ord_dataset-fc83743b978f4deea7d6856deacbfe53")
 
 connection_string = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
 engine = create_engine(connection_string)
 with Session(engine) as session:
     with session.begin():
-        add_dataset(dataset, session)
+        add_parquet_dataset(path, session)
 ```
 
 To load multiple datasets from disk (e.g., from a clone of
