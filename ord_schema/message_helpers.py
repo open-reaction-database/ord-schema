@@ -19,18 +19,18 @@ import gzip
 import os
 import posixpath
 import re
-import urllib.parse
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
 from typing import TypeVar, cast
 
 import pandas as pd
-import requests
 from google.protobuf import (
     json_format,
     text_format,
 )
 from google.protobuf.message import DecodeError
+from huggingface_hub import hf_hub_download
+from huggingface_hub.errors import EntryNotFoundError
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
@@ -44,7 +44,9 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
 MessageType = TypeVar("MessageType")  # Generic for setting return types
-ORD_DATA_URL = "https://github.com/Open-Reaction-Database/ord-data/raw/main/"
+# Hugging Face dataset that mirrors the ord-data repository; see
+# https://huggingface.co/datasets/open-reaction-database/ord-data.
+ORD_DATA_HF_REPO = "open-reaction-database/ord-data"
 
 
 def build_compound(
@@ -739,29 +741,61 @@ _BINARY_FORMATS = {MessageFormat.BINARY, MessageFormat.BINPB}
 _TEXT_FORMATS = {MessageFormat.PBTXT, MessageFormat.TXTPB}
 
 
-def fetch_dataset(dataset_id: str, timeout: float = 10.0) -> dataset_pb2.Dataset:
-    """Loads a dataset from the ord-data repository.
+def fetch_dataset(
+    dataset_id: str,
+    *,
+    revision: str = "main",
+    cache_dir: str | None = None,
+    local_dir: str | None = None,
+) -> str:
+    """Downloads a dataset file from the ord-data Hugging Face mirror.
+
+    Prefers the Parquet serialization and falls back to the legacy ``.pb.gz``
+    binary format for datasets that have not been converted yet. The file is
+    not parsed; dispatch on the returned suffix to choose a reader, e.g.
+    ``parquet_dataset.read_dataset``/``parquet_dataset.DatasetView`` for
+    ``.parquet`` and ``load_message`` for ``.pb.gz``.
+
+    Downloads are cached and content-verified by ``huggingface_hub``: repeat
+    calls reuse the cached file (re-validating against the remote for moving
+    revisions like ``"main"``) instead of re-downloading. By default the cache
+    lives under ``~/.cache/huggingface/hub``; set ``$HF_HOME`` (or pass
+    ``cache_dir``) to relocate it, or set ``$HF_HUB_OFFLINE=1`` to reuse an
+    already-warm cache without network access.
 
     Args:
         dataset_id: Dataset ID.
-        timeout: Number of seconds to wait before timing out the request.
+        revision: Branch, tag, or commit SHA to download (default: ``"main"``).
+        cache_dir: Override the Hugging Face cache directory. Files are stored
+            content-addressed and returned via a symlink into the cache.
+        local_dir: If set, materialize the file as a real (non-symlink) copy
+            under this directory instead of returning a cache symlink; useful
+            for staging files into a project tree.
 
     Returns:
-        Dataset message.
+        Local filesystem path to the downloaded dataset file.
 
     Raises:
-        RuntimeError: If the request fails.
+        RuntimeError: If no file exists for the dataset.
         ValueError: If the dataset ID is invalid.
     """
     from ord_schema import validations
 
     if not validations.is_valid_dataset_id(dataset_id):
         raise ValueError(f"Invalid dataset ID: {dataset_id}")
-    url = urllib.parse.urljoin(ORD_DATA_URL, id_filename(f"{dataset_id}.pb.gz"))
-    response = requests.get(url, timeout=timeout)
-    if response.status_code != 200:
-        raise RuntimeError(f"Request {url} failed with status {response.status_code}")
-    return dataset_pb2.Dataset.FromString(gzip.decompress(response.content))
+    for suffix in (".parquet", ".pb.gz"):
+        try:
+            return hf_hub_download(
+                repo_id=ORD_DATA_HF_REPO,
+                repo_type="dataset",
+                revision=revision,
+                filename=id_filename(f"{dataset_id}{suffix}"),
+                cache_dir=cache_dir,
+                local_dir=local_dir,
+            )
+        except EntryNotFoundError:
+            continue
+    raise RuntimeError(f"Dataset {dataset_id} not found in {ORD_DATA_HF_REPO}@{revision}")
 
 
 def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
