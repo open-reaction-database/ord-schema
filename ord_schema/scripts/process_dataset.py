@@ -54,12 +54,12 @@ class FileStatus:
     status: str
     original_filename: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.status[0] not in ["A", "D", "M", "R"]:
             raise ValueError(f"unsupported file status: {self.status}")
 
 
-def _get_inputs(args) -> list[FileStatus]:
+def _get_inputs(args: argparse.Namespace) -> list[FileStatus]:
     """Gets a list of Dataset proto filenames to process.
 
     Returns:
@@ -91,7 +91,7 @@ def _get_inputs(args) -> list[FileStatus]:
     raise ValueError("one of --input_pattern or --input_file is required")
 
 
-def cleanup(filename: str, output_filename: str):
+def cleanup(filename: str, output_filename: str) -> None:
     """Reflects the (input → output) submission move in git's index.
 
     If ``output_filename`` does not exist yet (the in-memory write path runs
@@ -264,7 +264,7 @@ def _run_updates(
         message_helpers.write_dataset(dataset, output_filename)
 
 
-def run(args) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
+def run(args: argparse.Namespace) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
     """Main function that returns added/removed reaction ID sets.
 
     This function should be called directly by tests to get access to the
@@ -344,7 +344,7 @@ def run(args) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
     return total_added, total_removed, total_changed
 
 
-def parse_args(argv=None):
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process datasets for database submissions")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--input_pattern", default=None, help="Pattern matching input Dataset protos")
@@ -362,7 +362,7 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     silence_rdkit_logs()
     run(args)
 

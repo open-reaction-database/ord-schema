@@ -124,7 +124,7 @@ def apply_cross_reference_substitutions(reaction: reaction_pb2.Reaction, id_subs
                 crude_component.reaction_id = id_substitutions[crude_component.reaction_id]
 
 
-def update_dataset(dataset: dataset_pb2.Dataset):
+def update_dataset(dataset: dataset_pb2.Dataset) -> None:
     """Updates a Dataset message.
 
     Current updates:

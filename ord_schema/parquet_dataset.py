@@ -32,6 +32,7 @@ import hashlib
 import os
 import tempfile
 from collections.abc import Iterable, Iterator
+from types import TracebackType
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -79,7 +80,7 @@ class DatasetWriter:
         dataset_id: str | None = None,
         compression: str = "zstd",
         row_group_size: int = 1000,
-    ):
+    ) -> None:
         if not name:
             raise ValueError("DatasetWriter requires a non-empty name")
         if not description:
@@ -163,7 +164,9 @@ class DatasetWriter:
     def __enter__(self) -> "DatasetWriter":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
+    ) -> None:
         # On exception in the with body, abort the write so the destination
         # path is never created; let the original exception propagate.
         if exc_type is None:
@@ -219,7 +222,7 @@ class _ReactionStream:
     always being truthy the way a bare generator would be.
     """
 
-    def __init__(self, path: str, num_reactions: int):
+    def __init__(self, path: str, num_reactions: int) -> None:
         self._path = path
         self._num_reactions = num_reactions
 
@@ -246,7 +249,7 @@ class DatasetView:
     is exposed as a read-only property so accidental rebinding raises.
     """
 
-    def __init__(self, path: str):
+    def __init__(self, path: str) -> None:
         self._path = path
         with pq.ParquetFile(path) as parquet_file:
             scalars = _dataset_from_metadata(parquet_file.schema_arrow.metadata)

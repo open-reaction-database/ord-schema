@@ -91,7 +91,7 @@ class _ParquetEntry:
     state: validations.DatasetCrossRefState
 
 
-def parse_args(argv=None):
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate Dataset protocol buffers")
     parser.add_argument("--input", required=True, help="Input pattern for Dataset protos")
     parser.add_argument("--filter", default=None, help="Regex filename filter")
@@ -99,7 +99,7 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     filenames = sorted(glob.glob(args.input, recursive=True))
     logger.info("Found %d datasets", len(filenames))
     if args.filter:

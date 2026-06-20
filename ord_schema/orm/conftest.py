@@ -39,7 +39,7 @@ def test_engine_fixture() -> Iterator[Engine]:
 
 
 @pytest.fixture(name="test_session")
-def test_session_fixture(test_engine) -> Iterator[Session]:
+def test_session_fixture(test_engine: Engine) -> Iterator[Session]:
     datasets = [
         load_message(
             os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"), dataset_pb2.Dataset

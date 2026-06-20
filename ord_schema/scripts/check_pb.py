@@ -28,14 +28,14 @@ from ord_schema import message_helpers
 from ord_schema.proto import dataset_pb2
 
 
-def parse_args(argv=None):
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Compare pbtxt and pb Datasets")
     parser.add_argument("--pb", required=True, help="Path to *.pb Dataset")
     parser.add_argument("--pbtxt", required=True, help="Path to *.pbtxt Dataset")
     return parser.parse_args(argv)
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     dataset = message_helpers.load_message(args.pb, dataset_pb2.Dataset)
     pb_data = text_format.MessageToString(dataset)
     with open(args.pbtxt) as f:

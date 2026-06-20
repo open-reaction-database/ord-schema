@@ -20,8 +20,8 @@ import os
 import posixpath
 import re
 import warnings
-from collections.abc import Iterable, Mapping, Sequence
-from typing import TypeVar, cast
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from typing import Any, TypeVar, cast
 
 import pandas as pd
 from google.protobuf import (
@@ -331,7 +331,7 @@ def mol_from_compound(
     raise ValueError(f"no valid structural identifier for Compound: {compound}")
 
 
-def check_compound_identifiers(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound):
+def check_compound_identifiers(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound) -> None:
     """Verifies that structural compound identifiers are consistent.
 
     Args:
@@ -465,7 +465,7 @@ def validate_reaction_smiles(reaction_smiles: str) -> None:
         raise ValueError(f"bad reaction SMILES ({str(error)}): {reaction_smiles}") from error
 
 
-def reaction_from_smiles(reaction_smiles):
+def reaction_from_smiles(reaction_smiles: str) -> reaction_pb2.Reaction:
     """Builds a Reaction by splitting a reaction SMILES."""
     reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles, useSmiles=True)
     rdChemReactions.RemoveMappingNumbersFromReactions(reaction)
@@ -494,7 +494,9 @@ def reaction_from_smiles(reaction_smiles):
     return message
 
 
-def get_product_yield(product: reaction_pb2.ProductCompound, as_measurement: bool = False):
+def get_product_yield(
+    product: reaction_pb2.ProductCompound, as_measurement: bool = False
+) -> reaction_pb2.ProductMeasurement | float | None:
     """Returns the value of a product's yield if it is defined. If multiple
     measurements of type YIELD exist, only the first is returned.
 
@@ -840,7 +842,7 @@ def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
             raise ValueError(f"error parsing {filename}: {error}") from error
 
 
-def write_message(message: ord_schema.Message, filename: str):
+def write_message(message: ord_schema.Message, filename: str) -> None:
     """Writes a protocol buffer message to disk.
 
     Args:
@@ -868,7 +870,7 @@ def write_message(message: ord_schema.Message, filename: str):
 
 
 @contextlib.contextmanager
-def _open_for_write(tmp_path: str, *, dest: str):
+def _open_for_write(tmp_path: str, *, dest: str) -> Iterator[Any]:
     """Opens ``tmp_path`` for binary writing.
 
     For ``.gz`` destinations, wraps the file in a ``GzipFile`` with a fixed

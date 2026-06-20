@@ -82,5 +82,5 @@ def simple_solution(
     return output_compounds
 
 
-def brine(volume=None):
+def brine(volume: str | reaction_pb2.Volume | None = None) -> list[reaction_pb2.Compound]:
     return simple_solution(solute_smiles="[Na+].[Cl-]", solvent_smiles="O", volume=volume, saturated=True)

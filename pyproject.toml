@@ -105,8 +105,13 @@ select = [
     "B",    # flake8-bugbear (likely bugs)
     "UP",   # pyupgrade (modernize syntax)
     "SIM",  # flake8-simplify
+    "ANN",  # flake8-annotations (argument, return, and Any-return types)
 ]
 ignore = [
+    # ANN401 (disallow typing.Any) fires only on genuinely dynamic call sites:
+    # proxy __getattr__/__getitem__ on message wrappers, a metaclass proxy, an
+    # enum __call__, and the recursive field-value validator. Any is correct there.
+    "ANN401",
     "E501",    # Line length is enforced by the formatter, not the linter.
     "SIM108",  # Ternary expressions are not always clearer than if/else.
     "B008",    # Function calls in argument defaults are fine for our use cases.
@@ -123,8 +128,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Tests often redefine fixtures and use patterns that bugbear dislikes.
-"**/*_test.py" = ["B011", "B017"]
+# Tests trip a couple of flake8-bugbear (the "B" rules) checks -- B011 (`assert False`)
+# and B017 (overly broad `pytest.raises(Exception)`); type annotations (ANN) also add
+# little value on test functions/fixtures. Skip both in tests.
+"**/*_test.py" = ["B011", "B017", "ANN"]
 
 [tool.ty.src]
 exclude = ["**/*_pb2.py*"]
