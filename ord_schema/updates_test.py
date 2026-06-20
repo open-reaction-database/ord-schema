@@ -14,7 +14,6 @@
 """Tests for ord_schema.updates."""
 
 import os
-from collections.abc import Iterator
 
 import pytest
 
@@ -24,7 +23,7 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 
 class TestUpdateDataset:
     @pytest.fixture
-    def dataset(self) -> Iterator[dataset_pb2.Dataset]:
+    def dataset(self) -> dataset_pb2.Dataset:
         dataset = dataset_pb2.Dataset()
         reaction = dataset.reactions.add()
         # Minimal reaction.
@@ -41,7 +40,7 @@ class TestUpdateDataset:
         reaction3 = dataset.reactions.add()
         reaction2.CopyFrom(dataset.reactions[0])
         reaction3.CopyFrom(dataset.reactions[0])
-        yield dataset
+        return dataset
 
     def test_crossferences(self, dataset):
         dummy_input = dataset.reactions[0].inputs["dummy_input"]
@@ -99,14 +98,16 @@ class TestAssignIdSubstitutions:
 
     def test_placeholder_ids_get_substitutions(self):
         new_ids, subs = updates.assign_id_substitutions(["placeholder"])
-        assert new_ids[0] is not None and new_ids[0].startswith("ord-")
+        assert new_ids[0] is not None
+        assert new_ids[0].startswith("ord-")
         assert subs == {"placeholder": new_ids[0]}
 
     def test_empty_id_gets_new_id_but_no_substitution(self):
         # Empty old_id: nothing else could have referenced it, so no entry
         # in id_substitutions; the reaction still receives a fresh canonical ID.
         new_ids, subs = updates.assign_id_substitutions([""])
-        assert new_ids[0] is not None and new_ids[0].startswith("ord-")
+        assert new_ids[0] is not None
+        assert new_ids[0].startswith("ord-")
         assert subs == {}
 
     def test_parallel_to_input(self):

@@ -14,7 +14,6 @@
 """Tests for ord_schema.scripts.validate_dataset."""
 
 import os
-from collections.abc import Iterator
 
 import pytest
 
@@ -24,7 +23,7 @@ from ord_schema.scripts import validate_dataset
 
 
 @pytest.fixture(params=[".pbtxt", ".parquet"])
-def setup(request, tmp_path) -> Iterator[tuple[str, str]]:
+def setup(request, tmp_path) -> tuple[str, str]:
     """Writes dataset1 and dataset2 to ``tmp_path`` in the parametrized format.
 
     Yields ``(tmp_path, suffix)``.
@@ -50,7 +49,7 @@ def setup(request, tmp_path) -> Iterator[tuple[str, str]]:
     reaction2 = reaction_pb2.Reaction()
     dataset2 = dataset_pb2.Dataset(name="test2", description="test2", reactions=[reaction1, reaction2])
     message_helpers.write_dataset(dataset2, os.path.join(test_subdirectory, f"dataset2{suffix}"))
-    yield test_subdirectory, suffix
+    return test_subdirectory, suffix
 
 
 def test_simple(setup):
@@ -159,13 +158,13 @@ def test_parquet_per_reaction_error_in_late_row_group(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "pattern,expected",
-    (
+    ("pattern", "expected"),
+    [
         (r"data/\d{2}", ["data/11/foo.pb"]),
         (r"data/\d[a-z]", ["data/1a/foo.pb"]),
         (r"data/[a-z]\d", ["data/a1/foo.pb"]),
         (r"data/[a-z]{2}", ["data/aa/foo.pb"]),
-    ),
+    ],
 )
 def test_filter_filenames(pattern, expected):
     filenames = [

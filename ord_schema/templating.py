@@ -53,7 +53,7 @@ def read_spreadsheet(file_name_or_buffer: str | BinaryIO, suffix: str | None = N
 
 def _is_null(value: float | str) -> bool:
     """Returns whether a value is null."""
-    return pd.isnull(value) or (isinstance(value, str) and (value == "nan" or not value.strip()))
+    return pd.isna(value) or (isinstance(value, str) and (value == "nan" or not value.strip()))
 
 
 def _fill_template(string: str, substitutions: Mapping[str, ord_schema.ScalarType]) -> reaction_pb2.Reaction:
@@ -86,7 +86,7 @@ def _fill_template(string: str, substitutions: Mapping[str, ord_schema.ScalarTyp
     """
     check_null = False
     for pattern, value in substitutions.items():
-        if pd.isnull(value):
+        if pd.isna(value):
             check_null = True
         string = string.replace(pattern, repr(value).strip("'"))
     try:
@@ -144,7 +144,7 @@ def generate_dataset(
             # Allow "$my_placeholder$" to match "my_placeholder" in df.
             if placeholder[1:-1] not in df.columns:
                 raise ValueError(f"Placeholder {placeholder} not found as a column in dataset spreadsheet")
-            df.rename(columns={placeholder[1:-1]: placeholder}, inplace=True)
+            df = df.rename(columns={placeholder[1:-1]: placeholder})
 
     reactions = []
     for _, substitutions in df[list(placeholders)].iterrows():

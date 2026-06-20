@@ -150,11 +150,11 @@ class TestInputResolvers:
         assert reaction_input.components[1].identifiers[1].value == "O"
 
     @pytest.mark.parametrize(
-        "string,expected",
-        (
+        ("string", "expected"),
+        [
             ("100 g of 5.0uM sodium hydroxide in water", "amount of solution must be a volume"),
             ("100 L of 5 grapes in water", "String did not match template"),
-        ),
+        ],
     )
     def test_input_resolve_should_fail(self, string, expected):
         with pytest.raises((KeyError, ValueError), match=expected):

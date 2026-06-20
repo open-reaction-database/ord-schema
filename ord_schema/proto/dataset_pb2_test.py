@@ -32,7 +32,7 @@ def serialized_dataset() -> Iterator[bytes]:
     reaction2 = reaction_pb2.Reaction()
     reaction2.identifiers.add(value="amide coupling", type="REACTION_TYPE")
     dataset.reactions.add().CopyFrom(reaction2)
-    yield dataset.SerializeToString()
+    return dataset.SerializeToString()
 
 
 def test_dataset(serialized_dataset):

@@ -260,7 +260,7 @@ def test_writer_publishes_atomically(tmp_path):
 def test_writer_aborts_on_exception_in_context(tmp_path):
     """An exception in the with-body must leave neither destination nor temp behind."""
     path = os.path.join(tmp_path, "ds.parquet")
-    with (
+    with (  # noqa: PT012  (abort-on-exception test: the multi-statement body in the context is under test)
         pytest.raises(RuntimeError, match="boom"),
         dataset.DatasetWriter(path, name="n", description="d") as writer,
     ):
@@ -272,7 +272,7 @@ def test_writer_aborts_on_exception_in_context(tmp_path):
 def test_writer_aborts_on_keyboard_interrupt_in_context(tmp_path):
     """KeyboardInterrupt in the with-body also triggers _abort and leaves no temp behind."""
     path = os.path.join(tmp_path, "ds.parquet")
-    with (
+    with (  # noqa: PT012  (abort-on-exception test: the multi-statement body in the context is under test)
         pytest.raises(KeyboardInterrupt),
         dataset.DatasetWriter(path, name="n", description="d") as writer,
     ):
@@ -287,7 +287,7 @@ def test_writer_aborts_preserves_existing_destination(tmp_path):
     dataset.write_dataset(_make_dataset(n=2, name="old", description="old desc"), path)
     with open(path, "rb") as f:
         original_bytes = f.read()
-    with (
+    with (  # noqa: PT012  (abort-on-exception test: the multi-statement body in the context is under test)
         pytest.raises(RuntimeError, match="boom"),
         dataset.DatasetWriter(path, name="new", description="new desc") as writer,
     ):

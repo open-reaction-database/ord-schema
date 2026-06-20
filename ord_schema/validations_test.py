@@ -52,11 +52,11 @@ def _run_validation(message, **kwargs):
 
 @pytest.mark.parametrize(
     "message",
-    (
+    [
         reaction_pb2.ReactionNotes(),
         reaction_pb2.StirringConditions(type="UNSPECIFIED"),
         reaction_pb2.ReactionNotes(safety_notes=""),
-    ),
+    ],
 )
 def test_is_empty(message):
     assert validations.is_empty(message)
@@ -64,11 +64,11 @@ def test_is_empty(message):
 
 @pytest.mark.parametrize(
     "message",
-    (
+    [
         reaction_pb2.StirringConditions(type="STIR_BAR"),
         reaction_pb2.ReactionNotes(is_heterogeneous=False),
         reaction_pb2.ReactionNotes(is_heterogeneous=True),
-    ),
+    ],
 )
 def test_is_not_empty(message):
     assert not validations.is_empty(message)
@@ -76,12 +76,12 @@ def test_is_not_empty(message):
 
 @pytest.mark.parametrize(
     "message",
-    (
+    [
         reaction_pb2.Volume(value=15.0, units=reaction_pb2.Volume.MILLILITER),
         reaction_pb2.Time(value=24, units=reaction_pb2.Time.HOUR),
         reaction_pb2.Mass(value=32.1, units=reaction_pb2.Mass.GRAM),
         reaction_pb2.Temperature(value=25.0, units=reaction_pb2.Temperature.CELSIUS),
-    ),
+    ],
 )
 def test_units(message):
     output = _run_validation(message)
@@ -90,15 +90,15 @@ def test_units(message):
 
 
 @pytest.mark.parametrize(
-    "message,expected",
-    (
+    ("message", "expected"),
+    [
         (reaction_pb2.Volume(value=-15.0, units=reaction_pb2.Volume.MILLILITER), "non-negative"),
         (reaction_pb2.Time(value=-24, units=reaction_pb2.Time.HOUR), "non-negative"),
         (reaction_pb2.Mass(value=-32.1, units=reaction_pb2.Mass.GRAM), "non-negative"),
         (reaction_pb2.FlowRate(value=5), "units"),
         (reaction_pb2.Temperature(value=-5, units="KELVIN"), "between"),
         (reaction_pb2.Temperature(value=-500, units="CELSIUS"), "between"),
-    ),
+    ],
 )
 def test_units_should_fail(message, expected):
     with pytest.raises(validations.ValidationError, match=expected):
@@ -114,10 +114,10 @@ def test_orcid():
 
 @pytest.mark.parametrize(
     "orcid",
-    (
+    [
         "abcd-0001-2345-678X",  # Non-numeric.
         "0000-0001-2345-678X",  # Well-formed but incorrect checksum.
-    ),
+    ],
 )
 def test_orcid_should_fail(orcid):
     message = reaction_pb2.Person(orcid=orcid)
@@ -146,7 +146,7 @@ def test_synthesized_compound():
     assert len(output.errors) == 0
     assert len(output.warnings) == 0
     message = reaction_pb2.CompoundPreparation(type="NONE", reaction_id="dummy_reaction_id")
-    with pytest.raises(validations.ValidationError, match="only .* when SYNTHESIZED"):
+    with pytest.raises(validations.ValidationError, match=r"only .* when SYNTHESIZED"):
         _run_validation(message)
 
 
@@ -260,15 +260,15 @@ def test_bad_reaction_smiles():
 
 
 @pytest.mark.parametrize(
-    "identifier_type, value",
-    (
+    ("identifier_type", "value"),
+    [
         ("SMILES", "CO"),
         ("INCHI", "InChI=1S/CH4O/c1-2/h2H,1H3"),
         (
             "MOLBLOCK",
             "\n     RDKit          2D\n\n  2  1  0  0  0  0  0  0  0  0999 V2000\n    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    1.2990    0.7500    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\nM  END\n",
         ),
-    ),
+    ],
 )
 def test_compound_identifier(identifier_type, value):
     message = reaction_pb2.CompoundIdentifier(type=identifier_type, value=value)
@@ -278,12 +278,12 @@ def test_compound_identifier(identifier_type, value):
 
 
 @pytest.mark.parametrize(
-    "identifier_type, value",
-    (
+    ("identifier_type", "value"),
+    [
         ("SMILES", "[O-]1(C)[Ir+]234([O-](C)[Ir+]1567[CH]=8CC[CH]7=[CH]6CC[CH]85)[CH]=9CC[CH]4=[CH]3CC[CH]92"),
         ("SMILES", "CO(C)(C)(C)C"),
         ("SMILES", "On1c(-c2ccccc2)c(-c2c(-c3ccccc3)nc3ccccc23)c2ccccc21"),
-    ),
+    ],
 )
 def test_bad_compound_identifier(identifier_type, value):
     message = reaction_pb2.CompoundIdentifier(type=identifier_type, value=value)
@@ -294,12 +294,12 @@ def test_bad_compound_identifier(identifier_type, value):
 
 
 @pytest.mark.parametrize(
-    "identifier_type, value",
-    (
+    ("identifier_type", "value"),
+    [
         ("SMILES", "###"),
         ("INCHI", "###"),
         ("MOLBLOCK", "###"),
-    ),
+    ],
 )
 def test_invalid_compound_identifier(identifier_type, value):
     message = reaction_pb2.CompoundIdentifier(type=identifier_type, value=value)
@@ -308,13 +308,13 @@ def test_invalid_compound_identifier(identifier_type, value):
 
 
 @pytest.mark.parametrize(
-    "identifier_type, value",
-    (
+    ("identifier_type", "value"),
+    [
         ("CAS_NUMBER", "64-17-5"),
         ("INCHI_KEY", "LFQSCWFLJHTTHZ-UHFFFAOYSA-N"),
         ("PUBCHEM_CID", "702"),
         ("CHEMSPIDER_ID", "682"),
-    ),
+    ],
 )
 def test_compound_identifier_format(identifier_type, value):
     message = reaction_pb2.CompoundIdentifier(type=identifier_type, value=value)
@@ -324,13 +324,13 @@ def test_compound_identifier_format(identifier_type, value):
 
 
 @pytest.mark.parametrize(
-    "identifier_type, value, expected",
-    (
+    ("identifier_type", "value", "expected"),
+    [
         ("CAS_NUMBER", "64175", "CAS number"),
         ("INCHI_KEY", "not-a-key", "InChIKey"),
         ("PUBCHEM_CID", "abc", "PubChem CID"),
         ("CHEMSPIDER_ID", "12x", "ChemSpider ID"),
-    ),
+    ],
 )
 def test_bad_compound_identifier_format(identifier_type, value, expected):
     message = reaction_pb2.CompoundIdentifier(type=identifier_type, value=value)
@@ -340,7 +340,7 @@ def test_bad_compound_identifier_format(identifier_type, value, expected):
     assert expected in output.warnings[0]
 
 
-@pytest.mark.parametrize("ph_value", (7.0, 0.0, 14.0))
+@pytest.mark.parametrize("ph_value", [7.0, 0.0, 14.0])
 def test_reaction_conditions_ph(ph_value):
     message = reaction_pb2.ReactionConditions(ph=ph_value)
     output = _run_validation(message)
@@ -348,7 +348,7 @@ def test_reaction_conditions_ph(ph_value):
     assert len(output.warnings) == 0
 
 
-@pytest.mark.parametrize("ph_value", (-1.0, 15.0))
+@pytest.mark.parametrize("ph_value", [-1.0, 15.0])
 def test_reaction_conditions_bad_ph(ph_value):
     message = reaction_pb2.ReactionConditions(ph=ph_value)
     output = _run_validation(message)
@@ -416,13 +416,13 @@ def test_illumination_dark_with_wavelength():
 
 
 @pytest.mark.parametrize(
-    "value, is_mapped, expected",
-    (
+    ("value", "is_mapped", "expected"),
+    [
         # Atom maps present but the flag is not set.
         ("[CH4:1]>>[CH4:1]", False, "is_mapped is not set"),
         # Flag is set but the SMILES contains no atom maps.
         ("CO>>CO", True, "no atom maps"),
-    ),
+    ],
 )
 def test_reaction_identifier_atom_mapping(value, is_mapped, expected):
     message = reaction_pb2.ReactionIdentifier(type="REACTION_SMILES", value=value, is_mapped=is_mapped)
@@ -447,10 +447,10 @@ _ADDITION_INPUT = {
 
 @pytest.mark.parametrize(
     "message",
-    (
+    [
         reaction_pb2.ReactionWorkup(type="ALIQUOT", amount={"mass": {"value": 1.0, "units": "GRAM"}}),
         reaction_pb2.ReactionWorkup(type="ADDITION", input=_ADDITION_INPUT),
-    ),
+    ],
 )
 def test_reaction_workup(message):
     output = _run_validation(message)
@@ -459,8 +459,8 @@ def test_reaction_workup(message):
 
 
 @pytest.mark.parametrize(
-    "message,error_msg",
-    (
+    ("message", "error_msg"),
+    [
         (reaction_pb2.ReactionWorkup(type="ALIQUOT"), "missing volume/mass"),
         (
             reaction_pb2.ReactionWorkup(
@@ -468,7 +468,7 @@ def test_reaction_workup(message):
             ),
             "should only be specified",
         ),
-    ),
+    ],
 )
 def test_bad_reaction_workup(message, error_msg):
     output = _run_validation(message)
@@ -591,7 +591,7 @@ def test_reaction_id():
 
 @pytest.mark.parametrize(
     "reaction_id",
-    (
+    [
         "ord-c0bbd41f095a4",
         "ord-c0bbd41f095a4c0bbd41f095a4c0bbd41f095a4",
         "foo-c0bbd41f095a44a78b6221135961d809",
@@ -599,7 +599,7 @@ def test_reaction_id():
         "ord-h0bbd41f095a44a78b6221135961d809",
         "ord-notARealId",
         "",
-    ),
+    ],
 )
 def test_bad_reaction_id(reaction_id):
     message = reaction_pb2.Reaction(reaction_id=reaction_id)
@@ -804,8 +804,8 @@ def test_amount_volume_includes_solutes_non_volume():
 
 
 @pytest.mark.parametrize(
-    "message, expected",
-    (
+    ("message", "expected"),
+    [
         (
             reaction_pb2.CrudeComponent(
                 reaction_id="r", has_derived_amount=True, amount={"mass": {"value": 1.0, "units": "GRAM"}}
@@ -822,7 +822,7 @@ def test_amount_volume_includes_solutes_non_volume():
             ),
             "only be used for input Compounds",
         ),
-    ),
+    ],
 )
 def test_crude_component_amounts(message, expected):
     with pytest.raises(validations.ValidationError, match=expected):
@@ -844,11 +844,11 @@ def test_compound_inconsistent_identifiers():
 
 
 @pytest.mark.parametrize(
-    "message, raises, expected",
-    (
+    ("message", "raises", "expected"),
+    [
         (reaction_pb2.ReactionConditions(conditions_are_dynamic=True), True, "dynamic"),
         (reaction_pb2.ReactionConditions(details="ramped"), False, "details provided"),
-    ),
+    ],
 )
 def test_reaction_conditions_dynamic(message, raises, expected):
     if raises:
@@ -861,8 +861,8 @@ def test_reaction_conditions_dynamic(message, raises, expected):
 
 
 @pytest.mark.parametrize(
-    "message, expected",
-    (
+    ("message", "expected"),
+    [
         (reaction_pb2.ReactionWorkup(type="WAIT"), "WAIT workup"),
         (reaction_pb2.ReactionWorkup(type="TEMPERATURE"), "temperature conditions"),
         (reaction_pb2.ReactionWorkup(type="EXTRACTION"), "keep_phase"),
@@ -896,7 +896,7 @@ def test_reaction_conditions_dynamic(message, raises, expected):
             reaction_pb2.ReactionWorkup(type="CONCENTRATION", amount={"mass": {"value": 1.0, "units": "GRAM"}}),
             "only be specified if workup type",
         ),
-    ),
+    ],
 )
 def test_reaction_workup_recommendations(message, expected):
     output = _run_validation(message)
@@ -940,8 +940,8 @@ def test_product_compound_inconsistent_identifiers():
 
 
 @pytest.mark.parametrize(
-    "message, raises, expected",
-    (
+    ("message", "raises", "expected"),
+    [
         (
             reaction_pb2.ProductMeasurement(type="IDENTITY", analysis_key="x", percentage={"value": 50.0}),
             True,
@@ -957,7 +957,7 @@ def test_product_compound_inconsistent_identifiers():
             True,
             "must use numeric values",
         ),
-    ),
+    ],
 )
 def test_product_measurement_values(message, raises, expected):
     if raises:
@@ -1009,11 +1009,11 @@ def test_temperature_fahrenheit_below_absolute_zero():
 
 
 @pytest.mark.parametrize(
-    "value, expected",
-    (
+    ("value", "expected"),
+    [
         (0.5, "not fractions"),
         (150.0, "outside the expected range"),
-    ),
+    ],
 )
 def test_percentage_ranges(value, expected):
     message = reaction_pb2.Percentage(value=value)
@@ -1074,11 +1074,11 @@ def test_reaction_outcome_multiple_desired_products():
 
 
 @pytest.mark.parametrize(
-    "measurement, expects_warning",
-    (
+    ("measurement", "expects_warning"),
+    [
         (reaction_pb2.ProductMeasurement(type="PURITY", analysis_key="x", float_value={"value": 5.0}), True),
         (reaction_pb2.ProductMeasurement(type="AREA", analysis_key="x", float_value={"value": 5.0}), False),
-    ),
+    ],
 )
 def test_product_measurement_purity_and_area(measurement, expects_warning):
     output = _run_validation(measurement)

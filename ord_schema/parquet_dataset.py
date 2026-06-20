@@ -33,6 +33,7 @@ import os
 import tempfile
 from collections.abc import Iterable, Iterator
 from types import TracebackType
+from typing import Self
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -161,7 +162,7 @@ class DatasetWriter:
         self._buffer_ids.clear()
         self._buffer_blobs.clear()
 
-    def __enter__(self) -> "DatasetWriter":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(

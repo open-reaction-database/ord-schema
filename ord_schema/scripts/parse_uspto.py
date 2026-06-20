@@ -25,7 +25,7 @@ import datetime
 import glob
 import os
 import re
-from xml.etree import ElementTree
+from xml.etree import ElementTree as ET
 
 import joblib
 
@@ -124,7 +124,7 @@ UNIT_REPLACEMENTS = {
 }
 
 
-def get_tag(element: ElementTree.Element) -> str:
+def get_tag(element: ET.Element) -> str:
     """Fetches the namespace-translated element tag."""
     for key, value in NAMESPACES.items():
         if value in element.tag:
@@ -132,7 +132,7 @@ def get_tag(element: ElementTree.Element) -> str:
     return element.tag
 
 
-def get_molecule_id(root: ElementTree.Element) -> str:
+def get_molecule_id(root: ET.Element) -> str:
     """Fetches the ID of the molecule under this element."""
     molecules = root.findall("cml:molecule", namespaces=NAMESPACES)
     if len(molecules) != 1:
@@ -147,7 +147,7 @@ def resolve_units(value: str) -> ord_schema.UnitMessage:
     return UNIT_RESOLVER.resolve(value, allow_range=True)
 
 
-def get_component_map(root: ElementTree.Element) -> dict[str, str]:
+def get_component_map(root: ET.Element) -> dict[str, str]:
     """Builds a mapping of components to inputs."""
     reaction_inputs = {}
     # NOTE(skearnes): ``ElementTree.Element.find`` returns ``None`` when no child matches.
@@ -173,7 +173,7 @@ def get_component_map(root: ElementTree.Element) -> dict[str, str]:
     return reaction_inputs
 
 
-def parse_reaction(root: ElementTree.Element) -> reaction_pb2.Reaction:
+def parse_reaction(root: ET.Element) -> reaction_pb2.Reaction:
     """Parses reaction CML into a Reaction message."""
     reaction = reaction_pb2.Reaction()
     component_map = get_component_map(root)
@@ -204,7 +204,7 @@ def parse_reaction(root: ElementTree.Element) -> reaction_pb2.Reaction:
     return reaction
 
 
-def parse_source(root: ElementTree.Element, reaction: reaction_pb2.Reaction) -> None:
+def parse_source(root: ET.Element, reaction: reaction_pb2.Reaction) -> None:
     """Adds provenance information to a Reaction."""
     for child in root:
         tag = get_tag(child)
@@ -218,7 +218,7 @@ def parse_source(root: ElementTree.Element, reaction: reaction_pb2.Reaction) -> 
             raise NotImplementedError(child)
 
 
-def parse_product(root: ElementTree.Element, product_compound: reaction_pb2.ProductCompound) -> None:
+def parse_product(root: ET.Element, product_compound: reaction_pb2.ProductCompound) -> None:
     """Adds product information to a ProductCompound."""
     role = root.attrib.get("role")
     if role:
@@ -244,7 +244,7 @@ def parse_product(root: ElementTree.Element, product_compound: reaction_pb2.Prod
 
 
 def parse_molecule(
-    root: ElementTree.Element,
+    root: ET.Element,
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
 ) -> None:
     """Adds NAME identifiers to a Compound."""
@@ -256,7 +256,7 @@ def parse_molecule(
             raise NotImplementedError(child)
 
 
-def parse_product_amount(root: ElementTree.Element, product_compound: reaction_pb2.ProductCompound) -> None:
+def parse_product_amount(root: ET.Element, product_compound: reaction_pb2.ProductCompound) -> None:
     """Adds amount information to a ProductCompound."""
     property_type = root.attrib[f"{{{NAMESPACES['dl']}}}propertyType"]
     if "PERCENTYIELD" in property_type:
@@ -275,7 +275,7 @@ def parse_product_amount(root: ElementTree.Element, product_compound: reaction_p
 
 
 def parse_identifier(
-    root: ElementTree.Element,
+    root: ET.Element,
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
 ) -> None:
     """Adds a SMILES or INCHI identifier to a Compound."""
@@ -289,7 +289,7 @@ def parse_identifier(
         raise NotImplementedError(kind)
 
 
-def parse_reactant(root: ElementTree.Element, compound: reaction_pb2.Compound) -> None:
+def parse_reactant(root: ET.Element, compound: reaction_pb2.Compound) -> None:
     """Populates an input Compound."""
     role = root.attrib.get("role")
     if role:
@@ -312,7 +312,7 @@ def parse_reactant(root: ElementTree.Element, compound: reaction_pb2.Compound) -
 
 
 def parse_amount(
-    root: ElementTree.Element,
+    root: ET.Element,
     compound: reaction_pb2.Compound | reaction_pb2.ProductMeasurement,
 ) -> None:
     """Parses an amount."""
@@ -336,7 +336,7 @@ def parse_amount(
             raise NotImplementedError(amount)
 
 
-def parse_conditions(root: ElementTree.Element, reaction: reaction_pb2.Reaction) -> None:
+def parse_conditions(root: ET.Element, reaction: reaction_pb2.Reaction) -> None:
     """Parses reaction conditions."""
     del reaction  # Unused.
     if not root.findall("cml:chemical", namespaces=NAMESPACES):
@@ -346,7 +346,7 @@ def parse_conditions(root: ElementTree.Element, reaction: reaction_pb2.Reaction)
     return  # TODO(kearnes): Implement this?
 
 
-def parse_workup(root: ElementTree.Element, reaction: reaction_pb2.Reaction) -> None:
+def parse_workup(root: ET.Element, reaction: reaction_pb2.Reaction) -> None:
     """Parses a workup step."""
     if root.findall("dl:chemical", namespaces=NAMESPACES):
         return  # Refers to an input component; not a workup.
@@ -387,14 +387,14 @@ def parse_workup(root: ElementTree.Element, reaction: reaction_pb2.Reaction) -> 
             try:
                 parse_parameter(child, workup)
             except ValueError as error:
-                logger.debug(f"PARAMETER: {ElementTree.tostring(child)}: {error}")
-        elif tag in ["dl:atmosphere"]:
+                logger.debug(f"PARAMETER: {ET.tostring(child)}: {error}")
+        elif tag == "dl:atmosphere":
             pass  # Not supported by ReactionWorkup.
         else:
             raise NotImplementedError(child)
 
 
-def parse_parameter(root: ElementTree.Element, workup: reaction_pb2.ReactionWorkup) -> None:
+def parse_parameter(root: ET.Element, workup: reaction_pb2.ReactionWorkup) -> None:
     """Parses a workup value."""
     kind = root.attrib["propertyType"]
     if kind == "Time":
@@ -492,7 +492,7 @@ def clean_reaction(reaction: reaction_pb2.Reaction) -> None:
 
 def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.Reaction]]:
     """Parses reactions from a single CML file."""
-    tree = ElementTree.parse(filename)
+    tree = ET.parse(filename)
     root = tree.getroot()
     reactions = []
     failures = []
@@ -500,7 +500,7 @@ def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.R
         try:
             reaction = parse_reaction(reaction_cml)
         except (KeyError, NotImplementedError) as error:
-            raise ValueError(ElementTree.dump(reaction_cml)) from error
+            raise ValueError(ET.dump(reaction_cml)) from error
         event = reaction_pb2.RecordEvent(
             time={"value": str(datetime.datetime.now())},
             person={

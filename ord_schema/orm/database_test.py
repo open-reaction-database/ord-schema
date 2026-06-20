@@ -51,7 +51,8 @@ def test_update_rdkit_tables_idempotent(test_session):
     """
     before_reactions = test_session.execute(text("SELECT count(*) FROM rdkit.reactions")).scalar()
     before_mols = test_session.execute(text("SELECT count(*) FROM rdkit.mols")).scalar()
-    assert before_reactions > 0 and before_mols > 0  # Sanity: the fixture populated the cartridge tables.
+    assert before_reactions > 0
+    assert before_mols > 0
     update_rdkit_tables("test_dataset", test_session)
     assert test_session.execute(text("SELECT count(*) FROM rdkit.reactions")).scalar() == before_reactions
     assert test_session.execute(text("SELECT count(*) FROM rdkit.mols")).scalar() == before_mols
@@ -81,5 +82,5 @@ def test_get_dataset_md5(test_session):
 
 def test_get_dataset_size(test_session):
     assert get_dataset_size("test_dataset", test_session) == 80
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="other_dataset"):
         get_dataset_size("other_dataset", test_session)

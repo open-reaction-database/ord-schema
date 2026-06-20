@@ -13,8 +13,6 @@
 # limitations under the License.
 """Tests for ord_schema.templating."""
 
-from collections.abc import Iterator
-
 import pandas as pd
 import pytest
 from google.protobuf import text_format
@@ -25,7 +23,7 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
 @pytest.fixture
-def valid_reaction() -> Iterator[reaction_pb2.Reaction]:
+def valid_reaction() -> reaction_pb2.Reaction:
     message = reaction_pb2.Reaction()
     dummy_input = message.inputs["in"]
     outcome = message.outcomes.add()
@@ -39,7 +37,7 @@ def valid_reaction() -> Iterator[reaction_pb2.Reaction]:
     message.provenance.record_created.time.value = "2023-07-01"
     message.provenance.record_created.person.name = "test"
     message.provenance.record_created.person.email = "test@example.com"
-    yield message
+    return message
 
 
 def test_valid_templating(valid_reaction):

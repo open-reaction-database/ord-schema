@@ -43,7 +43,7 @@ def dirname(tmp_path) -> Iterator[str]:
     # reaction2 is empty.
     reaction2 = reaction_pb2.Reaction()
     message_helpers.write_message(reaction2, os.path.join(dirname, "reaction-2.pbtxt"))
-    yield dirname
+    return dirname
 
 
 def test_simple(dirname):

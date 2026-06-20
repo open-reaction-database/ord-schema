@@ -1,0 +1,6 @@
+# Normalize line endings to LF on commit; checkout LF on all platforms.
+# Prevents CRLF creeping in (e.g. Windows editors) and the ruff --fix churn it causes.
+* text=auto eol=lf
+
+# Windows batch files conventionally require CRLF.
+*.bat text eol=crlf
