@@ -248,8 +248,8 @@ class UnitResolver:
         self._resolver = {}
         for message in unit_synonyms:
             for unit in unit_synonyms[message]:
-                for string_unit in unit_synonyms[message][unit]:
-                    string_unit = string_unit.lower()
+                for raw_unit in unit_synonyms[message][unit]:
+                    string_unit = raw_unit.lower()
                     if string_unit in self._resolver:
                         raise KeyError(f"duplicated unit: {string_unit}")
                     self._resolver[string_unit] = (message, unit)

@@ -162,10 +162,11 @@ def get_component_map(root: ET.Element) -> dict[str, str]:
         molecule_id = get_molecule_id(component)
         reaction_inputs[molecule_id] = molecule_id
     for action in root.find("dl:reactionActionList", namespaces=NAMESPACES) or []:
-        components = []
-        for component in action.findall("dl:chemical", namespaces=NAMESPACES):
-            if "ref" in component.attrib:
-                components.append(component.attrib["ref"])
+        components = [
+            component.attrib["ref"]
+            for component in action.findall("dl:chemical", namespaces=NAMESPACES)
+            if "ref" in component.attrib
+        ]
         if components:
             key = "_".join(components)
             for component in components:
@@ -502,7 +503,7 @@ def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.R
         except (KeyError, NotImplementedError) as error:
             raise ValueError(ET.dump(reaction_cml)) from error
         event = reaction_pb2.RecordEvent(
-            time={"value": str(datetime.datetime.now())},
+            time={"value": str(datetime.datetime.now().astimezone())},
             person={
                 "username": "skearnes",
                 "name": "Steven Kearnes",

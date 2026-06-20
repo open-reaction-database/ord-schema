@@ -250,7 +250,7 @@ def _run_updates(
         # In-memory path: materialize a Parquet input if the requested output
         # format is not Parquet (so we can mutate via update_dataset).
         if isinstance(dataset, parquet_dataset.DatasetView):
-            dataset = parquet_dataset.read_dataset(input_filename)
+            dataset = parquet_dataset.read_dataset(input_filename)  # noqa: PLW2901  (materialize the view in place)
         updates.update_dataset(dataset)
         validations.validate_datasets({input_filename: dataset}, write_errors, options=options)
         output_filename = os.path.join(

@@ -24,7 +24,7 @@ from typing import Any
 
 from dateutil import parser
 from rdkit import Chem
-from rdkit import __version__ as RDKIT_VERSION
+from rdkit import __version__ as RDKIT_VERSION  # noqa: N812  (RDKIT_VERSION reads better than rdkit_version)
 
 import ord_schema
 from ord_schema import message_helpers, parquet_dataset
@@ -78,12 +78,10 @@ def validate_datasets(
         basename = os.path.basename(filename)
         errors = _validate_datasets(dataset, label=basename, options=options)
         if errors:
-            for error in errors:
-                all_errors.append(f"{filename}: {error}")
+            all_errors.extend(f"{filename}: {error}" for error in errors)
             if write_errors:
                 with open(f"{filename}.error", "w") as f:
-                    for error in errors:
-                        f.write(f"{error}\n")
+                    f.writelines(f"{error}\n" for error in errors)
     # NOTE(kearnes): We run validation for all datasets before exiting if there
     # are errors.
     if all_errors:
@@ -784,7 +782,7 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier) -> No
             message.MOLBLOCK: (Chem.MolFromMolBlock, "MolBlock"),
         }[message.type]
         if parse_func(message.value) is None:
-            if parse_func(message.value, False) is None:
+            if parse_func(message.value, sanitize=False) is None:
                 warnings.warn(
                     f"RDKit {RDKIT_VERSION} could not validate {identifier_type} identifier {message.value}",
                     ValidationError,
