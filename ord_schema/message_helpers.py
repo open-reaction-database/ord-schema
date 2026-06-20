@@ -862,13 +862,14 @@ def write_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:
     write_message(dataset, filename)
 
 
-def read_dataset(filename: str) -> dataset_pb2.Dataset:
-    """Reads a Dataset from disk, dispatching on filename suffix.
+def load_dataset(filename: str) -> dataset_pb2.Dataset:
+    """Loads a Dataset from disk, dispatching on filename suffix.
 
-    ``.parquet`` routes to ``parquet_dataset.read_dataset``, which deserializes
-    every reaction into memory; other suffixes go through ``load_message``.
+    The dataset-level counterpart to ``load_message``: ``.parquet`` routes to
+    ``parquet_dataset.read_dataset``, which deserializes every reaction into
+    memory; other suffixes go through ``load_message``.
 
-    Reading an entire Parquet dataset into memory defeats the format's
+    Loading an entire Parquet dataset into memory defeats the format's
     streaming benefits, so this path warns and recommends the streaming
     ``parquet_dataset.DatasetView`` loader for large datasets.
 
@@ -881,7 +882,7 @@ def read_dataset(filename: str) -> dataset_pb2.Dataset:
     """
     if filename.endswith(".parquet"):
         warnings.warn(
-            f"Reading the entire Parquet dataset {filename} into memory; for large datasets prefer the "
+            f"Loading the entire Parquet dataset {filename} into memory; for large datasets prefer the "
             "streaming loader ord_schema.parquet_dataset.DatasetView (or iter_reactions/read_reaction).",
             UserWarning,
             stacklevel=2,

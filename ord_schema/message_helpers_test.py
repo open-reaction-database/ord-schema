@@ -561,7 +561,7 @@ class TestLoadAndWriteMessage:
         "suffix",
         (".pbtxt", ".pb", ".pb.gz", ".json", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
     )
-    def test_read_dataset(self, suffix, tmp_path):
+    def test_load_dataset(self, suffix, tmp_path):
         dataset = dataset_pb2.Dataset(
             name="n",
             description="d",
@@ -569,12 +569,12 @@ class TestLoadAndWriteMessage:
         )
         path = (tmp_path / f"ds{suffix}").as_posix()
         message_helpers.write_dataset(dataset, path)
-        loaded = message_helpers.read_dataset(path)
+        loaded = message_helpers.load_dataset(path)
         assert loaded.name == "n"
         assert loaded.description == "d"
         assert list(loaded.reactions) == list(dataset.reactions)
 
-    def test_read_dataset_parquet_warns(self, tmp_path):
+    def test_load_dataset_parquet_warns(self, tmp_path):
         dataset = dataset_pb2.Dataset(
             name="n",
             description="d",
@@ -583,7 +583,7 @@ class TestLoadAndWriteMessage:
         path = (tmp_path / "ds.parquet").as_posix()
         message_helpers.write_dataset(dataset, path)
         with pytest.warns(UserWarning, match="DatasetView"):
-            loaded = message_helpers.read_dataset(path)
+            loaded = message_helpers.load_dataset(path)
         assert loaded.name == "n"
         assert loaded.description == "d"
         assert list(loaded.reactions) == list(dataset.reactions)

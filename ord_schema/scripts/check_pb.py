@@ -35,7 +35,7 @@ def parse_args(argv=None):
 
 
 def main(args):
-    dataset = message_helpers.read_dataset(args.pb)
+    dataset = message_helpers.load_dataset(args.pb)
     pb_data = text_format.MessageToString(dataset)
     with open(args.pbtxt) as f:
         pbtxt_data = f.read()
