@@ -480,6 +480,20 @@ class TestSetDativeBonds:
         assert bond_types[frozenset(["P", "Pd"])] == Chem.BondType.DATIVE
 
 
+_ROUND_TRIP_SUFFIXES = [
+    ".pbtxt",
+    ".pb",
+    ".json",
+    ".pbtxt.gz",
+    ".pb.gz",
+    ".json.gz",
+    ".txtpb",
+    ".binpb",
+    ".txtpb.gz",
+    ".binpb.gz",
+]
+
+
 class TestLoadAndWriteMessage:
     @pytest.fixture
     def messages(self) -> list:
@@ -491,21 +505,7 @@ class TestLoadAndWriteMessage:
             test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
         ]
 
-    @pytest.mark.parametrize(
-        "suffix",
-        [
-            ".pbtxt",
-            ".pb",
-            ".json",
-            ".pbtxt.gz",
-            ".pb.gz",
-            ".json.gz",
-            ".txtpb",
-            ".binpb",
-            ".txtpb.gz",
-            ".binpb.gz",
-        ],
-    )
+    @pytest.mark.parametrize("suffix", _ROUND_TRIP_SUFFIXES)
     def test_round_trip(self, suffix, messages):
         for message in messages:
             with tempfile.NamedTemporaryFile(suffix=suffix) as f:
@@ -513,7 +513,7 @@ class TestLoadAndWriteMessage:
                 f.flush()
                 assert message == message_helpers.load_message(f.name, type(message))
 
-    @pytest.mark.parametrize("suffix", [".pbtxt", ".pb", ".json", ".pb.gz", ".binpb.gz"])
+    @pytest.mark.parametrize("suffix", _ROUND_TRIP_SUFFIXES)
     def test_round_trip_path_input(self, suffix, messages, tmp_path):
         """write_message/load_message accept pathlib.Path, not just str."""
         for i, message in enumerate(messages):
