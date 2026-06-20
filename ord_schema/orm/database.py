@@ -211,7 +211,7 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
             """),
         {"dataset_id": dataset_id},
     )
-    logger.debug(f"Updating reactions took {time.time() - start:g}s ({cast('Any', result).rowcount} rows)")
+    logger.debug(f"Updating reactions took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)")
 
 
 def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
@@ -264,7 +264,7 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
             """),
         {"dataset_id": dataset_id},
     )
-    logger.debug(f"Updating mols took {time.time() - start:g}s ({cast('Any', result).rowcount} rows)")
+    logger.debug(f"Updating mols took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)")
 
 
 def _link_mol_ids(session: Session, *, target_table: str, link_table: str, link_column: str, dataset_id: str) -> int:
@@ -301,7 +301,7 @@ def _link_mol_ids(session: Session, *, target_table: str, link_table: str, link_
             """),
         {"dataset_id": dataset_id},
     )
-    return cast("Any", result).rowcount
+    return cast(Any, result).rowcount
 
 
 def update_rdkit_ids(dataset_id: str, session: Session) -> None:
@@ -325,7 +325,7 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
             """),
         {"dataset_id": dataset_id},
     )
-    reaction_rows = cast("Any", reaction_result).rowcount
+    reaction_rows = cast(Any, reaction_result).rowcount
     compound_rows = _link_mol_ids(
         session,
         target_table="ord.compound",

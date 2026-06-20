@@ -131,6 +131,9 @@ ignore = [
     "ISC001",
     # RUF001 flags intentional non-ASCII in chemistry text (e.g. Greek "α").
     "RUF001",
+    # TC006 quotes the type in typing.cast() even when it is imported at runtime
+    # (e.g. cast(Any, x) -> cast("Any", x)); the quoting just hurts readability.
+    "TC006",
     "E501",    # Line length is enforced by the formatter, not the linter.
     "SIM108",  # Ternary expressions are not always clearer than if/else.
     "B008",    # Function calls in argument defaults are fine for our use cases.

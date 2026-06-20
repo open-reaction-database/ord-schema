@@ -939,7 +939,7 @@ def create_message(message_name: str) -> ord_schema.Message:
     try:
         for name in message_name.split("."):
             message_class = getattr(message_class, name)
-        ctor = cast("type[ord_schema.Message]", message_class)
+        ctor = cast(type[ord_schema.Message], message_class)
         return ctor()
     except (AttributeError, TypeError) as error:
         raise ValueError(f"Cannot resolve message name {message_name}") from error
