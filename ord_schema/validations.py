@@ -53,7 +53,7 @@ class ValidationOutput:
     errors: list[str] = dataclasses.field(default_factory=list)
     warnings: list[str] = dataclasses.field(default_factory=list)
 
-    def extend(self, other) -> None:
+    def extend(self, other: "ValidationOutput") -> None:
         self.errors.extend(other.errors)
         self.warnings.extend(other.warnings)
 

@@ -102,7 +102,7 @@ class FrozenMessage(collections.abc.Mapping):
     def __len__(self) -> int:
         return len(self._message)
 
-    def __getitem__(self, key) -> Any:
+    def __getitem__(self, key: str) -> Any:
         """Fetches a message key, if it exists.
 
         Notes:

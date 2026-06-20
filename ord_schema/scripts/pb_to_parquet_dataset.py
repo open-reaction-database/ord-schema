@@ -41,7 +41,7 @@ class _Resolved:
     dataset_id: str | None
 
 
-def parse_args(argv=None) -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert serialized Dataset files to a single Parquet file.")
     parser.add_argument(
         "inputs",
@@ -56,7 +56,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(args) -> None:
+def main(args: argparse.Namespace) -> None:
     if not args.inputs:
         raise ValueError("at least one input file is required")
 

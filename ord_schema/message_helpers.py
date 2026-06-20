@@ -465,7 +465,7 @@ def validate_reaction_smiles(reaction_smiles: str) -> None:
         raise ValueError(f"bad reaction SMILES ({str(error)}): {reaction_smiles}") from error
 
 
-def reaction_from_smiles(reaction_smiles) -> reaction_pb2.Reaction:
+def reaction_from_smiles(reaction_smiles: str) -> reaction_pb2.Reaction:
     """Builds a Reaction by splitting a reaction SMILES."""
     reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles, useSmiles=True)
     rdChemReactions.RemoveMappingNumbersFromReactions(reaction)

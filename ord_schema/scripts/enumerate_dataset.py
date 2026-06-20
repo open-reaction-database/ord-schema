@@ -21,7 +21,7 @@ from ord_schema.logging import get_logger
 logger = get_logger(__name__)
 
 
-def parse_args(argv=None) -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Enumerate a template with a spreadsheet")
     parser.add_argument("--name", required=True, help="Dataset name")
     parser.add_argument("--description", required=True, help="Dataset description")
@@ -36,7 +36,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(args) -> None:
+def main(args: argparse.Namespace) -> None:
     with open(args.template) as f:
         template_string = f.read()
     df = templating.read_spreadsheet(args.spreadsheet)

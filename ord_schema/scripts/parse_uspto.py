@@ -528,7 +528,7 @@ def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.R
     return reactions, failures
 
 
-def parse_args(argv=None) -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Parse CML from the NRD")
     parser.add_argument("--input_pattern", required=True, help="Input pattern for CML files")
     parser.add_argument("--name", required=True, help="Dataset name")
@@ -537,7 +537,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(args) -> None:
+def main(args: argparse.Namespace) -> None:
     filenames = sorted(glob.glob(args.input_pattern))
     all_reactions = joblib.Parallel(n_jobs=args.n_jobs, verbose=True)(
         joblib.delayed(run)(filename) for filename in filenames

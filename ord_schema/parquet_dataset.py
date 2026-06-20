@@ -32,6 +32,7 @@ import hashlib
 import os
 import tempfile
 from collections.abc import Iterable, Iterator
+from types import TracebackType
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -163,7 +164,9 @@ class DatasetWriter:
     def __enter__(self) -> "DatasetWriter":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
+    ) -> None:
         # On exception in the with body, abort the write so the destination
         # path is never created; let the original exception propagate.
         if exc_type is None:

@@ -49,7 +49,7 @@ class RDKitMol(UserDefinedType):
     def python_type(self) -> type:
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs) -> str:
+    def get_col_spec(self, **kwargs: Any) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "mol" if rdkit_cartridge() else "bytea"
@@ -64,7 +64,7 @@ class RDKitReaction(UserDefinedType):
     def python_type(self) -> type:
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs) -> str:
+    def get_col_spec(self, **kwargs: Any) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "reaction" if rdkit_cartridge() else "bytea"
@@ -79,7 +79,7 @@ class RDKitBfp(UserDefinedType):
     def python_type(self) -> type:
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs) -> str:
+    def get_col_spec(self, **kwargs: Any) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "bfp" if rdkit_cartridge() else "bytea"
@@ -94,7 +94,7 @@ class RDKitSfp(UserDefinedType):
     def python_type(self) -> type:
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs) -> str:
+    def get_col_spec(self, **kwargs: Any) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "sfp" if rdkit_cartridge() else "bytea"
@@ -109,7 +109,7 @@ class CString(UserDefinedType):
     def python_type(self) -> type:
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs) -> str:
+    def get_col_spec(self, **kwargs: Any) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "cstring"
@@ -122,7 +122,7 @@ class FingerprintType(Enum):
     MORGAN_BFP = func.morganbv_fp
     MORGAN_SFP = func.morgan_fp
 
-    def __call__(self, *args, **kwargs) -> Any:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self.value(*args, **kwargs)
 
 

@@ -59,7 +59,7 @@ class FileStatus:
             raise ValueError(f"unsupported file status: {self.status}")
 
 
-def _get_inputs(args) -> list[FileStatus]:
+def _get_inputs(args: argparse.Namespace) -> list[FileStatus]:
     """Gets a list of Dataset proto filenames to process.
 
     Returns:
@@ -264,7 +264,7 @@ def _run_updates(
         message_helpers.write_dataset(dataset, output_filename)
 
 
-def run(args) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
+def run(args: argparse.Namespace) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
     """Main function that returns added/removed reaction ID sets.
 
     This function should be called directly by tests to get access to the
@@ -344,7 +344,7 @@ def run(args) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
     return total_added, total_removed, total_changed
 
 
-def parse_args(argv=None) -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process datasets for database submissions")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--input_pattern", default=None, help="Pattern matching input Dataset protos")
@@ -362,7 +362,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(args) -> None:
+def main(args: argparse.Namespace) -> None:
     silence_rdkit_logs()
     run(args)
 
