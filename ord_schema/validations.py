@@ -242,7 +242,7 @@ def _validate_message(
             # value is message
             if field.message_type.fields_by_name["value"].type == field.TYPE_MESSAGE:
                 for key, submessage in value.items():
-                    this_trace = trace + (f'{field.name}["{key}"]',)
+                    this_trace = (*trace, f'{field.name}["{key}"]')
                     this_output = validate_message(
                         submessage,
                         raise_on_error=raise_on_error,
@@ -254,7 +254,7 @@ def _validate_message(
                 pass
         else:  # Just a repeated message
             for index, submessage in enumerate(value):
-                this_trace = trace + (f"{field.name}[{index}]",)
+                this_trace = (*trace, f"{field.name}[{index}]")
                 this_output = validate_message(
                     submessage,
                     raise_on_error=raise_on_error,
@@ -263,7 +263,7 @@ def _validate_message(
                 )
                 output.extend(this_output)
     else:  # no recursion needed
-        this_trace = trace + (field.name,)
+        this_trace = (*trace, field.name)
         this_output = validate_message(value, raise_on_error=raise_on_error, options=options, trace=this_trace)
         output.extend(this_output)
 
@@ -696,7 +696,7 @@ def validate_reaction_input(message: reaction_pb2.ReactionInput) -> None:
     }
     input_state_code = texture_type_to_state_of_matter[message.texture.type]
     if input_state_code is not None:
-        components = [*message.components] + [*message.crude_components]
+        components = [*message.components, *message.crude_components]
         component_state_codes = [texture_type_to_state_of_matter[c.texture.type] for c in components]
         if (
             component_state_codes

@@ -45,11 +45,11 @@ def test_mappers_registers_rdkit_relationship_targets_in_clean_interpreter():
 
 @pytest.mark.parametrize(
     "filename",
-    (
+    [
         os.path.join(os.path.dirname(__file__), "testdata", "empty.pbtxt"),
         os.path.join(os.path.dirname(__file__), "testdata", "full.pbtxt"),
         os.path.join(os.path.dirname(__file__), "testdata", "ord-nielsen-example.pbtxt"),
-    ),
+    ],
 )
 def test_round_trip(filename):
     dataset = load_message(filename, Dataset)

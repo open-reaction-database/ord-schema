@@ -14,7 +14,6 @@
 """Tests for ord_schema.scripts.enumerate_dataset."""
 
 import os
-from collections.abc import Iterator
 
 import pandas as pd
 import pytest
@@ -25,7 +24,7 @@ from ord_schema.scripts import enumerate_dataset
 
 
 @pytest.fixture
-def setup(tmp_path) -> Iterator[tuple[str, str, dataset_pb2.Dataset]]:
+def setup(tmp_path) -> tuple[str, str, dataset_pb2.Dataset]:
     dirname = tmp_path.as_posix()
     template_string = """
     inputs {
@@ -126,7 +125,7 @@ def setup(tmp_path) -> Iterator[tuple[str, str, dataset_pb2.Dataset]]:
     reaction3.provenance.record_created.time.value = "2023-07-01"
     reaction3.provenance.record_created.person.name = "test"
     reaction3.provenance.record_created.person.email = "test@example.com"
-    yield template_filename, spreadsheet_filename, expected
+    return template_filename, spreadsheet_filename, expected
 
 
 def test_main(setup, tmp_path):

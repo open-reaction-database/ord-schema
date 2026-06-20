@@ -13,15 +13,13 @@
 # limitations under the License.
 """Tests for ord_schema.proto.dataset_pb2."""
 
-from collections.abc import Iterator
-
 import pytest
 
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
 @pytest.fixture
-def serialized_dataset() -> Iterator[bytes]:
+def serialized_dataset() -> bytes:
     dataset = dataset_pb2.Dataset()
     dataset.name = "test"
     dataset.description = "test dataset"
@@ -32,7 +30,7 @@ def serialized_dataset() -> Iterator[bytes]:
     reaction2 = reaction_pb2.Reaction()
     reaction2.identifiers.add(value="amide coupling", type="REACTION_TYPE")
     dataset.reactions.add().CopyFrom(reaction2)
-    yield dataset.SerializeToString()
+    return dataset.SerializeToString()
 
 
 def test_dataset(serialized_dataset):

@@ -32,7 +32,7 @@ from collections import defaultdict
 from collections.abc import Mapping
 from hashlib import md5
 from operator import attrgetter
-from typing import Any
+from typing import Any, ClassVar
 
 from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
@@ -274,7 +274,7 @@ class _MappersMeta(type):
 class Mappers(metaclass=_MappersMeta):
     """Container for generated mapper classes."""
 
-    _MAPPERS: dict[str, type] = {c.__name__: c for c in _MAPPER_TO_MESSAGE}
+    _MAPPERS: ClassVar[dict[str, type]] = {c.__name__: c for c in _MAPPER_TO_MESSAGE}
 
 
 def from_proto(message: Message, mapper: type[Base] | None = None, key: str | None = None) -> Base:
@@ -309,7 +309,8 @@ def from_proto(message: Message, mapper: type[Base] | None = None, key: str | No
             kwargs[field.name] = value
     if isinstance(message, dataset_pb2.Dataset):
         kwargs["md5"] = md5(message.SerializeToString(deterministic=True)).hexdigest()
-        assert hasattr(message, "reactions") and hasattr(message, "reaction_ids")  # Type hints.
+        assert hasattr(message, "reactions")
+        assert hasattr(message, "reaction_ids")
         kwargs["num_reactions"] = len(message.reactions) or len(message.reaction_ids)
     elif isinstance(message, reaction_pb2.Reaction):
         kwargs["proto"] = message.SerializeToString(deterministic=True)

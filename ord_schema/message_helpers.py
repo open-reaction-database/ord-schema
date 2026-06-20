@@ -190,7 +190,7 @@ def set_solute_moles(
         concentration_pb,
     )
     solute.amount.MergeFrom(solute_moles)
-    return [solute] + list(solvents)
+    return [solute, *list(solvents)]
 
 
 def build_data(filename: str, description: str) -> reaction_pb2.Data:
@@ -462,7 +462,7 @@ def validate_reaction_smiles(reaction_smiles: str) -> None:
         if num_errors:
             raise ValueError("reaction SMILES contains errors")
     except (RuntimeError, ValueError) as error:
-        raise ValueError(f"bad reaction SMILES ({str(error)}): {reaction_smiles}") from error
+        raise ValueError(f"bad reaction SMILES ({error!s}): {reaction_smiles}") from error
 
 
 def reaction_from_smiles(reaction_smiles: str) -> reaction_pb2.Reaction:
@@ -556,8 +556,7 @@ def set_compound_identifier(
         if identifier.type == identifier_type:
             identifier.value = value
             return identifier
-    identifier = compound.identifiers.add(type=identifier_type, value=value)
-    return identifier
+    return compound.identifiers.add(type=identifier_type, value=value)
 
 
 def get_compound_smiles(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound) -> str | None:
@@ -999,20 +998,20 @@ def message_to_row(
             if field.type == field.TYPE_MESSAGE and field.message_type.GetOptions().map_entry:
                 value_field = field.message_type.fields_by_name["value"]
                 for key, subvalue in value.items():
-                    this_trace = trace + (f'{field.name}["{key}"]',)
+                    this_trace = (*trace, f'{field.name}["{key}"]')
                     safe_update(
                         row,
                         _message_to_row(field=value_field, value=subvalue, trace=this_trace),
                     )
             else:
                 for i, subvalue in enumerate(value):
-                    this_trace = trace + (f"{field.name}[{i}]",)
+                    this_trace = (*trace, f"{field.name}[{i}]")
                     safe_update(
                         row,
                         _message_to_row(field=field, value=subvalue, trace=this_trace),
                     )
         else:
-            this_trace = trace + (field.name,)
+            this_trace = (*trace, field.name)
             safe_update(row, _message_to_row(field=field, value=value, trace=this_trace))
     return row
 

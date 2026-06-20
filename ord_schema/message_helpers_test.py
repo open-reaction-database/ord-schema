@@ -15,7 +15,6 @@
 
 import os
 import tempfile
-from collections.abc import Iterator
 
 import pandas as pd
 import pytest
@@ -59,36 +58,36 @@ M  END"""
 
 class TestMessageHelpers:
     @pytest.mark.parametrize(
-        "filename,expected",
-        (
+        ("filename", "expected"),
+        [
             ("ord-1234567890", "data/12/ord-1234567890"),
             ("test/ord-foo.pbtxt", "data/fo/ord-foo.pbtxt"),
             ("ord_dataset-f00.pbtxt", "data/f0/ord_dataset-f00.pbtxt"),
             ("ord_data-123456foo7.jpg", "data/12/ord_data-123456foo7.jpg"),
-        ),
+        ],
     )
     def test_id_filename(self, filename, expected):
         assert message_helpers.id_filename(filename) == expected
 
     @pytest.mark.parametrize(
-        "filename,match",
-        (
+        ("filename", "match"),
+        [
             ("notord-1234567890", "ord"),  # Wrong prefix.
             ("ord-..foo", "alphanumeric"),  # Shard "..", traversal attempt.
             ("ord-.foo", "alphanumeric"),  # Shard ".f", non-alphanumeric.
-        ),
+        ],
     )
     def test_id_filename_rejects_unsafe(self, filename, match):
         with pytest.raises(ValueError, match=match):
             message_helpers.id_filename(filename)
 
     @pytest.mark.parametrize(
-        "value,identifier_type,expected",
-        (
+        ("value", "identifier_type", "expected"),
+        [
             ("c1ccccc1", "SMILES", "c1ccccc1"),
             ("InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H", "INCHI", "c1ccccc1"),
             (_BENZENE_MOLBLOCK, "MOLBLOCK", "c1ccccc1"),
-        ),
+        ],
     )
     def test_smiles_from_compound(self, value, identifier_type, expected):
         compound = reaction_pb2.Compound()
@@ -96,12 +95,12 @@ class TestMessageHelpers:
         assert message_helpers.smiles_from_compound(compound) == expected
 
     @pytest.mark.parametrize(
-        "value,identifier_type,expected",
-        (
+        ("value", "identifier_type", "expected"),
+        [
             ("c1ccccc1", "SMILES", "c1ccccc1"),
             ("InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H", "INCHI", "c1ccccc1"),
             (_BENZENE_MOLBLOCK, "MOLBLOCK", "c1ccccc1"),
-        ),
+        ],
     )
     def test_mol_from_compound(self, value, identifier_type, expected):
         compound = reaction_pb2.Compound()
@@ -112,7 +111,7 @@ class TestMessageHelpers:
         assert Chem.MolToSmiles(mol) == expected
         assert identifier == compound.identifiers[0]
 
-    @pytest.mark.parametrize("value,identifier_type", (("invalid_smiles", "SMILES"), ("invalid_inchi", "INCHI")))
+    @pytest.mark.parametrize(("value", "identifier_type"), [("invalid_smiles", "SMILES"), ("invalid_inchi", "INCHI")])
     def test_mol_from_compound_failures(self, value, identifier_type):
         compound = reaction_pb2.Compound()
         compound.identifiers.add(value=value, type=identifier_type)
@@ -197,13 +196,13 @@ class TestMessageHelpers:
         assert message_helpers.reaction_from_smiles(reaction_smiles) == expected
 
     @pytest.mark.parametrize(
-        "doi,expected",
-        (
+        ("doi", "expected"),
+        [
             ("https://dx.doi.org/10.1021/acscatal.0c02247", "10.1021/acscatal.0c02247"),
             ("10.1038/s41467-023-42446-5", "10.1038/s41467-023-42446-5"),
             ("10.1038/foo/bar", "10.1038/foo"),
             ("10.1038/foo/bar/", "10.1038/foo"),
-        ),
+        ],
     )
     def test_parse_doi(self, doi, expected):
         assert message_helpers.parse_doi(doi) == expected
@@ -342,18 +341,18 @@ class TestBuildCompound:
         assert compound == expected
 
     @pytest.mark.parametrize(
-        "amount,expected",
-        (
+        ("amount", "expected"),
+        [
             ("1.2 g", reaction_pb2.Mass(value=1.2, units="GRAM")),
             ("3.4 mol", reaction_pb2.Moles(value=3.4, units="MOLE")),
             ("5.6 mL", reaction_pb2.Volume(value=5.6, units="MILLILITER")),
-        ),
+        ],
     )
     def test_amount(self, amount, expected):
         compound = message_helpers.build_compound(amount=amount)
         assert getattr(compound.amount, compound.amount.WhichOneof("kind")) == expected
 
-    @pytest.mark.parametrize("amount", ("1.2", "-3.4 g"))
+    @pytest.mark.parametrize("amount", ["1.2", "-3.4 g"])
     def test_bad_amount(self, amount):
         with pytest.raises((KeyError, ValueError)):
             message_helpers.build_compound(amount=amount)
@@ -372,8 +371,8 @@ class TestBuildCompound:
         assert not message_helpers.build_compound().HasField("is_limiting")
 
     @pytest.mark.parametrize(
-        "prep,details,expected",
-        (
+        ("prep", "details", "expected"),
+        [
             ("dried", None, reaction_pb2.CompoundPreparation(type="DRIED")),
             (
                 "dried",
@@ -385,7 +384,7 @@ class TestBuildCompound:
                 "threw it on the ground",
                 reaction_pb2.CompoundPreparation(type="CUSTOM", details="threw it on the ground"),
             ),
-        ),
+        ],
     )
     def test_prep(self, prep, details, expected):
         compound = message_helpers.build_compound(prep=prep, prep_details=details)
@@ -483,8 +482,8 @@ class TestSetDativeBonds:
 
 class TestLoadAndWriteMessage:
     @pytest.fixture
-    def messages(self) -> Iterator[list]:
-        yield [
+    def messages(self) -> list:
+        return [
             test_pb2.Scalar(int32_value=3, float_value=4.5),
             test_pb2.RepeatedScalar(values=[1.2, 3.4]),
             test_pb2.Enum(value="FIRST"),
@@ -494,7 +493,7 @@ class TestLoadAndWriteMessage:
 
     @pytest.mark.parametrize(
         "suffix",
-        (
+        [
             ".pbtxt",
             ".pb",
             ".json",
@@ -505,7 +504,7 @@ class TestLoadAndWriteMessage:
             ".binpb",
             ".txtpb.gz",
             ".binpb.gz",
-        ),
+        ],
     )
     def test_round_trip(self, suffix, messages):
         for message in messages:
@@ -567,7 +566,7 @@ class TestLoadAndWriteMessage:
 
     @pytest.mark.parametrize(
         "suffix",
-        (".pbtxt", ".pb", ".json", ".pb.gz", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
+        [".pbtxt", ".pb", ".json", ".pb.gz", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"],
     )
     def test_write_message_is_atomic_on_failure(self, suffix, tmp_path, monkeypatch):
         """A crash mid-write must not leave a partial file (or .tmp) at the destination."""
@@ -594,7 +593,7 @@ class TestLoadAndWriteMessage:
 
     @pytest.mark.parametrize(
         "suffix",
-        (".pbtxt", ".pb", ".pb.gz", ".json", ".parquet", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
+        [".pbtxt", ".pb", ".pb.gz", ".json", ".parquet", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"],
     )
     def test_write_dataset(self, suffix, tmp_path):
         dataset = dataset_pb2.Dataset(
@@ -617,18 +616,18 @@ class TestLoadAndWriteMessage:
 
 class TestCreateMessage:
     @pytest.mark.parametrize(
-        "message_name,expected_class",
-        (
+        ("message_name", "expected_class"),
+        [
             ("Reaction", reaction_pb2.Reaction),
             ("Temperature", reaction_pb2.Temperature),
             ("TemperatureConditions.TemperatureMeasurement", reaction_pb2.TemperatureConditions.TemperatureMeasurement),
-        ),
+        ],
     )
     def test_valid_messages(self, message_name, expected_class):
         message = message_helpers.create_message(message_name)
         assert isinstance(message, expected_class)
 
-    @pytest.mark.parametrize("message_name", ("reaction", "aosdifjasdf"))
+    @pytest.mark.parametrize("message_name", ["reaction", "aosdifjasdf"])
     def test_invalid_messages(self, message_name):
         with pytest.raises(ValueError, match="Cannot resolve"):
             message_helpers.create_message(message_name)
@@ -636,8 +635,8 @@ class TestCreateMessage:
 
 class TestMessagesToDataFrame:
     @pytest.mark.parametrize(
-        "message,expected",
-        (
+        ("message", "expected"),
+        [
             (test_pb2.Scalar(int32_value=3, float_value=4.5), {"int32_value": 3, "float_value": 4.5}),
             (
                 test_pb2.Scalar(int32_value=0, float_value=0.0, bool_value=False),
@@ -660,7 +659,7 @@ class TestMessagesToDataFrame:
                 ),
                 {'children["a"].value': 1.2, 'children["b"].value': 3.4},
             ),
-        ),
+        ],
     )
     def test_message_to_row(self, message, expected):
         row = message_helpers.message_to_row(message)

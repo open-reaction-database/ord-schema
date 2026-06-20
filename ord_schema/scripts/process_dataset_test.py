@@ -16,7 +16,6 @@
 import glob
 import os
 import subprocess
-from collections.abc import Iterator
 
 import pytest
 from rdkit import RDLogger
@@ -31,7 +30,7 @@ logger = get_logger(__name__)
 
 class TestProcessDataset:
     @pytest.fixture
-    def setup(self, tmp_path) -> Iterator[tuple[str, str]]:
+    def setup(self, tmp_path) -> tuple[str, str]:
         # Suppress RDKit warnings to clean up the test output.
         RDLogger.logger().setLevel(RDLogger.CRITICAL)
         reaction1 = reaction_pb2.Reaction()
@@ -60,7 +59,7 @@ class TestProcessDataset:
         dataset2 = dataset_pb2.Dataset(name="test2", description="test2", reactions=[reaction1, reaction2])
         dataset2_filename = (tmp_path / "dataset2.pb").as_posix()
         message_helpers.write_message(dataset2, dataset2_filename)
-        yield dataset1_filename, dataset2_filename
+        return dataset1_filename, dataset2_filename
 
     def test_main_with_input_pattern(self, setup):
         dataset1_filename, _ = setup
@@ -114,7 +113,7 @@ class TestProcessParquetDataset:
     """Parquet input/output flows: load via DatasetView, streaming update."""
 
     @pytest.fixture
-    def parquet_dataset_filename(self, tmp_path) -> Iterator[str]:
+    def parquet_dataset_filename(self, tmp_path) -> str:
         RDLogger.logger().setLevel(RDLogger.CRITICAL)
         reaction = reaction_pb2.Reaction()
         component = reaction.inputs["x"].components.add()
@@ -134,7 +133,7 @@ class TestProcessParquetDataset:
         )
         filename = (tmp_path / "ds.parquet").as_posix()
         parquet_dataset.write_dataset(dataset, filename)
-        yield filename
+        return filename
 
     def test_main_with_parquet_input(self, parquet_dataset_filename):
         # No --update: loads via DatasetView, runs validation + size check.
@@ -235,7 +234,7 @@ class TestSubmissionWorkflow:
     _DEFAULT_BRANCH = "main"
 
     @pytest.fixture
-    def setup(self, tmp_path) -> Iterator[tuple[str, str]]:
+    def setup(self, tmp_path) -> tuple[str, str]:
         test_subdirectory = tmp_path.as_posix()
         os.chdir(test_subdirectory)
         subprocess.run(["git", "init", "-b", self._DEFAULT_BRANCH], check=True)
@@ -265,7 +264,7 @@ class TestSubmissionWorkflow:
         subprocess.run(["git", "commit", "-m", "Initial commit"], check=True)
         # Use a new branch for tests.
         subprocess.run(["git", "checkout", "-b", "test"], check=True)
-        yield test_subdirectory, dataset_filename
+        return test_subdirectory, dataset_filename
 
     def _run(self, test_subdirectory: str, extra_argv: list[str] | None = None):
         """Runs process_dataset.main().
@@ -348,7 +347,7 @@ class TestSubmissionWorkflow:
     def test_add_parquet_dataset_with_cleanup(self, setup):
         # Exercises --cleanup + .parquet input + .parquet output: the
         # streaming pass must read input *before* cleanup runs `git mv`.
-        test_subdirectory, dataset_filename = setup
+        test_subdirectory, _dataset_filename = setup
         reaction = reaction_pb2.Reaction()
         ethylamine = reaction.inputs["ethylamine"]
         component = ethylamine.components.add()

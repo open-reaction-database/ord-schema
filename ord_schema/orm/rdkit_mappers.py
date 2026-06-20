@@ -26,13 +26,15 @@ from __future__ import annotations
 
 import os
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Column, Index, Integer, Text, cast, func
-from sqlalchemy.sql.expression import ColumnElement
 from sqlalchemy.types import UserDefinedType
 
 from ord_schema.orm import Base
+
+if TYPE_CHECKING:
+    from sqlalchemy.sql.expression import ColumnElement
 
 
 def rdkit_cartridge() -> bool:

@@ -64,7 +64,7 @@ def test_simple_solution():
 
 
 @pytest.mark.parametrize(
-    "solute_smiles,concentration,volume", itertools.product(["[Na+].[Cl-]", None], ["1M", None], ["1L", None])
+    ("solute_smiles", "concentration", "volume"), itertools.product(["[Na+].[Cl-]", None], ["1M", None], ["1L", None])
 )
 def test_simple_solution_legal(solute_smiles, concentration, volume):
     """Test that the macro never generates illegal solution configurations."""

@@ -14,7 +14,6 @@
 """Tests for ord_schema.scripts.build_dataset."""
 
 import os
-from collections.abc import Iterator
 
 import pytest
 
@@ -24,7 +23,7 @@ from ord_schema.scripts import build_dataset
 
 
 @pytest.fixture
-def dirname(tmp_path) -> Iterator[str]:
+def dirname(tmp_path) -> str:
     reaction1 = reaction_pb2.Reaction()
     dummy_input = reaction1.inputs["dummy_input"]
     dummy_component = dummy_input.components.add()
@@ -43,7 +42,7 @@ def dirname(tmp_path) -> Iterator[str]:
     # reaction2 is empty.
     reaction2 = reaction_pb2.Reaction()
     message_helpers.write_message(reaction2, os.path.join(dirname, "reaction-2.pbtxt"))
-    yield dirname
+    return dirname
 
 
 def test_simple(dirname):
