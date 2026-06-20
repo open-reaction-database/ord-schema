@@ -15,13 +15,13 @@
 
 import logging
 
+from rdkit import RDLogger
+
 _initialized = False
 
 
 def silence_rdkit_logs(pattern: str = "rdApp.*") -> None:
     """Disables noisy RDKit logs."""
-    from rdkit import RDLogger
-
     # RDKit's type stubs omit ``DisableLog``; suppress the ty warning here so
     # every caller doesn't have to carry its own ``ty: ignore`` comment.
     RDLogger.DisableLog(pattern)  # ty: ignore[unresolved-attribute]
@@ -29,7 +29,7 @@ def silence_rdkit_logs(pattern: str = "rdApp.*") -> None:
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """Creates a Logger."""
-    global _initialized
+    global _initialized  # noqa: PLW0603  (module-level one-time init flag)
     if not _initialized:
         logging.basicConfig(format="%(levelname)s %(asctime)s %(filename)s:%(lineno)d: %(message)s")
         _initialized = True

@@ -118,6 +118,23 @@ select = [
     "PD",   # pandas-vet
     "NPY",  # numpy-specific
     "RUF",  # ruff-specific
+    "TRY",  # tryceratops
+    "EM",   # flake8-errmsg
+    "FBT",  # flake8-boolean-trap
+    "G",    # flake8-logging-format
+    "PLC", "PLE", "PLR", "PLW",  # pylint
+    "C90",  # mccabe complexity
+    "PERF", # perflint
+    "N",    # pep8-naming
+    "SLF",  # flake8-self
+    "DTZ",  # flake8-datetimez
+    "BLE",  # flake8-blind-except
+    "A",    # flake8-builtins
+    "INP",  # flake8-no-pep420
+    "T20",  # flake8-print
+    "ERA",  # eradicate (commented-out code)
+    "TD",   # flake8-todos
+    "FIX",  # flake8-fixme
 ]
 ignore = [
     # ANN401 (disallow typing.Any) fires only on genuinely dynamic call sites:
@@ -134,6 +151,19 @@ ignore = [
     # TC006 quotes the type in typing.cast() even when it is imported at runtime
     # (e.g. cast(Any, x) -> cast("Any", x)); the quoting just hurts readability.
     "TC006",
+    # --- Opinionated rules intentionally disabled (readability / low value) ---
+    "EM101", "EM102",        # don't force a msg= variable before every raise
+    "TRY003",                # don't force custom exception classes for messages
+    "TRY301",                # "abstract raise to inner function" hurts readability
+    "T201",                  # print() is intentional in CLI scripts and notebooks
+    "G004",                  # f-strings in logging calls are fine
+    "FBT001", "FBT002",      # boolean positional args exist in public APIs already
+    "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",  # complexity caps -> churn
+    "PLR2004",               # "magic value" flags ordinary numeric literals
+    "N803", "N806",          # domain names (SMILES, fromAtoms) are deliberate
+    "INP001",                # docs/conf.py is config, not a package
+    "TD003",                 # don't force issue links on informal TODOs
+    "FIX002",                # TODO comments are allowed
     "E501",    # Line length is enforced by the formatter, not the linter.
     "SIM108",  # Ternary expressions are not always clearer than if/else.
     "B008",    # Function calls in argument defaults are fine for our use cases.
@@ -152,8 +182,11 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Tests trip a couple of flake8-bugbear (the "B" rules) checks -- B011 (`assert False`)
 # and B017 (overly broad `pytest.raises(Exception)`); type annotations (ANN) also add
-# little value on test functions/fixtures. Skip both in tests.
-"**/*_test.py" = ["B011", "B017", "ANN"]
+# little value on test functions/fixtures, and SLF001 (private-member access)
+# is fine in tests. Skip these in tests.
+"**/*_test.py" = ["B011", "B017", "ANN", "SLF001"]
+# Tutorial notebooks legitimately show commented-out alternative code.
+"**/*.ipynb" = ["ERA001"]
 
 [tool.ty.src]
 exclude = ["**/*_pb2.py*"]

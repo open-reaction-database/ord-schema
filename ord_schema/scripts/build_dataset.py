@@ -39,9 +39,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(args: argparse.Namespace) -> None:
     filenames = glob.glob(args.input, recursive=True)
     logger.info("Found %d Reaction protos", len(filenames))
-    reactions = []
-    for filename in filenames:
-        reactions.append(message_helpers.load_message(filename, reaction_pb2.Reaction))
+    reactions = [message_helpers.load_message(filename, reaction_pb2.Reaction) for filename in filenames]
     dataset = dataset_pb2.Dataset(name=args.name, description=args.description, reactions=reactions)
     if not args.no_validate:
         validations.validate_datasets({"_COMBINED": dataset})

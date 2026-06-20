@@ -403,10 +403,10 @@ def get_reaction_smiles(
         for compound in message.inputs[key].components:
             try:
                 smiles = smiles_from_compound(compound)
-            except ValueError as error:
+            except ValueError:
                 if allow_incomplete:
                     continue
-                raise error
+                raise
             if compound.reaction_role in [roles.REAGENT, roles.SOLVENT, roles.CATALYST]:
                 agents.add(smiles)
             elif compound.reaction_role in reactant_roles:
@@ -416,10 +416,10 @@ def get_reaction_smiles(
         for product in outcome.products:
             try:
                 smiles = smiles_from_compound(product)
-            except ValueError as error:
+            except ValueError:
                 if allow_incomplete:
                     continue
-                raise error
+                raise
             if product.reaction_role in product_roles:
                 products.add(smiles)
 
@@ -780,7 +780,7 @@ def fetch_dataset(
         RuntimeError: If no file exists for the dataset.
         ValueError: If the dataset ID is invalid.
     """
-    from ord_schema import validations
+    from ord_schema import validations  # noqa: PLC0415  (lazy import breaks a real circular dependency)
 
     if not validations.is_valid_dataset_id(dataset_id):
         raise ValueError(f"Invalid dataset ID: {dataset_id}")
@@ -956,15 +956,10 @@ def messages_to_dataframe(messages: Iterable[ord_schema.Message], drop_constant_
     Returns:
         DataFrame.
     """
-    rows = []
-    for message in messages:
-        rows.append(message_to_row(message))
+    rows = [message_to_row(message) for message in messages]
     df = pd.DataFrame(rows)
     if drop_constant_columns:
-        drop = []
-        for column in df.columns:
-            if len(df[column].unique()) == 1:
-                drop.append(column)
+        drop = [column for column in df.columns if len(df[column].unique()) == 1]
         for column in drop:
             del df[column]
     return df

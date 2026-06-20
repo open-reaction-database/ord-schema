@@ -8,16 +8,12 @@
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
-#
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+# documentation root, use os.path.abspath to make it absolute.
 
 # -- Project information -----------------------------------------------------
 
 project = "Open Reaction Database"
-copyright = "2020–2026 Open Reaction Database Project Authors"
+copyright = "2020–2026 Open Reaction Database Project Authors"  # noqa: A001  (sphinx requires this exact name)
 author = "Open Reaction Database Project Authors"
 
 # -- General configuration ---------------------------------------------------

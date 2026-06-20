@@ -38,11 +38,7 @@ logger = get_logger(__name__)
 
 def filter_filenames(filenames: Iterable[str], pattern: str) -> list[str]:
     """Filters filenames according to a regex pattern."""
-    filtered_filenames = []
-    for filename in filenames:
-        if re.search(pattern, filename):
-            filtered_filenames.append(filename)
-    return filtered_filenames
+    return [filename for filename in filenames if re.search(pattern, filename)]
 
 
 def _validate_pb(filename: str) -> list[str]:
@@ -63,8 +59,7 @@ def _validate_row_group(filename: str, row_group: int) -> tuple[list[str], valid
     state = validations.DatasetCrossRefState()
     for i, (_, reaction) in enumerate(parquet_dataset.iter_reactions(filename, row_group=row_group)):
         output = validations.validate_message(reaction, raise_on_error=False)
-        for error in output.errors:
-            errors.append(f"row_group {row_group}, reaction {i}: {error}")
+        errors.extend(f"row_group {row_group}, reaction {i}: {error}" for error in output.errors)
         state.observe(reaction)
     return errors, state
 
@@ -134,18 +129,15 @@ def main(args: argparse.Namespace) -> None:
         for future in tqdm(as_completed(futures), total=total_tasks):
             kind, filename, _ = futures[future]
             if kind == "pb":
-                for error in future.result():
-                    failures.append(f"{filename}: {error}")
+                failures.extend(f"{filename}: {error}" for error in future.result())
             else:
                 errors, state = future.result()
-                for error in errors:
-                    failures.append(f"{filename}: {error}")
+                failures.extend(f"{filename}: {error}" for error in errors)
                 entry = parquet_entries[filename]
                 entry.state.merge(state)
                 entry.remaining -= 1
                 if entry.remaining == 0:
-                    for error in _finalize_parquet(entry.footer, entry.state):
-                        failures.append(f"{filename}: {error}")
+                    failures.extend(f"{filename}: {error}" for error in _finalize_parquet(entry.footer, entry.state))
 
     if failures:
         text = "\n".join(failures)

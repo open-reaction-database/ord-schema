@@ -152,18 +152,18 @@ def main(args: argparse.Namespace) -> None:
         for future in tqdm(as_completed(futures), total=len(futures)):
             try:
                 dataset_ids.append(future.result())
-            except Exception as error:
+            except Exception:
                 filename = futures[future]
                 failures.append(filename)
-                logger.error(f"Adding dataset {filename} failed: {error}")
+                logger.exception(f"Adding dataset {filename} failed")
     logger.info("Adding RDKit functionality")
     engine = create_engine(dsn)
     for dataset_id in tqdm(dataset_ids):
         try:
             add_rdkit(engine, dataset_id)  # NOTE(skearnes): Do this serially to avoid deadlocks.
-        except Exception as error:
+        except Exception:
             failures.append(dataset_id)
-            logger.error(f"Adding RDKit functionality for {dataset_id} failed: {error}")
+            logger.exception(f"Adding RDKit functionality for {dataset_id} failed")
     if failures:
         raise RuntimeError(failures)
 

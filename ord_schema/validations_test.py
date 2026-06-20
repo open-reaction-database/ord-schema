@@ -178,25 +178,25 @@ def test_texture_in_reaction_input():
             )
         return message
 
-    # case 1: foam + gas -> crystal is unlikely
+    # (1) a foam and a gas are unlikely to give a crystal
     c_texture_types = ["FOAM", "GAS"]
     i_texture_type = "CRYSTAL"
     output = _run_validation(_make_dummy_reaction_input(c_texture_types, i_texture_type))
     assert len(output.warnings) == 1
 
-    # case 2: wax + liquid -> liquid is allowed
+    # (2) a wax and a liquid may give a liquid
     c_texture_types = ["WAX", "LIQUID"]
     i_texture_type = "LIQUID"
     output = _run_validation(_make_dummy_reaction_input(c_texture_types, i_texture_type))
     assert len(output.warnings) == 0
 
-    # case 3: oil + liquid -> solid is unlikely
+    # (3) an oil and a liquid are unlikely to give a solid
     c_texture_types = ["OIL", "LIQUID"]
     i_texture_type = "SOLID"
     output = _run_validation(_make_dummy_reaction_input(c_texture_types, i_texture_type))
     assert len(output.warnings) == 1
 
-    # case 4: gas + liquid -> liquid is allowed
+    # (4) a gas and a liquid may give a liquid
     c_texture_types = ["GAS", "LIQUID"]
     i_texture_type = "LIQUID"
     output = _run_validation(_make_dummy_reaction_input(c_texture_types, i_texture_type))
