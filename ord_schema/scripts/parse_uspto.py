@@ -493,7 +493,7 @@ def clean_reaction(reaction: reaction_pb2.Reaction) -> None:
 
 def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.Reaction]]:
     """Parses reactions from a single CML file."""
-    tree = ET.parse(filename)
+    tree = ET.parse(filename)  # noqa: S314  (parses trusted USPTO XML downloads)
     root = tree.getroot()
     reactions = []
     failures = []

@@ -113,7 +113,7 @@ def cleanup(filename: str, output_filename: str) -> None:
     else:
         args = ["git", "mv", filename, output_filename]
     logger.info("Running command: %s", " ".join(args))
-    subprocess.run(args, check=True)
+    subprocess.run(args, check=True)  # noqa: S603  (internal command, no untrusted input)
 
 
 def _get_reaction_ids(dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView) -> set[str]:
@@ -144,11 +144,11 @@ def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Datase
     else:
         git_args.append(f"{base}:{file_status.filename}")
     logger.info("Running command: %s", " ".join(git_args))
-    serialized = subprocess.run(git_args, capture_output=True, check=True, text=False)
+    serialized = subprocess.run(git_args, capture_output=True, check=True, text=False)  # noqa: S603  (internal git command)
     if serialized.stdout.startswith(b"version"):
         # Convert Git LFS pointers to real data.
         serialized = subprocess.run(
-            ["git", "lfs", "smudge"],
+            ["git", "lfs", "smudge"],  # noqa: S607  (git resolved from PATH)
             input=serialized.stdout,
             capture_output=True,
             check=True,

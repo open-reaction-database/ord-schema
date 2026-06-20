@@ -298,7 +298,7 @@ def _link_mol_ids(session: Session, *, target_table: str, link_table: str, link_
               AND ord.reaction.dataset_id = ord.dataset.id
               AND ord.dataset.dataset_id = :dataset_id
               AND {target_table}.rdkit_mol_id IS NULL
-            """),
+            """),  # noqa: S608  (table/column names are internal constants, not user input)
         {"dataset_id": dataset_id},
     )
     return cast(Any, result).rowcount
