@@ -107,12 +107,19 @@ select = [
     "SIM",  # flake8-simplify
     "ANN",  # flake8-annotations (argument, return, and Any-return types)
     "C4",   # flake8-comprehensions
+    "COM",  # flake8-commas
+    "ISC",  # flake8-implicit-str-concat
 ]
 ignore = [
     # ANN401 (disallow typing.Any) fires only on genuinely dynamic call sites:
     # proxy __getattr__/__getitem__ on message wrappers, a metaclass proxy, an
     # enum __call__, and the recursive field-value validator. Any is correct there.
     "ANN401",
+    # COM812 (missing trailing comma) and ISC001 (single-line implicit string
+    # concat) conflict with the ruff formatter, which ruff itself recommends
+    # disabling when running `ruff format`.
+    "COM812",
+    "ISC001",
     "E501",    # Line length is enforced by the formatter, not the linter.
     "SIM108",  # Ternary expressions are not always clearer than if/else.
     "B008",    # Function calls in argument defaults are fine for our use cases.
