@@ -26,7 +26,7 @@ from ord_schema.scripts import validate_dataset
 def setup(request, tmp_path) -> tuple[str, str]:
     """Writes dataset1 and dataset2 to ``tmp_path`` in the parametrized format.
 
-    Yields ``(tmp_path, suffix)``.
+    Returns ``(tmp_path, suffix)``.
     """
     suffix = request.param
     test_subdirectory = tmp_path.as_posix()

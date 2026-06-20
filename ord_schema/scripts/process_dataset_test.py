@@ -16,7 +16,6 @@
 import glob
 import os
 import subprocess
-from collections.abc import Iterator
 
 import pytest
 from rdkit import RDLogger
@@ -114,7 +113,7 @@ class TestProcessParquetDataset:
     """Parquet input/output flows: load via DatasetView, streaming update."""
 
     @pytest.fixture
-    def parquet_dataset_filename(self, tmp_path) -> Iterator[str]:
+    def parquet_dataset_filename(self, tmp_path) -> str:
         RDLogger.logger().setLevel(RDLogger.CRITICAL)
         reaction = reaction_pb2.Reaction()
         component = reaction.inputs["x"].components.add()
