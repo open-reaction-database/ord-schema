@@ -45,7 +45,7 @@ def main(args):
     dataset = dataset_pb2.Dataset(name=args.name, description=args.description, reactions=reactions)
     if not args.no_validate:
         validations.validate_datasets({"_COMBINED": dataset})
-    message_helpers.write_message(dataset, args.output)
+    message_helpers.save_message(dataset, args.output)
 
 
 if __name__ == "__main__":

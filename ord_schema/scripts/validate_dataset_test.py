@@ -45,11 +45,11 @@ def setup(request, tmp_path) -> Iterator[tuple[str, str]]:
     reaction1.provenance.record_created.person.name = "test"
     reaction1.provenance.record_created.person.email = "test@example.com"
     dataset1 = dataset_pb2.Dataset(name="test1", description="test1", reactions=[reaction1])
-    message_helpers.write_dataset(dataset1, os.path.join(test_subdirectory, f"dataset1{suffix}"))
+    message_helpers.save_dataset(dataset1, os.path.join(test_subdirectory, f"dataset1{suffix}"))
     # reaction2 is empty.
     reaction2 = reaction_pb2.Reaction()
     dataset2 = dataset_pb2.Dataset(name="test2", description="test2", reactions=[reaction1, reaction2])
-    message_helpers.write_dataset(dataset2, os.path.join(test_subdirectory, f"dataset2{suffix}"))
+    message_helpers.save_dataset(dataset2, os.path.join(test_subdirectory, f"dataset2{suffix}"))
     yield test_subdirectory, suffix
 
 

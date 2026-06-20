@@ -753,7 +753,7 @@ def fetch_dataset(
     Prefers the Parquet serialization and falls back to the legacy ``.pb.gz``
     binary format for datasets that have not been converted yet. The file is
     not parsed; dispatch on the returned suffix to choose a reader, e.g.
-    ``parquet_dataset.read_dataset``/``parquet_dataset.DatasetView`` for
+    ``parquet_dataset.load_dataset``/``parquet_dataset.DatasetView`` for
     ``.parquet`` and ``load_message`` for ``.pb.gz``.
 
     Downloads are cached and content-verified by ``huggingface_hub``: repeat
@@ -840,7 +840,7 @@ def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
             raise ValueError(f"error parsing {filename}: {error}") from error
 
 
-def write_message(message: ord_schema.Message, filename: str):
+def save_message(message: ord_schema.Message, filename: str):
     """Writes a protocol buffer message to disk.
 
     Args:
@@ -884,16 +884,38 @@ def _open_for_write(tmp_path: str, *, dest: str):
             yield raw
 
 
-def write_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:
+def save_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:
     """Writes a Dataset to disk, dispatching on filename suffix.
 
-    ``.parquet`` routes to ``parquet_dataset.write_dataset``; other suffixes
-    go through ``write_message``.
+    ``.parquet`` routes to ``parquet_dataset.save_dataset``; other suffixes
+    go through ``save_message``.
     """
     if filename.endswith(".parquet"):
-        parquet_dataset.write_dataset(dataset, filename)
+        parquet_dataset.save_dataset(dataset, filename)
         return
-    write_message(dataset, filename)
+    save_message(dataset, filename)
+
+
+# Deprecated aliases, kept for backwards compatibility after the load_*/save_*
+# rename. Remove in a future major release.
+def write_message(message: ord_schema.Message, filename: str):
+    """Deprecated alias for :func:`save_message`."""
+    warnings.warn(
+        "message_helpers.write_message is deprecated; use save_message instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return save_message(message, filename)
+
+
+def write_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:
+    """Deprecated alias for :func:`save_dataset`."""
+    warnings.warn(
+        "message_helpers.write_dataset is deprecated; use save_dataset instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return save_dataset(dataset, filename)
 
 
 def id_filename(filename: str) -> str:

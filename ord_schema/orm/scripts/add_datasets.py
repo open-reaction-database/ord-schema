@@ -58,7 +58,7 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
     engine = create_engine(dsn)
     if filename.endswith(".parquet"):
         logger.debug(f"Streaming {filename}")
-        dataset_id = parquet_dataset.read_metadata(filename).dataset_id
+        dataset_id = parquet_dataset.load_metadata(filename).dataset_id
 
         def compute_md5() -> str:
             md5_hex, _ = parquet_dataset.streaming_md5(filename)

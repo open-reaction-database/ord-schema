@@ -561,7 +561,7 @@ def validate_dataset_streaming(
     iterated in slices (e.g., per Parquet row group) by upstream workers, with
     each worker contributing a ``DatasetCrossRefState`` that the caller has
     merged. ``has_reactions`` should reflect the source's row count (e.g.,
-    ``parquet_dataset.read_metadata`` plus ``num_row_groups`` for parquet);
+    ``parquet_dataset.load_metadata`` plus ``num_row_groups`` for parquet);
     inferring it from ``state`` would misclassify reactions without
     reaction_ids or references as empty. Pass ``reaction_ids=[]`` for the
     typical streaming case (parquet does not persist Dataset.reaction_ids).

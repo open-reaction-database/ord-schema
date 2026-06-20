@@ -32,7 +32,7 @@ def _reaction(reaction_id: str, conversion: float = 50.0) -> reaction_pb2.Reacti
 
 def _write_pb_gz(tmp_path, basename: str, ds: dataset_pb2.Dataset) -> str:
     path = os.path.join(tmp_path, basename)
-    message_helpers.write_message(ds, path)
+    message_helpers.save_message(ds, path)
     return path
 
 
@@ -46,7 +46,7 @@ def test_single_input_passes_metadata_through(tmp_path):
     input_path = _write_pb_gz(tmp_path, "in.pb.gz", ds)
     output_path = os.path.join(tmp_path, "out.parquet")
     pb_to_parquet.main(pb_to_parquet.parse_args([input_path, "--output", output_path]))
-    loaded = dataset_module.read_dataset(output_path)
+    loaded = dataset_module.load_dataset(output_path)
     assert loaded.dataset_id == "ord_dataset-abc"
     assert loaded.name == "solo"
     assert loaded.description == "single input"
@@ -70,7 +70,7 @@ def test_multi_input_concatenates_and_uses_first_metadata(tmp_path):
     b_path = _write_pb_gz(tmp_path, "b.pb.gz", ds_b)
     output_path = os.path.join(tmp_path, "out.parquet")
     pb_to_parquet.main(pb_to_parquet.parse_args([a_path, b_path, "--output", output_path]))
-    loaded = dataset_module.read_dataset(output_path)
+    loaded = dataset_module.load_dataset(output_path)
     assert loaded.dataset_id == "ord_dataset-first"
     assert loaded.name == "first-name"
     assert loaded.description == "first-desc"
@@ -96,7 +96,7 @@ def test_overrides_take_precedence(tmp_path):
             ]
         )
     )
-    loaded = dataset_module.read_metadata(output_path)
+    loaded = dataset_module.load_metadata(output_path)
     assert loaded.dataset_id == "ord_dataset-new"
     assert loaded.name == "override-name"
     assert loaded.description == "override-desc"

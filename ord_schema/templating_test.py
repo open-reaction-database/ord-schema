@@ -83,14 +83,24 @@ def test_valid_templating_escapes(valid_reaction):
 
 
 @pytest.mark.parametrize("suffix", [".csv", ".xlsx"])
-def test_read_spreadsheet(suffix, tmp_path):
+def test_load_spreadsheet(suffix, tmp_path):
     df = pd.DataFrame.from_dict({"smiles": ["CCO", "CCCO", "CCCCO"], "conversion": [75, 50, 30]})
     filename = (tmp_path / f"test{suffix}").as_posix()
     if suffix == ".csv":
         df.to_csv(filename, index=False)
     else:
         df.to_excel(filename, index=False)
-    pd.testing.assert_frame_equal(templating.read_spreadsheet(filename), df)
+    pd.testing.assert_frame_equal(templating.load_spreadsheet(filename), df)
+
+
+def test_read_spreadsheet_deprecated(tmp_path):
+    # read_spreadsheet is a deprecated alias for load_spreadsheet.
+    df = pd.DataFrame.from_dict({"smiles": ["CCO"], "conversion": [75]})
+    filename = (tmp_path / "test.csv").as_posix()
+    df.to_csv(filename, index=False)
+    with pytest.warns(DeprecationWarning, match="read_spreadsheet is deprecated"):
+        loaded = templating.read_spreadsheet(filename)
+    pd.testing.assert_frame_equal(loaded, df)
 
 
 def test_invalid_templating(valid_reaction):

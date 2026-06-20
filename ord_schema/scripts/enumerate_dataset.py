@@ -39,7 +39,7 @@ def parse_args(argv=None):
 def main(args):
     with open(args.template) as f:
         template_string = f.read()
-    df = templating.read_spreadsheet(args.spreadsheet)
+    df = templating.load_spreadsheet(args.spreadsheet)
     logger.info(
         "generating new Dataset from %s and %s",
         args.template,
@@ -53,7 +53,7 @@ def main(args):
         validate=not args.no_validate,
     )
     logger.info("writing new Dataset to %s", args.output)
-    message_helpers.write_message(dataset, args.output)
+    message_helpers.save_message(dataset, args.output)
 
 
 if __name__ == "__main__":

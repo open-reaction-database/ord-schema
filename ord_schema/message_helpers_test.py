@@ -510,19 +510,19 @@ class TestLoadAndWriteMessage:
     def test_round_trip(self, suffix, messages):
         for message in messages:
             with tempfile.NamedTemporaryFile(suffix=suffix) as f:
-                message_helpers.write_message(message, f.name)
+                message_helpers.save_message(message, f.name)
                 f.flush()
                 assert message == message_helpers.load_message(f.name, type(message))
 
     def test_gzip_reproducibility(self, messages, tmp_path):
-        # write_message pins the gzip header mtime, so repeated writes of the same
+        # save_message pins the gzip header mtime, so repeated writes of the same
         # message are byte-identical regardless of wall-clock time between them.
         filename = (tmp_path / "test.pb.gz").as_posix()
         for message in messages:
-            message_helpers.write_message(message, filename)
+            message_helpers.save_message(message, filename)
             with open(filename, "rb") as f:
                 value = f.read()
-            message_helpers.write_message(message, filename)
+            message_helpers.save_message(message, filename)
             with open(filename, "rb") as f:
                 assert f.read() == value
 
@@ -530,7 +530,7 @@ class TestLoadAndWriteMessage:
         """Regression for protobuf 5+: MessageToBytes() defaults to ASCII and raises on unicode."""
         message = test_pb2.Scalar(string_value="β")
         path = (tmp_path / "unicode.pbtxt").as_posix()
-        message_helpers.write_message(message, path)
+        message_helpers.save_message(message, path)
         assert message == message_helpers.load_message(path, test_pb2.Scalar)
 
     def test_bad_binary(self):
@@ -563,13 +563,13 @@ class TestLoadAndWriteMessage:
     def test_bad_suffix(self):
         message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
         with pytest.raises(ValueError, match="not a valid MessageFormat"):
-            message_helpers.write_message(message, "test.proto")
+            message_helpers.save_message(message, "test.proto")
 
     @pytest.mark.parametrize(
         "suffix",
         (".pbtxt", ".pb", ".json", ".pb.gz", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
     )
-    def test_write_message_is_atomic_on_failure(self, suffix, tmp_path, monkeypatch):
+    def test_save_message_is_atomic_on_failure(self, suffix, tmp_path, monkeypatch):
         """A crash mid-write must not leave a partial file (or .tmp) at the destination."""
         message = test_pb2.Scalar(int32_value=3)
         dest = (tmp_path / f"crashy{suffix}").as_posix()
@@ -587,7 +587,7 @@ class TestLoadAndWriteMessage:
         monkeypatch.setattr(message.__class__, "SerializeToString", boom)
 
         with pytest.raises(RuntimeError, match="simulated mid-write failure"):
-            message_helpers.write_message(message, dest)
+            message_helpers.save_message(message, dest)
         with open(dest, "rb") as f:
             assert f.read() == b"original-bytes"
         assert not os.path.exists(dest + ".tmp")
@@ -596,14 +596,14 @@ class TestLoadAndWriteMessage:
         "suffix",
         (".pbtxt", ".pb", ".pb.gz", ".json", ".parquet", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
     )
-    def test_write_dataset(self, suffix, tmp_path):
+    def test_save_dataset(self, suffix, tmp_path):
         dataset = dataset_pb2.Dataset(
             name="n",
             description="d",
             reactions=[reaction_pb2.Reaction(reaction_id="ord-0")],
         )
         path = (tmp_path / f"ds{suffix}").as_posix()
-        message_helpers.write_dataset(dataset, path)
+        message_helpers.save_dataset(dataset, path)
         # For .parquet, exercise the DatasetView entry point callers will use;
         # for other formats, use the generic load_message.
         if suffix == ".parquet":
@@ -613,6 +613,19 @@ class TestLoadAndWriteMessage:
         assert loaded.name == "n"
         assert loaded.description == "d"
         assert list(loaded.reactions) == list(dataset.reactions)
+
+    def test_deprecated_write_aliases(self, tmp_path):
+        # write_message/write_dataset are deprecated aliases for save_*; they must
+        # still work but emit a DeprecationWarning.
+        dataset = dataset_pb2.Dataset(name="n", description="d")
+        message_path = (tmp_path / "msg.pbtxt").as_posix()
+        dataset_path = (tmp_path / "ds.pbtxt").as_posix()
+        with pytest.warns(DeprecationWarning, match="write_message is deprecated"):
+            message_helpers.write_message(dataset, message_path)
+        with pytest.warns(DeprecationWarning, match="write_dataset is deprecated"):
+            message_helpers.write_dataset(dataset, dataset_path)
+        assert message_helpers.load_message(message_path, dataset_pb2.Dataset) == dataset
+        assert message_helpers.load_message(dataset_path, dataset_pb2.Dataset) == dataset
 
 
 class TestCreateMessage:

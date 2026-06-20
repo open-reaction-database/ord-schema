@@ -54,12 +54,12 @@ class TestProcessDataset:
             reactions=[reaction1],
         )
         dataset1_filename = (tmp_path / "dataset1.pbtxt").as_posix()
-        message_helpers.write_message(dataset1, dataset1_filename)
+        message_helpers.save_message(dataset1, dataset1_filename)
         # reaction2 is empty.
         reaction2 = reaction_pb2.Reaction()
         dataset2 = dataset_pb2.Dataset(name="test2", description="test2", reactions=[reaction1, reaction2])
         dataset2_filename = (tmp_path / "dataset2.pb").as_posix()
-        message_helpers.write_message(dataset2, dataset2_filename)
+        message_helpers.save_message(dataset2, dataset2_filename)
         yield dataset1_filename, dataset2_filename
 
     def test_main_with_input_pattern(self, setup):
@@ -133,7 +133,7 @@ class TestProcessParquetDataset:
             reactions=[reaction],
         )
         filename = (tmp_path / "ds.parquet").as_posix()
-        parquet_dataset.write_dataset(dataset, filename)
+        parquet_dataset.save_dataset(dataset, filename)
         yield filename
 
     def test_main_with_parquet_input(self, parquet_dataset_filename):
@@ -158,7 +158,7 @@ class TestProcessParquetDataset:
         assert os.path.exists(expected_output)
         # Atomic-rename guarantee: the .tmp sibling must not be left behind.
         assert not os.path.exists(expected_output + ".tmp")
-        result = parquet_dataset.read_dataset(expected_output)
+        result = parquet_dataset.load_dataset(expected_output)
         assert len(result.reactions) == 1
         assert result.reactions[0].reaction_id.startswith("ord-")
         # Streaming path exercises apply_reaction_updates → record_modified.
@@ -183,7 +183,7 @@ class TestProcessParquetDataset:
             reactions=[reaction],
         )
         filename = (tmp_path / "bad.parquet").as_posix()
-        parquet_dataset.write_dataset(dataset, filename)
+        parquet_dataset.save_dataset(dataset, filename)
         argv = [
             "--input_pattern",
             filename,
@@ -260,7 +260,7 @@ class TestSubmissionWorkflow:
         validations.validate_message(dataset)
         os.makedirs(os.path.join("data", "64"))
         dataset_filename = os.path.join(test_subdirectory, "data", "64", f"{dataset_id}.pb.gz")
-        message_helpers.write_message(dataset, dataset_filename)
+        message_helpers.save_message(dataset, dataset_filename)
         subprocess.run(["git", "add", "data"], check=True)
         subprocess.run(["git", "commit", "-m", "Initial commit"], check=True)
         # Use a new branch for tests.
@@ -328,7 +328,7 @@ class TestSubmissionWorkflow:
         reaction.reaction_id = "test"
         dataset = dataset_pb2.Dataset(name="test", description="test", reactions=[reaction])
         this_dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
-        message_helpers.write_message(dataset, this_dataset_filename)
+        message_helpers.save_message(dataset, this_dataset_filename)
         added, removed, changed, filenames = self._run(test_subdirectory)
         assert added == {"test"}
         assert not removed
@@ -363,7 +363,7 @@ class TestSubmissionWorkflow:
         reaction.reaction_id = "test"
         dataset = dataset_pb2.Dataset(name="test", description="test", reactions=[reaction])
         this_dataset_filename = os.path.join(test_subdirectory, "test.parquet")
-        parquet_dataset.write_dataset(dataset, this_dataset_filename)
+        parquet_dataset.save_dataset(dataset, this_dataset_filename)
         added, removed, changed, filenames = self._run(test_subdirectory, ["--output_format", ".parquet"])
         assert added == {"test"}
         assert not removed
@@ -373,7 +373,7 @@ class TestSubmissionWorkflow:
         parquet_files = [f for f in filenames if f.endswith(".parquet")]
         assert len(parquet_files) == 1
         assert not os.path.exists(parquet_files[0] + ".tmp")
-        result = parquet_dataset.read_dataset(parquet_files[0])
+        result = parquet_dataset.load_dataset(parquet_files[0])
         assert result.dataset_id.startswith("ord_dataset-")
         assert len(result.reactions) == 1
         assert result.reactions[0].reaction_id.startswith("ord-")
@@ -394,14 +394,14 @@ class TestSubmissionWorkflow:
         reaction.reaction_id = "test1"
         dataset1 = dataset_pb2.Dataset(name="test1", description="test1", reactions=[reaction])
         dataset1_filename = os.path.join(test_subdirectory, "test1.pbtxt")
-        message_helpers.write_message(dataset1, dataset1_filename)
+        message_helpers.save_message(dataset1, dataset1_filename)
         reaction.provenance.record_created.time.value = "2020-01-03"
         reaction.provenance.record_created.person.username = "test3"
         reaction.provenance.record_created.person.email = "test3@example.com"
         reaction.reaction_id = "test2"
         dataset2 = dataset_pb2.Dataset(name="test2", description="test2", reactions=[reaction])
         dataset2_filename = os.path.join(test_subdirectory, "test2.pbtxt")
-        message_helpers.write_message(dataset2, dataset2_filename)
+        message_helpers.save_message(dataset2, dataset2_filename)
         added, removed, changed, filenames = self._run(test_subdirectory)
         assert added == {"test1", "test2"}
         assert not removed
@@ -432,7 +432,7 @@ class TestSubmissionWorkflow:
         reaction.provenance.record_created.person.email = "test@example.com"
         dataset = dataset_pb2.Dataset(name="test", description="test", reactions=[reaction])
         this_dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
-        message_helpers.write_message(dataset, this_dataset_filename)
+        message_helpers.save_message(dataset, this_dataset_filename)
         added, removed, changed, filenames = self._run(test_subdirectory)
         assert added == {"ord-10aed8b5dffe41fab09f5b2cc9c58ad9"}
         assert not removed
@@ -466,7 +466,7 @@ class TestSubmissionWorkflow:
         reaction.provenance.record_created.person.email = "test@example.com"
         reaction.reaction_id = "test"
         dataset.reactions.add().CopyFrom(reaction)
-        message_helpers.write_message(dataset, dataset_filename)
+        message_helpers.save_message(dataset, dataset_filename)
         added, removed, changed, filenames = self._run(test_subdirectory)
         assert added == {"test"}
         assert not removed
@@ -483,7 +483,7 @@ class TestSubmissionWorkflow:
         test_subdirectory, dataset_filename = setup
         dataset = message_helpers.load_message(dataset_filename, dataset_pb2.Dataset)
         dataset.reactions[0].reaction_id = "test_rename"
-        message_helpers.write_message(dataset, dataset_filename)
+        message_helpers.save_message(dataset, dataset_filename)
         added, removed, changed, filenames = self._run(test_subdirectory)
         assert added == {"test_rename"}
         assert removed == {"ord-10aed8b5dffe41fab09f5b2cc9c58ad9"}
@@ -502,7 +502,7 @@ class TestSubmissionWorkflow:
         reaction.outcomes.add().conversion.value = 25
         dataset = dataset_pb2.Dataset(name="test", description="test", reactions=[reaction])
         dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
-        message_helpers.write_message(dataset, dataset_filename)
+        message_helpers.save_message(dataset, dataset_filename)
         with pytest.raises(validations.ValidationError, match="could not validate SMILES"):
             self._run(test_subdirectory)
 
@@ -521,11 +521,11 @@ class TestSubmissionWorkflow:
         reaction.provenance.record_created.person.email = "bob@bob.com"
         dataset1 = dataset_pb2.Dataset(name="test1", description="test2", reactions=[reaction])
         dataset1_filename = os.path.join(test_subdirectory, "test1.pbtxt")
-        message_helpers.write_message(dataset1, dataset1_filename)
+        message_helpers.save_message(dataset1, dataset1_filename)
         reaction.inputs["ethylamine"].components[0].identifiers[0].value = "#"
         dataset2 = dataset_pb2.Dataset(name="test2", description="test2", reactions=[reaction])
         dataset2_filename = os.path.join(test_subdirectory, "test2.pbtxt")
-        message_helpers.write_message(dataset2, dataset2_filename)
+        message_helpers.save_message(dataset2, dataset2_filename)
         with pytest.raises(validations.ValidationError, match="could not validate SMILES"):
             self._run(test_subdirectory)
 
@@ -534,7 +534,7 @@ class TestSubmissionWorkflow:
         dataset = message_helpers.load_message(dataset_filename, dataset_pb2.Dataset)
         reaction = dataset.reactions[0]
         reaction.inputs["methylamine"].components[0].amount.moles.value = -2
-        message_helpers.write_message(dataset, dataset_filename)
+        message_helpers.save_message(dataset, dataset_filename)
         with pytest.raises(validations.ValidationError, match="must be non-negative"):
             self._run(test_subdirectory)
 
@@ -556,7 +556,7 @@ class TestSubmissionWorkflow:
         reaction.provenance.record_created.person.email = "test@example.com"
         dataset = dataset_pb2.Dataset(name="test", description="test", reactions=[reaction])
         dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
-        message_helpers.write_message(dataset, dataset_filename)
+        message_helpers.save_message(dataset, dataset_filename)
         with pytest.raises(ValueError, match="larger than --max_size"):
             self._run(test_subdirectory, ["--max_size", "0.0"])
 
@@ -573,7 +573,7 @@ class TestSubmissionWorkflow:
         test_subdirectory, dataset_filename = setup
         dataset = message_helpers.load_message(dataset_filename, dataset_pb2.Dataset)
         this_dataset_filename = os.path.join(test_subdirectory, "test.pbtxt")
-        message_helpers.write_message(dataset, this_dataset_filename)
+        message_helpers.save_message(dataset, this_dataset_filename)
         subprocess.run(["git", "rm", dataset_filename], check=True)
         added, removed, changed, filenames = self._run(test_subdirectory)
         assert len(added) == 1

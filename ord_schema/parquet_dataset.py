@@ -31,6 +31,7 @@ import dataclasses
 import hashlib
 import os
 import tempfile
+import warnings
 from collections.abc import Iterable, Iterator
 
 import pyarrow as pa
@@ -173,7 +174,7 @@ class DatasetWriter:
             self._abort()
 
 
-def write_dataset(
+def save_dataset(
     dataset: dataset_pb2.Dataset,
     path: str,
     *,
@@ -267,11 +268,11 @@ class DatasetView:
         return self._reactions
 
 
-def read_dataset(path: str) -> dataset_pb2.Dataset:
+def load_dataset(path: str) -> dataset_pb2.Dataset:
     """Reads a full Dataset from a Parquet file.
 
     All reactions are deserialized into memory; prefer ``iter_reactions`` or
-    ``read_reaction`` for large datasets.
+    ``load_reaction`` for large datasets.
     """
     with pq.ParquetFile(path) as parquet_file:
         dataset = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
@@ -280,7 +281,7 @@ def read_dataset(path: str) -> dataset_pb2.Dataset:
     return dataset
 
 
-def read_metadata(path: str) -> dataset_pb2.Dataset:
+def load_metadata(path: str) -> dataset_pb2.Dataset:
     """Reads Dataset scalar fields (``name``, ``description``, ``dataset_id``)
     from the Parquet footer. No column data is read. The returned ``Dataset``
     has no ``reactions`` or ``reaction_ids`` populated.
@@ -298,10 +299,10 @@ class ParquetFooter:
     num_rows: int
 
 
-def read_footer(path: str) -> ParquetFooter:
+def load_footer(path: str) -> ParquetFooter:
     """Returns scalar Dataset fields and row-group/row counts in one open.
 
-    Equivalent to ``read_metadata`` plus ``num_row_groups`` plus a row count,
+    Equivalent to ``load_metadata`` plus ``num_row_groups`` plus a row count,
     but reads the footer once. Use when the caller needs more than one of
     those values.
     """
@@ -404,7 +405,7 @@ def streaming_md5(path: str) -> tuple[str, int]:
     rewritten with different writer settings still hashes the same.
     """
     hasher = hashlib.md5()
-    metadata = read_metadata(path)
+    metadata = load_metadata(path)
     if metadata.name:
         hasher.update(f"name={metadata.name}\n".encode())
     if metadata.description:
@@ -432,7 +433,7 @@ def iter_reaction_ids(path: str) -> Iterator[str]:
             yield from batch.column("reaction_id").to_pylist()
 
 
-def read_reaction(path: str, reaction_id: str) -> reaction_pb2.Reaction:
+def load_reaction(path: str, reaction_id: str) -> reaction_pb2.Reaction:
     """Reads a single Reaction by ID.
 
     Passes ``reaction_id`` as a Parquet predicate, which lets row groups be
@@ -491,3 +492,61 @@ def _dataset_from_metadata(raw_metadata: dict[bytes, bytes] | None) -> dataset_p
     if dataset_id:
         dataset.dataset_id = dataset_id
     return dataset
+
+
+# Deprecated aliases, kept for backwards compatibility after the load_*/save_*
+# rename. Remove in a future major release.
+def write_dataset(
+    dataset: dataset_pb2.Dataset,
+    path: str,
+    *,
+    compression: str = "zstd",
+    row_group_size: int = 1000,
+) -> None:
+    """Deprecated alias for :func:`save_dataset`."""
+    warnings.warn(
+        "parquet_dataset.write_dataset is deprecated; use save_dataset instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return save_dataset(dataset, path, compression=compression, row_group_size=row_group_size)
+
+
+def read_dataset(path: str) -> dataset_pb2.Dataset:
+    """Deprecated alias for :func:`load_dataset`."""
+    warnings.warn(
+        "parquet_dataset.read_dataset is deprecated; use load_dataset instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return load_dataset(path)
+
+
+def read_metadata(path: str) -> dataset_pb2.Dataset:
+    """Deprecated alias for :func:`load_metadata`."""
+    warnings.warn(
+        "parquet_dataset.read_metadata is deprecated; use load_metadata instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return load_metadata(path)
+
+
+def read_footer(path: str) -> ParquetFooter:
+    """Deprecated alias for :func:`load_footer`."""
+    warnings.warn(
+        "parquet_dataset.read_footer is deprecated; use load_footer instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return load_footer(path)
+
+
+def read_reaction(path: str, reaction_id: str) -> reaction_pb2.Reaction:
+    """Deprecated alias for :func:`load_reaction`."""
+    warnings.warn(
+        "parquet_dataset.read_reaction is deprecated; use load_reaction instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return load_reaction(path, reaction_id)

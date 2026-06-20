@@ -21,6 +21,7 @@ spreadsheet file.
 
 import os
 import re
+import warnings
 from collections.abc import Mapping
 from typing import BinaryIO
 
@@ -32,7 +33,7 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
-def read_spreadsheet(file_name_or_buffer: str | BinaryIO, suffix: str | None = None) -> pd.DataFrame:
+def load_spreadsheet(file_name_or_buffer: str | BinaryIO, suffix: str | None = None) -> pd.DataFrame:
     """Reads a {csv, xls, xlsx} spreadsheet file.
 
     Args:
@@ -49,6 +50,16 @@ def read_spreadsheet(file_name_or_buffer: str | BinaryIO, suffix: str | None = N
     if suffix in [".xls", ".xlsx"]:
         return pd.read_excel(file_name_or_buffer)
     return pd.read_csv(file_name_or_buffer)
+
+
+def read_spreadsheet(file_name_or_buffer: str | BinaryIO, suffix: str | None = None) -> pd.DataFrame:
+    """Deprecated alias for :func:`load_spreadsheet`."""
+    warnings.warn(
+        "templating.read_spreadsheet is deprecated; use load_spreadsheet instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return load_spreadsheet(file_name_or_buffer, suffix)
 
 
 def _is_null(value: float | str) -> bool:
