@@ -513,6 +513,14 @@ class TestLoadAndWriteMessage:
                 f.flush()
                 assert message == message_helpers.load_message(f.name, type(message))
 
+    @pytest.mark.parametrize("suffix", [".pbtxt", ".pb", ".json", ".pb.gz", ".binpb.gz"])
+    def test_round_trip_path_input(self, suffix, messages, tmp_path):
+        """write_message/load_message accept pathlib.Path, not just str."""
+        for i, message in enumerate(messages):
+            path = tmp_path / f"message_{i}{suffix}"
+            message_helpers.write_message(message, path)
+            assert message == message_helpers.load_message(path, type(message))
+
     def test_gzip_reproducibility(self, messages, tmp_path):
         # write_message pins the gzip header mtime, so repeated writes of the same
         # message are byte-identical regardless of wall-clock time between them.
