@@ -74,7 +74,7 @@ class DatasetWriter:
 
     def __init__(
         self,
-        path: str,
+        path: str | os.PathLike[str],
         *,
         name: str,
         description: str,
@@ -93,9 +93,9 @@ class DatasetWriter:
         # on successful close, remove on exception. Same semantics as
         # ``atomic_io.atomic_path``, inlined because the open/close lifecycle
         # is split across __init__/close().
-        self._path = path
-        parent = os.path.dirname(path) or "."
-        basename = os.path.basename(path)
+        self._path = os.fspath(path)
+        parent = os.path.dirname(self._path) or "."
+        basename = os.path.basename(self._path)
         fd, self._tmp_path = tempfile.mkstemp(dir=parent, prefix=basename + ".", suffix=".tmp")
         os.close(fd)
         try:
@@ -179,7 +179,7 @@ class DatasetWriter:
 
 def write_dataset(
     dataset: dataset_pb2.Dataset,
-    path: str,
+    path: str | os.PathLike[str],
     *,
     compression: str = "zstd",
     row_group_size: int = 1000,
@@ -223,7 +223,7 @@ class _ReactionStream:
     always being truthy the way a bare generator would be.
     """
 
-    def __init__(self, path: str, num_reactions: int) -> None:
+    def __init__(self, path: str | os.PathLike[str], num_reactions: int) -> None:
         self._path = path
         self._num_reactions = num_reactions
 
@@ -250,8 +250,8 @@ class DatasetView:
     is exposed as a read-only property so accidental rebinding raises.
     """
 
-    def __init__(self, path: str) -> None:
-        self._path = path
+    def __init__(self, path: str | os.PathLike[str]) -> None:
+        self._path = os.fspath(path)
         with pq.ParquetFile(path) as parquet_file:
             scalars = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
             num_rows = parquet_file.metadata.num_rows
@@ -259,7 +259,7 @@ class DatasetView:
         self.description = scalars.description
         self.dataset_id = scalars.dataset_id
         self.reaction_ids: list[str] = []
-        self._reactions = _ReactionStream(path, num_rows)
+        self._reactions = _ReactionStream(self._path, num_rows)
 
     @property
     def path(self) -> str:
@@ -271,7 +271,7 @@ class DatasetView:
         return self._reactions
 
 
-def read_dataset(path: str) -> dataset_pb2.Dataset:
+def read_dataset(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
     """Reads a full Dataset from a Parquet file.
 
     All reactions are deserialized into memory; prefer ``iter_reactions`` or
@@ -284,7 +284,7 @@ def read_dataset(path: str) -> dataset_pb2.Dataset:
     return dataset
 
 
-def read_metadata(path: str) -> dataset_pb2.Dataset:
+def read_metadata(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
     """Reads Dataset scalar fields (``name``, ``description``, ``dataset_id``)
     from the Parquet footer. No column data is read. The returned ``Dataset``
     has no ``reactions`` or ``reaction_ids`` populated.
@@ -302,7 +302,7 @@ class ParquetFooter:
     num_rows: int
 
 
-def read_footer(path: str) -> ParquetFooter:
+def read_footer(path: str | os.PathLike[str]) -> ParquetFooter:
     """Returns scalar Dataset fields and row-group/row counts in one open.
 
     Equivalent to ``read_metadata`` plus ``num_row_groups`` plus a row count,
@@ -318,7 +318,7 @@ def read_footer(path: str) -> ParquetFooter:
 
 
 def iter_reactions(
-    path: str,
+    path: str | os.PathLike[str],
     reaction_ids: Iterable[str] | None = None,
     *,
     row_group: int | None = None,
@@ -354,7 +354,7 @@ def iter_reactions(
             yield from _iter_reactions(parquet_file, filter_set=filter_set)
 
 
-def num_row_groups(path: str) -> int:
+def num_row_groups(path: str | os.PathLike[str]) -> int:
     """Returns the number of row groups in a Parquet dataset.
 
     Used by callers that parallelize over row groups via ``iter_reactions(...,
@@ -386,7 +386,7 @@ def _iter_table(
         yield reaction_id, reaction_pb2.Reaction.FromString(blob)
 
 
-def streaming_md5(path: str) -> tuple[str, int]:
+def streaming_md5(path: str | os.PathLike[str]) -> tuple[str, int]:
     """Returns ``(md5_hexdigest, num_reactions)`` for a Parquet dataset.
 
     Streams the file row-group at a time so peak memory stays bounded. The
@@ -425,7 +425,7 @@ def streaming_md5(path: str) -> tuple[str, int]:
     return hasher.hexdigest(), num_reactions
 
 
-def iter_reaction_ids(path: str) -> Iterator[str]:
+def iter_reaction_ids(path: str | os.PathLike[str]) -> Iterator[str]:
     """Yields ``reaction_id`` values from a Parquet dataset without decoding Reaction blobs.
 
     Reads only the ``reaction_id`` column row-group at a time, so this is
@@ -436,7 +436,7 @@ def iter_reaction_ids(path: str) -> Iterator[str]:
             yield from batch.column("reaction_id").to_pylist()
 
 
-def read_reaction(path: str, reaction_id: str) -> reaction_pb2.Reaction:
+def read_reaction(path: str | os.PathLike[str], reaction_id: str) -> reaction_pb2.Reaction:
     """Reads a single Reaction by ID.
 
     Passes ``reaction_id`` as a Parquet predicate, which lets row groups be

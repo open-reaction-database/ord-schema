@@ -480,6 +480,20 @@ class TestSetDativeBonds:
         assert bond_types[frozenset(["P", "Pd"])] == Chem.BondType.DATIVE
 
 
+_ROUND_TRIP_SUFFIXES = [
+    ".pbtxt",
+    ".pb",
+    ".json",
+    ".pbtxt.gz",
+    ".pb.gz",
+    ".json.gz",
+    ".txtpb",
+    ".binpb",
+    ".txtpb.gz",
+    ".binpb.gz",
+]
+
+
 class TestLoadAndWriteMessage:
     @pytest.fixture
     def messages(self) -> list:
@@ -491,27 +505,21 @@ class TestLoadAndWriteMessage:
             test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
         ]
 
-    @pytest.mark.parametrize(
-        "suffix",
-        [
-            ".pbtxt",
-            ".pb",
-            ".json",
-            ".pbtxt.gz",
-            ".pb.gz",
-            ".json.gz",
-            ".txtpb",
-            ".binpb",
-            ".txtpb.gz",
-            ".binpb.gz",
-        ],
-    )
+    @pytest.mark.parametrize("suffix", _ROUND_TRIP_SUFFIXES)
     def test_round_trip(self, suffix, messages):
         for message in messages:
             with tempfile.NamedTemporaryFile(suffix=suffix) as f:
                 message_helpers.write_message(message, f.name)
                 f.flush()
                 assert message == message_helpers.load_message(f.name, type(message))
+
+    @pytest.mark.parametrize("suffix", _ROUND_TRIP_SUFFIXES)
+    def test_round_trip_path_input(self, suffix, messages, tmp_path):
+        """write_message/load_message accept pathlib.Path, not just str."""
+        for i, message in enumerate(messages):
+            path = tmp_path / f"message_{i}{suffix}"
+            message_helpers.write_message(message, path)
+            assert message == message_helpers.load_message(path, type(message))
 
     def test_gzip_reproducibility(self, messages, tmp_path):
         # write_message pins the gzip header mtime, so repeated writes of the same

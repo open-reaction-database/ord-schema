@@ -17,6 +17,7 @@ import contextlib
 import enum
 import gzip
 import os
+import pathlib
 import posixpath
 import re
 import warnings
@@ -799,11 +800,19 @@ def fetch_dataset(
     raise RuntimeError(f"Dataset {dataset_id} not found in {ORD_DATA_HF_REPO}@{revision}")
 
 
-def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
+def _message_format(path: pathlib.Path) -> MessageFormat:
+    """Returns the MessageFormat implied by a filename's suffix, ignoring ``.gz``."""
+    suffixes = path.suffixes
+    if suffixes and suffixes[-1] == ".gz":
+        suffixes = suffixes[:-1]
+    return MessageFormat(suffixes[-1] if suffixes else "")
+
+
+def load_message(filename: str | os.PathLike[str], message_type: type[MessageType]) -> MessageType:
     """Loads a protocol buffer message from a file.
 
     Args:
-        filename: Text filename containing a serialized protocol buffer message.
+        filename: Filename (``str`` or path-like) containing a serialized message.
         message_type: Message subclass.
 
     Returns:
@@ -813,18 +822,11 @@ def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
         ValueError: if the message cannot be parsed, or if `input_format` is not
             supported.
     """
-    if filename.endswith(".gz"):
-        this_open = gzip.open
-        _, extension = os.path.splitext(".".join(filename.split(".")[:-1]))
-    else:
-        this_open = open
-        _, extension = os.path.splitext(filename)
-    input_format = MessageFormat(extension)
-    if input_format in _BINARY_FORMATS:
-        mode = "rb"
-    else:
-        mode = "rt"
-    with this_open(filename, mode) as f:
+    path = pathlib.Path(filename)
+    this_open = gzip.open if path.suffix == ".gz" else open
+    input_format = _message_format(path)
+    mode = "rb" if input_format in _BINARY_FORMATS else "rt"
+    with this_open(path, mode) as f:
         try:
             if input_format == MessageFormat.JSON:
                 return json_format.Parse(f.read(), message_type())
@@ -838,25 +840,22 @@ def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
             DecodeError,
             text_format.ParseError,
         ) as error:
-            raise ValueError(f"error parsing {filename}: {error}") from error
+            raise ValueError(f"error parsing {path}: {error}") from error
 
 
-def write_message(message: ord_schema.Message, filename: str) -> None:
+def write_message(message: ord_schema.Message, filename: str | os.PathLike[str]) -> None:
     """Writes a protocol buffer message to disk.
 
     Args:
         message: Protocol buffer message.
-        filename: Text output filename.
+        filename: Output filename (``str`` or path-like).
 
     Raises:
         ValueError: if `filename` does not have the expected suffix.
     """
-    if filename.endswith(".gz"):
-        _, extension = os.path.splitext(".".join(filename.split(".")[:-1]))
-    else:
-        _, extension = os.path.splitext(filename)
-    output_format = MessageFormat(extension)
-    with atomic_io.atomic_path(filename) as tmp_filename, _open_for_write(tmp_filename, dest=filename) as f:
+    path = pathlib.Path(filename)
+    output_format = _message_format(path)
+    with atomic_io.atomic_path(path) as tmp_filename, _open_for_write(tmp_filename, dest=path) as f:
         if output_format == MessageFormat.JSON:
             f.write(json_format.MessageToJson(message).encode())
         elif output_format in _TEXT_FORMATS:
@@ -869,29 +868,30 @@ def write_message(message: ord_schema.Message, filename: str) -> None:
 
 
 @contextlib.contextmanager
-def _open_for_write(tmp_path: str, *, dest: str) -> Iterator[Any]:
+def _open_for_write(tmp_path: str | os.PathLike[str], *, dest: str | os.PathLike[str]) -> Iterator[Any]:
     """Opens ``tmp_path`` for binary writing.
 
     For ``.gz`` destinations, wraps the file in a ``GzipFile`` with a fixed
-    mtime and pins the gzip header's filename to ``os.path.basename(dest)``
+    mtime and pins the gzip header's filename to the destination's basename
     so the encoded bytes are deterministic regardless of the random temp
     name used during writing.
     """
+    dest = pathlib.Path(dest)
     with open(tmp_path, "wb") as raw:
-        if dest.endswith(".gz"):
-            with gzip.GzipFile(filename=os.path.basename(dest), mode="wb", mtime=1, fileobj=raw) as f:
+        if dest.suffix == ".gz":
+            with gzip.GzipFile(filename=dest.name, mode="wb", mtime=1, fileobj=raw) as f:
                 yield f
         else:
             yield raw
 
 
-def write_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:
+def write_dataset(dataset: dataset_pb2.Dataset, filename: str | os.PathLike[str]) -> None:
     """Writes a Dataset to disk, dispatching on filename suffix.
 
     ``.parquet`` routes to ``parquet_dataset.write_dataset``; other suffixes
     go through ``write_message``.
     """
-    if filename.endswith(".parquet"):
+    if pathlib.Path(filename).suffix == ".parquet":
         parquet_dataset.write_dataset(dataset, filename)
         return
     write_message(dataset, filename)

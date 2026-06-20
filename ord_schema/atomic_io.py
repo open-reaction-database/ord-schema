@@ -25,7 +25,7 @@ from collections.abc import Iterator
 
 
 @contextlib.contextmanager
-def atomic_path(path: str) -> Iterator[str]:
+def atomic_path(path: str | os.PathLike[str]) -> Iterator[str]:
     """Yields a sibling temp path; renames it onto ``path`` on clean exit.
 
     Usage:
