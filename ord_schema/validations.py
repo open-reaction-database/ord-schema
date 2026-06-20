@@ -15,7 +15,7 @@
 
 import dataclasses
 import math
-import os
+import pathlib
 import re
 import warnings
 from collections.abc import Callable, Mapping
@@ -75,12 +75,12 @@ def validate_datasets(
     """
     all_errors = []
     for filename, dataset in datasets.items():
-        basename = os.path.basename(filename)
+        basename = pathlib.Path(filename).name
         errors = _validate_datasets(dataset, label=basename, options=options)
         if errors:
             all_errors.extend(f"{filename}: {error}" for error in errors)
             if write_errors:
-                with open(f"{filename}.error", "w") as f:
+                with pathlib.Path(f"{filename}.error").open("w") as f:
                     f.writelines(f"{error}\n" for error in errors)
     # NOTE(kearnes): We run validation for all datasets before exiting if there
     # are errors.

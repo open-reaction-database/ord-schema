@@ -13,6 +13,8 @@
 # limitations under the License.
 """Tests for ord_schema.templating."""
 
+import pathlib
+
 import pandas as pd
 import pytest
 from google.protobuf import text_format
@@ -149,7 +151,7 @@ def test_missing_values(tmp_path):
     template_string = template_string.replace("value: 5.6", "value: $mass$")
     # Build a spreadsheet and test for proper edits.
     filename = (tmp_path / "missing.csv").as_posix()
-    with open(filename, "w") as f:
+    with pathlib.Path(filename).open("w") as f:
         f.write("smiles,mass\n")
         f.write("CN,\n")  # Missing mass.
         f.write(",1.5\n")  # Missing SMILES.

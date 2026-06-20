@@ -13,7 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.message_helpers."""
 
-import os
+import pathlib
 import tempfile
 
 import pandas as pd
@@ -307,7 +307,7 @@ class TestBuildData:
     def test_build_data(self, tmp_path):
         data = b"test data"
         filename = (tmp_path / "test.data").as_posix()
-        with open(filename, "wb") as f:
+        with pathlib.Path(filename).open("wb") as f:
             f.write(data)
         message = message_helpers.build_data(filename, description="binary data")
         assert message.bytes_value == data
@@ -527,10 +527,10 @@ class TestLoadAndWriteMessage:
         filename = (tmp_path / "test.pb.gz").as_posix()
         for message in messages:
             message_helpers.write_message(message, filename)
-            with open(filename, "rb") as f:
+            with pathlib.Path(filename).open("rb") as f:
                 value = f.read()
             message_helpers.write_message(message, filename)
-            with open(filename, "rb") as f:
+            with pathlib.Path(filename).open("rb") as f:
                 assert f.read() == value
 
     def test_pbtxt_round_trip_non_ascii_string(self, tmp_path):
@@ -581,7 +581,7 @@ class TestLoadAndWriteMessage:
         message = test_pb2.Scalar(int32_value=3)
         dest = (tmp_path / f"crashy{suffix}").as_posix()
         # Pre-existing destination must survive a failed overwrite.
-        with open(dest, "wb") as f:
+        with pathlib.Path(dest).open("wb") as f:
             f.write(b"original-bytes")
 
         def boom(*_, **__):
@@ -595,9 +595,9 @@ class TestLoadAndWriteMessage:
 
         with pytest.raises(RuntimeError, match="simulated mid-write failure"):
             message_helpers.write_message(message, dest)
-        with open(dest, "rb") as f:
+        with pathlib.Path(dest).open("rb") as f:
             assert f.read() == b"original-bytes"
-        assert not os.path.exists(dest + ".tmp")
+        assert not pathlib.Path(dest + ".tmp").exists()
 
     @pytest.mark.parametrize(
         "suffix",

@@ -14,6 +14,7 @@
 """Creates a Dataset by enumerating a template with a spreadsheet."""
 
 import argparse
+import pathlib
 
 from ord_schema import message_helpers, templating
 from ord_schema.logging import get_logger
@@ -37,7 +38,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
-    with open(args.template) as f:
+    with pathlib.Path(args.template).open() as f:
         template_string = f.read()
     df = templating.read_spreadsheet(args.spreadsheet)
     logger.info(

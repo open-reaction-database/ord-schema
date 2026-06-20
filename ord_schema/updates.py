@@ -14,6 +14,7 @@
 """Automated updates for Reaction messages."""
 
 import datetime
+import os
 import re
 import uuid
 from collections.abc import Iterable
@@ -149,7 +150,9 @@ def update_dataset(dataset: dataset_pb2.Dataset) -> None:
         apply_cross_reference_substitutions(reaction, id_substitutions)
 
 
-def update_parquet_dataset(input_path: str, output_path: str, *, dataset_id: str) -> None:
+def update_parquet_dataset(
+    input_path: str | os.PathLike[str], output_path: str | os.PathLike[str], *, dataset_id: str
+) -> None:
     """Stream-applies ``update_dataset`` to a Parquet input, writing the result to ``output_path``.
 
     Two passes over ``input_path``:

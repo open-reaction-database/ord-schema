@@ -204,12 +204,12 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
     Returns:
         Data message.
     """
-    _, extension = os.path.splitext(filename)
+    extension = pathlib.Path(filename).suffix
     if not extension.startswith("."):
         raise ValueError(f"cannot deduce the file format for {filename}")
     data = reaction_pb2.Data()
     data.format = extension[1:]
-    with open(filename, "rb") as f:
+    with pathlib.Path(filename).open("rb") as f:
         data.bytes_value = f.read()
     data.description = description
     return data
@@ -877,7 +877,7 @@ def _open_for_write(tmp_path: str | os.PathLike[str], *, dest: str | os.PathLike
     name used during writing.
     """
     dest = pathlib.Path(dest)
-    with open(tmp_path, "wb") as raw:
+    with pathlib.Path(tmp_path).open("wb") as raw:
         if dest.suffix == ".gz":
             with gzip.GzipFile(filename=dest.name, mode="wb", mtime=1, fileobj=raw) as f:
                 yield f
@@ -906,7 +906,7 @@ def id_filename(filename: str) -> str:
     Returns:
         Text filename relative to the root of the repository.
     """
-    basename = os.path.basename(filename)
+    basename = pathlib.Path(filename).name
     prefix, suffix = basename.split("-")
     if not prefix.startswith("ord"):
         raise ValueError(f'basename does not have the required "ord" prefix: {basename}')

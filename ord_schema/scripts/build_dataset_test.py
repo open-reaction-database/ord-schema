@@ -13,7 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.scripts.build_dataset."""
 
-import os
+import pathlib
 
 import pytest
 
@@ -38,16 +38,16 @@ def dirname(tmp_path) -> str:
     reaction1.provenance.record_created.person.name = "test"
     reaction1.provenance.record_created.person.email = "test@example.com"
     dirname = tmp_path.as_posix()
-    message_helpers.write_message(reaction1, os.path.join(dirname, "reaction-1.pbtxt"))
+    message_helpers.write_message(reaction1, pathlib.Path(dirname) / "reaction-1.pbtxt")
     # reaction2 is empty.
     reaction2 = reaction_pb2.Reaction()
-    message_helpers.write_message(reaction2, os.path.join(dirname, "reaction-2.pbtxt"))
+    message_helpers.write_message(reaction2, pathlib.Path(dirname) / "reaction-2.pbtxt")
     return dirname
 
 
 def test_simple(dirname):
-    input_pattern = os.path.join(dirname, "reaction-1.pbtxt")
-    output_filename = os.path.join(dirname, "dataset.pbtxt")
+    input_pattern = str(pathlib.Path(dirname) / "reaction-1.pbtxt")
+    output_filename = str(pathlib.Path(dirname) / "dataset.pbtxt")
     argv = [
         "--input",
         input_pattern,
@@ -59,7 +59,7 @@ def test_simple(dirname):
         output_filename,
     ]
     build_dataset.main(build_dataset.parse_args(argv))
-    assert os.path.exists(output_filename)
+    assert pathlib.Path(output_filename).exists()
     dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
     assert dataset.name == "test dataset"
     assert dataset.description == "this is a test dataset"
@@ -67,8 +67,8 @@ def test_simple(dirname):
 
 
 def test_validation(dirname):
-    input_pattern = os.path.join(dirname, "reaction-?.pbtxt")
-    output_filename = os.path.join(dirname, "dataset.pbtxt")
+    input_pattern = str(pathlib.Path(dirname) / "reaction-?.pbtxt")
+    output_filename = str(pathlib.Path(dirname) / "dataset.pbtxt")
     argv = [
         "--input",
         input_pattern,

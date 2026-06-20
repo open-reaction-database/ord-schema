@@ -20,6 +20,7 @@ Specifically, checks that a pb Dataset:
 
 import argparse
 import difflib
+import pathlib
 import pprint
 
 from google.protobuf import text_format
@@ -38,7 +39,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(args: argparse.Namespace) -> None:
     dataset = message_helpers.load_message(args.pb, dataset_pb2.Dataset)
     pb_data = text_format.MessageToString(dataset)
-    with open(args.pbtxt) as f:
+    with pathlib.Path(args.pbtxt).open() as f:
         pbtxt_data = f.read()
     if pb_data != pbtxt_data:
         diff = difflib.context_diff(pb_data.splitlines(), pbtxt_data.splitlines())

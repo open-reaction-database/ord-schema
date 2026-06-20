@@ -23,7 +23,7 @@ https://depth-first.com/articles/2019/01/28/the-nextmove-patent-reaction-dataset
 import argparse
 import datetime
 import glob
-import os
+import pathlib
 import re
 from xml.etree import ElementTree as ET
 
@@ -549,7 +549,7 @@ def main(args: argparse.Namespace) -> None:
         reactions.extend(file_reactions)
         failures.extend(file_failures)
     dataset = dataset_pb2.Dataset(reactions=reactions, name=args.name)
-    basenames = [os.path.basename(filename) for filename in filenames]
+    basenames = [pathlib.Path(filename).name for filename in filenames]
     dataset.description = f"CML filenames: {','.join(basenames)}"
     if args.output and reactions:
         logger.info(f"Writing {len(reactions)} reactions to {args.output}")
