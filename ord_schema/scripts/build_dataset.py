@@ -26,7 +26,7 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 logger = get_logger(__name__)
 
 
-def parse_args(argv=None):
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build a Dataset from Reaction protos")
     parser.add_argument("--input", required=True, help="Input pattern for Reaction protos")
     parser.add_argument("--output", required=True, help="Output Dataset filename (*.pbtxt)")
@@ -36,7 +36,7 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
-def main(args):
+def main(args) -> None:
     filenames = glob.glob(args.input, recursive=True)
     logger.info("Found %d Reaction protos", len(filenames))
     reactions = []

@@ -264,10 +264,10 @@ Index(
 class _MappersMeta(type):
     """Metaclass for Mappers; see https://stackoverflow.com/a/3155493."""
 
-    def __getattr__(cls, item):
+    def __getattr__(cls, item) -> Any:
         return cls._MAPPERS[item]
 
-    def __getitem__(cls, item):
+    def __getitem__(cls, item) -> Any:
         return cls._MAPPERS[item]
 
 

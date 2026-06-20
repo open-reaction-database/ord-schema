@@ -106,7 +106,7 @@ def add_rdkit(engine: Engine, dataset_id: str) -> None:
             database.update_rdkit_ids(dataset_id, session)
 
 
-def parse_args(argv=None):
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Add datasets to the ORM database")
     parser.add_argument("--pattern", required=True, help="Pattern for dataset filenames")
     parser.add_argument("--overwrite", action="store_true", help="Update changed datasets")
@@ -121,7 +121,7 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
-def main(args):
+def main(args) -> None:
     silence_rdkit_logs()
     if args.debug:
         get_logger(database.__name__, level=logging.DEBUG)

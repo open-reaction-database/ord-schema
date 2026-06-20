@@ -223,7 +223,7 @@ class UnitResolver:
         self,
         unit_synonyms: dict[type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[str]]] | None = None,
         forbidden_units: dict[str, str] | None = None,
-    ):
+    ) -> None:
         """Initializes a UnitResolver.
 
         Args:

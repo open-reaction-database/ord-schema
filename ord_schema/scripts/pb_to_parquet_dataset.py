@@ -41,7 +41,7 @@ class _Resolved:
     dataset_id: str | None
 
 
-def parse_args(argv=None):
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert serialized Dataset files to a single Parquet file.")
     parser.add_argument(
         "inputs",

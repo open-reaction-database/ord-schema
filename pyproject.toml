@@ -105,6 +105,13 @@ select = [
     "B",    # flake8-bugbear (likely bugs)
     "UP",   # pyupgrade (modernize syntax)
     "SIM",  # flake8-simplify
+    # Require return-type annotations on functions (ANN2xx). Helps type checkers
+    # propagate types through call sites; arg/Any rules (ANN0xx/ANN401) are left off.
+    "ANN201",  # public function
+    "ANN202",  # private function
+    "ANN204",  # special method
+    "ANN205",  # static method
+    "ANN206",  # class method
 ]
 ignore = [
     "E501",    # Line length is enforced by the formatter, not the linter.
@@ -123,8 +130,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Tests often redefine fixtures and use patterns that bugbear dislikes.
-"**/*_test.py" = ["B011", "B017"]
+# Tests often redefine fixtures and use patterns that bugbear dislikes; return-type
+# annotations (ANN2xx) add little value on test functions, so skip them there.
+"**/*_test.py" = ["B011", "B017", "ANN201", "ANN202", "ANN204", "ANN205", "ANN206"]
 
 [tool.ty.src]
 exclude = ["**/*_pb2.py*"]

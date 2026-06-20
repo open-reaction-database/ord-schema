@@ -79,7 +79,7 @@ class DatasetWriter:
         dataset_id: str | None = None,
         compression: str = "zstd",
         row_group_size: int = 1000,
-    ):
+    ) -> None:
         if not name:
             raise ValueError("DatasetWriter requires a non-empty name")
         if not description:
@@ -219,7 +219,7 @@ class _ReactionStream:
     always being truthy the way a bare generator would be.
     """
 
-    def __init__(self, path: str, num_reactions: int):
+    def __init__(self, path: str, num_reactions: int) -> None:
         self._path = path
         self._num_reactions = num_reactions
 
@@ -246,7 +246,7 @@ class DatasetView:
     is exposed as a read-only property so accidental rebinding raises.
     """
 
-    def __init__(self, path: str):
+    def __init__(self, path: str) -> None:
         self._path = path
         with pq.ParquetFile(path) as parquet_file:
             scalars = _dataset_from_metadata(parquet_file.schema_arrow.metadata)

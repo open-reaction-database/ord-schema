@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import os
 from enum import Enum
+from typing import Any
 
 from sqlalchemy import Column, Index, Integer, Text, cast, func
 from sqlalchemy.sql.expression import ColumnElement
@@ -45,10 +46,10 @@ class RDKitMol(UserDefinedType):
     cache_ok = True
 
     @property
-    def python_type(self):
+    def python_type(self) -> type:
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs):
+    def get_col_spec(self, **kwargs) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "mol" if rdkit_cartridge() else "bytea"
@@ -60,10 +61,10 @@ class RDKitReaction(UserDefinedType):
     cache_ok = True
 
     @property
-    def python_type(self):
+    def python_type(self) -> type:
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs):
+    def get_col_spec(self, **kwargs) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "reaction" if rdkit_cartridge() else "bytea"
@@ -75,10 +76,10 @@ class RDKitBfp(UserDefinedType):
     cache_ok = True
 
     @property
-    def python_type(self):
+    def python_type(self) -> type:
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs):
+    def get_col_spec(self, **kwargs) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "bfp" if rdkit_cartridge() else "bytea"
@@ -90,10 +91,10 @@ class RDKitSfp(UserDefinedType):
     cache_ok = True
 
     @property
-    def python_type(self):
+    def python_type(self) -> type:
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs):
+    def get_col_spec(self, **kwargs) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "sfp" if rdkit_cartridge() else "bytea"
@@ -105,10 +106,10 @@ class CString(UserDefinedType):
     cache_ok = True
 
     @property
-    def python_type(self):
+    def python_type(self) -> type:
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs):
+    def get_col_spec(self, **kwargs) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "cstring"
@@ -121,7 +122,7 @@ class FingerprintType(Enum):
     MORGAN_BFP = func.morganbv_fp
     MORGAN_SFP = func.morgan_fp
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs) -> Any:
         return self.value(*args, **kwargs)
 
 

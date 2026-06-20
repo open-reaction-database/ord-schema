@@ -204,7 +204,7 @@ def parse_reaction(root: ElementTree.Element) -> reaction_pb2.Reaction:
     return reaction
 
 
-def parse_source(root: ElementTree.Element, reaction: reaction_pb2.Reaction):
+def parse_source(root: ElementTree.Element, reaction: reaction_pb2.Reaction) -> None:
     """Adds provenance information to a Reaction."""
     for child in root:
         tag = get_tag(child)
@@ -218,7 +218,7 @@ def parse_source(root: ElementTree.Element, reaction: reaction_pb2.Reaction):
             raise NotImplementedError(child)
 
 
-def parse_product(root: ElementTree.Element, product_compound: reaction_pb2.ProductCompound):
+def parse_product(root: ElementTree.Element, product_compound: reaction_pb2.ProductCompound) -> None:
     """Adds product information to a ProductCompound."""
     role = root.attrib.get("role")
     if role:
@@ -246,7 +246,7 @@ def parse_product(root: ElementTree.Element, product_compound: reaction_pb2.Prod
 def parse_molecule(
     root: ElementTree.Element,
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
-):
+) -> None:
     """Adds NAME identifiers to a Compound."""
     for child in root:
         tag = get_tag(child)
@@ -256,7 +256,7 @@ def parse_molecule(
             raise NotImplementedError(child)
 
 
-def parse_product_amount(root: ElementTree.Element, product_compound: reaction_pb2.ProductCompound):
+def parse_product_amount(root: ElementTree.Element, product_compound: reaction_pb2.ProductCompound) -> None:
     """Adds amount information to a ProductCompound."""
     property_type = root.attrib[f"{{{NAMESPACES['dl']}}}propertyType"]
     if "PERCENTYIELD" in property_type:
@@ -277,7 +277,7 @@ def parse_product_amount(root: ElementTree.Element, product_compound: reaction_p
 def parse_identifier(
     root: ElementTree.Element,
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
-):
+) -> None:
     """Adds a SMILES or INCHI identifier to a Compound."""
     kind = root.attrib["dictRef"]
     value = root.attrib["value"]
@@ -289,7 +289,7 @@ def parse_identifier(
         raise NotImplementedError(kind)
 
 
-def parse_reactant(root: ElementTree.Element, compound: reaction_pb2.Compound):
+def parse_reactant(root: ElementTree.Element, compound: reaction_pb2.Compound) -> None:
     """Populates an input Compound."""
     role = root.attrib.get("role")
     if role:
@@ -314,7 +314,7 @@ def parse_reactant(root: ElementTree.Element, compound: reaction_pb2.Compound):
 def parse_amount(
     root: ElementTree.Element,
     compound: reaction_pb2.Compound | reaction_pb2.ProductMeasurement,
-):
+) -> None:
     """Parses an amount."""
     property_type = root.attrib[f"{{{NAMESPACES['dl']}}}propertyType"]
     if property_type in ["MOLARITY", "PH"]:
@@ -336,7 +336,7 @@ def parse_amount(
             raise NotImplementedError(amount)
 
 
-def parse_conditions(root: ElementTree.Element, reaction: reaction_pb2.Reaction):
+def parse_conditions(root: ElementTree.Element, reaction: reaction_pb2.Reaction) -> None:
     """Parses reaction conditions."""
     del reaction  # Unused.
     if not root.findall("cml:chemical", namespaces=NAMESPACES):
@@ -346,7 +346,7 @@ def parse_conditions(root: ElementTree.Element, reaction: reaction_pb2.Reaction)
     return  # TODO(kearnes): Implement this?
 
 
-def parse_workup(root: ElementTree.Element, reaction: reaction_pb2.Reaction):
+def parse_workup(root: ElementTree.Element, reaction: reaction_pb2.Reaction) -> None:
     """Parses a workup step."""
     if root.findall("dl:chemical", namespaces=NAMESPACES):
         return  # Refers to an input component; not a workup.
@@ -394,7 +394,7 @@ def parse_workup(root: ElementTree.Element, reaction: reaction_pb2.Reaction):
             raise NotImplementedError(child)
 
 
-def parse_parameter(root: ElementTree.Element, workup: reaction_pb2.ReactionWorkup):
+def parse_parameter(root: ElementTree.Element, workup: reaction_pb2.ReactionWorkup) -> None:
     """Parses a workup value."""
     kind = root.attrib["propertyType"]
     if kind == "Time":
@@ -441,7 +441,7 @@ def parse_parameter(root: ElementTree.Element, workup: reaction_pb2.ReactionWork
         raise NotImplementedError(kind)
 
 
-def clean_reaction(reaction: reaction_pb2.Reaction):
+def clean_reaction(reaction: reaction_pb2.Reaction) -> None:
     """Cleans a reaction so it will pass validations."""
     # Add a placeholder amount to components with no amount information.
     empty_amount = reaction_pb2.Moles(value=0, precision=1, units="MOLE")
@@ -528,7 +528,7 @@ def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.R
     return reactions, failures
 
 
-def parse_args(argv=None):
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Parse CML from the NRD")
     parser.add_argument("--input_pattern", required=True, help="Input pattern for CML files")
     parser.add_argument("--name", required=True, help="Dataset name")
@@ -537,7 +537,7 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
-def main(args):
+def main(args) -> None:
     filenames = sorted(glob.glob(args.input_pattern))
     all_reactions = joblib.Parallel(n_jobs=args.n_jobs, verbose=True)(
         joblib.delayed(run)(filename) for filename in filenames
