@@ -259,7 +259,7 @@ class DatasetView:
         self.description = scalars.description
         self.dataset_id = scalars.dataset_id
         self.reaction_ids: list[str] = []
-        self._reactions = _ReactionStream(path, num_rows)
+        self._reactions = _ReactionStream(self._path, num_rows)
 
     @property
     def path(self) -> str:
