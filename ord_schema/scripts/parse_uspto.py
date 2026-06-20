@@ -503,7 +503,7 @@ def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.R
         except (KeyError, NotImplementedError) as error:
             raise ValueError(ET.dump(reaction_cml)) from error
         event = reaction_pb2.RecordEvent(
-            time={"value": str(datetime.datetime.now().astimezone())},
+            time={"value": datetime.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S.%f")},
             person={
                 "username": "skearnes",
                 "name": "Steven Kearnes",
