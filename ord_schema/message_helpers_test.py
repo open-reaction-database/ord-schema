@@ -122,7 +122,7 @@ class TestMessageHelpers:
     def test_get_product_yield(self):
         product = reaction_pb2.ProductCompound()
         assert message_helpers.get_product_yield(product) is None
-        product.measurements.add(type="YIELD", percentage=dict(value=23))
+        product.measurements.add(type="YIELD", percentage={"value": 23})
         assert message_helpers.get_product_yield(product) == 23
 
     def test_check_compound_identifiers(self):
@@ -337,7 +337,7 @@ class TestBuildCompound:
             identifiers=[
                 reaction_pb2.CompoundIdentifier(value="CCO", type="SMILES"),
             ],
-            amount=dict(unmeasured=dict(type="CATALYTIC")),
+            amount={"unmeasured": {"type": "CATALYTIC"}},
         )
         assert compound == expected
 
