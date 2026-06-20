@@ -992,7 +992,7 @@ def message_to_row(
         Dict mapping string field names to scalar value types.
     """
     if trace is None:
-        trace = tuple()
+        trace = ()
     row = {}
     for field, value in message.ListFields():
         if field.label == field.LABEL_REPEATED:

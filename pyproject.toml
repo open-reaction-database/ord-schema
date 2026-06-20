@@ -106,6 +106,7 @@ select = [
     "UP",   # pyupgrade (modernize syntax)
     "SIM",  # flake8-simplify
     "ANN",  # flake8-annotations (argument, return, and Any-return types)
+    "C4",   # flake8-comprehensions
 ]
 ignore = [
     # ANN401 (disallow typing.Any) fires only on genuinely dynamic call sites:

@@ -154,13 +154,13 @@ def test_unmeasured_amount():
     message = reaction_pb2.ReactionInput()
     message.components.add().CopyFrom(
         reaction_pb2.Compound(
-            identifiers=[dict(type="SMILES", value="c1ccccc1")],
-            amount=dict(unmeasured=dict(type="SATURATED")),
+            identifiers=[{"type": "SMILES", "value": "c1ccccc1"}],
+            amount={"unmeasured": {"type": "SATURATED"}},
         )
     )
     output = _run_validation(message)
     assert len(output.warnings) == 1
-    message.components.add().CopyFrom(reaction_pb2.Compound(identifiers=[dict(type="SMILES", value="O")]))
+    message.components.add().CopyFrom(reaction_pb2.Compound(identifiers=[{"type": "SMILES", "value": "O"}]))
     output = _run_validation(message)
     assert len(output.errors) == 0
     assert len(output.warnings) == 0
@@ -172,7 +172,8 @@ def test_texture_in_reaction_input():
         for texture_type in component_texture_types:
             message.components.add().CopyFrom(
                 reaction_pb2.Compound(
-                    identifiers=[dict(type="SMILES", value="c1ccccc1")], texture=reaction_pb2.Texture(type=texture_type)
+                    identifiers=[{"type": "SMILES", "value": "c1ccccc1"}],
+                    texture=reaction_pb2.Texture(type=texture_type),
                 )
             )
         return message
@@ -219,14 +220,14 @@ def test_crude_component():
 
 
 def test_product_measurement():
-    message = reaction_pb2.ProductMeasurement(analysis_key="my_analysis", type="YIELD", float_value=dict(value=60))
+    message = reaction_pb2.ProductMeasurement(analysis_key="my_analysis", type="YIELD", float_value={"value": 60})
     output = _run_validation(message)
     assert "percentage" in output.warnings[0]
     message = reaction_pb2.ProductMeasurement(analysis_key="my_analysis", type="AREA", string_value="35.221")
     with pytest.raises(validations.ValidationError, match="numeric"):
         _run_validation(message)
     message = reaction_pb2.ProductMeasurement(
-        analysis_key="my_analysis", type="YIELD", percentage=dict(value=60), selectivity=dict(type="EE")
+        analysis_key="my_analysis", type="YIELD", percentage={"value": 60}, selectivity={"type": "EE"}
     )
     with pytest.raises(validations.ValidationError, match="selectivity"):
         _run_validation(message)
@@ -399,7 +400,7 @@ def test_mass_spec_tic_with_eic_masses():
 
 def test_provenance_bad_url():
     message = reaction_pb2.ReactionProvenance(
-        record_created=dict(time=dict(value="2021-01-01"), person=dict(username="test", email="a@b.com")),
+        record_created={"time": {"value": "2021-01-01"}, "person": {"username": "test", "email": "a@b.com"}},
         publication_url="not a url",
     )
     output = _run_validation(message)
@@ -408,7 +409,7 @@ def test_provenance_bad_url():
 
 
 def test_illumination_dark_with_wavelength():
-    message = reaction_pb2.IlluminationConditions(type="DARK", peak_wavelength=dict(value=450.0, units="NANOMETER"))
+    message = reaction_pb2.IlluminationConditions(type="DARK", peak_wavelength={"value": 450.0, "units": "NANOMETER"})
     output = _run_validation(message)
     assert len(output.warnings) == 1
     assert "DARK or AMBIENT" in output.warnings[0]
@@ -437,15 +438,17 @@ def test_data_bad_url():
     assert "valid URL" in output.warnings[0]
 
 
-_ADDITION_INPUT = dict(
-    components=[dict(identifiers=[dict(value="CCO", type="SMILES")], amount=dict(mass=dict(value=10.0, units="GRAM")))]
-)
+_ADDITION_INPUT = {
+    "components": [
+        {"identifiers": [{"value": "CCO", "type": "SMILES"}], "amount": {"mass": {"value": 10.0, "units": "GRAM"}}}
+    ]
+}
 
 
 @pytest.mark.parametrize(
     "message",
     (
-        reaction_pb2.ReactionWorkup(type="ALIQUOT", amount=dict(mass=dict(value=1.0, units="GRAM"))),
+        reaction_pb2.ReactionWorkup(type="ALIQUOT", amount={"mass": {"value": 1.0, "units": "GRAM"}}),
         reaction_pb2.ReactionWorkup(type="ADDITION", input=_ADDITION_INPUT),
     ),
 )
@@ -461,7 +464,7 @@ def test_reaction_workup(message):
         (reaction_pb2.ReactionWorkup(type="ALIQUOT"), "missing volume/mass"),
         (
             reaction_pb2.ReactionWorkup(
-                type="ADDITION", amount=dict(mass=dict(value=1.0, units="GRAM")), input=_ADDITION_INPUT
+                type="ADDITION", amount={"mass": {"value": 1.0, "units": "GRAM"}}, input=_ADDITION_INPUT
             ),
             "should only be specified",
         ),
@@ -521,9 +524,9 @@ def test_reaction_recursive():
     # If a measurement uses an internal standard, a component must have
     # an INTERNAL_STANDARD reaction role
     outcome.analyses["dummy_analysis"].CopyFrom(reaction_pb2.Analysis(type="CUSTOM", details="test"))
-    product = outcome.products.add(identifiers=[dict(type="SMILES", value="c1ccccc1")])
+    product = outcome.products.add(identifiers=[{"type": "SMILES", "value": "c1ccccc1"}])
     product.measurements.add(
-        analysis_key="dummy_analysis", type="YIELD", percentage=dict(value=75), uses_internal_standard=True
+        analysis_key="dummy_analysis", type="YIELD", percentage={"value": 75}, uses_internal_standard=True
     )
     with pytest.raises(validations.ValidationError, match="INTERNAL_STANDARD"):
         _run_validation(message)
@@ -805,17 +808,17 @@ def test_amount_volume_includes_solutes_non_volume():
     (
         (
             reaction_pb2.CrudeComponent(
-                reaction_id="r", has_derived_amount=True, amount=dict(mass=dict(value=1.0, units="GRAM"))
+                reaction_id="r", has_derived_amount=True, amount={"mass": {"value": 1.0, "units": "GRAM"}}
             ),
             "cannot have their mass",
         ),
         (
-            reaction_pb2.CrudeComponent(reaction_id="r", amount=dict(moles=dict(value=1.0, units="MOLE"))),
+            reaction_pb2.CrudeComponent(reaction_id="r", amount={"moles": {"value": 1.0, "units": "MOLE"}}),
             "must be specified by mass or volume",
         ),
         (
             reaction_pb2.CrudeComponent(
-                reaction_id="r", amount=dict(volume=dict(value=1.0, units="LITER"), volume_includes_solutes=True)
+                reaction_id="r", amount={"volume": {"value": 1.0, "units": "LITER"}, "volume_includes_solutes": True}
             ),
             "only be used for input Compounds",
         ),
@@ -829,8 +832,8 @@ def test_crude_component_amounts(message, expected):
 def test_compound_inconsistent_identifiers():
     message = reaction_pb2.Compound(
         identifiers=[
-            dict(type="SMILES", value="CO"),  # methanol
-            dict(type="INCHI", value="InChI=1S/CH4/h1H4"),  # methane
+            {"type": "SMILES", "value": "CO"},  # methanol
+            {"type": "INCHI", "value": "InChI=1S/CH4/h1H4"},  # methane
         ]
     )
     output = _run_validation(message)
@@ -868,29 +871,29 @@ def test_reaction_conditions_dynamic(message, raises, expected):
         (
             reaction_pb2.ReactionWorkup(
                 type="PH_ADJUST",
-                input=dict(
-                    components=[
-                        dict(
-                            identifiers=[dict(value="O", type="SMILES")],
-                            amount=dict(volume=dict(value=1.0, units="LITER")),
-                        )
+                input={
+                    "components": [
+                        {
+                            "identifiers": [{"value": "O", "type": "SMILES"}],
+                            "amount": {"volume": {"value": 1.0, "units": "LITER"}},
+                        }
                     ]
-                ),
+                },
             ),
             "missing target pH",
         ),
         (
-            reaction_pb2.ReactionWorkup(type="ALIQUOT", amount=dict(moles=dict(value=1.0, units="MOLE"))),
+            reaction_pb2.ReactionWorkup(type="ALIQUOT", amount={"moles": {"value": 1.0, "units": "MOLE"}}),
             "specified by mass or volume",
         ),
         (
             reaction_pb2.ReactionWorkup(
-                type="ALIQUOT", amount=dict(volume=dict(value=1.0, units="LITER"), volume_includes_solutes=True)
+                type="ALIQUOT", amount={"volume": {"value": 1.0, "units": "LITER"}, "volume_includes_solutes": True}
             ),
             "only be used for input Compounds",
         ),
         (
-            reaction_pb2.ReactionWorkup(type="CONCENTRATION", amount=dict(mass=dict(value=1.0, units="GRAM"))),
+            reaction_pb2.ReactionWorkup(type="CONCENTRATION", amount={"mass": {"value": 1.0, "units": "GRAM"}}),
             "only be specified if workup type",
         ),
     ),
@@ -903,10 +906,10 @@ def test_reaction_workup_recommendations(message, expected):
 def test_reaction_outcome_bad_analysis_key():
     message = reaction_pb2.ReactionOutcome(
         products=[
-            dict(
-                identifiers=[dict(value="CO", type="SMILES")],
-                measurements=[dict(type="IDENTITY", analysis_key="missing")],
-            )
+            {
+                "identifiers": [{"value": "CO", "type": "SMILES"}],
+                "measurements": [{"type": "IDENTITY", "analysis_key": "missing"}],
+            }
         ]
     )
     with pytest.raises(validations.ValidationError, match="does not match any known analysis"):
@@ -915,7 +918,7 @@ def test_reaction_outcome_bad_analysis_key():
 
 def test_product_compound_side_product_desired():
     message = reaction_pb2.ProductCompound(
-        identifiers=[dict(value="CO", type="SMILES")], is_desired_product=True, reaction_role="SIDE_PRODUCT"
+        identifiers=[{"value": "CO", "type": "SMILES"}], is_desired_product=True, reaction_role="SIDE_PRODUCT"
     )
     with pytest.raises(validations.ValidationError, match="SIDE_PRODUCT"):
         _run_validation(message)
@@ -924,8 +927,8 @@ def test_product_compound_side_product_desired():
 def test_product_compound_inconsistent_identifiers():
     message = reaction_pb2.ProductCompound(
         identifiers=[
-            dict(type="SMILES", value="CO"),  # methanol
-            dict(type="INCHI", value="InChI=1S/CH4/h1H4"),  # methane
+            {"type": "SMILES", "value": "CO"},  # methanol
+            {"type": "INCHI", "value": "InChI=1S/CH4/h1H4"},  # methane
         ],
         is_desired_product=True,  # Also exercises the desired/not-SIDE_PRODUCT branch.
     )
@@ -940,12 +943,12 @@ def test_product_compound_inconsistent_identifiers():
     "message, raises, expected",
     (
         (
-            reaction_pb2.ProductMeasurement(type="IDENTITY", analysis_key="x", percentage=dict(value=50.0)),
+            reaction_pb2.ProductMeasurement(type="IDENTITY", analysis_key="x", percentage={"value": 50.0}),
             True,
             "IDENTITY should not have",
         ),
         (
-            reaction_pb2.ProductMeasurement(type="YIELD", analysis_key="x", float_value=dict(value=5.0)),
+            reaction_pb2.ProductMeasurement(type="YIELD", analysis_key="x", float_value={"value": 5.0}),
             False,
             "YIELD measurements",
         ),
@@ -973,8 +976,8 @@ def test_bad_datetime():
 
 def test_provenance_record_modified_before_created():
     message = reaction_pb2.ReactionProvenance(
-        record_created=dict(time=dict(value="2021-06-01"), person=dict(username="u", email="a@b.com")),
-        record_modified=[dict(time=dict(value="2021-01-01"), person=dict(username="u", email="a@b.com"))],
+        record_created={"time": {"value": "2021-06-01"}, "person": {"username": "u", "email": "a@b.com"}},
+        record_modified=[{"time": {"value": "2021-01-01"}, "person": {"username": "u", "email": "a@b.com"}}],
     )
     with pytest.raises(validations.ValidationError, match="after creation"):
         _run_validation(message)
@@ -982,7 +985,7 @@ def test_provenance_record_modified_before_created():
 
 def test_provenance_doi_should_be_trimmed():
     message = reaction_pb2.ReactionProvenance(
-        record_created=dict(time=dict(value="2021-01-01"), person=dict(username="u", email="a@b.com")),
+        record_created={"time": {"value": "2021-01-01"}, "person": {"username": "u", "email": "a@b.com"}},
         doi="https://doi.org/10.1234/foo",
     )
     with pytest.raises(validations.ValidationError, match="trimmed"):
@@ -1049,18 +1052,22 @@ def test_workup_target_ph_out_of_range():
     message = reaction_pb2.ReactionWorkup(
         type="PH_ADJUST",
         target_ph=20.0,
-        input=dict(
-            components=[
-                dict(identifiers=[dict(value="O", type="SMILES")], amount=dict(mass=dict(value=1.0, units="GRAM")))
+        input={
+            "components": [
+                {"identifiers": [{"value": "O", "type": "SMILES"}], "amount": {"mass": {"value": 1.0, "units": "GRAM"}}}
             ]
-        ),
+        },
     )
     output = _run_validation(message)
     assert any("outside the expected range" in warning for warning in output.warnings)
 
 
 def test_reaction_outcome_multiple_desired_products():
-    product = dict(identifiers=[dict(value="CO", type="SMILES")], is_desired_product=True, reaction_role="PRODUCT")
+    product = {
+        "identifiers": [{"value": "CO", "type": "SMILES"}],
+        "is_desired_product": True,
+        "reaction_role": "PRODUCT",
+    }
     message = reaction_pb2.ReactionOutcome(products=[product, product])
     output = _run_validation(message)
     assert any("at most one" in warning for warning in output.warnings)
@@ -1069,8 +1076,8 @@ def test_reaction_outcome_multiple_desired_products():
 @pytest.mark.parametrize(
     "measurement, expects_warning",
     (
-        (reaction_pb2.ProductMeasurement(type="PURITY", analysis_key="x", float_value=dict(value=5.0)), True),
-        (reaction_pb2.ProductMeasurement(type="AREA", analysis_key="x", float_value=dict(value=5.0)), False),
+        (reaction_pb2.ProductMeasurement(type="PURITY", analysis_key="x", float_value={"value": 5.0}), True),
+        (reaction_pb2.ProductMeasurement(type="AREA", analysis_key="x", float_value={"value": 5.0}), False),
     ),
 )
 def test_product_measurement_purity_and_area(measurement, expects_warning):
@@ -1083,8 +1090,8 @@ def test_provenance_clean():
     # A fully valid provenance: record_modified after record_created and a DOI
     # that needs no trimming (exercises the "no warning" branches).
     message = reaction_pb2.ReactionProvenance(
-        record_created=dict(time=dict(value="2021-01-01"), person=dict(username="u", email="a@b.com")),
-        record_modified=[dict(time=dict(value="2021-06-01"), person=dict(username="u", email="a@b.com"))],
+        record_created={"time": {"value": "2021-01-01"}, "person": {"username": "u", "email": "a@b.com"}},
+        record_modified=[{"time": {"value": "2021-06-01"}, "person": {"username": "u", "email": "a@b.com"}}],
         doi="10.1234/foo",
     )
     output = _run_validation(message)
@@ -1109,7 +1116,7 @@ def test_validate_datasets(tmp_path):
     good = dataset_pb2.Dataset(
         name="test",
         description="test",
-        reactions=[reaction_pb2.Reaction(identifiers=[dict(type="REACTION_SMILES", value="CO>>CC")])],
+        reactions=[reaction_pb2.Reaction(identifiers=[{"type": "REACTION_SMILES", "value": "CO>>CC"}])],
     )
     # A clean dataset does not raise.
     validations.validate_datasets({"good.pbtxt": good}, options=options)
