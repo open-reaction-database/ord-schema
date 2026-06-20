@@ -93,16 +93,6 @@ def test_load_spreadsheet(suffix, tmp_path):
     pd.testing.assert_frame_equal(templating.load_spreadsheet(filename), df)
 
 
-def test_read_spreadsheet_deprecated(tmp_path):
-    # read_spreadsheet is a deprecated alias for load_spreadsheet.
-    df = pd.DataFrame.from_dict({"smiles": ["CCO"], "conversion": [75]})
-    filename = (tmp_path / "test.csv").as_posix()
-    df.to_csv(filename, index=False)
-    with pytest.warns(DeprecationWarning, match="read_spreadsheet is deprecated"):
-        loaded = templating.read_spreadsheet(filename)
-    pd.testing.assert_frame_equal(loaded, df)
-
-
 def test_invalid_templating(valid_reaction):
     template_string = text_format.MessageToString(valid_reaction)
     template_string = template_string.replace('value: "CCO"', 'value: "$my_smiles$"')

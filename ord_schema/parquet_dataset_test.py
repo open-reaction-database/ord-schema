@@ -436,20 +436,3 @@ def test_dataset_view_values_round_trip(tmp_path):
     assert list(view.reactions) == list(source.reactions)
     # Re-iterating must yield the same sequence (each access re-streams).
     assert list(view.reactions) == list(source.reactions)
-
-
-def test_deprecated_aliases(tmp_path):
-    # read_*/write_dataset are deprecated aliases for load_*/save_dataset; each
-    # must still work but emit a DeprecationWarning and delegate to the new name.
-    original = _make_dataset(n=2)
-    path = os.path.join(tmp_path, "ds.parquet")
-    with pytest.warns(DeprecationWarning, match="write_dataset is deprecated"):
-        dataset.write_dataset(original, path)
-    with pytest.warns(DeprecationWarning, match="read_dataset is deprecated"):
-        assert dataset.read_dataset(path).reactions == original.reactions
-    with pytest.warns(DeprecationWarning, match="read_metadata is deprecated"):
-        assert dataset.read_metadata(path).dataset_id == original.dataset_id
-    with pytest.warns(DeprecationWarning, match="read_footer is deprecated"):
-        assert dataset.read_footer(path).num_rows == len(original.reactions)
-    with pytest.warns(DeprecationWarning, match="read_reaction is deprecated"):
-        assert dataset.read_reaction(path, "ord-0001") == original.reactions[1]

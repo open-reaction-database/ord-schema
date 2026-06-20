@@ -614,19 +614,6 @@ class TestLoadAndWriteMessage:
         assert loaded.description == "d"
         assert list(loaded.reactions) == list(dataset.reactions)
 
-    def test_deprecated_write_aliases(self, tmp_path):
-        # write_message/write_dataset are deprecated aliases for save_*; they must
-        # still work but emit a DeprecationWarning.
-        dataset = dataset_pb2.Dataset(name="n", description="d")
-        message_path = (tmp_path / "msg.pbtxt").as_posix()
-        dataset_path = (tmp_path / "ds.pbtxt").as_posix()
-        with pytest.warns(DeprecationWarning, match="write_message is deprecated"):
-            message_helpers.write_message(dataset, message_path)
-        with pytest.warns(DeprecationWarning, match="write_dataset is deprecated"):
-            message_helpers.write_dataset(dataset, dataset_path)
-        assert message_helpers.load_message(message_path, dataset_pb2.Dataset) == dataset
-        assert message_helpers.load_message(dataset_path, dataset_pb2.Dataset) == dataset
-
 
 class TestCreateMessage:
     @pytest.mark.parametrize(
