@@ -48,14 +48,14 @@ def test_round_trip(tmp_path):
     assert list(loaded.reactions) == list(original.reactions)
 
 
-def test_write_rejects_empty_reactions(tmp_path):
+def test_save_rejects_empty_reactions(tmp_path):
     path = os.path.join(tmp_path, "empty.parquet")
     with pytest.raises(ValueError, match="no reactions"):
         dataset.save_dataset(dataset_pb2.Dataset(name="x"), path)
 
 
 @pytest.mark.parametrize("missing", ["name", "description"])
-def test_write_rejects_empty_name_or_description(tmp_path, missing):
+def test_save_rejects_empty_name_or_description(tmp_path, missing):
     fields = {"name": "n", "description": "d"}
     fields[missing] = ""
     ds = dataset_pb2.Dataset(**fields, reactions=[_make_reaction("ord-0000")])
@@ -64,7 +64,7 @@ def test_write_rejects_empty_name_or_description(tmp_path, missing):
         dataset.save_dataset(ds, path)
 
 
-def test_read_metadata_returns_scalars_only(tmp_path):
+def test_load_metadata_returns_scalars_only(tmp_path):
     original = _make_dataset(n=4)
     path = os.path.join(tmp_path, "ds.parquet")
     dataset.save_dataset(original, path)
@@ -118,7 +118,7 @@ def test_iter_reactions_empty_filter_raises(tmp_path):
         list(dataset.iter_reactions(path, reaction_ids=[]))
 
 
-def test_read_reaction_hit(tmp_path):
+def test_load_reaction_hit(tmp_path):
     original = _make_dataset(n=5)
     path = os.path.join(tmp_path, "ds.parquet")
     dataset.save_dataset(original, path)
@@ -127,7 +127,7 @@ def test_read_reaction_hit(tmp_path):
     assert reaction.outcomes[0].conversion.value == 2.0
 
 
-def test_read_reaction_miss(tmp_path):
+def test_load_reaction_miss(tmp_path):
     original = _make_dataset(n=2)
     path = os.path.join(tmp_path, "ds.parquet")
     dataset.save_dataset(original, path)
@@ -182,7 +182,7 @@ def test_footer_omits_empty_dataset_id(tmp_path):
     assert keys == {"ord.schema_version", "ord.name", "ord.description"}
 
 
-def test_read_rejects_unknown_schema_version(tmp_path):
+def test_load_rejects_unknown_schema_version(tmp_path):
     path = os.path.join(tmp_path, "ds.parquet")
     dataset.save_dataset(_make_dataset(n=1), path)
     # Rewrite the file with a bogus schema_version in the footer.
@@ -197,7 +197,7 @@ def test_read_rejects_unknown_schema_version(tmp_path):
 
 
 @pytest.mark.parametrize("missing_key", ["ord.schema_version", "ord.name", "ord.description"])
-def test_read_rejects_missing_required_footer_keys(tmp_path, missing_key):
+def test_load_rejects_missing_required_footer_keys(tmp_path, missing_key):
     path = os.path.join(tmp_path, "ds.parquet")
     dataset.save_dataset(_make_dataset(n=1), path)
     table = pq.read_table(path)
