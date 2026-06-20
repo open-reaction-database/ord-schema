@@ -308,7 +308,7 @@ def from_proto(message: Message, mapper: type[Base] | None = None, key: str | No
         else:
             kwargs[field.name] = value
     if isinstance(message, dataset_pb2.Dataset):
-        kwargs["md5"] = md5(message.SerializeToString(deterministic=True)).hexdigest()
+        kwargs["md5"] = md5(message.SerializeToString(deterministic=True), usedforsecurity=False).hexdigest()
         assert hasattr(message, "reactions")
         assert hasattr(message, "reaction_ids")
         kwargs["num_reactions"] = len(message.reactions) or len(message.reaction_ids)

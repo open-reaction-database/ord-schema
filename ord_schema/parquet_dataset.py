@@ -407,7 +407,7 @@ def streaming_md5(path: str) -> tuple[str, int]:
     file layout (row group sizes, compression) so the same logical content
     rewritten with different writer settings still hashes the same.
     """
-    hasher = hashlib.md5()
+    hasher = hashlib.md5(usedforsecurity=False)
     metadata = read_metadata(path)
     if metadata.name:
         hasher.update(f"name={metadata.name}\n".encode())

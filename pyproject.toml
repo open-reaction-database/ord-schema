@@ -135,6 +135,7 @@ select = [
     "ERA",  # eradicate (commented-out code)
     "TD",   # flake8-todos
     "FIX",  # flake8-fixme
+    "S",    # flake8-bandit
 ]
 ignore = [
     # ANN401 (disallow typing.Any) fires only on genuinely dynamic call sites:
@@ -163,6 +164,9 @@ ignore = [
     "N803", "N806",          # domain names (SMILES, fromAtoms) are deliberate
     "INP001",                # docs/conf.py is config, not a package
     "TD003",                 # don't force issue links on informal TODOs
+    # S101 (assert): used for test assertions and production type-narrowing
+    # (assert x is not None  # Type hint); not a security concern here.
+    "S101",
     "FIX002",                # TODO comments are allowed
     "E501",    # Line length is enforced by the formatter, not the linter.
     "SIM108",  # Ternary expressions are not always clearer than if/else.
@@ -184,9 +188,9 @@ ignore = [
 # and B017 (overly broad `pytest.raises(Exception)`); type annotations (ANN) also add
 # little value on test functions/fixtures, and SLF001 (private-member access)
 # is fine in tests. Skip these in tests.
-"**/*_test.py" = ["B011", "B017", "ANN", "SLF001"]
+"**/*_test.py" = ["B011", "B017", "ANN", "SLF001", "S603", "S607"]
 # Tutorial notebooks legitimately show commented-out alternative code.
-"**/*.ipynb" = ["ERA001"]
+"**/*.ipynb" = ["ERA001", "S310"]  # tutorials download from known URLs
 
 [tool.ty.src]
 exclude = ["**/*_pb2.py*"]

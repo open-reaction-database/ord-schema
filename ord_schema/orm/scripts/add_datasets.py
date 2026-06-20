@@ -72,7 +72,7 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
         dataset_id = dataset.dataset_id
 
         def compute_md5() -> str:
-            return md5(dataset.SerializeToString(deterministic=True)).hexdigest()
+            return md5(dataset.SerializeToString(deterministic=True), usedforsecurity=False).hexdigest()
 
         def insert(session: Session) -> None:
             database.add_dataset(dataset, session, rdkit_cartridge=False)  # Done separately in add_rdkit().
