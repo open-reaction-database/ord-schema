@@ -161,11 +161,9 @@ ignore = [
     "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",  # complexity caps -> churn
     "PLR2004",               # "magic value" flags ordinary numeric literals
     "N803", "N806",          # domain names (SMILES, fromAtoms) are deliberate
-    "SLF001",                # private-member access (almost all in tests)
     "INP001",                # docs/conf.py is config, not a package
-    "TD002", "TD003", "TD004",  # don't fuss over TODO formatting
+    "TD003",                 # don't force issue links on informal TODOs
     "FIX002",                # TODO comments are allowed
-    "ERA001",                # commented-out code is intentional in notebooks/docs/config
     "E501",    # Line length is enforced by the formatter, not the linter.
     "SIM108",  # Ternary expressions are not always clearer than if/else.
     "B008",    # Function calls in argument defaults are fine for our use cases.
@@ -184,8 +182,11 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Tests trip a couple of flake8-bugbear (the "B" rules) checks -- B011 (`assert False`)
 # and B017 (overly broad `pytest.raises(Exception)`); type annotations (ANN) also add
-# little value on test functions/fixtures. Skip both in tests.
-"**/*_test.py" = ["B011", "B017", "ANN"]
+# little value on test functions/fixtures, and SLF001 (private-member access)
+# is fine in tests. Skip these in tests.
+"**/*_test.py" = ["B011", "B017", "ANN", "SLF001"]
+# Tutorial notebooks legitimately show commented-out alternative code.
+"**/*.ipynb" = ["ERA001"]
 
 [tool.ty.src]
 exclude = ["**/*_pb2.py*"]
