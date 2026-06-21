@@ -99,6 +99,7 @@ class _ParquetEntry:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Validate Dataset protocol buffers")
     parser.add_argument(
         "--input", required=True, help="Input pattern for Dataset protos"
@@ -111,6 +112,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
+    """Validates matching Dataset protos in parallel and reports any failures."""
     filenames = sorted(glob.glob(args.input, recursive=True))
     logger.info("Found %d datasets", len(filenames))
     if args.filter:

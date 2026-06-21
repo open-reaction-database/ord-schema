@@ -23,6 +23,7 @@ logger = get_logger(__name__)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parses command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Enumerate a template with a spreadsheet"
     )
@@ -48,6 +49,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
+    """Enumerates a Dataset from a Reaction template and spreadsheet, then writes it out."""
     with pathlib.Path(args.template).open() as f:
         template_string = f.read()
     df = templating.read_spreadsheet(args.spreadsheet)

@@ -42,6 +42,7 @@ class _Resolved:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parses command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Convert serialized Dataset files to a single Parquet file."
     )
@@ -68,6 +69,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
+    """Streams reactions from the input Dataset files into a single Parquet file."""
     if not args.inputs:
         raise ValueError("at least one input file is required")
 

@@ -115,6 +115,7 @@ def add_rdkit(engine: Engine, dataset_id: str) -> None:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Add datasets to the ORM database")
     parser.add_argument(
         "--pattern", required=True, help="Pattern for dataset filenames"
@@ -136,6 +137,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
+    """Loads matching datasets into the ORM database and adds RDKit functionality."""
     silence_rdkit_logs()
     if args.debug:
         get_logger(database.__name__, level=logging.DEBUG)
