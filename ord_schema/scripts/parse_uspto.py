@@ -16,7 +16,7 @@
 Data is at:
 https://figshare.com/articles/dataset/Chemical_reactions_from_US_patents_1976-Sep2016_/5104873
 
-See also:
+See Also:
 https://depth-first.com/articles/2019/01/28/the-nextmove-patent-reaction-dataset/
 """
 
@@ -565,6 +565,7 @@ def run(
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Parse CML from the NRD")
     parser.add_argument(
         "--input_pattern", required=True, help="Input pattern for CML files"
@@ -578,6 +579,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
+    """Parses CML reaction files in parallel and writes a combined Dataset."""
     filenames = sorted(glob.glob(args.input_pattern))
     all_reactions = joblib.Parallel(n_jobs=args.n_jobs, verbose=True)(
         joblib.delayed(run)(filename) for filename in filenames

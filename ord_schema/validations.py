@@ -56,6 +56,7 @@ class ValidationOutput:
     warnings: list[str] = dataclasses.field(default_factory=list)
 
     def extend(self, other: "ValidationOutput") -> None:
+        """Appends the errors and warnings from another output to this one."""
         self.errors.extend(other.errors)
         self.warnings.extend(other.warnings)
 
@@ -273,10 +274,14 @@ def _validate_message(
 
 
 class ValidationError(Warning):
+    """Warning category for validation failures that indicate invalid data."""
+
     pass
 
 
 class ValidationWarning(Warning):
+    """Warning category for non-fatal validation concerns."""
+
     pass
 
 
@@ -287,6 +292,12 @@ def is_empty(message: ord_schema.Message) -> bool:
 
 
 def ensure_float_nonnegative(message: ord_schema.Message, field: str) -> None:
+    """Warns if the given numeric field of the message is negative.
+
+    Args:
+        message: The message whose field is checked.
+        field: Name of the numeric field to check.
+    """
     if getattr(message, field) < 0:
         desc = type(message).DESCRIPTOR
         assert desc is not None  # Type hint.
@@ -302,6 +313,14 @@ def ensure_float_range(
     min_value: float = -math.inf,
     max_value: float = math.inf,
 ) -> None:
+    """Warns if the given numeric field of the message is outside [min_value, max_value].
+
+    Args:
+        message: The message whose field is checked.
+        field: Name of the numeric field to check.
+        min_value: Inclusive lower bound for the field value.
+        max_value: Inclusive upper bound for the field value.
+    """
     if getattr(message, field) < min_value or getattr(message, field) > max_value:
         desc = type(message).DESCRIPTOR
         assert desc is not None  # Type hint.
@@ -410,11 +429,13 @@ def get_referenced_reaction_ids(message: reaction_pb2.Reaction) -> set[str]:
 
 
 def is_valid_reaction_id(reaction_id: str) -> bool:
+    """Returns whether a reaction ID matches the ord-<32 hex digits> format."""
     match = re.fullmatch("^ord-[0-9a-f]{32}$", reaction_id)
     return bool(match)
 
 
 def is_valid_dataset_id(dataset_id: str) -> bool:
+    """Returns whether a dataset ID matches the ord_dataset-<32 hex digits> format."""
     match = re.fullmatch("^ord_dataset-[0-9a-f]{32}$", dataset_id)
     return bool(match)
 
@@ -471,6 +492,7 @@ class DatasetCrossRefState:
     self_reference_count: int = 0
 
     def observe(self, reaction: reaction_pb2.Reaction) -> None:
+        """Records one reaction's defined ID, referenced IDs, and self-references."""
         if reaction.reaction_id:
             if reaction.reaction_id in self.defined_ids:
                 self.duplicate_count += 1
@@ -481,6 +503,7 @@ class DatasetCrossRefState:
         self.referenced_ids |= referenced
 
     def merge(self, other: "DatasetCrossRefState") -> None:
+        """Merges another state into this one, counting cross-slice duplicate IDs."""
         self.duplicate_count += other.duplicate_count + len(
             self.defined_ids & other.defined_ids
         )
@@ -489,6 +512,7 @@ class DatasetCrossRefState:
         self.self_reference_count += other.self_reference_count
 
     def emit_warnings(self) -> None:
+        """Emits warnings for duplicate IDs, self-references, and undefined references."""
         for _ in range(self.duplicate_count):
             warnings.warn(
                 "Multiple Reactions should never have the same IDs", ValidationError

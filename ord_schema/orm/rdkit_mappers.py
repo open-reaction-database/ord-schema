@@ -55,6 +55,7 @@ class RDKitMol(UserDefinedType):
 
     @property
     def python_type(self) -> type:
+        """Raises NotImplementedError; this type has no Python equivalent."""
         raise NotImplementedError
 
     def get_col_spec(self, **kwargs: Any) -> str:
@@ -70,6 +71,7 @@ class RDKitReaction(UserDefinedType):
 
     @property
     def python_type(self) -> type:
+        """Raises NotImplementedError; this type has no Python equivalent."""
         raise NotImplementedError
 
     def get_col_spec(self, **kwargs: Any) -> str:
@@ -85,6 +87,7 @@ class RDKitBfp(UserDefinedType):
 
     @property
     def python_type(self) -> type:
+        """Raises NotImplementedError; this type has no Python equivalent."""
         raise NotImplementedError
 
     def get_col_spec(self, **kwargs: Any) -> str:
@@ -100,6 +103,7 @@ class RDKitSfp(UserDefinedType):
 
     @property
     def python_type(self) -> type:
+        """Raises NotImplementedError; this type has no Python equivalent."""
         raise NotImplementedError
 
     def get_col_spec(self, **kwargs: Any) -> str:
@@ -115,6 +119,7 @@ class CString(UserDefinedType):
 
     @property
     def python_type(self) -> type:
+        """Raises NotImplementedError; this type has no Python equivalent."""
         raise NotImplementedError
 
     def get_col_spec(self, **kwargs: Any) -> str:
@@ -131,6 +136,7 @@ class FingerprintType(Enum):
     MORGAN_SFP = func.morgan_fp
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Invokes the wrapped RDKit fingerprint function."""
         return self.value(*args, **kwargs)
 
 
@@ -155,16 +161,19 @@ class RDKitMols(Base):
     def tanimoto(
         cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP
     ) -> ColumnElement[float]:
+        """Returns a Tanimoto similarity expression between the stored fingerprint and ``other``."""
         return func.tanimoto_sml(
             getattr(cls, fp_type.name.lower()), fp_type(cast(other, RDKitMol))
         )
 
     @classmethod
     def contains_substructure(cls, pattern: str) -> ColumnElement[bool]:
+        """Returns an expression testing whether the stored mol contains the ``pattern`` substructure."""
         return func.substruct(cls.mol, cast(pattern, RDKitMol))
 
     @classmethod
     def matches_smarts(cls, pattern: str) -> ColumnElement[bool]:
+        """Returns an expression testing whether the stored mol matches the SMARTS ``pattern``."""
         return func.substruct(cls.mol, func.qmol_from_smarts(cast(pattern, CString)))
 
 
@@ -183,6 +192,7 @@ class RDKitReactions(Base):
 
     @classmethod
     def matches_smarts(cls, pattern: str) -> ColumnElement[bool]:
+        """Returns an expression testing whether the stored reaction matches the reaction SMARTS ``pattern``."""
         return func.substruct(
             cls.reaction, func.reaction_from_smarts(cast(pattern, CString))
         )

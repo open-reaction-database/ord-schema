@@ -27,6 +27,7 @@ logger = get_logger(__name__)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Build a Dataset from Reaction protos")
     parser.add_argument(
         "--input", required=True, help="Input pattern for Reaction protos"
@@ -47,6 +48,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
+    """Loads matching Reaction protos into a Dataset, validates it, and writes it out."""
     filenames = glob.glob(args.input, recursive=True)
     logger.info("Found %d Reaction protos", len(filenames))
     reactions = [

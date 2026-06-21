@@ -151,8 +151,9 @@ def set_solute_moles(
     concentration: str,
     overwrite: bool = False,
 ) -> list[reaction_pb2.Compound]:
-    """Helps define components for stock solution inputs with a single solute
-    and a one or more solvent compounds.
+    """Helps define components for stock solution inputs.
+
+    Handles a single solute and one or more solvent compounds.
 
     Args:
         solute: Compound with identifiers, roles, etc.; this argument is
@@ -286,7 +287,7 @@ def smiles_from_compound(
 
     Args:
         compound: reaction_pb2.Compound or reaction_pb2.ProductCompound message.
-        validate: If True, returns a canonicalized SMILES.
+        canonical: If True, returns a canonicalized SMILES.
 
     Returns:
         Text SMILES.
@@ -539,8 +540,9 @@ def reaction_from_smiles(reaction_smiles: str) -> reaction_pb2.Reaction:
 def get_product_yield(
     product: reaction_pb2.ProductCompound, as_measurement: bool = False
 ) -> reaction_pb2.ProductMeasurement | float | None:
-    """Returns the value of a product's yield if it is defined. If multiple
-    measurements of type YIELD exist, only the first is returned.
+    """Returns the value of a product's yield if it is defined.
+
+    If multiple measurements of type YIELD exist, only the first is returned.
 
     Args:
         product: ProductCompound message.
@@ -562,8 +564,9 @@ def get_compound_identifier(
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
     identifier_type: reaction_pb2.CompoundIdentifier.CompoundIdentifierType,
 ) -> str | None:
-    """Returns the value of a compound identifier if it exists. If multiple
-    identifiers of that type exist, only the first is returned.
+    """Returns the value of a compound identifier if it exists.
+
+    If multiple identifiers of that type exist, only the first is returned.
 
     Args:
         compound: Compound message.
@@ -583,8 +586,9 @@ def set_compound_identifier(
     identifier_type: reaction_pb2.CompoundIdentifier.CompoundIdentifierType,
     value: str,
 ) -> reaction_pb2.CompoundIdentifier:
-    """Sets the value of a compound identifier if it exists or creates one. If
-    multiple identifiers of that type exist, only the first is overwritten.
+    """Sets the value of a compound identifier if it exists or creates one.
+
+    If multiple identifiers of that type exist, only the first is overwritten.
 
     Args:
         compound: Compound message.
@@ -618,8 +622,7 @@ def get_compound_smiles(
 def set_compound_smiles(
     compound: reaction_pb2.Compound, value: str
 ) -> reaction_pb2.CompoundIdentifier:
-    """Sets the value of the compound's SMILES identifier if it exists or
-    creates one.
+    """Sets the value of the compound's SMILES identifier if it exists or creates one.
 
     Args:
         compound: Compound message.
@@ -741,8 +744,7 @@ def get_compound_name(compound: reaction_pb2.Compound) -> str | None:
 def set_compound_name(
     compound: reaction_pb2.Compound, value: str
 ) -> reaction_pb2.CompoundIdentifier:
-    """Sets the value of the compound's NAME identifier if it exists or
-    creates one.
+    """Sets the value of the compound's NAME identifier if it exists or creates one.
 
     Args:
         compound: Compound message.
@@ -773,8 +775,7 @@ def get_compound_molblock(
 def set_compound_molblock(
     compound: reaction_pb2.Compound, value: str
 ) -> reaction_pb2.CompoundIdentifier:
-    """Sets the value of the compound's MOLBLOCK identifier if it exists or
-    creates one.
+    """Sets the value of the compound's MOLBLOCK identifier if it exists or creates one.
 
     Args:
         compound: Compound message.
@@ -1003,8 +1004,9 @@ def id_filename(filename: str) -> str:
 
 
 def create_message(message_name: str) -> ord_schema.Message:
-    """Converts a message name into an instantiation of that class, where
-    the message belongs to the reaction_pb2 module.
+    """Converts a message name into an instantiation of that class.
+
+    The message belongs to the reaction_pb2 module.
 
     Args:
         message_name: Text name of a message field. For example, "Reaction" or

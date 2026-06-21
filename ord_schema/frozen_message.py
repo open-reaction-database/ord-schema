@@ -97,9 +97,11 @@ class FrozenMessage(collections.abc.Mapping):
         return value
 
     def __iter__(self) -> collections.abc.Iterator:
+        """Returns an iterator over the underlying message."""
         return iter(self._message)
 
     def __len__(self) -> int:
+        """Returns the length of the underlying message."""
         return len(self._message)
 
     def __getitem__(self, key: str) -> Any:
