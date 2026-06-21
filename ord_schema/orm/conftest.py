@@ -24,7 +24,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from testing.postgresql import Postgresql
 
-from ord_schema.message_helpers import load_dataset
+from ord_schema.datasets import load_dataset
 from ord_schema.orm.database import add_dataset, prepare_database
 
 

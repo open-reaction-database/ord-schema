@@ -22,8 +22,8 @@ from google.protobuf import json_format, text_format
 from huggingface_hub.errors import EntryNotFoundError
 from rdkit import Chem
 
-from ord_schema import message_helpers, parquet_dataset
-from ord_schema.proto import dataset_pb2, reaction_pb2, test_pb2
+from ord_schema import message_helpers
+from ord_schema.proto import reaction_pb2, test_pb2
 
 _BENZENE_MOLBLOCK = """241
   -OEChem-07232015262D
@@ -682,78 +682,6 @@ class TestLoadAndSaveMessage:
         with pathlib.Path(dest).open("rb") as f:
             assert f.read() == b"original-bytes"
         assert not pathlib.Path(dest + ".tmp").exists()
-
-    @pytest.mark.parametrize(
-        "suffix",
-        [
-            ".pbtxt",
-            ".pb",
-            ".pb.gz",
-            ".json",
-            ".parquet",
-            ".txtpb",
-            ".binpb",
-            ".binpb.gz",
-            ".txtpb.gz",
-        ],
-    )
-    def test_save_dataset(self, suffix, tmp_path):
-        dataset = dataset_pb2.Dataset(
-            name="n",
-            description="d",
-            reactions=[reaction_pb2.Reaction(reaction_id="ord-0")],
-        )
-        path = (tmp_path / f"ds{suffix}").as_posix()
-        message_helpers.save_dataset(dataset, path)
-        # For .parquet, exercise the DatasetView entry point callers will use;
-        # for other formats, use the generic load_message.
-        if suffix == ".parquet":
-            loaded = parquet_dataset.DatasetView(path)
-        else:
-            loaded = message_helpers.load_message(path, dataset_pb2.Dataset)
-        assert loaded.name == "n"
-        assert loaded.description == "d"
-        assert list(loaded.reactions) == list(dataset.reactions)
-
-    @pytest.mark.parametrize(
-        "suffix",
-        [
-            ".pbtxt",
-            ".pb",
-            ".pb.gz",
-            ".json",
-            ".txtpb",
-            ".binpb",
-            ".binpb.gz",
-            ".txtpb.gz",
-        ],
-    )
-    def test_load_dataset(self, suffix, tmp_path):
-        dataset = dataset_pb2.Dataset(
-            name="n",
-            description="d",
-            reactions=[reaction_pb2.Reaction(reaction_id="ord-0")],
-        )
-        path = (tmp_path / f"ds{suffix}").as_posix()
-        message_helpers.write_dataset(dataset, path)
-        loaded = message_helpers.load_dataset(path)
-        assert loaded.name == "n"
-        assert loaded.description == "d"
-        assert list(loaded.reactions) == list(dataset.reactions)
-
-    def test_load_dataset_parquet_warns(self, tmp_path):
-        dataset = dataset_pb2.Dataset(
-            name="n",
-            description="d",
-            reactions=[reaction_pb2.Reaction(reaction_id="ord-0")],
-        )
-        path = (tmp_path / "ds.parquet").as_posix()
-        message_helpers.write_dataset(dataset, path)
-        with pytest.warns(UserWarning, match="DatasetView"):
-            loaded = message_helpers.load_dataset(path)
-        assert loaded.name == "n"
-        assert loaded.description == "d"
-        assert list(loaded.reactions) == list(dataset.reactions)
 
 
 class TestCreateMessage:

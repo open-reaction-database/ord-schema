@@ -36,7 +36,7 @@ from rdkit import Chem
 from rdkit.Chem import rdChemReactions
 
 import ord_schema
-from ord_schema import atomic_io, parquet_dataset, units
+from ord_schema import atomic_io, units
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
@@ -961,49 +961,6 @@ def _open_for_write(
             yield raw
 
 
-def save_dataset(
-    dataset: dataset_pb2.Dataset, filename: str | os.PathLike[str]
-) -> None:
-    """Writes a Dataset to disk, dispatching on filename suffix.
-
-    ``.parquet`` routes to ``parquet_dataset.save_dataset``; other suffixes
-    go through ``save_message``.
-    """
-    if pathlib.Path(filename).suffix == ".parquet":
-        parquet_dataset.save_dataset(dataset, filename)
-        return
-    save_message(dataset, filename)
-
-
-def load_dataset(filename: str | os.PathLike[str]) -> dataset_pb2.Dataset:
-    """Loads a Dataset from disk, dispatching on filename suffix.
-
-    The dataset-level counterpart to ``load_message``: ``.parquet`` routes to
-    ``parquet_dataset.read_dataset``, which deserializes every reaction into
-    memory; other suffixes go through ``load_message``.
-
-    Loading an entire Parquet dataset into memory defeats the format's
-    streaming benefits, so this path warns and recommends the streaming
-    ``parquet_dataset.DatasetView`` loader for large datasets.
-
-    Args:
-        filename: Path to a serialized Dataset (``.parquet`` or any suffix
-            understood by ``load_message``).
-
-    Returns:
-        The in-memory Dataset proto.
-    """
-    if pathlib.Path(filename).suffix == ".parquet":
-        warnings.warn(
-            f"Loading the entire Parquet dataset {filename} into memory; for large datasets prefer the "
-            "streaming loader ord_schema.parquet_dataset.DatasetView (or iter_reactions/read_reaction).",
-            UserWarning,
-            stacklevel=2,
-        )
-        return parquet_dataset.read_dataset(filename)
-    return load_message(filename, dataset_pb2.Dataset)
-
-
 def id_filename(filename: str) -> str:
     """Converts a filename into a relative path for the repository.
 
@@ -1199,10 +1156,12 @@ def write_message(
 def write_dataset(
     dataset: dataset_pb2.Dataset, filename: str | os.PathLike[str]
 ) -> None:
-    """Deprecated alias for :func:`save_dataset`."""
+    """Deprecated alias for :func:`ord_schema.datasets.save_dataset`."""
+    from ord_schema import datasets  # noqa: PLC0415
+
     warnings.warn(
-        "message_helpers.write_dataset is deprecated; use save_dataset instead.",
+        "message_helpers.write_dataset is deprecated; use ord_schema.datasets.save_dataset instead.",
         DeprecationWarning,
         stacklevel=2,
     )
-    return save_dataset(dataset, filename)
+    datasets.save_dataset(dataset, filename)

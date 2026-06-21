@@ -40,7 +40,14 @@ from collections.abc import Iterable, Mapping
 
 import github
 
-from ord_schema import atomic_io, message_helpers, parquet_dataset, updates, validations
+from ord_schema import (
+    atomic_io,
+    message_helpers,
+    parquet_dataset,
+    updates,
+    validations,
+)
+from ord_schema.datasets import save_dataset
 from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.proto import dataset_pb2
 
@@ -221,7 +228,7 @@ def _run_updates(
     update runs as a streaming two-pass over the input file with an atomic
     temp-then-rename publish (validation runs against the temp before the
     rename). Otherwise the in-memory path mutates the Dataset in place,
-    validates, and writes through ``message_helpers.save_dataset``.
+    validates, and writes through ``ord_schema.datasets.save_dataset``.
     """
     options = validations.ValidationOptions(validate_ids=True, require_provenance=True)
     for input_filename, dataset in datasets.items():
@@ -278,7 +285,7 @@ def _run_updates(
         if cleanup_files:
             cleanup(input_filename, output_filename)
         logger.info("writing Dataset to %s", output_filename)
-        message_helpers.save_dataset(dataset, output_filename)
+        save_dataset(dataset, output_filename)
 
 
 def run(
