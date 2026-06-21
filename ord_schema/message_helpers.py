@@ -655,10 +655,7 @@ def has_transition_metal(mol: Chem.Mol) -> bool:
     Returns:
         Boolean for whether the molecule has a transition metal.
     """
-    for atom in mol.GetAtoms():
-        if is_transition_metal(atom):
-            return True
-    return False
+    return any(is_transition_metal(atom) for atom in mol.GetAtoms())
 
 
 def set_dative_bonds(

@@ -160,9 +160,9 @@ ignore = [
     "T201",                  # print() is intentional in CLI scripts and notebooks
     "G004",                  # f-strings in logging calls are fine
     "FBT001", "FBT002",      # boolean positional args exist in public APIs already
-    "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915",  # complexity caps -> churn
+    "C901", "PLR0912", "PLR0913", "PLR0915",  # complexity caps -> churn
     "PLR2004",               # "magic value" flags ordinary numeric literals
-    "N803", "N806",          # domain names (SMILES, fromAtoms) are deliberate
+    "N803",                  # domain argument names (SMILES, fromAtoms) are deliberate
     "INP001",                # docs/conf.py is config, not a package
     "TD003",                 # don't force issue links on informal TODOs
     # S101 (assert): used for test assertions and production type-narrowing
@@ -170,18 +170,15 @@ ignore = [
     "S101",
     "FIX002",                # TODO comments are allowed
     "E501",    # Line length is enforced by the formatter, not the linter.
-    "SIM108",  # Ternary expressions are not always clearer than if/else.
-    "B008",    # Function calls in argument defaults are fine for our use cases.
-    # B028 (missing stacklevel= on warnings.warn) flags ~88 pre-existing call
-    # sites in ord_schema/validations.py. Tackle as a focused follow-up PR
-    # rather than mixing it in with tooling migration.
+    # B028 (missing stacklevel= on warnings.warn): the ~103 sites in
+    # validations.py are data-validation messages collected into ValidationOutput,
+    # not deprecation/misuse warnings -- there is no caller location worth pointing
+    # at, so stacklevel= would add noise without value.
     "B028",
-    # SIM102/SIM105/SIM110 are stylistic rewrites (nested-if flattening,
-    # contextlib.suppress, any()). Flagged sites here are pre-existing and
-    # out of scope for the tooling migration.
+    # SIM102 (collapsible nested-if): most flagged sites carry an explanatory
+    # comment between the outer and inner `if`; collapsing to `if x and y` would
+    # orphan that comment and read worse. Left nested on purpose.
     "SIM102",
-    "SIM105",
-    "SIM110",
     # PTH207 (glob.glob -> Path.glob) flags CLI scripts that glob arbitrary
     # user-supplied patterns (e.g. --input_pattern, possibly absolute or with
     # recursive **). pathlib.Path.glob requires a base dir + relative pattern
