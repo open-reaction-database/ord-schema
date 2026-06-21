@@ -29,7 +29,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from tqdm import tqdm
 
-from ord_schema import message_helpers, parquet_dataset, validations
+from ord_schema import message_helpers, parquet, validations
 from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.proto import dataset_pb2
 
@@ -60,7 +60,7 @@ def _validate_row_group(
     errors: list[str] = []
     state = validations.DatasetCrossRefState()
     for i, (_, reaction) in enumerate(
-        parquet_dataset.iter_reactions(filename, row_group=row_group)
+        parquet.iter_reactions(filename, row_group=row_group)
     ):
         output = validations.validate_message(reaction, raise_on_error=False)
         errors.extend(
@@ -71,7 +71,7 @@ def _validate_row_group(
 
 
 def _finalize_parquet(
-    footer: parquet_dataset.ParquetFooter, state: validations.DatasetCrossRefState
+    footer: parquet.ParquetFooter, state: validations.DatasetCrossRefState
 ) -> list[str]:
     """Runs dataset-level checks on aggregated parquet state; returns errors."""
     with warnings.catch_warnings(record=True) as tape:
@@ -94,7 +94,7 @@ def _finalize_parquet(
 @dataclasses.dataclass
 class _ParquetEntry:
     remaining: int
-    footer: parquet_dataset.ParquetFooter
+    footer: parquet.ParquetFooter
     state: validations.DatasetCrossRefState
 
 
@@ -126,7 +126,7 @@ def main(args: argparse.Namespace) -> None:
         futures: dict = {}
         for filename in filenames:
             if filename.endswith(".parquet"):
-                footer = parquet_dataset.load_footer(filename)
+                footer = parquet.load_footer(filename)
                 entry = _ParquetEntry(
                     remaining=footer.num_row_groups,
                     footer=footer,

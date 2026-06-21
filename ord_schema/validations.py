@@ -29,7 +29,7 @@ from rdkit import (
 )
 
 import ord_schema
-from ord_schema import message_helpers, parquet_dataset
+from ord_schema import message_helpers, parquet
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
@@ -62,7 +62,7 @@ class ValidationOutput:
 
 
 def validate_datasets(
-    datasets: Mapping[str, dataset_pb2.Dataset | parquet_dataset.DatasetView],
+    datasets: Mapping[str, dataset_pb2.Dataset | parquet.DatasetView],
     write_errors: bool = False,
     options: ValidationOptions | None = None,
 ) -> None:
@@ -93,14 +93,14 @@ def validate_datasets(
 
 
 def _validate_datasets(
-    dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView,
+    dataset: dataset_pb2.Dataset | parquet.DatasetView,
     label: str = "dataset",
     options: ValidationOptions | None = None,
 ) -> list[str]:
     """Validates Reaction messages and cross-references in a Dataset.
 
     ``dataset`` may be a ``dataset_pb2.Dataset`` or a
-    ``parquet_dataset.DatasetView``; the view re-iterates ``.reactions``
+    ``parquet.DatasetView``; the view re-iterates ``.reactions``
     from disk on each access, so the two iterations below (per-Reaction +
     cross-reference) both stream.
 
@@ -562,7 +562,7 @@ def _validate_dataset_scalars(
 
 
 def validate_dataset(
-    message: dataset_pb2.Dataset | parquet_dataset.DatasetView,
+    message: dataset_pb2.Dataset | parquet.DatasetView,
     options: ValidationOptions | None = None,
 ) -> None:
     """Validates a Dataset's scalar fields, reactions, and cross-references."""
@@ -598,7 +598,7 @@ def validate_dataset_streaming(
     iterated in slices (e.g., per Parquet row group) by upstream workers, with
     each worker contributing a ``DatasetCrossRefState`` that the caller has
     merged. ``has_reactions`` should reflect the source's row count (e.g.,
-    ``parquet_dataset.load_metadata`` plus ``num_row_groups`` for parquet);
+    ``parquet.load_metadata`` plus ``num_row_groups`` for parquet);
     inferring it from ``state`` would misclassify reactions without
     reaction_ids or references as empty. Pass ``reaction_ids=[]`` for the
     typical streaming case (parquet does not persist Dataset.reaction_ids).

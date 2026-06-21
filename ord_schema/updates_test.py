@@ -17,7 +17,7 @@ import pathlib
 
 import pytest
 
-from ord_schema import parquet_dataset, updates
+from ord_schema import parquet, updates
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -208,13 +208,13 @@ class TestUpdateParquetDataset:
         original = self._make_dataset()
         input_path = pathlib.Path(tmp_path) / "in.parquet"
         output_path = pathlib.Path(tmp_path) / "out.parquet"
-        parquet_dataset.save_dataset(original, input_path)
+        parquet.save_dataset(original, input_path)
         updates.update_parquet_dataset(
             input_path,
             output_path,
             dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809",
         )
-        result = parquet_dataset.load_dataset(output_path)
+        result = parquet.load_dataset(output_path)
         assert result.dataset_id == "ord_dataset-c0bbd41f095a44a78b6221135961d809"
         # Each reaction got a canonical ord- ID (the placeholders r1/r2/r3 were
         # all non-canonical, so all three should have been rewritten).
@@ -237,13 +237,13 @@ class TestUpdateParquetDataset:
         original = dataset_pb2.Dataset(name="x", description="x", reactions=[reaction])
         input_path = pathlib.Path(tmp_path) / "in.parquet"
         output_path = pathlib.Path(tmp_path) / "out.parquet"
-        parquet_dataset.save_dataset(original, input_path)
+        parquet.save_dataset(original, input_path)
         updates.update_parquet_dataset(
             input_path,
             output_path,
             dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809",
         )
-        result = parquet_dataset.load_dataset(output_path)
+        result = parquet.load_dataset(output_path)
         assert result.reactions[0].reaction_id == canonical
         assert len(result.reactions[0].provenance.record_modified) == 0
 
@@ -253,10 +253,10 @@ class TestUpdateParquetDataset:
         original = self._make_dataset()
         input_path = pathlib.Path(tmp_path) / "in.parquet"
         output_path = pathlib.Path(tmp_path) / "out.parquet"
-        parquet_dataset.save_dataset(original, input_path)
+        parquet.save_dataset(original, input_path)
         dataset_id = "ord_dataset-c0bbd41f095a44a78b6221135961d809"
         updates.update_parquet_dataset(input_path, output_path, dataset_id=dataset_id)
-        streamed = parquet_dataset.load_dataset(output_path)
+        streamed = parquet.load_dataset(output_path)
         in_memory = self._make_dataset()
         in_memory.dataset_id = dataset_id
         updates.update_dataset(in_memory)

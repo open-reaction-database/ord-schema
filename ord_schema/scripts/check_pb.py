@@ -25,8 +25,7 @@ import pprint
 
 from google.protobuf import text_format
 
-from ord_schema import message_helpers
-from ord_schema.proto import dataset_pb2
+from ord_schema import datasets
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -39,7 +38,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(args: argparse.Namespace) -> None:
     """Verifies that the pb and pbtxt Datasets are identical, raising on any difference."""
-    dataset = message_helpers.load_message(args.pb, dataset_pb2.Dataset)
+    dataset = datasets.load_dataset(args.pb)
     pb_data = text_format.MessageToString(dataset)
     with pathlib.Path(args.pbtxt).open() as f:
         pbtxt_data = f.read()

@@ -19,7 +19,7 @@ import re
 import uuid
 from collections.abc import Iterable
 
-from ord_schema import parquet_dataset
+from ord_schema import parquet
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _USERNAME = "github-actions"
@@ -30,7 +30,7 @@ _DATASET_ID_RE = re.compile("^ord_dataset-[0-9a-f]{32}$")
 
 
 def assign_dataset_id(
-    dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView,
+    dataset: dataset_pb2.Dataset | parquet.DatasetView,
 ) -> str:
     """Assigns a canonical ``dataset_id`` if the existing one is missing or non-canonical.
 
@@ -188,19 +188,17 @@ def update_parquet_dataset(
         output_path: Path to write the updated Parquet dataset to.
         dataset_id: Resolved dataset_id to write into the output footer.
     """
-    header = parquet_dataset.load_metadata(input_path)
+    header = parquet.load_metadata(input_path)
     new_ids, id_substitutions = assign_id_substitutions(
-        parquet_dataset.iter_reaction_ids(input_path)
+        parquet.iter_reaction_ids(input_path)
     )
-    with parquet_dataset.DatasetWriter(
+    with parquet.DatasetWriter(
         output_path,
         name=header.name,
         description=header.description,
         dataset_id=dataset_id,
     ) as writer:
-        reactions = (
-            reaction for _, reaction in parquet_dataset.iter_reactions(input_path)
-        )
+        reactions = (reaction for _, reaction in parquet.iter_reactions(input_path))
         for reaction, new_id in zip(reactions, new_ids, strict=True):
             apply_reaction_updates(reaction, new_id=new_id)
             apply_cross_reference_substitutions(reaction, id_substitutions)

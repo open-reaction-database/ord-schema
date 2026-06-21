@@ -42,7 +42,7 @@ def fetch_dataset(
     Prefers the Parquet serialization and falls back to the legacy ``.pb.gz``
     binary format for datasets that have not been converted yet. The file is
     not parsed; dispatch on the returned suffix to choose a reader, e.g.
-    ``parquet_dataset.load_dataset``/``parquet_dataset.DatasetView`` for
+    ``parquet.load_dataset``/``parquet.DatasetView`` for
     ``.parquet`` and ``load_message`` for ``.pb.gz``.
 
     Downloads are cached and content-verified by ``huggingface_hub``: repeat

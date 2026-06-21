@@ -20,7 +20,7 @@ import subprocess
 import pytest
 from rdkit import RDLogger
 
-from ord_schema import message_helpers, parquet_dataset, validations
+from ord_schema import message_helpers, parquet, validations
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import process_dataset
@@ -141,7 +141,7 @@ class TestProcessParquetDataset:
             reactions=[reaction],
         )
         filename = (tmp_path / "ds.parquet").as_posix()
-        parquet_dataset.save_dataset(dataset, filename)
+        parquet.save_dataset(dataset, filename)
         return filename
 
     def test_main_with_parquet_input(self, parquet_dataset_filename):
@@ -169,7 +169,7 @@ class TestProcessParquetDataset:
         assert pathlib.Path(expected_output).exists()
         # Atomic-rename guarantee: the .tmp sibling must not be left behind.
         assert not pathlib.Path(expected_output + ".tmp").exists()
-        result = parquet_dataset.load_dataset(expected_output)
+        result = parquet.load_dataset(expected_output)
         assert len(result.reactions) == 1
         assert result.reactions[0].reaction_id.startswith("ord-")
         # Streaming path exercises apply_reaction_updates → record_modified.
@@ -194,7 +194,7 @@ class TestProcessParquetDataset:
             reactions=[reaction],
         )
         filename = (tmp_path / "bad.parquet").as_posix()
-        parquet_dataset.save_dataset(dataset, filename)
+        parquet.save_dataset(dataset, filename)
         argv = [
             "--input_pattern",
             filename,
@@ -398,7 +398,7 @@ class TestSubmissionWorkflow:
             name="test", description="test", reactions=[reaction]
         )
         this_dataset_filename = pathlib.Path(test_subdirectory) / "test.parquet"
-        parquet_dataset.save_dataset(dataset, this_dataset_filename)
+        parquet.save_dataset(dataset, this_dataset_filename)
         added, removed, changed, filenames = self._run(
             test_subdirectory, ["--output_format", ".parquet"]
         )
@@ -410,7 +410,7 @@ class TestSubmissionWorkflow:
         parquet_files = [f for f in filenames if f.endswith(".parquet")]
         assert len(parquet_files) == 1
         assert not pathlib.Path(parquet_files[0] + ".tmp").exists()
-        result = parquet_dataset.load_dataset(parquet_files[0])
+        result = parquet.load_dataset(parquet_files[0])
         assert result.dataset_id.startswith("ord_dataset-")
         assert len(result.reactions) == 1
         assert result.reactions[0].reaction_id.startswith("ord-")
