@@ -32,6 +32,7 @@ import dataclasses
 import glob
 import gzip
 import os
+import pathlib
 import subprocess
 import sys
 import tempfile
@@ -74,7 +75,7 @@ def _get_inputs(args: argparse.Namespace) -> list[FileStatus]:
         return [FileStatus(filename, "A", "") for filename in filenames]
     if args.input_file:
         inputs = []
-        with open(args.input_file) as f:
+        with pathlib.Path(args.input_file).open() as f:
             for line in f:
                 fields = line.strip().split("\t")
                 if len(fields) == 3:
@@ -108,7 +109,7 @@ def cleanup(filename: str, output_filename: str) -> None:
     if filename == output_filename:
         logger.info("editing an existing dataset; no cleanup needed")
         return  # Reuse the existing dataset ID.
-    if os.path.exists(output_filename):
+    if pathlib.Path(output_filename).exists():
         args = ["git", "rm", "-f", filename]
     else:
         args = ["git", "mv", filename, output_filename]
@@ -220,11 +221,10 @@ def _run_updates(
             # Resolve dataset_id up-front so the output filename is known
             # before we open the streaming writer.
             updates.assign_dataset_id(dataset)
-            output_filename = os.path.join(
-                root,
-                message_helpers.id_filename(f"{dataset.dataset_id}{output_format}"),
+            output_filename = str(
+                pathlib.Path(root) / message_helpers.id_filename(f"{dataset.dataset_id}{output_format}")
             )
-            os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+            pathlib.Path(output_filename).parent.mkdir(parents=True, exist_ok=True)
             # Atomic publish: stream-write to a sibling temp, validate it,
             # and let atomic_path os.replace it onto output_filename on clean
             # exit (or unlink it on failure). Cleanup runs after the publish
@@ -253,11 +253,8 @@ def _run_updates(
             dataset = parquet_dataset.read_dataset(input_filename)  # noqa: PLW2901  (materialize the view in place)
         updates.update_dataset(dataset)
         validations.validate_datasets({input_filename: dataset}, write_errors, options=options)
-        output_filename = os.path.join(
-            root,
-            message_helpers.id_filename(f"{dataset.dataset_id}{output_format}"),
-        )
-        os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+        output_filename = str(pathlib.Path(root) / message_helpers.id_filename(f"{dataset.dataset_id}{output_format}"))
+        pathlib.Path(output_filename).parent.mkdir(parents=True, exist_ok=True)
         if cleanup_files:
             cleanup(input_filename, output_filename)
         logger.info("writing Dataset to %s", output_filename)

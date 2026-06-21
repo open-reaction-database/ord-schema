@@ -19,7 +19,7 @@ end with a "$" (dollar sign) and that these match a unique column header in the
 spreadsheet file.
 """
 
-import os
+import pathlib
 import re
 from collections.abc import Mapping
 from typing import BinaryIO
@@ -45,7 +45,7 @@ def read_spreadsheet(file_name_or_buffer: str | BinaryIO, suffix: str | None = N
     """
     if suffix is None:
         assert isinstance(file_name_or_buffer, str)  # Type hint; buffer requires suffix.
-        _, suffix = os.path.splitext(file_name_or_buffer)
+        suffix = pathlib.Path(file_name_or_buffer).suffix
     if suffix in [".xls", ".xlsx"]:
         return pd.read_excel(file_name_or_buffer)
     return pd.read_csv(file_name_or_buffer)

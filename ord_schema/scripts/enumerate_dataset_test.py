@@ -13,7 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.scripts.enumerate_dataset."""
 
-import os
+import pathlib
 
 import pandas as pd
 import pytest
@@ -78,8 +78,8 @@ def setup(tmp_path) -> tuple[str, str, dataset_pb2.Dataset]:
     }
     reaction_id: "ord-d73a86df4d0d4a32a23007aeff1a94e4"
     """
-    template_filename = os.path.join(dirname, "template.pbtxt")
-    with open(template_filename, "w") as f:
+    template_filename = pathlib.Path(dirname) / "template.pbtxt"
+    with template_filename.open("w") as f:
         f.write(template_string)
     data = pd.DataFrame(
         {
@@ -89,7 +89,7 @@ def setup(tmp_path) -> tuple[str, str, dataset_pb2.Dataset]:
             "product_yield": [7.8, 9.0, 8.7],
         }
     )
-    spreadsheet_filename = os.path.join(dirname, "spreadsheet.csv")
+    spreadsheet_filename = pathlib.Path(dirname) / "spreadsheet.csv"
     data.to_csv(spreadsheet_filename, index=False)
     expected = dataset_pb2.Dataset(name="test", description="test")
     reaction1 = expected.reactions.add()
@@ -125,7 +125,7 @@ def setup(tmp_path) -> tuple[str, str, dataset_pb2.Dataset]:
     reaction3.provenance.record_created.time.value = "2023-07-01"
     reaction3.provenance.record_created.person.name = "test"
     reaction3.provenance.record_created.person.email = "test@example.com"
-    return template_filename, spreadsheet_filename, expected
+    return template_filename.as_posix(), spreadsheet_filename.as_posix(), expected
 
 
 def test_main(setup, tmp_path):
@@ -144,7 +144,7 @@ def test_main(setup, tmp_path):
         output_filename,
     ]
     enumerate_dataset.main(enumerate_dataset.parse_args(argv))
-    assert os.path.exists(output_filename)
+    assert pathlib.Path(output_filename).exists()
     dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
     assert len(dataset.reactions) == 3
     validations.validate_message(dataset, raise_on_error=True)

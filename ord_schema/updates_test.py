@@ -13,7 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.updates."""
 
-import os
+import pathlib
 
 import pytest
 
@@ -164,8 +164,8 @@ class TestUpdateParquetDataset:
 
     def test_round_trip_assigns_ids_and_rewrites_cross_refs(self, tmp_path):
         original = self._make_dataset()
-        input_path = os.path.join(tmp_path, "in.parquet")
-        output_path = os.path.join(tmp_path, "out.parquet")
+        input_path = pathlib.Path(tmp_path) / "in.parquet"
+        output_path = pathlib.Path(tmp_path) / "out.parquet"
         parquet_dataset.write_dataset(original, input_path)
         updates.update_parquet_dataset(
             input_path, output_path, dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809"
@@ -191,8 +191,8 @@ class TestUpdateParquetDataset:
         # trip any other update. Should round-trip unchanged.
         reaction.provenance.record_created.time.value = "2020-01-01"
         original = dataset_pb2.Dataset(name="x", description="x", reactions=[reaction])
-        input_path = os.path.join(tmp_path, "in.parquet")
-        output_path = os.path.join(tmp_path, "out.parquet")
+        input_path = pathlib.Path(tmp_path) / "in.parquet"
+        output_path = pathlib.Path(tmp_path) / "out.parquet"
         parquet_dataset.write_dataset(original, input_path)
         updates.update_parquet_dataset(
             input_path, output_path, dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809"
@@ -205,8 +205,8 @@ class TestUpdateParquetDataset:
         # update_parquet_dataset (streaming) and update_dataset (in-memory)
         # should produce the same per-reaction shape modulo the random IDs.
         original = self._make_dataset()
-        input_path = os.path.join(tmp_path, "in.parquet")
-        output_path = os.path.join(tmp_path, "out.parquet")
+        input_path = pathlib.Path(tmp_path) / "in.parquet"
+        output_path = pathlib.Path(tmp_path) / "out.parquet"
         parquet_dataset.write_dataset(original, input_path)
         dataset_id = "ord_dataset-c0bbd41f095a44a78b6221135961d809"
         updates.update_parquet_dataset(input_path, output_path, dataset_id=dataset_id)

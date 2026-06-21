@@ -136,6 +136,7 @@ select = [
     "TD",   # flake8-todos
     "FIX",  # flake8-fixme
     "S",    # flake8-bandit
+    "PTH",  # flake8-use-pathlib
 ]
 ignore = [
     # ANN401 (disallow typing.Any) fires only on genuinely dynamic call sites:
@@ -181,6 +182,11 @@ ignore = [
     "SIM102",
     "SIM105",
     "SIM110",
+    # PTH207 (glob.glob -> Path.glob) flags CLI scripts that glob arbitrary
+    # user-supplied patterns (e.g. --input_pattern, possibly absolute or with
+    # recursive **). pathlib.Path.glob requires a base dir + relative pattern
+    # and rejects absolute patterns, so there is no clean equivalent here.
+    "PTH207",
 ]
 
 [tool.ruff.lint.per-file-ignores]

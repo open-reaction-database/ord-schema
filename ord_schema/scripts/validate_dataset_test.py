@@ -13,7 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.scripts.validate_dataset."""
 
-import os
+import pathlib
 
 import pytest
 
@@ -44,29 +44,29 @@ def setup(request, tmp_path) -> tuple[str, str]:
     reaction1.provenance.record_created.person.name = "test"
     reaction1.provenance.record_created.person.email = "test@example.com"
     dataset1 = dataset_pb2.Dataset(name="test1", description="test1", reactions=[reaction1])
-    message_helpers.write_dataset(dataset1, os.path.join(test_subdirectory, f"dataset1{suffix}"))
+    message_helpers.write_dataset(dataset1, pathlib.Path(test_subdirectory) / f"dataset1{suffix}")
     # reaction2 is empty.
     reaction2 = reaction_pb2.Reaction()
     dataset2 = dataset_pb2.Dataset(name="test2", description="test2", reactions=[reaction1, reaction2])
-    message_helpers.write_dataset(dataset2, os.path.join(test_subdirectory, f"dataset2{suffix}"))
+    message_helpers.write_dataset(dataset2, pathlib.Path(test_subdirectory) / f"dataset2{suffix}")
     return test_subdirectory, suffix
 
 
 def test_simple(setup):
     test_subdirectory, suffix = setup
-    argv = ["--input", os.path.join(test_subdirectory, f"dataset1{suffix}")]
+    argv = ["--input", str(pathlib.Path(test_subdirectory) / f"dataset1{suffix}")]
     validate_dataset.main(validate_dataset.parse_args(argv))
 
 
 def test_filter(setup):
     test_subdirectory, suffix = setup
-    argv = ["--input", os.path.join(test_subdirectory, f"dataset1{suffix}"), "--filter", "dataset"]
+    argv = ["--input", str(pathlib.Path(test_subdirectory) / f"dataset1{suffix}"), "--filter", "dataset"]
     validate_dataset.main(validate_dataset.parse_args(argv))
 
 
 def test_validation_errors(setup):
     test_subdirectory, suffix = setup
-    argv = ["--input", os.path.join(test_subdirectory, f"dataset*{suffix}")]
+    argv = ["--input", str(pathlib.Path(test_subdirectory) / f"dataset*{suffix}")]
     with pytest.raises(
         validations.ValidationError,
         match="Reactions should have at least 1 reaction input",

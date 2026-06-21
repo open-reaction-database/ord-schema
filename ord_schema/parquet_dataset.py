@@ -30,6 +30,7 @@ import contextlib
 import dataclasses
 import hashlib
 import os
+import pathlib
 import tempfile
 from collections.abc import Iterable, Iterator
 from types import TracebackType
@@ -94,15 +95,15 @@ class DatasetWriter:
         # ``atomic_io.atomic_path``, inlined because the open/close lifecycle
         # is split across __init__/close().
         self._path = os.fspath(path)
-        parent = os.path.dirname(self._path) or "."
-        basename = os.path.basename(self._path)
+        parent = pathlib.Path(self._path).parent
+        basename = pathlib.Path(self._path).name
         fd, self._tmp_path = tempfile.mkstemp(dir=parent, prefix=basename + ".", suffix=".tmp")
         os.close(fd)
         try:
             self._writer = pq.ParquetWriter(self._tmp_path, self._schema, compression=compression)
         except BaseException:
             with contextlib.suppress(FileNotFoundError):
-                os.unlink(self._tmp_path)
+                pathlib.Path(self._tmp_path).unlink()
             raise
         self._buffer_ids: list[str] = []
         self._buffer_blobs: list[bytes] = []
@@ -138,7 +139,7 @@ class DatasetWriter:
         except BaseException:
             self._abort()
             raise
-        os.replace(self._tmp_path, self._path)
+        pathlib.Path(self._tmp_path).replace(self._path)
 
     def _abort(self) -> None:
         # try/finally so the unlink still runs if writer.close raises a
@@ -149,7 +150,7 @@ class DatasetWriter:
                 self._writer.close()
         finally:
             with contextlib.suppress(FileNotFoundError):
-                os.unlink(self._tmp_path)
+                pathlib.Path(self._tmp_path).unlink()
 
     def _flush(self) -> None:
         if not self._buffer_ids:

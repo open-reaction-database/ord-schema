@@ -14,7 +14,7 @@
 
 """Tests for ord_schema.orm.scripts.add_datasets."""
 
-import os
+import pathlib
 
 import pytest
 from sqlalchemy import select
@@ -28,7 +28,7 @@ from ord_schema.orm.mappers import Mappers
 from ord_schema.orm.scripts import add_datasets
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
-_PBTXT_FIXTURE = os.path.join(os.path.dirname(__file__), "..", "testdata", "ord-nielsen-example.pbtxt")
+_PBTXT_FIXTURE = str(pathlib.Path(__file__).parent / ".." / "testdata" / "ord-nielsen-example.pbtxt")
 
 
 @pytest.fixture(name="prepared_engine")
