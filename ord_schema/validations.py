@@ -633,19 +633,19 @@ def validate_reaction(
     """Validates a Reaction's inputs, outcomes, identifiers, and provenance."""
     if options is None:
         options = ValidationOptions()
-    if (
+    # A reaction-SMILES-only record is allowed to omit inputs and outcomes.
+    smiles_only = (
         options.allow_reaction_smiles_only
         and message_helpers.get_reaction_smiles(message)
-        and len(message.inputs) == 0
-        and len(message.outcomes) == 0
-    ):
-        pass
-    else:
-        if len(message.inputs) == 0:
+        and not message.inputs
+        and not message.outcomes
+    )
+    if not smiles_only:
+        if not message.inputs:
             warnings.warn(
                 "Reactions should have at least 1 reaction input", ValidationError
             )
-        if len(message.outcomes) == 0:
+        if not message.outcomes:
             warnings.warn(
                 "Reactions should have at least 1 reaction outcome", ValidationError
             )

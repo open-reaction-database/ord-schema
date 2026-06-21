@@ -102,7 +102,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Validate Dataset protocol buffers")
     parser.add_argument(
-        "--input", required=True, help="Input pattern for Dataset protos"
+        "--input_pattern",
+        "--input",
+        required=True,
+        help="Input pattern for Dataset protos (--input is a deprecated alias)",
     )
     parser.add_argument("--filter", default=None, help="Regex filename filter")
     parser.add_argument(
@@ -113,7 +116,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(args: argparse.Namespace) -> None:
     """Validates matching Dataset protos in parallel and reports any failures."""
-    filenames = sorted(glob.glob(args.input, recursive=True))
+    filenames = sorted(glob.glob(args.input_pattern, recursive=True))
     logger.info("Found %d datasets", len(filenames))
     if args.filter:
         filenames = filter_filenames(filenames, args.filter)

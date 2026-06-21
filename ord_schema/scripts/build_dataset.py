@@ -30,7 +30,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Build a Dataset from Reaction protos")
     parser.add_argument(
-        "--input", required=True, help="Input pattern for Reaction protos"
+        "--input_pattern",
+        "--input",
+        required=True,
+        help="Input pattern for Reaction protos (--input is a deprecated alias)",
     )
     parser.add_argument(
         "--output", required=True, help="Output Dataset filename (*.pbtxt)"
@@ -49,7 +52,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(args: argparse.Namespace) -> None:
     """Loads matching Reaction protos into a Dataset, validates it, and writes it out."""
-    filenames = sorted(glob.glob(args.input, recursive=True))
+    filenames = sorted(glob.glob(args.input_pattern, recursive=True))
     logger.info("Found %d Reaction protos", len(filenames))
     reactions = [
         message_helpers.load_message(filename, reaction_pb2.Reaction)
