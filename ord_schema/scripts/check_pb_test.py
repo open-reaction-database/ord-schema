@@ -27,8 +27,8 @@ def test_main_pass(tmp_path):
     reaction = dataset.reactions.add()
     component = reaction.inputs["test"].components.add()
     component.identifiers.add(value="c1ccccc1", type="SMILES")
-    message_helpers.write_message(dataset, pb_filename)
-    message_helpers.write_message(dataset, pbtxt_filename)
+    message_helpers.save_message(dataset, pb_filename)
+    message_helpers.save_message(dataset, pbtxt_filename)
     check_pb.main(check_pb.parse_args(["--pb", pb_filename, "--pbtxt", pbtxt_filename]))
 
 
@@ -39,9 +39,9 @@ def test_main_fail(tmp_path):
     reaction = dataset.reactions.add()
     component = reaction.inputs["test"].components.add()
     component.identifiers.add(value="c1ccccc1", type="SMILES")
-    message_helpers.write_message(dataset, pb_filename)
+    message_helpers.save_message(dataset, pb_filename)
     component.identifiers.add(value="benzene", type="NAME")
-    message_helpers.write_message(dataset, pbtxt_filename)
+    message_helpers.save_message(dataset, pbtxt_filename)
     with pytest.raises(ValueError, match="Datasets differ"):
         check_pb.main(
             check_pb.parse_args(["--pb", pb_filename, "--pbtxt", pbtxt_filename])

@@ -122,7 +122,7 @@ def add_parquet_dataset(
     regardless of dataset size.
     """
     start = time.time()
-    metadata = parquet_dataset.read_metadata(path)
+    metadata = parquet_dataset.load_metadata(path)
     logger.debug(f"Streaming Parquet Dataset {metadata.dataset_id}")
     md5_hex, num_reactions = parquet_dataset.streaming_md5(path)
     reaction_child_class = Mappers.Dataset.reactions.mapper.class_

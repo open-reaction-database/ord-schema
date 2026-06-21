@@ -221,7 +221,7 @@ def _run_updates(
     update runs as a streaming two-pass over the input file with an atomic
     temp-then-rename publish (validation runs against the temp before the
     rename). Otherwise the in-memory path mutates the Dataset in place,
-    validates, and writes through ``message_helpers.write_dataset``.
+    validates, and writes through ``message_helpers.save_dataset``.
     """
     options = validations.ValidationOptions(validate_ids=True, require_provenance=True)
     for input_filename, dataset in datasets.items():
@@ -265,7 +265,7 @@ def _run_updates(
         # In-memory path: materialize a Parquet input if the requested output
         # format is not Parquet (so we can mutate via update_dataset).
         if isinstance(dataset, parquet_dataset.DatasetView):
-            dataset = parquet_dataset.read_dataset(input_filename)  # noqa: PLW2901  (materialize the view in place)
+            dataset = parquet_dataset.load_dataset(input_filename)  # noqa: PLW2901  (materialize the view in place)
         updates.update_dataset(dataset)
         validations.validate_datasets(
             {input_filename: dataset}, write_errors, options=options
@@ -278,7 +278,7 @@ def _run_updates(
         if cleanup_files:
             cleanup(input_filename, output_filename)
         logger.info("writing Dataset to %s", output_filename)
-        message_helpers.write_dataset(dataset, output_filename)
+        message_helpers.save_dataset(dataset, output_filename)
 
 
 def run(

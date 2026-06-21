@@ -594,10 +594,10 @@ def main(args: argparse.Namespace) -> None:
     dataset.description = f"CML filenames: {','.join(basenames)}"
     if args.output and reactions:
         logger.info(f"Writing {len(reactions)} reactions to {args.output}")
-        message_helpers.write_message(dataset, args.output)
+        message_helpers.save_message(dataset, args.output)
         if failures:
             failure_dataset = dataset_pb2.Dataset(reactions=failures, name=args.name)
-            message_helpers.write_message(failure_dataset, args.output + ".failures.pb")
+            message_helpers.save_message(failure_dataset, args.output + ".failures.pb")
 
 
 if __name__ == "__main__":
