@@ -49,7 +49,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(args: argparse.Namespace) -> None:
     """Loads matching Reaction protos into a Dataset, validates it, and writes it out."""
-    filenames = glob.glob(args.input, recursive=True)
+    filenames = sorted(glob.glob(args.input, recursive=True))
     logger.info("Found %d Reaction protos", len(filenames))
     reactions = [
         message_helpers.load_message(filename, reaction_pb2.Reaction)
