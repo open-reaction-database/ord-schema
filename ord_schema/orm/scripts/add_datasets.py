@@ -65,17 +65,23 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
             return md5_hex
 
         def insert(session: Session) -> None:
-            database.add_parquet_dataset(filename, session, rdkit_cartridge=False)  # Done separately in add_rdkit().
+            database.add_parquet_dataset(
+                filename, session, rdkit_cartridge=False
+            )  # Done separately in add_rdkit().
     else:
         logger.debug(f"Loading {filename}")
         dataset = load_message(filename, dataset_pb2.Dataset)
         dataset_id = dataset.dataset_id
 
         def compute_md5() -> str:
-            return md5(dataset.SerializeToString(deterministic=True), usedforsecurity=False).hexdigest()
+            return md5(
+                dataset.SerializeToString(deterministic=True), usedforsecurity=False
+            ).hexdigest()
 
         def insert(session: Session) -> None:
-            database.add_dataset(dataset, session, rdkit_cartridge=False)  # Done separately in add_rdkit().
+            database.add_dataset(
+                dataset, session, rdkit_cartridge=False
+            )  # Done separately in add_rdkit().
 
     with Session(engine) as session:
         with session.begin():
@@ -83,7 +89,9 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
         if existing_md5 is not None:
             if compute_md5() != existing_md5:
                 if not overwrite:
-                    raise ValueError(f"`overwrite` is required when a dataset already exists: {dataset_id}")
+                    raise ValueError(
+                        f"`overwrite` is required when a dataset already exists: {dataset_id}"
+                    )
                 logger.debug(f"existing dataset {dataset_id} changed; updating")
                 with session.begin():
                     database.delete_dataset(dataset_id, session)
@@ -108,15 +116,21 @@ def add_rdkit(engine: Engine, dataset_id: str) -> None:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Add datasets to the ORM database")
-    parser.add_argument("--pattern", required=True, help="Pattern for dataset filenames")
-    parser.add_argument("--overwrite", action="store_true", help="Update changed datasets")
+    parser.add_argument(
+        "--pattern", required=True, help="Pattern for dataset filenames"
+    )
+    parser.add_argument(
+        "--overwrite", action="store_true", help="Update changed datasets"
+    )
     parser.add_argument("--dsn", default=None, help="Postgres connection string")
     parser.add_argument("--database", default="orm", help="Database")
     parser.add_argument("--username", default="postgres", help="Database username")
     parser.add_argument("--password", default=None, help="Database password")
     parser.add_argument("--host", default="localhost", help="Database host")
     parser.add_argument("--port", type=int, default=5432, help="Database port")
-    parser.add_argument("--n_jobs", type=int, default=1, help="Number of parallel workers")
+    parser.add_argument(
+        "--n_jobs", type=int, default=1, help="Number of parallel workers"
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args(argv)
 
@@ -145,7 +159,9 @@ def main(args: argparse.Namespace) -> None:
         logger.info("Adding datasets")
         futures = {}
         for filename in filenames:
-            future = executor.submit(add_dataset, dsn=dsn, filename=filename, overwrite=args.overwrite)
+            future = executor.submit(
+                add_dataset, dsn=dsn, filename=filename, overwrite=args.overwrite
+            )
             futures[future] = filename
         dataset_ids = []
         failures = []
@@ -160,7 +176,9 @@ def main(args: argparse.Namespace) -> None:
     engine = create_engine(dsn)
     for dataset_id in tqdm(dataset_ids):
         try:
-            add_rdkit(engine, dataset_id)  # NOTE(skearnes): Do this serially to avoid deadlocks.
+            add_rdkit(
+                engine, dataset_id
+            )  # NOTE(skearnes): Do this serially to avoid deadlocks.
         except Exception:
             failures.append(dataset_id)
             logger.exception(f"Adding RDKit functionality for {dataset_id} failed")

@@ -26,12 +26,16 @@ def _make_reaction(reaction_id: str, conversion: float = 50.0) -> reaction_pb2.R
     return reaction
 
 
-def _make_dataset(n: int = 3, *, dataset_id="ord_dataset-test123", name="test", description="desc"):
+def _make_dataset(
+    n: int = 3, *, dataset_id="ord_dataset-test123", name="test", description="desc"
+):
     return dataset_pb2.Dataset(
         dataset_id=dataset_id,
         name=name,
         description=description,
-        reactions=[_make_reaction(f"ord-{i:04d}", conversion=float(i)) for i in range(n)],
+        reactions=[
+            _make_reaction(f"ord-{i:04d}", conversion=float(i)) for i in range(n)
+        ],
     )
 
 
@@ -98,11 +102,19 @@ def test_iter_reactions_row_group(tmp_path):
     original = _make_dataset(n=5)
     path = tmp_path / "ds.parquet"
     # row_group_size=2 -> row groups of [0,1], [2,3], [4]
-    with dataset.DatasetWriter(path, name=original.name, description=original.description, row_group_size=2) as writer:
+    with dataset.DatasetWriter(
+        path, name=original.name, description=original.description, row_group_size=2
+    ) as writer:
         writer.write_all(original.reactions)
     assert dataset.num_row_groups(path) == 3
-    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=0)] == ["ord-0000", "ord-0001"]
-    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=1)] == ["ord-0002", "ord-0003"]
+    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=0)] == [
+        "ord-0000",
+        "ord-0001",
+    ]
+    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=1)] == [
+        "ord-0002",
+        "ord-0003",
+    ]
     assert [rid for rid, _ in dataset.iter_reactions(path, row_group=2)] == ["ord-0004"]
     with pytest.raises(IndexError, match="out of range"):
         list(dataset.iter_reactions(path, row_group=3))
@@ -145,7 +157,11 @@ def test_row_group_boundaries(tmp_path):
 def test_streaming_writer(tmp_path):
     path = tmp_path / "streamed.parquet"
     with dataset.DatasetWriter(
-        path, dataset_id="ord_dataset-stream", name="stream", description="streamed", row_group_size=2
+        path,
+        dataset_id="ord_dataset-stream",
+        name="stream",
+        description="streamed",
+        row_group_size=2,
     ) as writer:
         for i in range(5):
             writer.write(_make_reaction(f"ord-s{i}", conversion=float(i)))
@@ -172,7 +188,9 @@ def test_writer_requires_name_and_description(tmp_path):
 
 
 def test_footer_omits_empty_dataset_id(tmp_path):
-    ds = dataset_pb2.Dataset(name="n", description="d", reactions=[_make_reaction("ord-0000")])
+    ds = dataset_pb2.Dataset(
+        name="n", description="d", reactions=[_make_reaction("ord-0000")]
+    )
     path = tmp_path / "ds.parquet"
     dataset.write_dataset(ds, path)
     schema = pq.ParquetFile(path).schema_arrow
@@ -194,12 +212,18 @@ def test_read_rejects_unknown_schema_version(tmp_path):
         dataset.read_metadata(bad_path)
 
 
-@pytest.mark.parametrize("missing_key", ["ord.schema_version", "ord.name", "ord.description"])
+@pytest.mark.parametrize(
+    "missing_key", ["ord.schema_version", "ord.name", "ord.description"]
+)
 def test_read_rejects_missing_required_footer_keys(tmp_path, missing_key):
     path = tmp_path / "ds.parquet"
     dataset.write_dataset(_make_dataset(n=1), path)
     table = pq.read_table(path)
-    bad_metadata = {key: value for key, value in (table.schema.metadata or {}).items() if key != missing_key.encode()}
+    bad_metadata = {
+        key: value
+        for key, value in (table.schema.metadata or {}).items()
+        if key != missing_key.encode()
+    }
     table = table.replace_schema_metadata(bad_metadata)
     bad_path = tmp_path / "bad.parquet"
     pq.write_table(table, bad_path)

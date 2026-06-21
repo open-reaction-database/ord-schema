@@ -43,7 +43,9 @@ def _skip_if_pubchem_unavailable(caplog):
     wrong-but-resolved answer still fails via the test's own assertions.
     """
     if "ServerBusy" in caplog.text or "HTTP Error 5" in caplog.text:
-        pytest.skip("PubChem unavailable (503 ServerBusy); skipping live resolver smoke test")
+        pytest.skip(
+            "PubChem unavailable (503 ServerBusy); skipping live resolver smoke test"
+        )
 
 
 class TestNameResolvers:
@@ -53,18 +55,25 @@ class TestNameResolvers:
             return Chem.MolToSmiles(Chem.MolFromSmiles(smi))
 
         message = reaction_pb2.Reaction()
-        message.inputs["test"].components.add().identifiers.add(type="NAME", value="aspirin")
+        message.inputs["test"].components.add().identifiers.add(
+            type="NAME", value="aspirin"
+        )
         with caplog.at_level(logging.INFO, logger="ord_schema.resolvers"):
             modified = resolvers.resolve_names(message)
         _skip_if_pubchem_unavailable(caplog)
         assert modified
-        resolved_smi = roundtrip_smi(message.inputs["test"].components[0].identifiers[1].value)
+        resolved_smi = roundtrip_smi(
+            message.inputs["test"].components[0].identifiers[1].value
+        )
         assert resolved_smi == roundtrip_smi("CC(=O)Oc1ccccc1C(O)=O")
         assert (
             message.inputs["test"].components[0].identifiers[1].type
             == reaction_pb2.CompoundIdentifier.CompoundIdentifierType.SMILES
         )
-        assert "NAME resolved" in message.inputs["test"].components[0].identifiers[1].details
+        assert (
+            "NAME resolved"
+            in message.inputs["test"].components[0].identifiers[1].details
+        )
 
     def test_resolve_names_mocked(self, monkeypatch):
         # Hermetic counterpart to test_resolve_names: covers the resolve_names
@@ -75,7 +84,9 @@ class TestNameResolvers:
             mock.MagicMock(return_value=("CC(=O)Oc1ccccc1C(=O)O", "PubChem API")),
         )
         message = reaction_pb2.Reaction()
-        message.inputs["test"].components.add().identifiers.add(type="NAME", value="aspirin")
+        message.inputs["test"].components.add().identifiers.add(
+            type="NAME", value="aspirin"
+        )
         assert resolvers.resolve_names(message)
         identifier = message.inputs["test"].components[0].identifiers[1]
         assert identifier.type == reaction_pb2.CompoundIdentifier.SMILES
@@ -94,35 +105,62 @@ class TestInputResolvers:
             reaction_input = resolvers.resolve_input(string)
         _skip_if_pubchem_unavailable(caplog)
         assert len(reaction_input.components) == 1
-        assert reaction_input.components[0].amount.mass == reaction_pb2.Mass(value=10, units="GRAM")
-        assert reaction_input.components[0].identifiers[0] == reaction_pb2.CompoundIdentifier(type="NAME", value="THF")
-        assert reaction_input.components[0].identifiers[1].type == reaction_pb2.CompoundIdentifier.SMILES
-        assert roundtrip_smi(reaction_input.components[0].identifiers[1].value) == roundtrip_smi("C1COCC1")
+        assert reaction_input.components[0].amount.mass == reaction_pb2.Mass(
+            value=10, units="GRAM"
+        )
+        assert reaction_input.components[0].identifiers[
+            0
+        ] == reaction_pb2.CompoundIdentifier(type="NAME", value="THF")
+        assert (
+            reaction_input.components[0].identifiers[1].type
+            == reaction_pb2.CompoundIdentifier.SMILES
+        )
+        assert roundtrip_smi(
+            reaction_input.components[0].identifiers[1].value
+        ) == roundtrip_smi("C1COCC1")
 
         string = "100 mL of 5.0uM sodium hydroxide in water"
         with caplog.at_level(logging.INFO, logger="ord_schema.resolvers"):
             reaction_input = resolvers.resolve_input(string)
         _skip_if_pubchem_unavailable(caplog)
         assert len(reaction_input.components) == 2
-        assert reaction_input.components[0].amount.moles == reaction_pb2.Moles(value=500, units="NANOMOLE")
-        assert reaction_input.components[0].identifiers[0] == reaction_pb2.CompoundIdentifier(
-            type="NAME", value="sodium hydroxide"
+        assert reaction_input.components[0].amount.moles == reaction_pb2.Moles(
+            value=500, units="NANOMOLE"
         )
-        assert reaction_input.components[0].identifiers[1].type == reaction_pb2.CompoundIdentifier.SMILES
-        assert roundtrip_smi(reaction_input.components[0].identifiers[1].value) == roundtrip_smi("[Na+].[OH-]")
-        assert reaction_input.components[1].amount.volume == reaction_pb2.Volume(value=100, units="MILLILITER")
+        assert reaction_input.components[0].identifiers[
+            0
+        ] == reaction_pb2.CompoundIdentifier(type="NAME", value="sodium hydroxide")
+        assert (
+            reaction_input.components[0].identifiers[1].type
+            == reaction_pb2.CompoundIdentifier.SMILES
+        )
+        assert roundtrip_smi(
+            reaction_input.components[0].identifiers[1].value
+        ) == roundtrip_smi("[Na+].[OH-]")
+        assert reaction_input.components[1].amount.volume == reaction_pb2.Volume(
+            value=100, units="MILLILITER"
+        )
         assert reaction_input.components[1].amount.volume_includes_solutes
-        assert reaction_input.components[1].identifiers[0] == reaction_pb2.CompoundIdentifier(
-            type="NAME", value="water"
+        assert reaction_input.components[1].identifiers[
+            0
+        ] == reaction_pb2.CompoundIdentifier(type="NAME", value="water")
+        assert (
+            reaction_input.components[1].identifiers[1].type
+            == reaction_pb2.CompoundIdentifier.SMILES
         )
-        assert reaction_input.components[1].identifiers[1].type == reaction_pb2.CompoundIdentifier.SMILES
-        assert roundtrip_smi(reaction_input.components[1].identifiers[1].value) == roundtrip_smi("O")
+        assert roundtrip_smi(
+            reaction_input.components[1].identifiers[1].value
+        ) == roundtrip_smi("O")
 
     def test_input_resolve_mocked(self, monkeypatch):
         # Hermetic counterpart to test_input_resolve: exercises the real string
         # parsing and amount handling while mocking name resolution, so the logic
         # stays covered if the live smoke test is ever removed.
-        smiles_by_name = {"THF": "C1COCC1", "sodium hydroxide": "[Na+].[OH-]", "water": "O"}
+        smiles_by_name = {
+            "THF": "C1COCC1",
+            "sodium hydroxide": "[Na+].[OH-]",
+            "water": "O",
+        }
         monkeypatch.setattr(
             "ord_schema.resolvers.name_resolve",
             lambda _value_type, value: (smiles_by_name[value], "PubChem API"),
@@ -130,29 +168,45 @@ class TestInputResolvers:
 
         reaction_input = resolvers.resolve_input("10 g of THF")
         assert len(reaction_input.components) == 1
-        assert reaction_input.components[0].amount.mass == reaction_pb2.Mass(value=10, units="GRAM")
-        assert reaction_input.components[0].identifiers[0] == reaction_pb2.CompoundIdentifier(type="NAME", value="THF")
-        assert reaction_input.components[0].identifiers[1].type == reaction_pb2.CompoundIdentifier.SMILES
+        assert reaction_input.components[0].amount.mass == reaction_pb2.Mass(
+            value=10, units="GRAM"
+        )
+        assert reaction_input.components[0].identifiers[
+            0
+        ] == reaction_pb2.CompoundIdentifier(type="NAME", value="THF")
+        assert (
+            reaction_input.components[0].identifiers[1].type
+            == reaction_pb2.CompoundIdentifier.SMILES
+        )
         assert reaction_input.components[0].identifiers[1].value == "C1COCC1"
 
-        reaction_input = resolvers.resolve_input("100 mL of 5.0uM sodium hydroxide in water")
+        reaction_input = resolvers.resolve_input(
+            "100 mL of 5.0uM sodium hydroxide in water"
+        )
         assert len(reaction_input.components) == 2
-        assert reaction_input.components[0].amount.moles == reaction_pb2.Moles(value=500, units="NANOMOLE")
-        assert reaction_input.components[0].identifiers[0] == reaction_pb2.CompoundIdentifier(
-            type="NAME", value="sodium hydroxide"
+        assert reaction_input.components[0].amount.moles == reaction_pb2.Moles(
+            value=500, units="NANOMOLE"
         )
+        assert reaction_input.components[0].identifiers[
+            0
+        ] == reaction_pb2.CompoundIdentifier(type="NAME", value="sodium hydroxide")
         assert reaction_input.components[0].identifiers[1].value == "[Na+].[OH-]"
-        assert reaction_input.components[1].amount.volume == reaction_pb2.Volume(value=100, units="MILLILITER")
-        assert reaction_input.components[1].amount.volume_includes_solutes
-        assert reaction_input.components[1].identifiers[0] == reaction_pb2.CompoundIdentifier(
-            type="NAME", value="water"
+        assert reaction_input.components[1].amount.volume == reaction_pb2.Volume(
+            value=100, units="MILLILITER"
         )
+        assert reaction_input.components[1].amount.volume_includes_solutes
+        assert reaction_input.components[1].identifiers[
+            0
+        ] == reaction_pb2.CompoundIdentifier(type="NAME", value="water")
         assert reaction_input.components[1].identifiers[1].value == "O"
 
     @pytest.mark.parametrize(
         ("string", "expected"),
         [
-            ("100 g of 5.0uM sodium hydroxide in water", "amount of solution must be a volume"),
+            (
+                "100 g of 5.0uM sodium hydroxide in water",
+                "amount of solution must be a volume",
+            ),
             ("100 L of 5 grapes in water", "String did not match template"),
         ],
     )
@@ -190,7 +244,8 @@ class TestPubChemRetry:
         # Drop tenacity's wait so the test runs in milliseconds, not seconds.
         # tenacity attaches a Retrying object to the wrapped function as .retry;
         # ty's stubs don't model this, hence the ignore.
-        monkeypatch.setattr(resolvers._pubchem_resolve.retry, "wait", lambda *_, **__: 0)  # ty: ignore[unresolved-attribute]
+        retrying = resolvers._pubchem_resolve.retry  # ty: ignore[unresolved-attribute]
+        monkeypatch.setattr(retrying, "wait", lambda *_, **__: 0)
         assert resolvers._pubchem_resolve("name", "aspirin") == "CC(=O)Oc1ccccc1C(=O)O"
         assert urlopen.call_count == 3
 
@@ -232,7 +287,9 @@ class TestNameResolveFallback:
         # First resolver raises an HTTPError; second resolver succeeds.
         first = mock.MagicMock(side_effect=_http_error(404, "Not Found"))
         second = mock.MagicMock(return_value="OCCO")
-        monkeypatch.setattr("ord_schema.resolvers._NAME_RESOLVERS", {"first": first, "second": second})
+        monkeypatch.setattr(
+            "ord_schema.resolvers._NAME_RESOLVERS", {"first": first, "second": second}
+        )
         smiles, resolver_name = resolvers.name_resolve("name", "ethylene glycol")
         assert smiles == "OCCO"
         assert resolver_name == "second"
@@ -267,7 +324,9 @@ class TestResolveNamesSkipsStructuralIdentifiers:
             mock.MagicMock(side_effect=ValueError("not found")),
         )
         message = reaction_pb2.Reaction()
-        message.inputs["test"].components.add().identifiers.add(type="NAME", value="zzzzzz")
+        message.inputs["test"].components.add().identifiers.add(
+            type="NAME", value="zzzzzz"
+        )
         assert not resolvers.resolve_names(message)
 
 

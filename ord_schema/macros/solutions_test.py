@@ -64,7 +64,8 @@ def test_simple_solution():
 
 
 @pytest.mark.parametrize(
-    ("solute_smiles", "concentration", "volume"), itertools.product(["[Na+].[Cl-]", None], ["1M", None], ["1L", None])
+    ("solute_smiles", "concentration", "volume"),
+    itertools.product(["[Na+].[Cl-]", None], ["1M", None], ["1L", None]),
 )
 def test_simple_solution_legal(solute_smiles, concentration, volume):
     """Test that the macro never generates illegal solution configurations."""
@@ -90,7 +91,8 @@ def test_simple_saturated_solution(volume):
     for component in solution_components:
         validations.validate_message(component)
     assert any(
-        component.amount.unmeasured.type == reaction_pb2.UnmeasuredAmount.SATURATED for component in solution_components
+        component.amount.unmeasured.type == reaction_pb2.UnmeasuredAmount.SATURATED
+        for component in solution_components
     )
 
 
@@ -107,4 +109,6 @@ def test_simple_solution_concentration_and_saturated_illegal():
 
 def test_simple_solution_saturated_solute_missing():
     with pytest.raises(ValueError, match="Must specify"):
-        solutions.simple_solution(solvent_smiles="O", solute_smiles=None, volume="1L", saturated=True)
+        solutions.simple_solution(
+            solvent_smiles="O", solute_smiles=None, volume="1L", saturated=True
+        )

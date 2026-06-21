@@ -52,19 +52,27 @@ def _validate_pb(filename: str) -> list[str]:
     return []
 
 
-def _validate_row_group(filename: str, row_group: int) -> tuple[list[str], validations.DatasetCrossRefState]:
+def _validate_row_group(
+    filename: str, row_group: int
+) -> tuple[list[str], validations.DatasetCrossRefState]:
     """Validates one row group: per-reaction checks + cross-ref observations."""
     silence_rdkit_logs()
     errors: list[str] = []
     state = validations.DatasetCrossRefState()
-    for i, (_, reaction) in enumerate(parquet_dataset.iter_reactions(filename, row_group=row_group)):
+    for i, (_, reaction) in enumerate(
+        parquet_dataset.iter_reactions(filename, row_group=row_group)
+    ):
         output = validations.validate_message(reaction, raise_on_error=False)
-        errors.extend(f"row_group {row_group}, reaction {i}: {error}" for error in output.errors)
+        errors.extend(
+            f"row_group {row_group}, reaction {i}: {error}" for error in output.errors
+        )
         state.observe(reaction)
     return errors, state
 
 
-def _finalize_parquet(footer: parquet_dataset.ParquetFooter, state: validations.DatasetCrossRefState) -> list[str]:
+def _finalize_parquet(
+    footer: parquet_dataset.ParquetFooter, state: validations.DatasetCrossRefState
+) -> list[str]:
     """Runs dataset-level checks on aggregated parquet state; returns errors."""
     with warnings.catch_warnings(record=True) as tape:
         warnings.simplefilter("always", validations.ValidationError)
@@ -76,7 +84,11 @@ def _finalize_parquet(footer: parquet_dataset.ParquetFooter, state: validations.
             has_reactions=footer.num_rows > 0,
             state=state,
         )
-    return [f"Dataset: {w.message}" for w in tape if issubclass(w.category, validations.ValidationError)]
+    return [
+        f"Dataset: {w.message}"
+        for w in tape
+        if issubclass(w.category, validations.ValidationError)
+    ]
 
 
 @dataclasses.dataclass
@@ -88,9 +100,13 @@ class _ParquetEntry:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate Dataset protocol buffers")
-    parser.add_argument("--input", required=True, help="Input pattern for Dataset protos")
+    parser.add_argument(
+        "--input", required=True, help="Input pattern for Dataset protos"
+    )
     parser.add_argument("--filter", default=None, help="Regex filename filter")
-    parser.add_argument("--n_jobs", type=int, default=1, help="Number of parallel workers")
+    parser.add_argument(
+        "--n_jobs", type=int, default=1, help="Number of parallel workers"
+    )
     return parser.parse_args(argv)
 
 
@@ -116,7 +132,10 @@ def main(args: argparse.Namespace) -> None:
                 )
                 parquet_entries[filename] = entry
                 if footer.num_row_groups == 0:
-                    failures.extend(f"{filename}: {e}" for e in _finalize_parquet(footer, entry.state))
+                    failures.extend(
+                        f"{filename}: {e}"
+                        for e in _finalize_parquet(footer, entry.state)
+                    )
                     continue
                 for row_group in range(footer.num_row_groups):
                     future = executor.submit(_validate_row_group, filename, row_group)
@@ -137,7 +156,10 @@ def main(args: argparse.Namespace) -> None:
                 entry.state.merge(state)
                 entry.remaining -= 1
                 if entry.remaining == 0:
-                    failures.extend(f"{filename}: {error}" for error in _finalize_parquet(entry.footer, entry.state))
+                    failures.extend(
+                        f"{filename}: {error}"
+                        for error in _finalize_parquet(entry.footer, entry.state)
+                    )
 
     if failures:
         text = "\n".join(failures)

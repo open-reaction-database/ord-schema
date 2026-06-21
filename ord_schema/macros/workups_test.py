@@ -33,7 +33,10 @@ def test_add_solution_default_type():
 @pytest.mark.parametrize("workup_type", ["ADDITION", "EXTRACTION", "WASH"])
 def test_add_solution_type_options(workup_type):
     solution = solutions.simple_solution(
-        solvent_smiles="O", solute_smiles="[Na+].[Cl-]", concentration="1M", volume="100mL"
+        solvent_smiles="O",
+        solute_smiles="[Na+].[Cl-]",
+        concentration="1M",
+        volume="100mL",
     )
     workup = workups.add_solution(solution, workup_type=workup_type)
     assert workup.type == getattr(reaction_pb2.ReactionWorkup, workup_type)

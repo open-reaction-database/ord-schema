@@ -117,7 +117,9 @@ def cleanup(filename: str, output_filename: str) -> None:
     subprocess.run(args, check=True)  # noqa: S603  (internal command, no untrusted input)
 
 
-def _get_reaction_ids(dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView) -> set[str]:
+def _get_reaction_ids(
+    dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView,
+) -> set[str]:
     """Returns a set containing the reaction IDs in a Dataset.
 
     For ``DatasetView``, the ``reaction_id`` column is read directly from the
@@ -125,10 +127,14 @@ def _get_reaction_ids(dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView
     """
     if isinstance(dataset, parquet_dataset.DatasetView):
         return {rid for rid in parquet_dataset.iter_reaction_ids(dataset.path) if rid}
-    return {reaction.reaction_id for reaction in dataset.reactions if reaction.reaction_id}
+    return {
+        reaction.reaction_id for reaction in dataset.reactions if reaction.reaction_id
+    }
 
 
-def _load_base_dataset(file_status: FileStatus, base: str) -> dataset_pb2.Dataset | parquet_dataset.DatasetView | None:
+def _load_base_dataset(
+    file_status: FileStatus, base: str
+) -> dataset_pb2.Dataset | parquet_dataset.DatasetView | None:
     """Loads a Dataset from another git branch.
 
     Parquet inputs are spilled to a temp file and wrapped in a ``DatasetView``
@@ -190,7 +196,9 @@ def get_change_stats(
         if not file_status.status.startswith("D"):
             current = datasets[file_status.filename]
             if current is None:
-                raise ValueError(f"missing dataset for non-deleted file: {file_status.filename}")
+                raise ValueError(
+                    f"missing dataset for non-deleted file: {file_status.filename}"
+                )
             new.update(_get_reaction_ids(current))
         dataset = _load_base_dataset(file_status, base)
         if dataset is not None:
@@ -216,13 +224,17 @@ def _run_updates(
     """
     options = validations.ValidationOptions(validate_ids=True, require_provenance=True)
     for input_filename, dataset in datasets.items():
-        is_parquet_stream = isinstance(dataset, parquet_dataset.DatasetView) and output_format == ".parquet"
+        is_parquet_stream = (
+            isinstance(dataset, parquet_dataset.DatasetView)
+            and output_format == ".parquet"
+        )
         if is_parquet_stream:
             # Resolve dataset_id up-front so the output filename is known
             # before we open the streaming writer.
             updates.assign_dataset_id(dataset)
             output_filename = str(
-                pathlib.Path(root) / message_helpers.id_filename(f"{dataset.dataset_id}{output_format}")
+                pathlib.Path(root)
+                / message_helpers.id_filename(f"{dataset.dataset_id}{output_format}")
             )
             pathlib.Path(output_filename).parent.mkdir(parents=True, exist_ok=True)
             # Atomic publish: stream-write to a sibling temp, validate it,
@@ -237,7 +249,9 @@ def _run_updates(
             # rename hops per successful write; if the process dies between
             # them only the orphan inner temp is left behind.
             with atomic_io.atomic_path(output_filename) as temp_filename:
-                updates.update_parquet_dataset(input_filename, temp_filename, dataset_id=dataset.dataset_id)
+                updates.update_parquet_dataset(
+                    input_filename, temp_filename, dataset_id=dataset.dataset_id
+                )
                 validations.validate_datasets(
                     {input_filename: parquet_dataset.DatasetView(temp_filename)},
                     write_errors,
@@ -252,8 +266,13 @@ def _run_updates(
         if isinstance(dataset, parquet_dataset.DatasetView):
             dataset = parquet_dataset.read_dataset(input_filename)  # noqa: PLW2901  (materialize the view in place)
         updates.update_dataset(dataset)
-        validations.validate_datasets({input_filename: dataset}, write_errors, options=options)
-        output_filename = str(pathlib.Path(root) / message_helpers.id_filename(f"{dataset.dataset_id}{output_format}"))
+        validations.validate_datasets(
+            {input_filename: dataset}, write_errors, options=options
+        )
+        output_filename = str(
+            pathlib.Path(root)
+            / message_helpers.id_filename(f"{dataset.dataset_id}{output_format}")
+        )
         pathlib.Path(output_filename).parent.mkdir(parents=True, exist_ok=True)
         if cleanup_files:
             cleanup(input_filename, output_filename)
@@ -261,7 +280,9 @@ def _run_updates(
         message_helpers.write_dataset(dataset, output_filename)
 
 
-def run(args: argparse.Namespace) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
+def run(
+    args: argparse.Namespace,
+) -> tuple[set[str] | None, set[str] | None, set[str] | None]:
     """Main function that returns added/removed reaction ID sets.
 
     This function should be called directly by tests to get access to the
@@ -285,14 +306,22 @@ def run(args: argparse.Namespace) -> tuple[set[str] | None, set[str] | None, set
             dataset = None
         elif file_status.filename.endswith(".parquet"):
             dataset = parquet_dataset.DatasetView(file_status.filename)
-            logger.info("%s: %d reactions", file_status.filename, len(dataset.reactions))
+            logger.info(
+                "%s: %d reactions", file_status.filename, len(dataset.reactions)
+            )
         else:
-            dataset = message_helpers.load_message(file_status.filename, dataset_pb2.Dataset)
-            logger.info("%s: %d reactions", file_status.filename, len(dataset.reactions))
-        datasets: dict[str, dataset_pb2.Dataset | parquet_dataset.DatasetView | None] = {file_status.filename: dataset}
-        datasets_checked: dict[str, dataset_pb2.Dataset | parquet_dataset.DatasetView] = (
-            {file_status.filename: dataset} if dataset is not None else {}
-        )
+            dataset = message_helpers.load_message(
+                file_status.filename, dataset_pb2.Dataset
+            )
+            logger.info(
+                "%s: %d reactions", file_status.filename, len(dataset.reactions)
+            )
+        datasets: dict[
+            str, dataset_pb2.Dataset | parquet_dataset.DatasetView | None
+        ] = {file_status.filename: dataset}
+        datasets_checked: dict[
+            str, dataset_pb2.Dataset | parquet_dataset.DatasetView
+        ] = {file_status.filename: dataset} if dataset is not None else {}
         if not args.no_validate and dataset is not None:
             # Note: this does not check if IDs are malformed.
             validations.validate_datasets(datasets_checked, args.write_errors)
@@ -300,9 +329,13 @@ def run(args: argparse.Namespace) -> tuple[set[str] | None, set[str] | None, set
             for reaction in dataset.reactions:
                 reaction_size = sys.getsizeof(reaction.SerializeToString()) / 1e6
                 if reaction_size > args.max_size:
-                    raise ValueError(f"Reaction is larger than --max_size ({reaction_size} vs {args.max_size})")
+                    raise ValueError(
+                        f"Reaction is larger than --max_size ({reaction_size} vs {args.max_size})"
+                    )
         if args.base:
-            added, removed, changed = get_change_stats(datasets, [file_status], base=args.base)
+            added, removed, changed = get_change_stats(
+                datasets, [file_status], base=args.base
+            )
             change_stats[file_status.filename] = (added, removed, changed)
             logger.info(
                 "Summary: +%d -%d Δ%d reaction IDs",
@@ -326,11 +359,15 @@ def run(args: argparse.Namespace) -> tuple[set[str] | None, set[str] | None, set
             "| -------- | ----- | ------- | ------- |",
         ]
         for filename, (added, removed, changed) in change_stats.items():
-            comment.append(f"| {filename} | {len(added)} | {len(removed)} | {len(changed)} |")
+            comment.append(
+                f"| {filename} | {len(added)} | {len(removed)} | {len(changed)} |"
+            )
             total_added |= added
             total_removed |= removed
             total_changed |= changed
-        comment.append(f"| | **{len(total_added)}** | **{len(total_removed)}** | **{len(total_changed)}** |")
+        comment.append(
+            f"| | **{len(total_added)}** | **{len(total_removed)}** | **{len(total_changed)}** |"
+        )
         if args.issue and args.token:
             client = github.Github(args.token)
             repo = client.get_repo(os.environ["GITHUB_REPOSITORY"])
@@ -342,17 +379,42 @@ def run(args: argparse.Namespace) -> tuple[set[str] | None, set[str] | None, set
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Process datasets for database submissions")
+    parser = argparse.ArgumentParser(
+        description="Process datasets for database submissions"
+    )
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--input_pattern", default=None, help="Pattern matching input Dataset protos")
-    group.add_argument("--input_file", default=None, help="File containing Dataset proto filenames")
+    group.add_argument(
+        "--input_pattern", default=None, help="Pattern matching input Dataset protos"
+    )
+    group.add_argument(
+        "--input_file", default=None, help="File containing Dataset proto filenames"
+    )
     parser.add_argument("--root", default="", help="Root of the repository")
-    parser.add_argument("--output_format", default=".pb.gz", help="Dataset output format")
-    parser.add_argument("--write_errors", action="store_true", help="If True, errors will be written to *.error")
-    parser.add_argument("--no-validate", action="store_true", help="If set, reactions will not be validated")
-    parser.add_argument("--update", action="store_true", help="If True, update Reaction protos")
-    parser.add_argument("--cleanup", action="store_true", help="If True, use git to clean up")
-    parser.add_argument("--max_size", type=float, default=10.0, help="Maximum size (in MB) for any Reaction message")
+    parser.add_argument(
+        "--output_format", default=".pb.gz", help="Dataset output format"
+    )
+    parser.add_argument(
+        "--write_errors",
+        action="store_true",
+        help="If True, errors will be written to *.error",
+    )
+    parser.add_argument(
+        "--no-validate",
+        action="store_true",
+        help="If set, reactions will not be validated",
+    )
+    parser.add_argument(
+        "--update", action="store_true", help="If True, update Reaction protos"
+    )
+    parser.add_argument(
+        "--cleanup", action="store_true", help="If True, use git to clean up"
+    )
+    parser.add_argument(
+        "--max_size",
+        type=float,
+        default=10.0,
+        help="Maximum size (in MB) for any Reaction message",
+    )
     parser.add_argument("--base", default=None, help="Git branch to diff against")
     parser.add_argument("--issue", default=None, help="GitHub pull request number")
     parser.add_argument("--token", default=None, help="GitHub authentication token")

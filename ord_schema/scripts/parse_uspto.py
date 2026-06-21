@@ -183,7 +183,9 @@ def parse_reaction(root: ET.Element) -> reaction_pb2.Reaction:
         if tag == "dl:source":
             parse_source(child, reaction)
         elif tag == "dl:reactionSmiles":
-            reaction.identifiers.add(type="REACTION_CXSMILES", value=child.text, is_mapped=True)
+            reaction.identifiers.add(
+                type="REACTION_CXSMILES", value=child.text, is_mapped=True
+            )
         elif tag == "cml:productList":
             outcome = reaction.outcomes.add()  # Add a single outcome.
             for product in child:
@@ -219,7 +221,9 @@ def parse_source(root: ET.Element, reaction: reaction_pb2.Reaction) -> None:
             raise NotImplementedError(child)
 
 
-def parse_product(root: ET.Element, product_compound: reaction_pb2.ProductCompound) -> None:
+def parse_product(
+    root: ET.Element, product_compound: reaction_pb2.ProductCompound
+) -> None:
     """Adds product information to a ProductCompound."""
     role = root.attrib.get("role")
     if role:
@@ -235,7 +239,9 @@ def parse_product(root: ET.Element, product_compound: reaction_pb2.ProductCompou
         elif tag == "cml:identifier":
             parse_identifier(child, product_compound)
         elif tag == "dl:state":
-            texture = PRODUCT_STATES.get((child.text or "").lower(), reaction_pb2.Texture.CUSTOM)
+            texture = PRODUCT_STATES.get(
+                (child.text or "").lower(), reaction_pb2.Texture.CUSTOM
+            )
             product_compound.texture.type = texture
             product_compound.texture.details = child.text or ""
         elif tag == "dl:appearance":
@@ -257,7 +263,9 @@ def parse_molecule(
             raise NotImplementedError(child)
 
 
-def parse_product_amount(root: ET.Element, product_compound: reaction_pb2.ProductCompound) -> None:
+def parse_product_amount(
+    root: ET.Element, product_compound: reaction_pb2.ProductCompound
+) -> None:
     """Adds amount information to a ProductCompound."""
     property_type = root.attrib[f"{{{NAMESPACES['dl']}}}propertyType"]
     if "PERCENTYIELD" in property_type:
@@ -418,7 +426,9 @@ def parse_parameter(root: ET.Element, workup: reaction_pb2.ReactionWorkup) -> No
             "ambient temperature",
             "ambient temp",
         ]:
-            workup.temperature.control.type = reaction_pb2.TemperatureConditions.TemperatureControl.AMBIENT
+            workup.temperature.control.type = (
+                reaction_pb2.TemperatureConditions.TemperatureControl.AMBIENT
+            )
         else:
             value = (root.text or "").rstrip(".").replace("° ", "°")
             try:
@@ -430,7 +440,10 @@ def parse_parameter(root: ET.Element, workup: reaction_pb2.ReactionWorkup) -> No
                     logger.debug(
                         f'TEMPERATURE: resolved to {type(temperature).__name__}, not Temperature ("{root.text}")'
                     )
-                elif temperature.units == temperature.CELSIUS and temperature.value < -274:
+                elif (
+                    temperature.units == temperature.CELSIUS
+                    and temperature.value < -274
+                ):
                     logger.debug(f'TEMPERATURE: below absolute zero ("{root.text}")')
                 elif temperature.precision < 0:
                     logger.debug(f'TEMPERATURE: negative precision ("{root.text}")')
@@ -451,11 +464,15 @@ def clean_reaction(reaction: reaction_pb2.Reaction) -> None:
         if not component.amount.WhichOneof("kind"):
             component.amount.moles.CopyFrom(empty_amount)
     # Adjust identifier types as needed.
-    identifiers = message_helpers.find_submessages(reaction, reaction_pb2.CompoundIdentifier)
+    identifiers = message_helpers.find_submessages(
+        reaction, reaction_pb2.CompoundIdentifier
+    )
     for identifier in identifiers:
         output = validations.validate_message(identifier, raise_on_error=False)
         if output.errors:
-            old_type = reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name(identifier.type)
+            old_type = reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name(
+                identifier.type
+            )
             identifier.details = f"Originally defined as {old_type}"
             identifier.type = reaction_pb2.CompoundIdentifier.CUSTOM
     # Adjust workup types as needed.
@@ -472,7 +489,9 @@ def clean_reaction(reaction: reaction_pb2.Reaction) -> None:
     for workup in workups:
         if workup.type == workup.STIRRING and not stirring_conditions:
             reaction.conditions.stirring.CopyFrom(workup.stirring)
-            reaction.conditions.stirring.type = reaction_pb2.StirringConditions.StirringMethodType.CUSTOM
+            reaction.conditions.stirring.type = (
+                reaction_pb2.StirringConditions.StirringMethodType.CUSTOM
+            )
             reaction.conditions.stirring.details = workup.details
             stirring_conditions = True
             if workup.HasField("temperature") and not temperature_conditions:
@@ -481,17 +500,27 @@ def clean_reaction(reaction: reaction_pb2.Reaction) -> None:
             if workup.HasField("duration") and not reaction_time:
                 reaction.outcomes[0].reaction_time.CopyFrom(workup.duration)
                 reaction_time = True
-        elif workup.type == workup.WAIT and workup.HasField("duration") and not reaction_time:
+        elif (
+            workup.type == workup.WAIT
+            and workup.HasField("duration")
+            and not reaction_time
+        ):
             reaction.outcomes[0].reaction_time.CopyFrom(workup.duration)
             reaction_time = True
-        elif workup.type == workup.TEMPERATURE and workup.HasField("temperature") and not temperature_conditions:
+        elif (
+            workup.type == workup.TEMPERATURE
+            and workup.HasField("temperature")
+            and not temperature_conditions
+        ):
             reaction.conditions.temperature.CopyFrom(workup.temperature)
             temperature_conditions = True
         else:
             reaction.workups.add().CopyFrom(workup)
 
 
-def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.Reaction]]:
+def run(
+    filename: str,
+) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.Reaction]]:
     """Parses reactions from a single CML file."""
     tree = ET.parse(filename)  # noqa: S314  (parses trusted USPTO XML downloads)
     root = tree.getroot()
@@ -503,7 +532,11 @@ def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.R
         except (KeyError, NotImplementedError) as error:
             raise ValueError(ET.dump(reaction_cml)) from error
         event = reaction_pb2.RecordEvent(
-            time={"value": datetime.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S.%f")},
+            time={
+                "value": datetime.datetime.now()
+                .astimezone()
+                .strftime("%Y-%m-%d %H:%M:%S.%f")
+            },
             person={
                 "username": "skearnes",
                 "name": "Steven Kearnes",
@@ -517,7 +550,9 @@ def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.R
         clean_reaction(reaction)
         # Check reaction SMILES.
         try:
-            message_helpers.validate_reaction_smiles(reaction.identifiers[0].value.split()[0])
+            message_helpers.validate_reaction_smiles(
+                reaction.identifiers[0].value.split()[0]
+            )
         except ValueError:
             failures.append(reaction)
             continue
@@ -531,10 +566,14 @@ def run(filename: str) -> tuple[list[reaction_pb2.Reaction], list[reaction_pb2.R
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Parse CML from the NRD")
-    parser.add_argument("--input_pattern", required=True, help="Input pattern for CML files")
+    parser.add_argument(
+        "--input_pattern", required=True, help="Input pattern for CML files"
+    )
     parser.add_argument("--name", required=True, help="Dataset name")
     parser.add_argument("--output", required=True, help="Output Dataset filename")
-    parser.add_argument("--n_jobs", type=int, default=1, help="Number of parallel workers")
+    parser.add_argument(
+        "--n_jobs", type=int, default=1, help="Number of parallel workers"
+    )
     return parser.parse_args(argv)
 
 

@@ -32,7 +32,9 @@ from ord_schema import validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
-def read_spreadsheet(file_name_or_buffer: str | BinaryIO, suffix: str | None = None) -> pd.DataFrame:
+def read_spreadsheet(
+    file_name_or_buffer: str | BinaryIO, suffix: str | None = None
+) -> pd.DataFrame:
     """Reads a {csv, xls, xlsx} spreadsheet file.
 
     Args:
@@ -44,7 +46,9 @@ def read_spreadsheet(file_name_or_buffer: str | BinaryIO, suffix: str | None = N
         DataFrame containing the reaction spreadsheet data.
     """
     if suffix is None:
-        assert isinstance(file_name_or_buffer, str)  # Type hint; buffer requires suffix.
+        assert isinstance(
+            file_name_or_buffer, str
+        )  # Type hint; buffer requires suffix.
         suffix = pathlib.Path(file_name_or_buffer).suffix
     if suffix in [".xls", ".xlsx"]:
         return pd.read_excel(file_name_or_buffer)
@@ -53,10 +57,14 @@ def read_spreadsheet(file_name_or_buffer: str | BinaryIO, suffix: str | None = N
 
 def _is_null(value: float | str) -> bool:
     """Returns whether a value is null."""
-    return pd.isna(value) or (isinstance(value, str) and (value == "nan" or not value.strip()))
+    return pd.isna(value) or (
+        isinstance(value, str) and (value == "nan" or not value.strip())
+    )
 
 
-def _fill_template(string: str, substitutions: Mapping[str, ord_schema.ScalarType]) -> reaction_pb2.Reaction:
+def _fill_template(
+    string: str, substitutions: Mapping[str, ord_schema.ScalarType]
+) -> reaction_pb2.Reaction:
     """Performs substring substitutions according to a dictionary.
 
     If any pattern has a null replacement value (i.e. this is an empty cell in
@@ -92,7 +100,9 @@ def _fill_template(string: str, substitutions: Mapping[str, ord_schema.ScalarTyp
     try:
         reaction = text_format.Parse(string, reaction_pb2.Reaction())
     except text_format.ParseError as error:
-        raise ValueError(f"Failed to parse reaction pbtxt after templating: {error}") from error
+        raise ValueError(
+            f"Failed to parse reaction pbtxt after templating: {error}"
+        ) from error
     if check_null:
         for message in reaction.inputs.values():
             for component in message.components:
@@ -113,7 +123,11 @@ def _fill_template(string: str, substitutions: Mapping[str, ord_schema.ScalarTyp
 
 
 def generate_dataset(
-    name: str, description: str, template_string: str, df: pd.DataFrame, validate: bool = True
+    name: str,
+    description: str,
+    template_string: str,
+    df: pd.DataFrame,
+    validate: bool = True,
 ) -> dataset_pb2.Dataset:
     """Generates a Dataset by enumerating a template reaction.
 
@@ -143,7 +157,9 @@ def generate_dataset(
         if placeholder not in df.columns:
             # Allow "$my_placeholder$" to match "my_placeholder" in df.
             if placeholder[1:-1] not in df.columns:
-                raise ValueError(f"Placeholder {placeholder} not found as a column in dataset spreadsheet")
+                raise ValueError(
+                    f"Placeholder {placeholder} not found as a column in dataset spreadsheet"
+                )
             df = df.rename(columns={placeholder[1:-1]: placeholder})
 
     reactions = []
