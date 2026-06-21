@@ -20,6 +20,7 @@ Specifically, checks that a pb Dataset:
 
 import argparse
 import difflib
+import pathlib
 import pprint
 
 from google.protobuf import text_format
@@ -27,17 +28,19 @@ from google.protobuf import text_format
 from ord_schema import message_helpers
 
 
-def parse_args(argv=None):
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Compare pbtxt and pb Datasets")
     parser.add_argument("--pb", required=True, help="Path to *.pb Dataset")
     parser.add_argument("--pbtxt", required=True, help="Path to *.pbtxt Dataset")
     return parser.parse_args(argv)
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
+    """Verifies that the pb and pbtxt Datasets are identical, raising on any difference."""
     dataset = message_helpers.load_dataset(args.pb)
     pb_data = text_format.MessageToString(dataset)
-    with open(args.pbtxt) as f:
+    with pathlib.Path(args.pbtxt).open() as f:
         pbtxt_data = f.read()
     if pb_data != pbtxt_data:
         diff = difflib.context_diff(pb_data.splitlines(), pbtxt_data.splitlines())

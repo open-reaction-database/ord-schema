@@ -17,7 +17,9 @@ from ord_schema import units
 from ord_schema.proto import reaction_pb2
 
 UNITS_RESOLVER = units.UnitResolver()
-CONCENTRATION_RESOLVER = units.UnitResolver(units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
+CONCENTRATION_RESOLVER = units.UnitResolver(
+    units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={}
+)
 
 
 def simple_solution(
@@ -44,7 +46,9 @@ def simple_solution(
     """
     if saturated:
         if concentration is not None:
-            raise ValueError("Cannot specify both `saturated=True` and a concentration.")
+            raise ValueError(
+                "Cannot specify both `saturated=True` and a concentration."
+            )
         if solute_smiles is None:
             raise ValueError("Must specify a solute if `saturated=True`")
     if isinstance(volume, str):
@@ -59,7 +63,9 @@ def simple_solution(
     if volume is not None and concentration is not None:
         solute_amount = units.compute_solute_quantity(volume, concentration)
     elif saturated:
-        solute_amount = reaction_pb2.Amount(unmeasured=reaction_pb2.UnmeasuredAmount(type="SATURATED"))
+        solute_amount = reaction_pb2.Amount(
+            unmeasured=reaction_pb2.UnmeasuredAmount(type="SATURATED")
+        )
     else:
         # This case covers 1. pure solvents 2. solution with unknown volume.
         solute_amount = None
@@ -82,5 +88,17 @@ def simple_solution(
     return output_compounds
 
 
-def brine(volume=None):
-    return simple_solution(solute_smiles="[Na+].[Cl-]", solvent_smiles="O", volume=volume, saturated=True)
+def brine(
+    volume: str | reaction_pb2.Volume | None = None,
+) -> list[reaction_pb2.Compound]:
+    """Creates a saturated aqueous sodium chloride (brine) solution.
+
+    Args:
+        volume: Volume of the brine solution.
+
+    Returns:
+        A list of solvent/solute Compounds.
+    """
+    return simple_solution(
+        solute_smiles="[Na+].[Cl-]", solvent_smiles="O", volume=volume, saturated=True
+    )

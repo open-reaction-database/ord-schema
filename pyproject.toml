@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ord-schema"
-version = "0.6.7"
+version = "0.6.28"
 description = "Schema for the Open Reaction Database"
 readme = "README.md"
 license = "Apache-2.0"
@@ -35,6 +35,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "huggingface-hub>=0.20",
     "inflection>=0.5.1",
     "joblib>=1.0.0",
     "numpy>=1.26.4",
@@ -88,7 +89,7 @@ include = ["ord_schema*"]
 "ord_schema.proto" = ["*.pyi"]
 
 [tool.ruff]
-line-length = 120
+line-length = 88
 # Generated protobuf files: never touch.
 extend-exclude = ["*_pb2.py*"]
 target-version = "py311"
@@ -104,26 +105,101 @@ select = [
     "B",    # flake8-bugbear (likely bugs)
     "UP",   # pyupgrade (modernize syntax)
     "SIM",  # flake8-simplify
+    "ANN",  # flake8-annotations (argument, return, and Any-return types)
+    "C4",   # flake8-comprehensions
+    "COM",  # flake8-commas
+    "ISC",  # flake8-implicit-str-concat
+    "PT",   # flake8-pytest-style
+    "TC",   # flake8-type-checking
+    "RET",  # flake8-return
+    "ICN",  # flake8-import-conventions
+    "FURB", # refurb
+    "PYI",  # flake8-pyi
+    "PD",   # pandas-vet
+    "NPY",  # numpy-specific
+    "RUF",  # ruff-specific
+    "TRY",  # tryceratops
+    "EM",   # flake8-errmsg
+    "FBT",  # flake8-boolean-trap
+    "G",    # flake8-logging-format
+    "PLC", "PLE", "PLR", "PLW",  # pylint
+    "C90",  # mccabe complexity
+    "PERF", # perflint
+    "N",    # pep8-naming
+    "SLF",  # flake8-self
+    "DTZ",  # flake8-datetimez
+    "BLE",  # flake8-blind-except
+    "A",    # flake8-builtins
+    "INP",  # flake8-no-pep420
+    "T20",  # flake8-print
+    "ERA",  # eradicate (commented-out code)
+    "TD",   # flake8-todos
+    "FIX",  # flake8-fixme
+    "S",    # flake8-bandit
+    "PTH",  # flake8-use-pathlib
+    "D",    # pydocstyle (docstrings)
 ]
 ignore = [
+    # ANN401 (disallow typing.Any) fires only on genuinely dynamic call sites:
+    # proxy __getattr__/__getitem__ on message wrappers, a metaclass proxy, an
+    # enum __call__, and the recursive field-value validator. Any is correct there.
+    "ANN401",
+    # COM812 (missing trailing comma) and ISC001 (single-line implicit string
+    # concat) conflict with the ruff formatter, which ruff itself recommends
+    # disabling when running `ruff format`.
+    "COM812",
+    "ISC001",
+    # RUF001 flags intentional non-ASCII in chemistry text (e.g. Greek "α").
+    "RUF001",
+    # TC006 quotes the type in typing.cast() even when it is imported at runtime
+    # (e.g. cast(Any, x) -> cast("Any", x)); the quoting just hurts readability.
+    "TC006",
+    # --- Opinionated rules intentionally disabled (readability / low value) ---
+    "EM101", "EM102",        # don't force a msg= variable before every raise
+    "TRY003",                # don't force custom exception classes for messages
+    "TRY301",                # "abstract raise to inner function" hurts readability
+    "T201",                  # print() is intentional in CLI scripts and notebooks
+    "G004",                  # f-strings in logging calls are fine
+    "FBT001", "FBT002",      # boolean positional args exist in public APIs already
+    "C901", "PLR0912", "PLR0913", "PLR0915",  # complexity caps -> churn
+    "PLR2004",               # "magic value" flags ordinary numeric literals
+    "N803",                  # domain argument names (SMILES, fromAtoms) are deliberate
+    "INP001",                # docs/conf.py is config, not a package
+    "TD003",                 # don't force issue links on informal TODOs
+    # S101 (assert): used for test assertions and production type-narrowing
+    # (assert x is not None  # Type hint); not a security concern here.
+    "S101",
+    "FIX002",                # TODO comments are allowed
     "E501",    # Line length is enforced by the formatter, not the linter.
-    "SIM108",  # Ternary expressions are not always clearer than if/else.
-    "B008",    # Function calls in argument defaults are fine for our use cases.
-    # B028 (missing stacklevel= on warnings.warn) flags ~88 pre-existing call
-    # sites in ord_schema/validations.py. Tackle as a focused follow-up PR
-    # rather than mixing it in with tooling migration.
+    # B028 (missing stacklevel= on warnings.warn): the ~103 sites in
+    # validations.py are data-validation messages collected into ValidationOutput,
+    # not deprecation/misuse warnings -- there is no caller location worth pointing
+    # at, so stacklevel= would add noise without value.
     "B028",
-    # SIM102/SIM105/SIM110 are stylistic rewrites (nested-if flattening,
-    # contextlib.suppress, any()). Flagged sites here are pre-existing and
-    # out of scope for the tooling migration.
+    # SIM102 (collapsible nested-if): most flagged sites carry an explanatory
+    # comment between the outer and inner `if`; collapsing to `if x and y` would
+    # orphan that comment and read worse. Left nested on purpose.
     "SIM102",
-    "SIM105",
-    "SIM110",
+    # PTH207 (glob.glob -> Path.glob) flags CLI scripts that glob arbitrary
+    # user-supplied patterns (e.g. --input_pattern, possibly absolute or with
+    # recursive **). pathlib.Path.glob requires a base dir + relative pattern
+    # and rejects absolute patterns, so there is no clean equivalent here.
+    "PTH207",
 ]
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.ruff.lint.per-file-ignores]
-# Tests often redefine fixtures and use patterns that bugbear dislikes.
-"**/*_test.py" = ["B011", "B017"]
+# Tests trip a couple of flake8-bugbear (the "B" rules) checks -- B011 (`assert False`)
+# and B017 (overly broad `pytest.raises(Exception)`); type annotations (ANN) also add
+# little value on test functions/fixtures, and SLF001 (private-member access)
+# is fine in tests. Skip these in tests.
+"**/*_test.py" = ["B011", "B017", "ANN", "SLF001", "S603", "S607", "D"]
+# conftest.py holds pytest fixtures/hooks; docstrings add little there.
+"**/conftest.py" = ["D"]
+# Tutorial notebooks legitimately show commented-out alternative code.
+"**/*.ipynb" = ["ERA001", "S310", "D"]  # tutorials download from known URLs; D: cells are narrative, not modules
 
 [tool.ty.src]
 exclude = ["**/*_pb2.py*"]

@@ -28,3 +28,6 @@ coverage*
 # Node.
 package-lock.json
 node_modules/
+
+# Claude/working planning docs (local only)
+*_PLAN.md

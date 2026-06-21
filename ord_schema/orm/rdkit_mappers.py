@@ -26,17 +26,26 @@ from __future__ import annotations
 
 import os
 from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Column, Index, Integer, Text, cast, func
-from sqlalchemy.sql.expression import ColumnElement
 from sqlalchemy.types import UserDefinedType
 
 from ord_schema.orm import Base
 
+if TYPE_CHECKING:
+    from sqlalchemy.sql.expression import ColumnElement
+
 
 def rdkit_cartridge() -> bool:
     """Returns whether to use RDKit PostgreSQL cartridge functionality."""
-    return os.environ.get("ORD_POSTGRES_RDKIT", "1").lower() in ("1", "true", "yes", "y", "on")
+    return os.environ.get("ORD_POSTGRES_RDKIT", "1").lower() in (
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    )
 
 
 class RDKitMol(UserDefinedType):
@@ -45,10 +54,11 @@ class RDKitMol(UserDefinedType):
     cache_ok = True
 
     @property
-    def python_type(self):
+    def python_type(self) -> type:
+        """Raises NotImplementedError; this type has no Python equivalent."""
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs):
+    def get_col_spec(self, **kwargs: Any) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "mol" if rdkit_cartridge() else "bytea"
@@ -60,10 +70,11 @@ class RDKitReaction(UserDefinedType):
     cache_ok = True
 
     @property
-    def python_type(self):
+    def python_type(self) -> type:
+        """Raises NotImplementedError; this type has no Python equivalent."""
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs):
+    def get_col_spec(self, **kwargs: Any) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "reaction" if rdkit_cartridge() else "bytea"
@@ -75,10 +86,11 @@ class RDKitBfp(UserDefinedType):
     cache_ok = True
 
     @property
-    def python_type(self):
+    def python_type(self) -> type:
+        """Raises NotImplementedError; this type has no Python equivalent."""
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs):
+    def get_col_spec(self, **kwargs: Any) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "bfp" if rdkit_cartridge() else "bytea"
@@ -90,10 +102,11 @@ class RDKitSfp(UserDefinedType):
     cache_ok = True
 
     @property
-    def python_type(self):
+    def python_type(self) -> type:
+        """Raises NotImplementedError; this type has no Python equivalent."""
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs):
+    def get_col_spec(self, **kwargs: Any) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "sfp" if rdkit_cartridge() else "bytea"
@@ -105,10 +118,11 @@ class CString(UserDefinedType):
     cache_ok = True
 
     @property
-    def python_type(self):
+    def python_type(self) -> type:
+        """Raises NotImplementedError; this type has no Python equivalent."""
         raise NotImplementedError
 
-    def get_col_spec(self, **kwargs):
+    def get_col_spec(self, **kwargs: Any) -> str:
         """Returns the column type."""
         del kwargs  # Unused.
         return "cstring"
@@ -121,7 +135,8 @@ class FingerprintType(Enum):
     MORGAN_BFP = func.morganbv_fp
     MORGAN_SFP = func.morgan_fp
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Invokes the wrapped RDKit fingerprint function."""
         return self.value(*args, **kwargs)
 
 
@@ -143,15 +158,22 @@ class RDKitMols(Base):
     )
 
     @classmethod
-    def tanimoto(cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP) -> ColumnElement[float]:
-        return func.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(cast(other, RDKitMol)))
+    def tanimoto(
+        cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP
+    ) -> ColumnElement[float]:
+        """Returns a Tanimoto similarity expression between the stored fingerprint and ``other``."""
+        return func.tanimoto_sml(
+            getattr(cls, fp_type.name.lower()), fp_type(cast(other, RDKitMol))
+        )
 
     @classmethod
     def contains_substructure(cls, pattern: str) -> ColumnElement[bool]:
+        """Returns an expression testing whether the stored mol contains the ``pattern`` substructure."""
         return func.substruct(cls.mol, cast(pattern, RDKitMol))
 
     @classmethod
     def matches_smarts(cls, pattern: str) -> ColumnElement[bool]:
+        """Returns an expression testing whether the stored mol matches the SMARTS ``pattern``."""
         return func.substruct(cls.mol, func.qmol_from_smarts(cast(pattern, CString)))
 
 
@@ -170,4 +192,7 @@ class RDKitReactions(Base):
 
     @classmethod
     def matches_smarts(cls, pattern: str) -> ColumnElement[bool]:
-        return func.substruct(cls.reaction, func.reaction_from_smarts(cast(pattern, CString)))
+        """Returns an expression testing whether the stored reaction matches the reaction SMARTS ``pattern``."""
+        return func.substruct(
+            cls.reaction, func.reaction_from_smarts(cast(pattern, CString))
+        )

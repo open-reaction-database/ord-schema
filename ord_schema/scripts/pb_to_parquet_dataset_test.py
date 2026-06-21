@@ -14,7 +14,6 @@
 """Tests for ord_schema.scripts.pb_to_parquet_dataset."""
 
 import logging
-import os
 
 import pytest
 
@@ -31,7 +30,7 @@ def _reaction(reaction_id: str, conversion: float = 50.0) -> reaction_pb2.Reacti
 
 
 def _write_pb_gz(tmp_path, basename: str, ds: dataset_pb2.Dataset) -> str:
-    path = os.path.join(tmp_path, basename)
+    path = str(tmp_path / basename)
     message_helpers.write_message(ds, path)
     return path
 
@@ -44,7 +43,7 @@ def test_single_input_passes_metadata_through(tmp_path):
         reactions=[_reaction("ord-0001"), _reaction("ord-0002")],
     )
     input_path = _write_pb_gz(tmp_path, "in.pb.gz", ds)
-    output_path = os.path.join(tmp_path, "out.parquet")
+    output_path = str(tmp_path / "out.parquet")
     pb_to_parquet.main(pb_to_parquet.parse_args([input_path, "--output", output_path]))
     loaded = dataset_module.read_dataset(output_path)
     assert loaded.dataset_id == "ord_dataset-abc"
@@ -68,8 +67,10 @@ def test_multi_input_concatenates_and_uses_first_metadata(tmp_path):
     )
     a_path = _write_pb_gz(tmp_path, "a.pb.gz", ds_a)
     b_path = _write_pb_gz(tmp_path, "b.pb.gz", ds_b)
-    output_path = os.path.join(tmp_path, "out.parquet")
-    pb_to_parquet.main(pb_to_parquet.parse_args([a_path, b_path, "--output", output_path]))
+    output_path = str(tmp_path / "out.parquet")
+    pb_to_parquet.main(
+        pb_to_parquet.parse_args([a_path, b_path, "--output", output_path])
+    )
     loaded = dataset_module.read_dataset(output_path)
     assert loaded.dataset_id == "ord_dataset-first"
     assert loaded.name == "first-name"
@@ -80,7 +81,7 @@ def test_multi_input_concatenates_and_uses_first_metadata(tmp_path):
 def test_overrides_take_precedence(tmp_path):
     ds = dataset_pb2.Dataset(name="input-name", reactions=[_reaction("ord-0001")])
     input_path = _write_pb_gz(tmp_path, "in.pb.gz", ds)
-    output_path = os.path.join(tmp_path, "out.parquet")
+    output_path = str(tmp_path / "out.parquet")
     pb_to_parquet.main(
         pb_to_parquet.parse_args(
             [
@@ -104,16 +105,26 @@ def test_overrides_take_precedence(tmp_path):
 
 def test_mismatched_metadata_warns(tmp_path, caplog):
     ds_a = dataset_pb2.Dataset(
-        dataset_id="ord_dataset-foo", name="foo", description="d", reactions=[_reaction("ord-a1")]
+        dataset_id="ord_dataset-foo",
+        name="foo",
+        description="d",
+        reactions=[_reaction("ord-a1")],
     )
     ds_b = dataset_pb2.Dataset(
-        dataset_id="ord_dataset-bar", name="bar", description="other", reactions=[_reaction("ord-b1")]
+        dataset_id="ord_dataset-bar",
+        name="bar",
+        description="other",
+        reactions=[_reaction("ord-b1")],
     )
     a_path = _write_pb_gz(tmp_path, "a.pb.gz", ds_a)
     b_path = _write_pb_gz(tmp_path, "b.pb.gz", ds_b)
-    output_path = os.path.join(tmp_path, "out.parquet")
-    with caplog.at_level(logging.WARNING, logger="ord_schema.scripts.pb_to_parquet_dataset"):
-        pb_to_parquet.main(pb_to_parquet.parse_args([a_path, b_path, "--output", output_path]))
+    output_path = str(tmp_path / "out.parquet")
+    with caplog.at_level(
+        logging.WARNING, logger="ord_schema.scripts.pb_to_parquet_dataset"
+    ):
+        pb_to_parquet.main(
+            pb_to_parquet.parse_args([a_path, b_path, "--output", output_path])
+        )
     messages = " ".join(record.getMessage() for record in caplog.records)
     assert "dataset_id" in messages
     assert "name" in messages
@@ -123,6 +134,8 @@ def test_mismatched_metadata_warns(tmp_path, caplog):
 def test_empty_inputs_raise(tmp_path):
     ds = dataset_pb2.Dataset(name="empty", description="d")  # No reactions.
     input_path = _write_pb_gz(tmp_path, "in.pb.gz", ds)
-    output_path = os.path.join(tmp_path, "out.parquet")
+    output_path = str(tmp_path / "out.parquet")
     with pytest.raises(ValueError, match="no reactions"):
-        pb_to_parquet.main(pb_to_parquet.parse_args([input_path, "--output", output_path]))
+        pb_to_parquet.main(
+            pb_to_parquet.parse_args([input_path, "--output", output_path])
+        )

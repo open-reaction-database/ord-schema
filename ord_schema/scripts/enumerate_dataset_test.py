@@ -13,8 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.scripts.enumerate_dataset."""
 
-import os
-from collections.abc import Iterator
+import pathlib
 
 import pandas as pd
 import pytest
@@ -25,7 +24,7 @@ from ord_schema.scripts import enumerate_dataset
 
 
 @pytest.fixture
-def setup(tmp_path) -> Iterator[tuple[str, str, dataset_pb2.Dataset]]:
+def setup(tmp_path) -> tuple[str, str, dataset_pb2.Dataset]:
     dirname = tmp_path.as_posix()
     template_string = """
     inputs {
@@ -79,8 +78,8 @@ def setup(tmp_path) -> Iterator[tuple[str, str, dataset_pb2.Dataset]]:
     }
     reaction_id: "ord-d73a86df4d0d4a32a23007aeff1a94e4"
     """
-    template_filename = os.path.join(dirname, "template.pbtxt")
-    with open(template_filename, "w") as f:
+    template_filename = pathlib.Path(dirname) / "template.pbtxt"
+    with template_filename.open("w") as f:
         f.write(template_string)
     data = pd.DataFrame(
         {
@@ -90,7 +89,7 @@ def setup(tmp_path) -> Iterator[tuple[str, str, dataset_pb2.Dataset]]:
             "product_yield": [7.8, 9.0, 8.7],
         }
     )
-    spreadsheet_filename = os.path.join(dirname, "spreadsheet.csv")
+    spreadsheet_filename = pathlib.Path(dirname) / "spreadsheet.csv"
     data.to_csv(spreadsheet_filename, index=False)
     expected = dataset_pb2.Dataset(name="test", description="test")
     reaction1 = expected.reactions.add()
@@ -99,7 +98,9 @@ def setup(tmp_path) -> Iterator[tuple[str, str, dataset_pb2.Dataset]]:
     reaction1_compound1.amount.mass.CopyFrom(reaction_pb2.Mass(value=1.2, units="GRAM"))
     reaction1_product1 = reaction1.outcomes.add().products.add()
     reaction1_product1.identifiers.add(value="CO", type="SMILES")
-    reaction1_product1.measurements.add(analysis_key="my_analysis", type="YIELD", percentage=dict(value=7.8))
+    reaction1_product1.measurements.add(
+        analysis_key="my_analysis", type="YIELD", percentage={"value": 7.8}
+    )
     reaction1.outcomes[0].analyses["my_analysis"].type = reaction_pb2.Analysis.WEIGHT
     reaction1.provenance.record_created.time.value = "2023-07-01"
     reaction1.provenance.record_created.person.name = "test"
@@ -110,7 +111,9 @@ def setup(tmp_path) -> Iterator[tuple[str, str, dataset_pb2.Dataset]]:
     reaction2_compound1.amount.mass.CopyFrom(reaction_pb2.Mass(value=3.4, units="GRAM"))
     reaction2_product1 = reaction2.outcomes.add().products.add()
     reaction2_product1.identifiers.add(value="CCO", type="SMILES")
-    reaction2_product1.measurements.add(analysis_key="my_analysis", type="YIELD", percentage=dict(value=9.0))
+    reaction2_product1.measurements.add(
+        analysis_key="my_analysis", type="YIELD", percentage={"value": 9.0}
+    )
     reaction2.outcomes[0].analyses["my_analysis"].type = reaction_pb2.Analysis.WEIGHT
     reaction2.provenance.record_created.time.value = "2023-07-01"
     reaction2.provenance.record_created.person.name = "test"
@@ -121,12 +124,14 @@ def setup(tmp_path) -> Iterator[tuple[str, str, dataset_pb2.Dataset]]:
     reaction3_compound1.amount.mass.CopyFrom(reaction_pb2.Mass(value=5.6, units="GRAM"))
     reaction3_product1 = reaction3.outcomes.add().products.add()
     reaction3_product1.identifiers.add(value="CCCO", type="SMILES")
-    reaction3_product1.measurements.add(analysis_key="my_analysis", type="YIELD", percentage=dict(value=8.7))
+    reaction3_product1.measurements.add(
+        analysis_key="my_analysis", type="YIELD", percentage={"value": 8.7}
+    )
     reaction3.outcomes[0].analyses["my_analysis"].type = reaction_pb2.Analysis.WEIGHT
     reaction3.provenance.record_created.time.value = "2023-07-01"
     reaction3.provenance.record_created.person.name = "test"
     reaction3.provenance.record_created.person.email = "test@example.com"
-    yield template_filename, spreadsheet_filename, expected
+    return template_filename.as_posix(), spreadsheet_filename.as_posix(), expected
 
 
 def test_main(setup, tmp_path):
@@ -145,7 +150,7 @@ def test_main(setup, tmp_path):
         output_filename,
     ]
     enumerate_dataset.main(enumerate_dataset.parse_args(argv))
-    assert os.path.exists(output_filename)
+    assert pathlib.Path(output_filename).exists()
     dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
     assert len(dataset.reactions) == 3
     validations.validate_message(dataset, raise_on_error=True)

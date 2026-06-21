@@ -15,10 +15,16 @@
 """Tests for ord_schema.orm.rdkit_mappers."""
 
 import pytest
-from sqlalchemy import cast, func, select
+from sqlalchemy import cast, func, select, text
 
 from ord_schema.orm.mappers import Mappers
-from ord_schema.orm.rdkit_mappers import CString, FingerprintType, RDKitMol, RDKitMols, RDKitReactions
+from ord_schema.orm.rdkit_mappers import (
+    CString,
+    FingerprintType,
+    RDKitMol,
+    RDKitMols,
+    RDKitReactions,
+)
 
 
 def test_tanimoto_operator(test_session):
@@ -27,7 +33,10 @@ def test_tanimoto_operator(test_session):
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
         .join(RDKitMols)
-        .where(RDKitMols.morgan_bfp % FingerprintType.MORGAN_BFP(cast("c1ccccc1CCC(O)C", RDKitMol)))
+        .where(
+            RDKitMols.morgan_bfp
+            % FingerprintType.MORGAN_BFP(cast("c1ccccc1CCC(O)C", RDKitMol))
+        )
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
@@ -76,7 +85,11 @@ def test_smarts_operator(test_session):
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
         .join(RDKitMols)
-        .where(RDKitMols.mol.op("@>")(func.qmol_from_smarts(cast("c1ccccc1CCC(O)[#6]", CString))))
+        .where(
+            RDKitMols.mol.op("@>")(
+                func.qmol_from_smarts(cast("c1ccccc1CCC(O)[#6]", CString))
+            )
+        )
     )
     results = test_session.execute(query)
     assert len(results.fetchall()) == 20
@@ -99,11 +112,15 @@ def test_reaction_smarts_operator(test_session):
         select(Mappers.Reaction)
         .join(RDKitReactions)
         .where(
-            RDKitReactions.reaction.op("@>")(func.reaction_from_smarts(cast("[#6:1].[#9:2]>>[#6:1][#9:2]", CString)))
+            RDKitReactions.reaction.op("@>")(
+                func.reaction_from_smarts(cast("[#6:1].[#9:2]>>[#6:1][#9:2]", CString))
+            )
         )
     )
     results = test_session.execute(query)
-    assert len(results.fetchall()) == 79  # One reaction has a BYPRODUCT outcome, so no reaction SMILES.
+    assert (
+        len(results.fetchall()) == 79
+    )  # One reaction has a BYPRODUCT outcome, so no reaction SMILES.
 
 
 def test_reaction_matches_smarts(test_session):
@@ -113,4 +130,26 @@ def test_reaction_matches_smarts(test_session):
         .where(RDKitReactions.matches_smarts("[#6:1].[#9:2]>>[#6:1][#9:2]"))
     )
     results = test_session.execute(query)
-    assert len(results.fetchall()) == 79  # One reaction has a BYPRODUCT outcome, so no reaction SMILES.
+    assert (
+        len(results.fetchall()) == 79
+    )  # One reaction has a BYPRODUCT outcome, so no reaction SMILES.
+
+
+def test_product_compound_rdkit_link(test_session):
+    """Every ProductCompound whose SMILES is in rdkit.mols is linked (guards the product_compound UPDATE).
+
+    The mol/reaction operator tests cover the input-Compound and Reaction link paths; product_compound has none.
+    """
+    linked = test_session.execute(
+        select(Mappers.ProductCompound).join(RDKitMols)
+    ).fetchall()
+    assert len(linked) > 0  # The fixture has linkable product compounds.
+    # Completeness: no product_compound with a resolvable SMILES is left unlinked.
+    unlinked = test_session.execute(
+        text(
+            "SELECT count(*) FROM ord.product_compound pc "
+            "JOIN rdkit.mols m ON m.smiles = pc.smiles "
+            "WHERE pc.rdkit_mol_id IS NULL"
+        )
+    ).scalar()
+    assert unlinked == 0

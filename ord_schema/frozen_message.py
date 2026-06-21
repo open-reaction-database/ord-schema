@@ -51,7 +51,7 @@ class FrozenMessage(collections.abc.Mapping):
     # Runtime dispatch is handled by isinstance checks below.
     _message: Any
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:
         """Fetches a message attribute, if it exists.
 
         Notes:
@@ -96,13 +96,15 @@ class FrozenMessage(collections.abc.Mapping):
             return tuple(repeated_values)
         return value
 
-    def __iter__(self):
+    def __iter__(self) -> collections.abc.Iterator:
+        """Returns an iterator over the underlying message."""
         return iter(self._message)
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Returns the length of the underlying message."""
         return len(self._message)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         """Fetches a message key, if it exists.
 
         Notes:
