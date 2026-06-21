@@ -99,7 +99,7 @@ def test_valid_templating_escapes(valid_reaction):
 
 
 @pytest.mark.parametrize("suffix", [".csv", ".xlsx"])
-def test_read_spreadsheet(suffix, tmp_path):
+def test_load_spreadsheet(suffix, tmp_path):
     df = pd.DataFrame.from_dict(
         {"smiles": ["CCO", "CCCO", "CCCCO"], "conversion": [75, 50, 30]}
     )
@@ -108,7 +108,7 @@ def test_read_spreadsheet(suffix, tmp_path):
         df.to_csv(filename, index=False)
     else:
         df.to_excel(filename, index=False)
-    pd.testing.assert_frame_equal(templating.read_spreadsheet(filename), df)
+    pd.testing.assert_frame_equal(templating.load_spreadsheet(filename), df)
 
 
 def test_invalid_templating(valid_reaction):

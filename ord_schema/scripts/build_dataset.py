@@ -60,7 +60,7 @@ def main(args: argparse.Namespace) -> None:
     )
     if not args.no_validate:
         validations.validate_datasets({"_COMBINED": dataset})
-    message_helpers.write_message(dataset, args.output)
+    message_helpers.save_message(dataset, args.output)
 
 
 if __name__ == "__main__":

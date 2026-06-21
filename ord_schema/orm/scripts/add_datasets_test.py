@@ -43,7 +43,7 @@ def prepared_engine_fixture(test_engine) -> Engine:
 def _write_parquet_dataset(tmp_path) -> tuple[str, dataset_pb2.Dataset]:
     dataset = message_helpers.load_message(_PBTXT_FIXTURE, dataset_pb2.Dataset)
     parquet_path = (tmp_path / "dataset.parquet").as_posix()
-    parquet_dataset.write_dataset(dataset, parquet_path)
+    parquet_dataset.save_dataset(dataset, parquet_path)
     return parquet_path, dataset
 
 
@@ -102,7 +102,7 @@ def test_main_parquet_rejects_changed_without_overwrite(prepared_engine, tmp_pat
     argv = ["--dsn", str(prepared_engine.url), "--pattern", parquet_path]
     add_datasets.main(add_datasets.parse_args(argv))
     dataset.reactions[0].outcomes[0].conversion.value = 999.0
-    parquet_dataset.write_dataset(dataset, parquet_path)
+    parquet_dataset.save_dataset(dataset, parquet_path)
     with pytest.raises(
         RuntimeError
     ):  # main() collects per-future failures and raises in aggregate.

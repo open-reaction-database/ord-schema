@@ -38,10 +38,10 @@ def dirname(tmp_path) -> str:
     reaction1.provenance.record_created.person.name = "test"
     reaction1.provenance.record_created.person.email = "test@example.com"
     dirname = tmp_path.as_posix()
-    message_helpers.write_message(reaction1, pathlib.Path(dirname) / "reaction-1.pbtxt")
+    message_helpers.save_message(reaction1, pathlib.Path(dirname) / "reaction-1.pbtxt")
     # reaction2 is empty.
     reaction2 = reaction_pb2.Reaction()
-    message_helpers.write_message(reaction2, pathlib.Path(dirname) / "reaction-2.pbtxt")
+    message_helpers.save_message(reaction2, pathlib.Path(dirname) / "reaction-2.pbtxt")
     return dirname
 
 

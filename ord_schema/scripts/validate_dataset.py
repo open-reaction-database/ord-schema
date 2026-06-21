@@ -126,7 +126,7 @@ def main(args: argparse.Namespace) -> None:
         futures: dict = {}
         for filename in filenames:
             if filename.endswith(".parquet"):
-                footer = parquet_dataset.read_footer(filename)
+                footer = parquet_dataset.load_footer(filename)
                 entry = _ParquetEntry(
                     remaining=footer.num_row_groups,
                     footer=footer,

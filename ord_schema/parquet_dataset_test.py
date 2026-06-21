@@ -42,35 +42,35 @@ def _make_dataset(
 def test_round_trip(tmp_path):
     original = _make_dataset(n=5)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path)
-    loaded = dataset.read_dataset(path)
+    dataset.save_dataset(original, path)
+    loaded = dataset.load_dataset(path)
     assert loaded.dataset_id == original.dataset_id
     assert loaded.name == original.name
     assert loaded.description == original.description
     assert list(loaded.reactions) == list(original.reactions)
 
 
-def test_write_rejects_empty_reactions(tmp_path):
+def test_save_rejects_empty_reactions(tmp_path):
     path = tmp_path / "empty.parquet"
     with pytest.raises(ValueError, match="no reactions"):
-        dataset.write_dataset(dataset_pb2.Dataset(name="x"), path)
+        dataset.save_dataset(dataset_pb2.Dataset(name="x"), path)
 
 
 @pytest.mark.parametrize("missing", ["name", "description"])
-def test_write_rejects_empty_name_or_description(tmp_path, missing):
+def test_save_rejects_empty_name_or_description(tmp_path, missing):
     fields = {"name": "n", "description": "d"}
     fields[missing] = ""
     ds = dataset_pb2.Dataset(**fields, reactions=[_make_reaction("ord-0000")])
     path = tmp_path / "ds.parquet"
     with pytest.raises(ValueError, match=missing):
-        dataset.write_dataset(ds, path)
+        dataset.save_dataset(ds, path)
 
 
-def test_read_metadata_returns_scalars_only(tmp_path):
+def test_load_metadata_returns_scalars_only(tmp_path):
     original = _make_dataset(n=4)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path)
-    metadata = dataset.read_metadata(path)
+    dataset.save_dataset(original, path)
+    metadata = dataset.load_metadata(path)
     assert metadata.dataset_id == original.dataset_id
     assert metadata.name == original.name
     assert metadata.description == original.description
@@ -81,7 +81,7 @@ def test_read_metadata_returns_scalars_only(tmp_path):
 def test_iter_reactions_all(tmp_path):
     original = _make_dataset(n=3)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path)
+    dataset.save_dataset(original, path)
     pairs = list(dataset.iter_reactions(path))
     assert [rid for rid, _ in pairs] == [r.reaction_id for r in original.reactions]
     assert [r.outcomes[0].conversion.value for _, r in pairs] == [0.0, 1.0, 2.0]
@@ -90,7 +90,7 @@ def test_iter_reactions_all(tmp_path):
 def test_iter_reactions_filtered(tmp_path):
     original = _make_dataset(n=5)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path)
+    dataset.save_dataset(original, path)
     # Output order follows file order, not the order of ``reaction_ids``;
     # ord-9999 is absent and silently skipped.
     wanted = {"ord-0003", "ord-0001", "ord-9999"}
@@ -123,32 +123,32 @@ def test_iter_reactions_row_group(tmp_path):
 def test_iter_reactions_empty_filter_raises(tmp_path):
     original = _make_dataset(n=3)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path)
+    dataset.save_dataset(original, path)
     with pytest.raises(ValueError, match="non-empty"):
         list(dataset.iter_reactions(path, reaction_ids=[]))
 
 
-def test_read_reaction_hit(tmp_path):
+def test_load_reaction_hit(tmp_path):
     original = _make_dataset(n=5)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path)
-    reaction = dataset.read_reaction(path, "ord-0002")
+    dataset.save_dataset(original, path)
+    reaction = dataset.load_reaction(path, "ord-0002")
     assert reaction.reaction_id == "ord-0002"
     assert reaction.outcomes[0].conversion.value == 2.0
 
 
-def test_read_reaction_miss(tmp_path):
+def test_load_reaction_miss(tmp_path):
     original = _make_dataset(n=2)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path)
+    dataset.save_dataset(original, path)
     with pytest.raises(KeyError):
-        dataset.read_reaction(path, "ord-nope")
+        dataset.load_reaction(path, "ord-nope")
 
 
 def test_row_group_boundaries(tmp_path):
     original = _make_dataset(n=7)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path, row_group_size=3)
+    dataset.save_dataset(original, path, row_group_size=3)
     parquet_file = pq.ParquetFile(path)
     # 7 rows with row_group_size=3 -> groups of [3, 3, 1].
     assert parquet_file.num_row_groups == 3
@@ -165,7 +165,7 @@ def test_streaming_writer(tmp_path):
     ) as writer:
         for i in range(5):
             writer.write(_make_reaction(f"ord-s{i}", conversion=float(i)))
-    loaded = dataset.read_dataset(path)
+    loaded = dataset.load_dataset(path)
     assert loaded.dataset_id == "ord_dataset-stream"
     assert loaded.name == "stream"
     assert [r.reaction_id for r in loaded.reactions] == [f"ord-s{i}" for i in range(5)]
@@ -192,15 +192,15 @@ def test_footer_omits_empty_dataset_id(tmp_path):
         name="n", description="d", reactions=[_make_reaction("ord-0000")]
     )
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(ds, path)
+    dataset.save_dataset(ds, path)
     schema = pq.ParquetFile(path).schema_arrow
     keys = {key.decode() for key in (schema.metadata or {})}
     assert keys == {"ord.schema_version", "ord.name", "ord.description"}
 
 
-def test_read_rejects_unknown_schema_version(tmp_path):
+def test_load_rejects_unknown_schema_version(tmp_path):
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(_make_dataset(n=1), path)
+    dataset.save_dataset(_make_dataset(n=1), path)
     # Rewrite the file with a bogus schema_version in the footer.
     table = pq.read_table(path)
     bad_metadata = dict(table.schema.metadata or {})
@@ -209,15 +209,15 @@ def test_read_rejects_unknown_schema_version(tmp_path):
     bad_path = tmp_path / "bad.parquet"
     pq.write_table(table, bad_path)
     with pytest.raises(ValueError, match="schema version"):
-        dataset.read_metadata(bad_path)
+        dataset.load_metadata(bad_path)
 
 
 @pytest.mark.parametrize(
     "missing_key", ["ord.schema_version", "ord.name", "ord.description"]
 )
-def test_read_rejects_missing_required_footer_keys(tmp_path, missing_key):
+def test_load_rejects_missing_required_footer_keys(tmp_path, missing_key):
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(_make_dataset(n=1), path)
+    dataset.save_dataset(_make_dataset(n=1), path)
     table = pq.read_table(path)
     bad_metadata = {
         key: value
@@ -228,7 +228,7 @@ def test_read_rejects_missing_required_footer_keys(tmp_path, missing_key):
     bad_path = tmp_path / "bad.parquet"
     pq.write_table(table, bad_path)
     with pytest.raises(ValueError, match=missing_key):
-        dataset.read_metadata(bad_path)
+        dataset.load_metadata(bad_path)
 
 
 def test_unicode_metadata_round_trips(tmp_path):
@@ -239,8 +239,8 @@ def test_unicode_metadata_round_trips(tmp_path):
         reactions=[_make_reaction("ord-0000")],
     )
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path)
-    loaded = dataset.read_metadata(path)
+    dataset.save_dataset(original, path)
+    loaded = dataset.load_metadata(path)
     assert loaded.name == original.name
     assert loaded.description == original.description
     assert loaded.dataset_id == original.dataset_id
@@ -249,16 +249,16 @@ def test_unicode_metadata_round_trips(tmp_path):
 def test_row_group_size_larger_than_dataset(tmp_path):
     original = _make_dataset(n=3)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path, row_group_size=1000)
+    dataset.save_dataset(original, path, row_group_size=1000)
     parquet_file = pq.ParquetFile(path)
     assert parquet_file.num_row_groups == 1
-    assert dataset.read_dataset(path).reactions == original.reactions
+    assert dataset.load_dataset(path).reactions == original.reactions
 
 
 def test_multi_row_group_streaming_preserves_order(tmp_path):
     original = _make_dataset(n=2500)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path, row_group_size=500)
+    dataset.save_dataset(original, path, row_group_size=500)
     parquet_file = pq.ParquetFile(path)
     assert parquet_file.num_row_groups == 5
     streamed = [rid for rid, _ in dataset.iter_reactions(path)]
@@ -307,7 +307,7 @@ def test_writer_aborts_on_keyboard_interrupt_in_context(tmp_path):
 def test_writer_aborts_preserves_existing_destination(tmp_path):
     """A failed atomic publish must not clobber an already-published file at the destination."""
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(_make_dataset(n=2, name="old", description="old desc"), path)
+    dataset.save_dataset(_make_dataset(n=2, name="old", description="old desc"), path)
     with path.open("rb") as f:
         original_bytes = f.read()
     with (  # noqa: PT012  (abort-on-exception test: the multi-statement body in the context is under test)
@@ -324,7 +324,7 @@ def test_writer_aborts_preserves_existing_destination(tmp_path):
 def test_streaming_md5_returns_count_and_is_deterministic(tmp_path):
     original = _make_dataset(n=4)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path)
+    dataset.save_dataset(original, path)
     md5_hex, count = dataset.streaming_md5(path)
     assert count == 4
     # Same file hashes the same on a second pass.
@@ -336,34 +336,34 @@ def test_streaming_md5_is_decoupled_from_row_group_size(tmp_path):
     original = _make_dataset(n=12)
     path_small = tmp_path / "small.parquet"
     path_large = tmp_path / "large.parquet"
-    dataset.write_dataset(original, path_small, row_group_size=3)
-    dataset.write_dataset(original, path_large, row_group_size=1000)
+    dataset.save_dataset(original, path_small, row_group_size=3)
+    dataset.save_dataset(original, path_large, row_group_size=1000)
     assert dataset.streaming_md5(path_small) == dataset.streaming_md5(path_large)
 
 
 def test_streaming_md5_changes_when_scalars_change(tmp_path):
     original = _make_dataset(n=2)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path)
+    dataset.save_dataset(original, path)
     baseline, _ = dataset.streaming_md5(path)
     renamed = dataset_pb2.Dataset()
     renamed.CopyFrom(original)
     renamed.name = "different"
     other_path = tmp_path / "other.parquet"
-    dataset.write_dataset(renamed, other_path)
+    dataset.save_dataset(renamed, other_path)
     assert dataset.streaming_md5(other_path)[0] != baseline
 
 
 def test_streaming_md5_changes_when_a_reaction_changes(tmp_path):
     original = _make_dataset(n=3)
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(original, path)
+    dataset.save_dataset(original, path)
     baseline, _ = dataset.streaming_md5(path)
     mutated = dataset_pb2.Dataset()
     mutated.CopyFrom(original)
     mutated.reactions[1].outcomes[0].conversion.value = 999.0
     other_path = tmp_path / "other.parquet"
-    dataset.write_dataset(mutated, other_path)
+    dataset.save_dataset(mutated, other_path)
     assert dataset.streaming_md5(other_path)[0] != baseline
 
 
@@ -407,7 +407,7 @@ def test_dataset_view_exposes_all_dataset_fields(tmp_path):
     on DatasetView, so the view stays a drop-in stand-in for validation.
     """
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(_make_dataset(n=1), path)
+    dataset.save_dataset(_make_dataset(n=1), path)
     view = dataset.DatasetView(path)
     descriptor = dataset_pb2.Dataset.DESCRIPTOR
     assert descriptor is not None  # Type hint.
@@ -418,7 +418,7 @@ def test_dataset_view_exposes_all_dataset_fields(tmp_path):
 def test_dataset_view_reactions_is_read_only(tmp_path):
     """Rebinding ``view.reactions`` must raise so the stream can't be swapped."""
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(_make_dataset(n=1), path)
+    dataset.save_dataset(_make_dataset(n=1), path)
     view = dataset.DatasetView(path)
     with pytest.raises(AttributeError):
         view.reactions = []  # ty: ignore[invalid-assignment]
@@ -432,7 +432,7 @@ def test_dataset_view_empty_parquet_is_falsy(tmp_path):
     that branch going dead when a bare generator would be truthy.
     """
     path = tmp_path / "empty.parquet"
-    # DatasetWriter (unlike write_dataset) permits zero reactions.
+    # DatasetWriter (unlike save_dataset) permits zero reactions.
     with dataset.DatasetWriter(path, name="n", description="d"):
         pass
     view = dataset.DatasetView(path)
@@ -449,7 +449,7 @@ def test_dataset_view_values_round_trip(tmp_path):
     """
     source = _make_dataset(n=3, dataset_id="ord_dataset-abc", name="n", description="d")
     path = tmp_path / "ds.parquet"
-    dataset.write_dataset(source, path)
+    dataset.save_dataset(source, path)
     view = dataset.DatasetView(path)
     assert view.name == source.name
     assert view.description == source.description
