@@ -1154,7 +1154,7 @@ def parse_doi(doi: str) -> str:
 
 
 # Deprecated aliases, kept for backwards compatibility after the load_*/save_*
-# rename. Remove in a future major release.
+# rename. Remove in a future minor release.
 def write_message(
     message: ord_schema.Message, filename: str | os.PathLike[str]
 ) -> None:

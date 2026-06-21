@@ -549,7 +549,7 @@ def _dataset_from_metadata(
 
 
 # Deprecated aliases, kept for backwards compatibility after the load_*/save_*
-# rename. Remove in a future major release.
+# rename. Remove in a future minor release.
 def write_dataset(
     dataset: dataset_pb2.Dataset,
     path: str | os.PathLike[str],

@@ -180,7 +180,7 @@ def generate_dataset(
 
 
 # Deprecated alias, kept for backwards compatibility after the load_*/save_*
-# rename. Remove in a future major release.
+# rename. Remove in a future minor release.
 def read_spreadsheet(
     file_name_or_buffer: str | BinaryIO, suffix: str | None = None
 ) -> pd.DataFrame:
