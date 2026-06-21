@@ -2176,7 +2176,7 @@ wheels = [
 
 [[package]]
 name = "ord-schema"
-version = "0.6.27"
+version = "0.6.28"
 source = { editable = "." }
 dependencies = [
     { name = "huggingface-hub" },
