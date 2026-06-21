@@ -2220,10 +2220,15 @@ orm = [
 ]
 tests = [
     { name = "coverage" },
+    { name = "huggingface-hub" },
+    { name = "inflection" },
+    { name = "psycopg", extra = ["binary", "pool"] },
+    { name = "pygithub" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-xdist" },
     { name = "ruff" },
+    { name = "sqlalchemy" },
     { name = "testing-postgresql" },
     { name = "treon" },
     { name = "ty" },
@@ -2239,6 +2244,7 @@ requires-dist = [
     { name = "matplotlib", marker = "extra == 'examples'", specifier = ">=3.3.4" },
     { name = "numpy", specifier = ">=1.26.4" },
     { name = "openpyxl", specifier = ">=3.0.5" },
+    { name = "ord-schema", extras = ["github", "huggingface", "orm"], marker = "extra == 'tests'" },
     { name = "pandas", specifier = ">=1.0.4" },
     { name = "protobuf", specifier = ">=4.22.3,<6" },
     { name = "psycopg", extras = ["binary", "pool"], marker = "extra == 'orm'", specifier = ">=3" },

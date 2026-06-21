@@ -48,18 +48,18 @@ To install in editable/development mode (recommended: [uv](https://docs.astral.s
 ```shell
 $ git clone https://github.com/open-reaction-database/ord-schema.git
 $ cd ord-schema
-$ uv sync --extra github --extra huggingface --extra orm --extra tests
+$ uv sync --extra tests
 ```
 
-The feature extras are included because the test suite exercises the ORM,
-Hugging Face, and GitHub-submission code paths (this matches CI). Add
-`--extra examples` as well to run the notebooks (heavier deps):
+The `tests` extra pulls in the feature extras (`github`, `huggingface`, `orm`)
+it needs to exercise their code paths, so this is enough to run the full suite.
+Add `--extra examples` as well to run the notebooks (heavier deps):
 
 ```shell
-$ uv sync --extra examples --extra github --extra huggingface --extra orm --extra tests
+$ uv sync --extra examples --extra tests
 ```
 
-You can still use pip if you prefer: `pip install -e ".[github,huggingface,orm,tests]"`.
+You can still use pip if you prefer: `pip install -e ".[tests]"`.
 
 If you make changes to the protocol buffer definitions, [install](https://grpc.io/docs/protoc-installation/) `protoc`
 and run `./compile_proto_wrappers.sh` to rebuild the wrappers.

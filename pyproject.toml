@@ -93,6 +93,9 @@ tests = [
     "ty>=0.0.28",
     "testing-postgresql>=1.3.0",
     "treon>=0.1.3",
+    # The suite exercises the optional-feature modules, so collecting it needs
+    # their extras. Self-reference rather than duplicate the dependencies.
+    "ord-schema[github,huggingface,orm]",
 ]
 
 [tool.setuptools.packages.find]
