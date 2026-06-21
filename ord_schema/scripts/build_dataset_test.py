@@ -49,7 +49,7 @@ def test_simple(dirname):
     input_pattern = str(pathlib.Path(dirname) / "reaction-1.pbtxt")
     output_filename = str(pathlib.Path(dirname) / "dataset.pbtxt")
     argv = [
-        "--input",
+        "--input_pattern",
         input_pattern,
         "--name",
         "test dataset",
@@ -70,7 +70,7 @@ def test_validation(dirname):
     input_pattern = str(pathlib.Path(dirname) / "reaction-?.pbtxt")
     output_filename = str(pathlib.Path(dirname) / "dataset.pbtxt")
     argv = [
-        "--input",
+        "--input_pattern",
         input_pattern,
         "--name",
         "test dataset",
@@ -86,7 +86,7 @@ def test_validation(dirname):
         build_dataset.main(build_dataset.parse_args(argv))
     # Make sure disabling validation works.
     argv = [
-        "--input",
+        "--input_pattern",
         input_pattern,
         "--name",
         "test dataset",

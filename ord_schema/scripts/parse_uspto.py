@@ -350,9 +350,8 @@ def parse_conditions(root: ET.Element, reaction: reaction_pb2.Reaction) -> None:
     del reaction  # Unused.
     if not root.findall("cml:chemical", namespaces=NAMESPACES):
         return  # Refers to an added component; is a workup.
-    action = root.attrib["action"]
-    del action  # Unused.
-    return  # TODO(kearnes): Implement this?
+    # TODO(kearnes): Non-workup conditions are not parsed yet.
+    return
 
 
 def parse_workup(root: ET.Element, reaction: reaction_pb2.Reaction) -> None:

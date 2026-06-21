@@ -17,6 +17,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+import warnings
 
 from rdkit import Chem
 from tenacity import (
@@ -41,9 +42,6 @@ _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.XYZ,
 ]
 
-_USERNAME = "github-actions"
-_EMAIL = "github-actions@github.com"
-
 
 def canonicalize_smiles(smiles: str) -> str:
     """Canonicalizes a SMILES string.
@@ -63,7 +61,7 @@ def canonicalize_smiles(smiles: str) -> str:
     return Chem.MolToSmiles(mol)
 
 
-def name_resolve(value_type: str, value: str) -> tuple[str, str]:
+def resolve_name(value_type: str, value: str) -> tuple[str, str]:
     """Resolves compound identifiers to SMILES via multiple APIs."""
     for resolver, resolver_func in _NAME_RESOLVERS.items():
         try:
@@ -99,7 +97,7 @@ def resolve_names(message: ord_schema.Message) -> bool:
         for identifier in compound.identifiers:
             if identifier.type == identifier.NAME:
                 try:
-                    smiles, resolver = name_resolve("name", identifier.value)
+                    smiles, resolver = resolve_name("name", identifier.value)
                     new_identifier = compound.identifiers.add()
                     new_identifier.type = new_identifier.SMILES
                     new_identifier.value = smiles
@@ -148,7 +146,7 @@ def _opsin_resolve(value_type: str, value: str) -> str:
 
 
 def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
-    """Resolve a text-based description of an input.
+    """Resolves a text-based description of an input.
 
     Supported formats:
         (1) [AMOUNT] of [NAME]
@@ -180,7 +178,7 @@ def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
     pattern = re.compile(r"(\d+.?\d*)\s?(\w+)\s(.+)\sin\s(.+)")
     match = pattern.fullmatch(description.strip())
     if not match:
-        raise ValueError("String did not match template!")
+        raise ValueError("String does not match template!")
     conc_value, conc_units, solute_name, solvent_name = match.groups()
     assert solute_name is not None  # Type hint.
     assert solvent_name is not None  # Type hint.
@@ -212,3 +210,13 @@ _NAME_RESOLVERS = {
     "PubChem API": _pubchem_resolve,
     "OPSIN": _opsin_resolve,
 }
+
+
+def name_resolve(*args: str, **kwargs: str) -> tuple[str, str]:
+    """Deprecated alias for :func:`resolve_name`."""
+    warnings.warn(
+        "resolvers.name_resolve is deprecated; use resolve_name instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return resolve_name(*args, **kwargs)

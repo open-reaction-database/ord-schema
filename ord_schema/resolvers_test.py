@@ -80,7 +80,7 @@ class TestNameResolvers:
         # plumbing (adds a SMILES identifier with details) without the live call,
         # so the logic stays covered if the live smoke test is ever removed.
         monkeypatch.setattr(
-            "ord_schema.resolvers.name_resolve",
+            "ord_schema.resolvers.resolve_name",
             mock.MagicMock(return_value=("CC(=O)Oc1ccccc1C(=O)O", "PubChem API")),
         )
         message = reaction_pb2.Reaction()
@@ -162,7 +162,7 @@ class TestInputResolvers:
             "water": "O",
         }
         monkeypatch.setattr(
-            "ord_schema.resolvers.name_resolve",
+            "ord_schema.resolvers.resolve_name",
             lambda _value_type, value: (smiles_by_name[value], "PubChem API"),
         )
 
@@ -207,7 +207,7 @@ class TestInputResolvers:
                 "100 g of 5.0uM sodium hydroxide in water",
                 "amount of solution must be a volume",
             ),
-            ("100 L of 5 grapes in water", "String did not match template"),
+            ("100 L of 5 grapes in water", "String does not match template"),
         ],
     )
     def test_input_resolve_should_fail(self, string, expected):
@@ -290,7 +290,7 @@ class TestNameResolveFallback:
         monkeypatch.setattr(
             "ord_schema.resolvers._NAME_RESOLVERS", {"first": first, "second": second}
         )
-        smiles, resolver_name = resolvers.name_resolve("name", "ethylene glycol")
+        smiles, resolver_name = resolvers.resolve_name("name", "ethylene glycol")
         assert smiles == "OCCO"
         assert resolver_name == "second"
         first.assert_called_once_with("name", "ethylene glycol")
@@ -300,7 +300,7 @@ class TestNameResolveFallback:
         only = mock.MagicMock(side_effect=_http_error(404, "Not Found"))
         monkeypatch.setattr("ord_schema.resolvers._NAME_RESOLVERS", {"only": only})
         with pytest.raises(ValueError, match="Could not resolve"):
-            resolvers.name_resolve("name", "definitely-not-a-compound")
+            resolvers.resolve_name("name", "definitely-not-a-compound")
 
 
 class TestResolveNamesSkipsStructuralIdentifiers:
@@ -308,7 +308,7 @@ class TestResolveNamesSkipsStructuralIdentifiers:
         # If a Compound already has a structural identifier, name resolution
         # must not be attempted.
         called = mock.MagicMock()
-        monkeypatch.setattr("ord_schema.resolvers.name_resolve", called)
+        monkeypatch.setattr("ord_schema.resolvers.resolve_name", called)
         message = reaction_pb2.Reaction()
         compound = message.inputs["test"].components.add()
         compound.identifiers.add(type="NAME", value="aspirin")
@@ -317,10 +317,10 @@ class TestResolveNamesSkipsStructuralIdentifiers:
         called.assert_not_called()
 
     def test_swallows_value_error(self, monkeypatch):
-        # When name_resolve raises ValueError, resolve_names skips that NAME and
+        # When resolve_name raises ValueError, resolve_names skips that NAME and
         # reports no modification.
         monkeypatch.setattr(
-            "ord_schema.resolvers.name_resolve",
+            "ord_schema.resolvers.resolve_name",
             mock.MagicMock(side_effect=ValueError("not found")),
         )
         message = reaction_pb2.Reaction()

@@ -197,9 +197,10 @@ def validate_message(
     if not isinstance(message, tuple(_VALIDATOR_SWITCH.keys())):
         # NOTE(ccoley): I made the conscious decision to raise an error here,
         # rather than assume that the message is valid. If a message does not
-        # require any message-level checks (not uncommon), then it should still
-        # be listed in the dictionary switch above withpass. This will force
-        # us to think about what is necessary if/when new messages are added.
+        # require any message-level checks (not uncommon), it should still be
+        # registered in ``_VALIDATOR_SWITCH`` (mapped to ``skip_validation``).
+        # This forces us to think about what is necessary if/when new messages
+        # are added.
         raise NotImplementedError(f"Don't know how to validate {type(message)}")
 
     with warnings.catch_warnings(record=True) as tape:
@@ -632,19 +633,19 @@ def validate_reaction(
     """Validates a Reaction's inputs, outcomes, identifiers, and provenance."""
     if options is None:
         options = ValidationOptions()
-    if (
+    # A reaction-SMILES-only record is allowed to omit inputs and outcomes.
+    smiles_only = (
         options.allow_reaction_smiles_only
         and message_helpers.get_reaction_smiles(message)
-        and len(message.inputs) == 0
-        and len(message.outcomes) == 0
-    ):
-        pass
-    else:
-        if len(message.inputs) == 0:
+        and not message.inputs
+        and not message.outcomes
+    )
+    if not smiles_only:
+        if not message.inputs:
             warnings.warn(
                 "Reactions should have at least 1 reaction input", ValidationError
             )
-        if len(message.outcomes) == 0:
+        if not message.outcomes:
             warnings.warn(
                 "Reactions should have at least 1 reaction outcome", ValidationError
             )
@@ -671,8 +672,7 @@ def validate_reaction(
             ValidationError,
         )
     if options.validate_ids:
-        # The reaction_id suffix is a 32-character uuid4 hex string.
-        if not re.fullmatch("^ord-[0-9a-f]{32}$", message.reaction_id):
+        if not is_valid_reaction_id(message.reaction_id):
             warnings.warn("Reaction ID is malformed", ValidationError)
     if options.require_provenance:
         if not message.HasField("provenance"):
@@ -706,6 +706,30 @@ def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier) -> No
         warnings.warn("value must be set", ValidationError)
 
 
+class _StateOfMatter(IntEnum):
+    GAS = 1
+    LIQUID = 2
+    SOLID = 3
+
+
+# Coarse state of matter implied by each Texture type, for input/component
+# consistency checks; UNSPECIFIED/CUSTOM map to None (unknown).
+_TEXTURE_TO_STATE = {
+    reaction_pb2.Texture.UNSPECIFIED: None,
+    reaction_pb2.Texture.CUSTOM: None,
+    reaction_pb2.Texture.GAS: _StateOfMatter.GAS,
+    reaction_pb2.Texture.OIL: _StateOfMatter.LIQUID,
+    reaction_pb2.Texture.FOAM: _StateOfMatter.LIQUID,
+    reaction_pb2.Texture.LIQUID: _StateOfMatter.LIQUID,
+    reaction_pb2.Texture.POWDER: _StateOfMatter.SOLID,
+    reaction_pb2.Texture.CRYSTAL: _StateOfMatter.SOLID,
+    reaction_pb2.Texture.WAX: _StateOfMatter.SOLID,
+    reaction_pb2.Texture.AMORPHOUS_SOLID: _StateOfMatter.SOLID,
+    reaction_pb2.Texture.SEMI_SOLID: _StateOfMatter.SOLID,
+    reaction_pb2.Texture.SOLID: _StateOfMatter.SOLID,
+}
+
+
 def validate_reaction_input(message: reaction_pb2.ReactionInput) -> None:
     """Validates ReactionInput component counts and texture consistency."""
     if len(message.components) + len(message.crude_components) == 0:
@@ -725,40 +749,20 @@ def validate_reaction_input(message: reaction_pb2.ReactionInput) -> None:
                     ValidationWarning,
                 )
 
-    class StateOfMatter(IntEnum):
-        GAS = 1
-        LIQUID = 2
-        SOLID = 3
-
-    texture_type_to_state_of_matter = {
-        reaction_pb2.Texture.UNSPECIFIED: None,
-        reaction_pb2.Texture.CUSTOM: None,
-        reaction_pb2.Texture.GAS: StateOfMatter.GAS,
-        reaction_pb2.Texture.OIL: StateOfMatter.LIQUID,
-        reaction_pb2.Texture.FOAM: StateOfMatter.LIQUID,
-        reaction_pb2.Texture.LIQUID: StateOfMatter.LIQUID,
-        reaction_pb2.Texture.POWDER: StateOfMatter.SOLID,
-        reaction_pb2.Texture.CRYSTAL: StateOfMatter.SOLID,
-        reaction_pb2.Texture.WAX: StateOfMatter.SOLID,
-        reaction_pb2.Texture.AMORPHOUS_SOLID: StateOfMatter.SOLID,
-        reaction_pb2.Texture.SEMI_SOLID: StateOfMatter.SOLID,
-        reaction_pb2.Texture.SOLID: StateOfMatter.SOLID,
-    }
-    input_state_code = texture_type_to_state_of_matter[message.texture.type]
+    input_state_code = _TEXTURE_TO_STATE[message.texture.type]
     if input_state_code is not None:
         components = [*message.components, *message.crude_components]
-        component_state_codes = [
-            texture_type_to_state_of_matter[c.texture.type] for c in components
-        ]
+        component_state_codes = [_TEXTURE_TO_STATE[c.texture.type] for c in components]
         if (
             component_state_codes
             and None not in component_state_codes
             and max(component_state_codes) < input_state_code
         ):
             warnings.warn(
-                f"the ReactionInput has texture type of: {message.texture.type},"
-                f"but its components are: {[c.texture.type for c in components]},"
-                f"this seems unlikely"
+                f"the ReactionInput has texture type of: {message.texture.type}, "
+                f"but its components are: {[c.texture.type for c in components]}; "
+                "this seems unlikely",
+                ValidationWarning,
             )
 
 
@@ -802,8 +806,10 @@ def validate_crude_component(message: reaction_pb2.CrudeComponent) -> None:
         )
 
 
-def validate_compound(message: reaction_pb2.Compound) -> None:
-    """Validates that a Compound has usable identifiers."""
+def _validate_compound_identifiers(
+    message: reaction_pb2.Compound | reaction_pb2.ProductCompound,
+) -> None:
+    """Warns if a compound lacks identifiers, has only NAME, or has inconsistent ones."""
     if len(message.identifiers) == 0:
         warnings.warn("Compounds must have at least one identifier", ValidationError)
     if all(identifier.type == identifier.NAME for identifier in message.identifiers):
@@ -815,6 +821,11 @@ def validate_compound(message: reaction_pb2.Compound) -> None:
         message_helpers.check_compound_identifiers(message)
     except ValueError as error:
         warnings.warn(str(error), ValidationWarning)
+
+
+def validate_compound(message: reaction_pb2.Compound) -> None:
+    """Validates that a Compound has usable identifiers."""
+    _validate_compound_identifiers(message)
 
 
 def validate_compound_preparation(message: reaction_pb2.CompoundPreparation) -> None:
@@ -1064,18 +1075,7 @@ def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome) -> None:
 
 def validate_product_compound(message: reaction_pb2.ProductCompound) -> None:
     """Validates a ProductCompound's identifiers and desired-product role."""
-    if len(message.identifiers) == 0:
-        warnings.warn("Compounds must have at least one identifier", ValidationError)
-    if all(identifier.type == identifier.NAME for identifier in message.identifiers):
-        warnings.warn(
-            "Compounds should have more specific identifiers than NAME whenever possible",
-            ValidationWarning,
-        )
-    try:
-        message_helpers.check_compound_identifiers(message)
-    except ValueError as error:
-        warnings.warn(str(error), ValidationWarning)
-
+    _validate_compound_identifiers(message)
     if message.is_desired_product:
         if (
             message.reaction_role
@@ -1207,7 +1207,7 @@ def validate_reaction_provenance(message: reaction_pb2.ReactionProvenance) -> No
             # Use the last record as the most recent modification time.
             record_modified = parser.parse(record.time.value)
     except parser.ParserError:
-        warnings.warn("Failed to parse DateTime string(s)")
+        warnings.warn("Failed to parse DateTime string(s)", ValidationWarning)
     # Check signs of time differences
     if experiment_start and record_created:
         if (record_created - experiment_start).total_seconds() < 0:
@@ -1300,7 +1300,7 @@ def validate_percentage(message: reaction_pb2.Percentage) -> None:
     ensure_float_nonnegative(message, "precision")
 
 
-def validate_float_value(message: ord_schema.Message) -> None:
+def validate_float_value(message: reaction_pb2.FloatValue) -> None:
     """Validates that a FloatValue's precision is non-negative."""
     ensure_float_nonnegative(message, "precision")
 

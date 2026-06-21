@@ -142,6 +142,22 @@ _FORBIDDEN_UNITS = {
     "m": "ambiguous between meter and minute",
 }
 
+# Temperature conversions to and from Celsius, used as an intermediate when
+# converting between temperature units.
+_TO_CELSIUS = {
+    reaction_pb2.Temperature.CELSIUS: lambda T: T,
+    reaction_pb2.Temperature.FAHRENHEIT: lambda T: (T - 32) * 5 / 9,
+    reaction_pb2.Temperature.KELVIN: lambda T: T - 273.15,
+}
+_FROM_CELSIUS = {
+    reaction_pb2.Temperature.CELSIUS: lambda T: T,
+    reaction_pb2.Temperature.FAHRENHEIT: lambda T: T * 9 / 5 + 32,
+    reaction_pb2.Temperature.KELVIN: lambda T: T + 273.15,
+}
+
+# Conversion factor between wavenumber (cm⁻¹) and wavelength (nm): nm·cm⁻¹.
+_WAVENUMBER_NM_CM = 1e7
+
 _UNIT_CONVERSIONS: dict[
     type[ord_schema.UnitMessage], dict[ProtoEnumMember, int | float]
 ] = {
@@ -249,8 +265,6 @@ class UnitResolver:
             unit_synonyms = _UNIT_SYNONYMS
         if forbidden_units is None:
             forbidden_units = _FORBIDDEN_UNITS
-        assert unit_synonyms is not None  # Type hint.
-        assert forbidden_units is not None  # Type hint.
         self._forbidden_units = forbidden_units
         self._resolver = {}
         for message in unit_synonyms:
@@ -362,16 +376,8 @@ class UnitResolver:
         new_message = message_type(units=new_units)
 
         if message_type == reaction_pb2.Temperature:
-            temperature_celsius = {
-                reaction_pb2.Temperature.CELSIUS: lambda T: T,
-                reaction_pb2.Temperature.FAHRENHEIT: lambda T: (T - 32) * 5 / 9,
-                reaction_pb2.Temperature.KELVIN: lambda T: T - 273.15,
-            }[message.units](message.value)
-            new_message.value = {
-                reaction_pb2.Temperature.CELSIUS: lambda T: T,
-                reaction_pb2.Temperature.FAHRENHEIT: lambda T: T * 9 / 5 + 32,
-                reaction_pb2.Temperature.KELVIN: lambda T: T + 273.15,
-            }[new_units](temperature_celsius)
+            temperature_celsius = _TO_CELSIUS[message.units](message.value)
+            new_message.value = _FROM_CELSIUS[new_units](temperature_celsius)
             if message.precision:
                 if (
                     message.units == reaction_pb2.Temperature.FAHRENHEIT
@@ -396,11 +402,11 @@ class UnitResolver:
 
         elif message_type == reaction_pb2.Wavelength:
             if message.units != new_units:
-                new_message.value = 10000000 / message.value
+                new_message.value = _WAVENUMBER_NM_CM / message.value
                 # Approximate precision as stdev of previous value \pm precision
                 if message.precision:
                     new_message.precision = (
-                        10000000
+                        _WAVENUMBER_NM_CM
                         / 2
                         * (
                             1 / (message.value - message.precision)
@@ -435,7 +441,7 @@ def format_message(message: ord_schema.UnitMessage) -> str | None:
         message: a message with units, e.g., Mass, Length.
 
     Returns:
-        A string describing the value, e.g., "5.0 (p/m 0.1) mL" using the
+        A string describing the value, e.g., "5.0 (± 0.1) mL" using the
             first unit synonym listed in _UNIT_SYNONYMS.
     """
     if message.units == type(message)().UNSPECIFIED:

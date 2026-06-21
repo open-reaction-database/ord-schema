@@ -29,6 +29,7 @@ from google.protobuf import (
     json_format,
     text_format,
 )
+from google.protobuf.descriptor import Descriptor
 from google.protobuf.message import DecodeError
 from rdkit import Chem
 from rdkit.Chem import rdChemReactions
@@ -43,6 +44,18 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
 MessageType = TypeVar("MessageType")  # Generic for setting return types
+
+
+def _resolve_enum_value(descriptor: Descriptor, field_name: str, key: str) -> int:
+    """Returns the numeric value for ``key`` in the named enum field of ``descriptor``."""
+    assert descriptor is not None  # Type hint.
+    field = descriptor.fields_by_name[field_name]
+    assert field.enum_type is not None  # Type hint.
+    values = field.enum_type.values_by_name
+    try:
+        return values[key.upper()].number
+    except KeyError as error:
+        raise KeyError(f"{key} is not a supported type: {values.keys()}") from error
 
 
 def build_compound(
@@ -101,15 +114,9 @@ def build_compound(
     if role:
         compound_desc = reaction_pb2.Compound.DESCRIPTOR
         assert compound_desc is not None  # Type hint.
-        field = compound_desc.fields_by_name["reaction_role"]
-        assert field.enum_type is not None  # Type hint.
-        values_dict = field.enum_type.values_by_name
-        try:
-            compound.reaction_role = values_dict[role.upper()].number
-        except KeyError as error:
-            raise KeyError(
-                f"{role} is not a supported type: {values_dict.keys()}"
-            ) from error
+        compound.reaction_role = _resolve_enum_value(
+            compound_desc, "reaction_role", role
+        )
     if is_limiting is not None:
         if not (is_limiting is True or is_limiting is False):
             raise TypeError(f"is_limiting must be a boolean value: {is_limiting}")
@@ -117,15 +124,7 @@ def build_compound(
     if prep:
         prep_desc = reaction_pb2.CompoundPreparation.DESCRIPTOR
         assert prep_desc is not None  # Type hint.
-        field = prep_desc.fields_by_name["type"]
-        assert field.enum_type is not None  # Type hint.
-        values_dict = field.enum_type.values_by_name
-        try:
-            compound.preparations.add().type = values_dict[prep.upper()].number
-        except KeyError as error:
-            raise KeyError(
-                f"{prep} is not a supported type: {values_dict.keys()}"
-            ) from error
+        compound.preparations.add().type = _resolve_enum_value(prep_desc, "type", prep)
         if (
             compound.preparations[0].type == reaction_pb2.CompoundPreparation.CUSTOM
             and not prep_details
@@ -171,7 +170,7 @@ def set_solute_moles(
         raise ValueError("solute has defined amount and overwrite is False")
 
     # Get total solvent volume in liters.
-    volume_liter = 0
+    volume_liter = 0.0
     for solvent in solvents:
         amount = solvent.amount
         if not amount.HasField("volume") or not amount.volume.value:
