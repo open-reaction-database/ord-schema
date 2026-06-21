@@ -28,7 +28,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
-from ord_schema import parquet_dataset
+from ord_schema import parquet
 from ord_schema.logging import get_logger, silence_rdkit_logs
 from ord_schema.message_helpers import load_message
 from ord_schema.orm import database
@@ -58,10 +58,10 @@ def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
     engine = create_engine(dsn)
     if filename.endswith(".parquet"):
         logger.debug(f"Streaming {filename}")
-        dataset_id = parquet_dataset.load_metadata(filename).dataset_id
+        dataset_id = parquet.load_metadata(filename).dataset_id
 
         def compute_md5() -> str:
-            md5_hex, _ = parquet_dataset.streaming_md5(filename)
+            md5_hex, _ = parquet.streaming_md5(filename)
             return md5_hex
 
         def insert(session: Session) -> None:

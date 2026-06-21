@@ -15,7 +15,7 @@
 
 import pytest
 
-from ord_schema import datasets, message_helpers, parquet_dataset
+from ord_schema import datasets, message_helpers, parquet
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -45,7 +45,7 @@ class TestLoadAndSaveDataset:
         # For .parquet, exercise the DatasetView entry point callers will use;
         # for other formats, use the generic load_message.
         if suffix == ".parquet":
-            loaded = parquet_dataset.DatasetView(path)
+            loaded = parquet.DatasetView(path)
         else:
             loaded = message_helpers.load_message(path, dataset_pb2.Dataset)
         assert loaded.name == "n"

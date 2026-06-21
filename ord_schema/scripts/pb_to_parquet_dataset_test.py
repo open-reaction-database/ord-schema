@@ -18,7 +18,7 @@ import logging
 import pytest
 
 from ord_schema import message_helpers
-from ord_schema import parquet_dataset as dataset_module
+from ord_schema import parquet as dataset_module
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import pb_to_parquet_dataset as pb_to_parquet
 

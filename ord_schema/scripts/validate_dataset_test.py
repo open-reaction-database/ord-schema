@@ -17,7 +17,7 @@ import pathlib
 
 import pytest
 
-from ord_schema import datasets, parquet_dataset, validations
+from ord_schema import datasets, parquet, validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import validate_dataset
 
@@ -123,12 +123,12 @@ def test_parquet_cross_row_group_duplicate_id(tmp_path):
         _valid_reaction(reaction_id=repeated_id),
     ]
     path = tmp_path / "cross_group_dup.parquet"
-    with parquet_dataset.DatasetWriter(
+    with parquet.DatasetWriter(
         str(path), name="test", description="test", row_group_size=2
     ) as writer:
         writer.write_all(reactions)
     # Sanity-check the layout the test is asserting against.
-    assert parquet_dataset.num_row_groups(str(path)) == 3
+    assert parquet.num_row_groups(str(path)) == 3
     with pytest.raises(
         validations.ValidationError,
         match="Multiple Reactions should never have the same IDs",
@@ -144,11 +144,9 @@ def test_parquet_empty_file(tmp_path):
     error surfaces.
     """
     path = tmp_path / "empty.parquet"
-    with parquet_dataset.DatasetWriter(
-        str(path), name="test", description="test"
-    ) as writer:
+    with parquet.DatasetWriter(str(path), name="test", description="test") as writer:
         writer.write_all([])
-    assert parquet_dataset.num_row_groups(str(path)) == 0
+    assert parquet.num_row_groups(str(path)) == 0
     with pytest.raises(
         validations.ValidationError,
         match="Dataset requires reactions or reaction_ids",
@@ -164,11 +162,11 @@ def test_parquet_per_reaction_error_in_late_row_group(tmp_path):
         reaction_pb2.Reaction(),  # invalid: no inputs / no outcomes
     ]
     path = tmp_path / "late_invalid.parquet"
-    with parquet_dataset.DatasetWriter(
+    with parquet.DatasetWriter(
         str(path), name="test", description="test", row_group_size=2
     ) as writer:
         writer.write_all(reactions)
-    assert parquet_dataset.num_row_groups(str(path)) == 2
+    assert parquet.num_row_groups(str(path)) == 2
     with pytest.raises(
         validations.ValidationError,
         match="Reactions should have at least 1 reaction input",

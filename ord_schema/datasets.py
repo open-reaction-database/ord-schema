@@ -14,9 +14,9 @@
 """Whole-dataset file I/O, dispatching on filename suffix.
 
 These are the convenience entry points for reading and writing a complete
-``Dataset``: ``.parquet`` routes to the (lower-level) ``parquet_dataset``
+``Dataset``: ``.parquet`` routes to the (lower-level) ``parquet``
 serialization, and other suffixes go through ``message_helpers`` single-message
-I/O. For large Parquet datasets prefer the streaming ``parquet_dataset``
+I/O. For large Parquet datasets prefer the streaming ``parquet``
 interfaces (``DatasetView`` / ``iter_reactions``) over loading the whole thing
 into memory.
 """
@@ -25,7 +25,7 @@ import os
 import pathlib
 import warnings
 
-from ord_schema import message_helpers, parquet_dataset
+from ord_schema import message_helpers, parquet
 from ord_schema.proto import dataset_pb2
 
 
@@ -33,12 +33,12 @@ def load_dataset(filename: str | os.PathLike[str]) -> dataset_pb2.Dataset:
     """Loads a Dataset from disk, dispatching on filename suffix.
 
     The dataset-level counterpart to ``message_helpers.load_message``:
-    ``.parquet`` routes to ``parquet_dataset.load_dataset``, which deserializes
+    ``.parquet`` routes to ``parquet.load_dataset``, which deserializes
     every reaction into memory; other suffixes go through ``load_message``.
 
     Loading an entire Parquet dataset into memory defeats the format's
     streaming benefits, so this path warns and recommends the streaming
-    ``parquet_dataset.DatasetView`` loader for large datasets.
+    ``parquet.DatasetView`` loader for large datasets.
 
     Args:
         filename: Path to a serialized Dataset (``.parquet`` or any suffix
@@ -50,11 +50,11 @@ def load_dataset(filename: str | os.PathLike[str]) -> dataset_pb2.Dataset:
     if pathlib.Path(filename).suffix == ".parquet":
         warnings.warn(
             f"Loading the entire Parquet dataset {filename} into memory; for large datasets prefer the "
-            "streaming loader ord_schema.parquet_dataset.DatasetView (or iter_reactions/load_reaction).",
+            "streaming loader ord_schema.parquet.DatasetView (or iter_reactions/load_reaction).",
             UserWarning,
             stacklevel=2,
         )
-        return parquet_dataset.load_dataset(filename)
+        return parquet.load_dataset(filename)
     return message_helpers.load_message(filename, dataset_pb2.Dataset)
 
 
@@ -63,10 +63,10 @@ def save_dataset(
 ) -> None:
     """Writes a Dataset to disk, dispatching on filename suffix.
 
-    ``.parquet`` routes to ``parquet_dataset.save_dataset``; other suffixes go
+    ``.parquet`` routes to ``parquet.save_dataset``; other suffixes go
     through ``message_helpers.save_message``.
     """
     if pathlib.Path(filename).suffix == ".parquet":
-        parquet_dataset.save_dataset(dataset, filename)
+        parquet.save_dataset(dataset, filename)
         return
     message_helpers.save_message(dataset, filename)

@@ -43,7 +43,7 @@ import github
 from ord_schema import (
     atomic_io,
     message_helpers,
-    parquet_dataset,
+    parquet,
     updates,
     validations,
 )
@@ -126,15 +126,15 @@ def cleanup(filename: str, output_filename: str) -> None:
 
 
 def _get_reaction_ids(
-    dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView,
+    dataset: dataset_pb2.Dataset | parquet.DatasetView,
 ) -> set[str]:
     """Returns a set containing the reaction IDs in a Dataset.
 
     For ``DatasetView``, the ``reaction_id`` column is read directly from the
     Parquet file so we never decode Reaction blobs just to collect IDs.
     """
-    if isinstance(dataset, parquet_dataset.DatasetView):
-        return {rid for rid in parquet_dataset.iter_reaction_ids(dataset.path) if rid}
+    if isinstance(dataset, parquet.DatasetView):
+        return {rid for rid in parquet.iter_reaction_ids(dataset.path) if rid}
     return {
         reaction.reaction_id for reaction in dataset.reactions if reaction.reaction_id
     }
@@ -142,7 +142,7 @@ def _get_reaction_ids(
 
 def _load_base_dataset(
     file_status: FileStatus, base: str
-) -> dataset_pb2.Dataset | parquet_dataset.DatasetView | None:
+) -> dataset_pb2.Dataset | parquet.DatasetView | None:
     """Loads a Dataset from another git branch.
 
     Parquet inputs are spilled to a temp file and wrapped in a ``DatasetView``
@@ -173,7 +173,7 @@ def _load_base_dataset(
         with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as temp:
             temp.write(serialized.stdout)
             temp_path = temp.name
-        return parquet_dataset.DatasetView(temp_path)
+        return parquet.DatasetView(temp_path)
     if git_args[-1].endswith(".gz"):
         value = gzip.decompress(serialized.stdout)
     else:
@@ -182,7 +182,7 @@ def _load_base_dataset(
 
 
 def get_change_stats(
-    datasets: Mapping[str, dataset_pb2.Dataset | parquet_dataset.DatasetView | None],
+    datasets: Mapping[str, dataset_pb2.Dataset | parquet.DatasetView | None],
     inputs: Iterable[FileStatus],
     base: str,
 ) -> tuple[set[str], set[str], set[str]]:
@@ -215,7 +215,7 @@ def get_change_stats(
 
 
 def _run_updates(
-    datasets: Mapping[str, dataset_pb2.Dataset | parquet_dataset.DatasetView],
+    datasets: Mapping[str, dataset_pb2.Dataset | parquet.DatasetView],
     *,
     root: str,
     output_format: str,
@@ -233,8 +233,7 @@ def _run_updates(
     options = validations.ValidationOptions(validate_ids=True, require_provenance=True)
     for input_filename, dataset in datasets.items():
         is_parquet_stream = (
-            isinstance(dataset, parquet_dataset.DatasetView)
-            and output_format == ".parquet"
+            isinstance(dataset, parquet.DatasetView) and output_format == ".parquet"
         )
         if is_parquet_stream:
             # Resolve dataset_id up-front so the output filename is known
@@ -261,7 +260,7 @@ def _run_updates(
                     input_filename, temp_filename, dataset_id=dataset.dataset_id
                 )
                 validations.validate_datasets(
-                    {input_filename: parquet_dataset.DatasetView(temp_filename)},
+                    {input_filename: parquet.DatasetView(temp_filename)},
                     write_errors,
                     options=options,
                 )
@@ -271,8 +270,8 @@ def _run_updates(
             continue
         # In-memory path: materialize a Parquet input if the requested output
         # format is not Parquet (so we can mutate via update_dataset).
-        if isinstance(dataset, parquet_dataset.DatasetView):
-            dataset = parquet_dataset.load_dataset(input_filename)  # noqa: PLW2901  (materialize the view in place)
+        if isinstance(dataset, parquet.DatasetView):
+            dataset = parquet.load_dataset(input_filename)  # noqa: PLW2901  (materialize the view in place)
         updates.update_dataset(dataset)
         validations.validate_datasets(
             {input_filename: dataset}, write_errors, options=options
@@ -309,11 +308,11 @@ def run(
     # NOTE(kearnes): Process one dataset at a time to avoid OOM errors.
     change_stats = {}
     for file_status in inputs:
-        dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView | None
+        dataset: dataset_pb2.Dataset | parquet.DatasetView | None
         if file_status.status == "D":
             dataset = None
         elif file_status.filename.endswith(".parquet"):
-            dataset = parquet_dataset.DatasetView(file_status.filename)
+            dataset = parquet.DatasetView(file_status.filename)
             logger.info(
                 "%s: %d reactions", file_status.filename, len(dataset.reactions)
             )
@@ -324,12 +323,12 @@ def run(
             logger.info(
                 "%s: %d reactions", file_status.filename, len(dataset.reactions)
             )
-        datasets: dict[
-            str, dataset_pb2.Dataset | parquet_dataset.DatasetView | None
-        ] = {file_status.filename: dataset}
-        datasets_checked: dict[
-            str, dataset_pb2.Dataset | parquet_dataset.DatasetView
-        ] = {file_status.filename: dataset} if dataset is not None else {}
+        datasets: dict[str, dataset_pb2.Dataset | parquet.DatasetView | None] = {
+            file_status.filename: dataset
+        }
+        datasets_checked: dict[str, dataset_pb2.Dataset | parquet.DatasetView] = (
+            {file_status.filename: dataset} if dataset is not None else {}
+        )
         if not args.no_validate and dataset is not None:
             # Note: this does not check if IDs are malformed.
             validations.validate_datasets(datasets_checked, args.write_errors)
