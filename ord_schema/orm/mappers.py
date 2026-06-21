@@ -37,7 +37,18 @@ from typing import Any, ClassVar
 from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
 from inflection import underscore
-from sqlalchemy import Boolean, Column, Enum, Float, ForeignKey, Index, Integer, LargeBinary, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Enum,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
@@ -62,20 +73,29 @@ def get_message_type(full_name: str) -> Any:
         return operator(dataset_pb2)
 
 
-def get_parents(message_type: type[Message]) -> dict[type[Message], list[tuple[type[Message], str, bool]]]:
+def get_parents(
+    message_type: type[Message],
+) -> dict[type[Message], list[tuple[type[Message], str, bool]]]:
     """Returns the parent message types for each message type."""
     parents = defaultdict(list)
     root_desc = message_type.DESCRIPTOR
     assert root_desc is not None  # Type hint.
-    for child, parent, field_name, unique in _get_message_contexts(root_desc, None, None, None):
+    for child, parent, field_name, unique in _get_message_contexts(
+        root_desc, None, None, None
+    ):
         if parent is not None:
-            parents[get_message_type(child)].append((get_message_type(parent), field_name, unique))
+            parents[get_message_type(child)].append(
+                (get_message_type(parent), field_name, unique)
+            )
     parents[message_type] = []  # Add the base type.
     return parents
 
 
 def _get_message_contexts(
-    descriptor: Descriptor, parent: str | None, field_name: str | None, unique: bool | None
+    descriptor: Descriptor,
+    parent: str | None,
+    field_name: str | None,
+    unique: bool | None,
 ) -> set[tuple[str, str | None, str | None, bool | None]]:
     """Returns the set of contexts for each message type."""
     if descriptor is None:
@@ -86,7 +106,9 @@ def _get_message_contexts(
             if set(field.message_type.fields_by_name.keys()) == {"key", "value"}:
                 # Check for maps.
                 logger.debug(f"Found map: ({descriptor.full_name}, {field.name})")
-                field_message_type = field.message_type.fields_by_name["value"].message_type
+                field_message_type = field.message_type.fields_by_name[
+                    "value"
+                ].message_type
             else:
                 field_message_type = field.message_type
             counts |= _get_message_contexts(
@@ -131,7 +153,8 @@ _FIELD_TYPES = {
 
 
 def build_mapper(
-    message_type: type[Message], parents: dict[type[Message], list[tuple[type[Message], str, bool]]]
+    message_type: type[Message],
+    parents: dict[type[Message], list[tuple[type[Message], str, bool]]],
 ) -> type:
     """Creates a mapper class for a specific protocol buffer message type.
 
@@ -172,10 +195,14 @@ def build_mapper(
                 kwargs["uselist"] = False
             # All relationships are to polymorphic child classes.
             child_class_name = f"_{msg_desc.name}{field.name.capitalize()}"
-            attrs[field.name] = relationship(child_class_name, back_populates="parent", **kwargs)
+            attrs[field.name] = relationship(
+                child_class_name, back_populates="parent", **kwargs
+            )
         elif field.type == FieldDescriptor.TYPE_ENUM:
             assert field.enum_type is not None  # Type hint.
-            attrs[field.name] = Column(Enum(*field.enum_type.values_by_name.keys(), name=field.enum_type.name))
+            attrs[field.name] = Column(
+                Enum(*field.enum_type.values_by_name.keys(), name=field.enum_type.name)
+            )
         else:
             attrs[field.name] = Column(_FIELD_TYPES[field.type])
     if message_type == dataset_pb2.Dataset:
@@ -191,19 +218,29 @@ def build_mapper(
         # Serialize and store the entire Reaction proto.
         attrs["proto"] = Column(LargeBinary, nullable=False)
         attrs["reaction_smiles"] = Column(Text)
-        attrs["rdkit_reaction_id"] = Column(Integer, ForeignKey("rdkit.reactions.id", ondelete="CASCADE"), index=True)
+        attrs["rdkit_reaction_id"] = Column(
+            Integer, ForeignKey("rdkit.reactions.id", ondelete="CASCADE"), index=True
+        )
         attrs["rdkit_reaction"] = relationship("RDKitReactions")
     elif message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
         attrs["smiles"] = Column(Text)
-        attrs["rdkit_mol_id"] = Column(Integer, ForeignKey("rdkit.mols.id", ondelete="CASCADE"), index=True)
+        attrs["rdkit_mol_id"] = Column(
+            Integer, ForeignKey("rdkit.mols.id", ondelete="CASCADE"), index=True
+        )
         attrs["rdkit_mol"] = relationship("RDKitMols")
-    elif message_type in {reaction_pb2.CompoundPreparation, reaction_pb2.CrudeComponent}:
+    elif message_type in {
+        reaction_pb2.CompoundPreparation,
+        reaction_pb2.CrudeComponent,
+    }:
         # Add foreign key to reaction.reaction_id.
         kwargs = {}
         if message_type == reaction_pb2.CrudeComponent:
             kwargs["nullable"] = False
         attrs["reaction_id"] = Column(
-            Text, ForeignKey("ord.reaction.reaction_id", ondelete="CASCADE"), index=True, **kwargs
+            Text,
+            ForeignKey("ord.reaction.reaction_id", ondelete="CASCADE"),
+            index=True,
+            **kwargs,
         )
     logger.debug(f"Creating mapper {msg_desc.name}: {attrs}")
     mapper_class = type(msg_desc.name, (Base,), attrs)
@@ -214,16 +251,22 @@ def build_mapper(
         foreign_table_name = underscore(parent_desc.name)
         foreign_key = f"ord.{foreign_table_name}.id"
         child_attrs = {
-            "__mapper_args__": {"polymorphic_identity": f"{parent_desc.name}.{field_name}"},
+            "__mapper_args__": {
+                "polymorphic_identity": f"{parent_desc.name}.{field_name}"
+            },
             # Use get() to avoid column conflicts; see
             # https://docs.sqlalchemy.org/en/14/orm/inheritance.html#resolving-column-conflicts.
             #
             # NOTE(skearnes): We are not enforcing unique constraints on this column; see the module docstring.
             f"{foreign_table_name}_id": mapper_class.__table__.c.get(
                 f"{foreign_table_name}_id",
-                Column(Integer, ForeignKey(foreign_key, ondelete="CASCADE"), index=True),
+                Column(
+                    Integer, ForeignKey(foreign_key, ondelete="CASCADE"), index=True
+                ),
             ),
-            "parent": relationship(parent_desc.name, back_populates=field_name, uselist=False),
+            "parent": relationship(
+                parent_desc.name, back_populates=field_name, uselist=False
+            ),
         }
         child_class_name = f"_{parent_desc.name}{field_name.capitalize()}"
         logger.debug(f"Creating child mapper {child_class_name}: {child_attrs}")
@@ -232,7 +275,9 @@ def build_mapper(
 
 
 _MESSAGE_TO_MAPPER: dict[type[Message], type] = build_mappers()
-_MAPPER_TO_MESSAGE: dict[type, type[Message]] = {value: key for key, value in _MESSAGE_TO_MAPPER.items()}
+_MAPPER_TO_MESSAGE: dict[type, type[Message]] = {
+    value: key for key, value in _MESSAGE_TO_MAPPER.items()
+}
 
 # Partial indexes over not-yet-linked rows, keyed by the foreign key used to reach a dataset. The incremental
 # RDKit-linking queries (ord_schema.orm.database.update_rdkit_tables / update_rdkit_ids) repeatedly ask "which of
@@ -277,7 +322,9 @@ class Mappers(metaclass=_MappersMeta):
     _MAPPERS: ClassVar[dict[str, type]] = {c.__name__: c for c in _MAPPER_TO_MESSAGE}
 
 
-def from_proto(message: Message, mapper: type[Base] | None = None, key: str | None = None) -> Base:
+def from_proto(
+    message: Message, mapper: type[Base] | None = None, key: str | None = None
+) -> Base:
     """Converts a protobuf message into an ORM object.
 
     Args:
@@ -298,7 +345,9 @@ def from_proto(message: Message, mapper: type[Base] | None = None, key: str | No
         if field.type == FieldDescriptor.TYPE_MESSAGE:
             field_mapper = getattr(mapper, field.name).mapper.class_
             if isinstance(value, Mapping):
-                kwargs[field.name] = [from_proto(v, mapper=field_mapper, key=k) for k, v in value.items()]
+                kwargs[field.name] = [
+                    from_proto(v, mapper=field_mapper, key=k) for k, v in value.items()
+                ]
             elif field.label == FieldDescriptor.LABEL_REPEATED:
                 kwargs[field.name] = [from_proto(v, mapper=field_mapper) for v in value]
             else:
@@ -308,7 +357,9 @@ def from_proto(message: Message, mapper: type[Base] | None = None, key: str | No
         else:
             kwargs[field.name] = value
     if isinstance(message, dataset_pb2.Dataset):
-        kwargs["md5"] = md5(message.SerializeToString(deterministic=True), usedforsecurity=False).hexdigest()
+        kwargs["md5"] = md5(
+            message.SerializeToString(deterministic=True), usedforsecurity=False
+        ).hexdigest()
         assert hasattr(message, "reactions")
         assert hasattr(message, "reaction_ids")
         kwargs["num_reactions"] = len(message.reactions) or len(message.reaction_ids)
@@ -320,7 +371,9 @@ def from_proto(message: Message, mapper: type[Base] | None = None, key: str | No
             )
         except ValueError as error:
             assert hasattr(message, "reaction_id")  # Type hint.
-            logger.debug(f"Error generating reaction SMILES for {message.reaction_id}: {error}")
+            logger.debug(
+                f"Error generating reaction SMILES for {message.reaction_id}: {error}"
+            )
             reaction_smiles = None
         if reaction_smiles is not None:
             kwargs["reaction_smiles"] = reaction_smiles.split()[0]  # Handle CXSMILES.

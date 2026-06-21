@@ -31,7 +31,9 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """Creates a Logger."""
     global _initialized  # noqa: PLW0603  (module-level one-time init flag)
     if not _initialized:
-        logging.basicConfig(format="%(levelname)s %(asctime)s %(filename)s:%(lineno)d: %(message)s")
+        logging.basicConfig(
+            format="%(levelname)s %(asctime)s %(filename)s:%(lineno)d: %(message)s"
+        )
         _initialized = True
     logger = logging.getLogger(name)
     logger.setLevel(level)

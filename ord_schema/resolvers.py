@@ -19,7 +19,12 @@ import urllib.parse
 import urllib.request
 
 from rdkit import Chem
-from tenacity import retry, retry_if_exception, stop_after_attempt, wait_random_exponential
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 
 import ord_schema
 from ord_schema import message_helpers
@@ -86,7 +91,10 @@ def resolve_names(message: ord_schema.Message) -> bool:
     modified = False
     compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
     for compound in compounds:
-        if any(identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS for identifier in compound.identifiers):
+        if any(
+            identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS
+            for identifier in compound.identifiers
+        ):
             continue  # Compound already has a structural identifier.
         for identifier in compound.identifiers:
             if identifier.type == identifier.NAME:
@@ -133,7 +141,9 @@ def _opsin_resolve(value_type: str, value: str) -> str:
     "THF") with an HTTP 404. Treat it strictly as a complement to PubChem.
     """
     del value_type  # OPSIN only supports names.
-    with urllib.request.urlopen(f"https://www.ebi.ac.uk/opsin/ws/{urllib.parse.quote(value)}.smi") as response:
+    with urllib.request.urlopen(
+        f"https://www.ebi.ac.uk/opsin/ws/{urllib.parse.quote(value)}.smi"
+    ) as response:
         return response.read().decode().strip()
 
 
@@ -159,7 +169,11 @@ def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
     if " in " not in description:
         component_name = description
         component = reaction_input.components.add()
-        component.CopyFrom(message_helpers.build_compound(name=component_name.strip(), amount=amount_string))
+        component.CopyFrom(
+            message_helpers.build_compound(
+                name=component_name.strip(), amount=amount_string
+            )
+        )
         resolve_names(reaction_input)
         return reaction_input
     pattern = re.compile(r"(\d+.?\d*)\s?(\w+)\s(.+)\sin\s(.+)")
@@ -172,7 +186,9 @@ def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
     solute = reaction_input.components.add()
     solvent = reaction_input.components.add()
     solute.CopyFrom(message_helpers.build_compound(name=solute_name.strip()))
-    solvent.CopyFrom(message_helpers.build_compound(name=solvent_name.strip(), amount=amount_string))
+    solvent.CopyFrom(
+        message_helpers.build_compound(name=solvent_name.strip(), amount=amount_string)
+    )
     if solvent.amount.WhichOneof("kind") != "volume":
         raise ValueError("Total amount of solution must be a volume!")
     solvent.amount.volume_includes_solutes = True

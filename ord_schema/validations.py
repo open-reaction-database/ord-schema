@@ -24,7 +24,9 @@ from typing import Any
 
 from dateutil import parser
 from rdkit import Chem
-from rdkit import __version__ as RDKIT_VERSION  # noqa: N812  (RDKIT_VERSION reads better than rdkit_version)
+from rdkit import (
+    __version__ as RDKIT_VERSION,  # noqa: N812  (RDKIT_VERSION reads better than rdkit_version)
+)
 
 import ord_schema
 from ord_schema import message_helpers, parquet_dataset
@@ -113,7 +115,9 @@ def _validate_datasets(
     # Reaction-level validation.
     num_bad_reactions = 0
     for i, reaction in enumerate(dataset.reactions):
-        reaction_output = validate_message(reaction, raise_on_error=False, options=options)
+        reaction_output = validate_message(
+            reaction, raise_on_error=False, options=options
+        )
         if reaction_output.errors:
             num_bad_reactions += 1
         for error in reaction_output.errors:
@@ -262,7 +266,9 @@ def _validate_message(
                 output.extend(this_output)
     else:  # no recursion needed
         this_trace = (*trace, field.name)
-        this_output = validate_message(value, raise_on_error=raise_on_error, options=options, trace=this_trace)
+        this_output = validate_message(
+            value, raise_on_error=raise_on_error, options=options, trace=this_trace
+        )
         output.extend(this_output)
 
 
@@ -363,7 +369,10 @@ def reaction_has_internal_standard(message: reaction_pb2.Reaction) -> bool:
     for workup in message.workups:
         if workup.input:
             for compound in workup.input.components:
-                if compound.reaction_role == reaction_pb2.ReactionRole.INTERNAL_STANDARD:
+                if (
+                    compound.reaction_role
+                    == reaction_pb2.ReactionRole.INTERNAL_STANDARD
+                ):
                     return True
     return False
 
@@ -472,14 +481,18 @@ class DatasetCrossRefState:
         self.referenced_ids |= referenced
 
     def merge(self, other: "DatasetCrossRefState") -> None:
-        self.duplicate_count += other.duplicate_count + len(self.defined_ids & other.defined_ids)
+        self.duplicate_count += other.duplicate_count + len(
+            self.defined_ids & other.defined_ids
+        )
         self.defined_ids |= other.defined_ids
         self.referenced_ids |= other.referenced_ids
         self.self_reference_count += other.self_reference_count
 
     def emit_warnings(self) -> None:
         for _ in range(self.duplicate_count):
-            warnings.warn("Multiple Reactions should never have the same IDs", ValidationError)
+            warnings.warn(
+                "Multiple Reactions should never have the same IDs", ValidationError
+            )
         for _ in range(self.self_reference_count):
             warnings.warn("A Reaction should not reference its own ID", ValidationError)
         undefined = self.referenced_ids - self.defined_ids
@@ -511,7 +524,9 @@ def _validate_dataset_scalars(
     if not has_reactions and not reaction_ids:
         warnings.warn("Dataset requires reactions or reaction_ids", ValidationError)
     elif has_reactions and reaction_ids:
-        warnings.warn("Dataset requires reactions or reaction_ids, not both", ValidationError)
+        warnings.warn(
+            "Dataset requires reactions or reaction_ids, not both", ValidationError
+        )
     if reaction_ids:
         for reaction_id in reaction_ids:
             if not is_valid_reaction_id(reaction_id):
@@ -587,7 +602,9 @@ def validate_dataset_example(message: dataset_pb2.DatasetExample) -> None:
         warnings.warn("DatasetExample.created is required", ValidationError)
 
 
-def validate_reaction(message: reaction_pb2.Reaction, options: ValidationOptions | None = None) -> None:
+def validate_reaction(
+    message: reaction_pb2.Reaction, options: ValidationOptions | None = None
+) -> None:
     """Validates a Reaction's inputs, outcomes, identifiers, and provenance."""
     if options is None:
         options = ValidationOptions()
@@ -600,23 +617,31 @@ def validate_reaction(message: reaction_pb2.Reaction, options: ValidationOptions
         pass
     else:
         if len(message.inputs) == 0:
-            warnings.warn("Reactions should have at least 1 reaction input", ValidationError)
+            warnings.warn(
+                "Reactions should have at least 1 reaction input", ValidationError
+            )
         if len(message.outcomes) == 0:
-            warnings.warn("Reactions should have at least 1 reaction outcome", ValidationError)
+            warnings.warn(
+                "Reactions should have at least 1 reaction outcome", ValidationError
+            )
     for input_ in message.inputs:
         for component in message.inputs[input_].components:
             if not component.amount.WhichOneof("kind"):
-                warnings.warn("All reaction input components require an amount", ValidationError)
-    if reaction_needs_internal_standard(message) and not reaction_has_internal_standard(message):
+                warnings.warn(
+                    "All reaction input components require an amount", ValidationError
+                )
+    if reaction_needs_internal_standard(message) and not reaction_has_internal_standard(
+        message
+    ):
         warnings.warn(
             "Reaction analysis uses an internal standard, but no "
             "component (as reaction input or workup) uses the "
             "reaction role INTERNAL_STANDARD",
             ValidationError,
         )
-    if any(outcome.HasField("conversion") for outcome in message.outcomes) and not reaction_has_limiting_component(
-        message
-    ):
+    if any(
+        outcome.HasField("conversion") for outcome in message.outcomes
+    ) and not reaction_has_limiting_component(message):
         warnings.warn(
             "If reaction conversion is specified, at least one reaction input component must be labeled is_limiting",
             ValidationError,
@@ -660,12 +685,15 @@ def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier) -> No
 def validate_reaction_input(message: reaction_pb2.ReactionInput) -> None:
     """Validates ReactionInput component counts and texture consistency."""
     if len(message.components) + len(message.crude_components) == 0:
-        warnings.warn("Reaction inputs must have at least one component", ValidationError)
+        warnings.warn(
+            "Reaction inputs must have at least one component", ValidationError
+        )
     elif len(message.components) + len(message.crude_components) == 1:
         for component in message.components:
             if (
                 component.amount.WhichOneof("kind") == "unmeasured"
-                and component.amount.unmeasured.type == reaction_pb2.UnmeasuredAmount.SATURATED
+                and component.amount.unmeasured.type
+                == reaction_pb2.UnmeasuredAmount.SATURATED
             ):
                 warnings.warn(
                     "SATURATED compound amounts should only be used "
@@ -695,7 +723,9 @@ def validate_reaction_input(message: reaction_pb2.ReactionInput) -> None:
     input_state_code = texture_type_to_state_of_matter[message.texture.type]
     if input_state_code is not None:
         components = [*message.components, *message.crude_components]
-        component_state_codes = [texture_type_to_state_of_matter[c.texture.type] for c in components]
+        component_state_codes = [
+            texture_type_to_state_of_matter[c.texture.type] for c in components
+        ]
         if (
             component_state_codes
             and None not in component_state_codes
@@ -710,7 +740,10 @@ def validate_reaction_input(message: reaction_pb2.ReactionInput) -> None:
 
 def validate_amount(message: reaction_pb2.Amount) -> None:
     """Validates that volume_includes_solutes is only set for volume amounts."""
-    if message.HasField("volume_includes_solutes") and message.WhichOneof("kind") != "volume":
+    if (
+        message.HasField("volume_includes_solutes")
+        and message.WhichOneof("kind") != "volume"
+    ):
         warnings.warn(
             "volume_includes_solutes should only be set for volume amounts",
             ValidationError,
@@ -726,9 +759,9 @@ def validate_crude_component(message: reaction_pb2.CrudeComponent) -> None:
             "CrudeComponents with derived amounts cannot have their mass or volume specified explicitly",
             ValidationError,
         )
-    if (not message.HasField("has_derived_amount") or not message.has_derived_amount) and not message.amount.HasField(
-        "kind"
-    ):
+    if (
+        not message.HasField("has_derived_amount") or not message.has_derived_amount
+    ) and not message.amount.HasField("kind"):
         warnings.warn(
             "Crude components should either have a derived amount or a specified mass or volume",
             ValidationError,
@@ -807,7 +840,9 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier) -> No
                 ValidationWarning,
             )
     elif message.type in (message.PUBCHEM_CID, message.CHEMSPIDER_ID):
-        identifier_type = "PubChem CID" if message.type == message.PUBCHEM_CID else "ChemSpider ID"
+        identifier_type = (
+            "PubChem CID" if message.type == message.PUBCHEM_CID else "ChemSpider ID"
+        )
         if not message.value.isdecimal():
             warnings.warn(
                 f"{identifier_type} {message.value} should be an integer",
@@ -838,12 +873,16 @@ def validate_reaction_conditions(message: reaction_pb2.ReactionConditions) -> No
         )
 
 
-def validate_stirring_rate(message: reaction_pb2.StirringConditions.StirringRate) -> None:
+def validate_stirring_rate(
+    message: reaction_pb2.StirringConditions.StirringRate,
+) -> None:
     """Validates that the stirring rate (rpm) is non-negative."""
     ensure_float_nonnegative(message, "rpm")
 
 
-def validate_illumination_conditions(message: reaction_pb2.IlluminationConditions) -> None:
+def validate_illumination_conditions(
+    message: reaction_pb2.IlluminationConditions,
+) -> None:
     """Validates IlluminationConditions type and peak_wavelength usage."""
     check_type_and_details(message)
     if message.type in (
@@ -861,12 +900,18 @@ def validate_electrochemistry_conditions(
 ) -> None:
     """Validates ElectrochemistryConditions type/field consistency."""
     check_type_and_details(message)
-    if message.type == reaction_pb2.ElectrochemistryConditions.CONSTANT_CURRENT and not message.HasField("current"):
+    if (
+        message.type == reaction_pb2.ElectrochemistryConditions.CONSTANT_CURRENT
+        and not message.HasField("current")
+    ):
         warnings.warn(
             "CONSTANT_CURRENT electrochemistry conditions should specify the current",
             ValidationWarning,
         )
-    if message.type == reaction_pb2.ElectrochemistryConditions.CONSTANT_VOLTAGE and not message.HasField("voltage"):
+    if (
+        message.type == reaction_pb2.ElectrochemistryConditions.CONSTANT_VOLTAGE
+        and not message.HasField("voltage")
+    ):
         warnings.warn(
             "CONSTANT_VOLTAGE electrochemistry conditions should specify the voltage",
             ValidationWarning,
@@ -877,8 +922,12 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup) -> None:
     """Validates a ReactionWorkup's type-specific required fields and pH range."""
     check_type_and_details(message)
     if message.type == reaction_pb2.ReactionWorkup.WAIT and not message.duration.value:
-        warnings.warn("WAIT workup steps should have a defined duration", ValidationWarning)
-    if message.type == reaction_pb2.ReactionWorkup.TEMPERATURE and not message.HasField("temperature"):
+        warnings.warn(
+            "WAIT workup steps should have a defined duration", ValidationWarning
+        )
+    if message.type == reaction_pb2.ReactionWorkup.TEMPERATURE and not message.HasField(
+        "temperature"
+    ):
         warnings.warn(
             "TEMPERATURE workup steps should have defined temperature conditions",
             ValidationWarning,
@@ -907,10 +956,18 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup) -> None:
         )
         and not message.input.components
     ):
-        warnings.warn("Workup step missing recommended inputs definition", ValidationWarning)
-    if message.type == reaction_pb2.ReactionWorkup.STIRRING and not message.HasField("stirring"):
-        warnings.warn("Stirring workup step missing stirring definition", ValidationWarning)
-    if message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and not message.HasField("target_ph"):
+        warnings.warn(
+            "Workup step missing recommended inputs definition", ValidationWarning
+        )
+    if message.type == reaction_pb2.ReactionWorkup.STIRRING and not message.HasField(
+        "stirring"
+    ):
+        warnings.warn(
+            "Stirring workup step missing stirring definition", ValidationWarning
+        )
+    if message.type == reaction_pb2.ReactionWorkup.PH_ADJUST and not message.HasField(
+        "target_ph"
+    ):
         warnings.warn("pH adjustment workup missing target pH", ValidationWarning)
     if message.HasField("target_ph") and not 0 <= message.target_ph <= 14:
         warnings.warn(
@@ -919,7 +976,9 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup) -> None:
         )
     if message.type == reaction_pb2.ReactionWorkup.ALIQUOT:
         if message.amount.WhichOneof("kind") is None:
-            warnings.warn("Aliquot workup step missing volume/mass amount", ValidationWarning)
+            warnings.warn(
+                "Aliquot workup step missing volume/mass amount", ValidationWarning
+            )
         elif message.amount.WhichOneof("kind") not in ["mass", "volume"]:
             warnings.warn(
                 "Aliquot amounts should be specified by mass or volume",
@@ -960,7 +1019,10 @@ def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome) -> None:
     analysis_keys = list(message.analyses.keys())
     for product in message.products:
         for measurement in product.measurements:
-            if measurement.analysis_key and measurement.analysis_key not in analysis_keys:
+            if (
+                measurement.analysis_key
+                and measurement.analysis_key not in analysis_keys
+            ):
                 warnings.warn(
                     f"analysis key {measurement.analysis_key} does not match any known analysis ({analysis_keys})",
                     ValidationError,
@@ -991,8 +1053,14 @@ def validate_product_compound(message: reaction_pb2.ProductCompound) -> None:
         warnings.warn(str(error), ValidationWarning)
 
     if message.is_desired_product:
-        if message.reaction_role == reaction_pb2.ReactionRole.ReactionRoleType.SIDE_PRODUCT:
-            warnings.warn("a product cannot be (SIDE_PRODUCT & is_desired_product)", ValidationError)
+        if (
+            message.reaction_role
+            == reaction_pb2.ReactionRole.ReactionRoleType.SIDE_PRODUCT
+        ):
+            warnings.warn(
+                "a product cannot be (SIDE_PRODUCT & is_desired_product)",
+                ValidationError,
+            )
 
 
 def validate_product_measurement(message: reaction_pb2.ProductMeasurement) -> None:
@@ -1032,7 +1100,9 @@ def validate_product_measurement(message: reaction_pb2.ProductMeasurement) -> No
                 "INTENSITY must use numeric values (percentage or float_value)",
                 ValidationError,
             )
-    if message.HasField("selectivity") and (message.type != reaction_pb2.ProductMeasurement.SELECTIVITY):
+    if message.HasField("selectivity") and (
+        message.type != reaction_pb2.ProductMeasurement.SELECTIVITY
+    ):
         warnings.warn(
             "The selectivity_type field should only be used for a product measurement with type SELECTIVITY",
             ValidationError,
@@ -1057,8 +1127,13 @@ def validate_mass_spec_measurement_type(
         )
     if any(mass < 0 for mass in message.eic_masses):
         warnings.warn("eic_masses must be non-negative", ValidationError)
-    if message.type == reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails.EIC and not message.eic_masses:
-        warnings.warn("EIC mass spec measurements should specify eic_masses", ValidationWarning)
+    if (
+        message.type == reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails.EIC
+        and not message.eic_masses
+    ):
+        warnings.warn(
+            "EIC mass spec measurements should specify eic_masses", ValidationWarning
+        )
     if (
         message.type
         in (
@@ -1068,7 +1143,10 @@ def validate_mass_spec_measurement_type(
         )
         and message.eic_masses
     ):
-        warnings.warn("eic_masses should only be specified for EIC mass spec measurements", ValidationWarning)
+        warnings.warn(
+            "eic_masses should only be specified for EIC mass spec measurements",
+            ValidationWarning,
+        )
 
 
 def validate_date_time(message: reaction_pb2.DateTime) -> None:
@@ -1077,7 +1155,9 @@ def validate_date_time(message: reaction_pb2.DateTime) -> None:
         try:
             parser.parse(message.value).ctime()
         except parser.ParserError:
-            warnings.warn(f"Could not parse DateTime string {message.value}", ValidationError)
+            warnings.warn(
+                f"Could not parse DateTime string {message.value}", ValidationError
+            )
 
 
 def validate_analysis(message: reaction_pb2.Analysis) -> None:
@@ -1107,10 +1187,14 @@ def validate_reaction_provenance(message: reaction_pb2.ReactionProvenance) -> No
     # Check signs of time differences
     if experiment_start and record_created:
         if (record_created - experiment_start).total_seconds() < 0:
-            warnings.warn("Record creation time should be after experiment", ValidationError)
+            warnings.warn(
+                "Record creation time should be after experiment", ValidationError
+            )
     if record_modified and record_created:
         if (record_modified - record_created).total_seconds() < 0:
-            warnings.warn("Record modified time should be after creation", ValidationError)
+            warnings.warn(
+                "Record modified time should be after creation", ValidationError
+            )
     if not message.record_created.person.email:
         warnings.warn("User email is required for record_created", ValidationError)
     for record in message.record_modified:
@@ -1151,11 +1235,15 @@ def validate_person(message: reaction_pb2.Person) -> None:
     """Validates a Person's ORCID and email formats."""
     if message.orcid:
         if not is_valid_orcid(message.orcid):
-            warnings.warn("Invalid ORCID: Enter as 0000-0000-0000-0000", ValidationError)
+            warnings.warn(
+                "Invalid ORCID: Enter as 0000-0000-0000-0000", ValidationError
+            )
     if message.email:
         # Based on https://www.regular-expressions.info/email.html.
         # Added optional "[bot]" suffix to the username for GitHub actions.
-        if not re.fullmatch(r"[a-zA-Z0-9._+-]+(?:\[bot\])?@[a-zA-Z0-9.-]+\.[a-z]{2,}", message.email):
+        if not re.fullmatch(
+            r"[a-zA-Z0-9._+-]+(?:\[bot\])?@[a-zA-Z0-9.-]+\.[a-z]{2,}", message.email
+        ):
             warnings.warn(f"Invalid email address: {message.email}", ValidationError)
 
 
@@ -1200,7 +1288,9 @@ def validate_data(message: reaction_pb2.Data) -> None:
     if message.bytes_value and not message.format:
         warnings.warn("Data format is required for bytes_data", ValidationError)
     if message.WhichOneof("kind") == "url" and not is_url(message.url):
-        warnings.warn(f"Data URL does not look like a valid URL: {message.url}", ValidationWarning)
+        warnings.warn(
+            f"Data URL does not look like a valid URL: {message.url}", ValidationWarning
+        )
 
 
 _VALIDATOR_SWITCH: dict[type, Callable[..., None]] = {

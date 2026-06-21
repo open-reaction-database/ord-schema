@@ -88,7 +88,9 @@ class DatasetWriter:
         if not description:
             raise ValueError("DatasetWriter requires a non-empty description")
         self._row_group_size = row_group_size
-        self._schema = _build_schema(name=name, description=description, dataset_id=dataset_id)
+        self._schema = _build_schema(
+            name=name, description=description, dataset_id=dataset_id
+        )
         # Atomic publish: write to a sibling temp path with a unique random
         # suffix (so concurrent writers do not collide), rename onto `path`
         # on successful close, remove on exception. Same semantics as
@@ -97,10 +99,14 @@ class DatasetWriter:
         self._path = os.fspath(path)
         parent = pathlib.Path(self._path).parent
         basename = pathlib.Path(self._path).name
-        fd, self._tmp_path = tempfile.mkstemp(dir=parent, prefix=basename + ".", suffix=".tmp")
+        fd, self._tmp_path = tempfile.mkstemp(
+            dir=parent, prefix=basename + ".", suffix=".tmp"
+        )
         os.close(fd)
         try:
-            self._writer = pq.ParquetWriter(self._tmp_path, self._schema, compression=compression)
+            self._writer = pq.ParquetWriter(
+                self._tmp_path, self._schema, compression=compression
+            )
         except BaseException:
             with contextlib.suppress(FileNotFoundError):
                 pathlib.Path(self._tmp_path).unlink()
@@ -167,7 +173,10 @@ class DatasetWriter:
         return self
 
     def __exit__(
-        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         # On exception in the with body, abort the write so the destination
         # path is never created; let the original exception propagate.
@@ -202,7 +211,9 @@ def write_dataset(
             fields (``name``, ``description``) are unset.
     """
     if not dataset.reactions:
-        raise ValueError("Dataset has no reactions; Parquet datasets require at least one Reaction.")
+        raise ValueError(
+            "Dataset has no reactions; Parquet datasets require at least one Reaction."
+        )
     with DatasetWriter(
         path,
         name=dataset.name,
@@ -344,12 +355,18 @@ def iter_reactions(
     else:
         filter_set = set(reaction_ids)
         if not filter_set:
-            raise ValueError("reaction_ids must be non-empty when provided; pass None to iterate all")
+            raise ValueError(
+                "reaction_ids must be non-empty when provided; pass None to iterate all"
+            )
     with pq.ParquetFile(path) as parquet_file:
         if row_group is not None:
             if not 0 <= row_group < parquet_file.num_row_groups:
-                raise IndexError(f"row_group {row_group} out of range [0, {parquet_file.num_row_groups})")
-            table = parquet_file.read_row_group(row_group, columns=["reaction_id", "reaction"])
+                raise IndexError(
+                    f"row_group {row_group} out of range [0, {parquet_file.num_row_groups})"
+                )
+            table = parquet_file.read_row_group(
+                row_group, columns=["reaction_id", "reaction"]
+            )
             yield from _iter_table(table, filter_set=filter_set)
         else:
             yield from _iter_reactions(parquet_file, filter_set=filter_set)
@@ -437,7 +454,9 @@ def iter_reaction_ids(path: str | os.PathLike[str]) -> Iterator[str]:
             yield from batch.column("reaction_id").to_pylist()
 
 
-def read_reaction(path: str | os.PathLike[str], reaction_id: str) -> reaction_pb2.Reaction:
+def read_reaction(
+    path: str | os.PathLike[str], reaction_id: str
+) -> reaction_pb2.Reaction:
     """Reads a single Reaction by ID.
 
     Passes ``reaction_id`` as a Parquet predicate, which lets row groups be
@@ -473,7 +492,9 @@ def _build_schema(*, name: str, description: str, dataset_id: str | None) -> pa.
     return _SCHEMA.with_metadata(metadata)
 
 
-def _dataset_from_metadata(raw_metadata: dict[bytes, bytes] | None) -> dataset_pb2.Dataset:
+def _dataset_from_metadata(
+    raw_metadata: dict[bytes, bytes] | None,
+) -> dataset_pb2.Dataset:
     metadata = raw_metadata or {}
 
     def _get(key: str) -> str | None:
@@ -482,15 +503,21 @@ def _dataset_from_metadata(raw_metadata: dict[bytes, bytes] | None) -> dataset_p
 
     version = _get(_META_SCHEMA_VERSION)
     if version is None:
-        raise ValueError(f"missing required Parquet footer key: {_META_SCHEMA_VERSION!r}")
+        raise ValueError(
+            f"missing required Parquet footer key: {_META_SCHEMA_VERSION!r}"
+        )
     if version != SCHEMA_VERSION:
         raise ValueError(f"unsupported Parquet dataset schema version: {version!r}")
     name = _get(_META_NAME)
     description = _get(_META_DESCRIPTION)
     if not name:
-        raise ValueError(f"missing or empty required Parquet footer key: {_META_NAME!r}")
+        raise ValueError(
+            f"missing or empty required Parquet footer key: {_META_NAME!r}"
+        )
     if not description:
-        raise ValueError(f"missing or empty required Parquet footer key: {_META_DESCRIPTION!r}")
+        raise ValueError(
+            f"missing or empty required Parquet footer key: {_META_DESCRIPTION!r}"
+        )
     dataset = dataset_pb2.Dataset(name=name, description=description)
     dataset_id = _get(_META_DATASET_ID)
     if dataset_id:

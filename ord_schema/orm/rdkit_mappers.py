@@ -39,7 +39,13 @@ if TYPE_CHECKING:
 
 def rdkit_cartridge() -> bool:
     """Returns whether to use RDKit PostgreSQL cartridge functionality."""
-    return os.environ.get("ORD_POSTGRES_RDKIT", "1").lower() in ("1", "true", "yes", "y", "on")
+    return os.environ.get("ORD_POSTGRES_RDKIT", "1").lower() in (
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    )
 
 
 class RDKitMol(UserDefinedType):
@@ -146,8 +152,12 @@ class RDKitMols(Base):
     )
 
     @classmethod
-    def tanimoto(cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP) -> ColumnElement[float]:
-        return func.tanimoto_sml(getattr(cls, fp_type.name.lower()), fp_type(cast(other, RDKitMol)))
+    def tanimoto(
+        cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP
+    ) -> ColumnElement[float]:
+        return func.tanimoto_sml(
+            getattr(cls, fp_type.name.lower()), fp_type(cast(other, RDKitMol))
+        )
 
     @classmethod
     def contains_substructure(cls, pattern: str) -> ColumnElement[bool]:
@@ -173,4 +183,6 @@ class RDKitReactions(Base):
 
     @classmethod
     def matches_smarts(cls, pattern: str) -> ColumnElement[bool]:
-        return func.substruct(cls.reaction, func.reaction_from_smarts(cast(pattern, CString)))
+        return func.substruct(
+            cls.reaction, func.reaction_from_smarts(cast(pattern, CString))
+        )

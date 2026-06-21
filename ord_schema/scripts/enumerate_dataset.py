@@ -23,17 +23,27 @@ logger = get_logger(__name__)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Enumerate a template with a spreadsheet")
+    parser = argparse.ArgumentParser(
+        description="Enumerate a template with a spreadsheet"
+    )
     parser.add_argument("--name", required=True, help="Dataset name")
     parser.add_argument("--description", required=True, help="Dataset description")
-    parser.add_argument("--template", required=True, help="Path to a Reaction pbtxt file defining a template")
+    parser.add_argument(
+        "--template",
+        required=True,
+        help="Path to a Reaction pbtxt file defining a template",
+    )
     parser.add_argument(
         "--spreadsheet",
         required=True,
         help="Path to a spreadsheet file with a header row matching template placeholders",
     )
     parser.add_argument("--output", required=True, help="Filename for output Dataset")
-    parser.add_argument("--no-validate", action="store_true", help="If set, do not validate Reaction protos")
+    parser.add_argument(
+        "--no-validate",
+        action="store_true",
+        help="If set, do not validate Reaction protos",
+    )
     return parser.parse_args(argv)
 
 

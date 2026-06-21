@@ -98,7 +98,9 @@ def setup(tmp_path) -> tuple[str, str, dataset_pb2.Dataset]:
     reaction1_compound1.amount.mass.CopyFrom(reaction_pb2.Mass(value=1.2, units="GRAM"))
     reaction1_product1 = reaction1.outcomes.add().products.add()
     reaction1_product1.identifiers.add(value="CO", type="SMILES")
-    reaction1_product1.measurements.add(analysis_key="my_analysis", type="YIELD", percentage={"value": 7.8})
+    reaction1_product1.measurements.add(
+        analysis_key="my_analysis", type="YIELD", percentage={"value": 7.8}
+    )
     reaction1.outcomes[0].analyses["my_analysis"].type = reaction_pb2.Analysis.WEIGHT
     reaction1.provenance.record_created.time.value = "2023-07-01"
     reaction1.provenance.record_created.person.name = "test"
@@ -109,7 +111,9 @@ def setup(tmp_path) -> tuple[str, str, dataset_pb2.Dataset]:
     reaction2_compound1.amount.mass.CopyFrom(reaction_pb2.Mass(value=3.4, units="GRAM"))
     reaction2_product1 = reaction2.outcomes.add().products.add()
     reaction2_product1.identifiers.add(value="CCO", type="SMILES")
-    reaction2_product1.measurements.add(analysis_key="my_analysis", type="YIELD", percentage={"value": 9.0})
+    reaction2_product1.measurements.add(
+        analysis_key="my_analysis", type="YIELD", percentage={"value": 9.0}
+    )
     reaction2.outcomes[0].analyses["my_analysis"].type = reaction_pb2.Analysis.WEIGHT
     reaction2.provenance.record_created.time.value = "2023-07-01"
     reaction2.provenance.record_created.person.name = "test"
@@ -120,7 +124,9 @@ def setup(tmp_path) -> tuple[str, str, dataset_pb2.Dataset]:
     reaction3_compound1.amount.mass.CopyFrom(reaction_pb2.Mass(value=5.6, units="GRAM"))
     reaction3_product1 = reaction3.outcomes.add().products.add()
     reaction3_product1.identifiers.add(value="CCCO", type="SMILES")
-    reaction3_product1.measurements.add(analysis_key="my_analysis", type="YIELD", percentage={"value": 8.7})
+    reaction3_product1.measurements.add(
+        analysis_key="my_analysis", type="YIELD", percentage={"value": 8.7}
+    )
     reaction3.outcomes[0].analyses["my_analysis"].type = reaction_pb2.Analysis.WEIGHT
     reaction3.provenance.record_created.time.value = "2023-07-01"
     reaction3.provenance.record_created.person.name = "test"
