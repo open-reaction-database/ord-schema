@@ -78,8 +78,8 @@ def setup(tmp_path) -> tuple[str, str, dataset_pb2.Dataset]:
     }
     reaction_id: "ord-d73a86df4d0d4a32a23007aeff1a94e4"
     """
-    template_filename = str(pathlib.Path(dirname) / "template.pbtxt")
-    with pathlib.Path(template_filename).open("w") as f:
+    template_filename = pathlib.Path(dirname) / "template.pbtxt"
+    with template_filename.open("w") as f:
         f.write(template_string)
     data = pd.DataFrame(
         {
@@ -89,7 +89,7 @@ def setup(tmp_path) -> tuple[str, str, dataset_pb2.Dataset]:
             "product_yield": [7.8, 9.0, 8.7],
         }
     )
-    spreadsheet_filename = str(pathlib.Path(dirname) / "spreadsheet.csv")
+    spreadsheet_filename = pathlib.Path(dirname) / "spreadsheet.csv"
     data.to_csv(spreadsheet_filename, index=False)
     expected = dataset_pb2.Dataset(name="test", description="test")
     reaction1 = expected.reactions.add()
@@ -125,7 +125,7 @@ def setup(tmp_path) -> tuple[str, str, dataset_pb2.Dataset]:
     reaction3.provenance.record_created.time.value = "2023-07-01"
     reaction3.provenance.record_created.person.name = "test"
     reaction3.provenance.record_created.person.email = "test@example.com"
-    return template_filename, spreadsheet_filename, expected
+    return template_filename.as_posix(), spreadsheet_filename.as_posix(), expected
 
 
 def test_main(setup, tmp_path):
