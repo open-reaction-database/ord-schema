@@ -28,6 +28,7 @@ Notes:
       the database.
 """
 
+import contextlib
 from collections import defaultdict
 from collections.abc import Mapping
 from hashlib import md5
@@ -378,10 +379,8 @@ def from_proto(
         if reaction_smiles is not None:
             kwargs["reaction_smiles"] = reaction_smiles.split()[0]  # Handle CXSMILES.
     elif isinstance(message, reaction_pb2.Compound | reaction_pb2.ProductCompound):
-        try:
+        with contextlib.suppress(ValueError):
             kwargs["smiles"] = message_helpers.smiles_from_compound(message)
-        except ValueError:
-            pass
     return mapper(**kwargs)
 
 
