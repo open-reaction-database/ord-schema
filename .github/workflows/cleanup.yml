@@ -47,7 +47,9 @@ jobs:
           enable-cache: true
           python-version: '3.11'
       - name: Install ord-schema
-        run: uv sync --extra examples --extra tests --locked
+        # All extras so ty can resolve their imports (orm -> sqlalchemy, github -> github,
+        # huggingface -> huggingface_hub) across the whole ord_schema package.
+        run: uv sync --extra examples --extra github --extra huggingface --extra orm --extra tests --locked
       - name: Verify bump2version config (dry-run)
         run: |
           uv pip install bump2version
