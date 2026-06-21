@@ -11,12 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for ord_schema.parquet_dataset."""
+"""Tests for ord_schema.parquet."""
 
 import pyarrow.parquet as pq
 import pytest
 
-from ord_schema import parquet_dataset as dataset
+from ord_schema import parquet as dataset
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 

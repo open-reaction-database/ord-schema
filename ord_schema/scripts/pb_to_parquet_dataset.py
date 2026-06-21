@@ -25,7 +25,7 @@ bounded by the largest input (plus one row-group buffer) rather than the sum.
 import argparse
 import dataclasses
 
-from ord_schema import message_helpers, parquet_dataset
+from ord_schema import message_helpers, parquet
 from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2
 
@@ -85,7 +85,7 @@ def main(args: argparse.Namespace) -> None:
     )
 
     count = 0
-    with parquet_dataset.DatasetWriter(
+    with parquet.DatasetWriter(
         args.output,
         name=resolved.name,
         description=resolved.description,
@@ -106,7 +106,7 @@ def main(args: argparse.Namespace) -> None:
 
 def _drain(
     dataset: dataset_pb2.Dataset,
-    writer: parquet_dataset.DatasetWriter,
+    writer: parquet.DatasetWriter,
     filename: str,
     resolved: _Resolved,
     args: argparse.Namespace,

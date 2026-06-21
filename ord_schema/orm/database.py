@@ -24,7 +24,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NotSupportedError, OperationalError
 from sqlalchemy.orm import Session
 
-from ord_schema import parquet_dataset
+from ord_schema import parquet
 from ord_schema.logging import get_logger
 from ord_schema.orm.mappers import Base, Mappers, from_proto
 from ord_schema.proto import dataset_pb2
@@ -113,7 +113,7 @@ def add_parquet_dataset(
 
     Two streaming passes over the Parquet file:
 
-    1. ``parquet_dataset.streaming_md5`` to compute ``md5`` and
+    1. ``parquet.streaming_md5`` to compute ``md5`` and
        ``num_reactions`` without holding Reactions in memory.
     2. ``iter_reactions`` to insert Reaction rows in flush/expunge batches.
 
@@ -122,9 +122,9 @@ def add_parquet_dataset(
     regardless of dataset size.
     """
     start = time.time()
-    metadata = parquet_dataset.load_metadata(path)
+    metadata = parquet.load_metadata(path)
     logger.debug(f"Streaming Parquet Dataset {metadata.dataset_id}")
-    md5_hex, num_reactions = parquet_dataset.streaming_md5(path)
+    md5_hex, num_reactions = parquet.streaming_md5(path)
     reaction_child_class = Mappers.Dataset.reactions.mapper.class_
     mapped_dataset = Mappers.Dataset(
         name=metadata.name,
@@ -145,7 +145,7 @@ def add_parquet_dataset(
             session.expunge(obj)
         pending.clear()
 
-    for _, reaction in parquet_dataset.iter_reactions(path):
+    for _, reaction in parquet.iter_reactions(path):
         reaction_mapper = from_proto(reaction, mapper=reaction_child_class)
         reaction_mapper.parent = mapped_dataset
         session.add(reaction_mapper)

@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from ord_schema import message_helpers, parquet_dataset
+from ord_schema import message_helpers, parquet
 from ord_schema.orm import database
 from ord_schema.orm.database import prepare_database
 from ord_schema.orm.mappers import Mappers
@@ -43,7 +43,7 @@ def prepared_engine_fixture(test_engine) -> Engine:
 def _write_parquet_dataset(tmp_path) -> tuple[str, dataset_pb2.Dataset]:
     dataset = message_helpers.load_message(_PBTXT_FIXTURE, dataset_pb2.Dataset)
     parquet_path = (tmp_path / "dataset.parquet").as_posix()
-    parquet_dataset.save_dataset(dataset, parquet_path)
+    parquet.save_dataset(dataset, parquet_path)
     return parquet_path, dataset
 
 
@@ -57,7 +57,7 @@ def test_main_parquet(prepared_engine, tmp_path):
     parquet_path, dataset = _write_parquet_dataset(tmp_path)
     argv = ["--dsn", str(prepared_engine.url), "--pattern", parquet_path]
     add_datasets.main(add_datasets.parse_args(argv))
-    expected_md5, expected_count = parquet_dataset.streaming_md5(parquet_path)
+    expected_md5, expected_count = parquet.streaming_md5(parquet_path)
     with Session(prepared_engine) as session:
         # Dataset row's metadata columns reflect the streaming MD5/count.
         assert database.get_dataset_md5(dataset.dataset_id, session) == expected_md5
@@ -85,7 +85,7 @@ def test_main_parquet_skip_unchanged(prepared_engine, tmp_path):
     add_datasets.main(add_datasets.parse_args(argv))
     add_datasets.main(add_datasets.parse_args(argv))
     # Skip path must not re-insert: reaction count is unchanged after the second call.
-    _, expected_count = parquet_dataset.streaming_md5(parquet_path)
+    _, expected_count = parquet.streaming_md5(parquet_path)
     with Session(prepared_engine) as session:
         mapped_dataset = session.scalar(
             select(Mappers.Dataset).where(
@@ -102,7 +102,7 @@ def test_main_parquet_rejects_changed_without_overwrite(prepared_engine, tmp_pat
     argv = ["--dsn", str(prepared_engine.url), "--pattern", parquet_path]
     add_datasets.main(add_datasets.parse_args(argv))
     dataset.reactions[0].outcomes[0].conversion.value = 999.0
-    parquet_dataset.save_dataset(dataset, parquet_path)
+    parquet.save_dataset(dataset, parquet_path)
     with pytest.raises(
         RuntimeError
     ):  # main() collects per-future failures and raises in aggregate.
