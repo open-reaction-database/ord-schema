@@ -42,7 +42,9 @@ class _Resolved:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Convert serialized Dataset files to a single Parquet file.")
+    parser = argparse.ArgumentParser(
+        description="Convert serialized Dataset files to a single Parquet file."
+    )
     parser.add_argument(
         "inputs",
         nargs="+",
@@ -50,9 +52,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--output", required=True, help="Output Parquet filename.")
     parser.add_argument("--name", default=None, help="Override output dataset name.")
-    parser.add_argument("--description", default=None, help="Override output dataset description.")
-    parser.add_argument("--dataset-id", default=None, help="Override output dataset_id.")
-    parser.add_argument("--row-group-size", type=int, default=1000, help="Rows per Parquet row group (default: 1000).")
+    parser.add_argument(
+        "--description", default=None, help="Override output dataset description."
+    )
+    parser.add_argument(
+        "--dataset-id", default=None, help="Override output dataset_id."
+    )
+    parser.add_argument(
+        "--row-group-size",
+        type=int,
+        default=1000,
+        help="Rows per Parquet row group (default: 1000).",
+    )
     return parser.parse_args(argv)
 
 
@@ -63,8 +74,12 @@ def main(args: argparse.Namespace) -> None:
     first = message_helpers.load_message(args.inputs[0], dataset_pb2.Dataset)
     resolved = _Resolved(
         name=args.name if args.name is not None else first.name,
-        description=args.description if args.description is not None else first.description,
-        dataset_id=args.dataset_id if args.dataset_id is not None else (first.dataset_id or None),
+        description=args.description
+        if args.description is not None
+        else first.description,
+        dataset_id=args.dataset_id
+        if args.dataset_id is not None
+        else (first.dataset_id or None),
     )
 
     count = 0
@@ -94,11 +109,26 @@ def _drain(
     resolved: _Resolved,
     args: argparse.Namespace,
 ) -> int:
-    if args.dataset_id is None and dataset.dataset_id and dataset.dataset_id != resolved.dataset_id:
-        logger.warning("%s: dataset_id %r differs from output %r", filename, dataset.dataset_id, resolved.dataset_id)
+    if (
+        args.dataset_id is None
+        and dataset.dataset_id
+        and dataset.dataset_id != resolved.dataset_id
+    ):
+        logger.warning(
+            "%s: dataset_id %r differs from output %r",
+            filename,
+            dataset.dataset_id,
+            resolved.dataset_id,
+        )
     if args.name is None and dataset.name and dataset.name != resolved.name:
-        logger.warning("%s: name %r differs from output %r", filename, dataset.name, resolved.name)
-    if args.description is None and dataset.description and dataset.description != resolved.description:
+        logger.warning(
+            "%s: name %r differs from output %r", filename, dataset.name, resolved.name
+        )
+    if (
+        args.description is None
+        and dataset.description
+        and dataset.description != resolved.description
+    ):
         logger.warning("%s: description differs from output", filename)
     writer.write_all(dataset.reactions)
     return len(dataset.reactions)

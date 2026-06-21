@@ -33,7 +33,11 @@ logger = get_logger(__name__)
 
 
 def get_connection_string(
-    database: str, username: str, password: str, host: str = "localhost", port: int = 5432
+    database: str,
+    username: str,
+    password: str,
+    host: str = "localhost",
+    port: int = 5432,
 ) -> str:
     """Creates an SQLAlchemy connection string."""
     return f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}?client_encoding=utf8"
@@ -50,9 +54,13 @@ def prepare_database(engine: Engine) -> bool:
     """
     with engine.begin() as connection:
         try:
-            connection.execute(text("CREATE EXTENSION IF NOT EXISTS tsm_system_rows"))  # For random sampling.
+            connection.execute(
+                text("CREATE EXTENSION IF NOT EXISTS tsm_system_rows")
+            )  # For random sampling.
         except OperationalError:
-            logger.warning("tsm_system_rows cartridge is not installed; random sampling will be disabled")
+            logger.warning(
+                "tsm_system_rows cartridge is not installed; random sampling will be disabled"
+            )
     with engine.begin() as connection:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS ord"))
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS rdkit"))
@@ -63,15 +71,21 @@ def prepare_database(engine: Engine) -> bool:
         rdkit_cartridge = True
     except (OperationalError, NotSupportedError):
         with engine.begin() as connection:
-            logger.warning("RDKit PostgreSQL cartridge is not installed; structure search will be disabled")
+            logger.warning(
+                "RDKit PostgreSQL cartridge is not installed; structure search will be disabled"
+            )
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS btree_gist"))
         rdkit_cartridge = False
-    with patch.dict(os.environ, {"ORD_POSTGRES_RDKIT": "1" if rdkit_cartridge else "0"}):
+    with patch.dict(
+        os.environ, {"ORD_POSTGRES_RDKIT": "1" if rdkit_cartridge else "0"}
+    ):
         Base.metadata.create_all(engine)
     return rdkit_cartridge
 
 
-def add_dataset(dataset: dataset_pb2.Dataset, session: Session, rdkit_cartridge: bool = True) -> None:
+def add_dataset(
+    dataset: dataset_pb2.Dataset, session: Session, rdkit_cartridge: bool = True
+) -> None:
     """Adds a dataset to the database."""
     logger.debug(f"Adding dataset {dataset.dataset_id}")
     start = time.time()
@@ -92,7 +106,9 @@ def add_dataset(dataset: dataset_pb2.Dataset, session: Session, rdkit_cartridge:
 _PARQUET_FLUSH_BATCH = 200
 
 
-def add_parquet_dataset(path: str, session: Session, rdkit_cartridge: bool = True) -> None:
+def add_parquet_dataset(
+    path: str, session: Session, rdkit_cartridge: bool = True
+) -> None:
     """Streams a Parquet-serialized Dataset into the ORM tables.
 
     Two streaming passes over the Parquet file:
@@ -137,7 +153,9 @@ def add_parquet_dataset(path: str, session: Session, rdkit_cartridge: bool = Tru
         if len(pending) >= _PARQUET_FLUSH_BATCH:
             flush_batch()
     flush_batch()
-    logger.debug(f"add_parquet_dataset() took {time.time() - start:g}s ({num_reactions} reactions)")
+    logger.debug(
+        f"add_parquet_dataset() took {time.time() - start:g}s ({num_reactions} reactions)"
+    )
     if rdkit_cartridge:
         update_rdkit_tables(metadata.dataset_id, session)
         session.flush()
@@ -146,14 +164,20 @@ def add_parquet_dataset(path: str, session: Session, rdkit_cartridge: bool = Tru
 
 def get_dataset_md5(dataset_id: str, session: Session) -> str | None:
     """Returns the MD5 hash of the current version of a dataset, if it exists in the database."""
-    result = session.execute(select(Mappers.Dataset.md5).where(Mappers.Dataset.dataset_id == dataset_id))
+    result = session.execute(
+        select(Mappers.Dataset.md5).where(Mappers.Dataset.dataset_id == dataset_id)
+    )
     row = result.first()
     return row[0] if row else None
 
 
 def get_dataset_size(dataset_id: str, session: Session) -> int:
     """Returns the number of reactions in a dataset."""
-    result = session.execute(select(Mappers.Dataset.num_reactions).where(Mappers.Dataset.dataset_id == dataset_id))
+    result = session.execute(
+        select(Mappers.Dataset.num_reactions).where(
+            Mappers.Dataset.dataset_id == dataset_id
+        )
+    )
     row = result.first()
     if row is None:
         raise ValueError(dataset_id)
@@ -164,7 +188,9 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
     """Deletes a dataset from the database."""
     logger.debug(f"Deleting dataset {dataset_id}")
     start = time.time()
-    session.execute(delete(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset_id))
+    session.execute(
+        delete(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset_id)
+    )
     logger.debug(f"delete took {time.time() - start}s")
 
 
@@ -211,7 +237,9 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
             """),
         {"dataset_id": dataset_id},
     )
-    logger.debug(f"Updating reactions took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)")
+    logger.debug(
+        f"Updating reactions took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)"
+    )
 
 
 def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
@@ -264,10 +292,19 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
             """),
         {"dataset_id": dataset_id},
     )
-    logger.debug(f"Updating mols took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)")
+    logger.debug(
+        f"Updating mols took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)"
+    )
 
 
-def _link_mol_ids(session: Session, *, target_table: str, link_table: str, link_column: str, dataset_id: str) -> int:
+def _link_mol_ids(
+    session: Session,
+    *,
+    target_table: str,
+    link_table: str,
+    link_column: str,
+    dataset_id: str,
+) -> int:
     """Links rdkit.mols ids into a compound table for one dataset's unlinked rows.
 
     The Compound and ProductCompound updates are identical apart from the table

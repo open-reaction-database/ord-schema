@@ -38,5 +38,11 @@ def test_dataset(serialized_dataset):
     assert dataset.name == "test"
     assert dataset.description == "test dataset"
     assert len(dataset.reactions) == 2
-    assert dataset.reactions[0].identifiers[0].type == reaction_pb2.ReactionIdentifier.REACTION_SMILES
-    assert dataset.reactions[1].identifiers[0].type == reaction_pb2.ReactionIdentifier.REACTION_TYPE
+    assert (
+        dataset.reactions[0].identifiers[0].type
+        == reaction_pb2.ReactionIdentifier.REACTION_SMILES
+    )
+    assert (
+        dataset.reactions[1].identifiers[0].type
+        == reaction_pb2.ReactionIdentifier.REACTION_TYPE
+    )

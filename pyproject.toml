@@ -89,7 +89,7 @@ include = ["ord_schema*"]
 "ord_schema.proto" = ["*.pyi"]
 
 [tool.ruff]
-line-length = 120
+line-length = 88
 # Generated protobuf files: never touch.
 extend-exclude = ["*_pb2.py*"]
 target-version = "py311"

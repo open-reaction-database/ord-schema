@@ -43,12 +43,20 @@ def setup(request, tmp_path) -> tuple[str, str]:
     reaction1.provenance.record_created.time.value = "2023-07-01"
     reaction1.provenance.record_created.person.name = "test"
     reaction1.provenance.record_created.person.email = "test@example.com"
-    dataset1 = dataset_pb2.Dataset(name="test1", description="test1", reactions=[reaction1])
-    message_helpers.write_dataset(dataset1, pathlib.Path(test_subdirectory) / f"dataset1{suffix}")
+    dataset1 = dataset_pb2.Dataset(
+        name="test1", description="test1", reactions=[reaction1]
+    )
+    message_helpers.write_dataset(
+        dataset1, pathlib.Path(test_subdirectory) / f"dataset1{suffix}"
+    )
     # reaction2 is empty.
     reaction2 = reaction_pb2.Reaction()
-    dataset2 = dataset_pb2.Dataset(name="test2", description="test2", reactions=[reaction1, reaction2])
-    message_helpers.write_dataset(dataset2, pathlib.Path(test_subdirectory) / f"dataset2{suffix}")
+    dataset2 = dataset_pb2.Dataset(
+        name="test2", description="test2", reactions=[reaction1, reaction2]
+    )
+    message_helpers.write_dataset(
+        dataset2, pathlib.Path(test_subdirectory) / f"dataset2{suffix}"
+    )
     return test_subdirectory, suffix
 
 
@@ -60,7 +68,12 @@ def test_simple(setup):
 
 def test_filter(setup):
     test_subdirectory, suffix = setup
-    argv = ["--input", str(pathlib.Path(test_subdirectory) / f"dataset1{suffix}"), "--filter", "dataset"]
+    argv = [
+        "--input",
+        str(pathlib.Path(test_subdirectory) / f"dataset1{suffix}"),
+        "--filter",
+        "dataset",
+    ]
     validate_dataset.main(validate_dataset.parse_args(argv))
 
 
@@ -110,7 +123,9 @@ def test_parquet_cross_row_group_duplicate_id(tmp_path):
         _valid_reaction(reaction_id=repeated_id),
     ]
     path = tmp_path / "cross_group_dup.parquet"
-    with parquet_dataset.DatasetWriter(str(path), name="test", description="test", row_group_size=2) as writer:
+    with parquet_dataset.DatasetWriter(
+        str(path), name="test", description="test", row_group_size=2
+    ) as writer:
         writer.write_all(reactions)
     # Sanity-check the layout the test is asserting against.
     assert parquet_dataset.num_row_groups(str(path)) == 3
@@ -129,7 +144,9 @@ def test_parquet_empty_file(tmp_path):
     error surfaces.
     """
     path = tmp_path / "empty.parquet"
-    with parquet_dataset.DatasetWriter(str(path), name="test", description="test") as writer:
+    with parquet_dataset.DatasetWriter(
+        str(path), name="test", description="test"
+    ) as writer:
         writer.write_all([])
     assert parquet_dataset.num_row_groups(str(path)) == 0
     with pytest.raises(
@@ -147,7 +164,9 @@ def test_parquet_per_reaction_error_in_late_row_group(tmp_path):
         reaction_pb2.Reaction(),  # invalid: no inputs / no outcomes
     ]
     path = tmp_path / "late_invalid.parquet"
-    with parquet_dataset.DatasetWriter(str(path), name="test", description="test", row_group_size=2) as writer:
+    with parquet_dataset.DatasetWriter(
+        str(path), name="test", description="test", row_group_size=2
+    ) as writer:
         writer.write_all(reactions)
     assert parquet_dataset.num_row_groups(str(path)) == 2
     with pytest.raises(

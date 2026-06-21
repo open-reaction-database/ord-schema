@@ -41,7 +41,10 @@ def test_engine_fixture() -> Iterator[Engine]:
 @pytest.fixture(name="test_session")
 def test_session_fixture(test_engine: Engine) -> Iterator[Session]:
     datasets = [
-        load_message(pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt", dataset_pb2.Dataset)
+        load_message(
+            pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+            dataset_pb2.Dataset,
+        )
     ]
     rdkit_cartridge = prepare_database(test_engine)
     with Session(test_engine) as session:

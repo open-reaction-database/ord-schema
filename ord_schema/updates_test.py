@@ -46,18 +46,28 @@ class TestUpdateDataset:
         dummy_input = dataset.reactions[0].inputs["dummy_input"]
         dummy_input.crude_components.add(reaction_id="crude", has_derived_amount=True)
         dataset.reactions[1].reaction_id = "crude"
-        dummy_input.components[0].preparations.add(type="SYNTHESIZED", reaction_id="synthesized")
+        dummy_input.components[0].preparations.add(
+            type="SYNTHESIZED", reaction_id="synthesized"
+        )
         dataset.reactions[2].reaction_id = "synthesized"
         # Check updated values.
         updates.update_dataset(dataset)
-        assert dummy_input.crude_components[0].reaction_id == dataset.reactions[1].reaction_id
+        assert (
+            dummy_input.crude_components[0].reaction_id
+            == dataset.reactions[1].reaction_id
+        )
         assert dummy_input.crude_components[0].reaction_id != "crude"
-        assert dummy_input.components[0].preparations[0].reaction_id == dataset.reactions[2].reaction_id
+        assert (
+            dummy_input.components[0].preparations[0].reaction_id
+            == dataset.reactions[2].reaction_id
+        )
         assert dummy_input.components[0].preparations[0].reaction_id != "synthesized"
 
     def test_crossferences_are_proper_ids(self, dataset):
         dummy_input = dataset.reactions[0].inputs["dummy_input"]
-        dummy_input.crude_components.add(reaction_id="ord-c0bbd41f095a44a78b6221135961d809", has_derived_amount=True)
+        dummy_input.crude_components.add(
+            reaction_id="ord-c0bbd41f095a44a78b6221135961d809", has_derived_amount=True
+        )
         dataset.reactions[1].reaction_id = "ord-c0bbd41f095a44a78b6221135961d809"
         dummy_input.components[0].preparations.add(
             type="SYNTHESIZED", reaction_id="ord-d0bbd41f095a44a78b6221135961d809"
@@ -65,10 +75,22 @@ class TestUpdateDataset:
         dataset.reactions[2].reaction_id = "ord-d0bbd41f095a44a78b6221135961d809"
         # Check updated values.
         updates.update_dataset(dataset)
-        assert dummy_input.crude_components[0].reaction_id == dataset.reactions[1].reaction_id
-        assert dummy_input.crude_components[0].reaction_id == "ord-c0bbd41f095a44a78b6221135961d809"
-        assert dummy_input.components[0].preparations[0].reaction_id == dataset.reactions[2].reaction_id
-        assert dummy_input.components[0].preparations[0].reaction_id == "ord-d0bbd41f095a44a78b6221135961d809"
+        assert (
+            dummy_input.crude_components[0].reaction_id
+            == dataset.reactions[1].reaction_id
+        )
+        assert (
+            dummy_input.crude_components[0].reaction_id
+            == "ord-c0bbd41f095a44a78b6221135961d809"
+        )
+        assert (
+            dummy_input.components[0].preparations[0].reaction_id
+            == dataset.reactions[2].reaction_id
+        )
+        assert (
+            dummy_input.components[0].preparations[0].reaction_id
+            == "ord-d0bbd41f095a44a78b6221135961d809"
+        )
 
 
 class TestAssignDatasetId:
@@ -85,14 +107,18 @@ class TestAssignDatasetId:
         assert dataset.dataset_id.startswith("ord_dataset-")
 
     def test_keeps_canonical(self):
-        dataset = dataset_pb2.Dataset(dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809")
+        dataset = dataset_pb2.Dataset(
+            dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809"
+        )
         updates.assign_dataset_id(dataset)
         assert dataset.dataset_id == "ord_dataset-c0bbd41f095a44a78b6221135961d809"
 
 
 class TestAssignIdSubstitutions:
     def test_canonical_ids_get_none(self):
-        new_ids, subs = updates.assign_id_substitutions(["ord-c0bbd41f095a44a78b6221135961d809"])
+        new_ids, subs = updates.assign_id_substitutions(
+            ["ord-c0bbd41f095a44a78b6221135961d809"]
+        )
         assert new_ids == [None]
         assert subs == {}
 
@@ -121,13 +147,17 @@ class TestAssignIdSubstitutions:
 class TestApplyReactionUpdates:
     def test_with_new_id(self):
         reaction = reaction_pb2.Reaction()
-        modified = updates.apply_reaction_updates(reaction, new_id="ord-c0bbd41f095a44a78b6221135961d809")
+        modified = updates.apply_reaction_updates(
+            reaction, new_id="ord-c0bbd41f095a44a78b6221135961d809"
+        )
         assert modified
         assert reaction.reaction_id == "ord-c0bbd41f095a44a78b6221135961d809"
         assert len(reaction.provenance.record_modified) == 1
 
     def test_no_new_id_no_other_changes_means_no_modification(self):
-        reaction = reaction_pb2.Reaction(reaction_id="ord-c0bbd41f095a44a78b6221135961d809")
+        reaction = reaction_pb2.Reaction(
+            reaction_id="ord-c0bbd41f095a44a78b6221135961d809"
+        )
         modified = updates.apply_reaction_updates(reaction, new_id=None)
         assert not modified
         assert len(reaction.provenance.record_modified) == 0
@@ -136,16 +166,26 @@ class TestApplyReactionUpdates:
 class TestApplyCrossReferenceSubstitutions:
     def test_no_substitutions_is_noop(self):
         reaction = reaction_pb2.Reaction()
-        reaction.inputs["x"].components.add().preparations.add(type="SYNTHESIZED", reaction_id="orig")
+        reaction.inputs["x"].components.add().preparations.add(
+            type="SYNTHESIZED", reaction_id="orig"
+        )
         updates.apply_cross_reference_substitutions(reaction, {})
         assert reaction.inputs["x"].components[0].preparations[0].reaction_id == "orig"
 
     def test_rewrites_preparations_and_crude_components(self):
         reaction = reaction_pb2.Reaction()
-        reaction.inputs["x"].components.add().preparations.add(type="SYNTHESIZED", reaction_id="prep")
-        reaction.inputs["x"].crude_components.add(reaction_id="crude", has_derived_amount=True)
-        updates.apply_cross_reference_substitutions(reaction, {"prep": "ord-new1", "crude": "ord-new2"})
-        assert reaction.inputs["x"].components[0].preparations[0].reaction_id == "ord-new1"
+        reaction.inputs["x"].components.add().preparations.add(
+            type="SYNTHESIZED", reaction_id="prep"
+        )
+        reaction.inputs["x"].crude_components.add(
+            reaction_id="crude", has_derived_amount=True
+        )
+        updates.apply_cross_reference_substitutions(
+            reaction, {"prep": "ord-new1", "crude": "ord-new2"}
+        )
+        assert (
+            reaction.inputs["x"].components[0].preparations[0].reaction_id == "ord-new1"
+        )
         assert reaction.inputs["x"].crude_components[0].reaction_id == "ord-new2"
 
 
@@ -160,7 +200,9 @@ class TestUpdateParquetDataset:
         r1.inputs["x"].crude_components.add(reaction_id="r3", has_derived_amount=True)
         r2 = reaction_pb2.Reaction(reaction_id="r2")
         r3 = reaction_pb2.Reaction(reaction_id="r3")
-        return dataset_pb2.Dataset(name="streaming", description="streaming test", reactions=[r1, r2, r3])
+        return dataset_pb2.Dataset(
+            name="streaming", description="streaming test", reactions=[r1, r2, r3]
+        )
 
     def test_round_trip_assigns_ids_and_rewrites_cross_refs(self, tmp_path):
         original = self._make_dataset()
@@ -168,7 +210,9 @@ class TestUpdateParquetDataset:
         output_path = pathlib.Path(tmp_path) / "out.parquet"
         parquet_dataset.write_dataset(original, input_path)
         updates.update_parquet_dataset(
-            input_path, output_path, dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809"
+            input_path,
+            output_path,
+            dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809",
         )
         result = parquet_dataset.read_dataset(output_path)
         assert result.dataset_id == "ord_dataset-c0bbd41f095a44a78b6221135961d809"
@@ -195,7 +239,9 @@ class TestUpdateParquetDataset:
         output_path = pathlib.Path(tmp_path) / "out.parquet"
         parquet_dataset.write_dataset(original, input_path)
         updates.update_parquet_dataset(
-            input_path, output_path, dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809"
+            input_path,
+            output_path,
+            dataset_id="ord_dataset-c0bbd41f095a44a78b6221135961d809",
         )
         result = parquet_dataset.read_dataset(output_path)
         assert result.reactions[0].reaction_id == canonical
@@ -220,4 +266,6 @@ class TestUpdateParquetDataset:
             assert (len(s.inputs["x"].components) if "x" in s.inputs else 0) == (
                 len(m.inputs["x"].components) if "x" in m.inputs else 0
             )
-            assert len(s.provenance.record_modified) == len(m.provenance.record_modified)
+            assert len(s.provenance.record_modified) == len(
+                m.provenance.record_modified
+            )

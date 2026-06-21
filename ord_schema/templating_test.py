@@ -46,8 +46,12 @@ def test_valid_templating(valid_reaction):
     template_string = text_format.MessageToString(valid_reaction)
     template_string = template_string.replace('value: "CCO"', 'value: "$smiles$"')
     template_string = template_string.replace("value: 75", "value: $conversion$")
-    df = pd.DataFrame.from_dict({"$smiles$": ["CCO", "CCCO", "CCCCO"], "$conversion$": [75, 50, 30]})
-    dataset = templating.generate_dataset(name="test", description="test", template_string=template_string, df=df)
+    df = pd.DataFrame.from_dict(
+        {"$smiles$": ["CCO", "CCCO", "CCCCO"], "$conversion$": [75, 50, 30]}
+    )
+    dataset = templating.generate_dataset(
+        name="test", description="test", template_string=template_string, df=df
+    )
     expected_reactions = []
     for smiles, conversion in zip(["CCO", "CCCO", "CCCCO"], [75, 50, 30], strict=True):
         reaction = reaction_pb2.Reaction()
@@ -55,12 +59,18 @@ def test_valid_templating(valid_reaction):
         reaction.inputs["in"].components[0].identifiers[0].value = smiles
         reaction.outcomes[0].conversion.value = conversion
         expected_reactions.append(reaction)
-    expected_dataset = dataset_pb2.Dataset(name="test", description="test", reactions=expected_reactions)
+    expected_dataset = dataset_pb2.Dataset(
+        name="test", description="test", reactions=expected_reactions
+    )
     assert dataset == expected_dataset
 
     # Test without "$" in column names
-    df = pd.DataFrame.from_dict({"smiles": ["CCO", "CCCO", "CCCCO"], "conversion": [75, 50, 30]})
-    dataset = templating.generate_dataset(name="test", description="test", template_string=template_string, df=df)
+    df = pd.DataFrame.from_dict(
+        {"smiles": ["CCO", "CCCO", "CCCCO"], "conversion": [75, 50, 30]}
+    )
+    dataset = templating.generate_dataset(
+        name="test", description="test", template_string=template_string, df=df
+    )
     assert dataset == expected_dataset
 
 
@@ -68,23 +78,31 @@ def test_valid_templating_escapes(valid_reaction):
     smiles = ["CCO", "CCCO", "CCCCO"]
     mols = [Chem.MolFromSmiles(this_smiles) for this_smiles in smiles]
     molblocks = [Chem.MolToMolBlock(mol) for mol in mols]
-    valid_reaction.inputs["in"].components[0].identifiers.add(type="MOLBLOCK", value="$molblock$")
+    valid_reaction.inputs["in"].components[0].identifiers.add(
+        type="MOLBLOCK", value="$molblock$"
+    )
     template_string = text_format.MessageToString(valid_reaction)
     df = pd.DataFrame.from_dict({"molblock": molblocks})
-    dataset = templating.generate_dataset(name="test", description="test", template_string=template_string, df=df)
+    dataset = templating.generate_dataset(
+        name="test", description="test", template_string=template_string, df=df
+    )
     expected_reactions = []
     for molblock in molblocks:
         reaction = reaction_pb2.Reaction()
         reaction.CopyFrom(valid_reaction)
         reaction.inputs["in"].components[0].identifiers[1].value = molblock
         expected_reactions.append(reaction)
-    expected_dataset = dataset_pb2.Dataset(name="test", description="test", reactions=expected_reactions)
+    expected_dataset = dataset_pb2.Dataset(
+        name="test", description="test", reactions=expected_reactions
+    )
     assert dataset == expected_dataset
 
 
 @pytest.mark.parametrize("suffix", [".csv", ".xlsx"])
 def test_read_spreadsheet(suffix, tmp_path):
-    df = pd.DataFrame.from_dict({"smiles": ["CCO", "CCCO", "CCCCO"], "conversion": [75, 50, 30]})
+    df = pd.DataFrame.from_dict(
+        {"smiles": ["CCO", "CCCO", "CCCCO"], "conversion": [75, 50, 30]}
+    )
     filename = (tmp_path / f"test{suffix}").as_posix()
     if suffix == ".csv":
         df.to_csv(filename, index=False)
@@ -97,7 +115,9 @@ def test_invalid_templating(valid_reaction):
     template_string = text_format.MessageToString(valid_reaction)
     template_string = template_string.replace('value: "CCO"', 'value: "$my_smiles$"')
     template_string = template_string.replace("precision: 99", "precision: $precision$")
-    df = pd.DataFrame.from_dict({"$my_smiles$": ["CCO", "CCCO", "CCCCO"], "$precision$": [75, 50, -5]})
+    df = pd.DataFrame.from_dict(
+        {"$my_smiles$": ["CCO", "CCCO", "CCCCO"], "$precision$": [75, 50, -5]}
+    )
     expected_reactions = []
     for smiles, precision in zip(["CCO", "CCCO", "CCCCO"], [75, 50, -5], strict=True):
         reaction = reaction_pb2.Reaction()
@@ -105,11 +125,19 @@ def test_invalid_templating(valid_reaction):
         reaction.inputs["in"].components[0].identifiers[0].value = smiles
         reaction.outcomes[0].conversion.precision = precision
         expected_reactions.append(reaction)
-    expected_dataset = dataset_pb2.Dataset(name="test", description="test", reactions=expected_reactions)
+    expected_dataset = dataset_pb2.Dataset(
+        name="test", description="test", reactions=expected_reactions
+    )
     with pytest.raises(ValueError, match="Enumerated Reaction is not valid"):
-        templating.generate_dataset(name="test", description="test", template_string=template_string, df=df)
+        templating.generate_dataset(
+            name="test", description="test", template_string=template_string, df=df
+        )
     dataset = templating.generate_dataset(
-        name="test", description="test", template_string=template_string, df=df, validate=False
+        name="test",
+        description="test",
+        template_string=template_string,
+        df=df,
+        validate=False,
     )
     assert dataset == expected_dataset
 
@@ -120,7 +148,9 @@ def test_bad_placeholders(valid_reaction):
     template_string = template_string.replace("value: 75", "value: $conversion$")
     df = pd.DataFrame.from_dict({"$my_smiles$": ["CCO", "CCCO", "CCCCO"]})
     with pytest.raises(ValueError, match=r"\$conversion\$ not found"):
-        templating.generate_dataset(name="test", description="test", template_string=template_string, df=df)
+        templating.generate_dataset(
+            name="test", description="test", template_string=template_string, df=df
+        )
 
 
 def test_missing_values(tmp_path):
@@ -156,7 +186,9 @@ def test_missing_values(tmp_path):
         f.write("CN,\n")  # Missing mass.
         f.write(",1.5\n")  # Missing SMILES.
     df = pd.read_csv(filename)
-    dataset = templating.generate_dataset(name="test", description="test", template_string=template_string, df=df)
+    dataset = templating.generate_dataset(
+        name="test", description="test", template_string=template_string, df=df
+    )
     expected_dataset = dataset_pb2.Dataset(name="test", description="test")
     reaction1 = expected_dataset.reactions.add()
     reaction1.CopyFrom(reaction)

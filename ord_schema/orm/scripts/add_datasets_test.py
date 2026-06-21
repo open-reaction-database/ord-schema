@@ -28,7 +28,9 @@ from ord_schema.orm.mappers import Mappers
 from ord_schema.orm.scripts import add_datasets
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
-_PBTXT_FIXTURE = str(pathlib.Path(__file__).parent / ".." / "testdata" / "ord-nielsen-example.pbtxt")
+_PBTXT_FIXTURE = str(
+    pathlib.Path(__file__).parent / ".." / "testdata" / "ord-nielsen-example.pbtxt"
+)
 
 
 @pytest.fixture(name="prepared_engine")
@@ -61,12 +63,18 @@ def test_main_parquet(prepared_engine, tmp_path):
         assert database.get_dataset_md5(dataset.dataset_id, session) == expected_md5
         assert database.get_dataset_size(dataset.dataset_id, session) == expected_count
         # Reaction rows were actually inserted (not just the num_reactions column).
-        mapped_dataset = session.scalar(select(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset.dataset_id))
+        mapped_dataset = session.scalar(
+            select(Mappers.Dataset).where(
+                Mappers.Dataset.dataset_id == dataset.dataset_id
+            )
+        )
         assert mapped_dataset is not None
         assert len(mapped_dataset.reactions) == expected_count
         # Spot-check that one reaction round-trips byte-identical through the proto column.
         original = dataset.reactions[0]
-        stored = next(r for r in mapped_dataset.reactions if r.reaction_id == original.reaction_id)
+        stored = next(
+            r for r in mapped_dataset.reactions if r.reaction_id == original.reaction_id
+        )
         assert reaction_pb2.Reaction.FromString(stored.proto) == original
 
 
@@ -79,7 +87,11 @@ def test_main_parquet_skip_unchanged(prepared_engine, tmp_path):
     # Skip path must not re-insert: reaction count is unchanged after the second call.
     _, expected_count = parquet_dataset.streaming_md5(parquet_path)
     with Session(prepared_engine) as session:
-        mapped_dataset = session.scalar(select(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset.dataset_id))
+        mapped_dataset = session.scalar(
+            select(Mappers.Dataset).where(
+                Mappers.Dataset.dataset_id == dataset.dataset_id
+            )
+        )
         assert mapped_dataset is not None
         assert len(mapped_dataset.reactions) == expected_count
 
@@ -91,5 +103,7 @@ def test_main_parquet_rejects_changed_without_overwrite(prepared_engine, tmp_pat
     add_datasets.main(add_datasets.parse_args(argv))
     dataset.reactions[0].outcomes[0].conversion.value = 999.0
     parquet_dataset.write_dataset(dataset, parquet_path)
-    with pytest.raises(RuntimeError):  # main() collects per-future failures and raises in aggregate.
+    with pytest.raises(
+        RuntimeError
+    ):  # main() collects per-future failures and raises in aggregate.
         add_datasets.main(add_datasets.parse_args(argv))
