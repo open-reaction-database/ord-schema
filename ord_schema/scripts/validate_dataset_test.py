@@ -46,7 +46,7 @@ def setup(request, tmp_path) -> tuple[str, str]:
     dataset1 = dataset_pb2.Dataset(
         name="test1", description="test1", reactions=[reaction1]
     )
-    message_helpers.write_dataset(
+    message_helpers.save_dataset(
         dataset1, pathlib.Path(test_subdirectory) / f"dataset1{suffix}"
     )
     # reaction2 is empty.
@@ -54,7 +54,7 @@ def setup(request, tmp_path) -> tuple[str, str]:
     dataset2 = dataset_pb2.Dataset(
         name="test2", description="test2", reactions=[reaction1, reaction2]
     )
-    message_helpers.write_dataset(
+    message_helpers.save_dataset(
         dataset2, pathlib.Path(test_subdirectory) / f"dataset2{suffix}"
     )
     return test_subdirectory, suffix
