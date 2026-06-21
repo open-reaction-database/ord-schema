@@ -14,6 +14,7 @@
 """Automated updates for Reaction messages."""
 
 import datetime
+import os
 import re
 import uuid
 from collections.abc import Iterable
@@ -28,7 +29,9 @@ _REACTION_ID_RE = re.compile("^ord-[0-9a-f]{32}$")
 _DATASET_ID_RE = re.compile("^ord_dataset-[0-9a-f]{32}$")
 
 
-def assign_dataset_id(dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView) -> str:
+def assign_dataset_id(
+    dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView,
+) -> str:
     """Assigns a canonical ``dataset_id`` if the existing one is missing or non-canonical.
 
     Mutates ``dataset.dataset_id`` in place. Works for both ``Dataset`` and
@@ -42,7 +45,9 @@ def assign_dataset_id(dataset: dataset_pb2.Dataset | parquet_dataset.DatasetView
     return dataset.dataset_id
 
 
-def assign_id_substitutions(old_ids: Iterable[str]) -> tuple[list[str | None], dict[str, str]]:
+def assign_id_substitutions(
+    old_ids: Iterable[str],
+) -> tuple[list[str | None], dict[str, str]]:
     """Pre-allocates canonical reaction IDs for a sequence of old IDs.
 
     A reaction's ID is replaced when the existing one is missing or does not
@@ -77,7 +82,9 @@ def assign_id_substitutions(old_ids: Iterable[str]) -> tuple[list[str | None], d
     return new_ids, id_substitutions
 
 
-def apply_reaction_updates(reaction: reaction_pb2.Reaction, *, new_id: str | None) -> bool:
+def apply_reaction_updates(
+    reaction: reaction_pb2.Reaction, *, new_id: str | None
+) -> bool:
     """Applies per-reaction updates in place using a pre-computed reaction ID.
 
     Splitting ID generation out of this function lets a streaming caller
@@ -110,7 +117,9 @@ def apply_reaction_updates(reaction: reaction_pb2.Reaction, *, new_id: str | Non
     return modified
 
 
-def apply_cross_reference_substitutions(reaction: reaction_pb2.Reaction, id_substitutions: dict[str, str]) -> None:
+def apply_cross_reference_substitutions(
+    reaction: reaction_pb2.Reaction, id_substitutions: dict[str, str]
+) -> None:
     """Rewrites cross-referenced reaction_ids inside ``reaction`` using the substitution map."""
     if not id_substitutions:
         return
@@ -121,10 +130,12 @@ def apply_cross_reference_substitutions(reaction: reaction_pb2.Reaction, id_subs
                     preparation.reaction_id = id_substitutions[preparation.reaction_id]
         for crude_component in reaction_input.crude_components:
             if crude_component.reaction_id in id_substitutions:
-                crude_component.reaction_id = id_substitutions[crude_component.reaction_id]
+                crude_component.reaction_id = id_substitutions[
+                    crude_component.reaction_id
+                ]
 
 
-def update_dataset(dataset: dataset_pb2.Dataset):
+def update_dataset(dataset: dataset_pb2.Dataset) -> None:
     """Updates a Dataset message.
 
     Current updates:
@@ -142,14 +153,21 @@ def update_dataset(dataset: dataset_pb2.Dataset):
             elsewhere in the Dataset.
     """
     assign_dataset_id(dataset)
-    new_ids, id_substitutions = assign_id_substitutions(r.reaction_id for r in dataset.reactions)
+    new_ids, id_substitutions = assign_id_substitutions(
+        r.reaction_id for r in dataset.reactions
+    )
     for reaction, new_id in zip(dataset.reactions, new_ids, strict=True):
         apply_reaction_updates(reaction, new_id=new_id)
     for reaction in dataset.reactions:
         apply_cross_reference_substitutions(reaction, id_substitutions)
 
 
-def update_parquet_dataset(input_path: str, output_path: str, *, dataset_id: str) -> None:
+def update_parquet_dataset(
+    input_path: str | os.PathLike[str],
+    output_path: str | os.PathLike[str],
+    *,
+    dataset_id: str,
+) -> None:
     """Stream-applies ``update_dataset`` to a Parquet input, writing the result to ``output_path``.
 
     Two passes over ``input_path``:
@@ -171,14 +189,18 @@ def update_parquet_dataset(input_path: str, output_path: str, *, dataset_id: str
         dataset_id: Resolved dataset_id to write into the output footer.
     """
     header = parquet_dataset.load_metadata(input_path)
-    new_ids, id_substitutions = assign_id_substitutions(parquet_dataset.iter_reaction_ids(input_path))
+    new_ids, id_substitutions = assign_id_substitutions(
+        parquet_dataset.iter_reaction_ids(input_path)
+    )
     with parquet_dataset.DatasetWriter(
         output_path,
         name=header.name,
         description=header.description,
         dataset_id=dataset_id,
     ) as writer:
-        reactions = (reaction for _, reaction in parquet_dataset.iter_reactions(input_path))
+        reactions = (
+            reaction for _, reaction in parquet_dataset.iter_reactions(input_path)
+        )
         for reaction, new_id in zip(reactions, new_ids, strict=True):
             apply_reaction_updates(reaction, new_id=new_id)
             apply_cross_reference_substitutions(reaction, id_substitutions)

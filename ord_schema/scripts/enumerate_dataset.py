@@ -14,6 +14,7 @@
 """Creates a Dataset by enumerating a template with a spreadsheet."""
 
 import argparse
+import pathlib
 
 from ord_schema import message_helpers, templating
 from ord_schema.logging import get_logger
@@ -21,23 +22,35 @@ from ord_schema.logging import get_logger
 logger = get_logger(__name__)
 
 
-def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="Enumerate a template with a spreadsheet")
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parses command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Enumerate a template with a spreadsheet"
+    )
     parser.add_argument("--name", required=True, help="Dataset name")
     parser.add_argument("--description", required=True, help="Dataset description")
-    parser.add_argument("--template", required=True, help="Path to a Reaction pbtxt file defining a template")
+    parser.add_argument(
+        "--template",
+        required=True,
+        help="Path to a Reaction pbtxt file defining a template",
+    )
     parser.add_argument(
         "--spreadsheet",
         required=True,
         help="Path to a spreadsheet file with a header row matching template placeholders",
     )
     parser.add_argument("--output", required=True, help="Filename for output Dataset")
-    parser.add_argument("--no-validate", action="store_true", help="If set, do not validate Reaction protos")
+    parser.add_argument(
+        "--no-validate",
+        action="store_true",
+        help="If set, do not validate Reaction protos",
+    )
     return parser.parse_args(argv)
 
 
-def main(args):
-    with open(args.template) as f:
+def main(args: argparse.Namespace) -> None:
+    """Enumerates a Dataset from a Reaction template and spreadsheet, then writes it out."""
+    with pathlib.Path(args.template).open() as f:
         template_string = f.read()
     df = templating.load_spreadsheet(args.spreadsheet)
     logger.info(

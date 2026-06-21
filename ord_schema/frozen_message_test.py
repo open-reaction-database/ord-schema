@@ -14,7 +14,7 @@
 """Tests for ord_schema.frozen_storage."""
 
 import dataclasses
-import os
+import pathlib
 import tempfile
 
 import pytest
@@ -26,7 +26,7 @@ from ord_schema.proto import reaction_pb2, test_pb2
 def _freeze(message) -> frozen_message.FrozenMessage:
     """Runs a round-trip to disk as an extra check for FrozenMessage."""
     with tempfile.TemporaryDirectory() as tempdir:
-        filename = os.path.join(tempdir, "message.pbtxt")
+        filename = pathlib.Path(tempdir) / "message.pbtxt"
         message_helpers.save_message(message, filename)
         loaded_message = message_helpers.load_message(filename, type(message))
         return frozen_message.FrozenMessage(loaded_message)

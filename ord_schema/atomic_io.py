@@ -20,12 +20,13 @@ crash, exception, or interrupt.
 
 import contextlib
 import os
+import pathlib
 import tempfile
 from collections.abc import Iterator
 
 
 @contextlib.contextmanager
-def atomic_path(path: str) -> Iterator[str]:
+def atomic_path(path: str | os.PathLike[str]) -> Iterator[str]:
     """Yields a sibling temp path; renames it onto ``path`` on clean exit.
 
     Usage:
@@ -44,15 +45,15 @@ def atomic_path(path: str) -> Iterator[str]:
     is created (empty) immediately on entry; callers typically open it for
     writing and overwrite it.
     """
-    parent = os.path.dirname(path) or "."
-    basename = os.path.basename(path)
+    parent = pathlib.Path(path).parent
+    basename = pathlib.Path(path).name
     fd, tmp = tempfile.mkstemp(dir=parent, prefix=basename + ".", suffix=".tmp")
     os.close(fd)
     try:
         yield tmp
     except BaseException:
         with contextlib.suppress(FileNotFoundError):
-            os.unlink(tmp)
+            pathlib.Path(tmp).unlink()
         raise
     else:
-        os.replace(tmp, path)
+        pathlib.Path(tmp).replace(path)

@@ -17,11 +17,12 @@ import contextlib
 import enum
 import gzip
 import os
+import pathlib
 import posixpath
 import re
 import warnings
-from collections.abc import Iterable, Mapping, Sequence
-from typing import TypeVar, cast
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from typing import Any, TypeVar, cast
 
 import pandas as pd
 from google.protobuf import (
@@ -88,7 +89,9 @@ def build_compound(
         compound.identifiers.add(value=name, type="NAME")
     if amount:
         if amount.lower() in ("saturated", "catalytic", "titrated"):
-            compound.amount.unmeasured.CopyFrom(reaction_pb2.UnmeasuredAmount(type=amount.upper()))
+            compound.amount.unmeasured.CopyFrom(
+                reaction_pb2.UnmeasuredAmount(type=amount.upper())
+            )
         else:
             resolver = units.UnitResolver()
             amount_pb = resolver.resolve(amount)
@@ -109,7 +112,9 @@ def build_compound(
         try:
             compound.reaction_role = values_dict[role.upper()].number
         except KeyError as error:
-            raise KeyError(f"{role} is not a supported type: {values_dict.keys()}") from error
+            raise KeyError(
+                f"{role} is not a supported type: {values_dict.keys()}"
+            ) from error
     if is_limiting is not None:
         if not (is_limiting is True or is_limiting is False):
             raise TypeError(f"is_limiting must be a boolean value: {is_limiting}")
@@ -123,8 +128,13 @@ def build_compound(
         try:
             compound.preparations.add().type = values_dict[prep.upper()].number
         except KeyError as error:
-            raise KeyError(f"{prep} is not a supported type: {values_dict.keys()}") from error
-        if compound.preparations[0].type == reaction_pb2.CompoundPreparation.CUSTOM and not prep_details:
+            raise KeyError(
+                f"{prep} is not a supported type: {values_dict.keys()}"
+            ) from error
+        if (
+            compound.preparations[0].type == reaction_pb2.CompoundPreparation.CUSTOM
+            and not prep_details
+        ):
             raise ValueError("prep_details must be provided when CUSTOM prep is used")
     if prep_details:
         if not prep:
@@ -141,8 +151,9 @@ def set_solute_moles(
     concentration: str,
     overwrite: bool = False,
 ) -> list[reaction_pb2.Compound]:
-    """Helps define components for stock solution inputs with a single solute
-    and a one or more solvent compounds.
+    """Helps define components for stock solution inputs.
+
+    Handles a single solute and one or more solvent compounds.
 
     Args:
         solute: Compound with identifiers, roles, etc.; this argument is
@@ -181,7 +192,9 @@ def set_solute_moles(
         else:
             raise ValueError("solvent units not recognized by set_solute_moles")
     # Get solute concentration in molar.
-    resolver = units.UnitResolver(unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={})
+    resolver = units.UnitResolver(
+        unit_synonyms=units.CONCENTRATION_UNIT_SYNONYMS, forbidden_units={}
+    )
     concentration_pb = resolver.resolve(concentration)
     assert isinstance(concentration_pb, reaction_pb2.Concentration)  # Type hint.
 
@@ -190,7 +203,7 @@ def set_solute_moles(
         concentration_pb,
     )
     solute.amount.MergeFrom(solute_moles)
-    return [solute] + list(solvents)
+    return [solute, *list(solvents)]
 
 
 def build_data(filename: str, description: str) -> reaction_pb2.Data:
@@ -203,18 +216,20 @@ def build_data(filename: str, description: str) -> reaction_pb2.Data:
     Returns:
         Data message.
     """
-    _, extension = os.path.splitext(filename)
+    extension = pathlib.Path(filename).suffix
     if not extension.startswith("."):
         raise ValueError(f"cannot deduce the file format for {filename}")
     data = reaction_pb2.Data()
     data.format = extension[1:]
-    with open(filename, "rb") as f:
+    with pathlib.Path(filename).open("rb") as f:
         data.bytes_value = f.read()
     data.description = description
     return data
 
 
-def find_submessages(message: ord_schema.Message, submessage_type: type[MessageType]) -> list[MessageType]:
+def find_submessages(
+    message: ord_schema.Message, submessage_type: type[MessageType]
+) -> list[MessageType]:
     """Recursively finds all submessages of a specified type.
 
     Args:
@@ -262,14 +277,17 @@ def find_submessages(message: ord_schema.Message, submessage_type: type[MessageT
     return submessages
 
 
-def smiles_from_compound(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound, canonical: bool = True) -> str:
+def smiles_from_compound(
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
+    canonical: bool = True,
+) -> str:
     """Fetches or generates a SMILES identifier for a compound.
 
     If a SMILES identifier already exists, it is simply returned.
 
     Args:
         compound: reaction_pb2.Compound or reaction_pb2.ProductCompound message.
-        validate: If True, returns a canonicalized SMILES.
+        canonical: If True, returns a canonicalized SMILES.
 
     Returns:
         Text SMILES.
@@ -277,7 +295,9 @@ def smiles_from_compound(compound: reaction_pb2.Compound | reaction_pb2.ProductC
     Raises:
         ValueError: if no structural identifiers are defined.
     """
-    smiles = get_compound_smiles(compound) or Chem.MolToSmiles(mol_from_compound(compound))
+    smiles = get_compound_smiles(compound) or Chem.MolToSmiles(
+        mol_from_compound(compound)
+    )
     if canonical:
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
@@ -286,7 +306,9 @@ def smiles_from_compound(compound: reaction_pb2.Compound | reaction_pb2.ProductC
     return smiles
 
 
-def molblock_from_compound(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound) -> str:
+def molblock_from_compound(
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
+) -> str:
     """Fetches or generates a MolBlock identifier for a compound.
 
     Args:
@@ -298,11 +320,14 @@ def molblock_from_compound(compound: reaction_pb2.Compound | reaction_pb2.Produc
     Raises:
         ValueError: if no structural identifiers are defined.
     """
-    return get_compound_molblock(compound) or Chem.MolToMolBlock(mol_from_compound(compound))
+    return get_compound_molblock(compound) or Chem.MolToMolBlock(
+        mol_from_compound(compound)
+    )
 
 
 def mol_from_compound(
-    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound, return_identifier: bool = False
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
+    return_identifier: bool = False,
 ) -> Chem.Mol | tuple[Chem.Mol, reaction_pb2.CompoundIdentifier]:
     """Creates an RDKit Mol from a Compound message.
 
@@ -324,14 +349,18 @@ def mol_from_compound(
         if identifier.type in _COMPOUND_IDENTIFIER_LOADERS:
             mol = _COMPOUND_IDENTIFIER_LOADERS[identifier.type](identifier.value)
             if not mol:
-                raise ValueError(f"invalid structural identifier for Compound: {identifier}")
+                raise ValueError(
+                    f"invalid structural identifier for Compound: {identifier}"
+                )
             if return_identifier:
                 return mol, identifier
             return mol
     raise ValueError(f"no valid structural identifier for Compound: {compound}")
 
 
-def check_compound_identifiers(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound):
+def check_compound_identifiers(
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
+) -> None:
     """Verifies that structural compound identifiers are consistent.
 
     Args:
@@ -347,7 +376,9 @@ def check_compound_identifiers(compound: reaction_pb2.Compound | reaction_pb2.Pr
         else:
             continue
         if not mol:
-            raise ValueError(f"invalid structural identifier for Compound: {identifier}")
+            raise ValueError(
+                f"invalid structural identifier for Compound: {identifier}"
+            )
         smiles.add(Chem.MolToSmiles(mol))
     if len(smiles) > 1:
         raise ValueError(f"structural identifiers are inconsistent: {smiles}")
@@ -403,10 +434,10 @@ def get_reaction_smiles(
         for compound in message.inputs[key].components:
             try:
                 smiles = smiles_from_compound(compound)
-            except ValueError as error:
+            except ValueError:
                 if allow_incomplete:
                     continue
-                raise error
+                raise
             if compound.reaction_role in [roles.REAGENT, roles.SOLVENT, roles.CATALYST]:
                 agents.add(smiles)
             elif compound.reaction_role in reactant_roles:
@@ -416,10 +447,10 @@ def get_reaction_smiles(
         for product in outcome.products:
             try:
                 smiles = smiles_from_compound(product)
-            except ValueError as error:
+            except ValueError:
                 if allow_incomplete:
                     continue
-                raise error
+                raise
             if product.reaction_role in product_roles:
                 products.add(smiles)
 
@@ -462,10 +493,12 @@ def validate_reaction_smiles(reaction_smiles: str) -> None:
         if num_errors:
             raise ValueError("reaction SMILES contains errors")
     except (RuntimeError, ValueError) as error:
-        raise ValueError(f"bad reaction SMILES ({str(error)}): {reaction_smiles}") from error
+        raise ValueError(
+            f"bad reaction SMILES ({error!s}): {reaction_smiles}"
+        ) from error
 
 
-def reaction_from_smiles(reaction_smiles):
+def reaction_from_smiles(reaction_smiles: str) -> reaction_pb2.Reaction:
     """Builds a Reaction by splitting a reaction SMILES."""
     reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles, useSmiles=True)
     rdChemReactions.RemoveMappingNumbersFromReactions(reaction)
@@ -474,7 +507,11 @@ def reaction_from_smiles(reaction_smiles):
     reaction_input = message.inputs["from_reaction_smiles"]
     for mol in reaction.GetReactants():
         component = reaction_input.components.add()
-        component.identifiers.add(value=Chem.MolToSmiles(mol), type="SMILES", details="Extracted from reaction SMILES")
+        component.identifiers.add(
+            value=Chem.MolToSmiles(mol),
+            type="SMILES",
+            details="Extracted from reaction SMILES",
+        )
         component.reaction_role = reaction_pb2.ReactionRole.REACTANT
         component.amount.unmeasured.type = component.amount.unmeasured.CUSTOM
         component.amount.unmeasured.details = "Extracted from reaction SMILES"
@@ -482,21 +519,30 @@ def reaction_from_smiles(reaction_smiles):
         if not smiles:
             continue
         component = reaction_input.components.add()
-        component.identifiers.add(value=smiles, type="SMILES", details="Extracted from reaction SMILES")
+        component.identifiers.add(
+            value=smiles, type="SMILES", details="Extracted from reaction SMILES"
+        )
         component.reaction_role = reaction_pb2.ReactionRole.REAGENT
         component.amount.unmeasured.type = component.amount.unmeasured.CUSTOM
         component.amount.unmeasured.details = "Extracted from reaction SMILES"
     outcome = message.outcomes.add()
     for mol in reaction.GetProducts():
         component = outcome.products.add()
-        component.identifiers.add(value=Chem.MolToSmiles(mol), type="SMILES", details="Extracted from reaction SMILES")
+        component.identifiers.add(
+            value=Chem.MolToSmiles(mol),
+            type="SMILES",
+            details="Extracted from reaction SMILES",
+        )
         component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
     return message
 
 
-def get_product_yield(product: reaction_pb2.ProductCompound, as_measurement: bool = False):
-    """Returns the value of a product's yield if it is defined. If multiple
-    measurements of type YIELD exist, only the first is returned.
+def get_product_yield(
+    product: reaction_pb2.ProductCompound, as_measurement: bool = False
+) -> reaction_pb2.ProductMeasurement | float | None:
+    """Returns the value of a product's yield if it is defined.
+
+    If multiple measurements of type YIELD exist, only the first is returned.
 
     Args:
         product: ProductCompound message.
@@ -518,8 +564,9 @@ def get_compound_identifier(
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
     identifier_type: reaction_pb2.CompoundIdentifier.CompoundIdentifierType,
 ) -> str | None:
-    """Returns the value of a compound identifier if it exists. If multiple
-    identifiers of that type exist, only the first is returned.
+    """Returns the value of a compound identifier if it exists.
+
+    If multiple identifiers of that type exist, only the first is returned.
 
     Args:
         compound: Compound message.
@@ -539,8 +586,9 @@ def set_compound_identifier(
     identifier_type: reaction_pb2.CompoundIdentifier.CompoundIdentifierType,
     value: str,
 ) -> reaction_pb2.CompoundIdentifier:
-    """Sets the value of a compound identifier if it exists or creates one. If
-    multiple identifiers of that type exist, only the first is overwritten.
+    """Sets the value of a compound identifier if it exists or creates one.
+
+    If multiple identifiers of that type exist, only the first is overwritten.
 
     Args:
         compound: Compound message.
@@ -554,11 +602,12 @@ def set_compound_identifier(
         if identifier.type == identifier_type:
             identifier.value = value
             return identifier
-    identifier = compound.identifiers.add(type=identifier_type, value=value)
-    return identifier
+    return compound.identifiers.add(type=identifier_type, value=value)
 
 
-def get_compound_smiles(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound) -> str | None:
+def get_compound_smiles(
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
+) -> str | None:
     """Returns the value of the compound's SMILES identifier if it exists.
 
     Args:
@@ -570,9 +619,10 @@ def get_compound_smiles(compound: reaction_pb2.Compound | reaction_pb2.ProductCo
     return get_compound_identifier(compound, reaction_pb2.CompoundIdentifier.SMILES)
 
 
-def set_compound_smiles(compound: reaction_pb2.Compound, value: str) -> reaction_pb2.CompoundIdentifier:
-    """Sets the value of the compound's SMILES identifier if it exists or
-    creates one.
+def set_compound_smiles(
+    compound: reaction_pb2.Compound, value: str
+) -> reaction_pb2.CompoundIdentifier:
+    """Sets the value of the compound's SMILES identifier if it exists or creates one.
 
     Args:
         compound: Compound message.
@@ -581,7 +631,9 @@ def set_compound_smiles(compound: reaction_pb2.Compound, value: str) -> reaction
     Returns:
         The compound identifier that was modified or created.
     """
-    return set_compound_identifier(compound, reaction_pb2.CompoundIdentifier.SMILES, value)
+    return set_compound_identifier(
+        compound, reaction_pb2.CompoundIdentifier.SMILES, value
+    )
 
 
 def is_transition_metal(atom: Chem.Atom) -> bool:
@@ -606,13 +658,12 @@ def has_transition_metal(mol: Chem.Mol) -> bool:
     Returns:
         Boolean for whether the molecule has a transition metal.
     """
-    for atom in mol.GetAtoms():
-        if is_transition_metal(atom):
-            return True
-    return False
+    return any(is_transition_metal(atom) for atom in mol.GetAtoms())
 
 
-def set_dative_bonds(mol: Chem.Mol, from_atoms: tuple[str, ...] = ("N", "P")) -> Chem.Mol:
+def set_dative_bonds(
+    mol: Chem.Mol, from_atoms: tuple[str, ...] = ("N", "P")
+) -> Chem.Mol:
     """Converts metal-ligand bonds to dative.
 
     Replaces some single bonds between metals and atoms with atomic numbers
@@ -651,8 +702,12 @@ def set_dative_bonds(mol: Chem.Mol, from_atoms: tuple[str, ...] = ("N", "P")) ->
                         f"the SMILES string before setting dative bonds"
                     )
                 if (
-                    nbr.GetTotalValence() + nbr.GetFormalCharge() != p_table.GetDefaultValence(nbr_atom)
-                    and edit_mol.GetBondBetweenAtoms(nbr.GetIdx(), metal.GetIdx()).GetBondType() == Chem.BondType.SINGLE
+                    nbr.GetTotalValence() + nbr.GetFormalCharge()
+                    != p_table.GetDefaultValence(nbr_atom)
+                    and edit_mol.GetBondBetweenAtoms(
+                        nbr.GetIdx(), metal.GetIdx()
+                    ).GetBondType()
+                    == Chem.BondType.SINGLE
                 ):
                     edit_mol.RemoveBond(nbr.GetIdx(), metal.GetIdx())
                     edit_mol.AddBond(nbr.GetIdx(), metal.GetIdx(), Chem.BondType.DATIVE)
@@ -663,7 +718,10 @@ def set_dative_bonds(mol: Chem.Mol, from_atoms: tuple[str, ...] = ("N", "P")) ->
             elif nbr_atom in from_atoms and nbr_atom != "C":
                 if (
                     nbr.GetExplicitValence() > p_table.GetDefaultValence(nbr_atom)
-                    and edit_mol.GetBondBetweenAtoms(nbr.GetIdx(), metal.GetIdx()).GetBondType() == Chem.BondType.SINGLE
+                    and edit_mol.GetBondBetweenAtoms(
+                        nbr.GetIdx(), metal.GetIdx()
+                    ).GetBondType()
+                    == Chem.BondType.SINGLE
                 ):
                     edit_mol.RemoveBond(nbr.GetIdx(), metal.GetIdx())
                     edit_mol.AddBond(nbr.GetIdx(), metal.GetIdx(), Chem.BondType.DATIVE)
@@ -683,9 +741,10 @@ def get_compound_name(compound: reaction_pb2.Compound) -> str | None:
     return get_compound_identifier(compound, reaction_pb2.CompoundIdentifier.NAME)
 
 
-def set_compound_name(compound: reaction_pb2.Compound, value: str) -> reaction_pb2.CompoundIdentifier:
-    """Sets the value of the compound's NAME identifier if it exists or
-    creates one.
+def set_compound_name(
+    compound: reaction_pb2.Compound, value: str
+) -> reaction_pb2.CompoundIdentifier:
+    """Sets the value of the compound's NAME identifier if it exists or creates one.
 
     Args:
         compound: Compound message.
@@ -694,10 +753,14 @@ def set_compound_name(compound: reaction_pb2.Compound, value: str) -> reaction_p
     Returns:
         The compound identifier that was modified or created.
     """
-    return set_compound_identifier(compound, reaction_pb2.CompoundIdentifier.NAME, value)
+    return set_compound_identifier(
+        compound, reaction_pb2.CompoundIdentifier.NAME, value
+    )
 
 
-def get_compound_molblock(compound: reaction_pb2.Compound | reaction_pb2.ProductCompound) -> str | None:
+def get_compound_molblock(
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
+) -> str | None:
     """Returns the value of the compound's MOLBLOCK identifier if it exists.
 
     Args:
@@ -709,9 +772,10 @@ def get_compound_molblock(compound: reaction_pb2.Compound | reaction_pb2.Product
     return get_compound_identifier(compound, reaction_pb2.CompoundIdentifier.MOLBLOCK)
 
 
-def set_compound_molblock(compound: reaction_pb2.Compound, value: str) -> reaction_pb2.CompoundIdentifier:
-    """Sets the value of the compound's MOLBLOCK identifier if it exists or
-    creates one.
+def set_compound_molblock(
+    compound: reaction_pb2.Compound, value: str
+) -> reaction_pb2.CompoundIdentifier:
+    """Sets the value of the compound's MOLBLOCK identifier if it exists or creates one.
 
     Args:
         compound: Compound message.
@@ -720,7 +784,9 @@ def set_compound_molblock(compound: reaction_pb2.Compound, value: str) -> reacti
     Returns:
         The compound identifier that was modified or created.
     """
-    return set_compound_identifier(compound, reaction_pb2.CompoundIdentifier.MOLBLOCK, value)
+    return set_compound_identifier(
+        compound, reaction_pb2.CompoundIdentifier.MOLBLOCK, value
+    )
 
 
 class MessageFormat(enum.Enum):
@@ -779,7 +845,8 @@ def fetch_dataset(
         RuntimeError: If no file exists for the dataset.
         ValueError: If the dataset ID is invalid.
     """
-    from ord_schema import validations
+    # Lazy import breaks a real circular dependency.
+    from ord_schema import validations  # noqa: PLC0415
 
     if not validations.is_valid_dataset_id(dataset_id):
         raise ValueError(f"Invalid dataset ID: {dataset_id}")
@@ -795,14 +862,26 @@ def fetch_dataset(
             )
         except EntryNotFoundError:
             continue
-    raise RuntimeError(f"Dataset {dataset_id} not found in {ORD_DATA_HF_REPO}@{revision}")
+    raise RuntimeError(
+        f"Dataset {dataset_id} not found in {ORD_DATA_HF_REPO}@{revision}"
+    )
 
 
-def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
+def _message_format(path: pathlib.Path) -> MessageFormat:
+    """Returns the MessageFormat implied by a filename's suffix, ignoring ``.gz``."""
+    suffixes = path.suffixes
+    if suffixes and suffixes[-1] == ".gz":
+        suffixes = suffixes[:-1]
+    return MessageFormat(suffixes[-1] if suffixes else "")
+
+
+def load_message(
+    filename: str | os.PathLike[str], message_type: type[MessageType]
+) -> MessageType:
     """Loads a protocol buffer message from a file.
 
     Args:
-        filename: Text filename containing a serialized protocol buffer message.
+        filename: Filename (``str`` or path-like) containing a serialized message.
         message_type: Message subclass.
 
     Returns:
@@ -812,18 +891,11 @@ def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
         ValueError: if the message cannot be parsed, or if `input_format` is not
             supported.
     """
-    if filename.endswith(".gz"):
-        this_open = gzip.open
-        _, extension = os.path.splitext(".".join(filename.split(".")[:-1]))
-    else:
-        this_open = open
-        _, extension = os.path.splitext(filename)
-    input_format = MessageFormat(extension)
-    if input_format in _BINARY_FORMATS:
-        mode = "rb"
-    else:
-        mode = "rt"
-    with this_open(filename, mode) as f:
+    path = pathlib.Path(filename)
+    this_open = gzip.open if path.suffix == ".gz" else open
+    input_format = _message_format(path)
+    mode = "rb" if input_format in _BINARY_FORMATS else "rt"
+    with this_open(path, mode) as f:
         try:
             if input_format == MessageFormat.JSON:
                 return json_format.Parse(f.read(), message_type())
@@ -837,25 +909,25 @@ def load_message(filename: str, message_type: type[MessageType]) -> MessageType:
             DecodeError,
             text_format.ParseError,
         ) as error:
-            raise ValueError(f"error parsing {filename}: {error}") from error
+            raise ValueError(f"error parsing {path}: {error}") from error
 
 
-def save_message(message: ord_schema.Message, filename: str):
+def save_message(message: ord_schema.Message, filename: str | os.PathLike[str]) -> None:
     """Writes a protocol buffer message to disk.
 
     Args:
         message: Protocol buffer message.
-        filename: Text output filename.
+        filename: Output filename (``str`` or path-like).
 
     Raises:
         ValueError: if `filename` does not have the expected suffix.
     """
-    if filename.endswith(".gz"):
-        _, extension = os.path.splitext(".".join(filename.split(".")[:-1]))
-    else:
-        _, extension = os.path.splitext(filename)
-    output_format = MessageFormat(extension)
-    with atomic_io.atomic_path(filename) as tmp_filename, _open_for_write(tmp_filename, dest=filename) as f:
+    path = pathlib.Path(filename)
+    output_format = _message_format(path)
+    with (
+        atomic_io.atomic_path(path) as tmp_filename,
+        _open_for_write(tmp_filename, dest=path) as f,
+    ):
         if output_format == MessageFormat.JSON:
             f.write(json_format.MessageToJson(message).encode())
         elif output_format in _TEXT_FORMATS:
@@ -868,54 +940,39 @@ def save_message(message: ord_schema.Message, filename: str):
 
 
 @contextlib.contextmanager
-def _open_for_write(tmp_path: str, *, dest: str):
+def _open_for_write(
+    tmp_path: str | os.PathLike[str], *, dest: str | os.PathLike[str]
+) -> Iterator[Any]:
     """Opens ``tmp_path`` for binary writing.
 
     For ``.gz`` destinations, wraps the file in a ``GzipFile`` with a fixed
-    mtime and pins the gzip header's filename to ``os.path.basename(dest)``
+    mtime and pins the gzip header's filename to the destination's basename
     so the encoded bytes are deterministic regardless of the random temp
     name used during writing.
     """
-    with open(tmp_path, "wb") as raw:
-        if dest.endswith(".gz"):
-            with gzip.GzipFile(filename=os.path.basename(dest), mode="wb", mtime=1, fileobj=raw) as f:
+    dest = pathlib.Path(dest)
+    with pathlib.Path(tmp_path).open("wb") as raw:
+        if dest.suffix == ".gz":
+            with gzip.GzipFile(
+                filename=dest.name, mode="wb", mtime=1, fileobj=raw
+            ) as f:
                 yield f
         else:
             yield raw
 
 
-def save_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:
+def save_dataset(
+    dataset: dataset_pb2.Dataset, filename: str | os.PathLike[str]
+) -> None:
     """Writes a Dataset to disk, dispatching on filename suffix.
 
     ``.parquet`` routes to ``parquet_dataset.save_dataset``; other suffixes
     go through ``save_message``.
     """
-    if filename.endswith(".parquet"):
+    if pathlib.Path(filename).suffix == ".parquet":
         parquet_dataset.save_dataset(dataset, filename)
         return
     save_message(dataset, filename)
-
-
-# Deprecated aliases, kept for backwards compatibility after the load_*/save_*
-# rename. Remove in a future major release.
-def write_message(message: ord_schema.Message, filename: str):
-    """Deprecated alias for :func:`save_message`."""
-    warnings.warn(
-        "message_helpers.write_message is deprecated; use save_message instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return save_message(message, filename)
-
-
-def write_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:
-    """Deprecated alias for :func:`save_dataset`."""
-    warnings.warn(
-        "message_helpers.write_dataset is deprecated; use save_dataset instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return save_dataset(dataset, filename)
 
 
 def id_filename(filename: str) -> str:
@@ -927,10 +984,12 @@ def id_filename(filename: str) -> str:
     Returns:
         Text filename relative to the root of the repository.
     """
-    basename = os.path.basename(filename)
+    basename = pathlib.Path(filename).name
     prefix, suffix = basename.split("-")
     if not prefix.startswith("ord"):
-        raise ValueError(f'basename does not have the required "ord" prefix: {basename}')
+        raise ValueError(
+            f'basename does not have the required "ord" prefix: {basename}'
+        )
     shard = suffix[:2]
     # Reject anything that could let the shard escape the "data/" root (e.g. "..", "/x").
     if not shard.isalnum():
@@ -943,8 +1002,9 @@ def id_filename(filename: str) -> str:
 
 
 def create_message(message_name: str) -> ord_schema.Message:
-    """Converts a message name into an instantiation of that class, where
-    the message belongs to the reaction_pb2 module.
+    """Converts a message name into an instantiation of that class.
+
+    The message belongs to the reaction_pb2 module.
 
     Args:
         message_name: Text name of a message field. For example, "Reaction" or
@@ -966,7 +1026,9 @@ def create_message(message_name: str) -> ord_schema.Message:
         raise ValueError(f"Cannot resolve message name {message_name}") from error
 
 
-def messages_to_dataframe(messages: Iterable[ord_schema.Message], drop_constant_columns: bool = False) -> pd.DataFrame:
+def messages_to_dataframe(
+    messages: Iterable[ord_schema.Message], drop_constant_columns: bool = False
+) -> pd.DataFrame:
     """Converts a list of protos to a pandas DataFrame.
 
     Args:
@@ -977,15 +1039,10 @@ def messages_to_dataframe(messages: Iterable[ord_schema.Message], drop_constant_
     Returns:
         DataFrame.
     """
-    rows = []
-    for message in messages:
-        rows.append(message_to_row(message))
+    rows = [message_to_row(message) for message in messages]
     df = pd.DataFrame(rows)
     if drop_constant_columns:
-        drop = []
-        for column in df.columns:
-            if len(df[column].unique()) == 1:
-                drop.append(column)
+        drop = [column for column in df.columns if len(df[column].unique()) == 1]
         for column in drop:
             del df[column]
     return df
@@ -1012,28 +1069,35 @@ def message_to_row(
         Dict mapping string field names to scalar value types.
     """
     if trace is None:
-        trace = tuple()
+        trace = ()
     row = {}
     for field, value in message.ListFields():
         if field.label == field.LABEL_REPEATED:
-            if field.type == field.TYPE_MESSAGE and field.message_type.GetOptions().map_entry:
+            if (
+                field.type == field.TYPE_MESSAGE
+                and field.message_type.GetOptions().map_entry
+            ):
                 value_field = field.message_type.fields_by_name["value"]
                 for key, subvalue in value.items():
-                    this_trace = trace + (f'{field.name}["{key}"]',)
+                    this_trace = (*trace, f'{field.name}["{key}"]')
                     safe_update(
                         row,
-                        _message_to_row(field=value_field, value=subvalue, trace=this_trace),
+                        _message_to_row(
+                            field=value_field, value=subvalue, trace=this_trace
+                        ),
                     )
             else:
                 for i, subvalue in enumerate(value):
-                    this_trace = trace + (f"{field.name}[{i}]",)
+                    this_trace = (*trace, f"{field.name}[{i}]")
                     safe_update(
                         row,
                         _message_to_row(field=field, value=subvalue, trace=this_trace),
                     )
         else:
-            this_trace = trace + (field.name,)
-            safe_update(row, _message_to_row(field=field, value=value, trace=this_trace))
+            this_trace = (*trace, field.name)
+            safe_update(
+                row, _message_to_row(field=field, value=value, trace=this_trace)
+            )
     return row
 
 
@@ -1087,3 +1151,25 @@ def parse_doi(doi: str) -> str:
     if not match:
         raise ValueError(f"could not parse DOI: {doi}")
     return match.group(1)
+
+
+# Deprecated aliases, kept for backwards compatibility after the load_*/save_*
+# rename. Remove in a future major release.
+def write_message(message: ord_schema.Message, filename: str) -> None:
+    """Deprecated alias for :func:`save_message`."""
+    warnings.warn(
+        "message_helpers.write_message is deprecated; use save_message instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return save_message(message, filename)
+
+
+def write_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:
+    """Deprecated alias for :func:`save_dataset`."""
+    warnings.warn(
+        "message_helpers.write_dataset is deprecated; use save_dataset instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return save_dataset(dataset, filename)

@@ -43,4 +43,6 @@ def test_main_fail(tmp_path):
     component.identifiers.add(value="benzene", type="NAME")
     message_helpers.save_message(dataset, pbtxt_filename)
     with pytest.raises(ValueError, match="Datasets differ"):
-        check_pb.main(check_pb.parse_args(["--pb", pb_filename, "--pbtxt", pbtxt_filename]))
+        check_pb.main(
+            check_pb.parse_args(["--pb", pb_filename, "--pbtxt", pbtxt_filename])
+        )

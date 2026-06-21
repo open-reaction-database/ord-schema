@@ -63,17 +63,8 @@ jobs:
           # -ra: summarize all non-passing outcomes (failures, errors, and skip reasons) at the end of the run --
           # e.g. live resolver tests gated off this matrix entry vs. skipped on a PubChem 503.
           uv run pytest -n auto -vv -ra --cov=ord_schema --durations=20
-          uv run coverage xml
-      # Codecov uses CODECOV_TOKEN when set. Do not fail the job when uploads cannot authenticate:
-      # fork PRs (tokenless), Dependabot PRs (no repo secrets + protected dependabot/* branches).
-      # Pushes to main and normal same-repo PRs stay strict.
-      - uses: codecov/codecov-action@v5
-        with:
-          files: coverage.xml
-          # CODECOV_TOKEN is an org-wide token, so the repo slug must be explicit.
-          slug: open-reaction-database/ord-schema
-          fail_ci_if_error: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && !startsWith(github.head_ref, 'dependabot/')) }}
-          token: ${{ secrets.CODECOV_TOKEN }}
+          # Print the coverage summary in the job log (no external upload).
+          uv run coverage report
 
   test_notebooks:
     strategy:

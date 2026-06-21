@@ -26,23 +26,38 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 logger = get_logger(__name__)
 
 
-def parse_args(argv=None):
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Build a Dataset from Reaction protos")
-    parser.add_argument("--input", required=True, help="Input pattern for Reaction protos")
-    parser.add_argument("--output", required=True, help="Output Dataset filename (*.pbtxt)")
+    parser.add_argument(
+        "--input", required=True, help="Input pattern for Reaction protos"
+    )
+    parser.add_argument(
+        "--output", required=True, help="Output Dataset filename (*.pbtxt)"
+    )
     parser.add_argument("--name", required=True, help="Name for this dataset")
-    parser.add_argument("--description", required=True, help="Description for this dataset")
-    parser.add_argument("--no-validate", action="store_true", help="If set, do not run validations on reactions")
+    parser.add_argument(
+        "--description", required=True, help="Description for this dataset"
+    )
+    parser.add_argument(
+        "--no-validate",
+        action="store_true",
+        help="If set, do not run validations on reactions",
+    )
     return parser.parse_args(argv)
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
+    """Loads matching Reaction protos into a Dataset, validates it, and writes it out."""
     filenames = glob.glob(args.input, recursive=True)
     logger.info("Found %d Reaction protos", len(filenames))
-    reactions = []
-    for filename in filenames:
-        reactions.append(message_helpers.load_message(filename, reaction_pb2.Reaction))
-    dataset = dataset_pb2.Dataset(name=args.name, description=args.description, reactions=reactions)
+    reactions = [
+        message_helpers.load_message(filename, reaction_pb2.Reaction)
+        for filename in filenames
+    ]
+    dataset = dataset_pb2.Dataset(
+        name=args.name, description=args.description, reactions=reactions
+    )
     if not args.no_validate:
         validations.validate_datasets({"_COMBINED": dataset})
     message_helpers.save_message(dataset, args.output)

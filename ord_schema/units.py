@@ -142,7 +142,9 @@ _FORBIDDEN_UNITS = {
     "m": "ambiguous between meter and minute",
 }
 
-_UNIT_CONVERSIONS: dict[type[ord_schema.UnitMessage], dict[ProtoEnumMember, int | float]] = {
+_UNIT_CONVERSIONS: dict[
+    type[ord_schema.UnitMessage], dict[ProtoEnumMember, int | float]
+] = {
     reaction_pb2.Time: {
         reaction_pb2.Time.DAY: 24,
         reaction_pb2.Time.HOUR: 1,
@@ -201,7 +203,9 @@ _UNIT_CONVERSIONS: dict[type[ord_schema.UnitMessage], dict[ProtoEnumMember, int 
 
 # Concentration units are defined separately since they are not needed for any
 # native fields in the reaction schema.
-CONCENTRATION_UNIT_SYNONYMS: dict[type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[str]]] = {
+CONCENTRATION_UNIT_SYNONYMS: dict[
+    type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[str]]
+] = {
     reaction_pb2.Concentration: {
         reaction_pb2.Concentration.MOLAR: ["M", "molar"],
         reaction_pb2.Concentration.MILLIMOLAR: ["mM", "millimolar"],
@@ -221,9 +225,12 @@ class UnitResolver:
 
     def __init__(
         self,
-        unit_synonyms: dict[type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[str]]] | None = None,
+        unit_synonyms: dict[
+            type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[str]]
+        ]
+        | None = None,
         forbidden_units: dict[str, str] | None = None,
-    ):
+    ) -> None:
         """Initializes a UnitResolver.
 
         Args:
@@ -248,14 +255,16 @@ class UnitResolver:
         self._resolver = {}
         for message in unit_synonyms:
             for unit in unit_synonyms[message]:
-                for string_unit in unit_synonyms[message][unit]:
-                    string_unit = string_unit.lower()
+                for raw_unit in unit_synonyms[message][unit]:
+                    string_unit = raw_unit.lower()
                     if string_unit in self._resolver:
                         raise KeyError(f"duplicated unit: {string_unit}")
                     self._resolver[string_unit] = (message, unit)
         # Values must have zero or one decimal point. Whitespace between the
         # value and the unit is optional.
-        self._pattern = re.compile(r"(-?\d+\.?\d*(?:[eE]-?\d+)?)(?:[-±](-?\d+\.?\d*))?\s*([\w\sμ°]+)\.?")
+        self._pattern = re.compile(
+            r"(-?\d+\.?\d*(?:[eE]-?\d+)?)(?:[-±](-?\d+\.?\d*))?\s*([\w\sμ°]+)\.?"
+        )
 
     def resolve(self, string: str, allow_range: bool = False) -> ord_schema.UnitMessage:
         """Resolves a string into a message containing a value with units.
@@ -285,7 +294,9 @@ class UnitResolver:
                 value = float(value)
                 precision = float(range_value)
             elif not allow_range:
-                raise ValueError(f"string appears to contain a range of values but allow_range is False: {string}")
+                raise ValueError(
+                    f"string appears to contain a range of values but allow_range is False: {string}"
+                )
             else:
                 values = np.asarray([value, range_value], dtype=float)
                 value = values.mean()
@@ -295,12 +306,16 @@ class UnitResolver:
         assert string_unit is not None  # Type hint.
         message_cls, unit = self.resolve_unit(string_unit)
         if value < 0.0 and message_cls != reaction_pb2.Temperature:
-            raise ValueError(f"negative values are only allowed for temperature: {string}")
+            raise ValueError(
+                f"negative values are only allowed for temperature: {string}"
+            )
         if precision:
             return message_cls(value=value, precision=precision, units=unit)
         return message_cls(value=value, units=unit)
 
-    def resolve_unit(self, string_unit: str) -> tuple[type[ord_schema.UnitMessage], ProtoEnumMember]:
+    def resolve_unit(
+        self, string_unit: str
+    ) -> tuple[type[ord_schema.UnitMessage], ProtoEnumMember]:
         """Resolves a unit string into its message type and unit ENUM value.
 
         Args:
@@ -314,15 +329,18 @@ class UnitResolver:
         """
         string_unit = string_unit.lower()
         if string_unit in self._forbidden_units:
-            raise KeyError(f"forbidden units: {string_unit}: ({self._forbidden_units[string_unit]})")
+            raise KeyError(
+                f"forbidden units: {string_unit}: ({self._forbidden_units[string_unit]})"
+            )
         if string_unit not in self._resolver:
             raise KeyError(f"unrecognized units: {string_unit}")
         message_cls, unit = self._resolver[string_unit]
         return (message_cls, unit)
 
-    def convert(self, message: ord_schema.UnitMessage, new_units: str | int) -> ord_schema.UnitMessage:
-        """Converts a united message into another united message of the same
-        type, but with different units.
+    def convert(
+        self, message: ord_schema.UnitMessage, new_units: str | int
+    ) -> ord_schema.UnitMessage:
+        """Converts a united message into another of the same type with different units.
 
         Args:
             message: a message with units, e.g., Mass, Length.
@@ -338,7 +356,9 @@ class UnitResolver:
         if isinstance(new_units, str):
             new_message_type, new_units = self.resolve_unit(new_units)
             if new_message_type != message_type:
-                raise ValueError("Cannot convert units between messages of different types")
+                raise ValueError(
+                    "Cannot convert units between messages of different types"
+                )
         new_message = message_type(units=new_units)
 
         if message_type == reaction_pb2.Temperature:
@@ -353,13 +373,21 @@ class UnitResolver:
                 reaction_pb2.Temperature.KELVIN: lambda T: T + 273.15,
             }[new_units](temperature_celsius)
             if message.precision:
-                if message.units == reaction_pb2.Temperature.FAHRENHEIT and new_units in (
-                    reaction_pb2.Temperature.CELSIUS,
-                    reaction_pb2.Temperature.KELVIN,
+                if (
+                    message.units == reaction_pb2.Temperature.FAHRENHEIT
+                    and new_units
+                    in (
+                        reaction_pb2.Temperature.CELSIUS,
+                        reaction_pb2.Temperature.KELVIN,
+                    )
                 ):
                     new_message.precision = message.precision * 5 / 9
                 elif (
-                    message.units in (reaction_pb2.Temperature.CELSIUS, reaction_pb2.Temperature.KELVIN)
+                    message.units
+                    in (
+                        reaction_pb2.Temperature.CELSIUS,
+                        reaction_pb2.Temperature.KELVIN,
+                    )
                     and new_units == reaction_pb2.Temperature.FAHRENHEIT
                 ):
                     new_message.precision = message.precision * 9 / 5
@@ -374,7 +402,10 @@ class UnitResolver:
                     new_message.precision = (
                         10000000
                         / 2
-                        * (1 / (message.value - message.precision) + 1 / (message.value + message.precision))
+                        * (
+                            1 / (message.value - message.precision)
+                            + 1 / (message.value + message.precision)
+                        )
                     )
             else:
                 new_message.value = message.value

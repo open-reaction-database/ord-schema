@@ -13,9 +13,8 @@
 # limitations under the License.
 """Tests for ord_schema.message_helpers."""
 
-import os
+import pathlib
 import tempfile
-from collections.abc import Iterator
 
 import pandas as pd
 import pytest
@@ -59,36 +58,36 @@ M  END"""
 
 class TestMessageHelpers:
     @pytest.mark.parametrize(
-        "filename,expected",
-        (
+        ("filename", "expected"),
+        [
             ("ord-1234567890", "data/12/ord-1234567890"),
             ("test/ord-foo.pbtxt", "data/fo/ord-foo.pbtxt"),
             ("ord_dataset-f00.pbtxt", "data/f0/ord_dataset-f00.pbtxt"),
             ("ord_data-123456foo7.jpg", "data/12/ord_data-123456foo7.jpg"),
-        ),
+        ],
     )
     def test_id_filename(self, filename, expected):
         assert message_helpers.id_filename(filename) == expected
 
     @pytest.mark.parametrize(
-        "filename,match",
-        (
+        ("filename", "match"),
+        [
             ("notord-1234567890", "ord"),  # Wrong prefix.
             ("ord-..foo", "alphanumeric"),  # Shard "..", traversal attempt.
             ("ord-.foo", "alphanumeric"),  # Shard ".f", non-alphanumeric.
-        ),
+        ],
     )
     def test_id_filename_rejects_unsafe(self, filename, match):
         with pytest.raises(ValueError, match=match):
             message_helpers.id_filename(filename)
 
     @pytest.mark.parametrize(
-        "value,identifier_type,expected",
-        (
+        ("value", "identifier_type", "expected"),
+        [
             ("c1ccccc1", "SMILES", "c1ccccc1"),
             ("InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H", "INCHI", "c1ccccc1"),
             (_BENZENE_MOLBLOCK, "MOLBLOCK", "c1ccccc1"),
-        ),
+        ],
     )
     def test_smiles_from_compound(self, value, identifier_type, expected):
         compound = reaction_pb2.Compound()
@@ -96,23 +95,28 @@ class TestMessageHelpers:
         assert message_helpers.smiles_from_compound(compound) == expected
 
     @pytest.mark.parametrize(
-        "value,identifier_type,expected",
-        (
+        ("value", "identifier_type", "expected"),
+        [
             ("c1ccccc1", "SMILES", "c1ccccc1"),
             ("InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H", "INCHI", "c1ccccc1"),
             (_BENZENE_MOLBLOCK, "MOLBLOCK", "c1ccccc1"),
-        ),
+        ],
     )
     def test_mol_from_compound(self, value, identifier_type, expected):
         compound = reaction_pb2.Compound()
         compound.identifiers.add(value=value, type=identifier_type)
         mol = message_helpers.mol_from_compound(compound)
         assert Chem.MolToSmiles(mol) == expected
-        mol, identifier = message_helpers.mol_from_compound(compound, return_identifier=True)
+        mol, identifier = message_helpers.mol_from_compound(
+            compound, return_identifier=True
+        )
         assert Chem.MolToSmiles(mol) == expected
         assert identifier == compound.identifiers[0]
 
-    @pytest.mark.parametrize("value,identifier_type", (("invalid_smiles", "SMILES"), ("invalid_inchi", "INCHI")))
+    @pytest.mark.parametrize(
+        ("value", "identifier_type"),
+        [("invalid_smiles", "SMILES"), ("invalid_inchi", "INCHI")],
+    )
     def test_mol_from_compound_failures(self, value, identifier_type):
         compound = reaction_pb2.Compound()
         compound.identifiers.add(value=value, type=identifier_type)
@@ -122,14 +126,16 @@ class TestMessageHelpers:
     def test_get_product_yield(self):
         product = reaction_pb2.ProductCompound()
         assert message_helpers.get_product_yield(product) is None
-        product.measurements.add(type="YIELD", percentage=dict(value=23))
+        product.measurements.add(type="YIELD", percentage={"value": 23})
         assert message_helpers.get_product_yield(product) == 23
 
     def test_check_compound_identifiers(self):
         compound = reaction_pb2.Compound()
         compound.identifiers.add(value="c1ccccc1", type="SMILES")
         message_helpers.check_compound_identifiers(compound)
-        compound.identifiers.add(value="InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H", type="INCHI")
+        compound.identifiers.add(
+            value="InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H", type="INCHI"
+        )
         message_helpers.check_compound_identifiers(compound)
         compound.identifiers.add(value="c1ccc(O)cc1", type="SMILES")
         with pytest.raises(ValueError, match="inconsistent"):
@@ -138,18 +144,40 @@ class TestMessageHelpers:
     def test_get_reaction_smiles(self):
         reaction = reaction_pb2.Reaction()
         reactant1 = reaction.inputs["reactant1"]
-        reactant1.components.add(reaction_role="REACTANT").identifiers.add(value="c1ccccc1", type="SMILES")
-        reactant1.components.add(reaction_role="SOLVENT").identifiers.add(value="N", type="SMILES")
-        reactant1.components.add(reaction_role="WORKUP").identifiers.add(value="O", type="SMILES")
-        assert message_helpers.get_reaction_smiles(reaction, generate_if_missing=True) == "c1ccccc1>N>"
-        reactant2 = reaction.inputs["reactant2"]
-        reactant2.components.add(reaction_role="REACTANT").identifiers.add(value="Cc1ccccc1", type="SMILES")
-        reactant2.components.add(reaction_role="SOLVENT").identifiers.add(value="N", type="SMILES")
-        reaction.outcomes.add().products.add().identifiers.add(value="O=C=O", type="SMILES")
-        assert message_helpers.get_reaction_smiles(reaction, generate_if_missing=True) == "Cc1ccccc1.c1ccccc1>N>O=C=O"
-        reaction.outcomes.add().products.add(reaction_role="PRODUCT").identifiers.add(value="O=CC=O", type="SMILES")
+        reactant1.components.add(reaction_role="REACTANT").identifiers.add(
+            value="c1ccccc1", type="SMILES"
+        )
+        reactant1.components.add(reaction_role="SOLVENT").identifiers.add(
+            value="N", type="SMILES"
+        )
+        reactant1.components.add(reaction_role="WORKUP").identifiers.add(
+            value="O", type="SMILES"
+        )
         assert (
-            message_helpers.get_reaction_smiles(reaction, generate_if_missing=True, allow_unspecified_roles=False)
+            message_helpers.get_reaction_smiles(reaction, generate_if_missing=True)
+            == "c1ccccc1>N>"
+        )
+        reactant2 = reaction.inputs["reactant2"]
+        reactant2.components.add(reaction_role="REACTANT").identifiers.add(
+            value="Cc1ccccc1", type="SMILES"
+        )
+        reactant2.components.add(reaction_role="SOLVENT").identifiers.add(
+            value="N", type="SMILES"
+        )
+        reaction.outcomes.add().products.add().identifiers.add(
+            value="O=C=O", type="SMILES"
+        )
+        assert (
+            message_helpers.get_reaction_smiles(reaction, generate_if_missing=True)
+            == "Cc1ccccc1.c1ccccc1>N>O=C=O"
+        )
+        reaction.outcomes.add().products.add(reaction_role="PRODUCT").identifiers.add(
+            value="O=CC=O", type="SMILES"
+        )
+        assert (
+            message_helpers.get_reaction_smiles(
+                reaction, generate_if_missing=True, allow_unspecified_roles=False
+            )
             == "Cc1ccccc1.c1ccccc1>N>O=CC=O"
         )
 
@@ -162,10 +190,16 @@ class TestMessageHelpers:
             message_helpers.get_reaction_smiles(reaction, generate_if_missing=True)
         component.identifiers.add(value="c1ccccc1", type="SMILES")
         with pytest.raises(ValueError, match="must contain at least one"):
-            message_helpers.get_reaction_smiles(reaction, generate_if_missing=True, allow_incomplete=False)
-        reaction.outcomes.add().products.add(reaction_role="PRODUCT").identifiers.add(value="invalid", type="SMILES")
+            message_helpers.get_reaction_smiles(
+                reaction, generate_if_missing=True, allow_incomplete=False
+            )
+        reaction.outcomes.add().products.add(reaction_role="PRODUCT").identifiers.add(
+            value="invalid", type="SMILES"
+        )
         with pytest.raises(ValueError, match="Cannot parse SMILES"):
-            message_helpers.get_reaction_smiles(reaction, generate_if_missing=True, allow_incomplete=False)
+            message_helpers.get_reaction_smiles(
+                reaction, generate_if_missing=True, allow_incomplete=False
+            )
 
     def test_reaction_from_smiles(self):
         reaction_smiles = "[C:1].N>O>F.Cl"
@@ -173,37 +207,47 @@ class TestMessageHelpers:
         expected.identifiers.add(value=reaction_smiles, type="REACTION_SMILES")
         this_input = expected.inputs["from_reaction_smiles"]
         c_component = this_input.components.add()
-        c_component.identifiers.add(value="C", type="SMILES", details="Extracted from reaction SMILES")
+        c_component.identifiers.add(
+            value="C", type="SMILES", details="Extracted from reaction SMILES"
+        )
         c_component.reaction_role = reaction_pb2.ReactionRole.REACTANT
         c_component.amount.unmeasured.type = reaction_pb2.UnmeasuredAmount.CUSTOM
         c_component.amount.unmeasured.details = "Extracted from reaction SMILES"
         n_component = this_input.components.add()
-        n_component.identifiers.add(value="N", type="SMILES", details="Extracted from reaction SMILES")
+        n_component.identifiers.add(
+            value="N", type="SMILES", details="Extracted from reaction SMILES"
+        )
         n_component.reaction_role = reaction_pb2.ReactionRole.REACTANT
         n_component.amount.unmeasured.type = reaction_pb2.UnmeasuredAmount.CUSTOM
         n_component.amount.unmeasured.details = "Extracted from reaction SMILES"
         o_component = this_input.components.add()
-        o_component.identifiers.add(value="O", type="SMILES", details="Extracted from reaction SMILES")
+        o_component.identifiers.add(
+            value="O", type="SMILES", details="Extracted from reaction SMILES"
+        )
         o_component.reaction_role = reaction_pb2.ReactionRole.REAGENT
         o_component.amount.unmeasured.type = reaction_pb2.UnmeasuredAmount.CUSTOM
         o_component.amount.unmeasured.details = "Extracted from reaction SMILES"
         outcome = expected.outcomes.add()
         f_component = outcome.products.add()
-        f_component.identifiers.add(value="F", type="SMILES", details="Extracted from reaction SMILES")
+        f_component.identifiers.add(
+            value="F", type="SMILES", details="Extracted from reaction SMILES"
+        )
         f_component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
         cl_component = outcome.products.add()
-        cl_component.identifiers.add(value="Cl", type="SMILES", details="Extracted from reaction SMILES")
+        cl_component.identifiers.add(
+            value="Cl", type="SMILES", details="Extracted from reaction SMILES"
+        )
         cl_component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
         assert message_helpers.reaction_from_smiles(reaction_smiles) == expected
 
     @pytest.mark.parametrize(
-        "doi,expected",
-        (
+        ("doi", "expected"),
+        [
             ("https://dx.doi.org/10.1021/acscatal.0c02247", "10.1021/acscatal.0c02247"),
             ("10.1038/s41467-023-42446-5", "10.1038/s41467-023-42446-5"),
             ("10.1038/foo/bar", "10.1038/foo"),
             ("10.1038/foo/bar/", "10.1038/foo"),
-        ),
+        ],
     )
     def test_parse_doi(self, doi, expected):
         assert message_helpers.parse_doi(doi) == expected
@@ -251,7 +295,9 @@ class TestMessageHelpers:
             return "/some/path.parquet"
 
         monkeypatch.setattr(message_helpers, "hf_hub_download", fake_download)
-        message_helpers.fetch_dataset(self._DATASET_ID, revision="abc123", cache_dir="/c", local_dir="/l")
+        message_helpers.fetch_dataset(
+            self._DATASET_ID, revision="abc123", cache_dir="/c", local_dir="/l"
+        )
         assert captured["revision"] == "abc123"
         assert captured["cache_dir"] == "/c"
         assert captured["local_dir"] == "/l"
@@ -278,7 +324,9 @@ class TestFindSubmessages:
 
     def test_nested(self):
         message = test_pb2.Nested()
-        assert len(message_helpers.find_submessages(message, test_pb2.Nested.Child)) == 0
+        assert (
+            len(message_helpers.find_submessages(message, test_pb2.Nested.Child)) == 0
+        )
         message.child.value = 5.6
         submessages = message_helpers.find_submessages(message, test_pb2.Nested.Child)
         assert len(submessages) == 1
@@ -290,25 +338,37 @@ class TestFindSubmessages:
         message = test_pb2.RepeatedNested()
         message.children.add().value = 1.2
         message.children.add().value = 3.4
-        assert len(message_helpers.find_submessages(message, test_pb2.RepeatedNested.Child)) == 2
+        assert (
+            len(
+                message_helpers.find_submessages(message, test_pb2.RepeatedNested.Child)
+            )
+            == 2
+        )
 
     def test_map_nested(self):
         message = test_pb2.MapNested()
         message.children["one"].value = 1.2
         message.children["two"].value = 3.4
-        assert len(message_helpers.find_submessages(message, test_pb2.MapNested.Child)) == 2
+        assert (
+            len(message_helpers.find_submessages(message, test_pb2.MapNested.Child))
+            == 2
+        )
 
     def test_compounds(self):
         message = reaction_pb2.Reaction()
-        message.inputs["test"].components.add().identifiers.add(type="NAME", value="aspirin")
-        assert len(message_helpers.find_submessages(message, reaction_pb2.Compound)) == 1
+        message.inputs["test"].components.add().identifiers.add(
+            type="NAME", value="aspirin"
+        )
+        assert (
+            len(message_helpers.find_submessages(message, reaction_pb2.Compound)) == 1
+        )
 
 
 class TestBuildData:
     def test_build_data(self, tmp_path):
         data = b"test data"
         filename = (tmp_path / "test.data").as_posix()
-        with open(filename, "wb") as f:
+        with pathlib.Path(filename).open("wb") as f:
             f.write(data)
         message = message_helpers.build_data(filename, description="binary data")
         assert message.bytes_value == data
@@ -337,23 +397,23 @@ class TestBuildCompound:
             identifiers=[
                 reaction_pb2.CompoundIdentifier(value="CCO", type="SMILES"),
             ],
-            amount=dict(unmeasured=dict(type="CATALYTIC")),
+            amount={"unmeasured": {"type": "CATALYTIC"}},
         )
         assert compound == expected
 
     @pytest.mark.parametrize(
-        "amount,expected",
-        (
+        ("amount", "expected"),
+        [
             ("1.2 g", reaction_pb2.Mass(value=1.2, units="GRAM")),
             ("3.4 mol", reaction_pb2.Moles(value=3.4, units="MOLE")),
             ("5.6 mL", reaction_pb2.Volume(value=5.6, units="MILLILITER")),
-        ),
+        ],
     )
     def test_amount(self, amount, expected):
         compound = message_helpers.build_compound(amount=amount)
         assert getattr(compound.amount, compound.amount.WhichOneof("kind")) == expected
 
-    @pytest.mark.parametrize("amount", ("1.2", "-3.4 g"))
+    @pytest.mark.parametrize("amount", ["1.2", "-3.4 g"])
     def test_bad_amount(self, amount):
         with pytest.raises((KeyError, ValueError)):
             message_helpers.build_compound(amount=amount)
@@ -372,20 +432,24 @@ class TestBuildCompound:
         assert not message_helpers.build_compound().HasField("is_limiting")
 
     @pytest.mark.parametrize(
-        "prep,details,expected",
-        (
+        ("prep", "details", "expected"),
+        [
             ("dried", None, reaction_pb2.CompoundPreparation(type="DRIED")),
             (
                 "dried",
                 "in the fire of the sun",
-                reaction_pb2.CompoundPreparation(type="DRIED", details="in the fire of the sun"),
+                reaction_pb2.CompoundPreparation(
+                    type="DRIED", details="in the fire of the sun"
+                ),
             ),
             (
                 "custom",
                 "threw it on the ground",
-                reaction_pb2.CompoundPreparation(type="CUSTOM", details="threw it on the ground"),
+                reaction_pb2.CompoundPreparation(
+                    type="CUSTOM", details="threw it on the ground"
+                ),
             ),
-        ),
+        ],
     )
     def test_prep(self, prep, details, expected):
         compound = message_helpers.build_compound(prep=prep, prep_details=details)
@@ -432,7 +496,9 @@ class TestSetSoluteMoles:
         message_helpers.set_solute_moles(solute, [solvent4], "30 mM", overwrite=True)
         assert solute.amount.moles == reaction_pb2.Moles(units="NANOMOLE", value=6)
         solvent5 = message_helpers.build_compound(name="Solvent", amount="0.8 uL")
-        message_helpers.set_solute_moles(solute, [solvent4, solvent5], "30 mM", overwrite=True)
+        message_helpers.set_solute_moles(
+            solute, [solvent4, solvent5], "30 mM", overwrite=True
+        )
         assert solute.amount.moles == reaction_pb2.Moles(units="NANOMOLE", value=30)
 
 
@@ -441,12 +507,18 @@ class TestCompoundIdentifiers:
         compound = reaction_pb2.Compound()
         identifier = message_helpers.set_compound_name(compound, "water")
         assert identifier == reaction_pb2.CompoundIdentifier(type="NAME", value="water")
-        assert compound.identifiers[0] == reaction_pb2.CompoundIdentifier(type="NAME", value="water")
+        assert compound.identifiers[0] == reaction_pb2.CompoundIdentifier(
+            type="NAME", value="water"
+        )
         message_helpers.set_compound_smiles(compound, "O")
-        assert compound.identifiers[1] == reaction_pb2.CompoundIdentifier(type="SMILES", value="O")
+        assert compound.identifiers[1] == reaction_pb2.CompoundIdentifier(
+            type="SMILES", value="O"
+        )
         identifier = message_helpers.set_compound_name(compound, "ice")
         assert identifier == reaction_pb2.CompoundIdentifier(type="NAME", value="ice")
-        assert compound.identifiers[0] == reaction_pb2.CompoundIdentifier(type="NAME", value="ice")
+        assert compound.identifiers[0] == reaction_pb2.CompoundIdentifier(
+            type="NAME", value="ice"
+        )
         compound = reaction_pb2.Compound()
         _ = message_helpers.set_compound_molblock(compound, _BENZENE_MOLBLOCK)
         assert compound.identifiers[0].value == _BENZENE_MOLBLOCK
@@ -474,17 +546,33 @@ class TestSetDativeBonds:
         mol = Chem.MolFromSmiles("[PH3][Pd](Cl)(Cl)[NH3]", sanitize=False)
         dative_mol = message_helpers.set_dative_bonds(mol, from_atoms=("N", "P"))
         bond_types = {
-            frozenset([bond.GetBeginAtom().GetSymbol(), bond.GetEndAtom().GetSymbol()]): bond.GetBondType()
+            frozenset(
+                [bond.GetBeginAtom().GetSymbol(), bond.GetEndAtom().GetSymbol()]
+            ): bond.GetBondType()
             for bond in dative_mol.GetBonds()
         }
         assert bond_types[frozenset(["N", "Pd"])] == Chem.BondType.DATIVE
         assert bond_types[frozenset(["P", "Pd"])] == Chem.BondType.DATIVE
 
 
+_ROUND_TRIP_SUFFIXES = [
+    ".pbtxt",
+    ".pb",
+    ".json",
+    ".pbtxt.gz",
+    ".pb.gz",
+    ".json.gz",
+    ".txtpb",
+    ".binpb",
+    ".txtpb.gz",
+    ".binpb.gz",
+]
+
+
 class TestLoadAndWriteMessage:
     @pytest.fixture
-    def messages(self) -> Iterator[list]:
-        yield [
+    def messages(self) -> list:
+        return [
             test_pb2.Scalar(int32_value=3, float_value=4.5),
             test_pb2.RepeatedScalar(values=[1.2, 3.4]),
             test_pb2.Enum(value="FIRST"),
@@ -492,21 +580,7 @@ class TestLoadAndWriteMessage:
             test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
         ]
 
-    @pytest.mark.parametrize(
-        "suffix",
-        (
-            ".pbtxt",
-            ".pb",
-            ".json",
-            ".pbtxt.gz",
-            ".pb.gz",
-            ".json.gz",
-            ".txtpb",
-            ".binpb",
-            ".txtpb.gz",
-            ".binpb.gz",
-        ),
-    )
+    @pytest.mark.parametrize("suffix", _ROUND_TRIP_SUFFIXES)
     def test_round_trip(self, suffix, messages):
         for message in messages:
             with tempfile.NamedTemporaryFile(suffix=suffix) as f:
@@ -514,16 +588,24 @@ class TestLoadAndWriteMessage:
                 f.flush()
                 assert message == message_helpers.load_message(f.name, type(message))
 
+    @pytest.mark.parametrize("suffix", _ROUND_TRIP_SUFFIXES)
+    def test_round_trip_path_input(self, suffix, messages, tmp_path):
+        """save_message/load_message accept pathlib.Path, not just str."""
+        for i, message in enumerate(messages):
+            path = tmp_path / f"message_{i}{suffix}"
+            message_helpers.save_message(message, path)
+            assert message == message_helpers.load_message(path, type(message))
+
     def test_gzip_reproducibility(self, messages, tmp_path):
         # save_message pins the gzip header mtime, so repeated writes of the same
         # message are byte-identical regardless of wall-clock time between them.
         filename = (tmp_path / "test.pb.gz").as_posix()
         for message in messages:
             message_helpers.save_message(message, filename)
-            with open(filename, "rb") as f:
+            with pathlib.Path(filename).open("rb") as f:
                 value = f.read()
             message_helpers.save_message(message, filename)
-            with open(filename, "rb") as f:
+            with pathlib.Path(filename).open("rb") as f:
                 assert f.read() == value
 
     def test_pbtxt_round_trip_non_ascii_string(self, tmp_path):
@@ -567,14 +649,23 @@ class TestLoadAndWriteMessage:
 
     @pytest.mark.parametrize(
         "suffix",
-        (".pbtxt", ".pb", ".json", ".pb.gz", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
+        [
+            ".pbtxt",
+            ".pb",
+            ".json",
+            ".pb.gz",
+            ".txtpb",
+            ".binpb",
+            ".binpb.gz",
+            ".txtpb.gz",
+        ],
     )
     def test_save_message_is_atomic_on_failure(self, suffix, tmp_path, monkeypatch):
         """A crash mid-write must not leave a partial file (or .tmp) at the destination."""
         message = test_pb2.Scalar(int32_value=3)
         dest = (tmp_path / f"crashy{suffix}").as_posix()
         # Pre-existing destination must survive a failed overwrite.
-        with open(dest, "wb") as f:
+        with pathlib.Path(dest).open("wb") as f:
             f.write(b"original-bytes")
 
         def boom(*_, **__):
@@ -588,13 +679,23 @@ class TestLoadAndWriteMessage:
 
         with pytest.raises(RuntimeError, match="simulated mid-write failure"):
             message_helpers.save_message(message, dest)
-        with open(dest, "rb") as f:
+        with pathlib.Path(dest).open("rb") as f:
             assert f.read() == b"original-bytes"
-        assert not os.path.exists(dest + ".tmp")
+        assert not pathlib.Path(dest + ".tmp").exists()
 
     @pytest.mark.parametrize(
         "suffix",
-        (".pbtxt", ".pb", ".pb.gz", ".json", ".parquet", ".txtpb", ".binpb", ".binpb.gz", ".txtpb.gz"),
+        [
+            ".pbtxt",
+            ".pb",
+            ".pb.gz",
+            ".json",
+            ".parquet",
+            ".txtpb",
+            ".binpb",
+            ".binpb.gz",
+            ".txtpb.gz",
+        ],
     )
     def test_save_dataset(self, suffix, tmp_path):
         dataset = dataset_pb2.Dataset(
@@ -617,18 +718,21 @@ class TestLoadAndWriteMessage:
 
 class TestCreateMessage:
     @pytest.mark.parametrize(
-        "message_name,expected_class",
-        (
+        ("message_name", "expected_class"),
+        [
             ("Reaction", reaction_pb2.Reaction),
             ("Temperature", reaction_pb2.Temperature),
-            ("TemperatureConditions.TemperatureMeasurement", reaction_pb2.TemperatureConditions.TemperatureMeasurement),
-        ),
+            (
+                "TemperatureConditions.TemperatureMeasurement",
+                reaction_pb2.TemperatureConditions.TemperatureMeasurement,
+            ),
+        ],
     )
     def test_valid_messages(self, message_name, expected_class):
         message = message_helpers.create_message(message_name)
         assert isinstance(message, expected_class)
 
-    @pytest.mark.parametrize("message_name", ("reaction", "aosdifjasdf"))
+    @pytest.mark.parametrize("message_name", ["reaction", "aosdifjasdf"])
     def test_invalid_messages(self, message_name):
         with pytest.raises(ValueError, match="Cannot resolve"):
             message_helpers.create_message(message_name)
@@ -636,35 +740,58 @@ class TestCreateMessage:
 
 class TestMessagesToDataFrame:
     @pytest.mark.parametrize(
-        "message,expected",
-        (
-            (test_pb2.Scalar(int32_value=3, float_value=4.5), {"int32_value": 3, "float_value": 4.5}),
+        ("message", "expected"),
+        [
+            (
+                test_pb2.Scalar(int32_value=3, float_value=4.5),
+                {"int32_value": 3, "float_value": 4.5},
+            ),
             (
                 test_pb2.Scalar(int32_value=0, float_value=0.0, bool_value=False),
                 {"float_value": 0.0, "bool_value": False},
             ),
-            (test_pb2.RepeatedScalar(values=[1.2, 3.4]), {"values[0]": 1.2, "values[1]": 3.4}),
+            (
+                test_pb2.RepeatedScalar(values=[1.2, 3.4]),
+                {"values[0]": 1.2, "values[1]": 3.4},
+            ),
             (test_pb2.Enum(value="FIRST"), {"value": "FIRST"}),
-            (test_pb2.RepeatedEnum(values=["FIRST", "SECOND"]), {"values[0]": "FIRST", "values[1]": "SECOND"}),
-            (test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)), {"child.value": 1.2}),
+            (
+                test_pb2.RepeatedEnum(values=["FIRST", "SECOND"]),
+                {"values[0]": "FIRST", "values[1]": "SECOND"},
+            ),
+            (
+                test_pb2.Nested(child=test_pb2.Nested.Child(value=1.2)),
+                {"child.value": 1.2},
+            ),
             (
                 test_pb2.RepeatedNested(
-                    children=[test_pb2.RepeatedNested.Child(value=1.2), test_pb2.RepeatedNested.Child(value=3.4)]
+                    children=[
+                        test_pb2.RepeatedNested.Child(value=1.2),
+                        test_pb2.RepeatedNested.Child(value=3.4),
+                    ]
                 ),
                 {"children[0].value": 1.2, "children[1].value": 3.4},
             ),
-            (test_pb2.Map(values={"a": 1.2, "b": 3.4}), {'values["a"]': 1.2, 'values["b"]': 3.4}),
+            (
+                test_pb2.Map(values={"a": 1.2, "b": 3.4}),
+                {'values["a"]': 1.2, 'values["b"]': 3.4},
+            ),
             (
                 test_pb2.MapNested(
-                    children={"a": test_pb2.MapNested.Child(value=1.2), "b": test_pb2.MapNested.Child(value=3.4)}
+                    children={
+                        "a": test_pb2.MapNested.Child(value=1.2),
+                        "b": test_pb2.MapNested.Child(value=3.4),
+                    }
                 ),
                 {'children["a"].value': 1.2, 'children["b"].value': 3.4},
             ),
-        ),
+        ],
     )
     def test_message_to_row(self, message, expected):
         row = message_helpers.message_to_row(message)
-        pd.testing.assert_frame_equal(pd.DataFrame([row]), pd.DataFrame([expected]), check_like=True)
+        pd.testing.assert_frame_equal(
+            pd.DataFrame([row]), pd.DataFrame([expected]), check_like=True
+        )
 
     def test_messages_to_dataframe(self):
         reaction1 = reaction_pb2.Reaction()
@@ -707,7 +834,9 @@ class TestMessagesToDataFrame:
         del expected['inputs["test"].components[0].identifiers[0].type']
         del expected['inputs["test"].components[0].amount.mass.units']
         pd.testing.assert_frame_equal(
-            message_helpers.messages_to_dataframe([reaction1, reaction2], drop_constant_columns=True),
+            message_helpers.messages_to_dataframe(
+                [reaction1, reaction2], drop_constant_columns=True
+            ),
             expected,
             check_like=True,
         )

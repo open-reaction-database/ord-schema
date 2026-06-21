@@ -30,9 +30,12 @@ import contextlib
 import dataclasses
 import hashlib
 import os
+import pathlib
 import tempfile
 import warnings
 from collections.abc import Iterable, Iterator
+from types import TracebackType
+from typing import Self
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -73,35 +76,54 @@ class DatasetWriter:
 
     def __init__(
         self,
-        path: str,
+        path: str | os.PathLike[str],
         *,
         name: str,
         description: str,
         dataset_id: str | None = None,
         compression: str = "zstd",
         row_group_size: int = 1000,
-    ):
+    ) -> None:
+        """Opens a Parquet writer that publishes atomically to ``path`` on close.
+
+        Args:
+            path: Destination path for the published Parquet file.
+            name: Dataset name; must be non-empty.
+            description: Dataset description; must be non-empty.
+            dataset_id: Optional dataset ID, assigned during submission.
+            compression: Parquet compression codec.
+            row_group_size: Number of reactions buffered per row group.
+
+        Raises:
+            ValueError: If ``name`` or ``description`` is empty.
+        """
         if not name:
             raise ValueError("DatasetWriter requires a non-empty name")
         if not description:
             raise ValueError("DatasetWriter requires a non-empty description")
         self._row_group_size = row_group_size
-        self._schema = _build_schema(name=name, description=description, dataset_id=dataset_id)
+        self._schema = _build_schema(
+            name=name, description=description, dataset_id=dataset_id
+        )
         # Atomic publish: write to a sibling temp path with a unique random
         # suffix (so concurrent writers do not collide), rename onto `path`
         # on successful close, remove on exception. Same semantics as
         # ``atomic_io.atomic_path``, inlined because the open/close lifecycle
         # is split across __init__/close().
-        self._path = path
-        parent = os.path.dirname(path) or "."
-        basename = os.path.basename(path)
-        fd, self._tmp_path = tempfile.mkstemp(dir=parent, prefix=basename + ".", suffix=".tmp")
+        self._path = os.fspath(path)
+        parent = pathlib.Path(self._path).parent
+        basename = pathlib.Path(self._path).name
+        fd, self._tmp_path = tempfile.mkstemp(
+            dir=parent, prefix=basename + ".", suffix=".tmp"
+        )
         os.close(fd)
         try:
-            self._writer = pq.ParquetWriter(self._tmp_path, self._schema, compression=compression)
+            self._writer = pq.ParquetWriter(
+                self._tmp_path, self._schema, compression=compression
+            )
         except BaseException:
             with contextlib.suppress(FileNotFoundError):
-                os.unlink(self._tmp_path)
+                pathlib.Path(self._tmp_path).unlink()
             raise
         self._buffer_ids: list[str] = []
         self._buffer_blobs: list[bytes] = []
@@ -137,7 +159,7 @@ class DatasetWriter:
         except BaseException:
             self._abort()
             raise
-        os.replace(self._tmp_path, self._path)
+        pathlib.Path(self._tmp_path).replace(self._path)
 
     def _abort(self) -> None:
         # try/finally so the unlink still runs if writer.close raises a
@@ -148,7 +170,7 @@ class DatasetWriter:
                 self._writer.close()
         finally:
             with contextlib.suppress(FileNotFoundError):
-                os.unlink(self._tmp_path)
+                pathlib.Path(self._tmp_path).unlink()
 
     def _flush(self) -> None:
         if not self._buffer_ids:
@@ -161,10 +183,17 @@ class DatasetWriter:
         self._buffer_ids.clear()
         self._buffer_blobs.clear()
 
-    def __enter__(self) -> "DatasetWriter":
+    def __enter__(self) -> Self:
+        """Enters the context manager, returning this writer."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Closes the writer on success or aborts the write on exception."""
         # On exception in the with body, abort the write so the destination
         # path is never created; let the original exception propagate.
         if exc_type is None:
@@ -176,7 +205,7 @@ class DatasetWriter:
 
 def save_dataset(
     dataset: dataset_pb2.Dataset,
-    path: str,
+    path: str | os.PathLike[str],
     *,
     compression: str = "zstd",
     row_group_size: int = 1000,
@@ -198,7 +227,9 @@ def save_dataset(
             fields (``name``, ``description``) are unset.
     """
     if not dataset.reactions:
-        raise ValueError("Dataset has no reactions; Parquet datasets require at least one Reaction.")
+        raise ValueError(
+            "Dataset has no reactions; Parquet datasets require at least one Reaction."
+        )
     with DatasetWriter(
         path,
         name=dataset.name,
@@ -220,7 +251,7 @@ class _ReactionStream:
     always being truthy the way a bare generator would be.
     """
 
-    def __init__(self, path: str, num_reactions: int):
+    def __init__(self, path: str | os.PathLike[str], num_reactions: int) -> None:
         self._path = path
         self._num_reactions = num_reactions
 
@@ -247,8 +278,13 @@ class DatasetView:
     is exposed as a read-only property so accidental rebinding raises.
     """
 
-    def __init__(self, path: str):
-        self._path = path
+    def __init__(self, path: str | os.PathLike[str]) -> None:
+        """Opens a read-only view backed by the Parquet file at ``path``.
+
+        Args:
+            path: Path to the Parquet-serialized Dataset.
+        """
+        self._path = os.fspath(path)
         with pq.ParquetFile(path) as parquet_file:
             scalars = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
             num_rows = parquet_file.metadata.num_rows
@@ -256,7 +292,7 @@ class DatasetView:
         self.description = scalars.description
         self.dataset_id = scalars.dataset_id
         self.reaction_ids: list[str] = []
-        self._reactions = _ReactionStream(path, num_rows)
+        self._reactions = _ReactionStream(self._path, num_rows)
 
     @property
     def path(self) -> str:
@@ -265,10 +301,11 @@ class DatasetView:
 
     @property
     def reactions(self) -> _ReactionStream:
+        """Re-iterable stream of Reactions read from the backing file."""
         return self._reactions
 
 
-def load_dataset(path: str) -> dataset_pb2.Dataset:
+def load_dataset(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
     """Reads a full Dataset from a Parquet file.
 
     All reactions are deserialized into memory; prefer ``iter_reactions`` or
@@ -281,10 +318,11 @@ def load_dataset(path: str) -> dataset_pb2.Dataset:
     return dataset
 
 
-def load_metadata(path: str) -> dataset_pb2.Dataset:
-    """Reads Dataset scalar fields (``name``, ``description``, ``dataset_id``)
-    from the Parquet footer. No column data is read. The returned ``Dataset``
-    has no ``reactions`` or ``reaction_ids`` populated.
+def load_metadata(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
+    """Reads Dataset scalar fields (``name``, ``description``, ``dataset_id``).
+
+    The values are read from the Parquet footer. No column data is read. The
+    returned ``Dataset`` has no ``reactions`` or ``reaction_ids`` populated.
     """
     with pq.ParquetFile(path) as parquet_file:
         return _dataset_from_metadata(parquet_file.schema_arrow.metadata)
@@ -299,7 +337,7 @@ class ParquetFooter:
     num_rows: int
 
 
-def load_footer(path: str) -> ParquetFooter:
+def load_footer(path: str | os.PathLike[str]) -> ParquetFooter:
     """Returns scalar Dataset fields and row-group/row counts in one open.
 
     Equivalent to ``load_metadata`` plus ``num_row_groups`` plus a row count,
@@ -315,7 +353,7 @@ def load_footer(path: str) -> ParquetFooter:
 
 
 def iter_reactions(
-    path: str,
+    path: str | os.PathLike[str],
     reaction_ids: Iterable[str] | None = None,
     *,
     row_group: int | None = None,
@@ -340,18 +378,24 @@ def iter_reactions(
     else:
         filter_set = set(reaction_ids)
         if not filter_set:
-            raise ValueError("reaction_ids must be non-empty when provided; pass None to iterate all")
+            raise ValueError(
+                "reaction_ids must be non-empty when provided; pass None to iterate all"
+            )
     with pq.ParquetFile(path) as parquet_file:
         if row_group is not None:
             if not 0 <= row_group < parquet_file.num_row_groups:
-                raise IndexError(f"row_group {row_group} out of range [0, {parquet_file.num_row_groups})")
-            table = parquet_file.read_row_group(row_group, columns=["reaction_id", "reaction"])
+                raise IndexError(
+                    f"row_group {row_group} out of range [0, {parquet_file.num_row_groups})"
+                )
+            table = parquet_file.read_row_group(
+                row_group, columns=["reaction_id", "reaction"]
+            )
             yield from _iter_table(table, filter_set=filter_set)
         else:
             yield from _iter_reactions(parquet_file, filter_set=filter_set)
 
 
-def num_row_groups(path: str) -> int:
+def num_row_groups(path: str | os.PathLike[str]) -> int:
     """Returns the number of row groups in a Parquet dataset.
 
     Used by callers that parallelize over row groups via ``iter_reactions(...,
@@ -383,8 +427,8 @@ def _iter_table(
         yield reaction_id, reaction_pb2.Reaction.FromString(blob)
 
 
-def streaming_md5(path: str) -> tuple[str, int]:
-    """Returns ``(md5_hexdigest, num_reactions)`` for a Parquet dataset.
+def streaming_md5(path: str | os.PathLike[str]) -> tuple[str, int]:
+    r"""Returns ``(md5_hexdigest, num_reactions)`` for a Parquet dataset.
 
     Streams the file row-group at a time so peak memory stays bounded. The
     hash is fed in this order:
@@ -404,7 +448,7 @@ def streaming_md5(path: str) -> tuple[str, int]:
     file layout (row group sizes, compression) so the same logical content
     rewritten with different writer settings still hashes the same.
     """
-    hasher = hashlib.md5()
+    hasher = hashlib.md5(usedforsecurity=False)
     metadata = load_metadata(path)
     if metadata.name:
         hasher.update(f"name={metadata.name}\n".encode())
@@ -422,7 +466,7 @@ def streaming_md5(path: str) -> tuple[str, int]:
     return hasher.hexdigest(), num_reactions
 
 
-def iter_reaction_ids(path: str) -> Iterator[str]:
+def iter_reaction_ids(path: str | os.PathLike[str]) -> Iterator[str]:
     """Yields ``reaction_id`` values from a Parquet dataset without decoding Reaction blobs.
 
     Reads only the ``reaction_id`` column row-group at a time, so this is
@@ -433,7 +477,9 @@ def iter_reaction_ids(path: str) -> Iterator[str]:
             yield from batch.column("reaction_id").to_pylist()
 
 
-def load_reaction(path: str, reaction_id: str) -> reaction_pb2.Reaction:
+def load_reaction(
+    path: str | os.PathLike[str], reaction_id: str
+) -> reaction_pb2.Reaction:
     """Reads a single Reaction by ID.
 
     Passes ``reaction_id`` as a Parquet predicate, which lets row groups be
@@ -469,7 +515,9 @@ def _build_schema(*, name: str, description: str, dataset_id: str | None) -> pa.
     return _SCHEMA.with_metadata(metadata)
 
 
-def _dataset_from_metadata(raw_metadata: dict[bytes, bytes] | None) -> dataset_pb2.Dataset:
+def _dataset_from_metadata(
+    raw_metadata: dict[bytes, bytes] | None,
+) -> dataset_pb2.Dataset:
     metadata = raw_metadata or {}
 
     def _get(key: str) -> str | None:
@@ -478,15 +526,21 @@ def _dataset_from_metadata(raw_metadata: dict[bytes, bytes] | None) -> dataset_p
 
     version = _get(_META_SCHEMA_VERSION)
     if version is None:
-        raise ValueError(f"missing required Parquet footer key: {_META_SCHEMA_VERSION!r}")
+        raise ValueError(
+            f"missing required Parquet footer key: {_META_SCHEMA_VERSION!r}"
+        )
     if version != SCHEMA_VERSION:
         raise ValueError(f"unsupported Parquet dataset schema version: {version!r}")
     name = _get(_META_NAME)
     description = _get(_META_DESCRIPTION)
     if not name:
-        raise ValueError(f"missing or empty required Parquet footer key: {_META_NAME!r}")
+        raise ValueError(
+            f"missing or empty required Parquet footer key: {_META_NAME!r}"
+        )
     if not description:
-        raise ValueError(f"missing or empty required Parquet footer key: {_META_DESCRIPTION!r}")
+        raise ValueError(
+            f"missing or empty required Parquet footer key: {_META_DESCRIPTION!r}"
+        )
     dataset = dataset_pb2.Dataset(name=name, description=description)
     dataset_id = _get(_META_DATASET_ID)
     if dataset_id:
@@ -509,7 +563,9 @@ def write_dataset(
         DeprecationWarning,
         stacklevel=2,
     )
-    return save_dataset(dataset, path, compression=compression, row_group_size=row_group_size)
+    return save_dataset(
+        dataset, path, compression=compression, row_group_size=row_group_size
+    )
 
 
 def read_dataset(path: str) -> dataset_pb2.Dataset:
