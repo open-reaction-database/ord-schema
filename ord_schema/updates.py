@@ -103,11 +103,6 @@ def apply_reaction_updates(
     if new_id is not None:
         reaction.reaction_id = new_id
         modified = True
-    for func in _UPDATES:
-        # NOTE(kearnes): Order is important here; if you write
-        # `modified or func(reaction)` and modified is True, the interpreter
-        # will skip the evaluation of func(reaction).
-        modified = func(reaction) or modified
     if modified:
         event = reaction.provenance.record_modified.add()
         event.time.value = datetime.datetime.now(datetime.UTC).ctime()
@@ -203,7 +198,3 @@ def update_parquet_dataset(
             apply_reaction_updates(reaction, new_id=new_id)
             apply_cross_reference_substitutions(reaction, id_substitutions)
             writer.write(reaction)
-
-
-# Standard updates.
-_UPDATES = []

@@ -33,7 +33,7 @@ interactively with the ORD web editor.
 
         .. code-block:: shell
 
-            $ python validate_dataset.py --input="example_dataset.pbtxt"
+            $ python validate_dataset.py --input_pattern="example_dataset.pbtxt"
 
         When defining reactions and datasets programatically, it is good
         practice to use the `validation methods

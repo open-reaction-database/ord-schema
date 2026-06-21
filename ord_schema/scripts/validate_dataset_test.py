@@ -62,14 +62,17 @@ def setup(request, tmp_path) -> tuple[str, str]:
 
 def test_simple(setup):
     test_subdirectory, suffix = setup
-    argv = ["--input", str(pathlib.Path(test_subdirectory) / f"dataset1{suffix}")]
+    argv = [
+        "--input_pattern",
+        str(pathlib.Path(test_subdirectory) / f"dataset1{suffix}"),
+    ]
     validate_dataset.main(validate_dataset.parse_args(argv))
 
 
 def test_filter(setup):
     test_subdirectory, suffix = setup
     argv = [
-        "--input",
+        "--input_pattern",
         str(pathlib.Path(test_subdirectory) / f"dataset1{suffix}"),
         "--filter",
         "dataset",
@@ -79,7 +82,10 @@ def test_filter(setup):
 
 def test_validation_errors(setup):
     test_subdirectory, suffix = setup
-    argv = ["--input", str(pathlib.Path(test_subdirectory) / f"dataset*{suffix}")]
+    argv = [
+        "--input_pattern",
+        str(pathlib.Path(test_subdirectory) / f"dataset*{suffix}"),
+    ]
     with pytest.raises(
         validations.ValidationError,
         match="Reactions should have at least 1 reaction input",
@@ -133,7 +139,9 @@ def test_parquet_cross_row_group_duplicate_id(tmp_path):
         validations.ValidationError,
         match="Multiple Reactions should never have the same IDs",
     ):
-        validate_dataset.main(validate_dataset.parse_args(["--input", str(path)]))
+        validate_dataset.main(
+            validate_dataset.parse_args(["--input_pattern", str(path)])
+        )
 
 
 def test_parquet_empty_file(tmp_path):
@@ -151,7 +159,9 @@ def test_parquet_empty_file(tmp_path):
         validations.ValidationError,
         match="Dataset requires reactions or reaction_ids",
     ):
-        validate_dataset.main(validate_dataset.parse_args(["--input", str(path)]))
+        validate_dataset.main(
+            validate_dataset.parse_args(["--input_pattern", str(path)])
+        )
 
 
 def test_parquet_per_reaction_error_in_late_row_group(tmp_path):
@@ -171,7 +181,9 @@ def test_parquet_per_reaction_error_in_late_row_group(tmp_path):
         validations.ValidationError,
         match="Reactions should have at least 1 reaction input",
     ):
-        validate_dataset.main(validate_dataset.parse_args(["--input", str(path)]))
+        validate_dataset.main(
+            validate_dataset.parse_args(["--input_pattern", str(path)])
+        )
 
 
 @pytest.mark.parametrize(

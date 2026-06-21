@@ -93,7 +93,7 @@ def _get_inputs(args: argparse.Namespace) -> list[FileStatus]:
                 else:
                     status, filename = fields
                     if not status.startswith(("A", "D", "M")):
-                        raise ValueError(f"unsupported git-diff statue: {status}")
+                        raise ValueError(f"unsupported git-diff status: {status}")
                     original_filename = ""
                 inputs.append(FileStatus(filename, status, original_filename))
         return inputs
