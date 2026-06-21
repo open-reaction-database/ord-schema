@@ -137,6 +137,7 @@ select = [
     "FIX",  # flake8-fixme
     "S",    # flake8-bandit
     "PTH",  # flake8-use-pathlib
+    "D",    # pydocstyle (docstrings)
 ]
 ignore = [
     # ANN401 (disallow typing.Any) fires only on genuinely dynamic call sites:
@@ -189,14 +190,19 @@ ignore = [
     "PTH207",
 ]
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.ruff.lint.per-file-ignores]
 # Tests trip a couple of flake8-bugbear (the "B" rules) checks -- B011 (`assert False`)
 # and B017 (overly broad `pytest.raises(Exception)`); type annotations (ANN) also add
 # little value on test functions/fixtures, and SLF001 (private-member access)
 # is fine in tests. Skip these in tests.
-"**/*_test.py" = ["B011", "B017", "ANN", "SLF001", "S603", "S607"]
+"**/*_test.py" = ["B011", "B017", "ANN", "SLF001", "S603", "S607", "D"]
+# conftest.py holds pytest fixtures/hooks; docstrings add little there.
+"**/conftest.py" = ["D"]
 # Tutorial notebooks legitimately show commented-out alternative code.
-"**/*.ipynb" = ["ERA001", "S310"]  # tutorials download from known URLs
+"**/*.ipynb" = ["ERA001", "S310", "D"]  # tutorials download from known URLs; D: cells are narrative, not modules
 
 [tool.ty.src]
 exclude = ["**/*_pb2.py*"]

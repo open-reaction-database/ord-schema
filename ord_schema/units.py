@@ -340,8 +340,7 @@ class UnitResolver:
     def convert(
         self, message: ord_schema.UnitMessage, new_units: str | int
     ) -> ord_schema.UnitMessage:
-        """Converts a united message into another united message of the same
-        type, but with different units.
+        """Converts a united message into another of the same type with different units.
 
         Args:
             message: a message with units, e.g., Mass, Length.

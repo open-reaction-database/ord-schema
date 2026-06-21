@@ -91,6 +91,14 @@ def simple_solution(
 def brine(
     volume: str | reaction_pb2.Volume | None = None,
 ) -> list[reaction_pb2.Compound]:
+    """Creates a saturated aqueous sodium chloride (brine) solution.
+
+    Args:
+        volume: Volume of the brine solution.
+
+    Returns:
+        A list of solvent/solute Compounds.
+    """
     return simple_solution(
         solute_smiles="[Na+].[Cl-]", solvent_smiles="O", volume=volume, saturated=True
     )

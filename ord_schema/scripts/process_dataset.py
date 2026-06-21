@@ -56,6 +56,7 @@ class FileStatus:
     original_filename: str
 
     def __post_init__(self) -> None:
+        """Validates that the Git status is one of {'A', 'D', 'M', 'R'}."""
         if self.status[0] not in ["A", "D", "M", "R"]:
             raise ValueError(f"unsupported file status: {self.status}")
 
@@ -379,6 +380,7 @@ def run(
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parses command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Process datasets for database submissions"
     )
@@ -422,6 +424,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
+    """Silences RDKit logs and runs dataset processing for a database submission."""
     silence_rdkit_logs()
     run(args)
 

@@ -148,8 +148,9 @@ def _opsin_resolve(value_type: str, value: str) -> str:
 
 
 def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
-    """Resolve a text-based description of an input in one of the following
-    formats:
+    """Resolve a text-based description of an input.
+
+    Supported formats:
         (1) [AMOUNT] of [NAME]
         (2) [AMOUNT] of [CONCENTRATION] [SOLUTE] in [SOLVENT]
 
