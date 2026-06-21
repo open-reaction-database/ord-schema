@@ -569,7 +569,7 @@ _ROUND_TRIP_SUFFIXES = [
 ]
 
 
-class TestLoadAndWriteMessage:
+class TestLoadAndSaveMessage:
     @pytest.fixture
     def messages(self) -> list:
         return [
