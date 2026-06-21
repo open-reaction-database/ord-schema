@@ -248,8 +248,9 @@ def test_writer_publishes_atomically(tmp_path):
     writer.write(_make_reaction("ord-0000"))
     # Mid-write: the destination doesn't exist yet, only the temp does.
     assert not path.exists()
-    assert "ds.parquet" not in sorted(q.name for q in tmp_path.iterdir())
-    assert len(sorted(q.name for q in tmp_path.iterdir())) == 1
+    entries = sorted(q.name for q in tmp_path.iterdir())
+    assert "ds.parquet" not in entries
+    assert len(entries) == 1
     writer.close()
     # After close: the destination exists and is the only file.
     assert sorted(q.name for q in tmp_path.iterdir()) == ["ds.parquet"]
