@@ -552,7 +552,7 @@ def _dataset_from_metadata(
 # rename. Remove in a future major release.
 def write_dataset(
     dataset: dataset_pb2.Dataset,
-    path: str,
+    path: str | os.PathLike[str],
     *,
     compression: str = "zstd",
     row_group_size: int = 1000,
@@ -568,7 +568,7 @@ def write_dataset(
     )
 
 
-def read_dataset(path: str) -> dataset_pb2.Dataset:
+def read_dataset(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
     """Deprecated alias for :func:`load_dataset`."""
     warnings.warn(
         "parquet_dataset.read_dataset is deprecated; use load_dataset instead.",
@@ -578,7 +578,7 @@ def read_dataset(path: str) -> dataset_pb2.Dataset:
     return load_dataset(path)
 
 
-def read_metadata(path: str) -> dataset_pb2.Dataset:
+def read_metadata(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
     """Deprecated alias for :func:`load_metadata`."""
     warnings.warn(
         "parquet_dataset.read_metadata is deprecated; use load_metadata instead.",
@@ -588,7 +588,7 @@ def read_metadata(path: str) -> dataset_pb2.Dataset:
     return load_metadata(path)
 
 
-def read_footer(path: str) -> ParquetFooter:
+def read_footer(path: str | os.PathLike[str]) -> ParquetFooter:
     """Deprecated alias for :func:`load_footer`."""
     warnings.warn(
         "parquet_dataset.read_footer is deprecated; use load_footer instead.",
@@ -598,7 +598,9 @@ def read_footer(path: str) -> ParquetFooter:
     return load_footer(path)
 
 
-def read_reaction(path: str, reaction_id: str) -> reaction_pb2.Reaction:
+def read_reaction(
+    path: str | os.PathLike[str], reaction_id: str
+) -> reaction_pb2.Reaction:
     """Deprecated alias for :func:`load_reaction`."""
     warnings.warn(
         "parquet_dataset.read_reaction is deprecated; use load_reaction instead.",

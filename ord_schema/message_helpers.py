@@ -1155,7 +1155,9 @@ def parse_doi(doi: str) -> str:
 
 # Deprecated aliases, kept for backwards compatibility after the load_*/save_*
 # rename. Remove in a future major release.
-def write_message(message: ord_schema.Message, filename: str) -> None:
+def write_message(
+    message: ord_schema.Message, filename: str | os.PathLike[str]
+) -> None:
     """Deprecated alias for :func:`save_message`."""
     warnings.warn(
         "message_helpers.write_message is deprecated; use save_message instead.",
@@ -1165,7 +1167,9 @@ def write_message(message: ord_schema.Message, filename: str) -> None:
     return save_message(message, filename)
 
 
-def write_dataset(dataset: dataset_pb2.Dataset, filename: str) -> None:
+def write_dataset(
+    dataset: dataset_pb2.Dataset, filename: str | os.PathLike[str]
+) -> None:
     """Deprecated alias for :func:`save_dataset`."""
     warnings.warn(
         "message_helpers.write_dataset is deprecated; use save_dataset instead.",
