@@ -161,20 +161,47 @@ class RDKitMols(Base):
     def tanimoto(
         cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP
     ) -> ColumnElement[float]:
-        """Returns a Tanimoto similarity expression between the stored fingerprint and ``other``."""
+        """Returns the Tanimoto similarity value between the stored fingerprint and ``other``.
+
+        This computes the similarity for every row (no index assistance) and is
+        intended for selecting or ordering by similarity. To *filter* by similarity,
+        use ``is_similar``, which uses the GiST fingerprint index.
+        """
         return func.tanimoto_sml(
             getattr(cls, fp_type.name.lower()), fp_type(cast(other, RDKitMol))
         )
 
     @classmethod
+    def is_similar(
+        cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP
+    ) -> ColumnElement[bool]:
+        """Returns an expression testing whether the stored fingerprint is similar to ``other``.
+
+        Uses the ``%`` operator, which is backed by the GiST fingerprint index. For
+        ``MORGAN_BFP`` the cutoff is read from the ``rdkit.tanimoto_threshold`` session
+        setting (default 0.5). For ``MORGAN_SFP`` (sparse fingerprints) the cartridge
+        uses Dice similarity and reads ``rdkit.dice_threshold`` instead. Set the
+        relevant GUC via ``set_config`` before executing.
+        """
+        return getattr(cls, fp_type.name.lower()).bool_op("%")(
+            fp_type(cast(other, RDKitMol))
+        )
+
+    @classmethod
     def contains_substructure(cls, pattern: str) -> ColumnElement[bool]:
-        """Returns an expression testing whether the stored mol contains the ``pattern`` substructure."""
-        return func.substruct(cls.mol, cast(pattern, RDKitMol))
+        """Returns an expression testing whether the stored mol contains the ``pattern`` substructure.
+
+        Uses the ``@>`` operator, which is backed by the GiST mol index.
+        """
+        return cls.mol.bool_op("@>")(cast(pattern, RDKitMol))
 
     @classmethod
     def matches_smarts(cls, pattern: str) -> ColumnElement[bool]:
-        """Returns an expression testing whether the stored mol matches the SMARTS ``pattern``."""
-        return func.substruct(cls.mol, func.qmol_from_smarts(cast(pattern, CString)))
+        """Returns an expression testing whether the stored mol matches the SMARTS ``pattern``.
+
+        Uses the ``@>`` operator, which is backed by the GiST mol index.
+        """
+        return cls.mol.bool_op("@>")(func.qmol_from_smarts(cast(pattern, CString)))
 
 
 class RDKitReactions(Base):
@@ -192,7 +219,10 @@ class RDKitReactions(Base):
 
     @classmethod
     def matches_smarts(cls, pattern: str) -> ColumnElement[bool]:
-        """Returns an expression testing whether the stored reaction matches the reaction SMARTS ``pattern``."""
-        return func.substruct(
-            cls.reaction, func.reaction_from_smarts(cast(pattern, CString))
+        """Returns an expression testing whether the stored reaction matches the reaction SMARTS ``pattern``.
+
+        Uses the ``@>`` operator, which is backed by the GiST reaction index.
+        """
+        return cls.reaction.bool_op("@>")(
+            func.reaction_from_smarts(cast(pattern, CString))
         )
