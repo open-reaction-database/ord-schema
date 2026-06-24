@@ -177,9 +177,11 @@ class RDKitMols(Base):
     ) -> ColumnElement[bool]:
         """Returns an expression testing whether the stored fingerprint is similar to ``other``.
 
-        Uses the ``%`` operator, which is backed by the GiST fingerprint index. The
-        similarity cutoff is read from the ``rdkit.tanimoto_threshold`` session setting
-        (default 0.5), not passed here; set it via ``set_config`` before executing.
+        Uses the ``%`` operator, which is backed by the GiST fingerprint index. For
+        ``MORGAN_BFP`` the cutoff is read from the ``rdkit.tanimoto_threshold`` session
+        setting (default 0.5). For ``MORGAN_SFP`` (sparse fingerprints) the cartridge
+        uses Dice similarity and reads ``rdkit.dice_threshold`` instead. Set the
+        relevant GUC via ``set_config`` before executing.
         """
         return getattr(cls, fp_type.name.lower()).bool_op("%")(
             fp_type(cast(other, RDKitMol))
