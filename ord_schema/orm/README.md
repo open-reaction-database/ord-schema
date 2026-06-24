@@ -248,8 +248,25 @@ with Session(engine) as session:
 assert len(reactions) == 20
   ```
 
-`is_similar` uses the GiST fingerprint index; the cutoff is read from the
-`rdkit.tanimoto_threshold` session setting (default 0.5). Set a different cutoff
-with `session.execute(select(func.set_config("rdkit.tanimoto_threshold", "0.7", False)))`
-before running the query. Use `RDKitMols.tanimoto(...)` instead when you need the
-similarity *value* (e.g. to select or order by it).
+`is_similar` uses the GiST fingerprint index; the cutoff is read from a session
+setting (default 0.5) rather than passed to the method. `MORGAN_BFP` uses Tanimoto
+similarity (`rdkit.tanimoto_threshold`); `MORGAN_SFP` uses Dice similarity
+(`rdkit.dice_threshold`). Set a different cutoff for the rest of the session with:
+
+```python
+session.execute(select(func.set_config("rdkit.tanimoto_threshold", "0.7", False)))
+```
+
+The third argument to `set_config` is `is_local`. Passing `True` instead scopes the
+change to the current transaction only (equivalent to `SET LOCAL`), so it reverts
+automatically afterward — useful for a one-off query without disturbing the rest of
+the session:
+
+```python
+with session.begin():
+    session.execute(select(func.set_config("rdkit.tanimoto_threshold", "0.7", True)))
+    results = session.execute(query)
+```
+
+Use `RDKitMols.tanimoto(...)` instead when you need the similarity *value* (e.g. to
+select or order by it).
