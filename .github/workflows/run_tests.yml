@@ -157,7 +157,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: Bump patch without commit (for publish dry-runs)
         run: |
-          uv pip install bump2version
+          uv pip install --system bump2version
           # Dry-run first: assert .bumpversion.cfg and every configured file still contain the
           # expected current_version / search patterns before we mutate the tree (misconfig or
           # version drift fails here without leaving a half-updated checkout).
@@ -166,7 +166,7 @@ jobs:
       - name: Test python
         run: |
           # Same pre-upload steps as publish.yml; PyPI upload runs only on main with secrets.
-          uv pip install build twine wheel
+          uv pip install --system build twine wheel
           python -m build
           python -m twine check dist/*
       - name: Test javascript
