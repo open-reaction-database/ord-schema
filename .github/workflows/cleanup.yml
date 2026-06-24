@@ -24,8 +24,8 @@ jobs:
   check_licenses:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
         with:
           go-version: '>=1.16'
       - name: Install dependencies
@@ -38,11 +38,11 @@ jobs:
   check_python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           python-version: '3.11'
@@ -50,7 +50,7 @@ jobs:
         run: uv sync --extra examples --extra tests --locked
       - name: Verify bump2version config (dry-run)
         run: |
-          uv pip install bump2version
+          uv pip install --system bump2version
           bump2version patch --dry-run --verbose
       - name: Run ruff
         run: |
@@ -65,7 +65,7 @@ jobs:
   check_proto:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: clang-format
         run: |
           sudo apt update && sudo apt install clang-format --yes

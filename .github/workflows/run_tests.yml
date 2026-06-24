@@ -30,8 +30,8 @@ jobs:
     env:
       PGDATA: $GITHUB_WORKSPACE/rdkit-postgres
     steps:
-      - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: actions/checkout@v7
+      - uses: conda-incubator/setup-miniconda@v4
         with:
           miniconda-version: 'latest'
       - name: Setup PostgreSQL
@@ -40,10 +40,10 @@ jobs:
           # NOTE(skearnes): conda is only used for postgres (not python).
           conda install -c conda-forge rdkit-postgresql
           initdb
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -78,11 +78,11 @@ jobs:
       CUDA_VISIBLE_DEVICES: "-1"
       TF_CPP_MIN_LOG_LEVEL: "2"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -95,11 +95,11 @@ jobs:
   test_proto_wrappers:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
       - name: Install protoc
@@ -114,7 +114,7 @@ jobs:
           unzip protobuf-javascript-3.21.2-linux-x86_64.zip
           npm i -g ts-protoc-gen@0.15.0 protobufjs@7.4.0 protobufjs-cli@1.1.3
           PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH protoc --version
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '>=1.16'
       - name: Install addlicense
@@ -131,8 +131,8 @@ jobs:
   test_js:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
       - name: Test NPM package
@@ -143,21 +143,21 @@ jobs:
   test_publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: '3.11'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           # Trusted publishing requires Node >= 22.14 and npm >= 11.5.1 (https://docs.npmjs.com/trusted-publishers)
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
       - name: Bump patch without commit (for publish dry-runs)
         run: |
-          uv pip install bump2version
+          uv pip install --system bump2version
           # Dry-run first: assert .bumpversion.cfg and every configured file still contain the
           # expected current_version / search patterns before we mutate the tree (misconfig or
           # version drift fails here without leaving a half-updated checkout).
@@ -166,7 +166,7 @@ jobs:
       - name: Test python
         run: |
           # Same pre-upload steps as publish.yml; PyPI upload runs only on main with secrets.
-          uv pip install build twine wheel
+          uv pip install --system build twine wheel
           python -m build
           python -m twine check dist/*
       - name: Test javascript
