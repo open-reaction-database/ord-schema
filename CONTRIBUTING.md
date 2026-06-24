@@ -76,26 +76,19 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
    reviewer comments and automated tests. Once the reviewers have approved your changes, they will merge
    them into the official repository.
 
-## Release bumps
+## Releases
 
-When a pull request merges to `main`, the publish workflow automatically bumps the version, tags a
-release, and publishes to PyPI and npm. The default bump is **patch**; a maintainer can promote a
-release to **minor** or **major** by including a tag in the **PR title**:
+Releases are cut manually by a maintainer. Merging to `main` does not publish anything.
 
-- `[bump minor]` — new features, backward-compatible additions (e.g., a new module or public API).
-- `[bump major]` — breaking changes (removed or renamed public APIs, incompatible behavior shifts).
-- No tag — patch release.
+To release, run the [Publish workflow](../../actions/workflows/publish.yml) from the Actions tab
+(**Run workflow**) and choose the bump level:
 
-The tag is case-insensitive (`[BUMP MINOR]` is fine) and must live in the PR title itself — that's
-the squash-merge subject line that lands on `main`, and the only text the release workflow reads.
-If both `[bump major]` and `[bump minor]` appear, `major` wins.
+- **patch** (default) — bug fixes and backward-compatible changes.
+- **minor** — new features, backward-compatible additions (e.g., a new module or public API).
+- **major** — breaking changes (removed or renamed public APIs, incompatible behavior shifts).
 
-A separate CI check ([release_bump.yml](.github/workflows/release_bump.yml)) runs on every PR and
-fails if the title contains a `[bump WORD]` pattern where `WORD` isn't `major`, `minor`, or `patch`,
-so typos are caught before merge rather than after the release has shipped. When the title opts
-into a non-default bump (`[bump minor]` or `[bump major]`), the same workflow posts (and keeps
-updated) a sticky comment on the PR showing the resolved level; default-patch PRs get no comment
-so the bot stays quiet in the common case.
+The workflow bumps the version, builds and publishes to PyPI and npm, pushes the version-bump commit
+and tag to `main`, and creates a GitHub release with generated notes.
 
 ## Terms of Use
 
