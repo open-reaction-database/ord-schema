@@ -17,7 +17,6 @@
 import datetime
 import os
 import time
-from collections.abc import Iterable
 from typing import Any, cast
 from unittest.mock import patch
 
@@ -103,65 +102,73 @@ def add_dataset(
     set_submitted_at(dataset.dataset_id, session)
 
 
-def _latest_time(values: Iterable[str]) -> datetime.datetime | None:
-    """Returns the latest parseable timestamp among free-text time values, or None.
+def _parse_date(value: str) -> datetime.date | None:
+    """Parses the date from a free-text provenance timestamp, or None if unparseable.
 
-    Reaction provenance times are free text in several formats (ISO, US, ctime), so
-    they're parsed with dateutil; unparseable values are skipped.
+    Provenance times are free text in several formats (ISO, US, ctime), so they're
+    parsed with dateutil. Only the calendar date is kept; recency browsing needs no
+    finer granularity, and dropping the time avoids the timezones these values may
+    carry.
     """
-    parsed = []
-    for value in values:
-        try:
-            parsed.append(parser.parse(value))
-        except (ValueError, OverflowError):
-            continue
-    return max(parsed) if parsed else None
+    try:
+        return parser.parse(value).date()
+    except (ValueError, OverflowError):
+        return None
 
 
 def set_submitted_at(dataset_id: str, session: Session) -> None:
-    """Sets ``dataset.submitted_at`` to the dataset's latest reaction timestamp.
+    """Sets ``dataset.submitted_at`` from the dataset's latest reaction record event.
 
-    Uses the latest ``record_created``/``record_modified`` time of an arbitrary
-    reaction in the dataset. Reactions in a dataset share their submission-pipeline
-    modification time, so one reaction is representative and avoids scanning every
-    reaction. Falls back to ``record_created`` (required) when there is no
-    ``record_modified``; leaves NULL only when no timestamp is parseable.
+    Uses the last ``record_modified`` entry of an arbitrary reaction in the dataset:
+    record events are appended in chronological order, so the last one is the most
+    recent. Falls back to ``record_created`` (required) when there is no
+    ``record_modified``. Reactions in a dataset share their submission-pipeline
+    timestamps, so one reaction is representative and avoids scanning every reaction.
+    Leaves NULL only when the timestamp is missing or unparseable.
     """
-    values = (
-        session.execute(
-            text(
-                """
-                SELECT date_time.value
-                FROM ord.reaction
-                JOIN ord.reaction_provenance
-                    ON reaction_provenance.reaction_id = reaction.id
-                JOIN ord.record_event
-                    ON record_event.reaction_provenance_id = reaction_provenance.id
-                    AND record_event.ord_schema_context IN (
-                        'ReactionProvenance.record_created',
-                        'ReactionProvenance.record_modified'
-                    )
-                JOIN ord.date_time ON date_time.record_event_id = record_event.id
-                WHERE reaction.id = (
-                    SELECT id FROM ord.reaction
-                    WHERE dataset_id = (
-                        SELECT id FROM ord.dataset WHERE dataset_id = :dataset_id
-                    )
-                    LIMIT 1
+    session.flush()  # set_submitted_at reads via raw SQL; make pending rows visible.
+    value = session.execute(
+        text(
+            """
+            SELECT date_time.value
+            FROM ord.reaction
+            JOIN ord.reaction_provenance
+                ON reaction_provenance.reaction_id = reaction.id
+            JOIN ord.record_event
+                ON record_event.reaction_provenance_id = reaction_provenance.id
+                AND record_event.ord_schema_context IN (
+                    'ReactionProvenance.record_created',
+                    'ReactionProvenance.record_modified'
                 )
-                """
-            ),
-            {"dataset_id": dataset_id},
-        )
-        .scalars()
-        .all()
-    )
+            JOIN ord.date_time ON date_time.record_event_id = record_event.id
+            WHERE reaction.id = (
+                SELECT id FROM ord.reaction
+                WHERE dataset_id = (
+                    SELECT id FROM ord.dataset WHERE dataset_id = :dataset_id
+                )
+                LIMIT 1
+            )
+            -- Prefer record_modified over record_created, then the last entry
+            -- (record events are inserted in chronological order, so the highest
+            -- id is the most recent).
+            ORDER BY
+                (record_event.ord_schema_context
+                    = 'ReactionProvenance.record_modified') DESC,
+                record_event.id DESC
+            LIMIT 1
+            """
+        ),
+        {"dataset_id": dataset_id},
+    ).scalar_one_or_none()
     session.execute(
         text(
             "UPDATE ord.dataset SET submitted_at = :submitted_at "
             "WHERE dataset_id = :dataset_id"
         ),
-        {"submitted_at": _latest_time(values), "dataset_id": dataset_id},
+        {
+            "submitted_at": _parse_date(value) if value is not None else None,
+            "dataset_id": dataset_id,
+        },
     )
 
 
