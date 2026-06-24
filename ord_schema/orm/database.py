@@ -14,11 +14,14 @@
 
 """Functions for creating/managing the PostgreSQL database."""
 
+import datetime
 import os
 import time
+from collections.abc import Iterable
 from typing import Any, cast
 from unittest.mock import patch
 
+from dateutil import parser
 from sqlalchemy import delete, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NotSupportedError, OperationalError
@@ -97,6 +100,88 @@ def add_dataset(
         update_rdkit_tables(dataset.dataset_id, session)
         session.flush()
         update_rdkit_ids(dataset.dataset_id, session)
+    set_submitted_at(dataset.dataset_id, session)
+
+
+def _latest_time(values: Iterable[str]) -> datetime.datetime | None:
+    """Returns the latest parseable timestamp among free-text time values, or None.
+
+    Reaction provenance times are free text in several formats (ISO, US, ctime), so
+    they're parsed with dateutil; unparseable values are skipped.
+    """
+    parsed = []
+    for value in values:
+        try:
+            parsed.append(parser.parse(value))
+        except (ValueError, OverflowError):
+            continue
+    return max(parsed) if parsed else None
+
+
+def set_submitted_at(dataset_id: str, session: Session) -> None:
+    """Sets ``dataset.submitted_at`` to the dataset's latest reaction timestamp.
+
+    Uses the latest ``record_created``/``record_modified`` time of an arbitrary
+    reaction in the dataset. Reactions in a dataset share their submission-pipeline
+    modification time, so one reaction is representative and avoids scanning every
+    reaction. Falls back to ``record_created`` (required) when there is no
+    ``record_modified``; leaves NULL only when no timestamp is parseable.
+    """
+    values = (
+        session.execute(
+            text(
+                """
+                SELECT date_time.value
+                FROM ord.reaction
+                JOIN ord.reaction_provenance
+                    ON reaction_provenance.reaction_id = reaction.id
+                JOIN ord.record_event
+                    ON record_event.reaction_provenance_id = reaction_provenance.id
+                    AND record_event.ord_schema_context IN (
+                        'ReactionProvenance.record_created',
+                        'ReactionProvenance.record_modified'
+                    )
+                JOIN ord.date_time ON date_time.record_event_id = record_event.id
+                WHERE reaction.id = (
+                    SELECT id FROM ord.reaction
+                    WHERE dataset_id = (
+                        SELECT id FROM ord.dataset WHERE dataset_id = :dataset_id
+                    )
+                    LIMIT 1
+                )
+                """
+            ),
+            {"dataset_id": dataset_id},
+        )
+        .scalars()
+        .all()
+    )
+    session.execute(
+        text(
+            "UPDATE ord.dataset SET submitted_at = :submitted_at "
+            "WHERE dataset_id = :dataset_id"
+        ),
+        {"submitted_at": _latest_time(values), "dataset_id": dataset_id},
+    )
+
+
+def backfill_submission_times(session: Session) -> None:
+    """Populates ``submitted_at`` for datasets that don't have it yet.
+
+    One-time/maintenance helper for databases loaded before the column existed; new
+    datasets are populated at ingest by ``add_dataset``/``add_parquet_dataset``.
+    """
+    dataset_ids = (
+        session.execute(
+            select(Mappers.Dataset.dataset_id).where(
+                Mappers.Dataset.submitted_at.is_(None)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for dataset_id in dataset_ids:
+        set_submitted_at(dataset_id, session)
 
 
 # Reactions are flushed and expunged in batches of this size during streaming
@@ -160,6 +245,7 @@ def add_parquet_dataset(
         update_rdkit_tables(metadata.dataset_id, session)
         session.flush()
         update_rdkit_ids(metadata.dataset_id, session)
+    set_submitted_at(metadata.dataset_id, session)
 
 
 def get_dataset_md5(dataset_id: str, session: Session) -> str | None:

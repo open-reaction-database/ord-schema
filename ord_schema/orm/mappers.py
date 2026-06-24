@@ -41,6 +41,7 @@ from inflection import underscore
 from sqlalchemy import (
     Boolean,
     Column,
+    DateTime,
     Enum,
     Float,
     ForeignKey,
@@ -213,6 +214,11 @@ def build_mapper(
         attrs["md5"] = Column(String(32), nullable=False)
         # Track the number of reactions for quicker browsing.
         attrs["num_reactions"] = Column(Integer, nullable=False)
+        # Denormalized submission time (the latest record_created/record_modified
+        # timestamp among the dataset's reactions) so datasets can be browsed by
+        # recency without an expensive join into reaction provenance. Populated by
+        # set_submitted_at(); NULL for datasets whose reactions carry no timestamps.
+        attrs["submitted_at"] = Column(DateTime, index=True)
     elif message_type == reaction_pb2.Reaction:
         # Make reaction IDs globally unique.
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)

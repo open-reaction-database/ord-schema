@@ -18,6 +18,7 @@ import pytest
 from sqlalchemy import select, text
 
 from ord_schema.orm.database import (
+    backfill_submission_times,
     delete_dataset,
     get_dataset_md5,
     get_dataset_size,
@@ -118,3 +119,20 @@ def test_get_dataset_size(test_session):
     assert get_dataset_size("test_dataset", test_session) == 80
     with pytest.raises(ValueError, match="other_dataset"):
         get_dataset_size("other_dataset", test_session)
+
+
+def test_submitted_at(test_session):
+    # add_dataset() populates submitted_at from the reactions' record timestamps.
+    submitted_at = test_session.execute(
+        select(Mappers.Dataset.submitted_at)
+    ).scalar_one()
+    assert submitted_at is not None
+
+
+def test_backfill_submission_times(test_session):
+    test_session.execute(text("UPDATE ord.dataset SET submitted_at = NULL"))
+    backfill_submission_times(test_session)
+    submitted_at = test_session.execute(
+        select(Mappers.Dataset.submitted_at)
+    ).scalar_one()
+    assert submitted_at is not None
