@@ -35,19 +35,14 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "huggingface-hub>=0.20",
-    "inflection>=0.5.1",
     "joblib>=1.0.0",
     "numpy>=1.26.4",
     "openpyxl>=3.0.5",
     "pandas>=1.0.4",
     "protobuf>=4.22.3,<6",
-    "psycopg[binary,pool]>=3",
     "pyarrow>=14",
-    "pygithub>=1.51",
     "python-dateutil>=1.10.0",
     "rdkit>=2021.9.5",
-    "sqlalchemy>=2",
     # Pinned <10 because we read _pubchem_resolve.retry to monkeypatch the wait
     # in tests; tenacity 10 may rework that introspection surface.
     "tenacity>=8.0.0,<10",
@@ -71,6 +66,24 @@ examples = [
     "tensorflow>=2.4.1",
     "wget>=3.2",
 ]
+# Optional: only process_dataset.py needs this, to post submission summaries
+# back to a GitHub issue. pygithub pulls in cryptography/pynacl.
+github = [
+    "pygithub>=1.51",
+]
+# Optional: only ord_schema.huggingface (fetch_dataset) needs this; it downloads
+# datasets from the Hugging Face ord-data mirror and drags in a heavy chain
+# (typer, fsspec, the hf-xet native binary), so it is not a default dependency.
+huggingface = [
+    "huggingface-hub>=0.20",
+]
+# Optional: the ord_schema.orm subpackage maps the schema into a relational
+# (SQLAlchemy + PostgreSQL) database. Not needed to parse/validate datasets.
+orm = [
+    "inflection>=0.5.1",
+    "psycopg[binary,pool]>=3",
+    "sqlalchemy>=2",
+]
 tests = [
     "ruff>=0.9.9",
     "coverage>=5.2.1",
@@ -80,6 +93,9 @@ tests = [
     "ty>=0.0.28",
     "testing-postgresql>=1.3.0",
     "treon>=0.1.3",
+    # The suite exercises the optional-feature modules, so collecting it needs
+    # their extras. Self-reference rather than duplicate the dependencies.
+    "ord-schema[github,huggingface,orm]",
 ]
 
 [tool.setuptools.packages.find]

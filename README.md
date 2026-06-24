@@ -16,6 +16,20 @@ designed to store the database schema and tools for creating, validating, and su
 $ pip install ord-schema
 ```
 
+This installs the core schema and helpers (building, parsing, validation, and
+message/Parquet I/O). Heavier, single-purpose features live behind optional
+extras so the default install stays lightweight:
+
+| Extra | Enables | Install |
+|-------|---------|---------|
+| `huggingface` | `ord_schema.huggingface.fetch_dataset`: download datasets from the Hugging Face [ord-data](https://huggingface.co/datasets/open-reaction-database/ord-data) mirror | `pip install "ord-schema[huggingface]"` |
+| `orm` | `ord_schema.orm`: map the schema into a relational (SQLAlchemy + PostgreSQL) database | `pip install "ord-schema[orm]"` |
+| `github` | the GitHub-issue submission flow in `ord_schema.scripts.process_dataset` | `pip install "ord-schema[github]"` |
+| `examples` | running the notebooks under `examples/` (see below) | `pip install "ord-schema[examples]"` |
+
+Extras combine, e.g. `pip install "ord-schema[orm,huggingface]"`. Importing a
+feature without its extra installed raises a normal `ImportError`.
+
 ## Examples
 
 The `examples/` directory contains examples of dataset creation and use. To run locally, install with:
@@ -37,7 +51,9 @@ $ cd ord-schema
 $ uv sync --extra tests
 ```
 
-With tests and examples (notebooks, heavier deps):
+The `tests` extra pulls in the feature extras (`github`, `huggingface`, `orm`)
+it needs to exercise their code paths, so this is enough to run the full suite.
+Add `--extra examples` as well to run the notebooks (heavier deps):
 
 ```shell
 $ uv sync --extra examples --extra tests
