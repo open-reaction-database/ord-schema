@@ -20,10 +20,11 @@ on:
       level:
         description: 'Version bump level'
         type: choice
+        # `major` is intentionally omitted for now; releases stay on 0.x with
+        # patch/minor bumps only.
         options:
           - patch
           - minor
-          - major
         default: patch
 
 jobs:

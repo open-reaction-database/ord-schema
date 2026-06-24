@@ -85,7 +85,8 @@ To release, run the [Publish workflow](../../actions/workflows/publish.yml) from
 
 - **patch** (default) — bug fixes and backward-compatible changes.
 - **minor** — new features, backward-compatible additions (e.g., a new module or public API).
-- **major** — breaking changes (removed or renamed public APIs, incompatible behavior shifts).
+
+`major` bumps are intentionally disabled for now; the project stays on the `0.x` series.
 
 The workflow bumps the version, builds and publishes to PyPI and npm, pushes the version-bump commit
 and tag to `main`, and creates a GitHub release with generated notes.
