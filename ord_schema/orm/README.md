@@ -224,7 +224,7 @@ assert len(reactions) == 12
 
 #### Structure searches with the RDKit PostgreSQL extension
 
-##### Reactions that have Morgan binary fingerprint Tanimoto > 0.5 to `c1ccccc1CCC(O)C`
+##### Reactions whose Morgan binary fingerprint is similar (Tanimoto ≥ 0.5 by default) to `c1ccccc1CCC(O)C`
 
   ```python
 from sqlalchemy import create_engine, select
@@ -242,9 +242,32 @@ with Session(engine) as session:
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
         .join(RDKitMols)
-        .where(RDKitMols.tanimoto("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP) > 0.5)
+        .where(RDKitMols.is_similar("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP))
     )
     results = session.execute(query)
     reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
 assert len(reactions) == 20
   ```
+
+`is_similar` uses the GiST fingerprint index; the cutoff is read from a session
+setting (default 0.5) rather than passed to the method. `MORGAN_BFP` uses Tanimoto
+similarity (`rdkit.tanimoto_threshold`); `MORGAN_SFP` uses Dice similarity
+(`rdkit.dice_threshold`). Set a different cutoff for the rest of the session with:
+
+```python
+session.execute(select(func.set_config("rdkit.tanimoto_threshold", "0.7", False)))
+```
+
+The third argument to `set_config` is `is_local`. Passing `True` instead scopes the
+change to the current transaction only (equivalent to `SET LOCAL`), so it reverts
+automatically afterward — useful for a one-off query without disturbing the rest of
+the session:
+
+```python
+with session.begin():
+    session.execute(select(func.set_config("rdkit.tanimoto_threshold", "0.7", True)))
+    results = session.execute(query)
+```
+
+Use `RDKitMols.tanimoto(...)` instead when you need the similarity *value* (e.g. to
+select or order by it).
