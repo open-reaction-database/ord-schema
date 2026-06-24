@@ -55,6 +55,21 @@ def test_tanimoto(test_session, fp_type):
     assert len(results.fetchall()) == 20
 
 
+@pytest.mark.parametrize("fp_type", list(FingerprintType))
+def test_is_similar(test_session, fp_type):
+    query = (
+        select(Mappers.Reaction)
+        .join(Mappers.ReactionInput)
+        .join(Mappers.Compound)
+        .join(RDKitMols)
+        .where(RDKitMols.is_similar("c1ccccc1CCC(O)C", fp_type=fp_type))
+    )
+    results = test_session.execute(query)
+    # The default rdkit.tanimoto_threshold (0.5) yields the same matches as
+    # test_tanimoto with `> 0.5`.
+    assert len(results.fetchall()) == 20
+
+
 def test_substructure_operator(test_session):
     query = (
         select(Mappers.Reaction)

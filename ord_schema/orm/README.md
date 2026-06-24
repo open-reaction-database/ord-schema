@@ -223,7 +223,7 @@ assert len(reactions) == 12
 
 #### Structure searches with the RDKit PostgreSQL extension
 
-##### Reactions that have Morgan binary fingerprint Tanimoto > 0.5 to `c1ccccc1CCC(O)C`
+##### Reactions whose Morgan binary fingerprint is similar (Tanimoto ≥ 0.5 by default) to `c1ccccc1CCC(O)C`
 
   ```python
 from sqlalchemy import create_engine, select
@@ -241,9 +241,15 @@ with Session(engine) as session:
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
         .join(RDKitMols)
-        .where(RDKitMols.tanimoto("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP) > 0.5)
+        .where(RDKitMols.is_similar("c1ccccc1CCC(O)C", FingerprintType.MORGAN_BFP))
     )
     results = session.execute(query)
     reactions = [reaction_pb2.Reaction.FromString(result[0].proto) for result in results]
 assert len(reactions) == 20
   ```
+
+`is_similar` uses the GiST fingerprint index; the cutoff is read from the
+`rdkit.tanimoto_threshold` session setting (default 0.5). Set a different cutoff
+with `session.execute(select(func.set_config("rdkit.tanimoto_threshold", "0.7", False)))`
+before running the query. Use `RDKitMols.tanimoto(...)` instead when you need the
+similarity *value* (e.g. to select or order by it).

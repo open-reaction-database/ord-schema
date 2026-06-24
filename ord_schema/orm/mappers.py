@@ -229,6 +229,9 @@ def build_mapper(
             Integer, ForeignKey("rdkit.mols.id", ondelete="CASCADE"), index=True
         )
         attrs["rdkit_mol"] = relationship("RDKitMols")
+    elif message_type == reaction_pb2.ReactionProvenance:
+        # Index the DOI so reactions can be looked up by publication.
+        attrs["doi"] = Column(Text, index=True)
     elif message_type in {
         reaction_pb2.CompoundPreparation,
         reaction_pb2.CrudeComponent,
