@@ -14,11 +14,13 @@
 
 """Functions for creating/managing the PostgreSQL database."""
 
+import datetime
 import os
 import time
 from typing import Any, cast
 from unittest.mock import patch
 
+from dateutil import parser
 from sqlalchemy import delete, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NotSupportedError, OperationalError
@@ -97,6 +99,96 @@ def add_dataset(
         update_rdkit_tables(dataset.dataset_id, session)
         session.flush()
         update_rdkit_ids(dataset.dataset_id, session)
+    set_submitted_at(dataset.dataset_id, session)
+
+
+def _parse_date(value: str) -> datetime.date | None:
+    """Parses the date from a free-text provenance timestamp, or None if unparseable.
+
+    Provenance times are free text in several formats (ISO, US, ctime), so they're
+    parsed with dateutil. Only the calendar date is kept; recency browsing needs no
+    finer granularity, and dropping the time avoids the timezones these values may
+    carry.
+    """
+    try:
+        return parser.parse(value).date()
+    except (ValueError, OverflowError):
+        return None
+
+
+def set_submitted_at(dataset_id: str, session: Session) -> None:
+    """Sets ``dataset.submitted_at`` from the dataset's latest reaction record event.
+
+    Uses the last ``record_modified`` entry of an arbitrary reaction in the dataset:
+    record events are appended in chronological order, so the last one is the most
+    recent. Falls back to ``record_created`` (required) when there is no
+    ``record_modified``. Reactions in a dataset share their submission-pipeline
+    timestamps, so one reaction is representative and avoids scanning every reaction.
+    Leaves NULL only when the timestamp is missing or unparseable.
+    """
+    session.flush()  # set_submitted_at reads via raw SQL; make pending rows visible.
+    value = session.execute(
+        text(
+            """
+            SELECT date_time.value
+            FROM ord.reaction
+            JOIN ord.reaction_provenance
+                ON reaction_provenance.reaction_id = reaction.id
+            JOIN ord.record_event
+                ON record_event.reaction_provenance_id = reaction_provenance.id
+                AND record_event.ord_schema_context IN (
+                    'ReactionProvenance.record_created',
+                    'ReactionProvenance.record_modified'
+                )
+            JOIN ord.date_time ON date_time.record_event_id = record_event.id
+            WHERE reaction.id = (
+                SELECT id FROM ord.reaction
+                WHERE dataset_id = (
+                    SELECT id FROM ord.dataset WHERE dataset_id = :dataset_id
+                )
+                LIMIT 1
+            )
+            -- Prefer record_modified over record_created, then the last entry
+            -- (record events are inserted in chronological order, so the highest
+            -- id is the most recent).
+            ORDER BY
+                (record_event.ord_schema_context
+                    = 'ReactionProvenance.record_modified') DESC,
+                record_event.id DESC
+            LIMIT 1
+            """
+        ),
+        {"dataset_id": dataset_id},
+    ).scalar_one_or_none()
+    session.execute(
+        text(
+            "UPDATE ord.dataset SET submitted_at = :submitted_at "
+            "WHERE dataset_id = :dataset_id"
+        ),
+        {
+            "submitted_at": _parse_date(value) if value is not None else None,
+            "dataset_id": dataset_id,
+        },
+    )
+
+
+def backfill_submission_times(session: Session) -> None:
+    """Populates ``submitted_at`` for datasets that don't have it yet.
+
+    One-time/maintenance helper for databases loaded before the column existed; new
+    datasets are populated at ingest by ``add_dataset``/``add_parquet_dataset``.
+    """
+    dataset_ids = (
+        session.execute(
+            select(Mappers.Dataset.dataset_id).where(
+                Mappers.Dataset.submitted_at.is_(None)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for dataset_id in dataset_ids:
+        set_submitted_at(dataset_id, session)
 
 
 # Reactions are flushed and expunged in batches of this size during streaming
@@ -160,6 +252,7 @@ def add_parquet_dataset(
         update_rdkit_tables(metadata.dataset_id, session)
         session.flush()
         update_rdkit_ids(metadata.dataset_id, session)
+    set_submitted_at(metadata.dataset_id, session)
 
 
 def get_dataset_md5(dataset_id: str, session: Session) -> str | None:
