@@ -31,7 +31,7 @@ jobs:
       PGDATA: $GITHUB_WORKSPACE/rdkit-postgres
     steps:
       - uses: actions/checkout@v7
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: conda-incubator/setup-miniconda@v4
         with:
           miniconda-version: 'latest'
       - name: Setup PostgreSQL
@@ -114,7 +114,7 @@ jobs:
           unzip protobuf-javascript-3.21.2-linux-x86_64.zip
           npm i -g ts-protoc-gen@0.15.0 protobufjs@7.4.0 protobufjs-cli@1.1.3
           PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH protoc --version
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '>=1.16'
       - name: Install addlicense
