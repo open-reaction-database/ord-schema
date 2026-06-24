@@ -65,8 +65,9 @@ def test_is_similar(test_session, fp_type):
         .where(RDKitMols.is_similar("c1ccccc1CCC(O)C", fp_type=fp_type))
     )
     results = test_session.execute(query)
-    # The default rdkit.tanimoto_threshold (0.5) yields the same matches as
-    # test_tanimoto with `> 0.5`.
+    # The default similarity threshold is 0.5 for both metrics: MORGAN_BFP uses
+    # Tanimoto (rdkit.tanimoto_threshold) and MORGAN_SFP uses Dice
+    # (rdkit.dice_threshold). Both yield 20 matches for this query.
     assert len(results.fetchall()) == 20
 
 
