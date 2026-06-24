@@ -50,7 +50,7 @@ jobs:
         run: uv sync --extra examples --extra tests --locked
       - name: Verify bump2version config (dry-run)
         run: |
-          uv pip install bump2version
+          uv pip install --system bump2version
           bump2version patch --dry-run --verbose
       - name: Run ruff
         run: |
