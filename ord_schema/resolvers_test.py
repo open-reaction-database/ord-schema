@@ -287,7 +287,10 @@ class TestCactusResolve:
 
     @_live_resolvers
     def test_cactus_resolve_live(self):
-        smiles = resolvers._cactus_resolve("name", "aspirin")
+        try:
+            smiles = resolvers._cactus_resolve("name", "aspirin")
+        except (urllib.error.HTTPError, urllib.error.URLError) as error:
+            pytest.skip(f"CIR unavailable ({error}); skipping live resolver smoke test")
         assert Chem.MolToSmiles(Chem.MolFromSmiles(smiles)) == Chem.MolToSmiles(
             Chem.MolFromSmiles("CC(=O)Oc1ccccc1C(O)=O")
         )
