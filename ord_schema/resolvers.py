@@ -20,12 +20,6 @@ import urllib.request
 import warnings
 
 from rdkit import Chem
-from tenacity import (
-    retry,
-    retry_if_exception,
-    stop_after_attempt,
-    wait_random_exponential,
-)
 
 import ord_schema
 from ord_schema import message_helpers
@@ -109,26 +103,34 @@ def resolve_names(message: ord_schema.Message) -> bool:
     return modified
 
 
-def _is_pubchem_busy(exception: BaseException) -> bool:
-    # PubChem returns 503 PUGREST.ServerBusy when its service-wide concurrent
-    # request load is shedding (independent of any per-IP quota). Retry only
-    # that case; 404 (unknown name) and other 4xx codes should fall through.
-    return isinstance(exception, urllib.error.HTTPError) and exception.code == 503
-
-
-@retry(
-    retry=retry_if_exception(_is_pubchem_busy),
-    stop=stop_after_attempt(5),
-    wait=wait_random_exponential(multiplier=1, max=8),
-    reraise=True,
-)
 def _pubchem_resolve(value_type: str, value: str) -> str:
-    """Resolves compound identifiers to SMILES via the PubChem REST API."""
+    """Resolves compound identifiers to SMILES via the PubChem REST API.
+
+    A 503 (genuine service load or an IP-level block) propagates to
+    ``resolve_name``, which falls through to the next resolver instead of
+    retrying.
+    """
     with urllib.request.urlopen(
         f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/{value_type}/"
         f"{urllib.parse.quote(value)}/property/IsomericSMILES/txt"
     ) as response:
         return response.read().decode().strip()
+
+
+def _cactus_resolve(value_type: str, value: str) -> str:
+    """Resolves compound identifiers to SMILES via the NCI/CADD CIR web service.
+
+    CIR resolves trade names, trivial names, abbreviations, and CAS numbers, so
+    it serves as a fast fallback when PubChem is unavailable. Unknown names come
+    back as HTTP 500 (not 404), which ``resolve_name`` treats like any other
+    HTTPError and falls through.
+    """
+    del value_type  # CIR infers the identifier type from the string.
+    with urllib.request.urlopen(
+        f"https://cactus.nci.nih.gov/chemical/structure/{urllib.parse.quote(value)}/smiles"
+    ) as response:
+        # CIR can return several representations newline-separated; take the first.
+        return response.read().decode().strip().split("\n", 1)[0]
 
 
 def _opsin_resolve(value_type: str, value: str) -> str:
@@ -196,18 +198,19 @@ def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
     return reaction_input
 
 
-# Standard name resolvers.
+# Standard name resolvers, tried in order until one returns a SMILES.
 #
 # PubChem handles the bulk of inputs (trade names, trivial names, abbreviations,
-# CAS numbers), and OPSIN is a reliable fallback for systematic IUPAC names when
-# PubChem is unavailable or rate-limited.
+# CAS numbers). NCI/CADD CIR (cactus) covers the same broad space and is a fast
+# fallback when PubChem is rate-limited. OPSIN handles systematic IUPAC names
+# that lookup services may not index.
 #
-# Previously also included NCI/CADD (cactus.nci.nih.gov) and eMolecules, which
-# are both effectively dead: cactus has been returning uniform 503s with a silent
-# blog since 2013, and eMolecules' public /lookup?q= endpoint now always replies
-# "__END__" (their current API requires authentication).
+# eMolecules' public /lookup?q= endpoint is unusable (it always replies "__END__";
+# their current API requires authentication), and ChemSpider now requires a
+# registered RSC API key, so neither is included.
 _NAME_RESOLVERS = {
     "PubChem API": _pubchem_resolve,
+    "NCI/CADD CIR": _cactus_resolve,
     "OPSIN": _opsin_resolve,
 }
 
