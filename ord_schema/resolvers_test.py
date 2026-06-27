@@ -35,17 +35,16 @@ _live_resolvers = pytest.mark.skipif(
 )
 
 
-def _skip_if_pubchem_unavailable(caplog):
-    """Skip the calling test when PubChem signalled it was overloaded.
+def _skip_if_resolver_unavailable(caplog):
+    """Skip the calling test when a resolver signalled an upstream outage.
 
-    A 503 PUGREST.ServerBusy (or other 5xx) means PubChem is rate-limiting or
-    down, not that resolution logic is broken; the resolver logs it at INFO. A
-    wrong-but-resolved answer still fails via the test's own assertions.
+    A 5xx from any resolver (PubChem 503 PUGREST.ServerBusy, CIR 500) means the
+    service is rate-limiting or down, not that resolution logic is broken;
+    resolvers log it at INFO. A wrong-but-resolved answer still fails via the
+    test's own assertions.
     """
     if "ServerBusy" in caplog.text or "HTTP Error 5" in caplog.text:
-        pytest.skip(
-            "PubChem unavailable (503 ServerBusy); skipping live resolver smoke test"
-        )
+        pytest.skip("resolver unavailable (5xx); skipping live resolver smoke test")
 
 
 class TestNameResolvers:
@@ -60,7 +59,7 @@ class TestNameResolvers:
         )
         with caplog.at_level(logging.INFO, logger="ord_schema.resolvers"):
             modified = resolvers.resolve_names(message)
-        _skip_if_pubchem_unavailable(caplog)
+        _skip_if_resolver_unavailable(caplog)
         assert modified
         resolved_smi = roundtrip_smi(
             message.inputs["test"].components[0].identifiers[1].value
@@ -103,7 +102,7 @@ class TestInputResolvers:
         string = "10 g of THF"
         with caplog.at_level(logging.INFO, logger="ord_schema.resolvers"):
             reaction_input = resolvers.resolve_input(string)
-        _skip_if_pubchem_unavailable(caplog)
+        _skip_if_resolver_unavailable(caplog)
         assert len(reaction_input.components) == 1
         assert reaction_input.components[0].amount.mass == reaction_pb2.Mass(
             value=10, units="GRAM"
@@ -122,7 +121,7 @@ class TestInputResolvers:
         string = "100 mL of 5.0uM sodium hydroxide in water"
         with caplog.at_level(logging.INFO, logger="ord_schema.resolvers"):
             reaction_input = resolvers.resolve_input(string)
-        _skip_if_pubchem_unavailable(caplog)
+        _skip_if_resolver_unavailable(caplog)
         assert len(reaction_input.components) == 2
         assert reaction_input.components[0].amount.moles == reaction_pb2.Moles(
             value=500, units="NANOMOLE"
