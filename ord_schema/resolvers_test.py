@@ -24,28 +24,27 @@ from rdkit import Chem
 from ord_schema import resolvers
 from ord_schema.proto import reaction_pb2
 
-# The live PubChem/OPSIN smoke tests below run on a single CI matrix entry (set by
-# the workflow) to avoid tripping PubChem's per-IP throttling; locally they always
-# run. They already retry 503 ServerBusy via tenacity in resolvers.py -- we do not
-# stack additional reruns on top of that. If PubChem is still busy after those
-# retries, skip rather than fail so a third-party outage never reddens the build.
+# The live resolver smoke tests below run on a single CI matrix entry (set by the
+# workflow) to avoid tripping PubChem's per-IP throttling; locally they always run.
+# A PubChem 503 falls through to CIR/OPSIN rather than failing, but if every
+# resolver is unreachable we skip rather than fail so a third-party outage never
+# reddens the build.
 _live_resolvers = pytest.mark.skipif(
     os.environ.get("ORD_LIVE_RESOLVERS", "true") != "true",
     reason="live resolver smoke tests run on a single CI matrix entry",
 )
 
 
-def _skip_if_pubchem_unavailable(caplog):
-    """Skip the calling test when PubChem signalled it was overloaded.
+def _skip_if_resolver_unavailable(caplog):
+    """Skip the calling test when a resolver signalled an upstream outage.
 
-    A 503 PUGREST.ServerBusy (or other 5xx) means PubChem is rate-limiting or
-    down, not that resolution logic is broken; the resolver logs it at INFO. A
-    wrong-but-resolved answer still fails via the test's own assertions.
+    A 5xx from any resolver (PubChem 503 PUGREST.ServerBusy, CIR 500) means the
+    service is rate-limiting or down, not that resolution logic is broken;
+    resolvers log it at INFO. A wrong-but-resolved answer still fails via the
+    test's own assertions.
     """
     if "ServerBusy" in caplog.text or "HTTP Error 5" in caplog.text:
-        pytest.skip(
-            "PubChem unavailable (503 ServerBusy); skipping live resolver smoke test"
-        )
+        pytest.skip("resolver unavailable (5xx); skipping live resolver smoke test")
 
 
 class TestNameResolvers:
@@ -60,7 +59,7 @@ class TestNameResolvers:
         )
         with caplog.at_level(logging.INFO, logger="ord_schema.resolvers"):
             modified = resolvers.resolve_names(message)
-        _skip_if_pubchem_unavailable(caplog)
+        _skip_if_resolver_unavailable(caplog)
         assert modified
         resolved_smi = roundtrip_smi(
             message.inputs["test"].components[0].identifiers[1].value
@@ -103,7 +102,7 @@ class TestInputResolvers:
         string = "10 g of THF"
         with caplog.at_level(logging.INFO, logger="ord_schema.resolvers"):
             reaction_input = resolvers.resolve_input(string)
-        _skip_if_pubchem_unavailable(caplog)
+        _skip_if_resolver_unavailable(caplog)
         assert len(reaction_input.components) == 1
         assert reaction_input.components[0].amount.mass == reaction_pb2.Mass(
             value=10, units="GRAM"
@@ -122,7 +121,7 @@ class TestInputResolvers:
         string = "100 mL of 5.0uM sodium hydroxide in water"
         with caplog.at_level(logging.INFO, logger="ord_schema.resolvers"):
             reaction_input = resolvers.resolve_input(string)
-        _skip_if_pubchem_unavailable(caplog)
+        _skip_if_resolver_unavailable(caplog)
         assert len(reaction_input.components) == 2
         assert reaction_input.components[0].amount.moles == reaction_pb2.Moles(
             value=500, units="NANOMOLE"
@@ -221,40 +220,23 @@ def _http_error(code: int, msg: str) -> urllib.error.HTTPError:
     return urllib.error.HTTPError("", code, msg, hdrs=None, fp=None)  # ty: ignore[invalid-argument-type]
 
 
-class TestPubChemRetry:
-    """Tests for the tenacity-driven retry on PubChem 503 ServerBusy."""
-
-    @staticmethod
-    def _ok_response() -> mock.MagicMock:
+class TestPubChemResolve:
+    def test_pubchem_resolve(self, monkeypatch):
         response = mock.MagicMock()
         response.read.return_value = b"CC(=O)Oc1ccccc1C(=O)O\n"
         response.__enter__.return_value = response
-        return response
-
-    def test_retries_then_succeeds(self, monkeypatch):
-        # Two 503s then a successful response — the decorator should swallow both
-        # 503s without surfacing them and return the eventual SMILES.
-        responses = [
-            _http_error(503, "PUGREST.ServerBusy"),
-            _http_error(503, "PUGREST.ServerBusy"),
-            self._ok_response(),
-        ]
-        urlopen = mock.MagicMock(side_effect=responses)
+        urlopen = mock.MagicMock(return_value=response)
         monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
-        # Drop tenacity's wait so the test runs in milliseconds, not seconds.
-        # tenacity attaches a Retrying object to the wrapped function as .retry;
-        # ty's stubs don't model this, hence the ignore.
-        retrying = resolvers._pubchem_resolve.retry  # ty: ignore[unresolved-attribute]
-        monkeypatch.setattr(retrying, "wait", lambda *_, **__: 0)
         assert resolvers._pubchem_resolve("name", "aspirin") == "CC(=O)Oc1ccccc1C(=O)O"
-        assert urlopen.call_count == 3
+        assert urlopen.call_count == 1
 
-    def test_does_not_retry_404(self, monkeypatch):
-        # 404 means "no such compound" — must not be retried.
-        urlopen = mock.MagicMock(side_effect=_http_error(404, "Not Found"))
+    def test_does_not_retry_503(self, monkeypatch):
+        # A 503 is raised on the first attempt without retrying; resolve_name then
+        # falls through to the next resolver (see TestNameResolveFallback).
+        urlopen = mock.MagicMock(side_effect=_http_error(503, "PUGREST.ServerBusy"))
         monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
         with pytest.raises(urllib.error.HTTPError):
-            resolvers._pubchem_resolve("name", "definitely-not-a-compound")
+            resolvers._pubchem_resolve("name", "aspirin")
         assert urlopen.call_count == 1
 
 
@@ -280,6 +262,37 @@ class TestOpsinResolve:
         # value_type is ignored by OPSIN.
         assert resolvers._opsin_resolve("name", "ethane-1,2-diol") == "OCCO"
         assert urlopen.call_count == 1
+
+
+class TestCactusResolve:
+    def test_cactus_resolve(self, monkeypatch):
+        response = mock.MagicMock()
+        response.read.return_value = b"OCCO\n"
+        response.__enter__.return_value = response
+        urlopen = mock.MagicMock(return_value=response)
+        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        # value_type is ignored by CIR.
+        assert resolvers._cactus_resolve("name", "ethylene glycol") == "OCCO"
+        assert urlopen.call_count == 1
+
+    def test_cactus_resolve_takes_first_line(self, monkeypatch):
+        # CIR can return multiple newline-separated representations.
+        response = mock.MagicMock()
+        response.read.return_value = b"OCCO\nC(CO)O\n"
+        response.__enter__.return_value = response
+        urlopen = mock.MagicMock(return_value=response)
+        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        assert resolvers._cactus_resolve("name", "ethylene glycol") == "OCCO"
+
+    @_live_resolvers
+    def test_cactus_resolve_live(self):
+        try:
+            smiles = resolvers._cactus_resolve("name", "aspirin")
+        except (urllib.error.HTTPError, urllib.error.URLError) as error:
+            pytest.skip(f"CIR unavailable ({error}); skipping live resolver smoke test")
+        assert Chem.MolToSmiles(Chem.MolFromSmiles(smiles)) == Chem.MolToSmiles(
+            Chem.MolFromSmiles("CC(=O)Oc1ccccc1C(O)=O")
+        )
 
 
 class TestNameResolveFallback:
