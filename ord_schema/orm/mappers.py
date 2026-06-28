@@ -54,6 +54,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
+# Registers derived-schema tables (e.g. ReactionClasses) on Base.metadata.
+import ord_schema.orm.derived_mappers
+
 # Registers RDKitMols/RDKitReactions on Base for string relationship() targets.
 import ord_schema.orm.rdkit_mappers  # noqa: F401
 from ord_schema import message_helpers

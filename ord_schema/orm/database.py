@@ -31,7 +31,29 @@ from ord_schema.logging import get_logger
 from ord_schema.orm.mappers import Base, Mappers, from_proto
 from ord_schema.proto import dataset_pb2
 
+try:
+    from ord_schema.orm.reaction_class import update_reaction_classes
+except Exception as error:  # noqa: BLE001
+    # The optional 'reaction-class' extra pulls in rxn-insight -> rxnmapper/torch, which
+    # can fail to import for many reasons (absent package, native-library OSError, init
+    # error). Catch them all so the ORM stays usable when classify_reactions is False;
+    # the opt-in path re-raises with the original error as the cause.
+    update_reaction_classes = None  # ty: ignore[invalid-assignment]
+    _reaction_class_import_error: Exception | None = error
+else:
+    _reaction_class_import_error = None
+
 logger = get_logger(__name__)
+
+
+def _classify_reactions(dataset_id: str, session: Session) -> None:
+    """Populates reaction class/name columns, requiring the optional extra."""
+    if update_reaction_classes is None:
+        raise ImportError(
+            "Reaction classification requires the 'reaction-class' extra: "
+            "pip install ord-schema[reaction-class]"
+        ) from _reaction_class_import_error
+    update_reaction_classes(dataset_id, session)
 
 
 def get_connection_string(
@@ -66,6 +88,8 @@ def prepare_database(engine: Engine) -> bool:
     with engine.begin() as connection:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS ord"))
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS rdkit"))
+        # Derived, best-effort data that is not part of the proto (e.g. reaction class).
+        connection.execute(text("CREATE SCHEMA IF NOT EXISTS derived"))
     try:
         with engine.begin() as connection:
             # NOTE(skearnes): The RDKit PostgreSQL extension works best in the public schema.
@@ -86,9 +110,20 @@ def prepare_database(engine: Engine) -> bool:
 
 
 def add_dataset(
-    dataset: dataset_pb2.Dataset, session: Session, rdkit_cartridge: bool = True
+    dataset: dataset_pb2.Dataset,
+    session: Session,
+    rdkit_cartridge: bool = True,
+    classify_reactions: bool = False,
 ) -> None:
-    """Adds a dataset to the database."""
+    """Adds a dataset to the database.
+
+    Args:
+        dataset: Dataset to add.
+        session: SQLAlchemy session.
+        rdkit_cartridge: Whether to populate RDKit cartridge tables.
+        classify_reactions: Whether to assign reaction class/name labels as a
+            post-pass; requires the optional ``reaction-class`` extra.
+    """
     logger.debug(f"Adding dataset {dataset.dataset_id}")
     start = time.time()
     mapped_dataset = from_proto(dataset)
@@ -99,6 +134,9 @@ def add_dataset(
         update_rdkit_tables(dataset.dataset_id, session)
         session.flush()
         update_rdkit_ids(dataset.dataset_id, session)
+    if classify_reactions:
+        session.flush()
+        _classify_reactions(dataset.dataset_id, session)
     set_submitted_at(dataset.dataset_id, session)
 
 
@@ -199,7 +237,10 @@ _PARQUET_FLUSH_BATCH = 200
 
 
 def add_parquet_dataset(
-    path: str, session: Session, rdkit_cartridge: bool = True
+    path: str,
+    session: Session,
+    rdkit_cartridge: bool = True,
+    classify_reactions: bool = False,
 ) -> None:
     """Streams a Parquet-serialized Dataset into the ORM tables.
 
@@ -212,6 +253,13 @@ def add_parquet_dataset(
     This keeps the canonical Parquet MD5 formula in one place and bounds
     peak memory to one row group plus ``_PARQUET_FLUSH_BATCH`` ORM objects,
     regardless of dataset size.
+
+    Args:
+        path: Path to the Parquet-serialized Dataset.
+        session: SQLAlchemy session.
+        rdkit_cartridge: Whether to populate RDKit cartridge tables.
+        classify_reactions: Whether to assign reaction class/name labels as a
+            post-pass; requires the optional ``reaction-class`` extra.
     """
     start = time.time()
     metadata = parquet.load_metadata(path)
@@ -252,6 +300,9 @@ def add_parquet_dataset(
         update_rdkit_tables(metadata.dataset_id, session)
         session.flush()
         update_rdkit_ids(metadata.dataset_id, session)
+    if classify_reactions:
+        session.flush()
+        _classify_reactions(metadata.dataset_id, session)
     set_submitted_at(metadata.dataset_id, session)
 
 
