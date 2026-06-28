@@ -19,24 +19,28 @@ keep the proto-mirroring "ord" schema canonical. They are populated by post-pass
 rather than from_proto, and the ORM functions normally when they are absent.
 """
 
-from sqlalchemy import Column, ForeignKey, Text
+from sqlalchemy import Column, ForeignKey, Integer, Text
 
 from ord_schema.orm import Base
 
 
 class ReactionClasses(Base):
-    """Best-effort reaction classification, keyed by reaction_id.
+    """Best-effort reaction classification, keyed by the reaction's integer id.
 
     A row's presence means classification was attempted for that reaction; NULL
     reaction_class/reaction_name mean Rxn-INSIGHT could not assign a value. Keying on
-    reaction_id (not the derived reaction_smiles) keeps the post-pass idempotent: it
-    classifies only reactions without a row here.
+    ord.reaction.id -- the ORM's convention for reaction foreign keys, not the derived
+    reaction_smiles -- keeps the post-pass idempotent: it classifies only reactions
+    without a row here.
     """
 
     __tablename__ = "reaction_classes"
+    # Integer FK to ord.reaction.id, per the ORM's reaction foreign-key convention
+    # (see ord_schema.orm.mappers); the text ord.reaction.reaction_id is reserved for
+    # cases that specifically need the ORD reaction ID.
     reaction_id = Column(
-        Text,
-        ForeignKey("ord.reaction.reaction_id", ondelete="CASCADE"),
+        Integer,
+        ForeignKey("ord.reaction.id", ondelete="CASCADE"),
         primary_key=True,
     )
     # Coarse category (e.g. "C-C Coupling").
