@@ -14,9 +14,8 @@
 
 """ORM tables for derived, best-effort data that is not part of the proto.
 
-These live in a separate "derived" schema (keyed by the canonical reaction_id) to
-keep the proto-mirroring "ord" schema canonical. They are populated by post-passes
-rather than from_proto, and the ORM functions normally when they are absent.
+These live in a separate "derived" schema to keep the proto-mirroring "ord" schema
+canonical. Populated by post-passes (not from_proto); the ORM works without them.
 """
 
 from sqlalchemy import Column, ForeignKey, Integer, Text
@@ -25,19 +24,15 @@ from ord_schema.orm import Base
 
 
 class ReactionClasses(Base):
-    """Best-effort reaction classification, keyed by the reaction's integer id.
+    """Best-effort reaction classification, one row per classified reaction.
 
-    A row's presence means classification was attempted for that reaction; NULL
-    reaction_class/reaction_name mean Rxn-INSIGHT could not assign a value. Keying on
-    ord.reaction.id -- the ORM's convention for reaction foreign keys, not the derived
-    reaction_smiles -- keeps the post-pass idempotent: it classifies only reactions
-    without a row here.
+    A row's presence marks that classification was attempted; NULL reaction_class /
+    reaction_name mean Rxn-INSIGHT could not assign a value. The post-pass classifies
+    only reactions without a row, so it is idempotent.
     """
 
     __tablename__ = "reaction_classes"
-    # Integer FK to ord.reaction.id, per the ORM's reaction foreign-key convention
-    # (see ord_schema.orm.mappers); the text ord.reaction.reaction_id is reserved for
-    # cases that specifically need the ORD reaction ID.
+    # Integer FK to ord.reaction.id, per the ORM's reaction FK convention (see mappers).
     reaction_id = Column(
         Integer,
         ForeignKey("ord.reaction.id", ondelete="CASCADE"),

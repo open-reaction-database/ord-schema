@@ -14,12 +14,10 @@
 
 """Best-effort reaction classification for ORM reactions using Rxn-INSIGHT.
 
-Each reaction is labeled from its generated reaction SMILES with a coarse class
-(e.g. "C-C Coupling") and the specific named reaction (e.g. "Suzuki coupling with
-boronic acids") to support faceted search. Rxn-INSIGHT runs a transformer
-(rxnmapper) per reaction, so this is run as a batched post-pass rather than inline
-during import, and requires the optional ``reaction-class`` extra (which pulls in
-rxn-insight and, transitively, rxnmapper/torch).
+Labels each reaction's generated SMILES with a coarse class (e.g. "C-C Coupling") and a
+named reaction (e.g. "Suzuki coupling with boronic acids") for faceted search. Rxn-INSIGHT
+runs a transformer per reaction, so this is a batched post-pass behind the optional
+``reaction-class`` extra (rxn-insight, plus rxnmapper/torch), not inline in from_proto.
 """
 
 import time
@@ -33,12 +31,8 @@ from ord_schema.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Rxn-INSIGHT returns this sentinel name when no named reaction matches; store NULL
-# instead so reaction_name means "a recognized named reaction" without a magic string.
-# The class has no equivalent sentinel: its catch-all "Miscellaneous" is a real member
-# of the (closed) class vocabulary and is kept as-is. A present row with NULL
-# reaction_class thus means "attempted, no class assigned", distinct from an absent row
-# (classification not attempted); see derived.reaction_classes.
+# Rxn-INSIGHT's "no named reaction" sentinel, normalized to NULL so reaction_name carries
+# no magic value. (The class catch-all "Miscellaneous" is a real category and is kept.)
 _UNNAMED = "OtherReaction"
 
 
@@ -58,9 +52,7 @@ def classify_reaction_smiles(
     try:
         info = Reaction(reaction_smiles, rxn_mapper=rxn_mapper).get_reaction_info()
     except Exception as error:  # noqa: BLE001
-        # Rxn-INSIGHT/rxnmapper raise a range of errors (RDKit parse failures,
-        # KeyError, ValueError, ...) on unusual reactions; classification is
-        # best-effort, so any failure leaves both columns NULL.
+        # Best-effort: any Rxn-INSIGHT/rxnmapper failure leaves the reaction unclassified.
         logger.debug(f"Could not classify {reaction_smiles!r}: {error}")
         return None, None
     reaction_class = info.get("CLASS") or None
@@ -73,12 +65,10 @@ def classify_reaction_smiles(
 def update_reaction_classes(dataset_id: str, session: Session) -> None:
     """Classifies a dataset's not-yet-attempted reactions into derived.reaction_classes.
 
-    Selects reactions with a generated reaction SMILES that have no row in
-    derived.reaction_classes yet, classifies each distinct SMILES once (caching by
-    SMILES so duplicates are not re-run), and inserts one row per reaction_id. The
-    inserted row records the attempt: NULL reaction_class/reaction_name mean Rxn-INSIGHT
-    could not classify the reaction. Because a row's presence marks the attempt, repeated
-    runs converge and never re-run the model over deterministic failures.
+    Selects reactions that have a SMILES but no row yet, classifies each distinct SMILES
+    once (cached), and inserts one row per reaction. The row records the attempt -- NULL
+    class/name mean Rxn-INSIGHT could not classify it -- so repeated runs converge rather
+    than re-running the model over deterministic failures.
     """
     logger.debug(f"Updating reaction classes for {dataset_id=}")
     start = time.time()
@@ -115,8 +105,8 @@ def update_reaction_classes(dataset_id: str, session: Session) -> None:
                 "reaction_name": reaction_name,
             }
         )
-    # ON CONFLICT DO NOTHING keeps the insert idempotent if a reaction_id was classified
-    # concurrently; the NOT EXISTS selector already skips reactions with an existing row.
+    # ON CONFLICT guards a concurrent insert; the NOT EXISTS selector already skips
+    # reactions that have a row.
     session.execute(
         text("""
             INSERT INTO derived.reaction_classes (reaction_id, reaction_class, reaction_name)

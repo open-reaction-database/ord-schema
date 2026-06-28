@@ -33,13 +33,13 @@ from ord_schema.proto import dataset_pb2
 
 try:
     from ord_schema.orm.reaction_class import update_reaction_classes
-except ImportError as error:
-    # Reaction classification needs the optional 'reaction-class' extra; without it
-    # the import path stays usable and classify_reactions=True raises a clear error.
-    # Keep the original error so a broken (rather than absent) dependency surfaces
-    # its real traceback instead of looking uninstalled.
+except Exception as error:  # noqa: BLE001
+    # The optional 'reaction-class' extra pulls in rxn-insight -> rxnmapper/torch, which
+    # can fail to import for many reasons (absent package, native-library OSError, init
+    # error). Catch them all so the ORM stays usable when classify_reactions is False;
+    # the opt-in path re-raises with the original error as the cause.
     update_reaction_classes = None  # ty: ignore[invalid-assignment]
-    _reaction_class_import_error: ImportError | None = error
+    _reaction_class_import_error: Exception | None = error
 else:
     _reaction_class_import_error = None
 
