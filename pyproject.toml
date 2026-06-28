@@ -85,11 +85,13 @@ orm = [
 # named reaction to each reaction (for faceted search) via Rxn-INSIGHT. It pulls in
 # rxnmapper -> torch/transformers, a heavy chain run as a batched post-pass, so it
 # is not part of the default orm dependency set.
+#
+# Pinned to a fork that supports modern NumPy/SciPy: the PyPI release caps numpy at
+# 1.26 and fails to import on SciPy >=1.11, which would force wheel-less versions of
+# unrelated packages (e.g. tensorflow on 3.13) in the unified lockfile. Switch back to
+# a PyPI release once https://github.com/mrodobbe/Rxn-INSIGHT/pull/8 is merged/released.
 reaction-class = [
-    "rxn-insight>=0.1.2",
-    # rxn-insight pins numpy but not scipy; scipy>=1.11 removed
-    # scipy.spatial.distance.kulczynski1, which rxn-insight imports at module load.
-    "scipy<1.11",
+    "rxn-insight @ git+https://github.com/skearnes/Rxn-INSIGHT.git@eb71946997e81801ba56c66c9a564263743c7eee",
 ]
 tests = [
     "ruff>=0.9.9",
