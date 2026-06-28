@@ -77,14 +77,15 @@ table.
   fields of `Dataset` and `Reaction`, respectively. Notably, the `CompoundPreparation` and `CrudeComponent` messages
   refer to ORD reaction IDs (`reaction.reaction_id`, _not_ `reaction.id`); these are explicit ORD-level relationships
   that are not part of the database-specific relationship structure.
-* The ORM uses four schemas. `ord` holds the decomposed message tables — the search index. `public` holds the served
-  payload: `public.reactions` is the serialized `Reaction` proto keyed by `reaction_id`. `derived` holds best-effort
-  data computed from the search index — generated SMILES and RDKit links in
-  `derived.{reaction,compound,product_compound}_smiles`, reaction classes, and per-dataset `num_reactions` /
-  `submitted_at` in `derived.dataset_summary`. `rdkit` holds RDKit cartridge data (deduplicated mols/reactions and
-  fingerprints). `from_proto` writes only `ord.*` and `public.reactions`; `update_derived_tables` then computes the
-  `derived` SMILES by reconstructing each message from the search index, and the RDKit pass populates/links the
-  cartridge from those SMILES.
+* The ORM uses four schemas. `ord` holds the decomposed message tables — the search index, i.e. only the proto fields
+  plus the structural columns (`id`, the `ord_schema_context` discriminator, map `key`, and parent foreign keys).
+  `public` holds API-facing data: `public.reactions` is the serialized `Reaction` proto keyed by `reaction_id`, and
+  `public.datasets` holds per-dataset metadata (`md5` for change detection, `num_reactions` and `submitted_at` for
+  browsing) keyed by `dataset_id`. `derived` holds search helpers computed from the index — generated SMILES and RDKit
+  links in `derived.{reaction,compound,product_compound}_smiles`, plus reaction classes. `rdkit` holds RDKit cartridge
+  data (deduplicated mols/reactions and fingerprints). `from_proto` writes only `ord.*` and the `public` rows;
+  `update_derived_tables` then computes the `derived` SMILES by reconstructing each message from the search index, and
+  the RDKit pass populates/links the cartridge from those SMILES.
 * Partial indexes over not-yet-linked rows (`reaction_smiles_unlinked_index`, `compound_smiles_unlinked_index`, and
   `product_compound_smiles_unlinked_index`, on the `derived` SMILES tables) keep incremental RDKit linking fast. They
   index only the rows whose `rdkit_*_id` is still `NULL`, so the repeated "which of this dataset's rows still need

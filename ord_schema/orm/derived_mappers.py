@@ -18,28 +18,10 @@ These live in a separate "derived" schema to keep the proto-mirroring "ord" sche
 canonical. Populated by post-passes (not from_proto); the ORM works without them.
 """
 
-from sqlalchemy import Column, Date, ForeignKey, Index, Integer, Text, text
+from sqlalchemy import Column, ForeignKey, Index, Integer, Text, text
 from sqlalchemy.orm import relationship
 
 from ord_schema.orm import Base
-
-
-class DatasetSummary(Base):
-    """Denormalized, cheap-to-browse dataset fields derived from its reactions.
-
-    One row per ord.dataset. num_reactions is the reaction count; submitted_at is an
-    arbitrary reaction's latest record-event date (set by database.set_submitted_at),
-    used to browse datasets by recency without scanning reaction provenance.
-    """
-
-    __tablename__ = "dataset_summary"
-    dataset_id = Column(
-        Integer, ForeignKey("ord.dataset.id", ondelete="CASCADE"), primary_key=True
-    )
-    num_reactions = Column(Integer, nullable=False)
-    submitted_at = Column(Date, index=True)
-
-    __table_args__ = ({"schema": "derived"},)
 
 
 class ReactionSmiles(Base):

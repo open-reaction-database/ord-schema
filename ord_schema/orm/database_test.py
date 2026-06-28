@@ -26,8 +26,8 @@ from ord_schema.orm.database import (
     get_dataset_size,
     update_rdkit_tables,
 )
-from ord_schema.orm.derived_mappers import DatasetSummary
 from ord_schema.orm.mappers import Mappers
+from ord_schema.orm.public_mappers import DatasetMetadata
 from ord_schema.proto import reaction_pb2
 
 
@@ -133,15 +133,15 @@ def test_submitted_at(test_session):
     # entry; the fixture's reactions were modified on 2021-02-25 and created on
     # 2020-11-28, so record_modified must win.
     submitted_at = test_session.execute(
-        select(DatasetSummary.submitted_at)
+        select(DatasetMetadata.submitted_at)
     ).scalar_one()
     assert submitted_at == datetime.date(2021, 2, 25)
 
 
 def test_backfill_submission_times(test_session):
-    test_session.execute(text("UPDATE derived.dataset_summary SET submitted_at = NULL"))
+    test_session.execute(text("UPDATE public.datasets SET submitted_at = NULL"))
     backfill_submission_times(test_session)
     submitted_at = test_session.execute(
-        select(DatasetSummary.submitted_at)
+        select(DatasetMetadata.submitted_at)
     ).scalar_one()
     assert submitted_at is not None

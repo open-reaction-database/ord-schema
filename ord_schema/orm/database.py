@@ -30,11 +30,11 @@ from ord_schema import message_helpers, parquet
 from ord_schema.logging import get_logger
 from ord_schema.orm.derived_mappers import (
     CompoundSmiles,
-    DatasetSummary,
     ProductCompoundSmiles,
     ReactionSmiles,
 )
 from ord_schema.orm.mappers import Base, Mappers, from_proto, to_proto
+from ord_schema.orm.public_mappers import DatasetMetadata
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 try:
@@ -208,10 +208,8 @@ def set_submitted_at(dataset_id: str, session: Session) -> None:
     ).scalar_one_or_none()
     session.execute(
         text(
-            "UPDATE derived.dataset_summary SET submitted_at = :submitted_at "
-            "FROM ord.dataset "
-            "WHERE derived.dataset_summary.dataset_id = ord.dataset.id "
-            "AND ord.dataset.dataset_id = :dataset_id"
+            "UPDATE public.datasets SET submitted_at = :submitted_at "
+            "WHERE dataset_id = :dataset_id"
         ),
         {
             "submitted_at": _parse_date(value) if value is not None else None,
@@ -228,9 +226,9 @@ def backfill_submission_times(session: Session) -> None:
     """
     dataset_ids = (
         session.execute(
-            select(Mappers.Dataset.dataset_id)
-            .join(DatasetSummary, DatasetSummary.dataset_id == Mappers.Dataset.id)
-            .where(DatasetSummary.submitted_at.is_(None))
+            select(DatasetMetadata.dataset_id).where(
+                DatasetMetadata.submitted_at.is_(None)
+            )
         )
         .scalars()
         .all()
@@ -280,7 +278,7 @@ def add_parquet_dataset(
         name=metadata.name,
         description=metadata.description,
         dataset_id=metadata.dataset_id,
-        md5=md5_hex,
+        metadata_row=DatasetMetadata(md5=md5_hex, num_reactions=num_reactions),
     )
     session.add(mapped_dataset)
     session.flush()
@@ -319,7 +317,7 @@ def add_parquet_dataset(
 def get_dataset_md5(dataset_id: str, session: Session) -> str | None:
     """Returns the MD5 hash of the current version of a dataset, if it exists in the database."""
     result = session.execute(
-        select(Mappers.Dataset.md5).where(Mappers.Dataset.dataset_id == dataset_id)
+        select(DatasetMetadata.md5).where(DatasetMetadata.dataset_id == dataset_id)
     )
     row = result.first()
     return row[0] if row else None
@@ -328,9 +326,9 @@ def get_dataset_md5(dataset_id: str, session: Session) -> str | None:
 def get_dataset_size(dataset_id: str, session: Session) -> int:
     """Returns the number of reactions in a dataset."""
     result = session.execute(
-        select(DatasetSummary.num_reactions)
-        .join(Mappers.Dataset, Mappers.Dataset.id == DatasetSummary.dataset_id)
-        .where(Mappers.Dataset.dataset_id == dataset_id)
+        select(DatasetMetadata.num_reactions).where(
+            DatasetMetadata.dataset_id == dataset_id
+        )
     )
     row = result.first()
     if row is None:
@@ -370,24 +368,8 @@ def update_derived_tables(dataset_id: str, session: Session) -> None:
         text("SELECT id FROM ord.dataset WHERE dataset_id = :dataset_id"),
         {"dataset_id": dataset_id},
     ).scalar_one()
-    # Dataset summary; submitted_at is filled separately by set_submitted_at().
-    if session.get(DatasetSummary, dataset_pk) is None:
-        # Mirror the original len(reactions) or len(reaction_ids): id-only datasets have
-        # no reaction rows but carry reaction_ids.
-        num_reactions = (
-            session.execute(
-                text("SELECT count(*) FROM ord.reaction WHERE dataset_id = :id"),
-                {"id": dataset_pk},
-            ).scalar_one()
-            or session.execute(
-                text(
-                    "SELECT coalesce(array_length(reaction_ids, 1), 0) "
-                    "FROM ord.dataset WHERE id = :id"
-                ),
-                {"id": dataset_pk},
-            ).scalar_one()
-        )
-        session.add(DatasetSummary(dataset_id=dataset_pk, num_reactions=num_reactions))
+    # public.datasets (md5) and derived.dataset_summary (num_reactions) are populated at
+    # ingest; this pass only fills the per-reaction/compound SMILES.
     # Reaction SMILES (generated from the whole reaction; CXSMILES handled by split()).
     reaction_ids = session.execute(
         text("""

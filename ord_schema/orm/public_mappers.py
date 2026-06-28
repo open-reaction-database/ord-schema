@@ -18,7 +18,7 @@ The ord.* schema is the search index over reactions; the canonical serialized Re
 proto that the API serves lives here, keyed by the public reaction_id.
 """
 
-from sqlalchemy import Column, ForeignKey, LargeBinary, Text
+from sqlalchemy import Column, Date, ForeignKey, Integer, LargeBinary, String, Text
 
 from ord_schema.orm import Base
 
@@ -33,5 +33,26 @@ class ReactionProto(Base):
         primary_key=True,
     )
     proto = Column(LargeBinary, nullable=False)
+
+    __table_args__ = ({"schema": "public"},)
+
+
+class DatasetMetadata(Base):
+    """Per-dataset metadata for the API, keyed by dataset_id.
+
+    md5 hashes the original Dataset proto (computed at ingest, not reconstructed) and is
+    used to skip re-importing unchanged datasets. num_reactions and submitted_at support
+    dataset browsing; submitted_at is filled by database.set_submitted_at.
+    """
+
+    __tablename__ = "datasets"
+    dataset_id = Column(
+        Text,
+        ForeignKey("ord.dataset.dataset_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    md5 = Column(String(32), nullable=False)
+    num_reactions = Column(Integer, nullable=False)
+    submitted_at = Column(Date, index=True)
 
     __table_args__ = ({"schema": "public"},)

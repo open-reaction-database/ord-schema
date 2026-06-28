@@ -45,18 +45,17 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     LargeBinary,
-    String,
     Text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
-# Registers the rdkit and derived tables on Base for string relationship() targets.
+# Register the rdkit and derived tables on Base for string relationship() targets.
 import ord_schema.orm.derived_mappers
 import ord_schema.orm.rdkit_mappers  # noqa: F401
 from ord_schema.logging import get_logger
 from ord_schema.orm import Base
-from ord_schema.orm.public_mappers import ReactionProto
+from ord_schema.orm.public_mappers import DatasetMetadata, ReactionProto
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
@@ -208,9 +207,11 @@ def build_mapper(
     if message_type == dataset_pb2.Dataset:
         # Make dataset IDs globally unique.
         attrs["dataset_id"] = Column(Text, nullable=False, unique=True)
-        # Track the MD5 hash so we can quickly identify changes.
-        attrs["md5"] = Column(String(32), nullable=False)
-        # num_reactions / submitted_at are derived; see derived_mappers.DatasetSummary.
+        # Per-dataset metadata (md5, num_reactions, submitted_at) lives in public.datasets,
+        # populated at ingest so every dataset has its metadata row.
+        attrs["metadata_row"] = relationship(
+            "DatasetMetadata", uselist=False, cascade="all, delete-orphan"
+        )
     elif message_type == reaction_pb2.Reaction:
         # Make reaction IDs globally unique.
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
@@ -330,13 +331,15 @@ def from_proto(
         else:
             kwargs[field.name] = value
     if isinstance(message, dataset_pb2.Dataset):
-        kwargs["md5"] = md5(
-            message.SerializeToString(deterministic=True), usedforsecurity=False
-        ).hexdigest()
+        kwargs["metadata_row"] = DatasetMetadata(
+            md5=md5(
+                message.SerializeToString(deterministic=True), usedforsecurity=False
+            ).hexdigest(),
+            num_reactions=len(message.reactions) or len(message.reaction_ids),
+        )
     elif isinstance(message, reaction_pb2.Reaction):
-        # Store the serialized proto (the served payload) in the public schema. Derived
-        # values (SMILES, dataset summary) are computed from the search index afterward
-        # by ord_schema.orm.database.update_derived_tables.
+        # Store the serialized proto (the served payload) in the public schema. The SMILES
+        # are computed from the search index afterward by database.update_derived_tables.
         kwargs["proto_row"] = ReactionProto(
             proto=message.SerializeToString(deterministic=True)
         )
