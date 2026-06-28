@@ -33,10 +33,15 @@ from ord_schema.proto import dataset_pb2
 
 try:
     from ord_schema.orm.reaction_class import update_reaction_classes
-except ImportError:
+except ImportError as error:
     # Reaction classification needs the optional 'reaction-class' extra; without it
     # the import path stays usable and classify_reactions=True raises a clear error.
+    # Keep the original error so a broken (rather than absent) dependency surfaces
+    # its real traceback instead of looking uninstalled.
     update_reaction_classes = None  # ty: ignore[invalid-assignment]
+    _reaction_class_import_error: ImportError | None = error
+else:
+    _reaction_class_import_error = None
 
 logger = get_logger(__name__)
 
@@ -47,7 +52,7 @@ def _classify_reactions(dataset_id: str, session: Session) -> None:
         raise ImportError(
             "Reaction classification requires the 'reaction-class' extra: "
             "pip install ord-schema[reaction-class]"
-        )
+        ) from _reaction_class_import_error
     update_reaction_classes(dataset_id, session)
 
 

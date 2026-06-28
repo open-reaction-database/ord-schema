@@ -74,6 +74,11 @@ def update_reaction_classes(dataset_id: str, session: Session) -> None:
 
     Classifies each distinct reaction SMILES once, then writes the labels back to all
     matching rows that have not been classified yet (reaction_class IS NULL).
+
+    Reactions Rxn-INSIGHT cannot classify keep a NULL reaction_class and are reconsidered
+    on later runs. This is intentional -- NULL means "not classified" so coverage stays
+    measurable -- and cheap: classification is deterministic, so a repeated pass only re-runs
+    the small, fixed set of genuinely unclassifiable reactions rather than the whole dataset.
     """
     logger.debug(f"Updating reaction classes for {dataset_id=}")
     start = time.time()
