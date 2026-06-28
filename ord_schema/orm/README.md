@@ -77,13 +77,19 @@ table.
   fields of `Dataset` and `Reaction`, respectively. Notably, the `CompoundPreparation` and `CrudeComponent` messages
   refer to ORD reaction IDs (`reaction.reaction_id`, _not_ `reaction.id`); these are explicit ORD-level relationships
   that are not part of the database-specific relationship structure.
-* Data specific to the RDKit PostgreSQL cartridge, such as molecular fingerprints, is stored in a separate `rdkit`
-  schema to avoid conflicts with message-specific tables in the `public` (default) schema.
-* Partial indexes over not-yet-linked rows (`reaction_unlinked_index`, `compound_unlinked_index`, and
-  `product_compound_unlinked_index`, defined in `mappers.py`) keep incremental RDKit linking fast. They index only
-  the rows whose `rdkit_*_id` is still `NULL`, so the repeated "which of this dataset's rows still need linking?"
-  queries stay proportional to the in-flight backlog rather than the full table. `prepare_database` creates them on
-  new databases; see [Adding the partial indexes to an existing database](#adding-the-partial-indexes-to-an-existing-database)
+* The ORM uses four schemas. `ord` holds the decomposed message tables — the search index. `public` holds the served
+  payload: `public.reactions` is the serialized `Reaction` proto keyed by `reaction_id`. `derived` holds best-effort
+  data computed from the search index — generated SMILES and RDKit links in
+  `derived.{reaction,compound,product_compound}_smiles`, reaction classes, and per-dataset `num_reactions` /
+  `submitted_at` in `derived.dataset_summary`. `rdkit` holds RDKit cartridge data (deduplicated mols/reactions and
+  fingerprints). `from_proto` writes only `ord.*` and `public.reactions`; `update_derived_tables` then computes the
+  `derived` SMILES by reconstructing each message from the search index, and the RDKit pass populates/links the
+  cartridge from those SMILES.
+* Partial indexes over not-yet-linked rows (`reaction_smiles_unlinked_index`, `compound_smiles_unlinked_index`, and
+  `product_compound_smiles_unlinked_index`, on the `derived` SMILES tables) keep incremental RDKit linking fast. They
+  index only the rows whose `rdkit_*_id` is still `NULL`, so the repeated "which of this dataset's rows still need
+  linking?" queries stay proportional to the in-flight backlog rather than the full table. `prepare_database` creates
+  them on new databases; see [Adding the partial indexes to an existing database](#adding-the-partial-indexes-to-an-existing-database)
   to backfill them on an older one.
 
 ## Usage
@@ -139,12 +145,12 @@ already have them. A database created before these indexes were introduced shoul
 transaction block; `IF NOT EXISTS` makes the migration idempotent):
 
 ```sql
-CREATE INDEX CONCURRENTLY IF NOT EXISTS reaction_unlinked_index
-    ON ord.reaction (dataset_id) WHERE rdkit_reaction_id IS NULL;
-CREATE INDEX CONCURRENTLY IF NOT EXISTS compound_unlinked_index
-    ON ord.compound (reaction_input_id) WHERE rdkit_mol_id IS NULL;
-CREATE INDEX CONCURRENTLY IF NOT EXISTS product_compound_unlinked_index
-    ON ord.product_compound (reaction_outcome_id) WHERE rdkit_mol_id IS NULL;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS reaction_smiles_unlinked_index
+    ON derived.reaction_smiles (reaction_id) WHERE rdkit_reaction_id IS NULL;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS compound_smiles_unlinked_index
+    ON derived.compound_smiles (compound_id) WHERE rdkit_mol_id IS NULL;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS product_compound_smiles_unlinked_index
+    ON derived.product_compound_smiles (product_compound_id) WHERE rdkit_mol_id IS NULL;
 ```
 
 These definitions must stay in sync with the `Index(...)` declarations in `mappers.py`.

@@ -17,6 +17,11 @@
 import pytest
 from sqlalchemy import cast, func, select, text
 
+from ord_schema.orm.derived_mappers import (
+    CompoundSmiles,
+    ProductCompoundSmiles,
+    ReactionSmiles,
+)
 from ord_schema.orm.mappers import Mappers
 from ord_schema.orm.rdkit_mappers import (
     CString,
@@ -32,6 +37,7 @@ def test_tanimoto_operator(test_session):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
+        .join(CompoundSmiles)
         .join(RDKitMols)
         .where(
             RDKitMols.morgan_bfp
@@ -48,6 +54,7 @@ def test_tanimoto(test_session, fp_type):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
+        .join(CompoundSmiles)
         .join(RDKitMols)
         .where(RDKitMols.tanimoto("c1ccccc1CCC(O)C", fp_type=fp_type) > 0.5)
     )
@@ -61,6 +68,7 @@ def test_is_similar(test_session, fp_type):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
+        .join(CompoundSmiles)
         .join(RDKitMols)
         .where(RDKitMols.is_similar("c1ccccc1CCC(O)C", fp_type=fp_type))
     )
@@ -76,6 +84,7 @@ def test_substructure_operator(test_session):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
+        .join(CompoundSmiles)
         .join(RDKitMols)
         .where(RDKitMols.mol.op("@>")("c1ccccc1CCC(O)C"))
     )
@@ -88,6 +97,7 @@ def test_contains_substructure(test_session):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
+        .join(CompoundSmiles)
         .join(RDKitMols)
         .where(RDKitMols.contains_substructure("c1ccccc1CCC(O)C"))
     )
@@ -100,6 +110,7 @@ def test_smarts_operator(test_session):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
+        .join(CompoundSmiles)
         .join(RDKitMols)
         .where(
             RDKitMols.mol.op("@>")(
@@ -116,6 +127,7 @@ def test_matches_smarts(test_session):
         select(Mappers.Reaction)
         .join(Mappers.ReactionInput)
         .join(Mappers.Compound)
+        .join(CompoundSmiles)
         .join(RDKitMols)
         .where(RDKitMols.matches_smarts("c1ccccc1CCC(O)[#6]"))
     )
@@ -126,6 +138,7 @@ def test_matches_smarts(test_session):
 def test_reaction_smarts_operator(test_session):
     query = (
         select(Mappers.Reaction)
+        .join(ReactionSmiles)
         .join(RDKitReactions)
         .where(
             RDKitReactions.reaction.op("@>")(
@@ -142,6 +155,7 @@ def test_reaction_smarts_operator(test_session):
 def test_reaction_matches_smarts(test_session):
     query = (
         select(Mappers.Reaction)
+        .join(ReactionSmiles)
         .join(RDKitReactions)
         .where(RDKitReactions.matches_smarts("[#6:1].[#9:2]>>[#6:1][#9:2]"))
     )
@@ -157,15 +171,15 @@ def test_product_compound_rdkit_link(test_session):
     The mol/reaction operator tests cover the input-Compound and Reaction link paths; product_compound has none.
     """
     linked = test_session.execute(
-        select(Mappers.ProductCompound).join(RDKitMols)
+        select(Mappers.ProductCompound).join(ProductCompoundSmiles).join(RDKitMols)
     ).fetchall()
     assert len(linked) > 0  # The fixture has linkable product compounds.
     # Completeness: no product_compound with a resolvable SMILES is left unlinked.
     unlinked = test_session.execute(
         text(
-            "SELECT count(*) FROM ord.product_compound pc "
-            "JOIN rdkit.mols m ON m.smiles = pc.smiles "
-            "WHERE pc.rdkit_mol_id IS NULL"
+            "SELECT count(*) FROM derived.product_compound_smiles d "
+            "JOIN rdkit.mols m ON m.smiles = d.smiles "
+            "WHERE d.rdkit_mol_id IS NULL"
         )
     ).scalar()
     assert unlinked == 0

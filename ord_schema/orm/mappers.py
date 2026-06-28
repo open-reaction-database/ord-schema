@@ -28,7 +28,6 @@ Notes:
       the database.
 """
 
-import contextlib
 from collections import defaultdict
 from collections.abc import Mapping
 from hashlib import md5
@@ -41,11 +40,9 @@ from inflection import underscore
 from sqlalchemy import (
     Boolean,
     Column,
-    Date,
     Enum,
     Float,
     ForeignKey,
-    Index,
     Integer,
     LargeBinary,
     String,
@@ -54,14 +51,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
-# Registers derived-schema tables (e.g. ReactionClasses) on Base.metadata.
+# Registers the rdkit and derived tables on Base for string relationship() targets.
 import ord_schema.orm.derived_mappers
-
-# Registers RDKitMols/RDKitReactions on Base for string relationship() targets.
 import ord_schema.orm.rdkit_mappers  # noqa: F401
-from ord_schema import message_helpers
 from ord_schema.logging import get_logger
 from ord_schema.orm import Base
+from ord_schema.orm.public_mappers import ReactionProto
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
@@ -215,31 +210,16 @@ def build_mapper(
         attrs["dataset_id"] = Column(Text, nullable=False, unique=True)
         # Track the MD5 hash so we can quickly identify changes.
         attrs["md5"] = Column(String(32), nullable=False)
-        # Track the number of reactions for quicker browsing.
-        attrs["num_reactions"] = Column(Integer, nullable=False)
-        # Denormalized submission date (an arbitrary reaction's last record_modified
-        # timestamp, or record_created when there is none) so datasets can be browsed
-        # by recency without an expensive join into reaction provenance. Date rather
-        # than timestamp: recency browsing only needs day granularity, which also
-        # sidesteps the timezones in free-text provenance times. Populated by
-        # set_submitted_at(); NULL for datasets whose reactions carry no timestamps.
-        attrs["submitted_at"] = Column(Date, index=True)
+        # num_reactions / submitted_at are derived; see derived_mappers.DatasetSummary.
     elif message_type == reaction_pb2.Reaction:
         # Make reaction IDs globally unique.
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
-        # Serialize and store the entire Reaction proto.
-        attrs["proto"] = Column(LargeBinary, nullable=False)
-        attrs["reaction_smiles"] = Column(Text)
-        attrs["rdkit_reaction_id"] = Column(
-            Integer, ForeignKey("rdkit.reactions.id", ondelete="CASCADE"), index=True
+        # The serialized proto (the served payload) lives in the public schema, and
+        # generated SMILES / RDKit links in the derived schema; ord.* is the search
+        # index. See public_mappers.ReactionProto and derived_mappers.ReactionSmiles.
+        attrs["proto_row"] = relationship(
+            "ReactionProto", uselist=False, cascade="all, delete-orphan"
         )
-        attrs["rdkit_reaction"] = relationship("RDKitReactions")
-    elif message_type in {reaction_pb2.Compound, reaction_pb2.ProductCompound}:
-        attrs["smiles"] = Column(Text)
-        attrs["rdkit_mol_id"] = Column(
-            Integer, ForeignKey("rdkit.mols.id", ondelete="CASCADE"), index=True
-        )
-        attrs["rdkit_mol"] = relationship("RDKitMols")
     elif message_type == reaction_pb2.ReactionProvenance:
         # Index the DOI so reactions can be looked up by publication.
         attrs["doi"] = Column(Text, index=True)
@@ -294,31 +274,9 @@ _MAPPER_TO_MESSAGE: dict[type, type[Message]] = {
     value: key for key, value in _MESSAGE_TO_MAPPER.items()
 }
 
-# Partial indexes over not-yet-linked rows, keyed by the foreign key used to reach a dataset. The incremental
-# RDKit-linking queries (ord_schema.orm.database.update_rdkit_tables / update_rdkit_ids) repeatedly ask "which of
-# this dataset's rows still have rdkit_*_id IS NULL?" -- zero for an already-loaded dataset. Indexing only the
-# unlinked rows keeps these tiny (just the in-flight datasets), so the planner answers in ~O(unlinked) instead of
-# scanning every reaction/compound in the dataset. create_all builds these on new databases; backfill them on an
-# existing database with CREATE INDEX CONCURRENTLY (see "Adding the partial indexes to an existing database" in
-# ord_schema/orm/README.md). Keep the SQL in that section in sync with the Index() declarations below.
-_REACTION_TABLE = Base.metadata.tables["ord.reaction"]
-Index(
-    "reaction_unlinked_index",
-    _REACTION_TABLE.c.dataset_id,
-    postgresql_where=_REACTION_TABLE.c.rdkit_reaction_id.is_(None),
-)
-_COMPOUND_TABLE = Base.metadata.tables["ord.compound"]
-Index(
-    "compound_unlinked_index",
-    _COMPOUND_TABLE.c.reaction_input_id,
-    postgresql_where=_COMPOUND_TABLE.c.rdkit_mol_id.is_(None),
-)
-_PRODUCT_COMPOUND_TABLE = Base.metadata.tables["ord.product_compound"]
-Index(
-    "product_compound_unlinked_index",
-    _PRODUCT_COMPOUND_TABLE.c.reaction_outcome_id,
-    postgresql_where=_PRODUCT_COMPOUND_TABLE.c.rdkit_mol_id.is_(None),
-)
+# The generated SMILES and rdkit_*_id links, and the partial "unlinked" indexes that keep
+# incremental RDKit linking O(unlinked), now live on the derived tables; see
+# ord_schema.orm.derived_mappers and ord_schema/orm/README.md.
 
 
 class _MappersMeta(type):
@@ -375,26 +333,13 @@ def from_proto(
         kwargs["md5"] = md5(
             message.SerializeToString(deterministic=True), usedforsecurity=False
         ).hexdigest()
-        assert hasattr(message, "reactions")
-        assert hasattr(message, "reaction_ids")
-        kwargs["num_reactions"] = len(message.reactions) or len(message.reaction_ids)
     elif isinstance(message, reaction_pb2.Reaction):
-        kwargs["proto"] = message.SerializeToString(deterministic=True)
-        try:
-            reaction_smiles = message_helpers.get_reaction_smiles(
-                message, generate_if_missing=True, allow_incomplete=False, validate=True
-            )
-        except ValueError as error:
-            assert hasattr(message, "reaction_id")  # Type hint.
-            logger.debug(
-                f"Error generating reaction SMILES for {message.reaction_id}: {error}"
-            )
-            reaction_smiles = None
-        if reaction_smiles is not None:
-            kwargs["reaction_smiles"] = reaction_smiles.split()[0]  # Handle CXSMILES.
-    elif isinstance(message, reaction_pb2.Compound | reaction_pb2.ProductCompound):
-        with contextlib.suppress(ValueError):
-            kwargs["smiles"] = message_helpers.smiles_from_compound(message)
+        # Store the serialized proto (the served payload) in the public schema. Derived
+        # values (SMILES, dataset summary) are computed from the search index afterward
+        # by ord_schema.orm.database.update_derived_tables.
+        kwargs["proto_row"] = ReactionProto(
+            proto=message.SerializeToString(deterministic=True)
+        )
     return mapper(**kwargs)
 
 

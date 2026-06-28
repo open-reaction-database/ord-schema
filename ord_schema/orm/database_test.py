@@ -26,6 +26,7 @@ from ord_schema.orm.database import (
     get_dataset_size,
     update_rdkit_tables,
 )
+from ord_schema.orm.derived_mappers import DatasetSummary
 from ord_schema.orm.mappers import Mappers
 from ord_schema.proto import reaction_pb2
 
@@ -43,7 +44,8 @@ def test_orm(test_session):
     )
     results = test_session.execute(query)
     reactions = [
-        reaction_pb2.Reaction.FromString(result[0].proto) for result in results
+        reaction_pb2.Reaction.FromString(result[0].proto_row.proto)
+        for result in results
     ]
     assert len(reactions) == 12
 
@@ -95,13 +97,16 @@ def test_unlinked_partial_indexes(test_session):
     """prepare_database creates partial indexes over unlinked rows to keep incremental linking cheap."""
     indexes = dict(
         test_session.execute(
-            text("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'ord'")
+            text(
+                "SELECT indexname, indexdef FROM pg_indexes "
+                "WHERE schemaname IN ('ord', 'derived')"
+            )
         ).all()
     )
     for name, predicate in (
-        ("reaction_unlinked_index", "rdkit_reaction_id IS NULL"),
-        ("compound_unlinked_index", "rdkit_mol_id IS NULL"),
-        ("product_compound_unlinked_index", "rdkit_mol_id IS NULL"),
+        ("reaction_smiles_unlinked_index", "rdkit_reaction_id IS NULL"),
+        ("compound_smiles_unlinked_index", "rdkit_mol_id IS NULL"),
+        ("product_compound_smiles_unlinked_index", "rdkit_mol_id IS NULL"),
     ):
         assert name in indexes, f"missing index {name}"
         assert predicate in indexes[name], (
@@ -128,15 +133,15 @@ def test_submitted_at(test_session):
     # entry; the fixture's reactions were modified on 2021-02-25 and created on
     # 2020-11-28, so record_modified must win.
     submitted_at = test_session.execute(
-        select(Mappers.Dataset.submitted_at)
+        select(DatasetSummary.submitted_at)
     ).scalar_one()
     assert submitted_at == datetime.date(2021, 2, 25)
 
 
 def test_backfill_submission_times(test_session):
-    test_session.execute(text("UPDATE ord.dataset SET submitted_at = NULL"))
+    test_session.execute(text("UPDATE derived.dataset_summary SET submitted_at = NULL"))
     backfill_submission_times(test_session)
     submitted_at = test_session.execute(
-        select(Mappers.Dataset.submitted_at)
+        select(DatasetSummary.submitted_at)
     ).scalar_one()
     assert submitted_at is not None

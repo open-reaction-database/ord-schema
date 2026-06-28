@@ -74,11 +74,13 @@ def update_reaction_classes(dataset_id: str, session: Session) -> None:
     start = time.time()
     result = session.execute(
         text("""
-            SELECT ord.reaction.id, ord.reaction.reaction_smiles
+            SELECT ord.reaction.id, derived.reaction_smiles.reaction_smiles
             FROM ord.reaction
             JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+            JOIN derived.reaction_smiles
+                ON derived.reaction_smiles.reaction_id = ord.reaction.id
             WHERE ord.dataset.dataset_id = :dataset_id
-              AND ord.reaction.reaction_smiles IS NOT NULL
+              AND derived.reaction_smiles.reaction_smiles IS NOT NULL
               AND NOT EXISTS (
                   SELECT 1 FROM derived.reaction_classes
                   WHERE derived.reaction_classes.reaction_id = ord.reaction.id
