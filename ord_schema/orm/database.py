@@ -88,6 +88,8 @@ def prepare_database(engine: Engine) -> bool:
     with engine.begin() as connection:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS ord"))
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS rdkit"))
+        # Derived, best-effort data that is not part of the proto (e.g. reaction class).
+        connection.execute(text("CREATE SCHEMA IF NOT EXISTS derived"))
     try:
         with engine.begin() as connection:
             # NOTE(skearnes): The RDKit PostgreSQL extension works best in the public schema.

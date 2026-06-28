@@ -34,10 +34,11 @@ from ord_schema.logging import get_logger
 logger = get_logger(__name__)
 
 # Rxn-INSIGHT returns this sentinel name when no named reaction matches; store NULL
-# instead so the column means "a recognized named reaction" without a magic string.
+# instead so reaction_name means "a recognized named reaction" without a magic string.
 # The class has no equivalent sentinel: its catch-all "Miscellaneous" is a real member
-# of the (closed) class vocabulary and is kept as-is, so a NULL reaction_class means
-# "not classified" (error or post-pass not run) rather than "no specific class".
+# of the (closed) class vocabulary and is kept as-is. A present row with NULL
+# reaction_class thus means "attempted, no class assigned", distinct from an absent row
+# (classification not attempted); see derived.reaction_classes.
 _UNNAMED = "OtherReaction"
 
 
@@ -70,62 +71,62 @@ def classify_reaction_smiles(
 
 
 def update_reaction_classes(dataset_id: str, session: Session) -> None:
-    """Populates reaction_class and reaction_name for a dataset's unclassified reactions.
+    """Classifies a dataset's not-yet-attempted reactions into derived.reaction_classes.
 
-    Classifies each distinct reaction SMILES once, then writes the labels back to all
-    matching rows that have not been classified yet (reaction_class IS NULL).
-
-    Reactions Rxn-INSIGHT cannot classify keep a NULL reaction_class and are reconsidered
-    on later runs. This is intentional -- NULL means "not classified" so coverage stays
-    measurable -- and cheap: classification is deterministic, so a repeated pass only re-runs
-    the small, fixed set of genuinely unclassifiable reactions rather than the whole dataset.
+    Selects reactions with a generated reaction SMILES that have no row in
+    derived.reaction_classes yet, classifies each distinct SMILES once (caching by
+    SMILES so duplicates are not re-run), and inserts one row per reaction_id. The
+    inserted row records the attempt: NULL reaction_class/reaction_name mean Rxn-INSIGHT
+    could not classify the reaction. Because a row's presence marks the attempt, repeated
+    runs converge and never re-run the model over deterministic failures.
     """
     logger.debug(f"Updating reaction classes for {dataset_id=}")
     start = time.time()
     result = session.execute(
         text("""
-            SELECT DISTINCT reaction_smiles
+            SELECT ord.reaction.reaction_id, ord.reaction.reaction_smiles
             FROM ord.reaction
             JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
             WHERE ord.dataset.dataset_id = :dataset_id
-              AND ord.reaction.reaction_class IS NULL
               AND ord.reaction.reaction_smiles IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM derived.reaction_classes
+                  WHERE derived.reaction_classes.reaction_id = ord.reaction.reaction_id
+              )
             """),
         {"dataset_id": dataset_id},
     )
-    reaction_smiles_list = [row[0] for row in result]
-    if not reaction_smiles_list:
+    reactions = result.all()
+    if not reactions:
         return
     rxn_mapper = RXNMapper()  # Loads the transformer model once for the whole batch.
-    updates = []
-    for reaction_smiles in reaction_smiles_list:
-        reaction_class, reaction_name = classify_reaction_smiles(
-            reaction_smiles, rxn_mapper
-        )
-        if reaction_class is not None:
-            updates.append(
-                {
-                    "dataset_id": dataset_id,
-                    "reaction_smiles": reaction_smiles,
-                    "reaction_class": reaction_class,
-                    "reaction_name": reaction_name,
-                }
+    cache: dict[str, tuple[str | None, str | None]] = {}
+    inserts = []
+    for reaction_id, reaction_smiles in reactions:
+        if reaction_smiles not in cache:
+            cache[reaction_smiles] = classify_reaction_smiles(
+                reaction_smiles, rxn_mapper
             )
-    if updates:
-        session.execute(
-            text("""
-                UPDATE ord.reaction
-                SET reaction_class = :reaction_class,
-                    reaction_name = :reaction_name
-                FROM ord.dataset
-                WHERE ord.reaction.dataset_id = ord.dataset.id
-                  AND ord.dataset.dataset_id = :dataset_id
-                  AND ord.reaction.reaction_smiles = :reaction_smiles
-                  AND ord.reaction.reaction_class IS NULL
-                """),
-            updates,
+        reaction_class, reaction_name = cache[reaction_smiles]
+        inserts.append(
+            {
+                "reaction_id": reaction_id,
+                "reaction_class": reaction_class,
+                "reaction_name": reaction_name,
+            }
         )
+    # ON CONFLICT DO NOTHING keeps the insert idempotent if a reaction_id was classified
+    # concurrently; the NOT EXISTS selector already skips reactions with an existing row.
+    session.execute(
+        text("""
+            INSERT INTO derived.reaction_classes (reaction_id, reaction_class, reaction_name)
+            VALUES (:reaction_id, :reaction_class, :reaction_name)
+            ON CONFLICT (reaction_id) DO NOTHING
+            """),
+        inserts,
+    )
+    classified = sum(value[0] is not None for value in cache.values())
     logger.debug(
         f"Updating reaction classes took {time.time() - start:g}s "
-        f"({len(updates)}/{len(reaction_smiles_list)} classified)"
+        f"({classified}/{len(cache)} distinct SMILES classified, {len(inserts)} reactions)"
     )

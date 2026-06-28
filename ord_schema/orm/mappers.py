@@ -54,6 +54,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 
+# Registers derived-schema tables (e.g. ReactionClasses) on Base.metadata.
+import ord_schema.orm.derived_mappers
+
 # Registers RDKitMols/RDKitReactions on Base for string relationship() targets.
 import ord_schema.orm.rdkit_mappers  # noqa: F401
 from ord_schema import message_helpers
@@ -227,12 +230,6 @@ def build_mapper(
         # Serialize and store the entire Reaction proto.
         attrs["proto"] = Column(LargeBinary, nullable=False)
         attrs["reaction_smiles"] = Column(Text)
-        # Best-effort reaction classification to support faceted search, populated
-        # from the generated reaction SMILES and NULL when unknown. reaction_class
-        # is the coarse category (e.g. "C-C Coupling"); reaction_name is the specific
-        # named reaction within it (e.g. "Suzuki coupling with boronic acids").
-        attrs["reaction_class"] = Column(Text, index=True)
-        attrs["reaction_name"] = Column(Text, index=True)
         attrs["rdkit_reaction_id"] = Column(
             Integer, ForeignKey("rdkit.reactions.id", ondelete="CASCADE"), index=True
         )
