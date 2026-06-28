@@ -84,6 +84,16 @@ orm = [
     "psycopg[binary,pool]>=3",
     "sqlalchemy>=2",
 ]
+# Optional: ord_schema.orm.reaction_class assigns a best-effort reaction class and
+# named reaction to each reaction (for faceted search) via Rxn-INSIGHT. It pulls in
+# rxnmapper -> torch/transformers, a heavy chain run as a batched post-pass, so it
+# is not part of the default orm dependency set.
+reaction-class = [
+    "rxn-insight>=0.1.2",
+    # rxn-insight pins numpy but not scipy; scipy>=1.11 removed
+    # scipy.spatial.distance.kulczynski1, which rxn-insight imports at module load.
+    "scipy<1.11",
+]
 tests = [
     "ruff>=0.9.9",
     "coverage>=5.2.1",
