@@ -27,9 +27,8 @@ from ord_schema.orm import Base
 class ReactionSmiles(Base):
     """Generated reaction SMILES and its link to the deduplicated RDKit reaction.
 
-    One row per reaction: reaction_smiles is generated from the proto at import,
-    rdkit_reaction_id is set during the RDKit linking pass. rdkit.reactions stays
-    deduplicated by SMILES, so this is the per-reaction pointer into it.
+    One row per reaction: reaction_smiles is filled by update_derived_tables, rdkit_reaction_id
+    by the RDKit linking pass (rdkit.reactions is deduplicated by SMILES).
     """
 
     __tablename__ = "reaction_smiles"
@@ -44,8 +43,7 @@ class ReactionSmiles(Base):
     rdkit_reaction = relationship("RDKitReactions")
 
     __table_args__ = (
-        # Partial index over not-yet-linked rows keeps the RDKit linking pass O(unlinked);
-        # moved here with rdkit_reaction_id (see ord_schema/orm/README.md).
+        # Partial index over not-yet-linked rows keeps RDKit linking O(unlinked); see README.
         Index(
             "reaction_smiles_unlinked_index",
             "reaction_id",
@@ -58,8 +56,8 @@ class ReactionSmiles(Base):
 class CompoundSmiles(Base):
     """Generated compound SMILES and its link to the deduplicated RDKit mol.
 
-    One row per ord.compound: smiles is generated from the proto at import,
-    rdkit_mol_id is set during the RDKit linking pass.
+    One row per ord.compound: smiles is filled by update_derived_tables, rdkit_mol_id by
+    the RDKit linking pass.
     """
 
     __tablename__ = "compound_smiles"

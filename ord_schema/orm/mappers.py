@@ -215,9 +215,8 @@ def build_mapper(
     elif message_type == reaction_pb2.Reaction:
         # Make reaction IDs globally unique.
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
-        # The serialized proto (the served payload) lives in the public schema, and
-        # generated SMILES / RDKit links in the derived schema; ord.* is the search
-        # index. See public_mappers.ReactionProto and derived_mappers.ReactionSmiles.
+        # The served proto lives in public.reactions; generated SMILES / RDKit links in the
+        # derived schema. See public_mappers.ReactionProto, derived_mappers.ReactionSmiles.
         attrs["proto_row"] = relationship(
             "ReactionProto", uselist=False, cascade="all, delete-orphan"
         )

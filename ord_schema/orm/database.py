@@ -347,29 +347,22 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
 
 
 def update_derived_tables(dataset_id: str, session: Session) -> None:
-    """Populates the derived SMILES and summary tables from the search index.
+    """Populates the derived SMILES tables from the search index.
 
-    Reconstructs each reaction/compound from ord.* via to_proto and reuses the proto
-    SMILES helpers, keeping derived values decoupled from ingest (from_proto only writes
-    ord.* and public.reactions). Idempotent: only rows without a derived entry are
-    processed. Must run before the RDKit pass, which reads derived.reaction_smiles and
-    derived.*_smiles.
-
-    Note: this rebuilds each message (reaction and compound) from the relational tables,
-    so it trades ingest-time coupling for reconstruction cost; batching/SQL identifier
-    reads could speed it up if it becomes a bottleneck.
+    Reconstructs each reaction/compound from ord.* via to_proto and reuses the proto SMILES
+    helpers, so derived data stays decoupled from ingest. Idempotent (skips rows that
+    already have a derived entry); runs before the RDKit pass, which reads the SMILES.
+    Rebuilding every message is the cost of that decoupling -- batch or read identifiers via
+    SQL if it becomes a bottleneck.
     """
     logger.debug(f"Updating derived tables for {dataset_id=}")
     start = time.time()
-    # ord.reaction.dataset_id and the compound link columns live on the polymorphic child
-    # mappers (single-table inheritance), so rows are selected by id via raw SQL and loaded
-    # with session.get for to_proto, mirroring the RDKit pass's raw-SQL scoping.
+    # dataset_id and the compound link columns live on the polymorphic child mappers, so
+    # rows are selected by id via raw SQL and loaded with session.get (like the RDKit pass).
     dataset_pk = session.execute(
         text("SELECT id FROM ord.dataset WHERE dataset_id = :dataset_id"),
         {"dataset_id": dataset_id},
     ).scalar_one()
-    # public.datasets (md5) and derived.dataset_summary (num_reactions) are populated at
-    # ingest; this pass only fills the per-reaction/compound SMILES.
     # Reaction SMILES (generated from the whole reaction; CXSMILES handled by split()).
     reaction_ids = session.execute(
         text("""
