@@ -273,8 +273,8 @@ _PARQUET_FLUSH_BATCH = 1000
 
 # Number of reactions/compounds the derived passes load and process at a time. The ids needing
 # derivation are fetched up front, but the heavy work (proto deserialization, SMILES generation)
-# and the pending inserts are kept to this many rows so peak memory does not scale with the
-# dataset size.
+# and the pending inserts are limited to this many rows at a time, bounding peak memory to one
+# batch.
 _DERIVED_BATCH = 1000
 
 
@@ -377,8 +377,7 @@ def update_derived_tables(dataset_id: str, session: Session) -> None:
     Reaction SMILES come from the ground-truth proto in public.reactions; compound SMILES
     from each ord.compound row's reconstructed message. Idempotent (skips rows that already
     have a derived entry); runs before the RDKit pass, which reads the SMILES. Reactions and
-    compounds are processed in batches of _DERIVED_BATCH so peak memory does not scale with
-    the dataset size.
+    compounds are processed in batches of _DERIVED_BATCH, bounding peak memory to one batch.
     """
     logger.debug(f"Updating derived tables for {dataset_id=}")
     start = time.time()
@@ -390,12 +389,14 @@ def update_derived_tables(dataset_id: str, session: Session) -> None:
     ).scalar_one()
     # Reaction SMILES from the served proto (no ORM objects loaded), keyed by ord.reaction.id.
     # Resolve the ids needing derivation in one indexed pass, then load and parse the (large)
-    # protos in batches of _DERIVED_BATCH so peak memory does not scale with the dataset.
+    # protos in batches of _DERIVED_BATCH, bounding peak memory to one batch.
     reaction_ids = (
         session.execute(
             text("""
                 SELECT ord.reaction.id
                 FROM ord.reaction
+                JOIN public.reactions
+                    ON public.reactions.reaction_id = ord.reaction.reaction_id
                 WHERE ord.reaction.dataset_id = :id
                   AND NOT EXISTS (
                       SELECT 1 FROM derived.reaction_smiles
@@ -486,8 +487,8 @@ def _update_compound_smiles(
 
     Compounds aren't stored as protos, so each is reconstructed from its identifiers via
     to_proto. The ids needing derivation are resolved up front, then loaded and inserted in
-    batches of _DERIVED_BATCH (expunging each compound after use) so the session and peak
-    memory stay bounded regardless of dataset size.
+    batches of _DERIVED_BATCH, expunging each compound after use to bound the session and
+    peak memory to one batch.
     """
     compound_ids = (
         session.execute(
