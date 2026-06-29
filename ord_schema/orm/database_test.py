@@ -24,6 +24,7 @@ from ord_schema.orm.database import (
     delete_dataset,
     get_dataset_md5,
     get_dataset_size,
+    update_derived_tables,
     update_rdkit_tables,
 )
 from ord_schema.orm.mappers import Mappers
@@ -91,6 +92,26 @@ def test_update_rdkit_tables_idempotent(test_session):
         ).scalar()
         == 0
     )
+
+
+def test_update_derived_tables_idempotent(test_session):
+    """Re-running update_derived_tables inserts no duplicate derived rows (NOT EXISTS guard)."""
+    tables = ("reaction_smiles", "compound_smiles", "product_compound_smiles")
+    before = {
+        table: test_session.execute(
+            text(f"SELECT count(*) FROM derived.{table}")  # noqa: S608  (constant)
+        ).scalar()
+        for table in tables
+    }
+    assert before["reaction_smiles"] > 0
+    update_derived_tables("test_dataset", test_session)
+    for table, count in before.items():
+        assert (
+            test_session.execute(
+                text(f"SELECT count(*) FROM derived.{table}")  # noqa: S608  (constant)
+            ).scalar()
+            == count
+        )
 
 
 def test_unlinked_partial_indexes(test_session):

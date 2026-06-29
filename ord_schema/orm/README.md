@@ -147,14 +147,14 @@ transaction block; `IF NOT EXISTS` makes the migration idempotent):
 
 ```sql
 CREATE INDEX CONCURRENTLY IF NOT EXISTS reaction_smiles_unlinked_index
-    ON derived.reaction_smiles (reaction_id) WHERE rdkit_reaction_id IS NULL;
+    ON derived.reaction_smiles (reaction_smiles) WHERE rdkit_reaction_id IS NULL;
 CREATE INDEX CONCURRENTLY IF NOT EXISTS compound_smiles_unlinked_index
-    ON derived.compound_smiles (compound_id) WHERE rdkit_mol_id IS NULL;
+    ON derived.compound_smiles (smiles) WHERE rdkit_mol_id IS NULL;
 CREATE INDEX CONCURRENTLY IF NOT EXISTS product_compound_smiles_unlinked_index
-    ON derived.product_compound_smiles (product_compound_id) WHERE rdkit_mol_id IS NULL;
+    ON derived.product_compound_smiles (smiles) WHERE rdkit_mol_id IS NULL;
 ```
 
-These definitions must stay in sync with the `Index(...)` declarations in `mappers.py`.
+These definitions must stay in sync with the `Index(...)` declarations in `derived_mappers.py`.
 
 ### Add data
 

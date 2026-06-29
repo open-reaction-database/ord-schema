@@ -275,7 +275,7 @@ _MAPPER_TO_MESSAGE: dict[type, type[Message]] = {
 }
 
 # The generated SMILES and rdkit_*_id links, and the partial "unlinked" indexes that keep
-# incremental RDKit linking O(unlinked), now live on the derived tables; see
+# incremental RDKit linking O(unlinked), live on the derived tables; see
 # ord_schema.orm.derived_mappers and ord_schema/orm/README.md.
 
 

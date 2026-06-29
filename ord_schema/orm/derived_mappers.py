@@ -43,10 +43,12 @@ class ReactionSmiles(Base):
     rdkit_reaction = relationship("RDKitReactions")
 
     __table_args__ = (
-        # Partial index over not-yet-linked rows keeps RDKit linking O(unlinked); see README.
+        # Partial index on the RDKit join key over not-yet-linked rows; the RDKit linking
+        # pass joins these to rdkit.reactions by reaction_smiles and filters unlinked, so
+        # this stays tiny once most rows are linked. See ord_schema/orm/README.md.
         Index(
             "reaction_smiles_unlinked_index",
-            "reaction_id",
+            "reaction_smiles",
             postgresql_where=text("rdkit_reaction_id IS NULL"),
         ),
         {"schema": "derived"},
@@ -71,9 +73,10 @@ class CompoundSmiles(Base):
     rdkit_mol = relationship("RDKitMols")
 
     __table_args__ = (
+        # Partial index on the RDKit join key (smiles) over not-yet-linked rows; see README.
         Index(
             "compound_smiles_unlinked_index",
-            "compound_id",
+            "smiles",
             postgresql_where=text("rdkit_mol_id IS NULL"),
         ),
         {"schema": "derived"},
@@ -99,9 +102,10 @@ class ProductCompoundSmiles(Base):
     rdkit_mol = relationship("RDKitMols")
 
     __table_args__ = (
+        # Partial index on the RDKit join key (smiles) over not-yet-linked rows; see README.
         Index(
             "product_compound_smiles_unlinked_index",
-            "product_compound_id",
+            "smiles",
             postgresql_where=text("rdkit_mol_id IS NULL"),
         ),
         {"schema": "derived"},
