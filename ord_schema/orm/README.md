@@ -85,7 +85,11 @@ table.
   links in `derived.{reaction,compound,product_compound}_smiles`, plus reaction classes. `rdkit` holds RDKit cartridge
   data (deduplicated mols/reactions and fingerprints). `from_proto` writes only `ord.*` and the `public` rows;
   `update_derived_tables` then computes the `derived` SMILES by reconstructing each message from the search index, and
-  the RDKit pass populates/links the cartridge from those SMILES.
+  the RDKit pass populates/links the cartridge from those SMILES. The two layers store at different granularities on
+  purpose: `derived.*_smiles` is one row per reaction/compound (the SMILES string is cheap, and the per-id row is the
+  direct lookup into its RDKit object), while `rdkit.*` is deduplicated by SMILES because the parsed structures and
+  fingerprints are expensive to recompute and store — i.e. deduplicate where the payload is expensive, store per-entity
+  where it is cheap.
 * Partial indexes over not-yet-linked rows (`reaction_smiles_unlinked_index`, `compound_smiles_unlinked_index`, and
   `product_compound_smiles_unlinked_index`, on the `derived` SMILES tables) keep incremental RDKit linking fast. They
   index only the rows whose `rdkit_*_id` is still `NULL`, so the repeated "which of this dataset's rows still need
