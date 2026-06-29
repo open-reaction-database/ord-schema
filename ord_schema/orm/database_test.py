@@ -123,7 +123,9 @@ def test_update_derived_tables_batched(test_session, monkeypatch):
         ).scalar()
         for table in tables
     }
-    assert full["reaction_smiles"] > 0
+    # Every derived table must be populated up front, otherwise the re-derivation below would
+    # pass trivially (0 == 0) without exercising the reaction or compound batch paths.
+    assert all(count > 0 for count in full.values()), full
     # Clear the derived rows, then re-derive in batches far smaller than the dataset (80
     # reactions) so the result is built across many batches rather than one.
     for table in tables:
