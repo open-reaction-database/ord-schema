@@ -21,10 +21,11 @@ from typing import Any, cast
 from unittest.mock import patch
 
 from dateutil import parser
-from sqlalchemy import delete, select, text
+from sqlalchemy import bindparam, delete, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NotSupportedError, OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
+from tqdm import tqdm
 
 from ord_schema import message_helpers, parquet
 from ord_schema.logging import get_logger
@@ -267,9 +268,13 @@ def backfill_submission_times(session: Session) -> None:
 
 # Reactions are flushed and expunged in batches of this size during streaming
 # ingest. Larger values reduce SQL roundtrips at the cost of more pending ORM
-# objects held in memory; 200 is unmeasured and worked fine on the existing
-# ord-data fixtures.
-_PARQUET_FLUSH_BATCH = 200
+# objects held in memory.
+_PARQUET_FLUSH_BATCH = 1000
+
+# Number of reactions/compounds the derived passes load and process at a time. The ids needing
+# derivation are fetched up front, but the heavy work (proto deserialization, SMILES generation)
+# and the pending inserts are limited to this many rows at a time.
+_DERIVED_BATCH = 1000
 
 
 def add_parquet_dataset(path: str, session: Session) -> None:
@@ -313,7 +318,13 @@ def add_parquet_dataset(path: str, session: Session) -> None:
             session.expunge(obj)
         pending.clear()
 
-    for _, reaction in parquet.iter_reactions(path):
+    for _, reaction in tqdm(
+        parquet.iter_reactions(path),
+        total=num_reactions,
+        desc=f"ingest {metadata.dataset_id}",
+        unit="rxn",
+        leave=False,
+    ):
         reaction_mapper = from_proto(reaction, mapper=reaction_child_class)
         reaction_mapper.parent = mapped_dataset
         session.add(reaction_mapper)
@@ -364,8 +375,9 @@ def update_derived_tables(dataset_id: str, session: Session) -> None:
 
     Reaction SMILES come from the ground-truth proto in public.reactions; compound SMILES
     from each ord.compound row's reconstructed message. Idempotent (skips rows that already
-    have a derived entry); runs before the RDKit pass, which reads the SMILES. Rows are
-    streamed and inserted in bulk so the session does not grow with the dataset.
+    have a derived entry); runs before the RDKit pass, which reads the SMILES. Reactions and
+    compounds are processed in batches of _DERIVED_BATCH so the heavy per-row work (proto
+    deserialization, SMILES generation) and pending inserts stay within one batch.
     """
     logger.debug(f"Updating derived tables for {dataset_id=}")
     start = time.time()
@@ -375,44 +387,68 @@ def update_derived_tables(dataset_id: str, session: Session) -> None:
         text("SELECT id FROM ord.dataset WHERE dataset_id = :dataset_id"),
         {"dataset_id": dataset_id},
     ).scalar_one()
-    # Reaction SMILES from the served proto (no ORM objects loaded); keyed by ord.reaction.id.
-    rows = session.execute(
-        text("""
-            SELECT ord.reaction.id, public.reactions.proto
-            FROM ord.reaction
-            JOIN public.reactions
-                ON public.reactions.reaction_id = ord.reaction.reaction_id
-            WHERE ord.reaction.dataset_id = :id
-              AND NOT EXISTS (
-                  SELECT 1 FROM derived.reaction_smiles
-                  WHERE derived.reaction_smiles.reaction_id = ord.reaction.id
-              )
-            """),
-        {"id": dataset_pk},
-    )
-    inserts = []
-    for reaction_id, proto in rows:
-        try:
-            reaction_smiles = message_helpers.get_reaction_smiles(
-                reaction_pb2.Reaction.FromString(proto),
-                generate_if_missing=True,
-                allow_incomplete=False,
-                validate=True,
-            )
-        except ValueError as error:
-            logger.debug(f"No reaction SMILES for reaction id={reaction_id}: {error}")
-            continue
-        tokens = reaction_smiles.split() if reaction_smiles else []  # Handle CXSMILES.
-        if tokens:
-            inserts.append({"reaction_id": reaction_id, "reaction_smiles": tokens[0]})
-    if inserts:
+    # Reaction SMILES from the served proto (no ORM objects loaded), keyed by ord.reaction.id.
+    # Resolve the ids needing derivation in one indexed pass, then load and parse the (large)
+    # protos in batches of _DERIVED_BATCH.
+    reaction_ids = (
         session.execute(
-            text(
-                "INSERT INTO derived.reaction_smiles (reaction_id, reaction_smiles) "
-                "VALUES (:reaction_id, :reaction_smiles)"
-            ),
-            inserts,
+            text("""
+                SELECT ord.reaction.id
+                FROM ord.reaction
+                JOIN public.reactions
+                    ON public.reactions.reaction_id = ord.reaction.reaction_id
+                WHERE ord.reaction.dataset_id = :id
+                  AND NOT EXISTS (
+                      SELECT 1 FROM derived.reaction_smiles
+                      WHERE derived.reaction_smiles.reaction_id = ord.reaction.id
+                  )
+                """),
+            {"id": dataset_pk},
         )
+        .scalars()
+        .all()
+    )
+    select_protos = text("""
+        SELECT ord.reaction.id, public.reactions.proto
+        FROM ord.reaction
+        JOIN public.reactions
+            ON public.reactions.reaction_id = ord.reaction.reaction_id
+        WHERE ord.reaction.id IN :ids
+        """).bindparams(bindparam("ids", expanding=True))
+    insert_reaction_smiles = text(
+        "INSERT INTO derived.reaction_smiles (reaction_id, reaction_smiles) "
+        "VALUES (:reaction_id, :reaction_smiles)"
+    )
+    for batch_start in tqdm(
+        range(0, len(reaction_ids), _DERIVED_BATCH),
+        desc=f"reaction SMILES {dataset_id}",
+        unit="batch",
+        leave=False,
+    ):
+        batch_ids = reaction_ids[batch_start : batch_start + _DERIVED_BATCH]
+        inserts = []
+        for reaction_id, proto in session.execute(select_protos, {"ids": batch_ids}):
+            try:
+                reaction_smiles = message_helpers.get_reaction_smiles(
+                    reaction_pb2.Reaction.FromString(proto),
+                    generate_if_missing=True,
+                    allow_incomplete=False,
+                    validate=True,
+                )
+            except ValueError as error:
+                logger.debug(
+                    f"No reaction SMILES for reaction id={reaction_id}: {error}"
+                )
+                continue
+            tokens = (
+                reaction_smiles.split() if reaction_smiles else []
+            )  # Handle CXSMILES.
+            if tokens:
+                inserts.append(
+                    {"reaction_id": reaction_id, "reaction_smiles": tokens[0]}
+                )
+        if inserts:
+            session.execute(insert_reaction_smiles, inserts)
     _update_compound_smiles(
         session,
         dataset_pk=dataset_pk,
@@ -450,46 +486,56 @@ def _update_compound_smiles(
     """Derives SMILES for one (product) compound table's not-yet-derived rows.
 
     Compounds aren't stored as protos, so each is reconstructed from its identifiers via
-    to_proto; rows load one at a time (SQLAlchemy's weak identity map releases each after
-    use) and SMILES are inserted in bulk.
+    to_proto. The ids needing derivation are resolved up front, then the compounds are loaded
+    one at a time and inserted in batches of _DERIVED_BATCH. SQLAlchemy's weak identity map
+    releases each compound (and the children to_proto lazily loads) once it falls out of use,
+    so the session stays small.
     """
-    compound_ids = session.execute(
-        text(f"""
-            SELECT {compound_table}.id
-            FROM {compound_table}
-            JOIN {link_table} ON {compound_table}.{link_column} = {link_table}.id
-            JOIN ord.reaction ON {link_table}.reaction_id = ord.reaction.id
-            WHERE ord.reaction.dataset_id = :id
-              AND NOT EXISTS (
-                  SELECT 1 FROM {derived_table}
-                  WHERE {derived_table}.{derived_id} = {compound_table}.id
-              )
-            """),  # noqa: S608  (table/column names are internal constants, not user input)
-        {"id": dataset_pk},
-    ).scalars()
-    inserts = []
-    for compound_id in compound_ids:
-        compound = session.get(compound_class, compound_id)
-        assert compound is not None  # Selected by id above.
-        try:
-            smiles = message_helpers.smiles_from_compound(
-                cast(
-                    "reaction_pb2.Compound | reaction_pb2.ProductCompound",
-                    to_proto(compound),
-                )
-            )
-        except ValueError:
-            continue
-        inserts.append({derived_id: compound_id, "smiles": smiles})
-    if inserts:
-        # The interpolated names are internal constants (not user input); see S608 below.
+    compound_ids = (
         session.execute(
-            text(
-                f"INSERT INTO {derived_table} ({derived_id}, smiles) "  # noqa: S608
-                f"VALUES (:{derived_id}, :smiles)"
-            ),
-            inserts,
+            text(f"""
+                SELECT {compound_table}.id
+                FROM {compound_table}
+                JOIN {link_table} ON {compound_table}.{link_column} = {link_table}.id
+                JOIN ord.reaction ON {link_table}.reaction_id = ord.reaction.id
+                WHERE ord.reaction.dataset_id = :id
+                  AND NOT EXISTS (
+                      SELECT 1 FROM {derived_table}
+                      WHERE {derived_table}.{derived_id} = {compound_table}.id
+                  )
+                """),  # noqa: S608  (table/column names are internal constants, not user input)
+            {"id": dataset_pk},
         )
+        .scalars()
+        .all()
+    )
+    # The interpolated names are internal constants (not user input); see S608 below.
+    insert_smiles = text(
+        f"INSERT INTO {derived_table} ({derived_id}, smiles) "  # noqa: S608
+        f"VALUES (:{derived_id}, :smiles)"
+    )
+    for batch_start in tqdm(
+        range(0, len(compound_ids), _DERIVED_BATCH),
+        desc=derived_table.rsplit(".", maxsplit=1)[-1],
+        unit="batch",
+        leave=False,
+    ):
+        inserts = []
+        for compound_id in compound_ids[batch_start : batch_start + _DERIVED_BATCH]:
+            compound = session.get(compound_class, compound_id)
+            assert compound is not None  # Selected by id above.
+            try:
+                smiles = message_helpers.smiles_from_compound(
+                    cast(
+                        "reaction_pb2.Compound | reaction_pb2.ProductCompound",
+                        to_proto(compound),
+                    )
+                )
+            except ValueError:
+                continue
+            inserts.append({derived_id: compound_id, "smiles": smiles})
+        if inserts:
+            session.execute(insert_smiles, inserts)
 
 
 def update_rdkit_tables(dataset_id: str, session: Session) -> None:
