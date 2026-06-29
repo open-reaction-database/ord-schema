@@ -162,14 +162,17 @@ These definitions must stay in sync with the `Index(...)` declarations in `deriv
 
 ### Add data
 
-Load ORD datasets into the database with the `add_parquet_dataset` function:
+Loading a dataset is two stages: `add_parquet_dataset`/`add_dataset` *ingest* the `ord.*` search index and
+`public.*` payload, then `update_derived_data` populates the `derived.*` SMILES, RDKit links, and (optionally)
+reaction classes. The stages are independent — derivation is idempotent, so it can be re-run to backfill or recompute
+derived data over already-ingested datasets.
 
 ```python
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from ord_schema import huggingface, message_helpers
-from ord_schema.orm.database import add_parquet_dataset
+from ord_schema.orm.database import add_parquet_dataset, update_derived_data
 
 # huggingface.fetch_dataset downloads the dataset (preferring the Parquet
 # serialization) and returns its local path; it needs the optional `huggingface`
@@ -178,12 +181,15 @@ from ord_schema.orm.database import add_parquet_dataset
 # memory. Datasets not yet migrated to Parquet come back as .pb.gz; load those
 # instead with add_dataset(message_helpers.load_message(path, dataset_pb2.Dataset)).
 path = huggingface.fetch_dataset("ord_dataset-fc83743b978f4deea7d6856deacbfe53")
+dataset_id = "ord_dataset-fc83743b978f4deea7d6856deacbfe53"
 
 connection_string = f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}"
 engine = create_engine(connection_string)
 with Session(engine) as session:
     with session.begin():
         add_parquet_dataset(path, session)
+    with session.begin():
+        update_derived_data(dataset_id, session)
 ```
 
 To load multiple datasets from disk (e.g., from a clone of
@@ -197,8 +203,14 @@ python scripts/add_datasets.py \
     --database <database>
 ```
 
-Note that the database password will be read from the `PGPASSWORD` environment variable if `--password` is not
-specified on the command line. To update an existing dataset in the database, use the `--overwrite` flag.
+The database password will be read from the `PGPASSWORD` environment variable if `--password` is not specified on the
+command line. To update an existing dataset in the database, use the `--overwrite` flag. The script runs both stages by
+default; `--stages` selects them independently — `--stages ingest` loads `ord.*`/`public.*` only, and `--stages derived`
+(re)computes the derived data for the already-ingested datasets matching `--pattern`. Add `--classify_reactions` to
+assign reaction class/name labels during derivation (requires the `reaction-class` extra).
+
+The script is a thin CLI over `ord_schema.orm.loading.load_datasets`, which runs the same staged, parallel loading and is
+the entry point for programmatic callers.
 
 ### Run queries
 

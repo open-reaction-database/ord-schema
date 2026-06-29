@@ -110,20 +110,15 @@ def prepare_database(engine: Engine) -> bool:
     return rdkit_cartridge
 
 
-def add_dataset(
-    dataset: dataset_pb2.Dataset,
-    session: Session,
-    rdkit_cartridge: bool = True,
-    classify_reactions: bool = False,
-) -> None:
-    """Adds a dataset to the database.
+def add_dataset(dataset: dataset_pb2.Dataset, session: Session) -> None:
+    """Ingests a dataset, writing the ``ord.*`` search index and ``public.*`` payload.
+
+    Derived data (SMILES, RDKit links, reaction classes) is populated separately by
+    ``update_derived_data`` so ingest and derivation can run independently.
 
     Args:
         dataset: Dataset to add.
         session: SQLAlchemy session.
-        rdkit_cartridge: Whether to populate RDKit cartridge tables.
-        classify_reactions: Whether to assign reaction class/name labels as a
-            post-pass; requires the optional ``reaction-class`` extra.
     """
     logger.debug(f"Adding dataset {dataset.dataset_id}")
     start = time.time()
@@ -131,16 +126,37 @@ def add_dataset(
     logger.debug(f"from_proto() took {time.time() - start:g}s")
     session.add(mapped_dataset)
     session.flush()
-    update_derived_tables(dataset.dataset_id, session)
+    set_submitted_at(dataset.dataset_id, session)
+
+
+def update_derived_data(
+    dataset_id: str,
+    session: Session,
+    *,
+    rdkit_cartridge: bool = True,
+    classify_reactions: bool = False,
+) -> None:
+    """Populates the derived tables for an already-ingested dataset.
+
+    Idempotent (NOT EXISTS guards), so it is safe to re-run to backfill or recompute
+    derived data over datasets that are already present.
+
+    Args:
+        dataset_id: Dataset to derive.
+        session: SQLAlchemy session.
+        rdkit_cartridge: Whether to populate RDKit cartridge tables and links.
+        classify_reactions: Whether to assign reaction class/name labels; requires the
+            optional ``reaction-class`` extra.
+    """
+    update_derived_tables(dataset_id, session)
     if rdkit_cartridge:
         session.flush()
-        update_rdkit_tables(dataset.dataset_id, session)
+        update_rdkit_tables(dataset_id, session)
         session.flush()
-        update_rdkit_ids(dataset.dataset_id, session)
+        update_rdkit_ids(dataset_id, session)
     if classify_reactions:
         session.flush()
-        _classify_reactions(dataset.dataset_id, session)
-    set_submitted_at(dataset.dataset_id, session)
+        _classify_reactions(dataset_id, session)
 
 
 def _parse_date(value: str) -> datetime.date | None:
@@ -239,12 +255,7 @@ def backfill_submission_times(session: Session) -> None:
 _PARQUET_FLUSH_BATCH = 200
 
 
-def add_parquet_dataset(
-    path: str,
-    session: Session,
-    rdkit_cartridge: bool = True,
-    classify_reactions: bool = False,
-) -> None:
+def add_parquet_dataset(path: str, session: Session) -> None:
     """Streams a Parquet-serialized Dataset into the ORM tables.
 
     Two streaming passes over the Parquet file:
@@ -255,14 +266,12 @@ def add_parquet_dataset(
 
     This keeps the canonical Parquet MD5 formula in one place and bounds
     peak memory to one row group plus ``_PARQUET_FLUSH_BATCH`` ORM objects,
-    regardless of dataset size.
+    regardless of dataset size. Derived data is populated separately by
+    ``update_derived_data``.
 
     Args:
         path: Path to the Parquet-serialized Dataset.
         session: SQLAlchemy session.
-        rdkit_cartridge: Whether to populate RDKit cartridge tables.
-        classify_reactions: Whether to assign reaction class/name labels as a
-            post-pass; requires the optional ``reaction-class`` extra.
     """
     start = time.time()
     metadata = parquet.load_metadata(path)
@@ -298,14 +307,6 @@ def add_parquet_dataset(
     logger.debug(
         f"add_parquet_dataset() took {time.time() - start:g}s ({num_reactions} reactions)"
     )
-    update_derived_tables(metadata.dataset_id, session)
-    if rdkit_cartridge:
-        update_rdkit_tables(metadata.dataset_id, session)
-        session.flush()
-        update_rdkit_ids(metadata.dataset_id, session)
-    if classify_reactions:
-        session.flush()
-        _classify_reactions(metadata.dataset_id, session)
     set_submitted_at(metadata.dataset_id, session)
 
 

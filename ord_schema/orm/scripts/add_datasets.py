@@ -12,106 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Adds datasets to the ORM database."""
+"""CLI for loading ORD datasets into the ORM database.
+
+Thin wrapper over ``ord_schema.orm.loading.load_datasets``; see that module for the
+ingest/derivation staging the ``--stages`` flag selects.
+"""
 
 import argparse
 import logging
 import os
-import time
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
-from contextlib import ExitStack
-from glob import glob
-from hashlib import md5
 
-from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
-from tqdm import tqdm
-
-from ord_schema import parquet
 from ord_schema.logging import get_logger, silence_rdkit_logs
-from ord_schema.message_helpers import load_message
-from ord_schema.orm import database
-from ord_schema.proto import dataset_pb2
+from ord_schema.orm import database, loading
 
 logger = get_logger(__name__)
-
-
-def add_dataset(dsn: str, filename: str, overwrite: bool) -> str:
-    """Adds a single dataset to the database.
-
-    Args:
-        dsn: Database connection string.
-        filename: Dataset filename. ``.parquet`` inputs are streamed via
-            ``database.add_parquet_dataset``; other formats load the whole
-            Dataset proto and call ``database.add_dataset``.
-        overwrite: If True, update the dataset if the MD5 hash has changed.
-
-    Returns:
-        Dataset ID.
-
-    Raises:
-        ValueError: If the dataset already exists in the database and `overwrite` is not set.
-    """
-    # NOTE(skearnes): Multiprocessing is hard to get right for shared connection pools, so we don't even try; see
-    # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
-    engine = create_engine(dsn)
-    if filename.endswith(".parquet"):
-        logger.debug(f"Streaming {filename}")
-        dataset_id = parquet.load_metadata(filename).dataset_id
-
-        def compute_md5() -> str:
-            md5_hex, _ = parquet.streaming_md5(filename)
-            return md5_hex
-
-        def insert(session: Session) -> None:
-            database.add_parquet_dataset(
-                filename, session, rdkit_cartridge=False
-            )  # Done separately in add_rdkit().
-    else:
-        logger.debug(f"Loading {filename}")
-        dataset = load_message(filename, dataset_pb2.Dataset)
-        dataset_id = dataset.dataset_id
-
-        def compute_md5() -> str:
-            return md5(
-                dataset.SerializeToString(deterministic=True), usedforsecurity=False
-            ).hexdigest()
-
-        def insert(session: Session) -> None:
-            database.add_dataset(
-                dataset, session, rdkit_cartridge=False
-            )  # Done separately in add_rdkit().
-
-    with Session(engine) as session:
-        with session.begin():
-            existing_md5 = database.get_dataset_md5(dataset_id, session)
-        if existing_md5 is not None:
-            if compute_md5() != existing_md5:
-                if not overwrite:
-                    raise ValueError(
-                        f"`overwrite` is required when a dataset already exists: {dataset_id}"
-                    )
-                logger.debug(f"existing dataset {dataset_id} changed; updating")
-                with session.begin():
-                    database.delete_dataset(dataset_id, session)
-            else:
-                logger.debug(f"existing dataset {dataset_id} unchanged; skipping")
-                return dataset_id
-        start = time.time()
-        with session.begin():
-            insert(session)
-        logger.debug(f"insert took {time.time() - start:g}s")
-    return dataset_id
-
-
-def add_rdkit(engine: Engine, dataset_id: str) -> None:
-    """Updates RDKit tables."""
-    with Session(engine) as session:
-        with session.begin():
-            database.update_rdkit_tables(dataset_id, session)
-        with session.begin():
-            database.update_rdkit_ids(dataset_id, session)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -119,6 +33,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Add datasets to the ORM database")
     parser.add_argument(
         "--pattern", required=True, help="Pattern for dataset filenames"
+    )
+    parser.add_argument(
+        "--stages",
+        default=",".join(loading.STAGES),
+        help="Comma-separated stages to run: 'ingest' (ord.*/public.*) and/or 'derived' "
+        "(derived.* SMILES, RDKit links, reaction classes). Derived-only runs over "
+        "already-ingested datasets matching --pattern.",
+    )
+    parser.add_argument(
+        "--classify_reactions",
+        action="store_true",
+        help="Assign reaction class/name labels in the derived stage "
+        "(requires the 'reaction-class' extra)",
     )
     parser.add_argument(
         "--overwrite", action="store_true", help="Update changed datasets"
@@ -137,10 +64,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
-    """Loads matching datasets into the ORM database and adds RDKit functionality."""
+    """Runs the selected ingest and/or derived stages over the matching datasets."""
     silence_rdkit_logs()
     if args.debug:
         get_logger(database.__name__, level=logging.DEBUG)
+    stages = [stage.strip() for stage in args.stages.split(",") if stage.strip()]
+    unknown = set(stages) - set(loading.STAGES)
+    if unknown:
+        raise SystemExit(
+            f"Unknown --stages values {sorted(unknown)}; choose from {list(loading.STAGES)}"
+        )
+    if not stages:
+        raise SystemExit(f"--stages must select at least one of {list(loading.STAGES)}")
+    if args.classify_reactions and database.update_reaction_classes is None:
+        raise SystemExit(
+            "--classify_reactions requires the 'reaction-class' extra: "
+            "pip install ord-schema[reaction-class]"
+        )
     if args.dsn:
         dsn = args.dsn
     else:
@@ -151,41 +91,14 @@ def main(args: argparse.Namespace) -> None:
             host=args.host,
             port=args.port,
         )
-    filenames = sorted(glob(args.pattern))
-    with ExitStack() as stack:
-        max_workers = args.n_jobs
-        if max_workers > 1:
-            executor = stack.enter_context(ProcessPoolExecutor(max_workers))
-        else:
-            executor = stack.enter_context(ThreadPoolExecutor(max_workers))
-        logger.info("Adding datasets")
-        futures = {}
-        for filename in filenames:
-            future = executor.submit(
-                add_dataset, dsn=dsn, filename=filename, overwrite=args.overwrite
-            )
-            futures[future] = filename
-        dataset_ids = []
-        failures = []
-        for future in tqdm(as_completed(futures), total=len(futures)):
-            try:
-                dataset_ids.append(future.result())
-            except Exception:
-                filename = futures[future]
-                failures.append(filename)
-                logger.exception(f"Adding dataset {filename} failed")
-    logger.info("Adding RDKit functionality")
-    engine = create_engine(dsn)
-    for dataset_id in tqdm(dataset_ids):
-        try:
-            add_rdkit(
-                engine, dataset_id
-            )  # NOTE(skearnes): Do this serially to avoid deadlocks.
-        except Exception:
-            failures.append(dataset_id)
-            logger.exception(f"Adding RDKit functionality for {dataset_id} failed")
-    if failures:
-        raise RuntimeError(failures)
+    loading.load_datasets(
+        args.pattern,
+        dsn,
+        stages=stages,
+        overwrite=args.overwrite,
+        classify_reactions=args.classify_reactions,
+        n_jobs=args.n_jobs,
+    )
 
 
 if __name__ == "__main__":
