@@ -162,6 +162,29 @@ def test_unlinked_partial_indexes(test_session):
         )
 
 
+def test_enum_types_in_ord_schema(test_session):
+    """Mapped enum types live in the ord schema so they are rendered schema-qualified.
+
+    Without inherit_schema the enum type is created wherever the create-time
+    search_path points and referenced unqualified; that breaks ingest when the
+    default search_path is pinned to public and the connecting role owns an
+    eponymous ord schema (the prod 'ord' role), so the unqualified cast cannot find
+    the type. Pinning the types to ord makes resolution search_path-independent.
+    """
+    schemas = test_session.execute(
+        text(
+            "SELECT t.typname, n.nspname FROM pg_type t "
+            "JOIN pg_namespace n ON n.oid = t.typnamespace "
+            "WHERE t.typtype = 'e' "
+            "AND t.typname IN ('ReactionIdentifierType', 'CompoundIdentifierType', "
+            "'ReactionRoleType')"
+        )
+    ).all()
+    assert schemas, "no mapped enum types found"
+    for typname, schema in schemas:
+        assert schema == "ord", f"{typname} is in {schema}, expected ord"
+
+
 def test_default_search_path_is_public(test_session):
     """prepare_database pins the database default search_path to public, not the role's ord schema."""
     setting = test_session.execute(
