@@ -273,8 +273,7 @@ _PARQUET_FLUSH_BATCH = 1000
 
 # Number of reactions/compounds the derived passes load and process at a time. The ids needing
 # derivation are fetched up front, but the heavy work (proto deserialization, SMILES generation)
-# and the pending inserts are limited to this many rows at a time, bounding peak memory to one
-# batch.
+# and the pending inserts are limited to this many rows at a time.
 _DERIVED_BATCH = 1000
 
 
@@ -377,7 +376,8 @@ def update_derived_tables(dataset_id: str, session: Session) -> None:
     Reaction SMILES come from the ground-truth proto in public.reactions; compound SMILES
     from each ord.compound row's reconstructed message. Idempotent (skips rows that already
     have a derived entry); runs before the RDKit pass, which reads the SMILES. Reactions and
-    compounds are processed in batches of _DERIVED_BATCH, bounding peak memory to one batch.
+    compounds are processed in batches of _DERIVED_BATCH so the heavy per-row work (proto
+    deserialization, SMILES generation) and pending inserts stay within one batch.
     """
     logger.debug(f"Updating derived tables for {dataset_id=}")
     start = time.time()
@@ -389,7 +389,7 @@ def update_derived_tables(dataset_id: str, session: Session) -> None:
     ).scalar_one()
     # Reaction SMILES from the served proto (no ORM objects loaded), keyed by ord.reaction.id.
     # Resolve the ids needing derivation in one indexed pass, then load and parse the (large)
-    # protos in batches of _DERIVED_BATCH, bounding peak memory to one batch.
+    # protos in batches of _DERIVED_BATCH.
     reaction_ids = (
         session.execute(
             text("""
@@ -486,9 +486,10 @@ def _update_compound_smiles(
     """Derives SMILES for one (product) compound table's not-yet-derived rows.
 
     Compounds aren't stored as protos, so each is reconstructed from its identifiers via
-    to_proto. The ids needing derivation are resolved up front, then loaded and inserted in
-    batches of _DERIVED_BATCH, expunging each compound after use to bound the session and
-    peak memory to one batch.
+    to_proto. The ids needing derivation are resolved up front, then the compounds are loaded
+    one at a time and inserted in batches of _DERIVED_BATCH. SQLAlchemy's weak identity map
+    releases each compound (and the children to_proto lazily loads) once it falls out of use,
+    so the session stays small.
     """
     compound_ids = (
         session.execute(
@@ -531,12 +532,8 @@ def _update_compound_smiles(
                     )
                 )
             except ValueError:
-                session.expunge(
-                    compound
-                )  # Release the ORM object; keep the session small.
                 continue
             inserts.append({derived_id: compound_id, "smiles": smiles})
-            session.expunge(compound)  # Release the ORM object; keep the session small.
         if inserts:
             session.execute(insert_smiles, inserts)
 
