@@ -135,6 +135,19 @@ def test_unlinked_partial_indexes(test_session):
         )
 
 
+def test_default_search_path_is_public(test_session):
+    """prepare_database pins the database default search_path to public, not the role's ord schema."""
+    setting = test_session.execute(
+        text(
+            "SELECT array_to_string(s.setconfig, ',') "
+            "FROM pg_db_role_setting s JOIN pg_database d ON d.oid = s.setdatabase "
+            "WHERE d.datname = current_database() AND s.setrole = 0"
+        )
+    ).scalar()
+    assert setting is not None
+    assert "search_path=public" in setting
+
+
 def test_get_dataset_md5(test_session):
     assert (
         get_dataset_md5("test_dataset", test_session)

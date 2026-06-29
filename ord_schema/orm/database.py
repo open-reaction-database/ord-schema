@@ -23,7 +23,7 @@ from unittest.mock import patch
 from dateutil import parser
 from sqlalchemy import delete, select, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import NotSupportedError, OperationalError
+from sqlalchemy.exc import NotSupportedError, OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from ord_schema import message_helpers, parquet
@@ -91,6 +91,23 @@ def prepare_database(engine: Engine) -> bool:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS rdkit"))
         # Derived, best-effort data that is not part of the proto (e.g. reaction class).
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS derived"))
+    with engine.begin() as connection:
+        # Pin the database's default search_path to public. The connecting role is often
+        # named "ord", which would make Postgres's default ("$user", public) resolve the
+        # ord schema first; instead require explicit ord/derived/rdkit qualification (the
+        # ORM qualifies every table) and keep only public on the path, where the RDKit
+        # cartridge functions live. Best-effort: a non-owner connection cannot ALTER
+        # DATABASE, but the ORM still works since it never relies on the default path.
+        try:
+            connection.execute(
+                text(
+                    "DO $$ BEGIN EXECUTE format("
+                    "'ALTER DATABASE %I SET search_path TO public', "
+                    "current_database()); END $$;"
+                )
+            )
+        except (OperationalError, ProgrammingError) as error:
+            logger.warning(f"Could not set the default search_path to public: {error}")
     try:
         with engine.begin() as connection:
             # NOTE(skearnes): The RDKit PostgreSQL extension works best in the public schema.
