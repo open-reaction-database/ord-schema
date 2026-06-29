@@ -91,6 +91,11 @@ orm = [
 # unrelated packages (e.g. tensorflow on 3.13) in the unified lockfile. Switch back to
 # a PyPI release once https://github.com/mrodobbe/Rxn-INSIGHT/pull/8 is merged/released.
 reaction-class = [
+    # transformers reaches us transitively via rxn-insight -> rxnmapper. Floor at 4.53 to
+    # clear the known deserialization/ReDoS CVEs; ceiling <5 because transformers 5 removed
+    # the slow-tokenizer machinery rxnmapper's SmilesTokenizer subclasses (rxnmapper also
+    # caps <5). Revisit when rxnmapper supports transformers 5. See issue #858.
+    "transformers>=4.53,<5",
     "rxn-insight @ git+https://github.com/skearnes/Rxn-INSIGHT.git@eb71946997e81801ba56c66c9a564263743c7eee",
 ]
 tests = [
