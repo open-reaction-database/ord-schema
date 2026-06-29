@@ -37,6 +37,13 @@ def test_engine_fixture() -> Iterator[Engine]:
         yield engine
 
 
+@pytest.fixture(name="prepared_engine")
+def prepared_engine_fixture(test_engine: Engine) -> Engine:
+    """``test_engine`` with the ORM schema (and RDKit cartridge) installed."""
+    assert prepare_database(test_engine)
+    return test_engine
+
+
 @pytest.fixture(name="test_session")
 def test_session_fixture(test_engine: Engine) -> Iterator[Session]:
     datasets = [

@@ -209,6 +209,9 @@ default; `--stages` selects them independently — `--stages ingest` loads `ord.
 (re)computes the derived data for the already-ingested datasets matching `--pattern`. Add `--classify_reactions` to
 assign reaction class/name labels during derivation (requires the `reaction-class` extra).
 
+The script is a thin CLI over `ord_schema.orm.loading.load_datasets`, which runs the same staged, parallel loading and is
+the entry point for programmatic callers.
+
 ### Run queries
 
 Use the [SQLAlchemy ORM query engine](https://docs.sqlalchemy.org/en/14/orm/quickstart.html#simple-select) to search for
