@@ -70,12 +70,12 @@ def test_main_parquet(prepared_engine, tmp_path):
         )
         assert mapped_dataset is not None
         assert len(mapped_dataset.reactions) == expected_count
-        # Spot-check that one reaction round-trips byte-identical through the proto column.
+        # Spot-check that one reaction round-trips byte-identical through public.reactions.
         original = dataset.reactions[0]
         stored = next(
             r for r in mapped_dataset.reactions if r.reaction_id == original.reaction_id
         )
-        assert reaction_pb2.Reaction.FromString(stored.proto) == original
+        assert reaction_pb2.Reaction.FromString(stored.proto_row.proto) == original
 
 
 def test_main_parquet_skip_unchanged(prepared_engine, tmp_path):
