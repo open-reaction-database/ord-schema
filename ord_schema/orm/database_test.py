@@ -114,6 +114,31 @@ def test_update_derived_tables_idempotent(test_session):
         )
 
 
+def test_update_derived_tables_batched(test_session, monkeypatch):
+    """A small batch size reproduces the full result, exercising the multi-batch path."""
+    tables = ("reaction_smiles", "compound_smiles", "product_compound_smiles")
+    full = {
+        table: test_session.execute(
+            text(f"SELECT count(*) FROM derived.{table}")  # noqa: S608  (constant)
+        ).scalar()
+        for table in tables
+    }
+    assert full["reaction_smiles"] > 0
+    # Clear the derived rows, then re-derive in batches far smaller than the dataset (80
+    # reactions) so the result is built across many batches rather than one.
+    for table in tables:
+        test_session.execute(text(f"DELETE FROM derived.{table}"))  # noqa: S608  (constant)
+    monkeypatch.setattr("ord_schema.orm.database._DERIVED_BATCH", 7)
+    update_derived_tables("test_dataset", test_session)
+    for table, count in full.items():
+        assert (
+            test_session.execute(
+                text(f"SELECT count(*) FROM derived.{table}")  # noqa: S608  (constant)
+            ).scalar()
+            == count
+        )
+
+
 def test_unlinked_partial_indexes(test_session):
     """prepare_database creates partial indexes over unlinked rows to keep incremental linking cheap."""
     indexes = dict(
