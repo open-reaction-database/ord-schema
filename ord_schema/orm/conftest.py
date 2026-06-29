@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from testing.postgresql import Postgresql
 
 from ord_schema.datasets import load_dataset
-from ord_schema.orm.database import add_dataset, prepare_database
+from ord_schema.orm.database import add_dataset, prepare_database, update_derived_data
 
 
 @pytest.fixture(name="test_engine")
@@ -48,6 +48,9 @@ def test_session_fixture(test_engine: Engine) -> Iterator[Session]:
     with Session(test_engine) as session:
         for dataset in datasets:
             with session.begin():
-                add_dataset(dataset, session, rdkit_cartridge=rdkit_cartridge)
+                add_dataset(dataset, session)
+                update_derived_data(
+                    dataset.dataset_id, session, rdkit_cartridge=rdkit_cartridge
+                )
     with Session(test_engine) as session:
         yield session

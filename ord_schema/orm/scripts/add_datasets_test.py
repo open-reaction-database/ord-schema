@@ -17,7 +17,7 @@
 import pathlib
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -107,3 +107,44 @@ def test_main_parquet_rejects_changed_without_overwrite(prepared_engine, tmp_pat
         RuntimeError
     ):  # main() collects per-future failures and raises in aggregate.
         add_datasets.main(add_datasets.parse_args(argv))
+
+
+def _derived_counts(engine) -> dict[str, int]:
+    with Session(engine) as session:
+        return {
+            table: session.execute(
+                text(f"SELECT count(*) FROM derived.{table}")  # noqa: S608  (constant)
+            ).scalar()
+            for table in (
+                "reaction_smiles",
+                "compound_smiles",
+                "product_compound_smiles",
+            )
+        }
+
+
+def test_stages_ingest_then_derived(prepared_engine):
+    """--stages=ingest writes ord.*/public.* with no derived rows; a later --stages=derived backfills them."""
+    base = ["--dsn", str(prepared_engine.url), "--pattern", _PBTXT_FIXTURE]
+    add_datasets.main(add_datasets.parse_args([*base, "--stages", "ingest"]))
+    with Session(prepared_engine) as session:
+        assert session.query(Mappers.Reaction).count() > 0
+    assert _derived_counts(prepared_engine) == {
+        "reaction_smiles": 0,
+        "compound_smiles": 0,
+        "product_compound_smiles": 0,
+    }
+    add_datasets.main(add_datasets.parse_args([*base, "--stages", "derived"]))
+    counts = _derived_counts(prepared_engine)
+    assert counts["reaction_smiles"] > 0
+    with Session(prepared_engine) as session:
+        assert (
+            session.execute(text("SELECT count(*) FROM rdkit.reactions")).scalar() > 0
+        )
+
+
+def test_unknown_stage_rejected():
+    with pytest.raises(SystemExit):
+        add_datasets.main(
+            add_datasets.parse_args(["--pattern", _PBTXT_FIXTURE, "--stages", "bogus"])
+        )
