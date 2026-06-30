@@ -199,8 +199,18 @@ def build_mapper(
             )
         elif field.type == FieldDescriptor.TYPE_ENUM:
             assert field.enum_type is not None  # Type hint.
+            # inherit_schema pins the enum type to the mapped table's schema (ord)
+            # so it is always rendered schema-qualified. Without this the type is
+            # created wherever the connection's search_path points at create time and
+            # referenced unqualified, which breaks when the default search_path does
+            # not include ord (e.g. a role with an eponymous schema connecting to a
+            # public-only search_path).
             attrs[field.name] = Column(
-                Enum(*field.enum_type.values_by_name.keys(), name=field.enum_type.name)
+                Enum(
+                    *field.enum_type.values_by_name.keys(),
+                    name=field.enum_type.name,
+                    inherit_schema=True,
+                )
             )
         else:
             attrs[field.name] = Column(_FIELD_TYPES[field.type])
