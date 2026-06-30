@@ -175,9 +175,7 @@ def test_enum_types_in_ord_schema(test_session):
         text(
             "SELECT t.typname, n.nspname FROM pg_type t "
             "JOIN pg_namespace n ON n.oid = t.typnamespace "
-            "WHERE t.typtype = 'e' "
-            "AND t.typname IN ('ReactionIdentifierType', 'CompoundIdentifierType', "
-            "'ReactionRoleType')"
+            "WHERE t.typtype = 'e'"
         )
     ).all()
     assert schemas, "no mapped enum types found"
