@@ -43,10 +43,12 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     Text,
     Uuid,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
@@ -254,11 +256,13 @@ def build_mapper(
     logger.debug(f"Creating mapper {msg_desc.name}: {attrs}")
     mapper_class = type(msg_desc.name, (Base,), attrs)
     # Create polymorphic child classes.
+    table = mapper_class.__table__
     for parent_type, field_name, _ in parents[message_type]:
         parent_desc = parent_type.DESCRIPTOR
         assert parent_desc is not None  # Type hint.
         foreign_table_name = underscore(parent_desc.name)
         foreign_key = f"ord.{foreign_table_name}.id"
+        fk_name = f"{foreign_table_name}_id"
         child_attrs = {
             "__mapper_args__": {
                 "polymorphic_identity": f"{parent_desc.name}.{field_name}"
@@ -267,9 +271,9 @@ def build_mapper(
             # https://docs.sqlalchemy.org/en/14/orm/inheritance.html#resolving-column-conflicts.
             #
             # NOTE(skearnes): We are not enforcing unique constraints on this column; see the module docstring.
-            f"{foreign_table_name}_id": mapper_class.__table__.c.get(
-                f"{foreign_table_name}_id",
-                Column(Uuid, ForeignKey(foreign_key, ondelete="CASCADE"), index=True),
+            fk_name: table.c.get(
+                fk_name,
+                Column(Uuid, ForeignKey(foreign_key, ondelete="CASCADE")),
             ),
             "parent": relationship(
                 parent_desc.name, back_populates=field_name, uselist=False
@@ -278,6 +282,18 @@ def build_mapper(
         child_class_name = f"_{parent_desc.name}{field_name.capitalize()}"
         logger.debug(f"Creating child mapper {child_class_name}: {child_attrs}")
         type(child_class_name, (mapper_class,), child_attrs)
+        # Partial index on the polymorphic foreign key. Under single-table inheritance this column
+        # is NULL for every row belonging to a sibling subclass, so indexing only the non-NULL rows
+        # keeps both the index and the per-insert index write proportional to the rows that actually
+        # reference this parent. A parent reused across fields shares one column and one index,
+        # created on first use. See derived_mappers for the same partial-index pattern.
+        index_name = f"ix_{table.name}_{fk_name}"
+        if not any(index.name == index_name for index in table.indexes):
+            Index(
+                index_name,
+                table.c[fk_name],
+                postgresql_where=text(f"{fk_name} IS NOT NULL"),
+            )
     return mapper_class
 
 
