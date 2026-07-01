@@ -2417,6 +2417,7 @@ orm = [
     { name = "inflection" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "sqlalchemy" },
+    { name = "uuid6" },
 ]
 reaction-class = [
     { name = "rxn-insight" },
@@ -2437,6 +2438,7 @@ tests = [
     { name = "testing-postgresql" },
     { name = "treon" },
     { name = "ty" },
+    { name = "uuid6" },
 ]
 
 [package.metadata]
@@ -2475,6 +2477,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'reaction-class'", specifier = ">=4.53,<5" },
     { name = "treon", marker = "extra == 'tests'", specifier = ">=0.1.3" },
     { name = "ty", marker = "extra == 'tests'", specifier = ">=0.0.28" },
+    { name = "uuid6", marker = "extra == 'orm'", specifier = ">=2023" },
     { name = "wget", marker = "extra == 'examples'", specifier = ">=3.2" },
 ]
 provides-extras = ["docs", "examples", "github", "huggingface", "orm", "reaction-class", "tests"]
@@ -4777,6 +4780,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/53/0c/06f8b233b8fd13b9e5ee11424ef85419ba0d8ba0b3138bf360be2ff56953/urllib3-2.7.0.tar.gz", hash = "sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c", size = 433602, upload-time = "2026-05-07T16:13:18.596Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl", hash = "sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897", size = 131087, upload-time = "2026-05-07T16:13:17.151Z" },
+]
+
+[[package]]
+name = "uuid6"
+version = "2025.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/b7/4c0f736ca824b3a25b15e8213d1bcfc15f8ac2ae48d1b445b310892dc4da/uuid6-2025.0.1.tar.gz", hash = "sha256:cd0af94fa428675a44e32c5319ec5a3485225ba2179eefcf4c3f205ae30a81bd", size = 13932, upload-time = "2025-07-04T18:30:35.186Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3d/b2/93faaab7962e2aa8d6e174afb6f76be2ca0ce89fde14d3af835acebcaa59/uuid6-2025.0.1-py3-none-any.whl", hash = "sha256:80530ce4d02a93cdf82e7122ca0da3ebbbc269790ec1cb902481fa3e9cc9ff99", size = 6979, upload-time = "2025-07-04T18:30:34.001Z" },
 ]
 
 [[package]]

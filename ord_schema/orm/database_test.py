@@ -183,6 +183,31 @@ def test_enum_types_in_ord_schema(test_session):
         assert schema == "ord", f"{typname} is in {schema}, expected ord"
 
 
+def test_surrogate_keys_are_uuidv7(test_session):
+    """ord.* surrogate keys are uuid columns populated with version-7 (time-sortable) values."""
+    types = dict(
+        test_session.execute(
+            text(
+                "SELECT table_name || '.' || column_name, data_type "
+                "FROM information_schema.columns "
+                "WHERE table_schema = 'ord' "
+                "AND ((table_name = 'reaction' AND column_name = 'id') "
+                "  OR (table_name = 'compound' AND column_name IN ('id', 'reaction_input_id')))"
+            )
+        ).all()
+    )
+    assert types == {
+        "reaction.id": "uuid",
+        "compound.id": "uuid",
+        "compound.reaction_input_id": "uuid",
+    }, types
+    # psycopg returns uuid columns as uuid.UUID; ingest mints version-7 ids.
+    reaction_id = test_session.execute(
+        text("SELECT id FROM ord.reaction LIMIT 1")
+    ).scalar_one()
+    assert reaction_id.version == 7
+
+
 def test_default_search_path_is_public(test_session):
     """prepare_database pins the database default search_path to public, not the role's ord schema."""
     setting = test_session.execute(
