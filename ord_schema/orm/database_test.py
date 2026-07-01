@@ -249,6 +249,29 @@ def test_unlinked_partial_indexes(test_session):
         )
 
 
+def test_polymorphic_fk_indexes_are_partial(test_session):
+    """Each polymorphic foreign-key index is partial (WHERE ... IS NOT NULL).
+
+    Under single-table inheritance a message's FK column is NULL for every row of a sibling
+    subclass, so a full index would store a NULL entry for most rows and every insert would touch
+    all of them. Indexing only the non-NULL rows keeps the index and the per-insert write
+    proportional to the rows that use each parent. ord.time is the widest such table (one FK per
+    possible parent), so it is a good representative.
+    """
+    indexes = dict(
+        test_session.execute(
+            text(
+                "SELECT indexname, indexdef FROM pg_indexes "
+                "WHERE schemaname = 'ord' AND tablename = 'time'"
+            )
+        ).all()
+    )
+    fk_indexes = {name: d for name, d in indexes.items() if name.startswith("ix_")}
+    assert len(fk_indexes) >= 3, indexes  # ord.time has many parent FK columns.
+    for name, indexdef in fk_indexes.items():
+        assert "IS NOT NULL" in indexdef, f"{name} is not partial: {indexdef}"
+
+
 def test_enum_types_in_ord_schema(test_session):
     """Mapped enum types live in the ord schema so they are rendered schema-qualified.
 
