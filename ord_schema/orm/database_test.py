@@ -15,10 +15,12 @@
 """Tests for ord_schema.orm.database."""
 
 import datetime
+from typing import cast
 
 import pytest
 from sqlalchemy import select, text
 
+from ord_schema import message_helpers
 from ord_schema.orm.database import (
     backfill_submission_times,
     delete_dataset,
@@ -27,7 +29,7 @@ from ord_schema.orm.database import (
     update_derived_tables,
     update_rdkit_tables,
 )
-from ord_schema.orm.mappers import Mappers
+from ord_schema.orm.mappers import Mappers, to_proto
 from ord_schema.orm.public_mappers import DatasetMetadata
 from ord_schema.proto import reaction_pb2
 
@@ -139,6 +141,40 @@ def test_update_derived_tables_batched(test_session, monkeypatch):
             ).scalar()
             == count
         )
+
+
+@pytest.mark.parametrize(
+    ("derived_table", "id_column", "mapper"),
+    [
+        ("derived.compound_smiles", "compound_id", Mappers.Compound),
+        (
+            "derived.product_compound_smiles",
+            "product_compound_id",
+            Mappers.ProductCompound,
+        ),
+    ],
+)
+def test_compound_smiles_match_reference(
+    test_session, derived_table, id_column, mapper
+):
+    """The set-based compound SMILES equal the per-compound smiles_from_compound reference.
+
+    Guards value parity of the bulk SMILES-identifier path (and the fallback for compounds
+    without a stored SMILES) against the message-reconstruction reference.
+    """
+    rows = test_session.execute(
+        text(f"SELECT {id_column}, smiles FROM {derived_table}")  # noqa: S608  (constant)
+    ).all()
+    assert rows, derived_table
+    for compound_id, smiles in rows:
+        compound = test_session.get(mapper, compound_id)
+        expected = message_helpers.smiles_from_compound(
+            cast(
+                "reaction_pb2.Compound | reaction_pb2.ProductCompound",
+                to_proto(compound),
+            )
+        )
+        assert smiles == expected, (derived_table, compound_id, smiles, expected)
 
 
 def test_unlinked_partial_indexes(test_session):
