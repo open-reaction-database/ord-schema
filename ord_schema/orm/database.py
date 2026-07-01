@@ -321,6 +321,15 @@ def _collect_rows(root: Any, rows_by_table: dict[str, tuple[Any, list]]) -> None
         if entry is None:
             entry = (table, [])
             rows_by_table[table.fullname] = entry
+        # Every primary key must be populated by now: Uuid PKs are minted above, and text PKs
+        # (e.g. public.datasets.dataset_id, public.reactions.reaction_id) are set either from the
+        # proto or by FK wiring when the owning parent was visited. A NULL here means a table was
+        # added with a PK that is neither, which would otherwise fail deep inside COPY.
+        for key_column in table.primary_key:
+            assert getattr(node, key_column.key, None) is not None, (
+                f"unpopulated primary key {table.fullname}.{key_column.name}; a new table needs "
+                "a Uuid primary key or one wired from a parent foreign key"
+            )
         # Under single-table polymorphic inheritance, a sibling subclass's foreign-key column
         # shares the table but is not an attribute of this instance, so it is NULL for this row.
         entry[1].append(tuple(getattr(node, c.key, None) for c in table.columns))
@@ -356,6 +365,11 @@ def add_parquet_dataset(path: str, session: Session) -> None:
        work. Peak memory is bounded to one row group plus ``_COPY_BATCH`` trees.
 
     Derived data is populated separately by ``update_derived_data``.
+
+    Because rows are streamed with COPY rather than the unit of work, SQLAlchemy instrumentation
+    does not run for this path: ``@validates`` methods and ``before_insert``/``after_insert`` event
+    hooks on the mapper classes do not fire. ``add_dataset`` (used by ord-interface) still goes
+    through the ORM, so any such hook must be reflected here as well to keep the two paths in sync.
 
     Args:
         path: Path to the Parquet-serialized Dataset.

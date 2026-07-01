@@ -72,8 +72,11 @@ def _content_digests(engine) -> dict[str, tuple[int, str | None]]:
             ).scalar()
             digest = None
             if content and count:
+                # json_build_array encodes NULL distinctly from any string and escapes the values,
+                # so there is no delimiter for a value to collide with (concat_ws instead drops
+                # NULLs, letting a NULL alias a value that contains the delimiter).
                 order = ", ".join(f'"{c}"' for c in content)
-                query = f"SELECT md5(string_agg(x, '|' ORDER BY x)) FROM (SELECT concat_ws(chr(1), {order}) AS x FROM {table.fullname}) t"  # noqa: S608  (internal schema constants)
+                query = f"SELECT md5(string_agg(x, '|' ORDER BY x)) FROM (SELECT md5(json_build_array({order})::text) AS x FROM {table.fullname}) t"  # noqa: S608  (internal schema constants)
                 digest = session.execute(text(query)).scalar()
             digests[table.fullname] = (count, digest)
     return digests
