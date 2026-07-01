@@ -539,6 +539,9 @@ def _update_compound_smiles(
         inserts = []
         for compound_id in batch_ids:
             value = stored_smiles.get(compound_id)
+            # An absent or empty SMILES identifier both fall through to the reconstruction path,
+            # matching smiles_from_compound's `get_compound_smiles(...) or ...` falsiness (an
+            # empty string is not a parseable structure to canonicalize).
             if value:
                 # Canonicalize the stored SMILES, matching smiles_from_compound's default.
                 mol = Chem.MolFromSmiles(value)
