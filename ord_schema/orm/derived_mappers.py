@@ -18,7 +18,7 @@ These live in a separate "derived" schema to keep the proto-mirroring "ord" sche
 canonical. Populated by post-passes (not from_proto); the ORM works without them.
 """
 
-from sqlalchemy import Column, ForeignKey, Index, Integer, Text, text
+from sqlalchemy import Column, ForeignKey, Index, Integer, Text, Uuid, text
 from sqlalchemy.orm import relationship
 
 from ord_schema.orm import Base
@@ -32,9 +32,9 @@ class ReactionSmiles(Base):
     """
 
     __tablename__ = "reaction_smiles"
-    # Integer FK to ord.reaction.id, per the ORM's reaction FK convention (see mappers).
+    # FK to the ord.reaction UUIDv7 surrogate key (see mappers).
     reaction_id = Column(
-        Integer, ForeignKey("ord.reaction.id", ondelete="CASCADE"), primary_key=True
+        Uuid, ForeignKey("ord.reaction.id", ondelete="CASCADE"), primary_key=True
     )
     reaction_smiles = Column(Text, index=True)
     rdkit_reaction_id = Column(
@@ -64,7 +64,7 @@ class CompoundSmiles(Base):
 
     __tablename__ = "compound_smiles"
     compound_id = Column(
-        Integer, ForeignKey("ord.compound.id", ondelete="CASCADE"), primary_key=True
+        Uuid, ForeignKey("ord.compound.id", ondelete="CASCADE"), primary_key=True
     )
     smiles = Column(Text, index=True)
     rdkit_mol_id = Column(
@@ -91,7 +91,7 @@ class ProductCompoundSmiles(Base):
 
     __tablename__ = "product_compound_smiles"
     product_compound_id = Column(
-        Integer,
+        Uuid,
         ForeignKey("ord.product_compound.id", ondelete="CASCADE"),
         primary_key=True,
     )
@@ -121,9 +121,9 @@ class ReactionClasses(Base):
     """
 
     __tablename__ = "reaction_classes"
-    # Integer FK to ord.reaction.id, per the ORM's reaction FK convention (see mappers).
+    # FK to the ord.reaction UUIDv7 surrogate key (see mappers).
     reaction_id = Column(
-        Integer,
+        Uuid,
         ForeignKey("ord.reaction.id", ondelete="CASCADE"),
         primary_key=True,
     )

@@ -46,9 +46,11 @@ from sqlalchemy import (
     Integer,
     LargeBinary,
     Text,
+    Uuid,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
+from uuid6 import uuid7
 
 # Register the rdkit and derived tables on Base for string relationship() targets.
 import ord_schema.orm.derived_mappers
@@ -168,7 +170,9 @@ def build_mapper(
     assert msg_desc is not None  # Type hint.
     attrs: dict[str, Any] = {
         "__tablename__": underscore(msg_desc.name),
-        "id": Column(Integer, primary_key=True),
+        # UUIDv7 surrogate key: time-sortable (index locality) and client-generatable, so bulk
+        # loads can mint ids and wire foreign keys without a server round trip. See pyproject.
+        "id": Column(Uuid, primary_key=True, default=uuid7),
         "ord_schema_context": Column(Text, nullable=False),
         "__table_args__": ({"schema": "ord"},),
     }
@@ -265,9 +269,7 @@ def build_mapper(
             # NOTE(skearnes): We are not enforcing unique constraints on this column; see the module docstring.
             f"{foreign_table_name}_id": mapper_class.__table__.c.get(
                 f"{foreign_table_name}_id",
-                Column(
-                    Integer, ForeignKey(foreign_key, ondelete="CASCADE"), index=True
-                ),
+                Column(Uuid, ForeignKey(foreign_key, ondelete="CASCADE"), index=True),
             ),
             "parent": relationship(
                 parent_desc.name, back_populates=field_name, uselist=False

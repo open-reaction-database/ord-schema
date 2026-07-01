@@ -80,6 +80,10 @@ orm = [
     "inflection>=0.5.1",
     "psycopg[binary,pool]>=3",
     "sqlalchemy>=2",
+    # UUIDv7 surrogate primary keys: time-sortable (index locality) and client-generatable
+    # (no server round-trip / sequence reservation for bulk COPY loads). Backports uuid7()
+    # for Python < 3.14. See ord_schema.orm.mappers.
+    "uuid6>=2023",
 ]
 # Optional: ord_schema.orm.reaction_class assigns a best-effort reaction class and
 # named reaction to each reaction (for faceted search) via Rxn-INSIGHT. It pulls in
