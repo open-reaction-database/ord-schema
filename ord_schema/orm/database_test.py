@@ -15,11 +15,18 @@
 """Tests for ord_schema.orm.database."""
 
 import datetime
+import pathlib
+from typing import cast
 
 import pytest
+from rdkit import Chem
 from sqlalchemy import select, text
+from sqlalchemy.orm import Session
 
+from ord_schema import message_helpers
+from ord_schema.datasets import load_dataset
 from ord_schema.orm.database import (
+    add_dataset,
     backfill_submission_times,
     delete_dataset,
     get_dataset_md5,
@@ -27,7 +34,7 @@ from ord_schema.orm.database import (
     update_derived_tables,
     update_rdkit_tables,
 )
-from ord_schema.orm.mappers import Mappers
+from ord_schema.orm.mappers import Mappers, to_proto
 from ord_schema.orm.public_mappers import DatasetMetadata
 from ord_schema.proto import reaction_pb2
 
@@ -139,6 +146,86 @@ def test_update_derived_tables_batched(test_session, monkeypatch):
             ).scalar()
             == count
         )
+
+
+@pytest.mark.parametrize(
+    ("derived_table", "id_column", "mapper"),
+    [
+        ("derived.compound_smiles", "compound_id", Mappers.Compound),
+        (
+            "derived.product_compound_smiles",
+            "product_compound_id",
+            Mappers.ProductCompound,
+        ),
+    ],
+)
+def test_compound_smiles_match_reference(
+    test_session, derived_table, id_column, mapper
+):
+    """The set-based compound SMILES equal the per-compound smiles_from_compound reference.
+
+    Guards value parity of the bulk SMILES-identifier path against the message-reconstruction
+    reference. The fallback (compounds without a stored SMILES, which this fixture does not
+    contain) is covered by test_compound_smiles_fallback_without_stored_smiles.
+    """
+    rows = test_session.execute(
+        text(f"SELECT {id_column}, smiles FROM {derived_table}")  # noqa: S608  (constant)
+    ).all()
+    assert rows, derived_table
+    for compound_id, smiles in rows:
+        compound = test_session.get(mapper, compound_id)
+        expected = message_helpers.smiles_from_compound(
+            cast(
+                "reaction_pb2.Compound | reaction_pb2.ProductCompound",
+                to_proto(compound),
+            )
+        )
+        assert smiles == expected, (derived_table, compound_id, smiles, expected)
+
+
+def test_compound_smiles_fallback_without_stored_smiles(prepared_engine):
+    """A compound with no stored SMILES is derived via the message-reconstruction fallback.
+
+    The set-based fast path only covers compounds with a SMILES identifier; this exercises the
+    session.get + to_proto + smiles_from_compound branch, which the standard fixture (every
+    compound carries a SMILES) never reaches.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+    )
+    # Replace one compound's SMILES identifier with the equivalent InChI so only the fallback
+    # (structure reconstruction from a non-SMILES identifier) can derive its SMILES.
+    compound = next(
+        component
+        for reaction in dataset.reactions
+        for reaction_input in reaction.inputs.values()
+        for component in reaction_input.components
+    )
+    inchi = Chem.MolToInchi(
+        Chem.MolFromSmiles(message_helpers.get_compound_smiles(compound))
+    )
+    del compound.identifiers[:]
+    compound.identifiers.add(type=reaction_pb2.CompoundIdentifier.INCHI, value=inchi)
+    expected = Chem.MolToSmiles(Chem.MolFromInchi(inchi))
+    with Session(prepared_engine) as session:
+        with session.begin():
+            add_dataset(dataset, session)
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session)
+        # Exactly the modified compound lacks a SMILES identifier, so its derived row proves the
+        # fallback ran and produced the InChI-derived canonical SMILES.
+        fallback_smiles = (
+            session.execute(
+                text(
+                    "SELECT smiles FROM derived.compound_smiles cs "
+                    "WHERE NOT EXISTS (SELECT 1 FROM ord.compound_identifier ci "
+                    "WHERE ci.compound_id = cs.compound_id AND ci.type = 'SMILES')"
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert fallback_smiles == [expected], fallback_smiles
 
 
 def test_unlinked_partial_indexes(test_session):

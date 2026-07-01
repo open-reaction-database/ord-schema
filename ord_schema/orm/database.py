@@ -21,6 +21,7 @@ from typing import Any, cast
 from unittest.mock import patch
 
 from dateutil import parser
+from rdkit import Chem
 from sqlalchemy import bindparam, delete, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NotSupportedError, OperationalError, ProgrammingError
@@ -485,11 +486,12 @@ def _update_compound_smiles(
 ) -> None:
     """Derives SMILES for one (product) compound table's not-yet-derived rows.
 
-    Compounds aren't stored as protos, so each is reconstructed from its identifiers via
-    to_proto. The ids needing derivation are resolved up front, then the compounds are loaded
-    one at a time and inserted in batches of _DERIVED_BATCH. SQLAlchemy's weak identity map
-    releases each compound (and the children to_proto lazily loads) once it falls out of use,
-    so the session stays small.
+    The common case -- a compound with a stored SMILES identifier -- is served set-based: the
+    first SMILES identifier for each compound in the batch is fetched from ord.compound_identifier
+    in a single query and canonicalized with RDKit, avoiding a per-compound ORM load. Compounds
+    without a stored SMILES fall back to reconstructing the message via to_proto and computing the
+    SMILES from its other identifiers. Ids are resolved up front and processed in batches of
+    _DERIVED_BATCH so memory stays bounded.
     """
     compound_ids = (
         session.execute(
@@ -509,7 +511,17 @@ def _update_compound_smiles(
         .scalars()
         .all()
     )
-    # The interpolated names are internal constants (not user input); see S608 below.
+    # The first SMILES identifier (lowest id == proto order) for each requested compound. The FK
+    # column is indexed, so one query per batch replaces an ORM load plus lazy child fetches per
+    # compound. Interpolated names are internal constants (not user input); see S608 below.
+    select_smiles = text(f"""
+        SELECT DISTINCT ON (ord.compound_identifier.{derived_id})
+               ord.compound_identifier.{derived_id}, ord.compound_identifier.value
+        FROM ord.compound_identifier
+        WHERE ord.compound_identifier.{derived_id} IN :ids
+          AND ord.compound_identifier.type = 'SMILES'
+        ORDER BY ord.compound_identifier.{derived_id}, ord.compound_identifier.id
+        """).bindparams(bindparam("ids", expanding=True))  # noqa: S608
     insert_smiles = text(
         f"INSERT INTO {derived_table} ({derived_id}, smiles) "  # noqa: S608
         f"VALUES (:{derived_id}, :smiles)"
@@ -520,19 +532,38 @@ def _update_compound_smiles(
         unit="batch",
         leave=False,
     ):
+        batch_ids = compound_ids[batch_start : batch_start + _DERIVED_BATCH]
+        stored_smiles = {
+            row[0]: row[1] for row in session.execute(select_smiles, {"ids": batch_ids})
+        }
         inserts = []
-        for compound_id in compound_ids[batch_start : batch_start + _DERIVED_BATCH]:
-            compound = session.get(compound_class, compound_id)
-            assert compound is not None  # Selected by id above.
-            try:
-                smiles = message_helpers.smiles_from_compound(
-                    cast(
-                        "reaction_pb2.Compound | reaction_pb2.ProductCompound",
-                        to_proto(compound),
+        for compound_id in batch_ids:
+            value = stored_smiles.get(compound_id)
+            # An absent or empty SMILES identifier both fall through to the reconstruction path,
+            # matching smiles_from_compound's `get_compound_smiles(...) or ...` falsiness (an
+            # empty string is not a parseable structure to canonicalize).
+            if value:
+                # Canonicalize the stored SMILES, matching smiles_from_compound's default.
+                mol = Chem.MolFromSmiles(value)
+                if mol is None:
+                    logger.debug(
+                        f"Cannot parse SMILES for compound id={compound_id}: {value}"
                     )
-                )
-            except ValueError:
-                continue
+                    continue
+                smiles = Chem.MolToSmiles(mol)
+            else:
+                # No stored SMILES: reconstruct the message and derive from other identifiers.
+                compound = session.get(compound_class, compound_id)
+                assert compound is not None  # Selected by id above.
+                try:
+                    smiles = message_helpers.smiles_from_compound(
+                        cast(
+                            "reaction_pb2.Compound | reaction_pb2.ProductCompound",
+                            to_proto(compound),
+                        )
+                    )
+                except ValueError:
+                    continue
             inserts.append({derived_id: compound_id, "smiles": smiles})
         if inserts:
             session.execute(insert_smiles, inserts)
