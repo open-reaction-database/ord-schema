@@ -385,7 +385,8 @@ def add_parquet_reactions(
     session: Session,
     *,
     row_group: int | None = None,
-    progress: bool = False,
+    progress_desc: str | None = None,
+    progress_total: int | None = None,
 ) -> None:
     """Streams a Parquet dataset's Reactions into the ``ord.*``/``public.reactions`` tables with COPY.
 
@@ -406,7 +407,9 @@ def add_parquet_reactions(
         session: SQLAlchemy session.
         row_group: If set, only that Parquet row group is loaded; the unit of parallelism for
             sharded ingest. ``None`` loads every reaction in the file.
-        progress: Whether to show a per-reaction tqdm progress bar.
+        progress_desc: If set, show a tqdm progress bar with this label (the single-process path
+            passes it; shards leave it None so the pool-level bar is the only one).
+        progress_total: Total reaction count for the progress bar's percentage/ETA.
     """
     reaction_child_class = Mappers.Dataset.reactions.mapper.class_
     dbapi_connection = session.connection().connection
@@ -424,8 +427,14 @@ def add_parquet_reactions(
         batch.clear()
 
     reactions: Any = parquet.iter_reactions(path, row_group=row_group)
-    if progress:
-        reactions = tqdm(reactions, desc="ingest", unit="rxn", leave=False)
+    if progress_desc is not None:
+        reactions = tqdm(
+            reactions,
+            total=progress_total,
+            desc=progress_desc,
+            unit="rxn",
+            leave=False,
+        )
     for _, reaction in reactions:
         batch.append(reaction)
         if len(batch) >= _COPY_BATCH:
@@ -473,7 +482,13 @@ def add_parquet_dataset(path: str, session: Session) -> None:
     md5_hex, num_reactions = parquet.streaming_md5(path)
     dataset_uuid = uuid7()
     add_parquet_dataset_row(path, dataset_uuid, session)
-    add_parquet_reactions(path, dataset_uuid, session, progress=True)
+    add_parquet_reactions(
+        path,
+        dataset_uuid,
+        session,
+        progress_desc=f"ingest {metadata.dataset_id}",
+        progress_total=num_reactions,
+    )
     add_parquet_dataset_metadata(metadata.dataset_id, md5_hex, num_reactions, session)
     logger.debug(
         f"add_parquet_dataset() took {time.time() - start:g}s ({num_reactions} reactions)"

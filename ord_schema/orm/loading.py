@@ -316,9 +316,12 @@ def _ingest_parquet_sharded(
     to_load = [plan for plan in plans if plan.needs_load]
     shard_items: list[tuple[str, uuid.UUID, int]] = []
     for plan in to_load:
-        assert (
-            plan.dataset_uuid is not None
-        )  # Set by prep for datasets that need loading.
+        if plan.dataset_uuid is None:
+            # Prep sets dataset_uuid for every needs_load plan; enforce the contract explicitly
+            # (a bare assert is dropped under -O and would surface later as an obscure error).
+            raise ValueError(
+                f"prep returned needs_load with no dataset_uuid: {plan.filename}"
+            )
         shard_items.extend(
             (plan.filename, plan.dataset_uuid, row_group)
             for row_group in range(plan.num_row_groups)

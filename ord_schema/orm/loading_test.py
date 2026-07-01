@@ -170,6 +170,37 @@ def test_load_datasets_parquet_parallel(prepared_engine, tmp_path):
     assert _derived_counts(prepared_engine)["reaction_smiles"] > 0
 
 
+def test_parquet_sharded_ingest_recovers_from_partial_load(tmp_path):
+    """A crashed shard phase (dataset row + some reactions, no marker) is cleanly redone.
+
+    Simulates the failure the completeness marker guards against: prep inserts the ord.dataset row
+    and one shard loads part of the reactions, but finalize never runs, so public.datasets has no
+    marker. A subsequent load must detect the missing marker, wipe the partial rows, and produce a
+    complete, correct ingest.
+    """
+    parquet_path, dataset = _write_parquet_dataset(tmp_path, row_group_size=10)
+    with Postgresql() as postgres:
+        url = re.sub("postgresql://", "postgresql+psycopg://", postgres.url())
+        engine = create_engine(url, future=True)
+        database.prepare_database(engine)
+        # Prep inserts the ord.dataset row; load only the first row group; skip finalize.
+        plan = loading._prep_parquet_dataset(parquet_path, dsn=url, overwrite=False)
+        assert plan.needs_load
+        assert plan.num_row_groups > 1
+        assert plan.dataset_uuid is not None
+        loading._ingest_parquet_shard((plan.filename, plan.dataset_uuid, 0), dsn=url)
+        with Session(engine) as session:
+            # Partial state: some reactions present, but no completeness marker.
+            assert database.get_dataset_md5(dataset.dataset_id, session) is None
+            partial = session.query(Mappers.Reaction).count()
+            assert 0 < partial < len(dataset.reactions)
+        # A fresh run wipes the orphaned rows and reloads to completion, marker and all.
+        loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=2)
+        with Session(engine) as session:
+            assert database.get_dataset_md5(dataset.dataset_id, session) is not None
+            assert session.query(Mappers.Reaction).count() == len(dataset.reactions)
+
+
 def test_load_datasets(prepared_engine):
     loading.load_datasets(_PBTXT_FIXTURE, str(prepared_engine.url))
     with Session(prepared_engine) as session:
