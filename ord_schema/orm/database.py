@@ -21,17 +21,22 @@ from typing import Any, cast
 from unittest.mock import patch
 
 from dateutil import parser
-from sqlalchemy import bindparam, delete, select, text
+from sqlalchemy import Uuid, bindparam, delete, inspect, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import NotSupportedError, OperationalError, ProgrammingError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import RelationshipDirection, Session
 from tqdm import tqdm
+from uuid6 import uuid7
 
 from ord_schema import message_helpers, parquet
 from ord_schema.logging import get_logger
 from ord_schema.orm.mappers import Base, Mappers, from_proto, to_proto
 from ord_schema.orm.public_mappers import DatasetMetadata
 from ord_schema.proto import dataset_pb2, reaction_pb2
+
+# COPY the ingest tables parents-first so foreign keys resolve; sorted_tables orders by FK
+# dependency. Precomputed once; only the tables populated by a given batch are written.
+_COPY_TABLE_ORDER = [table.fullname for table in Base.metadata.sorted_tables]
 
 try:
     from ord_schema.orm.reaction_class import update_reaction_classes
@@ -266,10 +271,9 @@ def backfill_submission_times(session: Session) -> None:
         set_submitted_at(dataset_id, session)
 
 
-# Reactions are flushed and expunged in batches of this size during streaming
-# ingest. Larger values reduce SQL roundtrips at the cost of more pending ORM
-# objects held in memory.
-_PARQUET_FLUSH_BATCH = 1000
+# Reactions are built into ORM trees and COPYed in batches of this size during streaming
+# ingest. Larger values reduce COPY roundtrips at the cost of more trees held in memory.
+_COPY_BATCH = 1000
 
 # Number of reactions/compounds the derived passes load and process at a time. The ids needing
 # derivation are fetched up front, but the heavy work (proto deserialization, SMILES generation)
@@ -277,19 +281,80 @@ _PARQUET_FLUSH_BATCH = 1000
 _DERIVED_BATCH = 1000
 
 
+def _collect_rows(root: Any, rows_by_table: dict[str, tuple[Any, list]]) -> None:
+    """Walks one ORM object tree, minting keys and wiring FKs, into per-table column tuples.
+
+    Each surrogate (Uuid) primary key is assigned a UUIDv7 value, and every child's foreign-key
+    column is set from the parent's referenced column (from the relationship metadata), so the
+    rows are self-consistent without a database round trip. The resulting tuples can be streamed
+    with COPY. ``rows_by_table`` maps a table's full name to ``(table, rows)``.
+    """
+    stack = [root]
+    seen: set[int] = set()
+    while stack:
+        node = stack.pop()
+        if id(node) in seen:
+            continue
+        seen.add(id(node))
+        mapper = inspect(node).mapper
+        table = mapper.local_table
+        for key_column in table.primary_key:
+            if (
+                isinstance(key_column.type, Uuid)
+                and getattr(node, key_column.key) is None
+            ):
+                setattr(node, key_column.key, uuid7())
+        for relationship in mapper.relationships:
+            if relationship.direction is RelationshipDirection.MANYTOONE:
+                continue  # The foreign key is on this side; the owning parent sets it.
+            children = getattr(node, relationship.key)
+            if children is None:
+                continue
+            if not isinstance(children, list):
+                children = [children]
+            for child in children:
+                for local, remote in relationship.local_remote_pairs:
+                    setattr(child, remote.key, getattr(node, local.key))
+                stack.append(child)
+        entry = rows_by_table.get(table.fullname)
+        if entry is None:
+            entry = (table, [])
+            rows_by_table[table.fullname] = entry
+        # Under single-table polymorphic inheritance, a sibling subclass's foreign-key column
+        # shares the table but is not an attribute of this instance, so it is NULL for this row.
+        entry[1].append(tuple(getattr(node, c.key, None) for c in table.columns))
+
+
+def _copy_rows(
+    dbapi_connection: Any, rows_by_table: dict[str, tuple[Any, list]]
+) -> None:
+    """Streams collected rows into each table with COPY, parents before children."""
+    with dbapi_connection.cursor() as cursor:
+        for fullname in _COPY_TABLE_ORDER:
+            entry = rows_by_table.get(fullname)
+            if entry is None:
+                continue
+            table, rows = entry
+            columns = ", ".join(f'"{column.name}"' for column in table.columns)
+            # fullname/columns are internal schema constants, not user input.
+            with cursor.copy(f"COPY {fullname} ({columns}) FROM STDIN") as copy:
+                for row in rows:
+                    copy.write_row(row)
+
+
 def add_parquet_dataset(path: str, session: Session) -> None:
-    """Streams a Parquet-serialized Dataset into the ORM tables.
+    """Streams a Parquet-serialized Dataset into the ORM tables with COPY.
 
     Two streaming passes over the Parquet file:
 
-    1. ``parquet.streaming_md5`` to compute ``md5`` and
-       ``num_reactions`` without holding Reactions in memory.
-    2. ``iter_reactions`` to insert Reaction rows in flush/expunge batches.
+    1. ``parquet.streaming_md5`` computes ``md5`` and ``num_reactions`` without holding
+       Reactions in memory.
+    2. ``iter_reactions`` builds ORM trees a batch at a time; each tree is assigned UUIDv7
+       primary keys with foreign keys wired from the relationship metadata (``_collect_rows``),
+       and the rows are streamed with ``COPY`` (``_copy_rows``) rather than the ORM unit of
+       work. Peak memory is bounded to one row group plus ``_COPY_BATCH`` trees.
 
-    This keeps the canonical Parquet MD5 formula in one place and bounds
-    peak memory to one row group plus ``_PARQUET_FLUSH_BATCH`` ORM objects,
-    regardless of dataset size. Derived data is populated separately by
-    ``update_derived_data``.
+    Derived data is populated separately by ``update_derived_data``.
 
     Args:
         path: Path to the Parquet-serialized Dataset.
@@ -300,23 +365,28 @@ def add_parquet_dataset(path: str, session: Session) -> None:
     logger.debug(f"Streaming Parquet Dataset {metadata.dataset_id}")
     md5_hex, num_reactions = parquet.streaming_md5(path)
     reaction_child_class = Mappers.Dataset.reactions.mapper.class_
-    mapped_dataset = Mappers.Dataset(
+    dataset = Mappers.Dataset(
         name=metadata.name,
         description=metadata.description,
         dataset_id=metadata.dataset_id,
         metadata_row=DatasetMetadata(md5=md5_hex, num_reactions=num_reactions),
     )
-    session.add(mapped_dataset)
-    session.flush()
-    pending: list = []
+    dbapi_connection = session.connection().connection
+    dataset_rows: dict[str, tuple[Any, list]] = {}
+    _collect_rows(dataset, dataset_rows)
+    _copy_rows(dbapi_connection, dataset_rows)
+    batch: list = []
 
-    def flush_batch() -> None:
-        if not pending:
+    def copy_batch() -> None:
+        if not batch:
             return
-        session.flush()
-        for obj in pending:
-            session.expunge(obj)
-        pending.clear()
+        rows_by_table: dict[str, tuple[Any, list]] = {}
+        for reaction in batch:
+            reaction_mapper = from_proto(reaction, mapper=reaction_child_class)
+            reaction_mapper.dataset_id = dataset.id
+            _collect_rows(reaction_mapper, rows_by_table)
+        _copy_rows(dbapi_connection, rows_by_table)
+        batch.clear()
 
     for _, reaction in tqdm(
         parquet.iter_reactions(path),
@@ -325,17 +395,14 @@ def add_parquet_dataset(path: str, session: Session) -> None:
         unit="rxn",
         leave=False,
     ):
-        reaction_mapper = from_proto(reaction, mapper=reaction_child_class)
-        reaction_mapper.parent = mapped_dataset
-        session.add(reaction_mapper)
-        pending.append(reaction_mapper)
-        if len(pending) >= _PARQUET_FLUSH_BATCH:
-            flush_batch()
-    flush_batch()
+        batch.append(reaction)
+        if len(batch) >= _COPY_BATCH:
+            copy_batch()
+    copy_batch()
+    set_submitted_at(metadata.dataset_id, session)
     logger.debug(
         f"add_parquet_dataset() took {time.time() - start:g}s ({num_reactions} reactions)"
     )
-    set_submitted_at(metadata.dataset_id, session)
 
 
 def get_dataset_md5(dataset_id: str, session: Session) -> str | None:

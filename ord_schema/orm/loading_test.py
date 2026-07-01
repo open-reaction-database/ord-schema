@@ -15,13 +15,15 @@
 """Tests for ord_schema.orm.loading."""
 
 import pathlib
+import re
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
+from testing.postgresql import Postgresql
 
 from ord_schema import message_helpers, parquet
-from ord_schema.orm import database, loading
+from ord_schema.orm import Base, database, loading
 from ord_schema.orm.mappers import Mappers
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
@@ -49,6 +51,59 @@ def _derived_counts(engine) -> dict[str, int]:
                 "product_compound_smiles",
             )
         }
+
+
+def _content_digests(engine) -> dict[str, tuple[int, str | None]]:
+    """Per-table (row count, order-independent digest of non-key columns), keyed by table name.
+
+    Excludes primary- and foreign-key columns so the digest depends only on payload, not on the
+    surrogate ids (which differ between two independent ingests).
+    """
+    digests: dict[str, tuple[int, str | None]] = {}
+    with Session(engine) as session:
+        for table in Base.metadata.sorted_tables:
+            content = [
+                c.name
+                for c in table.columns
+                if not c.primary_key and not c.foreign_keys
+            ]
+            count = session.execute(
+                text(f"SELECT count(*) FROM {table.fullname}")  # noqa: S608  (constant)
+            ).scalar()
+            digest = None
+            if content and count:
+                order = ", ".join(f'"{c}"' for c in content)
+                query = f"SELECT md5(string_agg(x, '|' ORDER BY x)) FROM (SELECT concat_ws(chr(1), {order}) AS x FROM {table.fullname}) t"  # noqa: S608  (internal schema constants)
+                digest = session.execute(text(query)).scalar()
+            digests[table.fullname] = (count, digest)
+    return digests
+
+
+def test_parquet_copy_ingest_matches_orm(tmp_path):
+    """The COPY parquet ingest yields the same ord.*/public.reactions content as the ORM path.
+
+    add_parquet_dataset builds the same from_proto trees as add_dataset but streams them with
+    COPY instead of the unit of work; the relational content must be byte-identical. (The
+    public.datasets metadata row is written only by the parquet path and is checked separately
+    in test_load_datasets_parquet.)
+    """
+    parquet_path, dataset = _write_parquet_dataset(tmp_path)
+    result: dict[str, dict[str, tuple[int, str | None]]] = {}
+    for label in ("copy", "orm"):
+        with Postgresql() as postgres:
+            url = re.sub("postgresql://", "postgresql+psycopg://", postgres.url())
+            engine = create_engine(url, future=True)
+            database.prepare_database(engine)
+            with Session(engine) as session, session.begin():
+                if label == "copy":
+                    database.add_parquet_dataset(parquet_path, session)
+                else:
+                    database.add_dataset(dataset, session)
+            result[label] = _content_digests(engine)
+    for table in result["copy"]:
+        if table == "public.datasets":
+            continue
+        assert result["copy"][table] == result["orm"][table], table
 
 
 def test_load_datasets(prepared_engine):
