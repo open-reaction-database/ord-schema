@@ -17,6 +17,7 @@
 import datetime
 import os
 import time
+import uuid
 from typing import Any, cast
 from unittest.mock import patch
 
@@ -352,24 +353,115 @@ def _copy_rows(
                     copy.write_row(row)
 
 
-def add_parquet_dataset(path: str, session: Session) -> None:
-    """Streams a Parquet-serialized Dataset into the ORM tables with COPY.
+def add_parquet_dataset_row(
+    path: str, dataset_uuid: uuid.UUID, session: Session
+) -> None:
+    """Inserts the ``ord.dataset`` search-index row (scalars only, no reactions or metadata).
 
-    Two streaming passes over the Parquet file:
+    The surrogate ``id`` is supplied by the caller so a subsequent sharded reaction load can
+    reference it without a round trip. The ``public.datasets`` metadata row is written last, by
+    ``add_parquet_dataset_metadata``, so its presence marks a fully loaded dataset.
 
-    1. ``parquet.streaming_md5`` computes ``md5`` and ``num_reactions`` without holding
-       Reactions in memory.
-    2. ``iter_reactions`` builds ORM trees a batch at a time; each tree is assigned UUIDv7
-       primary keys with foreign keys wired from the relationship metadata (``_collect_rows``),
-       and the rows are streamed with ``COPY`` (``_copy_rows``) rather than the ORM unit of
-       work. Peak memory is bounded to one row group plus ``_COPY_BATCH`` trees.
+    Args:
+        path: Path to the Parquet-serialized Dataset.
+        dataset_uuid: Surrogate primary key for the ``ord.dataset`` row.
+        session: SQLAlchemy session.
+    """
+    metadata = parquet.load_metadata(path)
+    session.add(
+        Mappers.Dataset(
+            id=dataset_uuid,
+            name=metadata.name,
+            description=metadata.description,
+            dataset_id=metadata.dataset_id,
+        )
+    )
+    session.flush()
 
-    Derived data is populated separately by ``update_derived_data``.
+
+def add_parquet_reactions(
+    path: str,
+    dataset_uuid: uuid.UUID,
+    session: Session,
+    *,
+    row_group: int | None = None,
+    progress: bool = False,
+) -> None:
+    """Streams a Parquet dataset's Reactions into the ``ord.*``/``public.reactions`` tables with COPY.
+
+    Builds ORM trees a batch at a time via ``from_proto``; each tree is assigned UUIDv7 primary
+    keys with foreign keys wired from the relationship metadata (``_collect_rows``), and the rows
+    are streamed with ``COPY`` (``_copy_rows``) rather than the ORM unit of work. Peak memory is
+    bounded to one row group plus ``_COPY_BATCH`` trees. The parent ``ord.dataset`` row identified
+    by ``dataset_uuid`` must already exist (see ``add_parquet_dataset_row``).
 
     Because rows are streamed with COPY rather than the unit of work, SQLAlchemy instrumentation
     does not run for this path: ``@validates`` methods and ``before_insert``/``after_insert`` event
     hooks on the mapper classes do not fire. ``add_dataset`` (used by ord-interface) still goes
     through the ORM, so any such hook must be reflected here as well to keep the two paths in sync.
+
+    Args:
+        path: Path to the Parquet-serialized Dataset.
+        dataset_uuid: Surrogate key of the parent ``ord.dataset`` row (foreign key target).
+        session: SQLAlchemy session.
+        row_group: If set, only that Parquet row group is loaded; the unit of parallelism for
+            sharded ingest. ``None`` loads every reaction in the file.
+        progress: Whether to show a per-reaction tqdm progress bar.
+    """
+    reaction_child_class = Mappers.Dataset.reactions.mapper.class_
+    dbapi_connection = session.connection().connection
+    batch: list = []
+
+    def copy_batch() -> None:
+        if not batch:
+            return
+        rows_by_table: dict[str, tuple[Any, list]] = {}
+        for reaction in batch:
+            reaction_mapper = from_proto(reaction, mapper=reaction_child_class)
+            reaction_mapper.dataset_id = dataset_uuid
+            _collect_rows(reaction_mapper, rows_by_table)
+        _copy_rows(dbapi_connection, rows_by_table)
+        batch.clear()
+
+    reactions: Any = parquet.iter_reactions(path, row_group=row_group)
+    if progress:
+        reactions = tqdm(reactions, desc="ingest", unit="rxn", leave=False)
+    for _, reaction in reactions:
+        batch.append(reaction)
+        if len(batch) >= _COPY_BATCH:
+            copy_batch()
+    copy_batch()
+
+
+def add_parquet_dataset_metadata(
+    dataset_id: str, md5_hex: str, num_reactions: int, session: Session
+) -> None:
+    """Writes the ``public.datasets`` metadata row and populates ``submitted_at``.
+
+    Written after the reactions are loaded, so the presence of this row marks a fully loaded
+    dataset (``get_dataset_md5`` reads it); a crashed load leaves an ``ord.dataset`` row with no
+    metadata row, which the next ingest deletes and reloads.
+
+    Args:
+        dataset_id: Dataset ID (``public.datasets`` primary key).
+        md5_hex: Streaming MD5 of the Parquet file.
+        num_reactions: Reaction count from the streaming pass.
+        session: SQLAlchemy session.
+    """
+    session.add(
+        DatasetMetadata(dataset_id=dataset_id, md5=md5_hex, num_reactions=num_reactions)
+    )
+    session.flush()
+    set_submitted_at(dataset_id, session)
+
+
+def add_parquet_dataset(path: str, session: Session) -> None:
+    """Streams a Parquet-serialized Dataset into the ORM tables with COPY, in one transaction.
+
+    Composes ``add_parquet_dataset_row`` (search-index row), ``add_parquet_reactions`` (the
+    reactions), and ``add_parquet_dataset_metadata`` (the ``public.datasets`` marker). Sharded
+    ingest calls the same primitives across worker processes; here they run serially so the whole
+    dataset lands atomically. Derived data is populated separately by ``update_derived_data``.
 
     Args:
         path: Path to the Parquet-serialized Dataset.
@@ -379,42 +471,10 @@ def add_parquet_dataset(path: str, session: Session) -> None:
     metadata = parquet.load_metadata(path)
     logger.debug(f"Streaming Parquet Dataset {metadata.dataset_id}")
     md5_hex, num_reactions = parquet.streaming_md5(path)
-    reaction_child_class = Mappers.Dataset.reactions.mapper.class_
-    dataset = Mappers.Dataset(
-        name=metadata.name,
-        description=metadata.description,
-        dataset_id=metadata.dataset_id,
-        metadata_row=DatasetMetadata(md5=md5_hex, num_reactions=num_reactions),
-    )
-    dbapi_connection = session.connection().connection
-    dataset_rows: dict[str, tuple[Any, list]] = {}
-    _collect_rows(dataset, dataset_rows)
-    _copy_rows(dbapi_connection, dataset_rows)
-    batch: list = []
-
-    def copy_batch() -> None:
-        if not batch:
-            return
-        rows_by_table: dict[str, tuple[Any, list]] = {}
-        for reaction in batch:
-            reaction_mapper = from_proto(reaction, mapper=reaction_child_class)
-            reaction_mapper.dataset_id = dataset.id
-            _collect_rows(reaction_mapper, rows_by_table)
-        _copy_rows(dbapi_connection, rows_by_table)
-        batch.clear()
-
-    for _, reaction in tqdm(
-        parquet.iter_reactions(path),
-        total=num_reactions,
-        desc=f"ingest {metadata.dataset_id}",
-        unit="rxn",
-        leave=False,
-    ):
-        batch.append(reaction)
-        if len(batch) >= _COPY_BATCH:
-            copy_batch()
-    copy_batch()
-    set_submitted_at(metadata.dataset_id, session)
+    dataset_uuid = uuid7()
+    add_parquet_dataset_row(path, dataset_uuid, session)
+    add_parquet_reactions(path, dataset_uuid, session, progress=True)
+    add_parquet_dataset_metadata(metadata.dataset_id, md5_hex, num_reactions, session)
     logger.debug(
         f"add_parquet_dataset() took {time.time() - start:g}s ({num_reactions} reactions)"
     )

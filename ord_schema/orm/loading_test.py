@@ -32,10 +32,12 @@ _PBTXT_FIXTURE = str(
 )
 
 
-def _write_parquet_dataset(tmp_path) -> tuple[str, dataset_pb2.Dataset]:
+def _write_parquet_dataset(
+    tmp_path, *, row_group_size: int = 1000
+) -> tuple[str, dataset_pb2.Dataset]:
     dataset = message_helpers.load_message(_PBTXT_FIXTURE, dataset_pb2.Dataset)
     parquet_path = (tmp_path / "dataset.parquet").as_posix()
-    parquet.save_dataset(dataset, parquet_path)
+    parquet.save_dataset(dataset, parquet_path, row_group_size=row_group_size)
     return parquet_path, dataset
 
 
@@ -107,6 +109,65 @@ def test_parquet_copy_ingest_matches_orm(tmp_path):
         if table == "public.datasets":
             continue
         assert result["copy"][table] == result["orm"][table], table
+
+
+def test_parquet_sharded_ingest_matches_single_process(tmp_path):
+    """Row-group-sharded ingest (n_jobs>1) yields the same content as the single-process path.
+
+    The dataset is written with several small row groups so the sharded path actually splits work
+    across shards; the two ingests must then agree on every non-key column of every table.
+    """
+    parquet_path, _ = _write_parquet_dataset(tmp_path, row_group_size=10)
+    assert parquet.num_row_groups(parquet_path) > 1  # Sharding is actually exercised.
+    result: dict[str, dict[str, tuple[int, str | None]]] = {}
+    for label, n_jobs in (("sharded", 2), ("single", 1)):
+        with Postgresql() as postgres:
+            url = re.sub("postgresql://", "postgresql+psycopg://", postgres.url())
+            engine = create_engine(url, future=True)
+            database.prepare_database(engine)
+            loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=n_jobs)
+            result[label] = _content_digests(engine)
+    assert result["sharded"] == result["single"]
+
+
+def test_parquet_sharded_ingest_skip_and_overwrite(tmp_path):
+    """The sharded path skips unchanged datasets, rejects changed ones, and reloads with overwrite."""
+    parquet_path, dataset = _write_parquet_dataset(tmp_path, row_group_size=10)
+    expected_count = len(dataset.reactions)
+    with Postgresql() as postgres:
+        url = re.sub("postgresql://", "postgresql+psycopg://", postgres.url())
+        engine = create_engine(url, future=True)
+        database.prepare_database(engine)
+
+        def reaction_count() -> int:
+            with Session(engine) as session:
+                return session.query(Mappers.Reaction).count()
+
+        loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=2)
+        assert reaction_count() == expected_count
+        # An unchanged re-ingest is skipped on the matching md5, not loaded again.
+        loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=2)
+        assert reaction_count() == expected_count
+        # Changed content without overwrite fails and leaves the original intact.
+        dataset.reactions[0].outcomes[0].conversion.value = 999.0
+        parquet.save_dataset(dataset, parquet_path, row_group_size=10)
+        with pytest.raises(RuntimeError):
+            loading.load_datasets(parquet_path, url, stages=["ingest"], n_jobs=2)
+        assert reaction_count() == expected_count
+        # With overwrite the dataset is deleted and reloaded, still a single copy.
+        loading.load_datasets(
+            parquet_path, url, stages=["ingest"], n_jobs=2, overwrite=True
+        )
+        assert reaction_count() == expected_count
+
+
+def test_load_datasets_parquet_parallel(prepared_engine, tmp_path):
+    """End-to-end n_jobs>1 run: sharded ingest then the parallel derived stage populate both."""
+    parquet_path, dataset = _write_parquet_dataset(tmp_path, row_group_size=10)
+    loading.load_datasets(parquet_path, str(prepared_engine.url), n_jobs=2)
+    with Session(prepared_engine) as session:
+        assert session.query(Mappers.Reaction).count() == len(dataset.reactions)
+    assert _derived_counts(prepared_engine)["reaction_smiles"] > 0
 
 
 def test_load_datasets(prepared_engine):

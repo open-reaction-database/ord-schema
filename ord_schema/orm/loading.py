@@ -23,24 +23,31 @@ dataset files; the per-dataset helpers (``ingest_dataset``, ``derive_dataset``,
 ``add_rdkit``) are exposed for callers that compose their own pipeline.
 """
 
+import dataclasses
 import time
+import uuid
 from collections.abc import Callable, Iterable
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from functools import partial
 from glob import glob
 from hashlib import md5
+from typing import TypeVar
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from tqdm import tqdm
+from uuid6 import uuid7
 
 from ord_schema import parquet
 from ord_schema.logging import get_logger
 from ord_schema.message_helpers import load_message
 from ord_schema.orm import database
 from ord_schema.proto import dataset_pb2
+
+_Item = TypeVar("_Item")
+_Result = TypeVar("_Result")
 
 logger = get_logger(__name__)
 
@@ -162,20 +169,20 @@ def add_rdkit(engine: Engine, dataset_id: str) -> None:
 
 
 def _run_parallel(
-    func: Callable[[str], str],
-    items: Iterable[str],
+    func: Callable[[_Item], _Result],
+    items: Iterable[_Item],
     *,
     n_jobs: int,
     desc: str,
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[_Result], list[_Item]]:
     """Runs ``func`` over ``items`` with ``n_jobs`` workers.
 
     Returns ``(results, failures)``: the successful return values and the inputs whose
     call raised.
     """
     items = list(items)
-    results: list[str] = []
-    failures: list[str] = []
+    results: list[_Result] = []
+    failures: list[_Item] = []
     with ExitStack() as stack:
         if n_jobs > 1:
             executor = stack.enter_context(ProcessPoolExecutor(n_jobs))
@@ -190,6 +197,149 @@ def _run_parallel(
                 failures.append(item)
                 logger.exception(f"{desc} failed for {item}")
     return results, failures
+
+
+@dataclasses.dataclass(frozen=True)
+class _ParquetPlan:
+    """Per-dataset outcome of the prep phase of sharded Parquet ingest.
+
+    ``needs_load`` is False for datasets skipped as unchanged; those carry only ``dataset_id``
+    (for the derived stage). Datasets that need loading also carry the surrogate ``dataset_uuid``
+    the shard phase wires reactions to and the ``num_row_groups`` to shard over.
+    """
+
+    filename: str
+    dataset_id: str
+    md5_hex: str
+    num_reactions: int
+    needs_load: bool
+    dataset_uuid: uuid.UUID | None = None
+    num_row_groups: int = 0
+
+
+def _prep_parquet_dataset(filename: str, *, dsn: str, overwrite: bool) -> _ParquetPlan:
+    """Prep phase: decide skip/overwrite and insert the empty ``ord.dataset`` row.
+
+    Skips datasets whose streaming MD5 is unchanged; otherwise deletes any existing full or
+    partial rows and inserts a fresh search-index row whose surrogate id the shard phase
+    references. The ``public.datasets`` marker is written only after all shards succeed
+    (``_finalize_parquet_dataset``), so a crashed load leaves no marker and is cleanly redone.
+
+    Raises:
+        ValueError: If the dataset exists with changed content and ``overwrite`` is not set.
+    """
+    footer = parquet.load_footer(filename)
+    dataset_id = footer.dataset.dataset_id
+    md5_hex, num_reactions = parquet.streaming_md5(filename)
+    engine = create_engine(dsn)
+    try:
+        with Session(engine) as session, session.begin():
+            existing_md5 = database.get_dataset_md5(dataset_id, session)
+            if existing_md5 is not None:
+                if existing_md5 == md5_hex:
+                    logger.debug(f"existing dataset {dataset_id} unchanged; skipping")
+                    return _ParquetPlan(
+                        filename, dataset_id, md5_hex, num_reactions, needs_load=False
+                    )
+                if not overwrite:
+                    raise ValueError(
+                        f"`overwrite` is required when a dataset already exists: {dataset_id}"
+                    )
+                logger.debug(f"existing dataset {dataset_id} changed; reloading")
+            # Wipe any full or partial prior rows, then insert a fresh search-index row.
+            database.delete_dataset(dataset_id, session)
+            dataset_uuid = uuid7()
+            database.add_parquet_dataset_row(filename, dataset_uuid, session)
+    finally:
+        engine.dispose()
+    return _ParquetPlan(
+        filename,
+        dataset_id,
+        md5_hex,
+        num_reactions,
+        needs_load=True,
+        dataset_uuid=dataset_uuid,
+        num_row_groups=footer.num_row_groups,
+    )
+
+
+def _ingest_parquet_shard(item: tuple[str, uuid.UUID, int], *, dsn: str) -> None:
+    """Shard phase: COPY-load one Parquet row group's reactions in its own transaction."""
+    filename, dataset_uuid, row_group = item
+    engine = create_engine(dsn)
+    try:
+        with Session(engine) as session, session.begin():
+            database.add_parquet_reactions(
+                filename, dataset_uuid, session, row_group=row_group
+            )
+    finally:
+        engine.dispose()
+
+
+def _finalize_parquet_dataset(plan: _ParquetPlan, *, dsn: str) -> str:
+    """Finalize phase: write the ``public.datasets`` completeness marker and ``submitted_at``."""
+    engine = create_engine(dsn)
+    try:
+        with Session(engine) as session, session.begin():
+            database.add_parquet_dataset_metadata(
+                plan.dataset_id, plan.md5_hex, plan.num_reactions, session
+            )
+    finally:
+        engine.dispose()
+    return plan.dataset_id
+
+
+def _ingest_parquet_sharded(
+    filenames: list[str], *, dsn: str, overwrite: bool, n_jobs: int
+) -> tuple[list[str], list[str]]:
+    """Ingests Parquet datasets by sharding their row groups across a worker pool.
+
+    Three phases, each a barrier so the next reads the previous one's committed rows: prep inserts
+    each dataset's search-index row, shards COPY the reactions row-group by row-group, and finalize
+    writes the ``public.datasets`` marker for datasets whose shards all succeeded. The row group is
+    the unit of parallelism, so one large dataset's shards fill the pool instead of pinning a
+    single worker. A dataset with any failed shard is left unmarked (skipped in finalize) and
+    reported, so a re-run redoes it from scratch.
+
+    Returns ``(dataset_ids, failures)``: ids of skipped and fully loaded datasets (for the derived
+    stage), and the filenames that failed in any phase.
+    """
+    failures: list[str] = []
+    plans, prep_failures = _run_parallel(
+        partial(_prep_parquet_dataset, dsn=dsn, overwrite=overwrite),
+        filenames,
+        n_jobs=n_jobs,
+        desc="Prep",
+    )
+    failures.extend(prep_failures)
+    skipped_ids = [plan.dataset_id for plan in plans if not plan.needs_load]
+    to_load = [plan for plan in plans if plan.needs_load]
+    shard_items: list[tuple[str, uuid.UUID, int]] = []
+    for plan in to_load:
+        assert (
+            plan.dataset_uuid is not None
+        )  # Set by prep for datasets that need loading.
+        shard_items.extend(
+            (plan.filename, plan.dataset_uuid, row_group)
+            for row_group in range(plan.num_row_groups)
+        )
+    _, shard_failures = _run_parallel(
+        partial(_ingest_parquet_shard, dsn=dsn),
+        shard_items,
+        n_jobs=n_jobs,
+        desc="Ingest",
+    )
+    failed_uuids = {dataset_uuid for _, dataset_uuid, _ in shard_failures}
+    failures.extend(sorted({filename for filename, _, _ in shard_failures}))
+    finalize_plans = [plan for plan in to_load if plan.dataset_uuid not in failed_uuids]
+    finalized_ids, finalize_failures = _run_parallel(
+        partial(_finalize_parquet_dataset, dsn=dsn),
+        finalize_plans,
+        n_jobs=n_jobs,
+        desc="Finalize",
+    )
+    failures.extend(plan.filename for plan in finalize_failures)
+    return skipped_ids + finalized_ids, failures
 
 
 def load_datasets(
@@ -238,13 +388,30 @@ def load_datasets(
 
     if "ingest" in stages:
         logger.info("Ingesting datasets")
-        dataset_ids, stage_failures = _run_parallel(
-            partial(ingest_dataset, dsn=dsn, overwrite=overwrite),
-            filenames,
-            n_jobs=n_jobs,
-            desc="Ingest",
-        )
-        failures.extend(stage_failures)
+        dataset_ids: list[str] = []
+        # Parquet datasets are sharded by row group across the pool so one large dataset does not
+        # pin a single worker; the atomic single-process path handles n_jobs == 1 and non-parquet
+        # inputs (which cannot be sharded).
+        if n_jobs > 1:
+            parquet_files = [f for f in filenames if f.endswith(".parquet")]
+            other_files = [f for f in filenames if not f.endswith(".parquet")]
+        else:
+            parquet_files, other_files = [], filenames
+        if parquet_files:
+            ids, stage_failures = _ingest_parquet_sharded(
+                parquet_files, dsn=dsn, overwrite=overwrite, n_jobs=n_jobs
+            )
+            dataset_ids.extend(ids)
+            failures.extend(stage_failures)
+        if other_files:
+            ids, stage_failures = _run_parallel(
+                partial(ingest_dataset, dsn=dsn, overwrite=overwrite),
+                other_files,
+                n_jobs=n_jobs,
+                desc="Ingest",
+            )
+            dataset_ids.extend(ids)
+            failures.extend(stage_failures)
     else:
         dataset_ids = [dataset_id_for_file(filename) for filename in filenames]
 
