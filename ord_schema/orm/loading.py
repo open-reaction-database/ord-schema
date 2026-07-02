@@ -24,7 +24,6 @@ dataset files; the per-dataset helpers (``ingest_dataset``, ``derive_dataset``,
 """
 
 import dataclasses
-import math
 import time
 import uuid
 from collections.abc import Callable, Iterable
@@ -171,7 +170,7 @@ def _derive_shard_items(
 ) -> list[tuple[str, int, int]]:
     """Builds ``(dataset_id, shard_index, num_shards)`` SMILES-derivation work items.
 
-    A dataset is split into ``ceil(num_reactions / _DERIVE_SHARD_SIZE)`` shards (capped at
+    A dataset is split into ``num_reactions // _DERIVE_SHARD_SIZE`` shards (capped at
     ``_DERIVE_SHARD_CAP``, at least 1), so a large dataset fans out across the pool while small
     ones stay a single shard. Datasets without a size (no metadata row) default to one shard.
     """
@@ -184,9 +183,7 @@ def _derive_shard_items(
                     size = database.get_dataset_size(dataset_id, session)
                 except ValueError:
                     size = 0
-                num_shards = max(
-                    1, min(_DERIVE_SHARD_CAP, math.ceil(size / _DERIVE_SHARD_SIZE))
-                )
+                num_shards = max(1, min(_DERIVE_SHARD_CAP, size // _DERIVE_SHARD_SIZE))
                 items.extend(
                     (dataset_id, shard_index, num_shards)
                     for shard_index in range(num_shards)
@@ -525,4 +522,6 @@ def load_datasets(
             engine.dispose()
 
     if failures:
-        raise RuntimeError(failures)
+        # A dataset can fail in more than one pass (SMILES shards, classify, RDKit); report each
+        # failing file/dataset once, sorted for a deterministic message.
+        raise RuntimeError(sorted(set(failures)))
