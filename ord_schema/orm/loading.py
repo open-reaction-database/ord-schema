@@ -24,6 +24,7 @@ dataset files; the per-dataset helpers (``ingest_dataset``, ``derive_dataset``,
 """
 
 import dataclasses
+import math
 import time
 import uuid
 from collections.abc import Callable, Iterable
@@ -184,7 +185,7 @@ def _derive_shard_items(
                 except ValueError:
                     size = 0
                 num_shards = max(
-                    1, min(_DERIVE_SHARD_CAP, -(-size // _DERIVE_SHARD_SIZE))
+                    1, min(_DERIVE_SHARD_CAP, math.ceil(size / _DERIVE_SHARD_SIZE))
                 )
                 items.extend(
                     (dataset_id, shard_index, num_shards)
