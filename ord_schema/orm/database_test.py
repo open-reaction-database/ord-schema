@@ -148,6 +148,51 @@ def test_update_derived_tables_batched(test_session, monkeypatch):
         )
 
 
+def test_update_derived_tables_sharded_covers_all(prepared_engine):
+    """Sharded SMILES derivation partitions the dataset and together covers every row.
+
+    Each shard derives a disjoint hash-partition of the reaction/compound ids (the derived-stage
+    analog of row-group sharding for ingest). Guards two properties: a single shard is a strict,
+    non-empty subset (the partition predicate actually splits rows), and all shards together derive
+    exactly what the unsharded pass would -- a following whole-dataset pass finds nothing new.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+    )
+    with Session(prepared_engine) as session, session.begin():
+        add_dataset(dataset, session)
+    tables = ("reaction_smiles", "compound_smiles", "product_compound_smiles")
+
+    def counts() -> dict[str, int]:
+        with Session(prepared_engine) as session:
+            return {
+                table: session.execute(
+                    text(f"SELECT count(*) FROM derived.{table}")  # noqa: S608  (constant)
+                ).scalar()
+                for table in tables
+            }
+
+    num_shards = 4
+    with Session(prepared_engine) as session, session.begin():
+        update_derived_tables(dataset.dataset_id, session, shard=(0, num_shards))
+    first = counts()
+    with Session(prepared_engine) as session:
+        for shard_index in range(1, num_shards):
+            with session.begin():
+                update_derived_tables(
+                    dataset.dataset_id, session, shard=(shard_index, num_shards)
+                )
+    sharded = counts()
+    # Every table got rows, and shard 0 alone was a strict subset (partitioning is real).
+    for table in tables:
+        assert sharded[table] > 0, (table, sharded)
+    assert 0 < first["compound_smiles"] < sharded["compound_smiles"], (first, sharded)
+    # A whole-dataset pass now adds nothing: the shards covered every row.
+    with Session(prepared_engine) as session, session.begin():
+        update_derived_tables(dataset.dataset_id, session)
+    assert counts() == sharded
+
+
 @pytest.mark.parametrize(
     ("derived_table", "id_column", "mapper"),
     [
