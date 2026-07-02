@@ -212,15 +212,16 @@ def _derive_smiles_shard(
 
 
 def _classify_dataset(dataset_id: str, *, dsn: str) -> str:
-    """Assigns reaction class/name labels for a dataset (after the sharded SMILES pass)."""
+    """Assigns reaction class/name labels for a dataset (SMILES already derived by the shard pass).
+
+    Classification only -- it does not re-derive SMILES, so a failed SMILES shard stays visibly
+    incomplete rather than being silently backfilled here (keeping shard-failure semantics the same
+    whether or not classification is enabled).
+    """
     engine = create_engine(dsn)
     try:
         with Session(engine) as session, session.begin():
-            # SMILES are already derived by the sharded pass, so update_derived_tables here is a
-            # no-op scan; this call adds the classification.
-            database.update_derived_data(
-                dataset_id, session, rdkit_cartridge=False, classify_reactions=True
-            )
+            database.classify_dataset(dataset_id, session)
     finally:
         engine.dispose()
     return dataset_id

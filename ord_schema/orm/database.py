@@ -65,6 +65,15 @@ def _classify_reactions(dataset_id: str, session: Session) -> None:
     update_reaction_classes(dataset_id, session)
 
 
+def classify_dataset(dataset_id: str, session: Session) -> None:
+    """Assigns reaction class/name labels for an already-derived dataset (classification only).
+
+    SMILES derivation is done separately (and, in the loader, sharded); this does not re-derive it,
+    so a failed SMILES shard is not silently backfilled here. Requires the ``reaction-class`` extra.
+    """
+    _classify_reactions(dataset_id, session)
+
+
 def get_connection_string(
     database: str,
     username: str,
