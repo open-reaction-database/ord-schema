@@ -170,7 +170,7 @@ def _derive_shard_items(
 ) -> list[tuple[str, int, int]]:
     """Builds ``(dataset_id, shard_index, num_shards)`` SMILES-derivation work items.
 
-    A dataset is split into ``num_reactions // _DERIVE_SHARD_SIZE`` shards (capped at
+    A dataset is split into ``ceil(num_reactions / _DERIVE_SHARD_SIZE)`` shards (capped at
     ``_DERIVE_SHARD_CAP``, at least 1), so a large dataset fans out across the pool while small
     ones stay a single shard. Datasets without a size (no metadata row) default to one shard.
     """
@@ -183,7 +183,11 @@ def _derive_shard_items(
                     size = database.get_dataset_size(dataset_id, session)
                 except ValueError:
                     size = 0
-                num_shards = max(1, min(_DERIVE_SHARD_CAP, size // _DERIVE_SHARD_SIZE))
+                # Ceiling division (-(-a // b)): a dataset just over a shard-size multiple still
+                # splits into an extra shard rather than staying single-worker.
+                num_shards = max(
+                    1, min(_DERIVE_SHARD_CAP, -(-size // _DERIVE_SHARD_SIZE))
+                )
                 items.extend(
                     (dataset_id, shard_index, num_shards)
                     for shard_index in range(num_shards)
