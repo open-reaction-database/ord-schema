@@ -99,7 +99,7 @@ reaction-class = [
     # clear the known deserialization/ReDoS CVEs; ceiling <5 because transformers 5 removed
     # the slow-tokenizer machinery rxnmapper's SmilesTokenizer subclasses (rxnmapper also
     # caps <5). Revisit when rxnmapper supports transformers 5. See issue #858.
-    "transformers>=4.53,<5",
+    "transformers>=4.53,<6",
     "rxn-insight @ git+https://github.com/skearnes/Rxn-INSIGHT.git@eb71946997e81801ba56c66c9a564263743c7eee",
     # rxnmapper imports pkg_resources at module load but does not declare setuptools;
     # setuptools>=81 dropped pkg_resources, so pin below that to keep the import working.
