@@ -65,6 +65,15 @@ def _classify_reactions(dataset_id: str, session: Session) -> None:
     update_reaction_classes(dataset_id, session)
 
 
+def classify_dataset(dataset_id: str, session: Session) -> None:
+    """Assigns reaction class/name labels for an already-derived dataset (classification only).
+
+    SMILES derivation is done separately (and, in the loader, sharded); this does not re-derive it,
+    so a failed SMILES shard is not silently backfilled here. Requires the ``reaction-class`` extra.
+    """
+    _classify_reactions(dataset_id, session)
+
+
 def get_connection_string(
     database: str,
     username: str,
@@ -527,7 +536,29 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
     logger.debug(f"delete took {time.time() - start}s")
 
 
-def update_derived_tables(dataset_id: str, session: Session) -> None:
+def _shard_predicate(
+    column: str, shard: tuple[int, int] | None
+) -> tuple[str, dict[str, int]]:
+    """Returns an ``AND`` predicate keeping 1/num_shards of rows by ``column``, or ``('', {})``.
+
+    Partitions a dataset's rows deterministically and disjointly by a hash of the id, so
+    independent workers can each derive their shard without coordinating. ``shard`` is
+    ``(index, num_shards)``; ``None`` disables sharding (whole dataset).
+    """
+    if shard is None:
+        return "", {}
+    shard_index, num_shards = shard
+    # ((h % n) + n) % n keeps the bucket in [0, num_shards) without abs() overflow.
+    predicate = (
+        f"AND ((hashtextextended({column}::text, 0) % :num_shards) + :num_shards) "
+        "% :num_shards = :shard_index"
+    )
+    return predicate, {"num_shards": num_shards, "shard_index": shard_index}
+
+
+def update_derived_tables(
+    dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
+) -> None:
     """Populates the derived SMILES tables from the search index.
 
     Reaction SMILES come from the ground-truth proto in public.reactions; compound SMILES
@@ -535,6 +566,11 @@ def update_derived_tables(dataset_id: str, session: Session) -> None:
     have a derived entry); runs before the RDKit pass, which reads the SMILES. Reactions and
     compounds are processed in batches of _DERIVED_BATCH so the heavy per-row work (proto
     deserialization, SMILES generation) and pending inserts stay within one batch.
+
+    When ``shard`` is ``(index, num_shards)``, only that disjoint hash-partition of the dataset's
+    reaction/compound ids is derived, so a large dataset can be split across worker processes
+    (the derived-stage analog of the row-group sharding used for ingest). Idempotency makes the
+    shards safe to run in any order or overlap.
     """
     logger.debug(f"Updating derived tables for {dataset_id=}")
     start = time.time()
@@ -547,9 +583,12 @@ def update_derived_tables(dataset_id: str, session: Session) -> None:
     # Reaction SMILES from the served proto (no ORM objects loaded), keyed by ord.reaction.id.
     # Resolve the ids needing derivation in one indexed pass, then load and parse the (large)
     # protos in batches of _DERIVED_BATCH.
+    reaction_shard_sql, reaction_shard_params = _shard_predicate(
+        "ord.reaction.id", shard
+    )
     reaction_ids = (
         session.execute(
-            text("""
+            text(f"""
                 SELECT ord.reaction.id
                 FROM ord.reaction
                 JOIN public.reactions
@@ -559,8 +598,9 @@ def update_derived_tables(dataset_id: str, session: Session) -> None:
                       SELECT 1 FROM derived.reaction_smiles
                       WHERE derived.reaction_smiles.reaction_id = ord.reaction.id
                   )
-                """),
-            {"id": dataset_pk},
+                  {reaction_shard_sql}
+                """),  # noqa: S608  (shard predicate is an internal constant fragment)
+            {"id": dataset_pk, **reaction_shard_params},
         )
         .scalars()
         .all()
@@ -615,6 +655,7 @@ def update_derived_tables(dataset_id: str, session: Session) -> None:
         compound_class=Mappers.Compound,
         derived_table="derived.compound_smiles",
         derived_id="compound_id",
+        shard=shard,
     )
     _update_compound_smiles(
         session,
@@ -625,6 +666,7 @@ def update_derived_tables(dataset_id: str, session: Session) -> None:
         compound_class=Mappers.ProductCompound,
         derived_table="derived.product_compound_smiles",
         derived_id="product_compound_id",
+        shard=shard,
     )
     logger.debug(f"Updating derived tables took {time.time() - start:g}s")
 
@@ -639,6 +681,7 @@ def _update_compound_smiles(
     compound_class: Any,
     derived_table: str,
     derived_id: str,
+    shard: tuple[int, int] | None = None,
 ) -> None:
     """Derives SMILES for one (product) compound table's not-yet-derived rows.
 
@@ -647,8 +690,12 @@ def _update_compound_smiles(
     in a single query and canonicalized with RDKit, avoiding a per-compound ORM load. Compounds
     without a stored SMILES fall back to reconstructing the message via to_proto and computing the
     SMILES from its other identifiers. Ids are resolved up front and processed in batches of
-    _DERIVED_BATCH so memory stays bounded.
+    _DERIVED_BATCH so memory stays bounded. ``shard`` (index, num_shards) restricts to one disjoint
+    hash-partition of this table's ids so large datasets can be split across workers.
     """
+    compound_shard_sql, compound_shard_params = _shard_predicate(
+        f"{compound_table}.id", shard
+    )
     compound_ids = (
         session.execute(
             text(f"""
@@ -661,8 +708,9 @@ def _update_compound_smiles(
                       SELECT 1 FROM {derived_table}
                       WHERE {derived_table}.{derived_id} = {compound_table}.id
                   )
+                  {compound_shard_sql}
                 """),  # noqa: S608  (table/column names are internal constants, not user input)
-            {"id": dataset_pk},
+            {"id": dataset_pk, **compound_shard_params},
         )
         .scalars()
         .all()

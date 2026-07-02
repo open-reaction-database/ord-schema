@@ -148,6 +148,58 @@ def test_update_derived_tables_batched(test_session, monkeypatch):
         )
 
 
+def test_update_derived_tables_sharded_covers_all(prepared_engine):
+    """Sharded SMILES derivation partitions every derived table and together covers every row.
+
+    Each shard derives a disjoint hash-partition of the reaction/compound ids (the derived-stage
+    analog of row-group sharding for ingest). Guards two properties: the predicate actually splits
+    each table's rows across more than one shard, and all shards together derive exactly what the
+    unsharded pass would -- a following whole-dataset pass finds nothing new.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+    )
+    with Session(prepared_engine) as session, session.begin():
+        add_dataset(dataset, session)
+    tables = ("reaction_smiles", "compound_smiles", "product_compound_smiles")
+
+    def counts() -> dict[str, int]:
+        with Session(prepared_engine) as session:
+            return {
+                table: session.execute(
+                    text(f"SELECT count(*) FROM derived.{table}")  # noqa: S608  (constant)
+                ).scalar()
+                for table in tables
+            }
+
+    # Derive one shard at a time, recording how many rows each shard adds per table (idempotent
+    # inserts, so a shard only adds its own partition's rows).
+    num_shards = 4
+    prev = dict.fromkeys(tables, 0)
+    per_shard: list[dict[str, int]] = []
+    with Session(prepared_engine) as session:
+        for shard_index in range(num_shards):
+            with session.begin():
+                update_derived_tables(
+                    dataset.dataset_id, session, shard=(shard_index, num_shards)
+                )
+            current = counts()
+            per_shard.append({table: current[table] - prev[table] for table in tables})
+            prev = current
+    sharded = counts()
+    for table in tables:
+        assert sharded[table] > 0, (table, sharded)
+        # Rows land in more than one shard, so the hash predicate really partitions each table
+        # (guarded by a size floor so a genuinely tiny table can't flake the check).
+        if sharded[table] >= 2 * num_shards:
+            non_empty = sum(1 for shard in per_shard if shard[table] > 0)
+            assert non_empty >= 2, (table, [shard[table] for shard in per_shard])
+    # A whole-dataset pass now adds nothing: the shards covered every row.
+    with Session(prepared_engine) as session, session.begin():
+        update_derived_tables(dataset.dataset_id, session)
+    assert counts() == sharded
+
+
 @pytest.mark.parametrize(
     ("derived_table", "id_column", "mapper"),
     [

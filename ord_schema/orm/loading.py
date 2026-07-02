@@ -53,6 +53,12 @@ logger = get_logger(__name__)
 
 STAGES = ("ingest", "derived")
 
+# SMILES derivation is sharded within a dataset so one large dataset does not pin a single worker
+# (the derived-stage analog of row-group sharding for ingest). A dataset is split into one shard
+# per this many reactions, capped, so small datasets stay a single shard.
+_DERIVE_SHARD_SIZE = 50_000
+_DERIVE_SHARD_CAP = 32
+
 
 def dataset_id_for_file(filename: str) -> str:
     """Returns the dataset ID for a dataset file without ingesting it."""
@@ -154,6 +160,70 @@ def derive_dataset(dataset_id: str, *, dsn: str, classify_reactions: bool) -> st
                 rdkit_cartridge=False,  # Done serially in add_rdkit() to avoid deadlocks.
                 classify_reactions=classify_reactions,
             )
+    finally:
+        engine.dispose()
+    return dataset_id
+
+
+def _derive_shard_items(
+    dataset_ids: Iterable[str], dsn: str
+) -> list[tuple[str, int, int]]:
+    """Builds ``(dataset_id, shard_index, num_shards)`` SMILES-derivation work items.
+
+    A dataset is split into ``ceil(num_reactions / _DERIVE_SHARD_SIZE)`` shards (capped at
+    ``_DERIVE_SHARD_CAP``, at least 1), so a large dataset fans out across the pool while small
+    ones stay a single shard. Datasets without a size (no metadata row) default to one shard.
+    """
+    items: list[tuple[str, int, int]] = []
+    engine = create_engine(dsn)
+    try:
+        with Session(engine) as session:
+            for dataset_id in dataset_ids:
+                try:
+                    size = database.get_dataset_size(dataset_id, session)
+                except ValueError:
+                    size = 0
+                # Ceiling division (-(-a // b)): a dataset just over a shard-size multiple still
+                # splits into an extra shard rather than staying single-worker.
+                num_shards = max(
+                    1, min(_DERIVE_SHARD_CAP, -(-size // _DERIVE_SHARD_SIZE))
+                )
+                items.extend(
+                    (dataset_id, shard_index, num_shards)
+                    for shard_index in range(num_shards)
+                )
+    finally:
+        engine.dispose()
+    return items
+
+
+def _derive_smiles_shard(
+    item: tuple[str, int, int], *, dsn: str
+) -> tuple[str, int, int]:
+    """Derives one hash-partition of a dataset's SMILES (the parallel-safe, shardable pass)."""
+    dataset_id, shard_index, num_shards = item
+    engine = create_engine(dsn)
+    try:
+        with Session(engine) as session, session.begin():
+            database.update_derived_tables(
+                dataset_id, session, shard=(shard_index, num_shards)
+            )
+    finally:
+        engine.dispose()
+    return item
+
+
+def _classify_dataset(dataset_id: str, *, dsn: str) -> str:
+    """Assigns reaction class/name labels for a dataset (SMILES already derived by the shard pass).
+
+    Classification only -- it does not re-derive SMILES, so a failed SMILES shard stays visibly
+    incomplete rather than being silently backfilled here (keeping shard-failure semantics the same
+    whether or not classification is enabled).
+    """
+    engine = create_engine(dsn)
+    try:
+        with Session(engine) as session, session.begin():
+            database.classify_dataset(dataset_id, session)
     finally:
         engine.dispose()
     return dataset_id
@@ -419,14 +489,26 @@ def load_datasets(
         dataset_ids = [dataset_id_for_file(filename) for filename in filenames]
 
     if "derived" in stages:
-        logger.info("Deriving SMILES and reaction classes")
-        dataset_ids, stage_failures = _run_parallel(
-            partial(derive_dataset, dsn=dsn, classify_reactions=classify_reactions),
-            dataset_ids,
+        logger.info("Deriving SMILES")
+        # Shard SMILES derivation within datasets so one large dataset does not pin a single
+        # worker; the pool sees a flat (dataset, shard) work list across all datasets.
+        shard_items = _derive_shard_items(dataset_ids, dsn)
+        _, shard_failures = _run_parallel(
+            partial(_derive_smiles_shard, dsn=dsn),
+            shard_items,
             n_jobs=n_jobs,
             desc="Derive",
         )
-        failures.extend(stage_failures)
+        failures.extend(sorted({dataset_id for dataset_id, _, _ in shard_failures}))
+        if classify_reactions:
+            logger.info("Classifying reactions")
+            _, classify_failures = _run_parallel(
+                partial(_classify_dataset, dsn=dsn),
+                dataset_ids,
+                n_jobs=n_jobs,
+                desc="Classify",
+            )
+            failures.extend(classify_failures)
         logger.info("Adding RDKit functionality")
         engine = create_engine(dsn)
         try:
@@ -444,4 +526,6 @@ def load_datasets(
             engine.dispose()
 
     if failures:
-        raise RuntimeError(failures)
+        # A dataset can fail in more than one pass (SMILES shards, classify, RDKit); report each
+        # failing file/dataset once, sorted for a deterministic message.
+        raise RuntimeError(sorted(set(failures)))
