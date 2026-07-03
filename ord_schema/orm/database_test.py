@@ -32,6 +32,7 @@ from ord_schema.orm.database import (
     get_dataset_md5,
     get_dataset_size,
     update_derived_tables,
+    update_rdkit_ids,
     update_rdkit_tables,
 )
 from ord_schema.orm.mappers import Mappers, to_proto
@@ -197,6 +198,66 @@ def test_update_derived_tables_sharded_covers_all(prepared_engine):
     # A whole-dataset pass now adds nothing: the shards covered every row.
     with Session(prepared_engine) as session, session.begin():
         update_derived_tables(dataset.dataset_id, session)
+    assert counts() == sharded
+
+
+def test_rdkit_sharded_matches_serial(prepared_engine):
+    """Sharded RDKit population inserts + links the same rows as the serial pass, shards disjoint.
+
+    Every RDKit sub-step partitions by the same SMILES hash, so a shard inserts exactly the
+    structures its links reference. Guards that a single shard is a strict subset (partitioning is
+    real) and that all shards together produce what the unsharded pass would -- a following serial
+    pass inserts and links nothing new.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+    )
+    with Session(prepared_engine) as session, session.begin():
+        add_dataset(dataset, session)
+    with Session(prepared_engine) as session, session.begin():
+        update_derived_tables(
+            dataset.dataset_id, session
+        )  # SMILES first; RDKit reads them.
+
+    def counts() -> dict[str, int]:
+        with Session(prepared_engine) as session:
+            queries = {
+                "mols": "SELECT count(*) FROM rdkit.mols",
+                "reactions": "SELECT count(*) FROM rdkit.reactions",
+                "linked_reactions": "SELECT count(*) FROM derived.reaction_smiles WHERE rdkit_reaction_id IS NOT NULL",
+                "linked_compounds": "SELECT count(*) FROM derived.compound_smiles WHERE rdkit_mol_id IS NOT NULL",
+                "linked_products": "SELECT count(*) FROM derived.product_compound_smiles WHERE rdkit_mol_id IS NOT NULL",
+            }
+            return {
+                key: session.execute(text(query)).scalar()
+                for key, query in queries.items()
+            }
+
+    def run_shard(shard: tuple[int, int] | None) -> None:
+        with Session(prepared_engine) as session:
+            with session.begin():
+                update_rdkit_tables(dataset.dataset_id, session, shard=shard)
+            with session.begin():
+                update_rdkit_ids(dataset.dataset_id, session, shard=shard)
+
+    num_shards = 4
+    run_shard((0, num_shards))
+    first = counts()
+    for shard_index in range(1, num_shards):
+        run_shard((shard_index, num_shards))
+    sharded = counts()
+    # Shard 0 alone was a strict, non-empty subset of the inserted structures.
+    assert 0 < first["mols"] < sharded["mols"], (first, sharded)
+    for key in (
+        "mols",
+        "reactions",
+        "linked_reactions",
+        "linked_compounds",
+        "linked_products",
+    ):
+        assert sharded[key] > 0, (key, sharded)
+    # A serial (whole-dataset) pass now inserts and links nothing new: the shards covered it all.
+    run_shard(None)
     assert counts() == sharded
 
 

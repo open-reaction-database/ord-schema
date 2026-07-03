@@ -170,6 +170,34 @@ def test_load_datasets_parquet_parallel(prepared_engine, tmp_path):
     assert _derived_counts(prepared_engine)["reaction_smiles"] > 0
 
 
+def test_derived_stage_shards_smiles_and_rdkit(prepared_engine, tmp_path, monkeypatch):
+    """With a small shard size, the derived stage fans SMILES and RDKit into multiple shards.
+
+    Shrinking _DERIVE_SHARD_SIZE forces the small fixture into several shards, exercising the
+    (dataset, shard) SMILES pool and the per-dataset RDKit shard pool -- not just the single-shard
+    path the default size gives this fixture. Both derived SMILES and the RDKit cartridge tables
+    (with links) must be populated.
+    """
+    monkeypatch.setattr("ord_schema.orm.loading._DERIVE_SHARD_SIZE", 10)
+    parquet_path, dataset = _write_parquet_dataset(tmp_path, row_group_size=10)
+    loading.load_datasets(parquet_path, str(prepared_engine.url), n_jobs=2)
+    with Session(prepared_engine) as session:
+        assert session.query(Mappers.Reaction).count() == len(dataset.reactions)
+        assert _derived_counts(prepared_engine)["reaction_smiles"] > 0
+        assert session.execute(text("SELECT count(*) FROM rdkit.mols")).scalar() > 0
+        assert (
+            session.execute(text("SELECT count(*) FROM rdkit.reactions")).scalar() > 0
+        )
+        assert (
+            session.execute(
+                text(
+                    "SELECT count(*) FROM derived.reaction_smiles WHERE rdkit_reaction_id IS NOT NULL"
+                )
+            ).scalar()
+            > 0
+        )
+
+
 def test_parquet_sharded_ingest_recovers_from_partial_load(tmp_path):
     """A crashed shard phase (dataset row + some reactions, no marker) is cleanly redone.
 

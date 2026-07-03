@@ -773,31 +773,44 @@ def _update_compound_smiles(
             session.execute(insert_smiles, inserts)
 
 
-def update_rdkit_tables(dataset_id: str, session: Session) -> None:
-    """Updates RDKit PostgreSQL cartridge data."""
+def update_rdkit_tables(
+    dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
+) -> None:
+    """Updates RDKit PostgreSQL cartridge data.
+
+    ``shard`` (index, num_shards) restricts the inserts to one hash-partition of the SMILES values,
+    so a dataset's RDKit work can be split across workers. Because every RDKit sub-step (here and in
+    ``update_rdkit_ids``) partitions by the *same* SMILES hash, shard ``k`` inserts exactly the
+    structures its links will reference -- disjoint key sets across shards, so concurrent shards
+    never collide on the shared ``rdkit.*`` unique indexes (datasets still run serially).
+    """
     logger.debug(f"Updating RDKit tables for {dataset_id=}")
-    _update_rdkit_reactions(dataset_id, session)
-    _update_rdkit_mols(dataset_id, session)
+    _update_rdkit_reactions(dataset_id, session, shard=shard)
+    _update_rdkit_mols(dataset_id, session, shard=shard)
 
 
-def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
+def _update_rdkit_reactions(
+    dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
+) -> None:
     """Updates the RDKit reactions table."""
     logger.debug("Updating RDKit reactions")
     start = time.time()
+    shard_sql, shard_params = _shard_predicate(
+        "derived.reaction_smiles.reaction_smiles", shard
+    )
     result = session.execute(
-        text("""
+        text(f"""
             INSERT INTO rdkit.reactions (reaction_smiles, reaction)
             SELECT reaction_smiles, reaction
             FROM (
                 SELECT reaction_smiles, reaction_from_smiles(reaction_smiles::cstring) AS reaction
                 FROM (
                     -- NOTE(skearnes): NOT EXISTS probes the unique reaction_smiles index per candidate instead
-                    -- of EXCEPT-scanning all of rdkit.reactions; DISTINCT dedupes within the dataset. There is no
-                    -- ON CONFLICT backstop here, so this relies on the RDKit phase running serially (see
-                    -- add_datasets) to avoid unique violations on concurrent inserts of the same reaction_smiles.
+                    -- of EXCEPT-scanning all of rdkit.reactions; DISTINCT dedupes within the dataset.
                     -- reaction_smiles IS NOT NULL is required: unlike EXCEPT (which treats NULLs as equal),
                     -- NOT EXISTS never matches a NULL, so without it a no-SMILES reaction would re-insert a junk
-                    -- (NULL, NULL) row on every run.
+                    -- (NULL, NULL) row on every run. The ON CONFLICT below is a backstop; sharded runs also keep
+                    -- concurrent inserts on disjoint reaction_smiles hash-partitions so they never collide.
                     SELECT DISTINCT derived.reaction_smiles.reaction_smiles
                         FROM derived.reaction_smiles
                         JOIN ord.reaction ON ord.reaction.id = derived.reaction_smiles.reaction_id
@@ -809,25 +822,30 @@ def _update_rdkit_reactions(dataset_id: str, session: Session) -> None:
                               SELECT 1 FROM rdkit.reactions
                               WHERE rdkit.reactions.reaction_smiles = derived.reaction_smiles.reaction_smiles
                           )
+                          {shard_sql}
                 ) candidates
             ) computed
             -- reaction_from_smiles returns NULL for an unparseable reaction SMILES; skip those so we never
             -- insert a NULL-reaction row (mirrors the mol IS NOT NULL guard in _update_rdkit_mols).
             WHERE reaction IS NOT NULL
-            """),
-        {"dataset_id": dataset_id},
+            ON CONFLICT (reaction_smiles) DO NOTHING
+            """),  # noqa: S608  (shard predicate is an internal constant fragment)
+        {"dataset_id": dataset_id, **shard_params},
     )
     logger.debug(
         f"Updating reactions took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)"
     )
 
 
-def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
+def _update_rdkit_mols(
+    dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
+) -> None:
     """Updates the RDKit mols table."""
     logger.debug("Updating RDKit mols")
     start = time.time()
+    shard_sql, shard_params = _shard_predicate("candidates.smiles", shard)
     result = session.execute(
-        text("""
+        text(f"""
             WITH new_smiles AS MATERIALIZED (
                 -- Materialization barrier (AS MATERIALIZED): resolve the dataset's not-yet-linked SMILES that
                 -- aren't already in rdkit.mols FIRST -- a cheap per-candidate probe of the unique smiles index --
@@ -862,6 +880,7 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
                 ) candidates
                 WHERE smiles NOT LIKE '%[Ti+5]%'  -- See https://github.com/open-reaction-database/ord-schema/issues/672.
                   AND NOT EXISTS (SELECT 1 FROM rdkit.mols WHERE rdkit.mols.smiles = candidates.smiles)
+                  {shard_sql}
             )
             INSERT INTO rdkit.mols (smiles, mol, morgan_bfp, morgan_sfp)
             SELECT smiles, mol, morganbv_fp(mol) AS morgan_bfp, morgan_fp(mol) AS morgan_sfp
@@ -872,8 +891,8 @@ def _update_rdkit_mols(dataset_id: str, session: Session) -> None:
             -- row (which ON CONFLICT would not catch for a genuinely new SMILES) or feed NULL to the fingerprints.
             WHERE mol IS NOT NULL
             ON CONFLICT (smiles) DO NOTHING
-            """),
-        {"dataset_id": dataset_id},
+            """),  # noqa: S608  (shard predicate is an internal constant fragment)
+        {"dataset_id": dataset_id, **shard_params},
     )
     logger.debug(
         f"Updating mols took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)"
@@ -889,6 +908,7 @@ def _link_mol_ids(
     link_table: str,
     link_column: str,
     dataset_id: str,
+    shard: tuple[int, int] | None = None,
 ) -> int:
     """Links rdkit.mols ids into a derived compound-SMILES table for one dataset.
 
@@ -909,10 +929,14 @@ def _link_mol_ids(
         link_column: Foreign-key column on ``compound_table`` that references
             ``link_table`` (e.g. ``"reaction_input_id"``).
         dataset_id: Dataset to scope the update to.
+        shard: Optional ``(index, num_shards)`` partition (by the derived table's SMILES hash)
+            to restrict the update to, matching the mol-insert partition so a shard links exactly
+            the rows it inserted.
 
     Returns:
         The number of rows updated.
     """
+    shard_sql, shard_params = _shard_predicate(f"{derived_table}.smiles", shard)
     result = session.execute(
         text(f"""
             UPDATE {derived_table}
@@ -925,14 +949,22 @@ def _link_mol_ids(
               AND ord.reaction.dataset_id = ord.dataset.id
               AND ord.dataset.dataset_id = :dataset_id
               AND {derived_table}.rdkit_mol_id IS NULL
+              {shard_sql}
             """),  # noqa: S608  (table/column names are internal constants, not user input)
-        {"dataset_id": dataset_id},
+        {"dataset_id": dataset_id, **shard_params},
     )
     return cast(Any, result).rowcount
 
 
-def update_rdkit_ids(dataset_id: str, session: Session) -> None:
-    """Updates RDKit reaction and mol ID associations in the ORD tables."""
+def update_rdkit_ids(
+    dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
+) -> None:
+    """Updates RDKit reaction and mol ID associations in the ORD tables.
+
+    ``shard`` (index, num_shards) restricts the links to one SMILES-hash partition, matching the
+    insert partition in ``update_rdkit_tables`` so shard ``k`` links exactly the structures it
+    inserted.
+    """
     logger.debug("Updating RDKit ID associations")
     start = time.time()
     # NOTE(skearnes): These use the flat ``UPDATE ... FROM`` form (target updated in place) rather than
@@ -940,8 +972,11 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
     # re-joined the target by id. The rdkit join keys (reaction_smiles/smiles) are unique-indexed, and the
     # dataset scope is reached via the indexed foreign keys.
     # Update derived.reaction_smiles (reaction_smiles and rdkit_reaction_id live there).
+    reaction_shard_sql, reaction_shard_params = _shard_predicate(
+        "derived.reaction_smiles.reaction_smiles", shard
+    )
     reaction_result = session.execute(
-        text("""
+        text(f"""
             UPDATE derived.reaction_smiles
             SET rdkit_reaction_id = rdkit.reactions.id
             FROM rdkit.reactions, ord.reaction, ord.dataset
@@ -950,8 +985,9 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
               AND ord.reaction.dataset_id = ord.dataset.id
               AND ord.dataset.dataset_id = :dataset_id
               AND derived.reaction_smiles.rdkit_reaction_id IS NULL
-            """),
-        {"dataset_id": dataset_id},
+              {reaction_shard_sql}
+            """),  # noqa: S608  (shard predicate is an internal constant fragment)
+        {"dataset_id": dataset_id, **reaction_shard_params},
     )
     reaction_rows = cast(Any, reaction_result).rowcount
     compound_rows = _link_mol_ids(
@@ -962,6 +998,7 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
         link_table="ord.reaction_input",
         link_column="reaction_input_id",
         dataset_id=dataset_id,
+        shard=shard,
     )
     product_compound_rows = _link_mol_ids(
         session,
@@ -971,6 +1008,7 @@ def update_rdkit_ids(dataset_id: str, session: Session) -> None:
         link_table="ord.reaction_outcome",
         link_column="reaction_outcome_id",
         dataset_id=dataset_id,
+        shard=shard,
     )
     logger.debug(
         f"Updating RDKit IDs took {time.time() - start:g}s "
