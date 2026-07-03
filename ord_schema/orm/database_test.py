@@ -248,7 +248,13 @@ def test_rdkit_sharded_matches_serial(prepared_engine):
     sharded = counts()
     # Shard 0 alone was a strict, non-empty subset of the inserted structures.
     assert 0 < first["mols"] < sharded["mols"], (first, sharded)
-    for key in ("mols", "reactions", "linked_reactions", "linked_compounds"):
+    for key in (
+        "mols",
+        "reactions",
+        "linked_reactions",
+        "linked_compounds",
+        "linked_products",
+    ):
         assert sharded[key] > 0, (key, sharded)
     # A serial (whole-dataset) pass now inserts and links nothing new: the shards covered it all.
     run_shard(None)

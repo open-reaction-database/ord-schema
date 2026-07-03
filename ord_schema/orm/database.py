@@ -843,7 +843,7 @@ def _update_rdkit_mols(
     """Updates the RDKit mols table."""
     logger.debug("Updating RDKit mols")
     start = time.time()
-    shard_sql, shard_params = _shard_predicate("smiles", shard)
+    shard_sql, shard_params = _shard_predicate("candidates.smiles", shard)
     result = session.execute(
         text(f"""
             WITH new_smiles AS MATERIALIZED (
