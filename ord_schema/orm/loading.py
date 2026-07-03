@@ -59,6 +59,10 @@ STAGES = ("ingest", "derived")
 _DERIVE_SHARD_SIZE = 50_000
 _DERIVE_SHARD_CAP = 32
 
+# Reaction classification loads a Rxn-INSIGHT/rxnmapper transformer model per worker, so its shard
+# pool is capped well below the ingest/SMILES n_jobs to keep the models within memory.
+_CLASSIFY_JOBS_CAP = 4
+
 
 def dataset_id_for_file(filename: str) -> str:
     """Returns the dataset ID for a dataset file without ingesting it."""
@@ -213,20 +217,24 @@ def _derive_smiles_shard(
     return item
 
 
-def _classify_dataset(dataset_id: str, *, dsn: str) -> str:
-    """Assigns reaction class/name labels for a dataset (SMILES already derived by the shard pass).
+def _classify_shard(item: tuple[str, int, int], *, dsn: str) -> tuple[str, int, int]:
+    """Classifies one hash-partition of a dataset's reactions (SMILES already derived).
 
     Classification only -- it does not re-derive SMILES, so a failed SMILES shard stays visibly
-    incomplete rather than being silently backfilled here (keeping shard-failure semantics the same
-    whether or not classification is enabled).
+    incomplete rather than being silently backfilled here. Each worker loads its own Rxn-INSIGHT /
+    rxnmapper model, so the classify pool is bounded (``_CLASSIFY_JOBS_CAP``) to keep the models in
+    memory.
     """
+    dataset_id, shard_index, num_shards = item
     engine = create_engine(dsn)
     try:
         with Session(engine) as session, session.begin():
-            database.classify_dataset(dataset_id, session)
+            database.classify_dataset(
+                dataset_id, session, shard=(shard_index, num_shards)
+            )
     finally:
         engine.dispose()
-    return dataset_id
+    return item
 
 
 def add_rdkit(engine: Engine, dataset_id: str) -> None:
@@ -526,13 +534,20 @@ def load_datasets(
         failures.extend(sorted({dataset_id for dataset_id, _, _ in shard_failures}))
         if classify_reactions:
             logger.info("Classifying reactions")
+            # Shard classification within datasets by reaction-id hash, like SMILES, but through a
+            # smaller pool: each worker loads a Rxn-INSIGHT/rxnmapper model, so running n_jobs of
+            # them would multiply the model memory.
+            classify_jobs = max(1, min(n_jobs, _CLASSIFY_JOBS_CAP))
+            classify_items = _derive_shard_items(dataset_ids, dsn)
             _, classify_failures = _run_parallel(
-                partial(_classify_dataset, dsn=dsn),
-                dataset_ids,
-                n_jobs=n_jobs,
+                partial(_classify_shard, dsn=dsn),
+                classify_items,
+                n_jobs=classify_jobs,
                 desc="Classify",
             )
-            failures.extend(classify_failures)
+            failures.extend(
+                sorted({dataset_id for dataset_id, _, _ in classify_failures})
+            )
         logger.info("Adding RDKit functionality")
         # Datasets are processed serially (the rdkit.* dedup tables are shared, so cross-dataset
         # concurrency could collide on the same structure), but each dataset's pass is sharded by

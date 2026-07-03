@@ -28,6 +28,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ord_schema.logging import get_logger
+from ord_schema.orm.sharding import shard_predicate
 
 logger = get_logger(__name__)
 
@@ -62,18 +63,25 @@ def classify_reaction_smiles(
     return reaction_class, reaction_name
 
 
-def update_reaction_classes(dataset_id: str, session: Session) -> None:
+def update_reaction_classes(
+    dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
+) -> None:
     """Classifies a dataset's not-yet-attempted reactions into derived.reaction_classes.
 
     Selects reactions that have a SMILES but no row yet, classifies each distinct SMILES
     once (cached), and inserts one row per reaction. The row records the attempt -- NULL
     class/name mean Rxn-INSIGHT could not classify it -- so repeated runs converge rather
     than re-running the model over deterministic failures.
+
+    ``shard`` (index, num_shards) restricts to one disjoint hash-partition of the dataset's
+    reaction ids, so a large dataset can be split across workers. Each worker loads its own model,
+    so the caller should keep the shard pool small enough to fit the models in memory.
     """
     logger.debug(f"Updating reaction classes for {dataset_id=}")
     start = time.time()
+    shard_sql, shard_params = shard_predicate("ord.reaction.id", shard)
     result = session.execute(
-        text("""
+        text(f"""
             SELECT ord.reaction.id, derived.reaction_smiles.reaction_smiles
             FROM ord.reaction
             JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
@@ -85,8 +93,9 @@ def update_reaction_classes(dataset_id: str, session: Session) -> None:
                   SELECT 1 FROM derived.reaction_classes
                   WHERE derived.reaction_classes.reaction_id = ord.reaction.id
               )
-            """),
-        {"dataset_id": dataset_id},
+              {shard_sql}
+            """),  # noqa: S608  (shard predicate is an internal constant fragment)
+        {"dataset_id": dataset_id, **shard_params},
     )
     reactions = result.all()
     if not reactions:
