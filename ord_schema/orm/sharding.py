@@ -27,6 +27,10 @@ def shard_predicate(
     Partitions a dataset's rows deterministically and disjointly by a hash of ``column``, so
     independent workers can each process their shard without coordinating. ``shard`` is
     ``(index, num_shards)``; ``None`` disables sharding (whole dataset).
+
+    ``column`` is interpolated into the SQL, so it must be a trusted, hardcoded column reference
+    (e.g. ``"ord.reaction.id"``) -- never a user-supplied string. The shard bounds are passed as
+    bind parameters.
     """
     if shard is None:
         return "", {}

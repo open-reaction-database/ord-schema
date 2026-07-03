@@ -547,7 +547,13 @@ def load_datasets(
                 if classify_jobs is None
                 else max(1, classify_jobs)
             )
-            classify_items = _derive_shard_items(dataset_ids, dsn)
+            # Each shard reloads the transformer model, so sharding only pays off when the shards
+            # can run in parallel. With a single worker, keep one shard (one model load) per
+            # dataset, matching the pre-sharding behaviour.
+            if resolved_classify_jobs == 1:
+                classify_items = [(dataset_id, 0, 1) for dataset_id in dataset_ids]
+            else:
+                classify_items = _derive_shard_items(dataset_ids, dsn)
             _, classify_failures = _run_parallel(
                 partial(_classify_shard, dsn=dsn),
                 classify_items,

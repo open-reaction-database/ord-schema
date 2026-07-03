@@ -303,7 +303,9 @@ def test_classify_sharded_covers_all(prepared_engine):
                     dataset.dataset_id, session, shard=(shard_index, num_shards)
                 )
     sharded = count()
-    assert 0 < first < sharded, (first, sharded)  # shard 0 a strict, non-empty subset
+    # Shard 0 is a strict, non-empty subset: the fixture's ~80 reactions reliably hash into more
+    # than one of the 4 buckets, so this holds for it (a 1-reaction fixture would not).
+    assert 0 < first < sharded, (first, sharded)
     # A whole-dataset pass now adds nothing: the shards classified every reaction.
     with Session(prepared_engine) as session, session.begin():
         classify_dataset(dataset.dataset_id, session)
