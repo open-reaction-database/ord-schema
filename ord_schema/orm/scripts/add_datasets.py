@@ -59,6 +59,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--n_jobs", type=int, default=1, help="Number of parallel workers"
     )
+    parser.add_argument(
+        "--classify_jobs",
+        type=int,
+        default=None,
+        help="Worker count for the classification pass (each loads a transformer model, so it is "
+        "bounded separately from --n_jobs); defaults to a capped fraction of --n_jobs",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args(argv)
 
@@ -98,6 +105,7 @@ def main(args: argparse.Namespace) -> None:
         overwrite=args.overwrite,
         classify_reactions=args.classify_reactions,
         n_jobs=args.n_jobs,
+        classify_jobs=args.classify_jobs,
     )
 
 

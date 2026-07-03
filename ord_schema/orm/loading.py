@@ -59,6 +59,10 @@ STAGES = ("ingest", "derived")
 _DERIVE_SHARD_SIZE = 50_000
 _DERIVE_SHARD_CAP = 32
 
+# Reaction classification loads a Rxn-INSIGHT/rxnmapper transformer model per worker, so its shard
+# pool is capped well below the ingest/SMILES n_jobs to keep the models within memory.
+_CLASSIFY_JOBS_CAP = 4
+
 
 def dataset_id_for_file(filename: str) -> str:
     """Returns the dataset ID for a dataset file without ingesting it."""
@@ -213,20 +217,24 @@ def _derive_smiles_shard(
     return item
 
 
-def _classify_dataset(dataset_id: str, *, dsn: str) -> str:
-    """Assigns reaction class/name labels for a dataset (SMILES already derived by the shard pass).
+def _classify_shard(item: tuple[str, int, int], *, dsn: str) -> tuple[str, int, int]:
+    """Classifies one hash-partition of a dataset's reactions (SMILES already derived).
 
     Classification only -- it does not re-derive SMILES, so a failed SMILES shard stays visibly
-    incomplete rather than being silently backfilled here (keeping shard-failure semantics the same
-    whether or not classification is enabled).
+    incomplete rather than being silently backfilled here. Each worker loads its own Rxn-INSIGHT /
+    rxnmapper model, so the classify pool is bounded (``_CLASSIFY_JOBS_CAP``) to keep the models in
+    memory.
     """
+    dataset_id, shard_index, num_shards = item
     engine = create_engine(dsn)
     try:
         with Session(engine) as session, session.begin():
-            database.classify_dataset(dataset_id, session)
+            database.classify_dataset(
+                dataset_id, session, shard=(shard_index, num_shards)
+            )
     finally:
         engine.dispose()
-    return dataset_id
+    return item
 
 
 def add_rdkit(engine: Engine, dataset_id: str) -> None:
@@ -447,6 +455,7 @@ def load_datasets(
     overwrite: bool = False,
     classify_reactions: bool = False,
     n_jobs: int = 1,
+    classify_jobs: int | None = None,
 ) -> None:
     """Runs the selected stages over the datasets matching ``pattern``.
 
@@ -461,6 +470,9 @@ def load_datasets(
         overwrite: If True, update changed datasets during ingest.
         classify_reactions: If True, assign reaction class/name labels during derivation.
         n_jobs: Number of parallel workers.
+        classify_jobs: Worker count for the classification pass; each worker loads a transformer
+            model, so this is bounded separately from ``n_jobs``. Defaults to
+            ``min(n_jobs, _CLASSIFY_JOBS_CAP)``. Raise it only if the models fit in memory.
 
     Raises:
         ValueError: If ``stages`` is empty or names an unknown stage.
@@ -526,13 +538,31 @@ def load_datasets(
         failures.extend(sorted({dataset_id for dataset_id, _, _ in shard_failures}))
         if classify_reactions:
             logger.info("Classifying reactions")
+            # Shard classification within datasets by reaction-id hash, like SMILES, but through a
+            # smaller pool: each worker loads a Rxn-INSIGHT/rxnmapper model, so running n_jobs of
+            # them would multiply the model memory. Defaults to a capped fraction of n_jobs; the
+            # caller can override via classify_jobs once they know the models fit.
+            resolved_classify_jobs = (
+                max(1, min(n_jobs, _CLASSIFY_JOBS_CAP))
+                if classify_jobs is None
+                else max(1, classify_jobs)
+            )
+            # Each shard reloads the transformer model, so sharding only pays off when the shards
+            # can run in parallel. With a single worker, keep one shard (one model load) per
+            # dataset, matching the pre-sharding behaviour.
+            if resolved_classify_jobs == 1:
+                classify_items = [(dataset_id, 0, 1) for dataset_id in dataset_ids]
+            else:
+                classify_items = _derive_shard_items(dataset_ids, dsn)
             _, classify_failures = _run_parallel(
-                partial(_classify_dataset, dsn=dsn),
-                dataset_ids,
-                n_jobs=n_jobs,
+                partial(_classify_shard, dsn=dsn),
+                classify_items,
+                n_jobs=resolved_classify_jobs,
                 desc="Classify",
             )
-            failures.extend(classify_failures)
+            failures.extend(
+                sorted({dataset_id for dataset_id, _, _ in classify_failures})
+            )
         logger.info("Adding RDKit functionality")
         # Datasets are processed serially (the rdkit.* dedup tables are shared, so cross-dataset
         # concurrency could collide on the same structure), but each dataset's pass is sharded by

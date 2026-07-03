@@ -34,6 +34,7 @@ from ord_schema import message_helpers, parquet
 from ord_schema.logging import get_logger
 from ord_schema.orm.mappers import Base, Mappers, from_proto, to_proto
 from ord_schema.orm.public_mappers import DatasetMetadata
+from ord_schema.orm.sharding import shard_predicate as _shard_predicate
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 # COPY the ingest tables parents-first so foreign keys resolve; sorted_tables orders by FK
@@ -55,23 +56,28 @@ else:
 logger = get_logger(__name__)
 
 
-def _classify_reactions(dataset_id: str, session: Session) -> None:
+def _classify_reactions(
+    dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
+) -> None:
     """Populates reaction class/name columns, requiring the optional extra."""
     if update_reaction_classes is None:
         raise ImportError(
             "Reaction classification requires the 'reaction-class' extra: "
             "pip install ord-schema[reaction-class]"
         ) from _reaction_class_import_error
-    update_reaction_classes(dataset_id, session)
+    update_reaction_classes(dataset_id, session, shard=shard)
 
 
-def classify_dataset(dataset_id: str, session: Session) -> None:
+def classify_dataset(
+    dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
+) -> None:
     """Assigns reaction class/name labels for an already-derived dataset (classification only).
 
     SMILES derivation is done separately (and, in the loader, sharded); this does not re-derive it,
-    so a failed SMILES shard is not silently backfilled here. Requires the ``reaction-class`` extra.
+    so a failed SMILES shard is not silently backfilled here. ``shard`` (index, num_shards) restricts
+    to one hash-partition of the dataset's reaction ids. Requires the ``reaction-class`` extra.
     """
-    _classify_reactions(dataset_id, session)
+    _classify_reactions(dataset_id, session, shard=shard)
 
 
 def get_connection_string(
@@ -534,26 +540,6 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
         delete(Mappers.Dataset).where(Mappers.Dataset.dataset_id == dataset_id)
     )
     logger.debug(f"delete took {time.time() - start}s")
-
-
-def _shard_predicate(
-    column: str, shard: tuple[int, int] | None
-) -> tuple[str, dict[str, int]]:
-    """Returns an ``AND`` predicate keeping 1/num_shards of rows by ``column``, or ``('', {})``.
-
-    Partitions a dataset's rows deterministically and disjointly by a hash of the id, so
-    independent workers can each derive their shard without coordinating. ``shard`` is
-    ``(index, num_shards)``; ``None`` disables sharding (whole dataset).
-    """
-    if shard is None:
-        return "", {}
-    shard_index, num_shards = shard
-    # ((h % n) + n) % n keeps the bucket in [0, num_shards) without abs() overflow.
-    predicate = (
-        f"AND ((hashtextextended({column}::text, 0) % :num_shards) + :num_shards) "
-        "% :num_shards = :shard_index"
-    )
-    return predicate, {"num_shards": num_shards, "shard_index": shard_index}
 
 
 def update_derived_tables(

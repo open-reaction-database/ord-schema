@@ -25,9 +25,11 @@ from sqlalchemy.orm import Session
 
 from ord_schema import message_helpers
 from ord_schema.datasets import load_dataset
+from ord_schema.orm import database as _orm_database
 from ord_schema.orm.database import (
     add_dataset,
     backfill_submission_times,
+    classify_dataset,
     delete_dataset,
     get_dataset_md5,
     get_dataset_size,
@@ -38,6 +40,8 @@ from ord_schema.orm.database import (
 from ord_schema.orm.mappers import Mappers, to_proto
 from ord_schema.orm.public_mappers import DatasetMetadata
 from ord_schema.proto import reaction_pb2
+
+_HAS_REACTION_CLASS = _orm_database.update_reaction_classes is not None
 
 
 def test_orm(test_session):
@@ -259,6 +263,53 @@ def test_rdkit_sharded_matches_serial(prepared_engine):
     # A serial (whole-dataset) pass now inserts and links nothing new: the shards covered it all.
     run_shard(None)
     assert counts() == sharded
+
+
+@pytest.mark.skipif(
+    not _HAS_REACTION_CLASS, reason="reaction-class extra not installed"
+)
+def test_classify_sharded_covers_all(prepared_engine):
+    """Sharded classification partitions reactions and together classifies every one.
+
+    Analogous to the SMILES/RDKit sharding tests; skipped unless the reaction-class extra is
+    installed (it loads a transformer model per call). Shard 0 is a strict, non-empty subset and
+    all shards together classify exactly what the unsharded pass would -- a following whole-dataset
+    pass adds nothing.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+    )
+    with Session(prepared_engine) as session, session.begin():
+        add_dataset(dataset, session)
+    with Session(prepared_engine) as session, session.begin():
+        update_derived_tables(
+            dataset.dataset_id, session
+        )  # SMILES; classification reads them.
+
+    def count() -> int:
+        with Session(prepared_engine) as session:
+            return session.execute(
+                text("SELECT count(*) FROM derived.reaction_classes")
+            ).scalar()
+
+    num_shards = 4
+    with Session(prepared_engine) as session, session.begin():
+        classify_dataset(dataset.dataset_id, session, shard=(0, num_shards))
+    first = count()
+    with Session(prepared_engine) as session:
+        for shard_index in range(1, num_shards):
+            with session.begin():
+                classify_dataset(
+                    dataset.dataset_id, session, shard=(shard_index, num_shards)
+                )
+    sharded = count()
+    # Shard 0 is a strict, non-empty subset: the fixture's ~80 reactions reliably hash into more
+    # than one of the 4 buckets, so this holds for it (a 1-reaction fixture would not).
+    assert 0 < first < sharded, (first, sharded)
+    # A whole-dataset pass now adds nothing: the shards classified every reaction.
+    with Session(prepared_engine) as session, session.begin():
+        classify_dataset(dataset.dataset_id, session)
+    assert count() == sharded
 
 
 @pytest.mark.parametrize(
