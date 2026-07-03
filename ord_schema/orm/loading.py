@@ -238,6 +238,30 @@ def add_rdkit(engine: Engine, dataset_id: str) -> None:
             database.update_rdkit_ids(dataset_id, session)
 
 
+def _rdkit_shard(item: tuple[str, int, int], *, dsn: str) -> tuple[str, int, int]:
+    """Populates + links the RDKit tables for one SMILES-hash partition of a dataset.
+
+    Every RDKit sub-step partitions by the same SMILES hash, so this shard inserts exactly the
+    structures its links reference and touches a key set disjoint from the other shards -- safe to
+    run concurrently against the shared ``rdkit.*`` tables (datasets are still processed serially).
+    """
+    dataset_id, shard_index, num_shards = item
+    engine = create_engine(dsn)
+    try:
+        with Session(engine) as session:
+            with session.begin():
+                database.update_rdkit_tables(
+                    dataset_id, session, shard=(shard_index, num_shards)
+                )
+            with session.begin():
+                database.update_rdkit_ids(
+                    dataset_id, session, shard=(shard_index, num_shards)
+                )
+    finally:
+        engine.dispose()
+    return item
+
+
 def _run_parallel(
     func: Callable[[_Item], _Result],
     items: Iterable[_Item],
@@ -510,18 +534,38 @@ def load_datasets(
             )
             failures.extend(classify_failures)
         logger.info("Adding RDKit functionality")
+        # Datasets are processed serially (the rdkit.* dedup tables are shared, so cross-dataset
+        # concurrency could collide on the same structure), but each dataset's pass is sharded by
+        # SMILES hash across the pool -- disjoint partitions keep concurrent inserts off each
+        # other's rdkit.* keys, so one large dataset no longer runs single-threaded.
         engine = create_engine(dsn)
         try:
             for dataset_id in tqdm(dataset_ids, desc="RDKit"):
-                try:
-                    add_rdkit(
-                        engine, dataset_id
-                    )  # NOTE(skearnes): Do this serially to avoid deadlocks.
-                except Exception:
-                    failures.append(dataset_id)
-                    logger.exception(
-                        f"Adding RDKit functionality for {dataset_id} failed"
+                with Session(engine) as session:
+                    try:
+                        size = database.get_dataset_size(dataset_id, session)
+                    except ValueError:
+                        size = 0
+                num_shards = max(
+                    1, min(_DERIVE_SHARD_CAP, -(-size // _DERIVE_SHARD_SIZE))
+                )
+                if num_shards == 1:
+                    try:
+                        add_rdkit(engine, dataset_id)
+                    except Exception:
+                        failures.append(dataset_id)
+                        logger.exception(
+                            f"Adding RDKit functionality for {dataset_id} failed"
+                        )
+                else:
+                    _, rdkit_failures = _run_parallel(
+                        partial(_rdkit_shard, dsn=dsn),
+                        [(dataset_id, k, num_shards) for k in range(num_shards)],
+                        n_jobs=n_jobs,
+                        desc="RDKit",
                     )
+                    if rdkit_failures:
+                        failures.append(dataset_id)
         finally:
             engine.dispose()
 
