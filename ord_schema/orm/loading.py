@@ -455,6 +455,7 @@ def load_datasets(
     overwrite: bool = False,
     classify_reactions: bool = False,
     n_jobs: int = 1,
+    classify_jobs: int | None = None,
 ) -> None:
     """Runs the selected stages over the datasets matching ``pattern``.
 
@@ -469,6 +470,9 @@ def load_datasets(
         overwrite: If True, update changed datasets during ingest.
         classify_reactions: If True, assign reaction class/name labels during derivation.
         n_jobs: Number of parallel workers.
+        classify_jobs: Worker count for the classification pass; each worker loads a transformer
+            model, so this is bounded separately from ``n_jobs``. Defaults to
+            ``min(n_jobs, _CLASSIFY_JOBS_CAP)``. Raise it only if the models fit in memory.
 
     Raises:
         ValueError: If ``stages`` is empty or names an unknown stage.
@@ -536,13 +540,18 @@ def load_datasets(
             logger.info("Classifying reactions")
             # Shard classification within datasets by reaction-id hash, like SMILES, but through a
             # smaller pool: each worker loads a Rxn-INSIGHT/rxnmapper model, so running n_jobs of
-            # them would multiply the model memory.
-            classify_jobs = max(1, min(n_jobs, _CLASSIFY_JOBS_CAP))
+            # them would multiply the model memory. Defaults to a capped fraction of n_jobs; the
+            # caller can override via classify_jobs once they know the models fit.
+            resolved_classify_jobs = (
+                max(1, min(n_jobs, _CLASSIFY_JOBS_CAP))
+                if classify_jobs is None
+                else max(1, classify_jobs)
+            )
             classify_items = _derive_shard_items(dataset_ids, dsn)
             _, classify_failures = _run_parallel(
                 partial(_classify_shard, dsn=dsn),
                 classify_items,
-                n_jobs=classify_jobs,
+                n_jobs=resolved_classify_jobs,
                 desc="Classify",
             )
             failures.extend(
