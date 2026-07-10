@@ -169,6 +169,9 @@ jobs:
           uv pip install --system build twine wheel
           python -m build
           python -m twine check dist/*
+          # twine check covers the description and core metadata fields, but not PyPI's refusal
+          # of direct (URL) dependencies, which otherwise fails at upload time in publish.yml.
+          python .github/scripts/check_direct_dependencies.py dist/*
       - name: Test javascript
         run: |
           cd js/ord-schema
