@@ -70,6 +70,9 @@ jobs:
           uv pip install --system build twine wheel
           python -m build
           python -m twine check dist/*
+          # Fail before the upload (and before the version bump is pushed) rather than taking a
+          # 400 from PyPI: twine check does not reject direct (URL) dependencies.
+          python .github/scripts/check_direct_dependencies.py dist/*
       # Use release/v1 (not a bare v1.x.x tag): each tag must have a matching GHCR image
       # (ghcr.io/pypa/gh-action-pypi-publish:<ref>); v1.14.0 had no manifest at publish time.
       - name: Publish package distributions to PyPI
