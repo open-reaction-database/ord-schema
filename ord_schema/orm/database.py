@@ -542,6 +542,48 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
     logger.debug(f"delete took {time.time() - start}s")
 
 
+# Every derived/RDKit pass scopes its work to one dataset, which means walking from a
+# compound up to ord.reaction. ord.compound hangs off three different parents, so no single
+# join reaches them all:
+#
+#   * a reaction's own input (ord.reaction_input.reaction_id is set);
+#   * a workup's input (that ord.reaction_input row has reaction_id NULL and
+#     reaction_workup_id set instead);
+#   * a product measurement (ord.compound.reaction_input_id is NULL) -- authentic standards.
+#
+# Each path is listed separately and the callers UNION them rather than reaching ord.reaction
+# through a COALESCE of the parent keys: an equality against COALESCE(...) is not sargable, so
+# the planner could not drive from the dataset's reactions through the indexed foreign keys.
+# The paths are disjoint -- a compound sets exactly one of reaction_input_id /
+# product_measurement_id, and a reaction_input belongs to exactly one of a reaction or a workup
+# -- so UNION ALL never double-counts a compound.
+_COMPOUND_REACTION_JOINS: tuple[str, ...] = (
+    """
+    JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
+    JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
+    """,
+    """
+    JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
+    JOIN ord.reaction_workup ON ord.reaction_input.reaction_workup_id = ord.reaction_workup.id
+    JOIN ord.reaction ON ord.reaction_workup.reaction_id = ord.reaction.id
+    """,
+    """
+    JOIN ord.product_measurement ON ord.compound.product_measurement_id = ord.product_measurement.id
+    JOIN ord.product_compound ON ord.product_measurement.product_compound_id = ord.product_compound.id
+    JOIN ord.reaction_outcome ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
+    JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
+    """,
+)
+
+# ord.product_compound has a single parent, so one path suffices.
+_PRODUCT_COMPOUND_REACTION_JOINS: tuple[str, ...] = (
+    """
+    JOIN ord.reaction_outcome ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
+    JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
+    """,
+)
+
+
 def update_derived_tables(
     dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
 ) -> None:
@@ -636,8 +678,7 @@ def update_derived_tables(
         session,
         dataset_pk=dataset_pk,
         compound_table="ord.compound",
-        link_table="ord.reaction_input",
-        link_column="reaction_input_id",
+        reaction_joins=_COMPOUND_REACTION_JOINS,
         compound_class=Mappers.Compound,
         derived_table="derived.compound_smiles",
         derived_id="compound_id",
@@ -647,8 +688,7 @@ def update_derived_tables(
         session,
         dataset_pk=dataset_pk,
         compound_table="ord.product_compound",
-        link_table="ord.reaction_outcome",
-        link_column="reaction_outcome_id",
+        reaction_joins=_PRODUCT_COMPOUND_REACTION_JOINS,
         compound_class=Mappers.ProductCompound,
         derived_table="derived.product_compound_smiles",
         derived_id="product_compound_id",
@@ -662,8 +702,7 @@ def _update_compound_smiles(
     *,
     dataset_pk: int,
     compound_table: str,
-    link_table: str,
-    link_column: str,
+    reaction_joins: tuple[str, ...],
     compound_class: Any,
     derived_table: str,
     derived_id: str,
@@ -678,24 +717,30 @@ def _update_compound_smiles(
     SMILES from its other identifiers. Ids are resolved up front and processed in batches of
     _DERIVED_BATCH so memory stays bounded. ``shard`` (index, num_shards) restricts to one disjoint
     hash-partition of this table's ids so large datasets can be split across workers.
+
+    ``reaction_joins`` are the disjoint join paths from ``compound_table`` to ord.reaction; one id
+    query runs per path and the results are concatenated. See _COMPOUND_REACTION_JOINS.
     """
     compound_shard_sql, compound_shard_params = _shard_predicate(
         f"{compound_table}.id", shard
     )
-    compound_ids = (
-        session.execute(
-            text(f"""
+    select_ids = "\nUNION ALL\n".join(
+        f"""
                 SELECT {compound_table}.id
                 FROM {compound_table}
-                JOIN {link_table} ON {compound_table}.{link_column} = {link_table}.id
-                JOIN ord.reaction ON {link_table}.reaction_id = ord.reaction.id
+                {reaction_join}
                 WHERE ord.reaction.dataset_id = :id
                   AND NOT EXISTS (
                       SELECT 1 FROM {derived_table}
                       WHERE {derived_table}.{derived_id} = {compound_table}.id
                   )
                   {compound_shard_sql}
-                """),  # noqa: S608  (table/column names are internal constants, not user input)
+        """  # noqa: S608  (table/column names are internal constants, not user input)
+        for reaction_join in reaction_joins
+    )
+    compound_ids = (
+        session.execute(
+            text(select_ids),
             {"id": dataset_pk, **compound_shard_params},
         )
         .scalars()
@@ -830,6 +875,35 @@ def _update_rdkit_mols(
     logger.debug("Updating RDKit mols")
     start = time.time()
     shard_sql, shard_params = _shard_predicate("candidates.smiles", shard)
+    # One candidate SELECT per join path (see _COMPOUND_REACTION_JOINS); UNION dedupes the SMILES
+    # a dataset repeats across compounds.
+    candidates = "\nUNION\n".join(
+        [
+            f"""
+                    SELECT derived.compound_smiles.smiles
+                        FROM derived.compound_smiles
+                        JOIN ord.compound ON ord.compound.id = derived.compound_smiles.compound_id
+                        {reaction_join}
+                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                        WHERE ord.dataset.dataset_id = :dataset_id
+                          AND derived.compound_smiles.rdkit_mol_id IS NULL
+            """  # noqa: S608  (the join path is an internal constant, not user input)
+            for reaction_join in _COMPOUND_REACTION_JOINS
+        ]
+        + [
+            f"""
+                    SELECT derived.product_compound_smiles.smiles
+                        FROM derived.product_compound_smiles
+                        JOIN ord.product_compound
+                            ON ord.product_compound.id = derived.product_compound_smiles.product_compound_id
+                        {reaction_join}
+                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                        WHERE ord.dataset.dataset_id = :dataset_id
+                          AND derived.product_compound_smiles.rdkit_mol_id IS NULL
+            """  # noqa: S608  (the join path is an internal constant, not user input)
+            for reaction_join in _PRODUCT_COMPOUND_REACTION_JOINS
+        ]
+    )
     result = session.execute(
         text(f"""
             WITH new_smiles AS MATERIALIZED (
@@ -842,27 +916,7 @@ def _update_rdkit_mols(
                 -- to materialize for this same reason.
                 SELECT smiles
                 FROM (
-                    SELECT derived.compound_smiles.smiles
-                        -- NOTE(skearnes): This join path does not include non-input compounds like workups,
-                        -- internal standards, etc.
-                        FROM derived.compound_smiles
-                        JOIN ord.compound ON ord.compound.id = derived.compound_smiles.compound_id
-                        JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
-                        JOIN ord.reaction ON ord.reaction_input.reaction_id = ord.reaction.id
-                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                        WHERE ord.dataset.dataset_id = :dataset_id
-                          AND derived.compound_smiles.rdkit_mol_id IS NULL
-                    UNION
-                    SELECT derived.product_compound_smiles.smiles
-                        FROM derived.product_compound_smiles
-                        JOIN ord.product_compound
-                            ON ord.product_compound.id = derived.product_compound_smiles.product_compound_id
-                        JOIN ord.reaction_outcome
-                            ON ord.product_compound.reaction_outcome_id = ord.reaction_outcome.id
-                        JOIN ord.reaction ON ord.reaction_outcome.reaction_id = ord.reaction.id
-                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                        WHERE ord.dataset.dataset_id = :dataset_id
-                          AND derived.product_compound_smiles.rdkit_mol_id IS NULL
+                    {candidates}
                 ) candidates
                 WHERE smiles NOT LIKE '%[Ti+5]%'  -- See https://github.com/open-reaction-database/ord-schema/issues/672.
                   AND NOT EXISTS (SELECT 1 FROM rdkit.mols WHERE rdkit.mols.smiles = candidates.smiles)
@@ -891,29 +945,29 @@ def _link_mol_ids(
     derived_table: str,
     derived_id_column: str,
     compound_table: str,
-    link_table: str,
-    link_column: str,
+    reaction_joins: tuple[str, ...],
     dataset_id: str,
     shard: tuple[int, int] | None = None,
 ) -> int:
     """Links rdkit.mols ids into a derived compound-SMILES table for one dataset.
 
     The Compound and ProductCompound updates are identical apart from the tables
-    and join path, so they share this helper. Identifier arguments are trusted
+    and join paths, so they share this helper. Identifier arguments are trusted
     literals supplied by ``update_rdkit_ids`` (never user input) and are
     interpolated into the statement; ``dataset_id`` is passed as a bind param.
+
+    One statement runs per join path. The paths select disjoint compounds, so a row is
+    linked by exactly one of them, and each keeps the flat ``UPDATE ... FROM`` form whose
+    join keys stay indexed.
 
     Args:
         session: Active SQLAlchemy session.
         derived_table: Derived table to update (e.g. ``"derived.compound_smiles"``).
         derived_id_column: ``derived_table`` foreign key to ``compound_table.id``
             (e.g. ``"compound_id"``).
-        compound_table: ORD compound table (e.g. ``"ord.compound"``), joined to
-            reach the dataset via ``link_table``.
-        link_table: Join table connecting ``compound_table`` to ``ord.reaction``
-            (e.g. ``"ord.reaction_input"``).
-        link_column: Foreign-key column on ``compound_table`` that references
-            ``link_table`` (e.g. ``"reaction_input_id"``).
+        compound_table: ORD compound table (e.g. ``"ord.compound"``).
+        reaction_joins: Disjoint join paths from ``compound_table`` to ord.reaction
+            (e.g. ``_COMPOUND_REACTION_JOINS``).
         dataset_id: Dataset to scope the update to.
         shard: Optional ``(index, num_shards)`` partition (by the derived table's SMILES hash)
             to restrict the update to, matching the mol-insert partition so a shard links exactly
@@ -923,23 +977,25 @@ def _link_mol_ids(
         The number of rows updated.
     """
     shard_sql, shard_params = _shard_predicate(f"{derived_table}.smiles", shard)
-    result = session.execute(
-        text(f"""
-            UPDATE {derived_table}
-            SET rdkit_mol_id = rdkit.mols.id
-            FROM rdkit.mols, {compound_table}, {link_table}, ord.reaction, ord.dataset
-            WHERE rdkit.mols.smiles = {derived_table}.smiles
-              AND {derived_table}.{derived_id_column} = {compound_table}.id
-              AND {compound_table}.{link_column} = {link_table}.id
-              AND {link_table}.reaction_id = ord.reaction.id
-              AND ord.reaction.dataset_id = ord.dataset.id
-              AND ord.dataset.dataset_id = :dataset_id
-              AND {derived_table}.rdkit_mol_id IS NULL
-              {shard_sql}
-            """),  # noqa: S608  (table/column names are internal constants, not user input)
-        {"dataset_id": dataset_id, **shard_params},
-    )
-    return cast(Any, result).rowcount
+    rows = 0
+    for reaction_join in reaction_joins:
+        result = session.execute(
+            text(f"""
+                UPDATE {derived_table}
+                SET rdkit_mol_id = rdkit.mols.id
+                FROM rdkit.mols, {compound_table}
+                    {reaction_join}
+                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
+                WHERE rdkit.mols.smiles = {derived_table}.smiles
+                  AND {derived_table}.{derived_id_column} = {compound_table}.id
+                  AND ord.dataset.dataset_id = :dataset_id
+                  AND {derived_table}.rdkit_mol_id IS NULL
+                  {shard_sql}
+                """),  # noqa: S608  (table/column names are internal constants, not user input)
+            {"dataset_id": dataset_id, **shard_params},
+        )
+        rows += cast(Any, result).rowcount
+    return rows
 
 
 def update_rdkit_ids(
@@ -981,8 +1037,7 @@ def update_rdkit_ids(
         derived_table="derived.compound_smiles",
         derived_id_column="compound_id",
         compound_table="ord.compound",
-        link_table="ord.reaction_input",
-        link_column="reaction_input_id",
+        reaction_joins=_COMPOUND_REACTION_JOINS,
         dataset_id=dataset_id,
         shard=shard,
     )
@@ -991,8 +1046,7 @@ def update_rdkit_ids(
         derived_table="derived.product_compound_smiles",
         derived_id_column="product_compound_id",
         compound_table="ord.product_compound",
-        link_table="ord.reaction_outcome",
-        link_column="reaction_outcome_id",
+        reaction_joins=_PRODUCT_COMPOUND_REACTION_JOINS,
         dataset_id=dataset_id,
         shard=shard,
     )

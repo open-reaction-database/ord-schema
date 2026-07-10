@@ -33,6 +33,7 @@ from ord_schema.orm.database import (
     delete_dataset,
     get_dataset_md5,
     get_dataset_size,
+    update_derived_data,
     update_derived_tables,
     update_rdkit_ids,
     update_rdkit_tables,
@@ -390,6 +391,74 @@ def test_compound_smiles_fallback_without_stored_smiles(prepared_engine):
             .all()
         )
     assert fallback_smiles == [expected], fallback_smiles
+
+
+# Counts every ord.compound by how it reaches its reaction, alongside how many of those rows made
+# it into derived.compound_smiles and how many of those are still missing an rdkit.mols link.
+# [Ti+5] structures are excluded from the unlinked tally because _update_rdkit_mols deliberately
+# keeps them out of rdkit.mols (see the NOT LIKE guard there, and issue #672).
+_COMPOUND_ATTACHMENT_COVERAGE = text("""
+    SELECT CASE
+             WHEN ord.reaction_input.reaction_id IS NOT NULL THEN 'reaction_input'
+             WHEN ord.compound.reaction_input_id IS NOT NULL THEN 'workup_input'
+             ELSE 'product_measurement'
+           END AS attachment,
+           count(*) AS compounds,
+           count(derived.compound_smiles.compound_id) AS derived,
+           count(*) FILTER (
+               WHERE derived.compound_smiles.compound_id IS NOT NULL
+                 AND derived.compound_smiles.rdkit_mol_id IS NULL
+                 AND derived.compound_smiles.smiles NOT LIKE '%[Ti+5]%'
+           ) AS unlinked
+    FROM ord.compound
+    LEFT JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
+    LEFT JOIN derived.compound_smiles ON derived.compound_smiles.compound_id = ord.compound.id
+    GROUP BY 1
+""")
+
+
+def test_derived_compound_smiles_covers_every_attachment(prepared_engine):
+    """Every ord.compound is derived and RDKit-linked, whichever parent it hangs off.
+
+    A compound reaches its reaction as a reaction input, as a workup's input (whose
+    ord.reaction_input row has reaction_id NULL), or as a product measurement's authentic
+    standard. A dataset-scoping join that follows only reaction_input.reaction_id silently drops
+    the latter two, so assert all three attachments appear and none loses rows to the derived or
+    RDKit passes.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+    )
+    # The fixture has workup inputs but no authentic standard; attach one so the
+    # product_measurement path is populated.
+    measurement = next(
+        measurement
+        for reaction in dataset.reactions
+        for outcome in reaction.outcomes
+        for product in outcome.products
+        for measurement in product.measurements
+    )
+    measurement.uses_authentic_standard = True
+    measurement.authentic_standard.identifiers.add(
+        type=reaction_pb2.CompoundIdentifier.SMILES, value="c1ccccc1"
+    )
+    with Session(prepared_engine) as session:
+        with session.begin():
+            add_dataset(dataset, session)
+            update_derived_data(dataset.dataset_id, session)
+        coverage = {
+            row.attachment: row
+            for row in session.execute(_COMPOUND_ATTACHMENT_COVERAGE)
+        }
+    # Guard against the assertions below passing vacuously on an attachment the fixture lacks.
+    assert set(coverage) == {
+        "reaction_input",
+        "workup_input",
+        "product_measurement",
+    }, coverage
+    for attachment, row in coverage.items():
+        assert row.compounds == row.derived, (attachment, row.compounds, row.derived)
+        assert row.unlinked == 0, (attachment, row.unlinked)
 
 
 def test_unlinked_partial_indexes(test_session):
