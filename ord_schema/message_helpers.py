@@ -43,6 +43,13 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
+# Enum names of the identifier types a Mol can be built from, keyed off the loaders above
+# so callers (e.g. the derived-SMILES pass) share this module's single source of truth for
+# what "structural" means. These match the values stored in ord.compound_identifier.type.
+STRUCTURAL_IDENTIFIER_TYPES = frozenset(
+    reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name(identifier_type)
+    for identifier_type in _COMPOUND_IDENTIFIER_LOADERS
+)
 MessageType = TypeVar("MessageType")  # Generic for setting return types
 
 

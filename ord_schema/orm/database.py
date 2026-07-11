@@ -805,18 +805,23 @@ def _update_compound_smiles(
         ORDER BY ord.compound_identifier.{derived_id}, ord.compound_identifier.id
         """).bindparams(bindparam("ids", expanding=True))  # noqa: S608
     # Ids in the batch that carry a non-empty structural identifier, i.e. one of the
-    # types smiles_from_compound can build a Mol from (see _COMPOUND_IDENTIFIER_LOADERS).
-    # A compound with only non-structural identifiers (e.g. NAME) can never yield a SMILES,
-    # so the reconstruction fallback below is skipped for it -- keeping the re-attempt of a
-    # permanently underivable compound (no derived row is ever inserted, so it is re-selected
-    # every run) cheap instead of paying an ORM load plus to_proto that is certain to raise.
+    # types smiles_from_compound can build a Mol from. A compound with only non-structural
+    # identifiers (e.g. NAME) can never yield a SMILES, so the reconstruction fallback below
+    # is skipped for it -- keeping the re-attempt of a permanently underivable compound (no
+    # derived row is ever inserted, so it is re-selected every run) cheap instead of paying an
+    # ORM load plus to_proto that is certain to raise. The type list is bound from
+    # message_helpers.STRUCTURAL_IDENTIFIER_TYPES so it tracks the loaders that back the
+    # reconstruction, rather than a hand-maintained literal that could drift from them.
     select_structural = text(f"""
         SELECT DISTINCT ord.compound_identifier.{derived_id}
         FROM ord.compound_identifier
         WHERE ord.compound_identifier.{derived_id} IN :ids
-          AND ord.compound_identifier.type IN ('SMILES', 'INCHI', 'MOLBLOCK')
+          AND ord.compound_identifier.type IN :structural_types
           AND ord.compound_identifier.value <> ''
-        """).bindparams(bindparam("ids", expanding=True))  # noqa: S608
+        """).bindparams(  # noqa: S608
+        bindparam("ids", expanding=True),
+        bindparam("structural_types", expanding=True),
+    )
     insert_smiles = text(
         f"INSERT INTO {derived_table} ({derived_id}, smiles) "  # noqa: S608
         f"VALUES (:{derived_id}, :smiles)"
@@ -832,7 +837,16 @@ def _update_compound_smiles(
             row[0]: row[1] for row in session.execute(select_smiles, {"ids": batch_ids})
         }
         derivable = {
-            row[0] for row in session.execute(select_structural, {"ids": batch_ids})
+            row[0]
+            for row in session.execute(
+                select_structural,
+                {
+                    "ids": batch_ids,
+                    "structural_types": list(
+                        message_helpers.STRUCTURAL_IDENTIFIER_TYPES
+                    ),
+                },
+            )
         }
         inserts = []
         for compound_id in batch_ids:

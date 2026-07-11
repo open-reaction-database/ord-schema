@@ -55,6 +55,20 @@ _BENZENE_MOLBLOCK = """241
 M  END"""
 
 
+def test_structural_identifier_types():
+    """STRUCTURAL_IDENTIFIER_TYPES names exactly the types _COMPOUND_IDENTIFIER_LOADERS can load."""
+    assert {
+        "SMILES",
+        "INCHI",
+        "MOLBLOCK",
+    } == message_helpers.STRUCTURAL_IDENTIFIER_TYPES
+    expected = {
+        reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name(identifier_type)
+        for identifier_type in message_helpers._COMPOUND_IDENTIFIER_LOADERS
+    }
+    assert expected == message_helpers.STRUCTURAL_IDENTIFIER_TYPES
+
+
 class TestMessageHelpers:
     @pytest.mark.parametrize(
         ("filename", "expected"),
