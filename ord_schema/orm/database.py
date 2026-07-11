@@ -90,16 +90,43 @@ def get_connection_string(
     return f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}?client_encoding=utf8"
 
 
+# PostgreSQL 12 (server_version_num 120000), when AS MATERIALIZED CTEs -- used throughout the
+# derived/RDKit passes -- were introduced.
+_MIN_SERVER_VERSION_NUM = 120000
+
+
+def _check_server_version(connection: Any) -> None:
+    """Raises if the server predates the minimum supported PostgreSQL version.
+
+    The derived/RDKit passes use ``AS MATERIALIZED`` CTEs, which an older server rejects with a
+    parse error deep inside ``update_rdkit_tables``. Failing here, at setup, turns that into a
+    clear message before any rows are processed.
+
+    Raises:
+        RuntimeError: If the server is older than PostgreSQL 12.
+    """
+    version_num = int(connection.execute(text("SHOW server_version_num")).scalar_one())
+    if version_num < _MIN_SERVER_VERSION_NUM:
+        raise RuntimeError(
+            "PostgreSQL 12+ is required (the derived/RDKit passes use AS MATERIALIZED CTEs); "
+            f"server reports server_version_num={version_num}."
+        )
+
+
 def prepare_database(engine: Engine) -> bool:
     """Prepares the database and creates the ORM table structure.
 
     Args:
-        engine: SQLAlchemy Engine.
+        engine: SQLAlchemy Engine (server must be PostgreSQL 12+).
 
     Returns:
         Whether the RDKit PostgreSQL cartridge is installed.
+
+    Raises:
+        RuntimeError: If the server is older than PostgreSQL 12.
     """
     with engine.begin() as connection:
+        _check_server_version(connection)
         try:
             connection.execute(
                 text("CREATE EXTENSION IF NOT EXISTS tsm_system_rows")
