@@ -44,10 +44,9 @@ _COPY_TABLE_ORDER = [table.fullname for table in Base.metadata.sorted_tables]
 try:
     from ord_schema.orm.reaction_class import update_reaction_classes
 except Exception as error:  # noqa: BLE001
-    # The optional 'reaction-class' extra pulls in rxn-insight -> rxnmapper/torch, which
-    # can fail to import for many reasons (absent package, native-library OSError, init
-    # error). Catch them all so the ORM stays usable when classify_reactions is False;
-    # the opt-in path re-raises with the original error as the cause.
+    # The optional 'reaction-class' extra pulls in rxn-insight -> rxnmapper/torch, which can fail
+    # to import many ways (missing package, native-library OSError). Catch all so the ORM stays
+    # usable without it; _classify_reactions re-raises with this error as the cause.
     update_reaction_classes = None  # ty: ignore[invalid-assignment]
     _reaction_class_import_error: Exception | None = error
 else:
@@ -91,16 +90,49 @@ def get_connection_string(
     return f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}?client_encoding=utf8"
 
 
+# PostgreSQL 12 (server_version_num 120000), when AS MATERIALIZED CTEs -- used throughout the
+# derived/RDKit passes -- were introduced.
+_MIN_SERVER_VERSION_NUM = 120000
+
+
+def _check_server_version(connection: Any) -> None:
+    """Raises if the server predates the minimum supported PostgreSQL version.
+
+    The derived/RDKit passes use ``AS MATERIALIZED`` CTEs, which an older server rejects with a
+    parse error deep inside the RDKit update. Checking at the entry points (prepare_database and the
+    update_rdkit_* functions) turns that into a clear message before any such SQL runs. The result
+    is memoized on the connection, since the version is immutable and these run once per shard.
+
+    Raises:
+        RuntimeError: If the server is older than PostgreSQL 12.
+    """
+    info = getattr(connection, "info", None)
+    if isinstance(info, dict) and info.get("ord_server_version_checked"):
+        return
+    version_num = int(connection.execute(text("SHOW server_version_num")).scalar_one())
+    if version_num < _MIN_SERVER_VERSION_NUM:
+        raise RuntimeError(
+            "PostgreSQL 12+ is required (the derived/RDKit passes use AS MATERIALIZED CTEs); "
+            f"server reports server_version_num={version_num}."
+        )
+    if isinstance(info, dict):
+        info["ord_server_version_checked"] = True
+
+
 def prepare_database(engine: Engine) -> bool:
     """Prepares the database and creates the ORM table structure.
 
     Args:
-        engine: SQLAlchemy Engine.
+        engine: SQLAlchemy Engine (server must be PostgreSQL 12+).
 
     Returns:
         Whether the RDKit PostgreSQL cartridge is installed.
+
+    Raises:
+        RuntimeError: If the server is older than PostgreSQL 12.
     """
     with engine.begin() as connection:
+        _check_server_version(connection)
         try:
             connection.execute(
                 text("CREATE EXTENSION IF NOT EXISTS tsm_system_rows")
@@ -115,12 +147,10 @@ def prepare_database(engine: Engine) -> bool:
         # Derived, best-effort data that is not part of the proto (e.g. reaction class).
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS derived"))
     with engine.begin() as connection:
-        # Pin the database's default search_path to public. The connecting role is often
-        # named "ord", which would make Postgres's default ("$user", public) resolve the
-        # ord schema first; instead require explicit ord/derived/rdkit qualification (the
-        # ORM qualifies every table) and keep only public on the path, where the RDKit
-        # cartridge functions live. Best-effort: a non-owner connection cannot ALTER
-        # DATABASE, but the ORM still works since it never relies on the default path.
+        # Pin the default search_path to public. The role is often named "ord", so Postgres's
+        # default ("$user", public) would resolve the ord schema first; the ORM qualifies every
+        # table, so keep only public -- where the RDKit cartridge functions live. Best-effort: a
+        # non-owner connection cannot ALTER DATABASE, but the ORM never relies on the path anyway.
         try:
             connection.execute(
                 text(
@@ -202,10 +232,9 @@ def update_derived_data(
 def _parse_date(value: str) -> datetime.date | None:
     """Parses the date from a free-text provenance timestamp, or None if unparseable.
 
-    Provenance times are free text in several formats (ISO, US, ctime), so they're
-    parsed with dateutil. Only the calendar date is kept; recency browsing needs no
-    finer granularity, and dropping the time avoids the timezones these values may
-    carry.
+    Provenance times are free text in several formats (ISO, US, ctime), so dateutil parses them.
+    Only the calendar date is kept: recency browsing needs no finer granularity, and dropping the
+    time sidesteps the timezones these values may carry.
     """
     try:
         return parser.parse(value).date()
@@ -216,12 +245,10 @@ def _parse_date(value: str) -> datetime.date | None:
 def set_submitted_at(dataset_id: str, session: Session) -> None:
     """Sets ``dataset.submitted_at`` from the dataset's latest reaction record event.
 
-    Uses the last ``record_modified`` entry of an arbitrary reaction in the dataset:
-    record events are appended in chronological order, so the last one is the most
-    recent. Falls back to ``record_created`` (required) when there is no
-    ``record_modified``. Reactions in a dataset share their submission-pipeline
-    timestamps, so one reaction is representative and avoids scanning every reaction.
-    Leaves NULL only when the timestamp is missing or unparseable.
+    Reactions in a dataset share submission-pipeline timestamps, so one arbitrary reaction is
+    representative (no full scan). Uses its last ``record_modified`` entry (record events are
+    appended chronologically), falling back to the required ``record_created``. Leaves NULL when
+    the timestamp is missing or unparseable.
     """
     session.flush()  # set_submitted_at reads via raw SQL; make pending rows visible.
     value = session.execute(
@@ -337,10 +364,9 @@ def _collect_rows(root: Any, rows_by_table: dict[str, tuple[Any, list]]) -> None
         if entry is None:
             entry = (table, [])
             rows_by_table[table.fullname] = entry
-        # Every primary key must be populated by now: Uuid PKs are minted above, and text PKs
-        # (e.g. public.datasets.dataset_id, public.reactions.reaction_id) are set either from the
-        # proto or by FK wiring when the owning parent was visited. A NULL here means a table was
-        # added with a PK that is neither, which would otherwise fail deep inside COPY.
+        # Every PK must be populated now: Uuid PKs are minted above; text PKs (e.g.
+        # public.reactions.reaction_id) come from the proto or FK wiring from the parent. A NULL
+        # here means a new table has a PK that is neither, which would otherwise fail inside COPY.
         for key_column in table.primary_key:
             assert getattr(node, key_column.key, None) is not None, (
                 f"unpopulated primary key {table.fullname}.{key_column.name}; a new table needs "
@@ -542,21 +568,15 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
     logger.debug(f"delete took {time.time() - start}s")
 
 
-# Every derived/RDKit pass scopes its work to one dataset, which means walking from a
-# compound up to ord.reaction. ord.compound hangs off three different parents, so no single
-# join reaches them all:
-#
-#   * a reaction's own input (ord.reaction_input.reaction_id is set);
-#   * a workup's input (that ord.reaction_input row has reaction_id NULL and
-#     reaction_workup_id set instead);
-#   * a product measurement (ord.compound.reaction_input_id is NULL) -- authentic standards.
-#
-# Each path is listed separately and the callers UNION them rather than reaching ord.reaction
-# through a COALESCE of the parent keys: an equality against COALESCE(...) is not sargable, so
-# the planner could not drive from the dataset's reactions through the indexed foreign keys.
-# The paths are disjoint -- a compound sets exactly one of reaction_input_id /
-# product_measurement_id, and a reaction_input belongs to exactly one of a reaction or a workup
-# -- so UNION ALL never double-counts a compound.
+# The derived/RDKit passes scope to a dataset by walking from a compound up to ord.reaction, but
+# ord.compound hangs off three parents, so no single join reaches all of them:
+#   * a reaction input (reaction_input.reaction_id set);
+#   * a workup input (that reaction_input has reaction_id NULL, reaction_workup_id set);
+#   * a product measurement (compound.reaction_input_id NULL) -- authentic standards.
+# Callers UNION the paths rather than joining through COALESCE of the parent keys, which is not
+# sargable and would keep the planner off the foreign-key indexes. The paths are disjoint (a
+# compound sets exactly one of reaction_input_id/product_measurement_id; a reaction_input belongs
+# to a reaction xor a workup), so UNION ALL never double-counts.
 _COMPOUND_REACTION_JOINS: tuple[str, ...] = (
     """
     JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
@@ -584,6 +604,24 @@ _PRODUCT_COMPOUND_REACTION_JOINS: tuple[str, ...] = (
 )
 
 
+def _resolve_dataset_pk(dataset_id: str, session: Session) -> Any:
+    """Returns the ord.dataset surrogate key for ``dataset_id``.
+
+    The derived and RDKit passes scope to a dataset by this key (``ord.reaction.dataset_id = :pk``)
+    rather than joining ord.dataset on the string ``dataset_id``. A literal surrogate lets the
+    planner use per-dataset row estimates (a small dataset is estimated small), so it picks a
+    bounded nested-loop plan; a value reached only through a join collapses to the average
+    dataset size and drives a whole-table scan instead. See update_rdkit_ids.
+
+    Raises:
+        sqlalchemy.exc.NoResultFound: If no dataset has ``dataset_id`` (it must already be ingested).
+    """
+    return session.execute(
+        text("SELECT id FROM ord.dataset WHERE dataset_id = :dataset_id"),
+        {"dataset_id": dataset_id},
+    ).scalar_one()
+
+
 def update_derived_tables(
     dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
 ) -> None:
@@ -604,10 +642,7 @@ def update_derived_tables(
     start = time.time()
     # dataset_id and the compound link columns live on the polymorphic child mappers, so
     # rows are scoped to the dataset via raw SQL (like the RDKit pass).
-    dataset_pk = session.execute(
-        text("SELECT id FROM ord.dataset WHERE dataset_id = :dataset_id"),
-        {"dataset_id": dataset_id},
-    ).scalar_one()
+    dataset_pk = _resolve_dataset_pk(dataset_id, session)
     # Reaction SMILES from the served proto (no ORM objects loaded), keyed by ord.reaction.id.
     # Resolve the ids needing derivation in one indexed pass, then load and parse the (large)
     # protos in batches of _DERIVED_BATCH.
@@ -814,8 +849,12 @@ def update_rdkit_tables(
     ``update_rdkit_ids``) partitions by the *same* SMILES hash, shard ``k`` inserts exactly the
     structures its links will reference -- disjoint key sets across shards, so concurrent shards
     never collide on the shared ``rdkit.*`` unique indexes (datasets still run serially).
+
+    Raises:
+        RuntimeError: If the server is older than PostgreSQL 12 (the queries use AS MATERIALIZED).
     """
     logger.debug(f"Updating RDKit tables for {dataset_id=}")
+    _check_server_version(session.connection())
     _update_rdkit_reactions(dataset_id, session, shard=shard)
     _update_rdkit_mols(dataset_id, session, shard=shard)
 
@@ -826,28 +865,35 @@ def _update_rdkit_reactions(
     """Updates the RDKit reactions table."""
     logger.debug("Updating RDKit reactions")
     start = time.time()
+    dataset_pk = _resolve_dataset_pk(dataset_id, session)
     shard_sql, shard_params = _shard_predicate(
         "derived.reaction_smiles.reaction_smiles", shard
     )
     result = session.execute(
         text(f"""
+            WITH scoped_reactions AS MATERIALIZED (
+                -- Scope to the dataset via the surrogate key, carrying no rdkit_reaction_id
+                -- predicate, so the planner reaches the reactions through ix_reaction_dataset_id
+                -- instead of the whole-database "unlinked" partial index (which a backfill would
+                -- rescan per (dataset, shard)). See _link_mol_ids and #895.
+                SELECT ord.reaction.id AS id
+                FROM ord.reaction
+                WHERE ord.reaction.dataset_id = :dataset_pk
+            )
             INSERT INTO rdkit.reactions (reaction_smiles, reaction)
             SELECT reaction_smiles, reaction
             FROM (
                 SELECT reaction_smiles, reaction_from_smiles(reaction_smiles::cstring) AS reaction
                 FROM (
-                    -- NOTE(skearnes): NOT EXISTS probes the unique reaction_smiles index per candidate instead
-                    -- of EXCEPT-scanning all of rdkit.reactions; DISTINCT dedupes within the dataset.
-                    -- reaction_smiles IS NOT NULL is required: unlike EXCEPT (which treats NULLs as equal),
-                    -- NOT EXISTS never matches a NULL, so without it a no-SMILES reaction would re-insert a junk
-                    -- (NULL, NULL) row on every run. The ON CONFLICT below is a backstop; sharded runs also keep
-                    -- concurrent inserts on disjoint reaction_smiles hash-partitions so they never collide.
+                    -- NOT EXISTS probes the unique reaction_smiles index per candidate rather than
+                    -- EXCEPT-scanning all of rdkit.reactions; DISTINCT dedupes within the dataset.
+                    -- reaction_smiles IS NOT NULL is required: NOT EXISTS never matches a NULL, so
+                    -- without it a no-SMILES reaction would re-insert a junk (NULL, NULL) row every
+                    -- run. ON CONFLICT is a backstop; shards insert on disjoint hash-partitions.
                     SELECT DISTINCT derived.reaction_smiles.reaction_smiles
                         FROM derived.reaction_smiles
-                        JOIN ord.reaction ON ord.reaction.id = derived.reaction_smiles.reaction_id
-                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                        WHERE ord.dataset.dataset_id = :dataset_id
-                          AND derived.reaction_smiles.rdkit_reaction_id IS NULL
+                        JOIN scoped_reactions ON scoped_reactions.id = derived.reaction_smiles.reaction_id
+                        WHERE derived.reaction_smiles.rdkit_reaction_id IS NULL
                           AND derived.reaction_smiles.reaction_smiles IS NOT NULL
                           AND NOT EXISTS (
                               SELECT 1 FROM rdkit.reactions
@@ -861,7 +907,7 @@ def _update_rdkit_reactions(
             WHERE reaction IS NOT NULL
             ON CONFLICT (reaction_smiles) DO NOTHING
             """),  # noqa: S608  (shard predicate is an internal constant fragment)
-        {"dataset_id": dataset_id, **shard_params},
+        {"dataset_pk": dataset_pk, **shard_params},
     )
     logger.debug(
         f"Updating reactions took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)"
@@ -874,49 +920,57 @@ def _update_rdkit_mols(
     """Updates the RDKit mols table."""
     logger.debug("Updating RDKit mols")
     start = time.time()
+    dataset_pk = _resolve_dataset_pk(dataset_id, session)
     shard_sql, shard_params = _shard_predicate("candidates.smiles", shard)
-    # One candidate SELECT per join path (see _COMPOUND_REACTION_JOINS); UNION dedupes the SMILES
-    # a dataset repeats across compounds.
-    candidates = "\nUNION\n".join(
-        [
-            f"""
-                    SELECT derived.compound_smiles.smiles
-                        FROM derived.compound_smiles
-                        JOIN ord.compound ON ord.compound.id = derived.compound_smiles.compound_id
-                        {reaction_join}
-                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                        WHERE ord.dataset.dataset_id = :dataset_id
-                          AND derived.compound_smiles.rdkit_mol_id IS NULL
-            """  # noqa: S608  (the join path is an internal constant, not user input)
-            for reaction_join in _COMPOUND_REACTION_JOINS
-        ]
-        + [
-            f"""
-                    SELECT derived.product_compound_smiles.smiles
-                        FROM derived.product_compound_smiles
-                        JOIN ord.product_compound
-                            ON ord.product_compound.id = derived.product_compound_smiles.product_compound_id
-                        {reaction_join}
-                        JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                        WHERE ord.dataset.dataset_id = :dataset_id
-                          AND derived.product_compound_smiles.rdkit_mol_id IS NULL
-            """  # noqa: S608  (the join path is an internal constant, not user input)
-            for reaction_join in _PRODUCT_COMPOUND_REACTION_JOINS
-        ]
+    # Scope each compound table to the dataset via the surrogate key, in a MATERIALIZED CTE with no
+    # rdkit_mol_id predicate, so the planner reaches the compounds through ix_reaction_dataset_id
+    # rather than the whole-database "unlinked rows" partial index; new_smiles then joins the
+    # derived tables to these bounded id sets. See _link_mol_ids and #895. UNION ALL is safe: the
+    # join paths select disjoint compounds (see _COMPOUND_REACTION_JOINS).
+    scoped_compound_ids = "\nUNION ALL\n".join(
+        f"""
+                SELECT ord.compound.id AS id
+                FROM ord.compound
+                {reaction_join}
+                WHERE ord.reaction.dataset_id = :dataset_pk
+        """  # noqa: S608  (the join path is an internal constant, not user input)
+        for reaction_join in _COMPOUND_REACTION_JOINS
+    )
+    scoped_product_compound_ids = "\nUNION ALL\n".join(
+        f"""
+                SELECT ord.product_compound.id AS id
+                FROM ord.product_compound
+                {reaction_join}
+                WHERE ord.reaction.dataset_id = :dataset_pk
+        """  # noqa: S608  (the join path is an internal constant, not user input)
+        for reaction_join in _PRODUCT_COMPOUND_REACTION_JOINS
     )
     result = session.execute(
         text(f"""
-            WITH new_smiles AS MATERIALIZED (
-                -- Materialization barrier (AS MATERIALIZED): resolve the dataset's not-yet-linked SMILES that
-                -- aren't already in rdkit.mols FIRST -- a cheap per-candidate probe of the unique smiles index --
-                -- so the expensive mol_from_smiles/morgan_*_fp calls below run only on the survivors. Without the
-                -- barrier the planner may evaluate those functions (and especially the WHERE mol IS NOT NULL
-                -- guard's mol_from_smiles) on every candidate before the anti-join; observed ~240s for a no-op
-                -- dataset. NOT EXISTS replaces the old EXCEPT, which scanned all of rdkit.mols but also happened
-                -- to materialize for this same reason.
+            WITH scoped_compounds AS MATERIALIZED (
+                {scoped_compound_ids}
+            ),
+            scoped_product_compounds AS MATERIALIZED (
+                {scoped_product_compound_ids}
+            ),
+            new_smiles AS MATERIALIZED (
+                -- MATERIALIZED barrier: resolve the not-yet-linked SMILES absent from rdkit.mols
+                -- FIRST (a cheap probe of the unique smiles index) so the expensive
+                -- mol_from_smiles/morgan_*_fp calls below run only on the survivors. Without it the
+                -- planner may run those functions on every candidate before the anti-join (~240s
+                -- for a no-op dataset). UNION dedupes SMILES a dataset repeats across compounds.
                 SELECT smiles
                 FROM (
-                    {candidates}
+                    SELECT derived.compound_smiles.smiles
+                        FROM derived.compound_smiles
+                        JOIN scoped_compounds ON scoped_compounds.id = derived.compound_smiles.compound_id
+                        WHERE derived.compound_smiles.rdkit_mol_id IS NULL
+                    UNION
+                    SELECT derived.product_compound_smiles.smiles
+                        FROM derived.product_compound_smiles
+                        JOIN scoped_product_compounds
+                            ON scoped_product_compounds.id = derived.product_compound_smiles.product_compound_id
+                        WHERE derived.product_compound_smiles.rdkit_mol_id IS NULL
                 ) candidates
                 WHERE smiles NOT LIKE '%[Ti+5]%'  -- See https://github.com/open-reaction-database/ord-schema/issues/672.
                   AND NOT EXISTS (SELECT 1 FROM rdkit.mols WHERE rdkit.mols.smiles = candidates.smiles)
@@ -932,7 +986,7 @@ def _update_rdkit_mols(
             WHERE mol IS NOT NULL
             ON CONFLICT (smiles) DO NOTHING
             """),  # noqa: S608  (shard predicate is an internal constant fragment)
-        {"dataset_id": dataset_id, **shard_params},
+        {"dataset_pk": dataset_pk, **shard_params},
     )
     logger.debug(
         f"Updating mols took {time.time() - start:g}s ({cast(Any, result).rowcount} rows)"
@@ -946,19 +1000,22 @@ def _link_mol_ids(
     derived_id_column: str,
     compound_table: str,
     reaction_joins: tuple[str, ...],
-    dataset_id: str,
+    dataset_pk: Any,
     shard: tuple[int, int] | None = None,
 ) -> int:
     """Links rdkit.mols ids into a derived compound-SMILES table for one dataset.
 
-    The Compound and ProductCompound updates are identical apart from the tables
-    and join paths, so they share this helper. Identifier arguments are trusted
-    literals supplied by ``update_rdkit_ids`` (never user input) and are
-    interpolated into the statement; ``dataset_id`` is passed as a bind param.
+    The Compound and ProductCompound updates are identical apart from the tables and join paths,
+    so they share this helper. Table/column arguments are trusted literals from ``update_rdkit_ids``
+    (never user input); ``dataset_pk`` is a bind param.
 
-    One statement runs per join path. The paths select disjoint compounds, so a row is
-    linked by exactly one of them, and each keeps the flat ``UPDATE ... FROM`` form whose
-    join keys stay indexed.
+    One statement runs per join path. Each scopes to the dataset in a MATERIALIZED CTE keyed on the
+    surrogate ``dataset_pk`` and carrying no rdkit_mol_id predicate, so the planner uses a
+    per-dataset row estimate and reaches the compounds through ix_reaction_dataset_id; the outer
+    UPDATE then touches only those compounds' derived rows. Without this a backfill -- every
+    dataset's rows unlinked at once -- rescans the whole unlinked set once per (dataset, shard); see
+    https://github.com/open-reaction-database/ord-schema/issues/895. The paths select disjoint
+    compounds, so a row is linked by exactly one of them.
 
     Args:
         session: Active SQLAlchemy session.
@@ -968,7 +1025,7 @@ def _link_mol_ids(
         compound_table: ORD compound table (e.g. ``"ord.compound"``).
         reaction_joins: Disjoint join paths from ``compound_table`` to ord.reaction
             (e.g. ``_COMPOUND_REACTION_JOINS``).
-        dataset_id: Dataset to scope the update to.
+        dataset_pk: ord.dataset surrogate key to scope the update to (see _resolve_dataset_pk).
         shard: Optional ``(index, num_shards)`` partition (by the derived table's SMILES hash)
             to restrict the update to, matching the mol-insert partition so a shard links exactly
             the rows it inserted.
@@ -981,18 +1038,21 @@ def _link_mol_ids(
     for reaction_join in reaction_joins:
         result = session.execute(
             text(f"""
+                WITH scoped_compounds AS MATERIALIZED (
+                    SELECT {compound_table}.id AS id
+                    FROM {compound_table}
+                    {reaction_join}
+                    WHERE ord.reaction.dataset_id = :dataset_pk
+                )
                 UPDATE {derived_table}
                 SET rdkit_mol_id = rdkit.mols.id
-                FROM rdkit.mols, {compound_table}
-                    {reaction_join}
-                    JOIN ord.dataset ON ord.reaction.dataset_id = ord.dataset.id
-                WHERE rdkit.mols.smiles = {derived_table}.smiles
-                  AND {derived_table}.{derived_id_column} = {compound_table}.id
-                  AND ord.dataset.dataset_id = :dataset_id
+                FROM rdkit.mols, scoped_compounds
+                WHERE {derived_table}.{derived_id_column} = scoped_compounds.id
+                  AND rdkit.mols.smiles = {derived_table}.smiles
                   AND {derived_table}.rdkit_mol_id IS NULL
                   {shard_sql}
                 """),  # noqa: S608  (table/column names are internal constants, not user input)
-            {"dataset_id": dataset_id, **shard_params},
+            {"dataset_pk": dataset_pk, **shard_params},
         )
         rows += cast(Any, result).rowcount
     return rows
@@ -1006,30 +1066,39 @@ def update_rdkit_ids(
     ``shard`` (index, num_shards) restricts the links to one SMILES-hash partition, matching the
     insert partition in ``update_rdkit_tables`` so shard ``k`` links exactly the structures it
     inserted.
+
+    Raises:
+        RuntimeError: If the server is older than PostgreSQL 12 (the queries use AS MATERIALIZED).
     """
     logger.debug("Updating RDKit ID associations")
+    _check_server_version(session.connection())
     start = time.time()
-    # NOTE(skearnes): These use the flat ``UPDATE ... FROM`` form (target updated in place) rather than
-    # ``FROM (SELECT id, rdkit_id ...) WHERE target.id = subquery.id``, which materialized the pairs and then
-    # re-joined the target by id. The rdkit join keys (reaction_smiles/smiles) are unique-indexed, and the
-    # dataset scope is reached via the indexed foreign keys.
-    # Update derived.reaction_smiles (reaction_smiles and rdkit_reaction_id live there).
+    # Each UPDATE scopes to the dataset in a MATERIALIZED CTE keyed on the surrogate, carrying no
+    # rdkit_*_id predicate, so the planner reaches the rows through ix_reaction_dataset_id. The
+    # earlier flat ``UPDATE ... FROM ord.reaction WHERE ... rdkit_*_id IS NULL`` let it drive from
+    # the "unlinked rows" partial index -- fine on an end-to-end load (the set drains dataset by
+    # dataset) but quadratic on a backfill, where every dataset is unlinked at once and each
+    # (dataset, shard) rescans the whole set. See #895.
+    dataset_pk = _resolve_dataset_pk(dataset_id, session)
     reaction_shard_sql, reaction_shard_params = _shard_predicate(
         "derived.reaction_smiles.reaction_smiles", shard
     )
     reaction_result = session.execute(
         text(f"""
+            WITH scoped_reactions AS MATERIALIZED (
+                SELECT ord.reaction.id AS id
+                FROM ord.reaction
+                WHERE ord.reaction.dataset_id = :dataset_pk
+            )
             UPDATE derived.reaction_smiles
             SET rdkit_reaction_id = rdkit.reactions.id
-            FROM rdkit.reactions, ord.reaction, ord.dataset
-            WHERE rdkit.reactions.reaction_smiles = derived.reaction_smiles.reaction_smiles
-              AND derived.reaction_smiles.reaction_id = ord.reaction.id
-              AND ord.reaction.dataset_id = ord.dataset.id
-              AND ord.dataset.dataset_id = :dataset_id
+            FROM rdkit.reactions, scoped_reactions
+            WHERE derived.reaction_smiles.reaction_id = scoped_reactions.id
+              AND rdkit.reactions.reaction_smiles = derived.reaction_smiles.reaction_smiles
               AND derived.reaction_smiles.rdkit_reaction_id IS NULL
               {reaction_shard_sql}
             """),  # noqa: S608  (shard predicate is an internal constant fragment)
-        {"dataset_id": dataset_id, **reaction_shard_params},
+        {"dataset_pk": dataset_pk, **reaction_shard_params},
     )
     reaction_rows = cast(Any, reaction_result).rowcount
     compound_rows = _link_mol_ids(
@@ -1038,7 +1107,7 @@ def update_rdkit_ids(
         derived_id_column="compound_id",
         compound_table="ord.compound",
         reaction_joins=_COMPOUND_REACTION_JOINS,
-        dataset_id=dataset_id,
+        dataset_pk=dataset_pk,
         shard=shard,
     )
     product_compound_rows = _link_mol_ids(
@@ -1047,7 +1116,7 @@ def update_rdkit_ids(
         derived_id_column="product_compound_id",
         compound_table="ord.product_compound",
         reaction_joins=_PRODUCT_COMPOUND_REACTION_JOINS,
-        dataset_id=dataset_id,
+        dataset_pk=dataset_pk,
         shard=shard,
     )
     logger.debug(

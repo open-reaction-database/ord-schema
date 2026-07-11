@@ -17,6 +17,7 @@
 import datetime
 import pathlib
 from typing import cast
+from unittest.mock import Mock
 
 import pytest
 from rdkit import Chem
@@ -549,6 +550,31 @@ def test_surrogate_keys_are_uuidv7(test_session):
         text("SELECT id FROM ord.reaction LIMIT 1")
     ).scalar_one()
     assert reaction_id.version == 7
+
+
+@pytest.mark.parametrize(
+    ("version_num", "raises"),
+    [("110000", True), ("120000", False), ("160005", False)],
+)
+def test_check_server_version(version_num, raises):
+    """The version guard rejects pre-12 servers and passes 12+ (real prepare_database runs on 12+)."""
+    connection = Mock()
+    connection.execute.return_value.scalar_one.return_value = version_num
+    if raises:
+        with pytest.raises(RuntimeError, match="PostgreSQL 12"):
+            _orm_database._check_server_version(connection)
+    else:
+        _orm_database._check_server_version(connection)
+
+
+def test_check_server_version_memoized_per_connection():
+    """The check queries once per connection, then reuses the cached result on info."""
+    connection = Mock()
+    connection.info = {}
+    connection.execute.return_value.scalar_one.return_value = "160005"
+    _orm_database._check_server_version(connection)
+    _orm_database._check_server_version(connection)
+    connection.execute.assert_called_once()
 
 
 def test_default_search_path_is_public(test_session):
