@@ -14,23 +14,24 @@
 
 """Hash-partition predicate shared by the sharded derived passes.
 
-Kept in its own module so ``database`` and ``reaction_class`` can both use it without an import
-cycle (``database`` imports ``reaction_class``).
+Kept in its own module so ``database`` and ``reaction_class`` can both use it without an
+import cycle (``database`` imports ``reaction_class``).
 """
 
 
 def shard_predicate(
     column: str, shard: tuple[int, int] | None
 ) -> tuple[str, dict[str, int]]:
-    """Returns an ``AND`` predicate keeping 1/num_shards of rows by ``column``, or ``('', {})``.
+    """Returns an ``AND`` predicate selecting 1/num_shards of rows by ``column``.
 
-    Partitions a dataset's rows deterministically and disjointly by a hash of ``column``, so
-    independent workers can each process their shard without coordinating. ``shard`` is
-    ``(index, num_shards)``; ``None`` disables sharding (whole dataset).
+    Partitions a dataset's rows deterministically and disjointly by a hash of
+    ``column``, so independent workers can each process their shard without
+    coordinating. ``shard`` is ``(index, num_shards)``; ``None`` disables sharding
+    (whole dataset).
 
-    ``column`` is interpolated into the SQL, so it must be a trusted, hardcoded column reference
-    (e.g. ``"ord.reaction.id"``) -- never a user-supplied string. The shard bounds are passed as
-    bind parameters.
+    ``column`` is interpolated into the SQL, so it must be a trusted, hardcoded column
+    reference (e.g. ``"ord.reaction.id"``) -- never a user-supplied string. The shard
+    bounds are passed as bind parameters.
     """
     if shard is None:
         return "", {}

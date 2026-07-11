@@ -147,9 +147,8 @@ def test_parquet_cross_row_group_duplicate_id(tmp_path):
 def test_parquet_empty_file(tmp_path):
     """A zero-row-group parquet still hits the dataset-level finalize path.
 
-    Exercises the synchronous fallthrough in ``main`` (no row-group tasks
-    submitted) and asserts the standard 'requires reactions or reaction_ids'
-    error surfaces.
+    Exercises the synchronous fallthrough in ``main`` (no row-group tasks submitted) and
+    asserts the standard 'requires reactions or reaction_ids' error surfaces.
     """
     path = tmp_path / "empty.parquet"
     with parquet.DatasetWriter(str(path), name="test", description="test") as writer:

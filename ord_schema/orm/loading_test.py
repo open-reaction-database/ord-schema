@@ -56,10 +56,10 @@ def _derived_counts(engine) -> dict[str, int]:
 
 
 def _content_digests(engine) -> dict[str, tuple[int, str | None]]:
-    """Per-table (row count, order-independent digest of non-key columns), keyed by table name.
+    """Per-table (row count, order-independent digest of non-key columns) keyed by name.
 
-    Excludes primary- and foreign-key columns so the digest depends only on payload, not on the
-    surrogate ids (which differ between two independent ingests).
+    Excludes primary- and foreign-key columns so the digest depends only on payload, not
+    on the surrogate ids (which differ between two independent ingests).
     """
     digests: dict[str, tuple[int, str | None]] = {}
     with Session(engine) as session:
@@ -79,19 +79,23 @@ def _content_digests(engine) -> dict[str, tuple[int, str | None]]:
                 # (concat_ws instead drops NULLs, letting a NULL alias a value that
                 # contains the delimiter).
                 order = ", ".join(f'"{c}"' for c in content)
-                query = f"SELECT md5(string_agg(x, '|' ORDER BY x)) FROM (SELECT md5(json_build_array({order})::text) AS x FROM {table.fullname}) t"  # noqa: S608  (internal schema constants)
+                query = (  # internal schema constants, not user input
+                    "SELECT md5(string_agg(x, '|' ORDER BY x)) FROM "  # noqa: S608
+                    f"(SELECT md5(json_build_array({order})::text) AS x "
+                    f"FROM {table.fullname}) t"
+                )
                 digest = session.execute(text(query)).scalar()
             digests[table.fullname] = (count, digest)
     return digests
 
 
 def test_parquet_copy_ingest_matches_orm(tmp_path):
-    """The COPY parquet ingest yields the same ord.*/public.reactions content as the ORM path.
+    """COPY parquet ingest yields the same ord.*/public.reactions content as the ORM.
 
-    add_parquet_dataset builds the same from_proto trees as add_dataset but streams them with
-    COPY instead of the unit of work; the relational content must be byte-identical. (The
-    public.datasets metadata row is written only by the parquet path and is checked separately
-    in test_load_datasets_parquet.)
+    add_parquet_dataset builds the same from_proto trees as add_dataset but streams them
+    with COPY instead of the unit of work; the relational content must be byte-
+    identical. (The public.datasets metadata row is written only by the parquet path and
+    is checked separately in test_load_datasets_parquet.)
     """
     parquet_path, dataset = _write_parquet_dataset(tmp_path)
     result: dict[str, dict[str, tuple[int, str | None]]] = {}
@@ -113,10 +117,11 @@ def test_parquet_copy_ingest_matches_orm(tmp_path):
 
 
 def test_parquet_sharded_ingest_matches_single_process(tmp_path):
-    """Row-group-sharded ingest (n_jobs>1) yields the same content as the single-process path.
+    """Row-group-sharded ingest (n_jobs>1) yields the same content as single-process.
 
-    The dataset is written with several small row groups so the sharded path actually splits work
-    across shards; the two ingests must then agree on every non-key column of every table.
+    The dataset is written with several small row groups so the sharded path actually
+    splits work across shards; the two ingests must then agree on every non-key column
+    of every table.
     """
     parquet_path, _ = _write_parquet_dataset(tmp_path, row_group_size=10)
     assert parquet.num_row_groups(parquet_path) > 1  # Sharding is actually exercised.
@@ -132,7 +137,7 @@ def test_parquet_sharded_ingest_matches_single_process(tmp_path):
 
 
 def test_parquet_sharded_ingest_skip_and_overwrite(tmp_path):
-    """The sharded path skips unchanged datasets, rejects changed ones, and reloads with overwrite."""
+    """Sharded path skips unchanged, rejects changed, and reloads on overwrite."""
     parquet_path, dataset = _write_parquet_dataset(tmp_path, row_group_size=10)
     expected_count = len(dataset.reactions)
     with Postgresql() as postgres:
@@ -163,7 +168,7 @@ def test_parquet_sharded_ingest_skip_and_overwrite(tmp_path):
 
 
 def test_load_datasets_parquet_parallel(prepared_engine, tmp_path):
-    """End-to-end n_jobs>1 run: sharded ingest then the parallel derived stage populate both."""
+    """End-to-end n_jobs>1: sharded ingest then parallel derived stage populate both."""
     parquet_path, dataset = _write_parquet_dataset(tmp_path, row_group_size=10)
     loading.load_datasets(parquet_path, str(prepared_engine.url), n_jobs=2)
     with Session(prepared_engine) as session:
@@ -172,12 +177,12 @@ def test_load_datasets_parquet_parallel(prepared_engine, tmp_path):
 
 
 def test_derived_stage_shards_smiles_and_rdkit(prepared_engine, tmp_path, monkeypatch):
-    """With a small shard size, the derived stage fans SMILES and RDKit into multiple shards.
+    """With a small shard size, the derived stage fans SMILES and RDKit into shards.
 
-    Shrinking _DERIVE_SHARD_SIZE forces the small fixture into several shards, exercising the
-    (dataset, shard) SMILES pool and the per-dataset RDKit shard pool -- not just the single-shard
-    path the default size gives this fixture. Both derived SMILES and the RDKit cartridge tables
-    (with links) must be populated.
+    Shrinking _DERIVE_SHARD_SIZE forces the small fixture into several shards,
+    exercising the (dataset, shard) SMILES pool and the per-dataset RDKit shard pool --
+    not just the single-shard path the default size gives this fixture. Both derived
+    SMILES and the RDKit cartridge tables (with links) must be populated.
     """
     monkeypatch.setattr("ord_schema.orm.loading._DERIVE_SHARD_SIZE", 10)
     parquet_path, dataset = _write_parquet_dataset(tmp_path, row_group_size=10)
@@ -192,7 +197,8 @@ def test_derived_stage_shards_smiles_and_rdkit(prepared_engine, tmp_path, monkey
         assert (
             session.execute(
                 text(
-                    "SELECT count(*) FROM derived.reaction_smiles WHERE rdkit_reaction_id IS NOT NULL"
+                    "SELECT count(*) FROM derived.reaction_smiles "
+                    "WHERE rdkit_reaction_id IS NOT NULL"
                 )
             ).scalar()
             > 0
@@ -200,12 +206,12 @@ def test_derived_stage_shards_smiles_and_rdkit(prepared_engine, tmp_path, monkey
 
 
 def test_parquet_sharded_ingest_recovers_from_partial_load(tmp_path):
-    """A crashed shard phase (dataset row + some reactions, no marker) is cleanly redone.
+    """A crashed shard (dataset row + some reactions, no marker) is cleanly redone.
 
-    Simulates the failure the completeness marker guards against: prep inserts the ord.dataset row
-    and one shard loads part of the reactions, but finalize never runs, so public.datasets has no
-    marker. A subsequent load must detect the missing marker, wipe the partial rows, and produce a
-    complete, correct ingest.
+    Simulates the failure the completeness marker guards against: prep inserts the
+    ord.dataset row and one shard loads part of the reactions, but finalize never runs,
+    so public.datasets has no marker. A subsequent load must detect the missing marker,
+    wipe the partial rows, and produce a complete, correct ingest.
     """
     parquet_path, dataset = _write_parquet_dataset(tmp_path, row_group_size=10)
     with Postgresql() as postgres:
@@ -239,7 +245,7 @@ def test_load_datasets(prepared_engine):
 
 
 def test_load_datasets_parquet(prepared_engine, tmp_path):
-    """Streaming Parquet ingest stores the streaming MD5, reaction count, and Reaction rows."""
+    """Parquet ingest stores the streaming MD5, reaction count, and Reaction rows."""
     parquet_path, dataset = _write_parquet_dataset(tmp_path)
     loading.load_datasets(parquet_path, str(prepared_engine.url))
     expected_md5, expected_count = parquet.streaming_md5(parquet_path)
@@ -296,7 +302,7 @@ def test_load_datasets_parquet_rejects_changed_without_overwrite(
 
 
 def test_stages_ingest_then_derived(prepared_engine):
-    """stages=ingest writes ord.*/public.* with no derived rows; a later stages=derived backfills them."""
+    """Ingest stage writes ord.*/public.*; derived stage backfills derived rows."""
     url = str(prepared_engine.url)
     loading.load_datasets(_PBTXT_FIXTURE, url, stages=["ingest"])
     with Session(prepared_engine) as session:

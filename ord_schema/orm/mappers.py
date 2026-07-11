@@ -15,17 +15,21 @@
 """Table mappings for Reaction protos.
 
 Notes:
-    * Foreign keys to the `reaction` table are done using the `id` column, not the ORD reaction ID (`reaction_id`).
-      However, the `reaction_id` column is used when the reaction ID is specifically called for, as with crude inputs.
+    * Foreign keys to the `reaction` table are done using the `id` column, not the ORD
+      reaction ID (`reaction_id`). However, the `reaction_id` column is used when the
+      reaction ID is specifically called for, as with crude inputs.
     * We use inheritance to handle messages that appear in more than one context; see
-      https://docs.sqlalchemy.org/en/14/orm/inheritance.html. The possible constraints are:
-        - Some message types are used more than once in a parent (such as Time in ReactionInput), which forces
-          the use of either joined or single table inheritance.
-        - Some messages can be repeated, while others are unique to their parent. These uniqueness constraints force
-          the use of joined table inheritance since they are specific to their polymorphic type.
-      For convenience and consistency, we use single table inheritance for *all* message types, regardless of whether
-      they are used in one context or more than one context. This means that we do not enforce the second constraint in
-      the database.
+      https://docs.sqlalchemy.org/en/14/orm/inheritance.html. The possible constraints
+      are:
+        - Some message types are used more than once in a parent (such as Time in
+          ReactionInput), which forces the use of either joined or single table
+          inheritance.
+        - Some messages can be repeated, while others are unique to their parent. These
+          uniqueness constraints force the use of joined table inheritance since they
+          are specific to their polymorphic type.
+      For convenience and consistency, we use single table inheritance for *all* message
+      types, regardless of whether they are used in one context or more than one
+      context. This means that we do not enforce the second constraint in the database.
 """
 
 from collections import defaultdict
@@ -163,7 +167,8 @@ def build_mapper(
 
     Args:
         message_type: Protocol buffer message type.
-        parents: Dict mapping message types to lists of (parent message type, field name, unique) tuples.
+        parents: Dict mapping message types to lists of (parent message type, field
+            name, unique) tuples.
 
     Returns:
         Generated mapper class.
@@ -334,8 +339,9 @@ def from_proto(
 
     Args:
         message: Protobuf message.
-        mapper: ORM mapper class. For top-level protos like Dataset and Reaction this can be left as None; it must
-            be provided for Child subclasses to properly handle polymorphism.
+        mapper: ORM mapper class. For top-level protos like Dataset and Reaction this
+            can be left as None; it must be provided for Child subclasses to properly
+            handle polymorphism.
         key: Map key (we store maps as rows of (key, value) tuples).
 
     Returns:

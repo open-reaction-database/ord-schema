@@ -13,9 +13,9 @@
 # limitations under the License.
 """Deprecated alias module for :mod:`ord_schema.parquet`.
 
-``ord_schema.parquet_dataset`` was renamed to ``ord_schema.parquet``. This
-module forwards attribute access to the new module for backwards compatibility
-and will be removed in a future minor release.
+``ord_schema.parquet_dataset`` was renamed to ``ord_schema.parquet``. This module
+forwards attribute access to the new module for backwards compatibility and will be
+removed in a future minor release.
 """
 
 import warnings
@@ -26,7 +26,8 @@ from ord_schema import parquet
 
 def __getattr__(name: str) -> Any:
     warnings.warn(
-        "ord_schema.parquet_dataset was renamed to ord_schema.parquet; update your imports.",
+        "ord_schema.parquet_dataset was renamed to ord_schema.parquet; "
+        "update your imports.",
         DeprecationWarning,
         stacklevel=2,
     )

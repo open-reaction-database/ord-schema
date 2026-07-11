@@ -18,15 +18,16 @@ Example usage:
 from ord_schema.macros import workups
 from ord_schema.macros import solutions
 
-The reaction was quenched with 300 ml of 0.5M NaHCO3 solution and the phases were separated.
-The aqueous layer was back-extracted twice with 100 ml of EtOAc. The organic layers were
-combined and washed with 200 ml of saturated NaCl solution, dried over MgSO4 and filtered.
-Upon concentration to an oil, the crude product was purified by normal phase column
-chromatography
+The reaction was quenched with 300 ml of 0.5M NaHCO3 solution and the phases were
+separated. The aqueous layer was back-extracted twice with 100 ml of EtOAc. The
+organic layers were combined and washed with 200 ml of saturated NaCl solution,
+dried over MgSO4 and filtered. Upon concentration to an oil, the crude product was
+purified by normal phase column chromatography
 
 reaction.workups.MergeFrom([
     workups.add_solution(solutions.simple_solution(
-        solvent_smiles='O', solute_smiles='[Na+][HCO3-]', volume='300mL', concentration='0.5M')),
+        solvent_smiles='O', solute_smiles='[Na+][HCO3-]', volume='300mL',
+        concentration='0.5M')),
     workups.separate_phases(keep_phase='organic'),
     workups.add_solution(solutions.simple_solution(
         solvent_smiles='CC(=O)OCC', volume='100mL'), type='EXTRACTION'),

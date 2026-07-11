@@ -43,9 +43,10 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
-# Enum names of the identifier types a Mol can be built from, keyed off the loaders above
-# so callers (e.g. the derived-SMILES pass) share this module's single source of truth for
-# what "structural" means. These match the values stored in ord.compound_identifier.type.
+# Enum names of the identifier types a Mol can be built from, keyed off the
+# loaders above so callers (e.g. the derived-SMILES pass) share this module's
+# single source of truth for what "structural" means. These match the values
+# stored in ord.compound_identifier.type.
 STRUCTURAL_IDENTIFIER_TYPES = frozenset(
     reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name(identifier_type)
     for identifier_type in _COMPOUND_IDENTIFIER_LOADERS
@@ -54,7 +55,7 @@ MessageType = TypeVar("MessageType")  # Generic for setting return types
 
 
 def _resolve_enum_value(descriptor: Descriptor, field_name: str, key: str) -> int:
-    """Returns the numeric value for ``key`` in the named enum field of ``descriptor``."""
+    """Returns the numeric value of ``key`` in ``descriptor``'s named enum field."""
     assert descriptor is not None  # Type hint.
     field = descriptor.fields_by_name[field_name]
     assert field.enum_type is not None  # Type hint.
@@ -402,8 +403,9 @@ def get_reaction_smiles(
         allow_incomplete: Boolean whether to allow "incomplete" reaction SMILES
             that do not include all components (e.g. if a component does not
             have a structural identifier).
-        allow_unspecified_roles: If True, reactants and products with the UNSPECIFIED reaction role will be included
-            when generating a reaction SMILES.
+        allow_unspecified_roles: If True, reactants and products with the
+            UNSPECIFIED reaction role will be included when generating a reaction
+            SMILES.
         validate: Boolean whether to validate the reaction SMILES with rdkit.
             Only used if allow_incomplete is False.
         canonical: Boolean whether to return a canonicalized reaction SMILES.
@@ -793,8 +795,8 @@ def set_compound_molblock(
 class MessageFormat(enum.Enum):
     """Input/output types for protocol buffer messages.
 
-    BINARY/BINPB and PBTXT/TXTPB pairs use the same wire format; the second of
-    each pair is the newer canonical suffix recommended by protobuf.dev.
+    BINARY/BINPB and PBTXT/TXTPB pairs use the same wire format; the second of each pair
+    is the newer canonical suffix recommended by protobuf.dev.
     """
 
     BINARY = ".pb"
@@ -886,10 +888,9 @@ def _open_for_write(
 ) -> Iterator[Any]:
     """Opens ``tmp_path`` for binary writing.
 
-    For ``.gz`` destinations, wraps the file in a ``GzipFile`` with a fixed
-    mtime and pins the gzip header's filename to the destination's basename
-    so the encoded bytes are deterministic regardless of the random temp
-    name used during writing.
+    For ``.gz`` destinations, wraps the file in a ``GzipFile`` with a fixed mtime and
+    pins the gzip header's filename to the destination's basename so the encoded bytes
+    are deterministic regardless of the random temp name used during writing.
     """
     dest = pathlib.Path(dest)
     with pathlib.Path(tmp_path).open("wb") as raw:
@@ -1102,7 +1103,8 @@ def write_dataset(
     from ord_schema import datasets  # noqa: PLC0415
 
     warnings.warn(
-        "message_helpers.write_dataset is deprecated; use ord_schema.datasets.save_dataset instead.",
+        "message_helpers.write_dataset is deprecated; "
+        "use ord_schema.datasets.save_dataset instead.",
         DeprecationWarning,
         stacklevel=2,
     )

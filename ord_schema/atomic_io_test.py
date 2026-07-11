@@ -76,7 +76,7 @@ def test_atomic_path_preserves_destination_on_exception(tmp_path):
 
 
 def test_atomic_path_removes_temp_on_keyboard_interrupt(tmp_path):
-    """KeyboardInterrupt (a BaseException) also triggers cleanup; documents the contract."""
+    """KeyboardInterrupt (a BaseException) also triggers cleanup, per contract."""
     dest = (tmp_path / "out.bin").as_posix()
     # (abort-on-exception test: the multi-statement body in the context is under test)
     with pytest.raises(KeyboardInterrupt), atomic_io.atomic_path(dest) as tmp:  # noqa: PT012
@@ -96,7 +96,7 @@ def test_atomic_path_swallows_missing_temp_on_exception(tmp_path):
 
 
 def test_atomic_path_unique_temps_for_concurrent_callers(tmp_path):
-    """Two overlapping atomic_path contexts on the same destination get distinct temps."""
+    """Overlapping atomic_path contexts on the same destination get distinct temps."""
     dest = (tmp_path / "out.bin").as_posix()
     with atomic_io.atomic_path(dest) as tmp1, atomic_io.atomic_path(dest) as tmp2:
         assert tmp1 != tmp2

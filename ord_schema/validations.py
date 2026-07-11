@@ -315,7 +315,7 @@ def ensure_float_range(
     min_value: float = -math.inf,
     max_value: float = math.inf,
 ) -> None:
-    """Warns if the given numeric field of the message is outside [min_value, max_value].
+    """Warns if a numeric field of the message is outside [min_value, max_value].
 
     Args:
         message: The message whose field is checked.
@@ -327,7 +327,8 @@ def ensure_float_range(
         desc = type(message).DESCRIPTOR
         assert desc is not None  # Type hint.
         warnings.warn(
-            f"Field {field} of message {desc.name} must be between {min_value} and {max_value}",
+            f"Field {field} of message {desc.name} must be between "
+            f"{min_value} and {max_value}",
             ValidationError,
         )
 
@@ -480,12 +481,11 @@ def has_atom_mapping(smiles: str) -> bool:
 class DatasetCrossRefState:
     """Aggregated cross-reference observations for a Dataset.
 
-    A worker validating a slice of reactions feeds each one into ``observe``
-    and returns the resulting state. The master process merges the per-slice
-    states with ``merge`` and then ``emit_warnings`` raises a warning per
-    duplicate occurrence, per self-reference, and one summary warning if any
-    referenced reaction_ids are undefined. This keeps the streaming path
-    behaviorally equivalent to the in-memory path.
+    A worker validating a slice of reactions feeds each one into ``observe`` and returns
+    the resulting state. The master process merges the per-slice states with ``merge``
+    and then ``emit_warnings`` raises a warning per duplicate occurrence, per self-
+    reference, and one summary warning if any referenced reaction_ids are undefined.
+    This keeps the streaming path behaviorally equivalent to the in-memory path.
     """
 
     defined_ids: set[str] = dataclasses.field(default_factory=set)
@@ -514,7 +514,7 @@ class DatasetCrossRefState:
         self.self_reference_count += other.self_reference_count
 
     def emit_warnings(self) -> None:
-        """Emits warnings for duplicate IDs, self-references, and undefined references."""
+        """Emits warnings for duplicate IDs, self-references, and undefined refs."""
         for _ in range(self.duplicate_count):
             warnings.warn(
                 "Multiple Reactions should never have the same IDs", ValidationError
@@ -540,8 +540,8 @@ def _validate_dataset_scalars(
 ) -> None:
     """Issues the dataset-level scalar/structural warnings.
 
-    Pure function over the scalar fields so the streaming path can reuse it
-    without re-iterating reactions.
+    Pure function over the scalar fields so the streaming path can reuse it without re-
+    iterating reactions.
     """
     if not name:
         warnings.warn("Dataset name is required", ValidationError)
@@ -596,14 +596,14 @@ def validate_dataset_streaming(
 ) -> None:
     """Dataset-level validation for callers that have already streamed reactions.
 
-    Equivalent to ``validate_dataset`` for a Dataset whose reactions have been
-    iterated in slices (e.g., per Parquet row group) by upstream workers, with
-    each worker contributing a ``DatasetCrossRefState`` that the caller has
-    merged. ``has_reactions`` should reflect the source's row count (e.g.,
-    ``parquet.load_metadata`` plus ``num_row_groups`` for parquet);
-    inferring it from ``state`` would misclassify reactions without
-    reaction_ids or references as empty. Pass ``reaction_ids=[]`` for the
-    typical streaming case (parquet does not persist Dataset.reaction_ids).
+    Equivalent to ``validate_dataset`` for a Dataset whose reactions have been iterated
+    in slices (e.g., per Parquet row group) by upstream workers, with each worker
+    contributing a ``DatasetCrossRefState`` that the caller has merged.
+    ``has_reactions`` should reflect the source's row count (e.g.,
+    ``parquet.load_metadata`` plus ``num_row_groups`` for parquet); inferring it from
+    ``state`` would misclassify reactions without reaction_ids or references as empty.
+    Pass ``reaction_ids=[]`` for the typical streaming case (parquet does not persist
+    Dataset.reaction_ids).
     """
     if options is None:
         options = ValidationOptions()
@@ -669,7 +669,8 @@ def validate_reaction(
         outcome.HasField("conversion") for outcome in message.outcomes
     ) and not reaction_has_limiting_component(message):
         warnings.warn(
-            "If reaction conversion is specified, at least one reaction input component must be labeled is_limiting",
+            "If reaction conversion is specified, at least one reaction input "
+            "component must be labeled is_limiting",
             ValidationError,
         )
     if options.validate_ids:
@@ -695,12 +696,14 @@ def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier) -> No
         has_mapping = has_atom_mapping(smiles)
         if message.is_mapped and not has_mapping:
             warnings.warn(
-                "ReactionIdentifier is marked is_mapped but the SMILES contains no atom maps",
+                "ReactionIdentifier is marked is_mapped but the SMILES "
+                "contains no atom maps",
                 ValidationWarning,
             )
         elif has_mapping and not message.is_mapped:
             warnings.warn(
-                "ReactionIdentifier SMILES contains atom maps but is_mapped is not set to True",
+                "ReactionIdentifier SMILES contains atom maps but is_mapped "
+                "is not set to True",
                 ValidationWarning,
             )
     if not message.value:
@@ -785,14 +788,16 @@ def validate_crude_component(message: reaction_pb2.CrudeComponent) -> None:
         warnings.warn("CrudeComponents must specify a reaction_id", ValidationError)
     if message.has_derived_amount and message.amount.HasField("kind"):
         warnings.warn(
-            "CrudeComponents with derived amounts cannot have their mass or volume specified explicitly",
+            "CrudeComponents with derived amounts cannot have their mass or "
+            "volume specified explicitly",
             ValidationError,
         )
     if (
         not message.HasField("has_derived_amount") or not message.has_derived_amount
     ) and not message.amount.HasField("kind"):
         warnings.warn(
-            "Crude components should either have a derived amount or a specified mass or volume",
+            "Crude components should either have a derived amount or a "
+            "specified mass or volume",
             ValidationError,
         )
     if message.amount.WhichOneof("kind") not in [None, "mass", "volume"]:
@@ -810,12 +815,13 @@ def validate_crude_component(message: reaction_pb2.CrudeComponent) -> None:
 def _validate_compound_identifiers(
     message: reaction_pb2.Compound | reaction_pb2.ProductCompound,
 ) -> None:
-    """Warns if a compound lacks identifiers, has only NAME, or has inconsistent ones."""
+    """Warns if a compound lacks identifiers, has only NAME, or inconsistent ones."""
     if len(message.identifiers) == 0:
         warnings.warn("Compounds must have at least one identifier", ValidationError)
     if all(identifier.type == identifier.NAME for identifier in message.identifiers):
         warnings.warn(
-            "Compounds should have more specific identifiers than NAME whenever possible",
+            "Compounds should have more specific identifiers than NAME "
+            "whenever possible",
             ValidationWarning,
         )
     try:
@@ -834,7 +840,8 @@ def validate_compound_preparation(message: reaction_pb2.CompoundPreparation) -> 
     check_type_and_details(message)
     if message.reaction_id and message.type != message.SYNTHESIZED:
         warnings.warn(
-            "Reaction IDs should only be specified in compound preparations when SYNTHESIZED",
+            "Reaction IDs should only be specified in compound preparations "
+            "when SYNTHESIZED",
             ValidationError,
         )
 
@@ -853,12 +860,14 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier) -> No
         if parse_func(message.value) is None:
             if parse_func(message.value, sanitize=False) is None:
                 warnings.warn(
-                    f"RDKit {RDKIT_VERSION} could not validate {identifier_type} identifier {message.value}",
+                    f"RDKit {RDKIT_VERSION} could not validate {identifier_type} "
+                    f"identifier {message.value}",
                     ValidationError,
                 )
             else:
                 warnings.warn(
-                    f"RDKit {RDKIT_VERSION} could not sanitize {identifier_type} identifier {message.value}",
+                    f"RDKit {RDKIT_VERSION} could not sanitize {identifier_type} "
+                    f"identifier {message.value}",
                     ValidationWarning,
                 )
     elif message.type == message.CAS_NUMBER:
@@ -977,7 +986,8 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup) -> None:
         and not message.keep_phase
     ):
         warnings.warn(
-            "Workup step EXTRACTION or FILTRATION missing a recommended field keep_phase",
+            "Workup step EXTRACTION or FILTRATION missing a recommended field "
+            "keep_phase",
             ValidationWarning,
         )
     if (
@@ -1007,7 +1017,8 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup) -> None:
         warnings.warn("pH adjustment workup missing target pH", ValidationWarning)
     if message.HasField("target_ph") and not 0 <= message.target_ph <= 14:
         warnings.warn(
-            f"Workup target pH ({message.target_ph}) is outside the expected range (0-14)",
+            f"Workup target pH ({message.target_ph}) is outside the expected "
+            "range (0-14)",
             ValidationWarning,
         )
     if message.type == reaction_pb2.ReactionWorkup.ALIQUOT:
@@ -1031,7 +1042,8 @@ def validate_reaction_workup(message: reaction_pb2.ReactionWorkup) -> None:
         reaction_pb2.ReactionWorkup.CUSTOM,
     ):
         warnings.warn(
-            "Workup amount should only be specified if workup type is ALIQUOT or CUSTOM",
+            "Workup amount should only be specified if workup type is ALIQUOT "
+            "or CUSTOM",
             ValidationWarning,
         )
 
@@ -1046,7 +1058,8 @@ def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome) -> None:
     )
     if ndp > 1:
         warnings.warn(
-            f"Usually at most one (reaction_role == PRODUCT & is_desired_product) product, but we have: {ndp}",
+            f"Usually at most one (reaction_role == PRODUCT & is_desired_product) "
+            f"product, but we have: {ndp}",
             ValidationWarning,
         )
 
@@ -1060,7 +1073,8 @@ def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome) -> None:
                 and measurement.analysis_key not in analysis_keys
             ):
                 warnings.warn(
-                    f"analysis key {measurement.analysis_key} does not match any known analysis ({analysis_keys})",
+                    f"analysis key {measurement.analysis_key} does not match "
+                    f"any known analysis ({analysis_keys})",
                     ValidationError,
                 )
     # TODO(ccoley): While we do not currently check whether the parent Reaction
@@ -1069,7 +1083,8 @@ def validate_reaction_outcome(message: reaction_pb2.ReactionOutcome) -> None:
     # submission pipeline.
     if not message.products and not message.HasField("conversion"):
         warnings.warn(
-            "No products or conversion are specified for reaction; this is permissible only for multistep reactions",
+            "No products or conversion are specified for reaction; this is "
+            "permissible only for multistep reactions",
             ValidationWarning,
         )
 
@@ -1093,13 +1108,15 @@ def validate_product_measurement(message: reaction_pb2.ProductMeasurement) -> No
     check_type_and_details(message)
     if not message.analysis_key:
         warnings.warn(
-            "Product measurements should be associated with an analysis through its analysis_key",
+            "Product measurements should be associated with an analysis through "
+            "its analysis_key",
             ValidationWarning,
         )
     if message.type == reaction_pb2.ProductMeasurement.IDENTITY:
         if message.WhichOneof("value"):
             warnings.warn(
-                "Product measurements to confirm IDENTITY should not have any values defined",
+                "Product measurements to confirm IDENTITY should not have any "
+                "values defined",
                 ValidationError,
             )
     elif message.type == reaction_pb2.ProductMeasurement.YIELD:
@@ -1111,7 +1128,8 @@ def validate_product_measurement(message: reaction_pb2.ProductMeasurement) -> No
     elif message.type == reaction_pb2.ProductMeasurement.PURITY:
         if message.WhichOneof("value") != "percentage":
             warnings.warn(
-                "PURITY measurements should be defined as percentage values if possible",
+                "PURITY measurements should be defined as percentage values "
+                "if possible",
                 ValidationWarning,
             )
     elif message.type in (
@@ -1129,7 +1147,8 @@ def validate_product_measurement(message: reaction_pb2.ProductMeasurement) -> No
         message.type != reaction_pb2.ProductMeasurement.SELECTIVITY
     ):
         warnings.warn(
-            "The selectivity_type field should only be used for a product measurement with type SELECTIVITY",
+            "The selectivity_type field should only be used for a product "
+            "measurement with type SELECTIVITY",
             ValidationError,
         )
 
@@ -1147,7 +1166,8 @@ def validate_mass_spec_measurement_type(
         and message.tic_minimum_mz > message.tic_maximum_mz
     ):
         warnings.warn(
-            f"tic_minimum_mz ({message.tic_minimum_mz}) must not exceed tic_maximum_mz ({message.tic_maximum_mz})",
+            f"tic_minimum_mz ({message.tic_minimum_mz}) must not exceed "
+            f"tic_maximum_mz ({message.tic_maximum_mz})",
             ValidationError,
         )
     if any(mass < 0 for mass in message.eic_masses):
@@ -1237,7 +1257,8 @@ def validate_reaction_provenance(message: reaction_pb2.ReactionProvenance) -> No
             warnings.warn(str(error), ValidationError)
     if message.publication_url and not is_url(message.publication_url):
         warnings.warn(
-            f"publication_url does not look like a valid URL: {message.publication_url}",
+            f"publication_url does not look like a valid URL: "
+            f"{message.publication_url}",
             ValidationWarning,
         )
 
@@ -1356,8 +1377,8 @@ _VALIDATOR_SWITCH: dict[type, Callable[..., None]] = {
     reaction_pb2.StirringConditions.StirringRate: validate_stirring_rate,
     reaction_pb2.IlluminationConditions: validate_illumination_conditions,
     reaction_pb2.ElectrochemistryConditions: validate_electrochemistry_conditions,
-    reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell: check_type_and_details,
-    reaction_pb2.ElectrochemistryConditions.ElectrochemistryMeasurement: skip_validation,
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell: check_type_and_details,  # noqa: E501
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryMeasurement: skip_validation,  # noqa: E501
     reaction_pb2.FlowConditions: check_type_and_details,
     reaction_pb2.FlowConditions.Tubing: check_type_and_details,
     # Annotations
@@ -1369,7 +1390,7 @@ _VALIDATOR_SWITCH: dict[type, Callable[..., None]] = {
     reaction_pb2.ProductCompound: validate_product_compound,
     reaction_pb2.ProductMeasurement: validate_product_measurement,
     reaction_pb2.ProductMeasurement.Selectivity: check_type_and_details,
-    reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails: validate_mass_spec_measurement_type,
+    reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails: validate_mass_spec_measurement_type,  # noqa: E501
     reaction_pb2.DateTime: validate_date_time,
     reaction_pb2.Analysis: validate_analysis,
     # Metadata
