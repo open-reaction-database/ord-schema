@@ -74,9 +74,10 @@ def _content_digests(engine) -> dict[str, tuple[int, str | None]]:
             ).scalar()
             digest = None
             if content and count:
-                # json_build_array encodes NULL distinctly from any string and escapes the values,
-                # so there is no delimiter for a value to collide with (concat_ws instead drops
-                # NULLs, letting a NULL alias a value that contains the delimiter).
+                # json_build_array encodes NULL distinctly from any string and escapes
+                # the values, so there is no delimiter for a value to collide with
+                # (concat_ws instead drops NULLs, letting a NULL alias a value that
+                # contains the delimiter).
                 order = ", ".join(f'"{c}"' for c in content)
                 query = f"SELECT md5(string_agg(x, '|' ORDER BY x)) FROM (SELECT md5(json_build_array({order})::text) AS x FROM {table.fullname}) t"  # noqa: S608  (internal schema constants)
                 digest = session.execute(text(query)).scalar()
@@ -211,7 +212,8 @@ def test_parquet_sharded_ingest_recovers_from_partial_load(tmp_path):
         url = re.sub("postgresql://", "postgresql+psycopg://", postgres.url())
         engine = create_engine(url, future=True)
         database.prepare_database(engine)
-        # Prep inserts the ord.dataset row; load only the first row group; skip finalize.
+        # Prep inserts the ord.dataset row; load only the first row group; skip
+        # finalize.
         plan = loading._prep_parquet_dataset(parquet_path, dsn=url, overwrite=False)
         assert plan.needs_load
         assert plan.num_row_groups > 1
@@ -253,7 +255,8 @@ def test_load_datasets_parquet(prepared_engine, tmp_path):
         )
         assert mapped_dataset is not None
         assert len(mapped_dataset.reactions) == expected_count
-        # Spot-check that one reaction round-trips byte-identical through public.reactions.
+        # Spot-check that one reaction round-trips byte-identical through
+        # public.reactions.
         original = dataset.reactions[0]
         stored = next(
             r for r in mapped_dataset.reactions if r.reaction_id == original.reaction_id

@@ -57,7 +57,8 @@ def test_atomic_path_replaces_existing_destination(tmp_path):
 
 def test_atomic_path_removes_temp_on_exception(tmp_path):
     dest = (tmp_path / "out.bin").as_posix()
-    with pytest.raises(RuntimeError, match="boom"), atomic_io.atomic_path(dest) as tmp:  # noqa: PT012  (abort-on-exception test: the multi-statement body in the context is under test)
+    # (abort-on-exception test: the multi-statement body in the context is under test)
+    with pytest.raises(RuntimeError, match="boom"), atomic_io.atomic_path(dest) as tmp:  # noqa: PT012
         _write(tmp, b"partial")
         raise RuntimeError("boom")
     assert sorted(q.name for q in pathlib.Path(tmp_path).iterdir()) == []
@@ -66,7 +67,8 @@ def test_atomic_path_removes_temp_on_exception(tmp_path):
 def test_atomic_path_preserves_destination_on_exception(tmp_path):
     dest = (tmp_path / "out.bin").as_posix()
     _write(dest, b"original")
-    with pytest.raises(RuntimeError, match="boom"), atomic_io.atomic_path(dest) as tmp:  # noqa: PT012  (abort-on-exception test: the multi-statement body in the context is under test)
+    # (abort-on-exception test: the multi-statement body in the context is under test)
+    with pytest.raises(RuntimeError, match="boom"), atomic_io.atomic_path(dest) as tmp:  # noqa: PT012
         _write(tmp, b"partial")
         raise RuntimeError("boom")
     assert _read(dest) == b"original"
@@ -76,7 +78,8 @@ def test_atomic_path_preserves_destination_on_exception(tmp_path):
 def test_atomic_path_removes_temp_on_keyboard_interrupt(tmp_path):
     """KeyboardInterrupt (a BaseException) also triggers cleanup; documents the contract."""
     dest = (tmp_path / "out.bin").as_posix()
-    with pytest.raises(KeyboardInterrupt), atomic_io.atomic_path(dest) as tmp:  # noqa: PT012  (abort-on-exception test: the multi-statement body in the context is under test)
+    # (abort-on-exception test: the multi-statement body in the context is under test)
+    with pytest.raises(KeyboardInterrupt), atomic_io.atomic_path(dest) as tmp:  # noqa: PT012
         _write(tmp, b"partial")
         raise KeyboardInterrupt
     assert sorted(q.name for q in pathlib.Path(tmp_path).iterdir()) == []
@@ -85,7 +88,8 @@ def test_atomic_path_removes_temp_on_keyboard_interrupt(tmp_path):
 def test_atomic_path_swallows_missing_temp_on_exception(tmp_path):
     """Cleanup must succeed even if the temp was already removed by something else."""
     dest = (tmp_path / "out.bin").as_posix()
-    with pytest.raises(RuntimeError, match="boom"), atomic_io.atomic_path(dest) as tmp:  # noqa: PT012  (abort-on-exception test: the multi-statement body in the context is under test)
+    # (abort-on-exception test: the multi-statement body in the context is under test)
+    with pytest.raises(RuntimeError, match="boom"), atomic_io.atomic_path(dest) as tmp:  # noqa: PT012
         pathlib.Path(tmp).unlink()  # Remove the temp out from under us.
         raise RuntimeError("boom")
     assert sorted(q.name for q in pathlib.Path(tmp_path).iterdir()) == []

@@ -200,7 +200,8 @@ class TestProcessParquetDataset:
             filename,
             "--root",
             tmp_path.as_posix(),
-            "--no-validate",  # Skip the pre-update validation so we hit the post-stream path.
+            # Skip the pre-update validation so we hit the post-stream path.
+            "--no-validate",
             "--update",
             "--output_format",
             ".parquet",

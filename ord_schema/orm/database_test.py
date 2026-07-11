@@ -93,7 +93,8 @@ def test_update_rdkit_tables_idempotent(test_session):
         test_session.execute(text("SELECT count(*) FROM rdkit.mols")).scalar()
         == before_mols
     )
-    # Invariant: the IS NOT NULL guards keep NULL mol/reaction rows out of the cartridge tables.
+    # Invariant: the IS NOT NULL guards keep NULL mol/reaction rows out of the cartridge
+    # tables.
     assert (
         test_session.execute(
             text("SELECT count(*) FROM rdkit.mols WHERE mol IS NULL")
@@ -137,8 +138,9 @@ def test_update_derived_tables_batched(test_session, monkeypatch):
         ).scalar()
         for table in tables
     }
-    # Every derived table must be populated up front, otherwise the re-derivation below would
-    # pass trivially (0 == 0) without exercising the reaction or compound batch paths.
+    # Every derived table must be populated up front, otherwise the re-derivation below
+    # would pass trivially (0 == 0) without exercising the reaction or compound batch
+    # paths.
     assert all(count > 0 for count in full.values()), full
     # Clear the derived rows, then re-derive in batches far smaller than the dataset (80
     # reactions) so the result is built across many batches rather than one.
@@ -179,8 +181,8 @@ def test_update_derived_tables_sharded_covers_all(prepared_engine):
                 for table in tables
             }
 
-    # Derive one shard at a time, recording how many rows each shard adds per table (idempotent
-    # inserts, so a shard only adds its own partition's rows).
+    # Derive one shard at a time, recording how many rows each shard adds per table
+    # (idempotent inserts, so a shard only adds its own partition's rows).
     num_shards = 4
     prev = dict.fromkeys(tables, 0)
     per_shard: list[dict[str, int]] = []
@@ -196,8 +198,9 @@ def test_update_derived_tables_sharded_covers_all(prepared_engine):
     sharded = counts()
     for table in tables:
         assert sharded[table] > 0, (table, sharded)
-        # Rows land in more than one shard, so the hash predicate really partitions each table
-        # (guarded by a size floor so a genuinely tiny table can't flake the check).
+        # Rows land in more than one shard, so the hash predicate really partitions each
+        # table (guarded by a size floor so a genuinely tiny table can't flake the
+        # check).
         if sharded[table] >= 2 * num_shards:
             non_empty = sum(1 for shard in per_shard if shard[table] > 0)
             assert non_empty >= 2, (table, [shard[table] for shard in per_shard])
@@ -262,7 +265,8 @@ def test_rdkit_sharded_matches_serial(prepared_engine):
         "linked_products",
     ):
         assert sharded[key] > 0, (key, sharded)
-    # A serial (whole-dataset) pass now inserts and links nothing new: the shards covered it all.
+    # A serial (whole-dataset) pass now inserts and links nothing new: the shards
+    # covered it all.
     run_shard(None)
     assert counts() == sharded
 
@@ -305,8 +309,9 @@ def test_classify_sharded_covers_all(prepared_engine):
                     dataset.dataset_id, session, shard=(shard_index, num_shards)
                 )
     sharded = count()
-    # Shard 0 is a strict, non-empty subset: the fixture's ~80 reactions reliably hash into more
-    # than one of the 4 buckets, so this holds for it (a 1-reaction fixture would not).
+    # Shard 0 is a strict, non-empty subset: the fixture's ~80 reactions reliably hash
+    # into more than one of the 4 buckets, so this holds for it (a 1-reaction fixture
+    # would not).
     assert 0 < first < sharded, (first, sharded)
     # A whole-dataset pass now adds nothing: the shards classified every reaction.
     with Session(prepared_engine) as session, session.begin():
@@ -359,8 +364,9 @@ def test_compound_smiles_fallback_without_stored_smiles(prepared_engine):
     dataset = load_dataset(
         pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
     )
-    # Replace one compound's SMILES identifier with the equivalent InChI so only the fallback
-    # (structure reconstruction from a non-SMILES identifier) can derive its SMILES.
+    # Replace one compound's SMILES identifier with the equivalent InChI so only the
+    # fallback (structure reconstruction from a non-SMILES identifier) can derive its
+    # SMILES.
     compound = next(
         component
         for reaction in dataset.reactions
@@ -378,8 +384,8 @@ def test_compound_smiles_fallback_without_stored_smiles(prepared_engine):
             add_dataset(dataset, session)
         with session.begin():
             update_derived_tables(dataset.dataset_id, session)
-        # Exactly the modified compound lacks a SMILES identifier, so its derived row proves the
-        # fallback ran and produced the InChI-derived canonical SMILES.
+        # Exactly the modified compound lacks a SMILES identifier, so its derived row
+        # proves the fallback ran and produced the InChI-derived canonical SMILES.
         fallback_smiles = (
             session.execute(
                 text(
@@ -394,10 +400,11 @@ def test_compound_smiles_fallback_without_stored_smiles(prepared_engine):
     assert fallback_smiles == [expected], fallback_smiles
 
 
-# Counts every ord.compound by how it reaches its reaction, alongside how many of those rows made
-# it into derived.compound_smiles and how many of those are still missing an rdkit.mols link.
-# [Ti+5] structures are excluded from the unlinked tally because _update_rdkit_mols deliberately
-# keeps them out of rdkit.mols (see the NOT LIKE guard there, and issue #672).
+# Counts every ord.compound by how it reaches its reaction, alongside how many of
+# those rows made it into derived.compound_smiles and how many of those are still
+# missing an rdkit.mols link. [Ti+5] structures are excluded from the unlinked tally
+# because _update_rdkit_mols deliberately keeps them out of rdkit.mols (see the NOT
+# LIKE guard there, and issue #672).
 _COMPOUND_ATTACHMENT_COVERAGE = text("""
     SELECT CASE
              WHEN ord.reaction_input.reaction_id IS NOT NULL THEN 'reaction_input'
@@ -451,7 +458,8 @@ def test_derived_compound_smiles_covers_every_attachment(prepared_engine):
             row.attachment: row
             for row in session.execute(_COMPOUND_ATTACHMENT_COVERAGE)
         }
-    # Guard against the assertions below passing vacuously on an attachment the fixture lacks.
+    # Guard against the assertions below passing vacuously on an attachment the fixture
+    # lacks.
     assert set(coverage) == {
         "reaction_input",
         "workup_input",

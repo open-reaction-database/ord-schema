@@ -31,7 +31,8 @@ from ord_schema.orm.database import add_dataset, prepare_database, update_derive
 @pytest.fixture(name="test_engine")
 def test_engine_fixture() -> Iterator[Engine]:
     with Postgresql() as postgres:
-        # See https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#module-sqlalchemy.dialects.postgresql.psycopg.
+        # See
+        # https://docs.sqlalchemy.org/en/20/dialects/postgresql.html#module-sqlalchemy.dialects.postgresql.psycopg.
         url = re.sub("postgresql://", "postgresql+psycopg://", postgres.url())
         engine = create_engine(url, future=True)
         yield engine

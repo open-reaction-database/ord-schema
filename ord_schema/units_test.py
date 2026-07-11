@@ -287,7 +287,8 @@ def test_convert_precision(resolver, message, new_units, expected):
 
 def test_convert_wavelength_with_precision(resolver):
     # Expected per the implementation's documented formula:
-    # 10000000 / 2 * (1 / (value - precision) + 1 / (value + precision))  # noqa: ERA001  (documented formula)
+    # (documented formula)
+    # 10000000 / 2 * (1 / (value - precision) + 1 / (value + precision))  # noqa: ERA001
     # = 5e6 * (1/490 + 1/510) ≈ 20008.0032.
     converted = resolver.convert(
         reaction_pb2.Wavelength(

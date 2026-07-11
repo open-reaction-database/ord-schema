@@ -53,14 +53,16 @@ logger = get_logger(__name__)
 
 STAGES = ("ingest", "derived")
 
-# SMILES derivation is sharded within a dataset so one large dataset does not pin a single worker
-# (the derived-stage analog of row-group sharding for ingest). A dataset is split into one shard
-# per this many reactions, capped, so small datasets stay a single shard.
+# SMILES derivation is sharded within a dataset so one large dataset does not pin a
+# single worker (the derived-stage analog of row-group sharding for ingest). A dataset
+# is split into one shard per this many reactions, capped, so small datasets stay a
+# single shard.
 _DERIVE_SHARD_SIZE = 50_000
 _DERIVE_SHARD_CAP = 32
 
-# Reaction classification loads a Rxn-INSIGHT/rxnmapper transformer model per worker, so its shard
-# pool is capped well below the ingest/SMILES n_jobs to keep the models within memory.
+# Reaction classification loads a Rxn-INSIGHT/rxnmapper transformer model per worker,
+# so its shard pool is capped well below the ingest/SMILES n_jobs to keep the models
+# within memory.
 _CLASSIFY_JOBS_CAP = 4
 
 
@@ -112,9 +114,11 @@ def ingest_dataset(filename: str, *, dsn: str, overwrite: bool) -> str:
         def insert(session: Session) -> None:
             database.add_dataset(dataset, session)
 
-    # NOTE(skearnes): Multiprocessing is hard to get right for shared connection pools, so we don't even try; see
+    # NOTE(skearnes): Multiprocessing is hard to get right for shared connection pools,
+    # so we don't even try; see
     # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork.
-    # Each call owns its engine and disposes it so pooled connections don't accumulate in reused pool workers.
+    # Each call owns its engine and disposes it so pooled connections don't accumulate
+    # in reused pool workers.
     engine = create_engine(dsn)
     try:
         with Session(engine) as session:
@@ -161,7 +165,8 @@ def derive_dataset(dataset_id: str, *, dsn: str, classify_reactions: bool) -> st
             database.update_derived_data(
                 dataset_id,
                 session,
-                rdkit_cartridge=False,  # Done serially in add_rdkit() to avoid deadlocks.
+                # Done serially in add_rdkit() to avoid deadlocks.
+                rdkit_cartridge=False,
                 classify_reactions=classify_reactions,
             )
     finally:
@@ -187,8 +192,9 @@ def _derive_shard_items(
                     size = database.get_dataset_size(dataset_id, session)
                 except ValueError:
                     size = 0
-                # Ceiling division (-(-a // b)): a dataset just over a shard-size multiple still
-                # splits into an extra shard rather than staying single-worker.
+                # Ceiling division (-(-a // b)): a dataset just over a shard-size
+                # multiple still splits into an extra shard rather than staying
+                # single-worker.
                 num_shards = max(
                     1, min(_DERIVE_SHARD_CAP, -(-size // _DERIVE_SHARD_SIZE))
                 )
@@ -419,8 +425,9 @@ def _ingest_parquet_sharded(
     shard_items: list[tuple[str, uuid.UUID, int]] = []
     for plan in to_load:
         if plan.dataset_uuid is None:
-            # Prep sets dataset_uuid for every needs_load plan; enforce the contract explicitly
-            # (a bare assert is dropped under -O and would surface later as an obscure error).
+            # Prep sets dataset_uuid for every needs_load plan; enforce the contract
+            # explicitly (a bare assert is dropped under -O and would surface later as
+            # an obscure error).
             raise ValueError(
                 f"prep returned needs_load with no dataset_uuid: {plan.filename}"
             )
@@ -498,9 +505,9 @@ def load_datasets(
     if "ingest" in stages:
         logger.info("Ingesting datasets")
         dataset_ids: list[str] = []
-        # Parquet datasets are sharded by row group across the pool so one large dataset does not
-        # pin a single worker; the atomic single-process path handles n_jobs == 1 and non-parquet
-        # inputs (which cannot be sharded).
+        # Parquet datasets are sharded by row group across the pool so one large dataset
+        # does not pin a single worker; the atomic single-process path handles n_jobs ==
+        # 1 and non-parquet inputs (which cannot be sharded).
         if n_jobs > 1:
             parquet_files = [f for f in filenames if f.endswith(".parquet")]
             other_files = [f for f in filenames if not f.endswith(".parquet")]
@@ -526,8 +533,9 @@ def load_datasets(
 
     if "derived" in stages:
         logger.info("Deriving SMILES")
-        # Shard SMILES derivation within datasets so one large dataset does not pin a single
-        # worker; the pool sees a flat (dataset, shard) work list across all datasets.
+        # Shard SMILES derivation within datasets so one large dataset does not pin a
+        # single worker; the pool sees a flat (dataset, shard) work list across all
+        # datasets.
         shard_items = _derive_shard_items(dataset_ids, dsn)
         _, shard_failures = _run_parallel(
             partial(_derive_smiles_shard, dsn=dsn),
@@ -538,18 +546,19 @@ def load_datasets(
         failures.extend(sorted({dataset_id for dataset_id, _, _ in shard_failures}))
         if classify_reactions:
             logger.info("Classifying reactions")
-            # Shard classification within datasets by reaction-id hash, like SMILES, but through a
-            # smaller pool: each worker loads a Rxn-INSIGHT/rxnmapper model, so running n_jobs of
-            # them would multiply the model memory. Defaults to a capped fraction of n_jobs; the
-            # caller can override via classify_jobs once they know the models fit.
+            # Shard classification within datasets by reaction-id hash, like SMILES, but
+            # through a smaller pool: each worker loads a Rxn-INSIGHT/rxnmapper model,
+            # so running n_jobs of them would multiply the model memory. Defaults to a
+            # capped fraction of n_jobs; the caller can override via classify_jobs once
+            # they know the models fit.
             resolved_classify_jobs = (
                 max(1, min(n_jobs, _CLASSIFY_JOBS_CAP))
                 if classify_jobs is None
                 else max(1, classify_jobs)
             )
-            # Each shard reloads the transformer model, so sharding only pays off when the shards
-            # can run in parallel. With a single worker, keep one shard (one model load) per
-            # dataset, matching the pre-sharding behaviour.
+            # Each shard reloads the transformer model, so sharding only pays off when
+            # the shards can run in parallel. With a single worker, keep one shard (one
+            # model load) per dataset, matching the pre-sharding behaviour.
             if resolved_classify_jobs == 1:
                 classify_items = [(dataset_id, 0, 1) for dataset_id in dataset_ids]
             else:
@@ -564,10 +573,11 @@ def load_datasets(
                 sorted({dataset_id for dataset_id, _, _ in classify_failures})
             )
         logger.info("Adding RDKit functionality")
-        # Datasets are processed serially (the rdkit.* dedup tables are shared, so cross-dataset
-        # concurrency could collide on the same structure), but each dataset's pass is sharded by
-        # SMILES hash across the pool -- disjoint partitions keep concurrent inserts off each
-        # other's rdkit.* keys, so one large dataset no longer runs single-threaded.
+        # Datasets are processed serially (the rdkit.* dedup tables are shared, so
+        # cross-dataset concurrency could collide on the same structure), but each
+        # dataset's pass is sharded by SMILES hash across the pool -- disjoint
+        # partitions keep concurrent inserts off each other's rdkit.* keys, so one large
+        # dataset no longer runs single-threaded.
         engine = create_engine(dsn)
         try:
             for dataset_id in tqdm(dataset_ids, desc="RDKit"):
@@ -600,6 +610,6 @@ def load_datasets(
             engine.dispose()
 
     if failures:
-        # A dataset can fail in more than one pass (SMILES shards, classify, RDKit); report each
-        # failing file/dataset once, sorted for a deterministic message.
+        # A dataset can fail in more than one pass (SMILES shards, classify, RDKit);
+        # report each failing file/dataset once, sorted for a deterministic message.
         raise RuntimeError(sorted(set(failures)))

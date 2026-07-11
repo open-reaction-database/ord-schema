@@ -32,8 +32,9 @@ from ord_schema.orm.sharding import shard_predicate
 
 logger = get_logger(__name__)
 
-# Rxn-INSIGHT's "no named reaction" sentinel, normalized to NULL so reaction_name carries
-# no magic value. (The class catch-all "Miscellaneous" is a real category and is kept.)
+# Rxn-INSIGHT's "no named reaction" sentinel, normalized to NULL so reaction_name
+# carries no magic value. (The class catch-all "Miscellaneous" is a real category
+# and is kept.)
 _UNNAMED = "OtherReaction"
 
 
@@ -53,7 +54,8 @@ def classify_reaction_smiles(
     try:
         info = Reaction(reaction_smiles, rxn_mapper=rxn_mapper).get_reaction_info()
     except Exception as error:  # noqa: BLE001
-        # Best-effort: any Rxn-INSIGHT/rxnmapper failure leaves the reaction unclassified.
+        # Best-effort: any Rxn-INSIGHT/rxnmapper failure leaves the reaction
+        # unclassified.
         logger.debug(f"Could not classify {reaction_smiles!r}: {error}")
         return None, None
     reaction_class = info.get("CLASS") or None
