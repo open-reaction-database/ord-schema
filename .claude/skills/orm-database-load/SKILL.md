@@ -1,0 +1,153 @@
+---
+name: orm-database-load
+description: Load or backfill the ORD ORM Postgres database and verify it before cutover. Use when running ord_schema.orm.scripts.add_datasets, populating a new ord_<date> search database, backfilling derived SMILES or RDKit links after a pipeline change, or checking a candidate database for parity with the live one.
+---
+
+# Loading and backfilling the ORM database
+
+The ORM database is populated in two stages. **ingest** writes the `ord.*` search index and the
+`public.*` payload; **derived** writes `derived.*` SMILES, the `rdkit.*` structures and their
+links, and (opt-in) reaction classes. Every pass is guarded by `NOT EXISTS`, so all of it is
+idempotent: safe to re-run, safe to kill and resume.
+
+## Where it runs
+
+Not on a laptop. Loads run on a dev VM inside the database's VPC, because the Aurora cluster has
+no public endpoint and the job is chatty. The VM is normally stopped — start it, use it, stop it.
+
+```sh
+aws ec2 describe-instances --filters "Name=tag:Name,Values=dev-vm" \
+  --query 'Reservations[].Instances[].{Id:InstanceId,State:State.Name}'
+```
+
+Reach it with SSM (`aws ssm send-command`, document `AWS-RunShellScript`); there is no SSH. Two
+traps: SSM runs commands as **root under `dash`**, so wrap real work in
+`sudo -u ubuntu -H bash -l`; and `fs.protected_regular` stops even root from reopening a
+`ubuntu`-owned file in `/tmp`, so give each uploaded script a unique name.
+
+### The RDKit version must match the database
+
+`derived.*.smiles` and `rdkit.mols.smiles` are written by **Python RDKit**, not by the Postgres
+cartridge, and the two do not agree on every molecule. The database stores `[Br][Ag]`; the
+cartridge canonicalizes that same structure to `Br[Ag]`. Load from a machine with a different
+RDKit and a few thousand organometallics will canonicalize differently, inserting duplicate
+structures under different strings.
+
+Any SMILES already in `rdkit.mols` must be a fixed point of the writer you are about to use.
+Check before writing anything:
+
+```python
+from rdkit import Chem
+for smiles in ("[Br][Ag]", "[B]#[Ni]", "[Cl][Ti]([Cl])([Cl])[Cl]"):
+    assert Chem.MolToSmiles(Chem.MolFromSmiles(smiles)) == smiles, smiles
+```
+
+## Full load
+
+Put `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGSSLMODE` / `PGDATABASE` in the environment
+(the master password lives in Secrets Manager) and let the DSN inherit them:
+
+```sh
+python -u -m ord_schema.orm.scripts.add_datasets \
+  --pattern "$ORD_DATA/data/*/*.parquet" \
+  --dsn "postgresql+psycopg://" \
+  --n_jobs 16
+```
+
+`--classify_reactions` is opt-in, needs the optional reaction-class extra, and is slow. Omit it
+unless you actually want to (re)classify.
+
+## Backfill — read this before running it
+
+`--stages derived` re-derives over already-ingested datasets. The **derive** phase is fine. The
+**RDKit link** phase that follows it is not, and it will quietly cost you a night.
+
+`_link_mol_ids` scopes its `UPDATE` per `(dataset, shard)`. Postgres plans that by driving from a
+`Bitmap Index Scan on ix_derived_compound_smiles_rdkit_mol_id (rdkit_mol_id IS NULL)` and applying
+the shard hash as a **filter**, not an index condition. Every `(dataset, shard)` pair therefore
+rescans the entire unlinked set.
+
+During a normal end-to-end load this never bites, because the unlinked set drains dataset by
+dataset. During a backfill, every dataset is derived *first*, so the full unlinked set — millions
+of rows — stands for the whole link phase.
+
+Measured 2026-07-09, backfilling ~4.7M compounds over 53 datasets at 32 shards each (1,696
+rescans): **~1,084 s per shard, projecting more than 9 hours**. The identical work as a single
+global pass took **372 s**.
+
+There is no flag to run derive without the link, so:
+
+1. Run `--stages derived` and watch the log. When the `compound_smiles` bars finish and the
+   `RDKit` bar appears, the derive is done.
+2. Kill the job. Killing the client leaves server backends still executing their `UPDATE`s —
+   terminate them, scoped to the target database and never the live one:
+
+   ```sql
+   SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+   WHERE datname = current_database() AND pid <> pg_backend_pid();
+   ```
+
+3. Run `scripts/global_link.py`, which inserts the missing `rdkit.mols` (keeping the `[Ti+5]`
+   guard from issue #672) and links every unlinked row in one pass, chunked to bound WAL, then
+   `ANALYZE`s.
+
+Fixing `_link_mol_ids` upstream — driving the `UPDATE` from the dataset side, or skipping the
+shard filter when the unlinked set is large — would remove this whole dance.
+
+## Should you scale up the writer?
+
+Decide from metrics, not instinct.
+
+- The writer is a **single instance with no reader**. Changing its class restarts it: measured
+  ~3.5 minutes of downtime, and you pay that twice (up, then back down). The outage hits the
+  *live* search database, which shares the instance.
+- Check `CPUCreditBalance` first on burstable classes. Observed 2026-07-09: a 4.7M-row backfill
+  ran at ~93% CPU and burned ~65–80 credits/hour against a full balance of 864 — hours of runway.
+  The instance class was never the constraint.
+- **If a job is projecting hours, suspect the query plan before the instance size.** Doubling the
+  CPU does not fix a quadratic scan. `EXPLAIN` the statement that `pg_stat_activity` shows.
+- Expect buffer-cache pollution regardless: the live database's index working set gets evicted,
+  so search runs cold for a while afterwards. Prefer a low-traffic window.
+
+## Monitoring
+
+Committed row counts **lag**, because each shard's derive is a single transaction: `count(*)`
+sits flat and then jumps. A flat count is not a stall. Check `pg_stat_activity` (state,
+`wait_event_type`, oldest `xact_start`) and the `tqdm` bars in the log, which reflect in-flight
+progress. Watch `CPUUtilization` and `CPUCreditBalance` alongside.
+
+## Verification
+
+Run `scripts/verify_coverage.sql` against the candidate database. It asserts the properties that
+actually matter:
+
+- Every `ord.compound` with a derivable SMILES has a `derived.compound_smiles` row, whether it
+  hangs off a reaction input, a **workup** input, or a **product measurement**. These three
+  attachments are easy to lose to a join that only follows `reaction_input.reaction_id`.
+- The only unlinked derived rows are `[Ti+5]` structures, which `_update_rdkit_mols` deliberately
+  keeps out of `rdkit.mols`.
+
+Two further checks worth doing before a cutover:
+
+- **Dataset freshness**, using the loader's own hash: `public.datasets.md5` must equal
+  `ord_schema.parquet.streaming_md5(path)` for every Parquet file in `ord-data`.
+- **Reaction-set equality** against the database you are replacing — an order-independent
+  fingerprint beats comparing counts alone:
+
+  ```sql
+  SELECT count(*), count(DISTINCT reaction_id), sum(hashtext(reaction_id)::bigint)
+  FROM ord.reaction;
+  ```
+
+## Cleanup
+
+Stop the dev VM, close any SSM tunnels, and do not leave the master password on disk.
+
+## Gotchas
+
+- `derived.compound_smiles` legitimately has fewer rows than `ord.compound`. Compounds whose only
+  identifier is a name have no derivable SMILES and get no row. That is not data loss.
+- `rdkit.mols` is deduplicated by SMILES **string**, not by structure, so two spellings of one
+  molecule become two rows. This is why the writer's RDKit version matters.
+- Reaction classification is a separate opt-in pass; a database can be complete and correct with
+  `derived.reaction_classes` nearly empty.
