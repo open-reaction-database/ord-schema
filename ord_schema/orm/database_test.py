@@ -567,6 +567,16 @@ def test_check_server_version(version_num, raises):
         _orm_database._check_server_version(connection)
 
 
+def test_check_server_version_memoized_per_connection():
+    """The check queries once per connection, then reuses the cached result on info."""
+    connection = Mock()
+    connection.info = {}
+    connection.execute.return_value.scalar_one.return_value = "160005"
+    _orm_database._check_server_version(connection)
+    _orm_database._check_server_version(connection)
+    connection.execute.assert_called_once()
+
+
 def test_default_search_path_is_public(test_session):
     """prepare_database pins the database default search_path to public, not the role's ord schema."""
     setting = test_session.execute(

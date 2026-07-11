@@ -99,18 +99,24 @@ def _check_server_version(connection: Any) -> None:
     """Raises if the server predates the minimum supported PostgreSQL version.
 
     The derived/RDKit passes use ``AS MATERIALIZED`` CTEs, which an older server rejects with a
-    parse error deep inside ``update_rdkit_tables``. Failing here, at setup, turns that into a
-    clear message before any rows are processed.
+    parse error deep inside the RDKit update. Checking at the entry points (prepare_database and the
+    update_rdkit_* functions) turns that into a clear message before any such SQL runs. The result
+    is memoized on the connection, since the version is immutable and these run once per shard.
 
     Raises:
         RuntimeError: If the server is older than PostgreSQL 12.
     """
+    info = getattr(connection, "info", None)
+    if isinstance(info, dict) and info.get("ord_server_version_checked"):
+        return
     version_num = int(connection.execute(text("SHOW server_version_num")).scalar_one())
     if version_num < _MIN_SERVER_VERSION_NUM:
         raise RuntimeError(
             "PostgreSQL 12+ is required (the derived/RDKit passes use AS MATERIALIZED CTEs); "
             f"server reports server_version_num={version_num}."
         )
+    if isinstance(info, dict):
+        info["ord_server_version_checked"] = True
 
 
 def prepare_database(engine: Engine) -> bool:
@@ -843,8 +849,12 @@ def update_rdkit_tables(
     ``update_rdkit_ids``) partitions by the *same* SMILES hash, shard ``k`` inserts exactly the
     structures its links will reference -- disjoint key sets across shards, so concurrent shards
     never collide on the shared ``rdkit.*`` unique indexes (datasets still run serially).
+
+    Raises:
+        RuntimeError: If the server is older than PostgreSQL 12 (the queries use AS MATERIALIZED).
     """
     logger.debug(f"Updating RDKit tables for {dataset_id=}")
+    _check_server_version(session.connection())
     _update_rdkit_reactions(dataset_id, session, shard=shard)
     _update_rdkit_mols(dataset_id, session, shard=shard)
 
@@ -1056,8 +1066,12 @@ def update_rdkit_ids(
     ``shard`` (index, num_shards) restricts the links to one SMILES-hash partition, matching the
     insert partition in ``update_rdkit_tables`` so shard ``k`` links exactly the structures it
     inserted.
+
+    Raises:
+        RuntimeError: If the server is older than PostgreSQL 12 (the queries use AS MATERIALIZED).
     """
     logger.debug("Updating RDKit ID associations")
+    _check_server_version(session.connection())
     start = time.time()
     # Each UPDATE scopes to the dataset in a MATERIALIZED CTE keyed on the surrogate, carrying no
     # rdkit_*_id predicate, so the planner reaches the rows through ix_reaction_dataset_id. The
