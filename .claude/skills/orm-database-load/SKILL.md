@@ -57,28 +57,33 @@ python -u -m ord_schema.orm.scripts.add_datasets \
 `--classify_reactions` is opt-in, needs the optional reaction-class extra, and is slow. Omit it
 unless you actually want to (re)classify.
 
-## Backfill — read this before running it
+## Backfill
 
-`--stages derived` re-derives over already-ingested datasets. The **derive** phase is fine. The
-**RDKit link** phase that follows it is not, and it will quietly cost you a night.
+`--stages derived` re-derives over already-ingested datasets. It runs the same per-dataset,
+per-shard RDKit passes as an end-to-end load, so nothing special is required:
 
-`_link_mol_ids` scopes its `UPDATE` per `(dataset, shard)`. Postgres plans that by driving from a
-`Bitmap Index Scan on ix_derived_compound_smiles_rdkit_mol_id (rdkit_mol_id IS NULL)` and applying
-the shard hash as a **filter**, not an index condition. Every `(dataset, shard)` pair therefore
-rescans the entire unlinked set.
+```sh
+python -u -m ord_schema.orm.scripts.add_datasets \
+  --pattern "$ORD_DATA/data/*/*.parquet" --stages derived \
+  --dsn "postgresql+psycopg://" --n_jobs 16
+```
 
-During a normal end-to-end load this never bites, because the unlinked set drains dataset by
-dataset. During a backfill, every dataset is derived *first*, so the full unlinked set — millions
-of rows — stands for the whole link phase.
+### If you are on an ord-schema without the #896 fix
 
-Measured 2026-07-09, backfilling ~4.7M compounds over 53 datasets at 32 shards each (1,696
-rescans): **~1,084 s per shard, projecting more than 9 hours**. The identical work as a single
-global pass took **372 s**.
+Before that fix, the RDKit passes scoped `rdkit_*_id IS NULL` per `(dataset, shard)` but the
+planner drove each from the whole-database unlinked-rows partial index, applying the dataset and
+shard predicates as filters. On an end-to-end load that never bites (the unlinked set drains
+dataset by dataset), but a backfill leaves every dataset's rows unlinked at once, so each
+`(dataset, shard)` rescans the entire unlinked set. Measured 2026-07-09 (~4.7M compounds, 53
+datasets × 32 shards): **~1,084 s per shard, >9 h projected**, versus **372 s** for one global
+pass. The #896 fix scopes each pass to the dataset via the resolved surrogate key, so this no
+longer happens.
 
-There is no flag to run derive without the link, so:
+To recover a run that is exhibiting this — or on any version, to link a large standing unlinked
+set in one pass:
 
-1. Run `--stages derived` and watch the log. When the `compound_smiles` bars finish and the
-   `RDKit` bar appears, the derive is done.
+1. Watch the log. When the `compound_smiles` bars finish and the `RDKit` bar appears, the derive
+   is done and only the link remains.
 2. Kill the job. Killing the client leaves server backends still executing their `UPDATE`s —
    terminate them, scoped to the target database and never the live one:
 
@@ -89,10 +94,7 @@ There is no flag to run derive without the link, so:
 
 3. Run `scripts/global_link.py`, which inserts the missing `rdkit.mols` (keeping the `[Ti+5]`
    guard from issue #672) and links every unlinked row in one pass, chunked to bound WAL, then
-   `ANALYZE`s.
-
-Fixing `_link_mol_ids` upstream — driving the `UPDATE` from the dataset side, or skipping the
-shard filter when the unlinked set is large — would remove this whole dance.
+   `ANALYZE`s. It is idempotent, so it is also a safe way to finish any partially-linked database.
 
 ## Should you scale up the writer?
 
