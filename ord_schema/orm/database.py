@@ -37,16 +37,18 @@ from ord_schema.orm.public_mappers import DatasetMetadata
 from ord_schema.orm.sharding import shard_predicate as _shard_predicate
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
-# COPY the ingest tables parents-first so foreign keys resolve; sorted_tables orders by FK
-# dependency. Precomputed once; only the tables populated by a given batch are written.
+# COPY the ingest tables parents-first so foreign keys resolve; sorted_tables orders by
+# FK dependency. Precomputed once; only the tables populated by a given batch are
+# written.
 _COPY_TABLE_ORDER = [table.fullname for table in Base.metadata.sorted_tables]
 
 try:
     from ord_schema.orm.reaction_class import update_reaction_classes
 except Exception as error:  # noqa: BLE001
-    # The optional 'reaction-class' extra pulls in rxn-insight -> rxnmapper/torch, which can fail
-    # to import many ways (missing package, native-library OSError). Catch all so the ORM stays
-    # usable without it; _classify_reactions re-raises with this error as the cause.
+    # The optional 'reaction-class' extra pulls in rxn-insight -> rxnmapper/torch, which
+    # can fail to import many ways (missing package, native-library OSError). Catch all
+    # so the ORM stays usable without it; _classify_reactions re-raises with this error
+    # as the cause.
     update_reaction_classes = None  # ty: ignore[invalid-assignment]
     _reaction_class_import_error: Exception | None = error
 else:
@@ -90,8 +92,8 @@ def get_connection_string(
     return f"postgresql+psycopg://{username}:{password}@{host}:{port}/{database}?client_encoding=utf8"
 
 
-# PostgreSQL 12 (server_version_num 120000), when AS MATERIALIZED CTEs -- used throughout the
-# derived/RDKit passes -- were introduced.
+# PostgreSQL 12 (server_version_num 120000), when AS MATERIALIZED CTEs -- used
+# throughout the derived/RDKit passes -- were introduced.
 _MIN_SERVER_VERSION_NUM = 120000
 
 
@@ -147,10 +149,11 @@ def prepare_database(engine: Engine) -> bool:
         # Derived, best-effort data that is not part of the proto (e.g. reaction class).
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS derived"))
     with engine.begin() as connection:
-        # Pin the default search_path to public. The role is often named "ord", so Postgres's
-        # default ("$user", public) would resolve the ord schema first; the ORM qualifies every
-        # table, so keep only public -- where the RDKit cartridge functions live. Best-effort: a
-        # non-owner connection cannot ALTER DATABASE, but the ORM never relies on the path anyway.
+        # Pin the default search_path to public. The role is often named "ord", so
+        # Postgres's default ("$user", public) would resolve the ord schema first; the
+        # ORM qualifies every table, so keep only public -- where the RDKit cartridge
+        # functions live. Best-effort: a non-owner connection cannot ALTER DATABASE, but
+        # the ORM never relies on the path anyway.
         try:
             connection.execute(
                 text(
@@ -163,7 +166,8 @@ def prepare_database(engine: Engine) -> bool:
             logger.warning(f"Could not set the default search_path to public: {error}")
     try:
         with engine.begin() as connection:
-            # NOTE(skearnes): The RDKit PostgreSQL extension works best in the public schema.
+            # NOTE(skearnes): The RDKit PostgreSQL extension works best in the public
+            # schema.
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS rdkit"))
         rdkit_cartridge = True
     except (OperationalError, NotSupportedError):
@@ -319,9 +323,9 @@ def backfill_submission_times(session: Session) -> None:
 # ingest. Larger values reduce COPY roundtrips at the cost of more trees held in memory.
 _COPY_BATCH = 1000
 
-# Number of reactions/compounds the derived passes load and process at a time. The ids needing
-# derivation are fetched up front, but the heavy work (proto deserialization, SMILES generation)
-# and the pending inserts are limited to this many rows at a time.
+# Number of reactions/compounds the derived passes load and process at a time. The ids
+# needing derivation are fetched up front, but the heavy work (proto deserialization,
+# SMILES generation) and the pending inserts are limited to this many rows at a time.
 _DERIVED_BATCH = 1000
 
 
@@ -365,15 +369,17 @@ def _collect_rows(root: Any, rows_by_table: dict[str, tuple[Any, list]]) -> None
             entry = (table, [])
             rows_by_table[table.fullname] = entry
         # Every PK must be populated now: Uuid PKs are minted above; text PKs (e.g.
-        # public.reactions.reaction_id) come from the proto or FK wiring from the parent. A NULL
-        # here means a new table has a PK that is neither, which would otherwise fail inside COPY.
+        # public.reactions.reaction_id) come from the proto or FK wiring from the
+        # parent. A NULL here means a new table has a PK that is neither, which would
+        # otherwise fail inside COPY.
         for key_column in table.primary_key:
             assert getattr(node, key_column.key, None) is not None, (
                 f"unpopulated primary key {table.fullname}.{key_column.name}; a new table needs "
                 "a Uuid primary key or one wired from a parent foreign key"
             )
-        # Under single-table polymorphic inheritance, a sibling subclass's foreign-key column
-        # shares the table but is not an attribute of this instance, so it is NULL for this row.
+        # Under single-table polymorphic inheritance, a sibling subclass's foreign-key
+        # column shares the table but is not an attribute of this instance, so it is
+        # NULL for this row.
         entry[1].append(tuple(getattr(node, c.key, None) for c in table.columns))
 
 
@@ -568,15 +574,16 @@ def delete_dataset(dataset_id: str, session: Session) -> None:
     logger.debug(f"delete took {time.time() - start}s")
 
 
-# The derived/RDKit passes scope to a dataset by walking from a compound up to ord.reaction, but
-# ord.compound hangs off three parents, so no single join reaches all of them:
+# The derived/RDKit passes scope to a dataset by walking from a compound up to
+# ord.reaction, but ord.compound hangs off three parents, so no single join reaches all
+# of them:
 #   * a reaction input (reaction_input.reaction_id set);
 #   * a workup input (that reaction_input has reaction_id NULL, reaction_workup_id set);
 #   * a product measurement (compound.reaction_input_id NULL) -- authentic standards.
-# Callers UNION the paths rather than joining through COALESCE of the parent keys, which is not
-# sargable and would keep the planner off the foreign-key indexes. The paths are disjoint (a
-# compound sets exactly one of reaction_input_id/product_measurement_id; a reaction_input belongs
-# to a reaction xor a workup), so UNION ALL never double-counts.
+# Callers UNION the paths rather than joining through COALESCE of the parent keys, which
+# is not sargable and would keep the planner off the foreign-key indexes. The paths are
+# disjoint (a compound sets exactly one of reaction_input_id/product_measurement_id; a
+# reaction_input belongs to a reaction xor a workup), so UNION ALL never double-counts.
 _COMPOUND_REACTION_JOINS: tuple[str, ...] = (
     """
     JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
@@ -643,9 +650,9 @@ def update_derived_tables(
     # dataset_id and the compound link columns live on the polymorphic child mappers, so
     # rows are scoped to the dataset via raw SQL (like the RDKit pass).
     dataset_pk = _resolve_dataset_pk(dataset_id, session)
-    # Reaction SMILES from the served proto (no ORM objects loaded), keyed by ord.reaction.id.
-    # Resolve the ids needing derivation in one indexed pass, then load and parse the (large)
-    # protos in batches of _DERIVED_BATCH.
+    # Reaction SMILES from the served proto (no ORM objects loaded), keyed by
+    # ord.reaction.id. Resolve the ids needing derivation in one indexed pass, then load
+    # and parse the (large) protos in batches of _DERIVED_BATCH.
     reaction_shard_sql, reaction_shard_params = _shard_predicate(
         "ord.reaction.id", shard
     )
@@ -781,9 +788,10 @@ def _update_compound_smiles(
         .scalars()
         .all()
     )
-    # The first SMILES identifier (lowest id == proto order) for each requested compound. The FK
-    # column is indexed, so one query per batch replaces an ORM load plus lazy child fetches per
-    # compound. Interpolated names are internal constants (not user input); see S608 below.
+    # The first SMILES identifier (lowest id == proto order) for each requested
+    # compound. The FK column is indexed, so one query per batch replaces an ORM load
+    # plus lazy child fetches per compound. Interpolated names are internal constants
+    # (not user input); see S608 below.
     select_smiles = text(f"""
         SELECT DISTINCT ON (ord.compound_identifier.{derived_id})
                ord.compound_identifier.{derived_id}, ord.compound_identifier.value
@@ -809,11 +817,13 @@ def _update_compound_smiles(
         inserts = []
         for compound_id in batch_ids:
             value = stored_smiles.get(compound_id)
-            # An absent or empty SMILES identifier both fall through to the reconstruction path,
-            # matching smiles_from_compound's `get_compound_smiles(...) or ...` falsiness (an
-            # empty string is not a parseable structure to canonicalize).
+            # An absent or empty SMILES identifier both fall through to the
+            # reconstruction path, matching smiles_from_compound's
+            # `get_compound_smiles(...) or ...` falsiness (an empty string is not a
+            # parseable structure to canonicalize).
             if value:
-                # Canonicalize the stored SMILES, matching smiles_from_compound's default.
+                # Canonicalize the stored SMILES, matching smiles_from_compound's
+                # default.
                 mol = Chem.MolFromSmiles(value)
                 if mol is None:
                     logger.debug(
@@ -822,7 +832,8 @@ def _update_compound_smiles(
                     continue
                 smiles = Chem.MolToSmiles(mol)
             else:
-                # No stored SMILES: reconstruct the message and derive from other identifiers.
+                # No stored SMILES: reconstruct the message and derive from other
+                # identifiers.
                 compound = session.get(compound_class, compound_id)
                 assert compound is not None  # Selected by id above.
                 try:
@@ -922,11 +933,12 @@ def _update_rdkit_mols(
     start = time.time()
     dataset_pk = _resolve_dataset_pk(dataset_id, session)
     shard_sql, shard_params = _shard_predicate("candidates.smiles", shard)
-    # Scope each compound table to the dataset via the surrogate key, in a MATERIALIZED CTE with no
-    # rdkit_mol_id predicate, so the planner reaches the compounds through ix_reaction_dataset_id
-    # rather than the whole-database "unlinked rows" partial index; new_smiles then joins the
-    # derived tables to these bounded id sets. See _link_mol_ids and #895. UNION ALL is safe: the
-    # join paths select disjoint compounds (see _COMPOUND_REACTION_JOINS).
+    # Scope each compound table to the dataset via the surrogate key, in a MATERIALIZED
+    # CTE with no rdkit_mol_id predicate, so the planner reaches the compounds through
+    # ix_reaction_dataset_id rather than the whole-database "unlinked rows" partial
+    # index; new_smiles then joins the derived tables to these bounded id sets. See
+    # _link_mol_ids and #895. UNION ALL is safe: the join paths select disjoint
+    # compounds (see _COMPOUND_REACTION_JOINS).
     scoped_compound_ids = "\nUNION ALL\n".join(
         f"""
                 SELECT ord.compound.id AS id
@@ -1051,7 +1063,8 @@ def _link_mol_ids(
                   AND rdkit.mols.smiles = {derived_table}.smiles
                   AND {derived_table}.rdkit_mol_id IS NULL
                   {shard_sql}
-                """),  # noqa: S608  (table/column names are internal constants, not user input)
+                """),  # noqa: S608
+            # (table/column names are internal constants, not user input)
             {"dataset_pk": dataset_pk, **shard_params},
         )
         rows += cast(Any, result).rowcount
@@ -1073,12 +1086,13 @@ def update_rdkit_ids(
     logger.debug("Updating RDKit ID associations")
     _check_server_version(session.connection())
     start = time.time()
-    # Each UPDATE scopes to the dataset in a MATERIALIZED CTE keyed on the surrogate, carrying no
-    # rdkit_*_id predicate, so the planner reaches the rows through ix_reaction_dataset_id. The
-    # earlier flat ``UPDATE ... FROM ord.reaction WHERE ... rdkit_*_id IS NULL`` let it drive from
-    # the "unlinked rows" partial index -- fine on an end-to-end load (the set drains dataset by
-    # dataset) but quadratic on a backfill, where every dataset is unlinked at once and each
-    # (dataset, shard) rescans the whole set. See #895.
+    # Each UPDATE scopes to the dataset in a MATERIALIZED CTE keyed on the surrogate,
+    # carrying no rdkit_*_id predicate, so the planner reaches the rows through
+    # ix_reaction_dataset_id. The earlier flat ``UPDATE ... FROM ord.reaction WHERE
+    # ... rdkit_*_id IS NULL`` let it drive from the "unlinked rows" partial index --
+    # fine on an end-to-end load (the set drains dataset by dataset) but quadratic on a
+    # backfill, where every dataset is unlinked at once and each (dataset, shard)
+    # rescans the whole set. See #895.
     dataset_pk = _resolve_dataset_pk(dataset_id, session)
     reaction_shard_sql, reaction_shard_params = _shard_predicate(
         "derived.reaction_smiles.reaction_smiles", shard

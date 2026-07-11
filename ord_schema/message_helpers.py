@@ -911,7 +911,8 @@ def id_filename(filename: str) -> str:
             f'basename does not have the required "ord" prefix: {basename}'
         )
     shard = suffix[:2]
-    # Reject anything that could let the shard escape the "data/" root (e.g. "..", "/x").
+    # Reject anything that could let the shard escape the "data/" root
+    # (e.g. "..", "/x").
     if not shard.isalnum():
         raise ValueError(f"basename shard must be alphanumeric: {basename}")
     result = posixpath.join("data", shard, basename)

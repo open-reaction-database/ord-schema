@@ -53,8 +53,8 @@ def read_metadata(path: Path) -> str:
     if path.name.endswith(".tar.gz"):
         with tarfile.open(path) as archive:
             for member in archive.getmembers():
-                # Only the top-level PKG-INFO describes the distribution itself; the sdist
-                # also carries one per .egg-info directory.
+                # Only the top-level PKG-INFO describes the distribution itself; the
+                # sdist also carries one per .egg-info directory.
                 if member.name.count("/") == 1 and member.name.endswith("/PKG-INFO"):
                     handle = archive.extractfile(member)
                     if handle is not None:

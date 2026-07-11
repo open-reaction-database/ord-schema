@@ -25,7 +25,8 @@ from typing import Any
 from dateutil import parser
 from rdkit import Chem
 from rdkit import (
-    __version__ as RDKIT_VERSION,  # noqa: N812  (RDKIT_VERSION reads better than rdkit_version)
+    # (RDKIT_VERSION reads better than rdkit_version)
+    __version__ as RDKIT_VERSION,  # noqa: N812
 )
 
 import ord_schema

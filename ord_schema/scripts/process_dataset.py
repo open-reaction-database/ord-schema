@@ -122,7 +122,8 @@ def cleanup(filename: str, output_filename: str) -> None:
     else:
         args = ["git", "mv", filename, output_filename]
     logger.info("Running command: %s", " ".join(args))
-    subprocess.run(args, check=True)  # noqa: S603  (internal command, no untrusted input)
+    # (internal command, no untrusted input)
+    subprocess.run(args, check=True)  # noqa: S603
 
 
 def _get_reaction_ids(
@@ -159,7 +160,8 @@ def _load_base_dataset(
     else:
         git_args.append(f"{base}:{file_status.filename}")
     logger.info("Running command: %s", " ".join(git_args))
-    serialized = subprocess.run(git_args, capture_output=True, check=True, text=False)  # noqa: S603  (internal git command)
+    # (internal git command)
+    serialized = subprocess.run(git_args, capture_output=True, check=True, text=False)  # noqa: S603
     if serialized.stdout.startswith(b"version"):
         # Convert Git LFS pointers to real data.
         serialized = subprocess.run(
@@ -271,7 +273,8 @@ def _run_updates(
         # In-memory path: materialize a Parquet input if the requested output
         # format is not Parquet (so we can mutate via update_dataset).
         if isinstance(dataset, parquet.DatasetView):
-            dataset = parquet.load_dataset(input_filename)  # noqa: PLW2901  (materialize the view in place)
+            # (materialize the view in place)
+            dataset = parquet.load_dataset(input_filename)  # noqa: PLW2901
         updates.update_dataset(dataset)
         validations.validate_datasets(
             {input_filename: dataset}, write_errors, options=options

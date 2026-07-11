@@ -24,7 +24,8 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 
 @pytest.fixture(autouse=True)
 def setup():
-    # Redirect warning messages to stdout so they can be filtered from the other test output.
+    # Redirect warning messages to stdout so they can be filtered from the other
+    # test output.
     original_showwarning = warnings.showwarning
 
     def _showwarning(message, category, filename, lineno, file=None, line=None):
