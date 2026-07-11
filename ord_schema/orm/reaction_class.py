@@ -127,7 +127,7 @@ def update_reaction_classes(
             """INSERT INTO derived.reaction_classes
             (reaction_id, reaction_class, reaction_name)
             VALUES (:reaction_id, :reaction_class, :reaction_name)
-            ON CONFLICT (reaction_id) DO NOTHING."""
+            ON CONFLICT (reaction_id) DO NOTHING"""
         ),
         inserts,
     )
