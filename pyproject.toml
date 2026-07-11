@@ -187,11 +187,6 @@ ignore = [
     # (assert x is not None  # Type hint); not a security concern here.
     "S101",
     "FIX002",                # TODO comments are allowed
-    # E501 (line too long): the formatter wraps code to `line-length`, but it does
-    # not reflow comments or string literals, so enforcing E501 would flag long
-    # comments/URLs the formatter can't fix. Left off; comments are kept in line by
-    # convention, not the linter.
-    "E501",
     # B028 (missing stacklevel= on warnings.warn): the ~103 sites in
     # validations.py are data-validation messages collected into ValidationOutput,
     # not deprecation/misuse warnings -- there is no caller location worth pointing
