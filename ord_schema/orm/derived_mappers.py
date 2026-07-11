@@ -27,8 +27,9 @@ from ord_schema.orm import Base
 class ReactionSmiles(Base):
     """Generated reaction SMILES and its link to the deduplicated RDKit reaction.
 
-    One row per reaction: reaction_smiles is filled by update_derived_tables, rdkit_reaction_id
-    by the RDKit linking pass (rdkit.reactions is deduplicated by SMILES).
+    One row per reaction: reaction_smiles is filled by update_derived_tables,
+    rdkit_reaction_id by the RDKit linking pass (rdkit.reactions is deduplicated
+    by SMILES).
     """
 
     __tablename__ = "reaction_smiles"

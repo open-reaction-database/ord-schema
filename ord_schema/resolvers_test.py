@@ -38,10 +38,9 @@ _live_resolvers = pytest.mark.skipif(
 def _skip_if_resolver_unavailable(caplog):
     """Skip the calling test when a resolver signalled an upstream outage.
 
-    A 5xx from any resolver (PubChem 503 PUGREST.ServerBusy, CIR 500) means the
-    service is rate-limiting or down, not that resolution logic is broken;
-    resolvers log it at INFO. A wrong-but-resolved answer still fails via the
-    test's own assertions.
+    A 5xx from any resolver (PubChem 503 PUGREST.ServerBusy, CIR 500) means the service
+    is rate-limiting or down, not that resolution logic is broken; resolvers log it at
+    INFO. A wrong-but-resolved answer still fails via the test's own assertions.
     """
     if "ServerBusy" in caplog.text or "HTTP Error 5" in caplog.text:
         pytest.skip("resolver unavailable (5xx); skipping live resolver smoke test")

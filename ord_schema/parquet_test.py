@@ -294,7 +294,7 @@ def test_writer_aborts_on_exception_in_context(tmp_path):
 
 
 def test_writer_aborts_on_keyboard_interrupt_in_context(tmp_path):
-    """KeyboardInterrupt in the with-body also triggers _abort and leaves no temp behind."""
+    """KeyboardInterrupt in the with-body triggers _abort and leaves no temp behind."""
     path = tmp_path / "ds.parquet"
     # (abort-on-exception test: the multi-statement body in the context is under test)
     with (  # noqa: PT012
@@ -307,7 +307,7 @@ def test_writer_aborts_on_keyboard_interrupt_in_context(tmp_path):
 
 
 def test_writer_aborts_preserves_existing_destination(tmp_path):
-    """A failed atomic publish must not clobber an already-published file at the destination."""
+    """A failed atomic publish must not clobber an existing file at the destination."""
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(_make_dataset(n=2, name="old", description="old desc"), path)
     with path.open("rb") as f:
@@ -335,7 +335,7 @@ def test_streaming_md5_returns_count_and_is_deterministic(tmp_path):
 
 
 def test_streaming_md5_is_decoupled_from_row_group_size(tmp_path):
-    """The same logical content rewritten with different row group sizes hashes the same."""
+    """The same content rewritten with different row group sizes hashes the same."""
     original = _make_dataset(n=12)
     path_small = tmp_path / "small.parquet"
     path_large = tmp_path / "large.parquet"
@@ -406,8 +406,8 @@ def test_writer_close_propagates_flush_error(tmp_path):
 def test_dataset_view_exposes_all_dataset_fields(tmp_path):
     """DatasetView must expose every field declared on the Dataset proto.
 
-    Fails if a new field is added to the proto without a matching attribute
-    on DatasetView, so the view stays a drop-in stand-in for validation.
+    Fails if a new field is added to the proto without a matching attribute on
+    DatasetView, so the view stays a drop-in stand-in for validation.
     """
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(_make_dataset(n=1), path)
@@ -430,9 +430,9 @@ def test_dataset_view_reactions_is_read_only(tmp_path):
 def test_dataset_view_empty_parquet_is_falsy(tmp_path):
     """DatasetView.reactions reports length 0 / False for an empty Parquet.
 
-    ``validate_dataset``'s "Dataset requires reactions or reaction_ids"
-    warning uses ``if not message.reactions`` — this test guards against
-    that branch going dead when a bare generator would be truthy.
+    ``validate_dataset``'s "Dataset requires reactions or reaction_ids" warning uses
+    ``if not message.reactions`` — this test guards against that branch going dead when
+    a bare generator would be truthy.
     """
     path = tmp_path / "empty.parquet"
     # DatasetWriter (unlike save_dataset) permits zero reactions.
@@ -447,8 +447,8 @@ def test_dataset_view_empty_parquet_is_falsy(tmp_path):
 def test_dataset_view_values_round_trip(tmp_path):
     """DatasetView scalars and re-iterated Reactions match the source Dataset.
 
-    Scalars come from the footer; ``.reactions`` opens a fresh stream on
-    each access, so two validation passes iterate it twice.
+    Scalars come from the footer; ``.reactions`` opens a fresh stream on each access, so
+    two validation passes iterate it twice.
     """
     source = _make_dataset(n=3, dataset_id="ord_dataset-abc", name="n", description="d")
     path = tmp_path / "ds.parquet"

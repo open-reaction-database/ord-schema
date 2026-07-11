@@ -75,7 +75,8 @@ def resolve_names(message: ord_schema.Message) -> bool:
     next Compound after the first successful name resolution.
 
     Args:
-        message: Protocol buffer tree containing Compound submessages (e.g. Reaction or ReactionInput).
+        message: Protocol buffer tree containing Compound submessages (e.g. Reaction
+            or ReactionInput).
 
     Returns:
         Boolean whether `message` was modified.
@@ -106,9 +107,8 @@ def resolve_names(message: ord_schema.Message) -> bool:
 def _pubchem_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the PubChem REST API.
 
-    A 503 (genuine service load or an IP-level block) propagates to
-    ``resolve_name``, which falls through to the next resolver instead of
-    retrying.
+    A 503 (genuine service load or an IP-level block) propagates to ``resolve_name``,
+    which falls through to the next resolver instead of retrying.
     """
     with urllib.request.urlopen(
         f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/{value_type}/"
@@ -120,10 +120,10 @@ def _pubchem_resolve(value_type: str, value: str) -> str:
 def _cactus_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the NCI/CADD CIR web service.
 
-    CIR resolves trade names, trivial names, abbreviations, and CAS numbers, so
-    it serves as a fast fallback when PubChem is unavailable. Unknown names come
-    back as HTTP 500 (not 404), which ``resolve_name`` treats like any other
-    HTTPError and falls through.
+    CIR resolves trade names, trivial names, abbreviations, and CAS numbers, so it
+    serves as a fast fallback when PubChem is unavailable. Unknown names come back as
+    HTTP 500 (not 404), which ``resolve_name`` treats like any other HTTPError and falls
+    through.
     """
     del value_type  # CIR infers the identifier type from the string.
     with urllib.request.urlopen(
@@ -136,9 +136,9 @@ def _cactus_resolve(value_type: str, value: str) -> str:
 def _opsin_resolve(value_type: str, value: str) -> str:
     """Resolves systematic IUPAC names to SMILES via the OPSIN web service.
 
-    OPSIN is a parser for systematic IUPAC nomenclature, not a lookup service:
-    it will refuse trade names, trivial names, and abbreviations (e.g. "aspirin",
-    "THF") with an HTTP 404. Treat it strictly as a complement to PubChem.
+    OPSIN is a parser for systematic IUPAC nomenclature, not a lookup service: it will
+    refuse trade names, trivial names, and abbreviations (e.g. "aspirin", "THF") with an
+    HTTP 404. Treat it strictly as a complement to PubChem.
     """
     del value_type  # OPSIN only supports names.
     with urllib.request.urlopen(

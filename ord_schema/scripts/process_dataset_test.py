@@ -246,10 +246,10 @@ class TestProcessParquetDataset:
 class TestSubmissionWorkflow:
     """Test suite for the ORD submission workflow.
 
-    setUp() starts each test with a clean git environment containing some
-    data. To create a new test, you should made a modification to the git
-    repo (e.g. adding a new dataset or editing an existing one) and call
-    self._run() to commit the changes and run process_datasets.py.
+    setUp() starts each test with a clean git environment containing some data. To
+    create a new test, you should made a modification to the git repo (e.g. adding a new
+    dataset or editing an existing one) and call self._run() to commit the changes and
+    run process_datasets.py.
     """
 
     _DEFAULT_BRANCH = "main"

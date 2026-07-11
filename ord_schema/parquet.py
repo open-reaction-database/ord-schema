@@ -142,7 +142,7 @@ class DatasetWriter:
             self.write(reaction)
 
     def close(self) -> None:
-        """Flushes the final row group, closes the writer, and atomically publishes the file.
+        """Flushes the final row group, closes the writer, and publishes the file.
 
         On success the temp file is renamed onto the destination via
         ``os.replace``. On any exception during flush or close (including
@@ -244,11 +244,10 @@ def save_dataset(
 class _ReactionStream:
     """Re-iterable Reaction stream with a known length.
 
-    Each iteration opens a fresh read over the backing Parquet file so
-    callers that iterate more than once stay memory-bounded. ``__len__``
-    and ``__bool__`` come from the footer row count, so emptiness checks
-    (e.g., ``if not dataset.reactions``) behave like a list instead of
-    always being truthy the way a bare generator would be.
+    Each iteration opens a fresh read over the backing Parquet file so callers that
+    iterate more than once stay memory-bounded. ``__len__`` and ``__bool__`` come from
+    the footer row count, so emptiness checks (e.g., ``if not dataset.reactions``)
+    behave like a list instead of always being truthy the way a bare generator would be.
     """
 
     def __init__(self, path: str | os.PathLike[str], num_reactions: int) -> None:
@@ -321,8 +320,8 @@ def load_dataset(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
 def load_metadata(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
     """Reads Dataset scalar fields (``name``, ``description``, ``dataset_id``).
 
-    The values are read from the Parquet footer. No column data is read. The
-    returned ``Dataset`` has no ``reactions`` or ``reaction_ids`` populated.
+    The values are read from the Parquet footer. No column data is read. The returned
+    ``Dataset`` has no ``reactions`` or ``reaction_ids`` populated.
     """
     with pq.ParquetFile(path) as parquet_file:
         return _dataset_from_metadata(parquet_file.schema_arrow.metadata)
@@ -340,9 +339,8 @@ class ParquetFooter:
 def load_footer(path: str | os.PathLike[str]) -> ParquetFooter:
     """Returns scalar Dataset fields and row-group/row counts in one open.
 
-    Equivalent to ``load_metadata`` plus ``num_row_groups`` plus a row count,
-    but reads the footer once. Use when the caller needs more than one of
-    those values.
+    Equivalent to ``load_metadata`` plus ``num_row_groups`` plus a row count, but reads
+    the footer once. Use when the caller needs more than one of those values.
     """
     with pq.ParquetFile(path) as parquet_file:
         return ParquetFooter(
@@ -385,7 +383,8 @@ def iter_reactions(
         if row_group is not None:
             if not 0 <= row_group < parquet_file.num_row_groups:
                 raise IndexError(
-                    f"row_group {row_group} out of range [0, {parquet_file.num_row_groups})"
+                    f"row_group {row_group} out of range "
+                    f"[0, {parquet_file.num_row_groups})"
                 )
             table = parquet_file.read_row_group(
                 row_group, columns=["reaction_id", "reaction"]
@@ -467,10 +466,10 @@ def streaming_md5(path: str | os.PathLike[str]) -> tuple[str, int]:
 
 
 def iter_reaction_ids(path: str | os.PathLike[str]) -> Iterator[str]:
-    """Yields ``reaction_id`` values from a Parquet dataset without decoding Reaction blobs.
+    """Yields ``reaction_id`` values from a Parquet dataset without decoding Reactions.
 
-    Reads only the ``reaction_id`` column row-group at a time, so this is
-    cheap even for very large files. Iteration order matches ``iter_reactions``.
+    Reads only the ``reaction_id`` column row-group at a time, so this is cheap even for
+    very large files. Iteration order matches ``iter_reactions``.
     """
     with pq.ParquetFile(path) as parquet_file:
         for batch in parquet_file.iter_batches(columns=["reaction_id"]):

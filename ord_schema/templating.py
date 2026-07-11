@@ -13,10 +13,9 @@
 # limitations under the License.
 """Functions for creating Datasets by enumerating a template with a spreadsheet.
 
-The templating code has specific expectations for how the reaction pbtxt and
-spreadsheet are defined, namely that placeholder values in the pbtxt begin and
-end with a "$" (dollar sign) and that these match a unique column header in the
-spreadsheet file.
+The templating code has specific expectations for how the reaction pbtxt and spreadsheet
+are defined, namely that placeholder values in the pbtxt begin and end with a "$"
+(dollar sign) and that these match a unique column header in the spreadsheet file.
 """
 
 import pathlib
@@ -151,7 +150,6 @@ def generate_dataset(
         ValueError: If there is no match for a placeholder string in df.
         ValueError: If validate is True and there are validation errors when
             validating an enumerated Reaction message.
-
     """
     placeholders = set(re.findall(r"\$\w+\$", template_string))
     for placeholder in placeholders:
@@ -159,7 +157,8 @@ def generate_dataset(
             # Allow "$my_placeholder$" to match "my_placeholder" in df.
             if placeholder[1:-1] not in df.columns:
                 raise ValueError(
-                    f"Placeholder {placeholder} not found as a column in dataset spreadsheet"
+                    f"Placeholder {placeholder} not found as a column in dataset "
+                    "spreadsheet"
                 )
             df = df.rename(columns={placeholder[1:-1]: placeholder})
 

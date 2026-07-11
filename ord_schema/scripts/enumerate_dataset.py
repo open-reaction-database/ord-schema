@@ -37,7 +37,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--spreadsheet",
         required=True,
-        help="Path to a spreadsheet file with a header row matching template placeholders",
+        help="Path to a spreadsheet file with a header row matching template "
+        "placeholders",
     )
     parser.add_argument("--output", required=True, help="Filename for output Dataset")
     parser.add_argument(
@@ -49,7 +50,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
-    """Enumerates a Dataset from a Reaction template and spreadsheet, then writes it out."""
+    """Enumerates a Dataset from a Reaction template and spreadsheet, then saves it."""
     with pathlib.Path(args.template).open() as f:
         template_string = f.read()
     df = templating.load_spreadsheet(args.spreadsheet)

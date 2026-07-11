@@ -438,7 +438,8 @@ def parse_parameter(root: ET.Element, workup: reaction_pb2.ReactionWorkup) -> No
             else:
                 if not isinstance(temperature, reaction_pb2.Temperature):
                     logger.debug(
-                        f'TEMPERATURE: resolved to {type(temperature).__name__}, not Temperature ("{root.text}")'
+                        f"TEMPERATURE: resolved to {type(temperature).__name__}, "
+                        f'not Temperature ("{root.text}")'
                     )
                 elif (
                     temperature.units == temperature.CELSIUS

@@ -15,12 +15,12 @@
 """Staged loading of ORD datasets into the ORM database.
 
 Loading is two independent stages: *ingest* writes the ``ord.*`` search index and
-``public.*`` payload, and *derivation* writes the ``derived.*`` SMILES, RDKit links,
-and (optionally) reaction classes. Either stage can run without the other; derivation
-is idempotent, so the derived-only stage backfills or recomputes derived data over
-already-ingested datasets. ``load_datasets`` orchestrates both stages over a glob of
-dataset files; the per-dataset helpers (``ingest_dataset``, ``derive_dataset``,
-``add_rdkit``) are exposed for callers that compose their own pipeline.
+``public.*`` payload, and *derivation* writes the ``derived.*`` SMILES, RDKit links, and
+(optionally) reaction classes. Either stage can run without the other; derivation is
+idempotent, so the derived-only stage backfills or recomputes derived data over already-
+ingested datasets. ``load_datasets`` orchestrates both stages over a glob of dataset
+files; the per-dataset helpers (``ingest_dataset``, ``derive_dataset``, ``add_rdkit``)
+are exposed for callers that compose their own pipeline.
 """
 
 import dataclasses
@@ -89,7 +89,8 @@ def ingest_dataset(filename: str, *, dsn: str, overwrite: bool) -> str:
         Dataset ID.
 
     Raises:
-        ValueError: If the dataset already exists in the database and `overwrite` is not set.
+        ValueError: If the dataset already exists in the database and `overwrite`
+            is not set.
     """
     if filename.endswith(".parquet"):
         logger.debug(f"Streaming {filename}")
@@ -128,7 +129,8 @@ def ingest_dataset(filename: str, *, dsn: str, overwrite: bool) -> str:
                 if compute_md5() != existing_md5:
                     if not overwrite:
                         raise ValueError(
-                            f"`overwrite` is required when a dataset already exists: {dataset_id}"
+                            "`overwrite` is required when a dataset already exists: "
+                            f"{dataset_id}"
                         )
                     logger.debug(f"existing dataset {dataset_id} changed; updating")
                     with session.begin():
@@ -179,9 +181,10 @@ def _derive_shard_items(
 ) -> list[tuple[str, int, int]]:
     """Builds ``(dataset_id, shard_index, num_shards)`` SMILES-derivation work items.
 
-    A dataset is split into ``ceil(num_reactions / _DERIVE_SHARD_SIZE)`` shards (capped at
-    ``_DERIVE_SHARD_CAP``, at least 1), so a large dataset fans out across the pool while small
-    ones stay a single shard. Datasets without a size (no metadata row) default to one shard.
+    A dataset is split into ``ceil(num_reactions / _DERIVE_SHARD_SIZE)`` shards (capped
+    at ``_DERIVE_SHARD_CAP``, at least 1), so a large dataset fans out across the pool
+    while small ones stay a single shard. Datasets without a size (no metadata row)
+    default to one shard.
     """
     items: list[tuple[str, int, int]] = []
     engine = create_engine(dsn)
@@ -210,7 +213,7 @@ def _derive_shard_items(
 def _derive_smiles_shard(
     item: tuple[str, int, int], *, dsn: str
 ) -> tuple[str, int, int]:
-    """Derives one hash-partition of a dataset's SMILES (the parallel-safe, shardable pass)."""
+    """Derive a hash-partition of a dataset's SMILES; parallel-safe and shardable."""
     dataset_id, shard_index, num_shards = item
     engine = create_engine(dsn)
     try:
@@ -226,10 +229,10 @@ def _derive_smiles_shard(
 def _classify_shard(item: tuple[str, int, int], *, dsn: str) -> tuple[str, int, int]:
     """Classifies one hash-partition of a dataset's reactions (SMILES already derived).
 
-    Classification only -- it does not re-derive SMILES, so a failed SMILES shard stays visibly
-    incomplete rather than being silently backfilled here. Each worker loads its own Rxn-INSIGHT /
-    rxnmapper model, so the classify pool is bounded (``_CLASSIFY_JOBS_CAP``) to keep the models in
-    memory.
+    Classification only -- it does not re-derive SMILES, so a failed SMILES shard stays
+    visibly incomplete rather than being silently backfilled here. Each worker loads its
+    own Rxn-INSIGHT / rxnmapper model, so the classify pool is bounded
+    (``_CLASSIFY_JOBS_CAP``) to keep the models in memory.
     """
     dataset_id, shard_index, num_shards = item
     engine = create_engine(dsn)
@@ -255,9 +258,10 @@ def add_rdkit(engine: Engine, dataset_id: str) -> None:
 def _rdkit_shard(item: tuple[str, int, int], *, dsn: str) -> tuple[str, int, int]:
     """Populates + links the RDKit tables for one SMILES-hash partition of a dataset.
 
-    Every RDKit sub-step partitions by the same SMILES hash, so this shard inserts exactly the
-    structures its links reference and touches a key set disjoint from the other shards -- safe to
-    run concurrently against the shared ``rdkit.*`` tables (datasets are still processed serially).
+    Every RDKit sub-step partitions by the same SMILES hash, so this shard inserts
+    exactly the structures its links reference and touches a key set disjoint from the
+    other shards -- safe to run concurrently against the shared ``rdkit.*`` tables
+    (datasets are still processed serially).
     """
     dataset_id, shard_index, num_shards = item
     engine = create_engine(dsn)
@@ -311,9 +315,10 @@ def _run_parallel(
 class _ParquetPlan:
     """Per-dataset outcome of the prep phase of sharded Parquet ingest.
 
-    ``needs_load`` is False for datasets skipped as unchanged; those carry only ``dataset_id``
-    (for the derived stage). Datasets that need loading also carry the surrogate ``dataset_uuid``
-    the shard phase wires reactions to and the ``num_row_groups`` to shard over.
+    ``needs_load`` is False for datasets skipped as unchanged; those carry only
+    ``dataset_id`` (for the derived stage). Datasets that need loading also carry the
+    surrogate ``dataset_uuid`` the shard phase wires reactions to and the
+    ``num_row_groups`` to shard over.
     """
 
     filename: str
@@ -328,13 +333,15 @@ class _ParquetPlan:
 def _prep_parquet_dataset(filename: str, *, dsn: str, overwrite: bool) -> _ParquetPlan:
     """Prep phase: decide skip/overwrite and insert the empty ``ord.dataset`` row.
 
-    Skips datasets whose streaming MD5 is unchanged; otherwise deletes any existing full or
-    partial rows and inserts a fresh search-index row whose surrogate id the shard phase
-    references. The ``public.datasets`` marker is written only after all shards succeed
-    (``_finalize_parquet_dataset``), so a crashed load leaves no marker and is cleanly redone.
+    Skips datasets whose streaming MD5 is unchanged; otherwise deletes any existing full
+    or partial rows and inserts a fresh search-index row whose surrogate id the shard
+    phase references. The ``public.datasets`` marker is written only after all shards
+    succeed (``_finalize_parquet_dataset``), so a crashed load leaves no marker and is
+    cleanly redone.
 
     Raises:
-        ValueError: If the dataset exists with changed content and ``overwrite`` is not set.
+        ValueError: If the dataset exists with changed content and ``overwrite`` is not
+            set.
     """
     footer = parquet.load_footer(filename)
     dataset_id = footer.dataset.dataset_id
@@ -351,7 +358,8 @@ def _prep_parquet_dataset(filename: str, *, dsn: str, overwrite: bool) -> _Parqu
                     )
                 if not overwrite:
                     raise ValueError(
-                        f"`overwrite` is required when a dataset already exists: {dataset_id}"
+                        "`overwrite` is required when a dataset already exists: "
+                        f"{dataset_id}"
                     )
                 logger.debug(f"existing dataset {dataset_id} changed; reloading")
             # Wipe any full or partial prior rows, then insert a fresh search-index row.
@@ -372,7 +380,7 @@ def _prep_parquet_dataset(filename: str, *, dsn: str, overwrite: bool) -> _Parqu
 
 
 def _ingest_parquet_shard(item: tuple[str, uuid.UUID, int], *, dsn: str) -> None:
-    """Shard phase: COPY-load one Parquet row group's reactions in its own transaction."""
+    """Shard phase: COPY-load one Parquet row group's reactions in its transaction."""
     filename, dataset_uuid, row_group = item
     engine = create_engine(dsn)
     try:
@@ -385,7 +393,7 @@ def _ingest_parquet_shard(item: tuple[str, uuid.UUID, int], *, dsn: str) -> None
 
 
 def _finalize_parquet_dataset(plan: _ParquetPlan, *, dsn: str) -> str:
-    """Finalize phase: write the ``public.datasets`` completeness marker and ``submitted_at``."""
+    """Finalize phase: write the ``public.datasets`` marker and ``submitted_at``."""
     engine = create_engine(dsn)
     try:
         with Session(engine) as session, session.begin():
@@ -402,15 +410,16 @@ def _ingest_parquet_sharded(
 ) -> tuple[list[str], list[str]]:
     """Ingests Parquet datasets by sharding their row groups across a worker pool.
 
-    Three phases, each a barrier so the next reads the previous one's committed rows: prep inserts
-    each dataset's search-index row, shards COPY the reactions row-group by row-group, and finalize
-    writes the ``public.datasets`` marker for datasets whose shards all succeeded. The row group is
-    the unit of parallelism, so one large dataset's shards fill the pool instead of pinning a
-    single worker. A dataset with any failed shard is left unmarked (skipped in finalize) and
-    reported, so a re-run redoes it from scratch.
+    Three phases, each a barrier so the next reads the previous one's committed rows:
+    prep inserts each dataset's search-index row, shards COPY the reactions row-group by
+    row-group, and finalize writes the ``public.datasets`` marker for datasets whose
+    shards all succeeded. The row group is the unit of parallelism, so one large
+    dataset's shards fill the pool instead of pinning a single worker. A dataset with
+    any failed shard is left unmarked (skipped in finalize) and reported, so a re-run
+    redoes it from scratch.
 
-    Returns ``(dataset_ids, failures)``: ids of skipped and fully loaded datasets (for the derived
-    stage), and the filenames that failed in any phase.
+    Returns ``(dataset_ids, failures)``: ids of skipped and fully loaded datasets (for
+    the derived stage), and the filenames that failed in any phase.
     """
     failures: list[str] = []
     plans, prep_failures = _run_parallel(
@@ -475,15 +484,18 @@ def load_datasets(
         dsn: Database connection string.
         stages: Stages to run (any of ``STAGES``); defaults to all.
         overwrite: If True, update changed datasets during ingest.
-        classify_reactions: If True, assign reaction class/name labels during derivation.
+        classify_reactions: If True, assign reaction class/name labels during
+            derivation.
         n_jobs: Number of parallel workers.
-        classify_jobs: Worker count for the classification pass; each worker loads a transformer
-            model, so this is bounded separately from ``n_jobs``. Defaults to
-            ``min(n_jobs, _CLASSIFY_JOBS_CAP)``. Raise it only if the models fit in memory.
+        classify_jobs: Worker count for the classification pass; each worker loads a
+            transformer model, so this is bounded separately from ``n_jobs``. Defaults
+            to ``min(n_jobs, _CLASSIFY_JOBS_CAP)``. Raise it only if the models fit in
+            memory.
 
     Raises:
         ValueError: If ``stages`` is empty or names an unknown stage.
-        ImportError: If ``classify_reactions`` is set without the ``reaction-class`` extra.
+        ImportError: If ``classify_reactions`` is set without the ``reaction-class``
+            extra.
         RuntimeError: If any dataset failed in any stage; the inputs are the message.
     """
     stages = tuple(stages)

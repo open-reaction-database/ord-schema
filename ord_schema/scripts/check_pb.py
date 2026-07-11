@@ -37,7 +37,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
-    """Verifies that the pb and pbtxt Datasets are identical, raising on any difference."""
+    """Verifies the pb and pbtxt Datasets are identical, raising on any difference."""
     dataset = datasets.load_dataset(args.pb)
     pb_data = text_format.MessageToString(dataset)
     with pathlib.Path(args.pbtxt).open() as f:

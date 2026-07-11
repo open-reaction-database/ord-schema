@@ -32,7 +32,7 @@ _PBTXT_FIXTURE = str(
 
 
 def test_main(prepared_engine):
-    """main() parses args and runs both stages over the matching datasets."""
+    """Main() parses args and runs both stages over the matching datasets."""
     argv = ["--dsn", str(prepared_engine.url), "--pattern", _PBTXT_FIXTURE]
     add_datasets.main(add_datasets.parse_args(argv))
     with Session(prepared_engine) as session:
@@ -47,7 +47,7 @@ def test_unknown_stage_rejected():
 
 
 def test_classify_reactions_requires_extra(monkeypatch):
-    """--classify_reactions exits early with a clear message when the extra is missing."""
+    """--classify_reactions exits early with a clear message when extra is missing."""
     monkeypatch.setattr(add_datasets.database, "update_reaction_classes", None)
     with pytest.raises(SystemExit, match="reaction-class"):
         add_datasets.main(

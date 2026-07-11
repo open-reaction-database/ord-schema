@@ -13,10 +13,10 @@
 # limitations under the License.
 """Validates a set of Dataset protocol buffers.
 
-pb inputs are validated as a single per-file task. Parquet inputs are fanned
-out one task per row group so ``--n_jobs`` actually saturates on a single
-large dataset; per-file dataset-level checks (cross-references, scalar
-fields) are then run once after the per-row-group results merge.
+pb inputs are validated as a single per-file task. Parquet inputs are fanned out one
+task per row group so ``--n_jobs`` actually saturates on a single large dataset; per-
+file dataset-level checks (cross-references, scalar fields) are then run once after the
+per-row-group results merge.
 """
 
 import argparse

@@ -15,10 +15,12 @@
 """RDKit PostgreSQL cartridge functionality.
 
 Notes:
-  * These tables live in a separate "rdkit" schema to avoid name conflicts between tables and extension types.
-  * The RDKit-specific columns are populated by ord_schema.orm.database.add_rdkit; this allows the ORM to function
-    normally even if if the RDKit PostgreSQL cartridge is not installed (the `smiles` column will be populated and
-    the other columns will be empty).
+  * These tables live in a separate "rdkit" schema to avoid name conflicts
+    between tables and extension types.
+  * The RDKit-specific columns are populated by ord_schema.orm.database.add_rdkit;
+    this allows the ORM to function normally even if if the RDKit PostgreSQL
+    cartridge is not installed (the `smiles` column will be populated and the
+    other columns will be empty).
   * Objects with this type are added to the ORM in from_proto() using the `rdkit` field.
 """
 
@@ -161,11 +163,11 @@ class RDKitMols(Base):
     def tanimoto(
         cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP
     ) -> ColumnElement[float]:
-        """Returns the Tanimoto similarity value between the stored fingerprint and ``other``.
+        """Returns the Tanimoto similarity between the stored fingerprint and ``other``.
 
-        This computes the similarity for every row (no index assistance) and is
-        intended for selecting or ordering by similarity. To *filter* by similarity,
-        use ``is_similar``, which uses the GiST fingerprint index.
+        This computes the similarity for every row (no index assistance) and is intended
+        for selecting or ordering by similarity. To *filter* by similarity, use
+        ``is_similar``, which uses the GiST fingerprint index.
         """
         return func.tanimoto_sml(
             getattr(cls, fp_type.name.lower()), fp_type(cast(other, RDKitMol))
@@ -175,7 +177,7 @@ class RDKitMols(Base):
     def is_similar(
         cls, other: str, fp_type: FingerprintType = FingerprintType.MORGAN_BFP
     ) -> ColumnElement[bool]:
-        """Returns an expression testing whether the stored fingerprint is similar to ``other``.
+        """Returns whether the stored fingerprint is similar to ``other``.
 
         Uses the ``%`` operator, which is backed by the GiST fingerprint index. For
         ``MORGAN_BFP`` the cutoff is read from the ``rdkit.tanimoto_threshold`` session
@@ -189,7 +191,7 @@ class RDKitMols(Base):
 
     @classmethod
     def contains_substructure(cls, pattern: str) -> ColumnElement[bool]:
-        """Returns an expression testing whether the stored mol contains the ``pattern`` substructure.
+        """Returns whether the stored mol contains the ``pattern`` substructure.
 
         Uses the ``@>`` operator, which is backed by the GiST mol index.
         """
@@ -197,7 +199,7 @@ class RDKitMols(Base):
 
     @classmethod
     def matches_smarts(cls, pattern: str) -> ColumnElement[bool]:
-        """Returns an expression testing whether the stored mol matches the SMARTS ``pattern``.
+        """Returns whether the stored mol matches the SMARTS ``pattern``.
 
         Uses the ``@>`` operator, which is backed by the GiST mol index.
         """
@@ -219,7 +221,7 @@ class RDKitReactions(Base):
 
     @classmethod
     def matches_smarts(cls, pattern: str) -> ColumnElement[bool]:
-        """Returns an expression testing whether the stored reaction matches the reaction SMARTS ``pattern``.
+        """Returns whether the stored reaction matches the reaction SMARTS ``pattern``.
 
         Uses the ``@>`` operator, which is backed by the GiST reaction index.
         """
