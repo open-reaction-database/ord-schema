@@ -400,6 +400,62 @@ def test_compound_smiles_fallback_without_stored_smiles(prepared_engine):
     assert fallback_smiles == [expected], fallback_smiles
 
 
+def test_underivable_compound_skips_reconstruction(prepared_engine, monkeypatch):
+    """A compound with only non-structural identifiers is not reconstructed each run.
+
+    Such a compound never yields a derived row, so the NOT EXISTS guard re-selects it on every
+    derived pass. The set-based structural pre-filter must skip it before the expensive
+    session.get + to_proto fallback (which would raise ValueError anyway); otherwise a database of
+    underivable compounds pays a full reconstruction pass for zero new rows on every re-run.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+    )
+    # Strip one compound down to a NAME-only identifier so it has no structural identifier
+    # to derive a SMILES from; every other compound keeps its SMILES fast path.
+    compound = next(
+        component
+        for reaction in dataset.reactions
+        for reaction_input in reaction.inputs.values()
+        for component in reaction_input.components
+    )
+    del compound.identifiers[:]
+    compound.identifiers.add(
+        type=reaction_pb2.CompoundIdentifier.NAME, value="mystery reagent"
+    )
+    to_proto_calls = []
+    real_to_proto = _orm_database.to_proto
+
+    def _spy_to_proto(mapper):
+        to_proto_calls.append(mapper)
+        return real_to_proto(mapper)
+
+    monkeypatch.setattr(_orm_database, "to_proto", _spy_to_proto)
+    with Session(prepared_engine) as session:
+        with session.begin():
+            add_dataset(dataset, session)
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session)
+        underivable = (
+            session.execute(
+                text(
+                    "SELECT count(*) FROM ord.compound c "
+                    "WHERE NOT EXISTS (SELECT 1 FROM ord.compound_identifier ci "
+                    "WHERE ci.compound_id = c.id AND ci.type != 'NAME') "
+                    "AND NOT EXISTS (SELECT 1 FROM derived.compound_smiles cs "
+                    "WHERE cs.compound_id = c.id)"
+                )
+            )
+            .scalars()
+            .one()
+        )
+    # The NAME-only compound derives nothing (no derived row) ...
+    assert underivable == 1, underivable
+    # ... and the every-compound-has-SMILES fixture plus the pre-filter mean the
+    # reconstruction fallback never runs, so to_proto is not called at all.
+    assert to_proto_calls == [], to_proto_calls
+
+
 # Counts every ord.compound by how it reaches its reaction, alongside how many of
 # those rows made it into derived.compound_smiles and how many of those are still
 # missing an rdkit.mols link. [Ti+5] structures are excluded from the unlinked tally
