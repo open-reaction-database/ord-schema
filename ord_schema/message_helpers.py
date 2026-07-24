@@ -831,10 +831,16 @@ def load_message(
         Message object.
 
     Raises:
-        ValueError: if the message cannot be parsed, or if `input_format` is not
-            supported.
+        ValueError: if the message cannot be parsed, if ``filename`` is a Parquet
+            dataset (use ``datasets.load_dataset``), or if the format is unsupported.
     """
     path = pathlib.Path(filename)
+    if path.suffix == ".parquet":
+        raise ValueError(
+            f"{path} is a Parquet dataset; load_message reads a single serialized "
+            "message. Use ord_schema.datasets.load_dataset for the whole Dataset, or "
+            "ord_schema.parquet.DatasetView / iter_reactions to stream large ones."
+        )
     this_open = gzip.open if path.suffix == ".gz" else open
     input_format = _message_format(path)
     mode = "rb" if input_format in _BINARY_FORMATS else "rt"
