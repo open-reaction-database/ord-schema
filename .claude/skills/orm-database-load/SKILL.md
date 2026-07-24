@@ -68,7 +68,7 @@ python -u -m ord_schema.orm.scripts.add_datasets \
   --dsn "postgresql+psycopg://" --n_jobs 16
 ```
 
-### If you are on an ord-schema without the #896 fix
+### If you are on an ord-schema without the #895 fix
 
 Before that fix, the RDKit passes scoped `rdkit_*_id IS NULL` per `(dataset, shard)` but the
 planner drove each from the whole-database unlinked-rows partial index, applying the dataset and
@@ -76,7 +76,7 @@ shard predicates as filters. On an end-to-end load that never bites (the unlinke
 dataset by dataset), but a backfill leaves every dataset's rows unlinked at once, so each
 `(dataset, shard)` rescans the entire unlinked set. Measured 2026-07-09 (~4.7M compounds, 53
 datasets × 32 shards): **~1,084 s per shard, >9 h projected**, versus **372 s** for one global
-pass. The #896 fix scopes each pass to the dataset via the resolved surrogate key, so this no
+pass. The #895 fix scopes each pass to the dataset via the resolved surrogate key, so this no
 longer happens.
 
 To recover a run that is exhibiting this — or on any version, to link a large standing unlinked
@@ -124,11 +124,15 @@ Run `scripts/verify_coverage.sql` against the candidate database. Under
 `psql -v ON_ERROR_STOP=1` a violated invariant exits non-zero, so a cutover wrapper can
 gate on process status. What it checks:
 
-- **Coverage** (printed for inspection): every `ord.compound` with a derivable SMILES should
-  have a `derived.compound_smiles` row, whether it hangs off a reaction input, a **workup**
-  input, or a **product measurement** — three attachments easy to lose to a join that only
-  follows `reaction_input.reaction_id`. Reported per attachment; `compounds` exceeding
-  `derived` is expected, since name-only compounds have no derivable SMILES.
+- **Coverage** (enforced): every compound carrying a structural identifier (SMILES/InChI/
+  MolBlock) has a derived SMILES row — across `ord.compound` (reaction input, **workup** input,
+  or **product measurement**, three attachments easy to lose to a join that only follows
+  `reaction_input.reaction_id`) and `ord.product_compound` (reaction products). A load that skips
+  a compound or an entire attachment path fails the script. Name-only compounds are excluded, so
+  the printed `compounds > derived` gap does not trip it; the per-attachment counts are still
+  shown for inspection. The residual is a structural identifier the load-time RDKit cannot
+  parse or reconstruct — itself coverage loss worth surfacing, and another reason the RDKit
+  version must match.
 - **No stray unlinked rows** (enforced): the only unlinked derived rows are `[Ti+5]`
   structures, which `_update_rdkit_mols` deliberately keeps out of `rdkit.mols`. Any other
   unlinked row fails the script.

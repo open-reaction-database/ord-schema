@@ -103,6 +103,52 @@ BEGIN
     END IF;
 END $$;
 
+-- Every compound carrying a structural identifier should derive a SMILES; a load that
+-- skipped a compound -- or an entire attachment path (workup input, product measurement,
+-- reaction product) -- leaves it with a structural identifier but no derived row. Covers
+-- both ord.compound and ord.product_compound. NAME-only compounds are excluded, so the
+-- documented `compounds > derived` gap does not trip this. The type list mirrors
+-- message_helpers.STRUCTURAL_IDENTIFIER_TYPES; on a load whose RDKit matches the writer
+-- (the skill's premise) every such compound derives, so the only residual is an identifier
+-- the load-time RDKit cannot parse or reconstruct -- itself coverage loss worth surfacing.
+DO $$
+DECLARE
+    missing bigint;
+BEGIN
+    SELECT count(*) INTO missing
+    FROM (
+        SELECT c.id
+        FROM ord.compound c
+        WHERE EXISTS (
+                SELECT 1 FROM ord.compound_identifier ci
+                WHERE ci.compound_id = c.id
+                  AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK')
+                  AND ci.value <> ''
+            )
+          AND NOT EXISTS (
+                SELECT 1 FROM derived.compound_smiles d WHERE d.compound_id = c.id
+            )
+        UNION ALL
+        SELECT pc.id
+        FROM ord.product_compound pc
+        WHERE EXISTS (
+                SELECT 1 FROM ord.compound_identifier ci
+                WHERE ci.product_compound_id = pc.id
+                  AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK')
+                  AND ci.value <> ''
+            )
+          AND NOT EXISTS (
+                SELECT 1 FROM derived.product_compound_smiles d
+                WHERE d.product_compound_id = pc.id
+            )
+    ) t;
+    IF missing > 0 THEN
+        RAISE EXCEPTION
+            'coverage: % compound(s) with a structural identifier lack a derived row',
+            missing;
+    END IF;
+END $$;
+
 DO $$
 DECLARE
     index_rows bigint := (SELECT count(*) FROM ord.reaction);
