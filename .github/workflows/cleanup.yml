@@ -70,3 +70,14 @@ jobs:
         run: |
           sudo apt update && sudo apt install clang-format --yes
           find . -name '*.proto' -exec clang-format -n -Werror --style=file {} +
+
+  check_markdown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: markdownlint-cli2
+        # Pinned to the same version as the pre-commit hook so CI and local runs agree.
+        run: npx --yes markdownlint-cli2@0.23.1 "**/*.md"

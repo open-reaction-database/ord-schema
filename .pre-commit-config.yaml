@@ -43,3 +43,8 @@ repos:
     hooks:
       - id: clang-format
         types_or: [proto]
+
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.23.1
+    hooks:
+      - id: markdownlint-cli2
