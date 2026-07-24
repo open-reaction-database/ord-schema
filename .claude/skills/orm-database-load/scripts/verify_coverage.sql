@@ -108,12 +108,21 @@ END $$;
 -- reaction product) -- leaves it with a structural identifier but no derived row. Covers
 -- both ord.compound and ord.product_compound. NAME-only compounds are excluded, so the
 -- documented `compounds > derived` gap does not trip this. The type list mirrors
--- message_helpers.STRUCTURAL_IDENTIFIER_TYPES; on a load whose RDKit matches the writer
--- (the skill's premise) every such compound derives, so the only residual is an identifier
--- the load-time RDKit cannot parse or reconstruct -- itself coverage loss worth surfacing.
+-- message_helpers.STRUCTURAL_IDENTIFIER_TYPES.
+--
+-- This does not raise on the first missing row. Even on a load whose RDKit matches the
+-- writer, a small residue of structural identifiers is unparseable/unreconstructable by
+-- RDKit (organometallics such as Ir photocatalysts or C[Al](C)(C)([Li])..., charged-N
+-- ring systems) and legitimately derives no row -- on the order of 0.02% of the full ORD
+-- corpus. Raising on any miss would fail every real load. Instead it raises only when the
+-- miss rate exceeds `tolerance_pct` of derived rows, which still catches a systematic gap
+-- (a skipped dataset or attachment path, orders of magnitude larger) while tolerating that
+-- residue. The count is always printed; lower the tolerance to tighten the gate.
 DO $$
 DECLARE
     missing bigint;
+    derived_total bigint;
+    tolerance_pct numeric := 0.1;
 BEGIN
     SELECT count(*) INTO missing
     FROM (
@@ -142,10 +151,12 @@ BEGIN
                 WHERE d.product_compound_id = pc.id
             )
     ) t;
-    IF missing > 0 THEN
-        RAISE EXCEPTION
-            'coverage: % compound(s) with a structural identifier lack a derived row',
-            missing;
+    SELECT (SELECT count(*) FROM derived.compound_smiles)
+         + (SELECT count(*) FROM derived.product_compound_smiles)
+      INTO derived_total;
+    RAISE INFO 'coverage: % structural-identifier compound(s) of % derived rows lack a derived row (tolerance % percent)', missing, derived_total, tolerance_pct;
+    IF missing::numeric > tolerance_pct / 100 * derived_total THEN
+        RAISE EXCEPTION 'coverage: % structural-identifier compounds lack a derived row, above the tolerance of % percent of % derived rows -- likely a systematic miss, not the RDKit-unparseable residual', missing, tolerance_pct, derived_total;
     END IF;
 END $$;
 
