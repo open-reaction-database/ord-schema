@@ -104,71 +104,84 @@ BEGIN
 END $$;
 
 -- Every compound carrying a structural identifier should derive a SMILES; a load that
--- skipped a compound -- or an entire attachment path (workup input, product measurement,
--- reaction product) -- leaves it with a structural identifier but no derived row. Covers
--- both ord.compound and ord.product_compound. NAME-only compounds are excluded, so the
--- documented `compounds > derived` gap does not trip this. The type list mirrors
+-- skipped a compound -- or an entire attachment path -- leaves it with a structural
+-- identifier but no derived row. NAME-only compounds are excluded, so the documented
+-- `compounds > derived` gap does not trip this. The type list mirrors
 -- message_helpers.STRUCTURAL_IDENTIFIER_TYPES.
 --
--- This does not raise on the first missing row. Even on a load whose RDKit matches the
--- writer, a small residue of structural identifiers is unparseable/unreconstructable by
--- RDKit (organometallics such as Ir photocatalysts or C[Al](C)(C)([Li])..., charged-N
--- ring systems) and legitimately derives no row -- on the order of 0.02% of the full ORD
--- corpus. Raising on any miss would fail every real load. Instead it raises only when the
--- miss rate exceeds `tolerance_pct` of derived rows, which still catches a systematic gap
--- (a skipped dataset or attachment path, orders of magnitude larger) while tolerating that
--- residue. The count is always printed; lower the tolerance to tighten the gate.
+-- Checked PER SCOPE, not against one global count: ord.compound split by its three
+-- attachment paths (reaction input, workup input, product measurement) plus
+-- ord.product_compound. A low-volume path omitted from derivation has a ~100% miss rate
+-- *within its own scope*, so it fails even though its rows would stay under a corpus-wide
+-- tolerance (and a reaction-keyed check would miss it, since reaction SMILES can still
+-- derive). Within each scope the tolerance absorbs the RDKit-unparseable residue every real
+-- load carries (~0.02%: organometallics such as Ir photocatalysts or C[Al](C)(C)([Li])...,
+-- charged-N ring systems -- identifiers the load-time RDKit cannot parse or reconstruct).
+-- The total is printed; lower the tolerance to tighten the gate.
 DO $$
 DECLARE
-    missing bigint;
-    derived_total bigint;
+    total_missing bigint;
+    bad_scopes bigint;
     tolerance_pct numeric := 0.1;
 BEGIN
-    SELECT count(*) INTO missing
-    FROM (
-        SELECT c.id
-        FROM ord.compound c
-        WHERE EXISTS (
+    WITH scoped AS (
+        SELECT
+            CASE WHEN ri.reaction_id IS NOT NULL THEN 'reaction_input'
+                 WHEN c.reaction_input_id IS NOT NULL THEN 'workup_input'
+                 ELSE 'product_measurement' END AS scope,
+            EXISTS (
                 SELECT 1 FROM ord.compound_identifier ci
                 WHERE ci.compound_id = c.id
-                  AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK')
-                  AND ci.value <> ''
-            )
-          AND NOT EXISTS (
+                  AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK') AND ci.value <> ''
+            ) AS structural,
+            NOT EXISTS (
                 SELECT 1 FROM derived.compound_smiles d WHERE d.compound_id = c.id
-            )
+            ) AS underived
+        FROM ord.compound c
+        LEFT JOIN ord.reaction_input ri ON c.reaction_input_id = ri.id
         UNION ALL
-        SELECT pc.id
-        FROM ord.product_compound pc
-        WHERE EXISTS (
+        SELECT
+            'product_compound',
+            EXISTS (
                 SELECT 1 FROM ord.compound_identifier ci
                 WHERE ci.product_compound_id = pc.id
-                  AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK')
-                  AND ci.value <> ''
-            )
-          AND NOT EXISTS (
+                  AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK') AND ci.value <> ''
+            ),
+            NOT EXISTS (
                 SELECT 1 FROM derived.product_compound_smiles d
                 WHERE d.product_compound_id = pc.id
             )
-    ) t;
-    SELECT (SELECT count(*) FROM derived.compound_smiles)
-         + (SELECT count(*) FROM derived.product_compound_smiles)
-      INTO derived_total;
-    RAISE INFO 'coverage: % structural-identifier compound(s) of % derived rows lack a derived row (tolerance % percent)', missing, derived_total, tolerance_pct;
-    IF missing::numeric > tolerance_pct / 100 * derived_total THEN
-        RAISE EXCEPTION 'coverage: % structural-identifier compounds lack a derived row, above the tolerance of % percent of % derived rows -- likely a systematic miss, not the RDKit-unparseable residual', missing, tolerance_pct, derived_total;
+        FROM ord.product_compound pc
+    ),
+    per_scope AS (
+        SELECT scope,
+               count(*) FILTER (WHERE structural) AS structural,
+               count(*) FILTER (WHERE structural AND underived) AS missing
+        FROM scoped
+        GROUP BY scope
+    )
+    SELECT coalesce(sum(missing), 0),
+           count(*) FILTER (
+               WHERE structural > 0
+                 AND missing::numeric > tolerance_pct / 100 * structural
+           )
+      INTO total_missing, bad_scopes
+    FROM per_scope;
+    RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row across attachment scopes (tolerance % percent per scope)', total_missing, tolerance_pct;
+    IF bad_scopes > 0 THEN
+        RAISE EXCEPTION 'coverage: % attachment scope(s) have structural-identifier compounds underived beyond the % percent tolerance -- a scope omitted from the derive pass that a corpus-wide count would dilute', bad_scopes, tolerance_pct;
     END IF;
 END $$;
 
--- Per-dataset derivation completeness. The tolerance above is global, so a small scope
--- (one dataset) omitted from the derive pass entirely can slip under it while parity still
--- passes (parity only proves the reactions were ingested) and the unlinked check stays
--- silent (it cannot see rows that were never derived). The derive pass runs per dataset and
--- writes both compound and reaction SMILES together, so an omitted dataset has ~none of
--- either. reaction_smiles carries the reaction's dataset_id, making a per-dataset check
--- cheap: flag any dataset with fewer than half its reactions derived. A full omission is
--- ~100% underived; the ~0.4% unparseable reaction residual and normal variation stay well
--- under half.
+-- Per-dataset derivation completeness. The per-scope compound check above still spreads a
+-- single dataset's rows across each attachment path, so one small dataset omitted entirely
+-- can stay under the tolerance in every path while parity passes (it only proves the
+-- reactions were ingested) and the unlinked check stays silent (it cannot see rows that
+-- were never derived). The derive pass runs per dataset and writes both compound and
+-- reaction SMILES together, so an omitted dataset has ~none of either. reaction_smiles
+-- carries the reaction's dataset_id, making a per-dataset check cheap: flag any dataset with
+-- fewer than half its reactions derived. A full omission is ~100% underived; the ~0.4%
+-- unparseable reaction residual and normal variation stay well under half.
 DO $$
 DECLARE
     omitted bigint;

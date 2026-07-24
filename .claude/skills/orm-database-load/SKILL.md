@@ -124,22 +124,23 @@ Run `scripts/verify_coverage.sql` against the candidate database. Under
 `psql -v ON_ERROR_STOP=1` a violated invariant exits non-zero, so a cutover wrapper can
 gate on process status. What it checks:
 
-- **Coverage** (enforced above a tolerance): every compound carrying a structural identifier
-  (SMILES/InChI/MolBlock) should have a derived SMILES row — across `ord.compound` (reaction
-  input, **workup** input, or **product measurement**, three attachments easy to lose to a join
-  that only follows `reaction_input.reaction_id`) and `ord.product_compound` (reaction products).
-  The count of structural-identifier compounds without a derived row is printed, and the script
-  fails only when it exceeds a small tolerance (default 0.1% of derived rows), tolerating the
-  RDKit-unparseable residual that every real load carries (~0.02%: organometallics, charged-N
-  rings — a structural identifier the load-time RDKit cannot parse or reconstruct). Name-only
-  compounds are excluded, so the printed `compounds > derived` gap does not count. Lower the
-  tolerance to tighten the gate.
-- **Per-dataset derivation** (enforced): because that tolerance is global, a small dataset
-  omitted from the derive pass entirely would slip under it (parity only proves its reactions
-  were *ingested*, and the unlinked check can't see rows that were never derived). The derive
-  pass writes compound and reaction SMILES together per dataset, so a separate check flags any
-  dataset with fewer than half its reactions derived — a full omission is ~100%, while the
-  reaction residual stays well under half.
+- **Coverage** (enforced per scope): every compound carrying a structural identifier
+  (SMILES/InChI/MolBlock) should have a derived SMILES row. Checked **per attachment scope** —
+  `ord.compound` split by reaction input, **workup** input, and **product measurement** (three
+  attachments easy to lose to a join that only follows `reaction_input.reaction_id`), plus
+  `ord.product_compound` (reaction products) — so a low-volume path omitted from derivation
+  fails on its own ~100% miss rate rather than being diluted by a corpus-wide count. Each scope
+  fails only above a small tolerance (default 0.1%), tolerating the RDKit-unparseable residual
+  every real load carries (~0.02%: organometallics, charged-N rings — a structural identifier
+  the load-time RDKit cannot parse or reconstruct). Name-only compounds are excluded, so the
+  printed `compounds > derived` gap does not count. Lower the tolerance to tighten the gate.
+- **Per-dataset derivation** (enforced): the per-scope check still spreads a single dataset's
+  rows across each path, so a small dataset omitted from the derive pass entirely could stay
+  under the tolerance in every path (parity only proves its reactions were *ingested*, and the
+  unlinked check can't see rows that were never derived). The derive pass writes compound and
+  reaction SMILES together per dataset, so a separate check flags any dataset with fewer than
+  half its reactions derived — a full omission is ~100%, while the reaction residual stays well
+  under half.
 - **No stray unlinked rows** (enforced): the only unlinked derived rows are `[Ti+5]`
   structures, which `_update_rdkit_mols` deliberately keeps out of `rdkit.mols`. Any other
   unlinked row fails the script.
