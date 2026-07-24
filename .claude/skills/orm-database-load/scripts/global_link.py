@@ -57,16 +57,18 @@ WHERE mol IS NOT NULL
 ON CONFLICT (smiles) DO NOTHING
 """
 
-# Chunked so each statement bounds its WAL and lock footprint. The subquery walks
-# the unlinked partial index and stops at the limit, so chunks stay cheap as the
-# set drains.
+# Chunked so each statement bounds its WAL and lock footprint. Skip the permanently
+# unlinkable [Ti+5] rows (issue #672): they never match rdkit.mols, so leaving them in
+# the window could yield a zero-row UPDATE and end the loop while linkable rows remain.
 _LINK_CHUNK = """
 UPDATE {table} d
 SET rdkit_mol_id = m.id
 FROM rdkit.mols m
 WHERE m.smiles = d.smiles
   AND d.{id_column} IN (
-      SELECT {id_column} FROM {table} WHERE rdkit_mol_id IS NULL LIMIT {chunk}
+      SELECT {id_column} FROM {table}
+      WHERE rdkit_mol_id IS NULL AND smiles NOT LIKE '%[Ti+5]%'
+      LIMIT {chunk}
   )
 """
 
@@ -99,7 +101,14 @@ def _positive_int(value: str) -> int:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parses command-line arguments."""
+    """Parses command-line arguments.
+
+    Args:
+        argv: Command-line arguments; defaults to ``sys.argv`` when None.
+
+    Returns:
+        The parsed arguments.
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Links rdkit.mols ids into the derived SMILES tables in one global pass."
@@ -121,8 +130,8 @@ def main(args: argparse.Namespace) -> None:
         args: Parsed command-line arguments.
     """
     with psycopg.connect(autocommit=True) as connection:
-        # The link is one pass over millions of rows; a statement timeout would only
-        # ever fire partway through work that is safe to finish.
+        # _INSERT_MOLS and the ANALYZEs are single statements over millions of rows; a
+        # statement timeout would only fire partway through work that is safe to finish.
         connection.execute("SET statement_timeout = 0")
         start = time.time()
 

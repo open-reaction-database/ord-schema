@@ -13,8 +13,9 @@
 -- limitations under the License.
 
 -- Verifies derived/RDKit coverage for a freshly loaded or backfilled ORM database.
--- Read-only. Run against the candidate database:
---   psql "$DSN" -f verify_coverage.sql
+-- Read-only. The invariant checks at the end RAISE on violation, so pass ON_ERROR_STOP
+-- for a failure to exit non-zero -- without it psql reports the error but still exits 0:
+--   psql -v ON_ERROR_STOP=1 "$DSN" -f verify_coverage.sql
 
 \echo === Table sizes ===
 SELECT 'ord.compound' AS table, count(*) FROM ord.compound
@@ -83,6 +84,9 @@ SELECT (SELECT count(*) FROM ord.reaction) AS index_rows,
 -- `psql -v ON_ERROR_STOP=1` fails non-zero instead of accepting a bad candidate database. Still
 -- read-only. The fingerprint stays print-only: it is a manual compare against the database being
 -- replaced, not a self-contained invariant.
+-- Compound linkage only. derived.reaction_smiles is intentionally excluded: a reaction
+-- SMILES the cartridge cannot parse is legitimately unlinked, with no clean [Ti+5]-style
+-- carve-out to distinguish it from a real gap.
 DO $$
 DECLARE
     unlinked bigint;
@@ -107,6 +111,12 @@ DECLARE
     dataset_metadata bigint := (SELECT count(*) FROM public.datasets);
     declared bigint := (SELECT coalesce(sum(num_reactions), 0) FROM public.datasets);
 BEGIN
+    -- An empty candidate satisfies every equality below (0 = 0); reject it outright so a
+    -- cutover gate never green-lights an unloaded database.
+    IF index_rows = 0 OR datasets = 0 THEN
+        RAISE EXCEPTION 'parity: candidate is empty (% reactions, % datasets)',
+            index_rows, datasets;
+    END IF;
     IF index_rows <> payload_rows THEN
         RAISE EXCEPTION 'parity: % index rows vs % payload rows', index_rows, payload_rows;
     END IF;
