@@ -593,6 +593,11 @@ class TestLoadAndSaveMessage:
             with pytest.raises(ValueError, match='no field named "values"'):
                 message_helpers.load_message(f.name, test_pb2.Nested)
 
+    def test_load_message_parquet_points_to_load_dataset(self):
+        """load_message rejects a Parquet dataset and names the dataset-level loader."""
+        with pytest.raises(ValueError, match="load_dataset"):
+            message_helpers.load_message("dataset.parquet", test_pb2.Scalar)
+
     def test_bad_suffix(self):
         message = test_pb2.RepeatedScalar(values=[1.2, 3.4])
         with pytest.raises(ValueError, match="not a valid MessageFormat"):

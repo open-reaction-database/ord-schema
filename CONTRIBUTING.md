@@ -2,9 +2,9 @@
 
 Thanks for helping out! What would you like to do?
 
-* [Report an issue](#report-an-issue)
-* [Suggest an improvement](#suggest-an-improvement)
-* [Make a change](#make-a-change)
+- [Report an issue](#report-an-issue)
+- [Suggest an improvement](#suggest-an-improvement)
+- [Make a change](#make-a-change)
 
 ## Report an issue
 
@@ -49,21 +49,27 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
     1. Create a fork of `ord-schema` (click "Fork" at the top-right of this page) and clone it to your local machine
        ([instructions](https://help.github.com/en/github/getting-started-with-github/fork-a-repo)).
     1. Sync the dev environment (needed for the `ty` hook) and install [pre-commit](https://pre-commit.com/):
+
        ```shell
        uv sync --extra tests
        pip install pre-commit
        pre-commit install
        ```
-       Hooks run `addlicense`, Ruff (`ruff-check` with fixes + `ruff-format`), `ty check ord_schema` (same scope as CI Lint), and `clang-format` on `.proto` files. Example notebooks under `examples/` are not type-checked by `ty`; they are covered by the notebook test job (`treon`).
+
+       Hooks run `addlicense`, Ruff (`ruff-check` with fixes + `ruff-format`), `ty check ord_schema` (same scope as CI Lint), `clang-format` on `.proto` files, and `markdownlint-cli2` on Markdown. Example notebooks under `examples/` are not type-checked by `ty`; they are covered by the notebook test job (`treon`).
 
        If you'd rather not use pre-commit, you can run the same checks by hand:
+
        ```shell
        uv run ruff check --fix .
        uv run ruff format .
        uv run ty check ord_schema
        # License headers (requires Go + github.com/google/addlicense@v1.2.0):
        addlicense -c "Open Reaction Database Project Authors" -l apache .
+       # Markdown (requires Node; matches the markdownlint-cli2 pre-commit hook and CI):
+       npx --yes markdownlint-cli2@0.23.1 "**/*.md"
        ```
+
     1. Create a new branch and make your changes.
     1. Test your changes by syncing the environment and running the test suite, for example:
        `uv sync --extra tests` then `uv run pytest` (or `pytest` after activating the `.venv` that `uv` creates).
@@ -96,7 +102,8 @@ and tag to `main`, and creates a GitHub release with generated notes.
 By submitting Contributions (as defined below) to this project, you agree that
 You (as defined below) and your Contributions are bound to the following terms.
 
-<p align="center">Open Reaction Database Project License Agreement</p> 
+<!-- markdownlint-disable-next-line MD033 -- centered title; markdown has no equivalent -->
+<p align="center">Open Reaction Database Project License Agreement</p>
 
 In order to clarify the intellectual property license granted with Contributions
 to the Open Access Reaction Database from any person or entity, You must
