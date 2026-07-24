@@ -4,7 +4,7 @@
 [![PyPI version](https://badge.fury.io/py/ord-schema.svg)](https://badge.fury.io/py/ord-schema)
 
 This repository contains the schema for the Open Reaction Database initiative; please see the documentation
-at https://docs.open-reaction-database.org.
+at <https://docs.open-reaction-database.org>.
 
 This repository does not contain the database itself; that is stored
 in [ord-data](https://github.com/open-reaction-database/ord-data). Rather, `ord-schema` is
@@ -21,7 +21,7 @@ message/Parquet I/O). Heavier, single-purpose features live behind optional
 extras so the default install stays lightweight:
 
 | Extra | Enables | Install |
-|-------|---------|---------|
+| ------- | --------- | --------- |
 | `huggingface` | `ord_schema.huggingface.fetch_dataset`: download datasets from the Hugging Face [ord-data](https://huggingface.co/datasets/open-reaction-database/ord-data) mirror | `pip install "ord-schema[huggingface]"` |
 | `orm` | `ord_schema.orm`: map the schema into a relational (SQLAlchemy + PostgreSQL) database | `pip install "ord-schema[orm]"` |
 | `github` | the GitHub-issue submission flow in `ord_schema.scripts.process_dataset` | `pip install "ord-schema[github]"` |
@@ -68,16 +68,18 @@ and run `./compile_proto_wrappers.sh` to rebuild the wrappers.
 
 ### 1. convention: compound stoichiometry
 
-##### Created: 2023.07.04
+#### Created: 2023.07.04
 
-##### Last updated: 2023.07.04
+#### Last updated: 2023.07.04
 
-##### Description: 
+#### Description
+
 1. The preferred field for compound stoichiometry is the map `Compound.features` or `ProductCompound.features`.
 2. The key should be "stoichiometric_coefficient" or "stoichiometric_ratio".
-3. The value should be a `Data` message with its `float_value` representing the compound's stoichiometric 
+3. The value should be a `Data` message with its `float_value` representing the compound's stoichiometric
 coefficient or ratio.
 
-##### Related links: 
-[#683](https://github.com/open-reaction-database/ord-schema/issues/683) 
+#### Related links
+
+[#683](https://github.com/open-reaction-database/ord-schema/issues/683)
 [#684](https://github.com/open-reaction-database/ord-schema/pull/684)

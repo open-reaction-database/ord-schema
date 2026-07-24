@@ -1,0 +1,30 @@
+# Copyright 2026 Open Reaction Database Project Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# markdownlint-cli2 configuration. Rule reference:
+# https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+config:
+  # Prose is hand-wrapped at varying widths and tables/links routinely exceed any
+  # fixed column; a line-length cap would be churn with no readability gain.
+  MD013: false
+  # `$ ` prompts in shell blocks are an intentional convention in the READMEs.
+  MD014: false
+  # House style: dash bullets, asterisk emphasis/strong. Pin the styles so the
+  # linter enforces them rather than inferring from whichever file it sees first.
+  MD004:
+    style: dash
+  MD049:
+    style: asterisk
+  MD050:
+    style: asterisk
