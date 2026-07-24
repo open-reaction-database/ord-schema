@@ -129,11 +129,17 @@ gate on process status. What it checks:
   input, **workup** input, or **product measurement**, three attachments easy to lose to a join
   that only follows `reaction_input.reaction_id`) and `ord.product_compound` (reaction products).
   The count of structural-identifier compounds without a derived row is printed, and the script
-  fails only when it exceeds a small tolerance (default 0.1% of derived rows) — enough to catch a
-  skipped compound, dataset, or attachment path, while tolerating the RDKit-unparseable residual
-  that every real load carries (~0.02%: organometallics, charged-N rings — a structural
-  identifier the load-time RDKit cannot parse or reconstruct). Name-only compounds are excluded,
-  so the printed `compounds > derived` gap does not count. Lower the tolerance to tighten the gate.
+  fails only when it exceeds a small tolerance (default 0.1% of derived rows), tolerating the
+  RDKit-unparseable residual that every real load carries (~0.02%: organometallics, charged-N
+  rings — a structural identifier the load-time RDKit cannot parse or reconstruct). Name-only
+  compounds are excluded, so the printed `compounds > derived` gap does not count. Lower the
+  tolerance to tighten the gate.
+- **Per-dataset derivation** (enforced): because that tolerance is global, a small dataset
+  omitted from the derive pass entirely would slip under it (parity only proves its reactions
+  were *ingested*, and the unlinked check can't see rows that were never derived). The derive
+  pass writes compound and reaction SMILES together per dataset, so a separate check flags any
+  dataset with fewer than half its reactions derived — a full omission is ~100%, while the
+  reaction residual stays well under half.
 - **No stray unlinked rows** (enforced): the only unlinked derived rows are `[Ti+5]`
   structures, which `_update_rdkit_mols` deliberately keeps out of `rdkit.mols`. Any other
   unlinked row fails the script.

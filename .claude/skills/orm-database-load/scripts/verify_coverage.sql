@@ -160,6 +160,32 @@ BEGIN
     END IF;
 END $$;
 
+-- Per-dataset derivation completeness. The tolerance above is global, so a small scope
+-- (one dataset) omitted from the derive pass entirely can slip under it while parity still
+-- passes (parity only proves the reactions were ingested) and the unlinked check stays
+-- silent (it cannot see rows that were never derived). The derive pass runs per dataset and
+-- writes both compound and reaction SMILES together, so an omitted dataset has ~none of
+-- either. reaction_smiles carries the reaction's dataset_id, making a per-dataset check
+-- cheap: flag any dataset with fewer than half its reactions derived. A full omission is
+-- ~100% underived; the ~0.4% unparseable reaction residual and normal variation stay well
+-- under half.
+DO $$
+DECLARE
+    omitted bigint;
+BEGIN
+    SELECT count(*) INTO omitted
+    FROM (
+        SELECT r.dataset_id, count(*) AS reactions, count(rs.reaction_id) AS derived
+        FROM ord.reaction r
+        LEFT JOIN derived.reaction_smiles rs ON rs.reaction_id = r.id
+        GROUP BY r.dataset_id
+    ) t
+    WHERE derived * 2 < reactions;
+    IF omitted > 0 THEN
+        RAISE EXCEPTION 'coverage: % dataset(s) have fewer than half their reactions derived -- a scope omitted from the derive pass that the global tolerance would hide', omitted;
+    END IF;
+END $$;
+
 DO $$
 DECLARE
     index_rows bigint := (SELECT count(*) FROM ord.reaction);
