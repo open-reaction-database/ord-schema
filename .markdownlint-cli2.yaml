@@ -14,6 +14,9 @@
 
 # markdownlint-cli2 configuration. Rule reference:
 # https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+
+# Skip anything git ignores (e.g. vendored Markdown under node_modules).
+gitignore: true
 config:
   # Prose is hand-wrapped at varying widths and tables/links routinely exceed any
   # fixed column; a line-length cap would be churn with no readability gain.

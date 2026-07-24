@@ -56,7 +56,7 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
        pre-commit install
        ```
 
-       Hooks run `addlicense`, Ruff (`ruff-check` with fixes + `ruff-format`), `ty check ord_schema` (same scope as CI Lint), and `clang-format` on `.proto` files. Example notebooks under `examples/` are not type-checked by `ty`; they are covered by the notebook test job (`treon`).
+       Hooks run `addlicense`, Ruff (`ruff-check` with fixes + `ruff-format`), `ty check ord_schema` (same scope as CI Lint), `clang-format` on `.proto` files, and `markdownlint-cli2` on Markdown. Example notebooks under `examples/` are not type-checked by `ty`; they are covered by the notebook test job (`treon`).
 
        If you'd rather not use pre-commit, you can run the same checks by hand:
 
@@ -66,6 +66,8 @@ Excellent! There are a few steps you'll need to follow to get ready to submit ch
        uv run ty check ord_schema
        # License headers (requires Go + github.com/google/addlicense@v1.2.0):
        addlicense -c "Open Reaction Database Project Authors" -l apache .
+       # Markdown (requires Node; matches the markdownlint-cli2 pre-commit hook and CI):
+       npx --yes markdownlint-cli2@0.23.1 "**/*.md"
        ```
 
     1. Create a new branch and make your changes.
