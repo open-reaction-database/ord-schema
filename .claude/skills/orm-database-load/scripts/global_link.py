@@ -14,18 +14,20 @@
 
 """Links rdkit.mols ids into the derived SMILES tables in one global pass.
 
-Equivalent to ``update_rdkit_tables`` + ``update_rdkit_ids`` over every dataset, minus the
-per-dataset/per-shard scoping. That scoping makes the planner rescan the whole unlinked partial
-index once per ``(dataset, shard)`` pair, because the shard hash is a filter rather than an index
-condition. When backfilling every dataset at once the unlinked set is millions of rows and stands
-for the entire link phase, so a single scan is dramatically cheaper: 372 s versus a >9 h
-projection when measured on 4.7M compounds across 53 datasets.
+Equivalent to ``update_rdkit_tables`` + ``update_rdkit_ids`` over every dataset,
+minus the per-dataset/per-shard scoping. That scoping makes the planner rescan the
+whole unlinked partial index once per ``(dataset, shard)`` pair, because the shard
+hash is a filter rather than an index condition. Backfilling every dataset at once
+leaves millions of unlinked rows standing for the whole link phase, so a single scan
+is dramatically cheaper: 372 s versus a >9 h projection, measured on 4.7M compounds
+across 53 datasets.
 
-Use this only for backfills. A normal end-to-end load drains the unlinked set dataset by dataset
-and does not hit the pathology. Idempotent: every statement is guarded, so re-running is safe.
+Use this only for backfills. A normal end-to-end load drains the unlinked set
+dataset by dataset and never hits the pathology. Idempotent: every statement is
+guarded, so re-running is safe.
 
-Connects via standard ``PG*`` environment variables. Run from a host whose Python RDKit matches
-the one that wrote the database's SMILES.
+Connects via standard ``PG*`` environment variables. Run from a host whose Python
+RDKit matches the one that wrote the database's SMILES.
 """
 
 import argparse
@@ -33,9 +35,9 @@ import time
 
 import psycopg
 
-# Mirrors _update_rdkit_mols: dedupe candidate SMILES, skip structures already present, and keep
-# the [Ti+5] carve-out (https://github.com/open-reaction-database/ord-schema/issues/672).
-# mol_from_smiles returns NULL for unparseable input; the guard keeps NULL-mol rows out.
+# Mirrors _update_rdkit_mols: dedupe candidate SMILES, skip structures already
+# present, and keep the [Ti+5] carve-out (issue #672). mol_from_smiles returns NULL
+# for unparseable input; the guard keeps NULL-mol rows out.
 _INSERT_MOLS = """
 WITH candidates AS (
     SELECT smiles FROM derived.compound_smiles
@@ -55,8 +57,9 @@ WHERE mol IS NOT NULL
 ON CONFLICT (smiles) DO NOTHING
 """
 
-# Chunked so each statement bounds its WAL and lock footprint. The subquery walks the unlinked
-# partial index and stops at the limit, so chunks stay cheap as the set drains.
+# Chunked so each statement bounds its WAL and lock footprint. The subquery walks
+# the unlinked partial index and stops at the limit, so chunks stay cheap as the
+# set drains.
 _LINK_CHUNK = """
 UPDATE {table} d
 SET rdkit_mol_id = m.id
@@ -73,14 +76,38 @@ _DERIVED_TABLES = (
 )
 
 
+def _positive_int(value: str) -> int:
+    """Parses a strictly positive integer for argparse.
+
+    A non-positive chunk renders ``LIMIT 0``, so every statement links nothing yet
+    the run reports each table done -- a silent no-op that looks like a completed
+    recovery.
+
+    Args:
+        value: The raw command-line string.
+
+    Returns:
+        The parsed positive integer.
+
+    Raises:
+        argparse.ArgumentTypeError: If ``value`` is not a positive integer.
+    """
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parses command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Links rdkit.mols ids into the derived SMILES tables in one global pass."
+        description=(
+            "Links rdkit.mols ids into the derived SMILES tables in one global pass."
+        )
     )
     parser.add_argument(
         "--chunk",
-        type=int,
+        type=_positive_int,
         default=500_000,
         help="Rows to link per statement; bounds WAL and lock footprint",
     )
@@ -94,8 +121,8 @@ def main(args: argparse.Namespace) -> None:
         args: Parsed command-line arguments.
     """
     with psycopg.connect(autocommit=True) as connection:
-        # The link is one pass over millions of rows; a statement timeout would only ever fire
-        # partway through work that is safe to finish.
+        # The link is one pass over millions of rows; a statement timeout would only
+        # ever fire partway through work that is safe to finish.
         connection.execute("SET statement_timeout = 0")
         start = time.time()
 
@@ -125,8 +152,8 @@ def main(args: argparse.Namespace) -> None:
                 flush=True,
             )
 
-        # The link flips millions of rows from NULL to non-NULL; the planner needs to know before
-        # anything else queries the unlinked partial index.
+        # The link flips millions of rows from NULL to non-NULL; the planner needs to
+        # know before anything else queries the unlinked partial index.
         for table in (*(table for table, _ in _DERIVED_TABLES), "rdkit.mols"):
             connection.execute(f"ANALYZE {table}")
             print(f"[{time.time() - start:7.1f}s] analyzed {table}", flush=True)

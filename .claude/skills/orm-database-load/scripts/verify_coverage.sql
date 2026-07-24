@@ -76,3 +76,45 @@ SELECT (SELECT count(*) FROM ord.reaction) AS index_rows,
        (SELECT count(*) FROM ord.dataset) AS datasets,
        (SELECT count(*) FROM public.datasets) AS dataset_metadata,
        (SELECT sum(num_reactions) FROM public.datasets) AS sum_num_reactions;
+
+\echo
+\echo === Invariant checks (raise, so exit status gates a cutover) ===
+-- The sections above only print; these raise on a violated invariant so a wrapper running under
+-- `psql -v ON_ERROR_STOP=1` fails non-zero instead of accepting a bad candidate database. Still
+-- read-only. The fingerprint stays print-only: it is a manual compare against the database being
+-- replaced, not a self-contained invariant.
+DO $$
+DECLARE
+    unlinked bigint;
+BEGIN
+    SELECT count(*) INTO unlinked
+    FROM (
+        SELECT smiles FROM derived.compound_smiles WHERE rdkit_mol_id IS NULL
+        UNION ALL
+        SELECT smiles FROM derived.product_compound_smiles WHERE rdkit_mol_id IS NULL
+    ) t
+    WHERE smiles NOT LIKE '%[Ti+5]%';
+    IF unlinked > 0 THEN
+        RAISE EXCEPTION 'coverage: % unlinked derived row(s) that are not [Ti+5]', unlinked;
+    END IF;
+END $$;
+
+DO $$
+DECLARE
+    index_rows bigint := (SELECT count(*) FROM ord.reaction);
+    payload_rows bigint := (SELECT count(*) FROM public.reactions);
+    datasets bigint := (SELECT count(*) FROM ord.dataset);
+    dataset_metadata bigint := (SELECT count(*) FROM public.datasets);
+    declared bigint := (SELECT coalesce(sum(num_reactions), 0) FROM public.datasets);
+BEGIN
+    IF index_rows <> payload_rows THEN
+        RAISE EXCEPTION 'parity: % index rows vs % payload rows', index_rows, payload_rows;
+    END IF;
+    IF datasets <> dataset_metadata THEN
+        RAISE EXCEPTION 'parity: % datasets vs % metadata rows', datasets, dataset_metadata;
+    END IF;
+    IF declared <> index_rows THEN
+        RAISE EXCEPTION 'parity: datasets declare % reactions but % are indexed', declared, index_rows;
+    END IF;
+END $$;
+\echo All invariant checks passed.

@@ -120,14 +120,20 @@ progress. Watch `CPUUtilization` and `CPUCreditBalance` alongside.
 
 ## Verification
 
-Run `scripts/verify_coverage.sql` against the candidate database. It asserts the properties that
-actually matter:
+Run `scripts/verify_coverage.sql` against the candidate database. Under
+`psql -v ON_ERROR_STOP=1` a violated invariant exits non-zero, so a cutover wrapper can
+gate on process status. What it checks:
 
-- Every `ord.compound` with a derivable SMILES has a `derived.compound_smiles` row, whether it
-  hangs off a reaction input, a **workup** input, or a **product measurement**. These three
-  attachments are easy to lose to a join that only follows `reaction_input.reaction_id`.
-- The only unlinked derived rows are `[Ti+5]` structures, which `_update_rdkit_mols` deliberately
-  keeps out of `rdkit.mols`.
+- **Coverage** (printed for inspection): every `ord.compound` with a derivable SMILES should
+  have a `derived.compound_smiles` row, whether it hangs off a reaction input, a **workup**
+  input, or a **product measurement** — three attachments easy to lose to a join that only
+  follows `reaction_input.reaction_id`. Reported per attachment; `compounds` exceeding
+  `derived` is expected, since name-only compounds have no derivable SMILES.
+- **No stray unlinked rows** (enforced): the only unlinked derived rows are `[Ti+5]`
+  structures, which `_update_rdkit_mols` deliberately keeps out of `rdkit.mols`. Any other
+  unlinked row fails the script.
+- **Payload parity** (enforced): every `ord.reaction` has its `public.reactions` proto and the
+  dataset counts agree.
 
 Two further checks worth doing before a cutover:
 
