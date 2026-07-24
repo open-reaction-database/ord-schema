@@ -57,17 +57,20 @@ WHERE mol IS NOT NULL
 ON CONFLICT (smiles) DO NOTHING
 """
 
-# Chunked so each statement bounds its WAL and lock footprint. Skip the permanently
-# unlinkable [Ti+5] rows (issue #672): they never match rdkit.mols, so leaving them in
-# the window could yield a zero-row UPDATE and end the loop while linkable rows remain.
+# Chunked so each statement bounds its WAL and lock footprint. Restrict the window to
+# rows that actually have a matching rdkit.mols entry: a row with no match -- a [Ti+5]
+# structure (issue #672), or any SMILES the cartridge could not parse in _INSERT_MOLS --
+# can never be linked, and leaving it in the window could fill a chunk with unmatchable
+# rows, yield a zero-row UPDATE, and end the loop while linkable rows remain.
 _LINK_CHUNK = """
 UPDATE {table} d
 SET rdkit_mol_id = m.id
 FROM rdkit.mols m
 WHERE m.smiles = d.smiles
   AND d.{id_column} IN (
-      SELECT {id_column} FROM {table}
-      WHERE rdkit_mol_id IS NULL AND smiles NOT LIKE '%[Ti+5]%'
+      SELECT u.{id_column} FROM {table} u
+      WHERE u.rdkit_mol_id IS NULL
+        AND EXISTS (SELECT 1 FROM rdkit.mols rm WHERE rm.smiles = u.smiles)
       LIMIT {chunk}
   )
 """
