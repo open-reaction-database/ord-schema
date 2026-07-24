@@ -14,10 +14,11 @@
 
 """Rejects PEP 508 direct references in built distribution metadata.
 
-PyPI refuses any upload whose ``Requires-Dist`` carries a direct reference -- ``name @ url``,
-such as a ``git+https://`` pin -- with ``400 Can't have direct dependency``. ``twine check``
-inspects only the description and core metadata fields, so it passes such a distribution and
-the rejection lands mid-release, after the version bump has been committed.
+PyPI refuses any upload whose ``Requires-Dist`` carries a direct reference --
+``name @ url``, such as a ``git+https://`` pin -- with ``400 Can't have direct
+dependency``. ``twine check`` inspects only the description and core metadata
+fields, so it passes such a distribution and the rejection lands mid-release,
+after the version bump has been committed.
 
 Usage:
     python .github/scripts/check_direct_dependencies.py dist/*
@@ -53,8 +54,8 @@ def read_metadata(path: Path) -> str:
     if path.name.endswith(".tar.gz"):
         with tarfile.open(path) as archive:
             for member in archive.getmembers():
-                # Only the top-level PKG-INFO describes the distribution itself; the sdist
-                # also carries one per .egg-info directory.
+                # Only the top-level PKG-INFO describes the distribution itself; the
+                # sdist also carries one per .egg-info directory.
                 if member.name.count("/") == 1 and member.name.endswith("/PKG-INFO"):
                     handle = archive.extractfile(member)
                     if handle is not None:
@@ -77,7 +78,7 @@ def direct_references(metadata: str) -> list[str]:
 
 
 def main(paths: list[str]) -> int:
-    """Returns a process exit status; 1 if any distribution declares a direct dependency.
+    """Returns an exit status; 1 if any distribution declares a direct dependency.
 
     Args:
         paths: Distribution files to check.
@@ -97,7 +98,8 @@ def main(paths: list[str]) -> int:
             offenders += 1
     if offenders:
         print(
-            f"\n{offenders} direct dependency(ies) found. PyPI will reject this upload with "
+            f"\n{offenders} direct dependency(ies) found. "
+            "PyPI will reject this upload with "
             "400 Can't have direct dependency. Depend on a released version instead."
         )
         return 1

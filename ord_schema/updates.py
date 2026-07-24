@@ -32,7 +32,7 @@ _DATASET_ID_RE = re.compile("^ord_dataset-[0-9a-f]{32}$")
 def assign_dataset_id(
     dataset: dataset_pb2.Dataset | parquet.DatasetView,
 ) -> str:
-    """Assigns a canonical ``dataset_id`` if the existing one is missing or non-canonical.
+    """Assigns a canonical ``dataset_id`` if missing or non-canonical.
 
     Mutates ``dataset.dataset_id`` in place. Works for both ``Dataset`` and
     ``DatasetView`` (which exposes ``dataset_id`` as a writable attribute).
@@ -115,7 +115,7 @@ def apply_reaction_updates(
 def apply_cross_reference_substitutions(
     reaction: reaction_pb2.Reaction, id_substitutions: dict[str, str]
 ) -> None:
-    """Rewrites cross-referenced reaction_ids inside ``reaction`` using the substitution map."""
+    """Rewrites reaction_ids referenced in ``reaction`` via the substitution map."""
     if not id_substitutions:
         return
     for reaction_input in reaction.inputs.values():
@@ -163,7 +163,7 @@ def update_parquet_dataset(
     *,
     dataset_id: str,
 ) -> None:
-    """Stream-applies ``update_dataset`` to a Parquet input, writing the result to ``output_path``.
+    """Applies ``update_dataset`` to Parquet ``input_path``, writing to ``output_path``.
 
     Two passes over ``input_path``:
 

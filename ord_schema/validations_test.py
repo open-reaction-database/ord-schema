@@ -24,7 +24,8 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 
 @pytest.fixture(autouse=True)
 def setup():
-    # Redirect warning messages to stdout so they can be filtered from the other test output.
+    # Redirect warning messages to stdout so they can be filtered from the other
+    # test output.
     original_showwarning = warnings.showwarning
 
     def _showwarning(message, category, filename, lineno, file=None, line=None):
@@ -307,7 +308,12 @@ def test_bad_reaction_smiles():
         ("INCHI", "InChI=1S/CH4O/c1-2/h2H,1H3"),
         (
             "MOLBLOCK",
-            "\n     RDKit          2D\n\n  2  1  0  0  0  0  0  0  0  0999 V2000\n    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n    1.2990    0.7500    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0\nM  END\n",
+            "\n     RDKit          2D\n\n"
+            "  2  1  0  0  0  0  0  0  0  0999 V2000\n"
+            "    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0\n"
+            "    1.2990    0.7500    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0\n"
+            "  1  2  1  0\n"
+            "M  END\n",
         ),
     ],
 )
@@ -629,7 +635,8 @@ def test_reaction_recursive_noraise_on_error():
     message.inputs["dummy_input"].components.add()
     output = _run_validation(message, raise_on_error=False)
     expected = [
-        'Reaction.inputs["dummy_input"].components[0]: Compounds must have at least one identifier',
+        'Reaction.inputs["dummy_input"].components[0]: Compounds must have '
+        "at least one identifier",
         "Reaction: Reactions should have at least 1 reaction outcome",
         "Reaction: All reaction input components require an amount",
     ]
@@ -827,8 +834,8 @@ def test_dataset_cross_references():
 def test_validator_switch_dispatches(message_cls):
     """Default-empty instance of every dispatched type should validate without raising.
 
-    Most validators emit warnings (e.g. missing required fields) on an empty proto;
-    we only care that dispatch reaches the validator and returns without crashing.
+    Most validators emit warnings (e.g. missing required fields) on an empty proto; we
+    only care that dispatch reaches the validator and returns without crashing.
     """
     message = message_cls()
     output = validations.validate_message(
@@ -842,9 +849,9 @@ def test_validator_switch_dispatches(message_cls):
 def _capture_warnings(func, *args, **kwargs):
     """Calls a validator directly and returns the recorded warnings.
 
-    Used for branches that are shadowed by recursion in ``validate_message``
-    (e.g. provenance-level DateTime parsing, which the DateTime validator would
-    otherwise flag first).
+    Used for branches that are shadowed by recursion in ``validate_message`` (e.g.
+    provenance-level DateTime parsing, which the DateTime validator would otherwise flag
+    first).
     """
     with warnings.catch_warnings(record=True) as tape:
         warnings.simplefilter("always")

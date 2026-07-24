@@ -15,17 +15,21 @@
 """Table mappings for Reaction protos.
 
 Notes:
-    * Foreign keys to the `reaction` table are done using the `id` column, not the ORD reaction ID (`reaction_id`).
-      However, the `reaction_id` column is used when the reaction ID is specifically called for, as with crude inputs.
+    * Foreign keys to the `reaction` table are done using the `id` column, not the ORD
+      reaction ID (`reaction_id`). However, the `reaction_id` column is used when the
+      reaction ID is specifically called for, as with crude inputs.
     * We use inheritance to handle messages that appear in more than one context; see
-      https://docs.sqlalchemy.org/en/14/orm/inheritance.html. The possible constraints are:
-        - Some message types are used more than once in a parent (such as Time in ReactionInput), which forces
-          the use of either joined or single table inheritance.
-        - Some messages can be repeated, while others are unique to their parent. These uniqueness constraints force
-          the use of joined table inheritance since they are specific to their polymorphic type.
-      For convenience and consistency, we use single table inheritance for *all* message types, regardless of whether
-      they are used in one context or more than one context. This means that we do not enforce the second constraint in
-      the database.
+      https://docs.sqlalchemy.org/en/14/orm/inheritance.html. The possible constraints
+      are:
+        - Some message types are used more than once in a parent (such as Time in
+          ReactionInput), which forces the use of either joined or single table
+          inheritance.
+        - Some messages can be repeated, while others are unique to their parent. These
+          uniqueness constraints force the use of joined table inheritance since they
+          are specific to their polymorphic type.
+      For convenience and consistency, we use single table inheritance for *all* message
+      types, regardless of whether they are used in one context or more than one
+      context. This means that we do not enforce the second constraint in the database.
 """
 
 from collections import defaultdict
@@ -163,7 +167,8 @@ def build_mapper(
 
     Args:
         message_type: Protocol buffer message type.
-        parents: Dict mapping message types to lists of (parent message type, field name, unique) tuples.
+        parents: Dict mapping message types to lists of (parent message type, field
+            name, unique) tuples.
 
     Returns:
         Generated mapper class.
@@ -172,8 +177,9 @@ def build_mapper(
     assert msg_desc is not None  # Type hint.
     attrs: dict[str, Any] = {
         "__tablename__": underscore(msg_desc.name),
-        # UUIDv7 surrogate key: time-sortable (index locality) and client-generatable, so bulk
-        # loads can mint ids and wire foreign keys without a server round trip. See pyproject.
+        # UUIDv7 surrogate key: time-sortable (index locality) and client-generatable,
+        # so bulk loads can mint ids and wire foreign keys without a server round trip.
+        # See pyproject.
         "id": Column(Uuid, primary_key=True, default=uuid7),
         "ord_schema_context": Column(Text, nullable=False),
         "__table_args__": ({"schema": "ord"},),
@@ -223,16 +229,17 @@ def build_mapper(
     if message_type == dataset_pb2.Dataset:
         # Make dataset IDs globally unique.
         attrs["dataset_id"] = Column(Text, nullable=False, unique=True)
-        # Per-dataset metadata (md5, num_reactions, submitted_at) lives in public.datasets,
-        # populated at ingest so every dataset has its metadata row.
+        # Per-dataset metadata (md5, num_reactions, submitted_at) lives in
+        # public.datasets, populated at ingest so every dataset has its metadata row.
         attrs["metadata_row"] = relationship(
             "DatasetMetadata", uselist=False, cascade="all, delete-orphan"
         )
     elif message_type == reaction_pb2.Reaction:
         # Make reaction IDs globally unique.
         attrs["reaction_id"] = Column(Text, nullable=False, unique=True)
-        # The served proto lives in public.reactions; generated SMILES / RDKit links in the
-        # derived schema. See public_mappers.ReactionProto, derived_mappers.ReactionSmiles.
+        # The served proto lives in public.reactions; generated SMILES / RDKit links in
+        # the derived schema. See public_mappers.ReactionProto,
+        # derived_mappers.ReactionSmiles.
         attrs["proto_row"] = relationship(
             "ReactionProto", uselist=False, cascade="all, delete-orphan"
         )
@@ -270,7 +277,8 @@ def build_mapper(
             # Use get() to avoid column conflicts; see
             # https://docs.sqlalchemy.org/en/14/orm/inheritance.html#resolving-column-conflicts.
             #
-            # NOTE(skearnes): We are not enforcing unique constraints on this column; see the module docstring.
+            # NOTE(skearnes): We are not enforcing unique constraints on this column;
+            # see the module docstring.
             fk_name: table.c.get(
                 fk_name,
                 Column(Uuid, ForeignKey(foreign_key, ondelete="CASCADE")),
@@ -282,11 +290,12 @@ def build_mapper(
         child_class_name = f"_{parent_desc.name}{field_name.capitalize()}"
         logger.debug(f"Creating child mapper {child_class_name}: {child_attrs}")
         type(child_class_name, (mapper_class,), child_attrs)
-        # Partial index on the polymorphic foreign key. Under single-table inheritance this column
-        # is NULL for every row belonging to a sibling subclass, so indexing only the non-NULL rows
-        # keeps both the index and the per-insert index write proportional to the rows that actually
-        # reference this parent. A parent reused across fields shares one column and one index,
-        # created on first use. See derived_mappers for the same partial-index pattern.
+        # Partial index on the polymorphic foreign key. Under single-table inheritance
+        # this is NULL for every row belonging to a sibling subclass, so indexing only
+        # the non-NULL rows keeps both the index and the per-insert index write
+        # proportional to the rows that actually reference this parent. A parent reused
+        # across fields shares one column and one index, created on first use. See
+        # derived_mappers for the same partial-index pattern.
         index_name = f"ix_{table.name}_{fk_name}"
         if not any(index.name == index_name for index in table.indexes):
             Index(
@@ -302,8 +311,8 @@ _MAPPER_TO_MESSAGE: dict[type, type[Message]] = {
     value: key for key, value in _MESSAGE_TO_MAPPER.items()
 }
 
-# The generated SMILES and rdkit_*_id links, and the partial "unlinked" indexes that keep
-# incremental RDKit linking O(unlinked), live on the derived tables; see
+# The generated SMILES and rdkit_*_id links, and the partial "unlinked" indexes that
+# keep incremental RDKit linking O(unlinked), live on the derived tables; see
 # ord_schema.orm.derived_mappers and ord_schema/orm/README.md.
 
 
@@ -330,8 +339,9 @@ def from_proto(
 
     Args:
         message: Protobuf message.
-        mapper: ORM mapper class. For top-level protos like Dataset and Reaction this can be left as None; it must
-            be provided for Child subclasses to properly handle polymorphism.
+        mapper: ORM mapper class. For top-level protos like Dataset and Reaction this
+            can be left as None; it must be provided for Child subclasses to properly
+            handle polymorphism.
         key: Map key (we store maps as rows of (key, value) tuples).
 
     Returns:
@@ -365,8 +375,9 @@ def from_proto(
             num_reactions=len(message.reactions) or len(message.reaction_ids),
         )
     elif isinstance(message, reaction_pb2.Reaction):
-        # Store the serialized proto (the served payload) in the public schema. The SMILES
-        # are computed from the search index afterward by database.update_derived_tables.
+        # Store the serialized proto (the served payload) in the public schema. The
+        # SMILES are computed from the search index afterward by
+        # database.update_derived_tables.
         kwargs["proto_row"] = ReactionProto(
             proto=message.SerializeToString(deterministic=True)
         )

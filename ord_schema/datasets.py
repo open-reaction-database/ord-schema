@@ -49,8 +49,9 @@ def load_dataset(filename: str | os.PathLike[str]) -> dataset_pb2.Dataset:
     """
     if pathlib.Path(filename).suffix == ".parquet":
         warnings.warn(
-            f"Loading the entire Parquet dataset {filename} into memory; for large datasets prefer the "
-            "streaming loader ord_schema.parquet.DatasetView (or iter_reactions/load_reaction).",
+            f"Loading the entire Parquet dataset {filename} into memory; for large "
+            "datasets prefer the streaming loader ord_schema.parquet.DatasetView "
+            "(or iter_reactions/load_reaction).",
             UserWarning,
             stacklevel=2,
         )
@@ -63,8 +64,8 @@ def save_dataset(
 ) -> None:
     """Writes a Dataset to disk, dispatching on filename suffix.
 
-    ``.parquet`` routes to ``parquet.save_dataset``; other suffixes go
-    through ``message_helpers.save_message``.
+    ``.parquet`` routes to ``parquet.save_dataset``; other suffixes go through
+    ``message_helpers.save_message``.
     """
     if pathlib.Path(filename).suffix == ".parquet":
         parquet.save_dataset(dataset, filename)

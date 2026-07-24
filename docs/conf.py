@@ -13,7 +13,8 @@
 # -- Project information -----------------------------------------------------
 
 project = "Open Reaction Database"
-copyright = "2020–2026 Open Reaction Database Project Authors"  # noqa: A001  (sphinx requires this exact name)
+# (sphinx requires this exact name)
+copyright = "2020–2026 Open Reaction Database Project Authors"  # noqa: A001
 author = "Open Reaction Database Project Authors"
 
 # -- General configuration ---------------------------------------------------

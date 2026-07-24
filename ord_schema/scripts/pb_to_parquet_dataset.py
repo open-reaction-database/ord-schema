@@ -13,13 +13,13 @@
 # limitations under the License.
 """Converts one or more serialized Dataset files into a single Parquet file.
 
-When multiple inputs are given, their reactions are concatenated into the
-output. Use --name/--description/--dataset-id to set output metadata;
-otherwise the first input's metadata is carried forward. A warning is logged
-if non-overridden metadata fields disagree across inputs.
+When multiple inputs are given, their reactions are concatenated into the output. Use
+--name/--description/--dataset-id to set output metadata; otherwise the first input's
+metadata is carried forward. A warning is logged if non-overridden metadata fields
+disagree across inputs.
 
-Inputs are streamed through the writer one file at a time, so peak memory is
-bounded by the largest input (plus one row-group buffer) rather than the sum.
+Inputs are streamed through the writer one file at a time, so peak memory is bounded by
+the largest input (plus one row-group buffer) rather than the sum.
 """
 
 import argparse
@@ -49,7 +49,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "inputs",
         nargs="+",
-        help="Input Dataset files (.pb, .binpb, .pbtxt, .txtpb, .json, optionally .gz-compressed).",
+        help="Input Dataset files (.pb, .binpb, .pbtxt, .txtpb, .json, optionally "
+        ".gz-compressed).",
     )
     parser.add_argument("--output", required=True, help="Output Parquet filename.")
     parser.add_argument("--name", default=None, help="Override output dataset name.")

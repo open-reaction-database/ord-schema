@@ -13,10 +13,10 @@
 # limitations under the License.
 """Fetches datasets from the Hugging Face ord-data mirror.
 
-Importing this module requires the optional ``huggingface`` extra
-(``pip install 'ord-schema[huggingface]'``); ``huggingface_hub`` is not a default
-dependency because it pulls in a heavy chain (typer, fsspec, the hf-xet native
-binary). Only this download helper needs it.
+Importing this module requires the optional ``huggingface`` extra (``pip install 'ord-
+schema[huggingface]'``); ``huggingface_hub`` is not a default dependency because it
+pulls in a heavy chain (typer, fsspec, the hf-xet native binary). Only this download
+helper needs it.
 """
 
 from huggingface_hub import hf_hub_download

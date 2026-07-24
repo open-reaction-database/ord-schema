@@ -101,8 +101,10 @@ table.
 
 ### Install PostgreSQL and the RDKit extension
 
-We use PostgreSQL with the RDKit extension to support structure searches. There are a couple convenient installation
-methods (this list is not an endorsement of any particular provider):
+We use PostgreSQL with the RDKit extension to support structure searches. **PostgreSQL 12 or newer
+is required** — the derived/RDKit passes use `AS MATERIALIZED` common table expressions, which were
+introduced in PostgreSQL 12. There are a couple convenient installation methods (this list is not
+an endorsement of any particular provider):
 
 * Conda: [rdkit-postgresql](
   https://www.rdkit.org/docs/Install.html#installing-and-using-postgresql-and-the-rdkit-postgresql-cartridge-from-a-conda-environment)

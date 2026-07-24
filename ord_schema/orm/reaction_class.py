@@ -15,9 +15,10 @@
 """Best-effort reaction classification for ORM reactions using Rxn-INSIGHT.
 
 Labels each reaction's generated SMILES with a coarse class (e.g. "C-C Coupling") and a
-named reaction (e.g. "Suzuki coupling with boronic acids") for faceted search. Rxn-INSIGHT
-runs a transformer per reaction, so this is a batched post-pass behind the optional
-``reaction-class`` extra (rxn-insight, plus rxnmapper/torch), not inline in from_proto.
+named reaction (e.g. "Suzuki coupling with boronic acids") for faceted search. Rxn-
+INSIGHT runs a transformer per reaction, so this is a batched post-pass behind the
+optional ``reaction-class`` extra (rxn-insight, plus rxnmapper/torch), not inline in
+from_proto.
 """
 
 import time
@@ -32,8 +33,9 @@ from ord_schema.orm.sharding import shard_predicate
 
 logger = get_logger(__name__)
 
-# Rxn-INSIGHT's "no named reaction" sentinel, normalized to NULL so reaction_name carries
-# no magic value. (The class catch-all "Miscellaneous" is a real category and is kept.)
+# Rxn-INSIGHT's "no named reaction" sentinel, normalized to NULL so reaction_name
+# carries no magic value. (The class catch-all "Miscellaneous" is a real category
+# and is kept.)
 _UNNAMED = "OtherReaction"
 
 
@@ -53,7 +55,8 @@ def classify_reaction_smiles(
     try:
         info = Reaction(reaction_smiles, rxn_mapper=rxn_mapper).get_reaction_info()
     except Exception as error:  # noqa: BLE001
-        # Best-effort: any Rxn-INSIGHT/rxnmapper failure leaves the reaction unclassified.
+        # Best-effort: any Rxn-INSIGHT/rxnmapper failure leaves the reaction
+        # unclassified.
         logger.debug(f"Could not classify {reaction_smiles!r}: {error}")
         return None, None
     reaction_class = info.get("CLASS") or None
@@ -70,12 +73,13 @@ def update_reaction_classes(
 
     Selects reactions that have a SMILES but no row yet, classifies each distinct SMILES
     once (cached), and inserts one row per reaction. The row records the attempt -- NULL
-    class/name mean Rxn-INSIGHT could not classify it -- so repeated runs converge rather
-    than re-running the model over deterministic failures.
+    class/name mean Rxn-INSIGHT could not classify it -- so repeated runs converge
+    rather than re-running the model over deterministic failures.
 
-    ``shard`` (index, num_shards) restricts to one disjoint hash-partition of the dataset's
-    reaction ids, so a large dataset can be split across workers. Each worker loads its own model,
-    so the caller should keep the shard pool small enough to fit the models in memory.
+    ``shard`` (index, num_shards) restricts to one disjoint hash-partition of the
+    dataset's reaction ids, so a large dataset can be split across workers. Each worker
+    loads its own model, so the caller should keep the shard pool small enough to fit
+    the models in memory.
     """
     logger.debug(f"Updating reaction classes for {dataset_id=}")
     start = time.time()
@@ -119,15 +123,17 @@ def update_reaction_classes(
     # ON CONFLICT guards a concurrent insert; the NOT EXISTS selector already skips
     # reactions that have a row.
     session.execute(
-        text("""
-            INSERT INTO derived.reaction_classes (reaction_id, reaction_class, reaction_name)
+        text(
+            """INSERT INTO derived.reaction_classes
+            (reaction_id, reaction_class, reaction_name)
             VALUES (:reaction_id, :reaction_class, :reaction_name)
-            ON CONFLICT (reaction_id) DO NOTHING
-            """),
+            ON CONFLICT (reaction_id) DO NOTHING"""
+        ),
         inserts,
     )
     classified = sum(value[0] is not None for value in cache.values())
     logger.debug(
         f"Updating reaction classes took {time.time() - start:g}s "
-        f"({classified}/{len(cache)} distinct SMILES classified, {len(inserts)} reactions)"
+        f"({classified}/{len(cache)} distinct SMILES classified, "
+        f"{len(inserts)} reactions)"
     )

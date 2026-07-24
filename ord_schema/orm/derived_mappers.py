@@ -27,8 +27,9 @@ from ord_schema.orm import Base
 class ReactionSmiles(Base):
     """Generated reaction SMILES and its link to the deduplicated RDKit reaction.
 
-    One row per reaction: reaction_smiles is filled by update_derived_tables, rdkit_reaction_id
-    by the RDKit linking pass (rdkit.reactions is deduplicated by SMILES).
+    One row per reaction: reaction_smiles is filled by update_derived_tables,
+    rdkit_reaction_id by the RDKit linking pass (rdkit.reactions is deduplicated
+    by SMILES).
     """
 
     __tablename__ = "reaction_smiles"
@@ -43,9 +44,10 @@ class ReactionSmiles(Base):
     rdkit_reaction = relationship("RDKitReactions")
 
     __table_args__ = (
-        # Partial index on the RDKit join key over not-yet-linked rows; the RDKit linking
-        # pass joins these to rdkit.reactions by reaction_smiles and filters unlinked, so
-        # this stays tiny once most rows are linked. See ord_schema/orm/README.md.
+        # Partial index on the RDKit join key over not-yet-linked rows; the RDKit
+        # linking pass joins these to rdkit.reactions by reaction_smiles and filters
+        # unlinked, so this stays tiny once most rows are linked. See
+        # ord_schema/orm/README.md.
         Index(
             "reaction_smiles_unlinked_index",
             "reaction_smiles",
@@ -73,7 +75,8 @@ class CompoundSmiles(Base):
     rdkit_mol = relationship("RDKitMols")
 
     __table_args__ = (
-        # Partial index on the RDKit join key (smiles) over not-yet-linked rows; see README.
+        # Partial index on the RDKit join key (smiles) over not-yet-linked rows; see
+        # README.
         Index(
             "compound_smiles_unlinked_index",
             "smiles",
@@ -102,7 +105,8 @@ class ProductCompoundSmiles(Base):
     rdkit_mol = relationship("RDKitMols")
 
     __table_args__ = (
-        # Partial index on the RDKit join key (smiles) over not-yet-linked rows; see README.
+        # Partial index on the RDKit join key (smiles) over not-yet-linked rows; see
+        # README.
         Index(
             "product_compound_smiles_unlinked_index",
             "smiles",
@@ -129,7 +133,8 @@ class ReactionClasses(Base):
     )
     # Coarse category (e.g. "C-C Coupling").
     reaction_class = Column(Text, index=True)
-    # Specific named reaction within the class (e.g. "Suzuki coupling with boronic acids").
+    # Specific named reaction within the class (e.g. "Suzuki coupling with boronic
+    # acids").
     reaction_name = Column(Text, index=True)
 
     __table_args__ = ({"schema": "derived"},)

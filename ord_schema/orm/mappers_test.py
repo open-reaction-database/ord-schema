@@ -28,11 +28,15 @@ from ord_schema.proto.dataset_pb2 import Dataset
 def test_mappers_registers_rdkit_relationship_targets_in_clean_interpreter():
     """Ensure mappers.py stays self-contained for string relationship() names.
 
-    Pytest collection loads ord_schema.orm.rdkit_mappers via rdkit_mappers_test,
-    which registers RDKitMols / RDKitReactions and hides a missing side-effect
-    import in mappers.py. A fresh interpreter only imports mappers.
+    Pytest collection loads ord_schema.orm.rdkit_mappers via rdkit_mappers_test, which
+    registers RDKitMols / RDKitReactions and hides a missing side-effect import in
+    mappers.py. A fresh interpreter only imports mappers.
     """
-    script = "from sqlalchemy.orm import configure_mappers\nimport ord_schema.orm.mappers\nconfigure_mappers()\n"
+    script = (
+        "from sqlalchemy.orm import configure_mappers\n"
+        "import ord_schema.orm.mappers\n"
+        "configure_mappers()\n"
+    )
     proc = subprocess.run(
         [sys.executable, "-c", script],
         capture_output=True,

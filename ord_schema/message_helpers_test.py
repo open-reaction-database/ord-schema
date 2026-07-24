@@ -55,6 +55,20 @@ _BENZENE_MOLBLOCK = """241
 M  END"""
 
 
+def test_structural_identifier_types():
+    """STRUCTURAL_IDENTIFIER_TYPES mirrors _COMPOUND_IDENTIFIER_LOADERS exactly."""
+    assert {
+        "SMILES",
+        "INCHI",
+        "MOLBLOCK",
+    } == message_helpers.STRUCTURAL_IDENTIFIER_TYPES
+    expected = {
+        reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name(identifier_type)
+        for identifier_type in message_helpers._COMPOUND_IDENTIFIER_LOADERS
+    }
+    assert expected == message_helpers.STRUCTURAL_IDENTIFIER_TYPES
+
+
 class TestMessageHelpers:
     @pytest.mark.parametrize(
         ("filename", "expected"),
@@ -546,7 +560,7 @@ class TestLoadAndSaveMessage:
                 assert f.read() == value
 
     def test_pbtxt_round_trip_non_ascii_string(self, tmp_path):
-        """Regression for protobuf 5+: MessageToBytes() defaults to ASCII and raises on unicode."""
+        """protobuf 5+ MessageToBytes() defaults to ASCII and raises on unicode."""
         message = test_pb2.Scalar(string_value="β")
         path = (tmp_path / "unicode.pbtxt").as_posix()
         message_helpers.save_message(message, path)
@@ -598,7 +612,7 @@ class TestLoadAndSaveMessage:
         ],
     )
     def test_save_message_is_atomic_on_failure(self, suffix, tmp_path, monkeypatch):
-        """A crash mid-write must not leave a partial file (or .tmp) at the destination."""
+        """A crash mid-write must not leave a partial file (or .tmp) at the target."""
         message = test_pb2.Scalar(int32_value=3)
         dest = (tmp_path / f"crashy{suffix}").as_posix()
         # Pre-existing destination must survive a failed overwrite.

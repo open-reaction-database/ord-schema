@@ -187,7 +187,6 @@ ignore = [
     # (assert x is not None  # Type hint); not a security concern here.
     "S101",
     "FIX002",                # TODO comments are allowed
-    "E501",    # Line length is enforced by the formatter, not the linter.
     # B028 (missing stacklevel= on warnings.warn): the ~103 sites in
     # validations.py are data-validation messages collected into ValidationOutput,
     # not deprecation/misuse warnings -- there is no caller location worth pointing

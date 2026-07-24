@@ -166,9 +166,10 @@ def test_reaction_matches_smarts(test_session):
 
 
 def test_product_compound_rdkit_link(test_session):
-    """Every ProductCompound whose SMILES is in rdkit.mols is linked (guards the product_compound UPDATE).
+    """Every linkable ProductCompound is linked (guards the product_compound UPDATE).
 
-    The mol/reaction operator tests cover the input-Compound and Reaction link paths; product_compound has none.
+    The mol/reaction operator tests cover the input-Compound and Reaction link paths;
+    product_compound has none.
     """
     linked = test_session.execute(
         select(Mappers.ProductCompound).join(ProductCompoundSmiles).join(RDKitMols)

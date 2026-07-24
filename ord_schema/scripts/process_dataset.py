@@ -13,18 +13,17 @@
 # limitations under the License.
 """Dataset processing script for database submissions.
 
-This script is meant to be a one-stop shop for preparing submissions to the
-Open Reaction Database.
+This script is meant to be a one-stop shop for preparing submissions to the Open
+Reaction Database.
 
-By default, the script only validates the input Dataset messages. Validation
-may introduce changes to the Reaction messages, such as the addition of SMILES
-for compounds identified only by NAME. Users should frequently run these checks
-as they are preparing a dataset for submission.
+By default, the script only validates the input Dataset messages. Validation may
+introduce changes to the Reaction messages, such as the addition of SMILES for compounds
+identified only by NAME. Users should frequently run these checks as they are preparing
+a dataset for submission.
 
-With the optional --update flag, the script also performs database-specific
-updates (such as adding record IDs). These operations are meant to be run as
-part of the submission process and not as part of the pre-submission validation
-cycle.
+With the optional --update flag, the script also performs database-specific updates
+(such as adding record IDs). These operations are meant to be run as part of the
+submission process and not as part of the pre-submission validation cycle.
 """
 
 import argparse
@@ -122,7 +121,8 @@ def cleanup(filename: str, output_filename: str) -> None:
     else:
         args = ["git", "mv", filename, output_filename]
     logger.info("Running command: %s", " ".join(args))
-    subprocess.run(args, check=True)  # noqa: S603  (internal command, no untrusted input)
+    # (internal command, no untrusted input)
+    subprocess.run(args, check=True)  # noqa: S603
 
 
 def _get_reaction_ids(
@@ -130,8 +130,8 @@ def _get_reaction_ids(
 ) -> set[str]:
     """Returns a set containing the reaction IDs in a Dataset.
 
-    For ``DatasetView``, the ``reaction_id`` column is read directly from the
-    Parquet file so we never decode Reaction blobs just to collect IDs.
+    For ``DatasetView``, the ``reaction_id`` column is read directly from the Parquet
+    file so we never decode Reaction blobs just to collect IDs.
     """
     if isinstance(dataset, parquet.DatasetView):
         return {rid for rid in parquet.iter_reaction_ids(dataset.path) if rid}
@@ -145,10 +145,10 @@ def _load_base_dataset(
 ) -> dataset_pb2.Dataset | parquet.DatasetView | None:
     """Loads a Dataset from another git branch.
 
-    Parquet inputs are spilled to a temp file and wrapped in a ``DatasetView``
-    so the diff path can scan the ``reaction_id`` column without decoding any
-    Reaction blobs. The temp file outlives the view (process-lifetime leak),
-    which is fine for this CLI script — the OS reclaims it on exit.
+    Parquet inputs are spilled to a temp file and wrapped in a ``DatasetView`` so the
+    diff path can scan the ``reaction_id`` column without decoding any Reaction blobs.
+    The temp file outlives the view (process-lifetime leak), which is fine for this CLI
+    script — the OS reclaims it on exit.
     """
     if file_status.status.startswith("A"):
         return None  # Dataset only exists in the submission.
@@ -159,7 +159,8 @@ def _load_base_dataset(
     else:
         git_args.append(f"{base}:{file_status.filename}")
     logger.info("Running command: %s", " ".join(git_args))
-    serialized = subprocess.run(git_args, capture_output=True, check=True, text=False)  # noqa: S603  (internal git command)
+    # (internal git command)
+    serialized = subprocess.run(git_args, capture_output=True, check=True, text=False)  # noqa: S603
     if serialized.stdout.startswith(b"version"):
         # Convert Git LFS pointers to real data.
         serialized = subprocess.run(
@@ -224,11 +225,11 @@ def _run_updates(
 ) -> None:
     """Updates the submission files.
 
-    When the input is a ``DatasetView`` and the output is also Parquet, the
-    update runs as a streaming two-pass over the input file with an atomic
-    temp-then-rename publish (validation runs against the temp before the
-    rename). Otherwise the in-memory path mutates the Dataset in place,
-    validates, and writes through ``ord_schema.datasets.save_dataset``.
+    When the input is a ``DatasetView`` and the output is also Parquet, the update runs
+    as a streaming two-pass over the input file with an atomic temp-then-rename publish
+    (validation runs against the temp before the rename). Otherwise the in-memory path
+    mutates the Dataset in place, validates, and writes through
+    ``ord_schema.datasets.save_dataset``.
     """
     options = validations.ValidationOptions(validate_ids=True, require_provenance=True)
     for input_filename, dataset in datasets.items():
@@ -271,7 +272,8 @@ def _run_updates(
         # In-memory path: materialize a Parquet input if the requested output
         # format is not Parquet (so we can mutate via update_dataset).
         if isinstance(dataset, parquet.DatasetView):
-            dataset = parquet.load_dataset(input_filename)  # noqa: PLW2901  (materialize the view in place)
+            # (materialize the view in place)
+            dataset = parquet.load_dataset(input_filename)  # noqa: PLW2901
         updates.update_dataset(dataset)
         validations.validate_datasets(
             {input_filename: dataset}, write_errors, options=options
@@ -337,7 +339,8 @@ def run(
                 reaction_size = sys.getsizeof(reaction.SerializeToString()) / 1e6
                 if reaction_size > args.max_size:
                     raise ValueError(
-                        f"Reaction is larger than --max_size ({reaction_size} vs {args.max_size})"
+                        f"Reaction is larger than --max_size "
+                        f"({reaction_size} vs {args.max_size})"
                     )
         if args.base:
             added, removed, changed = get_change_stats(
@@ -373,7 +376,8 @@ def run(
             total_removed |= removed
             total_changed |= changed
         comment.append(
-            f"| | **{len(total_added)}** | **{len(total_removed)}** | **{len(total_changed)}** |"
+            f"| | **{len(total_added)}** | **{len(total_removed)}** | "
+            f"**{len(total_changed)}** |"
         )
         if args.issue and args.token:
             client = github.Github(args.token)

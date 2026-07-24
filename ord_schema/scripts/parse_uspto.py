@@ -150,7 +150,8 @@ def resolve_units(value: str) -> ord_schema.UnitMessage:
 def get_component_map(root: ET.Element) -> dict[str, str]:
     """Builds a mapping of components to inputs."""
     reaction_inputs = {}
-    # NOTE(skearnes): ``ElementTree.Element.find`` returns ``None`` when no child matches.
+    # NOTE(skearnes): ``ElementTree.Element.find`` returns ``None`` when no child
+    # matches.
     # We treat a missing section as "no components" (via ``or []``) rather than raising;
     # CML files occasionally omit empty sections and we don't want to abort parsing
     # the whole reaction over it.
@@ -437,7 +438,8 @@ def parse_parameter(root: ET.Element, workup: reaction_pb2.ReactionWorkup) -> No
             else:
                 if not isinstance(temperature, reaction_pb2.Temperature):
                     logger.debug(
-                        f'TEMPERATURE: resolved to {type(temperature).__name__}, not Temperature ("{root.text}")'
+                        f"TEMPERATURE: resolved to {type(temperature).__name__}, "
+                        f'not Temperature ("{root.text}")'
                     )
                 elif (
                     temperature.units == temperature.CELSIUS

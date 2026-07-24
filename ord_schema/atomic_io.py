@@ -13,9 +13,8 @@
 # limitations under the License.
 """Atomic-write helpers.
 
-Centralizes the write-to-tmp-then-rename pattern used throughout
-``ord_schema`` so partial files never appear at a destination path on
-crash, exception, or interrupt.
+Centralizes the write-to-tmp-then-rename pattern used throughout ``ord_schema`` so
+partial files never appear at a destination path on crash, exception, or interrupt.
 """
 
 import contextlib

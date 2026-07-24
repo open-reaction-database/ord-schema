@@ -17,6 +17,7 @@
 import datetime
 import pathlib
 from typing import cast
+from unittest.mock import Mock
 
 import pytest
 from rdkit import Chem
@@ -73,9 +74,9 @@ def test_delete_dataset(test_session):
 def test_update_rdkit_tables_idempotent(test_session):
     """Re-running update_rdkit_tables inserts no duplicate rows.
 
-    Guards the EXCEPT->NOT EXISTS rewrite: the fixture has a reaction with no
-    SMILES (NULL reaction_smiles), which a missing IS NOT NULL guard would
-    re-insert as a junk row on every run.
+    Guards the EXCEPT->NOT EXISTS rewrite: the fixture has a reaction with no SMILES
+    (NULL reaction_smiles), which a missing IS NOT NULL guard would re-insert as a junk
+    row on every run.
     """
     before_reactions = test_session.execute(
         text("SELECT count(*) FROM rdkit.reactions")
@@ -92,7 +93,8 @@ def test_update_rdkit_tables_idempotent(test_session):
         test_session.execute(text("SELECT count(*) FROM rdkit.mols")).scalar()
         == before_mols
     )
-    # Invariant: the IS NOT NULL guards keep NULL mol/reaction rows out of the cartridge tables.
+    # Invariant: the IS NOT NULL guards keep NULL mol/reaction rows out of the cartridge
+    # tables.
     assert (
         test_session.execute(
             text("SELECT count(*) FROM rdkit.mols WHERE mol IS NULL")
@@ -108,7 +110,7 @@ def test_update_rdkit_tables_idempotent(test_session):
 
 
 def test_update_derived_tables_idempotent(test_session):
-    """Re-running update_derived_tables inserts no duplicate derived rows (NOT EXISTS guard)."""
+    """Re-running update_derived_tables inserts no duplicate rows (NOT EXISTS guard)."""
     tables = ("reaction_smiles", "compound_smiles", "product_compound_smiles")
     before = {
         table: test_session.execute(
@@ -128,7 +130,7 @@ def test_update_derived_tables_idempotent(test_session):
 
 
 def test_update_derived_tables_batched(test_session, monkeypatch):
-    """A small batch size reproduces the full result, exercising the multi-batch path."""
+    """A small batch size reproduces the full result, exercising multi-batch path."""
     tables = ("reaction_smiles", "compound_smiles", "product_compound_smiles")
     full = {
         table: test_session.execute(
@@ -136,8 +138,9 @@ def test_update_derived_tables_batched(test_session, monkeypatch):
         ).scalar()
         for table in tables
     }
-    # Every derived table must be populated up front, otherwise the re-derivation below would
-    # pass trivially (0 == 0) without exercising the reaction or compound batch paths.
+    # Every derived table must be populated up front, otherwise the re-derivation below
+    # would pass trivially (0 == 0) without exercising the reaction or compound batch
+    # paths.
     assert all(count > 0 for count in full.values()), full
     # Clear the derived rows, then re-derive in batches far smaller than the dataset (80
     # reactions) so the result is built across many batches rather than one.
@@ -155,12 +158,13 @@ def test_update_derived_tables_batched(test_session, monkeypatch):
 
 
 def test_update_derived_tables_sharded_covers_all(prepared_engine):
-    """Sharded SMILES derivation partitions every derived table and together covers every row.
+    """Sharded SMILES derivation partitions every derived table and covers every row.
 
-    Each shard derives a disjoint hash-partition of the reaction/compound ids (the derived-stage
-    analog of row-group sharding for ingest). Guards two properties: the predicate actually splits
-    each table's rows across more than one shard, and all shards together derive exactly what the
-    unsharded pass would -- a following whole-dataset pass finds nothing new.
+    Each shard derives a disjoint hash-partition of the reaction/compound ids (the
+    derived-stage analog of row-group sharding for ingest). Guards two properties: the
+    predicate actually splits each table's rows across more than one shard, and all
+    shards together derive exactly what the unsharded pass would -- a following whole-
+    dataset pass finds nothing new.
     """
     dataset = load_dataset(
         pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
@@ -178,8 +182,8 @@ def test_update_derived_tables_sharded_covers_all(prepared_engine):
                 for table in tables
             }
 
-    # Derive one shard at a time, recording how many rows each shard adds per table (idempotent
-    # inserts, so a shard only adds its own partition's rows).
+    # Derive one shard at a time, recording how many rows each shard adds per table
+    # (idempotent inserts, so a shard only adds its own partition's rows).
     num_shards = 4
     prev = dict.fromkeys(tables, 0)
     per_shard: list[dict[str, int]] = []
@@ -195,8 +199,9 @@ def test_update_derived_tables_sharded_covers_all(prepared_engine):
     sharded = counts()
     for table in tables:
         assert sharded[table] > 0, (table, sharded)
-        # Rows land in more than one shard, so the hash predicate really partitions each table
-        # (guarded by a size floor so a genuinely tiny table can't flake the check).
+        # Rows land in more than one shard, so the hash predicate really partitions each
+        # table (guarded by a size floor so a genuinely tiny table can't flake the
+        # check).
         if sharded[table] >= 2 * num_shards:
             non_empty = sum(1 for shard in per_shard if shard[table] > 0)
             assert non_empty >= 2, (table, [shard[table] for shard in per_shard])
@@ -207,12 +212,12 @@ def test_update_derived_tables_sharded_covers_all(prepared_engine):
 
 
 def test_rdkit_sharded_matches_serial(prepared_engine):
-    """Sharded RDKit population inserts + links the same rows as the serial pass, shards disjoint.
+    """Sharded RDKit population inserts and links the same rows as the serial pass.
 
-    Every RDKit sub-step partitions by the same SMILES hash, so a shard inserts exactly the
-    structures its links reference. Guards that a single shard is a strict subset (partitioning is
-    real) and that all shards together produce what the unsharded pass would -- a following serial
-    pass inserts and links nothing new.
+    Every RDKit sub-step partitions by the same SMILES hash, so a shard inserts exactly
+    the structures its links reference. Guards that a single shard is a strict subset
+    (partitioning is real) and that all shards together produce what the unsharded pass
+    would -- a following serial pass inserts and links nothing new.
     """
     dataset = load_dataset(
         pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
@@ -229,9 +234,18 @@ def test_rdkit_sharded_matches_serial(prepared_engine):
             queries = {
                 "mols": "SELECT count(*) FROM rdkit.mols",
                 "reactions": "SELECT count(*) FROM rdkit.reactions",
-                "linked_reactions": "SELECT count(*) FROM derived.reaction_smiles WHERE rdkit_reaction_id IS NOT NULL",
-                "linked_compounds": "SELECT count(*) FROM derived.compound_smiles WHERE rdkit_mol_id IS NOT NULL",
-                "linked_products": "SELECT count(*) FROM derived.product_compound_smiles WHERE rdkit_mol_id IS NOT NULL",
+                "linked_reactions": (
+                    "SELECT count(*) FROM derived.reaction_smiles "
+                    "WHERE rdkit_reaction_id IS NOT NULL"
+                ),
+                "linked_compounds": (
+                    "SELECT count(*) FROM derived.compound_smiles "
+                    "WHERE rdkit_mol_id IS NOT NULL"
+                ),
+                "linked_products": (
+                    "SELECT count(*) FROM derived.product_compound_smiles "
+                    "WHERE rdkit_mol_id IS NOT NULL"
+                ),
             }
             return {
                 key: session.execute(text(query)).scalar()
@@ -261,7 +275,8 @@ def test_rdkit_sharded_matches_serial(prepared_engine):
         "linked_products",
     ):
         assert sharded[key] > 0, (key, sharded)
-    # A serial (whole-dataset) pass now inserts and links nothing new: the shards covered it all.
+    # A serial (whole-dataset) pass now inserts and links nothing new: the shards
+    # covered it all.
     run_shard(None)
     assert counts() == sharded
 
@@ -272,10 +287,10 @@ def test_rdkit_sharded_matches_serial(prepared_engine):
 def test_classify_sharded_covers_all(prepared_engine):
     """Sharded classification partitions reactions and together classifies every one.
 
-    Analogous to the SMILES/RDKit sharding tests; skipped unless the reaction-class extra is
-    installed (it loads a transformer model per call). Shard 0 is a strict, non-empty subset and
-    all shards together classify exactly what the unsharded pass would -- a following whole-dataset
-    pass adds nothing.
+    Analogous to the SMILES/RDKit sharding tests; skipped unless the reaction-class
+    extra is installed (it loads a transformer model per call). Shard 0 is a strict,
+    non-empty subset and all shards together classify exactly what the unsharded pass
+    would -- a following whole-dataset pass adds nothing.
     """
     dataset = load_dataset(
         pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
@@ -304,8 +319,9 @@ def test_classify_sharded_covers_all(prepared_engine):
                     dataset.dataset_id, session, shard=(shard_index, num_shards)
                 )
     sharded = count()
-    # Shard 0 is a strict, non-empty subset: the fixture's ~80 reactions reliably hash into more
-    # than one of the 4 buckets, so this holds for it (a 1-reaction fixture would not).
+    # Shard 0 is a strict, non-empty subset: the fixture's ~80 reactions reliably hash
+    # into more than one of the 4 buckets, so this holds for it (a 1-reaction fixture
+    # would not).
     assert 0 < first < sharded, (first, sharded)
     # A whole-dataset pass now adds nothing: the shards classified every reaction.
     with Session(prepared_engine) as session, session.begin():
@@ -327,11 +343,12 @@ def test_classify_sharded_covers_all(prepared_engine):
 def test_compound_smiles_match_reference(
     test_session, derived_table, id_column, mapper
 ):
-    """The set-based compound SMILES equal the per-compound smiles_from_compound reference.
+    """The set-based SMILES equal the per-compound smiles_from_compound reference.
 
-    Guards value parity of the bulk SMILES-identifier path against the message-reconstruction
-    reference. The fallback (compounds without a stored SMILES, which this fixture does not
-    contain) is covered by test_compound_smiles_fallback_without_stored_smiles.
+    Guards value parity of the bulk SMILES-identifier path against the
+    message-reconstruction reference. The fallback (compounds without a stored
+    SMILES, which this fixture does not contain) is covered by
+    test_compound_smiles_fallback_without_stored_smiles.
     """
     rows = test_session.execute(
         text(f"SELECT {id_column}, smiles FROM {derived_table}")  # noqa: S608  (constant)
@@ -349,17 +366,18 @@ def test_compound_smiles_match_reference(
 
 
 def test_compound_smiles_fallback_without_stored_smiles(prepared_engine):
-    """A compound with no stored SMILES is derived via the message-reconstruction fallback.
+    """A compound with no stored SMILES is derived via message-reconstruction fallback.
 
-    The set-based fast path only covers compounds with a SMILES identifier; this exercises the
-    session.get + to_proto + smiles_from_compound branch, which the standard fixture (every
-    compound carries a SMILES) never reaches.
+    The set-based fast path only covers compounds with a SMILES identifier; this
+    exercises the session.get + to_proto + smiles_from_compound branch, which the
+    standard fixture (every compound carries a SMILES) never reaches.
     """
     dataset = load_dataset(
         pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
     )
-    # Replace one compound's SMILES identifier with the equivalent InChI so only the fallback
-    # (structure reconstruction from a non-SMILES identifier) can derive its SMILES.
+    # Replace one compound's SMILES identifier with the equivalent InChI so only the
+    # fallback (structure reconstruction from a non-SMILES identifier) can derive its
+    # SMILES.
     compound = next(
         component
         for reaction in dataset.reactions
@@ -377,8 +395,8 @@ def test_compound_smiles_fallback_without_stored_smiles(prepared_engine):
             add_dataset(dataset, session)
         with session.begin():
             update_derived_tables(dataset.dataset_id, session)
-        # Exactly the modified compound lacks a SMILES identifier, so its derived row proves the
-        # fallback ran and produced the InChI-derived canonical SMILES.
+        # Exactly the modified compound lacks a SMILES identifier, so its derived row
+        # proves the fallback ran and produced the InChI-derived canonical SMILES.
         fallback_smiles = (
             session.execute(
                 text(
@@ -393,11 +411,71 @@ def test_compound_smiles_fallback_without_stored_smiles(prepared_engine):
     assert fallback_smiles == [expected], fallback_smiles
 
 
-# Counts every ord.compound by how it reaches its reaction, alongside how many of those rows made
-# it into derived.compound_smiles and how many of those are still missing an rdkit.mols link.
-# [Ti+5] structures are excluded from the unlinked tally because _update_rdkit_mols deliberately
-# keeps them out of rdkit.mols (see the NOT LIKE guard there, and issue #672).
-_COMPOUND_ATTACHMENT_COVERAGE = text("""
+def test_underivable_compound_skips_reconstruction(prepared_engine, monkeypatch):
+    """A compound with only non-structural identifiers is not reconstructed each run.
+
+    Such a compound never yields a derived row, so the NOT EXISTS guard re-selects it on
+    every derived pass. The set-based structural pre-filter must skip it before the
+    expensive session.get + to_proto fallback (which would raise ValueError anyway);
+    otherwise a database of underivable compounds pays a full reconstruction pass for
+    zero new rows on every re-run.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+    )
+    # Strip one compound down to a NAME-only identifier so it has no structural
+    # identifier to derive a SMILES from; every other compound keeps its SMILES fast
+    # path.
+    compound = next(
+        component
+        for reaction in dataset.reactions
+        for reaction_input in reaction.inputs.values()
+        for component in reaction_input.components
+    )
+    del compound.identifiers[:]
+    compound.identifiers.add(
+        type=reaction_pb2.CompoundIdentifier.NAME, value="mystery reagent"
+    )
+    to_proto_calls = []
+    real_to_proto = _orm_database.to_proto
+
+    def _spy_to_proto(mapper):
+        to_proto_calls.append(mapper)
+        return real_to_proto(mapper)
+
+    monkeypatch.setattr(_orm_database, "to_proto", _spy_to_proto)
+    with Session(prepared_engine) as session:
+        with session.begin():
+            add_dataset(dataset, session)
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session)
+        underivable = (
+            session.execute(
+                text(
+                    "SELECT count(*) FROM ord.compound c "
+                    "WHERE NOT EXISTS (SELECT 1 FROM ord.compound_identifier ci "
+                    "WHERE ci.compound_id = c.id AND ci.type != 'NAME') "
+                    "AND NOT EXISTS (SELECT 1 FROM derived.compound_smiles cs "
+                    "WHERE cs.compound_id = c.id)"
+                )
+            )
+            .scalars()
+            .one()
+        )
+    # The NAME-only compound derives nothing (no derived row) ...
+    assert underivable == 1, underivable
+    # ... and the every-compound-has-SMILES fixture plus the pre-filter mean the
+    # reconstruction fallback never runs, so to_proto is not called at all.
+    assert to_proto_calls == [], to_proto_calls
+
+
+# Counts every ord.compound by how it reaches its reaction, alongside how many of
+# those rows made it into derived.compound_smiles and how many of those are still
+# missing an rdkit.mols link. [Ti+5] structures are excluded from the unlinked tally
+# because _update_rdkit_mols deliberately keeps them out of rdkit.mols (see the NOT
+# LIKE guard there, and issue #672).
+_COMPOUND_ATTACHMENT_COVERAGE = text(
+    """
     SELECT CASE
              WHEN ord.reaction_input.reaction_id IS NOT NULL THEN 'reaction_input'
              WHEN ord.compound.reaction_input_id IS NOT NULL THEN 'workup_input'
@@ -411,20 +489,23 @@ _COMPOUND_ATTACHMENT_COVERAGE = text("""
                  AND derived.compound_smiles.smiles NOT LIKE '%[Ti+5]%'
            ) AS unlinked
     FROM ord.compound
-    LEFT JOIN ord.reaction_input ON ord.compound.reaction_input_id = ord.reaction_input.id
-    LEFT JOIN derived.compound_smiles ON derived.compound_smiles.compound_id = ord.compound.id
+    LEFT JOIN ord.reaction_input
+        ON ord.compound.reaction_input_id = ord.reaction_input.id
+    LEFT JOIN derived.compound_smiles
+        ON derived.compound_smiles.compound_id = ord.compound.id
     GROUP BY 1
-""")
+"""
+)
 
 
 def test_derived_compound_smiles_covers_every_attachment(prepared_engine):
     """Every ord.compound is derived and RDKit-linked, whichever parent it hangs off.
 
     A compound reaches its reaction as a reaction input, as a workup's input (whose
-    ord.reaction_input row has reaction_id NULL), or as a product measurement's authentic
-    standard. A dataset-scoping join that follows only reaction_input.reaction_id silently drops
-    the latter two, so assert all three attachments appear and none loses rows to the derived or
-    RDKit passes.
+    ord.reaction_input row has reaction_id NULL), or as a product measurement's
+    authentic standard. A dataset-scoping join that follows only
+    reaction_input.reaction_id silently drops the latter two, so assert all three
+    attachments appear and none loses rows to the derived or RDKit passes.
     """
     dataset = load_dataset(
         pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
@@ -450,7 +531,8 @@ def test_derived_compound_smiles_covers_every_attachment(prepared_engine):
             row.attachment: row
             for row in session.execute(_COMPOUND_ATTACHMENT_COVERAGE)
         }
-    # Guard against the assertions below passing vacuously on an attachment the fixture lacks.
+    # Guard against the assertions below passing vacuously on an attachment the fixture
+    # lacks.
     assert set(coverage) == {
         "reaction_input",
         "workup_input",
@@ -462,7 +544,7 @@ def test_derived_compound_smiles_covers_every_attachment(prepared_engine):
 
 
 def test_unlinked_partial_indexes(test_session):
-    """prepare_database creates partial indexes over unlinked rows to keep incremental linking cheap."""
+    """prepare_database creates partial indexes on unlinked rows for cheap linking."""
     indexes = dict(
         test_session.execute(
             text(
@@ -483,13 +565,14 @@ def test_unlinked_partial_indexes(test_session):
 
 
 def test_polymorphic_fk_indexes_are_partial(test_session):
-    """Each polymorphic foreign-key index is partial (WHERE ... IS NOT NULL).
+    """Each polymorphic foreign-key index is partial (WHERE ...
 
-    Under single-table inheritance a message's FK column is NULL for every row of a sibling
-    subclass, so a full index would store a NULL entry for most rows and every insert would touch
-    all of them. Indexing only the non-NULL rows keeps the index and the per-insert write
-    proportional to the rows that use each parent. ord.time is the widest such table (one FK per
-    possible parent), so it is a good representative.
+    IS NOT NULL).     Under single-table inheritance a message's FK column is NULL for
+    every row of a sibling     subclass, so a full index would store a NULL entry for
+    most rows and every insert would touch     all of them. Indexing only the non-NULL
+    rows keeps the index and the per-insert write     proportional to the rows that use
+    each parent. ord.time is the widest such table (one FK per     possible parent), so
+    it is a good representative.
     """
     indexes = dict(
         test_session.execute(
@@ -508,11 +591,11 @@ def test_polymorphic_fk_indexes_are_partial(test_session):
 def test_enum_types_in_ord_schema(test_session):
     """Mapped enum types live in the ord schema so they are rendered schema-qualified.
 
-    Without inherit_schema the enum type is created wherever the create-time
-    search_path points and referenced unqualified; that breaks ingest when the
-    default search_path is pinned to public and the connecting role owns an
-    eponymous ord schema (the prod 'ord' role), so the unqualified cast cannot find
-    the type. Pinning the types to ord makes resolution search_path-independent.
+    Without inherit_schema the enum type is created wherever the create-time search_path
+    points and referenced unqualified; that breaks ingest when the default search_path
+    is pinned to public and the connecting role owns an eponymous ord schema (the prod
+    'ord' role), so the unqualified cast cannot find the type. Pinning the types to ord
+    makes resolution search_path-independent.
     """
     schemas = test_session.execute(
         text(
@@ -527,7 +610,7 @@ def test_enum_types_in_ord_schema(test_session):
 
 
 def test_surrogate_keys_are_uuidv7(test_session):
-    """ord.* surrogate keys are uuid columns populated with version-7 (time-sortable) values."""
+    """ord.* surrogate keys are uuid columns with version-7 (time-sortable) values."""
     types = dict(
         test_session.execute(
             text(
@@ -535,7 +618,8 @@ def test_surrogate_keys_are_uuidv7(test_session):
                 "FROM information_schema.columns "
                 "WHERE table_schema = 'ord' "
                 "AND ((table_name = 'reaction' AND column_name = 'id') "
-                "  OR (table_name = 'compound' AND column_name IN ('id', 'reaction_input_id')))"
+                "  OR (table_name = 'compound' "
+                "AND column_name IN ('id', 'reaction_input_id')))"
             )
         ).all()
     )
@@ -551,8 +635,33 @@ def test_surrogate_keys_are_uuidv7(test_session):
     assert reaction_id.version == 7
 
 
+@pytest.mark.parametrize(
+    ("version_num", "raises"),
+    [("110000", True), ("120000", False), ("160005", False)],
+)
+def test_check_server_version(version_num, raises):
+    """The version guard rejects pre-12 servers and accepts 12+."""
+    connection = Mock()
+    connection.execute.return_value.scalar_one.return_value = version_num
+    if raises:
+        with pytest.raises(RuntimeError, match="PostgreSQL 12"):
+            _orm_database._check_server_version(connection)
+    else:
+        _orm_database._check_server_version(connection)
+
+
+def test_check_server_version_memoized_per_connection():
+    """The check queries once per connection, then reuses the cached result on info."""
+    connection = Mock()
+    connection.info = {}
+    connection.execute.return_value.scalar_one.return_value = "160005"
+    _orm_database._check_server_version(connection)
+    _orm_database._check_server_version(connection)
+    connection.execute.assert_called_once()
+
+
 def test_default_search_path_is_public(test_session):
-    """prepare_database pins the database default search_path to public, not the role's ord schema."""
+    """prepare_database pins the database default search_path to public, not ord."""
     setting = test_session.execute(
         text(
             "SELECT array_to_string(s.setconfig, ',') "

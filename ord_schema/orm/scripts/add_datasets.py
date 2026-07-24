@@ -37,8 +37,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--stages",
         default=",".join(loading.STAGES),
-        help="Comma-separated stages to run: 'ingest' (ord.*/public.*) and/or 'derived' "
-        "(derived.* SMILES, RDKit links, reaction classes). Derived-only runs over "
+        help="Comma-separated stages to run: 'ingest' (ord.*/public.*) and/or "
+        "'derived' (derived.* SMILES, RDKit links, reaction classes). Derived-only "
+        "runs over "
         "already-ingested datasets matching --pattern.",
     )
     parser.add_argument(
@@ -63,8 +64,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--classify_jobs",
         type=int,
         default=None,
-        help="Worker count for the classification pass (each loads a transformer model, so it is "
-        "bounded separately from --n_jobs); defaults to a capped fraction of --n_jobs",
+        help="Worker count for the classification pass (each loads a transformer "
+        "model, so it is bounded separately from --n_jobs); defaults to a capped "
+        "fraction of --n_jobs",
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     return parser.parse_args(argv)
@@ -79,7 +81,8 @@ def main(args: argparse.Namespace) -> None:
     unknown = set(stages) - set(loading.STAGES)
     if unknown:
         raise SystemExit(
-            f"Unknown --stages values {sorted(unknown)}; choose from {list(loading.STAGES)}"
+            f"Unknown --stages values {sorted(unknown)}; "
+            f"choose from {list(loading.STAGES)}"
         )
     if not stages:
         raise SystemExit(f"--stages must select at least one of {list(loading.STAGES)}")
