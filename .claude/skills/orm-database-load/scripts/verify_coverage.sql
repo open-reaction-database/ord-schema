@@ -125,33 +125,37 @@ END $$;
 --      reagent/product cells always contain parseable organics). Catches the single dataset x
 --      single path omission a corpus-wide or reaction-keyed count would dilute.
 --
---   2. PARTIAL derivation (completeness). SMILES derivation is sharded (loading.py: one hash
---      partition of a >50k-reaction dataset's compound ids per worker, capped at 32), and the
---      loader raises on a failed shard -- but a defence-in-depth gate should not trust that exit
---      status. A failed shard leaves a cell with derived>0 yet ~1/num_shards of it underived:
---      tens of thousands of compounds at >= ~3% of the cell (num_shards <= 32). That dwarfs the
---      residue (a few thousand corpus-wide), so a cell is flagged when its underived count clears
---      BOTH an absolute floor (max_cell_missing, above any per-cell residue) AND a fraction
---      (min_gap_pct, below the smallest 1/32 shard hole). Requiring both keeps a small
---      organometallic cell (high fraction, tiny absolute) and a huge cell holding a little
---      residue (large absolute, tiny fraction) from tripping, while a shard hole clears both.
+--   2. PARTIAL derivation (completeness), checked PER DATASET. SMILES derivation is sharded
+--      (loading.py: one hashtextextended partition of a >50k-reaction dataset's compound ids per
+--      worker, capped at 32), and the loader raises on a failed shard -- but a defence-in-depth
+--      gate should not trust that exit status. A shard partitions the *whole dataset's* compound
+--      ids, so a failed shard removes ~1/num_shards of every scope at once; a small scope's slice
+--      can be under an absolute floor even though the dataset-wide hole is enormous. So this gate
+--      aggregates to the dataset: the smallest sharded dataset still has >50k reactions and >=2
+--      structural compounds each over <=32 shards, so any shard hole underives tens of thousands
+--      of the dataset's compounds (>= 1/32 ~= 3%), dwarfing the whole-dataset residue (at most the
+--      corpus total, a few thousand). A dataset is flagged when its total underived clears BOTH an
+--      absolute floor (max_dataset_missing, above any one dataset's residue) AND a fraction
+--      (min_gap_pct, below the smallest 1/32 hole). Requiring both keeps an organometallic-heavy
+--      dataset (high fraction, small absolute) and a huge dataset holding a little residue (large
+--      absolute, tiny fraction) from tripping, while a shard hole clears both.
 --
--- The total underived count is printed. Defaults: min_scope_size 50, max_cell_missing 10000,
+-- The total underived count is printed. Defaults: min_scope_size 50, max_dataset_missing 10000,
 -- min_gap_pct 1 (override with -v NAME=N).
 \if :{?min_scope_size}
 \else
   \set min_scope_size 50
 \endif
-\if :{?max_cell_missing}
+\if :{?max_dataset_missing}
 \else
-  \set max_cell_missing 10000
+  \set max_dataset_missing 10000
 \endif
 \if :{?min_gap_pct}
 \else
   \set min_gap_pct 1
 \endif
 SELECT set_config('ord.verify_min_scope_size', :'min_scope_size', false) AS min_scope_size,
-       set_config('ord.verify_max_cell_missing', :'max_cell_missing', false) AS max_cell_missing,
+       set_config('ord.verify_max_dataset_missing', :'max_dataset_missing', false) AS max_dataset_missing,
        set_config('ord.verify_min_gap_pct', :'min_gap_pct', false) AS min_gap_pct;
 DO $$
 DECLARE
@@ -161,7 +165,7 @@ DECLARE
     bad_partial bigint;
     example_partial text;
     min_scope_size int := current_setting('ord.verify_min_scope_size')::int;
-    max_cell_missing int := current_setting('ord.verify_max_cell_missing')::int;
+    max_dataset_missing int := current_setting('ord.verify_max_dataset_missing')::int;
     min_gap_pct numeric := current_setting('ord.verify_min_gap_pct')::numeric;
 BEGIN
     WITH scoped AS (
@@ -227,32 +231,41 @@ BEGIN
                count(*) FILTER (WHERE structural AND derived) AS derived
         FROM scoped
         GROUP BY dataset_id, scope
+    ),
+    -- Completeness rolls the cells up to the dataset, because a failed shard's hole is
+    -- dataset-wide (it partitions all scopes' ids at once); a small scope's slice may be
+    -- tiny in absolute terms while the dataset-wide hole is not.
+    per_dataset AS (
+        SELECT dataset_id,
+               sum(structural) AS structural,
+               sum(derived) AS derived
+        FROM per_cell
+        GROUP BY dataset_id
     )
+    -- Scalar subqueries over the shared CTEs; per_cell (hence the UNION) materializes once.
     SELECT
-        coalesce(sum(structural - derived), 0),
-        count(*) FILTER (WHERE structural >= min_scope_size AND derived = 0),
-        min(scope || ' in dataset ' || dataset_id)
-            FILTER (WHERE structural >= min_scope_size AND derived = 0),
-        count(*) FILTER (
-            WHERE derived > 0
-              AND structural - derived >= max_cell_missing
-              AND (structural - derived)::numeric >= min_gap_pct / 100 * structural
-        ),
-        min(scope || ' in dataset ' || dataset_id
-            || ' (' || (structural - derived) || ' of ' || structural || ' missing)')
-            FILTER (
-                WHERE derived > 0
-                  AND structural - derived >= max_cell_missing
-                  AND (structural - derived)::numeric >= min_gap_pct / 100 * structural
-            )
-      INTO total_missing, bad_omitted, example_omitted, bad_partial, example_partial
-    FROM per_cell;
-    RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row (per (dataset, scope) gates: existence min scope size %, completeness max % missing and >= % pct per cell)', total_missing, min_scope_size, max_cell_missing, min_gap_pct;
+        (SELECT coalesce(sum(structural - derived), 0) FROM per_cell),
+        (SELECT count(*) FROM per_cell
+             WHERE structural >= min_scope_size AND derived = 0),
+        (SELECT min(scope || ' in dataset ' || dataset_id) FROM per_cell
+             WHERE structural >= min_scope_size AND derived = 0),
+        (SELECT count(*) FROM per_dataset
+             WHERE derived > 0
+               AND structural - derived >= max_dataset_missing
+               AND (structural - derived)::numeric >= min_gap_pct / 100 * structural),
+        (SELECT min('dataset ' || dataset_id
+                    || ' (' || (structural - derived) || ' of ' || structural || ' missing)')
+             FROM per_dataset
+             WHERE derived > 0
+               AND structural - derived >= max_dataset_missing
+               AND (structural - derived)::numeric >= min_gap_pct / 100 * structural)
+      INTO total_missing, bad_omitted, example_omitted, bad_partial, example_partial;
+    RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row (existence gate per (dataset, scope), min scope size %; completeness gate per dataset, max % missing and >= % pct)', total_missing, min_scope_size, max_dataset_missing, min_gap_pct;
     IF bad_omitted > 0 THEN
         RAISE EXCEPTION 'coverage: % (dataset, attachment scope) cell(s) hold >= % structural-identifier compounds but no derived row (e.g. %) -- a dataset or attachment path omitted from the derive pass', bad_omitted, min_scope_size, example_omitted;
     END IF;
     IF bad_partial > 0 THEN
-        RAISE EXCEPTION 'coverage: % (dataset, attachment scope) cell(s) are partially derived beyond the unparseable residue (e.g. %) -- likely a failed derivation shard, which underives ~1/num_shards of a cell', bad_partial, example_partial;
+        RAISE EXCEPTION 'coverage: % dataset(s) are partially derived beyond the unparseable residue (e.g. %) -- likely a failed derivation shard, which underives ~1/num_shards of a dataset', bad_partial, example_partial;
     END IF;
 END $$;
 

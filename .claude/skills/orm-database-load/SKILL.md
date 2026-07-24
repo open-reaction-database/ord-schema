@@ -140,15 +140,18 @@ gate on process status. What it checks:
     unparseable rows it also carries, and `min_scope_size` (default 50) absorbs a hypothetical
     tiny all-unparseable cell. Catches the single-dataset × single-path omission a corpus-wide
     or reaction-keyed count would dilute.
-  - **Partial** (completeness): SMILES derivation is **sharded** (one hash partition of a
-    >50k-reaction dataset's compound ids per worker, capped at 32). The loader raises on a
-    failed shard, but this gate does not trust that exit status: a failed shard leaves a cell
-    with `derived > 0` yet ~1/`num_shards` of it underived — tens of thousands of compounds at
-    ≥ ~3% of the cell, dwarfing the residue. A cell is flagged when its underived count clears
-    **both** an absolute floor (`max_cell_missing`, default 10000 — above any per-cell residue)
-    **and** a fraction (`min_gap_pct`, default 1 — below the smallest 1/32 shard hole).
-    Requiring both spares a small organometallic cell (high fraction, tiny absolute) and a huge
-    cell holding a little residue (large absolute, tiny fraction).
+  - **Partial** (completeness, **per dataset**): SMILES derivation is **sharded** (one
+    `hashtextextended` partition of a >50k-reaction dataset's compound ids per worker, capped at
+    32). The loader raises on a failed shard, but this gate does not trust that exit status. A
+    shard partitions the *whole dataset's* ids, so a failed shard removes ~1/`num_shards` of
+    **every** scope at once — a small scope's slice can be tiny in absolute terms while the
+    dataset-wide hole is enormous. So completeness rolls the cells up to the dataset: any shard
+    hole underives tens of thousands of a dataset's compounds (≥ 1/32 ≈ 3%), dwarfing the
+    whole-dataset residue (at most the corpus total). A dataset is flagged when its total
+    underived clears **both** an absolute floor (`max_dataset_missing`, default 10000 — above
+    any one dataset's residue) **and** a fraction (`min_gap_pct`, default 1 — below the smallest
+    1/32 hole). Requiring both spares an organometallic-heavy dataset (high fraction, small
+    absolute) and a huge dataset holding a little residue (large absolute, tiny fraction).
 
   Name-only compounds are excluded, so the printed `compounds > derived` gap does not count.
   Override any threshold with `-v NAME=N`.
