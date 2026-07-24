@@ -104,84 +104,119 @@ BEGIN
 END $$;
 
 -- Every compound carrying a structural identifier should derive a SMILES; a load that
--- skipped a compound -- or an entire attachment path -- leaves it with a structural
--- identifier but no derived row. NAME-only compounds are excluded, so the documented
--- `compounds > derived` gap does not trip this. The type list mirrors
--- message_helpers.STRUCTURAL_IDENTIFIER_TYPES.
+-- skipped a compound -- a whole dataset, a whole attachment path, or their intersection --
+-- leaves structural-identifier compounds with no derived row. NAME-only compounds are
+-- excluded, so the documented `compounds > derived` gap does not trip this. The type list
+-- mirrors message_helpers.STRUCTURAL_IDENTIFIER_TYPES.
 --
--- Checked PER SCOPE, not against one global count: ord.compound split by its three
--- attachment paths (reaction input, workup input, product measurement) plus
--- ord.product_compound. A low-volume path omitted from derivation has a ~100% miss rate
--- *within its own scope*, so it fails even though its rows would stay under a corpus-wide
--- tolerance (and a reaction-keyed check would miss it, since reaction SMILES can still
--- derive). Within each scope the tolerance absorbs the RDKit-unparseable residue every real
--- load carries (~0.02%: organometallics such as Ir photocatalysts or C[Al](C)(C)([Li])...,
--- charged-N ring systems -- identifiers the load-time RDKit cannot parse or reconstruct).
--- The total is printed; lower the tolerance to tighten the gate.
+-- Checked PER (dataset, attachment scope) cell: ord.compound split by its three attachment
+-- paths (reaction input, workup input, product measurement) plus ord.product_compound, each
+-- grouped by the reaction's dataset. _update_compound_smiles derives a dataset's compounds
+-- across all attachment paths together in one unsegmented pass, so a cell it actually visited
+-- always retains at least one derived row (its parseable compounds); a cell omitted from the
+-- pass has exactly zero. The invariant is therefore: any cell holding a meaningful number of
+-- structural-identifier compounds must have at least one derived row. This needs no percentage
+-- tolerance -- a healthy cell keeps its parseable derivations regardless of how many
+-- RDKit-unparseable organometallics or charged-N rings it also carries, and min_scope_size
+-- absorbs a hypothetical tiny all-unparseable cell (real reagent/product cells always contain
+-- parseable organics, so none is 100% unparseable at that size). Catches the single dataset x
+-- single path omission a corpus-wide or reaction-keyed count would dilute. The total underived
+-- count is printed; min_scope_size defaults to 50 (override with -v min_scope_size=N).
+\if :{?min_scope_size}
+\else
+  \set min_scope_size 50
+\endif
+SELECT set_config('ord.verify_min_scope_size', :'min_scope_size', false) AS min_scope_size;
 DO $$
 DECLARE
     total_missing bigint;
-    bad_scopes bigint;
-    tolerance_pct numeric := 0.1;
+    bad_cells bigint;
+    example text;
+    min_scope_size int := current_setting('ord.verify_min_scope_size')::int;
 BEGIN
     WITH scoped AS (
-        SELECT
-            CASE WHEN ri.reaction_id IS NOT NULL THEN 'reaction_input'
-                 WHEN c.reaction_input_id IS NOT NULL THEN 'workup_input'
-                 ELSE 'product_measurement' END AS scope,
-            EXISTS (
-                SELECT 1 FROM ord.compound_identifier ci
-                WHERE ci.compound_id = c.id
-                  AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK') AND ci.value <> ''
-            ) AS structural,
-            NOT EXISTS (
-                SELECT 1 FROM derived.compound_smiles d WHERE d.compound_id = c.id
-            ) AS underived
+        SELECT r.dataset_id AS dataset_id, 'reaction_input' AS scope,
+               EXISTS (
+                   SELECT 1 FROM ord.compound_identifier ci
+                   WHERE ci.compound_id = c.id
+                     AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK') AND ci.value <> ''
+               ) AS structural,
+               EXISTS (
+                   SELECT 1 FROM derived.compound_smiles d WHERE d.compound_id = c.id
+               ) AS derived
         FROM ord.compound c
-        LEFT JOIN ord.reaction_input ri ON c.reaction_input_id = ri.id
+        JOIN ord.reaction_input ri ON c.reaction_input_id = ri.id
+        JOIN ord.reaction r ON ri.reaction_id = r.id
         UNION ALL
-        SELECT
-            'product_compound',
-            EXISTS (
-                SELECT 1 FROM ord.compound_identifier ci
-                WHERE ci.product_compound_id = pc.id
-                  AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK') AND ci.value <> ''
-            ),
-            NOT EXISTS (
-                SELECT 1 FROM derived.product_compound_smiles d
-                WHERE d.product_compound_id = pc.id
-            )
+        SELECT r.dataset_id, 'workup_input',
+               EXISTS (
+                   SELECT 1 FROM ord.compound_identifier ci
+                   WHERE ci.compound_id = c.id
+                     AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK') AND ci.value <> ''
+               ),
+               EXISTS (
+                   SELECT 1 FROM derived.compound_smiles d WHERE d.compound_id = c.id
+               )
+        FROM ord.compound c
+        JOIN ord.reaction_input ri ON c.reaction_input_id = ri.id
+        JOIN ord.reaction_workup rw ON ri.reaction_workup_id = rw.id
+        JOIN ord.reaction r ON rw.reaction_id = r.id
+        UNION ALL
+        SELECT r.dataset_id, 'product_measurement',
+               EXISTS (
+                   SELECT 1 FROM ord.compound_identifier ci
+                   WHERE ci.compound_id = c.id
+                     AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK') AND ci.value <> ''
+               ),
+               EXISTS (
+                   SELECT 1 FROM derived.compound_smiles d WHERE d.compound_id = c.id
+               )
+        FROM ord.compound c
+        JOIN ord.product_measurement pm ON c.product_measurement_id = pm.id
+        JOIN ord.product_compound pc ON pm.product_compound_id = pc.id
+        JOIN ord.reaction_outcome ro ON pc.reaction_outcome_id = ro.id
+        JOIN ord.reaction r ON ro.reaction_id = r.id
+        UNION ALL
+        SELECT r.dataset_id, 'product_compound',
+               EXISTS (
+                   SELECT 1 FROM ord.compound_identifier ci
+                   WHERE ci.product_compound_id = pc.id
+                     AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK') AND ci.value <> ''
+               ),
+               EXISTS (
+                   SELECT 1 FROM derived.product_compound_smiles d
+                   WHERE d.product_compound_id = pc.id
+               )
         FROM ord.product_compound pc
+        JOIN ord.reaction_outcome ro ON pc.reaction_outcome_id = ro.id
+        JOIN ord.reaction r ON ro.reaction_id = r.id
     ),
-    per_scope AS (
-        SELECT scope,
+    per_cell AS (
+        SELECT dataset_id, scope,
                count(*) FILTER (WHERE structural) AS structural,
-               count(*) FILTER (WHERE structural AND underived) AS missing
+               count(*) FILTER (WHERE structural AND derived) AS derived
         FROM scoped
-        GROUP BY scope
+        GROUP BY dataset_id, scope
     )
-    SELECT coalesce(sum(missing), 0),
-           count(*) FILTER (
-               WHERE structural > 0
-                 AND missing::numeric > tolerance_pct / 100 * structural
-           )
-      INTO total_missing, bad_scopes
-    FROM per_scope;
-    RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row across attachment scopes (tolerance % percent per scope)', total_missing, tolerance_pct;
-    IF bad_scopes > 0 THEN
-        RAISE EXCEPTION 'coverage: % attachment scope(s) have structural-identifier compounds underived beyond the % percent tolerance -- a scope omitted from the derive pass that a corpus-wide count would dilute', bad_scopes, tolerance_pct;
+    SELECT
+        coalesce(sum(structural - derived), 0),
+        count(*) FILTER (WHERE structural >= min_scope_size AND derived = 0),
+        min(scope || ' in dataset ' || dataset_id)
+            FILTER (WHERE structural >= min_scope_size AND derived = 0)
+      INTO total_missing, bad_cells, example
+    FROM per_cell;
+    RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row (per (dataset, scope) derived>0 gate, min scope size %)', total_missing, min_scope_size;
+    IF bad_cells > 0 THEN
+        RAISE EXCEPTION 'coverage: % (dataset, attachment scope) cell(s) hold >= % structural-identifier compounds but no derived row (e.g. %) -- a dataset or attachment path omitted from the derive pass', bad_cells, min_scope_size, example;
     END IF;
 END $$;
 
--- Per-dataset derivation completeness. The per-scope compound check above still spreads a
--- single dataset's rows across each attachment path, so one small dataset omitted entirely
--- can stay under the tolerance in every path while parity passes (it only proves the
--- reactions were ingested) and the unlinked check stays silent (it cannot see rows that
--- were never derived). The derive pass runs per dataset and writes both compound and
--- reaction SMILES together, so an omitted dataset has ~none of either. reaction_smiles
--- carries the reaction's dataset_id, making a per-dataset check cheap: flag any dataset with
--- fewer than half its reactions derived. A full omission is ~100% underived; the ~0.4%
--- unparseable reaction residual and normal variation stay well under half.
+-- Per-dataset reaction derivation completeness. Independent of the compound gate above: it
+-- validates derived.reaction_smiles, a separate table the per-cell compound check never
+-- touches. reaction_smiles carries the reaction's dataset_id, so this is cheap (a hash
+-- aggregate over ord.reaction, no compound->reaction join) -- flag any dataset with fewer than
+-- half its reactions derived. A dataset omitted from the derive pass has ~none derived; the
+-- ~0.4% unparseable reaction residual and normal variation stay well under half.
 DO $$
 DECLARE
     omitted bigint;
@@ -195,7 +230,7 @@ BEGIN
     ) t
     WHERE derived * 2 < reactions;
     IF omitted > 0 THEN
-        RAISE EXCEPTION 'coverage: % dataset(s) have fewer than half their reactions derived -- a scope omitted from the derive pass that the global tolerance would hide', omitted;
+        RAISE EXCEPTION 'coverage: % dataset(s) have fewer than half their reactions derived -- omitted from the derive pass', omitted;
     END IF;
 END $$;
 
