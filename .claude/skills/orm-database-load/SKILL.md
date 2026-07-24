@@ -129,17 +129,29 @@ gate on process status. What it checks:
   scope) cell** — `ord.compound` split by reaction input, **workup** input, and **product
   measurement** (three attachments easy to lose to a join that only follows
   `reaction_input.reaction_id`), plus `ord.product_compound` (reaction products), each grouped
-  by the reaction's dataset. `_update_compound_smiles` derives a dataset's compounds across all
-  attachment paths in one unsegmented pass, so a cell it visited keeps at least one derived row
-  (its parseable compounds) while a cell it skipped has **exactly zero** — the invariant is
-  simply that any cell holding a meaningful number of structural-identifier compounds has a
-  derived row. No percentage tolerance: a healthy cell keeps its parseable derivations however
-  many RDKit-unparseable organometallics or charged-N rings it also carries (the residual every
-  real load leaves — a structural identifier the load-time RDKit cannot parse or reconstruct),
-  and `min_scope_size` (default 50, `-v min_scope_size=N`) absorbs a hypothetical tiny
-  all-unparseable cell. This catches the single-dataset × single-path omission a corpus-wide or
-  reaction-keyed count would dilute. Name-only compounds are excluded, so the printed
-  `compounds > derived` gap does not count.
+  by the reaction's dataset. Two gates, both robust to the RDKit-unparseable residue every real
+  load carries (organometallics, charged-N rings — a structural identifier the load-time RDKit
+  cannot parse or reconstruct; ~3.2k across ~18.8M derived rows on a full load):
+  - **Omission** (existence): `_update_compound_smiles` derives a dataset's compounds across
+    all attachment paths in one unsegmented pass, so a cell it visited keeps at least one
+    derived row (its parseable compounds) while a cell it skipped has **exactly zero**. Any
+    cell holding ≥ `min_scope_size` structural compounds must have a derived row. No
+    percentage tolerance — a healthy cell keeps its parseable derivations however many
+    unparseable rows it also carries, and `min_scope_size` (default 50) absorbs a hypothetical
+    tiny all-unparseable cell. Catches the single-dataset × single-path omission a corpus-wide
+    or reaction-keyed count would dilute.
+  - **Partial** (completeness): SMILES derivation is **sharded** (one hash partition of a
+    >50k-reaction dataset's compound ids per worker, capped at 32). The loader raises on a
+    failed shard, but this gate does not trust that exit status: a failed shard leaves a cell
+    with `derived > 0` yet ~1/`num_shards` of it underived — tens of thousands of compounds at
+    ≥ ~3% of the cell, dwarfing the residue. A cell is flagged when its underived count clears
+    **both** an absolute floor (`max_cell_missing`, default 10000 — above any per-cell residue)
+    **and** a fraction (`min_gap_pct`, default 1 — below the smallest 1/32 shard hole).
+    Requiring both spares a small organometallic cell (high fraction, tiny absolute) and a huge
+    cell holding a little residue (large absolute, tiny fraction).
+
+  Name-only compounds are excluded, so the printed `compounds > derived` gap does not count.
+  Override any threshold with `-v NAME=N`.
 - **Per-dataset reaction derivation** (enforced): an independent guard on
   `derived.reaction_smiles`, the separate table the compound gate never touches. `reaction_smiles`
   carries the reaction's `dataset_id`, so it is a cheap hash aggregate over `ord.reaction` (no

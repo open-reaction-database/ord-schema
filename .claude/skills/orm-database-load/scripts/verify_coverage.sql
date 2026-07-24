@@ -104,35 +104,65 @@ BEGIN
 END $$;
 
 -- Every compound carrying a structural identifier should derive a SMILES; a load that
--- skipped a compound -- a whole dataset, a whole attachment path, or their intersection --
--- leaves structural-identifier compounds with no derived row. NAME-only compounds are
--- excluded, so the documented `compounds > derived` gap does not trip this. The type list
--- mirrors message_helpers.STRUCTURAL_IDENTIFIER_TYPES.
+-- skipped a compound leaves structural-identifier compounds with no derived row. NAME-only
+-- compounds are excluded, so the documented `compounds > derived` gap does not trip this.
+-- The type list mirrors message_helpers.STRUCTURAL_IDENTIFIER_TYPES.
 --
 -- Checked PER (dataset, attachment scope) cell: ord.compound split by its three attachment
 -- paths (reaction input, workup input, product measurement) plus ord.product_compound, each
--- grouped by the reaction's dataset. _update_compound_smiles derives a dataset's compounds
--- across all attachment paths together in one unsegmented pass, so a cell it actually visited
--- always retains at least one derived row (its parseable compounds); a cell omitted from the
--- pass has exactly zero. The invariant is therefore: any cell holding a meaningful number of
--- structural-identifier compounds must have at least one derived row. This needs no percentage
--- tolerance -- a healthy cell keeps its parseable derivations regardless of how many
--- RDKit-unparseable organometallics or charged-N rings it also carries, and min_scope_size
--- absorbs a hypothetical tiny all-unparseable cell (real reagent/product cells always contain
--- parseable organics, so none is 100% unparseable at that size). Catches the single dataset x
--- single path omission a corpus-wide or reaction-keyed count would dilute. The total underived
--- count is printed; min_scope_size defaults to 50 (override with -v min_scope_size=N).
+-- grouped by the reaction's dataset. Two gates over the same cells, both robust to the
+-- RDKit-unparseable residue every real load carries (organometallics such as Ir photocatalysts
+-- or C[Al](C)(C)([Li])..., charged-N rings -- identifiers the load-time RDKit cannot parse or
+-- reconstruct; observed ~3.2k across ~18.8M derived rows on a full load):
+--
+--   1. OMISSION (derived>0 existence). _update_compound_smiles derives a dataset's compounds
+--      across all attachment paths together in one unsegmented pass, so a cell it visited keeps
+--      at least one derived row (its parseable compounds) while a cell it skipped -- a whole
+--      dataset, a whole path, or their intersection -- has exactly zero. Any cell holding
+--      >= min_scope_size structural compounds must have a derived row. No percentage tolerance:
+--      a healthy cell keeps its parseable derivations regardless of how many unparseable rows it
+--      also carries, and min_scope_size absorbs a hypothetical tiny all-unparseable cell (real
+--      reagent/product cells always contain parseable organics). Catches the single dataset x
+--      single path omission a corpus-wide or reaction-keyed count would dilute.
+--
+--   2. PARTIAL derivation (completeness). SMILES derivation is sharded (loading.py: one hash
+--      partition of a >50k-reaction dataset's compound ids per worker, capped at 32), and the
+--      loader raises on a failed shard -- but a defence-in-depth gate should not trust that exit
+--      status. A failed shard leaves a cell with derived>0 yet ~1/num_shards of it underived:
+--      tens of thousands of compounds at >= ~3% of the cell (num_shards <= 32). That dwarfs the
+--      residue (a few thousand corpus-wide), so a cell is flagged when its underived count clears
+--      BOTH an absolute floor (max_cell_missing, above any per-cell residue) AND a fraction
+--      (min_gap_pct, below the smallest 1/32 shard hole). Requiring both keeps a small
+--      organometallic cell (high fraction, tiny absolute) and a huge cell holding a little
+--      residue (large absolute, tiny fraction) from tripping, while a shard hole clears both.
+--
+-- The total underived count is printed. Defaults: min_scope_size 50, max_cell_missing 10000,
+-- min_gap_pct 1 (override with -v NAME=N).
 \if :{?min_scope_size}
 \else
   \set min_scope_size 50
 \endif
-SELECT set_config('ord.verify_min_scope_size', :'min_scope_size', false) AS min_scope_size;
+\if :{?max_cell_missing}
+\else
+  \set max_cell_missing 10000
+\endif
+\if :{?min_gap_pct}
+\else
+  \set min_gap_pct 1
+\endif
+SELECT set_config('ord.verify_min_scope_size', :'min_scope_size', false) AS min_scope_size,
+       set_config('ord.verify_max_cell_missing', :'max_cell_missing', false) AS max_cell_missing,
+       set_config('ord.verify_min_gap_pct', :'min_gap_pct', false) AS min_gap_pct;
 DO $$
 DECLARE
     total_missing bigint;
-    bad_cells bigint;
-    example text;
+    bad_omitted bigint;
+    example_omitted text;
+    bad_partial bigint;
+    example_partial text;
     min_scope_size int := current_setting('ord.verify_min_scope_size')::int;
+    max_cell_missing int := current_setting('ord.verify_max_cell_missing')::int;
+    min_gap_pct numeric := current_setting('ord.verify_min_gap_pct')::numeric;
 BEGIN
     WITH scoped AS (
         SELECT r.dataset_id AS dataset_id, 'reaction_input' AS scope,
@@ -202,12 +232,27 @@ BEGIN
         coalesce(sum(structural - derived), 0),
         count(*) FILTER (WHERE structural >= min_scope_size AND derived = 0),
         min(scope || ' in dataset ' || dataset_id)
-            FILTER (WHERE structural >= min_scope_size AND derived = 0)
-      INTO total_missing, bad_cells, example
+            FILTER (WHERE structural >= min_scope_size AND derived = 0),
+        count(*) FILTER (
+            WHERE derived > 0
+              AND structural - derived >= max_cell_missing
+              AND (structural - derived)::numeric >= min_gap_pct / 100 * structural
+        ),
+        min(scope || ' in dataset ' || dataset_id
+            || ' (' || (structural - derived) || ' of ' || structural || ' missing)')
+            FILTER (
+                WHERE derived > 0
+                  AND structural - derived >= max_cell_missing
+                  AND (structural - derived)::numeric >= min_gap_pct / 100 * structural
+            )
+      INTO total_missing, bad_omitted, example_omitted, bad_partial, example_partial
     FROM per_cell;
-    RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row (per (dataset, scope) derived>0 gate, min scope size %)', total_missing, min_scope_size;
-    IF bad_cells > 0 THEN
-        RAISE EXCEPTION 'coverage: % (dataset, attachment scope) cell(s) hold >= % structural-identifier compounds but no derived row (e.g. %) -- a dataset or attachment path omitted from the derive pass', bad_cells, min_scope_size, example;
+    RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row (per (dataset, scope) gates: existence min scope size %, completeness max % missing and >= % pct per cell)', total_missing, min_scope_size, max_cell_missing, min_gap_pct;
+    IF bad_omitted > 0 THEN
+        RAISE EXCEPTION 'coverage: % (dataset, attachment scope) cell(s) hold >= % structural-identifier compounds but no derived row (e.g. %) -- a dataset or attachment path omitted from the derive pass', bad_omitted, min_scope_size, example_omitted;
+    END IF;
+    IF bad_partial > 0 THEN
+        RAISE EXCEPTION 'coverage: % (dataset, attachment scope) cell(s) are partially derived beyond the unparseable residue (e.g. %) -- likely a failed derivation shard, which underives ~1/num_shards of a cell', bad_partial, example_partial;
     END IF;
 END $$;
 
