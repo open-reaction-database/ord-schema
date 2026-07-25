@@ -124,15 +124,48 @@ Run `scripts/verify_coverage.sql` against the candidate database. Under
 `psql -v ON_ERROR_STOP=1` a violated invariant exits non-zero, so a cutover wrapper can
 gate on process status. What it checks:
 
-- **Coverage** (enforced): every compound carrying a structural identifier (SMILES/InChI/
-  MolBlock) has a derived SMILES row — across `ord.compound` (reaction input, **workup** input,
-  or **product measurement**, three attachments easy to lose to a join that only follows
-  `reaction_input.reaction_id`) and `ord.product_compound` (reaction products). A load that skips
-  a compound or an entire attachment path fails the script. Name-only compounds are excluded, so
-  the printed `compounds > derived` gap does not trip it; the per-attachment counts are still
-  shown for inspection. The residual is a structural identifier the load-time RDKit cannot
-  parse or reconstruct — itself coverage loss worth surfacing, and another reason the RDKit
-  version must match.
+- **Coverage** (enforced per dataset × scope): every compound carrying a structural identifier
+  (SMILES/InChI/MolBlock) should have a derived SMILES row. Checked **per (dataset, attachment
+  scope) cell** — `ord.compound` split by reaction input, **workup** input, and **product
+  measurement** (three attachments easy to lose to a join that only follows
+  `reaction_input.reaction_id`), plus `ord.product_compound` (reaction products), each grouped
+  by the reaction's dataset. Two gates, both robust to the RDKit-unparseable residue every real
+  load carries (organometallics, charged-N rings — a structural identifier the load-time RDKit
+  cannot parse or reconstruct; ~3.2k across ~18.8M derived rows on a full load):
+  - **Omission** (existence): `_update_compound_smiles` derives a dataset's compounds across
+    all attachment paths in one unsegmented pass, so a cell it visited keeps at least one
+    derived row (its parseable compounds) while a cell it skipped has **exactly zero**. Any
+    cell holding ≥ `min_scope_size` structural compounds must have a derived row. No
+    percentage tolerance — a healthy cell keeps its parseable derivations however many
+    unparseable rows it also carries, and `min_scope_size` (default 50) absorbs a hypothetical
+    tiny all-unparseable cell. Catches the single-dataset × single-path omission a corpus-wide
+    or reaction-keyed count would dilute.
+  - **Failed shard** (completeness, per **shard-hash bucket**): SMILES derivation is **sharded**
+    — one `hashtextextended(id)` partition of a dataset's compound ids per worker, with
+    `num_shards = min(32, ceil(reactions / 50000))`, so only datasets over ~50k reactions shard
+    at all. The loader raises on a failed shard, but this gate does not trust that exit status.
+    A failed shard leaves **exactly one hash bucket wholly underived** — parseable compounds
+    included — while the unparseable residue spreads uniformly across every bucket (parseability
+    is uncorrelated with the id hash) and so can never empty one. The same shard writes that
+    dataset's **reaction** SMILES in the same transaction under the same hash, so its reaction
+    bucket is empty too. The check recomputes each dataset's `num_shards`, buckets both tables by
+    that hash, and judges an empty bucket against its **sibling buckets**: they measure how often
+    this dataset's rows legitimately fail to derive, so the bucket is flagged when the siblings
+    make "every one of mine missed by chance" implausible (combined probability <
+    `max_false_positive`, default `1e-6`). Using **both** tables is what keeps a *sparse* hole
+    visible: sharding is chosen by **reaction** count, so every bucket of a sharded dataset holds
+    thousands of reactions even when a name-heavy one leaves only a handful of structural
+    compounds there — the reaction evidence is strongest exactly where the compound evidence is
+    weakest, and no absolute floor over either table alone spans both. `shard_size` /
+    `shard_cap` mirror the loader's constants — keep them in step if those change.
+
+  Name-only compounds are excluded, so the printed `compounds > derived` gap does not count.
+  Override any threshold with `-v NAME=N`.
+- **Per-dataset reaction derivation** (enforced): an independent guard on
+  `derived.reaction_smiles`, the separate table the compound gate never touches. `reaction_smiles`
+  carries the reaction's `dataset_id`, so it is a cheap hash aggregate over `ord.reaction` (no
+  compound→reaction join) — flag any dataset with fewer than half its reactions derived. A dataset
+  omitted from the derive pass has ~none; the reaction residual stays well under half.
 - **No stray unlinked rows** (enforced): the only unlinked derived rows are `[Ti+5]`
   structures, which `_update_rdkit_mols` deliberately keeps out of `rdkit.mols`. Any other
   unlinked row fails the script.

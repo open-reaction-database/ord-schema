@@ -104,48 +104,302 @@ BEGIN
 END $$;
 
 -- Every compound carrying a structural identifier should derive a SMILES; a load that
--- skipped a compound -- or an entire attachment path (workup input, product measurement,
--- reaction product) -- leaves it with a structural identifier but no derived row. Covers
--- both ord.compound and ord.product_compound. NAME-only compounds are excluded, so the
--- documented `compounds > derived` gap does not trip this. The type list mirrors
--- message_helpers.STRUCTURAL_IDENTIFIER_TYPES; on a load whose RDKit matches the writer
--- (the skill's premise) every such compound derives, so the only residual is an identifier
--- the load-time RDKit cannot parse or reconstruct -- itself coverage loss worth surfacing.
+-- skipped a compound leaves structural-identifier compounds with no derived row. NAME-only
+-- compounds are excluded, so the documented `compounds > derived` gap does not trip this.
+-- The type list mirrors message_helpers.STRUCTURAL_IDENTIFIER_TYPES.
+--
+-- Checked PER (dataset, attachment scope) cell: ord.compound split by its three attachment
+-- paths (reaction input, workup input, product measurement) plus ord.product_compound, each
+-- grouped by the reaction's dataset. Two gates over the same cells, both robust to the
+-- RDKit-unparseable residue every real load carries (organometallics such as Ir photocatalysts
+-- or C[Al](C)(C)([Li])..., charged-N rings -- identifiers the load-time RDKit cannot parse or
+-- reconstruct; observed ~3.2k across ~18.8M derived rows on a full load):
+--
+--   1. OMISSION (derived>0 existence). _update_compound_smiles derives a dataset's compounds
+--      across all attachment paths together in one unsegmented pass, so a cell it visited keeps
+--      at least one derived row (its parseable compounds) while a cell it skipped -- a whole
+--      dataset, a whole path, or their intersection -- has exactly zero. Any cell holding
+--      >= min_scope_size structural compounds must have a derived row. No percentage tolerance:
+--      a healthy cell keeps its parseable derivations regardless of how many unparseable rows it
+--      also carries, and min_scope_size absorbs a hypothetical tiny all-unparseable cell (real
+--      reagent/product cells always contain parseable organics). Catches the single dataset x
+--      single path omission a corpus-wide or reaction-keyed count would dilute.
+--
+--   2. PARTIAL derivation (completeness), detected by SHARD SHAPE. SMILES derivation is sharded
+--      (loading.py / ord_schema.orm.sharding: one hashtextextended(id) partition of a dataset's
+--      compound ids per worker; num_shards = min(32, ceil(reactions / 50000)), so only datasets
+--      over ~50k reactions shard at all). The loader raises on a failed shard, but a
+--      defence-in-depth gate should not trust that exit status. A failed shard leaves exactly one
+--      hash bucket entirely underived -- parseable compounds included -- while the unparseable
+--      residue spreads uniformly across all buckets (unparseability is uncorrelated with the id
+--      hash) and so never empties one. So recompute each dataset's num_shards from its reaction
+--      count, bucket its structural compounds by the same ((h % n) + n) % n hash, and flag any
+--      bucket of a sharded dataset with >= min_bucket_size structural compounds but no derived
+--      row -- and, because the shard derives that dataset's reaction SMILES in the same
+--      transaction under the same hash, an empty reaction bucket alongside it. Whether that
+--      outcome is really a hole is judged against the bucket's SIBLING buckets, not an absolute
+--      size floor: the hash spreads a dataset's rows uniformly, so the siblings measure how often
+--      this dataset's compounds and reactions legitimately fail to derive, and the bucket is
+--      flagged when they make "every one of mine missed by chance" implausible (combined
+--      probability < max_false_positive). Using both tables is what keeps a SPARSE hole visible:
+--      sharding is chosen by reaction count, so every bucket of a sharded dataset holds thousands
+--      of reactions even when a name-heavy one leaves only a handful of structural compounds
+--      there -- the reaction evidence is strongest exactly where the compound evidence is weakest,
+--      and no absolute floor over either table alone can span both. A dataset whose siblings show
+--      a high miss rate still convicts nothing. A healthy database populates every bucket whatever
+--      num_shards is, so an inaccurate recomputation can only miss a hole, never invent one.
+--
+-- The total underived count is printed. Defaults: min_scope_size 50, min_bucket_size 2,
+-- max_false_positive 1e-6, and shard_size/shard_cap mirroring
+-- loading._DERIVE_SHARD_SIZE/_DERIVE_SHARD_CAP -- keep those two in step with the loader if its
+-- constants change (override any with -v NAME=N).
+\if :{?min_scope_size}
+\else
+  \set min_scope_size 50
+\endif
+\if :{?min_bucket_size}
+\else
+  \set min_bucket_size 2
+\endif
+\if :{?max_false_positive}
+\else
+  \set max_false_positive 1e-6
+\endif
+\if :{?shard_size}
+\else
+  \set shard_size 50000
+\endif
+\if :{?shard_cap}
+\else
+  \set shard_cap 32
+\endif
+SELECT set_config('ord.verify_min_scope_size', :'min_scope_size', false) AS min_scope_size,
+       set_config('ord.verify_min_bucket_size', :'min_bucket_size', false) AS min_bucket_size,
+       set_config('ord.verify_max_false_positive', :'max_false_positive', false)
+           AS max_false_positive,
+       set_config('ord.verify_shard_size', :'shard_size', false) AS shard_size,
+       set_config('ord.verify_shard_cap', :'shard_cap', false) AS shard_cap;
 DO $$
 DECLARE
-    missing bigint;
+    total_missing bigint;
+    bad_omitted bigint;
+    example_omitted text;
+    bad_shard bigint;
+    example_shard text;
+    min_scope_size int := current_setting('ord.verify_min_scope_size')::int;
+    min_bucket_size int := current_setting('ord.verify_min_bucket_size')::int;
+    max_false_positive numeric := current_setting('ord.verify_max_false_positive')::numeric;
+    shard_size int := current_setting('ord.verify_shard_size')::int;
+    shard_cap int := current_setting('ord.verify_shard_cap')::int;
 BEGIN
-    SELECT count(*) INTO missing
-    FROM (
-        SELECT c.id
+    WITH scoped AS (
+        SELECT r.dataset_id AS dataset_id, 'reaction_input' AS scope,
+               hashtextextended(c.id::text, 0) AS id_hash,
+               EXISTS (
+                   SELECT 1 FROM ord.compound_identifier ci
+                   WHERE ci.compound_id = c.id
+                     AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK') AND ci.value <> ''
+               ) AS structural,
+               EXISTS (
+                   SELECT 1 FROM derived.compound_smiles d WHERE d.compound_id = c.id
+               ) AS derived
         FROM ord.compound c
-        WHERE EXISTS (
-                SELECT 1 FROM ord.compound_identifier ci
-                WHERE ci.compound_id = c.id
-                  AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK')
-                  AND ci.value <> ''
-            )
-          AND NOT EXISTS (
-                SELECT 1 FROM derived.compound_smiles d WHERE d.compound_id = c.id
-            )
+        JOIN ord.reaction_input ri ON c.reaction_input_id = ri.id
+        JOIN ord.reaction r ON ri.reaction_id = r.id
         UNION ALL
-        SELECT pc.id
+        SELECT r.dataset_id, 'workup_input',
+               hashtextextended(c.id::text, 0),
+               EXISTS (
+                   SELECT 1 FROM ord.compound_identifier ci
+                   WHERE ci.compound_id = c.id
+                     AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK') AND ci.value <> ''
+               ),
+               EXISTS (
+                   SELECT 1 FROM derived.compound_smiles d WHERE d.compound_id = c.id
+               )
+        FROM ord.compound c
+        JOIN ord.reaction_input ri ON c.reaction_input_id = ri.id
+        JOIN ord.reaction_workup rw ON ri.reaction_workup_id = rw.id
+        JOIN ord.reaction r ON rw.reaction_id = r.id
+        UNION ALL
+        SELECT r.dataset_id, 'product_measurement',
+               hashtextextended(c.id::text, 0),
+               EXISTS (
+                   SELECT 1 FROM ord.compound_identifier ci
+                   WHERE ci.compound_id = c.id
+                     AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK') AND ci.value <> ''
+               ),
+               EXISTS (
+                   SELECT 1 FROM derived.compound_smiles d WHERE d.compound_id = c.id
+               )
+        FROM ord.compound c
+        JOIN ord.product_measurement pm ON c.product_measurement_id = pm.id
+        JOIN ord.product_compound pc ON pm.product_compound_id = pc.id
+        JOIN ord.reaction_outcome ro ON pc.reaction_outcome_id = ro.id
+        JOIN ord.reaction r ON ro.reaction_id = r.id
+        UNION ALL
+        SELECT r.dataset_id, 'product_compound',
+               hashtextextended(pc.id::text, 0),
+               EXISTS (
+                   SELECT 1 FROM ord.compound_identifier ci
+                   WHERE ci.product_compound_id = pc.id
+                     AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK') AND ci.value <> ''
+               ),
+               EXISTS (
+                   SELECT 1 FROM derived.product_compound_smiles d
+                   WHERE d.product_compound_id = pc.id
+               )
         FROM ord.product_compound pc
-        WHERE EXISTS (
-                SELECT 1 FROM ord.compound_identifier ci
-                WHERE ci.product_compound_id = pc.id
-                  AND ci.type IN ('SMILES', 'INCHI', 'MOLBLOCK')
-                  AND ci.value <> ''
-            )
-          AND NOT EXISTS (
-                SELECT 1 FROM derived.product_compound_smiles d
-                WHERE d.product_compound_id = pc.id
-            )
-    ) t;
-    IF missing > 0 THEN
-        RAISE EXCEPTION
-            'coverage: % compound(s) with a structural identifier lack a derived row',
-            missing;
+        JOIN ord.reaction_outcome ro ON pc.reaction_outcome_id = ro.id
+        JOIN ord.reaction r ON ro.reaction_id = r.id
+    ),
+    per_cell AS (
+        SELECT dataset_id, scope,
+               count(*) FILTER (WHERE structural) AS structural,
+               count(*) FILTER (WHERE structural AND derived) AS derived
+        FROM scoped
+        GROUP BY dataset_id, scope
+    ),
+    -- num_shards the loader used for each dataset's SMILES derivation:
+    -- min(shard_cap, ceil(size / shard_size)), at least 1. Mirrors loading._derive_shard_items,
+    -- reading size from the same place it does (get_dataset_size -> public.datasets.num_reactions,
+    -- 0 when the metadata row is missing) rather than counting ord.reaction -- if the two ever
+    -- disagreed across a shard-size boundary, a recomputed num_shards would bucket the compounds
+    -- differently than the loader did and smear a shard hole across buckets instead of exposing it.
+    dataset_shards AS (
+        SELECT d.id AS dataset_id,
+               greatest(1, least(shard_cap,
+                                 ceil(coalesce(pd.num_reactions, 0)::numeric / shard_size)::int))
+                   AS num_shards
+        FROM ord.dataset d
+        LEFT JOIN public.datasets pd ON pd.dataset_id = d.dataset_id
+    ),
+    -- Bucket each dataset's structural compounds by the loader's shard hash, so a failed shard
+    -- shows up as a bucket with structural rows but no derived row (the residue spreads across
+    -- every bucket and cannot empty one). num_shards = 1 datasets never sharded, so their lone
+    -- bucket only restates the omission gate and is excluded below.
+    per_bucket AS (
+        SELECT dataset_id, num_shards, bucket,
+               count(*) FILTER (WHERE structural) AS structural,
+               count(*) FILTER (WHERE structural AND derived) AS derived
+        FROM (
+            SELECT s.dataset_id, ds.num_shards,
+                   ((s.id_hash % ds.num_shards) + ds.num_shards) % ds.num_shards AS bucket,
+                   s.structural, s.derived
+            FROM scoped s
+            JOIN dataset_shards ds ON ds.dataset_id = s.dataset_id
+        ) b
+        GROUP BY dataset_id, num_shards, bucket
+    ),
+    -- The same shard derives a dataset's reaction SMILES in the same transaction, partitioned by
+    -- the same hash over ord.reaction.id, so a failed shard empties its reaction bucket too. That
+    -- second signal is what makes a sparse hole visible: a dataset shards on its REACTION count,
+    -- so every bucket of a sharded dataset holds thousands of reactions even when a name-heavy
+    -- one leaves only a handful of structural compounds there. The reaction evidence is strongest
+    -- exactly where the compound evidence is weakest.
+    reaction_buckets AS (
+        SELECT r.dataset_id,
+               ((hashtextextended(r.id::text, 0) % ds.num_shards) + ds.num_shards)
+                   % ds.num_shards AS bucket,
+               count(*) AS reactions,
+               count(rs.reaction_id) AS derived
+        FROM ord.reaction r
+        JOIN dataset_shards ds ON ds.dataset_id = r.dataset_id
+        LEFT JOIN derived.reaction_smiles rs ON rs.reaction_id = r.id
+        GROUP BY 1, 2
+    ),
+    -- Judge each bucket against its SIBLING buckets in the same dataset rather than an absolute
+    -- size floor. The hash spreads a dataset's rows uniformly, so the siblings measure the rate at
+    -- which this dataset's compounds and reactions legitimately fail to derive; a bucket that
+    -- derived nothing is a shard hole exactly when the siblings say that outcome is implausible.
+    -- An absolute floor cannot do this: sharding is chosen by reaction count while the floor would
+    -- count structural compounds, so a name-heavy dataset over the threshold slips under it.
+    bucket_stats AS (
+        SELECT coalesce(c.dataset_id, x.dataset_id) AS dataset_id,
+               coalesce(c.bucket, x.bucket) AS bucket,
+               coalesce(c.num_shards, ds.num_shards) AS num_shards,
+               coalesce(c.structural, 0) AS structural,
+               coalesce(c.derived, 0) AS derived,
+               coalesce(x.reactions, 0) AS reactions,
+               coalesce(x.derived, 0) AS reactions_derived
+        FROM per_bucket c
+        FULL OUTER JOIN reaction_buckets x
+            ON x.dataset_id = c.dataset_id AND x.bucket = c.bucket
+        JOIN dataset_shards ds ON ds.dataset_id = coalesce(c.dataset_id, x.dataset_id)
+    ),
+    bucket_siblings AS (
+        SELECT *,
+               sum(structural) OVER w - structural AS structural_other,
+               sum(derived) OVER w - derived AS derived_other,
+               sum(reactions) OVER w - reactions AS reactions_other,
+               sum(reactions_derived) OVER w - reactions_derived AS reactions_derived_other
+        FROM bucket_stats
+        WINDOW w AS (PARTITION BY dataset_id)
+    ),
+    -- Chance the siblings' miss rate alone explains an empty bucket, compounds and reactions
+    -- multiplied as independent evidence (a table that did derive contributes no evidence, i.e. a
+    -- factor of 1). Each rate is Laplace-smoothed, so an all-derived sibling set cannot claim a
+    -- zero miss rate and convict a lone unparseable row; an empty sibling set gives a rate of 1
+    -- and so proves nothing. Exponents are capped because a bucket only has to be a few rows deep
+    -- before the probability is negligible, and an uncapped numeric power would underflow.
+    bucket_verdict AS (
+        SELECT *,
+               CASE WHEN derived = 0 THEN
+                   power((structural_other - derived_other + 1)::numeric
+                             / (structural_other + 1), least(structural, 50))
+               ELSE 1 END
+               * CASE WHEN reactions_derived = 0 THEN
+                   power((reactions_other - reactions_derived_other + 1)::numeric
+                             / (reactions_other + 1), least(reactions, 50))
+               ELSE 1 END AS chance_all_missed
+        FROM bucket_siblings
+        WHERE num_shards > 1 AND derived = 0 AND reactions_derived = 0
+          AND structural + reactions >= min_bucket_size
+    )
+    -- Scalar subqueries over the shared CTEs; scoped (hence the UNION) materializes once.
+    SELECT
+        (SELECT coalesce(sum(structural - derived), 0) FROM per_cell),
+        (SELECT count(*) FROM per_cell
+             WHERE structural >= min_scope_size AND derived = 0),
+        (SELECT min(scope || ' in dataset ' || dataset_id) FROM per_cell
+             WHERE structural >= min_scope_size AND derived = 0),
+        (SELECT count(*) FROM bucket_verdict WHERE chance_all_missed < max_false_positive),
+        (SELECT min('shard ' || bucket || '/' || num_shards || ' of dataset ' || dataset_id
+                    || ' (' || structural || ' structural compounds and ' || reactions
+                    || ' reactions, none derived; sibling shards derived '
+                    || derived_other || '/' || structural_other || ' and '
+                    || reactions_derived_other || '/' || reactions_other || ')')
+             FROM bucket_verdict WHERE chance_all_missed < max_false_positive)
+      INTO total_missing, bad_omitted, example_omitted, bad_shard, example_shard;
+    RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row (existence gate per (dataset, scope), min scope size %; shard-hole gate per hash bucket vs siblings, min bucket size %, max false positive %)', total_missing, min_scope_size, min_bucket_size, max_false_positive;
+    IF bad_omitted > 0 THEN
+        RAISE EXCEPTION 'coverage: % (dataset, attachment scope) cell(s) hold >= % structural-identifier compounds but no derived row (e.g. %) -- a dataset or attachment path omitted from the derive pass', bad_omitted, min_scope_size, example_omitted;
+    END IF;
+    IF bad_shard > 0 THEN
+        RAISE EXCEPTION 'coverage: % shard-hash bucket(s) derived nothing, compounds or reactions, beyond what their sibling shards make plausible (e.g. %) -- a failed derivation shard leaves exactly one bucket wholly underived', bad_shard, example_shard;
+    END IF;
+END $$;
+
+-- Per-dataset reaction derivation completeness. Independent of the compound gate above: it
+-- validates derived.reaction_smiles, a separate table the per-cell compound check never
+-- touches. reaction_smiles carries the reaction's dataset_id, so this is cheap (a hash
+-- aggregate over ord.reaction, no compound->reaction join) -- flag any dataset with fewer than
+-- half its reactions derived. A dataset omitted from the derive pass has ~none derived; the
+-- ~0.4% unparseable reaction residual and normal variation stay well under half.
+DO $$
+DECLARE
+    omitted bigint;
+BEGIN
+    SELECT count(*) INTO omitted
+    FROM (
+        SELECT r.dataset_id, count(*) AS reactions, count(rs.reaction_id) AS derived
+        FROM ord.reaction r
+        LEFT JOIN derived.reaction_smiles rs ON rs.reaction_id = r.id
+        GROUP BY r.dataset_id
+    ) t
+    WHERE derived * 2 < reactions;
+    IF omitted > 0 THEN
+        RAISE EXCEPTION 'coverage: % dataset(s) have fewer than half their reactions derived -- omitted from the derive pass', omitted;
     END IF;
 END $$;
 
