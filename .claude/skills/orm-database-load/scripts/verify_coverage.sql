@@ -135,16 +135,19 @@ END $$;
 --      hash) and so never empties one. So recompute each dataset's num_shards from its reaction
 --      count, bucket its structural compounds by the same ((h % n) + n) % n hash, and flag any
 --      bucket of a sharded dataset with >= min_bucket_size structural compounds but no derived
---      row. Whether that outcome is really a hole is judged against the bucket's SIBLING buckets,
---      not an absolute size floor: the hash spreads a dataset's compounds uniformly, so the
---      siblings measure how often this dataset's structural identifiers legitimately fail to
---      derive, and the bucket is flagged when they make "every one of mine missed by chance"
---      implausible (probability < max_false_positive). That keeps a sparse hole visible -- a
---      dataset shards on its reaction count, so a name-heavy one just over the threshold may hold
---      only a handful of structural compounds per bucket -- while never flagging a small
---      all-unparseable bucket in a dataset whose siblings show a high miss rate. A healthy
---      database populates every bucket whatever num_shards is, so an inaccurate recomputation can
---      only miss a hole, never invent one.
+--      row -- and, because the shard derives that dataset's reaction SMILES in the same
+--      transaction under the same hash, an empty reaction bucket alongside it. Whether that
+--      outcome is really a hole is judged against the bucket's SIBLING buckets, not an absolute
+--      size floor: the hash spreads a dataset's rows uniformly, so the siblings measure how often
+--      this dataset's compounds and reactions legitimately fail to derive, and the bucket is
+--      flagged when they make "every one of mine missed by chance" implausible (combined
+--      probability < max_false_positive). Using both tables is what keeps a SPARSE hole visible:
+--      sharding is chosen by reaction count, so every bucket of a sharded dataset holds thousands
+--      of reactions even when a name-heavy one leaves only a handful of structural compounds
+--      there -- the reaction evidence is strongest exactly where the compound evidence is weakest,
+--      and no absolute floor over either table alone can span both. A dataset whose siblings show
+--      a high miss rate still convicts nothing. A healthy database populates every bucket whatever
+--      num_shards is, so an inaccurate recomputation can only miss a hole, never invent one.
 --
 -- The total underived count is printed. Defaults: min_scope_size 50, min_bucket_size 2,
 -- max_false_positive 1e-6, and shard_size/shard_cap mirroring
@@ -288,30 +291,70 @@ BEGIN
         ) b
         GROUP BY dataset_id, num_shards, bucket
     ),
-    -- Judge each bucket against its SIBLING buckets in the same dataset rather than an absolute
-    -- size floor. The hash spreads a dataset's compounds uniformly, so the siblings measure the
-    -- rate at which this dataset's structural identifiers legitimately fail to derive; a bucket
-    -- that derived nothing is a shard hole exactly when the siblings say that outcome is
-    -- implausible. An absolute floor would ignore a sparse hole -- a dataset shards on its
-    -- reaction count, so a name-heavy one over the threshold can hold only a handful of
-    -- structural compounds per bucket and still lose a whole shard.
-    bucket_stats AS (
-        SELECT dataset_id, num_shards, bucket, structural, derived,
-               sum(structural) OVER (PARTITION BY dataset_id) - structural AS structural_other,
-               sum(derived) OVER (PARTITION BY dataset_id) - derived AS derived_other
-        FROM per_bucket
+    -- The same shard derives a dataset's reaction SMILES in the same transaction, partitioned by
+    -- the same hash over ord.reaction.id, so a failed shard empties its reaction bucket too. That
+    -- second signal is what makes a sparse hole visible: a dataset shards on its REACTION count,
+    -- so every bucket of a sharded dataset holds thousands of reactions even when a name-heavy
+    -- one leaves only a handful of structural compounds there. The reaction evidence is strongest
+    -- exactly where the compound evidence is weakest.
+    reaction_buckets AS (
+        SELECT r.dataset_id,
+               ((hashtextextended(r.id::text, 0) % ds.num_shards) + ds.num_shards)
+                   % ds.num_shards AS bucket,
+               count(*) AS reactions,
+               count(rs.reaction_id) AS derived
+        FROM ord.reaction r
+        JOIN dataset_shards ds ON ds.dataset_id = r.dataset_id
+        LEFT JOIN derived.reaction_smiles rs ON rs.reaction_id = r.id
+        GROUP BY 1, 2
     ),
-    -- Laplace-smoothed miss rate from the siblings (the +1s keep an all-derived sibling set from
-    -- claiming a zero miss rate, which would flag a lone unparseable compound). The exponent is
-    -- capped because a bucket only has to be a handful of compounds deep before the probability
-    -- is negligible, and an uncapped numeric power over a large bucket would underflow.
+    -- Judge each bucket against its SIBLING buckets in the same dataset rather than an absolute
+    -- size floor. The hash spreads a dataset's rows uniformly, so the siblings measure the rate at
+    -- which this dataset's compounds and reactions legitimately fail to derive; a bucket that
+    -- derived nothing is a shard hole exactly when the siblings say that outcome is implausible.
+    -- An absolute floor cannot do this: sharding is chosen by reaction count while the floor would
+    -- count structural compounds, so a name-heavy dataset over the threshold slips under it.
+    bucket_stats AS (
+        SELECT coalesce(c.dataset_id, x.dataset_id) AS dataset_id,
+               coalesce(c.bucket, x.bucket) AS bucket,
+               coalesce(c.num_shards, ds.num_shards) AS num_shards,
+               coalesce(c.structural, 0) AS structural,
+               coalesce(c.derived, 0) AS derived,
+               coalesce(x.reactions, 0) AS reactions,
+               coalesce(x.derived, 0) AS reactions_derived
+        FROM per_bucket c
+        FULL OUTER JOIN reaction_buckets x
+            ON x.dataset_id = c.dataset_id AND x.bucket = c.bucket
+        JOIN dataset_shards ds ON ds.dataset_id = coalesce(c.dataset_id, x.dataset_id)
+    ),
+    bucket_siblings AS (
+        SELECT *,
+               sum(structural) OVER w - structural AS structural_other,
+               sum(derived) OVER w - derived AS derived_other,
+               sum(reactions) OVER w - reactions AS reactions_other,
+               sum(reactions_derived) OVER w - reactions_derived AS reactions_derived_other
+        FROM bucket_stats
+        WINDOW w AS (PARTITION BY dataset_id)
+    ),
+    -- Chance the siblings' miss rate alone explains an empty bucket, compounds and reactions
+    -- multiplied as independent evidence (a table that did derive contributes no evidence, i.e. a
+    -- factor of 1). Each rate is Laplace-smoothed, so an all-derived sibling set cannot claim a
+    -- zero miss rate and convict a lone unparseable row; an empty sibling set gives a rate of 1
+    -- and so proves nothing. Exponents are capped because a bucket only has to be a few rows deep
+    -- before the probability is negligible, and an uncapped numeric power would underflow.
     bucket_verdict AS (
         SELECT *,
-               power((structural_other - derived_other + 1)::numeric / (structural_other + 1),
-                     least(structural, 50)) AS chance_all_missed
-        FROM bucket_stats
-        WHERE num_shards > 1 AND derived = 0 AND structural >= min_bucket_size
-          AND structural_other > 0
+               CASE WHEN derived = 0 THEN
+                   power((structural_other - derived_other + 1)::numeric
+                             / (structural_other + 1), least(structural, 50))
+               ELSE 1 END
+               * CASE WHEN reactions_derived = 0 THEN
+                   power((reactions_other - reactions_derived_other + 1)::numeric
+                             / (reactions_other + 1), least(reactions, 50))
+               ELSE 1 END AS chance_all_missed
+        FROM bucket_siblings
+        WHERE num_shards > 1 AND derived = 0 AND reactions_derived = 0
+          AND structural + reactions >= min_bucket_size
     )
     -- Scalar subqueries over the shared CTEs; scoped (hence the UNION) materializes once.
     SELECT
@@ -322,8 +365,10 @@ BEGIN
              WHERE structural >= min_scope_size AND derived = 0),
         (SELECT count(*) FROM bucket_verdict WHERE chance_all_missed < max_false_positive),
         (SELECT min('shard ' || bucket || '/' || num_shards || ' of dataset ' || dataset_id
-                    || ' (' || structural || ' structural compounds, 0 derived; sibling shards '
-                    || 'derived ' || derived_other || '/' || structural_other || ')')
+                    || ' (' || structural || ' structural compounds and ' || reactions
+                    || ' reactions, none derived; sibling shards derived '
+                    || derived_other || '/' || structural_other || ' and '
+                    || reactions_derived_other || '/' || reactions_other || ')')
              FROM bucket_verdict WHERE chance_all_missed < max_false_positive)
       INTO total_missing, bad_omitted, example_omitted, bad_shard, example_shard;
     RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row (existence gate per (dataset, scope), min scope size %; shard-hole gate per hash bucket vs siblings, min bucket size %, max false positive %)', total_missing, min_scope_size, min_bucket_size, max_false_positive;
@@ -331,7 +376,7 @@ BEGIN
         RAISE EXCEPTION 'coverage: % (dataset, attachment scope) cell(s) hold >= % structural-identifier compounds but no derived row (e.g. %) -- a dataset or attachment path omitted from the derive pass', bad_omitted, min_scope_size, example_omitted;
     END IF;
     IF bad_shard > 0 THEN
-        RAISE EXCEPTION 'coverage: % shard-hash bucket(s) hold >= % structural-identifier compounds but no derived row (e.g. %) -- a failed derivation shard leaves exactly one bucket wholly underived', bad_shard, min_bucket_size, example_shard;
+        RAISE EXCEPTION 'coverage: % shard-hash bucket(s) derived nothing, compounds or reactions, beyond what their sibling shards make plausible (e.g. %) -- a failed derivation shard leaves exactly one bucket wholly underived', bad_shard, example_shard;
     END IF;
 END $$;
 

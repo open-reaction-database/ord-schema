@@ -146,15 +146,17 @@ gate on process status. What it checks:
     at all. The loader raises on a failed shard, but this gate does not trust that exit status.
     A failed shard leaves **exactly one hash bucket wholly underived** — parseable compounds
     included — while the unparseable residue spreads uniformly across every bucket (parseability
-    is uncorrelated with the id hash) and so can never empty one. The check recomputes each
-    dataset's `num_shards`, buckets its structural compounds by the same hash, and judges an
-    empty bucket against its **sibling buckets**: they measure how often this dataset's
-    identifiers legitimately fail to derive, so the bucket is flagged when the siblings make
-    "every one of mine missed by chance" implausible (probability < `max_false_positive`,
-    default `1e-6`). Judging by **shape** against siblings rather than by size needs no
-    residue-calibrated tolerance and keeps a *sparse* hole visible — a dataset shards on its
-    reaction count, so a name-heavy one just over the threshold may hold only a handful of
-    structural compounds per bucket, which any absolute floor would ignore. `shard_size` /
+    is uncorrelated with the id hash) and so can never empty one. The same shard writes that
+    dataset's **reaction** SMILES in the same transaction under the same hash, so its reaction
+    bucket is empty too. The check recomputes each dataset's `num_shards`, buckets both tables by
+    that hash, and judges an empty bucket against its **sibling buckets**: they measure how often
+    this dataset's rows legitimately fail to derive, so the bucket is flagged when the siblings
+    make "every one of mine missed by chance" implausible (combined probability <
+    `max_false_positive`, default `1e-6`). Using **both** tables is what keeps a *sparse* hole
+    visible: sharding is chosen by **reaction** count, so every bucket of a sharded dataset holds
+    thousands of reactions even when a name-heavy one leaves only a handful of structural
+    compounds there — the reaction evidence is strongest exactly where the compound evidence is
+    weakest, and no absolute floor over either table alone spans both. `shard_size` /
     `shard_cap` mirror the loader's constants — keep them in step if those change.
 
   Name-only compounds are excluded, so the printed `compounds > derived` gap does not count.
