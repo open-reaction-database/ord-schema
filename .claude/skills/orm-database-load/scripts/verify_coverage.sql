@@ -125,51 +125,58 @@ END $$;
 --      reagent/product cells always contain parseable organics). Catches the single dataset x
 --      single path omission a corpus-wide or reaction-keyed count would dilute.
 --
---   2. PARTIAL derivation (completeness), checked PER DATASET. SMILES derivation is sharded
---      (loading.py: one hashtextextended partition of a >50k-reaction dataset's compound ids per
---      worker, capped at 32), and the loader raises on a failed shard -- but a defence-in-depth
---      gate should not trust that exit status. A shard partitions the *whole dataset's* compound
---      ids, so a failed shard removes ~1/num_shards of every scope at once; a small scope's slice
---      can be under an absolute floor even though the dataset-wide hole is enormous. So this gate
---      aggregates to the dataset: the smallest sharded dataset still has >50k reactions and >=2
---      structural compounds each over <=32 shards, so any shard hole underives tens of thousands
---      of the dataset's compounds (>= 1/32 ~= 3%), dwarfing the whole-dataset residue (at most the
---      corpus total, a few thousand). A dataset is flagged when its total underived clears BOTH an
---      absolute floor (max_dataset_missing, above any one dataset's residue) AND a fraction
---      (min_gap_pct, below the smallest 1/32 hole). Requiring both keeps an organometallic-heavy
---      dataset (high fraction, small absolute) and a huge dataset holding a little residue (large
---      absolute, tiny fraction) from tripping, while a shard hole clears both.
+--   2. PARTIAL derivation (completeness), detected by SHARD SHAPE. SMILES derivation is sharded
+--      (loading.py / ord_schema.orm.sharding: one hashtextextended(id) partition of a dataset's
+--      compound ids per worker; num_shards = min(32, ceil(reactions / 50000)), so only datasets
+--      over ~50k reactions shard at all). The loader raises on a failed shard, but a
+--      defence-in-depth gate should not trust that exit status. A failed shard leaves exactly one
+--      hash bucket entirely underived -- parseable compounds included -- while the unparseable
+--      residue spreads uniformly across all buckets (unparseability is uncorrelated with the id
+--      hash) and so never empties one. So recompute each dataset's num_shards from its reaction
+--      count, bucket its structural compounds by the same ((h % n) + n) % n hash, and flag any
+--      bucket of a sharded dataset with >= min_bucket_size structural compounds but no derived
+--      row. Detecting the hole by its shape (a wholly-empty hash class) rather than its size needs
+--      no residue-calibrated tolerance and catches the failure however small or name-heavy the
+--      dataset is. Keep min_bucket_size in step with the loader's shard constants if they change.
 --
--- The total underived count is printed. Defaults: min_scope_size 50, max_dataset_missing 10000,
--- min_gap_pct 1 (override with -v NAME=N).
+-- The total underived count is printed. Defaults: min_scope_size 50, min_bucket_size 50, and
+-- shard_size/shard_cap mirroring loading._DERIVE_SHARD_SIZE/_DERIVE_SHARD_CAP -- keep those two
+-- in step with the loader if its constants change (override any with -v NAME=N).
 \if :{?min_scope_size}
 \else
   \set min_scope_size 50
 \endif
-\if :{?max_dataset_missing}
+\if :{?min_bucket_size}
 \else
-  \set max_dataset_missing 10000
+  \set min_bucket_size 50
 \endif
-\if :{?min_gap_pct}
+\if :{?shard_size}
 \else
-  \set min_gap_pct 1
+  \set shard_size 50000
+\endif
+\if :{?shard_cap}
+\else
+  \set shard_cap 32
 \endif
 SELECT set_config('ord.verify_min_scope_size', :'min_scope_size', false) AS min_scope_size,
-       set_config('ord.verify_max_dataset_missing', :'max_dataset_missing', false) AS max_dataset_missing,
-       set_config('ord.verify_min_gap_pct', :'min_gap_pct', false) AS min_gap_pct;
+       set_config('ord.verify_min_bucket_size', :'min_bucket_size', false) AS min_bucket_size,
+       set_config('ord.verify_shard_size', :'shard_size', false) AS shard_size,
+       set_config('ord.verify_shard_cap', :'shard_cap', false) AS shard_cap;
 DO $$
 DECLARE
     total_missing bigint;
     bad_omitted bigint;
     example_omitted text;
-    bad_partial bigint;
-    example_partial text;
+    bad_shard bigint;
+    example_shard text;
     min_scope_size int := current_setting('ord.verify_min_scope_size')::int;
-    max_dataset_missing int := current_setting('ord.verify_max_dataset_missing')::int;
-    min_gap_pct numeric := current_setting('ord.verify_min_gap_pct')::numeric;
+    min_bucket_size int := current_setting('ord.verify_min_bucket_size')::int;
+    shard_size int := current_setting('ord.verify_shard_size')::int;
+    shard_cap int := current_setting('ord.verify_shard_cap')::int;
 BEGIN
     WITH scoped AS (
         SELECT r.dataset_id AS dataset_id, 'reaction_input' AS scope,
+               hashtextextended(c.id::text, 0) AS id_hash,
                EXISTS (
                    SELECT 1 FROM ord.compound_identifier ci
                    WHERE ci.compound_id = c.id
@@ -183,6 +190,7 @@ BEGIN
         JOIN ord.reaction r ON ri.reaction_id = r.id
         UNION ALL
         SELECT r.dataset_id, 'workup_input',
+               hashtextextended(c.id::text, 0),
                EXISTS (
                    SELECT 1 FROM ord.compound_identifier ci
                    WHERE ci.compound_id = c.id
@@ -197,6 +205,7 @@ BEGIN
         JOIN ord.reaction r ON rw.reaction_id = r.id
         UNION ALL
         SELECT r.dataset_id, 'product_measurement',
+               hashtextextended(c.id::text, 0),
                EXISTS (
                    SELECT 1 FROM ord.compound_identifier ci
                    WHERE ci.compound_id = c.id
@@ -212,6 +221,7 @@ BEGIN
         JOIN ord.reaction r ON ro.reaction_id = r.id
         UNION ALL
         SELECT r.dataset_id, 'product_compound',
+               hashtextextended(pc.id::text, 0),
                EXISTS (
                    SELECT 1 FROM ord.compound_identifier ci
                    WHERE ci.product_compound_id = pc.id
@@ -232,40 +242,53 @@ BEGIN
         FROM scoped
         GROUP BY dataset_id, scope
     ),
-    -- Completeness rolls the cells up to the dataset, because a failed shard's hole is
-    -- dataset-wide (it partitions all scopes' ids at once); a small scope's slice may be
-    -- tiny in absolute terms while the dataset-wide hole is not.
-    per_dataset AS (
+    -- num_shards the loader used for each dataset's SMILES derivation, recomputed from its
+    -- reaction count: min(shard_cap, ceil(reactions / shard_size)), at least 1. Mirrors
+    -- loading._derive_shard_items.
+    dataset_shards AS (
         SELECT dataset_id,
-               sum(structural) AS structural,
-               sum(derived) AS derived
-        FROM per_cell
+               greatest(1, least(shard_cap, ceil(count(*)::numeric / shard_size)::int))
+                   AS num_shards
+        FROM ord.reaction
         GROUP BY dataset_id
+    ),
+    -- Bucket each dataset's structural compounds by the loader's shard hash, so a failed shard
+    -- shows up as a bucket with structural rows but no derived row (the residue spreads across
+    -- every bucket and cannot empty one). num_shards = 1 datasets never sharded, so their lone
+    -- bucket only restates the omission gate and is excluded below.
+    per_bucket AS (
+        SELECT dataset_id, num_shards, bucket,
+               count(*) FILTER (WHERE structural) AS structural,
+               count(*) FILTER (WHERE structural AND derived) AS derived
+        FROM (
+            SELECT s.dataset_id, ds.num_shards,
+                   ((s.id_hash % ds.num_shards) + ds.num_shards) % ds.num_shards AS bucket,
+                   s.structural, s.derived
+            FROM scoped s
+            JOIN dataset_shards ds ON ds.dataset_id = s.dataset_id
+        ) b
+        GROUP BY dataset_id, num_shards, bucket
     )
-    -- Scalar subqueries over the shared CTEs; per_cell (hence the UNION) materializes once.
+    -- Scalar subqueries over the shared CTEs; scoped (hence the UNION) materializes once.
     SELECT
         (SELECT coalesce(sum(structural - derived), 0) FROM per_cell),
         (SELECT count(*) FROM per_cell
              WHERE structural >= min_scope_size AND derived = 0),
         (SELECT min(scope || ' in dataset ' || dataset_id) FROM per_cell
              WHERE structural >= min_scope_size AND derived = 0),
-        (SELECT count(*) FROM per_dataset
-             WHERE derived > 0
-               AND structural - derived >= max_dataset_missing
-               AND (structural - derived)::numeric >= min_gap_pct / 100 * structural),
-        (SELECT min('dataset ' || dataset_id
-                    || ' (' || (structural - derived) || ' of ' || structural || ' missing)')
-             FROM per_dataset
-             WHERE derived > 0
-               AND structural - derived >= max_dataset_missing
-               AND (structural - derived)::numeric >= min_gap_pct / 100 * structural)
-      INTO total_missing, bad_omitted, example_omitted, bad_partial, example_partial;
-    RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row (existence gate per (dataset, scope), min scope size %; completeness gate per dataset, max % missing and >= % pct)', total_missing, min_scope_size, max_dataset_missing, min_gap_pct;
+        (SELECT count(*) FROM per_bucket
+             WHERE num_shards > 1 AND structural >= min_bucket_size AND derived = 0),
+        (SELECT min('shard ' || bucket || '/' || num_shards || ' of dataset ' || dataset_id
+                    || ' (' || structural || ' structural compounds, 0 derived)')
+             FROM per_bucket
+             WHERE num_shards > 1 AND structural >= min_bucket_size AND derived = 0)
+      INTO total_missing, bad_omitted, example_omitted, bad_shard, example_shard;
+    RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row (existence gate per (dataset, scope), min scope size %; shard-hole gate per hash bucket, min bucket size %)', total_missing, min_scope_size, min_bucket_size;
     IF bad_omitted > 0 THEN
         RAISE EXCEPTION 'coverage: % (dataset, attachment scope) cell(s) hold >= % structural-identifier compounds but no derived row (e.g. %) -- a dataset or attachment path omitted from the derive pass', bad_omitted, min_scope_size, example_omitted;
     END IF;
-    IF bad_partial > 0 THEN
-        RAISE EXCEPTION 'coverage: % dataset(s) are partially derived beyond the unparseable residue (e.g. %) -- likely a failed derivation shard, which underives ~1/num_shards of a dataset', bad_partial, example_partial;
+    IF bad_shard > 0 THEN
+        RAISE EXCEPTION 'coverage: % shard-hash bucket(s) hold >= % structural-identifier compounds but no derived row (e.g. %) -- a failed derivation shard leaves exactly one bucket wholly underived', bad_shard, min_bucket_size, example_shard;
     END IF;
 END $$;
 

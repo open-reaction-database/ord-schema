@@ -140,18 +140,19 @@ gate on process status. What it checks:
     unparseable rows it also carries, and `min_scope_size` (default 50) absorbs a hypothetical
     tiny all-unparseable cell. Catches the single-dataset × single-path omission a corpus-wide
     or reaction-keyed count would dilute.
-  - **Partial** (completeness, **per dataset**): SMILES derivation is **sharded** (one
-    `hashtextextended` partition of a >50k-reaction dataset's compound ids per worker, capped at
-    32). The loader raises on a failed shard, but this gate does not trust that exit status. A
-    shard partitions the *whole dataset's* ids, so a failed shard removes ~1/`num_shards` of
-    **every** scope at once — a small scope's slice can be tiny in absolute terms while the
-    dataset-wide hole is enormous. So completeness rolls the cells up to the dataset: any shard
-    hole underives tens of thousands of a dataset's compounds (≥ 1/32 ≈ 3%), dwarfing the
-    whole-dataset residue (at most the corpus total). A dataset is flagged when its total
-    underived clears **both** an absolute floor (`max_dataset_missing`, default 10000 — above
-    any one dataset's residue) **and** a fraction (`min_gap_pct`, default 1 — below the smallest
-    1/32 hole). Requiring both spares an organometallic-heavy dataset (high fraction, small
-    absolute) and a huge dataset holding a little residue (large absolute, tiny fraction).
+  - **Failed shard** (completeness, per **shard-hash bucket**): SMILES derivation is **sharded**
+    — one `hashtextextended(id)` partition of a dataset's compound ids per worker, with
+    `num_shards = min(32, ceil(reactions / 50000))`, so only datasets over ~50k reactions shard
+    at all. The loader raises on a failed shard, but this gate does not trust that exit status.
+    A failed shard leaves **exactly one hash bucket wholly underived** — parseable compounds
+    included — while the unparseable residue spreads uniformly across every bucket (parseability
+    is uncorrelated with the id hash) and so can never empty one. The check recomputes each
+    dataset's `num_shards` from its reaction count, buckets its structural compounds by the same
+    hash, and flags any bucket of a sharded dataset holding ≥ `min_bucket_size` (default 50)
+    structural compounds with no derived row. Detecting the hole by its **shape** (a wholly
+    empty hash class) rather than its size needs no residue-calibrated tolerance, so it catches
+    the failure however small or name-heavy the dataset is. `shard_size`/`shard_cap` mirror the
+    loader's constants — keep them in step if those change.
 
   Name-only compounds are excluded, so the printed `compounds > derived` gap does not count.
   Override any threshold with `-v NAME=N`.
