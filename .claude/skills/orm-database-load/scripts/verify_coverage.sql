@@ -137,7 +137,8 @@ END $$;
 --      bucket of a sharded dataset with >= min_bucket_size structural compounds but no derived
 --      row. Detecting the hole by its shape (a wholly-empty hash class) rather than its size needs
 --      no residue-calibrated tolerance and catches the failure however small or name-heavy the
---      dataset is. Keep min_bucket_size in step with the loader's shard constants if they change.
+--      dataset is. A healthy database populates every bucket whatever num_shards is, so an
+--      inaccurate recomputation can only miss a hole, never invent one.
 --
 -- The total underived count is printed. Defaults: min_scope_size 50, min_bucket_size 50, and
 -- shard_size/shard_cap mirroring loading._DERIVE_SHARD_SIZE/_DERIVE_SHARD_CAP -- keep those two
@@ -242,15 +243,19 @@ BEGIN
         FROM scoped
         GROUP BY dataset_id, scope
     ),
-    -- num_shards the loader used for each dataset's SMILES derivation, recomputed from its
-    -- reaction count: min(shard_cap, ceil(reactions / shard_size)), at least 1. Mirrors
-    -- loading._derive_shard_items.
+    -- num_shards the loader used for each dataset's SMILES derivation:
+    -- min(shard_cap, ceil(size / shard_size)), at least 1. Mirrors loading._derive_shard_items,
+    -- reading size from the same place it does (get_dataset_size -> public.datasets.num_reactions,
+    -- 0 when the metadata row is missing) rather than counting ord.reaction -- if the two ever
+    -- disagreed across a shard-size boundary, a recomputed num_shards would bucket the compounds
+    -- differently than the loader did and smear a shard hole across buckets instead of exposing it.
     dataset_shards AS (
-        SELECT dataset_id,
-               greatest(1, least(shard_cap, ceil(count(*)::numeric / shard_size)::int))
+        SELECT d.id AS dataset_id,
+               greatest(1, least(shard_cap,
+                                 ceil(coalesce(pd.num_reactions, 0)::numeric / shard_size)::int))
                    AS num_shards
-        FROM ord.reaction
-        GROUP BY dataset_id
+        FROM ord.dataset d
+        LEFT JOIN public.datasets pd ON pd.dataset_id = d.dataset_id
     ),
     -- Bucket each dataset's structural compounds by the loader's shard hash, so a failed shard
     -- shows up as a bucket with structural rows but no derived row (the residue spreads across
