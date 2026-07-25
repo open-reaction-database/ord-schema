@@ -135,21 +135,32 @@ END $$;
 --      hash) and so never empties one. So recompute each dataset's num_shards from its reaction
 --      count, bucket its structural compounds by the same ((h % n) + n) % n hash, and flag any
 --      bucket of a sharded dataset with >= min_bucket_size structural compounds but no derived
---      row. Detecting the hole by its shape (a wholly-empty hash class) rather than its size needs
---      no residue-calibrated tolerance and catches the failure however small or name-heavy the
---      dataset is. A healthy database populates every bucket whatever num_shards is, so an
---      inaccurate recomputation can only miss a hole, never invent one.
+--      row. Whether that outcome is really a hole is judged against the bucket's SIBLING buckets,
+--      not an absolute size floor: the hash spreads a dataset's compounds uniformly, so the
+--      siblings measure how often this dataset's structural identifiers legitimately fail to
+--      derive, and the bucket is flagged when they make "every one of mine missed by chance"
+--      implausible (probability < max_false_positive). That keeps a sparse hole visible -- a
+--      dataset shards on its reaction count, so a name-heavy one just over the threshold may hold
+--      only a handful of structural compounds per bucket -- while never flagging a small
+--      all-unparseable bucket in a dataset whose siblings show a high miss rate. A healthy
+--      database populates every bucket whatever num_shards is, so an inaccurate recomputation can
+--      only miss a hole, never invent one.
 --
--- The total underived count is printed. Defaults: min_scope_size 50, min_bucket_size 50, and
--- shard_size/shard_cap mirroring loading._DERIVE_SHARD_SIZE/_DERIVE_SHARD_CAP -- keep those two
--- in step with the loader if its constants change (override any with -v NAME=N).
+-- The total underived count is printed. Defaults: min_scope_size 50, min_bucket_size 2,
+-- max_false_positive 1e-6, and shard_size/shard_cap mirroring
+-- loading._DERIVE_SHARD_SIZE/_DERIVE_SHARD_CAP -- keep those two in step with the loader if its
+-- constants change (override any with -v NAME=N).
 \if :{?min_scope_size}
 \else
   \set min_scope_size 50
 \endif
 \if :{?min_bucket_size}
 \else
-  \set min_bucket_size 50
+  \set min_bucket_size 2
+\endif
+\if :{?max_false_positive}
+\else
+  \set max_false_positive 1e-6
 \endif
 \if :{?shard_size}
 \else
@@ -161,6 +172,8 @@ END $$;
 \endif
 SELECT set_config('ord.verify_min_scope_size', :'min_scope_size', false) AS min_scope_size,
        set_config('ord.verify_min_bucket_size', :'min_bucket_size', false) AS min_bucket_size,
+       set_config('ord.verify_max_false_positive', :'max_false_positive', false)
+           AS max_false_positive,
        set_config('ord.verify_shard_size', :'shard_size', false) AS shard_size,
        set_config('ord.verify_shard_cap', :'shard_cap', false) AS shard_cap;
 DO $$
@@ -172,6 +185,7 @@ DECLARE
     example_shard text;
     min_scope_size int := current_setting('ord.verify_min_scope_size')::int;
     min_bucket_size int := current_setting('ord.verify_min_bucket_size')::int;
+    max_false_positive numeric := current_setting('ord.verify_max_false_positive')::numeric;
     shard_size int := current_setting('ord.verify_shard_size')::int;
     shard_cap int := current_setting('ord.verify_shard_cap')::int;
 BEGIN
@@ -273,6 +287,31 @@ BEGIN
             JOIN dataset_shards ds ON ds.dataset_id = s.dataset_id
         ) b
         GROUP BY dataset_id, num_shards, bucket
+    ),
+    -- Judge each bucket against its SIBLING buckets in the same dataset rather than an absolute
+    -- size floor. The hash spreads a dataset's compounds uniformly, so the siblings measure the
+    -- rate at which this dataset's structural identifiers legitimately fail to derive; a bucket
+    -- that derived nothing is a shard hole exactly when the siblings say that outcome is
+    -- implausible. An absolute floor would ignore a sparse hole -- a dataset shards on its
+    -- reaction count, so a name-heavy one over the threshold can hold only a handful of
+    -- structural compounds per bucket and still lose a whole shard.
+    bucket_stats AS (
+        SELECT dataset_id, num_shards, bucket, structural, derived,
+               sum(structural) OVER (PARTITION BY dataset_id) - structural AS structural_other,
+               sum(derived) OVER (PARTITION BY dataset_id) - derived AS derived_other
+        FROM per_bucket
+    ),
+    -- Laplace-smoothed miss rate from the siblings (the +1s keep an all-derived sibling set from
+    -- claiming a zero miss rate, which would flag a lone unparseable compound). The exponent is
+    -- capped because a bucket only has to be a handful of compounds deep before the probability
+    -- is negligible, and an uncapped numeric power over a large bucket would underflow.
+    bucket_verdict AS (
+        SELECT *,
+               power((structural_other - derived_other + 1)::numeric / (structural_other + 1),
+                     least(structural, 50)) AS chance_all_missed
+        FROM bucket_stats
+        WHERE num_shards > 1 AND derived = 0 AND structural >= min_bucket_size
+          AND structural_other > 0
     )
     -- Scalar subqueries over the shared CTEs; scoped (hence the UNION) materializes once.
     SELECT
@@ -281,14 +320,13 @@ BEGIN
              WHERE structural >= min_scope_size AND derived = 0),
         (SELECT min(scope || ' in dataset ' || dataset_id) FROM per_cell
              WHERE structural >= min_scope_size AND derived = 0),
-        (SELECT count(*) FROM per_bucket
-             WHERE num_shards > 1 AND structural >= min_bucket_size AND derived = 0),
+        (SELECT count(*) FROM bucket_verdict WHERE chance_all_missed < max_false_positive),
         (SELECT min('shard ' || bucket || '/' || num_shards || ' of dataset ' || dataset_id
-                    || ' (' || structural || ' structural compounds, 0 derived)')
-             FROM per_bucket
-             WHERE num_shards > 1 AND structural >= min_bucket_size AND derived = 0)
+                    || ' (' || structural || ' structural compounds, 0 derived; sibling shards '
+                    || 'derived ' || derived_other || '/' || structural_other || ')')
+             FROM bucket_verdict WHERE chance_all_missed < max_false_positive)
       INTO total_missing, bad_omitted, example_omitted, bad_shard, example_shard;
-    RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row (existence gate per (dataset, scope), min scope size %; shard-hole gate per hash bucket, min bucket size %)', total_missing, min_scope_size, min_bucket_size;
+    RAISE INFO 'coverage: % structural-identifier compound(s) lack a derived row (existence gate per (dataset, scope), min scope size %; shard-hole gate per hash bucket vs siblings, min bucket size %, max false positive %)', total_missing, min_scope_size, min_bucket_size, max_false_positive;
     IF bad_omitted > 0 THEN
         RAISE EXCEPTION 'coverage: % (dataset, attachment scope) cell(s) hold >= % structural-identifier compounds but no derived row (e.g. %) -- a dataset or attachment path omitted from the derive pass', bad_omitted, min_scope_size, example_omitted;
     END IF;

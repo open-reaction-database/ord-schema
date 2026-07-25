@@ -147,12 +147,15 @@ gate on process status. What it checks:
     A failed shard leaves **exactly one hash bucket wholly underived** — parseable compounds
     included — while the unparseable residue spreads uniformly across every bucket (parseability
     is uncorrelated with the id hash) and so can never empty one. The check recomputes each
-    dataset's `num_shards` from its reaction count, buckets its structural compounds by the same
-    hash, and flags any bucket of a sharded dataset holding ≥ `min_bucket_size` (default 50)
-    structural compounds with no derived row. Detecting the hole by its **shape** (a wholly
-    empty hash class) rather than its size needs no residue-calibrated tolerance, so it catches
-    the failure however small or name-heavy the dataset is. `shard_size`/`shard_cap` mirror the
-    loader's constants — keep them in step if those change.
+    dataset's `num_shards`, buckets its structural compounds by the same hash, and judges an
+    empty bucket against its **sibling buckets**: they measure how often this dataset's
+    identifiers legitimately fail to derive, so the bucket is flagged when the siblings make
+    "every one of mine missed by chance" implausible (probability < `max_false_positive`,
+    default `1e-6`). Judging by **shape** against siblings rather than by size needs no
+    residue-calibrated tolerance and keeps a *sparse* hole visible — a dataset shards on its
+    reaction count, so a name-heavy one just over the threshold may hold only a handful of
+    structural compounds per bucket, which any absolute floor would ignore. `shard_size` /
+    `shard_cap` mirror the loader's constants — keep them in step if those change.
 
   Name-only compounds are excluded, so the printed `compounds > derived` gap does not count.
   Override any threshold with `-v NAME=N`.
