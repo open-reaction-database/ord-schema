@@ -24,7 +24,6 @@ extras so the default install stays lightweight:
 | ------- | --------- | --------- |
 | `huggingface` | `ord_schema.huggingface.fetch_dataset`: download datasets from the Hugging Face [ord-data](https://huggingface.co/datasets/open-reaction-database/ord-data) mirror | `pip install "ord-schema[huggingface]"` |
 | `orm` | `ord_schema.orm`: map the schema into a relational (SQLAlchemy + PostgreSQL) database | `pip install "ord-schema[orm]"` |
-| `github` | the GitHub-issue submission flow in `ord_schema.scripts.process_dataset` | `pip install "ord-schema[github]"` |
 | `examples` | running the notebooks under `examples/` (see below) | `pip install "ord-schema[examples]"` |
 
 Extras combine, e.g. `pip install "ord-schema[orm,huggingface]"`. Importing a
