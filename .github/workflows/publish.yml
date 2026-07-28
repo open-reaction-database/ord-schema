@@ -42,16 +42,16 @@ jobs:
       contents: write
       id-token: write  # PyPI + npm trusted publishing (OIDC).
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           token: ${{ secrets.ACTIONS_PUSH }}
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           python-version: '3.11'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           # Trusted publishing requires Node >= 22.14 and npm >= 11.5.1 (https://docs.npmjs.com/trusted-publishers)
           node-version: '24'
@@ -73,13 +73,14 @@ jobs:
           # Fail before the upload (and before the version bump is pushed) rather than taking a
           # 400 from PyPI: twine check does not reject direct (URL) dependencies.
           python .github/scripts/check_direct_dependencies.py dist/*
-      # Use release/v1 (not a bare v1.x.x tag): each tag must have a matching GHCR image
-      # (ghcr.io/pypa/gh-action-pypi-publish:<ref>); v1.14.0 had no manifest at publish time.
+      # uv does the OIDC exchange itself and uploads PEP 740 attestations by default,
+      # so no third-party action runs in this job -- which matters here, because
+      # id-token: write lets any step in it mint a token and publish a release.
+      # --trusted-publishing always fails loudly rather than falling back to looking
+      # for an API token that does not exist. Metadata is already checked above by
+      # twine check and check_direct_dependencies.py.
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist/
-          verify-metadata: false
+        run: uv publish --trusted-publishing always dist/*
       - name: Build and upload to NPM
         run: |
           cd js/ord-schema
