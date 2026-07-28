@@ -50,8 +50,8 @@ $ cd ord-schema
 $ uv sync --extra tests
 ```
 
-The `tests` extra pulls in the feature extras (`github`, `huggingface`, `orm`)
-it needs to exercise their code paths, so this is enough to run the full suite.
+The `tests` extra pulls in the feature extras (`huggingface`, `orm`) it needs to
+exercise their code paths, so this is enough to run the full suite.
 Add `--extra examples` as well to run the notebooks (heavier deps):
 
 ```shell
