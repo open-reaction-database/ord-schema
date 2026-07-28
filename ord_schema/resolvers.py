@@ -17,7 +17,6 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-import warnings
 
 from rdkit import Chem
 
@@ -213,13 +212,3 @@ _NAME_RESOLVERS = {
     "NCI/CADD CIR": _cactus_resolve,
     "OPSIN": _opsin_resolve,
 }
-
-
-def name_resolve(*args: str, **kwargs: str) -> tuple[str, str]:
-    """Deprecated alias for :func:`resolve_name`."""
-    warnings.warn(
-        "resolvers.name_resolve is deprecated; use resolve_name instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return resolve_name(*args, **kwargs)

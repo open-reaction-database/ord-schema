@@ -103,9 +103,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate Dataset protocol buffers")
     parser.add_argument(
         "--input_pattern",
-        "--input",
         required=True,
-        help="Input pattern for Dataset protos (--input is a deprecated alias)",
+        help="Input pattern for Dataset protos",
     )
     parser.add_argument("--filter", default=None, help="Regex filename filter")
     parser.add_argument(

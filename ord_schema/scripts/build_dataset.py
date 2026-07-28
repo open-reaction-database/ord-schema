@@ -31,9 +31,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build a Dataset from Reaction protos")
     parser.add_argument(
         "--input_pattern",
-        "--input",
         required=True,
-        help="Input pattern for Reaction protos (--input is a deprecated alias)",
+        help="Input pattern for Reaction protos",
     )
     parser.add_argument(
         "--output", required=True, help="Output Dataset filename (*.pbtxt)"

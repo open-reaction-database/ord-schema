@@ -36,7 +36,7 @@ from rdkit.Chem import rdChemReactions
 
 import ord_schema
 from ord_schema import atomic_io, units
-from ord_schema.proto import dataset_pb2, reaction_pb2
+from ord_schema.proto import reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,
@@ -1086,32 +1086,3 @@ def parse_doi(doi: str) -> str:
     if not match:
         raise ValueError(f"could not parse DOI: {doi}")
     return match.group(1)
-
-
-# Deprecated aliases, kept for backwards compatibility after the load_*/save_*
-# rename. Remove in a future minor release.
-def write_message(
-    message: ord_schema.Message, filename: str | os.PathLike[str]
-) -> None:
-    """Deprecated alias for :func:`save_message`."""
-    warnings.warn(
-        "message_helpers.write_message is deprecated; use save_message instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return save_message(message, filename)
-
-
-def write_dataset(
-    dataset: dataset_pb2.Dataset, filename: str | os.PathLike[str]
-) -> None:
-    """Deprecated alias for :func:`ord_schema.datasets.save_dataset`."""
-    from ord_schema import datasets  # noqa: PLC0415
-
-    warnings.warn(
-        "message_helpers.write_dataset is deprecated; "
-        "use ord_schema.datasets.save_dataset instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    datasets.save_dataset(dataset, filename)
