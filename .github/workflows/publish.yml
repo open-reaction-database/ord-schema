@@ -42,16 +42,16 @@ jobs:
       contents: write
       id-token: write  # PyPI + npm trusted publishing (OIDC).
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           token: ${{ secrets.ACTIONS_PUSH }}
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.11'
-      - uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           python-version: '3.11'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           # Trusted publishing requires Node >= 22.14 and npm >= 11.5.1 (https://docs.npmjs.com/trusted-publishers)
           node-version: '24'
@@ -73,8 +73,11 @@ jobs:
           # Fail before the upload (and before the version bump is pushed) rather than taking a
           # 400 from PyPI: twine check does not reject direct (URL) dependencies.
           python .github/scripts/check_direct_dependencies.py dist/*
-      # Use release/v1 (not a bare v1.x.x tag): each tag must have a matching GHCR image
-      # (ghcr.io/pypa/gh-action-pypi-publish:<ref>); v1.14.0 had no manifest at publish time.
+      # The one action here not pinned to a commit SHA. It is a container action
+      # resolved as ghcr.io/pypa/gh-action-pypi-publish:<ref>, so the ref must have a
+      # matching GHCR image -- a SHA has none, and even v1.14.0 had no manifest at
+      # publish time. release/v1 is what PyPA documents. This job holds id-token: write
+      # for Trusted Publishing, so revisit if PyPA starts publishing SHA-tagged images.
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
