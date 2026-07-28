@@ -73,16 +73,14 @@ jobs:
           # Fail before the upload (and before the version bump is pushed) rather than taking a
           # 400 from PyPI: twine check does not reject direct (URL) dependencies.
           python .github/scripts/check_direct_dependencies.py dist/*
-      # The one action here not pinned to a commit SHA. It is a container action
-      # resolved as ghcr.io/pypa/gh-action-pypi-publish:<ref>, so the ref must have a
-      # matching GHCR image -- a SHA has none, and even v1.14.0 had no manifest at
-      # publish time. release/v1 is what PyPA documents. This job holds id-token: write
-      # for Trusted Publishing, so revisit if PyPA starts publishing SHA-tagged images.
+      # uv does the OIDC exchange itself and uploads PEP 740 attestations by default,
+      # so no third-party action runs in this job -- which matters here, because
+      # id-token: write lets any step in it mint a token and publish a release.
+      # --trusted-publishing always fails loudly rather than falling back to looking
+      # for an API token that does not exist. Metadata is already checked above by
+      # twine check and check_direct_dependencies.py.
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: dist/
-          verify-metadata: false
+        run: uv publish --trusted-publishing always dist/*
       - name: Build and upload to NPM
         run: |
           cd js/ord-schema
