@@ -80,7 +80,7 @@ Look Them Up
 ###############
 
 The `ORD Reaction Editor <https://app.open-reaction-database.org/>`__ has a look up function which can
-be used to add chemicals by name. The `name_resolve function <https://docs.open-reaction-database.org/en/latest/ord_schema/ord_schema.html#ord_schema.resolvers.name_resolve>`__
+be used to add chemicals by name. The `resolve_name function <https://docs.open-reaction-database.org/en/latest/ord_schema/ord_schema.html#ord_schema.resolvers.resolve_name>`__
 uses the PubChem and OPSIN APIs to look up names and returns a SMILES string when it is available.
 
 For looking up identifiers of organic compounds the following online services can be useful:
@@ -97,7 +97,7 @@ For looking up identifiers of organic compounds the following online services ca
   websites will also report the SMILES in this style. Please refer to :ref:`dative-bonding` below for a recommended 
   workflow for generating SMILES strings which include dative bonding.
 
-Lists of names can be programmatically looked up using the ORD `name_resolve function <https://docs.open-reaction-database.org/en/latest/ord_schema/ord_schema.html#ord_schema.resolvers.name_resolve>`__
+Lists of names can be programmatically looked up using the ORD `resolve_name function <https://docs.open-reaction-database.org/en/latest/ord_schema/ord_schema.html#ord_schema.resolvers.resolve_name>`__
 in Python.
 
 

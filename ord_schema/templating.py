@@ -20,7 +20,6 @@ are defined, namely that placeholder values in the pbtxt begin and end with a "$
 
 import pathlib
 import re
-import warnings
 from collections.abc import Mapping
 from typing import BinaryIO
 
@@ -176,17 +175,3 @@ def generate_dataset(
         reactions.append(reaction)
 
     return dataset_pb2.Dataset(name=name, description=description, reactions=reactions)
-
-
-# Deprecated alias, kept for backwards compatibility after the load_*/save_*
-# rename. Remove in a future minor release.
-def read_spreadsheet(
-    file_name_or_buffer: str | BinaryIO, suffix: str | None = None
-) -> pd.DataFrame:
-    """Deprecated alias for :func:`load_spreadsheet`."""
-    warnings.warn(
-        "templating.read_spreadsheet is deprecated; use load_spreadsheet instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return load_spreadsheet(file_name_or_buffer, suffix)

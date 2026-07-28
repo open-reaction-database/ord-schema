@@ -26,7 +26,7 @@ Step 1: Create a template reaction
 
         See the Python examples `here <https://docs.open-reaction-database.org/en/latest/schema.html#jupyter-colab>`_ 
         for how to construct reactions programmatically. After creating a template reaction,
-        save it as a pbtxt file using `message_helpers.write_message <https://docs.open-reaction-database.org/en/latest/ord_schema/ord_schema.html#module-ord_schema.message_helpers>`_.
+        save it as a pbtxt file using `message_helpers.save_message <https://docs.open-reaction-database.org/en/latest/ord_schema/ord_schema.html#module-ord_schema.message_helpers>`_.
 
 Here's an `example reaction <https://gist.github.com/skearnes/1e822a599c07df924f7320352103865b#file-reaction-pbtxt>`_.
 

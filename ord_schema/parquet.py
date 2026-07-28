@@ -32,7 +32,6 @@ import hashlib
 import os
 import pathlib
 import tempfile
-import warnings
 from collections.abc import Iterable, Iterator
 from types import TracebackType
 from typing import Self
@@ -545,65 +544,3 @@ def _dataset_from_metadata(
     if dataset_id:
         dataset.dataset_id = dataset_id
     return dataset
-
-
-# Deprecated aliases, kept for backwards compatibility after the load_*/save_*
-# rename. Remove in a future minor release.
-def write_dataset(
-    dataset: dataset_pb2.Dataset,
-    path: str | os.PathLike[str],
-    *,
-    compression: str = "zstd",
-    row_group_size: int = 1000,
-) -> None:
-    """Deprecated alias for :func:`save_dataset`."""
-    warnings.warn(
-        "parquet.write_dataset is deprecated; use save_dataset instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return save_dataset(
-        dataset, path, compression=compression, row_group_size=row_group_size
-    )
-
-
-def read_dataset(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
-    """Deprecated alias for :func:`load_dataset`."""
-    warnings.warn(
-        "parquet.read_dataset is deprecated; use load_dataset instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return load_dataset(path)
-
-
-def read_metadata(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
-    """Deprecated alias for :func:`load_metadata`."""
-    warnings.warn(
-        "parquet.read_metadata is deprecated; use load_metadata instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return load_metadata(path)
-
-
-def read_footer(path: str | os.PathLike[str]) -> ParquetFooter:
-    """Deprecated alias for :func:`load_footer`."""
-    warnings.warn(
-        "parquet.read_footer is deprecated; use load_footer instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return load_footer(path)
-
-
-def read_reaction(
-    path: str | os.PathLike[str], reaction_id: str
-) -> reaction_pb2.Reaction:
-    """Deprecated alias for :func:`load_reaction`."""
-    warnings.warn(
-        "parquet.read_reaction is deprecated; use load_reaction instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return load_reaction(path, reaction_id)
