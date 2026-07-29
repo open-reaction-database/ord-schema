@@ -319,3 +319,71 @@ def test_format_message(message, expected):
 def test_format_message_unspecified_returns_none():
     # Default-constructed message has UNSPECIFIED units.
     assert units.format_message(reaction_pb2.Mass()) is None
+
+
+@pytest.mark.parametrize(
+    ("string", "expected"),
+    [
+        (
+            "760 torr",
+            reaction_pb2.Pressure(value=760, units=reaction_pb2.Pressure.TORR),
+        ),
+        (
+            "760 Torr",
+            reaction_pb2.Pressure(value=760, units=reaction_pb2.Pressure.TORR),
+        ),
+        (
+            "760 mmHg",
+            reaction_pb2.Pressure(value=760, units=reaction_pb2.Pressure.MM_HG),
+        ),
+        (
+            "760 mm Hg",
+            reaction_pb2.Pressure(value=760, units=reaction_pb2.Pressure.MM_HG),
+        ),
+    ],
+)
+def test_resolve_mercury_pressure_units(resolver, string, expected):
+    assert resolver.resolve(string) == expected
+
+
+@pytest.mark.parametrize(
+    "units_enum", [reaction_pb2.Pressure.TORR, reaction_pb2.Pressure.MM_HG]
+)
+def test_convert_mercury_pressure_units(resolver, units_enum):
+    # 1 atm is 760 torr and, to the precision reaction data carries, 760 mmHg.
+    message = reaction_pb2.Pressure(value=760, units=units_enum)
+    assert resolver.convert(message, "atm").value == pytest.approx(1.0)
+    assert resolver.convert(message, "kPa").value == pytest.approx(101.325, rel=1e-6)
+
+
+def _unit_enum_values(message_type):
+    """Returns {enum value: name} for a united message, minus UNSPECIFIED."""
+    descriptor = message_type.DESCRIPTOR
+    return {
+        value.number: value.name
+        for enum_type in descriptor.enum_types
+        for value in enum_type.values
+        if value.name != "UNSPECIFIED"
+    }
+
+
+@pytest.mark.parametrize("message_type", list(units._UNIT_CONVERSIONS))
+def test_every_unit_is_convertible(message_type):
+    """Every unit in the schema must be convertible; Pressure once was not."""
+    missing = {
+        name
+        for value, name in _unit_enum_values(message_type).items()
+        if value not in units._UNIT_CONVERSIONS[message_type]
+    }
+    assert not missing
+
+
+@pytest.mark.parametrize("message_type", list(units._UNIT_SYNONYMS))
+def test_every_unit_is_resolvable(message_type):
+    """Every unit in the schema must have at least one spelling to parse from."""
+    missing = {
+        name
+        for value, name in _unit_enum_values(message_type).items()
+        if value not in units._UNIT_SYNONYMS[message_type]
+    }
+    assert not missing

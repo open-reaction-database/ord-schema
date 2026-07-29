@@ -93,6 +93,8 @@ _UNIT_SYNONYMS: dict[type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[st
         reaction_pb2.Pressure.KPSI: ["kpsi"],
         reaction_pb2.Pressure.PASCAL: ["Pa", "pascal", "pascals", "pas"],
         reaction_pb2.Pressure.KILOPASCAL: ["kPa", "kilopascals", "kPas"],
+        reaction_pb2.Pressure.TORR: ["torr"],
+        reaction_pb2.Pressure.MM_HG: ["mmHg", "mm Hg"],
     },
     reaction_pb2.Temperature: {
         reaction_pb2.Temperature.CELSIUS: [
@@ -199,6 +201,12 @@ _UNIT_CONVERSIONS: dict[
         reaction_pb2.Pressure.KPSI: 1000 / 14.69595,
         reaction_pb2.Pressure.PASCAL: 1 / 101325,
         reaction_pb2.Pressure.KILOPASCAL: 1000 / 101325,
+        # Torr and mmHg differ by ~2e-7 relative (mmHg is defined from the density of
+        # mercury, torr as exactly 1/760 atm); the schema keeps them as separate units
+        # because sources report both, and 1/760 is correct for either at any precision
+        # reaction data carries.
+        reaction_pb2.Pressure.TORR: 1 / 760,
+        reaction_pb2.Pressure.MM_HG: 1 / 760,
     },
     reaction_pb2.Current: {
         reaction_pb2.Current.AMPERE: 1,
