@@ -154,7 +154,7 @@ def test_temperature_converts_to_kelvin(units_enum, value, expected):
         (reaction_pb2.Pressure.KILOPASCAL, 101.325, 101.325),
         (reaction_pb2.Pressure.ATMOSPHERE, 1.0, 101.325),
         (reaction_pb2.Pressure.BAR, 1.0, 100.0),
-        # Both mercury units were unconvertible until they were added to units.py.
+        # Mercury units: 1 atm is 760 of either.
         (reaction_pb2.Pressure.TORR, 760.0, 101.325),
         (reaction_pb2.Pressure.MM_HG, 760.0, 101.325),
     ],
