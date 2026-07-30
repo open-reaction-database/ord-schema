@@ -16,6 +16,7 @@
 import typing
 
 import pytest
+from google.protobuf import descriptor
 
 import ord_schema
 from ord_schema import units
@@ -369,13 +370,37 @@ def _unit_enum_values(message_type):
     }
 
 
-# Parametrized from the schema rather than from the tables under test: driving these
-# from _UNIT_CONVERSIONS or _UNIT_SYNONYMS would generate no case at all for a message
-# type missing from them, which is the failure they exist to catch. Both assert on
-# behavior, so it does not matter which mechanism implements a conversion -- Temperature
-# goes through Celsius and Wavelength through a wavenumber reciprocal, neither of which
-# appears in _UNIT_CONVERSIONS.
-_UNITED_MESSAGE_TYPES = typing.get_args(ord_schema.UnitMessage)
+def _united_message_types():
+    """Returns every message in the schema carrying a value and a units enum.
+
+    Read from the proto descriptor rather than from any hand-maintained list, so that a
+    united message added to the schema is covered without a second edit here.
+    """
+    types = []
+    for message_descriptor in reaction_pb2.DESCRIPTOR.message_types_by_name.values():
+        fields = {field.name: field for field in message_descriptor.fields}
+        units_field = fields.get("units")
+        if (
+            units_field is not None
+            and units_field.type == descriptor.FieldDescriptor.TYPE_ENUM
+            and "value" in fields
+        ):
+            types.append(getattr(reaction_pb2, message_descriptor.name))
+    return types
+
+
+# The checks below are parametrized from the schema, not from the tables under test:
+# driving them from _UNIT_CONVERSIONS or _UNIT_SYNONYMS would generate no case at all
+# for a message type missing from those, which is the failure they exist to catch. They
+# assert on behavior, so it also does not matter which mechanism implements a
+# conversion -- Temperature goes through Celsius and Wavelength through a wavenumber
+# reciprocal, neither of which appears in _UNIT_CONVERSIONS.
+_UNITED_MESSAGE_TYPES = _united_message_types()
+
+
+def test_unit_message_alias_covers_the_schema():
+    """``ord_schema.UnitMessage`` lists exactly the schema's united messages."""
+    assert set(typing.get_args(ord_schema.UnitMessage)) == set(_UNITED_MESSAGE_TYPES)
 
 
 def _synonyms_for(message_type):
