@@ -530,6 +530,38 @@ def test_empty_reaction_identifier_reports_rather_than_raises(identifier_type):
     assert any("value must be set" in error for error in output.errors)
 
 
+_COMPOUND_CXSMILES = "c1ccccc1 |f:0.1|"
+
+
+def test_compound_smiles_carrying_a_cxsmiles_extension_warns():
+    message = reaction_pb2.CompoundIdentifier(type="SMILES", value=_COMPOUND_CXSMILES)
+    output = _run_validation(message)
+    assert len(output.warnings) == 1
+    assert "use CXSMILES" in output.warnings[0]
+
+
+def test_compound_cxsmiles_under_its_own_type_is_not_flagged():
+    message = reaction_pb2.CompoundIdentifier(type="CXSMILES", value=_COMPOUND_CXSMILES)
+    output = _run_validation(message)
+    assert not output.warnings
+    assert not output.errors
+
+
+def test_compound_cxsmiles_is_validated():
+    # CXSMILES identifiers were parsed by nothing, so an unparseable one passed.
+    message = reaction_pb2.CompoundIdentifier(type="CXSMILES", value="notamolecule")
+    output = _run_validation(message, raise_on_error=False)
+    assert any("could not validate CXSMILES" in error for error in output.errors)
+
+
+def test_compound_smiles_is_validated_without_its_extension():
+    message = reaction_pb2.CompoundIdentifier(
+        type="SMILES", value="notamolecule |f:0.1|"
+    )
+    output = _run_validation(message, raise_on_error=False)
+    assert any("could not validate SMILES" in error for error in output.errors)
+
+
 def test_data_bad_url():
     message = reaction_pb2.Data(url="not a url")
     output = _run_validation(message)

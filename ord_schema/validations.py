@@ -858,14 +858,33 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier) -> No
     check_type_and_details(message)
     if not message.value:
         warnings.warn("value must be set", ValidationError)
-    if message.type in (message.SMILES, message.INCHI, message.MOLBLOCK):
+    if message.type in (
+        message.SMILES,
+        message.CXSMILES,
+        message.INCHI,
+        message.MOLBLOCK,
+    ):
         parse_func, identifier_type = {
+            # MolFromSmiles reads CXSMILES too, so a CXSMILES identifier is validated
+            # whole -- extension included -- while a SMILES one is validated without
+            # the extension it should not be carrying.
             message.SMILES: (Chem.MolFromSmiles, "SMILES"),
+            message.CXSMILES: (Chem.MolFromSmiles, "CXSMILES"),
             message.INCHI: (Chem.MolFromInchi, "InChI"),
             message.MOLBLOCK: (Chem.MolFromMolBlock, "MolBlock"),
         }[message.type]
-        if parse_func(message.value) is None:
-            if parse_func(message.value, sanitize=False) is None:
+        value = message.value
+        if message.type == message.SMILES:
+            tokens = message.value.split(maxsplit=1)
+            value = tokens[0] if tokens else ""
+            if len(tokens) > 1:
+                warnings.warn(
+                    "CompoundIdentifier is typed SMILES but its value carries a "
+                    "CXSMILES extension block; use CXSMILES",
+                    ValidationWarning,
+                )
+        if parse_func(value) is None:
+            if parse_func(value, sanitize=False) is None:
                 warnings.warn(
                     f"RDKit {RDKIT_VERSION} could not validate {identifier_type} "
                     f"identifier {message.value}",
