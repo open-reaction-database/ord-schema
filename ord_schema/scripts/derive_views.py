@@ -38,10 +38,12 @@ logger = get_logger(__name__)
 
 
 def glob_root(pattern: str) -> pathlib.PurePath:
-    """Returns the leading part of a glob pattern that contains no wildcards.
+    """Returns the leading directories of a glob pattern that contain no wildcards.
 
-    Output paths are built relative to this so that ``data/*/x.parquet`` under
-    ``--output_dir=views`` lands at ``views/<subdir>/x.parquet``.
+    Output paths are built relative to this, so ``data/*/x.parquet`` under
+    ``--output_dir=views`` lands at ``views/<subdir>/x.parquet``. A pattern naming a
+    single file has no wildcard to stop at, so its own last component is the file
+    rather than a directory and the root is the directory holding it.
     """
     parts = pathlib.PurePath(pattern).parts
     fixed = []
@@ -49,6 +51,8 @@ def glob_root(pattern: str) -> pathlib.PurePath:
         if any(char in part for char in "*?["):
             break
         fixed.append(part)
+    else:
+        fixed = fixed[:-1]
     return pathlib.PurePath(*fixed)
 
 

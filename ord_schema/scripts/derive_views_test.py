@@ -56,18 +56,35 @@ def _corpus(root: pathlib.Path, shards=("aa", "bb")) -> None:
         ("data/*/*.parquet", "data"),
         ("data/**/*.parquet", "data"),
         ("*.parquet", ""),
-        ("a/b/c.parquet", "a/b/c.parquet"),
         ("data/[0-4][0-4]/*.parquet", "data"),
+        # No wildcard: the pattern names one file, so the root is its directory.
+        ("a/b/c.parquet", "a/b"),
+        ("c.parquet", ""),
     ],
 )
 def test_glob_root(pattern, expected):
     assert derive_views.glob_root(pattern) == pathlib.PurePath(expected)
 
 
-def test_output_path_mirrors_the_source_layout():
-    assert derive_views.output_path(
-        "data/aa/ord_dataset-x.parquet", "data/*/*.parquet", "views"
-    ) == pathlib.Path("views/aa/ord_dataset-x.parquet")
+@pytest.mark.parametrize(
+    ("source", "pattern", "expected"),
+    [
+        (
+            "data/aa/ord_dataset-x.parquet",
+            "data/*/*.parquet",
+            "views/aa/ord_dataset-x.parquet",
+        ),
+        # An exact filename must still yield a file under output_dir, not the
+        # directory itself.
+        (
+            "data/aa/ord_dataset-x.parquet",
+            "data/aa/ord_dataset-x.parquet",
+            "views/ord_dataset-x.parquet",
+        ),
+    ],
+)
+def test_output_path_mirrors_the_source_layout(source, pattern, expected):
+    assert derive_views.output_path(source, pattern, "views") == pathlib.Path(expected)
 
 
 def _run(root: pathlib.Path, *extra: str) -> None:
@@ -147,3 +164,16 @@ def test_main_raises_when_nothing_matches(tmp_path):
                 ]
             )
         )
+
+
+def test_main_accepts_an_exact_filename(tmp_path):
+    _corpus(tmp_path, shards=("aa",))
+    source = tmp_path / "data" / "aa" / "ord_dataset-aa.parquet"
+    derive_views.main(
+        derive_views.parse_args(
+            [f"--input_pattern={source}", f"--output_dir={tmp_path / 'views'}"]
+        )
+    )
+    view = tmp_path / "views" / "ord_dataset-aa.parquet"
+    assert view.is_file()
+    assert pq.read_table(view).column("reaction_id").to_pylist() == ["ord-0001"]
