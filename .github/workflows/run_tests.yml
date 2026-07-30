@@ -33,29 +33,33 @@ permissions:
 jobs:
   test_ord_schema:
     strategy:
-      # One job per OS covers every Python version, so a failure on one OS should not
-      # cancel the other and take three more interpreters' results with it.
-      fail-fast: false
       matrix:
         os: ["ubuntu-latest", "macos-14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     runs-on: ${{ matrix.os }}
     env:
       # Only ${{ }} is expanded in env values, so $GITHUB_WORKSPACE here would stay a literal
       # and initdb would create a directory named after the variable.
       PGDATA: ${{ github.workspace }}/rdkit-postgres
-      # The interpreters to test, oldest first. uv fetches whichever are not already
-      # present, so no separate setup-python step is needed.
-      PYTHON_VERSIONS: "3.11 3.12 3.13 3.14"
-      # Exercise the live PubChem/OPSIN resolver smoke tests on a single interpreter and
-      # OS only; running them everywhere at once trips PubChem's per-IP throttling (503
-      # ServerBusy). Every other run skips them (see resolvers_test).
-      LIVE_RESOLVER_PYTHON: "3.12"
-      LIVE_RESOLVER_OS: ${{ matrix.os == 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4
         with:
           miniconda-version: 'latest'
+      # Point conda at a cacheable package directory before anything installs, so the
+      # rdkit-postgresql tarballs below are restored rather than re-downloaded by all eight
+      # matrix jobs on every run.
+      - name: Use a cacheable conda package directory
+        shell: bash -l {0}
+        run: |
+          set -eo pipefail
+          conda config --add pkgs_dirs "${HOME}/conda_pkgs_dir"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/conda_pkgs_dir
+          # Only rdkit-postgresql is installed, so the spec is the whole key. Bump the suffix
+          # to discard the cache deliberately.
+          key: conda-pkgs-${{ runner.os }}-rdkit-postgresql-v1
       - name: Setup PostgreSQL
         shell: bash -l {0}
         run: |
@@ -65,78 +69,65 @@ jobs:
           # NOTE(skearnes): conda is only used for postgres (not python).
           conda install -c conda-forge rdkit-postgresql
           initdb
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
-      - name: Run tests on every supported Python
-        # bash -l picks up the conda profile so initdb/postgres are on PATH. It also means
-        # no -e (see above), so every failure below is captured explicitly -- the loop must
-        # outlive one bad interpreter to report the rest.
+          python-version: ${{ matrix.python-version }}
+          # Key the wheel cache on the lockfile so a dependency bump, and only a dependency
+          # bump, misses.
+          cache-dependency-glob: "uv.lock"
+      - name: Install ord_schema
+        run: uv sync --extra tests --locked
+      - name: Run tests
         shell: bash -l {0}
+        # Exercise the live PubChem/OPSIN resolver smoke tests on a single matrix
+        # entry only; running them on all 8 jobs at once trips PubChem's per-IP
+        # throttling (503 ServerBusy). Other entries skip them (see resolvers_test).
+        env:
+          ORD_LIVE_RESOLVERS: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
         run: |
-          set -o pipefail
-          failed=""
-          for version in ${PYTHON_VERSIONS}; do
-            echo "::group::Python ${version}"
-            if [[ "${LIVE_RESOLVER_OS}" == "true" && "${version}" == "${LIVE_RESOLVER_PYTHON}" ]]; then
-              export ORD_LIVE_RESOLVERS=true
-            else
-              export ORD_LIVE_RESOLVERS=false
-            fi
-            if uv sync --extra tests --locked --python "${version}"; then
-              uv run coverage erase
-              # -n auto: each ORM test spins up its own testing.postgresql instance, so the suite is
-              # parallel-safe; pytest-cov aggregates coverage across xdist workers.
-              # -ra: summarize all non-passing outcomes (failures, errors, and skip reasons) at the end of the run --
-              # e.g. live resolver tests gated off this interpreter vs. skipped on a PubChem 503.
-              uv run pytest -n auto -vv -ra --cov=ord_schema --durations=20 \
-                || failed="${failed} ${version}"
-              # Print the coverage summary in the job log (no external upload).
-              uv run coverage report || true
-            else
-              failed="${failed} ${version}"
-            fi
-            echo "::endgroup::"
-          done
-          if [[ -n "${failed}" ]]; then
-            echo "::error::tests failed on Python:${failed}"
-            exit 1
-          fi
+          # A bare `shell:` string is used verbatim, so -e is not applied. Without this a failing
+          # pytest is masked by the coverage report below, whose exit code becomes the step's.
+          set -eo pipefail
+          uv run coverage erase
+          # -n auto: each ORM test spins up its own testing.postgresql instance, so the suite is
+          # parallel-safe; pytest-cov aggregates coverage across xdist workers.
+          # -ra: summarize all non-passing outcomes (failures, errors, and skip reasons) at the end of the run --
+          # e.g. live resolver tests gated off this matrix entry vs. skipped on a PubChem 503.
+          uv run pytest -n auto -vv -ra --cov=ord_schema --durations=20
+          # Print the coverage summary in the job log (no external upload).
+          uv run coverage report
 
   test_notebooks:
     strategy:
-      fail-fast: false
       matrix:
         os: ["ubuntu-latest", "macos-14"]
+        # examples extra requires TensorFlow, which only ships wheels through cp313 as of 2.20.0.
+        python-version: ["3.11", "3.12", "3.13"]
     runs-on: ${{ matrix.os }}
     env:
       # CPU-only runners: avoid TensorFlow probing CUDA (noise + unstable kernels).
       CUDA_VISIBLE_DEVICES: "-1"
       TF_CPP_MIN_LOG_LEVEL: "2"
-      # examples extra requires TensorFlow, which only ships wheels through cp313 as of 2.20.0.
-      PYTHON_VERSIONS: "3.11 3.12 3.13"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
-      - name: Test notebooks on every supported Python
-        run: |
-          failed=""
-          for version in ${PYTHON_VERSIONS}; do
-            echo "::group::Python ${version}"
-            if uv sync --extra examples --extra tests --locked --python "${version}"; then
-              # Single-threaded: default treon parallelism loads TensorFlow in multiple kernels and OOMs on CI.
-              uv run treon --threads=1 || failed="${failed} ${version}"
-            else
-              failed="${failed} ${version}"
-            fi
-            echo "::endgroup::"
-          done
-          if [[ -n "${failed}" ]]; then
-            echo "::error::notebooks failed on Python:${failed}"
-            exit 1
-          fi
+          python-version: ${{ matrix.python-version }}
+          # TensorFlow is the bulk of this extra; key its wheel cache on the lockfile.
+          cache-dependency-glob: "uv.lock"
+      - name: Install ord_schema
+        run: uv sync --extra examples --extra tests --locked
+      - name: Test notebooks
+        # Single-threaded: default treon parallelism loads TensorFlow in multiple kernels and OOMs on CI.
+        run: uv run treon --threads=1
 
   test_proto_wrappers:
     runs-on: ubuntu-latest
