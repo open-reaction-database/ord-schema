@@ -43,41 +43,32 @@ jobs:
       PGDATA: ${{ github.workspace }}/rdkit-postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4
-        with:
-          # Miniforge, not Miniconda: everything here comes from conda-forge, and Miniconda
-          # implicitly adds Anaconda's `defaults` channel (which the runs warned about) with
-          # its own terms of use attached. Miniforge defaults to conda-forge alone, matching
-          # both the install below and the miniforge environments these tests run in locally.
-          miniforge-version: 'latest'
-          # setup-miniconda has no cache input of its own, so put the package directory
-          # somewhere predictable and cache it below.
-          pkgs-dirs: ~/conda_pkgs_dir
-      # Rotates weekly. hashFiles below pins the cache to our spec, but nothing in this repo
-      # changes when conda-forge publishes a newer rdkit-postgresql, and actions/cache does not
-      # re-save on an exact key hit -- so without a rotating component the entry would be frozen
-      # at the first version ever cached and quietly stop matching what conda resolves.
+      # Rotates the cache weekly. The action already appends a hash of the environment file to
+      # the key, so a spec change invalidates on its own -- but nothing in this repo changes
+      # when conda-forge publishes a newer rdkit-postgresql, and a cache entry is not re-saved
+      # once its key hits exactly. Without a rotating component the entry would stay pinned to
+      # the first build ever cached.
       - name: Compute weekly cache epoch
         id: cache-epoch
         run: echo "value=$(date -u +%Y-%V)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: mamba-org/setup-micromamba@ce51e99f4bb8a82ab7158c4dc59ef4634c59c4f9 # v3.1.0
         with:
-          path: ~/conda_pkgs_dir
-          key: conda-pkgs-${{ runner.os }}-${{ hashFiles('.github/conda-postgres.txt') }}-${{ steps.cache-epoch.outputs.value }}
-          # A rotated or respecified key still warm-starts from the nearest previous entry
-          # instead of downloading everything again.
-          restore-keys: |
-            conda-pkgs-${{ runner.os }}-${{ hashFiles('.github/conda-postgres.txt') }}-
-            conda-pkgs-${{ runner.os }}-
-      - name: Setup PostgreSQL
-        shell: bash -l {0}
-        run: |
-          # A bare `shell:` string is used verbatim, so -e is not applied; set it here or a
-          # failed conda install would be masked by whatever runs next.
-          set -eo pipefail
-          # NOTE(skearnes): conda is only used for postgres (not python).
-          conda install -c conda-forge --file .github/conda-postgres.txt
-          initdb
+          # micromamba over conda: the environment and download caches are built into the
+          # action -- keyed on a hash of this file plus the environment name and OS -- so there
+          # is no cache wiring to hand-roll, and conda-forge is the only channel by
+          # construction. Mambaforge, which used to be the way to get that, is retired; its
+          # configuration and Miniforge3's are identical now.
+          environment-file: .github/conda-postgres.yml
+          init-shell: bash
+          cache-environment: true
+          cache-downloads: true
+          cache-environment-key: conda-postgres-${{ steps.cache-epoch.outputs.value }}
+          cache-downloads-key: conda-postgres-downloads-${{ steps.cache-epoch.outputs.value }}
+      - name: Initialize the PostgreSQL data directory
+        # -l activates the environment installed above (so initdb resolves); -eo pipefail
+        # because a bare `shell:` string is used verbatim and would otherwise drop them.
+        shell: bash -leo pipefail {0}
+        run: initdb
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
@@ -91,16 +82,16 @@ jobs:
       - name: Install ord_schema
         run: uv sync --extra tests --locked
       - name: Run tests
-        shell: bash -l {0}
+        # -l activates the conda environment so testing.postgresql finds initdb; -eo pipefail
+        # because a bare `shell:` string is used verbatim, and without -e a failing pytest is
+        # masked by the coverage report below, whose exit code would become the step's.
+        shell: bash -leo pipefail {0}
         # Exercise the live PubChem/OPSIN resolver smoke tests on a single matrix
         # entry only; running them on all 8 jobs at once trips PubChem's per-IP
         # throttling (503 ServerBusy). Other entries skip them (see resolvers_test).
         env:
           ORD_LIVE_RESOLVERS: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
         run: |
-          # A bare `shell:` string is used verbatim, so -e is not applied. Without this a failing
-          # pytest is masked by the coverage report below, whose exit code becomes the step's.
-          set -eo pipefail
           uv run coverage erase
           # -n auto: each ORM test spins up its own testing.postgresql instance, so the suite is
           # parallel-safe; pytest-cov aggregates coverage across xdist workers.
