@@ -65,9 +65,9 @@ def test_reaction_row_is_null_where_the_source_is_silent():
     for column in (
         "yield_percent",
         "conversion_percent",
-        "temperature_k",
-        "pressure_kpa",
-        "time_s",
+        "temperature_kelvin",
+        "pressure_kilopascals",
+        "time_seconds",
         "doi",
         "patent",
     ):
@@ -200,7 +200,7 @@ def test_temperature_converts_to_kelvin(units_enum, value, expected):
     setpoint = reaction.conditions.temperature.setpoint
     setpoint.value, setpoint.units = value, units_enum
     row = views.reaction_row("x", reaction)
-    assert row["temperature_k"] == pytest.approx(expected)
+    assert row["temperature_kelvin"] == pytest.approx(expected)
 
 
 @pytest.mark.parametrize(
@@ -219,7 +219,7 @@ def test_pressure_converts_to_kilopascals(units_enum, value, expected):
     setpoint = reaction.conditions.pressure.setpoint
     setpoint.value, setpoint.units = value, units_enum
     row = views.reaction_row("x", reaction)
-    assert row["pressure_kpa"] == pytest.approx(expected, rel=1e-5)
+    assert row["pressure_kilopascals"] == pytest.approx(expected, rel=1e-5)
 
 
 @pytest.mark.parametrize(
@@ -235,13 +235,13 @@ def test_reaction_time_converts_to_seconds(units_enum, value, expected):
     reaction = _reaction()
     reaction_time = reaction.outcomes[0].reaction_time
     reaction_time.value, reaction_time.units = value, units_enum
-    assert views.reaction_row("x", reaction)["time_s"] == pytest.approx(expected)
+    assert views.reaction_row("x", reaction)["time_seconds"] == pytest.approx(expected)
 
 
 def test_measurements_with_unspecified_units_read_as_null():
     reaction = _reaction()
     reaction.conditions.temperature.setpoint.value = 300.0
-    assert views.reaction_row("x", reaction)["temperature_k"] is None
+    assert views.reaction_row("x", reaction)["temperature_kelvin"] is None
 
 
 def test_provenance_columns():
@@ -337,3 +337,23 @@ def test_write_view_leaves_an_existing_view_intact_on_failure(tmp_path, monkeypa
     assert output.read_bytes() == before
     # The temp sibling must not survive either.
     assert sorted(p.name for p in tmp_path.iterdir()) == ["ds.parquet", "view.parquet"]
+
+
+def test_trailing_whitespace_is_not_read_as_an_extension():
+    # Splitting on any whitespace would truncate this SMILES and report a CXSMILES
+    # block that is not there.
+    padded = "CC(=O)O.CCO>>CC(=O)OCC\xa0\xa0"
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
+    reaction.identifiers.add(type="REACTION_SMILES", value=padded)
+    row = views.reaction_row("ord-0001", reaction)
+    assert row["reaction_smiles"] == padded
+    assert row["reaction_cxsmiles"] is None
+
+
+def test_components_identified_only_by_cxsmiles_are_kept():
+    reaction = _reaction()
+    del reaction.inputs["a"]
+    compound = reaction_pb2.Compound()
+    compound.identifiers.add(type="CXSMILES", value="c1ccccc1 |f:0.1|")
+    reaction.inputs["a"].components.append(compound)
+    assert views.reaction_row("x", reaction)["input_smiles"] == ["c1ccccc1"]

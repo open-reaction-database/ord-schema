@@ -88,9 +88,9 @@ SCHEMA = pa.schema(
         pa.field("output_smiles", pa.list_(pa.string())),
         pa.field("yield_percent", pa.float32()),
         pa.field("conversion_percent", pa.float32()),
-        pa.field("temperature_k", pa.float32()),
-        pa.field("pressure_kpa", pa.float32()),
-        pa.field("time_s", pa.float32()),
+        pa.field("temperature_kelvin", pa.float32()),
+        pa.field("pressure_kilopascals", pa.float32()),
+        pa.field("time_seconds", pa.float32()),
         pa.field("doi", pa.string()),
         pa.field("patent", pa.string()),
     ]
@@ -118,7 +118,7 @@ def _canonical_value(message: ord_schema.UnitMessage, target: str) -> float | No
 def _outcome_values(
     reaction: reaction_pb2.Reaction,
 ) -> tuple[float | None, float | None, float | None]:
-    """Returns ``(yield_percent, conversion_percent, time_s)`` from the first outcome.
+    """Returns the first outcome's yield, conversion, and reaction time.
 
     Reactions with several outcomes keep the rest in the source.
     """
@@ -128,7 +128,7 @@ def _outcome_values(
     conversion = (
         outcome.conversion.value if outcome.conversion.HasField("value") else None
     )
-    time_s = _canonical_value(outcome.reaction_time, "s")
+    time_seconds = _canonical_value(outcome.reaction_time, "s")
     best_yield = None
     for product in outcome.products:
         for measurement in product.measurements:
@@ -141,7 +141,7 @@ def _outcome_values(
             value = measurement.percentage.value
             if best_yield is None or value > best_yield:
                 best_yield = value
-    return best_yield, conversion, time_s
+    return best_yield, conversion, time_seconds
 
 
 def _compound_smiles(
@@ -199,9 +199,9 @@ def reaction_smiles(reaction: reaction_pb2.Reaction) -> tuple[str | None, str | 
     SMILES reads as null rather than failing the whole view.
 
     An extension block is kept wherever it is found, including on an identifier typed
-    REACTION_SMILES. RDKit parses those extensions, so ``validate_reaction_identifier``
-    does not object to one recorded under the wrong type, which makes the identifier's
-    type too weak a signal to rely on here.
+    REACTION_SMILES, since RDKit parses those extensions and a value can carry one under
+    either type. Whitespace alone does not mark a block -- some records carry trailing
+    non-breaking spaces -- so ``message_helpers.split_cxsmiles_extension`` decides.
     """
     try:
         smiles = message_helpers.get_reaction_smiles(reaction, generate_if_missing=True)
@@ -209,10 +209,10 @@ def reaction_smiles(reaction: reaction_pb2.Reaction) -> tuple[str | None, str | 
         smiles = None
     if not smiles:
         return None, _stored_cxsmiles(reaction)
-    parts = smiles.split(maxsplit=1)
-    bare = parts[0] if parts else None
-    extension = smiles if len(parts) > 1 else None
-    return bare or None, _stored_cxsmiles(reaction) or extension
+    bare, extension = message_helpers.split_cxsmiles_extension(smiles)
+    return bare or None, _stored_cxsmiles(reaction) or (
+        smiles if extension is not None else None
+    )
 
 
 def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
@@ -225,7 +225,7 @@ def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
     Returns:
         A dict keyed by ``SCHEMA.names``, with None wherever the source is silent.
     """
-    yield_percent, conversion_percent, time_s = _outcome_values(reaction)
+    yield_percent, conversion_percent, time_seconds = _outcome_values(reaction)
     inputs, outputs = _component_smiles(reaction)
     smiles, cxsmiles = reaction_smiles(reaction)
     return {
@@ -236,11 +236,13 @@ def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
         "output_smiles": outputs,
         "yield_percent": yield_percent,
         "conversion_percent": conversion_percent,
-        "temperature_k": _canonical_value(
+        "temperature_kelvin": _canonical_value(
             reaction.conditions.temperature.setpoint, "K"
         ),
-        "pressure_kpa": _canonical_value(reaction.conditions.pressure.setpoint, "kPa"),
-        "time_s": time_s,
+        "pressure_kilopascals": _canonical_value(
+            reaction.conditions.pressure.setpoint, "kPa"
+        ),
+        "time_seconds": time_seconds,
         "doi": reaction.provenance.doi or None,
         "patent": reaction.provenance.patent or None,
     }
