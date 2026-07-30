@@ -408,6 +408,10 @@ def check_compound_identifiers(
 ) -> None:
     """Verifies that structural compound identifiers are consistent.
 
+    Compared through :func:`canonical_smiles`, so identifiers that disagree about
+    enhanced stereochemistry are inconsistent: they assert different things about the
+    molecule even though they share a skeleton.
+
     Args:
         compound: reaction_pb2.Compound message.
 
@@ -424,7 +428,7 @@ def check_compound_identifiers(
             raise ValueError(
                 f"invalid structural identifier for Compound: {identifier}"
             )
-        smiles.add(Chem.MolToSmiles(mol))
+        smiles.add(canonical_smiles(mol))
     if len(smiles) > 1:
         raise ValueError(f"structural identifiers are inconsistent: {smiles}")
 
@@ -436,8 +440,14 @@ def get_reaction_smiles(
     allow_unspecified_roles: bool = True,
     validate: bool = False,
     canonical: bool = True,
+    strip_extension: bool = False,
 ) -> str | None:
     """Fetches or generates a reaction SMILES.
+
+    A stored REACTION_CXSMILES identifier is returned whole, extension block and all, so
+    the result is not necessarily parseable as plain SMILES. Pass ``strip_extension`` to
+    get the SMILES half; ``split_cxsmiles_extension`` returns both parts if the block
+    itself is wanted.
 
     Args:
         message: reaction_pb2.Reaction message.
@@ -452,6 +462,8 @@ def get_reaction_smiles(
         validate: Boolean whether to validate the reaction SMILES with rdkit.
             Only used if allow_incomplete is False.
         canonical: Boolean whether to return a canonicalized reaction SMILES.
+        strip_extension: If True, drop a CXSMILES extension block from the result so it
+            is plain SMILES. Generated SMILES never carry one.
 
     Returns:
         Text reaction SMILES, or None.
@@ -465,6 +477,8 @@ def get_reaction_smiles(
     ]
     for identifier in message.identifiers:
         if identifier.type in types:
+            if strip_extension:
+                return split_cxsmiles_extension(identifier.value)[0]
             return identifier.value
     if not generate_if_missing:
         return None

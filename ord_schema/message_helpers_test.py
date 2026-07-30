@@ -813,3 +813,36 @@ def test_enhanced_stereochemistry_survives_smiles_from_compound():
     smiles = message_helpers.smiles_from_compound(compound)
     assert smiles == "C[C@H](N)O |o1:1|"
     assert Chem.MolFromSmiles(smiles) is not None
+
+
+@pytest.mark.parametrize(
+    ("value", "identifier_type", "strip", "expected"),
+    [
+        ("CCO>>CCO |f:0.1|", "REACTION_CXSMILES", False, "CCO>>CCO |f:0.1|"),
+        ("CCO>>CCO |f:0.1|", "REACTION_CXSMILES", True, "CCO>>CCO"),
+        # Padding is not an extension block, so nothing is dropped.
+        ("CCO>>CCO\xa0", "REACTION_SMILES", True, "CCO>>CCO\xa0"),
+        ("CCO>>CCO", "REACTION_SMILES", True, "CCO>>CCO"),
+    ],
+)
+def test_get_reaction_smiles_strip_extension(value, identifier_type, strip, expected):
+    reaction = reaction_pb2.Reaction()
+    reaction.identifiers.add(type=identifier_type, value=value)
+    actual = message_helpers.get_reaction_smiles(reaction, strip_extension=strip)
+    assert actual == expected
+
+
+def test_check_compound_identifiers_compares_enhanced_stereochemistry():
+    """Identifiers that disagree about stereo are not the same assertion."""
+    compound = reaction_pb2.Compound()
+    compound.identifiers.add(type="SMILES", value="C[C@H](N)O")
+    compound.identifiers.add(type="CXSMILES", value="C[C@H](N)O |o1:1|")
+    with pytest.raises(ValueError, match="inconsistent"):
+        message_helpers.check_compound_identifiers(compound)
+
+
+def test_check_compound_identifiers_accepts_matching_stereo_groups():
+    compound = reaction_pb2.Compound()
+    compound.identifiers.add(type="CXSMILES", value="C[C@H](N)O |o1:1|")
+    compound.identifiers.add(type="SMILES", value="C[C@H](N)O |o1:1|")
+    message_helpers.check_compound_identifiers(compound)
