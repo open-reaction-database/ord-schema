@@ -40,6 +40,9 @@ from ord_schema.proto import reaction_pb2
 
 _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,
+    # MolFromSmiles reads CXSMILES, so a compound identified that way is as structural
+    # as one identified by SMILES.
+    reaction_pb2.CompoundIdentifier.CXSMILES: Chem.MolFromSmiles,
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
@@ -325,6 +328,26 @@ def molblock_from_compound(
     return get_compound_molblock(compound) or Chem.MolToMolBlock(
         mol_from_compound(compound)
     )
+
+
+def split_cxsmiles_extension(value: str) -> tuple[str, str | None]:
+    """Splits a CXSMILES extension block off a value, if it has one.
+
+    CXSMILES appends the block after whitespace, introduced by ``|``. Whitespace alone
+    does not identify one -- records exist whose SMILES carry trailing non-breaking
+    spaces -- so a value whose remainder is not a block is returned intact rather than
+    truncated at the space.
+
+    Args:
+        value: A SMILES or CXSMILES string.
+
+    Returns:
+        ``(smiles, extension)``, where extension is None when there is no block.
+    """
+    tokens = value.split(maxsplit=1)
+    if len(tokens) == 2 and tokens[1].lstrip().startswith("|"):
+        return tokens[0], tokens[1]
+    return value, None
 
 
 def mol_from_compound(

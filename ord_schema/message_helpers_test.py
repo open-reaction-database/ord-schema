@@ -59,6 +59,7 @@ def test_structural_identifier_types():
     """STRUCTURAL_IDENTIFIER_TYPES mirrors _COMPOUND_IDENTIFIER_LOADERS exactly."""
     assert {
         "SMILES",
+        "CXSMILES",
         "INCHI",
         "MOLBLOCK",
     } == message_helpers.STRUCTURAL_IDENTIFIER_TYPES
@@ -764,3 +765,25 @@ class TestMessagesToDataFrame:
             expected,
             check_like=True,
         )
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("c1ccccc1 |f:0.1|", ("c1ccccc1", "|f:0.1|")),
+        ("c1ccccc1", ("c1ccccc1", None)),
+        # Trailing non-breaking spaces occur in real records; splitting there would
+        # truncate a valid SMILES and report a block that is not present.
+        ("c1ccccc1\xa0\xa0", ("c1ccccc1\xa0\xa0", None)),
+        ("c1ccccc1 benzene", ("c1ccccc1 benzene", None)),
+        ("", ("", None)),
+    ],
+)
+def test_split_cxsmiles_extension(value, expected):
+    assert message_helpers.split_cxsmiles_extension(value) == expected
+
+
+def test_cxsmiles_is_a_structural_identifier():
+    compound = reaction_pb2.Compound()
+    compound.identifiers.add(type="CXSMILES", value="c1ccccc1 |f:0.1|")
+    assert message_helpers.smiles_from_compound(compound) == "c1ccccc1"

@@ -681,14 +681,48 @@ def validate_reaction(
             warnings.warn("Reaction requires provenance", ValidationError)
 
 
+# Block formats whose leading and trailing newlines are part of the format.
+_WHITESPACE_EXEMPT_TYPES = frozenset(
+    {
+        reaction_pb2.CompoundIdentifier.MOLBLOCK,
+        reaction_pb2.CompoundIdentifier.XYZ,
+        reaction_pb2.ReactionIdentifier.RDFILE,
+    }
+)
+
+
+def _check_surrounding_whitespace(
+    message: reaction_pb2.CompoundIdentifier | reaction_pb2.ReactionIdentifier,
+) -> None:
+    """Warns when an identifier value is padded with whitespace.
+
+    Padding is invisible in most tooling and silently defeats the exact-match lookups
+    and joins these values exist for; non-breaking spaces in particular survive a
+    careless copy-paste.
+    """
+    if message.type in _WHITESPACE_EXEMPT_TYPES:
+        return
+    if message.value and message.value != message.value.strip():
+        warnings.warn("value has leading or trailing whitespace", ValidationWarning)
+
+
 def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier) -> None:
     """Validates a ReactionIdentifier's SMILES and atom-mapping consistency."""
     check_type_and_details(message)
+    _check_surrounding_whitespace(message)
     if message.type in [message.REACTION_SMILES, message.REACTION_CXSMILES]:
         if message.type == message.REACTION_CXSMILES:
-            smiles = message.value.split()[0]
+            smiles = message_helpers.split_cxsmiles_extension(message.value)[0]
         else:
-            smiles = message.value
+            # RDKit parses an extension block without complaint, so a value carrying
+            # one under this type would otherwise validate silently.
+            smiles, extension = message_helpers.split_cxsmiles_extension(message.value)
+            if extension is not None:
+                warnings.warn(
+                    "ReactionIdentifier is typed REACTION_SMILES but its value carries "
+                    "a CXSMILES extension block; use REACTION_CXSMILES",
+                    ValidationWarning,
+                )
         try:
             message_helpers.validate_reaction_smiles(smiles)
         except ValueError as error:
@@ -849,16 +883,35 @@ def validate_compound_preparation(message: reaction_pb2.CompoundPreparation) -> 
 def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier) -> None:
     """Validates a CompoundIdentifier's value and type-specific format."""
     check_type_and_details(message)
+    _check_surrounding_whitespace(message)
     if not message.value:
         warnings.warn("value must be set", ValidationError)
-    if message.type in (message.SMILES, message.INCHI, message.MOLBLOCK):
+    if message.type in (
+        message.SMILES,
+        message.CXSMILES,
+        message.INCHI,
+        message.MOLBLOCK,
+    ):
         parse_func, identifier_type = {
+            # MolFromSmiles reads CXSMILES too, so a CXSMILES identifier is validated
+            # whole -- extension included -- while a SMILES one is validated without
+            # the extension it should not be carrying.
             message.SMILES: (Chem.MolFromSmiles, "SMILES"),
+            message.CXSMILES: (Chem.MolFromSmiles, "CXSMILES"),
             message.INCHI: (Chem.MolFromInchi, "InChI"),
             message.MOLBLOCK: (Chem.MolFromMolBlock, "MolBlock"),
         }[message.type]
-        if parse_func(message.value) is None:
-            if parse_func(message.value, sanitize=False) is None:
+        value = message.value
+        if message.type == message.SMILES:
+            value, extension = message_helpers.split_cxsmiles_extension(message.value)
+            if extension is not None:
+                warnings.warn(
+                    "CompoundIdentifier is typed SMILES but its value carries a "
+                    "CXSMILES extension block; use CXSMILES",
+                    ValidationWarning,
+                )
+        if parse_func(value) is None:
+            if parse_func(value, sanitize=False) is None:
                 warnings.warn(
                     f"RDKit {RDKIT_VERSION} could not validate {identifier_type} "
                     f"identifier {message.value}",

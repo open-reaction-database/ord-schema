@@ -18,7 +18,7 @@ import warnings
 
 import pytest
 
-from ord_schema import validations
+from ord_schema import message_helpers, validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -492,6 +492,128 @@ def test_reaction_identifier_atom_mapping(value, is_mapped, expected):
     output = _run_validation(message)
     assert len(output.warnings) == 1
     assert expected in output.warnings[0]
+
+
+_CXSMILES = "CC(=O)O.CCO>>CC(=O)OCC |f:0.1|"
+
+
+def test_reaction_smiles_carrying_a_cxsmiles_extension_warns():
+    message = reaction_pb2.ReactionIdentifier(type="REACTION_SMILES", value=_CXSMILES)
+    output = _run_validation(message)
+    assert len(output.warnings) == 1
+    assert "use REACTION_CXSMILES" in output.warnings[0]
+
+
+def test_cxsmiles_under_its_own_type_is_not_flagged():
+    message = reaction_pb2.ReactionIdentifier(type="REACTION_CXSMILES", value=_CXSMILES)
+    output = _run_validation(message)
+    assert not output.warnings
+    assert not output.errors
+
+
+def test_reaction_smiles_is_validated_without_its_extension():
+    # Only the SMILES half is checked; the extension is not a reaction SMILES and
+    # validating the whole string would test something that is not one.
+    message = reaction_pb2.ReactionIdentifier(
+        type="REACTION_SMILES", value="notareaction |f:0.1|"
+    )
+    output = _run_validation(message, raise_on_error=False)
+    assert any("bad reaction SMILES" in error for error in output.errors)
+    assert not any("|f:0.1|" in error for error in output.errors)
+
+
+@pytest.mark.parametrize("identifier_type", ["REACTION_SMILES", "REACTION_CXSMILES"])
+def test_empty_reaction_identifier_reports_rather_than_raises(identifier_type):
+    # An empty CXSMILES value used to index off the end of an empty token list.
+    message = reaction_pb2.ReactionIdentifier(type=identifier_type, value="")
+    output = _run_validation(message, raise_on_error=False)
+    assert any("value must be set" in error for error in output.errors)
+
+
+_COMPOUND_CXSMILES = "c1ccccc1 |f:0.1|"
+
+
+def test_compound_smiles_carrying_a_cxsmiles_extension_warns():
+    message = reaction_pb2.CompoundIdentifier(type="SMILES", value=_COMPOUND_CXSMILES)
+    output = _run_validation(message)
+    assert len(output.warnings) == 1
+    assert "use CXSMILES" in output.warnings[0]
+
+
+def test_compound_cxsmiles_under_its_own_type_is_not_flagged():
+    message = reaction_pb2.CompoundIdentifier(type="CXSMILES", value=_COMPOUND_CXSMILES)
+    output = _run_validation(message)
+    assert not output.warnings
+    assert not output.errors
+
+
+def test_compound_cxsmiles_is_validated():
+    # CXSMILES identifiers were parsed by nothing, so an unparseable one passed.
+    message = reaction_pb2.CompoundIdentifier(type="CXSMILES", value="notamolecule")
+    output = _run_validation(message, raise_on_error=False)
+    assert any("could not validate CXSMILES" in error for error in output.errors)
+
+
+def test_compound_smiles_is_validated_without_its_extension():
+    message = reaction_pb2.CompoundIdentifier(
+        type="SMILES", value="notamolecule |f:0.1|"
+    )
+    output = _run_validation(message, raise_on_error=False)
+    assert any("could not validate SMILES" in error for error in output.errors)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("c1ccccc1 |f:0.1|", ("c1ccccc1", "|f:0.1|")),
+        ("c1ccccc1", ("c1ccccc1", None)),
+        # Trailing non-breaking spaces appear in real records; splitting there would
+        # truncate a valid SMILES and report a block that is not present.
+        ("c1ccccc1\xa0\xa0", ("c1ccccc1\xa0\xa0", None)),
+        ("c1ccccc1 benzene", ("c1ccccc1 benzene", None)),
+        ("", ("", None)),
+    ],
+)
+def test_split_cxsmiles_extension(value, expected):
+    assert message_helpers.split_cxsmiles_extension(value) == expected
+
+
+@pytest.mark.parametrize("identifier_type", ["SMILES", "CXSMILES"])
+def test_trailing_whitespace_is_not_treated_as_an_extension(identifier_type):
+    # Parsing only up to the whitespace would strip a stray byte off the SMILES and
+    # turn these into errors. It is still worth a warning, but not a parse failure.
+    message = reaction_pb2.CompoundIdentifier(
+        type=identifier_type, value="CCC(C)(C)[O-].[K+]\xc2\xa0\xc2\xa0"
+    )
+    output = _run_validation(message, raise_on_error=False)
+    assert not output.errors
+    assert output.warnings == [
+        "CompoundIdentifier: value has leading or trailing whitespace"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("value", "expected_warning"),
+    [
+        ("c1ccccc1 ", True),
+        (" c1ccccc1", True),
+        ("c1ccccc1\xa0", True),
+        ("c1ccccc1\n", True),
+        ("c1ccccc1", False),
+        ("", False),
+    ],
+)
+def test_compound_identifier_surrounding_whitespace(value, expected_warning):
+    message = reaction_pb2.CompoundIdentifier(type="SMILES", value=value)
+    output = _run_validation(message, raise_on_error=False)
+    warned = any("whitespace" in warning for warning in output.warnings)
+    assert warned is expected_warning
+
+
+def test_reaction_identifier_surrounding_whitespace():
+    message = reaction_pb2.ReactionIdentifier(type="REACTION_SMILES", value=" CO>>CC ")
+    output = _run_validation(message, raise_on_error=False)
+    assert any("whitespace" in warning for warning in output.warnings)
 
 
 def test_data_bad_url():
