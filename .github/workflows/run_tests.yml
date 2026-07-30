@@ -149,9 +149,11 @@ jobs:
         with:
           node-version: '24'
       - name: Install protoc
+        # Unpack outside the checkout. These binaries are not gitignored, so in the workspace
+        # they pollute the drift check below and `addlicense .` rewrites their headers.
         run: |
-          mkdir protoc
-          cd protoc
+          mkdir "${RUNNER_TEMP}/protoc"
+          cd "${RUNNER_TEMP}/protoc"
           wget https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-x86_64.zip
           echo "0f8070d762eb8a2f5a13a47713a553f989f9d9b556e7e3ebfa2bd6464e2ecaeb  protoc-22.3-linux-x86_64.zip" | sha256sum -c -
           unzip protoc-22.3-linux-x86_64.zip
@@ -159,7 +161,7 @@ jobs:
           echo "075ed6163fea314c415f67a4af68d1b6dbddc8fa8be35addf74e4c81812a9148  protobuf-javascript-3.21.2-linux-x86_64.zip" | sha256sum -c -
           unzip protobuf-javascript-3.21.2-linux-x86_64.zip
           npm i -g ts-protoc-gen@0.15.0 protobufjs@7.4.0 protobufjs-cli@1.1.3
-          PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH protoc --version
+          PATH="${RUNNER_TEMP}/protoc/bin:$PATH" protoc --version
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '>=1.16'
@@ -169,7 +171,7 @@ jobs:
         run: go install github.com/google/addlicense@v1.2.0
       - name: Run protoc
         run: |
-          PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH ./compile_proto_wrappers.sh
+          PATH="${RUNNER_TEMP}/protoc/bin:$PATH" ./compile_proto_wrappers.sh
           "${HOME}/go/bin/addlicense" -c "Open Reaction Database Project Authors" -l apache .
       - name: Check for drift
         run: |
