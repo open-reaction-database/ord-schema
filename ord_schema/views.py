@@ -194,13 +194,22 @@ def reaction_smiles(reaction: reaction_pb2.Reaction) -> tuple[str | None, str | 
     everything up to the first whitespace; the full string is returned separately rather
     than discarded. Generation is best-effort, and a reaction that cannot produce a
     SMILES reads as null rather than failing the whole view.
+
+    An extension block is kept wherever it is found, including on an identifier typed
+    REACTION_SMILES. RDKit parses those extensions, so ``validate_reaction_identifier``
+    does not object to one recorded under the wrong type, which makes the identifier's
+    type too weak a signal to rely on here.
     """
     try:
         smiles = message_helpers.get_reaction_smiles(reaction, generate_if_missing=True)
     except ValueError:
         smiles = None
-    bare = smiles.split()[0] if smiles else None
-    return bare or None, _stored_cxsmiles(reaction)
+    if not smiles:
+        return None, _stored_cxsmiles(reaction)
+    parts = smiles.split(maxsplit=1)
+    bare = parts[0] if parts else None
+    extension = smiles if len(parts) > 1 else None
+    return bare or None, _stored_cxsmiles(reaction) or extension
 
 
 def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:

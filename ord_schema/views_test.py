@@ -105,6 +105,16 @@ def test_plain_reaction_smiles_leaves_cxsmiles_null():
     assert views.reaction_row("ord-0001", _reaction())["reaction_cxsmiles"] is None
 
 
+def test_an_extension_on_a_reaction_smiles_identifier_is_kept():
+    # RDKit parses the extension, so validate_reaction_identifier does not object to
+    # one recorded under this type; the column must not silently drop it.
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
+    reaction.identifiers.add(type="REACTION_SMILES", value=_CXSMILES)
+    row = views.reaction_row("ord-0001", reaction)
+    assert row["reaction_smiles"] == "CC(=O)O.CCO>>CC(=O)OCC"
+    assert row["reaction_cxsmiles"] == _CXSMILES
+
+
 def test_component_smiles_are_canonicalized():
     reaction = _reaction()
     del reaction.inputs["a"]
