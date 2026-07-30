@@ -719,17 +719,16 @@ def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier) -> No
     check_type_and_details(message)
     _check_surrounding_whitespace(message)
     if message.type in [message.REACTION_SMILES, message.REACTION_CXSMILES]:
-        bare, _ = message_helpers.split_cxsmiles_extension(message.value)
-        if message.type == message.REACTION_CXSMILES:
-            # The extension is not validated here, matching CXSMILES handling before.
-            checked = bare
-        else:
+        # Parsed as recorded under either type: RDKit reads CXSMILES, and a malformed
+        # extension block is an error rather than something to strip and ignore.
+        if message.type == message.REACTION_SMILES:
             _check_cxsmiles_type(message.value, "REACTION_CXSMILES")
-            checked = message.value
         try:
-            message_helpers.validate_reaction_smiles(checked)
+            message_helpers.validate_reaction_smiles(message.value)
         except ValueError as error:
             warnings.warn(str(error), ValidationError)
+        # Atom maps live in the SMILES half, never in the extension block.
+        bare, _ = message_helpers.split_cxsmiles_extension(message.value)
         has_mapping = has_atom_mapping(bare)
         if message.is_mapped and not has_mapping:
             warnings.warn(

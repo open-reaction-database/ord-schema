@@ -516,6 +516,9 @@ def test_cxsmiles_under_its_own_type_is_not_flagged():
     [
         ("REACTION_SMILES", "CCO>>CCO |garbage|"),
         ("REACTION_SMILES", "notareaction |f:0.1|"),
+        # A malformed block is an error under its own type too.
+        ("REACTION_CXSMILES", "CCO>>CCO |garbage|"),
+        ("REACTION_CXSMILES", "notareaction |f:0.1|"),
     ],
 )
 def test_reaction_identifier_is_validated_as_recorded(identifier_type, value):
