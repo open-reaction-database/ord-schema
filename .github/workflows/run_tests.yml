@@ -45,7 +45,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4
         with:
-          miniconda-version: 'latest'
+          # Miniforge, not Miniconda: everything here comes from conda-forge, and Miniconda
+          # implicitly adds Anaconda's `defaults` channel (which the runs warned about) with
+          # its own terms of use attached. Miniforge defaults to conda-forge alone, matching
+          # both the install below and the miniforge environments these tests run in locally.
+          miniforge-version: 'latest'
           # setup-miniconda has no cache input of its own, so put the package directory
           # somewhere predictable and cache it below.
           pkgs-dirs: ~/conda_pkgs_dir
