@@ -20,15 +20,37 @@ on:
     branches:
       - main
 
+# Superseded PR runs are pointless work: a push replaces the commit under test. Cancel them
+# rather than letting a stale full matrix run to completion. Never cancel on main, where each
+# push's result is the record for that commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
 jobs:
   test_ord_schema:
     strategy:
+      # One job per OS covers every Python version, so a failure on one OS should not
+      # cancel the other and take three more interpreters' results with it.
+      fail-fast: false
       matrix:
         os: ["ubuntu-latest", "macos-14"]
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
     runs-on: ${{ matrix.os }}
     env:
-      PGDATA: $GITHUB_WORKSPACE/rdkit-postgres
+      # Only ${{ }} is expanded in env values, so $GITHUB_WORKSPACE here would stay a literal
+      # and initdb would create a directory named after the variable.
+      PGDATA: ${{ github.workspace }}/rdkit-postgres
+      # The interpreters to test, oldest first. uv fetches whichever are not already
+      # present, so no separate setup-python step is needed.
+      PYTHON_VERSIONS: "3.11 3.12 3.13 3.14"
+      # Exercise the live PubChem/OPSIN resolver smoke tests on a single interpreter and
+      # OS only; running them everywhere at once trips PubChem's per-IP throttling (503
+      # ServerBusy). Every other run skips them (see resolvers_test).
+      LIVE_RESOLVER_PYTHON: "3.12"
+      LIVE_RESOLVER_OS: ${{ matrix.os == 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4
@@ -37,60 +59,84 @@ jobs:
       - name: Setup PostgreSQL
         shell: bash -l {0}
         run: |
+          # A bare `shell:` string is used verbatim, so -e is not applied; set it here or a
+          # failed conda install would be masked by whatever runs next.
+          set -eo pipefail
           # NOTE(skearnes): conda is only used for postgres (not python).
           conda install -c conda-forge rdkit-postgresql
           initdb
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: ${{ matrix.python-version }}
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
-          python-version: ${{ matrix.python-version }}
-      - name: Install ord_schema
-        run: uv sync --extra tests --locked
-      - name: Run tests
+      - name: Run tests on every supported Python
+        # bash -l picks up the conda profile so initdb/postgres are on PATH. It also means
+        # no -e (see above), so every failure below is captured explicitly -- the loop must
+        # outlive one bad interpreter to report the rest.
         shell: bash -l {0}
-        # Exercise the live PubChem/OPSIN resolver smoke tests on a single matrix
-        # entry only; running them on all 8 jobs at once trips PubChem's per-IP
-        # throttling (503 ServerBusy). Other entries skip them (see resolvers_test).
-        env:
-          ORD_LIVE_RESOLVERS: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
         run: |
-          uv run coverage erase
-          # -n auto: each ORM test spins up its own testing.postgresql instance, so the suite is
-          # parallel-safe; pytest-cov aggregates coverage across xdist workers.
-          # -ra: summarize all non-passing outcomes (failures, errors, and skip reasons) at the end of the run --
-          # e.g. live resolver tests gated off this matrix entry vs. skipped on a PubChem 503.
-          uv run pytest -n auto -vv -ra --cov=ord_schema --durations=20
-          # Print the coverage summary in the job log (no external upload).
-          uv run coverage report
+          set -o pipefail
+          failed=""
+          for version in ${PYTHON_VERSIONS}; do
+            echo "::group::Python ${version}"
+            if [[ "${LIVE_RESOLVER_OS}" == "true" && "${version}" == "${LIVE_RESOLVER_PYTHON}" ]]; then
+              export ORD_LIVE_RESOLVERS=true
+            else
+              export ORD_LIVE_RESOLVERS=false
+            fi
+            if uv sync --extra tests --locked --python "${version}"; then
+              uv run coverage erase
+              # -n auto: each ORM test spins up its own testing.postgresql instance, so the suite is
+              # parallel-safe; pytest-cov aggregates coverage across xdist workers.
+              # -ra: summarize all non-passing outcomes (failures, errors, and skip reasons) at the end of the run --
+              # e.g. live resolver tests gated off this interpreter vs. skipped on a PubChem 503.
+              uv run pytest -n auto -vv -ra --cov=ord_schema --durations=20 \
+                || failed="${failed} ${version}"
+              # Print the coverage summary in the job log (no external upload).
+              uv run coverage report || true
+            else
+              failed="${failed} ${version}"
+            fi
+            echo "::endgroup::"
+          done
+          if [[ -n "${failed}" ]]; then
+            echo "::error::tests failed on Python:${failed}"
+            exit 1
+          fi
 
   test_notebooks:
     strategy:
+      fail-fast: false
       matrix:
         os: ["ubuntu-latest", "macos-14"]
-        # examples extra requires TensorFlow, which only ships wheels through cp313 as of 2.20.0.
-        python-version: ["3.11", "3.12", "3.13"]
     runs-on: ${{ matrix.os }}
     env:
       # CPU-only runners: avoid TensorFlow probing CUDA (noise + unstable kernels).
       CUDA_VISIBLE_DEVICES: "-1"
       TF_CPP_MIN_LOG_LEVEL: "2"
+      # examples extra requires TensorFlow, which only ships wheels through cp313 as of 2.20.0.
+      PYTHON_VERSIONS: "3.11 3.12 3.13"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: ${{ matrix.python-version }}
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
-          python-version: ${{ matrix.python-version }}
-      - name: Install ord_schema
-        run: uv sync --extra examples --extra tests --locked
-      - name: Test notebooks
-        # Single-threaded: default treon parallelism loads TensorFlow in multiple kernels and OOMs on CI.
-        run: uv run treon --threads=1
+      - name: Test notebooks on every supported Python
+        run: |
+          failed=""
+          for version in ${PYTHON_VERSIONS}; do
+            echo "::group::Python ${version}"
+            if uv sync --extra examples --extra tests --locked --python "${version}"; then
+              # Single-threaded: default treon parallelism loads TensorFlow in multiple kernels and OOMs on CI.
+              uv run treon --threads=1 || failed="${failed} ${version}"
+            else
+              failed="${failed} ${version}"
+            fi
+            echo "::endgroup::"
+          done
+          if [[ -n "${failed}" ]]; then
+            echo "::error::notebooks failed on Python:${failed}"
+            exit 1
+          fi
 
   test_proto_wrappers:
     runs-on: ubuntu-latest
@@ -118,15 +164,24 @@ jobs:
         with:
           go-version: '>=1.16'
       - name: Install addlicense
-        run: go install github.com/google/addlicense@latest
+        # Same pin as the check_licenses job in cleanup.yml: this job writes the headers that
+        # one checks, so a floating version could make them disagree.
+        run: go install github.com/google/addlicense@v1.2.0
       - name: Run protoc
         run: |
           PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH ./compile_proto_wrappers.sh
           "${HOME}/go/bin/addlicense" -c "Open Reaction Database Project Authors" -l apache .
       - name: Check for drift
         run: |
-          # Ignore the copyright line in the diff so the year can change.
-          [[ -z $(git diff -I "^(#| \*) Copyright") ]] || { echo "proto wrappers do not match:\n$(git diff)"; exit 1; }
+          # Stage everything first: git diff reports only tracked modifications, so a wrapper
+          # generated for a brand-new .proto is untracked and would register as no drift at all.
+          git add -A
+          # -I ignores the copyright line so the year can change without failing.
+          if ! git diff --cached --quiet -I "^(#| \*) Copyright"; then
+            printf 'proto wrappers do not match:\n'
+            git diff --cached -I "^(#| \*) Copyright"
+            exit 1
+          fi
 
   test_js:
     runs-on: ubuntu-latest
