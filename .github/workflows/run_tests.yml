@@ -46,20 +46,25 @@ jobs:
       - uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4
         with:
           miniconda-version: 'latest'
-      # Point conda at a cacheable package directory before anything installs, so the
-      # rdkit-postgresql tarballs below are restored rather than re-downloaded by all eight
-      # matrix jobs on every run.
-      - name: Use a cacheable conda package directory
-        shell: bash -l {0}
-        run: |
-          set -eo pipefail
-          conda config --add pkgs_dirs "${HOME}/conda_pkgs_dir"
+          # setup-miniconda has no cache input of its own, so put the package directory
+          # somewhere predictable and cache it below.
+          pkgs-dirs: ~/conda_pkgs_dir
+      # Rotates weekly. hashFiles below pins the cache to our spec, but nothing in this repo
+      # changes when conda-forge publishes a newer rdkit-postgresql, and actions/cache does not
+      # re-save on an exact key hit -- so without a rotating component the entry would be frozen
+      # at the first version ever cached and quietly stop matching what conda resolves.
+      - name: Compute weekly cache epoch
+        id: cache-epoch
+        run: echo "value=$(date -u +%Y-%V)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/conda_pkgs_dir
-          # Only rdkit-postgresql is installed, so the spec is the whole key. Bump the suffix
-          # to discard the cache deliberately.
-          key: conda-pkgs-${{ runner.os }}-rdkit-postgresql-v1
+          key: conda-pkgs-${{ runner.os }}-${{ hashFiles('.github/conda-postgres.txt') }}-${{ steps.cache-epoch.outputs.value }}
+          # A rotated or respecified key still warm-starts from the nearest previous entry
+          # instead of downloading everything again.
+          restore-keys: |
+            conda-pkgs-${{ runner.os }}-${{ hashFiles('.github/conda-postgres.txt') }}-
+            conda-pkgs-${{ runner.os }}-
       - name: Setup PostgreSQL
         shell: bash -l {0}
         run: |
@@ -67,7 +72,7 @@ jobs:
           # failed conda install would be masked by whatever runs next.
           set -eo pipefail
           # NOTE(skearnes): conda is only used for postgres (not python).
-          conda install -c conda-forge rdkit-postgresql
+          conda install -c conda-forge --file .github/conda-postgres.txt
           initdb
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:

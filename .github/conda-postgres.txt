@@ -1,0 +1,7 @@
+# Conda packages for the CI PostgreSQL used by the ORM tests, in requirements.txt format
+# (conda install --file). Conda is only used for postgres here, never for python.
+#
+# This lives in a file rather than inline in run_tests.yml so the workflow's package cache can
+# key on hashFiles() of it: the cache then refreshes exactly when this spec changes. Pin a
+# version here if CI ever needs to match a specific RDKit cartridge build.
+rdkit-postgresql
