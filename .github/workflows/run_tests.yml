@@ -20,6 +20,16 @@ on:
     branches:
       - main
 
+# Superseded PR runs are pointless work: a push replaces the commit under test. Cancel them
+# rather than letting a stale full matrix run to completion. Never cancel on main, where each
+# push's result is the record for that commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
 jobs:
   test_ord_schema:
     strategy:
@@ -28,18 +38,37 @@ jobs:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
     runs-on: ${{ matrix.os }}
     env:
-      PGDATA: $GITHUB_WORKSPACE/rdkit-postgres
+      # Only ${{ }} is expanded in env values, so $GITHUB_WORKSPACE here would stay a literal
+      # and initdb would create a directory named after the variable.
+      PGDATA: ${{ github.workspace }}/rdkit-postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4
+      # Rotates the cache weekly. The action already appends a hash of the environment file to
+      # the key, so a spec change invalidates on its own -- but nothing in this repo changes
+      # when conda-forge publishes a newer rdkit-postgresql, and a cache entry is not re-saved
+      # once its key hits exactly. Without a rotating component the entry would stay pinned to
+      # the first build ever cached.
+      - name: Compute weekly cache epoch
+        id: cache-epoch
+        run: echo "value=$(date -u +%Y-%V)" >> "$GITHUB_OUTPUT"
+      - uses: mamba-org/setup-micromamba@ce51e99f4bb8a82ab7158c4dc59ef4634c59c4f9 # v3.1.0
         with:
-          miniconda-version: 'latest'
-      - name: Setup PostgreSQL
-        shell: bash -l {0}
-        run: |
-          # NOTE(skearnes): conda is only used for postgres (not python).
-          conda install -c conda-forge rdkit-postgresql
-          initdb
+          # micromamba over conda: the environment and download caches are built into the
+          # action -- keyed on a hash of this file plus the environment name and OS -- so there
+          # is no cache wiring to hand-roll, and conda-forge is the only channel by
+          # construction. Mambaforge, which used to be the way to get that, is retired; its
+          # configuration and Miniforge3's are identical now.
+          environment-file: .github/conda-postgres.yml
+          init-shell: bash
+          cache-environment: true
+          cache-downloads: true
+          cache-environment-key: conda-postgres-${{ steps.cache-epoch.outputs.value }}
+          cache-downloads-key: conda-postgres-downloads-${{ steps.cache-epoch.outputs.value }}
+      - name: Initialize the PostgreSQL data directory
+        # -l activates the environment installed above (so initdb resolves); -eo pipefail
+        # because a bare `shell:` string is used verbatim and would otherwise drop them.
+        shell: bash -leo pipefail {0}
+        run: initdb
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
@@ -47,10 +76,16 @@ jobs:
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
+          # Key the wheel cache on the lockfile so a dependency bump, and only a dependency
+          # bump, misses.
+          cache-dependency-glob: "uv.lock"
       - name: Install ord_schema
         run: uv sync --extra tests --locked
       - name: Run tests
-        shell: bash -l {0}
+        # -l activates the conda environment so testing.postgresql finds initdb; -eo pipefail
+        # because a bare `shell:` string is used verbatim, and without -e a failing pytest is
+        # masked by the coverage report below, whose exit code would become the step's.
+        shell: bash -leo pipefail {0}
         # Exercise the live PubChem/OPSIN resolver smoke tests on a single matrix
         # entry only; running them on all 8 jobs at once trips PubChem's per-IP
         # throttling (503 ServerBusy). Other entries skip them (see resolvers_test).
@@ -86,6 +121,8 @@ jobs:
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
+          # TensorFlow is the bulk of this extra; key its wheel cache on the lockfile.
+          cache-dependency-glob: "uv.lock"
       - name: Install ord_schema
         run: uv sync --extra examples --extra tests --locked
       - name: Test notebooks
@@ -103,9 +140,11 @@ jobs:
         with:
           node-version: '24'
       - name: Install protoc
+        # Unpack outside the checkout. These binaries are not gitignored, so in the workspace
+        # they pollute the drift check below and `addlicense .` rewrites their headers.
         run: |
-          mkdir protoc
-          cd protoc
+          mkdir "${RUNNER_TEMP}/protoc"
+          cd "${RUNNER_TEMP}/protoc"
           wget https://github.com/protocolbuffers/protobuf/releases/download/v22.3/protoc-22.3-linux-x86_64.zip
           echo "0f8070d762eb8a2f5a13a47713a553f989f9d9b556e7e3ebfa2bd6464e2ecaeb  protoc-22.3-linux-x86_64.zip" | sha256sum -c -
           unzip protoc-22.3-linux-x86_64.zip
@@ -113,20 +152,29 @@ jobs:
           echo "075ed6163fea314c415f67a4af68d1b6dbddc8fa8be35addf74e4c81812a9148  protobuf-javascript-3.21.2-linux-x86_64.zip" | sha256sum -c -
           unzip protobuf-javascript-3.21.2-linux-x86_64.zip
           npm i -g ts-protoc-gen@0.15.0 protobufjs@7.4.0 protobufjs-cli@1.1.3
-          PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH protoc --version
+          PATH="${RUNNER_TEMP}/protoc/bin:$PATH" protoc --version
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '>=1.16'
       - name: Install addlicense
-        run: go install github.com/google/addlicense@latest
+        # Same pin as the check_licenses job in cleanup.yml: this job writes the headers that
+        # one checks, so a floating version could make them disagree.
+        run: go install github.com/google/addlicense@v1.2.0
       - name: Run protoc
         run: |
-          PATH=$GITHUB_WORKSPACE/protoc/bin:$PATH ./compile_proto_wrappers.sh
+          PATH="${RUNNER_TEMP}/protoc/bin:$PATH" ./compile_proto_wrappers.sh
           "${HOME}/go/bin/addlicense" -c "Open Reaction Database Project Authors" -l apache .
       - name: Check for drift
         run: |
-          # Ignore the copyright line in the diff so the year can change.
-          [[ -z $(git diff -I "^(#| \*) Copyright") ]] || { echo "proto wrappers do not match:\n$(git diff)"; exit 1; }
+          # Stage everything first: git diff reports only tracked modifications, so a wrapper
+          # generated for a brand-new .proto is untracked and would register as no drift at all.
+          git add -A
+          # -I ignores the copyright line so the year can change without failing.
+          if ! git diff --cached --quiet -I "^(#| \*) Copyright"; then
+            printf 'proto wrappers do not match:\n'
+            git diff --cached -I "^(#| \*) Copyright"
+            exit 1
+          fi
 
   test_js:
     runs-on: ubuntu-latest
