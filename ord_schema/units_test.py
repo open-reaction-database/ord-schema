@@ -13,7 +13,10 @@
 # limitations under the License.
 """Tests for ord_schema.units."""
 
+import typing
+
 import pytest
+from google.protobuf import descriptor
 
 import ord_schema
 from ord_schema import units
@@ -319,3 +322,127 @@ def test_format_message(message, expected):
 def test_format_message_unspecified_returns_none():
     # Default-constructed message has UNSPECIFIED units.
     assert units.format_message(reaction_pb2.Mass()) is None
+
+
+@pytest.mark.parametrize(
+    ("string", "expected"),
+    [
+        (
+            "760 torr",
+            reaction_pb2.Pressure(value=760, units=reaction_pb2.Pressure.TORR),
+        ),
+        (
+            "760 Torr",
+            reaction_pb2.Pressure(value=760, units=reaction_pb2.Pressure.TORR),
+        ),
+        (
+            "760 mmHg",
+            reaction_pb2.Pressure(value=760, units=reaction_pb2.Pressure.MM_HG),
+        ),
+        (
+            "760 mm Hg",
+            reaction_pb2.Pressure(value=760, units=reaction_pb2.Pressure.MM_HG),
+        ),
+    ],
+)
+def test_resolve_mercury_pressure_units(resolver, string, expected):
+    assert resolver.resolve(string) == expected
+
+
+@pytest.mark.parametrize(
+    "units_enum", [reaction_pb2.Pressure.TORR, reaction_pb2.Pressure.MM_HG]
+)
+def test_convert_mercury_pressure_units(resolver, units_enum):
+    # 1 atm is 760 torr and, to the precision reaction data carries, 760 mmHg.
+    message = reaction_pb2.Pressure(value=760, units=units_enum)
+    assert resolver.convert(message, "atm").value == pytest.approx(1.0)
+    assert resolver.convert(message, "kPa").value == pytest.approx(101.325, rel=1e-6)
+
+
+def _unit_enum_values(message_type):
+    """Returns {enum value: name} for a united message, minus UNSPECIFIED."""
+    descriptor = message_type.DESCRIPTOR
+    return {
+        value.number: value.name
+        for enum_type in descriptor.enum_types
+        for value in enum_type.values
+        if value.name != "UNSPECIFIED"
+    }
+
+
+def _united_message_types():
+    """Returns every message in the schema carrying a value and a units enum.
+
+    Read from the proto descriptor rather than from any hand-maintained list, so that a
+    united message added to the schema is covered without a second edit here.
+    """
+    types = []
+    for message_descriptor in reaction_pb2.DESCRIPTOR.message_types_by_name.values():
+        fields = {field.name: field for field in message_descriptor.fields}
+        units_field = fields.get("units")
+        if (
+            units_field is not None
+            and units_field.type == descriptor.FieldDescriptor.TYPE_ENUM
+            and "value" in fields
+        ):
+            types.append(getattr(reaction_pb2, message_descriptor.name))
+    return types
+
+
+# The checks below are parametrized from the schema, not from the tables under test:
+# driving them from _UNIT_CONVERSIONS or _UNIT_SYNONYMS would generate no case at all
+# for a message type missing from those, which is the failure they exist to catch. They
+# assert on behavior, so it also does not matter which mechanism implements a
+# conversion -- Temperature goes through Celsius and Wavelength through a wavenumber
+# reciprocal, neither of which appears in _UNIT_CONVERSIONS.
+_UNITED_MESSAGE_TYPES = _united_message_types()
+
+
+def test_unit_message_alias_covers_the_schema():
+    """``ord_schema.UnitMessage`` lists exactly the schema's united messages."""
+    assert set(typing.get_args(ord_schema.UnitMessage)) == set(_UNITED_MESSAGE_TYPES)
+
+
+def _synonyms_for(message_type):
+    """Returns the synonym table covering a united message type.
+
+    Concentration spellings ("M", "molar") are ambiguous with mass and mole spellings,
+    so they live in a separate table used by a separate resolver.
+    """
+    if message_type in units.CONCENTRATION_UNIT_SYNONYMS:
+        return units.CONCENTRATION_UNIT_SYNONYMS
+    return units._UNIT_SYNONYMS
+
+
+@pytest.mark.parametrize(
+    "message_type", _UNITED_MESSAGE_TYPES, ids=lambda t: t.__name__
+)
+def test_every_unit_resolves_from_its_spellings(message_type):
+    """Every unit in the schema has at least one usable spelling that maps back to it.
+
+    Checked through ``resolve_unit`` rather than ``resolve``: a few spellings ("ul/s",
+    "cm^-1") carry characters the value-plus-unit pattern does not accept, so they are
+    reachable only when the unit is supplied on its own.
+    """
+    synonyms = _synonyms_for(message_type)
+    resolver = units.UnitResolver(unit_synonyms=synonyms)
+    for value, name in _unit_enum_values(message_type).items():
+        spellings = synonyms.get(message_type, {}).get(value)
+        assert spellings, f"{message_type.__name__}.{name} has no spelling"
+        # "M" for molar collides with meter/minute and is forbidden outright.
+        usable = [s for s in spellings if s.lower() not in units._FORBIDDEN_UNITS]
+        assert usable, f"{message_type.__name__}.{name} has no usable spelling"
+        for spelling in usable:
+            assert resolver.resolve_unit(spelling) == (message_type, value)
+
+
+@pytest.mark.parametrize(
+    "message_type", _UNITED_MESSAGE_TYPES, ids=lambda t: t.__name__
+)
+def test_every_unit_converts_to_every_other(resolver, message_type):
+    """Every pair of units within a message type converts."""
+    unit_values = list(_unit_enum_values(message_type))
+    for source in unit_values:
+        message = message_type(value=1.0, units=source)
+        for target in unit_values:
+            assert resolver.convert(message, target).units == target
