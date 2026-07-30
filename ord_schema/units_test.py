@@ -415,7 +415,7 @@ def test_every_unit_resolves_from_its_spellings(message_type):
     "message_type", _UNITED_MESSAGE_TYPES, ids=lambda t: t.__name__
 )
 def test_every_unit_converts_to_every_other(resolver, message_type):
-    """Every pair of units within a message type converts; two types once could not."""
+    """Every pair of units within a message type converts."""
     unit_values = list(_unit_enum_values(message_type))
     for source in unit_values:
         message = message_type(value=1.0, units=source)
