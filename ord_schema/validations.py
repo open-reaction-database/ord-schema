@@ -694,16 +694,26 @@ _WHITESPACE_EXEMPT_TYPES = frozenset(
 def _check_surrounding_whitespace(
     message: reaction_pb2.CompoundIdentifier | reaction_pb2.ReactionIdentifier,
 ) -> None:
-    """Warns when an identifier value is padded with whitespace.
-
-    Padding is invisible in most tooling and silently defeats the exact-match lookups
-    and joins these values exist for; non-breaking spaces in particular survive a
-    careless copy-paste.
-    """
+    """Warns when an identifier value is padded, which defeats exact-match lookups."""
     if message.type in _WHITESPACE_EXEMPT_TYPES:
         return
     if message.value and message.value != message.value.strip():
         warnings.warn("value has leading or trailing whitespace", ValidationWarning)
+
+
+def _smiles_without_extension(value: str, cxsmiles_type: str) -> str:
+    """Returns the SMILES half of a value, warning if it carries a CXSMILES block.
+
+    RDKit parses the block, so one recorded under a plain SMILES type would otherwise
+    validate silently.
+    """
+    smiles, extension = message_helpers.split_cxsmiles_extension(value)
+    if extension is not None:
+        warnings.warn(
+            f"value carries a CXSMILES extension block; use {cxsmiles_type}",
+            ValidationWarning,
+        )
+    return smiles
 
 
 def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier) -> None:
@@ -714,15 +724,7 @@ def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier) -> No
         if message.type == message.REACTION_CXSMILES:
             smiles = message_helpers.split_cxsmiles_extension(message.value)[0]
         else:
-            # RDKit parses an extension block without complaint, so a value carrying
-            # one under this type would otherwise validate silently.
-            smiles, extension = message_helpers.split_cxsmiles_extension(message.value)
-            if extension is not None:
-                warnings.warn(
-                    "ReactionIdentifier is typed REACTION_SMILES but its value carries "
-                    "a CXSMILES extension block; use REACTION_CXSMILES",
-                    ValidationWarning,
-                )
+            smiles = _smiles_without_extension(message.value, "REACTION_CXSMILES")
         try:
             message_helpers.validate_reaction_smiles(smiles)
         except ValueError as error:
@@ -892,10 +894,9 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier) -> No
         message.INCHI,
         message.MOLBLOCK,
     ):
+        # MolFromSmiles reads CXSMILES, so a CXSMILES identifier validates whole while
+        # a SMILES one validates without the extension it should not be carrying.
         parse_func, identifier_type = {
-            # MolFromSmiles reads CXSMILES too, so a CXSMILES identifier is validated
-            # whole -- extension included -- while a SMILES one is validated without
-            # the extension it should not be carrying.
             message.SMILES: (Chem.MolFromSmiles, "SMILES"),
             message.CXSMILES: (Chem.MolFromSmiles, "CXSMILES"),
             message.INCHI: (Chem.MolFromInchi, "InChI"),
@@ -903,13 +904,7 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier) -> No
         }[message.type]
         value = message.value
         if message.type == message.SMILES:
-            value, extension = message_helpers.split_cxsmiles_extension(message.value)
-            if extension is not None:
-                warnings.warn(
-                    "CompoundIdentifier is typed SMILES but its value carries a "
-                    "CXSMILES extension block; use CXSMILES",
-                    ValidationWarning,
-                )
+            value = _smiles_without_extension(message.value, "CXSMILES")
         if parse_func(value) is None:
             if parse_func(value, sanitize=False) is None:
                 warnings.warn(

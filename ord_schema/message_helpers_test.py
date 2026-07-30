@@ -787,3 +787,29 @@ def test_cxsmiles_is_a_structural_identifier():
     compound = reaction_pb2.Compound()
     compound.identifiers.add(type="CXSMILES", value="c1ccccc1 |f:0.1|")
     assert message_helpers.smiles_from_compound(compound) == "c1ccccc1"
+
+
+@pytest.mark.parametrize(
+    ("smiles", "expected"),
+    [
+        # Nothing to preserve: byte-identical to MolToSmiles.
+        ("c1ccccc1", "c1ccccc1"),
+        ("C[C@H](N)O", "C[C@H](N)O"),
+        # Enhanced stereochemistry cannot be written as plain SMILES, so it stays.
+        ("C[C@H](N)O |a:1|", "C[C@H](N)O |a:1|"),
+        ("C[C@H](N)O |o1:1|", "C[C@H](N)O |o1:1|"),
+        # Presentation and provenance fields are dropped.
+        ("c1ccccc1 |$_R1;;;;;$|", "c1ccccc1"),
+        ("CC |(0,0,;1,0,)|", "CC"),
+    ],
+)
+def test_canonical_smiles_keeps_only_enhanced_stereochemistry(smiles, expected):
+    assert message_helpers.canonical_smiles(Chem.MolFromSmiles(smiles)) == expected
+
+
+def test_enhanced_stereochemistry_survives_smiles_from_compound():
+    compound = reaction_pb2.Compound()
+    compound.identifiers.add(type="CXSMILES", value="C[C@H](N)O |o1:1|")
+    smiles = message_helpers.smiles_from_compound(compound)
+    assert smiles == "C[C@H](N)O |o1:1|"
+    assert Chem.MolFromSmiles(smiles) is not None

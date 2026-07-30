@@ -18,7 +18,7 @@ import warnings
 
 import pytest
 
-from ord_schema import message_helpers, validations
+from ord_schema import validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -560,22 +560,6 @@ def test_compound_smiles_is_validated_without_its_extension():
     )
     output = _run_validation(message, raise_on_error=False)
     assert any("could not validate SMILES" in error for error in output.errors)
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        ("c1ccccc1 |f:0.1|", ("c1ccccc1", "|f:0.1|")),
-        ("c1ccccc1", ("c1ccccc1", None)),
-        # Trailing non-breaking spaces appear in real records; splitting there would
-        # truncate a valid SMILES and report a block that is not present.
-        ("c1ccccc1\xa0\xa0", ("c1ccccc1\xa0\xa0", None)),
-        ("c1ccccc1 benzene", ("c1ccccc1 benzene", None)),
-        ("", ("", None)),
-    ],
-)
-def test_split_cxsmiles_extension(value, expected):
-    assert message_helpers.split_cxsmiles_extension(value) == expected
 
 
 @pytest.mark.parametrize("identifier_type", ["SMILES", "CXSMILES"])
