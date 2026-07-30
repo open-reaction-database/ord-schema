@@ -13,6 +13,8 @@
 # limitations under the License.
 """Tests for ord_schema.units."""
 
+import typing
+
 import pytest
 
 import ord_schema
@@ -367,23 +369,55 @@ def _unit_enum_values(message_type):
     }
 
 
-@pytest.mark.parametrize("message_type", list(units._UNIT_CONVERSIONS))
-def test_every_unit_is_convertible(message_type):
-    """Every unit in the schema must be convertible; Pressure once was not."""
-    missing = {
-        name
-        for value, name in _unit_enum_values(message_type).items()
-        if value not in units._UNIT_CONVERSIONS[message_type]
-    }
-    assert not missing
+# Parametrized from the schema rather than from the tables under test: driving these
+# from _UNIT_CONVERSIONS or _UNIT_SYNONYMS would generate no case at all for a message
+# type missing from them, which is the failure they exist to catch. Both assert on
+# behavior, so it does not matter which mechanism implements a conversion -- Temperature
+# goes through Celsius and Wavelength through a wavenumber reciprocal, neither of which
+# appears in _UNIT_CONVERSIONS.
+_UNITED_MESSAGE_TYPES = typing.get_args(ord_schema.UnitMessage)
 
 
-@pytest.mark.parametrize("message_type", list(units._UNIT_SYNONYMS))
-def test_every_unit_is_resolvable(message_type):
-    """Every unit in the schema must have at least one spelling to parse from."""
-    missing = {
-        name
-        for value, name in _unit_enum_values(message_type).items()
-        if value not in units._UNIT_SYNONYMS[message_type]
-    }
-    assert not missing
+def _synonyms_for(message_type):
+    """Returns the synonym table covering a united message type.
+
+    Concentration spellings ("M", "molar") are ambiguous with mass and mole spellings,
+    so they live in a separate table used by a separate resolver.
+    """
+    if message_type in units.CONCENTRATION_UNIT_SYNONYMS:
+        return units.CONCENTRATION_UNIT_SYNONYMS
+    return units._UNIT_SYNONYMS
+
+
+@pytest.mark.parametrize(
+    "message_type", _UNITED_MESSAGE_TYPES, ids=lambda t: t.__name__
+)
+def test_every_unit_resolves_from_its_spellings(message_type):
+    """Every unit in the schema has at least one usable spelling that maps back to it.
+
+    Checked through ``resolve_unit`` rather than ``resolve``: a few spellings ("ul/s",
+    "cm^-1") carry characters the value-plus-unit pattern does not accept, so they are
+    reachable only when the unit is supplied on its own.
+    """
+    synonyms = _synonyms_for(message_type)
+    resolver = units.UnitResolver(unit_synonyms=synonyms)
+    for value, name in _unit_enum_values(message_type).items():
+        spellings = synonyms.get(message_type, {}).get(value)
+        assert spellings, f"{message_type.__name__}.{name} has no spelling"
+        # "M" for molar collides with meter/minute and is forbidden outright.
+        usable = [s for s in spellings if s.lower() not in units._FORBIDDEN_UNITS]
+        assert usable, f"{message_type.__name__}.{name} has no usable spelling"
+        for spelling in usable:
+            assert resolver.resolve_unit(spelling) == (message_type, value)
+
+
+@pytest.mark.parametrize(
+    "message_type", _UNITED_MESSAGE_TYPES, ids=lambda t: t.__name__
+)
+def test_every_unit_converts_to_every_other(resolver, message_type):
+    """Every pair of units within a message type converts; two types once could not."""
+    unit_values = list(_unit_enum_values(message_type))
+    for source in unit_values:
+        message = message_type(value=1.0, units=source)
+        for target in unit_values:
+            assert resolver.convert(message, target).units == target

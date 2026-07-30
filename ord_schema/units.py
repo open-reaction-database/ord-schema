@@ -163,6 +163,14 @@ _WAVENUMBER_NM_CM = 1e7
 _UNIT_CONVERSIONS: dict[
     type[ord_schema.UnitMessage], dict[ProtoEnumMember, int | float]
 ] = {
+    # Concentration spellings live in CONCENTRATION_UNIT_SYNONYMS because "M" and
+    # "molar" collide with mass and mole spellings, but conversion is keyed by message
+    # type, so there is nothing to keep apart here.
+    reaction_pb2.Concentration: {
+        reaction_pb2.Concentration.MOLAR: 1,
+        reaction_pb2.Concentration.MILLIMOLAR: 0.001,
+        reaction_pb2.Concentration.MICROMOLAR: 0.000001,
+    },
     reaction_pb2.Time: {
         reaction_pb2.Time.DAY: 24,
         reaction_pb2.Time.HOUR: 1,
