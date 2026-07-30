@@ -77,9 +77,54 @@ def test_reaction_row_is_null_where_the_source_is_silent():
 def test_reaction_smiles_is_generated_when_not_stored():
     reaction = _reaction()
     del reaction.identifiers[:]
-    assert views.reaction_row("ord-0001", reaction)["reaction_smiles"] == (
-        "c1ccccc1>>Cc1ccccc1"
-    )
+    row = views.reaction_row("ord-0001", reaction)
+    assert row["reaction_smiles"] == "c1ccccc1>>Cc1ccccc1"
+    assert row["reaction_cxsmiles"] is None
+
+
+_CXSMILES = "CC(=O)O.CCO>>CC(=O)OCC |f:0.1|"
+
+
+def test_cxsmiles_is_split_from_the_bare_smiles():
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
+    reaction.identifiers.add(type="REACTION_CXSMILES", value=_CXSMILES)
+    row = views.reaction_row("ord-0001", reaction)
+    assert row["reaction_smiles"] == "CC(=O)O.CCO>>CC(=O)OCC"
+    assert row["reaction_cxsmiles"] == _CXSMILES
+
+
+def test_both_reaction_identifiers_populate_their_own_columns():
+    reaction = _reaction()
+    reaction.identifiers.add(type="REACTION_CXSMILES", value=_CXSMILES)
+    row = views.reaction_row("ord-0001", reaction)
+    assert row["reaction_smiles"] == "c1ccccc1>>Cc1ccccc1"
+    assert row["reaction_cxsmiles"] == _CXSMILES
+
+
+def test_plain_reaction_smiles_leaves_cxsmiles_null():
+    assert views.reaction_row("ord-0001", _reaction())["reaction_cxsmiles"] is None
+
+
+def test_component_smiles_are_canonicalized():
+    reaction = _reaction()
+    del reaction.inputs["a"]
+    reaction.inputs["a"].components.append(_compound("C1=CC=CC=C1"))
+    assert views.reaction_row("x", reaction)["input_smiles"] == ["c1ccccc1"]
+
+
+def test_component_smiles_derive_from_other_structural_identifiers():
+    reaction = _reaction()
+    del reaction.inputs["a"]
+    compound = reaction_pb2.Compound()
+    compound.identifiers.add(type="INCHI", value="InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H")
+    reaction.inputs["a"].components.append(compound)
+    assert views.reaction_row("x", reaction)["input_smiles"] == ["c1ccccc1"]
+
+
+def test_unparseable_component_smiles_are_skipped():
+    reaction = _reaction()
+    reaction.inputs["a"].components.append(_compound("not-a-smiles"))
+    assert views.reaction_row("x", reaction)["input_smiles"] == ["c1ccccc1"]
 
 
 def test_reaction_smiles_is_null_when_it_cannot_be_generated():
