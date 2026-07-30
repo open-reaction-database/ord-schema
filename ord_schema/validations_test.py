@@ -494,6 +494,42 @@ def test_reaction_identifier_atom_mapping(value, is_mapped, expected):
     assert expected in output.warnings[0]
 
 
+_CXSMILES = "CC(=O)O.CCO>>CC(=O)OCC |f:0.1|"
+
+
+def test_reaction_smiles_carrying_a_cxsmiles_extension_warns():
+    message = reaction_pb2.ReactionIdentifier(type="REACTION_SMILES", value=_CXSMILES)
+    output = _run_validation(message)
+    assert len(output.warnings) == 1
+    assert "use REACTION_CXSMILES" in output.warnings[0]
+
+
+def test_cxsmiles_under_its_own_type_is_not_flagged():
+    message = reaction_pb2.ReactionIdentifier(type="REACTION_CXSMILES", value=_CXSMILES)
+    output = _run_validation(message)
+    assert not output.warnings
+    assert not output.errors
+
+
+def test_reaction_smiles_is_validated_without_its_extension():
+    # Only the SMILES half is checked; the extension is not a reaction SMILES and
+    # validating the whole string would test something that is not one.
+    message = reaction_pb2.ReactionIdentifier(
+        type="REACTION_SMILES", value="notareaction |f:0.1|"
+    )
+    output = _run_validation(message, raise_on_error=False)
+    assert any("bad reaction SMILES" in error for error in output.errors)
+    assert not any("|f:0.1|" in error for error in output.errors)
+
+
+@pytest.mark.parametrize("identifier_type", ["REACTION_SMILES", "REACTION_CXSMILES"])
+def test_empty_reaction_identifier_reports_rather_than_raises(identifier_type):
+    # An empty CXSMILES value used to index off the end of an empty token list.
+    message = reaction_pb2.ReactionIdentifier(type=identifier_type, value="")
+    output = _run_validation(message, raise_on_error=False)
+    assert any("value must be set" in error for error in output.errors)
+
+
 def test_data_bad_url():
     message = reaction_pb2.Data(url="not a url")
     output = _run_validation(message)

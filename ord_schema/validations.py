@@ -685,10 +685,17 @@ def validate_reaction_identifier(message: reaction_pb2.ReactionIdentifier) -> No
     """Validates a ReactionIdentifier's SMILES and atom-mapping consistency."""
     check_type_and_details(message)
     if message.type in [message.REACTION_SMILES, message.REACTION_CXSMILES]:
-        if message.type == message.REACTION_CXSMILES:
-            smiles = message.value.split()[0]
-        else:
-            smiles = message.value
+        # CXSMILES writes an extension block after a space. Validate the SMILES half
+        # whichever type it arrives under: RDKit parses the extension without
+        # complaint, so the type alone does not establish that there is none.
+        tokens = message.value.split(maxsplit=1)
+        smiles = tokens[0] if tokens else ""
+        if len(tokens) > 1 and message.type == message.REACTION_SMILES:
+            warnings.warn(
+                "ReactionIdentifier is typed REACTION_SMILES but its value carries a "
+                "CXSMILES extension block; use REACTION_CXSMILES",
+                ValidationWarning,
+            )
         try:
             message_helpers.validate_reaction_smiles(smiles)
         except ValueError as error:
