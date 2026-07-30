@@ -25,8 +25,8 @@ shape what may be added here:
 
 * **No policy columns.** If a value depends on a threshold, cutoff, or classification
   that a reasonable consumer might set differently, it belongs in that consumer's query,
-  not in the view. ``yield_pct < 5`` is theirs to write; ``is_negative_result`` would be
-  ours to impose.
+  not in the view. ``yield_percent < 5`` is theirs to write; ``is_negative_result``
+  would be ours to impose.
 * **No models, services, or weights.** Anything that cannot be recomputed offline from
   the source plus pinned open tooling -- reaction class labels, learned atom maps, a DOI
   expanded through Crossref -- is a different kind of artifact and does not belong in a
@@ -46,7 +46,7 @@ Where the projection has to make a choice, it is documented rather than inferred
 * ``input_smiles`` visits inputs in sorted key order, matching reaction SMILES
   generation, so the column is stable across runs rather than following map iteration
   order.
-* ``yield_pct`` is the largest YIELD percentage measured on any product of the first
+* ``yield_percent`` is the largest YIELD percentage measured on any product of the first
   outcome. Reactions with several outcomes keep the rest in the source.
 * Measurements are converted to one canonical unit per column (kelvin, kilopascals,
   seconds); a measurement in units the schema cannot convert reads as null.
@@ -86,8 +86,8 @@ SCHEMA = pa.schema(
         pa.field("reaction_cxsmiles", pa.string()),
         pa.field("input_smiles", pa.list_(pa.string())),
         pa.field("output_smiles", pa.list_(pa.string())),
-        pa.field("yield_pct", pa.float32()),
-        pa.field("conversion_pct", pa.float32()),
+        pa.field("yield_percent", pa.float32()),
+        pa.field("conversion_percent", pa.float32()),
         pa.field("temperature_k", pa.float32()),
         pa.field("pressure_kpa", pa.float32()),
         pa.field("time_s", pa.float32()),
@@ -118,7 +118,10 @@ def _canonical_value(message: ord_schema.UnitMessage, target: str) -> float | No
 def _outcome_values(
     reaction: reaction_pb2.Reaction,
 ) -> tuple[float | None, float | None, float | None]:
-    """Returns ``(yield_pct, conversion_pct, time_s)`` from the first outcome."""
+    """Returns ``(yield_percent, conversion_percent, time_s)`` from the first outcome.
+
+    Reactions with several outcomes keep the rest in the source.
+    """
     if not reaction.outcomes:
         return None, None, None
     outcome = reaction.outcomes[0]
@@ -222,7 +225,7 @@ def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
     Returns:
         A dict keyed by ``SCHEMA.names``, with None wherever the source is silent.
     """
-    yield_pct, conversion_pct, time_s = _outcome_values(reaction)
+    yield_percent, conversion_percent, time_s = _outcome_values(reaction)
     inputs, outputs = _component_smiles(reaction)
     smiles, cxsmiles = reaction_smiles(reaction)
     return {
@@ -231,8 +234,8 @@ def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
         "reaction_cxsmiles": cxsmiles,
         "input_smiles": inputs,
         "output_smiles": outputs,
-        "yield_pct": yield_pct,
-        "conversion_pct": conversion_pct,
+        "yield_percent": yield_percent,
+        "conversion_percent": conversion_percent,
         "temperature_k": _canonical_value(
             reaction.conditions.temperature.setpoint, "K"
         ),

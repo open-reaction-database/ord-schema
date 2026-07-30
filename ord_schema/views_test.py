@@ -63,8 +63,8 @@ def test_reaction_row_projects_the_documented_columns():
 def test_reaction_row_is_null_where_the_source_is_silent():
     row = views.reaction_row("ord-0001", _reaction())
     for column in (
-        "yield_pct",
-        "conversion_pct",
+        "yield_percent",
+        "conversion_percent",
         "temperature_k",
         "pressure_kpa",
         "time_s",
@@ -167,14 +167,14 @@ def test_yield_takes_the_largest_measurement_on_any_product():
     for value in (12.0, 87.5, 40.0):
         measurement = outcome.products[0].measurements.add(type="YIELD")
         measurement.percentage.value = value
-    assert views.reaction_row("x", reaction)["yield_pct"] == pytest.approx(87.5)
+    assert views.reaction_row("x", reaction)["yield_percent"] == pytest.approx(87.5)
 
 
 def test_non_yield_measurements_are_ignored():
     reaction = _reaction()
     measurement = reaction.outcomes[0].products[0].measurements.add(type="PURITY")
     measurement.percentage.value = 99.0
-    assert views.reaction_row("x", reaction)["yield_pct"] is None
+    assert views.reaction_row("x", reaction)["yield_percent"] is None
 
 
 def test_yield_comes_from_the_first_outcome():
@@ -184,7 +184,7 @@ def test_yield_comes_from_the_first_outcome():
     ).percentage.value = 10.0
     second = reaction.outcomes.add()
     second.products.add().measurements.add(type="YIELD").percentage.value = 90.0
-    assert views.reaction_row("x", reaction)["yield_pct"] == pytest.approx(10.0)
+    assert views.reaction_row("x", reaction)["yield_percent"] == pytest.approx(10.0)
 
 
 @pytest.mark.parametrize(
