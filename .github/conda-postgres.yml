@@ -1,0 +1,25 @@
+# Copyright 2026 Open Reaction Database Project Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Conda environment for the CI PostgreSQL the ORM tests run against. Conda is only used for
+# postgres here, never for python -- the interpreter under test comes from uv.
+#
+# setup-micromamba installs this and derives its cache key from a hash of this file, so the
+# cached environment refreshes exactly when the spec below changes. Pin a version here if CI
+# ever needs to match a specific RDKit cartridge build.
+name: ci-postgres
+channels:
+  - conda-forge
+dependencies:
+  - rdkit-postgresql
