@@ -79,40 +79,47 @@ def test_reaction_smiles_is_generated_when_not_stored():
     del reaction.identifiers[:]
     row = views.reaction_row("ord-0001", reaction)
     assert row["reaction_smiles"] == "c1ccccc1>>Cc1ccccc1"
-    assert row["reaction_cxsmiles"] is None
 
 
 _CXSMILES = "CC(=O)O.CCO>>CC(=O)OCC |f:0.1|"
 
 
-def test_cxsmiles_is_split_from_the_bare_smiles():
+def test_stored_reaction_cxsmiles_is_used_whole():
     reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
     reaction.identifiers.add(type="REACTION_CXSMILES", value=_CXSMILES)
-    row = views.reaction_row("ord-0001", reaction)
-    assert row["reaction_smiles"] == "CC(=O)O.CCO>>CC(=O)OCC"
-    assert row["reaction_cxsmiles"] == _CXSMILES
+    assert views.reaction_row("ord-0001", reaction)["reaction_smiles"] == _CXSMILES
 
 
-def test_both_reaction_identifiers_populate_their_own_columns():
+def test_cxsmiles_is_preferred_over_plain_smiles():
+    # CXSMILES is a superset, so the richer identifier wins regardless of the order
+    # the two appear in.
     reaction = _reaction()
     reaction.identifiers.add(type="REACTION_CXSMILES", value=_CXSMILES)
-    row = views.reaction_row("ord-0001", reaction)
-    assert row["reaction_smiles"] == "c1ccccc1>>Cc1ccccc1"
-    assert row["reaction_cxsmiles"] == _CXSMILES
+    assert views.reaction_row("ord-0001", reaction)["reaction_smiles"] == _CXSMILES
 
 
-def test_plain_reaction_smiles_leaves_cxsmiles_null():
-    assert views.reaction_row("ord-0001", _reaction())["reaction_cxsmiles"] is None
+def test_plain_reaction_smiles_is_used_when_that_is_all_there_is():
+    assert (
+        views.reaction_row("ord-0001", _reaction())["reaction_smiles"]
+        == "c1ccccc1>>Cc1ccccc1"
+    )
 
 
-def test_an_extension_on_a_reaction_smiles_identifier_is_kept():
-    # RDKit parses the extension, so validate_reaction_identifier does not object to
-    # one recorded under this type; the column must not silently drop it.
+def test_trailing_whitespace_is_preserved_rather_than_truncated():
+    padded = "CC(=O)O.CCO>>CC(=O)OCC\xa0\xa0"
     reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
-    reaction.identifiers.add(type="REACTION_SMILES", value=_CXSMILES)
-    row = views.reaction_row("ord-0001", reaction)
-    assert row["reaction_smiles"] == "CC(=O)O.CCO>>CC(=O)OCC"
-    assert row["reaction_cxsmiles"] == _CXSMILES
+    reaction.identifiers.add(type="REACTION_SMILES", value=padded)
+    assert views.reaction_row("ord-0001", reaction)["reaction_smiles"] == padded
+
+
+def test_component_cxsmiles_is_preferred_over_plain_smiles():
+    reaction = _reaction()
+    del reaction.inputs["a"]
+    compound = reaction_pb2.Compound()
+    compound.identifiers.add(type="SMILES", value="C[C@H](N)O")
+    compound.identifiers.add(type="CXSMILES", value="C[C@H](N)O |o1:1|")
+    reaction.inputs["a"].components.append(compound)
+    assert views.reaction_row("x", reaction)["input_smiles"] == ["C[C@H](N)O |o1:1|"]
 
 
 def test_component_smiles_are_canonicalized():
@@ -337,17 +344,6 @@ def test_write_view_leaves_an_existing_view_intact_on_failure(tmp_path, monkeypa
     assert output.read_bytes() == before
     # The temp sibling must not survive either.
     assert sorted(p.name for p in tmp_path.iterdir()) == ["ds.parquet", "view.parquet"]
-
-
-def test_trailing_whitespace_is_not_read_as_an_extension():
-    # Splitting on any whitespace would truncate this SMILES and report a CXSMILES
-    # block that is not there.
-    padded = "CC(=O)O.CCO>>CC(=O)OCC\xa0\xa0"
-    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
-    reaction.identifiers.add(type="REACTION_SMILES", value=padded)
-    row = views.reaction_row("ord-0001", reaction)
-    assert row["reaction_smiles"] == padded
-    assert row["reaction_cxsmiles"] is None
 
 
 def test_components_identified_only_by_cxsmiles_are_kept():
