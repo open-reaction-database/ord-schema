@@ -67,7 +67,7 @@ def test_reaction_row_is_null_where_the_source_is_silent():
         "conversion_percent",
         "temperature_kelvin",
         "pressure_kilopascals",
-        "time_seconds",
+        "reaction_time_seconds",
         "doi",
         "patent",
     ):
@@ -242,7 +242,9 @@ def test_reaction_time_converts_to_seconds(units_enum, value, expected):
     reaction = _reaction()
     reaction_time = reaction.outcomes[0].reaction_time
     reaction_time.value, reaction_time.units = value, units_enum
-    assert views.reaction_row("x", reaction)["time_seconds"] == pytest.approx(expected)
+    assert views.reaction_row("x", reaction)["reaction_time_seconds"] == pytest.approx(
+        expected
+    )
 
 
 def test_measurements_with_unspecified_units_read_as_null():

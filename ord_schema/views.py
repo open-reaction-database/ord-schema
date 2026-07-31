@@ -50,6 +50,12 @@ Where the projection has to make a choice, it is documented rather than inferred
   order.
 * ``yield_percent`` is the largest YIELD percentage measured on any product of the first
   outcome. Reactions with several outcomes keep the rest in the source.
+* Each measurement column names exactly one source field, since the schema offers
+  several plausible readings of each: ``temperature_kelvin`` and
+  ``pressure_kilopascals`` are the ``conditions`` *setpoints*, not achieved values, and
+  ``reaction_time_seconds`` is ``ReactionOutcome.reaction_time`` -- one of six
+  Time-typed fields, alongside addition, workup, observation, and retention times, none
+  of which appear here.
 * Measurements are converted to one canonical unit per column (kelvin, kilopascals,
   seconds); a measurement in units the schema cannot convert reads as null.
 
@@ -92,7 +98,7 @@ SCHEMA = pa.schema(
         pa.field("conversion_percent", pa.float32()),
         pa.field("temperature_kelvin", pa.float32()),
         pa.field("pressure_kilopascals", pa.float32()),
-        pa.field("time_seconds", pa.float32()),
+        pa.field("reaction_time_seconds", pa.float32()),
         pa.field("doi", pa.string()),
         pa.field("patent", pa.string()),
     ]
@@ -140,7 +146,7 @@ def _outcome_values(
     conversion = (
         outcome.conversion.value if outcome.conversion.HasField("value") else None
     )
-    time_seconds = _canonical_value(outcome.reaction_time, "s")
+    reaction_time_seconds = _canonical_value(outcome.reaction_time, "s")
     best_yield = None
     for product in outcome.products:
         for measurement in product.measurements:
@@ -153,7 +159,7 @@ def _outcome_values(
             value = measurement.percentage.value
             if best_yield is None or value > best_yield:
                 best_yield = value
-    return best_yield, conversion, time_seconds
+    return best_yield, conversion, reaction_time_seconds
 
 
 def _stored_value(
@@ -240,7 +246,7 @@ def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
     Returns:
         A dict keyed by ``SCHEMA.names``, with None wherever the source is silent.
     """
-    yield_percent, conversion_percent, time_seconds = _outcome_values(reaction)
+    yield_percent, conversion_percent, reaction_time_seconds = _outcome_values(reaction)
     inputs, outputs = _component_smiles(reaction)
     return {
         "reaction_id": reaction_id,
@@ -255,7 +261,7 @@ def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
         "pressure_kilopascals": _canonical_value(
             reaction.conditions.pressure.setpoint, "kPa"
         ),
-        "time_seconds": time_seconds,
+        "reaction_time_seconds": reaction_time_seconds,
         "doi": reaction.provenance.doi or None,
         "patent": reaction.provenance.patent or None,
     }
