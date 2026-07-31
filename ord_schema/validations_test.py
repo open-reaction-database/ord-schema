@@ -18,7 +18,7 @@ import warnings
 
 import pytest
 
-from ord_schema import message_helpers, validations
+from ord_schema import validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -511,15 +511,29 @@ def test_cxsmiles_under_its_own_type_is_not_flagged():
     assert not output.errors
 
 
-def test_reaction_smiles_is_validated_without_its_extension():
-    # Only the SMILES half is checked; the extension is not a reaction SMILES and
-    # validating the whole string would test something that is not one.
-    message = reaction_pb2.ReactionIdentifier(
-        type="REACTION_SMILES", value="notareaction |f:0.1|"
-    )
+@pytest.mark.parametrize(
+    ("identifier_type", "value"),
+    [
+        ("REACTION_SMILES", "CCO>>CCO |garbage|"),
+        ("REACTION_SMILES", "notareaction |f:0.1|"),
+        # A malformed block is an error under its own type too.
+        ("REACTION_CXSMILES", "CCO>>CCO |garbage|"),
+        ("REACTION_CXSMILES", "notareaction |f:0.1|"),
+    ],
+)
+def test_reaction_identifier_is_validated_as_recorded(identifier_type, value):
+    # Stripping the block before parsing would let a malformed one through with only
+    # an advisory warning.
+    message = reaction_pb2.ReactionIdentifier(type=identifier_type, value=value)
     output = _run_validation(message, raise_on_error=False)
     assert any("bad reaction SMILES" in error for error in output.errors)
-    assert not any("|f:0.1|" in error for error in output.errors)
+
+
+@pytest.mark.parametrize("value", ["c1ccccc1 |garbage|", "c1ccccc1 |$|"])
+def test_compound_identifier_is_validated_as_recorded(value):
+    message = reaction_pb2.CompoundIdentifier(type="SMILES", value=value)
+    output = _run_validation(message, raise_on_error=False)
+    assert any("could not validate SMILES" in error for error in output.errors)
 
 
 @pytest.mark.parametrize("identifier_type", ["REACTION_SMILES", "REACTION_CXSMILES"])
@@ -560,22 +574,6 @@ def test_compound_smiles_is_validated_without_its_extension():
     )
     output = _run_validation(message, raise_on_error=False)
     assert any("could not validate SMILES" in error for error in output.errors)
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        ("c1ccccc1 |f:0.1|", ("c1ccccc1", "|f:0.1|")),
-        ("c1ccccc1", ("c1ccccc1", None)),
-        # Trailing non-breaking spaces appear in real records; splitting there would
-        # truncate a valid SMILES and report a block that is not present.
-        ("c1ccccc1\xa0\xa0", ("c1ccccc1\xa0\xa0", None)),
-        ("c1ccccc1 benzene", ("c1ccccc1 benzene", None)),
-        ("", ("", None)),
-    ],
-)
-def test_split_cxsmiles_extension(value, expected):
-    assert message_helpers.split_cxsmiles_extension(value) == expected
 
 
 @pytest.mark.parametrize("identifier_type", ["SMILES", "CXSMILES"])
