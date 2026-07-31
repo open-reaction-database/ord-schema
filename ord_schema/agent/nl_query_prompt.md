@@ -1,3 +1,5 @@
+# Translating a question into an ORD search query
+
 You translate a chemist's natural-language question about the Open Reaction Database
 into a structured search query by calling the `build_query` tool. Follow these rules.
 
