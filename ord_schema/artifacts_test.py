@@ -1,0 +1,210 @@
+# Copyright 2026 Open Reaction Database Project Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Tests for ord_schema.artifacts."""
+
+import pathlib
+
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pytest
+
+from ord_schema import artifacts, parquet
+from ord_schema.proto import dataset_pb2, reaction_pb2
+
+
+def _write(path, metadata):
+    schema = pa.schema([pa.field("x", pa.int32())]).with_metadata(metadata)
+    pq.write_table(pa.table({"x": [1]}, schema=schema), path)
+
+
+def _valid_metadata(**overrides):
+    metadata = {
+        "ord.artifact": "view",
+        "ord.artifact_version": artifacts.ARTIFACT_VERSION,
+        "ord.source_md5": "0" * 32,
+        "ord.ord_schema_version": "9.9.9",
+        "ord.source_dataset_id": "ord_dataset-1",
+    }
+    metadata.update(overrides)
+    return metadata
+
+
+# Stamps
+
+
+def test_stamps_carries_the_current_versions():
+    value = artifacts.stamps("view", "ord_dataset-1", "abc")
+    assert value.artifact == "view"
+    assert value.artifact_version == artifacts.ARTIFACT_VERSION
+    assert value.ord_schema_version
+
+
+def test_to_metadata_omits_a_missing_dataset_id():
+    metadata = artifacts.to_metadata(artifacts.stamps("view", None, "abc"))
+    assert "ord.source_dataset_id" not in metadata
+    assert metadata["ord.source_md5"] == "abc"
+
+
+def test_load_stamps_round_trips(tmp_path):
+    path = tmp_path / "artifact.parquet"
+    _write(path, _valid_metadata())
+    stamps = artifacts.load_stamps(path)
+    assert stamps.artifact == "view"
+    assert stamps.source_dataset_id == "ord_dataset-1"
+    assert stamps.source_md5 == "0" * 32
+
+
+def test_load_stamps_tolerates_a_missing_dataset_id(tmp_path):
+    path = tmp_path / "artifact.parquet"
+    metadata = _valid_metadata()
+    del metadata["ord.source_dataset_id"]
+    _write(path, metadata)
+    assert artifacts.load_stamps(path).source_dataset_id is None
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "ord.artifact",
+        "ord.artifact_version",
+        "ord.source_md5",
+        "ord.ord_schema_version",
+    ],
+)
+def test_load_stamps_names_every_missing_key(tmp_path, missing):
+    path = tmp_path / "artifact.parquet"
+    metadata = _valid_metadata()
+    del metadata[missing]
+    _write(path, metadata)
+    with pytest.raises(ValueError, match=missing):
+        artifacts.load_stamps(path)
+
+
+def test_load_stamps_rejects_a_file_with_no_metadata(tmp_path):
+    path = tmp_path / "plain.parquet"
+    pq.write_table(pa.table({"x": [1]}), path)
+    with pytest.raises(ValueError, match="not a derived artifact"):
+        artifacts.load_stamps(path)
+
+
+# Output paths
+
+
+@pytest.mark.parametrize(
+    ("pattern", "expected"),
+    [
+        ("data/*/*.parquet", "data"),
+        ("data/**/*.parquet", "data"),
+        ("a/b/c/*.parquet", "a/b/c"),
+        # No wildcard: the last component is the file, so the root holds it.
+        ("data/aa/one.parquet", "data/aa"),
+        ("one.parquet", ""),
+    ],
+)
+def test_glob_root(pattern, expected):
+    assert artifacts.glob_root(pattern) == pathlib.PurePath(expected)
+
+
+def test_output_path_mirrors_the_input_layout():
+    assert artifacts.output_path(
+        "data/aa/ord_dataset-x.parquet", "data/*/*.parquet", "views"
+    ) == pathlib.Path("views/aa/ord_dataset-x.parquet")
+
+
+def test_output_path_for_an_exact_filename_writes_into_the_directory():
+    # Regression: consuming the filename as a fixed component made this the output
+    # directory itself rather than a file inside it.
+    assert artifacts.output_path(
+        "data/aa/one.parquet", "data/aa/one.parquet", "views"
+    ) == pathlib.Path("views/one.parquet")
+
+
+# Driver
+
+
+def _fake_source(path):
+    """Writes a minimal but genuine ORD dataset; derive_tree hashes it via parquet."""
+    reaction = reaction_pb2.Reaction(reaction_id="ord-1")
+    reaction.identifiers.add(type="REACTION_SMILES", value="C>>CO")
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-1",
+            name="test",
+            description="test dataset",
+            reactions=[reaction],
+        ),
+        path,
+    )
+
+
+def test_derive_tree_raises_when_nothing_matches(tmp_path):
+    with pytest.raises(ValueError, match="no datasets matched"):
+        artifacts.derive_tree(
+            str(tmp_path / "*.parquet"),
+            str(tmp_path / "out"),
+            artifact="view",
+            write=lambda *args, **kwargs: 0,
+        )
+
+
+def test_derive_tree_writes_one_artifact_per_source(tmp_path):
+    for name in ("aa", "bb"):
+        (tmp_path / name).mkdir()
+        _fake_source(tmp_path / name / "source.parquet")
+    written_paths = []
+
+    def _write_one(source, output, *, source_md5):
+        del source, source_md5  # Unused.
+        written_paths.append(output)
+        pathlib.Path(output).write_bytes(b"")
+        return 1
+
+    written, skipped = artifacts.derive_tree(
+        str(tmp_path / "*" / "*.parquet"),
+        str(tmp_path / "out"),
+        artifact="view",
+        write=_write_one,
+    )
+    assert (written, skipped) == (2, 0)
+    assert {path.parent.name for path in written_paths} == {"aa", "bb"}
+
+
+def test_derive_tree_skips_current_artifacts_unless_forced(tmp_path, monkeypatch):
+    (tmp_path / "aa").mkdir()
+    _fake_source(tmp_path / "aa" / "source.parquet")
+    calls = []
+
+    def _write_one(source, output, *, source_md5):
+        del source, source_md5  # Unused.
+        calls.append(output)
+        pathlib.Path(output).write_bytes(b"")
+        return 1
+
+    monkeypatch.setattr(artifacts, "is_current", lambda *args: True)
+    assert artifacts.derive_tree(
+        str(tmp_path / "*" / "*.parquet"),
+        str(tmp_path / "out"),
+        artifact="view",
+        write=_write_one,
+    ) == (0, 1)
+    assert not calls
+    assert artifacts.derive_tree(
+        str(tmp_path / "*" / "*.parquet"),
+        str(tmp_path / "out"),
+        artifact="view",
+        write=_write_one,
+        force=True,
+    ) == (1, 0)
+    assert len(calls) == 1
