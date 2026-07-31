@@ -1,0 +1,140 @@
+# Copyright 2026 Open Reaction Database Project Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Evaluation cases for natural-language query translation. Each case pairs a question
+# with the structured interpretation the model is expected to produce. Component
+# identifiers are compared by structure: SMARTS and SMILES are canonicalized with RDKit
+# so equivalent patterns match, while names RDKit cannot parse fall back to a case- and
+# whitespace-insensitive string compare (so a dropped locant -- aminophenol instead of
+# 4-aminophenol -- still fails). Numeric filters are checked when present and must be
+# absent otherwise.
+
+- question: reactions for synthesizing ibuprofen
+  expect:
+    components:
+      - identifier: ibuprofen
+        target: OUTPUT
+        mode: EXACT
+
+- question: reactions using benzene as an input with yield greater than 70%
+  expect:
+    components:
+      - identifier: benzene
+        target: INPUT
+        mode: EXACT
+    min_yield: 70
+
+- question: find reactions that make aspirin with at least 90% yield
+  expect:
+    components:
+      - identifier: aspirin
+        target: OUTPUT
+        mode: EXACT
+    min_yield: 90
+
+- question: reactions producing molecules similar to morphine
+  expect:
+    components:
+      - identifier: morphine
+        target: OUTPUT
+        mode: SIMILAR
+
+- question: reactions with a pyridine ring in the product
+  expect:
+    components:
+      - identifier: c1ccncc1
+        target: OUTPUT
+        mode: SUBSTRUCTURE
+
+- question: reactions converting toluene with conversion below 50%
+  expect:
+    components:
+      - identifier: toluene
+        target: INPUT
+        mode: EXACT
+    max_conversion: 50
+
+- question: reactions using benzaldehyde and aniline as inputs
+  expect:
+    components:
+      - identifier: benzaldehyde
+        target: INPUT
+        mode: EXACT
+      - identifier: aniline
+        target: INPUT
+        mode: EXACT
+
+- question: reactions to make acetaminophen from 4-aminophenol
+  expect:
+    components:
+      - identifier: acetaminophen
+        target: OUTPUT
+        mode: EXACT
+      - identifier: 4-aminophenol
+        target: INPUT
+        mode: EXACT
+
+- question: reactions making ethyl acetate with yield between 40 and 60 percent
+  expect:
+    components:
+      - identifier: ethyl acetate
+        target: OUTPUT
+        mode: EXACT
+    min_yield: 40
+    max_yield: 60
+
+- question: reactions that use palladium acetate as a catalyst
+  expect:
+    components:
+      - identifier: palladium acetate
+        target: INPUT
+        mode: EXACT
+
+# SMILES given directly by the user are passed through verbatim as the identifier.
+- question: reactions using CCO as a reactant
+  expect:
+    components:
+      - identifier: CCO
+        target: INPUT
+        mode: EXACT
+
+- question: reactions that produce O=C(C)Oc1ccccc1C(=O)O
+  expect:
+    components:
+      - identifier: O=C(C)Oc1ccccc1C(=O)O
+        target: OUTPUT
+        mode: EXACT
+
+- question: reactions whose products contain C(=O)O
+  expect:
+    components:
+      - identifier: C(=O)O
+        target: OUTPUT
+        mode: SUBSTRUCTURE
+
+# Element/functional-group classes are never sent to the resolver; the model writes a
+# SMARTS pattern itself (the prompt gives these exact patterns as examples).
+- question: reactions producing brominated products
+  expect:
+    components:
+      - identifier: "[Br]"
+        target: OUTPUT
+        mode: SMARTS
+
+- question: reactions that make an aryl boronic acid
+  expect:
+    components:
+      - identifier: cB(O)O
+        target: OUTPUT
+        mode: SMARTS

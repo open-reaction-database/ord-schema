@@ -74,6 +74,13 @@ github = [
 huggingface = [
     "huggingface-hub>=0.20",
 ]
+# Optional: the ord_schema.agent subpackage holds the prompts, schemas, and (later)
+# tool surfaces an agent uses to query ORD. Pulls an HTTP client and pydantic, neither
+# of which parsing or validating a dataset requires.
+agent = [
+    "anthropic>=0.40",
+    "pydantic>=2",
+]
 # Optional: the ord_schema.orm subpackage maps the schema into a relational
 # (SQLAlchemy + PostgreSQL) database. Not needed to parse/validate datasets.
 orm = [
@@ -96,7 +103,8 @@ tests = [
     "treon>=0.1.3",
     # The suite exercises the optional-feature modules, so collecting it needs
     # their extras. Self-reference rather than duplicate the dependencies.
-    "ord-schema[github,huggingface,orm]",
+    "pytest-asyncio>=0.23",
+    "ord-schema[agent,github,huggingface,orm]",
 ]
 
 [tool.setuptools.packages.find]
@@ -104,6 +112,8 @@ include = ["ord_schema*"]
 
 [tool.setuptools.package-data]
 "ord_schema.proto" = ["*.pyi"]
+# Agent prompts (*.md) and eval cases (*.yaml) ship as data.
+"ord_schema.agent" = ["*.md", "*.yaml"]
 
 [tool.ruff]
 line-length = 88

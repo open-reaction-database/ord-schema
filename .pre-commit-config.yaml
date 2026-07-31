@@ -48,3 +48,7 @@ repos:
     rev: v0.23.1
     hooks:
       - id: markdownlint-cli2
+        # Agent prompts are model input, not documentation: their first line is an
+        # instruction, and adding a heading to satisfy MD041 would change what the
+        # model receives.
+        exclude: ^ord_schema/agent/.*\.md$
