@@ -64,9 +64,7 @@ def test_reaction_row_is_null_where_the_source_is_silent():
     row = views.reaction_row("ord-0001", _reaction())
     for column in (
         "yield_percent",
-        "conversion_percent",
         "temperature_kelvin",
-        "pressure_kilopascals",
         "reaction_time_seconds",
         "doi",
         "patent",
@@ -208,25 +206,6 @@ def test_temperature_converts_to_kelvin(units_enum, value, expected):
     setpoint.value, setpoint.units = value, units_enum
     row = views.reaction_row("x", reaction)
     assert row["temperature_kelvin"] == pytest.approx(expected)
-
-
-@pytest.mark.parametrize(
-    ("units_enum", "value", "expected"),
-    [
-        (reaction_pb2.Pressure.KILOPASCAL, 101.325, 101.325),
-        (reaction_pb2.Pressure.ATMOSPHERE, 1.0, 101.325),
-        (reaction_pb2.Pressure.BAR, 1.0, 100.0),
-        # Mercury units: 1 atm is 760 of either.
-        (reaction_pb2.Pressure.TORR, 760.0, 101.325),
-        (reaction_pb2.Pressure.MM_HG, 760.0, 101.325),
-    ],
-)
-def test_pressure_converts_to_kilopascals(units_enum, value, expected):
-    reaction = _reaction()
-    setpoint = reaction.conditions.pressure.setpoint
-    setpoint.value, setpoint.units = value, units_enum
-    row = views.reaction_row("x", reaction)
-    assert row["pressure_kilopascals"] == pytest.approx(expected, rel=1e-5)
 
 
 @pytest.mark.parametrize(

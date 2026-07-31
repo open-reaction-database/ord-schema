@@ -18,6 +18,14 @@ A view restates the reactions in a Parquet dataset as flat, queryable columns --
 reaction and per-component SMILES, the scalar condition and outcome measurements, and
 provenance -- so a consumer can filter the corpus without deserializing every proto.
 
+A view is deliberately **small rather than complete**. It carries the handful of columns
+a consumer wants on first contact, in a shape that reads at a glance and previews in a
+dataset browser. Reaching the rest of the proto is a different artifact's job; a column
+belongs here only if a reader who has never seen ORD would look for it immediately.
+That is why breadth of dataset coverage, not row count, decides what stays: a column
+populated in three of fifty-three datasets teaches a reader to expect nulls everywhere
+and earns its place nowhere.
+
 A view **adds no information**. Every column is a re-projection of what the source
 protos already say, computed from the source alone with this library and RDKit, so a
 view that disagrees with its source is wrong and a stale view is a bug. Two consequences
@@ -51,13 +59,12 @@ Where the projection has to make a choice, it is documented rather than inferred
 * ``yield_percent`` is the largest YIELD percentage measured on any product of the first
   outcome. Reactions with several outcomes keep the rest in the source.
 * Each measurement column names exactly one source field, since the schema offers
-  several plausible readings of each: ``temperature_kelvin`` and
-  ``pressure_kilopascals`` are the ``conditions`` *setpoints*, not achieved values, and
-  ``reaction_time_seconds`` is ``ReactionOutcome.reaction_time`` -- one of six
-  Time-typed fields, alongside addition, workup, observation, and retention times, none
-  of which appear here.
-* Measurements are converted to one canonical unit per column (kelvin, kilopascals,
-  seconds); a measurement in units the schema cannot convert reads as null.
+  several plausible readings of each: ``temperature_kelvin`` is the ``conditions``
+  *setpoint*, not an achieved value, and ``reaction_time_seconds`` is
+  ``ReactionOutcome.reaction_time`` -- one of six Time-typed fields, alongside addition,
+  workup, observation, and retention times, none of which appear here.
+* Measurements are converted to one canonical unit per column (kelvin, seconds); a
+  measurement in units the schema cannot convert reads as null.
 
 Every column except ``reaction_id`` is nullable, and null means "the source does not
 say" rather than zero.
@@ -95,9 +102,10 @@ SCHEMA = pa.schema(
         pa.field("input_smiles", pa.list_(pa.string())),
         pa.field("output_smiles", pa.list_(pa.string())),
         pa.field("yield_percent", pa.float32()),
-        pa.field("conversion_percent", pa.float32()),
+        # Temperature and reaction time reach 45 and 49 of the 53 parquet datasets --
+        # broader coverage than yield -- which is what qualifies them for a summary
+        # view. Pressure and conversion reach 3 and 6, and stay out.
         pa.field("temperature_kelvin", pa.float32()),
-        pa.field("pressure_kilopascals", pa.float32()),
         pa.field("reaction_time_seconds", pa.float32()),
         pa.field("doi", pa.string()),
         pa.field("patent", pa.string()),
@@ -135,17 +143,14 @@ def _canonical_value(message: ord_schema.UnitMessage, target: str) -> float | No
 
 def _outcome_values(
     reaction: reaction_pb2.Reaction,
-) -> tuple[float | None, float | None, float | None]:
-    """Returns the first outcome's yield, conversion, and reaction time.
+) -> tuple[float | None, float | None]:
+    """Returns the first outcome's yield and reaction time.
 
     Reactions with several outcomes keep the rest in the source.
     """
     if not reaction.outcomes:
-        return None, None, None
+        return None, None
     outcome = reaction.outcomes[0]
-    conversion = (
-        outcome.conversion.value if outcome.conversion.HasField("value") else None
-    )
     reaction_time_seconds = _canonical_value(outcome.reaction_time, "s")
     best_yield = None
     for product in outcome.products:
@@ -159,7 +164,7 @@ def _outcome_values(
             value = measurement.percentage.value
             if best_yield is None or value > best_yield:
                 best_yield = value
-    return best_yield, conversion, reaction_time_seconds
+    return best_yield, reaction_time_seconds
 
 
 def _stored_value(
@@ -246,7 +251,7 @@ def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
     Returns:
         A dict keyed by ``SCHEMA.names``, with None wherever the source is silent.
     """
-    yield_percent, conversion_percent, reaction_time_seconds = _outcome_values(reaction)
+    yield_percent, reaction_time_seconds = _outcome_values(reaction)
     inputs, outputs = _component_smiles(reaction)
     return {
         "reaction_id": reaction_id,
@@ -254,12 +259,8 @@ def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
         "input_smiles": inputs,
         "output_smiles": outputs,
         "yield_percent": yield_percent,
-        "conversion_percent": conversion_percent,
         "temperature_kelvin": _canonical_value(
             reaction.conditions.temperature.setpoint, "K"
-        ),
-        "pressure_kilopascals": _canonical_value(
-            reaction.conditions.pressure.setpoint, "kPa"
         ),
         "reaction_time_seconds": reaction_time_seconds,
         "doi": reaction.provenance.doi or None,
