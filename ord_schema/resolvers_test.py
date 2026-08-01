@@ -314,6 +314,54 @@ class TestNameResolveFallback:
         with pytest.raises(ValueError, match="Could not resolve"):
             resolvers.resolve_name("name", "definitely-not-a-compound")
 
+    @pytest.mark.parametrize(
+        "error",
+        [
+            TimeoutError("timed out"),  # Stalled part-way through the response body.
+            urllib.error.URLError(TimeoutError("timed out")),  # Stalled connecting.
+            urllib.error.URLError("name resolution failed"),
+        ],
+    )
+    def test_falls_back_to_next_resolver_on_unreachable(self, monkeypatch, error):
+        # An unreachable resolver must not strand the chain: a timeout is not an
+        # HTTPError, so it would otherwise propagate past the fallback loop and turn a
+        # single-resolver outage into a total failure.
+        first = mock.MagicMock(side_effect=error)
+        second = mock.MagicMock(return_value="OCCO")
+        monkeypatch.setattr(
+            "ord_schema.resolvers._NAME_RESOLVERS", {"first": first, "second": second}
+        )
+        assert resolvers.resolve_name("name", "ethylene glycol") == ("OCCO", "second")
+
+    def test_a_timed_out_chain_is_a_value_error(self, monkeypatch):
+        only = mock.MagicMock(side_effect=TimeoutError("timed out"))
+        monkeypatch.setattr("ord_schema.resolvers._NAME_RESOLVERS", {"only": only})
+        with pytest.raises(ValueError, match="Could not resolve"):
+            resolvers.resolve_name("name", "ethylene glycol")
+
+
+class TestResolverTimeouts:
+    @pytest.mark.parametrize(
+        "resolve",
+        [
+            resolvers._pubchem_resolve,
+            resolvers._cactus_resolve,
+            resolvers._opsin_resolve,
+        ],
+    )
+    def test_every_resolver_bounds_its_request(self, monkeypatch, resolve):
+        # A missing timeout blocks the calling thread indefinitely against an upstream
+        # that accepts the connection and then goes quiet.
+        response = mock.MagicMock()
+        response.read.return_value = b"OCCO\n"
+        response.__enter__.return_value = response
+        urlopen = mock.MagicMock(return_value=response)
+        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        resolve("name", "ethylene glycol")
+        assert (
+            urlopen.call_args.kwargs["timeout"] == resolvers._RESOLVER_TIMEOUT_SECONDS
+        )
+
 
 class TestResolveNamesSkipsStructuralIdentifiers:
     def test_skips_compound_with_existing_smiles(self, monkeypatch):

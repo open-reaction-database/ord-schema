@@ -27,6 +27,12 @@ from ord_schema.proto import reaction_pb2
 
 logger = get_logger(__name__)
 
+# Applied to each resolver request separately, so a name that falls through all three
+# resolvers is bounded by the sum. Without it, an upstream that accepts the connection
+# and then stops responding blocks the calling thread forever; callers that dispatch
+# resolution to a worker pool would lose a worker per hung lookup.
+_RESOLVER_TIMEOUT_SECONDS = 10
+
 _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.SMILES,
     reaction_pb2.CompoundIdentifier.INCHI,
@@ -55,13 +61,19 @@ def canonicalize_smiles(smiles: str) -> str:
 
 
 def resolve_name(value_type: str, value: str) -> tuple[str, str]:
-    """Resolves compound identifiers to SMILES via multiple APIs."""
+    """Resolves compound identifiers to SMILES via multiple APIs.
+
+    Any single resolver being unreachable, erroring, or timing out falls through to the
+    next one; only an exhausted chain is a failure. ``URLError`` covers ``HTTPError``
+    and connect-time timeouts, while a stall part-way through a response body surfaces
+    as a bare ``TimeoutError``.
+    """
     for resolver, resolver_func in _NAME_RESOLVERS.items():
         try:
             smiles = resolver_func(value_type, value)
             if smiles is not None:
                 return smiles, resolver
-        except urllib.error.HTTPError as error:
+        except (urllib.error.URLError, TimeoutError) as error:
             logger.info(f"{resolver} could not resolve {value_type} {value}: {error}")
     raise ValueError(f"Could not resolve {value_type} {value} to SMILES")
 
@@ -111,7 +123,8 @@ def _pubchem_resolve(value_type: str, value: str) -> str:
     """
     with urllib.request.urlopen(
         f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/{value_type}/"
-        f"{urllib.parse.quote(value)}/property/IsomericSMILES/txt"
+        f"{urllib.parse.quote(value)}/property/IsomericSMILES/txt",
+        timeout=_RESOLVER_TIMEOUT_SECONDS,
     ) as response:
         return response.read().decode().strip()
 
@@ -126,7 +139,8 @@ def _cactus_resolve(value_type: str, value: str) -> str:
     """
     del value_type  # CIR infers the identifier type from the string.
     with urllib.request.urlopen(
-        f"https://cactus.nci.nih.gov/chemical/structure/{urllib.parse.quote(value)}/smiles"
+        f"https://cactus.nci.nih.gov/chemical/structure/{urllib.parse.quote(value)}/smiles",
+        timeout=_RESOLVER_TIMEOUT_SECONDS,
     ) as response:
         # CIR can return several representations newline-separated; take the first.
         return response.read().decode().strip().split("\n", 1)[0]
@@ -141,7 +155,8 @@ def _opsin_resolve(value_type: str, value: str) -> str:
     """
     del value_type  # OPSIN only supports names.
     with urllib.request.urlopen(
-        f"https://www.ebi.ac.uk/opsin/ws/{urllib.parse.quote(value)}.smi"
+        f"https://www.ebi.ac.uk/opsin/ws/{urllib.parse.quote(value)}.smi",
+        timeout=_RESOLVER_TIMEOUT_SECONDS,
     ) as response:
         return response.read().decode().strip()
 
