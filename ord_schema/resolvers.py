@@ -28,11 +28,16 @@ from ord_schema.proto import reaction_pb2
 
 logger = get_logger(__name__)
 
-# Wall-clock budget for one resolver request, covering connect and body together. An
-# upstream that accepts the connection and then stalls -- or drip-feeds a byte at a time
-# to stay under a per-socket timeout -- would otherwise block the calling thread for
-# good; callers that dispatch resolution to a worker pool lose a worker per hung lookup.
-_RESOLVER_TIMEOUT_SECONDS = 10
+# Hard wall-clock ceiling on one resolver request, covering connect and body together.
+# An upstream that accepts the connection and then stalls -- or drip-feeds a byte at a
+# time to stay under a per-socket timeout -- would otherwise block the calling thread
+# for good; a caller dispatching to a worker pool loses a worker per hung lookup.
+_REQUEST_TIMEOUT_SECONDS = 10
+
+# How long the socket may go silent, during connect or mid-body. Must stay below
+# _REQUEST_TIMEOUT_SECONDS: the read loop only begins a read it can finish inside the
+# request budget, so a stall tolerance at or above it leaves no room to read at all.
+_STALL_TIMEOUT_SECONDS = 5
 
 # Resolvers answer with a single SMILES, so a response this large means the upstream is
 # misbehaving (an error page, a redirect loop) and is not worth buffering.
@@ -123,11 +128,13 @@ def resolve_names(message: ord_schema.Message) -> bool:
 def _fetch_text(url: str) -> str:
     """Fetches ``url`` as stripped text under a wall-clock deadline and a size cap.
 
-    The socket timeout alone bounds each read, not the request: an upstream that sends a
-    little data just often enough resets it forever. The body is therefore consumed with
-    ``read1``, which returns as soon as any bytes arrive, so the deadline is rechecked
-    between them rather than after a read that never returns. A single read may still
-    block for the socket timeout, so the true worst case is about twice the budget.
+    The socket timeout bounds a single read, not the request: an upstream sending a
+    little data just often enough to reset it would stream forever. Two rules together
+    make the ceiling hard. The body is consumed with ``read1``, which returns as soon as
+    any bytes arrive, so control comes back between chunks rather than being held inside
+    one read that never returns; and a read is only begun when the stall tolerance still
+    fits inside the deadline, so the last read cannot run past it. Total time is
+    therefore at most ``_REQUEST_TIMEOUT_SECONDS``, not that plus a trailing read.
 
     Args:
         url: The URL to fetch.
@@ -136,19 +143,19 @@ def _fetch_text(url: str) -> str:
         The decoded response body with surrounding whitespace removed.
 
     Raises:
-        TimeoutError: If the deadline passes before the body is fully read.
+        TimeoutError: If the body cannot be finished within the request budget.
         urllib.error.URLError: If the response exceeds ``_MAX_RESPONSE_BYTES``.
     """
-    deadline = time.monotonic() + _RESOLVER_TIMEOUT_SECONDS
+    deadline = time.monotonic() + _REQUEST_TIMEOUT_SECONDS
     chunks: list[bytes] = []
     size = 0
     # S310: every caller builds an https literal here, interpolating only a quoted path
     # segment, so no caller-supplied scheme can reach urlopen.
     with urllib.request.urlopen(  # noqa: S310
-        url, timeout=_RESOLVER_TIMEOUT_SECONDS
+        url, timeout=_STALL_TIMEOUT_SECONDS
     ) as response:
         while True:
-            if time.monotonic() >= deadline:
+            if time.monotonic() + _STALL_TIMEOUT_SECONDS > deadline:
                 raise TimeoutError(f"Timed out reading a response from {url}")
             chunk = response.read1(_MAX_RESPONSE_BYTES)
             if not chunk:

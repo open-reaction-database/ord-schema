@@ -349,9 +349,30 @@ class TestResolverTimeouts:
         # that accepts the connection and then goes quiet.
         urlopen = _mock_urlopen(monkeypatch, b"OCCO\n")
         resolve("name", "ethylene glycol")
-        assert (
-            urlopen.call_args.kwargs["timeout"] == resolvers._RESOLVER_TIMEOUT_SECONDS
+        assert urlopen.call_args.kwargs["timeout"] == resolvers._STALL_TIMEOUT_SECONDS
+
+    def test_a_read_is_not_begun_when_it_could_outlast_the_deadline(self, monkeypatch):
+        # The socket timeout applies to whichever read is in flight, so a read started
+        # just under the deadline would run past it. The budget is a ceiling on the
+        # whole request, which holds only if the last read is refused rather than
+        # started: here one chunk lands, then too little budget remains to read again.
+        clock = iter([0, 0, resolvers._REQUEST_TIMEOUT_SECONDS])
+        monkeypatch.setattr("ord_schema.resolvers.time.monotonic", lambda: next(clock))
+        response = mock.MagicMock()
+        response.read1.side_effect = [b"OCCO", b""]  # EOF is never reached.
+        response.__enter__.return_value = response
+        monkeypatch.setattr(
+            "ord_schema.resolvers.urllib.request.urlopen",
+            mock.MagicMock(return_value=response),
         )
+        with pytest.raises(TimeoutError, match="Timed out reading"):
+            resolvers._opsin_resolve("name", "ethanol")
+        assert response.read1.call_count == 1
+
+    def test_the_stall_tolerance_leaves_room_to_read(self):
+        # Were these equal, the loop could never begin a read: every check would find
+        # the stall tolerance already overrunning the deadline.
+        assert resolvers._STALL_TIMEOUT_SECONDS < resolvers._REQUEST_TIMEOUT_SECONDS
 
     def test_a_trickling_response_still_hits_the_deadline(self, monkeypatch):
         # The socket timeout only bounds a single read, so an upstream that sends a
