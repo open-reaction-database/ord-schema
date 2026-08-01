@@ -13,6 +13,7 @@
 # limitations under the License.
 """Name/string resolution to structured messages or identifiers."""
 
+import http.client
 import re
 import time
 import urllib.error
@@ -206,8 +207,8 @@ def _fetch_text(url: str) -> str:
             back-off. The service is up and the status describes this identifier, so it
             is asked again for the next one.
         _ResolverUnavailableError: If no response arrives, the status asks us to back
-            off, the body cannot be finished within the request budget, or it exceeds
-            ``_MAX_RESPONSE_BYTES``.
+            off, the body arrives incomplete, cannot be finished within the request
+            budget, or exceeds ``_MAX_RESPONSE_BYTES``.
     """
     deadline = time.monotonic() + _REQUEST_TIMEOUT_SECONDS
     body = bytearray()
@@ -226,6 +227,25 @@ def _fetch_text(url: str) -> str:
                 body += chunk
                 if len(body) > _MAX_RESPONSE_BYTES:
                     raise _ResolverUnavailableError(f"{url} sent too much data")
+            # read1 reports a connection that dies mid-body as EOF rather than raising,
+            # so a short read has to be caught here: a truncated SMILES can still parse,
+            # as a different molecule. read() would have raised, but cannot be used
+            # without giving up the guarantees above.
+            declared = response.getheader("Content-Length")
+            if (
+                declared is not None
+                and declared.isdigit()
+                and len(body) != int(declared)
+            ):
+                raise _ResolverUnavailableError(
+                    f"{url} sent {len(body)} bytes of a declared {declared}"
+                )
+    except http.client.HTTPException as error:
+        # A chunked body that ends early raises IncompleteRead, which is not an OSError
+        # and so is not covered by the URLError clause below.
+        raise _ResolverUnavailableError(
+            f"{url} sent a bad response: {error}"
+        ) from error
     except urllib.error.HTTPError as error:
         if error.code in _BACK_OFF_STATUSES:
             raise _ResolverUnavailableError(

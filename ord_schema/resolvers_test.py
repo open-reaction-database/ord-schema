@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.units."""
 
+import http.client
 import itertools
 import logging
 import os
@@ -223,20 +224,28 @@ def _http_error(code: int, msg: str) -> urllib.error.HTTPError:
     return urllib.error.HTTPError("", code, msg, hdrs=None, fp=None)  # ty: ignore[invalid-argument-type]
 
 
-def _mock_urlopen(monkeypatch, *chunks: bytes, eof: bool = True) -> mock.MagicMock:
+def _mock_urlopen(
+    monkeypatch,
+    *chunks: bytes | BaseException,
+    eof: bool = True,
+    content_length: str | None = None,
+) -> mock.MagicMock:
     """Patches urlopen with a response yielding ``chunks`` from read1.
 
     Args:
         monkeypatch: The pytest fixture.
-        chunks: Bodies returned by successive read1 calls.
+        chunks: Bodies returned by successive read1 calls, or raised if an exception.
         eof: Whether the body ends. False cycles ``chunks`` forever, standing in for an
             upstream that keeps the connection fed and never finishes.
+        content_length: Value of the Content-Length header. None stands in for a chunked
+            response, which declares no length.
 
     Returns:
         The patched urlopen mock; its ``return_value`` is the response.
     """
     response = mock.MagicMock()
     response.read1.side_effect = [*chunks, b""] if eof else itertools.cycle(chunks)
+    response.getheader.return_value = content_length
     response.__enter__.return_value = response
     urlopen = mock.MagicMock(return_value=response)
     monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
@@ -353,6 +362,34 @@ class TestTransportFailuresAreTranslated:
         assert isinstance(caught.value, resolvers._ResolverUnavailableError) is (
             unreachable
         )
+
+
+class TestIncompleteResponses:
+    def test_a_short_content_length_body_is_rejected(self, monkeypatch):
+        # read1 reports a connection dying mid-body as EOF instead of raising, so
+        # without this check a partial body would be returned as though complete --
+        # and a truncated SMILES can parse cleanly as a different molecule.
+        _mock_urlopen(monkeypatch, b"OCC", content_length="12")
+        with pytest.raises(resolvers._ResolverUnavailableError, match="declared 12"):
+            resolvers._opsin_resolve("name", "ethanol")
+
+    def test_a_complete_body_is_accepted(self, monkeypatch):
+        _mock_urlopen(monkeypatch, b"OCCO\n", content_length="5")
+        assert resolvers._opsin_resolve("name", "ethane-1,2-diol") == "OCCO"
+
+    def test_a_chunked_body_declares_no_length(self, monkeypatch):
+        # PubChem and CIR reply chunked, so the check must not fire when the header
+        # is absent.
+        _mock_urlopen(monkeypatch, b"OCCO\n", content_length=None)
+        assert resolvers._opsin_resolve("name", "ethane-1,2-diol") == "OCCO"
+
+    def test_a_truncated_chunked_body_falls_through(self, monkeypatch):
+        # A chunked body that ends early raises IncompleteRead, which is not an
+        # OSError and so escapes the URLError clause entirely, aborting the chain
+        # rather than moving on to the next resolver.
+        _mock_urlopen(monkeypatch, http.client.IncompleteRead(b"OCC"))
+        with pytest.raises(resolvers._ResolverUnavailableError, match="bad response"):
+            resolvers._opsin_resolve("name", "ethanol")
 
 
 class TestUnreachableResolversAreLatched:
