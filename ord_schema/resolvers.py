@@ -13,6 +13,7 @@
 # limitations under the License.
 """Name/string resolution to structured messages or identifiers."""
 
+import http.client
 import re
 import urllib.error
 import urllib.parse
@@ -26,6 +27,24 @@ from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
 
 logger = get_logger(__name__)
+
+# Applied to each socket operation. Without it a resolver that accepts the connection
+# and then goes quiet blocks its caller forever, which costs a worker per hung lookup
+# when resolution is dispatched to a thread pool.
+_TIMEOUT_SECONDS = 10
+
+# Resolvers answer with a single SMILES, so a response this large means the upstream is
+# misbehaving (an error page, a redirect loop) and is not worth buffering.
+_MAX_RESPONSE_BYTES = 1 << 20
+
+
+class _ResolverError(Exception):
+    """A resolver did not produce a structure.
+
+    Resolvers signal failure with this alone, so the fallback chain does not have to
+    enumerate the transport library's exception types on their behalf.
+    """
+
 
 _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.SMILES,
@@ -55,13 +74,30 @@ def canonicalize_smiles(smiles: str) -> str:
 
 
 def resolve_name(value_type: str, value: str) -> tuple[str, str]:
-    """Resolves compound identifiers to SMILES via multiple APIs."""
+    """Resolves compound identifiers to SMILES via multiple APIs.
+
+    Resolvers are tried in order until one answers. Any of them failing falls through
+    to the next, so only an exhausted chain is a failure.
+
+    Args:
+        value_type: The kind of identifier being resolved, e.g. "name".
+        value: The identifier to resolve.
+
+    Returns:
+        A tuple of SMILES and the name of the resolver that produced it.
+
+    Raises:
+        ValueError: If no resolver returns a structure.
+    """
     for resolver, resolver_func in _NAME_RESOLVERS.items():
         try:
             smiles = resolver_func(value_type, value)
-            if smiles is not None:
+            # An empty body reaches here as "", which would otherwise be written out as
+            # a SMILES identifier holding nothing -- and would then mask the compound
+            # from a later resolution pass, since it counts as structural.
+            if smiles:
                 return smiles, resolver
-        except urllib.error.HTTPError as error:
+        except _ResolverError as error:
             logger.info(f"{resolver} could not resolve {value_type} {value}: {error}")
     raise ValueError(f"Could not resolve {value_type} {value} to SMILES")
 
@@ -103,17 +139,59 @@ def resolve_names(message: ord_schema.Message) -> bool:
     return modified
 
 
+def _fetch_text(url: str) -> str:
+    """Fetches ``url`` as stripped text, bounded by a timeout and a size cap.
+
+    Every way a request can fail arrives as :class:`_ResolverError`, so the fallback
+    chain treats an unreachable service, an HTTP status, and an unreadable body alike:
+    all of them mean this resolver has no answer, and the next one should be asked.
+    ``OSError`` covers the transport failures, ``URLError`` and ``TimeoutError`` among
+    them; ``HTTPException`` covers a response that is malformed or ends early.
+
+    Args:
+        url: The URL to fetch.
+
+    Returns:
+        The decoded response body with surrounding whitespace removed. Undecodable
+        bytes become replacement characters rather than failing the lookup, since the
+        answer is a SMILES and will not parse as a structure either way.
+
+    Raises:
+        _ResolverError: If the request fails, or the body exceeds
+            ``_MAX_RESPONSE_BYTES``.
+    """
+    try:
+        # S310: the scheme is a literal in each caller's f-string, so no caller-supplied
+        # value can reach urlopen as a scheme.
+        with urllib.request.urlopen(url, timeout=_TIMEOUT_SECONDS) as response:  # noqa: S310
+            body = response.read(_MAX_RESPONSE_BYTES + 1)
+            # Passing a size means EOF ends the read quietly, where the no-argument
+            # form would raise: a connection dropped mid-body leaves a short answer
+            # that is not detectably broken, since a truncated SMILES usually parses
+            # as a different molecule. ``length`` is what a declared body still owes,
+            # and is None for a chunked one, which raises IncompleteRead instead.
+            if response.length:
+                raise _ResolverError(f"{url} ended early")
+    except (OSError, http.client.HTTPException) as error:
+        raise _ResolverError(f"{url} could not be read: {error}") from error
+    if len(body) > _MAX_RESPONSE_BYTES:
+        raise _ResolverError(f"{url} sent too much data")
+    return body.decode(errors="replace").strip()
+
+
 def _pubchem_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the PubChem REST API.
 
-    A 503 (genuine service load or an IP-level block) propagates to ``resolve_name``,
-    which falls through to the next resolver instead of retrying.
+    A 503 means genuine service load or an IP-level block; it is not retried, and
+    ``resolve_name`` falls through to the next resolver.
     """
-    with urllib.request.urlopen(
-        f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/{value_type}/"
-        f"{urllib.parse.quote(value)}/property/IsomericSMILES/txt"
-    ) as response:
-        return response.read().decode().strip()
+    # Both segments are quoted with safe="" so that a name containing slashes or dot
+    # segments cannot rewrite the request path and resolve a different compound.
+    return _fetch_text(
+        f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/"
+        f"{urllib.parse.quote(value_type, safe='')}/"
+        f"{urllib.parse.quote(value, safe='')}/property/IsomericSMILES/txt"
+    )
 
 
 def _cactus_resolve(value_type: str, value: str) -> str:
@@ -121,15 +199,16 @@ def _cactus_resolve(value_type: str, value: str) -> str:
 
     CIR resolves trade names, trivial names, abbreviations, and CAS numbers, so it
     serves as a fast fallback when PubChem is unavailable. Unknown names come back as
-    HTTP 500 (not 404), which ``resolve_name`` treats like any other HTTPError and falls
-    through.
+    HTTP 500 (not 404), which is reported like any other failed lookup and falls
+    through to the next resolver.
     """
     del value_type  # CIR infers the identifier type from the string.
-    with urllib.request.urlopen(
-        f"https://cactus.nci.nih.gov/chemical/structure/{urllib.parse.quote(value)}/smiles"
-    ) as response:
-        # CIR can return several representations newline-separated; take the first.
-        return response.read().decode().strip().split("\n", 1)[0]
+    body = _fetch_text(
+        f"https://cactus.nci.nih.gov/chemical/structure/"
+        f"{urllib.parse.quote(value, safe='')}/smiles"
+    )
+    # CIR can return several representations newline-separated; take the first.
+    return body.split("\n", 1)[0]
 
 
 def _opsin_resolve(value_type: str, value: str) -> str:
@@ -140,10 +219,9 @@ def _opsin_resolve(value_type: str, value: str) -> str:
     HTTP 404. Treat it strictly as a complement to PubChem.
     """
     del value_type  # OPSIN only supports names.
-    with urllib.request.urlopen(
-        f"https://www.ebi.ac.uk/opsin/ws/{urllib.parse.quote(value)}.smi"
-    ) as response:
-        return response.read().decode().strip()
+    return _fetch_text(
+        f"https://www.ebi.ac.uk/opsin/ws/{urllib.parse.quote(value, safe='')}.smi"
+    )
 
 
 def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
