@@ -14,6 +14,7 @@
 """Name/string resolution to structured messages or identifiers."""
 
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -27,11 +28,15 @@ from ord_schema.proto import reaction_pb2
 
 logger = get_logger(__name__)
 
-# Applied to each resolver request separately, so a name that falls through all three
-# resolvers is bounded by the sum. Without it, an upstream that accepts the connection
-# and then stops responding blocks the calling thread forever; callers that dispatch
-# resolution to a worker pool would lose a worker per hung lookup.
+# Wall-clock budget for one resolver request, covering connect and body together. An
+# upstream that accepts the connection and then stalls -- or drip-feeds a byte at a time
+# to stay under a per-socket timeout -- would otherwise block the calling thread for
+# good; callers that dispatch resolution to a worker pool lose a worker per hung lookup.
 _RESOLVER_TIMEOUT_SECONDS = 10
+
+# Resolvers answer with a single SMILES, so a response this large means the upstream is
+# misbehaving (an error page, a redirect loop) and is not worth buffering.
+_MAX_RESPONSE_BYTES = 1 << 20
 
 _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.SMILES,
@@ -115,18 +120,56 @@ def resolve_names(message: ord_schema.Message) -> bool:
     return modified
 
 
+def _fetch_text(url: str) -> str:
+    """Fetches ``url`` as stripped text under a wall-clock deadline and a size cap.
+
+    The socket timeout alone bounds each read, not the request: an upstream that sends a
+    little data just often enough resets it forever. The body is therefore consumed with
+    ``read1``, which returns as soon as any bytes arrive, so the deadline is rechecked
+    between them rather than after a read that never returns. A single read may still
+    block for the socket timeout, so the true worst case is about twice the budget.
+
+    Args:
+        url: The URL to fetch.
+
+    Returns:
+        The decoded response body with surrounding whitespace removed.
+
+    Raises:
+        TimeoutError: If the deadline passes before the body is fully read.
+        urllib.error.URLError: If the response exceeds ``_MAX_RESPONSE_BYTES``.
+    """
+    deadline = time.monotonic() + _RESOLVER_TIMEOUT_SECONDS
+    chunks: list[bytes] = []
+    size = 0
+    # S310: every caller builds an https literal here, interpolating only a quoted path
+    # segment, so no caller-supplied scheme can reach urlopen.
+    with urllib.request.urlopen(  # noqa: S310
+        url, timeout=_RESOLVER_TIMEOUT_SECONDS
+    ) as response:
+        while True:
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"Timed out reading a response from {url}")
+            chunk = response.read1(_MAX_RESPONSE_BYTES)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > _MAX_RESPONSE_BYTES:
+                raise urllib.error.URLError(f"Response from {url} is too large")
+            chunks.append(chunk)
+    return b"".join(chunks).decode().strip()
+
+
 def _pubchem_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the PubChem REST API.
 
     A 503 (genuine service load or an IP-level block) propagates to ``resolve_name``,
     which falls through to the next resolver instead of retrying.
     """
-    with urllib.request.urlopen(
+    return _fetch_text(
         f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/{value_type}/"
-        f"{urllib.parse.quote(value)}/property/IsomericSMILES/txt",
-        timeout=_RESOLVER_TIMEOUT_SECONDS,
-    ) as response:
-        return response.read().decode().strip()
+        f"{urllib.parse.quote(value)}/property/IsomericSMILES/txt"
+    )
 
 
 def _cactus_resolve(value_type: str, value: str) -> str:
@@ -138,12 +181,11 @@ def _cactus_resolve(value_type: str, value: str) -> str:
     through.
     """
     del value_type  # CIR infers the identifier type from the string.
-    with urllib.request.urlopen(
-        f"https://cactus.nci.nih.gov/chemical/structure/{urllib.parse.quote(value)}/smiles",
-        timeout=_RESOLVER_TIMEOUT_SECONDS,
-    ) as response:
-        # CIR can return several representations newline-separated; take the first.
-        return response.read().decode().strip().split("\n", 1)[0]
+    body = _fetch_text(
+        f"https://cactus.nci.nih.gov/chemical/structure/{urllib.parse.quote(value)}/smiles"
+    )
+    # CIR can return several representations newline-separated; take the first.
+    return body.split("\n", 1)[0]
 
 
 def _opsin_resolve(value_type: str, value: str) -> str:
@@ -154,11 +196,9 @@ def _opsin_resolve(value_type: str, value: str) -> str:
     HTTP 404. Treat it strictly as a complement to PubChem.
     """
     del value_type  # OPSIN only supports names.
-    with urllib.request.urlopen(
-        f"https://www.ebi.ac.uk/opsin/ws/{urllib.parse.quote(value)}.smi",
-        timeout=_RESOLVER_TIMEOUT_SECONDS,
-    ) as response:
-        return response.read().decode().strip()
+    return _fetch_text(
+        f"https://www.ebi.ac.uk/opsin/ws/{urllib.parse.quote(value)}.smi"
+    )
 
 
 def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:

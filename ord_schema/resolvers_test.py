@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.units."""
 
+import itertools
 import logging
 import os
 import urllib.error
@@ -219,13 +220,19 @@ def _http_error(code: int, msg: str) -> urllib.error.HTTPError:
     return urllib.error.HTTPError("", code, msg, hdrs=None, fp=None)  # ty: ignore[invalid-argument-type]
 
 
+def _mock_urlopen(monkeypatch, *chunks: bytes) -> mock.MagicMock:
+    """Patches urlopen with a response yielding ``chunks``, then EOF, from read1."""
+    response = mock.MagicMock()
+    response.read1.side_effect = [*chunks, b""]
+    response.__enter__.return_value = response
+    urlopen = mock.MagicMock(return_value=response)
+    monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+    return urlopen
+
+
 class TestPubChemResolve:
     def test_pubchem_resolve(self, monkeypatch):
-        response = mock.MagicMock()
-        response.read.return_value = b"CC(=O)Oc1ccccc1C(=O)O\n"
-        response.__enter__.return_value = response
-        urlopen = mock.MagicMock(return_value=response)
-        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        urlopen = _mock_urlopen(monkeypatch, b"CC(=O)Oc1ccccc1C(=O)O\n")
         assert resolvers._pubchem_resolve("name", "aspirin") == "CC(=O)Oc1ccccc1C(=O)O"
         assert urlopen.call_count == 1
 
@@ -253,11 +260,7 @@ class TestCanonicalizeSmiles:
 
 class TestOpsinResolve:
     def test_opsin_resolve(self, monkeypatch):
-        response = mock.MagicMock()
-        response.read.return_value = b"OCCO\n"
-        response.__enter__.return_value = response
-        urlopen = mock.MagicMock(return_value=response)
-        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        urlopen = _mock_urlopen(monkeypatch, b"OCCO\n")
         # value_type is ignored by OPSIN.
         assert resolvers._opsin_resolve("name", "ethane-1,2-diol") == "OCCO"
         assert urlopen.call_count == 1
@@ -265,22 +268,14 @@ class TestOpsinResolve:
 
 class TestCactusResolve:
     def test_cactus_resolve(self, monkeypatch):
-        response = mock.MagicMock()
-        response.read.return_value = b"OCCO\n"
-        response.__enter__.return_value = response
-        urlopen = mock.MagicMock(return_value=response)
-        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        urlopen = _mock_urlopen(monkeypatch, b"OCCO\n")
         # value_type is ignored by CIR.
         assert resolvers._cactus_resolve("name", "ethylene glycol") == "OCCO"
         assert urlopen.call_count == 1
 
     def test_cactus_resolve_takes_first_line(self, monkeypatch):
         # CIR can return multiple newline-separated representations.
-        response = mock.MagicMock()
-        response.read.return_value = b"OCCO\nC(CO)O\n"
-        response.__enter__.return_value = response
-        urlopen = mock.MagicMock(return_value=response)
-        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        _mock_urlopen(monkeypatch, b"OCCO\nC(CO)O\n")
         assert resolvers._cactus_resolve("name", "ethylene glycol") == "OCCO"
 
     @_live_resolvers
@@ -352,15 +347,42 @@ class TestResolverTimeouts:
     def test_every_resolver_bounds_its_request(self, monkeypatch, resolve):
         # A missing timeout blocks the calling thread indefinitely against an upstream
         # that accepts the connection and then goes quiet.
-        response = mock.MagicMock()
-        response.read.return_value = b"OCCO\n"
-        response.__enter__.return_value = response
-        urlopen = mock.MagicMock(return_value=response)
-        monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
+        urlopen = _mock_urlopen(monkeypatch, b"OCCO\n")
         resolve("name", "ethylene glycol")
         assert (
             urlopen.call_args.kwargs["timeout"] == resolvers._RESOLVER_TIMEOUT_SECONDS
         )
+
+    def test_a_trickling_response_still_hits_the_deadline(self, monkeypatch):
+        # The socket timeout only bounds a single read, so an upstream that sends a
+        # byte just often enough to reset it would stream forever. Each chunk arrives
+        # "instantly" here and the clock advances a second per check, so the loop can
+        # only terminate via the deadline.
+        clock = itertools.count()
+        monkeypatch.setattr("ord_schema.resolvers.time.monotonic", lambda: next(clock))
+        response = mock.MagicMock()
+        response.read1.return_value = b"C"  # Never EOF.
+        response.__enter__.return_value = response
+        monkeypatch.setattr(
+            "ord_schema.resolvers.urllib.request.urlopen",
+            mock.MagicMock(return_value=response),
+        )
+        with pytest.raises(TimeoutError, match="Timed out reading"):
+            resolvers._opsin_resolve("name", "ethanol")
+
+    def test_an_oversized_response_is_rejected(self, monkeypatch):
+        # resolve_name catches URLError, so an upstream streaming an error page falls
+        # through to the next resolver rather than being buffered without limit.
+        monkeypatch.setattr("ord_schema.resolvers._MAX_RESPONSE_BYTES", 8)
+        response = mock.MagicMock()
+        response.read1.return_value = b"C" * 8  # Never EOF.
+        response.__enter__.return_value = response
+        monkeypatch.setattr(
+            "ord_schema.resolvers.urllib.request.urlopen",
+            mock.MagicMock(return_value=response),
+        )
+        with pytest.raises(urllib.error.URLError, match="too large"):
+            resolvers._opsin_resolve("name", "ethanol")
 
 
 class TestResolveNamesSkipsStructuralIdentifiers:
