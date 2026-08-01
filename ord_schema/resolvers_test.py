@@ -221,18 +221,24 @@ def _http_error(code: int, msg: str) -> urllib.error.HTTPError:
     return urllib.error.HTTPError("", code, msg, hdrs=None, fp=None)  # ty: ignore[invalid-argument-type]
 
 
-def _mock_urlopen(monkeypatch, body: bytes) -> mock.MagicMock:
+def _mock_urlopen(
+    monkeypatch, body: bytes, *, remaining: int | None = 0
+) -> mock.MagicMock:
     """Patches urlopen with a response whose read returns ``body``.
 
     Args:
         monkeypatch: The pytest fixture.
         body: The response body.
+        remaining: Bytes the response still owes, as urllib reports through ``length``.
+            0 is a complete body, a positive value a truncated one, and None a chunked
+            response, which declares no length at all.
 
     Returns:
         The patched urlopen mock; its ``return_value`` is the response.
     """
     response = mock.MagicMock()
     response.read.return_value = body
+    response.length = remaining
     response.__enter__.return_value = response
     urlopen = mock.MagicMock(return_value=response)
     monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
@@ -351,6 +357,20 @@ class TestResponseHandling:
         _mock_urlopen(monkeypatch, b"C" * 9)
         with pytest.raises(resolvers._ResolverError, match="too much data"):
             resolvers._opsin_resolve("name", "ethanol")
+
+    def test_a_body_that_ends_early_is_rejected(self, monkeypatch):
+        # read(size) stops at EOF without raising, so a connection dropped mid-body
+        # would otherwise hand back a short answer as the resolved structure -- and a
+        # truncated SMILES usually parses, as a different molecule.
+        _mock_urlopen(monkeypatch, b"OCC", remaining=9)
+        with pytest.raises(resolvers._ResolverError, match="ended early"):
+            resolvers._opsin_resolve("name", "ethanol")
+
+    def test_a_chunked_body_declares_no_length(self, monkeypatch):
+        # PubChem and CIR answer chunked, where length is None and an early end raises
+        # IncompleteRead instead, so the check must not fire on a healthy response.
+        _mock_urlopen(monkeypatch, b"OCCO\n", remaining=None)
+        assert resolvers._opsin_resolve("name", "ethane-1,2-diol") == "OCCO"
 
     def test_an_undecodable_body_does_not_end_the_chain(self, monkeypatch):
         # An error page in some other encoding would otherwise raise UnicodeDecodeError

@@ -165,6 +165,13 @@ def _fetch_text(url: str) -> str:
         # value can reach urlopen as a scheme.
         with urllib.request.urlopen(url, timeout=_TIMEOUT_SECONDS) as response:  # noqa: S310
             body = response.read(_MAX_RESPONSE_BYTES + 1)
+            # Passing a size means EOF ends the read quietly, where the no-argument
+            # form would raise: a connection dropped mid-body leaves a short answer
+            # that is not detectably broken, since a truncated SMILES usually parses
+            # as a different molecule. ``length`` is what a declared body still owes,
+            # and is None for a chunked one, which raises IncompleteRead instead.
+            if response.length:
+                raise _ResolverError(f"{url} ended early")
     except (OSError, http.client.HTTPException) as error:
         raise _ResolverError(f"{url} could not be read: {error}") from error
     if len(body) > _MAX_RESPONSE_BYTES:
