@@ -29,19 +29,31 @@ from ord_schema.proto import reaction_pb2
 logger = get_logger(__name__)
 
 # Hard wall-clock ceiling on one resolver request, covering connect and body together.
-# An upstream that accepts the connection and then stalls -- or drip-feeds a byte at a
-# time to stay under a per-socket timeout -- would otherwise block the calling thread
-# for good; a caller dispatching to a worker pool loses a worker per hung lookup.
+# A caller dispatching these to a worker pool loses a worker for as long as a hung
+# lookup runs, so the ceiling is what stops an upstream outage from draining the pool.
 _REQUEST_TIMEOUT_SECONDS = 10
 
 # How long the socket may go silent, during connect or mid-body. Must stay below
-# _REQUEST_TIMEOUT_SECONDS: the read loop only begins a read it can finish inside the
-# request budget, so a stall tolerance at or above it leaves no room to read at all.
+# _REQUEST_TIMEOUT_SECONDS; see _fetch_text for how the two combine.
 _STALL_TIMEOUT_SECONDS = 5
 
 # Resolvers answer with a single SMILES, so a response this large means the upstream is
 # misbehaving (an error page, a redirect loop) and is not worth buffering.
 _MAX_RESPONSE_BYTES = 1 << 20
+
+# Read-size hint, kept well below _MAX_RESPONSE_BYTES: read1 clamps the request to the
+# framing only when the length is known, so a close-delimited response would otherwise
+# allocate the whole cap to receive a few dozen bytes.
+_READ_CHUNK_BYTES = 1 << 16
+
+
+class _ResolverUnavailableError(Exception):
+    """A resolver could not be reached, or did not answer usefully.
+
+    Resolvers signal failure with this alone, so the fallback chain does not have to
+    enumerate the transport library's exception types on their behalf.
+    """
+
 
 _COMPOUND_STRUCTURAL_IDENTIFIERS = [
     reaction_pb2.CompoundIdentifier.SMILES,
@@ -74,16 +86,16 @@ def resolve_name(value_type: str, value: str) -> tuple[str, str]:
     """Resolves compound identifiers to SMILES via multiple APIs.
 
     Any single resolver being unreachable, erroring, or timing out falls through to the
-    next one; only an exhausted chain is a failure. ``URLError`` covers ``HTTPError``
-    and connect-time timeouts, while a stall part-way through a response body surfaces
-    as a bare ``TimeoutError``.
+    next one, so only an exhausted chain is a failure. Each resolver is bounded
+    separately, which puts the worst case at the length of the chain times
+    ``_REQUEST_TIMEOUT_SECONDS``.
     """
     for resolver, resolver_func in _NAME_RESOLVERS.items():
         try:
             smiles = resolver_func(value_type, value)
             if smiles is not None:
                 return smiles, resolver
-        except (urllib.error.URLError, TimeoutError) as error:
+        except _ResolverUnavailableError as error:
             logger.info(f"{resolver} could not resolve {value_type} {value}: {error}")
     raise ValueError(f"Could not resolve {value_type} {value} to SMILES")
 
@@ -133,8 +145,7 @@ def _fetch_text(url: str) -> str:
     make the ceiling hard. The body is consumed with ``read1``, which returns as soon as
     any bytes arrive, so control comes back between chunks rather than being held inside
     one read that never returns; and a read is only begun when the stall tolerance still
-    fits inside the deadline, so the last read cannot run past it. Total time is
-    therefore at most ``_REQUEST_TIMEOUT_SECONDS``, not that plus a trailing read.
+    fits inside the deadline, so the last read cannot run past it.
 
     Args:
         url: The URL to fetch.
@@ -143,28 +154,29 @@ def _fetch_text(url: str) -> str:
         The decoded response body with surrounding whitespace removed.
 
     Raises:
-        TimeoutError: If the body cannot be finished within the request budget.
-        urllib.error.URLError: If the response exceeds ``_MAX_RESPONSE_BYTES``.
+        _ResolverUnavailableError: If the request fails, cannot be finished within the
+            request budget, or returns more than ``_MAX_RESPONSE_BYTES``.
     """
     deadline = time.monotonic() + _REQUEST_TIMEOUT_SECONDS
-    chunks: list[bytes] = []
-    size = 0
-    # S310: every caller builds an https literal here, interpolating only a quoted path
-    # segment, so no caller-supplied scheme can reach urlopen.
-    with urllib.request.urlopen(  # noqa: S310
-        url, timeout=_STALL_TIMEOUT_SECONDS
-    ) as response:
-        while True:
-            if time.monotonic() + _STALL_TIMEOUT_SECONDS > deadline:
-                raise TimeoutError(f"Timed out reading a response from {url}")
-            chunk = response.read1(_MAX_RESPONSE_BYTES)
-            if not chunk:
-                break
-            size += len(chunk)
-            if size > _MAX_RESPONSE_BYTES:
-                raise urllib.error.URLError(f"Response from {url} is too large")
-            chunks.append(chunk)
-    return b"".join(chunks).decode().strip()
+    body = bytearray()
+    try:
+        # S310: every caller builds an https literal here, interpolating only a quoted
+        # path segment, so no caller-supplied scheme can reach urlopen.
+        with urllib.request.urlopen(  # noqa: S310
+            url, timeout=_STALL_TIMEOUT_SECONDS
+        ) as response:
+            while True:
+                if time.monotonic() + _STALL_TIMEOUT_SECONDS > deadline:
+                    raise _ResolverUnavailableError(f"{url} timed out")
+                chunk = response.read1(_READ_CHUNK_BYTES)
+                if not chunk:
+                    break
+                body += chunk
+                if len(body) > _MAX_RESPONSE_BYTES:
+                    raise _ResolverUnavailableError(f"{url} sent too much data")
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise _ResolverUnavailableError(f"{url} could not be read: {error}") from error
+    return body.decode().strip()
 
 
 def _pubchem_resolve(value_type: str, value: str) -> str:
