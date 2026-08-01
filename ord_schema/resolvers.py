@@ -15,7 +15,6 @@
 
 import http.client
 import re
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -29,45 +28,21 @@ from ord_schema.proto import reaction_pb2
 
 logger = get_logger(__name__)
 
-# Hard wall-clock ceiling on one resolver request, covering connect and body together.
-# A caller dispatching these to a worker pool loses a worker for as long as a hung
-# lookup runs, so the ceiling is what stops an upstream outage from draining the pool.
-_REQUEST_TIMEOUT_SECONDS = 10
-
-# How long the socket may go silent, during connect or mid-body. Must stay below
-# _REQUEST_TIMEOUT_SECONDS; see _fetch_text for how the two combine.
-_STALL_TIMEOUT_SECONDS = 5
+# Applied to each socket operation. Without it a resolver that accepts the connection
+# and then goes quiet blocks its caller forever, which costs a worker per hung lookup
+# when resolution is dispatched to a thread pool.
+_TIMEOUT_SECONDS = 10
 
 # Resolvers answer with a single SMILES, so a response this large means the upstream is
 # misbehaving (an error page, a redirect loop) and is not worth buffering.
 _MAX_RESPONSE_BYTES = 1 << 20
 
-# Read-size hint, kept well below _MAX_RESPONSE_BYTES: read1 clamps the request to the
-# framing only when the length is known, so a close-delimited response would otherwise
-# allocate the whole cap to receive a few dozen bytes.
-_READ_CHUNK_BYTES = 1 << 16
-
-# Statuses that say the service, not the identifier, is the problem: PubChem answers 503
-# both under load and when it has blocked the caller's IP. Repeating the request for
-# every remaining compound would deepen a rate limit rather than resolve anything.
-_BACK_OFF_STATUSES = frozenset({429, 503})
-
 
 class _ResolverError(Exception):
     """A resolver did not produce a structure.
 
-    Resolvers signal failure with this hierarchy alone, so the fallback chain does not
-    have to enumerate the transport library's exception types on their behalf.
-    """
-
-
-class _ResolverUnavailableError(_ResolverError):
-    """A resolver could not be reached at all.
-
-    Separate from the base class because no response arrived, which distinguishes the
-    failures that cost a full timeout from an HTTP status that comes back promptly.
-    A resolver that is unreachable for one lookup is unreachable for the next, so
-    :func:`resolve_names` stops asking it for the rest of a traversal.
+    Resolvers signal failure with this alone, so the fallback chain does not have to
+    enumerate the transport library's exception types on their behalf.
     """
 
 
@@ -98,46 +73,33 @@ def canonicalize_smiles(smiles: str) -> str:
     return Chem.MolToSmiles(mol)
 
 
-def _resolve_name(
-    value_type: str, value: str, unavailable: set[str]
-) -> tuple[str, str]:
-    """Resolves one identifier, skipping and recording resolvers that are unreachable.
+def resolve_name(value_type: str, value: str) -> tuple[str, str]:
+    """Resolves compound identifiers to SMILES via multiple APIs.
+
+    Resolvers are tried in order until one answers. Any of them failing falls through
+    to the next, so only an exhausted chain is a failure.
 
     Args:
         value_type: The kind of identifier being resolved, e.g. "name".
         value: The identifier to resolve.
-        unavailable: Names of resolvers already found unreachable, added to in place.
-            Callers resolving a single identifier pass an empty set and discard it.
 
     Returns:
         A tuple of SMILES and the name of the resolver that produced it.
 
     Raises:
-        ValueError: If every resolver is skipped or fails.
+        ValueError: If no resolver returns a structure.
     """
     for resolver, resolver_func in _NAME_RESOLVERS.items():
-        if resolver in unavailable:
-            continue
         try:
             smiles = resolver_func(value_type, value)
-            if smiles is not None:
+            # An empty body reaches here as "", which would otherwise be written out as
+            # a SMILES identifier holding nothing -- and would then mask the compound
+            # from a later resolution pass, since it counts as structural.
+            if smiles:
                 return smiles, resolver
         except _ResolverError as error:
-            if isinstance(error, _ResolverUnavailableError):
-                unavailable.add(resolver)
             logger.info(f"{resolver} could not resolve {value_type} {value}: {error}")
     raise ValueError(f"Could not resolve {value_type} {value} to SMILES")
-
-
-def resolve_name(value_type: str, value: str) -> tuple[str, str]:
-    """Resolves compound identifiers to SMILES via multiple APIs.
-
-    Any single resolver being unreachable, erroring, or timing out falls through to the
-    next one, so only an exhausted chain is a failure. Each resolver is bounded
-    separately, which puts the worst case at the length of the chain times
-    ``_REQUEST_TIMEOUT_SECONDS``.
-    """
-    return _resolve_name(value_type, value, set())
 
 
 def resolve_names(message: ord_schema.Message) -> bool:
@@ -147,12 +109,6 @@ def resolve_names(message: ord_schema.Message) -> bool:
     of identifiers for that compound. Note that this function moves on to the
     next Compound after the first successful name resolution.
 
-    A resolver found unreachable is not tried again for the rest of this message.
-    Without that, an outage costs the full request budget once per compound, so a
-    message carrying dozens of names would spend minutes re-confirming the same
-    dead service. The cost is that a resolver which recovers mid-traversal stays
-    unused until the next call.
-
     Args:
         message: Protocol buffer tree containing Compound submessages (e.g. Reaction
             or ReactionInput).
@@ -161,7 +117,6 @@ def resolve_names(message: ord_schema.Message) -> bool:
         Boolean whether `message` was modified.
     """
     modified = False
-    unavailable: set[str] = set()
     compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
     for compound in compounds:
         if any(
@@ -172,9 +127,7 @@ def resolve_names(message: ord_schema.Message) -> bool:
         for identifier in compound.identifiers:
             if identifier.type == identifier.NAME:
                 try:
-                    smiles, resolver = _resolve_name(
-                        "name", identifier.value, unavailable
-                    )
+                    smiles, resolver = resolve_name("name", identifier.value)
                     new_identifier = compound.identifiers.add()
                     new_identifier.type = new_identifier.SMILES
                     new_identifier.value = smiles
@@ -187,89 +140,50 @@ def resolve_names(message: ord_schema.Message) -> bool:
 
 
 def _fetch_text(url: str) -> str:
-    """Fetches ``url`` as stripped text under a wall-clock deadline and a size cap.
+    """Fetches ``url`` as stripped text, bounded by a timeout and a size cap.
 
-    The socket timeout bounds a single read, not the request: an upstream sending a
-    little data just often enough to reset it would stream forever. Two rules together
-    make the ceiling hard. The body is consumed with ``read1``, which returns as soon as
-    any bytes arrive, so control comes back between chunks rather than being held inside
-    one read that never returns; and a read is only begun when the stall tolerance still
-    fits inside the deadline, so the last read cannot run past it.
+    Every way a request can fail arrives as :class:`_ResolverError`, so the fallback
+    chain treats an unreachable service, an HTTP status, and an unreadable body alike:
+    all of them mean this resolver has no answer, and the next one should be asked.
+    ``OSError`` covers the transport failures, ``URLError`` and ``TimeoutError`` among
+    them; ``HTTPException`` covers a response that is malformed or ends early.
 
     Args:
         url: The URL to fetch.
 
     Returns:
-        The decoded response body with surrounding whitespace removed.
+        The decoded response body with surrounding whitespace removed. Undecodable
+        bytes become replacement characters rather than failing the lookup, since the
+        answer is a SMILES and will not parse as a structure either way.
 
     Raises:
-        _ResolverError: If the resolver answers with an HTTP error status other than a
-            back-off. The service is up and the status describes this identifier, so it
-            is asked again for the next one.
-        _ResolverUnavailableError: If no response arrives, the status asks us to back
-            off, the body arrives incomplete, cannot be finished within the request
-            budget, or exceeds ``_MAX_RESPONSE_BYTES``.
+        _ResolverError: If the request fails, or the body exceeds
+            ``_MAX_RESPONSE_BYTES``.
     """
-    deadline = time.monotonic() + _REQUEST_TIMEOUT_SECONDS
-    body = bytearray()
     try:
-        # S310: every caller builds an https literal here, interpolating only a quoted
-        # path segment, so no caller-supplied scheme can reach urlopen.
-        with urllib.request.urlopen(  # noqa: S310
-            url, timeout=_STALL_TIMEOUT_SECONDS
-        ) as response:
-            while True:
-                if time.monotonic() + _STALL_TIMEOUT_SECONDS > deadline:
-                    raise _ResolverUnavailableError(f"{url} timed out")
-                chunk = response.read1(_READ_CHUNK_BYTES)
-                if not chunk:
-                    break
-                body += chunk
-                if len(body) > _MAX_RESPONSE_BYTES:
-                    raise _ResolverUnavailableError(f"{url} sent too much data")
-            # read1 reports a connection that dies mid-body as EOF rather than raising,
-            # so a short read has to be caught here: a truncated SMILES can still parse,
-            # as a different molecule. read() would have raised, but cannot be used
-            # without giving up the guarantees above.
-            declared = response.getheader("Content-Length")
-            if (
-                declared is not None
-                and declared.isdigit()
-                and len(body) != int(declared)
-            ):
-                raise _ResolverUnavailableError(
-                    f"{url} sent {len(body)} bytes of a declared {declared}"
-                )
-    except http.client.HTTPException as error:
-        # A chunked body that ends early raises IncompleteRead, which is not an OSError
-        # and so is not covered by the URLError clause below.
-        raise _ResolverUnavailableError(
-            f"{url} sent a bad response: {error}"
-        ) from error
-    except urllib.error.HTTPError as error:
-        if error.code in _BACK_OFF_STATUSES:
-            raise _ResolverUnavailableError(
-                f"{url} returned {error.code}; backing off"
-            ) from error
-        # Any other status describes the identifier rather than the service -- notably
-        # CIR, which answers 500 for a name it does not know -- so keep asking.
-        raise _ResolverError(f"{url} returned {error.code}") from error
-    except (urllib.error.URLError, TimeoutError) as error:
-        raise _ResolverUnavailableError(
-            f"{url} could not be reached: {error}"
-        ) from error
-    return body.decode().strip()
+        # S310: the scheme is a literal in each caller's f-string, so no caller-supplied
+        # value can reach urlopen as a scheme.
+        with urllib.request.urlopen(url, timeout=_TIMEOUT_SECONDS) as response:  # noqa: S310
+            body = response.read(_MAX_RESPONSE_BYTES + 1)
+    except (OSError, http.client.HTTPException) as error:
+        raise _ResolverError(f"{url} could not be read: {error}") from error
+    if len(body) > _MAX_RESPONSE_BYTES:
+        raise _ResolverError(f"{url} sent too much data")
+    return body.decode(errors="replace").strip()
 
 
 def _pubchem_resolve(value_type: str, value: str) -> str:
     """Resolves compound identifiers to SMILES via the PubChem REST API.
 
-    A 503 (genuine service load or an IP-level block) propagates to ``resolve_name``,
-    which falls through to the next resolver instead of retrying.
+    A 503 means genuine service load or an IP-level block; it is not retried, and
+    ``resolve_name`` falls through to the next resolver.
     """
+    # Both segments are quoted with safe="" so that a name containing slashes or dot
+    # segments cannot rewrite the request path and resolve a different compound.
     return _fetch_text(
-        f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/{value_type}/"
-        f"{urllib.parse.quote(value)}/property/IsomericSMILES/txt"
+        f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/"
+        f"{urllib.parse.quote(value_type, safe='')}/"
+        f"{urllib.parse.quote(value, safe='')}/property/IsomericSMILES/txt"
     )
 
 
@@ -278,12 +192,13 @@ def _cactus_resolve(value_type: str, value: str) -> str:
 
     CIR resolves trade names, trivial names, abbreviations, and CAS numbers, so it
     serves as a fast fallback when PubChem is unavailable. Unknown names come back as
-    HTTP 500 (not 404), which ``resolve_name`` treats like any other HTTPError and falls
-    through.
+    HTTP 500 (not 404), which is reported like any other failed lookup and falls
+    through to the next resolver.
     """
     del value_type  # CIR infers the identifier type from the string.
     body = _fetch_text(
-        f"https://cactus.nci.nih.gov/chemical/structure/{urllib.parse.quote(value)}/smiles"
+        f"https://cactus.nci.nih.gov/chemical/structure/"
+        f"{urllib.parse.quote(value, safe='')}/smiles"
     )
     # CIR can return several representations newline-separated; take the first.
     return body.split("\n", 1)[0]
@@ -298,7 +213,7 @@ def _opsin_resolve(value_type: str, value: str) -> str:
     """
     del value_type  # OPSIN only supports names.
     return _fetch_text(
-        f"https://www.ebi.ac.uk/opsin/ws/{urllib.parse.quote(value)}.smi"
+        f"https://www.ebi.ac.uk/opsin/ws/{urllib.parse.quote(value, safe='')}.smi"
     )
 
 

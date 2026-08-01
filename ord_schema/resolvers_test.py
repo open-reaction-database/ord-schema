@@ -14,9 +14,9 @@
 """Tests for ord_schema.units."""
 
 import http.client
-import itertools
 import logging
 import os
+import ssl
 import urllib.error
 from unittest import mock
 
@@ -80,7 +80,7 @@ class TestNameResolvers:
         # plumbing (adds a SMILES identifier with details) without the live call,
         # so the logic stays covered if the live smoke test is ever removed.
         monkeypatch.setattr(
-            "ord_schema.resolvers._resolve_name",
+            "ord_schema.resolvers.resolve_name",
             mock.MagicMock(return_value=("CC(=O)Oc1ccccc1C(=O)O", "PubChem API")),
         )
         message = reaction_pb2.Reaction()
@@ -162,11 +162,8 @@ class TestInputResolvers:
             "water": "O",
         }
         monkeypatch.setattr(
-            "ord_schema.resolvers._resolve_name",
-            lambda _value_type, value, _unavailable: (
-                smiles_by_name[value],
-                "PubChem API",
-            ),
+            "ord_schema.resolvers.resolve_name",
+            lambda _value_type, value: (smiles_by_name[value], "PubChem API"),
         )
 
         reaction_input = resolvers.resolve_input("10 g of THF")
@@ -224,28 +221,18 @@ def _http_error(code: int, msg: str) -> urllib.error.HTTPError:
     return urllib.error.HTTPError("", code, msg, hdrs=None, fp=None)  # ty: ignore[invalid-argument-type]
 
 
-def _mock_urlopen(
-    monkeypatch,
-    *chunks: bytes | BaseException,
-    eof: bool = True,
-    content_length: str | None = None,
-) -> mock.MagicMock:
-    """Patches urlopen with a response yielding ``chunks`` from read1.
+def _mock_urlopen(monkeypatch, body: bytes) -> mock.MagicMock:
+    """Patches urlopen with a response whose read returns ``body``.
 
     Args:
         monkeypatch: The pytest fixture.
-        chunks: Bodies returned by successive read1 calls, or raised if an exception.
-        eof: Whether the body ends. False cycles ``chunks`` forever, standing in for an
-            upstream that keeps the connection fed and never finishes.
-        content_length: Value of the Content-Length header. None stands in for a chunked
-            response, which declares no length.
+        body: The response body.
 
     Returns:
         The patched urlopen mock; its ``return_value`` is the response.
     """
     response = mock.MagicMock()
-    response.read1.side_effect = [*chunks, b""] if eof else itertools.cycle(chunks)
-    response.getheader.return_value = content_length
+    response.read.return_value = body
     response.__enter__.return_value = response
     urlopen = mock.MagicMock(return_value=response)
     monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
@@ -263,7 +250,7 @@ class TestPubChemResolve:
         # falls through to the next resolver (see TestNameResolveFallback).
         urlopen = mock.MagicMock(side_effect=_http_error(503, "PUGREST.ServerBusy"))
         monkeypatch.setattr("ord_schema.resolvers.urllib.request.urlopen", urlopen)
-        with pytest.raises(resolvers._ResolverUnavailableError):
+        with pytest.raises(resolvers._ResolverError):
             resolvers._pubchem_resolve("name", "aspirin")
         assert urlopen.call_count == 1
 
@@ -304,7 +291,7 @@ class TestCactusResolve:
     def test_cactus_resolve_live(self):
         try:
             smiles = resolvers._cactus_resolve("name", "aspirin")
-        except resolvers._ResolverUnavailableError as error:
+        except resolvers._ResolverError as error:
             pytest.skip(f"CIR unavailable ({error}); skipping live resolver smoke test")
         assert Chem.MolToSmiles(Chem.MolFromSmiles(smiles)) == Chem.MolToSmiles(
             Chem.MolFromSmiles("CC(=O)Oc1ccccc1C(O)=O")
@@ -314,7 +301,7 @@ class TestCactusResolve:
 class TestNameResolveFallback:
     def test_falls_back_to_next_resolver(self, monkeypatch):
         # A resolver that cannot answer must not strand the chain.
-        first = mock.MagicMock(side_effect=resolvers._ResolverUnavailableError("down"))
+        first = mock.MagicMock(side_effect=resolvers._ResolverError("down"))
         second = mock.MagicMock(return_value="OCCO")
         monkeypatch.setattr(
             "ord_schema.resolvers._NAME_RESOLVERS", {"first": first, "second": second}
@@ -324,121 +311,54 @@ class TestNameResolveFallback:
         second.assert_called_once_with("name", "ethylene glycol")
 
     def test_raises_when_no_resolver_succeeds(self, monkeypatch):
-        only = mock.MagicMock(side_effect=resolvers._ResolverUnavailableError("down"))
+        only = mock.MagicMock(side_effect=resolvers._ResolverError("down"))
         monkeypatch.setattr("ord_schema.resolvers._NAME_RESOLVERS", {"only": only})
         with pytest.raises(ValueError, match="Could not resolve"):
             resolvers.resolve_name("name", "definitely-not-a-compound")
 
 
-class TestTransportFailuresAreTranslated:
+class TestFailuresReachTheFallbackChain:
     @pytest.mark.parametrize(
-        ("error", "unreachable"),
+        "error",
         [
-            # The status describes the identifier, so the service is worth asking again.
-            (_http_error(404, "Not Found"), False),
-            (_http_error(500, "Server Error"), False),  # CIR's answer for a bad name.
-            # The status describes the service, and repeating it deepens a rate limit.
-            (_http_error(429, "Too Many Requests"), True),
-            (_http_error(503, "PUGREST.ServerBusy"), True),
-            # No response arrived; each of these costs a full timeout.
-            (TimeoutError("timed out"), True),  # Stalled part-way through the body.
-            (urllib.error.URLError(TimeoutError("timed out")), True),  # Connecting.
-            (urllib.error.URLError("name resolution failed"), True),
+            _http_error(404, "Not Found"),
+            _http_error(503, "PUGREST.ServerBusy"),
+            TimeoutError("timed out"),
+            urllib.error.URLError("name resolution failed"),
+            ConnectionResetError("connection reset by peer"),
+            ssl.SSLError("handshake failure"),
+            http.client.IncompleteRead(b"OCC"),
         ],
     )
-    def test_a_failure_records_whether_the_resolver_answered(
-        self, monkeypatch, error, unreachable
-    ):
-        # resolve_name catches a single base type rather than enumerating urllib's
-        # taxonomy, which holds only if every failure is translated here. The subtype
-        # is what decides whether the resolver is worth trying for the next compound,
-        # so HTTPError must be caught before URLError -- it is a subclass of it.
+    def test_every_failure_becomes_a_resolver_error(self, monkeypatch, error):
+        # resolve_name catches one type, so every way a request can fail has to arrive
+        # as that type; anything escaping ends the chain instead of falling through to
+        # the next resolver. Catching OSError is what makes this hold -- URLError,
+        # TimeoutError, the connection errors and SSLError are all subclasses of it.
         monkeypatch.setattr(
             "ord_schema.resolvers.urllib.request.urlopen",
             mock.MagicMock(side_effect=error),
         )
-        with pytest.raises(resolvers._ResolverError) as caught:
-            resolvers._opsin_resolve("name", "ethanol")
-        assert isinstance(caught.value, resolvers._ResolverUnavailableError) is (
-            unreachable
-        )
-
-
-class TestIncompleteResponses:
-    def test_a_short_content_length_body_is_rejected(self, monkeypatch):
-        # read1 reports a connection dying mid-body as EOF instead of raising, so
-        # without this check a partial body would be returned as though complete --
-        # and a truncated SMILES can parse cleanly as a different molecule.
-        _mock_urlopen(monkeypatch, b"OCC", content_length="12")
-        with pytest.raises(resolvers._ResolverUnavailableError, match="declared 12"):
-            resolvers._opsin_resolve("name", "ethanol")
-
-    def test_a_complete_body_is_accepted(self, monkeypatch):
-        _mock_urlopen(monkeypatch, b"OCCO\n", content_length="5")
-        assert resolvers._opsin_resolve("name", "ethane-1,2-diol") == "OCCO"
-
-    def test_a_chunked_body_declares_no_length(self, monkeypatch):
-        # PubChem and CIR reply chunked, so the check must not fire when the header
-        # is absent.
-        _mock_urlopen(monkeypatch, b"OCCO\n", content_length=None)
-        assert resolvers._opsin_resolve("name", "ethane-1,2-diol") == "OCCO"
-
-    def test_a_truncated_chunked_body_falls_through(self, monkeypatch):
-        # A chunked body that ends early raises IncompleteRead, which is not an
-        # OSError and so escapes the URLError clause entirely, aborting the chain
-        # rather than moving on to the next resolver.
-        _mock_urlopen(monkeypatch, http.client.IncompleteRead(b"OCC"))
-        with pytest.raises(resolvers._ResolverUnavailableError, match="bad response"):
+        with pytest.raises(resolvers._ResolverError):
             resolvers._opsin_resolve("name", "ethanol")
 
 
-class TestUnreachableResolversAreLatched:
-    def _reaction_with_names(self, *names: str) -> reaction_pb2.Reaction:
-        reaction = reaction_pb2.Reaction()
-        for name in names:
-            reaction.inputs["test"].components.add().identifiers.add(
-                type="NAME", value=name
-            )
-        return reaction
+class TestResponseHandling:
+    def test_an_oversized_response_is_rejected(self, monkeypatch):
+        # A resolver answers with one SMILES, so a body past the cap means the upstream
+        # is misbehaving and is not worth buffering.
+        monkeypatch.setattr("ord_schema.resolvers._MAX_RESPONSE_BYTES", 8)
+        _mock_urlopen(monkeypatch, b"C" * 9)
+        with pytest.raises(resolvers._ResolverError, match="too much data"):
+            resolvers._opsin_resolve("name", "ethanol")
 
-    def test_an_unreachable_resolver_is_asked_once_per_message(self, monkeypatch):
-        # Each attempt against a dead service costs the full request budget, so
-        # re-confirming it for every compound is what turns one outage into minutes.
-        dead = mock.MagicMock(
-            side_effect=resolvers._ResolverUnavailableError("unreachable")
-        )
-        live = mock.MagicMock(return_value="OCCO")
-        monkeypatch.setattr(
-            "ord_schema.resolvers._NAME_RESOLVERS", {"dead": dead, "live": live}
-        )
-        assert resolvers.resolve_names(self._reaction_with_names("a", "b", "c"))
-        assert dead.call_count == 1
-        assert live.call_count == 3
+    def test_an_undecodable_body_does_not_end_the_chain(self, monkeypatch):
+        # An error page in some other encoding would otherwise raise UnicodeDecodeError
+        # past the translation and abort resolution. It cannot parse as a structure
+        # either way, so it degrades to a normal failed lookup.
+        _mock_urlopen(monkeypatch, b"\xff\xfe caf\xe9")
+        assert resolvers._opsin_resolve("name", "ethanol")  # Does not raise.
 
-    def test_a_resolver_that_answered_is_asked_again(self, monkeypatch):
-        # A 404 is specific to the identifier, not the service, so the next compound
-        # may well be one this resolver knows.
-        missing = mock.MagicMock(side_effect=resolvers._ResolverError("no match"))
-        live = mock.MagicMock(return_value="OCCO")
-        monkeypatch.setattr(
-            "ord_schema.resolvers._NAME_RESOLVERS", {"missing": missing, "live": live}
-        )
-        assert resolvers.resolve_names(self._reaction_with_names("a", "b", "c"))
-        assert missing.call_count == 3
-
-    def test_the_latch_does_not_outlive_the_message(self, monkeypatch):
-        # The set is per traversal, so a resolver down during one message is retried
-        # for the next rather than being written off process-wide.
-        dead = mock.MagicMock(
-            side_effect=resolvers._ResolverUnavailableError("unreachable")
-        )
-        monkeypatch.setattr("ord_schema.resolvers._NAME_RESOLVERS", {"dead": dead})
-        for _ in range(3):
-            assert not resolvers.resolve_names(self._reaction_with_names("a"))
-        assert dead.call_count == 3
-
-
-class TestResolverTimeouts:
     @pytest.mark.parametrize(
         "resolve",
         [
@@ -448,49 +368,50 @@ class TestResolverTimeouts:
         ],
     )
     def test_every_resolver_bounds_its_request(self, monkeypatch, resolve):
-        # A missing timeout blocks the calling thread indefinitely against an upstream
-        # that accepts the connection and then goes quiet.
+        # Without a timeout, an upstream that accepts the connection and then goes
+        # quiet blocks the calling thread indefinitely.
         urlopen = _mock_urlopen(monkeypatch, b"OCCO\n")
         resolve("name", "ethylene glycol")
-        assert urlopen.call_args.kwargs["timeout"] == resolvers._STALL_TIMEOUT_SECONDS
+        assert urlopen.call_args.kwargs["timeout"] == resolvers._TIMEOUT_SECONDS
 
-    def test_a_read_is_not_begun_when_it_could_outlast_the_deadline(self, monkeypatch):
-        # The socket timeout applies to whichever read is in flight, so a read started
-        # just under the deadline would run past it. The budget is a ceiling on the
-        # whole request, which holds only if the last read is refused rather than
-        # started: here one chunk lands, then too little budget remains to read again.
-        clock = iter([0, 0, resolvers._REQUEST_TIMEOUT_SECONDS])
-        monkeypatch.setattr("ord_schema.resolvers.time.monotonic", lambda: next(clock))
-        urlopen = _mock_urlopen(monkeypatch, b"OCCO")  # EOF is never reached.
-        with pytest.raises(resolvers._ResolverUnavailableError, match="timed out"):
-            resolvers._opsin_resolve("name", "ethanol")
-        assert urlopen.return_value.read1.call_count == 1
+    @pytest.mark.parametrize(
+        "resolve",
+        [
+            resolvers._pubchem_resolve,
+            resolvers._cactus_resolve,
+            resolvers._opsin_resolve,
+        ],
+    )
+    def test_a_name_cannot_rewrite_the_request_path(self, monkeypatch, resolve):
+        # quote() leaves "/" alone by default, so an unescaped name could climb the
+        # path and resolve a different compound than the one asked for.
+        urlopen = _mock_urlopen(monkeypatch, b"OCCO\n")
+        resolve("name", "../../../pug/compound/cid/2244")
+        assert "/../" not in urlopen.call_args.args[0]
 
-    def test_the_stall_tolerance_leaves_room_to_read(self):
-        # Were these equal, the loop could never begin a read: every check would find
-        # the stall tolerance already overrunning the deadline.
-        assert resolvers._STALL_TIMEOUT_SECONDS < resolvers._REQUEST_TIMEOUT_SECONDS
 
-    def test_a_trickling_response_still_hits_the_deadline(self, monkeypatch):
-        # The socket timeout only bounds a single read, so an upstream that sends a
-        # byte just often enough to reset it would stream forever. Each chunk arrives
-        # "instantly" here and the clock advances a second per check, so the loop can
-        # only terminate via the deadline.
-        clock = itertools.count()
-        monkeypatch.setattr("ord_schema.resolvers.time.monotonic", lambda: next(clock))
-        _mock_urlopen(monkeypatch, b"C", eof=False)
-        with pytest.raises(resolvers._ResolverUnavailableError, match="timed out"):
-            resolvers._opsin_resolve("name", "ethanol")
+class TestBlankResponses:
+    def test_a_blank_body_is_not_a_resolution(self, monkeypatch):
+        # "" would be written out as a SMILES identifier holding nothing, which also
+        # counts as structural -- so the compound would be skipped by any later pass.
+        blank = mock.MagicMock(return_value="")
+        found = mock.MagicMock(return_value="OCCO")
+        monkeypatch.setattr(
+            "ord_schema.resolvers._NAME_RESOLVERS", {"blank": blank, "found": found}
+        )
+        assert resolvers.resolve_name("name", "ethylene glycol") == ("OCCO", "found")
 
-    def test_an_oversized_response_is_rejected(self, monkeypatch):
-        # An upstream streaming an error page is not buffered without limit; the
-        # failure reads like any other, so the chain falls through to the next resolver.
-        monkeypatch.setattr("ord_schema.resolvers._MAX_RESPONSE_BYTES", 8)
-        _mock_urlopen(monkeypatch, b"C" * 9)
-        with pytest.raises(
-            resolvers._ResolverUnavailableError, match="sent too much data"
-        ):
-            resolvers._opsin_resolve("name", "ethanol")
+    def test_a_message_is_unmodified_when_every_resolver_is_blank(self, monkeypatch):
+        monkeypatch.setattr(
+            "ord_schema.resolvers._NAME_RESOLVERS",
+            {"blank": mock.MagicMock(return_value="")},
+        )
+        message = reaction_pb2.Reaction()
+        message.inputs["test"].components.add().identifiers.add(
+            type="NAME", value="aspirin"
+        )
+        assert not resolvers.resolve_names(message)
+        assert len(message.inputs["test"].components[0].identifiers) == 1
 
 
 class TestResolveNamesSkipsStructuralIdentifiers:
@@ -498,7 +419,7 @@ class TestResolveNamesSkipsStructuralIdentifiers:
         # If a Compound already has a structural identifier, name resolution
         # must not be attempted.
         called = mock.MagicMock()
-        monkeypatch.setattr("ord_schema.resolvers._resolve_name", called)
+        monkeypatch.setattr("ord_schema.resolvers.resolve_name", called)
         message = reaction_pb2.Reaction()
         compound = message.inputs["test"].components.add()
         compound.identifiers.add(type="NAME", value="aspirin")
@@ -510,7 +431,7 @@ class TestResolveNamesSkipsStructuralIdentifiers:
         # When resolve_name raises ValueError, resolve_names skips that NAME and
         # reports no modification.
         monkeypatch.setattr(
-            "ord_schema.resolvers._resolve_name",
+            "ord_schema.resolvers.resolve_name",
             mock.MagicMock(side_effect=ValueError("not found")),
         )
         message = reaction_pb2.Reaction()
