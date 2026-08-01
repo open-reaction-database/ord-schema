@@ -268,8 +268,13 @@ async def translate(query: str, client: anthropic.AsyncAnthropic) -> NLQuery:
 
 
 def translation_cache_key(query: str) -> str:
-    """Returns the cache key for a translation, scoped to the prompt and model."""
-    digest = hashlib.sha256(query.strip().lower().encode()).hexdigest()
+    """Returns the cache key for a translation, scoped to the prompt version and model.
+
+    The question is *not* case-folded, unlike a name lookup: a question can carry a
+    SMILES, and ``CCO`` and ``cco`` are different molecules. Two questions differing
+    only in case therefore get separate entries rather than one wrong answer.
+    """
+    digest = hashlib.sha256(query.strip().encode()).hexdigest()
     return f"nl_translate:{TRANSLATION_CACHE_VERSION}:{model_name()}:{digest}"
 
 

@@ -280,3 +280,11 @@ def test_cache_keys_are_scoped_by_version_and_model(monkeypatch):
 
 def test_resolution_cache_keys_ignore_case_and_padding():
     assert nl_query.resolve_cache_key("  ThF ") == nl_query.resolve_cache_key("thf")
+
+
+def test_translation_cache_keys_are_case_sensitive():
+    # A question can contain a SMILES, and CCO is not cco.
+    assert nl_query.translation_cache_key("with CCO") != nl_query.translation_cache_key(
+        "with cco"
+    )
+    assert nl_query.translation_cache_key(" q ") == nl_query.translation_cache_key("q")
