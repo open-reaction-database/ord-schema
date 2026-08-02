@@ -1050,17 +1050,16 @@ def test_validator_switch_dispatches(message_cls):
     assert isinstance(output, validations.ValidationOutput)
 
 
-def _capture_warnings(func, *args, **kwargs):
-    """Calls a validator directly and returns the recorded warnings.
+def _capture_findings(func, *args, **kwargs):
+    """Calls a validator directly and returns the findings it reported.
 
     Used for branches that are shadowed by recursion in ``validate_message`` (e.g.
     provenance-level DateTime parsing, which the DateTime validator would otherwise flag
     first).
     """
-    with warnings.catch_warnings(record=True) as tape:
-        warnings.simplefilter("always")
-        func(*args, **kwargs)
-    return tape
+    context = validations.ValidationContext()
+    func(*args, context, **kwargs)
+    return [text for text, _ in context.findings]
 
 
 def test_type_and_details_missing_type():
@@ -1328,8 +1327,8 @@ def test_provenance_unparseable_datetime_direct():
     message.record_created.time.value = "garbage"
     message.record_created.person.username = "u"
     message.record_created.person.email = "a@b.com"
-    tape = _capture_warnings(validations.validate_reaction_provenance, message)
-    assert any("Failed to parse" in str(warning.message) for warning in tape)
+    findings = _capture_findings(validations.validate_reaction_provenance, message)
+    assert any("Failed to parse" in finding for finding in findings)
 
 
 def test_temperature_fahrenheit_below_absolute_zero():
@@ -1364,17 +1363,19 @@ def test_cross_ref_state_merge():
 
 
 def test_validators_default_options():
-    # Exercise the ``options is None`` default branches.
-    validations.validate_reaction(reaction_pb2.Reaction(), options=None)
-    validations.validate_dataset(dataset_pb2.Dataset(), options=None)
+    """A context built without options validates under the defaults."""
+    context = validations.ValidationContext()
+    assert context.options == validations.ValidationOptions()
+    validations.validate_reaction(reaction_pb2.Reaction(), context)
+    validations.validate_dataset(dataset_pb2.Dataset(), context)
     validations.validate_dataset_streaming(
+        context=context,
         name="n",
         description="d",
         dataset_id="",
         reaction_ids=[],
         has_reactions=True,
         state=validations.DatasetCrossRefState(),
-        options=None,
     )
 
 
@@ -1460,11 +1461,8 @@ def test_provenance_record_modified_missing_email_direct():
     record = message.record_modified.add()
     record.time.value = "2021-06-01"
     record.person.username = "u"
-    tape = _capture_warnings(validations.validate_reaction_provenance, message)
-    assert any(
-        "email is required for record_modified" in str(warning.message)
-        for warning in tape
-    )
+    findings = _capture_findings(validations.validate_reaction_provenance, message)
+    assert any("email is required for record_modified" in f for f in findings)
 
 
 def test_validate_datasets(tmp_path):
