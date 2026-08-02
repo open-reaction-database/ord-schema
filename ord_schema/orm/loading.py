@@ -588,8 +588,8 @@ def load_datasets(
         # Datasets are processed serially (the rdkit.* dedup tables are shared, so
         # cross-dataset concurrency could collide on the same structure), but each
         # dataset's pass is sharded by SMILES hash across the pool -- disjoint
-        # partitions keep concurrent inserts off each other's rdkit.* keys, so one large
-        # dataset no longer runs single-threaded.
+        # partitions keep concurrent inserts off each other's rdkit.* keys, so even a
+        # single large dataset occupies the whole pool.
         engine = create_engine(dsn)
         try:
             for dataset_id in tqdm(dataset_ids, desc="RDKit"):

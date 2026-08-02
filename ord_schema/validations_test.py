@@ -285,7 +285,7 @@ def test_reaction_smiles():
     output = _run_validation(message)
     assert len(output.errors) == 0
     assert len(output.warnings) == 0
-    # Now disable the exception for reaction SMILES only.
+    # With allow_reaction_smiles_only off, the same message must fail.
     options = validations.ValidationOptions()
     options.allow_reaction_smiles_only = False
     with pytest.raises(validations.ValidationError, match="reaction input"):
@@ -538,7 +538,8 @@ def test_compound_identifier_is_validated_as_recorded(value):
 
 @pytest.mark.parametrize("identifier_type", ["REACTION_SMILES", "REACTION_CXSMILES"])
 def test_empty_reaction_identifier_reports_rather_than_raises(identifier_type):
-    # An empty CXSMILES value used to index off the end of an empty token list.
+    # An empty value tokenizes to nothing, so the check must report it rather than
+    # indexing off the end of the token list.
     message = reaction_pb2.ReactionIdentifier(type=identifier_type, value="")
     output = _run_validation(message, raise_on_error=False)
     assert any("value must be set" in error for error in output.errors)

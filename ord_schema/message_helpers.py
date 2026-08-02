@@ -290,7 +290,8 @@ def smiles_from_compound(
 ) -> str:
     """Fetches or generates a SMILES identifier for a compound.
 
-    If a SMILES identifier already exists, it is simply returned.
+    An existing SMILES identifier is used in preference to regenerating one from the
+    structure, but it is still canonicalized when ``canonical`` is True.
 
     Args:
         compound: reaction_pb2.Compound or reaction_pb2.ProductCompound message.
