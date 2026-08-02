@@ -1379,6 +1379,40 @@ def test_validators_default_options():
     )
 
 
+def test_streaming_and_in_memory_dataset_agree_on_options():
+    """Both dataset entry points validate under the context's options.
+
+    The streaming path once took its own ``options`` argument, so a context
+    carrying ``validate_ids=True`` was honored by ``_validate_dataset`` and
+    silently ignored here.
+    """
+    options = validations.ValidationOptions(validate_ids=True)
+
+    in_memory = validations.ValidationContext(options=options)
+    validations._validate_dataset(
+        dataset_pb2.Dataset(name="n", description="d", dataset_id="bogus"), in_memory
+    )
+
+    streaming = validations.ValidationContext(options=options)
+    validations.validate_dataset_streaming(
+        context=streaming,
+        name="n",
+        description="d",
+        dataset_id="bogus",
+        reaction_ids=[],
+        has_reactions=True,
+        state=validations.DatasetCrossRefState(),
+    )
+
+    malformed = [
+        text for text, _ in streaming.findings if "Dataset ID is malformed" in text
+    ]
+    assert malformed
+    assert malformed == [
+        text for text, _ in in_memory.findings if "Dataset ID is malformed" in text
+    ]
+
+
 def test_workup_target_ph_out_of_range():
     message = reaction_pb2.ReactionWorkup(
         type="PH_ADJUST",

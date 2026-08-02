@@ -21,7 +21,7 @@ import pathlib
 import re
 from collections.abc import Callable, Mapping
 from enum import IntEnum
-from typing import Any
+from typing import Any, TypeAlias
 
 from dateutil import parser
 from rdkit import (
@@ -70,6 +70,23 @@ class ValidationOutput:
         self.warnings.extend(other.warnings)
 
 
+class ValidationError(Warning):
+    """Warning category for validation failures that indicate invalid data."""
+
+    pass
+
+
+class ValidationWarning(Warning):
+    """Warning category for non-fatal validation concerns."""
+
+    pass
+
+
+# How severe a finding is. These double as the exception type raised for an error,
+# which is why they are Warning subclasses rather than an enum.
+FindingCategory: TypeAlias = type[ValidationError] | type[ValidationWarning]
+
+
 @dataclasses.dataclass
 class ValidationContext:
     """Where a validator reports to, and the toggles it validates under.
@@ -81,7 +98,9 @@ class ValidationContext:
     """
 
     options: ValidationOptions = dataclasses.field(default_factory=ValidationOptions)
-    findings: list[tuple[str, type[Warning]]] = dataclasses.field(default_factory=list)
+    findings: list[tuple[str, FindingCategory]] = dataclasses.field(
+        default_factory=list
+    )
 
     def error(self, message: str) -> None:
         """Records a finding that makes the message invalid."""
@@ -202,7 +221,8 @@ def validate_message(
             the current message relative to the recursion root.
         context: Where findings are reported, and the options they are validated
             under. Created for the root call and threaded through the recursion;
-            callers do not normally pass one.
+            callers do not normally pass one. Supplying both this and ``options``
+            validates under ``context.options`` and ignores ``options``.
 
     Returns:
         Errors and warnings accumulated over the message and, when recursing,
@@ -310,18 +330,6 @@ def _validate_message(
             value, raise_on_error=raise_on_error, context=context, trace=this_trace
         )
         output.extend(this_output)
-
-
-class ValidationError(Warning):
-    """Warning category for validation failures that indicate invalid data."""
-
-    pass
-
-
-class ValidationWarning(Warning):
-    """Warning category for non-fatal validation concerns."""
-
-    pass
 
 
 def is_empty(message: ord_schema.Message) -> bool:
@@ -579,7 +587,6 @@ def _validate_dataset_scalars(
     dataset_id: str,
     reaction_ids: list[str],
     has_reactions: bool,
-    options: ValidationOptions,
 ) -> None:
     """Issues the dataset-level scalar/structural warnings.
 
@@ -598,7 +605,7 @@ def _validate_dataset_scalars(
         for reaction_id in reaction_ids:
             if not is_valid_reaction_id(reaction_id):
                 context.error("Reaction ID is malformed")
-    if options.validate_ids:
+    if context.options.validate_ids:
         # The dataset_id is a 32-character uuid4 hex string.
         if not is_valid_dataset_id(dataset_id):
             context.error("Dataset ID is malformed")
@@ -608,7 +615,6 @@ def _validate_dataset(
     message: dataset_pb2.Dataset | parquet.DatasetView, context: ValidationContext
 ) -> None:
     """Validates a Dataset's scalar fields, reactions, and cross-references."""
-    options = context.options
     _validate_dataset_scalars(
         context=context,
         name=message.name,
@@ -616,7 +622,6 @@ def _validate_dataset(
         dataset_id=message.dataset_id,
         reaction_ids=list(message.reaction_ids),
         has_reactions=bool(message.reactions),
-        options=options,
     )
     state = DatasetCrossRefState()
     for reaction in message.reactions:
@@ -633,7 +638,6 @@ def validate_dataset_streaming(
     reaction_ids: list[str],
     has_reactions: bool,
     state: DatasetCrossRefState,
-    options: ValidationOptions | None = None,
 ) -> None:
     """Dataset-level validation for callers that have already streamed reactions.
 
@@ -645,9 +649,10 @@ def validate_dataset_streaming(
     ``state`` would misclassify reactions without reaction_ids or references as empty.
     Pass ``reaction_ids=[]`` for the typical streaming case (parquet does not persist
     Dataset.reaction_ids).
+
+    Validates under ``context.options``; there is no separate options argument, so
+    this and ``_validate_dataset`` cannot disagree about which toggles are in force.
     """
-    if options is None:
-        options = ValidationOptions()
     _validate_dataset_scalars(
         context=context,
         name=name,
@@ -655,7 +660,6 @@ def validate_dataset_streaming(
         dataset_id=dataset_id,
         reaction_ids=reaction_ids,
         has_reactions=has_reactions,
-        options=options,
     )
     state.report(context)
 
