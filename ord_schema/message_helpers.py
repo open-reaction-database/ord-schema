@@ -988,7 +988,8 @@ def id_filename(filename: str) -> str:
     if not shard.isalnum():
         raise ValueError(f"basename shard must be alphanumeric: {basename}")
     result = posixpath.join("data", shard, basename)
-    # Defense-in-depth: mirror what werkzeug.security.safe_join used to check.
+    # Defense in depth: basename carries no separator and shard is alphanumeric, so
+    # this is redundant -- but it is what pins the result inside the "data/" root.
     if posixpath.normpath(result) != result or not result.startswith("data/"):
         raise ValueError(f"unsafe path from basename: {basename}")
     return result
