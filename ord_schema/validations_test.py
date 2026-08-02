@@ -18,7 +18,7 @@ import warnings
 
 import pytest
 
-from ord_schema import validations
+from ord_schema import message_helpers, validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -355,6 +355,38 @@ def test_invalid_compound_identifier(identifier_type, value):
     message = reaction_pb2.CompoundIdentifier(type=identifier_type, value=value)
     with pytest.raises(validations.ValidationError, match="could not validate"):
         _run_validation(message)
+
+
+def _compound_with_two_identifiers():
+    """Builds a Compound whose SMILES and InChI describe the same molecule."""
+    compound = reaction_pb2.Compound()
+    compound.identifiers.add(type="SMILES", value="c1ccccc1")
+    compound.identifiers.add(type="INCHI", value="InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H")
+    return compound
+
+
+def test_the_two_identifier_checks_share_one_parse():
+    """Validity and consistency need the same parse, so they must not repeat it.
+
+    ``validate_compound_identifier`` checks that an identifier parses and
+    ``check_compound_identifiers`` canonicalizes it to compare against its
+    siblings. Parsing InChI is the single most expensive thing validation does,
+    so a regression that unshares these is worth catching.
+    """
+    message_helpers.canonical_smiles_for_identifier.cache_clear()
+    _run_validation(_compound_with_two_identifiers())
+    info = message_helpers.canonical_smiles_for_identifier.cache_info()
+    # One miss per distinct identifier, and a hit where the other check reuses it.
+    assert info.misses == 2
+    assert info.hits == 2
+
+
+def test_a_warm_cache_does_not_change_what_validation_reports():
+    message_helpers.canonical_smiles_for_identifier.cache_clear()
+    validations._parse_date_time.cache_clear()
+    cold = _run_validation(_compound_with_two_identifiers())
+    warm = _run_validation(_compound_with_two_identifiers())
+    assert (cold.errors, cold.warnings) == (warm.errors, warm.warnings)
 
 
 @pytest.mark.parametrize(

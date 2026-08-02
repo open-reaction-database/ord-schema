@@ -15,6 +15,7 @@
 
 import contextlib
 import enum
+import functools
 import gzip
 import os
 import pathlib
@@ -56,7 +57,60 @@ STRUCTURAL_IDENTIFIER_TYPES = frozenset(
     reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name(identifier_type)
     for identifier_type in _COMPOUND_IDENTIFIER_LOADERS
 )
+# Structural identifiers repeat heavily -- shared solvents, reagents and
+# catalysts recur across the reactions of a dataset -- and validation parses
+# each one twice, once to check that it parses and once to canonicalize it for
+# the consistency check. Memoizing the derived SMILES collapses both.
+#
+# The cached value is a string, never the Mol: an RDKit Mol is mutable, so
+# handing the same one to every caller would let any of them corrupt the entry.
+# Bounded because a large dataset's distinct set does not saturate (uspto grows
+# by ~1.3 new molecules per reaction); this holds strings, so the ceiling is
+# tens of MB.
+_IDENTIFIER_CACHE_SIZE = 100_000
+
 MessageType = TypeVar("MessageType")  # Generic for setting return types
+
+
+@functools.lru_cache(maxsize=_IDENTIFIER_CACHE_SIZE)
+def canonical_smiles_for_identifier(identifier_type: int, value: str) -> str | None:
+    """Canonicalizes a structural identifier, or returns None if it will not parse.
+
+    Args:
+        identifier_type: CompoundIdentifier type enum value.
+        value: The identifier value.
+
+    Returns:
+        Canonical SMILES, or None if ``value`` is not a valid identifier of that
+        type. Returns None for types no Mol can be built from.
+    """
+    loader = _COMPOUND_IDENTIFIER_LOADERS.get(identifier_type)
+    if loader is None:
+        return None
+    mol = loader(value)
+    if mol is None:
+        return None
+    return canonical_smiles(mol)
+
+
+@functools.lru_cache(maxsize=_IDENTIFIER_CACHE_SIZE)
+def identifier_parses_unsanitized(identifier_type: int, value: str) -> bool:
+    """Tests whether an identifier parses at all once sanitization is skipped.
+
+    Separate from :func:`canonical_smiles_for_identifier` so the extra parse
+    happens only for the identifiers that failed, which are rare.
+
+    Args:
+        identifier_type: CompoundIdentifier type enum value.
+        value: The identifier value.
+
+    Returns:
+        True if ``value`` parses with ``sanitize=False``.
+    """
+    loader = _COMPOUND_IDENTIFIER_LOADERS.get(identifier_type)
+    if loader is None:
+        return False
+    return loader(value, sanitize=False) is not None
 
 
 def _resolve_enum_value(descriptor: Descriptor, field_name: str, key: str) -> int:
@@ -421,15 +475,14 @@ def check_compound_identifiers(
     """
     smiles = set()
     for identifier in compound.identifiers:
-        if identifier.type in _COMPOUND_IDENTIFIER_LOADERS:
-            mol = _COMPOUND_IDENTIFIER_LOADERS[identifier.type](identifier.value)
-        else:
+        if identifier.type not in _COMPOUND_IDENTIFIER_LOADERS:
             continue
-        if not mol:
+        canonical = canonical_smiles_for_identifier(identifier.type, identifier.value)
+        if canonical is None:
             raise ValueError(
                 f"invalid structural identifier for Compound: {identifier}"
             )
-        smiles.add(canonical_smiles(mol))
+        smiles.add(canonical)
     if len(smiles) > 1:
         raise ValueError(f"structural identifiers are inconsistent: {smiles}")
 
