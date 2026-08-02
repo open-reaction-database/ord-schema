@@ -484,7 +484,11 @@ def check_compound_identifiers(
             )
         smiles.add(canonical)
     if len(smiles) > 1:
-        raise ValueError(f"structural identifiers are inconsistent: {smiles}")
+        # Sorted because a set renders in hash order, which varies between runs:
+        # the same dataset would otherwise produce messages that cannot be diffed
+        # against a previous run's. Kept as a list literal so the quoting stays
+        # and SMILES with trailing whitespace remain visible.
+        raise ValueError(f"structural identifiers are inconsistent: {sorted(smiles)}")
 
 
 def get_reaction_smiles(
