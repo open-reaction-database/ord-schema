@@ -848,12 +848,22 @@ def test_check_compound_identifiers_accepts_matching_stereo_groups():
     message_helpers.check_compound_identifiers(compound)
 
 
+_METHANE_MOLBLOCK = """
+     RDKit          2D
+
+  1  0  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+M  END
+"""
+
+
 @pytest.mark.parametrize(
     ("identifier_type", "value"),
     [
         ("SMILES", "c1ccccc1"),
         ("CXSMILES", "C[C@H](N)O |o1:1|"),
         ("INCHI", "InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H"),
+        ("MOLBLOCK", _METHANE_MOLBLOCK),
     ],
 )
 def test_canonical_smiles_for_identifier_matches_parsing_directly(
@@ -883,9 +893,10 @@ def test_canonical_smiles_for_identifier_keys_on_type_not_just_value():
 
 def test_canonical_smiles_for_identifier_returns_none_when_unparseable():
     smiles = reaction_pb2.CompoundIdentifier.SMILES
-    assert message_helpers.canonical_smiles_for_identifier(
+    unparseable = message_helpers.canonical_smiles_for_identifier(
         smiles, "not a molecule"
-    ) is (None)
+    )
+    assert unparseable is None
     # A type no Mol can be built from is not a parse failure to report either.
     name = reaction_pb2.CompoundIdentifier.NAME
     assert message_helpers.canonical_smiles_for_identifier(name, "benzene") is None

@@ -67,6 +67,10 @@ STRUCTURAL_IDENTIFIER_TYPES = frozenset(
 # Bounded because a large dataset's distinct set does not saturate (uspto grows
 # by ~1.3 new molecules per reaction); this holds strings, so the ceiling is
 # tens of MB.
+#
+# Entries assume RDKit parses and writes the same way for the life of the process.
+# A caller that flips a global mid-run (Chem.SetUseLegacyStereoPerception and the
+# like) has to call cache_clear() on both functions below.
 _IDENTIFIER_CACHE_SIZE = 100_000
 
 MessageType = TypeVar("MessageType")  # Generic for setting return types
