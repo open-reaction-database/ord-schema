@@ -13,12 +13,13 @@
 # limitations under the License.
 """Tests for ord_schema.validations."""
 
+import datetime
 import sys
 import warnings
 
 import pytest
 
-from ord_schema import validations
+from ord_schema import message_helpers, validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -285,7 +286,7 @@ def test_reaction_smiles():
     output = _run_validation(message)
     assert len(output.errors) == 0
     assert len(output.warnings) == 0
-    # Now disable the exception for reaction SMILES only.
+    # With allow_reaction_smiles_only off, the same message must fail.
     options = validations.ValidationOptions()
     options.allow_reaction_smiles_only = False
     with pytest.raises(validations.ValidationError, match="reaction input"):
@@ -355,6 +356,88 @@ def test_invalid_compound_identifier(identifier_type, value):
     message = reaction_pb2.CompoundIdentifier(type=identifier_type, value=value)
     with pytest.raises(validations.ValidationError, match="could not validate"):
         _run_validation(message)
+
+
+def _compound_with_two_identifiers():
+    """Builds a Compound whose SMILES and InChI describe the same molecule."""
+    compound = reaction_pb2.Compound()
+    compound.identifiers.add(type="SMILES", value="c1ccccc1")
+    compound.identifiers.add(type="INCHI", value="InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H")
+    return compound
+
+
+def test_the_two_identifier_checks_share_one_parse():
+    """Validity and consistency need the same parse, so they must not repeat it.
+
+    ``validate_compound_identifier`` checks that an identifier parses and
+    ``check_compound_identifiers`` canonicalizes it to compare against its
+    siblings. Parsing InChI is the single most expensive thing validation does,
+    so a regression that unshares these is worth catching.
+    """
+    message_helpers.canonical_smiles_for_identifier.cache_clear()
+    _run_validation(_compound_with_two_identifiers())
+    info = message_helpers.canonical_smiles_for_identifier.cache_info()
+    # One miss per distinct identifier, and a hit where the other check reuses it.
+    # A third call site would push these up; that is a prompt to check the new
+    # caller shares the parse, not to relax the counts.
+    assert info.misses == 2
+    assert info.hits == 2
+
+
+def test_a_warm_cache_does_not_change_what_validation_reports():
+    message_helpers.canonical_smiles_for_identifier.cache_clear()
+    validations._parse_date_time.cache_clear()
+    cold = _run_validation(_compound_with_two_identifiers())
+    warm = _run_validation(_compound_with_two_identifiers())
+    assert (cold.errors, cold.warnings) == (warm.errors, warm.warnings)
+
+
+def _provenance_with_partial_timestamps():
+    """Builds a ReactionProvenance whose timestamps name a time but no date."""
+    message = reaction_pb2.ReactionProvenance()
+    message.experiment_start.value = "01:00"
+    message.record_created.time.value = "23:00"
+    message.record_created.person.name = "test"
+    message.record_created.person.email = "test@example.com"
+    return message
+
+
+def test_partial_timestamps_do_not_inherit_the_current_date():
+    """A partial DateTime must parse the same however old its cache entry is.
+
+    ``parser.parse`` fills absent fields from the current date unless given a
+    default, which would make a cached value depend on the day it was created: a
+    run spanning midnight would then order two partial timestamps by when each
+    was first seen rather than by the times they name.
+    """
+    validations._parse_date_time.cache_clear()
+    first = validations._parse_date_time("01:00")
+    second = validations._parse_date_time("23:00")
+    assert first is not None
+    assert second is not None
+    # One nominal date for both, so the comparison reflects the times they name.
+    assert first.date() == second.date()
+    assert first < second
+    # That date is fixed rather than today's, so an entry cached yesterday still
+    # compares correctly against one cached today.
+    assert first.date() != datetime.datetime.now(tz=datetime.UTC).date()
+
+
+def test_partial_timestamps_are_ordered_by_time_not_cache_age():
+    """The provenance ordering check reads the times, not the caching order."""
+    validations._parse_date_time.cache_clear()
+    output = _run_validation(_provenance_with_partial_timestamps())
+    assert not any("after experiment" in error for error in output.errors)
+
+
+def test_provenance_and_the_message_walk_share_one_datetime_parse():
+    """Both the per-message walk and the ordering check need the same parse."""
+    validations._parse_date_time.cache_clear()
+    _run_validation(_provenance_with_partial_timestamps())
+    info = validations._parse_date_time.cache_info()
+    # Two distinct strings, each parsed once and reused by the other caller.
+    assert info.misses == 2
+    assert info.hits == 2
 
 
 @pytest.mark.parametrize(
@@ -538,7 +621,8 @@ def test_compound_identifier_is_validated_as_recorded(value):
 
 @pytest.mark.parametrize("identifier_type", ["REACTION_SMILES", "REACTION_CXSMILES"])
 def test_empty_reaction_identifier_reports_rather_than_raises(identifier_type):
-    # An empty CXSMILES value used to index off the end of an empty token list.
+    # An empty value tokenizes to nothing, so the check must report it rather than
+    # indexing off the end of the token list.
     message = reaction_pb2.ReactionIdentifier(type=identifier_type, value="")
     output = _run_validation(message, raise_on_error=False)
     assert any("value must be set" in error for error in output.errors)

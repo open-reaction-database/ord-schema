@@ -14,6 +14,8 @@
 """Helpers validating specific Message types."""
 
 import dataclasses
+import datetime
+import functools
 import math
 import pathlib
 import re
@@ -23,7 +25,6 @@ from enum import IntEnum
 from typing import Any
 
 from dateutil import parser
-from rdkit import Chem
 from rdkit import (
     # (RDKIT_VERSION reads better than rdkit_version)
     __version__ as RDKIT_VERSION,  # noqa: N812
@@ -35,6 +36,14 @@ from ord_schema.logging import get_logger
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 logger = get_logger(__name__)
+
+# Record timestamps repeat across a dataset's reactions, but the distinct set is
+# small next to the identifier caches in message_helpers, so this stays modest.
+_DATETIME_CACHE_SIZE = 10_000
+# Fills the fields a partial DateTime leaves out. Fixed rather than the current date
+# so parsing is a pure function of the string and safe to memoize; a leap year so
+# "Feb 29" still parses, and naive to match what a full value produces.
+_DATETIME_DEFAULT = datetime.datetime(2000, 1, 1)  # noqa: DTZ001
 
 
 @dataclasses.dataclass
@@ -155,23 +164,24 @@ def validate_message(
     enforced in the schema (e.g., non-negativity of certain measurements,
     consistency of cross-referenced keys).
 
-    Note that the message may be modified in-place with any unambiguous changes
-    needed to ensure validity.
+    The message may be modified in place with any unambiguous changes needed to
+    ensure validity.
 
     Args:
         message: A message to validate.
-        recurse: A boolean that controls whether submessages of message (i.e.,
-            fields that are messages) should also be validated. Defaults to
-            True.
+        recurse: If True, also validate submessages, meaning fields that are
+            themselves messages.
         raise_on_error: If True, raises a ValidationError exception when errors
             are encountered. If False, the user must manually check the return
             value to identify validation errors.
-        options: ValidationOptions.
+        options: Toggles for the checks that are not always applied; see
+            ``ValidationOptions``.
         trace: Tuple containing a string "stack trace" to track the position of
             the current message relative to the recursion root.
 
     Returns:
-        ValidationOutput.
+        Errors and warnings accumulated over the message and, when recursing,
+        its submessages.
 
     Raises:
         ValidationError: If any fields are invalid.
@@ -181,10 +191,9 @@ def validate_message(
         assert root_desc is not None  # Type hint.
         trace = (root_desc.name,)
     output = ValidationOutput()
-    # Recurse through submessages
     if recurse:
         for field, value in message.ListFields():
-            if field.type == field.TYPE_MESSAGE:  # need to recurse
+            if field.type == field.TYPE_MESSAGE:
                 _validate_message(
                     field=field,
                     value=value,
@@ -238,13 +247,13 @@ def _validate_message(
         raise_on_error: If True, raises a ValidationError exception when errors
             are encountered. If False, the user must manually check the return
             value to identify validation errors.
-        options: ValidationOptions.
+        options: Toggles for the checks that are not always applied; see
+            ``ValidationOptions``.
         trace: Tuple containing a string "stack trace" to track the position of
             the current message relative to the recursion root.
     """
     if field.label == field.LABEL_REPEATED:
-        if field.message_type.GetOptions().map_entry:  # map
-            # value is message
+        if field.message_type.GetOptions().map_entry:
             if field.message_type.fields_by_name["value"].type == field.TYPE_MESSAGE:
                 for key, submessage in value.items():
                     this_trace = (*trace, f'{field.name}["{key}"]')
@@ -895,16 +904,23 @@ def validate_compound_identifier(message: reaction_pb2.CompoundIdentifier) -> No
         message.MOLBLOCK,
     ):
         # MolFromSmiles reads CXSMILES, so both types validate as recorded.
-        parse_func, identifier_type = {
-            message.SMILES: (Chem.MolFromSmiles, "SMILES"),
-            message.CXSMILES: (Chem.MolFromSmiles, "CXSMILES"),
-            message.INCHI: (Chem.MolFromInchi, "InChI"),
-            message.MOLBLOCK: (Chem.MolFromMolBlock, "MolBlock"),
+        identifier_type = {
+            message.SMILES: "SMILES",
+            message.CXSMILES: "CXSMILES",
+            message.INCHI: "InChI",
+            message.MOLBLOCK: "MolBlock",
         }[message.type]
         if message.type == message.SMILES:
             _check_cxsmiles_type(message.value, "CXSMILES")
-        if parse_func(message.value) is None:
-            if parse_func(message.value, sanitize=False) is None:
+        # Memoized, and shared with the consistency check in
+        # check_compound_identifiers, which otherwise parses the same string again.
+        if (
+            message_helpers.canonical_smiles_for_identifier(message.type, message.value)
+            is None
+        ):
+            if not message_helpers.identifier_parses_unsanitized(
+                message.type, message.value
+            ):
                 warnings.warn(
                     f"RDKit {RDKIT_VERSION} could not validate {identifier_type} "
                     f"identifier {message.value}",
@@ -1240,15 +1256,59 @@ def validate_mass_spec_measurement_type(
         )
 
 
+@functools.lru_cache(maxsize=_DATETIME_CACHE_SIZE)
+def _parse_date_time(value: str) -> datetime.datetime | None:
+    """Parses a DateTime value, returning None if it is unparseable.
+
+    Memoized: a DateTime string is parsed once by this module's per-message walk
+    and again by :func:`validate_reaction_provenance` to order the timestamps,
+    and record timestamps repeat across the reactions of a dataset. Caching is
+    safe here because ``datetime`` is immutable.
+
+    A partial value names only some fields ("10:30" carries no date); the rest
+    come from ``_DATETIME_DEFAULT`` rather than today, which is what makes this
+    safe to memoize. The filled-in date is arbitrary, and provenance compares
+    timestamps only against each other.
+
+    Args:
+        value: The DateTime value.
+
+    Returns:
+        The parsed datetime, or None if ``value`` could not be parsed.
+    """
+    try:
+        return parser.parse(value, default=_DATETIME_DEFAULT)
+    except parser.ParserError:
+        return None
+
+
+def _parse_date_time_or_raise(value: str) -> datetime.datetime:
+    """Parses a DateTime value through the cache, raising as ``parser.parse`` does.
+
+    Lets callers that short-circuit a sequence of parses on the first bad value
+    keep doing so while still going through the cache.
+
+    Args:
+        value: The DateTime value.
+
+    Returns:
+        The parsed datetime.
+
+    Raises:
+        parser.ParserError: If ``value`` could not be parsed.
+    """
+    parsed = _parse_date_time(value)
+    if parsed is None:
+        raise parser.ParserError("Unknown string format: %s", value)
+    return parsed
+
+
 def validate_date_time(message: reaction_pb2.DateTime) -> None:
     """Validates that a DateTime value is parseable."""
-    if message.value:
-        try:
-            parser.parse(message.value).ctime()
-        except parser.ParserError:
-            warnings.warn(
-                f"Could not parse DateTime string {message.value}", ValidationError
-            )
+    if message.value and _parse_date_time(message.value) is None:
+        warnings.warn(
+            f"Could not parse DateTime string {message.value}", ValidationError
+        )
 
 
 def validate_analysis(message: reaction_pb2.Analysis) -> None:
@@ -1267,12 +1327,14 @@ def validate_reaction_provenance(message: reaction_pb2.ReactionProvenance) -> No
     record_modified = None
     try:
         if message.experiment_start.value:
-            experiment_start = parser.parse(message.experiment_start.value)
+            experiment_start = _parse_date_time_or_raise(message.experiment_start.value)
         if message.record_created.time.value:
-            record_created = parser.parse(message.record_created.time.value)
+            record_created = _parse_date_time_or_raise(
+                message.record_created.time.value
+            )
         for record in message.record_modified:
             # Use the last record as the most recent modification time.
-            record_modified = parser.parse(record.time.value)
+            record_modified = _parse_date_time_or_raise(record.time.value)
     except parser.ParserError:
         warnings.warn("Failed to parse DateTime string(s)", ValidationWarning)
     # Check signs of time differences

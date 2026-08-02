@@ -205,7 +205,7 @@ def test_update_derived_tables_sharded_covers_all(prepared_engine):
         if sharded[table] >= 2 * num_shards:
             non_empty = sum(1 for shard in per_shard if shard[table] > 0)
             assert non_empty >= 2, (table, [shard[table] for shard in per_shard])
-    # A whole-dataset pass now adds nothing: the shards covered every row.
+    # A whole-dataset pass adds nothing: the shards already covered every row.
     with Session(prepared_engine) as session, session.begin():
         update_derived_tables(dataset.dataset_id, session)
     assert counts() == sharded
@@ -275,8 +275,8 @@ def test_rdkit_sharded_matches_serial(prepared_engine):
         "linked_products",
     ):
         assert sharded[key] > 0, (key, sharded)
-    # A serial (whole-dataset) pass now inserts and links nothing new: the shards
-    # covered it all.
+    # A serial (whole-dataset) pass inserts and links nothing new: the shards
+    # already covered it all.
     run_shard(None)
     assert counts() == sharded
 
@@ -323,7 +323,7 @@ def test_classify_sharded_covers_all(prepared_engine):
     # into more than one of the 4 buckets, so this holds for it (a 1-reaction fixture
     # would not).
     assert 0 < first < sharded, (first, sharded)
-    # A whole-dataset pass now adds nothing: the shards classified every reaction.
+    # A whole-dataset pass adds nothing: the shards already classified every reaction.
     with Session(prepared_engine) as session, session.begin():
         classify_dataset(dataset.dataset_id, session)
     assert count() == sharded
