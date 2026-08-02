@@ -42,8 +42,7 @@ logger = get_logger(__name__)
 _DATETIME_CACHE_SIZE = 10_000
 # Fills the fields a partial DateTime leaves out. Fixed rather than the current date
 # so parsing is a pure function of the string and safe to memoize; a leap year so
-# "Feb 29" still parses, and naive so a partial value never comes back timezone-aware
-# when a full one would not.
+# "Feb 29" still parses, and naive to match what a full value produces.
 _DATETIME_DEFAULT = datetime.datetime(2000, 1, 1)  # noqa: DTZ001
 
 
@@ -1266,13 +1265,10 @@ def _parse_date_time(value: str) -> datetime.datetime | None:
     and record timestamps repeat across the reactions of a dataset. Caching is
     safe here because ``datetime`` is immutable.
 
-    A partial value carries only some fields ("10:30" names no date, "March 5"
-    no year), and ``parser.parse`` fills the rest from the current date. Passing
-    a fixed default instead keeps this a pure function of ``value``, so two
-    partial timestamps stay comparable no matter how far apart the cache entries
-    were created; a run spanning midnight would otherwise order them by the day
-    each was first seen. The date chosen is arbitrary and never observable:
-    provenance compares timestamps only against each other.
+    A partial value names only some fields ("10:30" carries no date); the rest
+    come from ``_DATETIME_DEFAULT`` rather than today, which is what makes this
+    safe to memoize. The filled-in date is arbitrary, and provenance compares
+    timestamps only against each other.
 
     Args:
         value: The DateTime value.

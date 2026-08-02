@@ -863,7 +863,6 @@ M  END
         ("SMILES", "c1ccccc1"),
         ("CXSMILES", "C[C@H](N)O |o1:1|"),
         ("INCHI", "InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H"),
-        # MolBlock is the loader whose signature and failure modes differ most.
         ("MOLBLOCK", _METHANE_MOLBLOCK),
     ],
 )

@@ -418,8 +418,8 @@ def test_partial_timestamps_do_not_inherit_the_current_date():
     # One nominal date for both, so the comparison reflects the times they name.
     assert first.date() == second.date()
     assert first < second
-    # And that date is fixed rather than today's, so an entry cached yesterday
-    # still compares correctly against one cached today.
+    # That date is fixed rather than today's, so an entry cached yesterday still
+    # compares correctly against one cached today.
     assert first.date() != datetime.datetime.now(tz=datetime.UTC).date()
 
 
