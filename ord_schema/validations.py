@@ -40,6 +40,11 @@ logger = get_logger(__name__)
 # Record timestamps repeat across a dataset's reactions, but the distinct set is
 # small next to the identifier caches in message_helpers, so this stays modest.
 _DATETIME_CACHE_SIZE = 10_000
+# Fills the fields a partial DateTime leaves out. Fixed rather than the current date
+# so parsing is a pure function of the string and safe to memoize; a leap year so
+# "Feb 29" still parses, and naive so a partial value never comes back timezone-aware
+# when a full one would not.
+_DATETIME_DEFAULT = datetime.datetime(2000, 1, 1)  # noqa: DTZ001
 
 
 @dataclasses.dataclass
@@ -1261,6 +1266,14 @@ def _parse_date_time(value: str) -> datetime.datetime | None:
     and record timestamps repeat across the reactions of a dataset. Caching is
     safe here because ``datetime`` is immutable.
 
+    A partial value carries only some fields ("10:30" names no date, "March 5"
+    no year), and ``parser.parse`` fills the rest from the current date. Passing
+    a fixed default instead keeps this a pure function of ``value``, so two
+    partial timestamps stay comparable no matter how far apart the cache entries
+    were created; a run spanning midnight would otherwise order them by the day
+    each was first seen. The date chosen is arbitrary and never observable:
+    provenance compares timestamps only against each other.
+
     Args:
         value: The DateTime value.
 
@@ -1268,7 +1281,7 @@ def _parse_date_time(value: str) -> datetime.datetime | None:
         The parsed datetime, or None if ``value`` could not be parsed.
     """
     try:
-        return parser.parse(value)
+        return parser.parse(value, default=_DATETIME_DEFAULT)
     except parser.ParserError:
         return None
 

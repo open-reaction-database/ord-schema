@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.validations."""
 
+import datetime
 import sys
 import warnings
 
@@ -377,6 +378,8 @@ def test_the_two_identifier_checks_share_one_parse():
     _run_validation(_compound_with_two_identifiers())
     info = message_helpers.canonical_smiles_for_identifier.cache_info()
     # One miss per distinct identifier, and a hit where the other check reuses it.
+    # A third call site would push these up; that is a prompt to check the new
+    # caller shares the parse, not to relax the counts.
     assert info.misses == 2
     assert info.hits == 2
 
@@ -387,6 +390,54 @@ def test_a_warm_cache_does_not_change_what_validation_reports():
     cold = _run_validation(_compound_with_two_identifiers())
     warm = _run_validation(_compound_with_two_identifiers())
     assert (cold.errors, cold.warnings) == (warm.errors, warm.warnings)
+
+
+def _provenance_with_partial_timestamps():
+    """Builds a ReactionProvenance whose timestamps name a time but no date."""
+    message = reaction_pb2.ReactionProvenance()
+    message.experiment_start.value = "01:00"
+    message.record_created.time.value = "23:00"
+    message.record_created.person.name = "test"
+    message.record_created.person.email = "test@example.com"
+    return message
+
+
+def test_partial_timestamps_do_not_inherit_the_current_date():
+    """A partial DateTime must parse the same however old its cache entry is.
+
+    ``parser.parse`` fills absent fields from the current date unless given a
+    default, which would make a cached value depend on the day it was created: a
+    run spanning midnight would then order two partial timestamps by when each
+    was first seen rather than by the times they name.
+    """
+    validations._parse_date_time.cache_clear()
+    first = validations._parse_date_time("01:00")
+    second = validations._parse_date_time("23:00")
+    assert first is not None
+    assert second is not None
+    # One nominal date for both, so the comparison reflects the times they name.
+    assert first.date() == second.date()
+    assert first < second
+    # And that date is fixed rather than today's, so an entry cached yesterday
+    # still compares correctly against one cached today.
+    assert first.date() != datetime.datetime.now(tz=datetime.UTC).date()
+
+
+def test_partial_timestamps_are_ordered_by_time_not_cache_age():
+    """The provenance ordering check reads the times, not the caching order."""
+    validations._parse_date_time.cache_clear()
+    output = _run_validation(_provenance_with_partial_timestamps())
+    assert not any("after experiment" in error for error in output.errors)
+
+
+def test_provenance_and_the_message_walk_share_one_datetime_parse():
+    """Both the per-message walk and the ordering check need the same parse."""
+    validations._parse_date_time.cache_clear()
+    _run_validation(_provenance_with_partial_timestamps())
+    info = validations._parse_date_time.cache_info()
+    # Two distinct strings, each parsed once and reused by the other caller.
+    assert info.misses == 2
+    assert info.hits == 2
 
 
 @pytest.mark.parametrize(
