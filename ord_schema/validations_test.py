@@ -369,7 +369,7 @@ def _compound_with_two_identifiers():
 def test_the_two_identifier_checks_share_one_parse():
     """Validity and consistency need the same parse, so they must not repeat it.
 
-    ``validate_compound_identifier`` checks that an identifier parses and
+    ``_validate_compound_identifier`` checks that an identifier parses and
     ``check_compound_identifiers`` canonicalizes it to compare against its
     siblings. Parsing InChI is the single most expensive thing validation does,
     so a regression that unshares these is worth catching.
@@ -1327,7 +1327,7 @@ def test_provenance_unparseable_datetime_direct():
     message.record_created.time.value = "garbage"
     message.record_created.person.username = "u"
     message.record_created.person.email = "a@b.com"
-    findings = _capture_findings(validations.validate_reaction_provenance, message)
+    findings = _capture_findings(validations._validate_reaction_provenance, message)
     assert any("Failed to parse" in finding for finding in findings)
 
 
@@ -1366,8 +1366,8 @@ def test_validators_default_options():
     """A context built without options validates under the defaults."""
     context = validations.ValidationContext()
     assert context.options == validations.ValidationOptions()
-    validations.validate_reaction(reaction_pb2.Reaction(), context)
-    validations.validate_dataset(dataset_pb2.Dataset(), context)
+    validations._validate_reaction(reaction_pb2.Reaction(), context)
+    validations._validate_dataset(dataset_pb2.Dataset(), context)
     validations.validate_dataset_streaming(
         context=context,
         name="n",
@@ -1454,14 +1454,14 @@ def test_provenance_clean():
 
 
 def test_provenance_record_modified_missing_email_direct():
-    # Shadowed by validate_record_event under recursion, so call directly.
+    # Shadowed by _validate_record_event under recursion, so call directly.
     message = reaction_pb2.ReactionProvenance()
     message.record_created.time.value = "2021-01-01"
     message.record_created.person.email = "a@b.com"
     record = message.record_modified.add()
     record.time.value = "2021-06-01"
     record.person.username = "u"
-    findings = _capture_findings(validations.validate_reaction_provenance, message)
+    findings = _capture_findings(validations._validate_reaction_provenance, message)
     assert any("email is required for record_modified" in f for f in findings)
 
 

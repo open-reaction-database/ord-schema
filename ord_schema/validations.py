@@ -155,12 +155,12 @@ def _validate_datasets(
         for error in reaction_output.errors:
             errors.append(error)
             logger.error(f"Validation error for {label}[{i}]: {error}")
-    # Dataset-level validation of cross-references. Call ``validate_dataset``
+    # Dataset-level validation of cross-references. Call ``_validate_dataset``
     # directly rather than going through ``validate_message``, which insists
     # on a proto type (``_VALIDATOR_SWITCH`` lookup, ``DESCRIPTOR`` access) and
     # would reject a non-proto stand-in like ``DatasetView``.
     context = ValidationContext(options=options or ValidationOptions())
-    validate_dataset(dataset, context)
+    _validate_dataset(dataset, context)
     for text, category in context.findings:
         if not issubclass(category, ValidationError):
             continue
@@ -235,7 +235,7 @@ def validate_message(
         # NOTE(ccoley): I made the conscious decision to raise an error here,
         # rather than assume that the message is valid. If a message does not
         # require any message-level checks (not uncommon), it should still be
-        # registered in ``_VALIDATOR_SWITCH`` (mapped to ``skip_validation``).
+        # registered in ``_VALIDATOR_SWITCH`` (mapped to ``_skip_validation``).
         # This forces us to think about what is necessary if/when new messages
         # are added.
         raise NotImplementedError(f"Don't know how to validate {type(message)}")
@@ -330,7 +330,7 @@ def is_empty(message: ord_schema.Message) -> bool:
     return message.SerializeToString(deterministic=True) == empty
 
 
-def ensure_float_nonnegative(
+def _ensure_float_nonnegative(
     message: ord_schema.Message, field: str, context: ValidationContext
 ) -> None:
     """Warns if the given numeric field of the message is negative.
@@ -346,7 +346,7 @@ def ensure_float_nonnegative(
         context.error(f"Field {field} of message {desc.name} must be non-negative")
 
 
-def ensure_float_range(
+def _ensure_float_range(
     message: ord_schema.Message,
     field: str,
     context: ValidationContext,
@@ -371,7 +371,7 @@ def ensure_float_range(
         )
 
 
-def check_value_and_units(
+def _check_value_and_units(
     message: ord_schema.UnitMessage, context: ValidationContext
 ) -> None:
     """Checks that value/units messages are complete."""
@@ -381,7 +381,7 @@ def check_value_and_units(
         context.error(f"{type(message)} requires `units` to be set")
 
 
-def check_type_and_details(
+def _check_type_and_details(
     message: ord_schema.TypeDetailsMessage, context: ValidationContext
 ) -> None:
     """Checks that type/details messages are complete."""
@@ -393,7 +393,7 @@ def check_type_and_details(
         context.error(f"{type(message)} has type CUSTOM but details field is empty")
 
 
-def validate_unit(message: ord_schema.UnitMessage, context: ValidationContext) -> None:
+def _validate_unit(message: ord_schema.UnitMessage, context: ValidationContext) -> None:
     """Validates a value/units measurement with non-negative value and precision.
 
     Covers the unit message types that share this exact contract (Time, Mass,
@@ -404,12 +404,12 @@ def validate_unit(message: ord_schema.UnitMessage, context: ValidationContext) -
         message: A unit message to validate.
         context: Where findings are recorded.
     """
-    check_value_and_units(message, context)
-    ensure_float_nonnegative(message, "value", context)
-    ensure_float_nonnegative(message, "precision", context)
+    _check_value_and_units(message, context)
+    _ensure_float_nonnegative(message, "value", context)
+    _ensure_float_nonnegative(message, "precision", context)
 
 
-def skip_validation(message: ord_schema.Message, context: ValidationContext) -> None:
+def _skip_validation(message: ord_schema.Message, context: ValidationContext) -> None:
     """No-op validator for message types that need no message-level checks.
 
     Registered explicitly in ``_VALIDATOR_SWITCH`` so that every message type has
@@ -604,7 +604,7 @@ def _validate_dataset_scalars(
             context.error("Dataset ID is malformed")
 
 
-def validate_dataset(
+def _validate_dataset(
     message: dataset_pb2.Dataset | parquet.DatasetView, context: ValidationContext
 ) -> None:
     """Validates a Dataset's scalar fields, reactions, and cross-references."""
@@ -637,7 +637,7 @@ def validate_dataset_streaming(
 ) -> None:
     """Dataset-level validation for callers that have already streamed reactions.
 
-    Equivalent to ``validate_dataset`` for a Dataset whose reactions have been iterated
+    Equivalent to ``_validate_dataset`` for a Dataset whose reactions have been iterated
     in slices (e.g., per Parquet row group) by upstream workers, with each worker
     contributing a ``DatasetCrossRefState`` that the caller has merged.
     ``has_reactions`` should reflect the source's row count (e.g.,
@@ -660,7 +660,7 @@ def validate_dataset_streaming(
     state.report(context)
 
 
-def validate_dataset_example(
+def _validate_dataset_example(
     message: dataset_pb2.DatasetExample, context: ValidationContext
 ) -> None:
     """Validates that a DatasetExample has description, url, and created set."""
@@ -672,7 +672,7 @@ def validate_dataset_example(
         context.error("DatasetExample.created is required")
 
 
-def validate_reaction(
+def _validate_reaction(
     message: reaction_pb2.Reaction, context: ValidationContext
 ) -> None:
     """Validates a Reaction's inputs, outcomes, identifiers, and provenance."""
@@ -749,11 +749,11 @@ def _check_cxsmiles_type(
         context.warn(f"value carries a CXSMILES extension block; use {cxsmiles_type}")
 
 
-def validate_reaction_identifier(
+def _validate_reaction_identifier(
     message: reaction_pb2.ReactionIdentifier, context: ValidationContext
 ) -> None:
     """Validates a ReactionIdentifier's SMILES and atom-mapping consistency."""
-    check_type_and_details(message, context)
+    _check_type_and_details(message, context)
     _check_surrounding_whitespace(message, context)
     if message.type in [message.REACTION_SMILES, message.REACTION_CXSMILES]:
         # Parsed as recorded under either type: RDKit reads CXSMILES, and a malformed
@@ -805,7 +805,7 @@ _TEXTURE_TO_STATE = {
 }
 
 
-def validate_reaction_input(
+def _validate_reaction_input(
     message: reaction_pb2.ReactionInput, context: ValidationContext
 ) -> None:
     """Validates ReactionInput component counts and texture consistency."""
@@ -839,7 +839,7 @@ def validate_reaction_input(
             )
 
 
-def validate_amount(message: reaction_pb2.Amount, context: ValidationContext) -> None:
+def _validate_amount(message: reaction_pb2.Amount, context: ValidationContext) -> None:
     """Validates that volume_includes_solutes is only set for volume amounts."""
     if (
         message.HasField("volume_includes_solutes")
@@ -848,7 +848,7 @@ def validate_amount(message: reaction_pb2.Amount, context: ValidationContext) ->
         context.error("volume_includes_solutes should only be set for volume amounts")
 
 
-def validate_crude_component(
+def _validate_crude_component(
     message: reaction_pb2.CrudeComponent, context: ValidationContext
 ) -> None:
     """Validates that a CrudeComponent has a reaction_id and a consistent amount."""
@@ -890,18 +890,18 @@ def _validate_compound_identifiers(
         context.warn(str(error))
 
 
-def validate_compound(
+def _validate_compound(
     message: reaction_pb2.Compound, context: ValidationContext
 ) -> None:
     """Validates that a Compound has usable identifiers."""
     _validate_compound_identifiers(message, context)
 
 
-def validate_compound_preparation(
+def _validate_compound_preparation(
     message: reaction_pb2.CompoundPreparation, context: ValidationContext
 ) -> None:
     """Validates CompoundPreparation type/details and reaction_id usage."""
-    check_type_and_details(message, context)
+    _check_type_and_details(message, context)
     if message.reaction_id and message.type != message.SYNTHESIZED:
         context.error(
             "Reaction IDs should only be specified in compound preparations "
@@ -909,11 +909,11 @@ def validate_compound_preparation(
         )
 
 
-def validate_compound_identifier(
+def _validate_compound_identifier(
     message: reaction_pb2.CompoundIdentifier, context: ValidationContext
 ) -> None:
     """Validates a CompoundIdentifier's value and type-specific format."""
-    check_type_and_details(message, context)
+    _check_type_and_details(message, context)
     _check_surrounding_whitespace(message, context)
     if not message.value:
         context.error("value must be set")
@@ -968,7 +968,7 @@ def validate_compound_identifier(
             context.warn(f"{identifier_type} {message.value} should be an integer")
 
 
-def validate_reaction_conditions(
+def _validate_reaction_conditions(
     message: reaction_pb2.ReactionConditions, context: ValidationContext
 ) -> None:
     """Validates ReactionConditions dynamic-details pairing and pH range."""
@@ -988,20 +988,20 @@ def validate_reaction_conditions(
         context.warn(f"Reaction pH ({message.ph}) is outside the expected range (0-14)")
 
 
-def validate_stirring_rate(
+def _validate_stirring_rate(
     message: reaction_pb2.StirringConditions.StirringRate,
     context: ValidationContext,
 ) -> None:
     """Validates that the stirring rate (rpm) is non-negative."""
-    ensure_float_nonnegative(message, "rpm", context)
+    _ensure_float_nonnegative(message, "rpm", context)
 
 
-def validate_illumination_conditions(
+def _validate_illumination_conditions(
     message: reaction_pb2.IlluminationConditions,
     context: ValidationContext,
 ) -> None:
     """Validates IlluminationConditions type and peak_wavelength usage."""
-    check_type_and_details(message, context)
+    _check_type_and_details(message, context)
     if message.type in (
         reaction_pb2.IlluminationConditions.DARK,
         reaction_pb2.IlluminationConditions.AMBIENT,
@@ -1011,12 +1011,12 @@ def validate_illumination_conditions(
         )
 
 
-def validate_electrochemistry_conditions(
+def _validate_electrochemistry_conditions(
     message: reaction_pb2.ElectrochemistryConditions,
     context: ValidationContext,
 ) -> None:
     """Validates ElectrochemistryConditions type/field consistency."""
-    check_type_and_details(message, context)
+    _check_type_and_details(message, context)
     if (
         message.type == reaction_pb2.ElectrochemistryConditions.CONSTANT_CURRENT
         and not message.HasField("current")
@@ -1033,11 +1033,11 @@ def validate_electrochemistry_conditions(
         )
 
 
-def validate_reaction_workup(
+def _validate_reaction_workup(
     message: reaction_pb2.ReactionWorkup, context: ValidationContext
 ) -> None:
     """Validates a ReactionWorkup's type-specific required fields and pH range."""
-    check_type_and_details(message, context)
+    _check_type_and_details(message, context)
     if message.type == reaction_pb2.ReactionWorkup.WAIT and not message.duration.value:
         context.warn("WAIT workup steps should have a defined duration")
     if message.type == reaction_pb2.ReactionWorkup.TEMPERATURE and not message.HasField(
@@ -1103,7 +1103,7 @@ def validate_reaction_workup(
         )
 
 
-def validate_reaction_outcome(
+def _validate_reaction_outcome(
     message: reaction_pb2.ReactionOutcome, context: ValidationContext
 ) -> None:
     """Validates ReactionOutcome products, analysis keys, and conversion."""
@@ -1143,7 +1143,7 @@ def validate_reaction_outcome(
         )
 
 
-def validate_product_compound(
+def _validate_product_compound(
     message: reaction_pb2.ProductCompound, context: ValidationContext
 ) -> None:
     """Validates a ProductCompound's identifiers and desired-product role."""
@@ -1156,11 +1156,11 @@ def validate_product_compound(
             context.error("a product cannot be (SIDE_PRODUCT & is_desired_product)")
 
 
-def validate_product_measurement(
+def _validate_product_measurement(
     message: reaction_pb2.ProductMeasurement, context: ValidationContext
 ) -> None:
     """Validates a ProductMeasurement's type-specific value fields."""
-    check_type_and_details(message, context)
+    _check_type_and_details(message, context)
     if not message.analysis_key:
         context.warn(
             "Product measurements should be associated with an analysis through "
@@ -1201,14 +1201,14 @@ def validate_product_measurement(
         )
 
 
-def validate_mass_spec_measurement_type(
+def _validate_mass_spec_measurement_type(
     message: reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails,
     context: ValidationContext,
 ) -> None:
     """Validates mass spec m/z ranges and EIC/TIC mass usage."""
-    check_type_and_details(message, context)
-    ensure_float_nonnegative(message, "tic_minimum_mz", context)
-    ensure_float_nonnegative(message, "tic_maximum_mz", context)
+    _check_type_and_details(message, context)
+    _ensure_float_nonnegative(message, "tic_minimum_mz", context)
+    _ensure_float_nonnegative(message, "tic_maximum_mz", context)
     if (
         message.HasField("tic_minimum_mz")
         and message.HasField("tic_maximum_mz")
@@ -1244,7 +1244,7 @@ def _parse_date_time(value: str) -> datetime.datetime | None:
     """Parses a DateTime value, returning None if it is unparseable.
 
     Memoized: a DateTime string is parsed once by this module's per-message walk
-    and again by :func:`validate_reaction_provenance` to order the timestamps,
+    and again by :func:`_validate_reaction_provenance` to order the timestamps,
     and record timestamps repeat across the reactions of a dataset. Caching is
     safe here because ``datetime`` is immutable.
 
@@ -1286,7 +1286,7 @@ def _parse_date_time_or_raise(value: str) -> datetime.datetime:
     return parsed
 
 
-def validate_date_time(
+def _validate_date_time(
     message: reaction_pb2.DateTime, context: ValidationContext
 ) -> None:
     """Validates that a DateTime value is parseable."""
@@ -1294,15 +1294,15 @@ def validate_date_time(
         context.error(f"Could not parse DateTime string {message.value}")
 
 
-def validate_analysis(
+def _validate_analysis(
     message: reaction_pb2.Analysis, context: ValidationContext
 ) -> None:
     """Validates an Analysis message's type and details."""
     # TODO(ccoley): Will be lots to expand here if we add structured data.
-    check_type_and_details(message, context)
+    _check_type_and_details(message, context)
 
 
-def validate_reaction_provenance(
+def _validate_reaction_provenance(
     message: reaction_pb2.ReactionProvenance, context: ValidationContext
 ) -> None:
     """Validates ReactionProvenance timestamps, emails, DOI, and URL."""
@@ -1349,7 +1349,7 @@ def validate_reaction_provenance(
         )
 
 
-def validate_record_event(
+def _validate_record_event(
     message: reaction_pb2.RecordEvent, context: ValidationContext
 ) -> None:
     """Validates that a RecordEvent has a time and an identifiable person."""
@@ -1364,7 +1364,7 @@ def validate_record_event(
         context.error("Person must have `email` specified")
 
 
-def validate_person(message: reaction_pb2.Person, context: ValidationContext) -> None:
+def _validate_person(message: reaction_pb2.Person, context: ValidationContext) -> None:
     """Validates a Person's ORCID and email formats."""
     if message.orcid:
         if not is_valid_orcid(message.orcid):
@@ -1378,21 +1378,21 @@ def validate_person(message: reaction_pb2.Person, context: ValidationContext) ->
             context.error(f"Invalid email address: {message.email}")
 
 
-def validate_temperature(
+def _validate_temperature(
     message: reaction_pb2.Temperature, context: ValidationContext
 ) -> None:
     """Validates a Temperature, enforcing absolute-zero lower bounds per unit."""
-    check_value_and_units(message, context)
+    _check_value_and_units(message, context)
     if message.units == message.CELSIUS:
-        ensure_float_range(message, "value", context, min_value=-273.15)
+        _ensure_float_range(message, "value", context, min_value=-273.15)
     elif message.units == message.FAHRENHEIT:
-        ensure_float_range(message, "value", context, min_value=-459)
+        _ensure_float_range(message, "value", context, min_value=-459)
     elif message.units == message.KELVIN:
-        ensure_float_range(message, "value", context, min_value=0)
-    ensure_float_nonnegative(message, "precision", context)
+        _ensure_float_range(message, "value", context, min_value=0)
+    _ensure_float_nonnegative(message, "precision", context)
 
 
-def validate_percentage(
+def _validate_percentage(
     message: reaction_pb2.Percentage, context: ValidationContext
 ) -> None:
     """Validates that a Percentage value is within 0-100 (and not a fraction)."""
@@ -1406,17 +1406,17 @@ def validate_percentage(
         context.warn(
             f"Percentage value ({message.value}) is outside the expected range (0-100)"
         )
-    ensure_float_nonnegative(message, "precision", context)
+    _ensure_float_nonnegative(message, "precision", context)
 
 
-def validate_float_value(
+def _validate_float_value(
     message: reaction_pb2.FloatValue, context: ValidationContext
 ) -> None:
     """Validates that a FloatValue's precision is non-negative."""
-    ensure_float_nonnegative(message, "precision", context)
+    _ensure_float_nonnegative(message, "precision", context)
 
 
-def validate_data(message: reaction_pb2.Data, context: ValidationContext) -> None:
+def _validate_data(message: reaction_pb2.Data, context: ValidationContext) -> None:
     """Validates that a Data message has a value and a valid URL/format."""
     if not message.WhichOneof("kind"):
         context.error("Data requires one of {value, bytes_value, url}")
@@ -1427,77 +1427,77 @@ def validate_data(message: reaction_pb2.Data, context: ValidationContext) -> Non
 
 
 _VALIDATOR_SWITCH: dict[type, Callable[..., None]] = {
-    dataset_pb2.Dataset: validate_dataset,
-    dataset_pb2.DatasetExample: validate_dataset_example,
-    reaction_pb2.Reaction: validate_reaction,
+    dataset_pb2.Dataset: _validate_dataset,
+    dataset_pb2.DatasetExample: _validate_dataset_example,
+    reaction_pb2.Reaction: _validate_reaction,
     # Basics
-    reaction_pb2.ReactionIdentifier: validate_reaction_identifier,
-    reaction_pb2.ReactionInput: validate_reaction_input,
-    reaction_pb2.ReactionInput.AdditionDevice: check_type_and_details,
-    reaction_pb2.ReactionInput.AdditionSpeed: skip_validation,
+    reaction_pb2.ReactionIdentifier: _validate_reaction_identifier,
+    reaction_pb2.ReactionInput: _validate_reaction_input,
+    reaction_pb2.ReactionInput.AdditionDevice: _check_type_and_details,
+    reaction_pb2.ReactionInput.AdditionSpeed: _skip_validation,
     # Compounds
-    reaction_pb2.Amount: validate_amount,
-    reaction_pb2.UnmeasuredAmount: check_type_and_details,
-    reaction_pb2.Texture: check_type_and_details,
-    reaction_pb2.CrudeComponent: validate_crude_component,
-    reaction_pb2.Compound: validate_compound,
-    reaction_pb2.CompoundPreparation: validate_compound_preparation,
-    reaction_pb2.CompoundIdentifier: validate_compound_identifier,
-    reaction_pb2.Compound.Source: skip_validation,
+    reaction_pb2.Amount: _validate_amount,
+    reaction_pb2.UnmeasuredAmount: _check_type_and_details,
+    reaction_pb2.Texture: _check_type_and_details,
+    reaction_pb2.CrudeComponent: _validate_crude_component,
+    reaction_pb2.Compound: _validate_compound,
+    reaction_pb2.CompoundPreparation: _validate_compound_preparation,
+    reaction_pb2.CompoundIdentifier: _validate_compound_identifier,
+    reaction_pb2.Compound.Source: _skip_validation,
     # Setup
-    reaction_pb2.Vessel: check_type_and_details,
-    reaction_pb2.VesselMaterial: check_type_and_details,
-    reaction_pb2.VesselAttachment: check_type_and_details,
-    reaction_pb2.VesselPreparation: check_type_and_details,
-    reaction_pb2.ReactionSetup: skip_validation,
-    reaction_pb2.ReactionSetup.ReactionEnvironment: check_type_and_details,
+    reaction_pb2.Vessel: _check_type_and_details,
+    reaction_pb2.VesselMaterial: _check_type_and_details,
+    reaction_pb2.VesselAttachment: _check_type_and_details,
+    reaction_pb2.VesselPreparation: _check_type_and_details,
+    reaction_pb2.ReactionSetup: _skip_validation,
+    reaction_pb2.ReactionSetup.ReactionEnvironment: _check_type_and_details,
     # Conditions
-    reaction_pb2.ReactionConditions: validate_reaction_conditions,
-    reaction_pb2.TemperatureConditions: skip_validation,
-    reaction_pb2.TemperatureConditions.TemperatureControl: check_type_and_details,
-    reaction_pb2.TemperatureConditions.TemperatureMeasurement: check_type_and_details,
-    reaction_pb2.PressureConditions: skip_validation,
-    reaction_pb2.PressureConditions.PressureControl: check_type_and_details,
-    reaction_pb2.PressureConditions.Atmosphere: check_type_and_details,
-    reaction_pb2.PressureConditions.PressureMeasurement: check_type_and_details,
-    reaction_pb2.StirringConditions: check_type_and_details,
-    reaction_pb2.StirringConditions.StirringRate: validate_stirring_rate,
-    reaction_pb2.IlluminationConditions: validate_illumination_conditions,
-    reaction_pb2.ElectrochemistryConditions: validate_electrochemistry_conditions,
-    reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell: check_type_and_details,  # noqa: E501
-    reaction_pb2.ElectrochemistryConditions.ElectrochemistryMeasurement: skip_validation,  # noqa: E501
-    reaction_pb2.FlowConditions: check_type_and_details,
-    reaction_pb2.FlowConditions.Tubing: check_type_and_details,
+    reaction_pb2.ReactionConditions: _validate_reaction_conditions,
+    reaction_pb2.TemperatureConditions: _skip_validation,
+    reaction_pb2.TemperatureConditions.TemperatureControl: _check_type_and_details,
+    reaction_pb2.TemperatureConditions.TemperatureMeasurement: _check_type_and_details,
+    reaction_pb2.PressureConditions: _skip_validation,
+    reaction_pb2.PressureConditions.PressureControl: _check_type_and_details,
+    reaction_pb2.PressureConditions.Atmosphere: _check_type_and_details,
+    reaction_pb2.PressureConditions.PressureMeasurement: _check_type_and_details,
+    reaction_pb2.StirringConditions: _check_type_and_details,
+    reaction_pb2.StirringConditions.StirringRate: _validate_stirring_rate,
+    reaction_pb2.IlluminationConditions: _validate_illumination_conditions,
+    reaction_pb2.ElectrochemistryConditions: _validate_electrochemistry_conditions,
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryCell: _check_type_and_details,  # noqa: E501
+    reaction_pb2.ElectrochemistryConditions.ElectrochemistryMeasurement: _skip_validation,  # noqa: E501
+    reaction_pb2.FlowConditions: _check_type_and_details,
+    reaction_pb2.FlowConditions.Tubing: _check_type_and_details,
     # Annotations
-    reaction_pb2.ReactionNotes: skip_validation,
-    reaction_pb2.ReactionObservation: skip_validation,
+    reaction_pb2.ReactionNotes: _skip_validation,
+    reaction_pb2.ReactionObservation: _skip_validation,
     # Outcome
-    reaction_pb2.ReactionWorkup: validate_reaction_workup,
-    reaction_pb2.ReactionOutcome: validate_reaction_outcome,
-    reaction_pb2.ProductCompound: validate_product_compound,
-    reaction_pb2.ProductMeasurement: validate_product_measurement,
-    reaction_pb2.ProductMeasurement.Selectivity: check_type_and_details,
-    reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails: validate_mass_spec_measurement_type,  # noqa: E501
-    reaction_pb2.DateTime: validate_date_time,
-    reaction_pb2.Analysis: validate_analysis,
+    reaction_pb2.ReactionWorkup: _validate_reaction_workup,
+    reaction_pb2.ReactionOutcome: _validate_reaction_outcome,
+    reaction_pb2.ProductCompound: _validate_product_compound,
+    reaction_pb2.ProductMeasurement: _validate_product_measurement,
+    reaction_pb2.ProductMeasurement.Selectivity: _check_type_and_details,
+    reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails: _validate_mass_spec_measurement_type,  # noqa: E501
+    reaction_pb2.DateTime: _validate_date_time,
+    reaction_pb2.Analysis: _validate_analysis,
     # Metadata
-    reaction_pb2.ReactionProvenance: validate_reaction_provenance,
-    reaction_pb2.RecordEvent: validate_record_event,
-    reaction_pb2.Person: validate_person,
+    reaction_pb2.ReactionProvenance: _validate_reaction_provenance,
+    reaction_pb2.RecordEvent: _validate_record_event,
+    reaction_pb2.Person: _validate_person,
     # Units
-    reaction_pb2.Time: validate_unit,
-    reaction_pb2.Mass: validate_unit,
-    reaction_pb2.Moles: validate_unit,
-    reaction_pb2.Volume: validate_unit,
-    reaction_pb2.Concentration: validate_unit,
-    reaction_pb2.Pressure: validate_unit,
-    reaction_pb2.Temperature: validate_temperature,
-    reaction_pb2.Current: validate_unit,
-    reaction_pb2.Voltage: validate_unit,
-    reaction_pb2.Length: validate_unit,
-    reaction_pb2.Wavelength: validate_unit,
-    reaction_pb2.FlowRate: validate_unit,
-    reaction_pb2.Percentage: validate_percentage,
-    reaction_pb2.FloatValue: validate_float_value,
-    reaction_pb2.Data: validate_data,
+    reaction_pb2.Time: _validate_unit,
+    reaction_pb2.Mass: _validate_unit,
+    reaction_pb2.Moles: _validate_unit,
+    reaction_pb2.Volume: _validate_unit,
+    reaction_pb2.Concentration: _validate_unit,
+    reaction_pb2.Pressure: _validate_unit,
+    reaction_pb2.Temperature: _validate_temperature,
+    reaction_pb2.Current: _validate_unit,
+    reaction_pb2.Voltage: _validate_unit,
+    reaction_pb2.Length: _validate_unit,
+    reaction_pb2.Wavelength: _validate_unit,
+    reaction_pb2.FlowRate: _validate_unit,
+    reaction_pb2.Percentage: _validate_percentage,
+    reaction_pb2.FloatValue: _validate_float_value,
+    reaction_pb2.Data: _validate_data,
 }
