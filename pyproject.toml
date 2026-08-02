@@ -63,11 +63,6 @@ examples = [
     "tensorflow>=2.4.1",
     "wget>=3.2",
 ]
-# Optional: only process_dataset.py needs this, to post submission summaries
-# back to a GitHub issue. pygithub pulls in cryptography/pynacl.
-github = [
-    "pygithub>=1.51",
-]
 # Optional: only ord_schema.huggingface (fetch_dataset) needs this; it downloads
 # datasets from the Hugging Face ord-data mirror and drags in a heavy chain
 # (typer, fsspec, the hf-xet native binary), so it is not a default dependency.
@@ -96,7 +91,7 @@ tests = [
     "treon>=0.1.3",
     # The suite exercises the optional-feature modules, so collecting it needs
     # their extras. Self-reference rather than duplicate the dependencies.
-    "ord-schema[github,huggingface,orm]",
+    "ord-schema[huggingface,orm]",
 ]
 
 [tool.setuptools.packages.find]
