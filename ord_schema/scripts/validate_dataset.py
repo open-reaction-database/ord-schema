@@ -36,6 +36,32 @@ from ord_schema.proto import dataset_pb2
 logger = get_logger(__name__)
 
 
+def parse_shard(value: str | None) -> tuple[int, int] | None:
+    """Parses a ``--shard`` value of the form ``I/N``.
+
+    Args:
+        value: Shard specification, e.g. ``0/4``, or None for no sharding.
+
+    Returns:
+        ``(index, count)``, or None when ``value`` is None.
+
+    Raises:
+        ValueError: If ``value`` is malformed or the index is out of range.
+    """
+    if value is None:
+        return None
+    try:
+        index_text, count_text = value.split("/", 1)
+        index, count = int(index_text), int(count_text)
+    except ValueError:
+        msg = f"--shard must look like I/N; got {value!r}"
+        raise ValueError(msg) from None
+    if count < 1 or not 0 <= index < count:
+        msg = f"--shard needs 0 <= I < N; got {value!r}"
+        raise ValueError(msg)
+    return index, count
+
+
 def filter_filenames(filenames: Iterable[str], pattern: str) -> list[str]:
     """Filters filenames according to a regex pattern."""
     return [filename for filename in filenames if re.search(pattern, filename)]
@@ -110,6 +136,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--n_jobs", type=int, default=1, help="Number of parallel workers"
     )
+    parser.add_argument(
+        "--shard",
+        default=None,
+        help=(
+            "Validate part of the work, as I/N (e.g. 0/4). Tasks -- one per "
+            "parquet row group, one per pb file -- are dealt out round-robin, so "
+            "N shards cover everything between them. Dataset-level "
+            "cross-reference checks are skipped, since they need every row group "
+            "of a file at once."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -120,6 +157,30 @@ def main(args: argparse.Namespace) -> None:
     if args.filter:
         filenames = filter_filenames(filenames, args.filter)
         logger.info("Filtered to %d datasets", len(filenames))
+
+    shard = parse_shard(args.shard)
+    if shard is not None:
+        # Cross-reference checks aggregate every row group of a file: a shard
+        # holding some of them would call a reaction defined in another shard
+        # undefined, and would miss a duplicate id spanning two. Reporting
+        # nothing is the only honest option on partial state.
+        logger.warning(
+            "Shard %d/%d: per-reaction checks only. Dataset-level "
+            "cross-reference checks need every row group and are skipped; run "
+            "without --shard for those.",
+            shard[0],
+            shard[1],
+        )
+    # Dealt out round-robin over a counter that spans files, so shards stay even
+    # whether the input is one big dataset or many small ones.
+    task_index = 0
+
+    def mine() -> bool:
+        """Returns whether the next task is this shard's, advancing the counter."""
+        nonlocal task_index
+        index = task_index
+        task_index += 1
+        return shard is None or index % shard[1] == shard[0]
 
     parquet_entries: dict[str, _ParquetEntry] = {}
     failures: list[str] = []
@@ -136,15 +197,23 @@ def main(args: argparse.Namespace) -> None:
                 )
                 parquet_entries[filename] = entry
                 if footer.num_row_groups == 0:
-                    failures.extend(
-                        f"{filename}: {e}"
-                        for e in _finalize_parquet(footer, entry.state)
-                    )
+                    if shard is None:
+                        failures.extend(
+                            f"{filename}: {e}"
+                            for e in _finalize_parquet(footer, entry.state)
+                        )
                     continue
+                submitted = 0
                 for row_group in range(footer.num_row_groups):
+                    if not mine():
+                        continue
                     future = executor.submit(_validate_row_group, filename, row_group)
                     futures[future] = ("parquet", filename, row_group)
-            else:
+                    submitted += 1
+                # Only the row groups this shard runs can count down towards
+                # finalization; the rest belong to other shards.
+                entry.remaining = submitted
+            elif mine():
                 future = executor.submit(_validate_pb, filename)
                 futures[future] = ("pb", filename, None)
 
@@ -159,7 +228,7 @@ def main(args: argparse.Namespace) -> None:
                 entry = parquet_entries[filename]
                 entry.state.merge(state)
                 entry.remaining -= 1
-                if entry.remaining == 0:
+                if entry.remaining == 0 and shard is None:
                     failures.extend(
                         f"{filename}: {error}"
                         for error in _finalize_parquet(entry.footer, entry.state)

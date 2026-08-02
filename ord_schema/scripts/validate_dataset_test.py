@@ -203,3 +203,73 @@ def test_filter_filenames(pattern, expected):
         "data/1a/foo.pb",
     ]
     assert expected == validate_dataset.filter_filenames(filenames, pattern)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(None, None), ("0/1", (0, 1)), ("0/4", (0, 4)), ("3/4", (3, 4))],
+)
+def test_parse_shard(value, expected):
+    assert validate_dataset.parse_shard(value) == expected
+
+
+@pytest.mark.parametrize("value", ["", "1", "4/", "/4", "a/4", "4/4", "-1/4", "0/0"])
+def test_parse_shard_rejects_malformed(value):
+    with pytest.raises(ValueError, match="--shard"):
+        validate_dataset.parse_shard(value)
+
+
+def _sharded_dataset(tmp_path, name):
+    """Writes a 4-row-group parquet whose third row group holds an invalid reaction."""
+    reactions = [_valid_reaction() for _ in range(7)]
+    reactions.append(reaction_pb2.Reaction())  # invalid: no inputs / no outcomes
+    path = tmp_path / name
+    with parquet.DatasetWriter(
+        str(path), name="test", description="test", row_group_size=2
+    ) as writer:
+        writer.write_all(reactions)
+    assert parquet.num_row_groups(str(path)) == 4
+    return path
+
+
+def test_shard_covers_every_row_group_between_them(tmp_path):
+    """Some shard must catch an error, and exactly the shard holding it."""
+    path = _sharded_dataset(tmp_path, "sharded.parquet")
+    failing = []
+    for index in range(4):
+        try:
+            validate_dataset.main(
+                validate_dataset.parse_args(
+                    ["--input_pattern", str(path), "--shard", f"{index}/4"]
+                )
+            )
+        except validations.ValidationError:
+            failing.append(index)
+    # The invalid reaction is the 8th of 8, so it lands in the last row group,
+    # which round-robin deals to shard 3.
+    assert failing == [3]
+
+
+def test_shard_skips_dataset_level_checks(tmp_path):
+    """A duplicate id spanning row groups is dataset-level, so a shard stays quiet."""
+    reaction = _valid_reaction()
+    reaction.reaction_id = "ord-0000000000000000000000000000000a"
+    path = tmp_path / "duplicate.parquet"
+    with parquet.DatasetWriter(
+        str(path), name="test", description="test", row_group_size=1
+    ) as writer:
+        writer.write_all([reaction, reaction])
+    assert parquet.num_row_groups(str(path)) == 2
+    # Unsharded, the duplicate is reported.
+    with pytest.raises(validations.ValidationError, match=r"[Dd]uplicate"):
+        validate_dataset.main(
+            validate_dataset.parse_args(["--input_pattern", str(path)])
+        )
+    # Sharded, each shard sees one copy and must not guess: reporting a
+    # duplicate, or an undefined cross-reference, would be wrong on partial state.
+    for index in range(2):
+        validate_dataset.main(
+            validate_dataset.parse_args(
+                ["--input_pattern", str(path), "--shard", f"{index}/2"]
+            )
+        )
