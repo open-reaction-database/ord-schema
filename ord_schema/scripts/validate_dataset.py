@@ -96,6 +96,28 @@ def _validate_row_group(
     return errors, state
 
 
+def _cross_ref_state(filename: str) -> validations.DatasetCrossRefState:
+    """Builds a file's complete cross-reference state, decoding but not validating.
+
+    Cross-reference checks need every reaction in the file at once, which a shard
+    holding a subset of row groups cannot supply. Reading them is cheap next to
+    validating them -- on ord-data's 1.77M-reaction uspto parquet this pass takes
+    about 20 seconds against the ~52 CPU-minutes of validate_message -- so one
+    shard runs it over the whole file rather than the checks being skipped.
+
+    Args:
+        filename: Parquet dataset to scan.
+
+    Returns:
+        Aggregated cross-reference observations for every reaction in the file.
+    """
+    silence_rdkit_logs()
+    state = validations.DatasetCrossRefState()
+    for _, reaction in parquet.iter_reactions(filename):
+        state.observe(reaction)
+    return state
+
+
 def _finalize_parquet(
     footer: parquet.ParquetFooter, state: validations.DatasetCrossRefState
 ) -> list[str]:
@@ -160,16 +182,13 @@ def main(args: argparse.Namespace) -> None:
 
     shard = parse_shard(args.shard)
     if shard is not None:
-        # Cross-reference checks aggregate every row group of a file: a shard
-        # holding some of them would call a reaction defined in another shard
-        # undefined, and would miss a duplicate id spanning two. Reporting
-        # nothing is the only honest option on partial state.
-        logger.warning(
-            "Shard %d/%d: per-reaction checks only. Dataset-level "
-            "cross-reference checks need every row group and are skipped; run "
-            "without --shard for those.",
+        logger.info(
+            "Shard %d/%d of the per-reaction checks%s",
             shard[0],
             shard[1],
+            "; also running the dataset-level cross-reference pass"
+            if shard[0] == 0
+            else "",
         )
     # Dealt out round-robin over a counter that spans files, so shards stay even
     # whether the input is one big dataset or many small ones.
@@ -196,6 +215,13 @@ def main(args: argparse.Namespace) -> None:
                     state=validations.DatasetCrossRefState(),
                 )
                 parquet_entries[filename] = entry
+                # Dataset-level checks need every reaction in the file at once.
+                # Unsharded they fall out of merging the row-group states below;
+                # sharded, no one shard holds them all, so shard 0 makes a single
+                # cheap pass over the whole file instead.
+                if shard is not None and shard[0] == 0:
+                    future = executor.submit(_cross_ref_state, filename)
+                    futures[future] = ("crossref", filename, None)
                 if footer.num_row_groups == 0:
                     if shard is None:
                         failures.extend(
@@ -222,6 +248,13 @@ def main(args: argparse.Namespace) -> None:
             kind, filename, _ = futures[future]
             if kind == "pb":
                 failures.extend(f"{filename}: {error}" for error in future.result())
+            elif kind == "crossref":
+                failures.extend(
+                    f"{filename}: {error}"
+                    for error in _finalize_parquet(
+                        parquet_entries[filename].footer, future.result()
+                    )
+                )
             else:
                 errors, state = future.result()
                 failures.extend(f"{filename}: {error}" for error in errors)

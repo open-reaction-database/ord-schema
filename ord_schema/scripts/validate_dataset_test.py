@@ -250,8 +250,8 @@ def test_shard_covers_every_row_group_between_them(tmp_path):
     assert failing == [3]
 
 
-def test_shard_skips_dataset_level_checks(tmp_path):
-    """A duplicate id spanning row groups is dataset-level, so a shard stays quiet."""
+def test_shard_zero_runs_dataset_level_checks(tmp_path):
+    """A duplicate id spanning row groups must still be caught when sharded."""
     reaction = _valid_reaction()
     reaction.reaction_id = "ord-0000000000000000000000000000000a"
     path = tmp_path / "duplicate.parquet"
@@ -265,11 +265,41 @@ def test_shard_skips_dataset_level_checks(tmp_path):
         validate_dataset.main(
             validate_dataset.parse_args(["--input_pattern", str(path)])
         )
-    # Sharded, each shard sees one copy and must not guess: reporting a
-    # duplicate, or an undefined cross-reference, would be wrong on partial state.
-    for index in range(2):
+    # No shard holds both copies, so the check cannot come from merging their
+    # partial state. Shard 0 makes its own pass over the whole file and catches
+    # it; the other shard reports only its own per-reaction findings.
+    with pytest.raises(validations.ValidationError, match=r"[Dd]uplicate"):
         validate_dataset.main(
             validate_dataset.parse_args(
-                ["--input_pattern", str(path), "--shard", f"{index}/2"]
+                ["--input_pattern", str(path), "--shard", "0/2"]
+            )
+        )
+    validate_dataset.main(
+        validate_dataset.parse_args(["--input_pattern", str(path), "--shard", "1/2"])
+    )
+
+
+def test_shard_zero_catches_cross_file_reference(tmp_path):
+    """An undefined cross-reference is found even from another shard's slice."""
+    defined = _valid_reaction()
+    defined.reaction_id = "ord-0000000000000000000000000000000a"
+    referring = _valid_reaction()
+    referring.reaction_id = "ord-0000000000000000000000000000000b"
+    component = referring.inputs["dummy_input"].components[0]
+    component.preparations.add(
+        type="SYNTHESIZED", reaction_id="ord-000000000000000000000000000000ff"
+    )
+    path = tmp_path / "crossref.parquet"
+    with parquet.DatasetWriter(
+        str(path), name="test", description="test", row_group_size=1
+    ) as writer:
+        writer.write_all([defined, referring])
+    assert parquet.num_row_groups(str(path)) == 2
+    # Shard 0 owns row group 0, so the referring reaction is not even in its
+    # slice -- the finding can only come from its whole-file cross-ref pass.
+    with pytest.raises(validations.ValidationError, match="undefined reaction_ids"):
+        validate_dataset.main(
+            validate_dataset.parse_args(
+                ["--input_pattern", str(path), "--shard", "0/2"]
             )
         )
