@@ -303,3 +303,40 @@ def test_shard_zero_catches_cross_file_reference(tmp_path):
                 ["--input_pattern", str(path), "--shard", "0/2"]
             )
         )
+
+
+def test_sharded_and_unsharded_report_the_same_findings(tmp_path):
+    """The merge path and shard 0's whole-file pass must not drift apart.
+
+    Dataset-level state is assembled two ways -- merged from per-row-group
+    observations when unsharded, and from one pass over the file on shard 0 --
+    and both feed the same finalizer. Nothing else forces them to agree.
+    """
+    reaction = _valid_reaction()
+    reaction.reaction_id = "ord-0000000000000000000000000000000a"
+    referring = _valid_reaction()
+    referring.reaction_id = "ord-0000000000000000000000000000000b"
+    referring.inputs["dummy_input"].components[0].preparations.add(
+        type="SYNTHESIZED", reaction_id="ord-000000000000000000000000000000ff"
+    )
+    path = tmp_path / "both.parquet"
+    with parquet.DatasetWriter(
+        str(path), name="test", description="test", row_group_size=1
+    ) as writer:
+        writer.write_all([reaction, reaction, referring])
+
+    def findings(argv):
+        try:
+            validate_dataset.main(validate_dataset.parse_args(argv))
+        except validations.ValidationError as error:
+            return {
+                line.split("Dataset: ", 1)[1]
+                for line in str(error).splitlines()
+                if "Dataset: " in line
+            }
+        return set()
+
+    unsharded = findings(["--input_pattern", str(path)])
+    sharded = findings(["--input_pattern", str(path), "--shard", "0/3"])
+    assert unsharded, "expected the duplicate and the undefined reference"
+    assert sharded == unsharded
