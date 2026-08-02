@@ -846,3 +846,68 @@ def test_check_compound_identifiers_accepts_matching_stereo_groups():
     compound.identifiers.add(type="CXSMILES", value="C[C@H](N)O |o1:1|")
     compound.identifiers.add(type="SMILES", value="C[C@H](N)O |o1:1|")
     message_helpers.check_compound_identifiers(compound)
+
+
+_METHANE_MOLBLOCK = """
+     RDKit          2D
+
+  1  0  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+M  END
+"""
+
+
+@pytest.mark.parametrize(
+    ("identifier_type", "value"),
+    [
+        ("SMILES", "c1ccccc1"),
+        ("CXSMILES", "C[C@H](N)O |o1:1|"),
+        ("INCHI", "InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H"),
+        ("MOLBLOCK", _METHANE_MOLBLOCK),
+    ],
+)
+def test_canonical_smiles_for_identifier_matches_parsing_directly(
+    identifier_type, value
+):
+    """The memoized result is what parsing and canonicalizing by hand produces."""
+    number = reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Value(
+        identifier_type
+    )
+    loader = message_helpers._COMPOUND_IDENTIFIER_LOADERS[number]
+    expected = message_helpers.canonical_smiles(loader(value))
+    assert message_helpers.canonical_smiles_for_identifier(number, value) == expected
+
+
+def test_canonical_smiles_for_identifier_keys_on_type_not_just_value():
+    """The same string means different things as different identifier types.
+
+    An InChI is not a SMILES, so caching on the value alone would let whichever
+    type was seen first answer for both.
+    """
+    inchi = reaction_pb2.CompoundIdentifier.INCHI
+    smiles = reaction_pb2.CompoundIdentifier.SMILES
+    value = "InChI=1S/CH4/h1H4"
+    assert message_helpers.canonical_smiles_for_identifier(inchi, value) == "C"
+    assert message_helpers.canonical_smiles_for_identifier(smiles, value) is None
+
+
+def test_canonical_smiles_for_identifier_returns_none_when_unparseable():
+    smiles = reaction_pb2.CompoundIdentifier.SMILES
+    unparseable = message_helpers.canonical_smiles_for_identifier(
+        smiles, "not a molecule"
+    )
+    assert unparseable is None
+    # A type no Mol can be built from is not a parse failure to report either.
+    name = reaction_pb2.CompoundIdentifier.NAME
+    assert message_helpers.canonical_smiles_for_identifier(name, "benzene") is None
+
+
+def test_identifier_parses_unsanitized_separates_the_two_failure_modes():
+    """Pentavalent nitrogen parses only once sanitization is skipped."""
+    smiles = reaction_pb2.CompoundIdentifier.SMILES
+    unsanitizable = "CN(C)(C)C"
+    assert (
+        message_helpers.canonical_smiles_for_identifier(smiles, unsanitizable) is None
+    )
+    assert message_helpers.identifier_parses_unsanitized(smiles, unsanitizable)
+    assert not message_helpers.identifier_parses_unsanitized(smiles, "not a molecule")
