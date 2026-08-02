@@ -106,8 +106,8 @@ def resolve_names(message: ord_schema.Message) -> bool:
     """Attempts to resolve compound NAME identifiers to SMILES.
 
     When a NAME identifier is resolved, a SMILES identifier is added to the list
-    of identifiers for that compound. Note that this function moves on to the
-    next Compound after the first successful name resolution.
+    of identifiers for that compound. The first success ends work on that
+    Compound; any remaining NAME identifiers on it are left unresolved.
 
     Args:
         message: Protocol buffer tree containing Compound submessages (e.g. Reaction
@@ -283,8 +283,8 @@ def resolve_input(input_string: str) -> reaction_pb2.ReactionInput:
 # that lookup services may not index.
 #
 # eMolecules' public /lookup?q= endpoint is unusable (it always replies "__END__";
-# their current API requires authentication), and ChemSpider now requires a
-# registered RSC API key, so neither is included.
+# their current API requires authentication), and ChemSpider requires a registered
+# RSC API key, so neither is included.
 _NAME_RESOLVERS = {
     "PubChem API": _pubchem_resolve,
     "NCI/CADD CIR": _cactus_resolve,

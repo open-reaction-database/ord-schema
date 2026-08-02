@@ -290,7 +290,8 @@ def smiles_from_compound(
 ) -> str:
     """Fetches or generates a SMILES identifier for a compound.
 
-    If a SMILES identifier already exists, it is simply returned.
+    An existing SMILES identifier is used in preference to regenerating one from the
+    structure, but it is still canonicalized when ``canonical`` is True.
 
     Args:
         compound: reaction_pb2.Compound or reaction_pb2.ProductCompound message.
@@ -987,7 +988,8 @@ def id_filename(filename: str) -> str:
     if not shard.isalnum():
         raise ValueError(f"basename shard must be alphanumeric: {basename}")
     result = posixpath.join("data", shard, basename)
-    # Defense-in-depth: mirror what werkzeug.security.safe_join used to check.
+    # Defense in depth: basename carries no separator and shard is alphanumeric, so
+    # this is redundant -- but it is what pins the result inside the "data/" root.
     if posixpath.normpath(result) != result or not result.startswith("data/"):
         raise ValueError(f"unsafe path from basename: {basename}")
     return result

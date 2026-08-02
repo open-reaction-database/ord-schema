@@ -37,9 +37,10 @@ def load_spreadsheet(
     """Reads a {csv, xls, xlsx} spreadsheet file.
 
     Args:
-        file_name_or_buffer: Filename or buffer. Note that a buffer is only
-            allowed if suffix is not None.
-        suffix: Filename suffix, used to determine the data encoding.
+        file_name_or_buffer: Filename, or an open binary buffer. A buffer
+            requires ``suffix``, since there is no name to read it from.
+        suffix: Filename suffix, used to determine the data encoding. Anything
+            other than ".xls" or ".xlsx" is read as CSV.
 
     Returns:
         DataFrame containing the reaction spreadsheet data.
@@ -77,13 +78,13 @@ def _fill_template(
 
     These edits are logged for easier error checking.
 
-    Note that these edits are focused on *inputs* and are not intended to be
-    exhaustive (e.g. by covering all Compound messages anywhere in Reaction).
+    These edits cover *inputs* only; Compound messages elsewhere in the Reaction
+    are left alone.
 
     Args:
-        string: A string whose contents should be modified.
-        substitutions: A dictionary where each (key, value) pair defines
-            a substring to replace and what its replacement should be.
+        string: Reaction pbtxt containing placeholder substrings to replace.
+        substitutions: Maps each placeholder substring to its replacement. A null
+            value triggers the pruning edits described above.
 
     Returns:
         Reaction message with substitutions filled in.
@@ -139,8 +140,8 @@ def generate_dataset(
             may only use letters, numbers, and underscores.
         df: Pandas Dataframe where each row corresponds to one reaction and
             column names match placeholders in the template_string.
-        validate: Optional Boolean controlling whether Reaction messages should
-            be validated as they are defined. Defaults to True.
+        validate: If True, validate each enumerated Reaction and raise on the
+            first one with errors.
 
     Returns:
         A Dataset message.
@@ -164,7 +165,8 @@ def generate_dataset(
     reactions = []
     for _, substitutions in df[list(placeholders)].iterrows():
         reaction = _fill_template(template_string, substitutions)
-        # remove the reaction id field if reaction exits to avoid id conflicts
+        # Clear any templated reaction_id so the enumerated reactions do not
+        # all share one ID.
         if reaction.reaction_id:
             reaction.ClearField("reaction_id")
 

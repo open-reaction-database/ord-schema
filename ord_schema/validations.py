@@ -155,23 +155,24 @@ def validate_message(
     enforced in the schema (e.g., non-negativity of certain measurements,
     consistency of cross-referenced keys).
 
-    Note that the message may be modified in-place with any unambiguous changes
-    needed to ensure validity.
+    The message may be modified in place with any unambiguous changes needed to
+    ensure validity.
 
     Args:
         message: A message to validate.
-        recurse: A boolean that controls whether submessages of message (i.e.,
-            fields that are messages) should also be validated. Defaults to
-            True.
+        recurse: If True, also validate submessages, meaning fields that are
+            themselves messages.
         raise_on_error: If True, raises a ValidationError exception when errors
             are encountered. If False, the user must manually check the return
             value to identify validation errors.
-        options: ValidationOptions.
+        options: Toggles for the checks that are not always applied; see
+            ``ValidationOptions``.
         trace: Tuple containing a string "stack trace" to track the position of
             the current message relative to the recursion root.
 
     Returns:
-        ValidationOutput.
+        Errors and warnings accumulated over the message and, when recursing,
+        its submessages.
 
     Raises:
         ValidationError: If any fields are invalid.
@@ -181,10 +182,9 @@ def validate_message(
         assert root_desc is not None  # Type hint.
         trace = (root_desc.name,)
     output = ValidationOutput()
-    # Recurse through submessages
     if recurse:
         for field, value in message.ListFields():
-            if field.type == field.TYPE_MESSAGE:  # need to recurse
+            if field.type == field.TYPE_MESSAGE:
                 _validate_message(
                     field=field,
                     value=value,
@@ -238,13 +238,13 @@ def _validate_message(
         raise_on_error: If True, raises a ValidationError exception when errors
             are encountered. If False, the user must manually check the return
             value to identify validation errors.
-        options: ValidationOptions.
+        options: Toggles for the checks that are not always applied; see
+            ``ValidationOptions``.
         trace: Tuple containing a string "stack trace" to track the position of
             the current message relative to the recursion root.
     """
     if field.label == field.LABEL_REPEATED:
-        if field.message_type.GetOptions().map_entry:  # map
-            # value is message
+        if field.message_type.GetOptions().map_entry:
             if field.message_type.fields_by_name["value"].type == field.TYPE_MESSAGE:
                 for key, submessage in value.items():
                     this_trace = (*trace, f'{field.name}["{key}"]')
