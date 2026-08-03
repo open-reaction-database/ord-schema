@@ -40,19 +40,19 @@ def filter_filenames(filenames: Iterable[str], pattern: str) -> list[str]:
     return [filename for filename in filenames if re.search(pattern, filename)]
 
 
-def _validate_pb(filename: str) -> list[str]:
+def _validate_pb(filename: str, options: validations.ValidationOptions) -> list[str]:
     """Validates a single pb dataset; returns formatted error lines."""
     silence_rdkit_logs()
     dataset = message_helpers.load_message(filename, dataset_pb2.Dataset)
     try:
-        validations.validate_datasets({filename: dataset})
+        validations.validate_datasets({filename: dataset}, options=options)
     except validations.ValidationError as error:
         return [str(error)]
     return []
 
 
 def _validate_row_group(
-    filename: str, row_group: int
+    filename: str, row_group: int, options: validations.ValidationOptions
 ) -> tuple[list[str], validations.DatasetCrossRefState]:
     """Validates one row group: per-reaction checks + cross-ref observations."""
     silence_rdkit_logs()
@@ -61,7 +61,9 @@ def _validate_row_group(
     for i, (_, reaction) in enumerate(
         parquet.iter_reactions(filename, row_group=row_group)
     ):
-        output = validations.validate_message(reaction, raise_on_error=False)
+        output = validations.validate_message(
+            reaction, raise_on_error=False, options=options
+        )
         errors.extend(
             f"row_group {row_group}, reaction {i}: {error}" for error in output.errors
         )
@@ -70,10 +72,12 @@ def _validate_row_group(
 
 
 def _finalize_parquet(
-    footer: parquet.ParquetFooter, state: validations.DatasetCrossRefState
+    footer: parquet.ParquetFooter,
+    state: validations.DatasetCrossRefState,
+    options: validations.ValidationOptions,
 ) -> list[str]:
     """Runs dataset-level checks on aggregated parquet state; returns errors."""
-    context = validations.ValidationContext()
+    context = validations.ValidationContext(options=options)
     validations.validate_dataset_streaming(
         context=context,
         name=footer.dataset.name,
@@ -109,6 +113,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--n_jobs", type=int, default=1, help="Number of parallel workers"
     )
+    parser.add_argument(
+        "--validate_ids",
+        action="store_true",
+        help="Require well-formed dataset and reaction ids. Off by default: ids are "
+        "assigned when a dataset is submitted, so a draft does not have them yet. "
+        "Corpus sweeps should pass this, matching what submission checks.",
+    )
     return parser.parse_args(argv)
 
 
@@ -120,6 +131,7 @@ def main(args: argparse.Namespace) -> None:
         filenames = filter_filenames(filenames, args.filter)
         logger.info("Filtered to %d datasets", len(filenames))
 
+    options = validations.ValidationOptions(validate_ids=args.validate_ids)
     parquet_entries: dict[str, _ParquetEntry] = {}
     failures: list[str] = []
 
@@ -137,14 +149,16 @@ def main(args: argparse.Namespace) -> None:
                 if footer.num_row_groups == 0:
                     failures.extend(
                         f"{filename}: {e}"
-                        for e in _finalize_parquet(footer, entry.state)
+                        for e in _finalize_parquet(footer, entry.state, options)
                     )
                     continue
                 for row_group in range(footer.num_row_groups):
-                    future = executor.submit(_validate_row_group, filename, row_group)
+                    future = executor.submit(
+                        _validate_row_group, filename, row_group, options
+                    )
                     futures[future] = ("parquet", filename, row_group)
             else:
-                future = executor.submit(_validate_pb, filename)
+                future = executor.submit(_validate_pb, filename, options)
                 futures[future] = ("pb", filename, None)
 
         total_tasks = len(futures)
@@ -161,7 +175,9 @@ def main(args: argparse.Namespace) -> None:
                 if entry.remaining == 0:
                     failures.extend(
                         f"{filename}: {error}"
-                        for error in _finalize_parquet(entry.footer, entry.state)
+                        for error in _finalize_parquet(
+                            entry.footer, entry.state, options
+                        )
                     )
 
     if failures:
