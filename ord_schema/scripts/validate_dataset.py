@@ -86,7 +86,7 @@ def _finalize_parquet(
     return [
         f"Dataset: {text}"
         for text, severity in context.findings
-        if severity is validations.Severity.ERROR
+        if severity >= validations.Severity.ERROR
     ]
 
 

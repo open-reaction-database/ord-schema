@@ -89,17 +89,14 @@ class ValidationError(Exception):
     ``validate_datasets``.
     """
 
-    pass
-
 
 @dataclasses.dataclass
 class ValidationContext:
     """Where a validator reports to, and the toggles it validates under.
 
-    Passed to every validator rather than kept in module state, so what a given
-    call can see and affect is visible in its signature. ``validate_message``
-    reads back what one message produced by slicing off whatever its validator
-    appended to :attr:`findings`.
+    Passed to every validator rather than held in module state, so what a call
+    can see and affect is visible in its signature. ``validate_message`` reads
+    back one message's findings by slicing off whatever its validator appended.
     """
 
     options: ValidationOptions = dataclasses.field(default_factory=ValidationOptions)
@@ -184,7 +181,7 @@ def _validate_datasets(
     context = ValidationContext(options=options or ValidationOptions())
     _validate_dataset(dataset, context)
     for text, severity in context.findings:
-        if severity is not Severity.ERROR:
+        if severity < Severity.ERROR:
             continue
         error = f"Dataset: {text}"
         errors.append(error)
@@ -263,8 +260,8 @@ def validate_message(
         # are added.
         raise NotImplementedError(f"Don't know how to validate {type(message)}")
 
-    # Everything appended from here on belongs to this message; children have
-    # already taken theirs, so the tail of the list is exactly this one's.
+    # Children have already taken theirs, so whatever the validator appends from
+    # here is exactly this message's.
     start = len(context.findings)
     _VALIDATOR_SWITCH[type(message)](message, context)
     stack = ".".join(trace)
@@ -272,7 +269,9 @@ def validate_message(
     del context.findings[start:]
     for text, severity in mine:
         warning_text = f"{stack}: {text}"
-        if severity is Severity.ERROR:
+        # Thresholded so a level added above ERROR would fail validation rather
+        # than be filed as a warning.
+        if severity >= Severity.ERROR:
             if raise_on_error:
                 raise ValidationError(warning_text)
             output.errors.append(warning_text)

@@ -1388,6 +1388,29 @@ def test_streaming_and_in_memory_dataset_agree_on_options():
     ]
 
 
+def test_a_severity_above_error_still_fails_validation(monkeypatch):
+    """Findings are thresholded, not matched, so a new level cannot slip through.
+
+    Severity is ordered so a level can be added above ERROR. Comparing for
+    equality would file such a finding under warnings, and validation would
+    report success for something more serious than an error.
+    """
+
+    def _catastrophe(message, context):
+        del message
+        context.findings.append(("catastrophe", validations.Severity.ERROR + 1))
+
+    monkeypatch.setitem(
+        validations._VALIDATOR_SWITCH, reaction_pb2.ReactionNotes, _catastrophe
+    )
+    message = reaction_pb2.ReactionNotes()
+    output = validations.validate_message(message, raise_on_error=False)
+    assert any("catastrophe" in error for error in output.errors)
+    assert not output.warnings
+    with pytest.raises(validations.ValidationError, match="catastrophe"):
+        validations.validate_message(message)
+
+
 def test_workup_target_ph_out_of_range():
     message = reaction_pb2.ReactionWorkup(
         type="PH_ADJUST",
