@@ -14,36 +14,11 @@
 """Tests for ord_schema.validations."""
 
 import datetime
-import sys
-import warnings
 
 import pytest
 
 from ord_schema import message_helpers, validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
-
-
-@pytest.fixture(autouse=True)
-def setup():
-    # Redirect warning messages to stdout so they can be filtered from the other
-    # test output.
-    original_showwarning = warnings.showwarning
-
-    def _showwarning(message, category, filename, lineno, file=None, line=None):
-        del file  # Unused.
-        original_showwarning(
-            message=message,
-            category=category,
-            filename=filename,
-            lineno=lineno,
-            file=sys.stdout,
-            line=line,
-        )
-
-    warnings.showwarning = _showwarning  # ty: ignore[invalid-assignment]
-    yield
-    # Restore the original showwarning.
-    warnings.showwarning = original_showwarning
 
 
 def _run_validation(message, **kwargs):

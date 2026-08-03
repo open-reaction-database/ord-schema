@@ -21,7 +21,7 @@ import pathlib
 import re
 from collections.abc import Callable, Mapping
 from enum import IntEnum
-from typing import Any, TypeAlias
+from typing import Any
 
 from dateutil import parser
 from rdkit import (
@@ -70,21 +70,26 @@ class ValidationOutput:
         self.warnings.extend(other.warnings)
 
 
-class ValidationError(Warning):
-    """Warning category for validation failures that indicate invalid data."""
+class Severity(IntEnum):
+    """How serious a validation finding is.
+
+    Ordered, so a caller can threshold on ``>= Severity.ERROR`` rather than
+    enumerating members.
+    """
+
+    WARNING = 1
+    ERROR = 2
+
+
+class ValidationError(Exception):
+    """Raised when validation is asked to fail on invalid data.
+
+    A finding's severity is :class:`Severity`; this is only the exception that
+    carries an error out to the caller, via ``raise_on_error`` or
+    ``validate_datasets``.
+    """
 
     pass
-
-
-class ValidationWarning(Warning):
-    """Warning category for non-fatal validation concerns."""
-
-    pass
-
-
-# How severe a finding is. These double as the exception type raised for an error,
-# which is why they are Warning subclasses rather than an enum.
-FindingCategory: TypeAlias = type[ValidationError] | type[ValidationWarning]
 
 
 @dataclasses.dataclass
@@ -98,17 +103,15 @@ class ValidationContext:
     """
 
     options: ValidationOptions = dataclasses.field(default_factory=ValidationOptions)
-    findings: list[tuple[str, FindingCategory]] = dataclasses.field(
-        default_factory=list
-    )
+    findings: list[tuple[str, Severity]] = dataclasses.field(default_factory=list)
 
     def error(self, message: str) -> None:
         """Records a finding that makes the message invalid."""
-        self.findings.append((message, ValidationError))
+        self.findings.append((message, Severity.ERROR))
 
     def warn(self, message: str) -> None:
         """Records a finding worth surfacing that does not fail validation."""
-        self.findings.append((message, ValidationWarning))
+        self.findings.append((message, Severity.WARNING))
 
 
 def validate_datasets(
@@ -180,8 +183,8 @@ def _validate_datasets(
     # would reject a non-proto stand-in like ``DatasetView``.
     context = ValidationContext(options=options or ValidationOptions())
     _validate_dataset(dataset, context)
-    for text, category in context.findings:
-        if not issubclass(category, ValidationError):
+    for text, severity in context.findings:
+        if severity is not Severity.ERROR:
             continue
         error = f"Dataset: {text}"
         errors.append(error)
@@ -267,9 +270,9 @@ def validate_message(
     stack = ".".join(trace)
     mine = context.findings[start:]
     del context.findings[start:]
-    for text, category in mine:
+    for text, severity in mine:
         warning_text = f"{stack}: {text}"
-        if issubclass(category, ValidationError):
+        if severity is Severity.ERROR:
             if raise_on_error:
                 raise ValidationError(warning_text)
             output.errors.append(warning_text)
