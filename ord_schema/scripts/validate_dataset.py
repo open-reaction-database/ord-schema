@@ -23,7 +23,6 @@ import argparse
 import dataclasses
 import glob
 import re
-import warnings
 from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -74,20 +73,20 @@ def _finalize_parquet(
     footer: parquet.ParquetFooter, state: validations.DatasetCrossRefState
 ) -> list[str]:
     """Runs dataset-level checks on aggregated parquet state; returns errors."""
-    with warnings.catch_warnings(record=True) as tape:
-        warnings.simplefilter("always", validations.ValidationError)
-        validations.validate_dataset_streaming(
-            name=footer.dataset.name,
-            description=footer.dataset.description,
-            dataset_id=footer.dataset.dataset_id,
-            reaction_ids=[],
-            has_reactions=footer.num_rows > 0,
-            state=state,
-        )
+    context = validations.ValidationContext()
+    validations.validate_dataset_streaming(
+        context=context,
+        name=footer.dataset.name,
+        description=footer.dataset.description,
+        dataset_id=footer.dataset.dataset_id,
+        reaction_ids=[],
+        has_reactions=footer.num_rows > 0,
+        state=state,
+    )
     return [
-        f"Dataset: {w.message}"
-        for w in tape
-        if issubclass(w.category, validations.ValidationError)
+        f"Dataset: {text}"
+        for text, severity in context.findings
+        if severity >= validations.Severity.ERROR
     ]
 
 
