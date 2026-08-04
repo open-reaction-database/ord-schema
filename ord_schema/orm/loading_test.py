@@ -124,7 +124,8 @@ def test_parquet_sharded_ingest_matches_single_process(tmp_path):
     of every table.
     """
     parquet_path, _ = _write_parquet_dataset(tmp_path, row_group_size=10)
-    assert parquet.num_row_groups(parquet_path) > 1  # Sharding is actually exercised.
+    view = parquet.DatasetView(parquet_path)
+    assert view.num_row_groups > 1  # Sharding is actually exercised.
     result: dict[str, dict[str, tuple[int, str | None]]] = {}
     for label, n_jobs in (("sharded", 2), ("single", 1)):
         with Postgresql() as postgres:

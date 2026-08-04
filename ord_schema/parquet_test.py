@@ -84,9 +84,18 @@ def test_iter_reactions_all(tmp_path):
     original = _make_dataset(n=3)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    pairs = list(dataset.iter_reactions(path))
+    pairs = list(dataset.DatasetView(path).iter_reactions())
     assert [rid for rid, _ in pairs] == [r.reaction_id for r in original.reactions]
     assert [r.outcomes[0].conversion.value for _, r in pairs] == [0.0, 1.0, 2.0]
+
+
+def test_iter_reactions_matches_reactions_stream(tmp_path):
+    """``reactions`` is ``iter_reactions()`` with the IDs dropped."""
+    original = _make_dataset(n=4)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(original, path)
+    view = dataset.DatasetView(path)
+    assert [reaction for _, reaction in view.iter_reactions()] == list(view.reactions)
 
 
 def test_iter_reactions_filtered(tmp_path):
@@ -96,7 +105,7 @@ def test_iter_reactions_filtered(tmp_path):
     # Output order follows file order, not the order of ``reaction_ids``;
     # ord-9999 is absent and silently skipped.
     wanted = {"ord-0003", "ord-0001", "ord-9999"}
-    pairs = list(dataset.iter_reactions(path, reaction_ids=wanted))
+    pairs = list(dataset.DatasetView(path).iter_reactions(reaction_ids=wanted))
     assert [rid for rid, _ in pairs] == ["ord-0001", "ord-0003"]
 
 
@@ -108,18 +117,19 @@ def test_iter_reactions_row_group(tmp_path):
         path, name=original.name, description=original.description, row_group_size=2
     ) as writer:
         writer.write_all(original.reactions)
-    assert dataset.num_row_groups(path) == 3
-    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=0)] == [
+    view = dataset.DatasetView(path)
+    assert view.num_row_groups == 3
+    assert [rid for rid, _ in view.iter_reactions(row_group=0)] == [
         "ord-0000",
         "ord-0001",
     ]
-    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=1)] == [
+    assert [rid for rid, _ in view.iter_reactions(row_group=1)] == [
         "ord-0002",
         "ord-0003",
     ]
-    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=2)] == ["ord-0004"]
+    assert [rid for rid, _ in view.iter_reactions(row_group=2)] == ["ord-0004"]
     with pytest.raises(IndexError, match="out of range"):
-        list(dataset.iter_reactions(path, row_group=3))
+        list(view.iter_reactions(row_group=3))
 
 
 def test_iter_reactions_empty_filter_raises(tmp_path):
@@ -127,24 +137,79 @@ def test_iter_reactions_empty_filter_raises(tmp_path):
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
     with pytest.raises(ValueError, match="non-empty"):
-        list(dataset.iter_reactions(path, reaction_ids=[]))
+        list(dataset.DatasetView(path).iter_reactions(reaction_ids=[]))
 
 
-def test_load_reaction_hit(tmp_path):
+def test_get_reaction_hit(tmp_path):
     original = _make_dataset(n=5)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    reaction = dataset.load_reaction(path, "ord-0002")
+    reaction = dataset.DatasetView(path).get_reaction("ord-0002")
     assert reaction.reaction_id == "ord-0002"
     assert reaction.outcomes[0].conversion.value == 2.0
 
 
-def test_load_reaction_miss(tmp_path):
+def test_get_reaction_miss(tmp_path):
     original = _make_dataset(n=2)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    with pytest.raises(KeyError):
-        dataset.load_reaction(path, "ord-nope")
+    with pytest.raises(KeyError, match="ord-nope"):
+        dataset.DatasetView(path).get_reaction("ord-nope")
+
+
+def test_get_reaction_across_row_groups(tmp_path):
+    """Every ID resolves to its own Reaction, including across row group bounds."""
+    original = _make_dataset(n=7)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(original, path, row_group_size=3)
+    view = dataset.DatasetView(path)
+    for reaction in original.reactions:
+        assert view.get_reaction(reaction.reaction_id) == reaction
+
+
+def test_get_reaction_builds_id_index_once(tmp_path, monkeypatch):
+    """The reaction_id column is read once, not per lookup."""
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=6), path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    calls = []
+    unpatched = dataset.DatasetView.iter_reaction_ids
+
+    def _record(self):
+        calls.append(self.path)
+        return unpatched(self)
+
+    monkeypatch.setattr(dataset.DatasetView, "iter_reaction_ids", _record)
+    for i in range(6):
+        assert view.get_reaction(f"ord-{i:04d}").reaction_id == f"ord-{i:04d}"
+    assert len(calls) == 1
+
+
+def test_row_group_read_shared_by_iteration_and_lookup(tmp_path, monkeypatch):
+    """Streaming a row group, indexing into it, and ID lookup share one cached read.
+
+    All three go through the same _RowGroupReader, so once a row group is resolved the
+    other two paths must not re-read it.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=6), path, row_group_size=3)
+    view = dataset.DatasetView(path)
+    reads = []
+    unpatched = pq.ParquetFile.read_row_group
+
+    def _record(self, row_group, *args, **kwargs):
+        reads.append(row_group)
+        return unpatched(self, row_group, *args, **kwargs)
+
+    monkeypatch.setattr(pq.ParquetFile, "read_row_group", _record)
+    assert [rid for rid, _ in view.iter_reactions(row_group=1)] == [
+        "ord-0003",
+        "ord-0004",
+        "ord-0005",
+    ]
+    assert view.reactions[4].reaction_id == "ord-0004"
+    assert view.get_reaction("ord-0005").reaction_id == "ord-0005"
+    assert reads == [1]
 
 
 def test_row_group_boundaries(tmp_path):
@@ -263,7 +328,7 @@ def test_multi_row_group_streaming_preserves_order(tmp_path):
     dataset.save_dataset(original, path, row_group_size=500)
     parquet_file = pq.ParquetFile(path)
     assert parquet_file.num_row_groups == 5
-    streamed = [rid for rid, _ in dataset.iter_reactions(path)]
+    streamed = [rid for rid, _ in dataset.DatasetView(path).iter_reactions()]
     assert streamed == [r.reaction_id for r in original.reactions]
 
 

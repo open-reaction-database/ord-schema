@@ -485,7 +485,7 @@ def add_parquet_reactions(
         _copy_rows(dbapi_connection, rows_by_table)
         batch.clear()
 
-    reactions: Any = parquet.iter_reactions(path, row_group=row_group)
+    reactions: Any = parquet.DatasetView(path).iter_reactions(row_group=row_group)
     if progress_desc is not None:
         reactions = tqdm(
             reactions,
