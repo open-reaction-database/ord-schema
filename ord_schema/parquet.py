@@ -134,14 +134,23 @@ class DatasetWriter:
         self._closed = False
 
     def write(self, reaction: reaction_pb2.Reaction) -> None:
-        """Buffers a Reaction; flushes a row group when the buffer is full."""
+        """Buffers a Reaction; flushes a row group when the buffer is full.
+
+        Args:
+            reaction: Reaction to append. Serialized immediately, so later
+                mutation of the message does not affect what is written.
+        """
         self._buffer_ids.append(reaction.reaction_id)
         self._buffer_blobs.append(reaction.SerializeToString(deterministic=True))
         if len(self._buffer_ids) >= self._row_group_size:
             self._flush()
 
     def write_all(self, reactions: Iterable[reaction_pb2.Reaction]) -> None:
-        """Writes an iterable of Reactions."""
+        """Writes an iterable of Reactions.
+
+        Args:
+            reactions: Reactions to append, in order.
+        """
         for reaction in reactions:
             self.write(reaction)
 
@@ -166,6 +175,7 @@ class DatasetWriter:
         pathlib.Path(self._tmp_path).replace(self._path)
 
     def _abort(self) -> None:
+        """Closes the writer and removes the temp file, leaving no destination."""
         # try/finally so the unlink still runs if writer.close raises a
         # BaseException (e.g., KeyboardInterrupt mid-close). The original
         # error is preserved through Python's exception chaining.
@@ -177,6 +187,7 @@ class DatasetWriter:
                 pathlib.Path(self._tmp_path).unlink()
 
     def _flush(self) -> None:
+        """Writes the buffered Reactions as one row group, if any are pending."""
         if not self._buffer_ids:
             return
         table = pa.table(
@@ -188,7 +199,11 @@ class DatasetWriter:
         self._buffer_blobs.clear()
 
     def __enter__(self) -> Self:
-        """Enters the context manager, returning this writer."""
+        """Enters the context manager.
+
+        Returns:
+            This writer.
+        """
         return self
 
     def __exit__(
@@ -197,7 +212,13 @@ class DatasetWriter:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Closes the writer on success or aborts the write on exception."""
+        """Closes the writer on success or aborts the write on exception.
+
+        Args:
+            exc_type: Exception class raised in the ``with`` body, or None.
+            exc_val: Exception raised in the ``with`` body, or None.
+            exc_tb: Traceback of that exception, or None.
+        """
         # On exception in the with body, abort the write so the destination
         # path is never created; let the original exception propagate.
         if exc_type is None:
@@ -378,11 +399,19 @@ class _ReactionStream:
             yield reaction
 
     def __len__(self) -> int:
-        """Returns the number of Reactions, taken from the file footer."""
+        """Reports the dataset size without reading any column data.
+
+        Returns:
+            The number of Reactions, taken from the file footer.
+        """
         return self._num_reactions
 
     def __bool__(self) -> bool:
-        """Returns whether the dataset holds any Reactions."""
+        """Reports emptiness the way a list does, not the way a generator does.
+
+        Returns:
+            Whether the dataset holds any Reactions.
+        """
         return self._num_reactions > 0
 
     @overload
@@ -670,6 +699,15 @@ def _iter_reactions(
     *,
     filter_set: set[str] | None,
 ) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
+    """Streams an open Parquet file a batch at a time, so memory stays bounded.
+
+    Args:
+        parquet_file: Open Parquet file to read.
+        filter_set: Reaction IDs to keep, or None to keep all.
+
+    Yields:
+        Each ``(reaction_id, Reaction)`` pair, in file order.
+    """
     for batch in parquet_file.iter_batches(columns=["reaction_id", "reaction"]):
         yield from _iter_table(batch, filter_set=filter_set)
 
@@ -679,6 +717,15 @@ def _iter_table(
     *,
     filter_set: set[str] | None,
 ) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
+    """Deserializes the Reactions in one already-read table or batch.
+
+    Args:
+        table: Table or batch holding the ``reaction_id`` and ``reaction`` columns.
+        filter_set: Reaction IDs to keep, or None to keep all.
+
+    Yields:
+        Each ``(reaction_id, Reaction)`` pair, in table order.
+    """
     ids = table.column("reaction_id").to_pylist()
     blobs = table.column("reaction").to_pylist()
     for reaction_id, blob in zip(ids, blobs, strict=True):
@@ -688,6 +735,16 @@ def _iter_table(
 
 
 def _build_schema(*, name: str, description: str, dataset_id: str | None) -> pa.Schema:
+    """Builds the Arrow schema carrying the Dataset scalars in its footer metadata.
+
+    Args:
+        name: Dataset name.
+        description: Dataset description.
+        dataset_id: Dataset ID, omitted from the footer when None or empty.
+
+    Returns:
+        The column schema with ``ord.*`` key-value metadata attached.
+    """
     metadata = {
         _META_SCHEMA_VERSION: SCHEMA_VERSION,
         _META_NAME: name,
@@ -701,9 +758,25 @@ def _build_schema(*, name: str, description: str, dataset_id: str | None) -> pa.
 def _dataset_from_metadata(
     raw_metadata: dict[bytes, bytes] | None,
 ) -> dataset_pb2.Dataset:
+    """Reads the Dataset scalars out of Parquet footer metadata.
+
+    This is the read-side contract check for the format: an unreadable or
+    unsupported footer fails here rather than surfacing as missing fields later.
+
+    Args:
+        raw_metadata: Footer key-value metadata, or None if the file has none.
+
+    Returns:
+        A Dataset with only ``name``, ``description``, and ``dataset_id`` set.
+
+    Raises:
+        ValueError: If the schema version key is missing or unsupported, or if
+            ``name`` or ``description`` is missing or empty.
+    """
     metadata = raw_metadata or {}
 
     def _get(key: str) -> str | None:
+        """Returns the decoded value for ``key``, or None if absent."""
         value = metadata.get(key.encode())
         return value.decode() if value is not None else None
 
