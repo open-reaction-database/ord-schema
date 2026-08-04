@@ -25,6 +25,7 @@ import glob
 import re
 from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
 
 from tqdm import tqdm
 
@@ -34,10 +35,35 @@ from ord_schema.proto import dataset_pb2
 
 logger = get_logger(__name__)
 
+# Header of an unsmudged Git LFS pointer. Datasets in ord-data are LFS objects,
+# so a checkout that skipped `git lfs pull` leaves these small text files in
+# place of content, and each format's parser then fails on them in its own
+# confusing way (gzip reports a bad magic number, parquet a missing footer).
+_LFS_POINTER_HEADER = b"version https://git-lfs.github.com/spec/"
+
 
 def filter_filenames(filenames: Iterable[str], pattern: str) -> list[str]:
     """Filters filenames according to a regex pattern."""
     return [filename for filename in filenames if re.search(pattern, filename)]
+
+
+def _is_lfs_pointer(filename: str) -> bool:
+    """Tests whether a file holds a Git LFS pointer rather than dataset content."""
+    try:
+        with Path(filename).open("rb") as f:
+            return f.read(len(_LFS_POINTER_HEADER)) == _LFS_POINTER_HEADER
+    except OSError:
+        return False
+
+
+def _describe_failure(filename: str, error: BaseException) -> str:
+    """Formats a file that could not be read or parsed at all."""
+    if _is_lfs_pointer(filename):
+        return (
+            f"{filename}: file is a Git LFS pointer, not dataset content; "
+            "run `git lfs pull` to fetch it"
+        )
+    return f"{filename}: {type(error).__name__}: {error}"
 
 
 def _validate_pb(filename: str, options: validations.ValidationOptions) -> list[str]:
@@ -139,7 +165,13 @@ def main(args: argparse.Namespace) -> None:
         futures: dict = {}
         for filename in filenames:
             if filename.endswith(".parquet"):
-                view = parquet.DatasetView(filename)
+                try:
+                    view = parquet.DatasetView(filename)
+                # A file this job cannot read at all is that file's failure, not
+                # the run's: record it and keep validating the rest.
+                except Exception as error:  # noqa: BLE001
+                    failures.append(_describe_failure(filename, error))
+                    continue
                 entry = _ParquetEntry(
                     remaining=view.num_row_groups,
                     view=view,
@@ -164,10 +196,20 @@ def main(args: argparse.Namespace) -> None:
         total_tasks = len(futures)
         for future in tqdm(as_completed(futures), total=total_tasks):
             kind, filename, _ = futures[future]
+            try:
+                result = future.result()
+            # As above: attribute an unreadable or unparseable file to itself.
+            # A parquet row group that fails this way leaves `remaining` above
+            # zero, which skips the dataset-level check for that file -- correct,
+            # since the aggregated state is incomplete and the file already
+            # counts as failed.
+            except Exception as error:  # noqa: BLE001
+                failures.append(_describe_failure(filename, error))
+                continue
             if kind == "pb":
-                failures.extend(f"{filename}: {error}" for error in future.result())
+                failures.extend(f"{filename}: {error}" for error in result)
             else:
-                errors, state = future.result()
+                errors, state = result
                 failures.extend(f"{filename}: {error}" for error in errors)
                 entry = parquet_entries[filename]
                 entry.state.merge(state)

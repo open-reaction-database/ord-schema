@@ -185,6 +185,54 @@ def test_parquet_per_reaction_error_in_late_row_group(tmp_path):
         )
 
 
+_LFS_POINTER = (
+    b"version https://git-lfs.github.com/spec/v1\n"
+    b"oid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\n"
+    b"size 261136\n"
+)
+
+
+@pytest.mark.parametrize("suffix", [".pb.gz", ".pbtxt", ".parquet"])
+def test_lfs_pointer_names_the_file_and_the_remedy(tmp_path, suffix):
+    """An unsmudged LFS pointer reports as such, not as a format-specific error."""
+    path = tmp_path / f"pointer{suffix}"
+    path.write_bytes(_LFS_POINTER)
+    with pytest.raises(validations.ValidationError) as excinfo:
+        validate_dataset.main(
+            validate_dataset.parse_args(["--input_pattern", str(path)])
+        )
+    message = str(excinfo.value)
+    assert str(path) in message
+    assert "Git LFS pointer" in message
+    assert "git lfs pull" in message
+
+
+def test_unreadable_file_is_attributed_and_does_not_stop_the_sweep(tmp_path):
+    """A corrupt file is reported against itself; other files are still validated."""
+    corrupt = tmp_path / "corrupt.pb.gz"
+    corrupt.write_bytes(b"not gzip, not a proto, not anything")
+    invalid = tmp_path / "invalid.pbtxt"
+    datasets.save_dataset(
+        dataset_pb2.Dataset(
+            name="test", description="test", reactions=[reaction_pb2.Reaction()]
+        ),
+        invalid,
+    )
+    with pytest.raises(validations.ValidationError) as excinfo:
+        validate_dataset.main(
+            validate_dataset.parse_args(
+                ["--input_pattern", str(tmp_path / "*"), "--n_jobs", "2"]
+            )
+        )
+    message = str(excinfo.value)
+    # The corrupt file is named, and identified as a read failure rather than
+    # misreported as a Git LFS pointer.
+    assert str(corrupt) in message
+    assert "Git LFS pointer" not in message
+    # The sweep continued past it and validated the other file.
+    assert "Reactions should have at least 1 reaction input" in message
+
+
 def test_ids_are_checked_only_when_asked(tmp_path):
     """--validate_ids matches what ord-data checks at submission.
 
