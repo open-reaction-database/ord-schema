@@ -59,7 +59,7 @@ def _validate_row_group(
     errors: list[str] = []
     state = validations.DatasetCrossRefState()
     for i, (_, reaction) in enumerate(
-        parquet.iter_reactions(filename, row_group=row_group)
+        parquet.DatasetView(filename).iter_reactions(row_group=row_group)
     ):
         output = validations.validate_message(
             reaction, raise_on_error=False, options=options

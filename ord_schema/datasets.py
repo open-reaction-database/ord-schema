@@ -17,7 +17,7 @@ These are the convenience entry points for reading and writing a complete
 ``Dataset``: ``.parquet`` routes to the (lower-level) ``parquet``
 serialization, and other suffixes go through ``message_helpers`` single-message
 I/O. For large Parquet datasets prefer the streaming ``parquet``
-interfaces (``DatasetView`` / ``iter_reactions``) over loading the whole thing
+interfaces (``DatasetView`` and its ``iter_reactions``) over loading the whole thing
 into memory.
 """
 
@@ -51,7 +51,7 @@ def load_dataset(filename: str | os.PathLike[str]) -> dataset_pb2.Dataset:
         warnings.warn(
             f"Loading the entire Parquet dataset {filename} into memory; for large "
             "datasets prefer the streaming loader ord_schema.parquet.DatasetView "
-            "(or iter_reactions/load_reaction).",
+            "(or its iter_reactions/get_reaction).",
             UserWarning,
             stacklevel=2,
         )

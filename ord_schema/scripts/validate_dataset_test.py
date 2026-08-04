@@ -134,7 +134,7 @@ def test_parquet_cross_row_group_duplicate_id(tmp_path):
     ) as writer:
         writer.write_all(reactions)
     # Sanity-check the layout the test is asserting against.
-    assert parquet.num_row_groups(str(path)) == 3
+    assert parquet.DatasetView(str(path)).num_row_groups == 3
     with pytest.raises(
         validations.ValidationError,
         match="Multiple Reactions should never have the same IDs",
@@ -153,7 +153,7 @@ def test_parquet_empty_file(tmp_path):
     path = tmp_path / "empty.parquet"
     with parquet.DatasetWriter(str(path), name="test", description="test") as writer:
         writer.write_all([])
-    assert parquet.num_row_groups(str(path)) == 0
+    assert parquet.DatasetView(str(path)).num_row_groups == 0
     with pytest.raises(
         validations.ValidationError,
         match="Dataset requires reactions or reaction_ids",
@@ -175,7 +175,7 @@ def test_parquet_per_reaction_error_in_late_row_group(tmp_path):
         str(path), name="test", description="test", row_group_size=2
     ) as writer:
         writer.write_all(reactions)
-    assert parquet.num_row_groups(str(path)) == 2
+    assert parquet.DatasetView(str(path)).num_row_groups == 2
     with pytest.raises(
         validations.ValidationError,
         match="Reactions should have at least 1 reaction input",
