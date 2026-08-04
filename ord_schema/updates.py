@@ -183,9 +183,9 @@ def update_parquet_dataset(
         output_path: Path to write the updated Parquet dataset to.
         dataset_id: Resolved dataset_id to write into the output footer.
     """
-    header = parquet.load_metadata(input_path)
+    header = parquet.DatasetView(input_path)
     new_ids, id_substitutions = assign_id_substitutions(
-        parquet.iter_reaction_ids(input_path)
+        parquet.DatasetView(input_path).iter_reaction_ids()
     )
     with parquet.DatasetWriter(
         output_path,
@@ -193,7 +193,7 @@ def update_parquet_dataset(
         description=header.description,
         dataset_id=dataset_id,
     ) as writer:
-        reactions = (reaction for _, reaction in parquet.iter_reactions(input_path))
+        reactions = parquet.DatasetView(input_path).reactions
         for reaction, new_id in zip(reactions, new_ids, strict=True):
             apply_reaction_updates(reaction, new_id=new_id)
             apply_cross_reference_substitutions(reaction, id_substitutions)

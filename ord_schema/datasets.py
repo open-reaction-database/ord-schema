@@ -13,49 +13,71 @@
 # limitations under the License.
 """Whole-dataset file I/O, dispatching on filename suffix.
 
-These are the convenience entry points for reading and writing a complete
-``Dataset``: ``.parquet`` routes to the (lower-level) ``parquet``
-serialization, and other suffixes go through ``message_helpers`` single-message
-I/O. For large Parquet datasets prefer the streaming ``parquet``
-interfaces (``DatasetView`` / ``iter_reactions``) over loading the whole thing
-into memory.
+The entry point for reading and writing a complete ``Dataset``, whatever it is
+serialized as. ``.parquet`` reads back as a ``parquet.DatasetView``, which
+streams from the file instead of materializing it; every other suffix reads back
+as a ``dataset_pb2.Dataset`` through ``message_helpers`` single-message I/O.
 """
 
 import os
 import pathlib
-import warnings
+from typing import Literal, overload
 
 from ord_schema import message_helpers, parquet
 from ord_schema.proto import dataset_pb2
 
 
-def load_dataset(filename: str | os.PathLike[str]) -> dataset_pb2.Dataset:
+@overload
+def load_dataset(
+    filename: str | os.PathLike[str], *, as_dataset: Literal[False] = False
+) -> dataset_pb2.Dataset | parquet.DatasetView: ...
+
+
+@overload
+def load_dataset(
+    filename: str | os.PathLike[str], *, as_dataset: Literal[True]
+) -> dataset_pb2.Dataset: ...
+
+
+# A caller passing a computed bool matches neither Literal overload; without this
+# mypy reports no-matching-overload for a call that is valid at runtime.
+@overload
+def load_dataset(
+    filename: str | os.PathLike[str], *, as_dataset: bool
+) -> dataset_pb2.Dataset | parquet.DatasetView: ...
+
+
+def load_dataset(
+    filename: str | os.PathLike[str], *, as_dataset: bool = False
+) -> dataset_pb2.Dataset | parquet.DatasetView:
     """Loads a Dataset from disk, dispatching on filename suffix.
 
-    The dataset-level counterpart to ``message_helpers.load_message``:
-    ``.parquet`` routes to ``parquet.load_dataset``, which deserializes
-    every reaction into memory; other suffixes go through ``load_message``.
+    A Parquet dataset reads back as a ``parquet.DatasetView``, which takes its
+    scalars and row count from the file footer and reads Reactions on demand.
+    The view is a read-only stand-in for the message: iteration, ``len``,
+    emptiness, indexing, and slicing over ``reactions`` behave the same, so code
+    that only reads needs no change. Materializing every Reaction is the
+    exception rather than the default, which matters because published datasets
+    run to millions of rows.
 
-    Loading an entire Parquet dataset into memory defeats the format's
-    streaming benefits, so this path warns and recommends the streaming
-    ``parquet.DatasetView`` loader for large datasets.
+    Other suffixes have no streaming form and read back as a real message.
 
     Args:
         filename: Path to a serialized Dataset (``.parquet`` or any suffix
-            understood by ``load_message``).
+            understood by ``message_helpers.load_message``).
+        as_dataset: If True, always return a ``dataset_pb2.Dataset``,
+            materializing a Parquet dataset in full. Use this when the caller
+            needs the protobuf surface -- serialization, JSON conversion,
+            mutation -- and cannot know which format it was handed; a caller
+            that knows it holds a view can call ``to_proto`` instead.
 
     Returns:
-        The in-memory Dataset proto.
+        A ``parquet.DatasetView`` for ``.parquet`` unless ``as_dataset`` is set,
+        and a ``dataset_pb2.Dataset`` otherwise.
     """
     if pathlib.Path(filename).suffix == ".parquet":
-        warnings.warn(
-            f"Loading the entire Parquet dataset {filename} into memory; for large "
-            "datasets prefer the streaming loader ord_schema.parquet.DatasetView "
-            "(or iter_reactions/load_reaction).",
-            UserWarning,
-            stacklevel=2,
-        )
-        return parquet.load_dataset(filename)
+        view = parquet.DatasetView(filename)
+        return view.to_proto() if as_dataset else view
     return message_helpers.load_message(filename, dataset_pb2.Dataset)
 
 
@@ -66,6 +88,10 @@ def save_dataset(
 
     ``.parquet`` routes to ``parquet.save_dataset``; other suffixes go through
     ``message_helpers.save_message``.
+
+    Args:
+        dataset: Dataset message to write.
+        filename: Output path; its suffix selects the serialization.
     """
     if pathlib.Path(filename).suffix == ".parquet":
         parquet.save_dataset(dataset, filename)

@@ -85,7 +85,7 @@ def _validate_row_group(
     errors: list[str] = []
     state = validations.DatasetCrossRefState()
     for i, (_, reaction) in enumerate(
-        parquet.iter_reactions(filename, row_group=row_group)
+        parquet.DatasetView(filename).iter_reactions(row_group=row_group)
     ):
         output = validations.validate_message(
             reaction, raise_on_error=False, options=options
@@ -98,7 +98,7 @@ def _validate_row_group(
 
 
 def _finalize_parquet(
-    footer: parquet.ParquetFooter,
+    view: parquet.DatasetView,
     state: validations.DatasetCrossRefState,
     options: validations.ValidationOptions,
 ) -> list[str]:
@@ -106,11 +106,11 @@ def _finalize_parquet(
     context = validations.ValidationContext(options=options)
     validations.validate_dataset_streaming(
         context=context,
-        name=footer.dataset.name,
-        description=footer.dataset.description,
-        dataset_id=footer.dataset.dataset_id,
+        name=view.name,
+        description=view.description,
+        dataset_id=view.dataset_id,
         reaction_ids=[],
-        has_reactions=footer.num_rows > 0,
+        has_reactions=bool(view.reactions),
         state=state,
     )
     return [
@@ -123,7 +123,7 @@ def _finalize_parquet(
 @dataclasses.dataclass
 class _ParquetEntry:
     remaining: int
-    footer: parquet.ParquetFooter
+    view: parquet.DatasetView
     state: validations.DatasetCrossRefState
 
 
@@ -166,25 +166,25 @@ def main(args: argparse.Namespace) -> None:
         for filename in filenames:
             if filename.endswith(".parquet"):
                 try:
-                    footer = parquet.load_footer(filename)
+                    view = parquet.DatasetView(filename)
                 # A file this job cannot read at all is that file's failure, not
                 # the run's: record it and keep validating the rest.
                 except Exception as error:  # noqa: BLE001
                     failures.append(_describe_failure(filename, error))
                     continue
                 entry = _ParquetEntry(
-                    remaining=footer.num_row_groups,
-                    footer=footer,
+                    remaining=view.num_row_groups,
+                    view=view,
                     state=validations.DatasetCrossRefState(),
                 )
                 parquet_entries[filename] = entry
-                if footer.num_row_groups == 0:
+                if view.num_row_groups == 0:
                     failures.extend(
                         f"{filename}: {e}"
-                        for e in _finalize_parquet(footer, entry.state, options)
+                        for e in _finalize_parquet(view, entry.state, options)
                     )
                     continue
-                for row_group in range(footer.num_row_groups):
+                for row_group in range(view.num_row_groups):
                     future = executor.submit(
                         _validate_row_group, filename, row_group, options
                     )
@@ -217,9 +217,7 @@ def main(args: argparse.Namespace) -> None:
                 if entry.remaining == 0:
                     failures.extend(
                         f"{filename}: {error}"
-                        for error in _finalize_parquet(
-                            entry.footer, entry.state, options
-                        )
+                        for error in _finalize_parquet(entry.view, entry.state, options)
                     )
 
     if failures:

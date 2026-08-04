@@ -13,10 +13,12 @@
 # limitations under the License.
 """Tests for ord_schema.parquet."""
 
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
 from ord_schema import parquet as dataset
+from ord_schema import updates
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -66,25 +68,44 @@ def test_save_rejects_empty_name_or_description(tmp_path, missing):
         dataset.save_dataset(ds, path)
 
 
-def test_load_metadata_returns_scalars_only(tmp_path):
+def test_view_reads_scalars_without_column_data(tmp_path, monkeypatch):
+    """Opening a view reads the footer only; the row count comes with it."""
     original = _make_dataset(n=4)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    metadata = dataset.load_metadata(path)
-    assert metadata.dataset_id == original.dataset_id
-    assert metadata.name == original.name
-    assert metadata.description == original.description
-    assert len(metadata.reactions) == 0
-    assert len(metadata.reaction_ids) == 0
+    reads = []
+    unpatched = pq.ParquetFile.read_row_group
+
+    def _record(self, row_group, *args, **kwargs):
+        reads.append(row_group)
+        return unpatched(self, row_group, *args, **kwargs)
+
+    monkeypatch.setattr(pq.ParquetFile, "read_row_group", _record)
+    view = dataset.DatasetView(path)
+    assert view.dataset_id == original.dataset_id
+    assert view.name == original.name
+    assert view.description == original.description
+    assert len(view.reactions) == 4
+    assert list(view.reaction_ids) == []
+    assert reads == []
 
 
 def test_iter_reactions_all(tmp_path):
     original = _make_dataset(n=3)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    pairs = list(dataset.iter_reactions(path))
+    pairs = list(dataset.DatasetView(path).iter_reactions())
     assert [rid for rid, _ in pairs] == [r.reaction_id for r in original.reactions]
     assert [r.outcomes[0].conversion.value for _, r in pairs] == [0.0, 1.0, 2.0]
+
+
+def test_iter_reactions_matches_reactions_stream(tmp_path):
+    """``reactions`` is ``iter_reactions()`` with the IDs dropped."""
+    original = _make_dataset(n=4)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(original, path)
+    view = dataset.DatasetView(path)
+    assert [reaction for _, reaction in view.iter_reactions()] == list(view.reactions)
 
 
 def test_iter_reactions_filtered(tmp_path):
@@ -94,7 +115,7 @@ def test_iter_reactions_filtered(tmp_path):
     # Output order follows file order, not the order of ``reaction_ids``;
     # ord-9999 is absent and silently skipped.
     wanted = {"ord-0003", "ord-0001", "ord-9999"}
-    pairs = list(dataset.iter_reactions(path, reaction_ids=wanted))
+    pairs = list(dataset.DatasetView(path).iter_reactions(reaction_ids=wanted))
     assert [rid for rid, _ in pairs] == ["ord-0001", "ord-0003"]
 
 
@@ -106,18 +127,19 @@ def test_iter_reactions_row_group(tmp_path):
         path, name=original.name, description=original.description, row_group_size=2
     ) as writer:
         writer.write_all(original.reactions)
-    assert dataset.num_row_groups(path) == 3
-    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=0)] == [
+    view = dataset.DatasetView(path)
+    assert view.num_row_groups == 3
+    assert [rid for rid, _ in view.iter_reactions(row_group=0)] == [
         "ord-0000",
         "ord-0001",
     ]
-    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=1)] == [
+    assert [rid for rid, _ in view.iter_reactions(row_group=1)] == [
         "ord-0002",
         "ord-0003",
     ]
-    assert [rid for rid, _ in dataset.iter_reactions(path, row_group=2)] == ["ord-0004"]
+    assert [rid for rid, _ in view.iter_reactions(row_group=2)] == ["ord-0004"]
     with pytest.raises(IndexError, match="out of range"):
-        list(dataset.iter_reactions(path, row_group=3))
+        list(view.iter_reactions(row_group=3))
 
 
 def test_iter_reactions_empty_filter_raises(tmp_path):
@@ -125,24 +147,110 @@ def test_iter_reactions_empty_filter_raises(tmp_path):
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
     with pytest.raises(ValueError, match="non-empty"):
-        list(dataset.iter_reactions(path, reaction_ids=[]))
+        list(dataset.DatasetView(path).iter_reactions(reaction_ids=[]))
 
 
-def test_load_reaction_hit(tmp_path):
+def test_iter_reactions_validates_arguments_eagerly(tmp_path):
+    """A bad call must raise at the call, not at the first next().
+
+    The body streams, so without an explicit split the documented ValueError and
+    IndexError would surface wherever the caller happened to start iterating.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=5), path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    with pytest.raises(ValueError, match="non-empty"):
+        view.iter_reactions(reaction_ids=[])
+    with pytest.raises(IndexError, match="out of range"):
+        view.iter_reactions(row_group=99)
+
+
+def test_read_reports_a_row_group_lost_to_a_replaced_file(tmp_path):
+    """A row group that vanished under a live view must name the file, not pyarrow.
+
+    The construction-time row count only catches this on the first positional read;
+    afterwards the stale bound would reach pyarrow and surface as an ArrowInvalid
+    mentioning row_group_indices, which names nothing in this API.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=6), path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    view.reactions[0]  # Build the row-group index while the file still has 3 groups.
+    dataset.save_dataset(_make_dataset(n=2), path, row_group_size=2)
+    with pytest.raises(RuntimeError, match="has no row group 2"):
+        view.reactions[5]
+
+
+def test_get_reaction_hit(tmp_path):
     original = _make_dataset(n=5)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    reaction = dataset.load_reaction(path, "ord-0002")
+    reaction = dataset.DatasetView(path).get_reaction("ord-0002")
     assert reaction.reaction_id == "ord-0002"
     assert reaction.outcomes[0].conversion.value == 2.0
 
 
-def test_load_reaction_miss(tmp_path):
+def test_get_reaction_miss(tmp_path):
     original = _make_dataset(n=2)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    with pytest.raises(KeyError):
-        dataset.load_reaction(path, "ord-nope")
+    with pytest.raises(KeyError, match="ord-nope"):
+        dataset.DatasetView(path).get_reaction("ord-nope")
+
+
+def test_get_reaction_across_row_groups(tmp_path):
+    """Every ID resolves to its own Reaction, including across row group bounds."""
+    original = _make_dataset(n=7)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(original, path, row_group_size=3)
+    view = dataset.DatasetView(path)
+    for reaction in original.reactions:
+        assert view.get_reaction(reaction.reaction_id) == reaction
+
+
+def test_get_reaction_builds_id_index_once(tmp_path, monkeypatch):
+    """The reaction_id column is read once, not per lookup."""
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=6), path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    calls = []
+    unpatched = dataset.DatasetView.iter_reaction_ids
+
+    def _record(self):
+        calls.append(self.path)
+        return unpatched(self)
+
+    monkeypatch.setattr(dataset.DatasetView, "iter_reaction_ids", _record)
+    for i in range(6):
+        assert view.get_reaction(f"ord-{i:04d}").reaction_id == f"ord-{i:04d}"
+    assert len(calls) == 1
+
+
+def test_row_group_read_shared_by_iteration_and_lookup(tmp_path, monkeypatch):
+    """Streaming a row group, indexing into it, and ID lookup share one cached read.
+
+    All three go through the same _RowGroupReader, so once a row group is resolved the
+    other two paths must not re-read it.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=6), path, row_group_size=3)
+    view = dataset.DatasetView(path)
+    reads = []
+    unpatched = pq.ParquetFile.read_row_group
+
+    def _record(self, row_group, *args, **kwargs):
+        reads.append(row_group)
+        return unpatched(self, row_group, *args, **kwargs)
+
+    monkeypatch.setattr(pq.ParquetFile, "read_row_group", _record)
+    assert [rid for rid, _ in view.iter_reactions(row_group=1)] == [
+        "ord-0003",
+        "ord-0004",
+        "ord-0005",
+    ]
+    assert view.reactions[4].reaction_id == "ord-0004"
+    assert view.get_reaction("ord-0005").reaction_id == "ord-0005"
+    assert reads == [1]
 
 
 def test_row_group_boundaries(tmp_path):
@@ -209,7 +317,7 @@ def test_load_rejects_unknown_schema_version(tmp_path):
     bad_path = tmp_path / "bad.parquet"
     pq.write_table(table, bad_path)
     with pytest.raises(ValueError, match="schema version"):
-        dataset.load_metadata(bad_path)
+        dataset.DatasetView(bad_path)
 
 
 @pytest.mark.parametrize(
@@ -228,7 +336,7 @@ def test_load_rejects_missing_required_footer_keys(tmp_path, missing_key):
     bad_path = tmp_path / "bad.parquet"
     pq.write_table(table, bad_path)
     with pytest.raises(ValueError, match=missing_key):
-        dataset.load_metadata(bad_path)
+        dataset.DatasetView(bad_path)
 
 
 def test_unicode_metadata_round_trips(tmp_path):
@@ -240,7 +348,7 @@ def test_unicode_metadata_round_trips(tmp_path):
     )
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    loaded = dataset.load_metadata(path)
+    loaded = dataset.DatasetView(path)
     assert loaded.name == original.name
     assert loaded.description == original.description
     assert loaded.dataset_id == original.dataset_id
@@ -261,7 +369,7 @@ def test_multi_row_group_streaming_preserves_order(tmp_path):
     dataset.save_dataset(original, path, row_group_size=500)
     parquet_file = pq.ParquetFile(path)
     assert parquet_file.num_row_groups == 5
-    streamed = [rid for rid, _ in dataset.iter_reactions(path)]
+    streamed = [rid for rid, _ in dataset.DatasetView(path).iter_reactions()]
     assert streamed == [r.reaction_id for r in original.reactions]
 
 
@@ -324,50 +432,52 @@ def test_writer_aborts_preserves_existing_destination(tmp_path):
     assert sorted(q.name for q in tmp_path.iterdir()) == ["ds.parquet"]
 
 
-def test_streaming_md5_returns_count_and_is_deterministic(tmp_path):
+def test_md5_is_deterministic(tmp_path):
     original = _make_dataset(n=4)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    md5_hex, count = dataset.streaming_md5(path)
-    assert count == 4
-    # Same file hashes the same on a second pass.
-    assert dataset.streaming_md5(path) == (md5_hex, count)
+    view = dataset.DatasetView(path)
+    assert len(view.reactions) == 4
+    # Same file hashes the same on a second pass, and across view instances.
+    assert view.md5() == view.md5() == dataset.DatasetView(path).md5()
 
 
-def test_streaming_md5_is_decoupled_from_row_group_size(tmp_path):
+def test_md5_is_decoupled_from_row_group_size(tmp_path):
     """The same content rewritten with different row group sizes hashes the same."""
     original = _make_dataset(n=12)
     path_small = tmp_path / "small.parquet"
     path_large = tmp_path / "large.parquet"
     dataset.save_dataset(original, path_small, row_group_size=3)
     dataset.save_dataset(original, path_large, row_group_size=1000)
-    assert dataset.streaming_md5(path_small) == dataset.streaming_md5(path_large)
+    assert (
+        dataset.DatasetView(path_small).md5() == dataset.DatasetView(path_large).md5()
+    )
 
 
-def test_streaming_md5_changes_when_scalars_change(tmp_path):
+def test_md5_changes_when_scalars_change(tmp_path):
     original = _make_dataset(n=2)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    baseline, _ = dataset.streaming_md5(path)
+    baseline = dataset.DatasetView(path).md5()
     renamed = dataset_pb2.Dataset()
     renamed.CopyFrom(original)
     renamed.name = "different"
     other_path = tmp_path / "other.parquet"
     dataset.save_dataset(renamed, other_path)
-    assert dataset.streaming_md5(other_path)[0] != baseline
+    assert dataset.DatasetView(other_path).md5() != baseline
 
 
-def test_streaming_md5_changes_when_a_reaction_changes(tmp_path):
+def test_md5_changes_when_a_reaction_changes(tmp_path):
     original = _make_dataset(n=3)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    baseline, _ = dataset.streaming_md5(path)
+    baseline = dataset.DatasetView(path).md5()
     mutated = dataset_pb2.Dataset()
     mutated.CopyFrom(original)
     mutated.reactions[1].outcomes[0].conversion.value = 999.0
     other_path = tmp_path / "other.parquet"
     dataset.save_dataset(mutated, other_path)
-    assert dataset.streaming_md5(other_path)[0] != baseline
+    assert dataset.DatasetView(other_path).md5() != baseline
 
 
 def test_writer_close_propagates_flush_error(tmp_path):
@@ -462,3 +572,232 @@ def test_dataset_view_values_round_trip(tmp_path):
     assert list(view.reactions) == list(source.reactions)
     # Re-iterating must yield the same sequence (each access re-streams).
     assert list(view.reactions) == list(source.reactions)
+
+
+def _write_row_groups(path, group_sizes: list[int]) -> list[str]:
+    """Writes a Parquet dataset with explicitly sized row groups.
+
+    DatasetWriter flushes on a fixed threshold, so it can only ever produce a short
+    group at the end; this drops to pyarrow for the interior short groups and zero-row
+    groups that random access also has to resolve correctly.
+
+    Args:
+        path: Destination path for the Parquet file.
+        group_sizes: Number of reactions to write into each row group, in order.
+
+    Returns:
+        The reaction IDs written, in file order.
+    """
+    schema = dataset._build_schema(name="n", description="d", dataset_id=None)
+    reaction_ids = []
+    with pq.ParquetWriter(path, schema) as writer:
+        for group, size in enumerate(group_sizes):
+            ids = [f"ord-{group:02d}{i:02d}" for i in range(size)]
+            blobs = [
+                _make_reaction(reaction_id).SerializeToString(deterministic=True)
+                for reaction_id in ids
+            ]
+            writer.write_table(
+                pa.table({"reaction_id": ids, "reaction": blobs}, schema=schema)
+            )
+            reaction_ids.extend(ids)
+    return reaction_ids
+
+
+def test_dataset_view_reactions_indexing_matches_source(tmp_path):
+    """``view.reactions[i]`` must match the source Dataset across row group bounds."""
+    source = _make_dataset(n=7)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path, row_group_size=3)
+    view = dataset.DatasetView(path)
+    assert [view.reactions[i] for i in range(7)] == list(source.reactions)
+    # Descending order exercises cache misses in the other direction.
+    assert [view.reactions[i] for i in reversed(range(7))] == list(
+        reversed(source.reactions)
+    )
+
+
+def test_dataset_view_reactions_negative_indices(tmp_path):
+    source = _make_dataset(n=5)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    assert view.reactions[-1] == source.reactions[-1]
+    assert view.reactions[-5] == source.reactions[-5]
+
+
+@pytest.mark.parametrize("index", [5, 6, -6, -100])
+def test_dataset_view_reactions_index_out_of_range(tmp_path, index):
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=5), path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    with pytest.raises(IndexError, match=f"reaction index {index} out of range"):
+        view.reactions[index]
+
+
+def test_dataset_view_reactions_slices(tmp_path):
+    """Slices materialize a list, matching protobuf repeated-field slicing."""
+    source = _make_dataset(n=6)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    assert view.reactions[:] == list(source.reactions)
+    assert view.reactions[1:4] == list(source.reactions[1:4])
+    assert view.reactions[::2] == list(source.reactions[::2])
+    assert view.reactions[::-1] == list(source.reactions[::-1])
+    assert view.reactions[10:20] == []
+
+
+def test_dataset_view_reactions_indexing_ragged_row_groups(tmp_path):
+    """Index resolution must use footer row counts, not an assumed uniform size.
+
+    Includes a zero-row group, which pyarrow does write and which shares a start
+    position with the group that follows it.
+    """
+    path = tmp_path / "ragged.parquet"
+    reaction_ids = _write_row_groups(path, [3, 0, 1, 4])
+    # Assert the layout rather than trusting it: a pyarrow that dropped empty tables on
+    # write would leave this test passing with its coverage silently gone.
+    with pq.ParquetFile(path) as parquet_file:
+        metadata = parquet_file.metadata
+        counts = [
+            metadata.row_group(i).num_rows for i in range(metadata.num_row_groups)
+        ]
+    assert counts == [3, 0, 1, 4]
+    view = dataset.DatasetView(path)
+    assert len(view.reactions) == len(reaction_ids)
+    assert [view.reactions[i].reaction_id for i in range(len(reaction_ids))] == (
+        reaction_ids
+    )
+
+
+def test_dataset_view_indexing_reads_each_row_group_once(tmp_path, monkeypatch):
+    """Walking indices in order must cost one row-group read per group, not per row.
+
+    Without the cache this degrades to a full decompress per element, which turns a
+    ``for i in range(len(...))`` loop over a large dataset into an apparent hang.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=10), path, row_group_size=5)
+    view = dataset.DatasetView(path)
+    reads = []
+    opens = []
+    unpatched_read = pq.ParquetFile.read_row_group
+    unpatched_init = pq.ParquetFile.__init__
+
+    def _record_read(self, row_group, *args, **kwargs):
+        reads.append(row_group)
+        return unpatched_read(self, row_group, *args, **kwargs)
+
+    def _record_init(self, *args, **kwargs):
+        opens.append(1)
+        return unpatched_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(pq.ParquetFile, "read_row_group", _record_read)
+    monkeypatch.setattr(pq.ParquetFile, "__init__", _record_init)
+    for i in range(10):
+        view.reactions[i]
+    assert reads == [0, 1]
+    # One open to build the row-group index, then one per row-group read. A regression
+    # that rebuilt the index per access would leave `reads` correct and inflate this.
+    assert len(opens) == 3
+
+
+def test_dataset_view_reactions_empty_dataset(tmp_path):
+    """Indexing an empty dataset raises rather than reaching the row-group index.
+
+    A zero-row-group file gives an empty prefix sum, where a bisect would resolve to
+    row group -1 and silently read from the end.
+    """
+    path = tmp_path / "empty.parquet"
+    with dataset.DatasetWriter(path, name="n", description="d"):
+        pass
+    view = dataset.DatasetView(path)
+    assert view.reactions[:] == []
+    with pytest.raises(IndexError, match="reaction index 0 out of range"):
+        view.reactions[0]
+    with pytest.raises(IndexError, match="reaction index -1 out of range"):
+        view.reactions[-1]
+
+
+@pytest.mark.parametrize("key", ["0", 1.0, 2.7, None])
+def test_dataset_view_reactions_rejects_non_integer_key(tmp_path, key):
+    """Non-integer keys raise TypeError instead of being coerced.
+
+    Guards ``operator.index``: ``int(key)`` would truncate ``reactions[n / 2]`` to a
+    silently wrong Reaction rather than failing.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=5), path)
+    view = dataset.DatasetView(path)
+    with pytest.raises(TypeError):
+        view.reactions[key]
+
+
+def test_dataset_view_detects_replaced_file(tmp_path):
+    """A view must refuse to resolve indices against a file replaced underneath it.
+
+    DatasetWriter publishes by renaming onto its destination, so a view outliving a
+    republish would otherwise resolve positions against a stale row count.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=10), path, row_group_size=5)
+    view = dataset.DatasetView(path)
+    dataset.save_dataset(_make_dataset(n=3), path)
+    with pytest.raises(RuntimeError, match="changed since this view was opened"):
+        view.reactions[0]
+
+
+def test_dataset_view_to_proto_round_trips(tmp_path):
+    """``to_proto`` returns a real message supporting the protobuf surface."""
+    source = _make_dataset(n=3)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path)
+    materialized = dataset.DatasetView(path).to_proto()
+    assert isinstance(materialized, dataset_pb2.Dataset)
+    assert materialized.SerializeToString(
+        deterministic=True
+    ) == source.SerializeToString(deterministic=True)
+
+
+def test_dataset_view_to_proto_carries_scalar_mutations(tmp_path):
+    """Scalars assigned on the view must survive materialization.
+
+    ``updates.assign_dataset_id`` accepts a DatasetView and writes ``dataset_id`` in
+    place, so materializing from the footer alone would silently drop the assignment.
+    """
+    source = _make_dataset(n=2, dataset_id="")
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path)
+    view = dataset.DatasetView(path)
+    assigned = updates.assign_dataset_id(view)
+    view.name = "renamed"
+    materialized = view.to_proto()
+    assert materialized.dataset_id == assigned
+    assert materialized.name == "renamed"
+    assert list(materialized.reactions) == list(source.reactions)
+
+
+def test_dataset_view_to_proto_carries_every_scalar_field(tmp_path):
+    """Every scalar Dataset field set on the view must survive materialization.
+
+    ``to_proto`` names the scalars one by one, so a field added to the proto would be
+    dropped silently. Driving off the descriptor fails here until it is carried.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=1), path)
+    view = dataset.DatasetView(path)
+    descriptor = dataset_pb2.Dataset.DESCRIPTOR
+    assert descriptor is not None  # Type hint.
+    expected = {}
+    for field in descriptor.fields:
+        if field.label == field.LABEL_REPEATED:
+            continue
+        assert field.type == field.TYPE_STRING, (
+            f"non-string scalar {field.name!r} added to Dataset; extend this test"
+        )
+        expected[field.name] = f"mutated-{field.name}"
+        setattr(view, field.name, expected[field.name])
+    assert expected, "Dataset declares no scalar fields; this test is vacuous"
+    materialized = view.to_proto()
+    assert {name: getattr(materialized, name) for name in expected} == expected

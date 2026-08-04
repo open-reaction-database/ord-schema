@@ -422,7 +422,7 @@ def add_parquet_dataset_row(
         dataset_uuid: Surrogate primary key for the ``ord.dataset`` row.
         session: SQLAlchemy session.
     """
-    metadata = parquet.load_metadata(path)
+    metadata = parquet.DatasetView(path)
     session.add(
         Mappers.Dataset(
             id=dataset_uuid,
@@ -485,7 +485,7 @@ def add_parquet_reactions(
         _copy_rows(dbapi_connection, rows_by_table)
         batch.clear()
 
-    reactions: Any = parquet.iter_reactions(path, row_group=row_group)
+    reactions: Any = parquet.DatasetView(path).iter_reactions(row_group=row_group)
     if progress_desc is not None:
         reactions = tqdm(
             reactions,
@@ -537,19 +537,20 @@ def add_parquet_dataset(path: str, session: Session) -> None:
         session: SQLAlchemy session.
     """
     start = time.time()
-    metadata = parquet.load_metadata(path)
-    logger.debug(f"Streaming Parquet Dataset {metadata.dataset_id}")
-    md5_hex, num_reactions = parquet.streaming_md5(path)
+    view = parquet.DatasetView(path)
+    logger.debug(f"Streaming Parquet Dataset {view.dataset_id}")
+    md5_hex = view.md5()
+    num_reactions = len(view.reactions)
     dataset_uuid = uuid7()
     add_parquet_dataset_row(path, dataset_uuid, session)
     add_parquet_reactions(
         path,
         dataset_uuid,
         session,
-        progress_desc=f"ingest {metadata.dataset_id}",
+        progress_desc=f"ingest {view.dataset_id}",
         progress_total=num_reactions,
     )
-    add_parquet_dataset_metadata(metadata.dataset_id, md5_hex, num_reactions, session)
+    add_parquet_dataset_metadata(view.dataset_id, md5_hex, num_reactions, session)
     logger.debug(
         f"add_parquet_dataset() took {time.time() - start:g}s "
         f"({num_reactions} reactions)"

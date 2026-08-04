@@ -97,7 +97,7 @@ def test_overrides_take_precedence(tmp_path):
             ]
         )
     )
-    loaded = dataset_module.load_metadata(output_path)
+    loaded = dataset_module.DatasetView(output_path)
     assert loaded.dataset_id == "ord_dataset-new"
     assert loaded.name == "override-name"
     assert loaded.description == "override-desc"

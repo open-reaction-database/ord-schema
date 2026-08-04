@@ -958,7 +958,7 @@ def load_message(
         raise ValueError(
             f"{path} is a Parquet dataset; load_message reads a single serialized "
             "message. Use ord_schema.datasets.load_dataset for the whole Dataset, or "
-            "ord_schema.parquet.DatasetView / iter_reactions to stream large ones."
+            "ord_schema.parquet.DatasetView to stream large ones."
         )
     this_open = gzip.open if path.suffix == ".gz" else open
     input_format = _message_format(path)

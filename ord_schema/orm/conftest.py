@@ -49,7 +49,8 @@ def prepared_engine_fixture(test_engine: Engine) -> Engine:
 def test_session_fixture(test_engine: Engine) -> Iterator[Session]:
     datasets = [
         load_dataset(
-            pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+            pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+            as_dataset=True,
         )
     ]
     rdkit_cartridge = prepare_database(test_engine)
