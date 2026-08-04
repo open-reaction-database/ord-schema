@@ -39,6 +39,14 @@ def load_dataset(
 ) -> dataset_pb2.Dataset: ...
 
 
+# A caller passing a computed bool matches neither Literal overload; without this
+# mypy reports no-matching-overload for a call that is valid at runtime.
+@overload
+def load_dataset(
+    filename: str | os.PathLike[str], *, as_dataset: bool
+) -> dataset_pb2.Dataset | parquet.DatasetView: ...
+
+
 def load_dataset(
     filename: str | os.PathLike[str], *, as_dataset: bool = False
 ) -> dataset_pb2.Dataset | parquet.DatasetView:
