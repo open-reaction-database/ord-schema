@@ -13,10 +13,12 @@
 # limitations under the License.
 """Tests for ord_schema.parquet."""
 
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
 from ord_schema import parquet as dataset
+from ord_schema import updates
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -462,3 +464,232 @@ def test_dataset_view_values_round_trip(tmp_path):
     assert list(view.reactions) == list(source.reactions)
     # Re-iterating must yield the same sequence (each access re-streams).
     assert list(view.reactions) == list(source.reactions)
+
+
+def _write_row_groups(path, group_sizes: list[int]) -> list[str]:
+    """Writes a Parquet dataset with explicitly sized row groups.
+
+    DatasetWriter flushes on a fixed threshold, so it can only ever produce a short
+    group at the end; this drops to pyarrow for the interior short groups and zero-row
+    groups that random access also has to resolve correctly.
+
+    Args:
+        path: Destination path for the Parquet file.
+        group_sizes: Number of reactions to write into each row group, in order.
+
+    Returns:
+        The reaction IDs written, in file order.
+    """
+    schema = dataset._build_schema(name="n", description="d", dataset_id=None)
+    reaction_ids = []
+    with pq.ParquetWriter(path, schema) as writer:
+        for group, size in enumerate(group_sizes):
+            ids = [f"ord-{group:02d}{i:02d}" for i in range(size)]
+            blobs = [
+                _make_reaction(reaction_id).SerializeToString(deterministic=True)
+                for reaction_id in ids
+            ]
+            writer.write_table(
+                pa.table({"reaction_id": ids, "reaction": blobs}, schema=schema)
+            )
+            reaction_ids.extend(ids)
+    return reaction_ids
+
+
+def test_dataset_view_reactions_indexing_matches_source(tmp_path):
+    """``view.reactions[i]`` must match the source Dataset across row group bounds."""
+    source = _make_dataset(n=7)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path, row_group_size=3)
+    view = dataset.DatasetView(path)
+    assert [view.reactions[i] for i in range(7)] == list(source.reactions)
+    # Descending order exercises cache misses in the other direction.
+    assert [view.reactions[i] for i in reversed(range(7))] == list(
+        reversed(source.reactions)
+    )
+
+
+def test_dataset_view_reactions_negative_indices(tmp_path):
+    source = _make_dataset(n=5)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    assert view.reactions[-1] == source.reactions[-1]
+    assert view.reactions[-5] == source.reactions[-5]
+
+
+@pytest.mark.parametrize("index", [5, 6, -6, -100])
+def test_dataset_view_reactions_index_out_of_range(tmp_path, index):
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=5), path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    with pytest.raises(IndexError, match=f"reaction index {index} out of range"):
+        view.reactions[index]
+
+
+def test_dataset_view_reactions_slices(tmp_path):
+    """Slices materialize a list, matching protobuf repeated-field slicing."""
+    source = _make_dataset(n=6)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    assert view.reactions[:] == list(source.reactions)
+    assert view.reactions[1:4] == list(source.reactions[1:4])
+    assert view.reactions[::2] == list(source.reactions[::2])
+    assert view.reactions[::-1] == list(source.reactions[::-1])
+    assert view.reactions[10:20] == []
+
+
+def test_dataset_view_reactions_indexing_ragged_row_groups(tmp_path):
+    """Index resolution must use footer row counts, not an assumed uniform size.
+
+    Includes a zero-row group, which pyarrow does write and which shares a start
+    position with the group that follows it.
+    """
+    path = tmp_path / "ragged.parquet"
+    reaction_ids = _write_row_groups(path, [3, 0, 1, 4])
+    # Assert the layout rather than trusting it: a pyarrow that dropped empty tables on
+    # write would leave this test passing with its coverage silently gone.
+    with pq.ParquetFile(path) as parquet_file:
+        metadata = parquet_file.metadata
+        counts = [
+            metadata.row_group(i).num_rows for i in range(metadata.num_row_groups)
+        ]
+    assert counts == [3, 0, 1, 4]
+    view = dataset.DatasetView(path)
+    assert len(view.reactions) == len(reaction_ids)
+    assert [view.reactions[i].reaction_id for i in range(len(reaction_ids))] == (
+        reaction_ids
+    )
+
+
+def test_dataset_view_indexing_reads_each_row_group_once(tmp_path, monkeypatch):
+    """Walking indices in order must cost one row-group read per group, not per row.
+
+    Without the cache this degrades to a full decompress per element, which turns a
+    ``for i in range(len(...))`` loop over a large dataset into an apparent hang.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=10), path, row_group_size=5)
+    view = dataset.DatasetView(path)
+    reads = []
+    opens = []
+    unpatched_read = pq.ParquetFile.read_row_group
+    unpatched_init = pq.ParquetFile.__init__
+
+    def _record_read(self, row_group, *args, **kwargs):
+        reads.append(row_group)
+        return unpatched_read(self, row_group, *args, **kwargs)
+
+    def _record_init(self, *args, **kwargs):
+        opens.append(1)
+        return unpatched_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(pq.ParquetFile, "read_row_group", _record_read)
+    monkeypatch.setattr(pq.ParquetFile, "__init__", _record_init)
+    for i in range(10):
+        view.reactions[i]
+    assert reads == [0, 1]
+    # One open to build the row-group index, then one per row-group read. A regression
+    # that rebuilt the index per access would leave `reads` correct and inflate this.
+    assert len(opens) == 3
+
+
+def test_dataset_view_reactions_empty_dataset(tmp_path):
+    """Indexing an empty dataset raises rather than reaching the row-group index.
+
+    A zero-row-group file gives an empty prefix sum, where a bisect would resolve to
+    row group -1 and silently read from the end.
+    """
+    path = tmp_path / "empty.parquet"
+    with dataset.DatasetWriter(path, name="n", description="d"):
+        pass
+    view = dataset.DatasetView(path)
+    assert view.reactions[:] == []
+    with pytest.raises(IndexError, match="reaction index 0 out of range"):
+        view.reactions[0]
+    with pytest.raises(IndexError, match="reaction index -1 out of range"):
+        view.reactions[-1]
+
+
+@pytest.mark.parametrize("key", ["0", 1.0, 2.7, None])
+def test_dataset_view_reactions_rejects_non_integer_key(tmp_path, key):
+    """Non-integer keys raise TypeError instead of being coerced.
+
+    Guards ``operator.index``: ``int(key)`` would truncate ``reactions[n / 2]`` to a
+    silently wrong Reaction rather than failing.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=5), path)
+    view = dataset.DatasetView(path)
+    with pytest.raises(TypeError):
+        view.reactions[key]
+
+
+def test_dataset_view_detects_replaced_file(tmp_path):
+    """A view must refuse to resolve indices against a file replaced underneath it.
+
+    DatasetWriter publishes by renaming onto its destination, so a view outliving a
+    republish would otherwise resolve positions against a stale row count.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=10), path, row_group_size=5)
+    view = dataset.DatasetView(path)
+    dataset.save_dataset(_make_dataset(n=3), path)
+    with pytest.raises(RuntimeError, match="changed since this view was opened"):
+        view.reactions[0]
+
+
+def test_dataset_view_to_proto_round_trips(tmp_path):
+    """``to_proto`` returns a real message supporting the protobuf surface."""
+    source = _make_dataset(n=3)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path)
+    materialized = dataset.DatasetView(path).to_proto()
+    assert isinstance(materialized, dataset_pb2.Dataset)
+    assert materialized.SerializeToString(
+        deterministic=True
+    ) == source.SerializeToString(deterministic=True)
+
+
+def test_dataset_view_to_proto_carries_scalar_mutations(tmp_path):
+    """Scalars assigned on the view must survive materialization.
+
+    ``updates.assign_dataset_id`` accepts a DatasetView and writes ``dataset_id`` in
+    place, so materializing from the footer alone would silently drop the assignment.
+    """
+    source = _make_dataset(n=2, dataset_id="")
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path)
+    view = dataset.DatasetView(path)
+    assigned = updates.assign_dataset_id(view)
+    view.name = "renamed"
+    materialized = view.to_proto()
+    assert materialized.dataset_id == assigned
+    assert materialized.name == "renamed"
+    assert list(materialized.reactions) == list(source.reactions)
+
+
+def test_dataset_view_to_proto_carries_every_scalar_field(tmp_path):
+    """Every scalar Dataset field set on the view must survive materialization.
+
+    ``to_proto`` names the scalars one by one, so a field added to the proto would be
+    dropped silently. Driving off the descriptor fails here until it is carried.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=1), path)
+    view = dataset.DatasetView(path)
+    descriptor = dataset_pb2.Dataset.DESCRIPTOR
+    assert descriptor is not None  # Type hint.
+    expected = {}
+    for field in descriptor.fields:
+        if field.label == field.LABEL_REPEATED:
+            continue
+        assert field.type == field.TYPE_STRING, (
+            f"non-string scalar {field.name!r} added to Dataset; extend this test"
+        )
+        expected[field.name] = f"mutated-{field.name}"
+        setattr(view, field.name, expected[field.name])
+    assert expected, "Dataset declares no scalar fields; this test is vacuous"
+    materialized = view.to_proto()
+    assert {name: getattr(materialized, name) for name in expected} == expected
