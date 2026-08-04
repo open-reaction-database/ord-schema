@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.parquet."""
 
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
@@ -462,3 +463,118 @@ def test_dataset_view_values_round_trip(tmp_path):
     assert list(view.reactions) == list(source.reactions)
     # Re-iterating must yield the same sequence (each access re-streams).
     assert list(view.reactions) == list(source.reactions)
+
+
+def _write_row_groups(path, group_sizes: list[int]) -> list[str]:
+    """Writes a Parquet dataset with explicitly sized row groups; returns reaction IDs.
+
+    DatasetWriter emits fixed-size row groups, so this drops to pyarrow to build the
+    ragged (and empty-group) layouts that random access has to resolve correctly.
+    """
+    schema = dataset._build_schema(name="n", description="d", dataset_id=None)
+    reaction_ids = []
+    with pq.ParquetWriter(path, schema) as writer:
+        for group, size in enumerate(group_sizes):
+            ids = [f"ord-{group:02d}{i:02d}" for i in range(size)]
+            blobs = [
+                _make_reaction(reaction_id).SerializeToString(deterministic=True)
+                for reaction_id in ids
+            ]
+            writer.write_table(
+                pa.table({"reaction_id": ids, "reaction": blobs}, schema=schema)
+            )
+            reaction_ids.extend(ids)
+    return reaction_ids
+
+
+def test_dataset_view_reactions_indexing_matches_source(tmp_path):
+    """``view.reactions[i]`` must match the source Dataset across row group bounds."""
+    source = _make_dataset(n=7)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path, row_group_size=3)
+    view = dataset.DatasetView(path)
+    assert [view.reactions[i] for i in range(7)] == list(source.reactions)
+    # Descending order exercises cache misses in the other direction.
+    assert [view.reactions[i] for i in reversed(range(7))] == list(
+        reversed(source.reactions)
+    )
+
+
+def test_dataset_view_reactions_negative_indices(tmp_path):
+    source = _make_dataset(n=5)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    assert view.reactions[-1] == source.reactions[-1]
+    assert view.reactions[-5] == source.reactions[-5]
+
+
+@pytest.mark.parametrize("index", [5, 6, -6, -100])
+def test_dataset_view_reactions_index_out_of_range(tmp_path, index):
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=5), path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    with pytest.raises(IndexError, match=f"reaction index {index} out of range"):
+        view.reactions[index]
+
+
+def test_dataset_view_reactions_slices(tmp_path):
+    """Slices materialize a list, matching protobuf repeated-field slicing."""
+    source = _make_dataset(n=6)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    assert view.reactions[:] == list(source.reactions)
+    assert view.reactions[1:4] == list(source.reactions[1:4])
+    assert view.reactions[::2] == list(source.reactions[::2])
+    assert view.reactions[::-1] == list(source.reactions[::-1])
+    assert view.reactions[10:20] == []
+
+
+def test_dataset_view_reactions_indexing_ragged_row_groups(tmp_path):
+    """Index resolution must use footer row counts, not an assumed uniform size.
+
+    Includes a zero-row group, which pyarrow does write and which shares a start
+    position with the group that follows it.
+    """
+    path = tmp_path / "ragged.parquet"
+    reaction_ids = _write_row_groups(path, [3, 0, 1, 4])
+    view = dataset.DatasetView(path)
+    assert len(view.reactions) == len(reaction_ids)
+    assert [view.reactions[i].reaction_id for i in range(len(reaction_ids))] == (
+        reaction_ids
+    )
+
+
+def test_dataset_view_indexing_reads_each_row_group_once(tmp_path, monkeypatch):
+    """Walking indices in order must cost one row-group read per group, not per row.
+
+    Without the cache this degrades to a full decompress per element, which turns a
+    ``for i in range(len(...))`` loop over a large dataset into an apparent hang.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=10), path, row_group_size=5)
+    view = dataset.DatasetView(path)
+    reads = []
+    unpatched = pq.ParquetFile.read_row_group
+
+    def _record(self, row_group, **kwargs):
+        reads.append(row_group)
+        return unpatched(self, row_group, **kwargs)
+
+    monkeypatch.setattr(pq.ParquetFile, "read_row_group", _record)
+    for i in range(10):
+        view.reactions[i]
+    assert reads == [0, 1]
+
+
+def test_dataset_view_to_proto_round_trips(tmp_path):
+    """``to_proto`` returns a real message supporting the protobuf surface."""
+    source = _make_dataset(n=3)
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(source, path)
+    materialized = dataset.DatasetView(path).to_proto()
+    assert isinstance(materialized, dataset_pb2.Dataset)
+    assert materialized.SerializeToString(
+        deterministic=True
+    ) == source.SerializeToString(deterministic=True)

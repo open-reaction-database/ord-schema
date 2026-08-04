@@ -26,15 +26,18 @@ This layout supports random access (by row group) and streaming iteration
 without loading the full dataset into memory.
 """
 
+import bisect
 import contextlib
 import dataclasses
 import hashlib
+import itertools
+import operator
 import os
 import pathlib
 import tempfile
 from collections.abc import Iterable, Iterator
 from types import TracebackType
-from typing import Self
+from typing import Self, overload
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -241,17 +244,24 @@ def save_dataset(
 
 
 class _ReactionStream:
-    """Re-iterable Reaction stream with a known length.
+    """Re-iterable, indexable Reaction stream with a known length.
 
     Each iteration opens a fresh read over the backing Parquet file so callers that
     iterate more than once stay memory-bounded. ``__len__`` and ``__bool__`` come from
     the footer row count, so emptiness checks (e.g., ``if not dataset.reactions``)
     behave like a list instead of always being truthy the way a bare generator would be.
+    ``__getitem__`` reads only the row group holding the requested index, so random
+    access does not scan the file.
     """
 
     def __init__(self, path: str | os.PathLike[str], num_reactions: int) -> None:
         self._path = path
         self._num_reactions = num_reactions
+        # The index and the cache are built on first indexed access, so constructing a
+        # view stays a footer-only read for callers that only iterate.
+        self._row_group_starts: list[int] | None = None
+        self._cached_row_group: int | None = None
+        self._cached_table: pa.Table | None = None
 
     def __iter__(self) -> Iterator[reaction_pb2.Reaction]:
         for _, reaction in iter_reactions(self._path):
@@ -263,17 +273,92 @@ class _ReactionStream:
     def __bool__(self) -> bool:
         return self._num_reactions > 0
 
+    @overload
+    def __getitem__(self, key: int) -> reaction_pb2.Reaction: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> list[reaction_pb2.Reaction]: ...
+
+    def __getitem__(
+        self, key: int | slice
+    ) -> reaction_pb2.Reaction | list[reaction_pb2.Reaction]:
+        """Returns the Reaction at ``key``, or a list of Reactions for a slice.
+
+        Reading one index costs a single row-group read, and the most recently read
+        row group is cached, so walking indices in order pays that cost once per row
+        group rather than once per Reaction. Iterating is cheaper still and should be
+        preferred where either works.
+
+        Args:
+            key: Index of a Reaction, negative counting from the end, or a slice.
+                Slices materialize a list, matching protobuf repeated-field slicing,
+                so a slice spanning the dataset costs as much memory as ``to_proto``.
+
+        Raises:
+            IndexError: If an integer ``key`` is out of range.
+        """
+        if isinstance(key, slice):
+            return [
+                self._get(index) for index in range(*key.indices(self._num_reactions))
+            ]
+        return self._get(operator.index(key))
+
+    def _get(self, index: int) -> reaction_pb2.Reaction:
+        position = index + self._num_reactions if index < 0 else index
+        if not 0 <= position < self._num_reactions:
+            raise IndexError(
+                f"reaction index {index} out of range for "
+                f"{self._num_reactions} reactions"
+            )
+        row_group, offset = self._locate(position)
+        blob = self._read_row_group(row_group).column("reaction")[offset].as_py()
+        return reaction_pb2.Reaction.FromString(blob)
+
+    def _locate(self, position: int) -> tuple[int, int]:
+        """Maps an absolute row position to ``(row_group, offset_within_group)``."""
+        if self._row_group_starts is None:
+            with pq.ParquetFile(self._path) as parquet_file:
+                metadata = parquet_file.metadata
+                counts = [
+                    metadata.row_group(i).num_rows
+                    for i in range(metadata.num_row_groups)
+                ]
+            # Exclusive prefix sum: element i is the absolute position of row group i's
+            # first row. Sizes come from the footer because row groups are not
+            # guaranteed uniform; bisect_right lands past any empty groups, which
+            # share a start position with the group that follows them.
+            self._row_group_starts = list(itertools.accumulate(counts, initial=0))[:-1]
+        row_group = bisect.bisect_right(self._row_group_starts, position) - 1
+        return row_group, position - self._row_group_starts[row_group]
+
+    def _read_row_group(self, row_group: int) -> pa.Table:
+        """Returns the ``reaction`` column of ``row_group``, caching the last read."""
+        if self._cached_row_group != row_group or self._cached_table is None:
+            with pq.ParquetFile(self._path) as parquet_file:
+                table = parquet_file.read_row_group(row_group, columns=["reaction"])
+            self._cached_table = table
+            self._cached_row_group = row_group
+        return self._cached_table
+
 
 class DatasetView:
     """A read-only, streaming view of a Parquet-serialized Dataset.
 
-    Quacks like a ``dataset_pb2.Dataset`` for the read-only attributes used
-    during validation: ``name``, ``description``, and ``dataset_id`` come
-    from the Parquet footer; ``reaction_ids`` is always empty (Parquet does
-    not persist it); and ``reactions`` is a re-iterable ``_ReactionStream``
-    that opens a fresh read on each iteration and reports its length from
-    the footer, so emptiness/length checks behave like a list. ``reactions``
-    is exposed as a read-only property so accidental rebinding raises.
+    Quacks like a ``dataset_pb2.Dataset`` for read-only access: ``name``,
+    ``description``, and ``dataset_id`` come from the Parquet footer, and
+    ``reactions`` is a re-iterable ``_ReactionStream`` that opens a fresh
+    read on each iteration, reports its length from the footer, and resolves
+    an index to a single row group, so iteration, length, emptiness, and
+    indexing all behave like a list. ``reactions`` is exposed as a read-only
+    property so accidental rebinding raises. Mutation and the protobuf
+    message surface (``SerializeToString``, ``MessageToJson``, ``CopyFrom``)
+    are unavailable; ``to_proto`` materializes a real message.
+
+    ``reaction_ids`` is always empty by design: in the schema it names
+    reactions stored *outside* the Dataset and is mutually exclusive with
+    ``reactions``, so serving it from the ``reaction_id`` column would make
+    every Parquet dataset fail validation. Use ``iter_reaction_ids`` for the
+    IDs of the reactions this dataset contains.
     """
 
     def __init__(self, path: str | os.PathLike[str]) -> None:
@@ -301,6 +386,16 @@ class DatasetView:
     def reactions(self) -> _ReactionStream:
         """Re-iterable stream of Reactions read from the backing file."""
         return self._reactions
+
+    def to_proto(self) -> dataset_pb2.Dataset:
+        """Materializes a real ``Dataset`` message, deserializing every Reaction.
+
+        Escape hatch for the operations a view cannot serve: serialization, JSON
+        conversion, mutation, and helpers that require a protobuf message. Peak
+        memory scales with the whole dataset, so prefer iterating ``reactions``
+        when the message itself is not required.
+        """
+        return load_dataset(self._path)
 
 
 def load_dataset(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
