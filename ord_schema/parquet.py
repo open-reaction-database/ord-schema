@@ -298,11 +298,24 @@ class _RowGroupReader:
 
         Returns:
             A Table holding the ``reaction_id`` and ``reaction`` columns.
+
+        Raises:
+            RuntimeError: If the file no longer has that row group, meaning it was
+                replaced since the view was opened.
         """
         cached = self._cache
         if cached is not None and cached[0] == row_group:
             return cached[1]
         with pq.ParquetFile(self._path) as parquet_file:
+            # The caller bounds-checked against the footer read when the view was
+            # opened; re-check against the file in hand so a replaced file reports
+            # itself instead of surfacing as a pyarrow index error.
+            if not 0 <= row_group < parquet_file.num_row_groups:
+                raise RuntimeError(
+                    f"{self._path} has no row group {row_group} "
+                    f"({parquet_file.num_row_groups} present); the file changed "
+                    "since this view was opened. Re-open the DatasetView."
+                )
             table = parquet_file.read_row_group(
                 row_group, columns=["reaction_id", "reaction"]
             )
@@ -483,10 +496,17 @@ class DatasetView:
     message methods (``SerializeToString``, ``CopyFrom``) are absent and no
     write reaches the file; ``to_proto`` materializes a real message.
 
+    Two things differ from a real message and are worth knowing before
+    substituting one for the other. Indexing returns a freshly deserialized
+    Reaction rather than a live sub-message, so ``reactions[0] is
+    reactions[0]`` is False and mutating the result changes nothing; and
+    ``reactions`` does not compare equal to a list, so compare against
+    ``list(view.reactions)`` or ``view.reactions[:]``.
+
     The backing file must not be replaced while a view is open: the row count
     is read once at construction, and ``DatasetWriter`` publishes by renaming
-    onto its destination. Indexing detects the mismatch and raises; iteration
-    silently reads whatever the path points at.
+    onto its destination. Reads that can detect the mismatch raise and name
+    the path; iteration reads whatever the path points at.
 
     ``reaction_ids`` is always empty by design: in the schema it names
     reactions stored *outside* the Dataset and is mutually exclusive with
@@ -561,6 +581,8 @@ class DatasetView:
             ValueError: If ``reaction_ids`` is provided but empty.
             IndexError: If ``row_group`` is out of range.
         """
+        # Arguments are checked here rather than in the generator below, so a bad
+        # call fails at the call rather than at the first next().
         if reaction_ids is None:
             filter_set = None
         else:
@@ -570,14 +592,28 @@ class DatasetView:
                     "reaction_ids must be non-empty when provided; pass None to "
                     "iterate all"
                 )
+        if row_group is not None and not 0 <= row_group < self._num_row_groups:
+            raise IndexError(
+                f"row_group {row_group} out of range [0, {self._num_row_groups})"
+            )
+        return self._stream_reactions(filter_set, row_group)
+
+    def _stream_reactions(
+        self, filter_set: set[str] | None, row_group: int | None
+    ) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
+        """Streams the file after ``iter_reactions`` has validated its arguments.
+
+        Args:
+            filter_set: Reaction IDs to keep, or None to keep all.
+            row_group: Row group to restrict to, or None to read the whole file.
+
+        Yields:
+            Each ``(reaction_id, Reaction)`` pair, in file order.
+        """
         if row_group is None:
             with pq.ParquetFile(self._path) as parquet_file:
                 yield from _iter_reactions(parquet_file, filter_set=filter_set)
             return
-        if not 0 <= row_group < self._num_row_groups:
-            raise IndexError(
-                f"row_group {row_group} out of range [0, {self._num_row_groups})"
-            )
         yield from _iter_table(self._reader.read(row_group), filter_set=filter_set)
 
     def iter_reaction_ids(self) -> Iterator[str]:

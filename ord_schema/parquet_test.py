@@ -150,6 +150,37 @@ def test_iter_reactions_empty_filter_raises(tmp_path):
         list(dataset.DatasetView(path).iter_reactions(reaction_ids=[]))
 
 
+def test_iter_reactions_validates_arguments_eagerly(tmp_path):
+    """A bad call must raise at the call, not at the first next().
+
+    The body streams, so without an explicit split the documented ValueError and
+    IndexError would surface wherever the caller happened to start iterating.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=5), path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    with pytest.raises(ValueError, match="non-empty"):
+        view.iter_reactions(reaction_ids=[])
+    with pytest.raises(IndexError, match="out of range"):
+        view.iter_reactions(row_group=99)
+
+
+def test_read_reports_a_row_group_lost_to_a_replaced_file(tmp_path):
+    """A row group that vanished under a live view must name the file, not pyarrow.
+
+    The construction-time row count only catches this on the first positional read;
+    afterwards the stale bound would reach pyarrow and surface as an ArrowInvalid
+    mentioning row_group_indices, which names nothing in this API.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=6), path, row_group_size=2)
+    view = dataset.DatasetView(path)
+    view.reactions[0]  # Build the row-group index while the file still has 3 groups.
+    dataset.save_dataset(_make_dataset(n=2), path, row_group_size=2)
+    with pytest.raises(RuntimeError, match="has no row group 2"):
+        view.reactions[5]
+
+
 def test_get_reaction_hit(tmp_path):
     original = _make_dataset(n=5)
     path = tmp_path / "ds.parquet"
