@@ -78,7 +78,8 @@ class TestLoadAndSaveDataset:
         assert loaded.description == "d"
         assert list(loaded.reactions) == list(dataset.reactions)
 
-    def test_load_dataset_parquet_warns(self, tmp_path):
+    def test_load_dataset_parquet_returns_a_view(self, tmp_path):
+        """Parquet reads back as a streaming view, not a materialized message."""
         dataset = dataset_pb2.Dataset(
             name="n",
             description="d",
@@ -86,8 +87,39 @@ class TestLoadAndSaveDataset:
         )
         path = (tmp_path / "ds.parquet").as_posix()
         datasets.save_dataset(dataset, path)
-        with pytest.warns(UserWarning, match="DatasetView"):
-            loaded = datasets.load_dataset(path)
+        loaded = datasets.load_dataset(path)
+        assert isinstance(loaded, parquet.DatasetView)
+        # The read-only surface a caller would otherwise have had to change.
         assert loaded.name == "n"
         assert loaded.description == "d"
+        assert len(loaded.reactions) == 1
+        assert loaded.reactions[0] == dataset.reactions[0]
         assert list(loaded.reactions) == list(dataset.reactions)
+
+    def test_load_dataset_parquet_as_dataset(self, tmp_path):
+        """``as_dataset`` materializes, for callers that need the message surface."""
+        dataset = dataset_pb2.Dataset(
+            name="n",
+            description="d",
+            reactions=[reaction_pb2.Reaction(reaction_id="ord-0")],
+        )
+        path = (tmp_path / "ds.parquet").as_posix()
+        datasets.save_dataset(dataset, path)
+        loaded = datasets.load_dataset(path, as_dataset=True)
+        assert isinstance(loaded, dataset_pb2.Dataset)
+        assert loaded.SerializeToString(
+            deterministic=True
+        ) == dataset.SerializeToString(deterministic=True)
+
+    def test_load_dataset_as_dataset_is_a_no_op_for_proto_formats(self, tmp_path):
+        """``as_dataset`` must not change what the non-streaming formats return."""
+        dataset = dataset_pb2.Dataset(
+            name="n",
+            description="d",
+            reactions=[reaction_pb2.Reaction(reaction_id="ord-0")],
+        )
+        path = (tmp_path / "ds.pbtxt").as_posix()
+        datasets.save_dataset(dataset, path)
+        assert datasets.load_dataset(path) == datasets.load_dataset(
+            path, as_dataset=True
+        )

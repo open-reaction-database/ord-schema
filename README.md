@@ -122,12 +122,12 @@ with parquet.DatasetWriter(
 
 ### Read a dataset
 
-`DatasetView` is the read API for Parquet. Opening one reads only the file footer, so it is cheap regardless of dataset size:
+`datasets.load_dataset` is the entry point for every format. A Parquet dataset reads back as a `DatasetView`, which takes its scalars and row count from the file footer and reads reactions on demand, so opening one is cheap regardless of dataset size:
 
 ```python
-from ord_schema import parquet
+from ord_schema import datasets
 
-view = parquet.DatasetView("esterifications.parquet")
+view = datasets.load_dataset("esterifications.parquet")
 
 view.name             # "Esterifications"
 view.dataset_id       # "ord_dataset-..."
@@ -165,26 +165,27 @@ When you genuinely need a `Dataset` message — to serialize, convert to JSON, o
 dataset = view.to_proto()
 ```
 
-Non-Parquet formats load whole; `datasets.load_dataset` dispatches on suffix the same way `save_dataset` does:
+The other formats have no streaming form, so they read back as a `Dataset` message directly:
 
 ```python
-dataset = datasets.load_dataset("dataset.pb.gz")
+dataset = datasets.load_dataset("dataset.pb.gz")  # a Dataset, not a view
+```
+
+Code that only reads does not need to care which it got — iteration, `len`, indexing, and slicing work on both. Code that needs the protobuf surface and cannot know the format should ask for a message up front, which materializes a Parquet dataset in full:
+
+```python
+dataset = datasets.load_dataset(path, as_dataset=True)  # always a Dataset
 ```
 
 ### Fetch a published dataset
 
-With the `huggingface` extra, pull a dataset from the mirror instead of constructing one. `fetch_dataset` downloads the file and returns its path without parsing it; it prefers Parquet and falls back to `.pb.gz` for datasets not yet converted, so dispatch on the suffix:
+With the `huggingface` extra, pull a dataset from the mirror instead of constructing one. `fetch_dataset` downloads the file and returns its path without parsing it; it prefers Parquet and falls back to `.pb.gz` for datasets not yet converted, which is exactly the dispatch `load_dataset` already handles:
 
 ```python
-import pathlib
-
-from ord_schema import datasets, huggingface, parquet
+from ord_schema import datasets, huggingface
 
 path = huggingface.fetch_dataset("ord_dataset-...")
-if pathlib.Path(path).suffix == ".parquet":
-    view = parquet.DatasetView(path)
-else:
-    dataset = datasets.load_dataset(path)
+dataset = datasets.load_dataset(path)  # a DatasetView for .parquet, else a Dataset
 ```
 
 ## Notebook examples
