@@ -233,6 +233,26 @@ def test_unreadable_file_is_attributed_and_does_not_stop_the_sweep(tmp_path):
     assert "Reactions should have at least 1 reaction input" in message
 
 
+def test_ids_are_checked_only_when_asked(tmp_path):
+    """--validate_ids matches what ord-data checks at submission.
+
+    Submission runs process_dataset.py with ``validate_ids=True``, so a corpus
+    sweep that omitted it would let an id that was well-formed on the way in and
+    is not any more pass forever. It stays opt-in because ids are assigned during
+    submission -- a draft does not have them yet, and validating one should not
+    demand them.
+    """
+    reaction = _valid_reaction(reaction_id="not-an-ord-id")
+    path = tmp_path / "bad_ids.parquet"
+    with parquet.DatasetWriter(str(path), name="test", description="test") as writer:
+        writer.write_all([reaction])
+    argv = ["--input_pattern", str(path)]
+    # Default: the malformed ids are not the CLI's business.
+    validate_dataset.main(validate_dataset.parse_args(argv))
+    with pytest.raises(validations.ValidationError, match="Reaction ID is malformed"):
+        validate_dataset.main(validate_dataset.parse_args([*argv, "--validate_ids"]))
+
+
 @pytest.mark.parametrize(
     ("pattern", "expected"),
     [

@@ -902,6 +902,27 @@ def test_canonical_smiles_for_identifier_returns_none_when_unparseable():
     assert message_helpers.canonical_smiles_for_identifier(name, "benzene") is None
 
 
+def test_inconsistent_identifiers_are_reported_in_a_stable_order():
+    """The offending SMILES render sorted, not in set-iteration order.
+
+    A set renders in hash order, which varies from run to run, so the same
+    dataset produced messages that could not be diffed against a previous run.
+    """
+
+    def message_for(values):
+        compound = reaction_pb2.Compound()
+        for value in values:
+            compound.identifiers.add(value=value, type="SMILES")
+        with pytest.raises(ValueError, match="inconsistent") as excinfo:
+            message_helpers.check_compound_identifiers(compound)
+        return str(excinfo.value)
+
+    expected = "structural identifiers are inconsistent: ['Oc1ccccc1', 'c1ccccc1']"
+    assert message_for(["c1ccccc1", "c1ccc(O)cc1"]) == expected
+    # Insertion order must not show through either.
+    assert message_for(["c1ccc(O)cc1", "c1ccccc1"]) == expected
+
+
 def test_identifier_parses_unsanitized_separates_the_two_failure_modes():
     """Pentavalent nitrogen parses only once sanitization is skipped."""
     smiles = reaction_pb2.CompoundIdentifier.SMILES
