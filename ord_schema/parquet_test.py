@@ -668,3 +668,28 @@ def test_dataset_view_to_proto_carries_scalar_mutations(tmp_path):
     assert materialized.dataset_id == assigned
     assert materialized.name == "renamed"
     assert list(materialized.reactions) == list(source.reactions)
+
+
+def test_dataset_view_to_proto_carries_every_scalar_field(tmp_path):
+    """Every scalar Dataset field set on the view must survive materialization.
+
+    ``to_proto`` names the scalars one by one, so a field added to the proto would be
+    dropped silently. Driving off the descriptor fails here until it is carried.
+    """
+    path = tmp_path / "ds.parquet"
+    dataset.save_dataset(_make_dataset(n=1), path)
+    view = dataset.DatasetView(path)
+    descriptor = dataset_pb2.Dataset.DESCRIPTOR
+    assert descriptor is not None  # Type hint.
+    expected = {}
+    for field in descriptor.fields:
+        if field.label == field.LABEL_REPEATED:
+            continue
+        assert field.type == field.TYPE_STRING, (
+            f"non-string scalar {field.name!r} added to Dataset; extend this test"
+        )
+        expected[field.name] = f"mutated-{field.name}"
+        setattr(view, field.name, expected[field.name])
+    assert expected, "Dataset declares no scalar fields; this test is vacuous"
+    materialized = view.to_proto()
+    assert {name: getattr(materialized, name) for name in expected} == expected
