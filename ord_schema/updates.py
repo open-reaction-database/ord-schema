@@ -183,7 +183,7 @@ def update_parquet_dataset(
         output_path: Path to write the updated Parquet dataset to.
         dataset_id: Resolved dataset_id to write into the output footer.
     """
-    header = parquet.load_metadata(input_path)
+    header = parquet.DatasetView(input_path)
     new_ids, id_substitutions = assign_id_substitutions(
         parquet.DatasetView(input_path).iter_reaction_ids()
     )

@@ -28,7 +28,6 @@ without loading the full dataset into memory.
 
 import bisect
 import contextlib
-import dataclasses
 import hashlib
 import itertools
 import operator
@@ -68,7 +67,10 @@ class DatasetWriter:
     total number of reactions written.
 
     ``name`` and ``description`` are required; ``dataset_id`` is optional
-    because it is assigned during the submission process.
+    because it is assigned during the submission process. Zero reactions is
+    permitted: a streaming writer only learns the count at ``close``, where
+    failing would be too late to help. ``save_dataset`` has the whole message
+    and rejects an empty one up front.
 
     Example:
         with DatasetWriter(path, name="big dataset", description="...") as writer:
@@ -444,12 +446,11 @@ class DatasetView:
 
     Quacks like a ``dataset_pb2.Dataset`` for read-only access: ``name``,
     ``description``, and ``dataset_id`` come from the Parquet footer, and
-    ``reactions`` is a re-iterable ``_ReactionStream`` that opens a fresh
-    read on each iteration, reports its length from the footer, and resolves
-    an index to a single row group, so iteration, length, emptiness, and
-    indexing all behave like a list. ``reactions`` is exposed as a read-only
-    property so accidental rebinding raises; the scalars are plain writable
-    attributes, which ``updates.assign_dataset_id`` relies on. The protobuf
+    ``reactions`` supports iteration, length, emptiness, and indexing like a
+    list while reading on demand: a fresh read per iteration, length from the
+    footer, one row group per index. ``reactions`` is a read-only property so
+    accidental rebinding raises; the scalars are plain writable attributes,
+    which ``updates.assign_dataset_id`` relies on. The protobuf
     message methods (``SerializeToString``, ``CopyFrom``) are absent and no
     write reaches the file; ``to_proto`` materializes a real message.
 
@@ -489,7 +490,7 @@ class DatasetView:
 
     @property
     def path(self) -> str:
-        """Path to the backing Parquet file (read-only)."""
+        """Path to the backing Parquet file."""
         return self._path
 
     @property
@@ -590,6 +591,45 @@ class DatasetView:
             raise KeyError(reaction_id)
         return self._reader.reaction_at(self._positions[reaction_id])
 
+    def md5(self) -> str:
+        r"""Returns a content hash, streamed a row group at a time.
+
+        The hash is fed in this order:
+
+        * ``name=<value>\n``, ``description=<value>\n``, ``dataset_id=<value>\n``
+          (omitted when unset). These come from this view, so a scalar assigned
+          through ``updates.assign_dataset_id`` changes the hash before it reaches
+          the file.
+        * For each Reaction in iteration order: the 8-byte big-endian length of
+          the serialized Reaction blob, then the blob bytes. The reaction_id is
+          not hashed separately since it is already inside the blob (field 1 of
+          ``Reaction``); the length prefix disambiguates blob boundaries.
+
+        Different from ``md5(Dataset.SerializeToString(deterministic=True))`` --
+        re-ingesting an existing ``.pb.gz`` dataset as ``.parquet`` will look
+        like a content change once. That is correct: the on-disk bytes really
+        did change, and the hash is only a cheap "did the content change since I
+        last saw it?" indicator. The scheme is decoupled from the Parquet file
+        layout (row group sizes, compression) so the same logical content
+        rewritten with different writer settings still hashes the same.
+
+        Returns:
+            The MD5 hex digest.
+        """
+        hasher = hashlib.md5(usedforsecurity=False)
+        if self.name:
+            hasher.update(f"name={self.name}\n".encode())
+        if self.description:
+            hasher.update(f"description={self.description}\n".encode())
+        if self.dataset_id:
+            hasher.update(f"dataset_id={self.dataset_id}\n".encode())
+        with pq.ParquetFile(self._path) as parquet_file:
+            for batch in parquet_file.iter_batches(columns=["reaction"]):
+                for blob in batch.column("reaction").to_pylist():
+                    hasher.update(len(blob).to_bytes(8, "big"))
+                    hasher.update(blob)
+        return hasher.hexdigest()
+
     def to_proto(self) -> dataset_pb2.Dataset:
         """Materializes a real ``Dataset`` message, deserializing every Reaction.
 
@@ -613,47 +653,16 @@ class DatasetView:
 def load_dataset(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
     """Reads a full Dataset from a Parquet file.
 
-    All reactions are deserialized into memory; prefer ``DatasetView`` and its
-    streaming reads for large datasets.
+    Every Reaction is deserialized into memory. Prefer ``DatasetView``, which reads
+    the same file without materializing it, whenever a real message is not required.
+
+    Args:
+        path: Path to the Parquet-serialized Dataset.
+
+    Returns:
+        The Dataset message.
     """
-    with pq.ParquetFile(path) as parquet_file:
-        dataset = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
-        for _, reaction in _iter_reactions(parquet_file, filter_set=None):
-            dataset.reactions.append(reaction)
-    return dataset
-
-
-def load_metadata(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
-    """Reads Dataset scalar fields (``name``, ``description``, ``dataset_id``).
-
-    The values are read from the Parquet footer. No column data is read. The returned
-    ``Dataset`` has no ``reactions`` or ``reaction_ids`` populated.
-    """
-    with pq.ParquetFile(path) as parquet_file:
-        return _dataset_from_metadata(parquet_file.schema_arrow.metadata)
-
-
-@dataclasses.dataclass(frozen=True)
-class ParquetFooter:
-    """Footer info for a Parquet dataset: scalars + row-group/row counts."""
-
-    dataset: dataset_pb2.Dataset
-    num_row_groups: int
-    num_rows: int
-
-
-def load_footer(path: str | os.PathLike[str]) -> ParquetFooter:
-    """Returns scalar Dataset fields and row-group/row counts in one open.
-
-    Equivalent to ``load_metadata`` plus ``num_row_groups`` plus a row count, but reads
-    the footer once. Use when the caller needs more than one of those values.
-    """
-    with pq.ParquetFile(path) as parquet_file:
-        return ParquetFooter(
-            dataset=_dataset_from_metadata(parquet_file.schema_arrow.metadata),
-            num_row_groups=parquet_file.num_row_groups,
-            num_rows=parquet_file.metadata.num_rows,
-        )
+    return DatasetView(path).to_proto()
 
 
 def _iter_reactions(
@@ -676,45 +685,6 @@ def _iter_table(
         if filter_set is not None and reaction_id not in filter_set:
             continue
         yield reaction_id, reaction_pb2.Reaction.FromString(blob)
-
-
-def streaming_md5(path: str | os.PathLike[str]) -> tuple[str, int]:
-    r"""Returns ``(md5_hexdigest, num_reactions)`` for a Parquet dataset.
-
-    Streams the file row-group at a time so peak memory stays bounded. The
-    hash is fed in this order:
-
-    * ``name=<value>\\n``, ``description=<value>\\n``, ``dataset_id=<value>\\n``
-      (omitted when unset) from the footer scalars.
-    * For each Reaction in iteration order: the 8-byte big-endian length of
-      the serialized Reaction blob, then the blob bytes. The reaction_id is
-      not hashed separately since it is already inside the blob (field 1 of
-      ``Reaction``); the length prefix disambiguates blob boundaries.
-
-    Different from ``md5(Dataset.SerializeToString(deterministic=True))`` —
-    re-ingesting an existing ``.pb.gz`` dataset as ``.parquet`` will look
-    like a content change once. That is correct: the on-disk bytes really
-    did change, and the hash is only a cheap "did the content change since I
-    last saw it?" indicator. The scheme here is decoupled from the Parquet
-    file layout (row group sizes, compression) so the same logical content
-    rewritten with different writer settings still hashes the same.
-    """
-    hasher = hashlib.md5(usedforsecurity=False)
-    metadata = load_metadata(path)
-    if metadata.name:
-        hasher.update(f"name={metadata.name}\n".encode())
-    if metadata.description:
-        hasher.update(f"description={metadata.description}\n".encode())
-    if metadata.dataset_id:
-        hasher.update(f"dataset_id={metadata.dataset_id}\n".encode())
-    num_reactions = 0
-    with pq.ParquetFile(path) as parquet_file:
-        for batch in parquet_file.iter_batches(columns=["reaction"]):
-            for blob in batch.column("reaction").to_pylist():
-                hasher.update(len(blob).to_bytes(8, "big"))
-                hasher.update(blob)
-                num_reactions += 1
-    return hasher.hexdigest(), num_reactions
 
 
 def _build_schema(*, name: str, description: str, dataset_id: str | None) -> pa.Schema:

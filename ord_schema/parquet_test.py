@@ -68,16 +68,26 @@ def test_save_rejects_empty_name_or_description(tmp_path, missing):
         dataset.save_dataset(ds, path)
 
 
-def test_load_metadata_returns_scalars_only(tmp_path):
+def test_view_reads_scalars_without_column_data(tmp_path, monkeypatch):
+    """Opening a view reads the footer only; the row count comes with it."""
     original = _make_dataset(n=4)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    metadata = dataset.load_metadata(path)
-    assert metadata.dataset_id == original.dataset_id
-    assert metadata.name == original.name
-    assert metadata.description == original.description
-    assert len(metadata.reactions) == 0
-    assert len(metadata.reaction_ids) == 0
+    reads = []
+    unpatched = pq.ParquetFile.read_row_group
+
+    def _record(self, row_group, *args, **kwargs):
+        reads.append(row_group)
+        return unpatched(self, row_group, *args, **kwargs)
+
+    monkeypatch.setattr(pq.ParquetFile, "read_row_group", _record)
+    view = dataset.DatasetView(path)
+    assert view.dataset_id == original.dataset_id
+    assert view.name == original.name
+    assert view.description == original.description
+    assert len(view.reactions) == 4
+    assert list(view.reaction_ids) == []
+    assert reads == []
 
 
 def test_iter_reactions_all(tmp_path):
@@ -276,7 +286,7 @@ def test_load_rejects_unknown_schema_version(tmp_path):
     bad_path = tmp_path / "bad.parquet"
     pq.write_table(table, bad_path)
     with pytest.raises(ValueError, match="schema version"):
-        dataset.load_metadata(bad_path)
+        dataset.DatasetView(bad_path)
 
 
 @pytest.mark.parametrize(
@@ -295,7 +305,7 @@ def test_load_rejects_missing_required_footer_keys(tmp_path, missing_key):
     bad_path = tmp_path / "bad.parquet"
     pq.write_table(table, bad_path)
     with pytest.raises(ValueError, match=missing_key):
-        dataset.load_metadata(bad_path)
+        dataset.DatasetView(bad_path)
 
 
 def test_unicode_metadata_round_trips(tmp_path):
@@ -307,7 +317,7 @@ def test_unicode_metadata_round_trips(tmp_path):
     )
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    loaded = dataset.load_metadata(path)
+    loaded = dataset.DatasetView(path)
     assert loaded.name == original.name
     assert loaded.description == original.description
     assert loaded.dataset_id == original.dataset_id
@@ -391,50 +401,52 @@ def test_writer_aborts_preserves_existing_destination(tmp_path):
     assert sorted(q.name for q in tmp_path.iterdir()) == ["ds.parquet"]
 
 
-def test_streaming_md5_returns_count_and_is_deterministic(tmp_path):
+def test_md5_is_deterministic(tmp_path):
     original = _make_dataset(n=4)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    md5_hex, count = dataset.streaming_md5(path)
-    assert count == 4
-    # Same file hashes the same on a second pass.
-    assert dataset.streaming_md5(path) == (md5_hex, count)
+    view = dataset.DatasetView(path)
+    assert len(view.reactions) == 4
+    # Same file hashes the same on a second pass, and across view instances.
+    assert view.md5() == view.md5() == dataset.DatasetView(path).md5()
 
 
-def test_streaming_md5_is_decoupled_from_row_group_size(tmp_path):
+def test_md5_is_decoupled_from_row_group_size(tmp_path):
     """The same content rewritten with different row group sizes hashes the same."""
     original = _make_dataset(n=12)
     path_small = tmp_path / "small.parquet"
     path_large = tmp_path / "large.parquet"
     dataset.save_dataset(original, path_small, row_group_size=3)
     dataset.save_dataset(original, path_large, row_group_size=1000)
-    assert dataset.streaming_md5(path_small) == dataset.streaming_md5(path_large)
+    assert (
+        dataset.DatasetView(path_small).md5() == dataset.DatasetView(path_large).md5()
+    )
 
 
-def test_streaming_md5_changes_when_scalars_change(tmp_path):
+def test_md5_changes_when_scalars_change(tmp_path):
     original = _make_dataset(n=2)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    baseline, _ = dataset.streaming_md5(path)
+    baseline = dataset.DatasetView(path).md5()
     renamed = dataset_pb2.Dataset()
     renamed.CopyFrom(original)
     renamed.name = "different"
     other_path = tmp_path / "other.parquet"
     dataset.save_dataset(renamed, other_path)
-    assert dataset.streaming_md5(other_path)[0] != baseline
+    assert dataset.DatasetView(other_path).md5() != baseline
 
 
-def test_streaming_md5_changes_when_a_reaction_changes(tmp_path):
+def test_md5_changes_when_a_reaction_changes(tmp_path):
     original = _make_dataset(n=3)
     path = tmp_path / "ds.parquet"
     dataset.save_dataset(original, path)
-    baseline, _ = dataset.streaming_md5(path)
+    baseline = dataset.DatasetView(path).md5()
     mutated = dataset_pb2.Dataset()
     mutated.CopyFrom(original)
     mutated.reactions[1].outcomes[0].conversion.value = 999.0
     other_path = tmp_path / "other.parquet"
     dataset.save_dataset(mutated, other_path)
-    assert dataset.streaming_md5(other_path)[0] != baseline
+    assert dataset.DatasetView(other_path).md5() != baseline
 
 
 def test_writer_close_propagates_flush_error(tmp_path):

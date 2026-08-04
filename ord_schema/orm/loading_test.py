@@ -249,7 +249,8 @@ def test_load_datasets_parquet(prepared_engine, tmp_path):
     """Parquet ingest stores the streaming MD5, reaction count, and Reaction rows."""
     parquet_path, dataset = _write_parquet_dataset(tmp_path)
     loading.load_datasets(parquet_path, str(prepared_engine.url))
-    expected_md5, expected_count = parquet.streaming_md5(parquet_path)
+    view = parquet.DatasetView(parquet_path)
+    expected_md5, expected_count = view.md5(), len(view.reactions)
     with Session(prepared_engine) as session:
         # Dataset row's metadata columns reflect the streaming MD5/count.
         assert database.get_dataset_md5(dataset.dataset_id, session) == expected_md5
@@ -277,7 +278,7 @@ def test_load_datasets_parquet_skip_unchanged(prepared_engine, tmp_path):
     loading.load_datasets(parquet_path, str(prepared_engine.url))
     loading.load_datasets(parquet_path, str(prepared_engine.url))
     # Skip path must not re-insert: reaction count is unchanged after the second call.
-    _, expected_count = parquet.streaming_md5(parquet_path)
+    expected_count = len(parquet.DatasetView(parquet_path).reactions)
     with Session(prepared_engine) as session:
         mapped_dataset = session.scalar(
             select(Mappers.Dataset).where(
