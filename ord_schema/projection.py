@@ -39,7 +39,9 @@ Two normalizations are applied, and only two. Both cost no query and remove a re
 * **Structural identifiers collapse to one canonical ``smiles``.** ``SMILES``,
   ``CXSMILES``, ``INCHI``, and ``MOLBLOCK`` all answer "what is this molecule," so the
   projection answers it once rather than making every consumer re-implement the
-  preference order.
+  preference order. They collapse only when that succeeds: an identifier RDKit cannot
+  read stays in the list, since dropping it as well would report a compound as having no
+  recorded structure when the source recorded one.
 
 Every other identifier is kept, as a list. ``NAME`` alone covers compounds that no
 structural identifier reaches, and a compound may carry several of them, so pivoting
@@ -235,14 +237,28 @@ def _smiles(message: Message) -> str | None:
         return None
 
 
-def _kept_identifiers(descriptor: Descriptor, values: Any) -> list[Any]:
-    """Returns identifiers the collapsed ``smiles`` column does not already carry."""
-    if descriptor.name in _COMPOUND_MESSAGES:
-        structural = _STRUCTURAL_COMPOUND_TYPES
-    elif descriptor.name == "Reaction":
-        structural = _STRUCTURAL_REACTION_TYPES
-    else:
+def _kept_identifiers(
+    descriptor: Descriptor, values: Any, *, collapsed: bool
+) -> list[Any]:
+    """Returns identifiers the collapsed ``smiles`` column does not already carry.
+
+    Args:
+        descriptor: Descriptor of the message holding ``values``.
+        values: The message's ``identifiers`` field.
+        collapsed: Whether ``smiles`` holds the structure these identifiers record. A
+            failed collapse keeps every identifier, so the structure the source did
+            record stays readable.
+
+    Returns:
+        The identifiers to project.
+    """
+    if not collapsed:
         return list(values)
+    structural = (
+        _STRUCTURAL_COMPOUND_TYPES
+        if descriptor.name in _COMPOUND_MESSAGES
+        else _STRUCTURAL_REACTION_TYPES
+    )
     return [value for value in values if value.type not in structural]
 
 
@@ -264,8 +280,10 @@ def message_row(message: Message) -> dict[str, Any]:
     """
     descriptor = cast(Descriptor, message.DESCRIPTOR)
     row: dict[str, Any] = {}
+    smiles = None
     if descriptor.name in _COMPOUND_MESSAGES or descriptor.name == "Reaction":
-        row["smiles"] = _smiles(message)
+        smiles = _smiles(message)
+        row["smiles"] = smiles
     for field in descriptor.fields:
         name = column_name(field)
         canonical = _canonical_unit(field)
@@ -284,7 +302,9 @@ def message_row(message: Message) -> dict[str, Any]:
         if field.label == FieldDescriptor.LABEL_REPEATED:
             values = getattr(message, field.name)
             if field.name == "identifiers":
-                values = _kept_identifiers(descriptor, values)
+                values = _kept_identifiers(
+                    descriptor, values, collapsed=smiles is not None
+                )
             if message_type is not None:
                 row[name] = [message_row(value) for value in values] or None
             elif field.type == FieldDescriptor.TYPE_ENUM:
@@ -314,9 +334,35 @@ def message_row(message: Message) -> dict[str, Any]:
     return row
 
 
-def reaction_row(reaction: reaction_pb2.Reaction) -> dict[str, Any]:
-    """Projects a Reaction to a dict matching ``SCHEMA``."""
-    return message_row(reaction)
+def reaction_row(
+    reaction: reaction_pb2.Reaction, reaction_id: str | None = None
+) -> dict[str, Any]:
+    """Projects a Reaction to a dict matching ``SCHEMA``.
+
+    Args:
+        reaction: Reaction to project.
+        reaction_id: The source's ``reaction_id`` column value, if the caller read one.
+            That column is what identifies the row in the source -- it is the key
+            ``DatasetView.get_reaction`` looks up and the one a join has to match -- so
+            it wins over a message that records no ID of its own.
+
+    Returns:
+        A dict keyed by projected column name.
+
+    Raises:
+        ValueError: If ``reaction_id`` and the message record different IDs, which
+            leaves no safe answer to project.
+    """
+    row = message_row(reaction)
+    if reaction_id is None or reaction_id == reaction.reaction_id:
+        return row
+    if reaction.reaction_id:
+        raise ValueError(
+            f"reaction_id column {reaction_id!r} disagrees with the reaction's own "
+            f"{reaction.reaction_id!r}"
+        )
+    row["reaction_id"] = reaction_id
+    return row
 
 
 def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
@@ -325,7 +371,7 @@ def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
 
 
 def write_projection(
-    source: str | os.PathLike[str],
+    source: parquet.DatasetView,
     output: str | os.PathLike[str],
     *,
     source_md5: str | None = None,
@@ -339,30 +385,29 @@ def write_projection(
     atomically, so a failure partway leaves any existing projection untouched.
 
     Args:
-        source: Path to a source Parquet dataset.
+        source: View of the source Parquet dataset.
         output: Path to write the projection to.
         source_md5: Source hash to stamp, if the caller already computed one. Hashed
-            here when omitted.
+            here when omitted, which costs a full pass over the source.
         compression: Parquet compression codec.
         row_group_size: Rows per output row group.
 
     Returns:
         Number of rows written.
     """
-    footer = parquet.load_footer(source)
     if source_md5 is None:
-        source_md5, _ = parquet.streaming_md5(source)
-    stamps = artifacts.stamps(ARTIFACT, footer.dataset.dataset_id or None, source_md5)
+        source_md5 = source.md5()
+    stamps = artifacts.stamps(ARTIFACT, source.dataset_id or None, source_md5)
     schema = SCHEMA.with_metadata(artifacts.to_metadata(stamps))
     rows = 0
     with (
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
     ):
-        for row_group in range(footer.num_row_groups):
+        for row_group in range(source.num_row_groups):
             batch = [
-                reaction_row(reaction)
-                for _, reaction in parquet.iter_reactions(source, row_group=row_group)
+                reaction_row(reaction, reaction_id)
+                for reaction_id, reaction in source.iter_reactions(row_group=row_group)
             ]
             rows += len(batch)
             writer.write_table(

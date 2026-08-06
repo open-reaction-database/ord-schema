@@ -39,7 +39,7 @@ def _reaction(reaction_id: str = "ord-0001") -> reaction_pb2.Reaction:
     return reaction
 
 
-def _dataset_path(tmp_path, reactions, dataset_id="ord_dataset-1"):
+def _source(tmp_path, reactions, dataset_id="ord_dataset-1") -> parquet.DatasetView:
     dataset = dataset_pb2.Dataset(
         dataset_id=dataset_id,
         name="test",
@@ -48,7 +48,7 @@ def _dataset_path(tmp_path, reactions, dataset_id="ord_dataset-1"):
     )
     path = tmp_path / "source.parquet"
     parquet.save_dataset(dataset, path)
-    return path
+    return parquet.DatasetView(path)
 
 
 def _leaf_count(data_type: pa.DataType) -> int:
@@ -177,6 +177,18 @@ def test_non_structural_identifiers_survive_the_collapse():
     assert kept == {"NAME", "CAS_NUMBER"}
 
 
+def test_a_structural_identifier_that_fails_to_collapse_is_kept():
+    # Dropping it as well would report the compound as having no recorded structure.
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0004")
+    component = reaction.inputs["mystery"].components.add()
+    component.identifiers.add(type="SMILES", value="not a smiles")
+    projected = projection.reaction_row(reaction)["inputs"][0][1]["components"][0]
+    assert projected["smiles"] is None
+    assert projected["identifiers"] == [
+        {"type": "SMILES", "value": "not a smiles", "details": None}
+    ]
+
+
 def test_a_name_only_compound_keeps_its_name_and_has_no_smiles():
     reaction = reaction_pb2.Reaction(reaction_id="ord-0002")
     component = reaction.inputs["quench"].components.add()
@@ -199,11 +211,21 @@ def test_empty_repeated_fields_are_null_rather_than_empty_lists():
     assert row["observations"] is None
 
 
+def test_the_reaction_id_column_answers_for_a_message_that_records_none():
+    row = projection.reaction_row(reaction_pb2.Reaction(), "ord-from-column")
+    assert row["reaction_id"] == "ord-from-column"
+
+
+def test_a_reaction_id_that_disagrees_with_its_column_is_an_error():
+    with pytest.raises(ValueError, match="disagrees"):
+        projection.reaction_row(_reaction("ord-in-message"), "ord-in-column")
+
+
 # Writing
 
 
 def test_write_projection_round_trips(tmp_path):
-    source = _dataset_path(tmp_path, [_reaction("ord-1"), _reaction("ord-2")])
+    source = _source(tmp_path, [_reaction("ord-1"), _reaction("ord-2")])
     output = tmp_path / "projection.parquet"
     assert projection.write_projection(source, output) == 2
     table = pq.read_table(output)
@@ -211,8 +233,26 @@ def test_write_projection_round_trips(tmp_path):
     assert table.column("reaction_id").to_pylist() == ["ord-1", "ord-2"]
 
 
+def test_write_projection_reads_the_reaction_id_column(tmp_path):
+    # Only a file built outside DatasetWriter can disagree, since the writer fills the
+    # column from the message; the projection has to notice rather than pick one.
+    path = tmp_path / "inconsistent.parquet"
+    schema = parquet._build_schema(
+        name="test", description="test dataset", dataset_id="ord_dataset-1"
+    )
+    blob = _reaction("ord-in-message").SerializeToString(deterministic=True)
+    pq.write_table(
+        pa.table({"reaction_id": ["ord-in-column"], "reaction": [blob]}, schema=schema),
+        path,
+    )
+    with pytest.raises(ValueError, match="disagrees"):
+        projection.write_projection(
+            parquet.DatasetView(path), tmp_path / "projection.parquet"
+        )
+
+
 def test_write_projection_stamps_the_footer(tmp_path):
-    source = _dataset_path(tmp_path, [_reaction()])
+    source = _source(tmp_path, [_reaction()])
     output = tmp_path / "projection.parquet"
     projection.write_projection(source, output)
     stamps = artifacts.load_stamps(output)
@@ -222,20 +262,18 @@ def test_write_projection_stamps_the_footer(tmp_path):
 
 
 def test_is_current_tracks_source_content(tmp_path):
-    source = _dataset_path(tmp_path, [_reaction()])
+    source = _source(tmp_path, [_reaction()])
     output = tmp_path / "projection.parquet"
     projection.write_projection(source, output)
-    source_md5, _ = parquet.streaming_md5(source)
-    assert projection.is_current(output, source_md5)
+    assert projection.is_current(output, source.md5())
     assert not projection.is_current(output, "0" * 32)
 
 
 def test_is_current_rejects_a_different_artifact(tmp_path):
-    source = _dataset_path(tmp_path, [_reaction()])
+    source = _source(tmp_path, [_reaction()])
     output = tmp_path / "projection.parquet"
     projection.write_projection(source, output)
-    source_md5, _ = parquet.streaming_md5(source)
-    assert not artifacts.is_current(output, "view", source_md5)
+    assert not artifacts.is_current(output, "view", source.md5())
 
 
 def test_is_current_is_false_for_a_missing_file(tmp_path):
@@ -243,13 +281,12 @@ def test_is_current_is_false_for_a_missing_file(tmp_path):
 
 
 def test_is_current_is_false_for_a_source_dataset(tmp_path):
-    source = _dataset_path(tmp_path, [_reaction()])
-    source_md5, _ = parquet.streaming_md5(source)
-    assert not projection.is_current(source, source_md5)
+    source = _source(tmp_path, [_reaction()])
+    assert not projection.is_current(source.path, source.md5())
 
 
 def test_a_failed_write_leaves_an_existing_projection_intact(tmp_path, monkeypatch):
-    source = _dataset_path(tmp_path, [_reaction()])
+    source = _source(tmp_path, [_reaction()])
     output = tmp_path / "projection.parquet"
     projection.write_projection(source, output)
     original = output.read_bytes()

@@ -114,6 +114,37 @@ def test_an_exact_filename_writes_a_file_not_a_directory(tmp_path):
     assert output.is_file()
 
 
+def test_writing_into_the_source_tree_is_an_error(tmp_path):
+    _dataset(tmp_path, "aa", "ord_dataset-a")
+    with pytest.raises(ValueError, match="cannot be written over its own source"):
+        derive_projection.main(
+            derive_projection.parse_args(
+                [
+                    f"--input_pattern={tmp_path}/data/*/*.parquet",
+                    f"--output_dir={tmp_path}/data",
+                ]
+            )
+        )
+
+
+def test_a_pattern_reaching_the_output_tree_stays_rerunnable(tmp_path):
+    _dataset(tmp_path, "aa", "ord_dataset-a")
+    output_dir = tmp_path / "data" / "projections"
+    args = derive_projection.parse_args(
+        [
+            f"--input_pattern={tmp_path}/data/**/*.parquet",
+            f"--output_dir={output_dir}",
+        ]
+    )
+    derive_projection.main(args)
+    output = output_dir / "aa" / "ord_dataset-a.parquet"
+    first = output.stat().st_ino
+    # The projection is now itself a match for the pattern; it is not a source.
+    derive_projection.main(args)
+    assert output.stat().st_ino == first
+    assert artifacts.load_stamps(output).artifact == projection.ARTIFACT
+
+
 def test_an_unmatched_pattern_is_an_error(tmp_path):
     with pytest.raises(ValueError, match="no datasets matched"):
         derive_projection.main(

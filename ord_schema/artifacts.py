@@ -90,7 +90,7 @@ def stamps(artifact: str, source_dataset_id: str | None, source_md5: str) -> Sta
     Args:
         artifact: Artifact name, e.g. ``"view"`` or ``"projection"``.
         source_dataset_id: Source dataset ID, or None if the source records none.
-        source_md5: Hash of the source, from ``parquet.streaming_md5``.
+        source_md5: Hash of the source, from ``parquet.DatasetView.md5``.
 
     Returns:
         Stamps carrying the current library and artifact versions.
@@ -172,6 +172,19 @@ def is_current(path: str | os.PathLike[str], artifact: str, source_md5: str) -> 
     )
 
 
+def is_artifact(path: str | os.PathLike[str]) -> bool:
+    """Returns whether ``path`` carries derived-artifact stamps.
+
+    A derived artifact is never a source: a recursive glob that reaches the output tree
+    would otherwise try to derive an artifact from an artifact.
+    """
+    try:
+        load_stamps(path)
+    except (OSError, ValueError):
+        return False
+    return True
+
+
 def glob_root(pattern: str) -> pathlib.PurePath:
     """Returns the leading directories of a glob pattern that contain no wildcards.
 
@@ -209,36 +222,58 @@ def derive_tree(
 
     Outputs mirror the inputs' directory layout beneath ``output_dir``. Artifacts whose
     footer already records the current source content, library version, and artifact
-    version are skipped, so re-running is cheap.
+    version are skipped, so re-running is cheap. Matches that are themselves derived
+    artifacts are ignored, so a recursive pattern reaching the output tree stays
+    re-runnable.
 
     Args:
         input_pattern: Glob matching source Parquet datasets.
         output_dir: Directory to write artifacts beneath.
         artifact: Artifact name, used for the staleness check and the footer stamp.
-        write: Writer taking ``(source, output, source_md5=...)`` and returning rows.
+        write: Writer taking ``(view, output, source_md5=...)`` and returning rows.
         force: Rewrite artifacts that are already current.
 
     Returns:
-        ``(written, skipped)`` counts.
+        ``(written, skipped)`` counts, where ``skipped`` counts artifacts already
+        current. Ignored matches are logged rather than counted.
 
     Raises:
-        ValueError: If the input pattern matches nothing.
+        ValueError: If the input pattern matches nothing, or if a destination would
+            land on its own source.
     """
     sources = sorted(glob.glob(input_pattern, recursive=True))
     if not sources:
         raise ValueError(f"no datasets matched: {input_pattern}")
     logger.info("Found %d datasets", len(sources))
-    written = skipped = 0
+    written = skipped = ignored = 0
     for source in sources:
+        if is_artifact(source):
+            logger.warning("%s is a derived artifact, not a source; ignoring", source)
+            ignored += 1
+            continue
         destination = output_path(source, input_pattern, output_dir)
-        source_md5, _ = parquet.streaming_md5(source)
+        if destination.resolve() == pathlib.Path(source).resolve():
+            # An output_dir that lands back on the source tree would publish the
+            # artifact over the dataset it was derived from, losing the source.
+            raise ValueError(
+                f"{source} maps to itself under output_dir {output_dir!r}; "
+                "an artifact cannot be written over its own source"
+            )
+        view = parquet.DatasetView(source)
+        source_md5 = view.md5()
         if not force and is_current(destination, artifact, source_md5):
             logger.info("%s is current; skipping", destination)
             skipped += 1
             continue
         destination.parent.mkdir(parents=True, exist_ok=True)
-        rows = write(source, destination, source_md5=source_md5)
+        rows = write(view, destination, source_md5=source_md5)
         logger.info("Wrote %d rows to %s", rows, destination)
         written += 1
-    logger.info("Derived %d %ss (%d already current)", written, artifact, skipped)
+    logger.info(
+        "Derived %d %ss (%d already current, %d ignored)",
+        written,
+        artifact,
+        skipped,
+        ignored,
+    )
     return written, skipped
