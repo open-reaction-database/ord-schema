@@ -167,7 +167,8 @@ def test_update_derived_tables_sharded_covers_all(prepared_engine):
     dataset pass finds nothing new.
     """
     dataset = load_dataset(
-        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
     )
     with Session(prepared_engine) as session, session.begin():
         add_dataset(dataset, session)
@@ -205,7 +206,7 @@ def test_update_derived_tables_sharded_covers_all(prepared_engine):
         if sharded[table] >= 2 * num_shards:
             non_empty = sum(1 for shard in per_shard if shard[table] > 0)
             assert non_empty >= 2, (table, [shard[table] for shard in per_shard])
-    # A whole-dataset pass now adds nothing: the shards covered every row.
+    # A whole-dataset pass adds nothing: the shards already covered every row.
     with Session(prepared_engine) as session, session.begin():
         update_derived_tables(dataset.dataset_id, session)
     assert counts() == sharded
@@ -220,7 +221,8 @@ def test_rdkit_sharded_matches_serial(prepared_engine):
     would -- a following serial pass inserts and links nothing new.
     """
     dataset = load_dataset(
-        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
     )
     with Session(prepared_engine) as session, session.begin():
         add_dataset(dataset, session)
@@ -275,8 +277,8 @@ def test_rdkit_sharded_matches_serial(prepared_engine):
         "linked_products",
     ):
         assert sharded[key] > 0, (key, sharded)
-    # A serial (whole-dataset) pass now inserts and links nothing new: the shards
-    # covered it all.
+    # A serial (whole-dataset) pass inserts and links nothing new: the shards
+    # already covered it all.
     run_shard(None)
     assert counts() == sharded
 
@@ -293,7 +295,8 @@ def test_classify_sharded_covers_all(prepared_engine):
     would -- a following whole-dataset pass adds nothing.
     """
     dataset = load_dataset(
-        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
     )
     with Session(prepared_engine) as session, session.begin():
         add_dataset(dataset, session)
@@ -323,7 +326,7 @@ def test_classify_sharded_covers_all(prepared_engine):
     # into more than one of the 4 buckets, so this holds for it (a 1-reaction fixture
     # would not).
     assert 0 < first < sharded, (first, sharded)
-    # A whole-dataset pass now adds nothing: the shards classified every reaction.
+    # A whole-dataset pass adds nothing: the shards already classified every reaction.
     with Session(prepared_engine) as session, session.begin():
         classify_dataset(dataset.dataset_id, session)
     assert count() == sharded
@@ -373,7 +376,8 @@ def test_compound_smiles_fallback_without_stored_smiles(prepared_engine):
     standard fixture (every compound carries a SMILES) never reaches.
     """
     dataset = load_dataset(
-        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
     )
     # Replace one compound's SMILES identifier with the equivalent InChI so only the
     # fallback (structure reconstruction from a non-SMILES identifier) can derive its
@@ -421,7 +425,8 @@ def test_underivable_compound_skips_reconstruction(prepared_engine, monkeypatch)
     zero new rows on every re-run.
     """
     dataset = load_dataset(
-        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
     )
     # Strip one compound down to a NAME-only identifier so it has no structural
     # identifier to derive a SMILES from; every other compound keeps its SMILES fast
@@ -508,7 +513,8 @@ def test_derived_compound_smiles_covers_every_attachment(prepared_engine):
     attachments appear and none loses rows to the derived or RDKit passes.
     """
     dataset = load_dataset(
-        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt"
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
     )
     # The fixture has workup inputs but no authentic standard; attach one so the
     # product_measurement path is populated.

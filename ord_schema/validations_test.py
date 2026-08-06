@@ -13,36 +13,12 @@
 # limitations under the License.
 """Tests for ord_schema.validations."""
 
-import sys
-import warnings
+import datetime
 
 import pytest
 
-from ord_schema import validations
+from ord_schema import message_helpers, validations
 from ord_schema.proto import dataset_pb2, reaction_pb2
-
-
-@pytest.fixture(autouse=True)
-def setup():
-    # Redirect warning messages to stdout so they can be filtered from the other
-    # test output.
-    original_showwarning = warnings.showwarning
-
-    def _showwarning(message, category, filename, lineno, file=None, line=None):
-        del file  # Unused.
-        original_showwarning(
-            message=message,
-            category=category,
-            filename=filename,
-            lineno=lineno,
-            file=sys.stdout,
-            line=line,
-        )
-
-    warnings.showwarning = _showwarning  # ty: ignore[invalid-assignment]
-    yield
-    # Restore the original showwarning.
-    warnings.showwarning = original_showwarning
 
 
 def _run_validation(message, **kwargs):
@@ -285,7 +261,7 @@ def test_reaction_smiles():
     output = _run_validation(message)
     assert len(output.errors) == 0
     assert len(output.warnings) == 0
-    # Now disable the exception for reaction SMILES only.
+    # With allow_reaction_smiles_only off, the same message must fail.
     options = validations.ValidationOptions()
     options.allow_reaction_smiles_only = False
     with pytest.raises(validations.ValidationError, match="reaction input"):
@@ -355,6 +331,88 @@ def test_invalid_compound_identifier(identifier_type, value):
     message = reaction_pb2.CompoundIdentifier(type=identifier_type, value=value)
     with pytest.raises(validations.ValidationError, match="could not validate"):
         _run_validation(message)
+
+
+def _compound_with_two_identifiers():
+    """Builds a Compound whose SMILES and InChI describe the same molecule."""
+    compound = reaction_pb2.Compound()
+    compound.identifiers.add(type="SMILES", value="c1ccccc1")
+    compound.identifiers.add(type="INCHI", value="InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H")
+    return compound
+
+
+def test_the_two_identifier_checks_share_one_parse():
+    """Validity and consistency need the same parse, so they must not repeat it.
+
+    ``_validate_compound_identifier`` checks that an identifier parses and
+    ``check_compound_identifiers`` canonicalizes it to compare against its
+    siblings. Parsing InChI is the single most expensive thing validation does,
+    so a regression that unshares these is worth catching.
+    """
+    message_helpers.canonical_smiles_for_identifier.cache_clear()
+    _run_validation(_compound_with_two_identifiers())
+    info = message_helpers.canonical_smiles_for_identifier.cache_info()
+    # One miss per distinct identifier, and a hit where the other check reuses it.
+    # A third call site would push these up; that is a prompt to check the new
+    # caller shares the parse, not to relax the counts.
+    assert info.misses == 2
+    assert info.hits == 2
+
+
+def test_a_warm_cache_does_not_change_what_validation_reports():
+    message_helpers.canonical_smiles_for_identifier.cache_clear()
+    validations._parse_date_time.cache_clear()
+    cold = _run_validation(_compound_with_two_identifiers())
+    warm = _run_validation(_compound_with_two_identifiers())
+    assert (cold.errors, cold.warnings) == (warm.errors, warm.warnings)
+
+
+def _provenance_with_partial_timestamps():
+    """Builds a ReactionProvenance whose timestamps name a time but no date."""
+    message = reaction_pb2.ReactionProvenance()
+    message.experiment_start.value = "01:00"
+    message.record_created.time.value = "23:00"
+    message.record_created.person.name = "test"
+    message.record_created.person.email = "test@example.com"
+    return message
+
+
+def test_partial_timestamps_do_not_inherit_the_current_date():
+    """A partial DateTime must parse the same however old its cache entry is.
+
+    ``parser.parse`` fills absent fields from the current date unless given a
+    default, which would make a cached value depend on the day it was created: a
+    run spanning midnight would then order two partial timestamps by when each
+    was first seen rather than by the times they name.
+    """
+    validations._parse_date_time.cache_clear()
+    first = validations._parse_date_time("01:00")
+    second = validations._parse_date_time("23:00")
+    assert first is not None
+    assert second is not None
+    # One nominal date for both, so the comparison reflects the times they name.
+    assert first.date() == second.date()
+    assert first < second
+    # That date is fixed rather than today's, so an entry cached yesterday still
+    # compares correctly against one cached today.
+    assert first.date() != datetime.datetime.now(tz=datetime.UTC).date()
+
+
+def test_partial_timestamps_are_ordered_by_time_not_cache_age():
+    """The provenance ordering check reads the times, not the caching order."""
+    validations._parse_date_time.cache_clear()
+    output = _run_validation(_provenance_with_partial_timestamps())
+    assert not any("after experiment" in error for error in output.errors)
+
+
+def test_provenance_and_the_message_walk_share_one_datetime_parse():
+    """Both the per-message walk and the ordering check need the same parse."""
+    validations._parse_date_time.cache_clear()
+    _run_validation(_provenance_with_partial_timestamps())
+    info = validations._parse_date_time.cache_info()
+    # Two distinct strings, each parsed once and reused by the other caller.
+    assert info.misses == 2
+    assert info.hits == 2
 
 
 @pytest.mark.parametrize(
@@ -538,7 +596,8 @@ def test_compound_identifier_is_validated_as_recorded(value):
 
 @pytest.mark.parametrize("identifier_type", ["REACTION_SMILES", "REACTION_CXSMILES"])
 def test_empty_reaction_identifier_reports_rather_than_raises(identifier_type):
-    # An empty CXSMILES value used to index off the end of an empty token list.
+    # An empty value tokenizes to nothing, so the check must report it rather than
+    # indexing off the end of the token list.
     message = reaction_pb2.ReactionIdentifier(type=identifier_type, value="")
     output = _run_validation(message, raise_on_error=False)
     assert any("value must be set" in error for error in output.errors)
@@ -966,17 +1025,16 @@ def test_validator_switch_dispatches(message_cls):
     assert isinstance(output, validations.ValidationOutput)
 
 
-def _capture_warnings(func, *args, **kwargs):
-    """Calls a validator directly and returns the recorded warnings.
+def _capture_findings(func, *args, **kwargs):
+    """Calls a validator directly and returns the findings it reported.
 
     Used for branches that are shadowed by recursion in ``validate_message`` (e.g.
     provenance-level DateTime parsing, which the DateTime validator would otherwise flag
     first).
     """
-    with warnings.catch_warnings(record=True) as tape:
-        warnings.simplefilter("always")
-        func(*args, **kwargs)
-    return tape
+    context = validations.ValidationContext()
+    func(*args, context, **kwargs)
+    return [text for text, _ in context.findings]
 
 
 def test_type_and_details_missing_type():
@@ -1244,8 +1302,8 @@ def test_provenance_unparseable_datetime_direct():
     message.record_created.time.value = "garbage"
     message.record_created.person.username = "u"
     message.record_created.person.email = "a@b.com"
-    tape = _capture_warnings(validations.validate_reaction_provenance, message)
-    assert any("Failed to parse" in str(warning.message) for warning in tape)
+    findings = _capture_findings(validations._validate_reaction_provenance, message)
+    assert any("Failed to parse" in finding for finding in findings)
 
 
 def test_temperature_fahrenheit_below_absolute_zero():
@@ -1280,18 +1338,77 @@ def test_cross_ref_state_merge():
 
 
 def test_validators_default_options():
-    # Exercise the ``options is None`` default branches.
-    validations.validate_reaction(reaction_pb2.Reaction(), options=None)
-    validations.validate_dataset(dataset_pb2.Dataset(), options=None)
+    """A context built without options validates under the defaults."""
+    context = validations.ValidationContext()
+    assert context.options == validations.ValidationOptions()
+    validations._validate_reaction(reaction_pb2.Reaction(), context)
+    validations._validate_dataset(dataset_pb2.Dataset(), context)
     validations.validate_dataset_streaming(
+        context=context,
         name="n",
         description="d",
         dataset_id="",
         reaction_ids=[],
         has_reactions=True,
         state=validations.DatasetCrossRefState(),
-        options=None,
     )
+
+
+def test_streaming_and_in_memory_dataset_agree_on_options():
+    """Both dataset entry points validate under the context's options.
+
+    The streaming path once took its own ``options`` argument, so a context
+    carrying ``validate_ids=True`` was honored by ``_validate_dataset`` and
+    silently ignored here.
+    """
+    options = validations.ValidationOptions(validate_ids=True)
+
+    in_memory = validations.ValidationContext(options=options)
+    validations._validate_dataset(
+        dataset_pb2.Dataset(name="n", description="d", dataset_id="bogus"), in_memory
+    )
+
+    streaming = validations.ValidationContext(options=options)
+    validations.validate_dataset_streaming(
+        context=streaming,
+        name="n",
+        description="d",
+        dataset_id="bogus",
+        reaction_ids=[],
+        has_reactions=True,
+        state=validations.DatasetCrossRefState(),
+    )
+
+    malformed = [
+        text for text, _ in streaming.findings if "Dataset ID is malformed" in text
+    ]
+    assert malformed
+    assert malformed == [
+        text for text, _ in in_memory.findings if "Dataset ID is malformed" in text
+    ]
+
+
+def test_a_severity_above_error_still_fails_validation(monkeypatch):
+    """Findings are thresholded, not matched, so a new level cannot slip through.
+
+    Severity is ordered so a level can be added above ERROR. Comparing for
+    equality would file such a finding under warnings, and validation would
+    report success for something more serious than an error.
+    """
+
+    def _catastrophe(message, context):
+        del message
+        context.findings.append(("catastrophe", validations.Severity.ERROR + 1))
+
+    monkeypatch.setitem(
+        validations._VALIDATOR_SWITCH, reaction_pb2.ReactionNotes, _catastrophe
+    )
+    message = reaction_pb2.ReactionNotes()
+    output = validations.validate_message(message, raise_on_error=False)
+    assert any("catastrophe" in error for error in output.errors)
+    assert not output.warnings
+    with pytest.raises(validations.ValidationError, match="catastrophe"):
+        validations.validate_message(message)
 
 
 def test_workup_target_ph_out_of_range():
@@ -1369,18 +1486,15 @@ def test_provenance_clean():
 
 
 def test_provenance_record_modified_missing_email_direct():
-    # Shadowed by validate_record_event under recursion, so call directly.
+    # Shadowed by _validate_record_event under recursion, so call directly.
     message = reaction_pb2.ReactionProvenance()
     message.record_created.time.value = "2021-01-01"
     message.record_created.person.email = "a@b.com"
     record = message.record_modified.add()
     record.time.value = "2021-06-01"
     record.person.username = "u"
-    tape = _capture_warnings(validations.validate_reaction_provenance, message)
-    assert any(
-        "email is required for record_modified" in str(warning.message)
-        for warning in tape
-    )
+    findings = _capture_findings(validations._validate_reaction_provenance, message)
+    assert any("email is required for record_modified" in f for f in findings)
 
 
 def test_validate_datasets(tmp_path):

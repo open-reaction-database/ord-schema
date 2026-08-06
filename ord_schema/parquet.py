@@ -26,15 +26,17 @@ This layout supports random access (by row group) and streaming iteration
 without loading the full dataset into memory.
 """
 
+import bisect
 import contextlib
-import dataclasses
 import hashlib
+import itertools
+import operator
 import os
 import pathlib
 import tempfile
 from collections.abc import Iterable, Iterator
 from types import TracebackType
-from typing import Self
+from typing import Self, overload
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -65,7 +67,10 @@ class DatasetWriter:
     total number of reactions written.
 
     ``name`` and ``description`` are required; ``dataset_id`` is optional
-    because it is assigned during the submission process.
+    because it is assigned during the submission process. Zero reactions is
+    permitted: a streaming writer only learns the count at ``close``, where
+    failing would be too late to help. ``save_dataset`` has the whole message
+    and rejects an empty one up front.
 
     Example:
         with DatasetWriter(path, name="big dataset", description="...") as writer:
@@ -129,14 +134,23 @@ class DatasetWriter:
         self._closed = False
 
     def write(self, reaction: reaction_pb2.Reaction) -> None:
-        """Buffers a Reaction; flushes a row group when the buffer is full."""
+        """Buffers a Reaction; flushes a row group when the buffer is full.
+
+        Args:
+            reaction: Reaction to append. Serialized immediately, so later
+                mutation of the message does not affect what is written.
+        """
         self._buffer_ids.append(reaction.reaction_id)
         self._buffer_blobs.append(reaction.SerializeToString(deterministic=True))
         if len(self._buffer_ids) >= self._row_group_size:
             self._flush()
 
     def write_all(self, reactions: Iterable[reaction_pb2.Reaction]) -> None:
-        """Writes an iterable of Reactions."""
+        """Writes an iterable of Reactions.
+
+        Args:
+            reactions: Reactions to append, in order.
+        """
         for reaction in reactions:
             self.write(reaction)
 
@@ -161,6 +175,7 @@ class DatasetWriter:
         pathlib.Path(self._tmp_path).replace(self._path)
 
     def _abort(self) -> None:
+        """Closes the writer and removes the temp file, leaving no destination."""
         # try/finally so the unlink still runs if writer.close raises a
         # BaseException (e.g., KeyboardInterrupt mid-close). The original
         # error is preserved through Python's exception chaining.
@@ -172,6 +187,7 @@ class DatasetWriter:
                 pathlib.Path(self._tmp_path).unlink()
 
     def _flush(self) -> None:
+        """Writes the buffered Reactions as one row group, if any are pending."""
         if not self._buffer_ids:
             return
         table = pa.table(
@@ -183,7 +199,11 @@ class DatasetWriter:
         self._buffer_blobs.clear()
 
     def __enter__(self) -> Self:
-        """Enters the context manager, returning this writer."""
+        """Enters the context manager.
+
+        Returns:
+            This writer.
+        """
         return self
 
     def __exit__(
@@ -192,7 +212,13 @@ class DatasetWriter:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Closes the writer on success or aborts the write on exception."""
+        """Closes the writer on success or aborts the write on exception.
+
+        Args:
+            exc_type: Exception class raised in the ``with`` body, or None.
+            exc_val: Exception raised in the ``with`` body, or None.
+            exc_tb: Traceback of that exception, or None.
+        """
         # On exception in the with body, abort the write so the destination
         # path is never created; let the original exception propagate.
         if exc_type is None:
@@ -240,40 +266,254 @@ def save_dataset(
         writer.write_all(dataset.reactions)
 
 
-class _ReactionStream:
-    """Re-iterable Reaction stream with a known length.
+class _RowGroupReader:
+    """Row-group reads for one Parquet file, with a one-entry cache.
 
-    Each iteration opens a fresh read over the backing Parquet file so callers that
-    iterate more than once stay memory-bounded. ``__len__`` and ``__bool__`` come from
-    the footer row count, so emptiness checks (e.g., ``if not dataset.reactions``)
-    behave like a list instead of always being truthy the way a bare generator would be.
+    Shared by ``DatasetView.iter_reactions(row_group=...)`` and by positional access
+    through ``DatasetView.reactions``, so streaming a row group and indexing into one
+    resolve and cache it the same way.
     """
 
-    def __init__(self, path: str | os.PathLike[str], num_reactions: int) -> None:
+    def __init__(self, path: str, num_reactions: int) -> None:
+        """Prepares row-group reads against a Parquet file.
+
+        Args:
+            path: Path to the backing Parquet file.
+            num_reactions: Row count taken from the file footer.
+        """
         self._path = path
+        self._num_reactions = num_reactions
+        # Deferred to the first positional read: building the index costs a second
+        # footer read and one RowGroupMetaData per row group, neither of which a
+        # caller that only iterates ever needs.
+        self._row_group_starts: list[int] | None = None
+        # Row group index paired with its table, so the two cannot desynchronize.
+        self._cache: tuple[int, pa.Table] | None = None
+
+    def read(self, row_group: int) -> pa.Table:
+        """Reads one row group, caching the most recent read.
+
+        Args:
+            row_group: Row group index.
+
+        Returns:
+            A Table holding the ``reaction_id`` and ``reaction`` columns.
+
+        Raises:
+            RuntimeError: If the file no longer has that row group, meaning it was
+                replaced since the view was opened.
+        """
+        cached = self._cache
+        if cached is not None and cached[0] == row_group:
+            return cached[1]
+        with pq.ParquetFile(self._path) as parquet_file:
+            # The caller bounds-checked against the footer read when the view was
+            # opened; re-check against the file in hand so a replaced file reports
+            # itself instead of surfacing as a pyarrow index error.
+            if not 0 <= row_group < parquet_file.num_row_groups:
+                raise RuntimeError(
+                    f"{self._path} has no row group {row_group} "
+                    f"({parquet_file.num_row_groups} present); the file changed "
+                    "since this view was opened. Re-open the DatasetView."
+                )
+            table = parquet_file.read_row_group(
+                row_group, columns=["reaction_id", "reaction"]
+            )
+        self._cache = (row_group, table)
+        return table
+
+    def reaction_at(self, position: int) -> reaction_pb2.Reaction:
+        """Reads the Reaction at an absolute row position.
+
+        Args:
+            position: Row position; callers bounds-check against the row count.
+
+        Returns:
+            A freshly deserialized Reaction, not a live sub-message of a Dataset.
+
+        Raises:
+            RuntimeError: If the file's row count disagrees with the count read when
+                the view was opened, meaning the file was replaced.
+        """
+        row_group, offset = self._locate(position)
+        blob = self.read(row_group).column("reaction")[offset].as_py()
+        return reaction_pb2.Reaction.FromString(blob)
+
+    def _locate(self, position: int) -> tuple[int, int]:
+        """Maps an absolute row position onto the row group holding it.
+
+        Args:
+            position: Row position, already bounds-checked against the row count.
+
+        Returns:
+            ``(row_group, offset_within_row_group)``.
+
+        Raises:
+            RuntimeError: If the file was replaced since the view was opened.
+        """
+        if self._row_group_starts is None:
+            with pq.ParquetFile(self._path) as parquet_file:
+                metadata = parquet_file.metadata
+                counts = [
+                    metadata.row_group(i).num_rows
+                    for i in range(metadata.num_row_groups)
+                ]
+            # The row count was read from the footer when the view was opened, so a
+            # disagreement means the file was replaced underneath it -- which
+            # DatasetWriter does by design, publishing via rename onto the path.
+            # Refuse rather than serve rows resolved against the wrong layout.
+            if sum(counts) != self._num_reactions:
+                raise RuntimeError(
+                    f"{self._path} changed since this view was opened: the footer now "
+                    f"reports {sum(counts)} reactions, the view was opened on "
+                    f"{self._num_reactions}. Re-open the DatasetView."
+                )
+            # Exclusive prefix sum: element i is the absolute position of row group i's
+            # first row. Sizes come from the footer because row groups are not
+            # guaranteed uniform; bisect_right lands past any empty groups, which
+            # share a start position with the group that follows them.
+            self._row_group_starts = list(itertools.accumulate(counts, initial=0))[:-1]
+        row_group = bisect.bisect_right(self._row_group_starts, position) - 1
+        return row_group, position - self._row_group_starts[row_group]
+
+
+class _ReactionStream:
+    """List-like facade over the Reactions in a ``DatasetView``.
+
+    Owns no file state: iteration delegates to the view's ``iter_reactions`` and
+    indexing to the shared ``_RowGroupReader``, so this adds list semantics without a
+    second way to read the file. ``__len__`` and ``__bool__`` come from the footer row
+    count, so emptiness checks (e.g., ``if not dataset.reactions``) behave like a list
+    instead of always being truthy the way a bare generator would be.
+    """
+
+    def __init__(
+        self, view: "DatasetView", reader: _RowGroupReader, num_reactions: int
+    ) -> None:
+        """Wraps a view as a re-iterable, indexable sequence of Reactions.
+
+        Args:
+            view: View owning this stream; supplies the no-argument
+                ``iter_reactions`` that ``__iter__`` delegates to.
+            reader: Shared row-group reader backing positional access.
+            num_reactions: Row count taken from the file footer.
+        """
+        self._view = view
+        self._reader = reader
         self._num_reactions = num_reactions
 
     def __iter__(self) -> Iterator[reaction_pb2.Reaction]:
-        for _, reaction in iter_reactions(self._path):
+        """Opens a fresh read over the backing file.
+
+        Yields:
+            Each Reaction, in file order.
+        """
+        for _, reaction in self._view.iter_reactions():
             yield reaction
 
     def __len__(self) -> int:
+        """Reports the dataset size without reading any column data.
+
+        Returns:
+            The number of Reactions, taken from the file footer.
+        """
         return self._num_reactions
 
     def __bool__(self) -> bool:
+        """Reports emptiness the way a list does, not the way a generator does.
+
+        Returns:
+            Whether the dataset holds any Reactions.
+        """
         return self._num_reactions > 0
+
+    @overload
+    def __getitem__(self, key: int) -> reaction_pb2.Reaction: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> list[reaction_pb2.Reaction]: ...
+
+    def __getitem__(
+        self, key: int | slice
+    ) -> reaction_pb2.Reaction | list[reaction_pb2.Reaction]:
+        """Reads Reactions from the backing file by position.
+
+        A cache miss costs a footer read plus a row-group read, and the most recently
+        read row group is cached, so walking indices in order pays that once per row
+        group rather than once per Reaction. Iterating ``reactions`` is cheaper than
+        indexing every position because it opens the file once; indexing wins when
+        only a few Reactions are needed.
+
+        Args:
+            key: Index of a Reaction, negative counting from the end, or a slice.
+                Slices materialize a list, matching protobuf repeated-field slicing,
+                so a slice spanning the dataset costs as much memory as ``to_proto``.
+
+        Returns:
+            The Reaction at an integer ``key``, or a list of Reactions for a slice.
+
+        Raises:
+            IndexError: If an integer ``key`` is out of range.
+            TypeError: If ``key`` is neither an integer nor a slice.
+        """
+        if isinstance(key, slice):
+            return [
+                self._get(index) for index in range(*key.indices(self._num_reactions))
+            ]
+        return self._get(operator.index(key))
+
+    def _get(self, index: int) -> reaction_pb2.Reaction:
+        """Reads a single Reaction by index.
+
+        Args:
+            index: Reaction index; negative values count from the end.
+
+        Returns:
+            The Reaction at ``index``.
+
+        Raises:
+            IndexError: If ``index`` is out of range.
+        """
+        position = index + self._num_reactions if index < 0 else index
+        if not 0 <= position < self._num_reactions:
+            raise IndexError(
+                f"reaction index {index} out of range for "
+                f"{self._num_reactions} reactions"
+            )
+        return self._reader.reaction_at(position)
 
 
 class DatasetView:
     """A read-only, streaming view of a Parquet-serialized Dataset.
 
-    Quacks like a ``dataset_pb2.Dataset`` for the read-only attributes used
-    during validation: ``name``, ``description``, and ``dataset_id`` come
-    from the Parquet footer; ``reaction_ids`` is always empty (Parquet does
-    not persist it); and ``reactions`` is a re-iterable ``_ReactionStream``
-    that opens a fresh read on each iteration and reports its length from
-    the footer, so emptiness/length checks behave like a list. ``reactions``
-    is exposed as a read-only property so accidental rebinding raises.
+    Quacks like a ``dataset_pb2.Dataset`` for read-only access: ``name``,
+    ``description``, and ``dataset_id`` come from the Parquet footer, and
+    ``reactions`` supports iteration, length, emptiness, and indexing like a
+    list while reading on demand: a fresh read per iteration, length from the
+    footer, one row group per index. ``reactions`` is a read-only property so
+    accidental rebinding raises; the scalars are plain writable attributes,
+    which ``updates.assign_dataset_id`` relies on. The protobuf
+    message methods (``SerializeToString``, ``CopyFrom``) are absent and no
+    write reaches the file; ``to_proto`` materializes a real message.
+
+    Two things differ from a real message and are worth knowing before
+    substituting one for the other. Indexing returns a freshly deserialized
+    Reaction rather than a live sub-message, so ``reactions[0] is
+    reactions[0]`` is False and mutating the result changes nothing; and
+    ``reactions`` does not compare equal to a list, so compare against
+    ``list(view.reactions)`` or ``view.reactions[:]``.
+
+    The backing file must not be replaced while a view is open: the row count
+    is read once at construction, and ``DatasetWriter`` publishes by renaming
+    onto its destination. Reads that can detect the mismatch raise and name
+    the path; iteration reads whatever the path points at.
+
+    ``reaction_ids`` is always empty by design: in the schema it names
+    reactions stored *outside* the Dataset and is mutually exclusive with
+    ``reactions``, so serving it from the ``reaction_id`` column would make
+    every Parquet dataset fail validation. Use ``iter_reaction_ids`` for the
+    IDs of the reactions this dataset does contain, or ``get_reaction`` to
+    look one up.
     """
 
     def __init__(self, path: str | os.PathLike[str]) -> None:
@@ -286,121 +526,208 @@ class DatasetView:
         with pq.ParquetFile(path) as parquet_file:
             scalars = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
             num_rows = parquet_file.metadata.num_rows
+            self._num_row_groups = parquet_file.num_row_groups
         self.name = scalars.name
         self.description = scalars.description
         self.dataset_id = scalars.dataset_id
         self.reaction_ids: list[str] = []
-        self._reactions = _ReactionStream(self._path, num_rows)
+        # Built on the first get_reaction call; reading the whole reaction_id column
+        # is wasted on views that only iterate or index by position.
+        self._positions: dict[str, int] | None = None
+        self._reader = _RowGroupReader(self._path, num_rows)
+        self._reactions = _ReactionStream(self, self._reader, num_rows)
 
     @property
     def path(self) -> str:
-        """Path to the backing Parquet file (read-only)."""
+        """Path to the backing Parquet file."""
         return self._path
+
+    @property
+    def num_row_groups(self) -> int:
+        """Number of row groups, the unit of parallelism for ``iter_reactions``."""
+        return self._num_row_groups
 
     @property
     def reactions(self) -> _ReactionStream:
         """Re-iterable stream of Reactions read from the backing file."""
         return self._reactions
 
+    def iter_reactions(
+        self,
+        reaction_ids: Iterable[str] | None = None,
+        *,
+        row_group: int | None = None,
+    ) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
+        """Streams ``(reaction_id, Reaction)`` pairs from the backing file.
+
+        Iterating ``reactions`` is the same read with the IDs dropped; use this when
+        the ID is wanted alongside the message, or to restrict the read.
+
+        Args:
+            reaction_ids: Optional iterable of reaction IDs to restrict iteration
+                to. IDs not present in the file are silently skipped. Filtering
+                is applied row-wise; row groups are still read in full. Pass
+                ``None`` (the default) to iterate all reactions; an explicitly
+                empty iterable raises ``ValueError`` since it is almost always a
+                bug.
+            row_group: Optional row-group index. When set, only that row group is
+                read; this is the unit of parallelism for callers that fan out
+                across row groups (see ``num_row_groups``).
+
+        Yields:
+            Each ``(reaction_id, Reaction)`` pair, in file order.
+
+        Raises:
+            ValueError: If ``reaction_ids`` is provided but empty.
+            IndexError: If ``row_group`` is out of range.
+        """
+        # Arguments are checked here rather than in the generator below, so a bad
+        # call fails at the call rather than at the first next().
+        if reaction_ids is None:
+            filter_set = None
+        else:
+            filter_set = set(reaction_ids)
+            if not filter_set:
+                raise ValueError(
+                    "reaction_ids must be non-empty when provided; pass None to "
+                    "iterate all"
+                )
+        if row_group is not None and not 0 <= row_group < self._num_row_groups:
+            raise IndexError(
+                f"row_group {row_group} out of range [0, {self._num_row_groups})"
+            )
+        return self._stream_reactions(filter_set, row_group)
+
+    def _stream_reactions(
+        self, filter_set: set[str] | None, row_group: int | None
+    ) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
+        """Streams the file after ``iter_reactions`` has validated its arguments.
+
+        Args:
+            filter_set: Reaction IDs to keep, or None to keep all.
+            row_group: Row group to restrict to, or None to read the whole file.
+
+        Yields:
+            Each ``(reaction_id, Reaction)`` pair, in file order.
+        """
+        if row_group is None:
+            with pq.ParquetFile(self._path) as parquet_file:
+                yield from _iter_reactions(parquet_file, filter_set=filter_set)
+            return
+        yield from _iter_table(self._reader.read(row_group), filter_set=filter_set)
+
+    def iter_reaction_ids(self) -> Iterator[str]:
+        """Streams ``reaction_id`` values without deserializing any Reaction.
+
+        Reads only the ``reaction_id`` column, a row group at a time, so this stays
+        cheap on very large files. Order matches ``iter_reactions``.
+
+        Yields:
+            Each reaction ID, in file order.
+        """
+        with pq.ParquetFile(self._path) as parquet_file:
+            for batch in parquet_file.iter_batches(columns=["reaction_id"]):
+                yield from batch.column("reaction_id").to_pylist()
+
+    def get_reaction(self, reaction_id: str) -> reaction_pb2.Reaction:
+        """Reads a single Reaction by ID.
+
+        The first call reads the ``reaction_id`` column to build an ID-to-position
+        index; later calls are a dict lookup plus one row-group read. Reading the
+        whole column costs far less than deserializing the Reactions, so this beats
+        a scan as soon as more than one lookup is made. Where a reaction ID appears
+        more than once, the first occurrence wins.
+
+        Args:
+            reaction_id: ID of the Reaction to read.
+
+        Returns:
+            A freshly deserialized Reaction.
+
+        Raises:
+            KeyError: If ``reaction_id`` is not present in the file.
+        """
+        if self._positions is None:
+            positions: dict[str, int] = {}
+            for position, candidate in enumerate(self.iter_reaction_ids()):
+                positions.setdefault(candidate, position)
+            self._positions = positions
+        if reaction_id not in self._positions:
+            raise KeyError(reaction_id)
+        return self._reader.reaction_at(self._positions[reaction_id])
+
+    def md5(self) -> str:
+        r"""Returns a content hash, streamed a row group at a time.
+
+        The hash is fed in this order:
+
+        * ``name=<value>\n``, ``description=<value>\n``, ``dataset_id=<value>\n``
+          (omitted when unset). These come from this view, so a scalar assigned
+          through ``updates.assign_dataset_id`` changes the hash before it reaches
+          the file.
+        * For each Reaction in iteration order: the 8-byte big-endian length of
+          the serialized Reaction blob, then the blob bytes. The reaction_id is
+          not hashed separately since it is already inside the blob (field 1 of
+          ``Reaction``); the length prefix disambiguates blob boundaries.
+
+        Different from ``md5(Dataset.SerializeToString(deterministic=True))`` --
+        re-ingesting an existing ``.pb.gz`` dataset as ``.parquet`` will look
+        like a content change once. That is correct: the on-disk bytes really
+        did change, and the hash is only a cheap "did the content change since I
+        last saw it?" indicator. The scheme is decoupled from the Parquet file
+        layout (row group sizes, compression) so the same logical content
+        rewritten with different writer settings still hashes the same.
+
+        Returns:
+            The MD5 hex digest.
+        """
+        hasher = hashlib.md5(usedforsecurity=False)
+        if self.name:
+            hasher.update(f"name={self.name}\n".encode())
+        if self.description:
+            hasher.update(f"description={self.description}\n".encode())
+        if self.dataset_id:
+            hasher.update(f"dataset_id={self.dataset_id}\n".encode())
+        with pq.ParquetFile(self._path) as parquet_file:
+            for batch in parquet_file.iter_batches(columns=["reaction"]):
+                for blob in batch.column("reaction").to_pylist():
+                    hasher.update(len(blob).to_bytes(8, "big"))
+                    hasher.update(blob)
+        return hasher.hexdigest()
+
+    def to_proto(self) -> dataset_pb2.Dataset:
+        """Materializes a real ``Dataset`` message, deserializing every Reaction.
+
+        Escape hatch for the operations a view cannot serve: serialization, JSON
+        conversion, mutation, and helpers that require a protobuf message. Peak
+        memory scales with the whole dataset, so prefer iterating ``reactions``
+        when the message itself is not required.
+
+        Returns:
+            A Dataset whose Reactions are streamed from the backing file and whose
+            scalars are taken from this view, so an assignment such as
+            ``updates.assign_dataset_id`` reaches the message.
+        """
+        dataset = dataset_pb2.Dataset(
+            name=self.name, description=self.description, dataset_id=self.dataset_id
+        )
+        dataset.reactions.extend(self.reactions)
+        return dataset
+
 
 def load_dataset(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
     """Reads a full Dataset from a Parquet file.
 
-    All reactions are deserialized into memory; prefer ``iter_reactions`` or
-    ``load_reaction`` for large datasets.
-    """
-    with pq.ParquetFile(path) as parquet_file:
-        dataset = _dataset_from_metadata(parquet_file.schema_arrow.metadata)
-        for _, reaction in _iter_reactions(parquet_file, filter_set=None):
-            dataset.reactions.append(reaction)
-    return dataset
-
-
-def load_metadata(path: str | os.PathLike[str]) -> dataset_pb2.Dataset:
-    """Reads Dataset scalar fields (``name``, ``description``, ``dataset_id``).
-
-    The values are read from the Parquet footer. No column data is read. The returned
-    ``Dataset`` has no ``reactions`` or ``reaction_ids`` populated.
-    """
-    with pq.ParquetFile(path) as parquet_file:
-        return _dataset_from_metadata(parquet_file.schema_arrow.metadata)
-
-
-@dataclasses.dataclass(frozen=True)
-class ParquetFooter:
-    """Footer info for a Parquet dataset: scalars + row-group/row counts."""
-
-    dataset: dataset_pb2.Dataset
-    num_row_groups: int
-    num_rows: int
-
-
-def load_footer(path: str | os.PathLike[str]) -> ParquetFooter:
-    """Returns scalar Dataset fields and row-group/row counts in one open.
-
-    Equivalent to ``load_metadata`` plus ``num_row_groups`` plus a row count, but reads
-    the footer once. Use when the caller needs more than one of those values.
-    """
-    with pq.ParquetFile(path) as parquet_file:
-        return ParquetFooter(
-            dataset=_dataset_from_metadata(parquet_file.schema_arrow.metadata),
-            num_row_groups=parquet_file.num_row_groups,
-            num_rows=parquet_file.metadata.num_rows,
-        )
-
-
-def iter_reactions(
-    path: str | os.PathLike[str],
-    reaction_ids: Iterable[str] | None = None,
-    *,
-    row_group: int | None = None,
-) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
-    """Yields ``(reaction_id, Reaction)`` pairs from a Parquet dataset.
+    Every Reaction is deserialized into memory. Prefer ``DatasetView``, which reads
+    the same file without materializing it, whenever a real message is not required.
 
     Args:
-        path: Parquet file path.
-        reaction_ids: Optional iterable of reaction IDs to restrict iteration
-            to. IDs not present in the file are silently skipped. Filtering
-            is applied row-wise; row groups are still read in full. Pass
-            ``None`` (the default) to iterate all reactions; an explicitly
-            empty iterable raises ``ValueError`` since it is almost always a
-            bug.
-        row_group: Optional row-group index. When set, only that row group is
-            read; this is the unit of parallelism for callers that fan out
-            across row groups (see ``num_row_groups``). Out-of-range indices
-            raise ``IndexError``.
+        path: Path to the Parquet-serialized Dataset.
+
+    Returns:
+        The Dataset message.
     """
-    if reaction_ids is None:
-        filter_set = None
-    else:
-        filter_set = set(reaction_ids)
-        if not filter_set:
-            raise ValueError(
-                "reaction_ids must be non-empty when provided; pass None to iterate all"
-            )
-    with pq.ParquetFile(path) as parquet_file:
-        if row_group is not None:
-            if not 0 <= row_group < parquet_file.num_row_groups:
-                raise IndexError(
-                    f"row_group {row_group} out of range "
-                    f"[0, {parquet_file.num_row_groups})"
-                )
-            table = parquet_file.read_row_group(
-                row_group, columns=["reaction_id", "reaction"]
-            )
-            yield from _iter_table(table, filter_set=filter_set)
-        else:
-            yield from _iter_reactions(parquet_file, filter_set=filter_set)
-
-
-def num_row_groups(path: str | os.PathLike[str]) -> int:
-    """Returns the number of row groups in a Parquet dataset.
-
-    Used by callers that parallelize over row groups via ``iter_reactions(...,
-    row_group=i)``. Cheap: only reads the file footer.
-    """
-    with pq.ParquetFile(path) as parquet_file:
-        return parquet_file.num_row_groups
+    return DatasetView(path).to_proto()
 
 
 def _iter_reactions(
@@ -408,6 +735,15 @@ def _iter_reactions(
     *,
     filter_set: set[str] | None,
 ) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
+    """Streams an open Parquet file a batch at a time, so memory stays bounded.
+
+    Args:
+        parquet_file: Open Parquet file to read.
+        filter_set: Reaction IDs to keep, or None to keep all.
+
+    Yields:
+        Each ``(reaction_id, Reaction)`` pair, in file order.
+    """
     for batch in parquet_file.iter_batches(columns=["reaction_id", "reaction"]):
         yield from _iter_table(batch, filter_set=filter_set)
 
@@ -417,6 +753,15 @@ def _iter_table(
     *,
     filter_set: set[str] | None,
 ) -> Iterator[tuple[str, reaction_pb2.Reaction]]:
+    """Deserializes the Reactions in one already-read table or batch.
+
+    Args:
+        table: Table or batch holding the ``reaction_id`` and ``reaction`` columns.
+        filter_set: Reaction IDs to keep, or None to keep all.
+
+    Yields:
+        Each ``(reaction_id, Reaction)`` pair, in table order.
+    """
     ids = table.column("reaction_id").to_pylist()
     blobs = table.column("reaction").to_pylist()
     for reaction_id, blob in zip(ids, blobs, strict=True):
@@ -425,84 +770,17 @@ def _iter_table(
         yield reaction_id, reaction_pb2.Reaction.FromString(blob)
 
 
-def streaming_md5(path: str | os.PathLike[str]) -> tuple[str, int]:
-    r"""Returns ``(md5_hexdigest, num_reactions)`` for a Parquet dataset.
-
-    Streams the file row-group at a time so peak memory stays bounded. The
-    hash is fed in this order:
-
-    * ``name=<value>\\n``, ``description=<value>\\n``, ``dataset_id=<value>\\n``
-      (omitted when unset) from the footer scalars.
-    * For each Reaction in iteration order: the 8-byte big-endian length of
-      the serialized Reaction blob, then the blob bytes. The reaction_id is
-      not hashed separately since it is already inside the blob (field 1 of
-      ``Reaction``); the length prefix disambiguates blob boundaries.
-
-    Different from ``md5(Dataset.SerializeToString(deterministic=True))`` —
-    re-ingesting an existing ``.pb.gz`` dataset as ``.parquet`` will look
-    like a content change once. That is correct: the on-disk bytes really
-    did change, and the hash is only a cheap "did the content change since I
-    last saw it?" indicator. The scheme here is decoupled from the Parquet
-    file layout (row group sizes, compression) so the same logical content
-    rewritten with different writer settings still hashes the same.
-    """
-    hasher = hashlib.md5(usedforsecurity=False)
-    metadata = load_metadata(path)
-    if metadata.name:
-        hasher.update(f"name={metadata.name}\n".encode())
-    if metadata.description:
-        hasher.update(f"description={metadata.description}\n".encode())
-    if metadata.dataset_id:
-        hasher.update(f"dataset_id={metadata.dataset_id}\n".encode())
-    num_reactions = 0
-    with pq.ParquetFile(path) as parquet_file:
-        for batch in parquet_file.iter_batches(columns=["reaction"]):
-            for blob in batch.column("reaction").to_pylist():
-                hasher.update(len(blob).to_bytes(8, "big"))
-                hasher.update(blob)
-                num_reactions += 1
-    return hasher.hexdigest(), num_reactions
-
-
-def iter_reaction_ids(path: str | os.PathLike[str]) -> Iterator[str]:
-    """Yields ``reaction_id`` values from a Parquet dataset without decoding Reactions.
-
-    Reads only the ``reaction_id`` column row-group at a time, so this is cheap even for
-    very large files. Iteration order matches ``iter_reactions``.
-    """
-    with pq.ParquetFile(path) as parquet_file:
-        for batch in parquet_file.iter_batches(columns=["reaction_id"]):
-            yield from batch.column("reaction_id").to_pylist()
-
-
-def load_reaction(
-    path: str | os.PathLike[str], reaction_id: str
-) -> reaction_pb2.Reaction:
-    """Reads a single Reaction by ID.
-
-    Passes ``reaction_id`` as a Parquet predicate, which lets row groups be
-    pruned via per-group min/max statistics **when** ``reaction_id`` values
-    are clustered within groups (e.g., sorted). For unsorted writes every
-    row group's range typically covers the query, so this falls back to a
-    full scan of the ``reaction_id``/``reaction`` columns.
-
-    Raises:
-        KeyError: If ``reaction_id`` is not present in the file.
-    """
-    table = pq.read_table(
-        path,
-        columns=["reaction_id", "reaction"],
-        filters=[("reaction_id", "=", reaction_id)],
-    )
-    ids = table.column("reaction_id").to_pylist()
-    blobs = table.column("reaction").to_pylist()
-    for candidate_id, blob in zip(ids, blobs, strict=True):
-        if candidate_id == reaction_id:
-            return reaction_pb2.Reaction.FromString(blob)
-    raise KeyError(reaction_id)
-
-
 def _build_schema(*, name: str, description: str, dataset_id: str | None) -> pa.Schema:
+    """Builds the Arrow schema carrying the Dataset scalars in its footer metadata.
+
+    Args:
+        name: Dataset name.
+        description: Dataset description.
+        dataset_id: Dataset ID, omitted from the footer when None or empty.
+
+    Returns:
+        The column schema with ``ord.*`` key-value metadata attached.
+    """
     metadata = {
         _META_SCHEMA_VERSION: SCHEMA_VERSION,
         _META_NAME: name,
@@ -516,9 +794,25 @@ def _build_schema(*, name: str, description: str, dataset_id: str | None) -> pa.
 def _dataset_from_metadata(
     raw_metadata: dict[bytes, bytes] | None,
 ) -> dataset_pb2.Dataset:
+    """Reads the Dataset scalars out of Parquet footer metadata.
+
+    This is the read-side contract check for the format: an unreadable or
+    unsupported footer fails here rather than surfacing as missing fields later.
+
+    Args:
+        raw_metadata: Footer key-value metadata, or None if the file has none.
+
+    Returns:
+        A Dataset with only ``name``, ``description``, and ``dataset_id`` set.
+
+    Raises:
+        ValueError: If the schema version key is missing or unsupported, or if
+            ``name`` or ``description`` is missing or empty.
+    """
     metadata = raw_metadata or {}
 
     def _get(key: str) -> str | None:
+        """Returns the decoded value for ``key``, or None if absent."""
         value = metadata.get(key.encode())
         return value.decode() if value is not None else None
 

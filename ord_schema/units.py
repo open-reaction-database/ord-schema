@@ -25,8 +25,8 @@ from ord_schema.proto import reaction_pb2
 # there is no public google.protobuf type for “any enum member” in Python.
 ProtoEnumMember: TypeAlias = int
 
-# Accepted synonyms for units. Note that all values will be converted to
-# lowercase.
+# Accepted synonyms for units. Both these entries and the string being resolved are
+# lowercased before matching, so the casing below is decorative.
 _UNIT_SYNONYMS: dict[type[ord_schema.UnitMessage], dict[ProtoEnumMember, list[str]]] = {
     reaction_pb2.Time: {
         reaction_pb2.Time.DAY: ["d", "day", "days"],
@@ -266,16 +266,14 @@ class UnitResolver:
         """Initializes a UnitResolver.
 
         Args:
-            unit_synonyms: A dictionary of dictionaries that defines, for each
-                message type (first key) and for each unit option (second key),
-                a list of strings that defines how that unit can be written.
-                Defaults to None. If None, uses default _UNIT_SYNONYMS dict.
-            forbidden_units: A dictionary where each key is a string that is a
-                plausible way of writing a unit and a value explaining why
-                the UnitResolver cannot resolve that unit. The prototypical
-                case is one of ambiguity (e.g., "m" can mean meter or minute).
-                Defaults to None. If None, uses default _FORBIDDEN_UNITS dict.
-                If no units are forbidden, an empty dictionary should be used.
+            unit_synonyms: Maps message type, then unit enum member, to the
+                strings that spell that unit. Entries are lowercased while the
+                lookup table is built, and two units may not claim the same
+                spelling. Defaults to ``_UNIT_SYNONYMS``.
+            forbidden_units: Maps a plausible spelling to the reason it cannot
+                be resolved; the prototypical case is ambiguity (e.g. "m" can
+                mean meter or minute). Defaults to ``_FORBIDDEN_UNITS``; pass an
+                empty dictionary to forbid nothing.
         """
         if unit_synonyms is None:
             unit_synonyms = _UNIT_SYNONYMS
