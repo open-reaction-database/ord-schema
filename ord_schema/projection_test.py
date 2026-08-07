@@ -267,6 +267,25 @@ def test_reaction_smiles_is_generated_when_the_source_records_none():
     assert ">>" in row["smiles"]
 
 
+def test_a_generated_reaction_smiles_is_complete_or_null():
+    # Generating around the unreadable component would put a SMILES missing a reactant
+    # in the same column as a complete one, with nothing to tell them apart.
+    reaction = _reaction()
+    mystery = reaction.inputs["toluene"].components.add()
+    mystery.identifiers.add(type="NAME", value="mystery reagent")
+    assert projection.reaction_row(reaction)["smiles"] is None
+
+
+def test_a_recorded_reaction_smiles_survives_an_unreadable_component():
+    # Only generation is all-or-nothing; a recorded identifier is returned as recorded.
+    reaction = _reaction()
+    reaction.identifiers.add(type="REACTION_SMILES", value="Cc1ccccc1>>Cc1ccccc1O")
+    reaction.inputs["toluene"].components.add().identifiers.add(
+        type="NAME", value="mystery reagent"
+    )
+    assert projection.reaction_row(reaction)["smiles"] == "Cc1ccccc1>>Cc1ccccc1O"
+
+
 def test_empty_repeated_fields_are_null_rather_than_empty_lists():
     row = projection.reaction_row(reaction_pb2.Reaction(reaction_id="ord-0003"))
     assert row["outcomes"] is None

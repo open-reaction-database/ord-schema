@@ -304,16 +304,21 @@ def _smiles(message: Message) -> str | None:
 
     Returns:
         For a reaction, the recorded reaction SMILES, generated from the components when
-        none is recorded. For a compound, canonical SMILES from the preferred structural
-        identifier, falling back to any other that parses -- a compound recording a
-        malformed identifier ahead of a good one still projects the structure it has.
-        None when nothing readable is recorded.
+        none is recorded. Generation is all-or-nothing: a reaction holding a component
+        no structure can be read from projects null rather than a SMILES silently
+        missing that component, since the two are indistinguishable in the column and
+        only one of them is true. For a compound, canonical SMILES from the preferred
+        structural identifier, falling back to any other that parses -- a compound
+        recording a malformed identifier ahead of a good one still projects the
+        structure it has. None when nothing readable is recorded.
     """
     if cast(Descriptor, message.DESCRIPTOR).name == "Reaction":
         try:
             return (
                 message_helpers.get_reaction_smiles(
-                    cast(reaction_pb2.Reaction, message), generate_if_missing=True
+                    cast(reaction_pb2.Reaction, message),
+                    generate_if_missing=True,
+                    allow_incomplete=False,
                 )
                 or None
             )
