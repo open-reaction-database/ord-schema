@@ -1241,3 +1241,52 @@ def test_reaction_from_smiles_strips_atom_maps_from_agents_too():
     )
     assert ("REAGENT", "SMILES", "CO") in _identifiers(reaction)
     assert all(":" not in value for _, _, value in _identifiers(reaction))
+
+
+def test_molblock_from_compound_regenerates_an_unreadable_recorded_value():
+    # A MOLBLOCK that will not parse is not a MolBlock; the readable SMILES recorded
+    # alongside it describes the compound and can produce one.
+    compound = _compound(molblock="not a molblock", smiles="c1ccccc1")
+    molblock = message_helpers.molblock_from_compound(compound)
+    assert "M  END" in molblock
+    assert Chem.MolToSmiles(Chem.MolFromMolBlock(molblock)) == "c1ccccc1"
+
+
+def test_molblock_from_compound_keeps_a_readable_recorded_value():
+    # Returned as deposited, so the atom coordinates a MolBlock exists to carry survive.
+    compound = _compound(molblock=_BENZENE_MOLBLOCK, smiles="c1ccccc1")
+    assert message_helpers.molblock_from_compound(compound) == _BENZENE_MOLBLOCK
+
+
+def test_molblock_from_compound_raises_without_a_readable_structure():
+    with pytest.raises(ValueError, match="no valid structural identifier"):
+        message_helpers.molblock_from_compound(_compound(name="benzene"))
+
+
+# A carbon with five single bonds: RDKit reads the connection table but refuses to
+# sanitize the valence. ORD carries structures like this (organometallics, charged-N
+# rings), and validation warns about them rather than rejecting them.
+_UNSANITIZABLE_MOLBLOCK = """penta
+  test
+
+  6  5  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.0000    1.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.0000   -1.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.0000    0.0000    1.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+  1  3  1  0  0  0  0
+  1  4  1  0  0  0  0
+  1  5  1  0  0  0  0
+  1  6  1  0  0  0  0
+M  END"""
+
+
+def test_molblock_from_compound_keeps_an_unsanitizable_recorded_value():
+    # The check asks whether the value is a MolBlock, not whether it describes a
+    # sanitizable molecule; regenerating here would discard deposited coordinates.
+    assert Chem.MolFromMolBlock(_UNSANITIZABLE_MOLBLOCK) is None
+    compound = _compound(molblock=_UNSANITIZABLE_MOLBLOCK)
+    assert message_helpers.molblock_from_compound(compound) == _UNSANITIZABLE_MOLBLOCK
