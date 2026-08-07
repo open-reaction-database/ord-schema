@@ -44,43 +44,63 @@ Where the projection has to make a choice, it is documented rather than inferred
 
 * Component SMILES prefer the CXSMILES form the source recorded, falling back to plain
   SMILES and then to any other structural identifier that parses (MOLBLOCK, InChI).
-  CXSMILES is a superset -- RDKit reads either -- so preferring it keeps enhanced
-  stereochemistry and fragment grouping that plain SMILES cannot express, at the cost of
-  an extension block on some values. ``split_cxsmiles_extension`` returns the bare half
-  for a consumer that wants it. Values are canonicalized, which is what makes the column
-  comparable across datasets that spell the same molecule differently; a component with
-  nothing readable is skipped.
+  CXSMILES is a superset -- RDKit reads either -- so preferring it keeps the enhanced
+  stereochemistry that plain SMILES cannot express, at the cost of an extension block on
+  some values; ``split_cxsmiles_extension`` splits the bare SMILES from the block for a
+  consumer that wants them apart. Fragment grouping does not survive canonicalization.
+  Canonical values are what make the column comparable across datasets that spell the
+  same molecule differently.
+* ``input_smiles`` carries every component of every input whatever its reaction role, so
+  unlike ``reaction_smiles`` it lists solvents, reagents, and catalysts. Components with
+  no readable structure are dropped from both list columns, which therefore are not a
+  component census; the count of what was dropped is logged per dataset.
 * ``reaction_smiles`` prefers the recorded ``REACTION_CXSMILES`` or ``REACTION_SMILES``,
   which carries what generation cannot reconstruct -- above all atom mapping. It is
   normalized rather than copied: agents are removed and the result canonicalized, so
   agent placement and atom ordering stop deciding whether two reactions look alike. A
-  reaction recording neither, or one RDKit cannot read, gets a SMILES generated from its
-  components, again without agents and only when every reactant and product is readable.
-  See ``message_helpers.derived_reaction_smiles``.
-* ``input_smiles`` visits inputs in sorted key order, matching reaction SMILES
-  generation, so the column is stable across runs rather than following map iteration
-  order.
-* ``yield_percent`` is the largest YIELD percentage measured on any product of the first
-  outcome. Reactions with several outcomes keep the rest in the source.
+  reaction recording neither, one RDKit cannot read, or one that survives normalization
+  as a half reaction gets a SMILES generated from its components, again without agents
+  and only when every reactant and product is readable. See
+  ``message_helpers.derived_reaction_smiles``.
+* Inputs are visited in sorted key order, so ``input_smiles`` is stable across runs
+  rather than following protobuf map iteration, which is neither sorted nor insertion
+  ordered. That order is the column's own; it does not line up with ``reaction_smiles``,
+  which is deduplicated, sorted by SMILES, and usually read from a recorded identifier
+  that never consulted the components at all.
+* ``yield_percent`` is the largest YIELD percentage on any product of any outcome, and
+  ``reaction_time_seconds`` is the first outcome that records one -- matching the SMILES
+  columns, which also span every outcome. A yield the source records only as
+  ``float_value``, ``amount``, or text reads as null, since using it would assume a
+  scale the source never stated. Values are published as recorded: the corpus holds
+  yields outside [0, 100], so "largest" can surface an outlier.
 * Each measurement column names exactly one source field, since the schema offers
   several plausible readings of each: ``temperature_kelvin`` is the ``conditions``
   *setpoint*, not an achieved value, and ``reaction_time_seconds`` is
-  ``ReactionOutcome.reaction_time`` -- one of six Time-typed fields, alongside addition,
-  workup, observation, and retention times, none of which appear here.
-* Measurements are converted to one canonical unit per column (kelvin, seconds); a
-  measurement in units the schema cannot convert reads as null.
+  ``ReactionOutcome.reaction_time``, not any of the eight other Time-typed fields --
+  addition, workup, observation, and retention times, or the timestamps on individual
+  temperature, pressure, and electrochemistry measurements.
+* Measurements are converted to one canonical unit per column (kelvin, seconds). A
+  measurement whose units the resolver cannot read, including one recorded with no
+  units at all, reads as null: an unlabeled number has nowhere in the column to say
+  what unit it is in.
 
-Every column except ``reaction_id`` is nullable, and null means "the source does not
-say" rather than zero.
+The scalar and string columns are null where the source is silent, never zero. The two
+list columns are empty rather than null, so a reaction whose components have no readable
+structure is not distinguishable from one with no components by that column alone.
 """
 
+import dataclasses
+import math
 import os
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from ord_schema import artifacts, atomic_io, message_helpers, parquet, units
+from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
+
+logger = get_logger(__name__)
 
 ARTIFACT = "view"
 
@@ -104,37 +124,93 @@ SCHEMA = pa.schema(
 )
 
 
-def _outcome_values(
-    reaction: reaction_pb2.Reaction,
-) -> tuple[float | None, float | None]:
-    """Returns the first outcome's yield and reaction time.
+@dataclasses.dataclass
+class _Skipped:
+    """Counts of source values a view drops, logged once per dataset.
 
-    Reactions with several outcomes keep the rest in the source.
+    A view says nothing about what it could not read, so a column of nulls looks the
+    same whether the corpus is silent or the reader broke. These make the difference
+    visible without putting it in a column.
     """
-    if not reaction.outcomes:
-        return None, None
-    outcome = reaction.outcomes[0]
-    reaction_time_seconds = units.canonical_value(outcome.reaction_time, "s")
+
+    components: int = 0
+    unyielding: int = 0
+    non_finite: int = 0
+
+    def __bool__(self) -> bool:
+        return bool(self.components or self.unyielding or self.non_finite)
+
+    def __str__(self) -> str:
+        return (
+            f"{self.components} components with no readable structure, "
+            f"{self.unyielding} yields not recorded as a percentage, "
+            f"{self.non_finite} non-finite yields"
+        )
+
+
+def _outcome_values(
+    reaction: reaction_pb2.Reaction, skipped: _Skipped
+) -> tuple[float | None, float | None]:
+    """Returns the largest yield over all outcomes, and the first reaction time.
+
+    Every outcome is read, matching ``output_smiles``: a yield recorded on a later
+    outcome is a yield the source states, and reporting null for it would say the
+    source is silent when it is not.
+
+    Args:
+        reaction: Reaction to read.
+        skipped: Tallies to add to for values that cannot be used.
+
+    Returns:
+        ``(yield_percent, reaction_time_seconds)``, either of which is None where no
+        outcome records a usable value.
+    """
     best_yield = None
-    for product in outcome.products:
-        for measurement in product.measurements:
-            if (
-                measurement.type != reaction_pb2.ProductMeasurement.YIELD
-                or not measurement.HasField("percentage")
-                or not measurement.percentage.HasField("value")
-            ):
-                continue
-            value = measurement.percentage.value
-            if best_yield is None or value > best_yield:
-                best_yield = value
+    reaction_time_seconds = None
+    for outcome in reaction.outcomes:
+        if reaction_time_seconds is None:
+            reaction_time_seconds = units.canonical_value(outcome.reaction_time, "s")
+        for product in outcome.products:
+            for measurement in product.measurements:
+                if measurement.type != reaction_pb2.ProductMeasurement.YIELD:
+                    continue
+                if not measurement.HasField("percentage"):
+                    # A yield recorded as float_value, amount, or text. Reading it
+                    # would require assuming a scale the source did not state.
+                    skipped.unyielding += 1
+                    continue
+                if not measurement.percentage.HasField("value"):
+                    # An unset value reads as 0.0 through protobuf, and a fabricated
+                    # zero yield is worse than a null.
+                    continue
+                value = measurement.percentage.value
+                if not math.isfinite(value):
+                    # NaN compares False against everything, so leaving it in would
+                    # make the result depend on the order measurements were recorded.
+                    skipped.non_finite += 1
+                    continue
+                if best_yield is None or value > best_yield:
+                    best_yield = value
     return best_yield, reaction_time_seconds
 
 
-def _component_smiles(reaction: reaction_pb2.Reaction) -> tuple[list[str], list[str]]:
+def _component_smiles(
+    reaction: reaction_pb2.Reaction, skipped: _Skipped
+) -> tuple[list[str], list[str]]:
     """Returns ``(input_smiles, output_smiles)``, skipping components without structure.
 
-    Inputs are visited in sorted key order so the column does not depend on map
-    iteration order; this matches how reaction SMILES are generated.
+    Inputs are visited in sorted key order, so the column is stable across runs rather
+    than following protobuf map iteration, which is neither sorted nor insertion
+    ordered.
+
+    Args:
+        reaction: Reaction to read.
+        skipped: Tallies to add to for components with no readable structure.
+
+    Returns:
+        Canonical SMILES for every input component and every outcome product that has a
+        readable structure. A component without one is dropped, so the lists are not a
+        component census.
     """
     inputs = []
     for key in sorted(reaction.inputs):
@@ -142,29 +218,59 @@ def _component_smiles(reaction: reaction_pb2.Reaction) -> tuple[list[str], list[
             smiles = message_helpers.preferred_compound_smiles(compound)
             if smiles:
                 inputs.append(smiles)
+            else:
+                skipped.components += 1
     outputs = []
     for outcome in reaction.outcomes:
         for product in outcome.products:
             smiles = message_helpers.preferred_compound_smiles(product)
             if smiles:
                 outputs.append(smiles)
+            else:
+                skipped.components += 1
     return inputs, outputs
 
 
-def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
+def reaction_row(
+    reaction: reaction_pb2.Reaction,
+    reaction_id: str | None = None,
+    skipped: _Skipped | None = None,
+) -> dict:
     """Projects one Reaction onto the view columns.
 
     Args:
-        reaction_id: Reaction ID, used as the join key back to the source.
         reaction: Reaction message to project.
+        reaction_id: The source's ``reaction_id`` column value, checked against the
+            message rather than trusted. ``DatasetView.md5`` hashes the Reaction blobs
+            and not that column, so an ID taken from it would be a published value
+            outside the staleness hash. Defaults to the message's own ID.
+        skipped: Tallies to add to for values this row drops. A caller deriving one row
+            outside ``write_view`` can leave it unset.
 
     Returns:
         A dict keyed by ``SCHEMA.names``, with None wherever the source is silent.
+
+    Raises:
+        ValueError: If ``reaction_id`` is empty or disagrees with the message, either of
+            which means the source cannot be joined on its own key.
     """
-    yield_percent, reaction_time_seconds = _outcome_values(reaction)
-    inputs, outputs = _component_smiles(reaction)
+    if reaction_id is not None:
+        if not reaction_id:
+            raise ValueError(
+                f"reaction_id column is {reaction_id!r}; the reaction records "
+                f"{reaction.reaction_id!r}"
+            )
+        if reaction_id != reaction.reaction_id:
+            raise ValueError(
+                f"reaction_id column {reaction_id!r} disagrees with the reaction's own "
+                f"{reaction.reaction_id!r}"
+            )
+    if skipped is None:
+        skipped = _Skipped()
+    yield_percent, reaction_time_seconds = _outcome_values(reaction, skipped)
+    inputs, outputs = _component_smiles(reaction, skipped)
     return {
-        "reaction_id": reaction_id,
+        "reaction_id": reaction.reaction_id,
         "reaction_smiles": message_helpers.derived_reaction_smiles(reaction),
         "input_smiles": inputs,
         "output_smiles": outputs,
@@ -179,7 +285,12 @@ def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
 
 
 def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
-    """Returns whether ``path`` is a view of ``source_md5`` by this library."""
+    """Returns whether ``path`` is a view of ``source_md5`` at these versions.
+
+    Delegates to ``artifacts.is_current``, which requires the artifact name, the source
+    content, the library version, and the artifact version to all match. A missing or
+    unreadable file is not current.
+    """
     return artifacts.is_current(path, ARTIFACT, source_md5)
 
 
@@ -214,18 +325,33 @@ def write_view(
     stamps = artifacts.current_stamps(ARTIFACT, source.dataset_id or None, source_md5)
     schema = SCHEMA.with_metadata(artifacts.to_metadata(stamps))
     rows = 0
+    skipped = _Skipped()
     with (
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
     ):
         for row_group in range(source.num_row_groups):
+            # Seeded from SCHEMA.names so an unexpected key raises here rather than
+            # being dropped silently, which from_pylist would do.
             batch: dict[str, list] = {name: [] for name in SCHEMA.names}
             for reaction_id, reaction in source.iter_reactions(row_group=row_group):
-                for name, value in reaction_row(reaction_id, reaction).items():
+                try:
+                    row = reaction_row(reaction, reaction_id, skipped)
+                except Exception as error:
+                    # A corpus run has thousands of datasets and millions of reactions;
+                    # neither is in the traceback without this.
+                    raise ValueError(
+                        f"{source.path}: {reaction_id}: {error}"
+                    ) from error
+                for name, value in row.items():
                     batch[name].append(value)
                 rows += 1
             writer.write_table(
                 pa.Table.from_pydict(batch, schema=schema),
                 row_group_size=row_group_size,
             )
+    if skipped:
+        # Per dataset rather than per row: a count is diffable between runs, so a
+        # regression in structure reading shows up instead of hiding in the nulls.
+        logger.info("%s: %s", source.path, skipped)
     return rows

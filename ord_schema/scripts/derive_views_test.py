@@ -14,7 +14,7 @@
 
 """Tests for ord_schema.scripts.derive_views.
 
-Projection behavior is covered in ord_schema.views_test; these cover the CLI: path
+View behavior is covered in ord_schema.views_test; these cover the CLI: path
 mapping, the skip-if-current shortcut, and --force.
 """
 
@@ -115,6 +115,22 @@ def test_main_rederives_when_the_source_changes(tmp_path):
         "ord-0001",
         "ord-0002",
     ]
+
+
+def test_main_raises_when_every_match_is_already_a_view(tmp_path):
+    # Aiming --input_pattern at the output tree would otherwise exit 0 having written
+    # nothing, and a downstream step would proceed as though the views were built.
+    _corpus(tmp_path, shards=("aa",))
+    _run(tmp_path)
+    with pytest.raises(ValueError, match="no sources derived"):
+        derive_views.main(
+            derive_views.parse_args(
+                [
+                    f"--input_pattern={tmp_path}/views/*/*.parquet",
+                    f"--output_dir={tmp_path}/again",
+                ]
+            )
+        )
 
 
 def test_main_raises_when_nothing_matches(tmp_path):

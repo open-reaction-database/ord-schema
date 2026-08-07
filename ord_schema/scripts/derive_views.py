@@ -24,10 +24,12 @@ wildcard::
     data/aa/ord_dataset-<id>.parquet  ->  views/aa/ord_dataset-<id>.parquet
 
 Views whose footer already records the current source content, library version, and
-artifact version are skipped, so re-running is cheap; ``--force`` rewrites them anyway.
+artifact version are skipped, so re-running is cheap; --force rewrites them anyway.
+
 A match that is itself a derived artifact is ignored rather than derived from, so
-``--output_dir`` may sit inside a recursive pattern's reach; an ``--output_dir`` that
-would write over any source dataset is an error, as is a run that derives nothing.
+--output_dir may sit inside a recursive pattern's reach. These are errors: an
+--output_dir that would write over any source dataset, a match that cannot be read as
+Parquet at all, and a run that derives nothing.
 """
 
 import argparse
@@ -38,7 +40,9 @@ from ord_schema.logging import silence_rdkit_logs
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parses command-line arguments."""
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument(
         "--input_pattern", required=True, help="Input pattern for Parquet datasets"
     )
@@ -55,6 +59,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(args: argparse.Namespace) -> None:
     """Derives a view for every dataset matching the input pattern.
+
+    Args:
+        args: Parsed command-line arguments.
 
     Raises:
         ValueError: If the pattern matched only derived artifacts, which means it was
