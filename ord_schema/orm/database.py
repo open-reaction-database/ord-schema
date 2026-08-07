@@ -720,24 +720,18 @@ def update_derived_tables(
         batch_ids = reaction_ids[batch_start : batch_start + _DERIVED_BATCH]
         inserts = []
         for reaction_id, proto in session.execute(select_protos, {"ids": batch_ids}):
-            try:
-                reaction_smiles = message_helpers.get_reaction_smiles(
-                    reaction_pb2.Reaction.FromString(proto),
-                    generate_if_missing=True,
-                    allow_incomplete=False,
-                )
-            except ValueError as error:
-                logger.debug(
-                    f"No reaction SMILES for reaction id={reaction_id}: {error}"
-                )
+            reaction_smiles = message_helpers.derived_reaction_smiles(
+                reaction_pb2.Reaction.FromString(proto)
+            )
+            if reaction_smiles is None:
+                logger.debug(f"No reaction SMILES for reaction id={reaction_id}")
                 continue
-            tokens = (
-                reaction_smiles.split() if reaction_smiles else []
-            )  # Handle CXSMILES.
-            if tokens:
-                inserts.append(
-                    {"reaction_id": reaction_id, "reaction_smiles": tokens[0]}
-                )
+            # rdkit.reactions is keyed by this string and reaction_from_smiles cannot
+            # read a CXSMILES extension, so the block comes off. Splitting on the block
+            # keeps SMILES ending in a non-breaking space intact, which splitting on
+            # whitespace does not.
+            smiles, _ = message_helpers.split_cxsmiles_extension(reaction_smiles)
+            inserts.append({"reaction_id": reaction_id, "reaction_smiles": smiles})
         if inserts:
             session.execute(insert_reaction_smiles, inserts)
     _update_compound_smiles(
