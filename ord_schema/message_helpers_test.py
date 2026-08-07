@@ -20,6 +20,7 @@ import pandas as pd
 import pytest
 from google.protobuf import json_format, text_format
 from rdkit import Chem
+from rdkit.Chem import rdChemReactions
 
 from ord_schema import message_helpers
 from ord_schema.proto import reaction_pb2, test_pb2
@@ -167,10 +168,9 @@ class TestMessageHelpers:
         reactant1.components.add(reaction_role="WORKUP").identifiers.add(
             value="O", type="SMILES"
         )
-        assert (
+        # A reaction with no products is an error to RDKit, not merely incomplete.
+        with pytest.raises(ValueError, match="contains errors"):
             message_helpers.get_reaction_smiles(reaction, generate_if_missing=True)
-            == "c1ccccc1>N>"
-        )
         reactant2 = reaction.inputs["reactant2"]
         reactant2.components.add(reaction_role="REACTANT").identifiers.add(
             value="Cc1ccccc1", type="SMILES"
@@ -932,3 +932,230 @@ def test_identifier_parses_unsanitized_separates_the_two_failure_modes():
     )
     assert message_helpers.identifier_parses_unsanitized(smiles, unsanitizable)
     assert not message_helpers.identifier_parses_unsanitized(smiles, "not a molecule")
+
+
+def _compound(**identifiers) -> reaction_pb2.Compound:
+    compound = reaction_pb2.Compound()
+    for identifier_type, value in identifiers.items():
+        compound.identifiers.add(type=identifier_type.upper(), value=value)
+    return compound
+
+
+def test_preferred_compound_smiles_prefers_cxsmiles():
+    # CXSMILES is a superset, so the richer identifier wins whatever order they appear.
+    compound = _compound(smiles="C[C@H](N)O", cxsmiles="C[C@H](N)O |o1:1|")
+    assert message_helpers.preferred_compound_smiles(compound) == "C[C@H](N)O |o1:1|"
+
+
+def test_preferred_compound_smiles_falls_back_to_other_structural_types():
+    compound = _compound(inchi="InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H")
+    assert message_helpers.preferred_compound_smiles(compound) == "c1ccccc1"
+
+
+def test_preferred_compound_smiles_looks_past_a_malformed_identifier():
+    # smiles_from_compound stops at the first structural identifier, so without the
+    # fallback a good value recorded behind a bad one is never reached.
+    compound = _compound(
+        smiles="not a smiles", inchi="InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H"
+    )
+    assert message_helpers.preferred_compound_smiles(compound) == "c1ccccc1"
+
+
+def test_preferred_compound_smiles_is_none_without_a_readable_structure():
+    assert message_helpers.preferred_compound_smiles(_compound(name="benzene")) is None
+
+
+def test_reaction_smiles_without_agents_drops_the_middle_block():
+    value = message_helpers.reaction_smiles_without_agents("CC.CCO>CO.[Pd]>CCC")
+    assert value is not None
+    assert value.count(">") == 2
+    assert "[Pd]" not in value
+
+
+def test_reaction_smiles_without_agents_keeps_atom_mapping():
+    value = message_helpers.reaction_smiles_without_agents(
+        "[CH3:1][OH:2].[C:3](=O)O>CCO.[Na+]>[CH3:1][O:2][C:3]=O"
+    )
+    assert value is not None
+    for atom_map in (":1]", ":2]", ":3]"):
+        assert atom_map in value
+    assert "[Na+]" not in value
+
+
+def _stereo_groups(reaction_smiles: str):
+    """Returns (degree, chiral tag) for every atom RDKit reads in a stereo group."""
+    reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles, useSmiles=True)
+    return [
+        (atom.GetDegree(), atom.GetChiralTag().name)
+        for mols in (reaction.GetReactants(), reaction.GetProducts())
+        for mol in mols
+        for group in mol.GetStereoGroups()
+        for atom in group.GetAtoms()
+    ]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "C[C@H](N)O.CCO>CO>C[C@H](N)OCC |o1:1|",
+        "CCO.C[C@H](N)O>CO>C[C@H](N)OCC |o1:4|",
+    ],
+)
+def test_reaction_smiles_without_agents_reindexes_enhanced_stereochemistry(value):
+    # Asserting the block is present is not enough: RDKit numbers the extension against
+    # the order templates were added and then writes them sorted, so removing agents in
+    # place left |o1:1| marking whichever atom landed at that index -- an achiral CH2 in
+    # the first case. Compare the atoms RDKit actually reads back.
+    without_agents = message_helpers.reaction_smiles_without_agents(value)
+    assert without_agents is not None
+    assert "|o1:" in without_agents
+    assert _stereo_groups(without_agents) == _stereo_groups(value)
+    assert _stereo_groups(value) == [(3, "CHI_TETRAHEDRAL_CCW")]
+
+
+@pytest.mark.parametrize("value", [">>", "CCO>>", ">CO.[Pd]>", ">>CCC"])
+def test_reaction_smiles_without_agents_rejects_a_half_reaction(value):
+    # A recorded value listing only agents collapses to ">>", and a half reaction is not
+    # a restatement of anything; both must fall through to generation rather than be
+    # published as a truthy string.
+    assert message_helpers.reaction_smiles_without_agents(value) is None
+
+
+def test_reaction_smiles_without_agents_survives_a_malformed_extension():
+    # RDKit raises RuntimeError here, not ValueError; catching only ValueError let this
+    # escape and kill a corpus-wide run naming neither the reaction nor the string.
+    assert message_helpers.reaction_smiles_without_agents("C>>C |bogus|") is None
+
+
+@pytest.mark.parametrize("value", ["not a reaction", "CCO", "C[Xx]C>CO>CCC"])
+def test_reaction_smiles_without_agents_is_none_when_unreadable(value):
+    assert message_helpers.reaction_smiles_without_agents(value) is None
+
+
+def _reaction_with_components() -> reaction_pb2.Reaction:
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
+    reaction.inputs["a"].components.append(_compound(smiles="c1ccccc1"))
+    reaction.outcomes.add().products.add().identifiers.add(
+        type="SMILES", value="Cc1ccccc1"
+    )
+    return reaction
+
+
+def test_generate_reaction_smiles_can_exclude_agents():
+    reaction = _reaction_with_components()
+    catalyst = reaction.inputs["cat"].components.add(reaction_role="CATALYST")
+    catalyst.identifiers.add(type="SMILES", value="[Pd]")
+    assert "[Pd]" in message_helpers.generate_reaction_smiles(reaction)
+    assert "[Pd]" not in message_helpers.generate_reaction_smiles(
+        reaction, include_agents=False
+    )
+
+
+def test_generate_reaction_smiles_ignores_an_unreadable_agent_it_will_not_emit():
+    # A component the result would not carry is never parsed, so it cannot fail the
+    # reaction; this is what keeps a NAME-only ligand from nulling the column.
+    reaction = _reaction_with_components()
+    ligand = reaction.inputs["cat"].components.add(reaction_role="CATALYST")
+    ligand.identifiers.add(type="NAME", value="ItBu")
+    assert message_helpers.generate_reaction_smiles(
+        reaction, allow_incomplete=False, include_agents=False
+    )
+    with pytest.raises(ValueError, match="no valid structural identifier"):
+        message_helpers.generate_reaction_smiles(
+            reaction, allow_incomplete=False, include_agents=True
+        )
+
+
+def test_strip_extension_applies_to_a_generated_reaction_too():
+    # Generation emits CXSMILES, so a caller asking for plain SMILES has to get it
+    # whether the value was recorded or built here.
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
+    reaction.inputs["a"].components.append(_compound(cxsmiles="C[C@H](N)O |o1:1|"))
+    reaction.outcomes.add().products.add().identifiers.add(
+        type="SMILES", value="C[C@H](N)OC"
+    )
+    generated = message_helpers.get_reaction_smiles(reaction, generate_if_missing=True)
+    stripped = message_helpers.get_reaction_smiles(
+        reaction, generate_if_missing=True, strip_extension=True
+    )
+    assert generated is not None
+    assert stripped is not None
+    assert "|" in generated
+    assert "|" not in stripped
+
+
+def test_generate_reaction_smiles_keeps_enhanced_stereochemistry():
+    # Component CXSMILES blocks cannot be joined into a reaction string; the reaction is
+    # assembled from parsed components so RDKit emits one block with correct indices.
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
+    reaction.inputs["a"].components.append(_compound(cxsmiles="C[C@H](N)O |o1:1|"))
+    reaction.outcomes.add().products.add().identifiers.add(
+        type="SMILES", value="C[C@H](N)OC"
+    )
+    assert "|o1:" in message_helpers.generate_reaction_smiles(reaction)
+
+
+def test_derived_reaction_smiles_normalizes_a_recorded_identifier():
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
+    reaction.identifiers.add(
+        type="REACTION_SMILES", value="[CH3:1][OH:2].[C:3](=O)O>CCO>[CH3:1][O:2][C:3]=O"
+    )
+    value = message_helpers.derived_reaction_smiles(reaction)
+    assert value is not None
+    assert ":1]" in value  # Mapping survives, which is why the recorded value is kept.
+    assert value.count(">") == 2  # Agents do not.
+
+
+def test_derived_reaction_smiles_generates_when_nothing_is_recorded():
+    assert (
+        message_helpers.derived_reaction_smiles(_reaction_with_components())
+        == "c1ccccc1>>Cc1ccccc1"
+    )
+
+
+@pytest.mark.parametrize("recorded", ["not a reaction", ">>", "CCO>>", "C>>C |bogus|"])
+def test_derived_reaction_smiles_generates_when_the_recorded_value_is_unusable(
+    recorded,
+):
+    reaction = _reaction_with_components()
+    reaction.identifiers.add(type="REACTION_SMILES", value=recorded)
+    assert message_helpers.derived_reaction_smiles(reaction) == "c1ccccc1>>Cc1ccccc1"
+
+
+def test_derived_reaction_smiles_prefers_cxsmiles_among_recorded_identifiers():
+    # The reaction-level twin of the compound-level preference, recorded SMILES first so
+    # this pins the order rather than the iteration.
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
+    reaction.identifiers.add(type="REACTION_SMILES", value="C[C@H](N)O>>C[C@H](N)OC")
+    reaction.identifiers.add(
+        type="REACTION_CXSMILES", value="C[C@H](N)O>>C[C@H](N)OC |o1:1|"
+    )
+    preferred = message_helpers.derived_reaction_smiles(reaction)
+    assert preferred is not None
+    assert "|o1:" in preferred
+
+
+def test_generate_reaction_smiles_rejects_an_unparseable_component(monkeypatch):
+    # RDKit accepts a null template and then dies with SIGSEGV when writing it, which no
+    # caller can catch, so this has to surface as the ValueError callers already handle.
+    # Only a MolToSmiles/MolFromSmiles round-trip failure reaches it -- rare enough that
+    # it needs simulating, bad enough that the guard has to be there. Failing the second
+    # parse of each string leaves smiles_from_compound working and breaks the assembly.
+    real = message_helpers.Chem.MolFromSmiles
+    seen: set[str] = set()
+
+    def _once(smiles, *args, **kwargs):
+        if smiles in seen:
+            return None
+        seen.add(smiles)
+        return real(smiles, *args, **kwargs)
+
+    monkeypatch.setattr(message_helpers.Chem, "MolFromSmiles", _once)
+    with pytest.raises(ValueError, match="cannot parse component SMILES"):
+        message_helpers.generate_reaction_smiles(_reaction_with_components())
+
+
+def test_derived_reaction_smiles_is_none_when_a_reactant_cannot_be_read():
+    reaction = _reaction_with_components()
+    reaction.inputs["b"].components.append(_compound(name="mystery reactant"))
+    assert message_helpers.derived_reaction_smiles(reaction) is None

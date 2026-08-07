@@ -374,6 +374,134 @@ def smiles_from_compound(
     return smiles
 
 
+def preferred_compound_smiles(
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
+) -> str | None:
+    """Returns canonical SMILES for a compound, preferring its CXSMILES form.
+
+    CXSMILES is a superset of SMILES and RDKit reads either, so preferring it keeps
+    enhanced stereochemistry: a plain SMILES would assert one configuration where the
+    source recorded a group. Where neither parses, any other structural identifier that
+    does is used, so one malformed value does not hide a good one behind it.
+
+    The Parquet view and projection both go through this, so a compound reads the same
+    in either.
+
+    Args:
+        compound: Compound or ProductCompound message.
+
+    Returns:
+        Canonical SMILES, or None if the compound records no structure any loader can
+        read.
+    """
+    for identifier_type in (
+        reaction_pb2.CompoundIdentifier.CXSMILES,
+        reaction_pb2.CompoundIdentifier.SMILES,
+    ):
+        for identifier in compound.identifiers:
+            if identifier.type != identifier_type or not identifier.value:
+                continue
+            canonical = canonical_smiles_for_identifier(
+                identifier.type, identifier.value
+            )
+            if canonical:
+                return canonical
+    for identifier in compound.identifiers:
+        canonical = canonical_smiles_for_identifier(identifier.type, identifier.value)
+        if canonical:
+            return canonical
+    return None
+
+
+def reaction_smiles_without_agents(reaction_smiles: str) -> str | None:
+    """Returns a reaction SMILES with its agent block removed, or None if unreadable.
+
+    Splitting the string on ``>`` would corrupt a CXSMILES extension, which indexes
+    atoms positionally: every index in the block would point at the wrong atom once the
+    agents are gone. Rebuilding through RDKit recomputes them.
+
+    The surviving templates are added in canonical order because RDKit numbers the block
+    against the order they were added and then writes them sorted; adding them in any
+    other order leaves a stereo group marking whichever atom lands at that index.
+
+    Atom mapping survives, being part of the atoms themselves, and so does enhanced
+    stereochemistry. Fragment grouping does not, and canonical atom ordering replaces
+    whatever the source used.
+
+    Args:
+        reaction_smiles: A reaction SMILES or CXSMILES, with or without agents.
+
+    Returns:
+        Canonical ``reactants>>products`` CXSMILES. None if RDKit cannot read the input,
+        reports errors in it, or it has no reactant or no product once agents are gone:
+        a half reaction is not a restatement of the reaction the source recorded.
+    """
+    try:
+        reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles, useSmiles=True)
+        if reaction is None:
+            return None
+        without_agents = rdChemReactions.ChemicalReaction()
+        for mol in sorted(reaction.GetReactants(), key=Chem.MolToSmiles):
+            without_agents.AddReactantTemplate(mol)
+        for mol in sorted(reaction.GetProducts(), key=Chem.MolToSmiles):
+            without_agents.AddProductTemplate(mol)
+        if not without_agents.GetNumReactantTemplates():
+            return None
+        if not without_agents.GetNumProductTemplates():
+            return None
+        # Recorded values are held to the same bar as generated ones; being deposited
+        # is not evidence of being well formed.
+        _validate_reaction(without_agents)
+        return rdChemReactions.ReactionToCXSmiles(without_agents) or None
+    except (ValueError, RuntimeError):
+        # RDKit raises RuntimeError, not ValueError, for a malformed extension block.
+        return None
+
+
+def derived_reaction_smiles(reaction: reaction_pb2.Reaction) -> str | None:
+    """Returns the reaction SMILES that derived artifacts store, or None.
+
+    A recorded ``REACTION_CXSMILES`` or ``REACTION_SMILES`` wins over generating one,
+    because it carries atom mapping, which generation cannot reconstruct. It is
+    normalized, not copied: agents removed and the result canonicalized, so agent
+    placement and atom ordering stop deciding whether two reactions look alike. A
+    recorded value RDKit cannot read, or that survives as a half reaction, falls through
+    to generation.
+
+    Either way the result carries no agents. An empty agent block is idiomatic, and
+    excluding agents keeps a reagent, solvent, or catalyst recorded only by name --
+    routine for ligands -- from deciding whether the reaction gets a SMILES at all.
+    Generation is otherwise strict: every reactant and product must be readable, since a
+    SMILES silently missing one describes a different reaction and nothing marks it.
+
+    Args:
+        reaction: Reaction message.
+
+    Returns:
+        Canonical ``reactants>>products`` SMILES, or None if nothing recorded can be
+        read and nothing complete can be generated.
+    """
+    for identifier_type in (
+        reaction_pb2.ReactionIdentifier.REACTION_CXSMILES,
+        reaction_pb2.ReactionIdentifier.REACTION_SMILES,
+    ):
+        for identifier in reaction.identifiers:
+            if identifier.type != identifier_type or not identifier.value:
+                continue
+            without_agents = reaction_smiles_without_agents(identifier.value)
+            if without_agents is not None:
+                return without_agents
+    try:
+        return (
+            generate_reaction_smiles(
+                reaction, allow_incomplete=False, include_agents=False
+            )
+            or None
+        )
+    except ValueError:
+        return None
+
+
 def molblock_from_compound(
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
 ) -> str:
@@ -500,8 +628,6 @@ def get_reaction_smiles(
     generate_if_missing: bool = False,
     allow_incomplete: bool = True,
     allow_unspecified_roles: bool = True,
-    validate: bool = False,
-    canonical: bool = True,
     strip_extension: bool = False,
 ) -> str | None:
     """Fetches or generates a reaction SMILES.
@@ -521,11 +647,9 @@ def get_reaction_smiles(
         allow_unspecified_roles: If True, reactants and products with the
             UNSPECIFIED reaction role will be included when generating a reaction
             SMILES.
-        validate: Boolean whether to validate the reaction SMILES with rdkit.
-            Only used if allow_incomplete is False.
-        canonical: Boolean whether to return a canonicalized reaction SMILES.
         strip_extension: If True, drop a CXSMILES extension block from the result so it
-            is plain SMILES. Generated SMILES never carry one.
+            is plain SMILES. Applies to a generated reaction as much as a recorded one,
+            since a component's enhanced stereochemistry carries into what is generated.
 
     Returns:
         Text reaction SMILES, or None.
@@ -544,61 +668,137 @@ def get_reaction_smiles(
             return identifier.value
     if not generate_if_missing:
         return None
+    generated = generate_reaction_smiles(
+        message,
+        allow_incomplete=allow_incomplete,
+        allow_unspecified_roles=allow_unspecified_roles,
+    )
+    if strip_extension:
+        return split_cxsmiles_extension(generated)[0]
+    return generated
 
+
+def generate_reaction_smiles(
+    message: reaction_pb2.Reaction,
+    *,
+    allow_incomplete: bool = True,
+    allow_unspecified_roles: bool = True,
+    include_agents: bool = True,
+) -> str:
+    """Builds a reaction SMILES from a Reaction's components, ignoring its identifiers.
+
+    Args:
+        message: reaction_pb2.Reaction message.
+        allow_incomplete: Whether to omit components with no readable structure rather
+            than raising. Only components the result would carry are considered, so an
+            unreadable agent is irrelevant when ``include_agents`` is False. Tolerates
+            missing components but not a missing half: RDKit calls a reaction with no
+            reactants or no products an error however it got that way.
+        allow_unspecified_roles: If True, components with the UNSPECIFIED reaction role
+            are treated as reactants and products.
+        include_agents: Whether to emit the middle ``>agents>`` block. Reagents,
+            solvents, and catalysts are dropped when False, which leaves the SMILES
+            describing the transformation alone.
+
+    Returns:
+        Canonical reaction CXSMILES, so enhanced stereochemistry recorded on a component
+        survives into the reaction.
+
+    Raises:
+        ValueError: If a component the result would carry has no readable structure and
+            ``allow_incomplete`` is False, if there is no reactant or no product, or if
+            RDKit reports errors in the assembled reaction.
+    """
     reactants, agents, products = set(), set(), set()
     roles = reaction_pb2.ReactionRole
+    agent_roles = [roles.REAGENT, roles.SOLVENT, roles.CATALYST]
     reactant_roles = [roles.REACTANT]
     product_roles = [roles.PRODUCT]
     if allow_unspecified_roles:
         reactant_roles.append(roles.UNSPECIFIED)
         product_roles.append(roles.UNSPECIFIED)
+
+    def _add(
+        compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
+        target: set[str] | None,
+    ) -> None:
+        """Adds a compound's SMILES to ``target``, or skips it if nothing holds it."""
+        # Checked before parsing, so a component the result would not carry cannot fail
+        # the whole reaction: a NAME-only ligand is silent when agents are excluded.
+        if target is None:
+            return
+        try:
+            smiles = smiles_from_compound(compound)
+        except ValueError:
+            if allow_incomplete:
+                return
+            raise
+        if smiles:
+            target.add(smiles)
+
     for key in sorted(message.inputs):
         for compound in message.inputs[key].components:
-            try:
-                smiles = smiles_from_compound(compound)
-            except ValueError:
-                if allow_incomplete:
-                    continue
-                raise
-            if compound.reaction_role in [roles.REAGENT, roles.SOLVENT, roles.CATALYST]:
-                agents.add(smiles)
+            if compound.reaction_role in agent_roles:
+                _add(compound, agents if include_agents else None)
             elif compound.reaction_role in reactant_roles:
-                reactants.add(smiles)
-
+                _add(compound, reactants)
     for outcome in message.outcomes:
         for product in outcome.products:
-            try:
-                smiles = smiles_from_compound(product)
-            except ValueError:
-                if allow_incomplete:
-                    continue
-                raise
-            if product.reaction_role in product_roles:
-                products.add(smiles)
+            _add(product, products if product.reaction_role in product_roles else None)
 
     if not allow_incomplete and (not reactants or not products):
         raise ValueError("reaction must contain at least one reactant and one product")
     if not reactants and not products:
         raise ValueError("reaction contains no valid reactants or products")
-    components = [
-        ".".join(sorted(reactants)),
-        ".".join(sorted(agents)),
-        ".".join(sorted(products)),
-    ]
-    reaction_smiles = ">".join(components)
-    if validate:
-        if allow_incomplete:
-            raise ValueError("validate is mutually exclusive with allow_incomplete")
-        validate_reaction_smiles(reaction_smiles)
-    if canonical:
-        reaction_smiles = rdChemReactions.ReactionToSmiles(
-            rdChemReactions.ReactionFromSmarts(reaction_smiles, useSmiles=True)
-        )
+    # Assembled from parsed components rather than by joining their SMILES: a component
+    # carrying a CXSMILES extension puts a `|...|` block mid-string, which is not a
+    # reaction SMILES at all. Building the reaction lets RDKit re-emit one block for the
+    # whole reaction, with the atom indices it refers to recomputed.
+    built = rdChemReactions.ChemicalReaction()
+    for add, group in (
+        (built.AddReactantTemplate, reactants),
+        (built.AddAgentTemplate, agents),
+        (built.AddProductTemplate, products),
+    ):
+        for smiles in sorted(group):
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                # RDKit accepts a null template and then dies with SIGSEGV writing it,
+                # which no caller can catch. A ValueError is what callers handle.
+                raise ValueError(f"cannot parse component SMILES: {smiles!r}")
+            add(mol)
+    try:
+        reaction_smiles = rdChemReactions.ReactionToCXSmiles(built)
+        # Checked on the reaction in hand; sanitizing mutates it, so the string is
+        # written first.
+        _validate_reaction(built)
+    except (RuntimeError, ValueError) as error:
+        raise ValueError(f"cannot write reaction SMILES: {error!s}") from error
     return reaction_smiles
+
+
+def _validate_reaction(reaction: rdChemReactions.ChemicalReaction) -> None:
+    """Sanitizes a reaction in place and raises if RDKit reports any error.
+
+    Args:
+        reaction: Reaction to check. Sanitized in place, so pass a reaction whose
+            SMILES has already been written if the unsanitized form is wanted.
+
+    Raises:
+        ValueError: If validation reports errors.
+        RuntimeError: If RDKit cannot sanitize the reaction.
+    """
+    rdChemReactions.SanitizeRxn(reaction)
+    _, num_errors = reaction.Validate()
+    if num_errors:
+        raise ValueError("reaction SMILES contains errors")
 
 
 def validate_reaction_smiles(reaction_smiles: str) -> None:
     """Validates reaction SMILES.
+
+    Prefer :func:`_validate_reaction` where a parsed reaction is already at hand; this
+    is for callers holding only the string, e.g. checking a recorded identifier.
 
     Args:
         reaction_smiles: Text reaction SMILES.
@@ -610,10 +810,7 @@ def validate_reaction_smiles(reaction_smiles: str) -> None:
         reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles, useSmiles=True)
         if not reaction:
             raise ValueError("reaction SMILES could not be parsed")
-        rdChemReactions.SanitizeRxn(reaction)
-        _, num_errors = reaction.Validate()
-        if num_errors:
-            raise ValueError("reaction SMILES contains errors")
+        _validate_reaction(reaction)
     except (RuntimeError, ValueError) as error:
         raise ValueError(
             f"bad reaction SMILES ({error!s}): {reaction_smiles}"
