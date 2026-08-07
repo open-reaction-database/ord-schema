@@ -51,6 +51,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--overwrite", action="store_true", help="Update changed datasets"
     )
+    parser.add_argument(
+        "--rederive",
+        action="store_true",
+        help="Recompute derived.* SMILES that already exist, instead of only filling "
+        "in missing ones. Use after a change to how SMILES are derived; without it "
+        "the derived stage skips every row it already wrote. Does not touch reaction "
+        "classes.",
+    )
     parser.add_argument("--dsn", default=None, help="Postgres connection string")
     parser.add_argument("--database", default="orm", help="Database")
     parser.add_argument("--username", default="postgres", help="Database username")
@@ -107,6 +115,7 @@ def main(args: argparse.Namespace) -> None:
         stages=stages,
         overwrite=args.overwrite,
         classify_reactions=args.classify_reactions,
+        rederive=args.rederive,
         n_jobs=args.n_jobs,
         classify_jobs=args.classify_jobs,
     )

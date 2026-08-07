@@ -147,7 +147,9 @@ def ingest_dataset(filename: str, *, dsn: str, overwrite: bool) -> str:
     return dataset_id
 
 
-def derive_dataset(dataset_id: str, *, dsn: str, classify_reactions: bool) -> str:
+def derive_dataset(
+    dataset_id: str, *, dsn: str, classify_reactions: bool, rederive: bool = False
+) -> str:
     """Runs the parallel-safe derived passes (SMILES + optional classification).
 
     The RDKit linking pass is excluded here and run serially in ``add_rdkit`` to avoid
@@ -157,6 +159,7 @@ def derive_dataset(dataset_id: str, *, dsn: str, classify_reactions: bool) -> st
         dataset_id: Dataset to derive.
         dsn: Database connection string.
         classify_reactions: Whether to assign reaction class/name labels.
+        rederive: Whether to delete existing derived rows first so they are recomputed.
 
     Returns:
         Dataset ID.
@@ -170,6 +173,7 @@ def derive_dataset(dataset_id: str, *, dsn: str, classify_reactions: bool) -> st
                 # Done serially in add_rdkit() to avoid deadlocks.
                 rdkit_cartridge=False,
                 classify_reactions=classify_reactions,
+                rederive=rederive,
             )
     finally:
         engine.dispose()
@@ -211,7 +215,7 @@ def _derive_shard_items(
 
 
 def _derive_smiles_shard(
-    item: tuple[str, int, int], *, dsn: str
+    item: tuple[str, int, int], *, dsn: str, rederive: bool = False
 ) -> tuple[str, int, int]:
     """Derive a hash-partition of a dataset's SMILES; parallel-safe and shardable."""
     dataset_id, shard_index, num_shards = item
@@ -219,7 +223,10 @@ def _derive_smiles_shard(
     try:
         with Session(engine) as session, session.begin():
             database.update_derived_tables(
-                dataset_id, session, shard=(shard_index, num_shards)
+                dataset_id,
+                session,
+                shard=(shard_index, num_shards),
+                rederive=rederive,
             )
     finally:
         engine.dispose()
@@ -471,6 +478,7 @@ def load_datasets(
     stages: Iterable[str] = STAGES,
     overwrite: bool = False,
     classify_reactions: bool = False,
+    rederive: bool = False,
     n_jobs: int = 1,
     classify_jobs: int | None = None,
 ) -> None:
@@ -487,6 +495,9 @@ def load_datasets(
         overwrite: If True, update changed datasets during ingest.
         classify_reactions: If True, assign reaction class/name labels during
             derivation.
+        rederive: If True, delete existing derived rows before deriving, so rows written
+            by an earlier version of the derivation are recomputed rather than skipped.
+            Without it the derived stage backfills gaps but never revisits a row.
         n_jobs: Number of parallel workers.
         classify_jobs: Worker count for the classification pass; each worker loads a
             transformer model, so this is bounded separately from ``n_jobs``. Defaults
@@ -551,7 +562,7 @@ def load_datasets(
         # datasets.
         shard_items = _derive_shard_items(dataset_ids, dsn)
         _, shard_failures = _run_parallel(
-            partial(_derive_smiles_shard, dsn=dsn),
+            partial(_derive_smiles_shard, dsn=dsn, rederive=rederive),
             shard_items,
             n_jobs=n_jobs,
             desc="Derive",

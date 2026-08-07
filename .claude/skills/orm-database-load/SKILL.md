@@ -59,14 +59,43 @@ unless you actually want to (re)classify.
 
 ## Backfill
 
-`--stages derived` re-derives over already-ingested datasets. It runs the same per-dataset,
-per-shard RDKit passes as an end-to-end load, so nothing special is required:
+`--stages derived` fills in derived rows over already-ingested datasets. It runs the same
+per-dataset, per-shard RDKit passes as an end-to-end load, so nothing special is required:
 
 ```sh
 python -u -m ord_schema.orm.scripts.add_datasets \
   --pattern "$ORD_DATA/data/*/*.parquet" --stages derived \
   --dsn "postgresql+psycopg://" --n_jobs 16
 ```
+
+### Backfilling is not rebuilding
+
+Every derived pass is guarded by `NOT EXISTS`. That is what makes the load idempotent, and it
+also means an existing row is **never revisited**: after a change to how SMILES are derived,
+the command above writes nothing and exits clean, leaving every stale row in place. Silence
+here is not success.
+
+`--rederive` deletes a dataset's derived SMILES rows before deriving them, which is what turns
+the idempotent passes into a rebuild:
+
+```sh
+python -u -m ord_schema.orm.scripts.add_datasets \
+  --pattern "$ORD_DATA/data/*/*.parquet" --stages derived --rederive \
+  --dsn "postgresql+psycopg://" --n_jobs 16
+```
+
+Do not confuse it with `--overwrite`, which is an *ingest* flag meaning "re-ingest a dataset
+whose MD5 changed."
+
+Two things it deliberately leaves alone. `rdkit.mols` and `rdkit.reactions` are shared and
+deduplicated by structure, so deleting one dataset's share would break every other dataset;
+the link columns live on the deleted rows, so the RDKit pass re-links from scratch, reusing
+structures already present. A rebuild that changes SMILES therefore leaves unreferenced
+structures behind — space, not correctness. And `derived.reaction_classes` survives, because
+classification is a slow opt-in pass that a rebuild should not silently redo.
+
+Verify with counts before and after: a rebuild should end with the row counts it started with,
+plus a spot-check of a value you expect to have changed.
 
 ### If you are on an ord-schema without the #895 fix
 
