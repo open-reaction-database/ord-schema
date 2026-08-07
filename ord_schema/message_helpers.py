@@ -49,11 +49,14 @@ _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.INCHI: Chem.MolFromInchi,
     reaction_pb2.CompoundIdentifier.MOLBLOCK: Chem.MolFromMolBlock,
 }
-# Enum names of the identifier types a Mol can be built from, keyed off the
-# loaders above so callers (e.g. the derived-SMILES pass) share this module's
-# single source of truth for what "structural" means. These match the values
-# stored in ord.compound_identifier.type.
-STRUCTURAL_IDENTIFIER_TYPES = frozenset(
+# The identifier types a Mol can be built from, keyed off the loaders above so
+# every caller shares this module's single source of truth for what "structural"
+# means: a type absent from the loaders yields no structure anywhere downstream,
+# so treating it as one only hides the compound from the passes that could fill
+# the gap. STRUCTURAL_IDENTIFIER_TYPE_NAMES matches the values stored in
+# ord.compound_identifier.type, for callers querying the database.
+STRUCTURAL_IDENTIFIER_TYPES = frozenset(_COMPOUND_IDENTIFIER_LOADERS)
+STRUCTURAL_IDENTIFIER_TYPE_NAMES = frozenset(
     reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name(identifier_type)
     for identifier_type in _COMPOUND_IDENTIFIER_LOADERS
 )
@@ -342,15 +345,50 @@ def find_submessages(
     return submessages
 
 
+def structural_identifiers(
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
+) -> Iterator[reaction_pb2.CompoundIdentifier]:
+    """Yields a compound's structural identifiers, best first.
+
+    CXSMILES comes before SMILES because it is a superset and RDKit reads either, so
+    preferring it keeps enhanced stereochemistry: a plain SMILES would assert one
+    configuration where the source recorded a group. Everything else follows in message
+    order.
+
+    Yielding rather than picking one lets a caller keep trying, so a malformed value
+    does not hide a good identifier behind it. Nothing here parses the values, so a
+    yielded identifier is a candidate rather than a promise.
+
+    Args:
+        compound: Compound or ProductCompound message.
+
+    Yields:
+        Each identifier with a non-empty value whose type a Mol can be built from.
+    """
+    preferred = (
+        reaction_pb2.CompoundIdentifier.CXSMILES,
+        reaction_pb2.CompoundIdentifier.SMILES,
+    )
+    for identifier_type in preferred:
+        for identifier in compound.identifiers:
+            if identifier.type == identifier_type and identifier.value:
+                yield identifier
+    for identifier in compound.identifiers:
+        if (
+            identifier.type not in preferred
+            and identifier.type in _COMPOUND_IDENTIFIER_LOADERS
+            and identifier.value
+        ):
+            yield identifier
+
+
 def smiles_from_compound(
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
 ) -> str | None:
     """Returns canonical SMILES for a compound, preferring its CXSMILES form.
 
-    CXSMILES is a superset of SMILES and RDKit reads either, so preferring it keeps
-    enhanced stereochemistry: a plain SMILES would assert one configuration where the
-    source recorded a group. Where neither parses, any other structural identifier that
-    does is used, so one malformed value does not hide a good one behind it.
+    Identifiers are tried in :func:`structural_identifiers` order, so this and
+    :func:`mol_from_compound` agree about which one describes the compound.
 
     A compound with nothing readable is an ordinary state in ORD -- ligands and reagents
     are routinely recorded by name alone -- so it reads as None rather than raising.
@@ -363,19 +401,7 @@ def smiles_from_compound(
         has one (see :func:`canonical_smiles`), or None if the compound records no
         structure any loader can read.
     """
-    for identifier_type in (
-        reaction_pb2.CompoundIdentifier.CXSMILES,
-        reaction_pb2.CompoundIdentifier.SMILES,
-    ):
-        for identifier in compound.identifiers:
-            if identifier.type != identifier_type or not identifier.value:
-                continue
-            canonical = canonical_smiles_for_identifier(
-                identifier.type, identifier.value
-            )
-            if canonical:
-                return canonical
-    for identifier in compound.identifiers:
+    for identifier in structural_identifiers(compound):
         canonical = canonical_smiles_for_identifier(identifier.type, identifier.value)
         if canonical:
             return canonical
@@ -532,6 +558,10 @@ def mol_from_compound(
 ) -> Chem.Mol | tuple[Chem.Mol, reaction_pb2.CompoundIdentifier]:
     """Creates an RDKit Mol from a Compound message.
 
+    Identifiers are tried in :func:`structural_identifiers` order, so this and
+    :func:`smiles_from_compound` agree about which one describes the compound, and one
+    malformed identifier does not mask a readable one recorded alongside it.
+
     Args:
         compound: reaction_pb2.Compound message.
         return_identifier: If True, return the CompoundIdentifier used to
@@ -543,16 +573,13 @@ def mol_from_compound(
             if `return_identifier` is True.
 
     Raises:
-        ValueError: If no structural identifier is available, or if the
-            resulting Mol object is invalid.
+        ValueError: If no structural identifier reads as a Mol. Unlike
+            :func:`smiles_from_compound`, which reports that as None, callers here want
+            a Mol in hand and have nothing to do with its absence.
     """
-    for identifier in compound.identifiers:
-        if identifier.type in _COMPOUND_IDENTIFIER_LOADERS:
-            mol = _COMPOUND_IDENTIFIER_LOADERS[identifier.type](identifier.value)
-            if not mol:
-                raise ValueError(
-                    f"invalid structural identifier for Compound: {identifier}"
-                )
+    for identifier in structural_identifiers(compound):
+        mol = _COMPOUND_IDENTIFIER_LOADERS[identifier.type](identifier.value)
+        if mol is not None:
             if return_identifier:
                 return mol, identifier
             return mol
@@ -824,18 +851,31 @@ def get_product_yield(
 
     If multiple measurements of type YIELD exist, only the first is returned.
 
+    A yield recorded as ``float_value``, ``amount``, or text has no percentage to
+    report: reading one as a percentage would assume a scale the source did not state.
+    Pass ``as_measurement`` to reach those. ``views`` applies the same rule across every
+    outcome and counts what it drops.
+
     Args:
         product: ProductCompound message.
         as_measurement: Whether to return the full ProductMeasurement that
             corresponds to the yield measurement. Defaults to False.
 
     Returns:
-        Yield value as a percentage, the ProductMeasurement message, or None.
+        The ProductMeasurement when ``as_measurement`` is set. Otherwise the yield as a
+        percentage, or None when the product records no yield or records one that is not
+        a percentage.
     """
     for measurement in product.measurements:
         if measurement.type == measurement.YIELD:
             if as_measurement:
                 return measurement
+            # An unset percentage, and an unset value within one, both read as 0.0
+            # through protobuf; a fabricated zero yield is worse than a null.
+            if not measurement.HasField(
+                "percentage"
+            ) or not measurement.percentage.HasField("value"):
+                return None
             return measurement.percentage.value
     return None
 

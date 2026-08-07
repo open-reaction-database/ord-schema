@@ -57,18 +57,21 @@ M  END"""
 
 
 def test_structural_identifier_types():
-    """STRUCTURAL_IDENTIFIER_TYPES mirrors _COMPOUND_IDENTIFIER_LOADERS exactly."""
+    """Both public spellings mirror _COMPOUND_IDENTIFIER_LOADERS exactly."""
     assert {
         "SMILES",
         "CXSMILES",
         "INCHI",
         "MOLBLOCK",
-    } == message_helpers.STRUCTURAL_IDENTIFIER_TYPES
-    expected = {
+    } == message_helpers.STRUCTURAL_IDENTIFIER_TYPE_NAMES
+    assert (
+        set(message_helpers._COMPOUND_IDENTIFIER_LOADERS)
+        == message_helpers.STRUCTURAL_IDENTIFIER_TYPES
+    )
+    assert {
         reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name(identifier_type)
-        for identifier_type in message_helpers._COMPOUND_IDENTIFIER_LOADERS
-    }
-    assert expected == message_helpers.STRUCTURAL_IDENTIFIER_TYPES
+        for identifier_type in message_helpers.STRUCTURAL_IDENTIFIER_TYPES
+    } == message_helpers.STRUCTURAL_IDENTIFIER_TYPE_NAMES
 
 
 class TestMessageHelpers:
@@ -135,7 +138,7 @@ class TestMessageHelpers:
     def test_mol_from_compound_failures(self, value, identifier_type):
         compound = reaction_pb2.Compound()
         compound.identifiers.add(value=value, type=identifier_type)
-        with pytest.raises(ValueError, match="invalid structural identifier"):
+        with pytest.raises(ValueError, match="no valid structural identifier"):
             message_helpers.mol_from_compound(compound)
 
     def test_get_product_yield(self):
@@ -946,6 +949,52 @@ def test_smiles_from_compound_looks_past_a_malformed_identifier():
 
 def test_smiles_from_compound_is_none_without_a_readable_structure():
     assert message_helpers.smiles_from_compound(_compound(name="benzene")) is None
+
+
+def test_structural_identifiers_skips_non_structural_and_empty_values():
+    compound = _compound(
+        name="benzene", smiles="", inchi="InChI=1S/C6H6/c1-2-4-6-5-3-1"
+    )
+    assert [
+        identifier.type
+        for identifier in message_helpers.structural_identifiers(compound)
+    ] == [reaction_pb2.CompoundIdentifier.INCHI]
+
+
+def test_mol_from_compound_prefers_cxsmiles():
+    # The plain SMILES asserts one configuration where the CXSMILES records a group, so
+    # picking by message order would build a Mol the source did not describe.
+    compound = _compound(smiles="C[C@H](N)O", cxsmiles="C[C@H](N)O |o1:1|")
+    mol, identifier = message_helpers.mol_from_compound(
+        compound, return_identifier=True
+    )
+    assert identifier.type == reaction_pb2.CompoundIdentifier.CXSMILES
+    assert mol.GetStereoGroups()
+
+
+def test_mol_from_compound_looks_past_a_malformed_identifier():
+    # A malformed identifier recorded ahead of a good one used to raise, which made
+    # mol_from_compound fail on compounds smiles_from_compound could read.
+    compound = _compound(inchi="not an inchi", smiles="c1ccccc1")
+    assert Chem.MolToSmiles(message_helpers.mol_from_compound(compound)) == "c1ccccc1"
+    # molblock_from_compound reaches the same Mol, so it generates rather than failing.
+    assert "M  END" in message_helpers.molblock_from_compound(compound)
+
+
+def test_get_product_yield_is_none_for_a_yield_that_is_not_a_percentage():
+    # float_value states no scale, so reading it as a percentage would invent one; an
+    # unset percentage reads as 0.0 through protobuf, which is a real yield value.
+    product = reaction_pb2.ProductCompound()
+    measurement = product.measurements.add(type="YIELD")
+    measurement.float_value.value = 0.62
+    assert message_helpers.get_product_yield(product) is None
+    assert (
+        message_helpers.get_product_yield(product, as_measurement=True) is measurement
+    )
+
+    unset = reaction_pb2.ProductCompound()
+    unset.measurements.add(type="YIELD", percentage={})
+    assert message_helpers.get_product_yield(unset) is None
 
 
 def test_reaction_smiles_without_agents_drops_the_middle_block():

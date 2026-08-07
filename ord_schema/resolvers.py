@@ -46,17 +46,14 @@ class _ResolverError(Exception):
     """
 
 
-_COMPOUND_STRUCTURAL_IDENTIFIERS = [
-    reaction_pb2.CompoundIdentifier.SMILES,
-    reaction_pb2.CompoundIdentifier.INCHI,
-    reaction_pb2.CompoundIdentifier.MOLBLOCK,
-    reaction_pb2.CompoundIdentifier.CXSMILES,
-    reaction_pb2.CompoundIdentifier.XYZ,
-]
-
-
 def canonicalize_smiles(smiles: str) -> str:
     """Canonicalizes a SMILES string.
+
+    Deliberately plain ``MolToSmiles`` rather than
+    :func:`message_helpers.canonical_smiles`: this is the query side of structure
+    search, and ``derived.compound_smiles`` is written the same way, so emitting an
+    enhanced-stereochemistry block here would stop queries matching the index. #936
+    tracks moving both onto the shared helper together.
 
     Args:
         smiles: SMILES string.
@@ -109,6 +106,10 @@ def resolve_names(message: ord_schema.Message) -> bool:
     of identifiers for that compound. The first success ends work on that
     Compound; any remaining NAME identifiers on it are left unresolved.
 
+    A compound already carrying an identifier a Mol can be built from is skipped.
+    Coordinates alone do not count, since nothing in this library reads them into a
+    structure, so a compound recorded as XYZ plus a name is worth resolving.
+
     Args:
         message: Protocol buffer tree containing Compound submessages (e.g. Reaction
             or ReactionInput).
@@ -120,7 +121,7 @@ def resolve_names(message: ord_schema.Message) -> bool:
     compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
     for compound in compounds:
         if any(
-            identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS
+            identifier.type in message_helpers.STRUCTURAL_IDENTIFIER_TYPES
             for identifier in compound.identifiers
         ):
             continue  # Compound already has a structural identifier.

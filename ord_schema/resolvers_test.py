@@ -272,6 +272,11 @@ class TestCanonicalizeSmiles:
         with pytest.raises(ValueError, match="Could not parse SMILES"):
             resolvers.canonicalize_smiles("not a smiles")
 
+    def test_does_not_emit_an_extension_block(self):
+        # Structure search matches this against derived.compound_smiles, which is
+        # written with plain MolToSmiles; a block here would stop the query matching.
+        assert resolvers.canonicalize_smiles("C[C@H](N)O |o1:1|") == "C[C@H](N)O"
+
 
 class TestOpsinResolve:
     def test_opsin_resolve(self, monkeypatch):

@@ -123,10 +123,7 @@ _CANONICAL_UNITS: dict[str, tuple[str, str]] = {
 # apart: the enum numbers overlap between compounds and reactions, so a mismatch would
 # drop the wrong types silently rather than raise. The compound set follows
 # message_helpers, which owns what "structural" means.
-_STRUCTURAL_COMPOUND_TYPES = frozenset(
-    reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Value(name)
-    for name in message_helpers.STRUCTURAL_IDENTIFIER_TYPES
-)
+_STRUCTURAL_COMPOUND_TYPES = message_helpers.STRUCTURAL_IDENTIFIER_TYPES
 _STRUCTURAL_REACTION_TYPES = frozenset(
     {
         reaction_pb2.ReactionIdentifier.REACTION_SMILES,
