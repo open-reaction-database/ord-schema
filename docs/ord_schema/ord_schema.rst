@@ -16,14 +16,6 @@ Subpackages
    ord_schema.orm
 
 
-ord\_schema.frozen\_message
----------------------------
-
-.. automodule:: ord_schema.frozen_message
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 ord\_schema.logging
 -------------------
 
