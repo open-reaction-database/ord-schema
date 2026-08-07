@@ -514,6 +514,12 @@ def molblock_from_compound(
     MolBlock, and returning it verbatim would hand the caller something no MolBlock
     reader accepts while a usable structure sat in another identifier.
 
+    That check skips sanitization, because the question is whether the value is a
+    MolBlock rather than whether it describes a sanitizable molecule. ORD carries
+    structures RDKit reads but will not sanitize -- organometallics and charged-N rings,
+    which validation warns about rather than rejecting -- and regenerating those from
+    another identifier would discard the coordinates for a value that was fine.
+
     Args:
         compound: reaction_pb2.Compound or ProductCompound message.
 
@@ -526,7 +532,7 @@ def molblock_from_compound(
         ValueError: if no structural identifier reads as a Mol.
     """
     molblock = get_compound_molblock(compound)
-    if molblock and Chem.MolFromMolBlock(molblock) is not None:
+    if molblock and Chem.MolFromMolBlock(molblock, sanitize=False) is not None:
         return molblock
     return Chem.MolToMolBlock(mol_from_compound(compound))
 
