@@ -38,7 +38,7 @@ Two normalizations are applied, and only two. Both cost no query and remove a re
   mixed-unit comparison that would quietly return the wrong rows does not.
 * **Structural identifiers collapse to one ``smiles``.** ``SMILES``, ``CXSMILES``,
   ``INCHI``, and ``MOLBLOCK`` all answer "what is this molecule," so the projection
-  answers it once, through ``message_helpers.preferred_compound_smiles`` -- the same
+  answers it once, through ``message_helpers.smiles_from_compound`` -- the same
   CXSMILES-first choice the tabular view makes, so the two never disagree about a
   molecule. ``REACTION_SMILES`` and ``REACTION_CXSMILES`` collapse the same
   way at the reaction level, into a ``smiles`` that
@@ -297,9 +297,7 @@ def _smiles(message: Message) -> str | None:
         return message_helpers.derived_reaction_smiles(
             cast(reaction_pb2.Reaction, message)
         )
-    return message_helpers.preferred_compound_smiles(
-        cast(reaction_pb2.Compound, message)
-    )
+    return message_helpers.smiles_from_compound(cast(reaction_pb2.Compound, message))
 
 
 def _kept_identifiers(values: Any, structural: frozenset[int] | None) -> list[Any]:

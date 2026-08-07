@@ -210,7 +210,7 @@ class TestMessageHelpers:
         reaction.outcomes.add().products.add(reaction_role="PRODUCT").identifiers.add(
             value="invalid", type="SMILES"
         )
-        with pytest.raises(ValueError, match="Cannot parse SMILES"):
+        with pytest.raises(ValueError, match="no readable structure"):
             message_helpers.get_reaction_smiles(
                 reaction, generate_if_missing=True, allow_incomplete=False
             )
@@ -815,23 +815,6 @@ def test_enhanced_stereochemistry_survives_smiles_from_compound():
     assert Chem.MolFromSmiles(smiles) is not None
 
 
-@pytest.mark.parametrize(
-    ("value", "identifier_type", "strip", "expected"),
-    [
-        ("CCO>>CCO |f:0.1|", "REACTION_CXSMILES", False, "CCO>>CCO |f:0.1|"),
-        ("CCO>>CCO |f:0.1|", "REACTION_CXSMILES", True, "CCO>>CCO"),
-        # Padding is not an extension block, so nothing is dropped.
-        ("CCO>>CCO\xa0", "REACTION_SMILES", True, "CCO>>CCO\xa0"),
-        ("CCO>>CCO", "REACTION_SMILES", True, "CCO>>CCO"),
-    ],
-)
-def test_get_reaction_smiles_strip_extension(value, identifier_type, strip, expected):
-    reaction = reaction_pb2.Reaction()
-    reaction.identifiers.add(type=identifier_type, value=value)
-    actual = message_helpers.get_reaction_smiles(reaction, strip_extension=strip)
-    assert actual == expected
-
-
 def test_check_compound_identifiers_compares_enhanced_stereochemistry():
     """Identifiers that disagree about stereo are not the same assertion."""
     compound = reaction_pb2.Compound()
@@ -941,28 +924,28 @@ def _compound(**identifiers) -> reaction_pb2.Compound:
     return compound
 
 
-def test_preferred_compound_smiles_prefers_cxsmiles():
+def test_smiles_from_compound_prefers_cxsmiles():
     # CXSMILES is a superset, so the richer identifier wins whatever order they appear.
     compound = _compound(smiles="C[C@H](N)O", cxsmiles="C[C@H](N)O |o1:1|")
-    assert message_helpers.preferred_compound_smiles(compound) == "C[C@H](N)O |o1:1|"
+    assert message_helpers.smiles_from_compound(compound) == "C[C@H](N)O |o1:1|"
 
 
-def test_preferred_compound_smiles_falls_back_to_other_structural_types():
+def test_smiles_from_compound_falls_back_to_other_structural_types():
     compound = _compound(inchi="InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H")
-    assert message_helpers.preferred_compound_smiles(compound) == "c1ccccc1"
+    assert message_helpers.smiles_from_compound(compound) == "c1ccccc1"
 
 
-def test_preferred_compound_smiles_looks_past_a_malformed_identifier():
+def test_smiles_from_compound_looks_past_a_malformed_identifier():
     # smiles_from_compound stops at the first structural identifier, so without the
     # fallback a good value recorded behind a bad one is never reached.
     compound = _compound(
         smiles="not a smiles", inchi="InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H"
     )
-    assert message_helpers.preferred_compound_smiles(compound) == "c1ccccc1"
+    assert message_helpers.smiles_from_compound(compound) == "c1ccccc1"
 
 
-def test_preferred_compound_smiles_is_none_without_a_readable_structure():
-    assert message_helpers.preferred_compound_smiles(_compound(name="benzene")) is None
+def test_smiles_from_compound_is_none_without_a_readable_structure():
+    assert message_helpers.smiles_from_compound(_compound(name="benzene")) is None
 
 
 def test_reaction_smiles_without_agents_drops_the_middle_block():
@@ -1060,28 +1043,10 @@ def test_generate_reaction_smiles_ignores_an_unreadable_agent_it_will_not_emit()
     assert message_helpers.generate_reaction_smiles(
         reaction, allow_incomplete=False, include_agents=False
     )
-    with pytest.raises(ValueError, match="no valid structural identifier"):
+    with pytest.raises(ValueError, match="no readable structure"):
         message_helpers.generate_reaction_smiles(
             reaction, allow_incomplete=False, include_agents=True
         )
-
-
-def test_strip_extension_applies_to_a_generated_reaction_too():
-    # Generation emits CXSMILES, so a caller asking for plain SMILES has to get it
-    # whether the value was recorded or built here.
-    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
-    reaction.inputs["a"].components.append(_compound(cxsmiles="C[C@H](N)O |o1:1|"))
-    reaction.outcomes.add().products.add().identifiers.add(
-        type="SMILES", value="C[C@H](N)OC"
-    )
-    generated = message_helpers.get_reaction_smiles(reaction, generate_if_missing=True)
-    stripped = message_helpers.get_reaction_smiles(
-        reaction, generate_if_missing=True, strip_extension=True
-    )
-    assert generated is not None
-    assert stripped is not None
-    assert "|" in generated
-    assert "|" not in stripped
 
 
 def test_generate_reaction_smiles_keeps_enhanced_stereochemistry():
@@ -1139,18 +1104,10 @@ def test_generate_reaction_smiles_rejects_an_unparseable_component(monkeypatch):
     # RDKit accepts a null template and then dies with SIGSEGV when writing it, which no
     # caller can catch, so this has to surface as the ValueError callers already handle.
     # Only a MolToSmiles/MolFromSmiles round-trip failure reaches it -- rare enough that
-    # it needs simulating, bad enough that the guard has to be there. Failing the second
-    # parse of each string leaves smiles_from_compound working and breaks the assembly.
-    real = message_helpers.Chem.MolFromSmiles
-    seen: set[str] = set()
-
-    def _once(smiles, *args, **kwargs):
-        if smiles in seen:
-            return None
-        seen.add(smiles)
-        return real(smiles, *args, **kwargs)
-
-    monkeypatch.setattr(message_helpers.Chem, "MolFromSmiles", _once)
+    # it needs simulating, bad enough that the guard has to be there. Patching Chem here
+    # reaches only the assembly: smiles_from_compound goes through the loader table,
+    # which holds the original function.
+    monkeypatch.setattr(message_helpers.Chem, "MolFromSmiles", lambda *_, **__: None)
     with pytest.raises(ValueError, match="cannot parse component SMILES"):
         message_helpers.generate_reaction_smiles(_reaction_with_components())
 

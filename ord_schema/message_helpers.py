@@ -344,38 +344,6 @@ def find_submessages(
 
 def smiles_from_compound(
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
-    canonical: bool = True,
-) -> str:
-    """Fetches or generates a SMILES identifier for a compound.
-
-    An existing SMILES identifier is used in preference to regenerating one from the
-    structure, but it is still canonicalized when ``canonical`` is True.
-
-    Args:
-        compound: reaction_pb2.Compound or reaction_pb2.ProductCompound message.
-        canonical: If True, returns a canonicalized SMILES.
-
-    Returns:
-        Text SMILES, carrying an enhanced-stereochemistry block where the structure has
-        one (see :func:`canonical_smiles`).
-
-    Raises:
-        ValueError: if no structural identifiers are defined.
-    """
-    smiles = get_compound_smiles(compound)
-    if not smiles:
-        # Deferred: mol_from_compound raises for compounds with no structure at all.
-        smiles = canonical_smiles(cast("Chem.Mol", mol_from_compound(compound)))
-    if canonical:
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is None:
-            raise ValueError(f"Cannot parse SMILES: {smiles}")
-        smiles = canonical_smiles(mol)
-    return smiles
-
-
-def preferred_compound_smiles(
-    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
 ) -> str | None:
     """Returns canonical SMILES for a compound, preferring its CXSMILES form.
 
@@ -384,15 +352,16 @@ def preferred_compound_smiles(
     source recorded a group. Where neither parses, any other structural identifier that
     does is used, so one malformed value does not hide a good one behind it.
 
-    The Parquet view and projection both go through this, so a compound reads the same
-    in either.
+    A compound with nothing readable is an ordinary state in ORD -- ligands and reagents
+    are routinely recorded by name alone -- so it reads as None rather than raising.
 
     Args:
         compound: Compound or ProductCompound message.
 
     Returns:
-        Canonical SMILES, or None if the compound records no structure any loader can
-        read.
+        Canonical SMILES, carrying an enhanced-stereochemistry block where the structure
+        has one (see :func:`canonical_smiles`), or None if the compound records no
+        structure any loader can read.
     """
     for identifier_type in (
         reaction_pb2.CompoundIdentifier.CXSMILES,
@@ -628,14 +597,14 @@ def get_reaction_smiles(
     generate_if_missing: bool = False,
     allow_incomplete: bool = True,
     allow_unspecified_roles: bool = True,
-    strip_extension: bool = False,
 ) -> str | None:
     """Fetches or generates a reaction SMILES.
 
-    A stored REACTION_CXSMILES identifier is returned whole, extension block and all, so
-    the result is not necessarily parseable as plain SMILES. Pass ``strip_extension`` to
-    get the SMILES half; ``split_cxsmiles_extension`` returns both parts if the block
-    itself is wanted.
+    A stored REACTION_CXSMILES identifier is returned whole, extension block and all.
+    The block is chemistry the source recorded -- enhanced stereochemistry, fragment
+    grouping -- and RDKit reads it, so there is nothing to gain by dropping it.
+    ``split_cxsmiles_extension`` separates the two parts for a caller that needs the
+    bare SMILES, e.g. to look for atom maps.
 
     Args:
         message: reaction_pb2.Reaction message.
@@ -647,9 +616,6 @@ def get_reaction_smiles(
         allow_unspecified_roles: If True, reactants and products with the
             UNSPECIFIED reaction role will be included when generating a reaction
             SMILES.
-        strip_extension: If True, drop a CXSMILES extension block from the result so it
-            is plain SMILES. Applies to a generated reaction as much as a recorded one,
-            since a component's enhanced stereochemistry carries into what is generated.
 
     Returns:
         Text reaction SMILES, or None.
@@ -663,19 +629,14 @@ def get_reaction_smiles(
     ]
     for identifier in message.identifiers:
         if identifier.type in types:
-            if strip_extension:
-                return split_cxsmiles_extension(identifier.value)[0]
             return identifier.value
     if not generate_if_missing:
         return None
-    generated = generate_reaction_smiles(
+    return generate_reaction_smiles(
         message,
         allow_incomplete=allow_incomplete,
         allow_unspecified_roles=allow_unspecified_roles,
     )
-    if strip_extension:
-        return split_cxsmiles_extension(generated)[0]
-    return generated
 
 
 def generate_reaction_smiles(
@@ -727,14 +688,14 @@ def generate_reaction_smiles(
         # the whole reaction: a NAME-only ligand is silent when agents are excluded.
         if target is None:
             return
-        try:
-            smiles = smiles_from_compound(compound)
-        except ValueError:
+        smiles = smiles_from_compound(compound)
+        if smiles is None:
             if allow_incomplete:
                 return
-            raise
-        if smiles:
-            target.add(smiles)
+            raise ValueError(
+                f"no readable structure for a component: {compound.identifiers}"
+            )
+        target.add(smiles)
 
     for key in sorted(message.inputs):
         for compound in message.inputs[key].components:

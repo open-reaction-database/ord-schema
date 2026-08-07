@@ -215,7 +215,7 @@ def _component_smiles(
     inputs = []
     for key in sorted(reaction.inputs):
         for compound in reaction.inputs[key].components:
-            smiles = message_helpers.preferred_compound_smiles(compound)
+            smiles = message_helpers.smiles_from_compound(compound)
             if smiles:
                 inputs.append(smiles)
             else:
@@ -223,7 +223,7 @@ def _component_smiles(
     outputs = []
     for outcome in reaction.outcomes:
         for product in outcome.products:
-            smiles = message_helpers.preferred_compound_smiles(product)
+            smiles = message_helpers.smiles_from_compound(product)
             if smiles:
                 outputs.append(smiles)
             else:
