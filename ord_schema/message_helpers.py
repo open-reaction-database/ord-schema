@@ -509,18 +509,32 @@ def molblock_from_compound(
 ) -> str:
     """Fetches or generates a MolBlock identifier for a compound.
 
+    A recorded MOLBLOCK is returned as deposited, keeping the atom coordinates that are
+    the reason to record one, but only once it parses: an unreadable value is not a
+    MolBlock, and returning it verbatim would hand the caller something no MolBlock
+    reader accepts while a usable structure sat in another identifier.
+
+    That check skips sanitization, because the question is whether the value is a
+    MolBlock rather than whether it describes a sanitizable molecule. ORD carries
+    structures RDKit reads but will not sanitize -- organometallics and charged-N rings,
+    which validation warns about rather than rejecting -- and regenerating those from
+    another identifier would discard the coordinates for a value that was fine.
+
     Args:
         compound: reaction_pb2.Compound or ProductCompound message.
 
     Returns:
-        molblock: MolBlock identifier.
+        molblock: MolBlock identifier, generated from the best structural identifier
+        (see :func:`structural_identifiers`) when none is recorded or the recorded one
+        cannot be read.
 
     Raises:
-        ValueError: if no structural identifiers are defined.
+        ValueError: if no structural identifier reads as a Mol.
     """
-    return get_compound_molblock(compound) or Chem.MolToMolBlock(
-        mol_from_compound(compound)
-    )
+    molblock = get_compound_molblock(compound)
+    if molblock and Chem.MolFromMolBlock(molblock, sanitize=False) is not None:
+        return molblock
+    return Chem.MolToMolBlock(mol_from_compound(compound))
 
 
 def canonical_smiles(mol: Chem.Mol) -> str:

@@ -88,11 +88,18 @@ def resolve_name(value_type: str, value: str) -> tuple[str, str]:
     for resolver, resolver_func in _NAME_RESOLVERS.items():
         try:
             smiles = resolver_func(value_type, value)
-            # An empty body reaches here as "", which would otherwise be written out as
-            # a SMILES identifier holding nothing -- and would then mask the compound
-            # from a later resolution pass, since it counts as structural.
-            if smiles:
+            # A resolver that answers with something RDKit cannot read is no more use
+            # than one that answers with nothing, and worse to keep: written out as a
+            # SMILES identifier it counts as structural, which masks the compound from
+            # every later resolution pass, so a working resolver never gets to correct
+            # it. An empty body arrives here as "" and is the same problem. Both fall
+            # through to the next resolver.
+            if smiles and Chem.MolFromSmiles(smiles) is not None:
                 return smiles, resolver
+            logger.info(
+                f"{resolver} returned no usable structure for {value_type} {value}: "
+                f"{smiles!r}"
+            )
         except _ResolverError as error:
             logger.info(f"{resolver} could not resolve {value_type} {value}: {error}")
     raise ValueError(f"Could not resolve {value_type} {value} to SMILES")

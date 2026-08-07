@@ -476,3 +476,48 @@ class TestResolveInputBadFormat:
     def test_missing_of_separator(self):
         with pytest.raises(ValueError, match="does not match template"):
             resolvers.resolve_input("just a description")
+
+
+class TestResolverRejectsUnusableAnswers:
+    def test_falls_through_to_the_next_resolver(self, monkeypatch, caplog):
+        # A junk answer stored as a SMILES identifier counts as structural, which would
+        # mask the compound from every later pass; the next resolver has to get a turn.
+        monkeypatch.setattr(
+            resolvers,
+            "_NAME_RESOLVERS",
+            {
+                "broken": lambda _t, _v: "not a smiles",
+                "working": lambda _t, _v: "CC(=O)Oc1ccccc1C(=O)O",
+            },
+        )
+        with caplog.at_level(logging.INFO, logger="ord_schema.resolvers"):
+            smiles, resolver = resolvers.resolve_name("name", "aspirin")
+        assert (smiles, resolver) == ("CC(=O)Oc1ccccc1C(=O)O", "working")
+        assert "no usable structure" in caplog.text
+
+    def test_raises_when_every_answer_is_unusable(self, monkeypatch):
+        monkeypatch.setattr(
+            resolvers,
+            "_NAME_RESOLVERS",
+            {"broken": lambda _t, _v: "not a smiles", "empty": lambda _t, _v: ""},
+        )
+        with pytest.raises(ValueError, match="Could not resolve"):
+            resolvers.resolve_name("name", "aspirin")
+
+    def test_a_bad_answer_does_not_block_a_later_pass(self, monkeypatch):
+        # The end-to-end consequence: nothing structural is recorded, so resolve_names
+        # still has work to do the next time it runs.
+        monkeypatch.setattr(
+            resolvers, "_NAME_RESOLVERS", {"broken": lambda _t, _v: "not a smiles"}
+        )
+        message = reaction_pb2.Reaction()
+        message.inputs["x"].components.add().identifiers.add(
+            type="NAME", value="aspirin"
+        )
+        assert not resolvers.resolve_names(message)
+        monkeypatch.setattr(
+            resolvers,
+            "_NAME_RESOLVERS",
+            {"working": lambda _t, _v: "CC(=O)Oc1ccccc1C(=O)O"},
+        )
+        assert resolvers.resolve_names(message)

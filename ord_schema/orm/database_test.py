@@ -714,7 +714,7 @@ def test_backfill_submission_times(test_session):
 
 
 def _derived_smiles(session):
-    """Returns the derived SMILES for the compound _derive_with_identifiers marks."""
+    """Returns the derived SMILES for the compound the helpers below mark by name."""
     return (
         session.execute(
             text(
@@ -726,6 +726,75 @@ def _derived_smiles(session):
         .scalars()
         .one_or_none()
     )
+
+
+def _derive_with_identifiers(prepared_engine, identifiers):
+    """Loads the example dataset with one compound's identifiers replaced, and derives.
+
+    Args:
+        prepared_engine: Engine fixture.
+        identifiers: ``(type, value)`` pairs to give the compound.
+
+    Returns:
+        The derived SMILES for that compound, or None if it got no derived row.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
+    )
+    compound = next(
+        component
+        for reaction in dataset.reactions
+        for reaction_input in reaction.inputs.values()
+        for component in reaction_input.components
+    )
+    del compound.identifiers[:]
+    for identifier_type, value in identifiers:
+        compound.identifiers.add(type=identifier_type, value=value)
+    # Marks the row: no other compound in the fixture carries this name.
+    compound.identifiers.add(type="NAME", value="the compound under test")
+    with Session(prepared_engine) as session:
+        with session.begin():
+            add_dataset(dataset, session)
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session)
+        return _derived_smiles(session)
+
+
+def test_derived_compound_smiles_prefers_cxsmiles(prepared_engine):
+    # The plain SMILES asserts one configuration where the CXSMILES records a group, so
+    # taking the SMILES would make this table disagree with the Parquet artifacts.
+    smiles = _derive_with_identifiers(
+        prepared_engine,
+        [("SMILES", "C[C@H](N)O"), ("CXSMILES", "C[C@H](N)O |o1:1|")],
+    )
+    assert smiles == "C[C@H](N)O |o1:1|"
+
+
+def test_derived_compound_smiles_keeps_coordinate_bonds(prepared_engine):
+    smiles = _derive_with_identifiers(
+        prepared_engine, [("SMILES", "Cl[Pd](Cl)<-P(C)(C)C")]
+    )
+    assert smiles == "C[P](C)(C)[Pd]([Cl])[Cl] |C:1.3|"
+
+
+def test_derived_compound_smiles_looks_past_a_malformed_value(prepared_engine):
+    # A malformed SMILES used to end the attempt, so a compound recording a good InChI
+    # alongside it got no derived row at all.
+    inchi = "InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H"
+    smiles = _derive_with_identifiers(
+        prepared_engine, [("SMILES", "not a smiles"), ("INCHI", inchi)]
+    )
+    assert smiles == "c1ccccc1"
+
+
+def test_derived_compound_smiles_ignores_an_empty_preferred_identifier(prepared_engine):
+    # An empty CXSMILES must not win the preference ordering and push a compound with a
+    # perfectly good SMILES down the reconstruction path.
+    smiles = _derive_with_identifiers(
+        prepared_engine, [("CXSMILES", ""), ("SMILES", "c1ccccc1")]
+    )
+    assert smiles == "c1ccccc1"
 
 
 def test_rederive_recomputes_a_stale_row(prepared_engine):
