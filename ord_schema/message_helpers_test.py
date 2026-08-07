@@ -1189,3 +1189,55 @@ def test_derived_reaction_smiles_is_none_when_a_reactant_cannot_be_read():
     reaction = _reaction_with_components()
     reaction.inputs["b"].components.append(_compound(name="mystery reactant"))
     assert message_helpers.derived_reaction_smiles(reaction) is None
+
+
+def _identifiers(reaction: reaction_pb2.Reaction) -> list[tuple[str, str, str]]:
+    """Returns ``(role, identifier type name, value)`` for every component."""
+    name = reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name
+    role_name = reaction_pb2.ReactionRole.ReactionRoleType.Name
+    rows = [
+        (role_name(component.reaction_role), name(identifier.type), identifier.value)
+        for key in sorted(reaction.inputs)
+        for component in reaction.inputs[key].components
+        for identifier in component.identifiers
+    ]
+    rows.extend(
+        ("PRODUCT", name(identifier.type), identifier.value)
+        for outcome in reaction.outcomes
+        for product in outcome.products
+        for identifier in product.identifiers
+    )
+    return rows
+
+
+def test_reaction_from_smiles_keeps_enhanced_stereochemistry():
+    # A component's stereo group is chemistry the reaction SMILES recorded; writing the
+    # component with plain MolToSmiles would assert one configuration instead.
+    reaction = message_helpers.reaction_from_smiles(
+        "C[C@H](N)O.CC(=O)Cl>>C[C@H](NC(C)=O)O |o1:1|"
+    )
+    assert ("REACTANT", "CXSMILES", "C[C@H](N)O |o1:1|") in _identifiers(reaction)
+    # The type follows the value, so validation does not warn about a mistyped block.
+    assert (
+        reaction.identifiers[0].type
+        == reaction_pb2.ReactionIdentifier.REACTION_CXSMILES
+    )
+
+
+def test_reaction_from_smiles_keeps_coordinate_bonds():
+    reaction = message_helpers.reaction_from_smiles("Cl[Pd](Cl)<-P(C)(C)C.CC=O>>CCO")
+    assert (
+        "REACTANT",
+        "CXSMILES",
+        "C[P](C)(C)[Pd]([Cl])[Cl] |C:1.3|",
+    ) in _identifiers(reaction)
+
+
+def test_reaction_from_smiles_strips_atom_maps_from_agents_too():
+    # Every component comes off the parsed reaction, so agents lose their atom maps
+    # along with the reactants and products rather than keeping them.
+    reaction = message_helpers.reaction_from_smiles(
+        "[CH3:1][C:2](=O)O>[CH3:3][OH:4]>[CH3:1][C:2](=O)OC"
+    )
+    assert ("REAGENT", "SMILES", "CO") in _identifiers(reaction)
+    assert all(":" not in value for _, _, value in _identifiers(reaction))
