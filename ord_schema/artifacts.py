@@ -38,7 +38,7 @@ already uses for source datasets:
 * ``ord.source_md5`` -- what it was derived from.
 * ``ord.ord_schema_version`` -- what derived it.
 * ``ord.source_dataset_id`` -- the source's ID, written only when the source records
-  one. It is the one optional key, and the only one not required to read stamps back.
+  one, and so the only key not required to read stamps back.
 
 ``is_current`` requires the artifact name, the source content, the library version, and
 the artifact version to all match, since any of the four changing can change a value or
@@ -189,8 +189,7 @@ def is_current(path: str | os.PathLike[str], artifact: str, source_md5: str) -> 
         value = load_stamps(path)
     except (OSError, ValueError):
         # Broad on purpose: every way of failing to read stamps -- absent, truncated,
-        # not Parquet at all -- means this file cannot be served as current, and the
-        # answer is to derive it again.
+        # not Parquet at all -- answers "derive it again", which is safe.
         return False
     return (
         value.artifact == artifact
@@ -211,10 +210,9 @@ def is_artifact(path: str | os.PathLike[str]) -> bool:
         does not.
 
     Raises:
-        ValueError: If ``path`` cannot be read as Parquet at all. Unlike ``is_current``,
-            this predicate decides whether to treat a file as a source, so answering
-            False for a truncated file would feed it to a reader that fails later with
-            no idea which of thousands of paths was at fault.
+        ValueError: If ``path`` cannot be read as Parquet at all. This predicate decides
+            whether to treat a file as a source, so answering False for a truncated one
+            would feed it to a reader that fails later without naming it.
     """
     try:
         load_stamps(path)
@@ -293,9 +291,9 @@ def derive_tree(
         else:
             sources.append(match)
     logger.info("Found %d datasets", len(sources))
-    # Checked against every source rather than each source's own destination: an
-    # output_dir nested in the source tree maps one dataset onto a *different* one, so a
-    # per-source check passes and the run destroys a source it had not reached yet.
+    # Every destination against every source, not against its own: an output_dir nested
+    # in the source tree maps one dataset onto a *different* one, which a per-source
+    # check passes, destroying a source the run had not reached yet.
     destinations = {
         source: output_path(source, input_pattern, output_dir) for source in sources
     }

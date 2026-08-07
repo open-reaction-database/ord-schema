@@ -115,7 +115,7 @@ def test_build_schema_rejects_a_recursive_message():
 
 
 def test_unset_scalars_are_null_rather_than_the_proto_default():
-    row = projection.reaction_row(reaction_pb2.Reaction())
+    row = projection.message_row(reaction_pb2.Reaction())
     assert row["reaction_id"] is None
     assert row["provenance"] is None
 
@@ -125,14 +125,14 @@ def test_zero_is_preserved_where_the_source_says_zero():
     setpoint = reaction.conditions.temperature.setpoint
     setpoint.value = 0.0
     setpoint.units = reaction_pb2.Temperature.KELVIN
-    row = projection.reaction_row(reaction)
+    row = projection.message_row(reaction)
     assert row["conditions"]["temperature"]["setpoint_kelvin"] == 0.0
 
 
 def test_enum_values_project_as_their_names():
     reaction = _reaction()
     reaction.conditions.stirring.type = reaction_pb2.StirringConditions.STIR_BAR
-    row = projection.reaction_row(reaction)
+    row = projection.message_row(reaction)
     assert row["conditions"]["stirring"]["type"] == "STIR_BAR"
 
 
@@ -141,7 +141,7 @@ def test_temperature_converts_to_kelvin():
     setpoint = reaction.conditions.temperature.setpoint
     setpoint.value = 25.0
     setpoint.units = reaction_pb2.Temperature.CELSIUS
-    row = projection.reaction_row(reaction)
+    row = projection.message_row(reaction)
     assert row["conditions"]["temperature"]["setpoint_kelvin"] == pytest.approx(298.15)
 
 
@@ -149,7 +149,7 @@ def test_amount_mass_converts_to_grams():
     reaction = _reaction()
     mass = reaction.inputs["toluene"].components[0].amount.mass
     mass.value, mass.units = 1000.0, reaction_pb2.Mass.MILLIGRAM
-    row = projection.reaction_row(reaction)
+    row = projection.message_row(reaction)
     component = row["inputs"][0][1]["components"][0]
     assert component["amount"]["mass_grams"] == pytest.approx(1.0)
 
@@ -158,12 +158,12 @@ def test_a_unit_the_resolver_cannot_read_is_null_not_a_wrong_number():
     reaction = _reaction()
     setpoint = reaction.conditions.temperature.setpoint
     setpoint.value = 25.0  # units left UNSPECIFIED
-    row = projection.reaction_row(reaction)
+    row = projection.message_row(reaction)
     assert row["conditions"]["temperature"]["setpoint_kelvin"] is None
 
 
 def test_structural_identifiers_collapse_into_smiles():
-    row = projection.reaction_row(_reaction())
+    row = projection.message_row(_reaction())
     component = row["inputs"][0][1]["components"][0]
     assert component["smiles"] == "Cc1ccccc1"
     assert [identifier["type"] for identifier in component["identifiers"]] == ["NAME"]
@@ -173,7 +173,7 @@ def test_non_structural_identifiers_survive_the_collapse():
     reaction = _reaction()
     component = reaction.inputs["toluene"].components[0]
     component.identifiers.add(type="CAS_NUMBER", value="108-88-3")
-    row = projection.reaction_row(reaction)
+    row = projection.message_row(reaction)
     kept = {
         identifier["type"]
         for identifier in row["inputs"][0][1]["components"][0]["identifiers"]
@@ -197,7 +197,7 @@ def test_every_structural_compound_type_collapses(identifier_type, value):
     component = reaction.inputs["x"].components.add()
     component.identifiers.add(type=identifier_type, value=value)
     component.identifiers.add(type="NAME", value="toluene")
-    projected = projection.reaction_row(reaction)["inputs"][0][1]["components"][0]
+    projected = projection.message_row(reaction)["inputs"][0][1]["components"][0]
     assert projected["smiles"] == "Cc1ccccc1"
     assert [identifier["type"] for identifier in projected["identifiers"]] == ["NAME"]
 
@@ -206,7 +206,7 @@ def test_reaction_structural_identifiers_collapse_too():
     reaction = reaction_pb2.Reaction(reaction_id="ord-0006")
     reaction.identifiers.add(type="REACTION_CXSMILES", value="C>>CO |f:0.1|")
     reaction.identifiers.add(type="REACTION_TYPE", value="oxidation")
-    row = projection.reaction_row(reaction)
+    row = projection.message_row(reaction)
     assert row["smiles"] == "C>>CO |f:0.1|"
     assert [identifier["type"] for identifier in row["identifiers"]] == [
         "REACTION_TYPE"
@@ -214,20 +214,20 @@ def test_reaction_structural_identifiers_collapse_too():
 
 
 def test_a_product_compound_collapses_like_an_input_component():
-    row = projection.reaction_row(_reaction())
+    row = projection.message_row(_reaction())
     assert row["outcomes"][0]["products"][0]["smiles"] == "Cc1ccccc1O"
 
 
 def test_a_malformed_identifier_does_not_hide_a_later_valid_one():
-    # smiles_from_compound stops at the first structural identifier, so without a
-    # fallback this compound projects no structure even though it records one.
+    # smiles_from_compound stops at the first structural identifier, so without the
+    # fallback this compound projects no structure though it records one.
     reaction = reaction_pb2.Reaction(reaction_id="ord-0007")
     component = reaction.inputs["x"].components.add()
     component.identifiers.add(type="SMILES", value="not a smiles")
     component.identifiers.add(
         type="INCHI", value="InChI=1S/C7H8/c1-7-5-3-2-4-6-7/h2-6H,1H3"
     )
-    projected = projection.reaction_row(reaction)["inputs"][0][1]["components"][0]
+    projected = projection.message_row(reaction)["inputs"][0][1]["components"][0]
     assert projected["smiles"] == "Cc1ccccc1"
 
 
@@ -244,7 +244,7 @@ def test_a_structural_identifier_that_fails_to_collapse_is_kept():
     reaction = reaction_pb2.Reaction(reaction_id="ord-0004")
     component = reaction.inputs["mystery"].components.add()
     component.identifiers.add(type="SMILES", value="not a smiles")
-    projected = projection.reaction_row(reaction)["inputs"][0][1]["components"][0]
+    projected = projection.message_row(reaction)["inputs"][0][1]["components"][0]
     assert projected["smiles"] is None
     assert projected["identifiers"] == [
         {"type": "SMILES", "value": "not a smiles", "details": None}
@@ -255,14 +255,14 @@ def test_a_name_only_compound_keeps_its_name_and_has_no_smiles():
     reaction = reaction_pb2.Reaction(reaction_id="ord-0002")
     component = reaction.inputs["quench"].components.add()
     component.identifiers.add(type="NAME", value="ice water")
-    row = projection.reaction_row(reaction)
+    row = projection.message_row(reaction)
     projected = row["inputs"][0][1]["components"][0]
     assert projected["smiles"] is None
     assert projected["identifiers"][0]["value"] == "ice water"
 
 
 def test_reaction_smiles_is_generated_when_the_source_records_none():
-    row = projection.reaction_row(_reaction())
+    row = projection.message_row(_reaction())
     assert row["smiles"] is not None
     assert ">>" in row["smiles"]
 
@@ -273,7 +273,7 @@ def test_a_generated_reaction_smiles_is_complete_or_null():
     reaction = _reaction()
     mystery = reaction.inputs["toluene"].components.add()
     mystery.identifiers.add(type="NAME", value="mystery reagent")
-    assert projection.reaction_row(reaction)["smiles"] is None
+    assert projection.message_row(reaction)["smiles"] is None
 
 
 def test_a_recorded_reaction_smiles_survives_an_unreadable_component():
@@ -283,11 +283,11 @@ def test_a_recorded_reaction_smiles_survives_an_unreadable_component():
     reaction.inputs["toluene"].components.add().identifiers.add(
         type="NAME", value="mystery reagent"
     )
-    assert projection.reaction_row(reaction)["smiles"] == "Cc1ccccc1>>Cc1ccccc1O"
+    assert projection.message_row(reaction)["smiles"] == "Cc1ccccc1>>Cc1ccccc1O"
 
 
 def test_empty_repeated_fields_are_null_rather_than_empty_lists():
-    row = projection.reaction_row(reaction_pb2.Reaction(reaction_id="ord-0003"))
+    row = projection.message_row(reaction_pb2.Reaction(reaction_id="ord-0003"))
     assert row["outcomes"] is None
     assert row["observations"] is None
 
@@ -297,17 +297,19 @@ def test_a_reaction_id_that_disagrees_with_its_column_is_an_error():
         projection.reaction_row(_reaction("ord-in-message"), "ord-in-column")
 
 
-def test_an_empty_reaction_id_column_is_an_error():
-    with pytest.raises(ValueError, match="empty reaction_id column"):
-        projection.reaction_row(_reaction("ord-in-message"), "")
-    with pytest.raises(ValueError, match="empty reaction_id column"):
-        projection.reaction_row(reaction_pb2.Reaction(), "")
+@pytest.mark.parametrize("column", ["", None])
+def test_a_reaction_id_column_with_no_value_is_an_error(column):
+    # None is required to travel as itself rather than as a defaulted "no column was
+    # read", which would make a null row skip the check entirely.
+    with pytest.raises(ValueError, match="reaction_id column is"):
+        projection.reaction_row(_reaction("ord-in-message"), column)
+    with pytest.raises(ValueError, match="reaction_id column is"):
+        projection.reaction_row(reaction_pb2.Reaction(), column)
 
 
 def test_a_matching_column_projects_the_message_id():
-    # The message is authoritative, so the column is only ever checked against it --
-    # DatasetView.md5 does not hash that column, and a value read from it would be a
-    # projected value outside the staleness hash.
+    # Checked, never read: DatasetView.md5 does not hash the column, so a value taken
+    # from it would sit outside the staleness hash.
     row = projection.reaction_row(_reaction("ord-0001"), "ord-0001")
     assert row["reaction_id"] == "ord-0001"
 
@@ -335,6 +337,33 @@ def test_write_projection_reads_the_reaction_id_column(tmp_path):
         path,
     )
     with pytest.raises(ValueError, match=f"{path}.*disagrees"):
+        projection.write_projection(
+            parquet.DatasetView(path), tmp_path / "projection.parquet"
+        )
+
+
+def test_write_projection_rejects_a_null_reaction_id_column(tmp_path):
+    # A producer declaring the column nullable can put a null in it, which
+    # iter_reactions hands through as None; the blob's ID must not stand in for it.
+    path = tmp_path / "null_id.parquet"
+    reaction = _reaction("ord-in-message")
+    schema = pa.schema(
+        [
+            pa.field("reaction_id", pa.string(), nullable=True),
+            pa.field("reaction", pa.binary(), nullable=False),
+        ]
+    ).with_metadata(pq.read_schema(_source(tmp_path, [_reaction()]).path).metadata)
+    pq.write_table(
+        pa.table(
+            {
+                "reaction_id": [None],
+                "reaction": [reaction.SerializeToString(deterministic=True)],
+            },
+            schema=schema,
+        ),
+        path,
+    )
+    with pytest.raises(ValueError, match="reaction_id column is None"):
         projection.write_projection(
             parquet.DatasetView(path), tmp_path / "projection.parquet"
         )

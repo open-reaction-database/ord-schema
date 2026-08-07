@@ -155,12 +155,10 @@ _RESOLVER = units.UnitResolver()
 def _validate_canonical_units() -> None:
     """Checks ``_CANONICAL_UNITS`` against the resolver and the reachable messages.
 
-    A target the resolver rejects would make ``_canonical_value`` return None for every
-    row, so the column would keep its name and go entirely null -- indistinguishable
-    from a corpus that records no such value. A united message reachable from Reaction
-    but absent from the table would project as a raw ``{value, precision, units}``
-    struct, reinstating the mixed-unit trap the normalization exists to remove. Both are
-    invisible at runtime, so they are caught here instead.
+    Both failures are invisible at runtime, which is why they are caught here. A target
+    the resolver rejects nulls every value of that column while leaving its name intact;
+    a united message missing from the table projects as a raw ``{value, precision,
+    units}`` struct, reinstating the mixed-unit trap.
 
     Raises:
         ValueError: If a target unit does not resolve to the message type it is listed
@@ -172,8 +170,6 @@ def _validate_canonical_units() -> None:
             message_cls, _ = _RESOLVER.resolve_unit(target)
         except KeyError as error:
             raise ValueError(f"{name}: unusable canonical unit {target!r}") from error
-        # The protobuf stubs type DESCRIPTOR as optional; on a generated class it never
-        # is, matching the cast in build_schema.
         resolved = cast(Descriptor, message_cls.DESCRIPTOR)
         if resolved.name != name:
             raise ValueError(
@@ -285,9 +281,8 @@ def _canonical_value(message: ord_schema.UnitMessage, target: str) -> float | No
     try:
         return _RESOLVER.convert(message, target).value
     except (KeyError, ValueError):
-        # A unit the resolver cannot convert reads as null rather than as a wrong
-        # number in the wrong unit. Logged because the column keeps its name either
-        # way, so a null is otherwise indistinguishable from a silent source.
+        # Null rather than a wrong number in the wrong unit. Logged because the
+        # column keeps its name, so the null looks like a source that said nothing.
         logger.warning(
             "%s records units the resolver cannot convert to %s; projecting null",
             cast(Descriptor, message.DESCRIPTOR).name,
@@ -305,12 +300,10 @@ def _smiles(message: Message) -> str | None:
     Returns:
         For a reaction, the recorded reaction SMILES, generated from the components when
         none is recorded. Generation is all-or-nothing: a reaction holding a component
-        no structure can be read from projects null rather than a SMILES silently
-        missing that component, since the two are indistinguishable in the column and
-        only one of them is true. For a compound, canonical SMILES from the preferred
-        structural identifier, falling back to any other that parses -- a compound
-        recording a malformed identifier ahead of a good one still projects the
-        structure it has. None when nothing readable is recorded.
+        with no readable structure projects null, since a SMILES missing a component is
+        indistinguishable in the column from one that is complete. For a compound,
+        canonical SMILES from the preferred structural identifier, falling back to any
+        other that parses. None when nothing readable is recorded.
     """
     if cast(Descriptor, message.DESCRIPTOR).name == "Reaction":
         try:
@@ -329,9 +322,8 @@ def _smiles(message: Message) -> str | None:
         return message_helpers.smiles_from_compound(compound) or None
     except ValueError:
         pass
-    # smiles_from_compound stops at the first structural identifier, so one malformed
-    # value hides every later one; the collapse is only worth having if it finds the
-    # structure the source actually recorded.
+    # smiles_from_compound stops at the first structural identifier, so without this
+    # one malformed value hides every later one.
     for identifier in compound.identifiers:
         canonical = message_helpers.canonical_smiles_for_identifier(
             identifier.type, identifier.value
@@ -347,8 +339,7 @@ def _kept_identifiers(values: Any, structural: frozenset[int] | None) -> list[An
     Args:
         values: The message's ``identifiers`` field.
         structural: The types ``smiles`` answers for, or None when there is no
-            ``smiles`` to answer for them. Naming the set rather than passing a flag
-            keeps this from having to re-derive which message it was called for.
+            ``smiles`` to answer for them.
 
     Returns:
         Every identifier when ``structural`` is None, otherwise those it does not name.
@@ -376,9 +367,8 @@ def message_row(message: Message) -> dict[str, Any]:
     """
     descriptor = cast(Descriptor, message.DESCRIPTOR)
     row: dict[str, Any] = {}
-    # The types smiles answers for, or None when it answered nothing: a compound whose
-    # identifiers are all unreadable keeps them, rather than reading as a compound whose
-    # structure the source never recorded.
+    # None where smiles answered nothing, so a compound with no readable identifier
+    # keeps all of them instead of reading as one that recorded no structure.
     collapsed: frozenset[int] | None = None
     if descriptor.name in _STRUCTURAL_TYPES:
         smiles = _smiles(message)
@@ -434,39 +424,41 @@ def message_row(message: Message) -> dict[str, Any]:
 
 
 def reaction_row(
-    reaction: reaction_pb2.Reaction, reaction_id: str | None = None
+    reaction: reaction_pb2.Reaction, reaction_id: str | None
 ) -> dict[str, Any]:
-    """Projects a Reaction to a dict matching ``SCHEMA``.
+    """Projects one row of a source dataset to a dict matching ``SCHEMA``.
 
-    The message is authoritative for every projected value, including the ID. A source
-    also stores ``reaction_id`` as its own column -- the key that
-    ``DatasetView.get_reaction`` indexes -- and passing it here checks the two against
-    each other rather than choosing between them. Deliberately a check and not a
-    fallback: ``DatasetView.md5`` hashes the Reaction blobs and not that column, so an
-    ID read from the column would be a projected value outside the staleness hash, and
-    correcting the column alone would leave the artifact looking current forever.
+    The message is authoritative for every projected value, including the ID; the
+    source's ``reaction_id`` column -- the key ``DatasetView.get_reaction`` indexes --
+    is checked against it rather than chosen between. A check and not a fallback because
+    ``DatasetView.md5`` hashes the Reaction blobs and not that column: an ID read from
+    the column would sit outside the staleness hash, so correcting the column alone
+    would leave the artifact looking current forever.
 
     Args:
         reaction: Reaction to project.
-        reaction_id: The source's ``reaction_id`` column value, or None when the caller
-            read no column.
+        reaction_id: The row's ``reaction_id`` column value, exactly as read -- None
+            where the column is null. Required rather than defaulted, so a null cannot
+            arrive looking like a caller who read no column and skip the check. Project
+            a Reaction from anywhere else with ``message_row``.
 
     Returns:
         A dict keyed by projected column name.
 
     Raises:
-        ValueError: If ``reaction_id`` is empty, or if it disagrees with the ID the
-            message records. Either way the source cannot be joined on its own key, and
-            deriving from it would publish that inconsistency.
+        ValueError: If ``reaction_id`` is null or empty, or disagrees with the ID the
+            message records. Each means the source cannot be joined on its own key.
     """
-    if reaction_id is not None:
-        if not reaction_id:
-            raise ValueError("source records an empty reaction_id column")
-        if reaction_id != reaction.reaction_id:
-            raise ValueError(
-                f"reaction_id column {reaction_id!r} disagrees with the reaction's own "
-                f"{reaction.reaction_id!r}"
-            )
+    if not reaction_id:
+        raise ValueError(
+            f"reaction_id column is {reaction_id!r}; the reaction records "
+            f"{reaction.reaction_id!r}"
+        )
+    if reaction_id != reaction.reaction_id:
+        raise ValueError(
+            f"reaction_id column {reaction_id!r} disagrees with the reaction's own "
+            f"{reaction.reaction_id!r}"
+        )
     return message_row(reaction)
 
 
@@ -501,9 +493,9 @@ def write_projection(
         Number of rows written.
 
     Raises:
-        ValueError: If any row's ``reaction_id`` column disagrees with its Reaction, or
-            is empty. The message names the source, since a corpus-wide run needs to
-            know which of thousands of datasets is inconsistent.
+        ValueError: If any row's ``reaction_id`` column is missing or disagrees with
+            its Reaction. The message names the source, since a corpus-wide run has
+            thousands of datasets to choose between.
     """
     if source_md5 is None:
         source_md5 = source.md5()

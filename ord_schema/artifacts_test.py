@@ -156,8 +156,7 @@ def test_output_path_mirrors_the_input_layout():
 
 
 def test_output_path_for_an_exact_filename_writes_into_the_directory():
-    # Regression: consuming the filename as a fixed component made this the output
-    # directory itself rather than a file inside it.
+    # A pattern naming one file must land inside output_dir, not become it.
     assert artifacts.output_path(
         "data/aa/one.parquet", "data/aa/one.parquet", "views"
     ) == pathlib.Path("views/one.parquet")
@@ -248,9 +247,8 @@ def test_derive_tree_refuses_to_write_over_its_own_sources(tmp_path):
 
 
 def test_derive_tree_refuses_to_write_over_a_different_source(tmp_path):
-    # The destination for data/source.parquet is data/aa/source.parquet, which is
-    # another source this run has not reached yet. Checking each destination against
-    # only its own source lets that one through and destroys the neighbor.
+    # data/source.parquet maps onto data/aa/source.parquet, another source this run
+    # has not reached. A per-source check passes it and destroys the neighbor.
     _fake_source(tmp_path / "source.parquet")
     (tmp_path / "aa").mkdir()
     victim = tmp_path / "aa" / "source.parquet"
