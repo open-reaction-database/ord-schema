@@ -769,19 +769,24 @@ def _update_compound_smiles(
 ) -> None:
     """Derives SMILES for one (product) compound table's not-yet-derived rows.
 
-    The common case -- a compound with a stored SMILES identifier -- is served
-    set-based: the first SMILES identifier for each compound in the batch is fetched
+    The answer matches ``message_helpers.smiles_from_compound``, which the Parquet view
+    and projection use, so the three artifacts cannot disagree about what a compound is.
+    Getting there without loading a proto per compound is what the two set-based queries
+    below are for.
+
+    The common case -- a compound with a stored SMILES or CXSMILES identifier -- is
+    served set-based: the best such identifier for each compound in the batch is fetched
     from ord.compound_identifier in a single query and canonicalized with RDKit,
-    avoiding a per-compound ORM load. Compounds without a stored SMILES but with some
-    other structural identifier (INCHI/MOLBLOCK) fall back to reconstructing the message
-    via to_proto and computing the SMILES from those identifiers; a second set-based
-    query flags which batch ids carry any structural identifier at all, so a compound
-    with only non-structural identifiers (e.g. NAME) -- which never yields a derived row
-    and is therefore re-selected every run -- is skipped without the ORM load plus
-    to_proto that is certain to raise. Ids are resolved up front and processed in
-    batches of _DERIVED_BATCH so memory stays bounded. ``shard`` (index, num_shards)
-    restricts to one disjoint hash-partition of this table's ids so large datasets can
-    be split across workers.
+    avoiding a per-compound ORM load. Compounds without one, and those whose stored
+    value will not parse, fall back to reconstructing the message via to_proto and
+    deriving from the remaining identifiers (INCHI/MOLBLOCK); a second set-based query
+    flags which batch ids carry any structural identifier at all, so a compound with
+    only non-structural identifiers (e.g. NAME) -- which never yields a derived row and
+    is therefore re-selected every run -- is skipped without the ORM load plus to_proto
+    that is certain to raise. Ids are resolved up front and processed in batches of
+    _DERIVED_BATCH so memory stays bounded. ``shard`` (index, num_shards) restricts to
+    one disjoint hash-partition of this table's ids so large datasets can be split
+    across workers.
 
     ``reaction_joins`` are the disjoint join paths from ``compound_table`` to
     ord.reaction; one id query runs per path and the results are concatenated. See
@@ -812,17 +817,26 @@ def _update_compound_smiles(
         .scalars()
         .all()
     )
-    # The first SMILES identifier (lowest id == proto order) for each requested
-    # compound. The FK column is indexed, so one query per batch replaces an ORM load
-    # plus lazy child fetches per compound. Interpolated names are internal constants
-    # (not user input); see S608 below.
+    # The best SMILES-like identifier for each requested compound. The FK column is
+    # indexed, so one query per batch replaces an ORM load plus lazy child fetches per
+    # compound. Interpolated names are internal constants (not user input); see S608
+    # below.
+    #
+    # CXSMILES sorts ahead of SMILES so this picks what message_helpers
+    # .structural_identifiers picks, and ties break on id (proto order), matching the
+    # first-one-wins rule there. Empty values are excluded rather than being taken and
+    # rejected below: an empty CXSMILES would otherwise win this ordering and push a
+    # compound with a perfectly good SMILES down the reconstruction path.
     select_smiles = text(f"""
         SELECT DISTINCT ON (ord.compound_identifier.{derived_id})
                ord.compound_identifier.{derived_id}, ord.compound_identifier.value
         FROM ord.compound_identifier
         WHERE ord.compound_identifier.{derived_id} IN :ids
-          AND ord.compound_identifier.type = 'SMILES'
-        ORDER BY ord.compound_identifier.{derived_id}, ord.compound_identifier.id
+          AND ord.compound_identifier.type IN ('CXSMILES', 'SMILES')
+          AND ord.compound_identifier.value <> ''
+        ORDER BY ord.compound_identifier.{derived_id},
+                 (ord.compound_identifier.type = 'CXSMILES') DESC,
+                 ord.compound_identifier.id
         """).bindparams(bindparam("ids", expanding=True))  # noqa: S608
     # Ids in the batch that carry a non-empty structural identifier, i.e. one of the
     # types smiles_from_compound can build a Mol from. A compound with only
@@ -872,27 +886,27 @@ def _update_compound_smiles(
         }
         inserts = []
         for compound_id in batch_ids:
+            smiles = None
             value = stored_smiles.get(compound_id)
-            # An absent or empty SMILES identifier both fall through to the
-            # reconstruction path: an empty string is not a structure to canonicalize.
-            if value:
-                # Canonicalize the stored SMILES. Plain MolToSmiles, so this path
-                # drops the enhanced stereochemistry smiles_from_compound keeps; see
-                # #936, which is about closing that gap.
+            if value is not None:
                 mol = Chem.MolFromSmiles(value)
                 if mol is None:
+                    # Not a dead end: the compound may record an INCHI or MOLBLOCK that
+                    # does parse, which the reconstruction below reaches. Matches
+                    # smiles_from_compound, which looks past a malformed identifier
+                    # rather than letting it decide the compound has no structure.
                     logger.debug(
                         f"Cannot parse SMILES for compound id={compound_id}: {value}"
                     )
+                else:
+                    # canonical_smiles, not MolToSmiles, so this path keeps the enhanced
+                    # stereochemistry and coordinate bonds the Parquet artifacts keep.
+                    smiles = message_helpers.canonical_smiles(mol)
+            if smiles is None:
+                if compound_id not in derivable:
+                    # Only non-structural identifiers, so smiles_from_compound has
+                    # nothing to read; skip the reconstruction (see select_structural).
                     continue
-                smiles = Chem.MolToSmiles(mol)
-            elif compound_id not in derivable:
-                # Only non-structural identifiers, so smiles_from_compound has nothing
-                # to read; skip the reconstruction (see select_structural).
-                continue
-            else:
-                # No stored SMILES: reconstruct the message and derive from other
-                # identifiers.
                 compound = session.get(compound_class, compound_id)
                 assert compound is not None  # Selected by id above.
                 smiles = message_helpers.smiles_from_compound(
