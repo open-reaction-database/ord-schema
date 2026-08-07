@@ -175,7 +175,7 @@ gate on process status. What it checks:
 Two further checks worth doing before a cutover:
 
 - **Dataset freshness**, using the loader's own hash: `public.datasets.md5` must equal
-  `ord_schema.parquet.streaming_md5(path)` for every Parquet file in `ord-data`.
+  `ord_schema.parquet.DatasetView(path).md5()` for every Parquet file in `ord-data`.
 - **Reaction-set equality** against the database you are replacing — an order-independent
   fingerprint beats comparing counts alone:
 

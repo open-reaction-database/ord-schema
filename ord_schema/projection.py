@@ -19,7 +19,7 @@ costs a full deserialization. A projection restates the *same* reactions as nest
 Parquet -- message to ``STRUCT``, repeated field to ``LIST``, map to ``MAP`` -- so a
 query engine can read one leaf without touching the rest.
 
-**Nothing is dropped.** Every field of every message reachable from ``Reaction``
+**No field is left out.** Every field of every message reachable from ``Reaction``
 appears, because a field left out is a question nobody can ask, and the point of the
 artifact is to support questions nobody enumerated in advance. The schema is generated
 from the proto descriptors rather than written by hand, so a new field appears here
@@ -36,12 +36,14 @@ Two normalizations are applied, and only two. Both cost no query and remove a re
   recorded in Celsius. Each becomes a single column named for its unit --
   ``setpoint_kelvin`` -- so a question in other units stays expressible while the
   mixed-unit comparison that would quietly return the wrong rows does not.
-* **Structural identifiers collapse to one canonical ``smiles``.** ``SMILES``,
-  ``CXSMILES``, ``INCHI``, and ``MOLBLOCK`` all answer "what is this molecule," so the
-  projection answers it once rather than making every consumer re-implement the
-  preference order. They collapse only when that succeeds: an identifier RDKit cannot
-  read stays in the list, since dropping it as well would report a compound as having no
-  recorded structure when the source recorded one.
+* **Structural identifiers collapse to one ``smiles``.** ``SMILES``, ``CXSMILES``,
+  ``INCHI``, and ``MOLBLOCK`` all answer "what is this molecule," so the projection
+  answers it once rather than making every consumer re-implement the preference order;
+  ``REACTION_SMILES`` and ``REACTION_CXSMILES`` collapse the same way at the reaction
+  level. The drop is all-or-nothing per message and conditional on the collapse
+  producing something: a compound whose identifiers none of RDKit's loaders can read
+  keeps all of them, rather than reading as a compound whose structure the source never
+  recorded.
 
 Every other identifier is kept, as a list. ``NAME`` alone covers compounds that no
 structural identifier reaches, and a compound may carry several of them, so pivoting
@@ -54,25 +56,30 @@ reproducible from the projection alone.
 
 .. warning::
    Query repeated levels with list lambdas, not ``UNNEST`` in the ``FROM`` clause.
-   ``UNNEST`` materializes the exploded intermediate and is 27-200x slower on identical
-   answers; over the full corpus the difference is 0.9 seconds against not finishing.
+   ``UNNEST`` materializes the exploded intermediate: measured in DuckDB, 27-200x slower
+   where it finishes at all, and over the full corpus 0.9 seconds against no result in
+   four minutes. It also emits one row per matching identifier rather than one per
+   reaction, so the two spellings below need the ``DISTINCT`` to count alike.
 
    .. code-block:: sql
 
       -- fast
+      SELECT reaction_id FROM p
       WHERE len(list_filter(
               flatten(list_transform(map_values(inputs), i -> i.components)),
               c -> len(list_filter(c.identifiers,
                                    x -> x.type = 'NAME' AND x.value = 'THF')) > 0)) > 0
 
       -- same answer, does not finish
+      SELECT DISTINCT reaction_id
       FROM p, UNNEST(map_values(inputs)) t(i), UNNEST(i.components) u(c),
               UNNEST(c.identifiers) v(x)
       WHERE x.type = 'NAME' AND x.value = 'THF'
 """
 
 import os
-from typing import Any, cast
+from collections.abc import Iterator
+from typing import Any, cast, get_args
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -81,7 +88,10 @@ from google.protobuf.message import Message
 
 import ord_schema
 from ord_schema import artifacts, atomic_io, message_helpers, parquet, units
+from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
+
+logger = get_logger(__name__)
 
 ARTIFACT = "projection"
 
@@ -102,14 +112,15 @@ _CANONICAL_UNITS: dict[str, tuple[str, str]] = {
     "Wavelength": ("nm", "nanometers"),
 }
 
-# Messages that get a collapsed `smiles` field, and the identifier types it replaces.
+# Identifier types the collapsed `smiles` answers for, keyed by the message that gets
+# the collapsed field. Keying the sets rather than testing the message name twice keeps
+# the two decisions -- whether to collapse, and which types to drop -- from drifting
+# apart; the enum numbers overlap between the two, so a mismatch would silently drop the
+# wrong types rather than raise. The compound set follows message_helpers, which owns
+# what "structural" means.
 _STRUCTURAL_COMPOUND_TYPES = frozenset(
-    {
-        reaction_pb2.CompoundIdentifier.SMILES,
-        reaction_pb2.CompoundIdentifier.CXSMILES,
-        reaction_pb2.CompoundIdentifier.INCHI,
-        reaction_pb2.CompoundIdentifier.MOLBLOCK,
-    }
+    reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Value(name)
+    for name in message_helpers.STRUCTURAL_IDENTIFIER_TYPES
 )
 _STRUCTURAL_REACTION_TYPES = frozenset(
     {
@@ -117,7 +128,11 @@ _STRUCTURAL_REACTION_TYPES = frozenset(
         reaction_pb2.ReactionIdentifier.REACTION_CXSMILES,
     }
 )
-_COMPOUND_MESSAGES = frozenset({"Compound", "ProductCompound"})
+_STRUCTURAL_TYPES: dict[str, frozenset[int]] = {
+    "Compound": _STRUCTURAL_COMPOUND_TYPES,
+    "ProductCompound": _STRUCTURAL_COMPOUND_TYPES,
+    "Reaction": _STRUCTURAL_REACTION_TYPES,
+}
 
 _ARROW_SCALARS: dict[int, pa.DataType] = {
     FieldDescriptor.TYPE_DOUBLE: pa.float64(),
@@ -135,6 +150,63 @@ _ARROW_SCALARS: dict[int, pa.DataType] = {
 }
 
 _RESOLVER = units.UnitResolver()
+
+
+def _validate_canonical_units() -> None:
+    """Checks ``_CANONICAL_UNITS`` against the resolver and the reachable messages.
+
+    A target the resolver rejects would make ``_canonical_value`` return None for every
+    row, so the column would keep its name and go entirely null -- indistinguishable
+    from a corpus that records no such value. A united message reachable from Reaction
+    but absent from the table would project as a raw ``{value, precision, units}``
+    struct, reinstating the mixed-unit trap the normalization exists to remove. Both are
+    invisible at runtime, so they are caught here instead.
+
+    Raises:
+        ValueError: If a target unit does not resolve to the message type it is listed
+            under, or if the table does not cover exactly the united messages reachable
+            from Reaction.
+    """
+    for name, (target, _) in _CANONICAL_UNITS.items():
+        try:
+            message_cls, _ = _RESOLVER.resolve_unit(target)
+        except KeyError as error:
+            raise ValueError(f"{name}: unusable canonical unit {target!r}") from error
+        # The protobuf stubs type DESCRIPTOR as optional; on a generated class it never
+        # is, matching the cast in build_schema.
+        resolved = cast(Descriptor, message_cls.DESCRIPTOR)
+        if resolved.name != name:
+            raise ValueError(
+                f"{name}: canonical unit {target!r} belongs to {resolved.name}"
+            )
+    united = {message.DESCRIPTOR.name for message in get_args(ord_schema.UnitMessage)}
+    reachable = {
+        field.message_type.name
+        for field in _reachable_fields()
+        if field.message_type is not None
+    }
+    expected = united & reachable
+    if expected != set(_CANONICAL_UNITS):
+        raise ValueError(
+            "_CANONICAL_UNITS does not match the united messages reachable from "
+            f"Reaction; missing {sorted(expected - set(_CANONICAL_UNITS))}, "
+            f"unreachable {sorted(set(_CANONICAL_UNITS) - expected)}"
+        )
+
+
+def _reachable_fields() -> Iterator[FieldDescriptor]:
+    """Yields every field of every message reachable from Reaction, once per field."""
+    seen: set[str] = set()
+    stack = [cast(Descriptor, reaction_pb2.Reaction.DESCRIPTOR)]
+    while stack:
+        descriptor = stack.pop()
+        if descriptor.full_name in seen:
+            continue
+        seen.add(descriptor.full_name)
+        for field in descriptor.fields:
+            yield field
+            if field.message_type is not None:
+                stack.append(field.message_type)
 
 
 def _canonical_unit(field: FieldDescriptor) -> tuple[str, str] | None:
@@ -177,7 +249,7 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
         )
     stack = stack | {descriptor.full_name}
     fields = []
-    if descriptor.name in _COMPOUND_MESSAGES or descriptor.name == "Reaction":
+    if descriptor.name in _STRUCTURAL_TYPES:
         fields.append(pa.field("smiles", pa.string()))
     fields.extend(
         pa.field(column_name(field), _field_type(field, stack))
@@ -203,6 +275,8 @@ def build_schema() -> pa.Schema:
 
 SCHEMA = build_schema()
 
+_validate_canonical_units()
+
 
 def _canonical_value(message: ord_schema.UnitMessage, target: str) -> float | None:
     """Returns a united message's value in ``target`` units, or None if unreadable."""
@@ -212,12 +286,29 @@ def _canonical_value(message: ord_schema.UnitMessage, target: str) -> float | No
         return _RESOLVER.convert(message, target).value
     except (KeyError, ValueError):
         # A unit the resolver cannot convert reads as null rather than as a wrong
-        # number in the wrong unit.
+        # number in the wrong unit. Logged because the column keeps its name either
+        # way, so a null is otherwise indistinguishable from a silent source.
+        logger.warning(
+            "%s records units the resolver cannot convert to %s; projecting null",
+            cast(Descriptor, message.DESCRIPTOR).name,
+            target,
+        )
         return None
 
 
 def _smiles(message: Message) -> str | None:
-    """Returns the canonical SMILES for a compound or reaction, or None."""
+    """Returns the SMILES for a compound or reaction, or None if none can be read.
+
+    Args:
+        message: A Compound, ProductCompound, or Reaction.
+
+    Returns:
+        For a reaction, the recorded reaction SMILES, generated from the components when
+        none is recorded. For a compound, canonical SMILES from the preferred structural
+        identifier, falling back to any other that parses -- a compound recording a
+        malformed identifier ahead of a good one still projects the structure it has.
+        None when nothing readable is recorded.
+    """
     if cast(Descriptor, message.DESCRIPTOR).name == "Reaction":
         try:
             return (
@@ -228,37 +319,37 @@ def _smiles(message: Message) -> str | None:
             )
         except ValueError:
             return None
+    compound = cast(reaction_pb2.Compound, message)
     try:
-        return (
-            message_helpers.smiles_from_compound(cast(reaction_pb2.Compound, message))
-            or None
-        )
+        return message_helpers.smiles_from_compound(compound) or None
     except ValueError:
-        return None
+        pass
+    # smiles_from_compound stops at the first structural identifier, so one malformed
+    # value hides every later one; the collapse is only worth having if it finds the
+    # structure the source actually recorded.
+    for identifier in compound.identifiers:
+        canonical = message_helpers.canonical_smiles_for_identifier(
+            identifier.type, identifier.value
+        )
+        if canonical:
+            return canonical
+    return None
 
 
-def _kept_identifiers(
-    descriptor: Descriptor, values: Any, *, collapsed: bool
-) -> list[Any]:
-    """Returns identifiers the collapsed ``smiles`` column does not already carry.
+def _kept_identifiers(values: Any, structural: frozenset[int] | None) -> list[Any]:
+    """Returns the identifiers to project alongside a collapsed ``smiles``.
 
     Args:
-        descriptor: Descriptor of the message holding ``values``.
         values: The message's ``identifiers`` field.
-        collapsed: Whether ``smiles`` holds the structure these identifiers record. A
-            failed collapse keeps every identifier, so the structure the source did
-            record stays readable.
+        structural: The types ``smiles`` answers for, or None when there is no
+            ``smiles`` to answer for them. Naming the set rather than passing a flag
+            keeps this from having to re-derive which message it was called for.
 
     Returns:
-        The identifiers to project.
+        Every identifier when ``structural`` is None, otherwise those it does not name.
     """
-    if not collapsed:
+    if structural is None:
         return list(values)
-    structural = (
-        _STRUCTURAL_COMPOUND_TYPES
-        if descriptor.name in _COMPOUND_MESSAGES
-        else _STRUCTURAL_REACTION_TYPES
-    )
     return [value for value in values if value.type not in structural]
 
 
@@ -280,10 +371,15 @@ def message_row(message: Message) -> dict[str, Any]:
     """
     descriptor = cast(Descriptor, message.DESCRIPTOR)
     row: dict[str, Any] = {}
-    smiles = None
-    if descriptor.name in _COMPOUND_MESSAGES or descriptor.name == "Reaction":
+    # The types smiles answers for, or None when it answered nothing: a compound whose
+    # identifiers are all unreadable keeps them, rather than reading as a compound whose
+    # structure the source never recorded.
+    collapsed: frozenset[int] | None = None
+    if descriptor.name in _STRUCTURAL_TYPES:
         smiles = _smiles(message)
         row["smiles"] = smiles
+        if smiles is not None:
+            collapsed = _STRUCTURAL_TYPES[descriptor.name]
     for field in descriptor.fields:
         name = column_name(field)
         canonical = _canonical_unit(field)
@@ -302,9 +398,7 @@ def message_row(message: Message) -> dict[str, Any]:
         if field.label == FieldDescriptor.LABEL_REPEATED:
             values = getattr(message, field.name)
             if field.name == "identifiers":
-                values = _kept_identifiers(
-                    descriptor, values, collapsed=smiles is not None
-                )
+                values = _kept_identifiers(values, collapsed)
             if message_type is not None:
                 row[name] = [message_row(value) for value in values] or None
             elif field.type == FieldDescriptor.TYPE_ENUM:
@@ -319,9 +413,9 @@ def message_row(message: Message) -> dict[str, Any]:
                 else None
             )
             continue
-        try:
+        if field.has_presence:
             present = message.HasField(field.name)
-        except ValueError:
+        else:
             # Proto3 scalars without explicit presence: absent and default are the same
             # wire state, so treat the default as absent.
             present = bool(getattr(message, field.name))
@@ -339,30 +433,36 @@ def reaction_row(
 ) -> dict[str, Any]:
     """Projects a Reaction to a dict matching ``SCHEMA``.
 
+    The message is authoritative for every projected value, including the ID. A source
+    also stores ``reaction_id`` as its own column -- the key that
+    ``DatasetView.get_reaction`` indexes -- and passing it here checks the two against
+    each other rather than choosing between them. Deliberately a check and not a
+    fallback: ``DatasetView.md5`` hashes the Reaction blobs and not that column, so an
+    ID read from the column would be a projected value outside the staleness hash, and
+    correcting the column alone would leave the artifact looking current forever.
+
     Args:
         reaction: Reaction to project.
-        reaction_id: The source's ``reaction_id`` column value, if the caller read one.
-            That column is what identifies the row in the source -- it is the key
-            ``DatasetView.get_reaction`` looks up and the one a join has to match -- so
-            it wins over a message that records no ID of its own.
+        reaction_id: The source's ``reaction_id`` column value, or None when the caller
+            read no column.
 
     Returns:
         A dict keyed by projected column name.
 
     Raises:
-        ValueError: If ``reaction_id`` and the message record different IDs, which
-            leaves no safe answer to project.
+        ValueError: If ``reaction_id`` is empty, or if it disagrees with the ID the
+            message records. Either way the source cannot be joined on its own key, and
+            deriving from it would publish that inconsistency.
     """
-    row = message_row(reaction)
-    if reaction_id is None or reaction_id == reaction.reaction_id:
-        return row
-    if reaction.reaction_id:
-        raise ValueError(
-            f"reaction_id column {reaction_id!r} disagrees with the reaction's own "
-            f"{reaction.reaction_id!r}"
-        )
-    row["reaction_id"] = reaction_id
-    return row
+    if reaction_id is not None:
+        if not reaction_id:
+            raise ValueError("source records an empty reaction_id column")
+        if reaction_id != reaction.reaction_id:
+            raise ValueError(
+                f"reaction_id column {reaction_id!r} disagrees with the reaction's own "
+                f"{reaction.reaction_id!r}"
+            )
+    return message_row(reaction)
 
 
 def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
@@ -394,24 +494,48 @@ def write_projection(
 
     Returns:
         Number of rows written.
+
+    Raises:
+        ValueError: If any row's ``reaction_id`` column disagrees with its Reaction, or
+            is empty. The message names the source, since a corpus-wide run needs to
+            know which of thousands of datasets is inconsistent.
     """
     if source_md5 is None:
         source_md5 = source.md5()
-    stamps = artifacts.stamps(ARTIFACT, source.dataset_id or None, source_md5)
+    stamps = artifacts.current_stamps(ARTIFACT, source.dataset_id or None, source_md5)
     schema = SCHEMA.with_metadata(artifacts.to_metadata(stamps))
     rows = 0
+    unreadable = 0
     with (
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
     ):
         for row_group in range(source.num_row_groups):
-            batch = [
-                reaction_row(reaction, reaction_id)
-                for reaction_id, reaction in source.iter_reactions(row_group=row_group)
-            ]
+            batch = []
+            for reaction_id, reaction in source.iter_reactions(row_group=row_group):
+                try:
+                    row = reaction_row(reaction, reaction_id)
+                except ValueError as error:
+                    raise ValueError(f"{source.path}: {error}") from error
+                unreadable += _unreadable_structures(row)
+                batch.append(row)
             rows += len(batch)
             writer.write_table(
                 pa.Table.from_pylist(batch, schema=schema),
                 row_group_size=row_group_size,
             )
+    if unreadable:
+        # Per dataset rather than per row: a count is diffable between runs, so a
+        # regression in structure reading shows up instead of hiding in the nulls.
+        logger.info("%s: %d components project no structure", source.path, unreadable)
     return rows
+
+
+def _unreadable_structures(row: dict[str, Any]) -> int:
+    """Returns how many of a projected reaction's components have no ``smiles``."""
+    components = []
+    for _, reaction_input in row["inputs"] or []:
+        components.extend(reaction_input["components"] or [])
+    for outcome in row["outcomes"] or []:
+        components.extend(outcome["products"] or [])
+    return sum(component["smiles"] is None for component in components)

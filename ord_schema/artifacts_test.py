@@ -45,14 +45,14 @@ def _valid_metadata(**overrides):
 
 
 def test_stamps_carries_the_current_versions():
-    value = artifacts.stamps("view", "ord_dataset-1", "abc")
+    value = artifacts.current_stamps("view", "ord_dataset-1", "abc")
     assert value.artifact == "view"
     assert value.artifact_version == artifacts.ARTIFACT_VERSION
     assert value.ord_schema_version
 
 
 def test_to_metadata_omits_a_missing_dataset_id():
-    metadata = artifacts.to_metadata(artifacts.stamps("view", None, "abc"))
+    metadata = artifacts.to_metadata(artifacts.current_stamps("view", None, "abc"))
     assert "ord.source_dataset_id" not in metadata
     assert metadata["ord.source_md5"] == "abc"
 
@@ -105,6 +105,30 @@ def test_is_artifact_recognizes_only_stamped_files(tmp_path):
     assert artifacts.is_artifact(tmp_path / "artifact.parquet")
     assert not artifacts.is_artifact(tmp_path / "plain.parquet")
     assert not artifacts.is_artifact(tmp_path / "absent.parquet")
+
+
+def test_is_artifact_refuses_to_call_an_unreadable_file_a_source(tmp_path):
+    # ArrowInvalid subclasses ValueError, so catching ValueError to mean "no stamps"
+    # would hand a truncated file to a reader that fails later without naming it.
+    path = tmp_path / "truncated.parquet"
+    _write(path, _valid_metadata())
+    path.write_bytes(path.read_bytes()[:200])
+    with pytest.raises(ValueError, match="not readable as Parquet"):
+        artifacts.is_artifact(path)
+
+
+def test_is_current_requires_every_stamp_to_match(tmp_path, monkeypatch):
+    # Each of these alone can change a projected value, so each alone must force a
+    # rebuild; a check that quietly stopped working would serve obsolete artifacts.
+    path = tmp_path / "artifact.parquet"
+    _write(path, _valid_metadata(**{"ord.ord_schema_version": "9.9.9"}))
+    monkeypatch.setattr(artifacts.metadata, "version", lambda _: "9.9.9")
+    assert artifacts.is_current(path, "view", "0" * 32)
+    monkeypatch.setattr(artifacts.metadata, "version", lambda _: "9.9.10")
+    assert not artifacts.is_current(path, "view", "0" * 32)
+    monkeypatch.setattr(artifacts.metadata, "version", lambda _: "9.9.9")
+    monkeypatch.setattr(artifacts, "ARTIFACT_VERSION", "99")
+    assert not artifacts.is_current(path, "view", "0" * 32)
 
 
 # Output paths
@@ -179,13 +203,13 @@ def test_derive_tree_writes_one_artifact_per_source(tmp_path):
         pathlib.Path(output).write_bytes(b"")
         return 1
 
-    written, skipped = artifacts.derive_tree(
+    written, skipped, ignored = artifacts.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
         artifact="view",
         write=_write_one,
     )
-    assert (written, skipped) == (2, 0)
+    assert (written, skipped, ignored) == (2, 0, 0)
     assert {path.parent.name for path in written_paths} == {"aa", "bb"}
 
 
@@ -213,7 +237,7 @@ def test_derive_tree_refuses_to_write_over_its_own_sources(tmp_path):
     (tmp_path / "aa").mkdir()
     _fake_source(tmp_path / "aa" / "source.parquet")
     calls = []
-    with pytest.raises(ValueError, match="cannot be written over its own source"):
+    with pytest.raises(ValueError, match="would write over source datasets"):
         artifacts.derive_tree(
             str(tmp_path / "*" / "*.parquet"),
             str(tmp_path),
@@ -221,6 +245,25 @@ def test_derive_tree_refuses_to_write_over_its_own_sources(tmp_path):
             write=lambda *args, **kwargs: calls.append(args) or 1,
         )
     assert not calls
+
+
+def test_derive_tree_refuses_to_write_over_a_different_source(tmp_path):
+    # The destination for data/source.parquet is data/aa/source.parquet, which is
+    # another source this run has not reached yet. Checking each destination against
+    # only its own source lets that one through and destroys the neighbor.
+    _fake_source(tmp_path / "source.parquet")
+    (tmp_path / "aa").mkdir()
+    victim = tmp_path / "aa" / "source.parquet"
+    _fake_source(victim)
+    original = victim.read_bytes()
+    with pytest.raises(ValueError, match="would write over source datasets"):
+        artifacts.derive_tree(
+            str(tmp_path / "**" / "*.parquet"),
+            str(tmp_path / "aa"),
+            artifact="view",
+            write=lambda *args, **kwargs: 1,
+        )
+    assert victim.read_bytes() == original
 
 
 def test_derive_tree_ignores_matches_that_are_themselves_artifacts(tmp_path):
@@ -241,7 +284,7 @@ def test_derive_tree_ignores_matches_that_are_themselves_artifacts(tmp_path):
         str(tmp_path / "out"),
         artifact="view",
         write=_write_one,
-    ) == (1, 0)
+    ) == (1, 0, 1)
     assert [path.name for path in written_paths] == ["source.parquet"]
 
 
@@ -262,7 +305,7 @@ def test_derive_tree_skips_current_artifacts_unless_forced(tmp_path, monkeypatch
         str(tmp_path / "out"),
         artifact="view",
         write=_write_one,
-    ) == (0, 1)
+    ) == (0, 1, 0)
     assert not calls
     assert artifacts.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
@@ -270,5 +313,5 @@ def test_derive_tree_skips_current_artifacts_unless_forced(tmp_path, monkeypatch
         artifact="view",
         write=_write_one,
         force=True,
-    ) == (1, 0)
+    ) == (1, 0, 0)
     assert len(calls) == 1

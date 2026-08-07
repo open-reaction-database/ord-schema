@@ -20,9 +20,10 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 from google.protobuf.descriptor import Descriptor
+from rdkit import Chem
 
 from ord_schema import artifacts, parquet, projection
-from ord_schema.proto import dataset_pb2, reaction_pb2
+from ord_schema.proto import reaction_pb2
 
 
 def _reaction(reaction_id: str = "ord-0001") -> reaction_pb2.Reaction:
@@ -39,15 +40,18 @@ def _reaction(reaction_id: str = "ord-0001") -> reaction_pb2.Reaction:
     return reaction
 
 
-def _source(tmp_path, reactions, dataset_id="ord_dataset-1") -> parquet.DatasetView:
-    dataset = dataset_pb2.Dataset(
-        dataset_id=dataset_id,
+def _source(
+    tmp_path, reactions, dataset_id="ord_dataset-1", row_group_size=1000
+) -> parquet.DatasetView:
+    path = tmp_path / "source.parquet"
+    with parquet.DatasetWriter(
+        path,
         name="test",
         description="test dataset",
-        reactions=reactions,
-    )
-    path = tmp_path / "source.parquet"
-    parquet.save_dataset(dataset, path)
+        dataset_id=dataset_id,
+        row_group_size=row_group_size,
+    ) as writer:
+        writer.write_all(reactions)
     return parquet.DatasetView(path)
 
 
@@ -177,6 +181,64 @@ def test_non_structural_identifiers_survive_the_collapse():
     assert kept == {"NAME", "CAS_NUMBER"}
 
 
+_TOLUENE_MOLBLOCK = Chem.MolToMolBlock(Chem.MolFromSmiles("Cc1ccccc1"))
+
+
+@pytest.mark.parametrize(
+    ("identifier_type", "value"),
+    [
+        ("INCHI", "InChI=1S/C7H8/c1-7-5-3-2-4-6-7/h2-6H,1H3"),
+        ("MOLBLOCK", _TOLUENE_MOLBLOCK),
+        ("CXSMILES", "Cc1ccccc1"),
+    ],
+)
+def test_every_structural_compound_type_collapses(identifier_type, value):
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0005")
+    component = reaction.inputs["x"].components.add()
+    component.identifiers.add(type=identifier_type, value=value)
+    component.identifiers.add(type="NAME", value="toluene")
+    projected = projection.reaction_row(reaction)["inputs"][0][1]["components"][0]
+    assert projected["smiles"] == "Cc1ccccc1"
+    assert [identifier["type"] for identifier in projected["identifiers"]] == ["NAME"]
+
+
+def test_reaction_structural_identifiers_collapse_too():
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0006")
+    reaction.identifiers.add(type="REACTION_CXSMILES", value="C>>CO |f:0.1|")
+    reaction.identifiers.add(type="REACTION_TYPE", value="oxidation")
+    row = projection.reaction_row(reaction)
+    assert row["smiles"] == "C>>CO |f:0.1|"
+    assert [identifier["type"] for identifier in row["identifiers"]] == [
+        "REACTION_TYPE"
+    ]
+
+
+def test_a_product_compound_collapses_like_an_input_component():
+    row = projection.reaction_row(_reaction())
+    assert row["outcomes"][0]["products"][0]["smiles"] == "Cc1ccccc1O"
+
+
+def test_a_malformed_identifier_does_not_hide_a_later_valid_one():
+    # smiles_from_compound stops at the first structural identifier, so without a
+    # fallback this compound projects no structure even though it records one.
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0007")
+    component = reaction.inputs["x"].components.add()
+    component.identifiers.add(type="SMILES", value="not a smiles")
+    component.identifiers.add(
+        type="INCHI", value="InChI=1S/C7H8/c1-7-5-3-2-4-6-7/h2-6H,1H3"
+    )
+    projected = projection.reaction_row(reaction)["inputs"][0][1]["components"][0]
+    assert projected["smiles"] == "Cc1ccccc1"
+
+
+def test_repeated_scalars_project_as_a_list_and_empty_as_null():
+    # A different branch from repeated messages, and the only one carrying bare scalars.
+    details = reaction_pb2.ProductMeasurement.MassSpecMeasurementDetails()
+    assert projection.message_row(details)["eic_masses"] is None
+    details.eic_masses.extend([1.5, 2.5])
+    assert projection.message_row(details)["eic_masses"] == [1.5, 2.5]
+
+
 def test_a_structural_identifier_that_fails_to_collapse_is_kept():
     # Dropping it as well would report the compound as having no recorded structure.
     reaction = reaction_pb2.Reaction(reaction_id="ord-0004")
@@ -211,14 +273,24 @@ def test_empty_repeated_fields_are_null_rather_than_empty_lists():
     assert row["observations"] is None
 
 
-def test_the_reaction_id_column_answers_for_a_message_that_records_none():
-    row = projection.reaction_row(reaction_pb2.Reaction(), "ord-from-column")
-    assert row["reaction_id"] == "ord-from-column"
-
-
 def test_a_reaction_id_that_disagrees_with_its_column_is_an_error():
     with pytest.raises(ValueError, match="disagrees"):
         projection.reaction_row(_reaction("ord-in-message"), "ord-in-column")
+
+
+def test_an_empty_reaction_id_column_is_an_error():
+    with pytest.raises(ValueError, match="empty reaction_id column"):
+        projection.reaction_row(_reaction("ord-in-message"), "")
+    with pytest.raises(ValueError, match="empty reaction_id column"):
+        projection.reaction_row(reaction_pb2.Reaction(), "")
+
+
+def test_a_matching_column_projects_the_message_id():
+    # The message is authoritative, so the column is only ever checked against it --
+    # DatasetView.md5 does not hash that column, and a value read from it would be a
+    # projected value outside the staleness hash.
+    row = projection.reaction_row(_reaction("ord-0001"), "ord-0001")
+    assert row["reaction_id"] == "ord-0001"
 
 
 # Writing
@@ -237,18 +309,30 @@ def test_write_projection_reads_the_reaction_id_column(tmp_path):
     # Only a file built outside DatasetWriter can disagree, since the writer fills the
     # column from the message; the projection has to notice rather than pick one.
     path = tmp_path / "inconsistent.parquet"
-    schema = parquet._build_schema(
-        name="test", description="test dataset", dataset_id="ord_dataset-1"
-    )
     blob = _reaction("ord-in-message").SerializeToString(deterministic=True)
+    schema = pq.read_schema(_source(tmp_path, [_reaction()]).path)
     pq.write_table(
         pa.table({"reaction_id": ["ord-in-column"], "reaction": [blob]}, schema=schema),
         path,
     )
-    with pytest.raises(ValueError, match="disagrees"):
+    with pytest.raises(ValueError, match=f"{path}.*disagrees"):
         projection.write_projection(
             parquet.DatasetView(path), tmp_path / "projection.parquet"
         )
+
+
+def test_write_projection_covers_every_row_group(tmp_path):
+    # Every other test fits in one row group, so a regression that stopped after the
+    # first would truncate real datasets to their first row_group_size reactions.
+    source = _source(
+        tmp_path, [_reaction(f"ord-{index}") for index in range(5)], row_group_size=2
+    )
+    assert source.num_row_groups == 3
+    output = tmp_path / "projection.parquet"
+    assert projection.write_projection(source, output) == 5
+    assert pq.read_table(output).column("reaction_id").to_pylist() == [
+        f"ord-{index}" for index in range(5)
+    ]
 
 
 def test_write_projection_stamps_the_footer(tmp_path):

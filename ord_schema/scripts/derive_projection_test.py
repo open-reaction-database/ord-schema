@@ -116,7 +116,7 @@ def test_an_exact_filename_writes_a_file_not_a_directory(tmp_path):
 
 def test_writing_into_the_source_tree_is_an_error(tmp_path):
     _dataset(tmp_path, "aa", "ord_dataset-a")
-    with pytest.raises(ValueError, match="cannot be written over its own source"):
+    with pytest.raises(ValueError, match="would write over source datasets"):
         derive_projection.main(
             derive_projection.parse_args(
                 [
@@ -143,6 +143,29 @@ def test_a_pattern_reaching_the_output_tree_stays_rerunnable(tmp_path):
     derive_projection.main(args)
     assert output.stat().st_ino == first
     assert artifacts.load_stamps(output).artifact == projection.ARTIFACT
+
+
+def test_a_pattern_aimed_at_the_output_tree_is_an_error(tmp_path):
+    # Exits 0 with an empty output directory otherwise, and a downstream step proceeds
+    # as though the projections had been built.
+    _dataset(tmp_path, "aa", "ord_dataset-a")
+    derive_projection.main(
+        derive_projection.parse_args(
+            [
+                f"--input_pattern={tmp_path}/data/*/*.parquet",
+                f"--output_dir={tmp_path}/projections",
+            ]
+        )
+    )
+    with pytest.raises(ValueError, match="no sources derived"):
+        derive_projection.main(
+            derive_projection.parse_args(
+                [
+                    f"--input_pattern={tmp_path}/projections/*/*.parquet",
+                    f"--output_dir={tmp_path}/again",
+                ]
+            )
+        )
 
 
 def test_an_unmatched_pattern_is_an_error(tmp_path):

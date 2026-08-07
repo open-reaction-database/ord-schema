@@ -16,8 +16,8 @@
 
 Each input dataset yields one projection carrying every field of every message reachable
 from Reaction; see ``ord_schema.projection`` for what it normalizes and why. Outputs
-mirror the inputs' directory layout beneath ``--output_dir``, taking the part of
-``--input_pattern`` before its first wildcard as the root::
+mirror the inputs' directory layout beneath ``--output_dir``, rooted at the leading
+components of ``--input_pattern`` that hold no wildcard::
 
     derive_projection.py --input_pattern='data/*/*.parquet' --output_dir=projections
 
@@ -25,7 +25,9 @@ mirror the inputs' directory layout beneath ``--output_dir``, taking the part of
 
 Projections whose footer already records the current source content, library version,
 and artifact version are skipped, so re-running is cheap; ``--force`` rewrites them
-anyway.
+anyway. A match that is itself a projection is ignored rather than derived from, so
+``--output_dir`` may sit inside a recursive pattern's reach; an ``--output_dir`` that
+would write over any source dataset is an error, as is a run that derives nothing.
 """
 
 import argparse
@@ -52,15 +54,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
-    """Derives a projection for every dataset matching the input pattern."""
+    """Derives a projection for every dataset matching the input pattern.
+
+    Raises:
+        ValueError: If the pattern matched only derived artifacts, which means it was
+            aimed at an output tree rather than a source tree. Silence there would let a
+            pipeline step downstream proceed as though the projections had been built.
+    """
     silence_rdkit_logs()
-    artifacts.derive_tree(
+    written, skipped, ignored = artifacts.derive_tree(
         args.input_pattern,
         args.output_dir,
         artifact=projection.ARTIFACT,
         write=projection.write_projection,
         force=args.force,
     )
+    if not written and not skipped:
+        raise ValueError(
+            f"no sources derived: all {ignored} matches for {args.input_pattern!r} are "
+            "already derived artifacts"
+        )
 
 
 if __name__ == "__main__":

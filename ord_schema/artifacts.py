@@ -20,12 +20,13 @@ moved on. These stamps make both conditions detectable without reading column da
 
 More than one artifact is expected -- a projection carrying every field, and pivoted
 indexes over the paths that turn out to be hot -- so the parts that do not vary between
-them live here: the stamps, the output-path mapping, and the driver that walks a glob
-and skips what is already current. An artifact module supplies only its schema, its
-projection, and its name.
+them live here: the stamps, the output-path mapping, and the driver that walks a glob,
+refuses to write over its own sources, ignores matches that are already artifacts, and
+skips what is current. An artifact module supplies only its schema, its projection, and
+its name.
 
-Every artifact carries the same five keys, in the ``ord.`` namespace that
-``ord_schema.parquet`` already uses for source datasets:
+Every artifact carries these keys, in the ``ord.`` namespace that ``ord_schema.parquet``
+already uses for source datasets:
 
 * ``ord.artifact`` -- which artifact this is, so a reader can tell a view from a
   projection without inspecting the schema.
@@ -34,20 +35,24 @@ Every artifact carries the same five keys, in the ``ord.`` namespace that
   each other needs to know they were built by the same definition. Per-artifact versions
   would let a view and a projection of the same dataset disagree while both looked
   current.
-* ``ord.source_dataset_id``, ``ord.source_md5`` -- what it was derived from.
+* ``ord.source_md5`` -- what it was derived from.
 * ``ord.ord_schema_version`` -- what derived it.
+* ``ord.source_dataset_id`` -- the source's ID, written only when the source records
+  one. It is the one optional key, and the only one not required to read stamps back.
 
-``is_current`` requires content, library, and definition to all match, since any of the
-three changing can change a value.
+``is_current`` requires the artifact name, the source content, the library version, and
+the artifact version to all match, since any of the four changing can change a value or
+mean the file answers a different question.
 """
 
 import dataclasses
 import glob
 import os
 import pathlib
-from collections.abc import Callable
 from importlib import metadata
+from typing import Protocol
 
+import pyarrow as pa
 import pyarrow.parquet as pq
 
 from ord_schema import parquet
@@ -84,8 +89,28 @@ class Stamps:
     artifact_version: str
 
 
-def stamps(artifact: str, source_dataset_id: str | None, source_md5: str) -> Stamps:
-    """Returns the stamps to write for an artifact derived now.
+class ArtifactWriter(Protocol):
+    """Writes one derived artifact from an open view of its source.
+
+    The first two arguments are positional-only, so an implementation is free to name
+    them for its own artifact.
+    """
+
+    def __call__(
+        self,
+        source: parquet.DatasetView,
+        output: pathlib.Path,
+        /,
+        *,
+        source_md5: str,
+    ) -> int:
+        """Returns the number of rows written to ``output``."""
+
+
+def current_stamps(
+    artifact: str, source_dataset_id: str | None, source_md5: str
+) -> Stamps:
+    """Returns the stamps to write for an artifact derived by the current library.
 
     Args:
         artifact: Artifact name, e.g. ``"view"`` or ``"projection"``.
@@ -163,6 +188,9 @@ def is_current(path: str | os.PathLike[str], artifact: str, source_md5: str) -> 
     try:
         value = load_stamps(path)
     except (OSError, ValueError):
+        # Broad on purpose: every way of failing to read stamps -- absent, truncated,
+        # not Parquet at all -- means this file cannot be served as current, and the
+        # answer is to derive it again.
         return False
     return (
         value.artifact == artifact
@@ -175,11 +203,23 @@ def is_current(path: str | os.PathLike[str], artifact: str, source_md5: str) -> 
 def is_artifact(path: str | os.PathLike[str]) -> bool:
     """Returns whether ``path`` carries derived-artifact stamps.
 
-    A derived artifact is never a source: a recursive glob that reaches the output tree
-    would otherwise try to derive an artifact from an artifact.
+    Args:
+        path: Path to a Parquet file.
+
+    Returns:
+        True if ``path`` records artifact stamps, False if it is readable Parquet that
+        does not.
+
+    Raises:
+        ValueError: If ``path`` cannot be read as Parquet at all. Unlike ``is_current``,
+            this predicate decides whether to treat a file as a source, so answering
+            False for a truncated file would feed it to a reader that fails later with
+            no idea which of thousands of paths was at fault.
     """
     try:
         load_stamps(path)
+    except pa.ArrowInvalid as error:
+        raise ValueError(f"{path} is not readable as Parquet") from error
     except (OSError, ValueError):
         return False
     return True
@@ -215,16 +255,16 @@ def derive_tree(
     output_dir: str,
     *,
     artifact: str,
-    write: Callable[..., int],
+    write: ArtifactWriter,
     force: bool = False,
-) -> tuple[int, int]:
+) -> tuple[int, int, int]:
     """Derives one artifact per dataset matching ``input_pattern``.
 
-    Outputs mirror the inputs' directory layout beneath ``output_dir``. Artifacts whose
-    footer already records the current source content, library version, and artifact
-    version are skipped, so re-running is cheap. Matches that are themselves derived
-    artifacts are ignored, so a recursive pattern reaching the output tree stays
-    re-runnable.
+    Outputs mirror the inputs' directory layout beneath ``output_dir``. Matches that
+    are themselves derived artifacts are ignored, so a recursive pattern reaching the
+    output tree stays re-runnable. Artifacts whose footer already records the current
+    source content, library version, and artifact version are skipped, so re-running is
+    cheap.
 
     Args:
         input_pattern: Glob matching source Parquet datasets.
@@ -234,32 +274,48 @@ def derive_tree(
         force: Rewrite artifacts that are already current.
 
     Returns:
-        ``(written, skipped)`` counts, where ``skipped`` counts artifacts already
-        current. Ignored matches are logged rather than counted.
+        ``(written, skipped, ignored)`` counts: artifacts derived, artifacts already
+        current, and matches that were derived artifacts rather than sources.
 
     Raises:
-        ValueError: If the input pattern matches nothing, or if a destination would
-            land on its own source.
+        ValueError: If the input pattern matches nothing, if any match cannot be read as
+            Parquet, or if any destination would land on a source.
     """
-    sources = sorted(glob.glob(input_pattern, recursive=True))
-    if not sources:
+    matches = sorted(glob.glob(input_pattern, recursive=True))
+    if not matches:
         raise ValueError(f"no datasets matched: {input_pattern}")
-    logger.info("Found %d datasets", len(sources))
-    written = skipped = ignored = 0
-    for source in sources:
-        if is_artifact(source):
-            logger.warning("%s is a derived artifact, not a source; ignoring", source)
+    sources = []
+    ignored = 0
+    for match in matches:
+        if is_artifact(match):
+            logger.info("%s is a derived artifact, not a source; ignoring", match)
             ignored += 1
-            continue
-        destination = output_path(source, input_pattern, output_dir)
-        if destination.resolve() == pathlib.Path(source).resolve():
-            # An output_dir that lands back on the source tree would publish the
-            # artifact over the dataset it was derived from, losing the source.
-            raise ValueError(
-                f"{source} maps to itself under output_dir {output_dir!r}; "
-                "an artifact cannot be written over its own source"
-            )
-        view = parquet.DatasetView(source)
+        else:
+            sources.append(match)
+    logger.info("Found %d datasets", len(sources))
+    # Checked against every source rather than each source's own destination: an
+    # output_dir nested in the source tree maps one dataset onto a *different* one, so a
+    # per-source check passes and the run destroys a source it had not reached yet.
+    destinations = {
+        source: output_path(source, input_pattern, output_dir) for source in sources
+    }
+    resolved_sources = {pathlib.Path(source).resolve() for source in sources}
+    clobbered = sorted(
+        str(destination)
+        for destination in destinations.values()
+        if destination.resolve() in resolved_sources
+    )
+    if clobbered:
+        raise ValueError(
+            f"output_dir {output_dir!r} would write over source datasets: {clobbered}"
+        )
+    written = skipped = 0
+    for source in sources:
+        destination = destinations[source]
+        try:
+            view = parquet.DatasetView(source)
+        except ValueError as error:
+            raise ValueError(f"{source} is not a source dataset: {error}") from error
         source_md5 = view.md5()
         if not force and is_current(destination, artifact, source_md5):
             logger.info("%s is current; skipping", destination)
@@ -276,4 +332,4 @@ def derive_tree(
         skipped,
         ignored,
     )
-    return written, skipped
+    return written, skipped, ignored
