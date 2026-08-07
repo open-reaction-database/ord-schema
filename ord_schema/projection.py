@@ -39,13 +39,17 @@ Two normalizations are applied, and only two. Both cost no query and remove a re
 * **Structural identifiers collapse to one ``smiles``.** ``SMILES``, ``CXSMILES``,
   ``INCHI``, and ``MOLBLOCK`` all answer "what is this molecule," so the projection
   answers it once, through ``message_helpers.preferred_compound_smiles`` -- the same
-  CXSMILES-first choice every derived artifact makes, so two artifacts never disagree
-  about a molecule. ``REACTION_SMILES`` and ``REACTION_CXSMILES`` collapse the same way
-  at the reaction level, into a ``smiles`` generated from the components by
-  ``message_helpers.derived_reaction_smiles``. The drop is all-or-nothing per message
-  and conditional on the collapse producing something: a compound whose identifiers none
-  of RDKit's loaders can read keeps all of them, rather than reading as a compound whose
-  structure the source never recorded.
+  CXSMILES-first choice the tabular view makes, so the two never disagree about a
+  molecule. ``REACTION_SMILES`` and ``REACTION_CXSMILES`` collapse the same
+  way at the reaction level, into a ``smiles`` that
+  ``message_helpers.derived_reaction_smiles`` normalizes from the recorded value --
+  agents removed and the result canonicalized, so a reaction deposited as ``A>B>C``
+  reads as ``A>>C`` -- or generates from the components when the source records nothing
+  readable. Atom mapping is kept; fragment grouping is not.
+
+  The drop is all-or-nothing per message and conditional on the collapse producing
+  something: a compound whose identifiers none of RDKit's loaders can read keeps all of
+  them, rather than reading as a compound whose structure the source never recorded.
 
 Every other identifier is kept, as a list. ``NAME`` alone covers compounds that no
 structural identifier reaches, and a compound may carry several of them, so pivoting
@@ -114,11 +118,11 @@ _CANONICAL_UNITS: dict[str, tuple[str, str]] = {
     "Wavelength": ("nm", "nanometers"),
 }
 
-# Messages that get a collapsed `smiles`, and the identifier types it replaces. Keyed
-# by message rather than tested twice, so the decision to collapse and the choice of
-# what to drop cannot drift apart; the enum numbers overlap between compounds and
-# reactions, so a mismatch would silently drop the wrong types rather than raise. The
-# compound set follows message_helpers, which owns what "structural" means.
+# Messages that get a collapsed `smiles`, and the identifier types it replaces. Keying
+# the sets keeps the decision to collapse and the choice of what to drop from drifting
+# apart: the enum numbers overlap between compounds and reactions, so a mismatch would
+# drop the wrong types silently rather than raise. The compound set follows
+# message_helpers, which owns what "structural" means.
 _STRUCTURAL_COMPOUND_TYPES = frozenset(
     reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Value(name)
     for name in message_helpers.STRUCTURAL_IDENTIFIER_TYPES
@@ -150,7 +154,7 @@ _ARROW_SCALARS: dict[int, pa.DataType] = {
     FieldDescriptor.TYPE_ENUM: pa.string(),
 }
 
-_RESOLVER = units.UnitResolver()
+_RESOLVER = units.RESOLVER
 
 
 def _validate_canonical_units() -> None:
@@ -279,14 +283,15 @@ def _smiles(message: Message) -> str | None:
     """Returns the SMILES for a compound or reaction, or None if none can be read.
 
     Both forms prefer the CXSMILES the source recorded, so this column and the tabular
-    view answer "what is this molecule" identically for the same input.
+    view answer "what is this molecule" alike.
 
     Args:
         message: A Compound, ProductCompound, or Reaction.
 
     Returns:
-        Canonical SMILES for a compound; for a reaction, the recorded reaction SMILES or
-        one generated from the components. None when nothing readable is recorded.
+        Canonical SMILES for a compound. For a reaction, the recorded reaction SMILES
+        with its agents removed and canonicalized, or one generated from the components
+        when nothing readable is recorded; None when neither is possible.
     """
     if cast(Descriptor, message.DESCRIPTOR).name == "Reaction":
         return message_helpers.derived_reaction_smiles(

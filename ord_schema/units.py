@@ -453,15 +453,17 @@ class UnitResolver:
         return new_message
 
 
-_RESOLVER = UnitResolver()
+# Shared default, so callers using the standard synonyms do not each build one.
+# Custom synonyms need their own UnitResolver.
+RESOLVER = UnitResolver()
 
 
 def canonical_value(message: ord_schema.UnitMessage, target: str) -> float | None:
     """Converts a united message to ``target`` units, or returns None if it cannot.
 
-    Reading as null rather than raising is what a derived column wants: the column is
-    named for ``target``, so a value that could not be converted has nowhere to record
-    that it is in different units, and a number there would be read as ``target``.
+    Null beats raising for a derived column: the column is named for ``target``, so an
+    unconverted value has nowhere to say it is in different units, and a number there
+    would be read as ``target``.
 
     Args:
         message: A united message, e.g. Temperature or Mass.
@@ -469,13 +471,14 @@ def canonical_value(message: ord_schema.UnitMessage, target: str) -> float | Non
 
     Returns:
         The converted value, or None when the message records no value, records no
-        units, or records units that cannot be converted to ``target``.
+        units, or records units that cannot be converted to ``target``. A wavenumber of
+        zero is in the last group: converting it to a wavelength divides by it.
     """
     if not message.HasField("value") or not message.units:
         return None
     try:
-        return _RESOLVER.convert(message, target).value
-    except (KeyError, ValueError):
+        return RESOLVER.convert(message, target).value
+    except (KeyError, ValueError, ZeroDivisionError):
         logger.warning(
             "cannot convert %s to %s; reading as null",
             type(message).__name__,
