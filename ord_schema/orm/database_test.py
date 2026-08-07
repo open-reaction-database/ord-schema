@@ -32,6 +32,7 @@ from ord_schema.orm.database import (
     backfill_submission_times,
     classify_dataset,
     delete_dataset,
+    delete_derived_data,
     get_dataset_md5,
     get_dataset_size,
     update_derived_data,
@@ -712,6 +713,21 @@ def test_backfill_submission_times(test_session):
     assert submitted_at is not None
 
 
+def _derived_smiles(session):
+    """Returns the derived SMILES for the compound the helpers below mark by name."""
+    return (
+        session.execute(
+            text(
+                "SELECT cs.smiles FROM derived.compound_smiles cs "
+                "JOIN ord.compound_identifier ci ON ci.compound_id = cs.compound_id "
+                "WHERE ci.type = 'NAME' AND ci.value = 'the compound under test'"
+            )
+        )
+        .scalars()
+        .one_or_none()
+    )
+
+
 def _derive_with_identifiers(prepared_engine, identifiers):
     """Loads the example dataset with one compound's identifiers replaced, and derives.
 
@@ -742,19 +758,7 @@ def _derive_with_identifiers(prepared_engine, identifiers):
             add_dataset(dataset, session)
         with session.begin():
             update_derived_tables(dataset.dataset_id, session)
-        return (
-            session.execute(
-                text(
-                    "SELECT cs.smiles FROM derived.compound_smiles cs "
-                    "JOIN ord.compound_identifier ci "
-                    "  ON ci.compound_id = cs.compound_id "
-                    "WHERE ci.type = 'NAME' "
-                    "  AND ci.value = 'the compound under test'"
-                )
-            )
-            .scalars()
-            .one_or_none()
-        )
+        return _derived_smiles(session)
 
 
 def test_derived_compound_smiles_prefers_cxsmiles(prepared_engine):
@@ -791,3 +795,124 @@ def test_derived_compound_smiles_ignores_an_empty_preferred_identifier(prepared_
         prepared_engine, [("CXSMILES", ""), ("SMILES", "c1ccccc1")]
     )
     assert smiles == "c1ccccc1"
+
+
+def test_rederive_recomputes_a_stale_row(prepared_engine):
+    """A stale derived row is corrected only when the rows are deleted first.
+
+    The NOT EXISTS guards make a plain re-run cheap but blind to a row that already
+    exists, which is what makes a derivation change invisible without this.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
+    )
+    compound = next(
+        component
+        for reaction in dataset.reactions
+        for reaction_input in reaction.inputs.values()
+        for component in reaction_input.components
+    )
+    del compound.identifiers[:]
+    compound.identifiers.add(type="SMILES", value="c1ccccc1")
+    compound.identifiers.add(type="NAME", value="the compound under test")
+    with Session(prepared_engine) as session:
+        with session.begin():
+            add_dataset(dataset, session)
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session)
+        with session.begin():
+            assert _derived_smiles(session) == "c1ccccc1"
+        # Stand in for a change in how SMILES are derived.
+        with session.begin():
+            session.execute(
+                text(
+                    "UPDATE derived.compound_smiles SET smiles = 'stale' "
+                    "WHERE compound_id IN (SELECT compound_id "
+                    "FROM ord.compound_identifier "
+                    "WHERE type = 'NAME' AND value = 'the compound under test')"
+                )
+            )
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session)
+        with session.begin():
+            assert _derived_smiles(session) == "stale", "NOT EXISTS should skip the row"
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session, rederive=True)
+        with session.begin():
+            assert _derived_smiles(session) == "c1ccccc1"
+
+
+def test_rederive_leaves_reaction_classes_alone(prepared_engine):
+    # Classification is a separate opt-in pass; discarding it would make every rebuild
+    # silently pay to redo work the caller did not ask to redo.
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
+    )
+    with Session(prepared_engine) as session:
+        with session.begin():
+            add_dataset(dataset, session)
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session)
+        with session.begin():
+            session.execute(
+                text(
+                    "INSERT INTO derived.reaction_classes "
+                    "(reaction_id, reaction_class) "
+                    "SELECT id, 'test class' FROM ord.reaction LIMIT 1"
+                )
+            )
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session, rederive=True)
+        with session.begin():
+            surviving = session.execute(
+                text("SELECT count(*) FROM derived.reaction_classes")
+            ).scalar_one()
+        assert surviving == 1
+
+
+def test_rederive_deletes_every_derived_smiles_table(prepared_engine):
+    # Product compounds hang off a different join path than input compounds; a delete
+    # that missed one would leave half the rebuild stale.
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
+    )
+    with Session(prepared_engine) as session:
+        with session.begin():
+            add_dataset(dataset, session)
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session)
+        with session.begin():
+            before = {
+                table: session.execute(
+                    text(f"SELECT count(*) FROM {table}")  # noqa: S608  (constant)
+                ).scalar_one()
+                for table in (
+                    "derived.reaction_smiles",
+                    "derived.compound_smiles",
+                    "derived.product_compound_smiles",
+                )
+            }
+        assert all(before.values()), before
+        with session.begin():
+            delete_derived_data(dataset.dataset_id, session)
+        with session.begin():
+            after = {
+                table: session.execute(
+                    text(f"SELECT count(*) FROM {table}")  # noqa: S608  (constant)
+                ).scalar_one()
+                for table in before
+            }
+        assert after == dict.fromkeys(before, 0), after
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session)
+        with session.begin():
+            rebuilt = {
+                table: session.execute(
+                    text(f"SELECT count(*) FROM {table}")  # noqa: S608  (constant)
+                ).scalar_one()
+                for table in before
+            }
+        assert rebuilt == before

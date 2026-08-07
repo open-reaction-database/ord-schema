@@ -214,11 +214,14 @@ def update_derived_data(
     *,
     rdkit_cartridge: bool = True,
     classify_reactions: bool = False,
+    rederive: bool = False,
 ) -> None:
     """Populates the derived tables for an already-ingested dataset.
 
-    Idempotent (NOT EXISTS guards), so it is safe to re-run to backfill or recompute
-    derived data over datasets that are already present.
+    Idempotent (NOT EXISTS guards), so it is safe to re-run to backfill derived data
+    over datasets that are already present. Backfilling is not the same as rebuilding:
+    the guards mean an existing row is never revisited, so use ``rederive`` when the
+    derivation itself has changed.
 
     Args:
         dataset_id: Dataset to derive.
@@ -226,8 +229,9 @@ def update_derived_data(
         rdkit_cartridge: Whether to populate RDKit cartridge tables and links.
         classify_reactions: Whether to assign reaction class/name labels; requires the
             optional ``reaction-class`` extra.
+        rederive: Whether to delete existing derived rows first so they are recomputed.
     """
-    update_derived_tables(dataset_id, session)
+    update_derived_tables(dataset_id, session, rederive=rederive)
     if rdkit_cartridge:
         session.flush()
         update_rdkit_tables(dataset_id, session)
@@ -651,8 +655,92 @@ def _resolve_dataset_pk(dataset_id: str, session: Session) -> Any:
     ).scalar_one()
 
 
-def update_derived_tables(
+def delete_derived_data(
     dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
+) -> None:
+    """Deletes a dataset's derived SMILES rows so the derived passes recompute them.
+
+    Every derived pass is guarded by ``NOT EXISTS``, which makes re-running cheap but
+    means an existing row is never revisited: a change to how SMILES are derived reaches
+    only rows that do not exist yet. Deleting first is what turns the idempotent passes
+    into a rebuild, so a database can be updated in place instead of reloaded.
+
+    ``rdkit.mols`` and ``rdkit.reactions`` are deliberately left alone. They are shared,
+    deduplicated by structure, and referenced by every dataset, so deleting this
+    dataset's share of them would break others. The link columns live on the rows
+    removed here, so the RDKit pass re-links from scratch, reusing structures that are
+    already present and inserting the ones that are not. A rebuild that changes SMILES
+    therefore leaves unreferenced structures behind; they cost space, not correctness.
+
+    ``derived.reaction_classes`` is also left alone: classification is a separate opt-in
+    pass, and discarding it here would silently make every rebuild pay for it again.
+
+    Args:
+        dataset_id: Dataset whose derived rows to delete.
+        session: SQLAlchemy session.
+        shard: ``(index, num_shards)`` to restrict to one disjoint hash-partition, using
+            the same partitioning as the derived passes, so a sharded rebuild deletes
+            exactly the rows that shard is about to recompute.
+    """
+    logger.debug(f"Deleting derived data for {dataset_id=}")
+    start = time.time()
+    dataset_pk = _resolve_dataset_pk(dataset_id, session)
+    reaction_shard_sql, reaction_shard_params = _shard_predicate(
+        "ord.reaction.id", shard
+    )
+    session.execute(
+        text(f"""
+        DELETE FROM derived.reaction_smiles
+        WHERE derived.reaction_smiles.reaction_id IN (
+            SELECT ord.reaction.id
+            FROM ord.reaction
+            WHERE ord.reaction.dataset_id = :id
+              {reaction_shard_sql}
+        )
+        """),  # noqa: S608  (table/column names are internal constants, not user input)
+        {"id": dataset_pk, **reaction_shard_params},
+    )
+    for compound_table, reaction_joins, derived_table, derived_id in (
+        (
+            "ord.compound",
+            _COMPOUND_REACTION_JOINS,
+            "derived.compound_smiles",
+            "compound_id",
+        ),
+        (
+            "ord.product_compound",
+            _PRODUCT_COMPOUND_REACTION_JOINS,
+            "derived.product_compound_smiles",
+            "product_compound_id",
+        ),
+    ):
+        shard_sql, shard_params = _shard_predicate(f"{compound_table}.id", shard)
+        select_ids = "\nUNION ALL\n".join(
+            f"""
+                SELECT {compound_table}.id
+                FROM {compound_table}
+                {reaction_join}
+                WHERE ord.reaction.dataset_id = :id
+                  {shard_sql}
+            """  # noqa: S608
+            for reaction_join in reaction_joins
+        )
+        session.execute(
+            text(f"""
+            DELETE FROM {derived_table}
+            WHERE {derived_table}.{derived_id} IN ({select_ids})
+            """),  # noqa: S608
+            {"id": dataset_pk, **shard_params},
+        )
+    logger.debug(f"Deleting derived data took {time.time() - start:g}s")
+
+
+def update_derived_tables(
+    dataset_id: str,
+    session: Session,
+    *,
+    shard: tuple[int, int] | None = None,
+    rederive: bool = False,
 ) -> None:
     """Populates the derived SMILES tables from the search index.
 
@@ -667,9 +755,20 @@ def update_derived_tables(
     dataset's reaction/compound ids is derived, so a large dataset can be split across
     worker processes (the derived-stage analog of the row-group sharding used for
     ingest). Idempotency makes the shards safe to run in any order or overlap.
+
+    Args:
+        dataset_id: Dataset to derive.
+        session: SQLAlchemy session.
+        shard: ``(index, num_shards)`` to derive one disjoint hash-partition.
+        rederive: If True, delete this dataset's existing derived rows first, so rows
+            written by an earlier version of the derivation are recomputed rather than
+            skipped by the ``NOT EXISTS`` guards. Sharded runs delete only their own
+            partition, so workers stay disjoint. See :func:`delete_derived_data`.
     """
     logger.debug(f"Updating derived tables for {dataset_id=}")
     start = time.time()
+    if rederive:
+        delete_derived_data(dataset_id, session, shard=shard)
     # dataset_id and the compound link columns live on the polymorphic child mappers, so
     # rows are scoped to the dataset via raw SQL (like the RDKit pass).
     dataset_pk = _resolve_dataset_pk(dataset_id, session)
