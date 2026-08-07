@@ -801,13 +801,37 @@ def test_cxsmiles_is_a_structural_identifier():
         # Enhanced stereochemistry cannot be written as plain SMILES, so it stays.
         ("C[C@H](N)O |a:1|", "C[C@H](N)O |a:1|"),
         ("C[C@H](N)O |o1:1|", "C[C@H](N)O |o1:1|"),
+        # Coordinate bonds live in the |C:| block, not inline; dropping it would leave
+        # a plain single bond behind.
+        ("Cl[Pd](Cl)<-P(C)(C)C", "C[P](C)(C)[Pd]([Cl])[Cl] |C:1.3|"),
         # Presentation and provenance fields are dropped.
         ("c1ccccc1 |$_R1;;;;;$|", "c1ccccc1"),
         ("CC |(0,0,;1,0,)|", "CC"),
     ],
 )
-def test_canonical_smiles_keeps_only_enhanced_stereochemistry(smiles, expected):
+def test_canonical_smiles_keeps_only_structural_fields(smiles, expected):
     assert message_helpers.canonical_smiles(Chem.MolFromSmiles(smiles)) == expected
+
+
+@pytest.mark.parametrize(
+    "smiles",
+    [
+        "Cl[Pd](Cl)<-P(C)(C)C",
+        "C[C@H](N)O |o1:1|",
+        "c1ccccc1",
+        "CC(=O)Oc1ccccc1C(=O)O",
+    ],
+)
+def test_canonical_smiles_round_trips_the_same_molecule(smiles):
+    # Canonicalizing must not change the bonding. A dative bond written without its
+    # |C:| block reads back as a single bond, and canonicalizing again cannot tell:
+    # the result is idempotent, so the loss would be silent and permanent.
+    mol = Chem.MolFromSmiles(smiles)
+    back = Chem.MolFromSmiles(message_helpers.canonical_smiles(mol))
+    assert back is not None
+    assert sorted(bond.GetBondType() for bond in back.GetBonds()) == sorted(
+        bond.GetBondType() for bond in mol.GetBonds()
+    )
 
 
 def test_enhanced_stereochemistry_survives_smiles_from_compound():

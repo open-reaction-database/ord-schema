@@ -47,27 +47,26 @@ class _ResolverError(Exception):
 
 
 def canonicalize_smiles(smiles: str) -> str:
-    """Canonicalizes a SMILES string.
+    """Canonicalizes a SMILES string, raising if it will not parse.
 
-    Deliberately plain ``MolToSmiles`` rather than
-    :func:`message_helpers.canonical_smiles`: this is the query side of structure
-    search, and ``derived.compound_smiles`` is written the same way, so emitting an
-    enhanced-stereochemistry block here would stop queries matching the index. #936
-    tracks moving both onto the shared helper together.
+    A thin wrapper over :func:`message_helpers.canonical_smiles`, so a resolved
+    structure is written the same way as one derived from a Compound. Callers holding a
+    Mol should use that directly; this exists for the string-in, string-out case.
 
     Args:
-        smiles: SMILES string.
+        smiles: SMILES string, which may carry a CXSMILES extension block.
 
     Returns:
-        Canonicalized SMILES string.
+        Canonical SMILES, carrying a block where the structure has enhanced
+        stereochemistry or coordinate bonds.
 
     Raises:
         ValueError: If the SMILES cannot be parsed by RDKit.
     """
     mol = Chem.MolFromSmiles(smiles)
-    if not mol:
+    if mol is None:
         raise ValueError(f"Could not parse SMILES: {smiles}")
-    return Chem.MolToSmiles(mol)
+    return message_helpers.canonical_smiles(mol)
 
 
 def resolve_name(value_type: str, value: str) -> tuple[str, str]:

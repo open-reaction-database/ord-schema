@@ -39,8 +39,15 @@ import ord_schema
 from ord_schema import atomic_io, units
 from ord_schema.proto import reaction_pb2
 
-# Enhanced stereochemistry is structural; atom labels and coordinates are not.
-_CX_ENHANCED_STEREO = rdmolfiles.CXSmilesFields.CX_ENHANCEDSTEREO
+# The CXSMILES fields that carry structure. Enhanced stereochemistry and coordinate
+# bonds both describe bonding the SMILES half cannot; atom labels, coordinates, and
+# polymer markup are presentation or provenance. Coordinate bonds are here because
+# RDKit writes them to the |C:| field rather than inline: omitting it turns a dative
+# bond into a plain single bond, changing the molecule rather than its rendering.
+_CX_STRUCTURAL_FIELDS = (
+    rdmolfiles.CXSmilesFields.CX_ENHANCEDSTEREO
+    | rdmolfiles.CXSmilesFields.CX_COORDINATE_BONDS
+)
 
 _COMPOUND_IDENTIFIER_LOADERS = {
     reaction_pb2.CompoundIdentifier.SMILES: Chem.MolFromSmiles,
@@ -517,20 +524,25 @@ def molblock_from_compound(
 
 
 def canonical_smiles(mol: Chem.Mol) -> str:
-    """Returns a canonical SMILES, keeping enhanced stereochemistry if present.
+    """Returns a canonical SMILES, keeping the bonding plain SMILES cannot express.
 
     Plain SMILES cannot express AND/OR stereo groups, so writing one would silently
-    assert a more specific structure than the source recorded. Only that field is
-    emitted; atom labels and coordinates are presentation, not structure.
+    assert a more specific structure than the source recorded. Coordinate bonds are kept
+    for the same reason: dropping the ``|C:...|`` block leaves a dative bond written as
+    a plain single bond, which is a different molecule and not recoverable by
+    canonicalizing again. Presentation fields -- atom labels, coordinates -- are
+    omitted.
 
     Args:
         mol: RDKit Mol.
 
     Returns:
-        Canonical SMILES, with a ``|a:...|``/``|o...|`` block only for molecules that
-        have enhanced stereochemistry; others match ``Chem.MolToSmiles`` exactly.
+        Canonical SMILES, with a ``|a:...|``/``|o...|``/``|C:...|`` block only for
+        molecules that have enhanced stereochemistry or coordinate bonds. Others match
+        ``Chem.MolToSmiles`` exactly; molecules with dative bonds do not, since
+        ``MolToSmiles`` writes those inline as ``->`` instead.
     """
-    return Chem.MolToCXSmiles(mol, Chem.SmilesWriteParams(), _CX_ENHANCED_STEREO)
+    return Chem.MolToCXSmiles(mol, Chem.SmilesWriteParams(), _CX_STRUCTURAL_FIELDS)
 
 
 def split_cxsmiles_extension(value: str) -> tuple[str, str | None]:
