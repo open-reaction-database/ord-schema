@@ -725,7 +725,6 @@ def update_derived_tables(
                     reaction_pb2.Reaction.FromString(proto),
                     generate_if_missing=True,
                     allow_incomplete=False,
-                    validate=True,
                 )
             except ValueError as error:
                 logger.debug(

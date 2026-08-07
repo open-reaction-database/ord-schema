@@ -38,12 +38,14 @@ Two normalizations are applied, and only two. Both cost no query and remove a re
   mixed-unit comparison that would quietly return the wrong rows does not.
 * **Structural identifiers collapse to one ``smiles``.** ``SMILES``, ``CXSMILES``,
   ``INCHI``, and ``MOLBLOCK`` all answer "what is this molecule," so the projection
-  answers it once rather than making every consumer re-implement the preference order;
-  ``REACTION_SMILES`` and ``REACTION_CXSMILES`` collapse the same way at the reaction
-  level. The drop is all-or-nothing per message and conditional on the collapse
-  producing something: a compound whose identifiers none of RDKit's loaders can read
-  keeps all of them, rather than reading as a compound whose structure the source never
-  recorded.
+  answers it once, through ``message_helpers.preferred_compound_smiles`` -- the same
+  CXSMILES-first choice every derived artifact makes, so two artifacts never disagree
+  about a molecule. ``REACTION_SMILES`` and ``REACTION_CXSMILES`` collapse the same way
+  at the reaction level, into a ``smiles`` generated from the components by
+  ``message_helpers.derived_reaction_smiles``. The drop is all-or-nothing per message
+  and conditional on the collapse producing something: a compound whose identifiers none
+  of RDKit's loaders can read keeps all of them, rather than reading as a compound whose
+  structure the source never recorded.
 
 Every other identifier is kept, as a list. ``NAME`` alone covers compounds that no
 structural identifier reaches, and a compound may carry several of them, so pivoting
@@ -112,12 +114,11 @@ _CANONICAL_UNITS: dict[str, tuple[str, str]] = {
     "Wavelength": ("nm", "nanometers"),
 }
 
-# Identifier types the collapsed `smiles` answers for, keyed by the message that gets
-# the collapsed field. Keying the sets rather than testing the message name twice keeps
-# the two decisions -- whether to collapse, and which types to drop -- from drifting
-# apart; the enum numbers overlap between the two, so a mismatch would silently drop the
-# wrong types rather than raise. The compound set follows message_helpers, which owns
-# what "structural" means.
+# Messages that get a collapsed `smiles`, and the identifier types it replaces. Keyed
+# by message rather than tested twice, so the decision to collapse and the choice of
+# what to drop cannot drift apart; the enum numbers overlap between compounds and
+# reactions, so a mismatch would silently drop the wrong types rather than raise. The
+# compound set follows message_helpers, which owns what "structural" means.
 _STRUCTURAL_COMPOUND_TYPES = frozenset(
     reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Value(name)
     for name in message_helpers.STRUCTURAL_IDENTIFIER_TYPES
@@ -274,63 +275,26 @@ SCHEMA = build_schema()
 _validate_canonical_units()
 
 
-def _canonical_value(message: ord_schema.UnitMessage, target: str) -> float | None:
-    """Returns a united message's value in ``target`` units, or None if unreadable."""
-    if not message.HasField("value") or not message.units:
-        return None
-    try:
-        return _RESOLVER.convert(message, target).value
-    except (KeyError, ValueError):
-        # Null rather than a wrong number in the wrong unit. Logged because the
-        # column keeps its name, so the null looks like a source that said nothing.
-        logger.warning(
-            "%s records units the resolver cannot convert to %s; projecting null",
-            cast(Descriptor, message.DESCRIPTOR).name,
-            target,
-        )
-        return None
-
-
 def _smiles(message: Message) -> str | None:
     """Returns the SMILES for a compound or reaction, or None if none can be read.
+
+    Both forms prefer the CXSMILES the source recorded, so this column and the tabular
+    view answer "what is this molecule" identically for the same input.
 
     Args:
         message: A Compound, ProductCompound, or Reaction.
 
     Returns:
-        For a reaction, the recorded reaction SMILES, generated from the components when
-        none is recorded. Generation is all-or-nothing: a reaction holding a component
-        with no readable structure projects null, since a SMILES missing a component is
-        indistinguishable in the column from one that is complete. For a compound,
-        canonical SMILES from the preferred structural identifier, falling back to any
-        other that parses. None when nothing readable is recorded.
+        Canonical SMILES for a compound; for a reaction, the recorded reaction SMILES or
+        one generated from the components. None when nothing readable is recorded.
     """
     if cast(Descriptor, message.DESCRIPTOR).name == "Reaction":
-        try:
-            return (
-                message_helpers.get_reaction_smiles(
-                    cast(reaction_pb2.Reaction, message),
-                    generate_if_missing=True,
-                    allow_incomplete=False,
-                )
-                or None
-            )
-        except ValueError:
-            return None
-    compound = cast(reaction_pb2.Compound, message)
-    try:
-        return message_helpers.smiles_from_compound(compound) or None
-    except ValueError:
-        pass
-    # smiles_from_compound stops at the first structural identifier, so without this
-    # one malformed value hides every later one.
-    for identifier in compound.identifiers:
-        canonical = message_helpers.canonical_smiles_for_identifier(
-            identifier.type, identifier.value
+        return message_helpers.derived_reaction_smiles(
+            cast(reaction_pb2.Reaction, message)
         )
-        if canonical:
-            return canonical
-    return None
+    return message_helpers.preferred_compound_smiles(
+        cast(reaction_pb2.Compound, message)
+    )
 
 
 def _kept_identifiers(values: Any, structural: frozenset[int] | None) -> list[Any]:
@@ -379,7 +343,9 @@ def message_row(message: Message) -> dict[str, Any]:
         name = column_name(field)
         canonical = _canonical_unit(field)
         if canonical is not None:
-            row[name] = _canonical_value(getattr(message, field.name), canonical[0])
+            row[name] = units.canonical_value(
+                getattr(message, field.name), canonical[0]
+            )
             continue
         message_type = field.message_type
         if message_type is not None and message_type.GetOptions().map_entry:
