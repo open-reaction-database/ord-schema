@@ -1241,3 +1241,23 @@ def test_reaction_from_smiles_strips_atom_maps_from_agents_too():
     )
     assert ("REAGENT", "SMILES", "CO") in _identifiers(reaction)
     assert all(":" not in value for _, _, value in _identifiers(reaction))
+
+
+def test_molblock_from_compound_regenerates_an_unreadable_recorded_value():
+    # A MOLBLOCK that will not parse is not a MolBlock; the readable SMILES recorded
+    # alongside it describes the compound and can produce one.
+    compound = _compound(molblock="not a molblock", smiles="c1ccccc1")
+    molblock = message_helpers.molblock_from_compound(compound)
+    assert "M  END" in molblock
+    assert Chem.MolToSmiles(Chem.MolFromMolBlock(molblock)) == "c1ccccc1"
+
+
+def test_molblock_from_compound_keeps_a_readable_recorded_value():
+    # Returned as deposited, so the atom coordinates a MolBlock exists to carry survive.
+    compound = _compound(molblock=_BENZENE_MOLBLOCK, smiles="c1ccccc1")
+    assert message_helpers.molblock_from_compound(compound) == _BENZENE_MOLBLOCK
+
+
+def test_molblock_from_compound_raises_without_a_readable_structure():
+    with pytest.raises(ValueError, match="no valid structural identifier"):
+        message_helpers.molblock_from_compound(_compound(name="benzene"))

@@ -509,18 +509,26 @@ def molblock_from_compound(
 ) -> str:
     """Fetches or generates a MolBlock identifier for a compound.
 
+    A recorded MOLBLOCK is returned as deposited, keeping the atom coordinates that are
+    the reason to record one, but only once it parses: an unreadable value is not a
+    MolBlock, and returning it verbatim would hand the caller something no MolBlock
+    reader accepts while a usable structure sat in another identifier.
+
     Args:
         compound: reaction_pb2.Compound or ProductCompound message.
 
     Returns:
-        molblock: MolBlock identifier.
+        molblock: MolBlock identifier, generated from the best structural identifier
+        (see :func:`structural_identifiers`) when none is recorded or the recorded one
+        cannot be read.
 
     Raises:
-        ValueError: if no structural identifiers are defined.
+        ValueError: if no structural identifier reads as a Mol.
     """
-    return get_compound_molblock(compound) or Chem.MolToMolBlock(
-        mol_from_compound(compound)
-    )
+    molblock = get_compound_molblock(compound)
+    if molblock and Chem.MolFromMolBlock(molblock) is not None:
+        return molblock
+    return Chem.MolToMolBlock(mol_from_compound(compound))
 
 
 def canonical_smiles(mol: Chem.Mol) -> str:
