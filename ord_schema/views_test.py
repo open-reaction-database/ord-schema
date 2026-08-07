@@ -82,22 +82,27 @@ def test_reaction_smiles_is_generated_when_not_stored():
 _CXSMILES = "CC(=O)O.CCO>>CC(=O)OCC |f:0.1|"
 
 
-def test_a_recorded_reaction_smiles_is_ignored_in_favor_of_generating():
-    # Recorded values differ in convention between datasets, so the column is generated
-    # from the components everywhere and compares like with like.
-    reaction = _reaction()
-    reaction.identifiers.add(type="REACTION_CXSMILES", value=_CXSMILES)
-    assert views.reaction_row("ord-0001", reaction)["reaction_smiles"] != _CXSMILES
-    assert (
-        views.reaction_row("ord-0001", reaction)["reaction_smiles"]
-        == "c1ccccc1>>Cc1ccccc1"
+def test_a_recorded_reaction_smiles_keeps_its_atom_mapping():
+    # The reason to keep the deposited string rather than regenerate: generation builds
+    # from the components and cannot reconstruct a mapping.
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
+    reaction.identifiers.add(
+        type="REACTION_SMILES",
+        value="[CH3:1][OH:2].[C:3](=O)O>CCO.[Na+]>[CH3:1][O:2][C:3]=O",
     )
+    value = views.reaction_row("ord-0001", reaction)["reaction_smiles"]
+    for atom_map in (":1]", ":2]", ":3]"):
+        assert atom_map in value
+    # ...with the agents normalized away.
+    assert value.count(">") == 2
+    assert "[Na+]" not in value
 
 
 def test_agents_are_left_out_of_the_generated_reaction_smiles():
     # An empty agent block is idiomatic, and excluding agents means a ligand recorded
     # only by name cannot decide whether the reaction gets a SMILES at all.
     reaction = _reaction()
+    del reaction.identifiers[:]
     catalyst = reaction.inputs["cat"].components.add(reaction_role="CATALYST")
     catalyst.identifiers.add(type="SMILES", value="[Pd]")
     assert views.reaction_row("x", reaction)["reaction_smiles"] == "c1ccccc1>>Cc1ccccc1"
@@ -105,18 +110,32 @@ def test_agents_are_left_out_of_the_generated_reaction_smiles():
 
 def test_a_ligand_recorded_only_by_name_does_not_null_the_reaction_smiles():
     reaction = _reaction()
+    del reaction.identifiers[:]
     ligand = reaction.inputs["cat"].components.add(reaction_role="CATALYST")
     ligand.identifiers.add(type="NAME", value="ItBu")
     assert views.reaction_row("x", reaction)["reaction_smiles"] == "c1ccccc1>>Cc1ccccc1"
 
 
-def test_an_unreadable_reactant_nulls_the_reaction_smiles():
+def test_an_unreadable_reactant_nulls_a_generated_reaction_smiles():
     # Strict where it counts: a SMILES missing a reactant describes another reaction.
     reaction = _reaction()
+    del reaction.identifiers[:]  # Nothing recorded, so it has to be generated.
     reaction.inputs["b"].components.add().identifiers.add(
         type="NAME", value="mystery reactant"
     )
     assert views.reaction_row("x", reaction)["reaction_smiles"] is None
+
+
+def test_enhanced_stereochemistry_survives_generation():
+    # Component CXSMILES blocks cannot be string-joined into a reaction; the reaction is
+    # assembled from parsed components so RDKit re-emits one block with fixed indices.
+    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
+    component = reaction.inputs["a"].components.add()
+    component.identifiers.add(type="CXSMILES", value="C[C@H](N)O |o1:1|")
+    reaction.outcomes.add().products.add().identifiers.add(
+        type="SMILES", value="C[C@H](N)OC"
+    )
+    assert "|o1:" in views.reaction_row("x", reaction)["reaction_smiles"]
 
 
 def test_plain_reaction_smiles_is_used_when_that_is_all_there_is():

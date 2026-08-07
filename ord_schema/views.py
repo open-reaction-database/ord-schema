@@ -50,13 +50,13 @@ Where the projection has to make a choice, it is documented rather than inferred
   for a consumer that wants it. Values are canonicalized, which is what makes the column
   comparable across datasets that spell the same molecule differently; a component with
   nothing readable is skipped.
-* ``reaction_smiles`` is always generated from the components, never read from a
-  recorded ``REACTION_SMILES``. Recorded values differ in convention between datasets --
-  atom mapping, agent placement, whether solvents appear at all -- so a column built
-  from them compares reactions by whoever deposited them. It carries no agents, and is
-  null unless every reactant and product is readable; see
-  ``message_helpers.derived_reaction_smiles``. The recorded identifier stays in the
-  source for a consumer who wants it as deposited.
+* ``reaction_smiles`` prefers the recorded ``REACTION_CXSMILES`` or ``REACTION_SMILES``,
+  which carries what generation cannot reconstruct -- above all atom mapping. It is
+  normalized rather than copied: agents are removed and the result canonicalized, so
+  agent placement and atom ordering stop deciding whether two reactions look alike. A
+  reaction recording neither, or one RDKit cannot read, gets a SMILES generated from its
+  components, again without agents and only when every reactant and product is readable.
+  See ``message_helpers.derived_reaction_smiles``.
 * ``input_smiles`` visits inputs in sorted key order, matching reaction SMILES
   generation, so the column is stable across runs rather than following map iteration
   order.

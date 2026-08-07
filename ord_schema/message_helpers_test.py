@@ -167,10 +167,9 @@ class TestMessageHelpers:
         reactant1.components.add(reaction_role="WORKUP").identifiers.add(
             value="O", type="SMILES"
         )
-        assert (
+        # A reaction with no products is an error to RDKit, not merely incomplete.
+        with pytest.raises(ValueError, match="contains errors"):
             message_helpers.get_reaction_smiles(reaction, generate_if_missing=True)
-            == "c1ccccc1>N>"
-        )
         reactant2 = reaction.inputs["reactant2"]
         reactant2.components.add(reaction_role="REACTANT").identifiers.add(
             value="Cc1ccccc1", type="SMILES"
