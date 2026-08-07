@@ -817,42 +817,71 @@ def validate_reaction_smiles(reaction_smiles: str) -> None:
         ) from error
 
 
+_EXTRACTED_FROM_REACTION_SMILES = "Extracted from reaction SMILES"
+
+
+def _add_structural_identifier(
+    component: reaction_pb2.Compound | reaction_pb2.ProductCompound, mol: Chem.Mol
+) -> None:
+    """Adds a canonical structural identifier for ``mol``, typed to match its value.
+
+    The type follows the value rather than being fixed at SMILES: a value carrying an
+    extension block is a CXSMILES, and recording it as SMILES is what
+    ``_check_cxsmiles_type`` warns about.
+
+    Args:
+        component: Compound or ProductCompound to add the identifier to.
+        mol: RDKit Mol to write.
+    """
+    smiles = canonical_smiles(mol)
+    _, extension = split_cxsmiles_extension(smiles)
+    component.identifiers.add(
+        value=smiles,
+        type="CXSMILES" if extension else "SMILES",
+        details=_EXTRACTED_FROM_REACTION_SMILES,
+    )
+
+
 def reaction_from_smiles(reaction_smiles: str) -> reaction_pb2.Reaction:
-    """Builds a Reaction by splitting a reaction SMILES."""
+    """Builds a Reaction by splitting a reaction SMILES.
+
+    Components are written through :func:`canonical_smiles`, so enhanced stereochemistry
+    and coordinate bonds carried by the input reach the components that have them.
+
+    Args:
+        reaction_smiles: A reaction SMILES or CXSMILES.
+
+    Returns:
+        A Reaction with one input holding the reactants and agents, and one outcome
+        holding the products. Amounts are unmeasured; only structure is recovered.
+    """
     reaction = rdChemReactions.ReactionFromSmarts(reaction_smiles, useSmiles=True)
     rdChemReactions.RemoveMappingNumbersFromReactions(reaction)
     message = reaction_pb2.Reaction()
-    message.identifiers.add(value=reaction_smiles, type="REACTION_SMILES")
+    _, extension = split_cxsmiles_extension(reaction_smiles)
+    message.identifiers.add(
+        value=reaction_smiles,
+        type="REACTION_CXSMILES" if extension else "REACTION_SMILES",
+    )
     reaction_input = message.inputs["from_reaction_smiles"]
-    for mol in reaction.GetReactants():
-        component = reaction_input.components.add()
-        component.identifiers.add(
-            value=Chem.MolToSmiles(mol),
-            type="SMILES",
-            details="Extracted from reaction SMILES",
-        )
-        component.reaction_role = reaction_pb2.ReactionRole.REACTANT
-        component.amount.unmeasured.type = component.amount.unmeasured.CUSTOM
-        component.amount.unmeasured.details = "Extracted from reaction SMILES"
-    for smiles in reaction_smiles.split(">")[1].split("."):
-        if not smiles:
-            continue
-        component = reaction_input.components.add()
-        component.identifiers.add(
-            value=smiles, type="SMILES", details="Extracted from reaction SMILES"
-        )
-        component.reaction_role = reaction_pb2.ReactionRole.REAGENT
-        component.amount.unmeasured.type = component.amount.unmeasured.CUSTOM
-        component.amount.unmeasured.details = "Extracted from reaction SMILES"
+    for role, mols in (
+        (reaction_pb2.ReactionRole.REACTANT, reaction.GetReactants()),
+        # Read off the parsed reaction rather than by splitting the string on ">" and
+        # ".", which would cut a CXSMILES extension into pieces and would keep the atom
+        # maps that RemoveMappingNumbersFromReactions has already stripped elsewhere.
+        (reaction_pb2.ReactionRole.REAGENT, reaction.GetAgents()),
+    ):
+        for mol in mols:
+            component = reaction_input.components.add()
+            _add_structural_identifier(component, mol)
+            component.reaction_role = role
+            component.amount.unmeasured.type = component.amount.unmeasured.CUSTOM
+            component.amount.unmeasured.details = _EXTRACTED_FROM_REACTION_SMILES
     outcome = message.outcomes.add()
     for mol in reaction.GetProducts():
-        component = outcome.products.add()
-        component.identifiers.add(
-            value=Chem.MolToSmiles(mol),
-            type="SMILES",
-            details="Extracted from reaction SMILES",
-        )
-        component.reaction_role = reaction_pb2.ReactionRole.PRODUCT
+        product = outcome.products.add()
+        _add_structural_identifier(product, mol)
+        product.reaction_role = reaction_pb2.ReactionRole.PRODUCT
     return message
 
 
