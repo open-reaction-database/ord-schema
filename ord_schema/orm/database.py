@@ -726,12 +726,11 @@ def update_derived_tables(
             if reaction_smiles is None:
                 logger.debug(f"No reaction SMILES for reaction id={reaction_id}")
                 continue
-            # rdkit.reactions is keyed by this string and reaction_from_smiles cannot
-            # read a CXSMILES extension, so the block comes off. Splitting on the block
-            # keeps SMILES ending in a non-breaking space intact, which splitting on
-            # whitespace does not.
-            smiles, _ = message_helpers.split_cxsmiles_extension(reaction_smiles)
-            inserts.append({"reaction_id": reaction_id, "reaction_smiles": smiles})
+            # Stored whole: an extension block is chemistry the source recorded, and
+            # reaction_from_smiles reads one, so rdkit.reactions can be keyed by it.
+            inserts.append(
+                {"reaction_id": reaction_id, "reaction_smiles": reaction_smiles}
+            )
         if inserts:
             session.execute(insert_reaction_smiles, inserts)
     _update_compound_smiles(
@@ -874,12 +873,11 @@ def _update_compound_smiles(
         for compound_id in batch_ids:
             value = stored_smiles.get(compound_id)
             # An absent or empty SMILES identifier both fall through to the
-            # reconstruction path, matching smiles_from_compound's
-            # `get_compound_smiles(...) or ...` falsiness (an empty string is not a
-            # parseable structure to canonicalize).
+            # reconstruction path: an empty string is not a structure to canonicalize.
             if value:
-                # Canonicalize the stored SMILES, matching smiles_from_compound's
-                # default.
+                # Canonicalize the stored SMILES. Plain MolToSmiles, so this path
+                # drops the enhanced stereochemistry smiles_from_compound keeps; see
+                # #936, which is about closing that gap.
                 mol = Chem.MolFromSmiles(value)
                 if mol is None:
                     logger.debug(
@@ -888,22 +886,21 @@ def _update_compound_smiles(
                     continue
                 smiles = Chem.MolToSmiles(mol)
             elif compound_id not in derivable:
-                # Only non-structural identifiers: smiles_from_compound would raise, so
-                # skip the reconstruction (see select_structural).
+                # Only non-structural identifiers, so smiles_from_compound has nothing
+                # to read; skip the reconstruction (see select_structural).
                 continue
             else:
                 # No stored SMILES: reconstruct the message and derive from other
                 # identifiers.
                 compound = session.get(compound_class, compound_id)
                 assert compound is not None  # Selected by id above.
-                try:
-                    smiles = message_helpers.smiles_from_compound(
-                        cast(
-                            "reaction_pb2.Compound | reaction_pb2.ProductCompound",
-                            to_proto(compound),
-                        )
+                smiles = message_helpers.smiles_from_compound(
+                    cast(
+                        "reaction_pb2.Compound | reaction_pb2.ProductCompound",
+                        to_proto(compound),
                     )
-                except ValueError:
+                )
+                if smiles is None:
                     continue
             inserts.append({derived_id: compound_id, "smiles": smiles})
         if inserts:
