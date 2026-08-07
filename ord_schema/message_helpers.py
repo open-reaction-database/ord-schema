@@ -374,6 +374,80 @@ def smiles_from_compound(
     return smiles
 
 
+def preferred_compound_smiles(
+    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
+) -> str | None:
+    """Returns canonical SMILES for a compound, preferring its CXSMILES form.
+
+    CXSMILES is a superset of SMILES and RDKit reads either, so preferring it keeps
+    enhanced stereochemistry and fragment grouping that plain SMILES cannot express.
+    Where neither parses, any other structural identifier that does is used, so one
+    malformed value does not hide a good one recorded behind it.
+
+    Derived artifacts share this rather than each choosing an order, so a compound reads
+    the same whichever artifact a consumer reaches for.
+
+    Args:
+        compound: Compound or ProductCompound message.
+
+    Returns:
+        Canonical SMILES, or None if the compound records no structure any loader can
+        read.
+    """
+    for identifier_type in (
+        reaction_pb2.CompoundIdentifier.CXSMILES,
+        reaction_pb2.CompoundIdentifier.SMILES,
+    ):
+        for identifier in compound.identifiers:
+            if identifier.type != identifier_type or not identifier.value:
+                continue
+            canonical = canonical_smiles_for_identifier(
+                identifier.type, identifier.value
+            )
+            if canonical:
+                return canonical
+    for identifier in compound.identifiers:
+        canonical = canonical_smiles_for_identifier(identifier.type, identifier.value)
+        if canonical:
+            return canonical
+    return None
+
+
+def derived_reaction_smiles(reaction: reaction_pb2.Reaction) -> str | None:
+    """Returns the reaction SMILES that derived artifacts store, or None.
+
+    Always generated from the components, never read from a recorded
+    ``REACTION_SMILES`` or ``REACTION_CXSMILES``. Recorded values differ in convention
+    between datasets -- atom mapping, agent placement, whether solvents appear at all --
+    so a column built from them compares reactions by whoever deposited them. Generating
+    applies one rule to the whole corpus, which is what makes the column comparable;
+    whatever the source recorded stays in the source.
+
+    Agents are excluded, leaving ``reactants>>products``. An empty agent block is
+    idiomatic in reaction SMILES, and dropping agents means a reagent, solvent, or
+    catalyst recorded only by name -- very common for ligands -- no longer decides
+    whether the reaction gets a SMILES at all. What remains is strict: every reactant
+    and product must be readable, since a SMILES silently missing one describes a
+    different reaction and nothing in the column marks it.
+
+    Args:
+        reaction: Reaction message.
+
+    Returns:
+        Canonical ``reactants>>products`` SMILES, or None if any reactant or product has
+        no readable structure, or the reaction has no reactants or no products.
+    """
+    try:
+        return (
+            generate_reaction_smiles(
+                reaction, allow_incomplete=False, include_agents=False
+            )
+            or None
+        )
+    except ValueError:
+        return None
+
+
 def molblock_from_compound(
     compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
 ) -> str:
@@ -544,37 +618,84 @@ def get_reaction_smiles(
             return identifier.value
     if not generate_if_missing:
         return None
+    return generate_reaction_smiles(
+        message,
+        allow_incomplete=allow_incomplete,
+        allow_unspecified_roles=allow_unspecified_roles,
+        validate=validate,
+        canonical=canonical,
+    )
 
+
+def generate_reaction_smiles(
+    message: reaction_pb2.Reaction,
+    *,
+    allow_incomplete: bool = True,
+    allow_unspecified_roles: bool = True,
+    include_agents: bool = True,
+    validate: bool = False,
+    canonical: bool = True,
+) -> str:
+    """Builds a reaction SMILES from a Reaction's components, ignoring its identifiers.
+
+    Args:
+        message: reaction_pb2.Reaction message.
+        allow_incomplete: Whether to allow "incomplete" reaction SMILES that omit
+            components with no readable structure. Only components the result would
+            carry are considered, so an unreadable agent is irrelevant when
+            ``include_agents`` is False.
+        allow_unspecified_roles: If True, components with the UNSPECIFIED reaction role
+            are treated as reactants and products.
+        include_agents: Whether to emit the middle ``>agents>`` block. Reagents,
+            solvents, and catalysts are dropped when False, which leaves the SMILES
+            describing the transformation alone.
+        validate: Whether to validate the result with RDKit. Only used when
+            ``allow_incomplete`` is False.
+        canonical: Whether to canonicalize the result.
+
+    Returns:
+        Text reaction SMILES.
+
+    Raises:
+        ValueError: If a component the result would carry has no readable structure and
+            ``allow_incomplete`` is False, if there is no reactant or no product, or if
+            ``validate`` is combined with ``allow_incomplete``.
+    """
     reactants, agents, products = set(), set(), set()
     roles = reaction_pb2.ReactionRole
+    agent_roles = [roles.REAGENT, roles.SOLVENT, roles.CATALYST]
     reactant_roles = [roles.REACTANT]
     product_roles = [roles.PRODUCT]
     if allow_unspecified_roles:
         reactant_roles.append(roles.UNSPECIFIED)
         product_roles.append(roles.UNSPECIFIED)
+
+    def _add(
+        compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
+        target: set[str] | None,
+    ) -> None:
+        """Adds a compound's SMILES to ``target``, or skips it if nothing holds it."""
+        # Checked before parsing, so a component the result would not carry cannot fail
+        # the whole reaction: a NAME-only ligand is silent when agents are excluded.
+        if target is None:
+            return
+        try:
+            smiles = smiles_from_compound(compound)
+        except ValueError:
+            if allow_incomplete:
+                return
+            raise
+        target.add(smiles)
+
     for key in sorted(message.inputs):
         for compound in message.inputs[key].components:
-            try:
-                smiles = smiles_from_compound(compound)
-            except ValueError:
-                if allow_incomplete:
-                    continue
-                raise
-            if compound.reaction_role in [roles.REAGENT, roles.SOLVENT, roles.CATALYST]:
-                agents.add(smiles)
+            if compound.reaction_role in agent_roles:
+                _add(compound, agents if include_agents else None)
             elif compound.reaction_role in reactant_roles:
-                reactants.add(smiles)
-
+                _add(compound, reactants)
     for outcome in message.outcomes:
         for product in outcome.products:
-            try:
-                smiles = smiles_from_compound(product)
-            except ValueError:
-                if allow_incomplete:
-                    continue
-                raise
-            if product.reaction_role in product_roles:
-                products.add(smiles)
+            _add(product, products if product.reaction_role in product_roles else None)
 
     if not allow_incomplete and (not reactants or not products):
         raise ValueError("reaction must contain at least one reactant and one product")

@@ -203,11 +203,13 @@ def test_every_structural_compound_type_collapses(identifier_type, value):
 
 
 def test_reaction_structural_identifiers_collapse_too():
-    reaction = reaction_pb2.Reaction(reaction_id="ord-0006")
+    # smiles is generated rather than read from the recorded identifier, so the two can
+    # differ; the source column stays authoritative, as it does for a dropped MOLBLOCK.
+    reaction = _reaction()
     reaction.identifiers.add(type="REACTION_CXSMILES", value="C>>CO |f:0.1|")
     reaction.identifiers.add(type="REACTION_TYPE", value="oxidation")
     row = projection.message_row(reaction)
-    assert row["smiles"] == "C>>CO |f:0.1|"
+    assert row["smiles"] is not None
     assert [identifier["type"] for identifier in row["identifiers"]] == [
         "REACTION_TYPE"
     ]
@@ -268,22 +270,20 @@ def test_reaction_smiles_is_generated_when_the_source_records_none():
 
 
 def test_a_generated_reaction_smiles_is_complete_or_null():
-    # Generating around the unreadable component would put a SMILES missing a reactant
-    # in the same column as a complete one, with nothing to tell them apart.
+    # Generating around an unreadable reactant would put a SMILES missing one in the
+    # same column as a complete one, with nothing to tell them apart.
     reaction = _reaction()
     mystery = reaction.inputs["toluene"].components.add()
-    mystery.identifiers.add(type="NAME", value="mystery reagent")
+    mystery.identifiers.add(type="NAME", value="mystery reactant")
     assert projection.message_row(reaction)["smiles"] is None
 
 
-def test_a_recorded_reaction_smiles_survives_an_unreadable_component():
-    # Only generation is all-or-nothing; a recorded identifier is returned as recorded.
+def test_an_agent_recorded_only_by_name_does_not_null_the_reaction_smiles():
+    # Agents are excluded from the generated SMILES, so an unreadable one is silent.
     reaction = _reaction()
-    reaction.identifiers.add(type="REACTION_SMILES", value="Cc1ccccc1>>Cc1ccccc1O")
-    reaction.inputs["toluene"].components.add().identifiers.add(
-        type="NAME", value="mystery reagent"
-    )
-    assert projection.message_row(reaction)["smiles"] == "Cc1ccccc1>>Cc1ccccc1O"
+    catalyst = reaction.inputs["cat"].components.add(reaction_role="CATALYST")
+    catalyst.identifiers.add(type="NAME", value="ItBu")
+    assert projection.message_row(reaction)["smiles"] is not None
 
 
 def test_empty_repeated_fields_are_null_rather_than_empty_lists():

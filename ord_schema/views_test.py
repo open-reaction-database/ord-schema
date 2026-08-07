@@ -19,7 +19,7 @@ from importlib import metadata
 import pyarrow.parquet as pq
 import pytest
 
-from ord_schema import parquet, views
+from ord_schema import artifacts, parquet, views
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -82,18 +82,41 @@ def test_reaction_smiles_is_generated_when_not_stored():
 _CXSMILES = "CC(=O)O.CCO>>CC(=O)OCC |f:0.1|"
 
 
-def test_stored_reaction_cxsmiles_is_used_whole():
-    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
-    reaction.identifiers.add(type="REACTION_CXSMILES", value=_CXSMILES)
-    assert views.reaction_row("ord-0001", reaction)["reaction_smiles"] == _CXSMILES
-
-
-def test_cxsmiles_is_preferred_over_plain_smiles():
-    # CXSMILES is a superset, so the richer identifier wins regardless of the order
-    # the two appear in.
+def test_a_recorded_reaction_smiles_is_ignored_in_favor_of_generating():
+    # Recorded values differ in convention between datasets, so the column is generated
+    # from the components everywhere and compares like with like.
     reaction = _reaction()
     reaction.identifiers.add(type="REACTION_CXSMILES", value=_CXSMILES)
-    assert views.reaction_row("ord-0001", reaction)["reaction_smiles"] == _CXSMILES
+    assert views.reaction_row("ord-0001", reaction)["reaction_smiles"] != _CXSMILES
+    assert (
+        views.reaction_row("ord-0001", reaction)["reaction_smiles"]
+        == "c1ccccc1>>Cc1ccccc1"
+    )
+
+
+def test_agents_are_left_out_of_the_generated_reaction_smiles():
+    # An empty agent block is idiomatic, and excluding agents means a ligand recorded
+    # only by name cannot decide whether the reaction gets a SMILES at all.
+    reaction = _reaction()
+    catalyst = reaction.inputs["cat"].components.add(reaction_role="CATALYST")
+    catalyst.identifiers.add(type="SMILES", value="[Pd]")
+    assert views.reaction_row("x", reaction)["reaction_smiles"] == "c1ccccc1>>Cc1ccccc1"
+
+
+def test_a_ligand_recorded_only_by_name_does_not_null_the_reaction_smiles():
+    reaction = _reaction()
+    ligand = reaction.inputs["cat"].components.add(reaction_role="CATALYST")
+    ligand.identifiers.add(type="NAME", value="ItBu")
+    assert views.reaction_row("x", reaction)["reaction_smiles"] == "c1ccccc1>>Cc1ccccc1"
+
+
+def test_an_unreadable_reactant_nulls_the_reaction_smiles():
+    # Strict where it counts: a SMILES missing a reactant describes another reaction.
+    reaction = _reaction()
+    reaction.inputs["b"].components.add().identifiers.add(
+        type="NAME", value="mystery reactant"
+    )
+    assert views.reaction_row("x", reaction)["reaction_smiles"] is None
 
 
 def test_plain_reaction_smiles_is_used_when_that_is_all_there_is():
@@ -101,13 +124,6 @@ def test_plain_reaction_smiles_is_used_when_that_is_all_there_is():
         views.reaction_row("ord-0001", _reaction())["reaction_smiles"]
         == "c1ccccc1>>Cc1ccccc1"
     )
-
-
-def test_trailing_whitespace_is_preserved_rather_than_truncated():
-    padded = "CC(=O)O.CCO>>CC(=O)OCC\xa0\xa0"
-    reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
-    reaction.identifiers.add(type="REACTION_SMILES", value=padded)
-    assert views.reaction_row("ord-0001", reaction)["reaction_smiles"] == padded
 
 
 def test_component_cxsmiles_is_preferred_over_plain_smiles():
@@ -244,7 +260,7 @@ def test_provenance_columns():
 def _write_source(tmp_path, dataset=None, *, name="ds.parquet", **kwargs):
     path = str(tmp_path / name)
     parquet.save_dataset(dataset or _dataset(), path, **kwargs)
-    return path
+    return parquet.DatasetView(path)
 
 
 def test_write_view_round_trip(tmp_path):
@@ -262,7 +278,7 @@ def test_write_view_round_trip(tmp_path):
 def test_write_view_spans_multiple_row_groups(tmp_path):
     reactions = [_reaction(f"ord-{i:04d}") for i in range(10)]
     source = _write_source(tmp_path, _dataset(*reactions), row_group_size=3)
-    assert parquet.num_row_groups(source) > 1
+    assert source.num_row_groups > 1
     output = str(tmp_path / "view.parquet")
     assert views.write_view(source, output) == 10
     assert pq.read_table(output).column("reaction_id").to_pylist() == [
@@ -274,36 +290,36 @@ def test_write_view_stamps_the_footer(tmp_path):
     source = _write_source(tmp_path)
     output = str(tmp_path / "view.parquet")
     views.write_view(source, output)
-    stamps = views.load_stamps(output)
-    source_md5, _ = parquet.streaming_md5(source)
-    assert stamps.source_md5 == source_md5
+    stamps = artifacts.load_stamps(output)
+    assert stamps.artifact == views.ARTIFACT
+    assert stamps.source_md5 == source.md5()
     assert stamps.source_dataset_id == "ord_dataset-00000000000000000000000000000000"
     assert stamps.ord_schema_version == metadata.version("ord-schema")
-    assert stamps.view_version == views.VIEW_VERSION
+    assert stamps.artifact_version == artifacts.ARTIFACT_VERSION
 
 
-def test_load_stamps_rejects_a_source_dataset(tmp_path):
+def test_a_view_is_not_current_as_a_projection(tmp_path):
+    # One shared artifact version means the name is what separates the two.
     source = _write_source(tmp_path)
-    with pytest.raises(ValueError, match="not a view"):
-        views.load_stamps(source)
+    output = str(tmp_path / "view.parquet")
+    views.write_view(source, output)
+    assert not artifacts.is_current(output, "projection", source.md5())
 
 
 def test_is_current_tracks_source_content(tmp_path):
     source = _write_source(tmp_path)
     output = str(tmp_path / "view.parquet")
     views.write_view(source, output)
-    source_md5, _ = parquet.streaming_md5(source)
-    assert views.is_current(output, source_md5)
+    assert views.is_current(output, source.md5())
     assert not views.is_current(output, "0" * 32)
 
 
-def test_is_current_tracks_the_view_version(tmp_path, monkeypatch):
+def test_is_current_tracks_the_artifact_version(tmp_path, monkeypatch):
     source = _write_source(tmp_path)
     output = str(tmp_path / "view.parquet")
     views.write_view(source, output)
-    source_md5, _ = parquet.streaming_md5(source)
-    monkeypatch.setattr(views, "VIEW_VERSION", f"{views.VIEW_VERSION}-next")
-    assert not views.is_current(output, source_md5)
+    monkeypatch.setattr(artifacts, "ARTIFACT_VERSION", "next")
+    assert not views.is_current(output, source.md5())
 
 
 def test_is_current_is_false_for_a_missing_view(tmp_path):

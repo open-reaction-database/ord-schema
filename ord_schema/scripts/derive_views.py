@@ -16,50 +16,24 @@
 
 Each input dataset yields one view (see ``ord_schema.views`` for what a view contains,
 and what it deliberately does not). Outputs mirror the inputs' directory layout beneath
-``--output_dir``, taking the part of ``--input_pattern`` before its first wildcard as
-the root::
+``--output_dir``, rooted at the leading components of ``--input_pattern`` that hold no
+wildcard::
 
     derive_views.py --input_pattern='data/*/*.parquet' --output_dir=views
 
     data/aa/ord_dataset-<id>.parquet  ->  views/aa/ord_dataset-<id>.parquet
 
-Views whose footer already records the current source content, library version, and view
-definition are skipped, so re-running is cheap; ``--force`` rewrites them anyway.
+Views whose footer already records the current source content, library version, and
+artifact version are skipped, so re-running is cheap; ``--force`` rewrites them anyway.
+A match that is itself a derived artifact is ignored rather than derived from, so
+``--output_dir`` may sit inside a recursive pattern's reach; an ``--output_dir`` that
+would write over any source dataset is an error, as is a run that derives nothing.
 """
 
 import argparse
-import glob
-import pathlib
 
-from ord_schema import parquet, views
-from ord_schema.logging import get_logger, silence_rdkit_logs
-
-logger = get_logger(__name__)
-
-
-def glob_root(pattern: str) -> pathlib.PurePath:
-    """Returns the leading directories of a glob pattern that contain no wildcards.
-
-    Output paths are built relative to this, so ``data/*/x.parquet`` under
-    ``--output_dir=views`` lands at ``views/<subdir>/x.parquet``. A pattern naming a
-    single file has no wildcard to stop at, so its own last component is the file
-    rather than a directory and the root is the directory holding it.
-    """
-    parts = pathlib.PurePath(pattern).parts
-    fixed = []
-    for part in parts:
-        if any(char in part for char in "*?["):
-            break
-        fixed.append(part)
-    else:
-        fixed = fixed[:-1]
-    return pathlib.PurePath(*fixed)
-
-
-def output_path(source: str, pattern: str, output_dir: str) -> pathlib.Path:
-    """Maps a source path to its view path under ``output_dir``."""
-    relative = pathlib.PurePath(source).relative_to(glob_root(pattern))
-    return pathlib.Path(output_dir) / relative
+from ord_schema import artifacts, views
+from ord_schema.logging import silence_rdkit_logs
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -83,26 +57,23 @@ def main(args: argparse.Namespace) -> None:
     """Derives a view for every dataset matching the input pattern.
 
     Raises:
-        ValueError: If the input pattern matches nothing.
+        ValueError: If the pattern matched only derived artifacts, which means it was
+            aimed at an output tree rather than a source tree. Silence there would let a
+            pipeline step downstream proceed as though the views had been built.
     """
     silence_rdkit_logs()
-    sources = sorted(glob.glob(args.input_pattern, recursive=True))
-    if not sources:
-        raise ValueError(f"no datasets matched: {args.input_pattern}")
-    logger.info("Found %d datasets", len(sources))
-    written = skipped = 0
-    for source in sources:
-        destination = output_path(source, args.input_pattern, args.output_dir)
-        source_md5, _ = parquet.streaming_md5(source)
-        if not args.force and views.is_current(destination, source_md5):
-            logger.info("%s is current; skipping", destination)
-            skipped += 1
-            continue
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        rows = views.write_view(source, destination, source_md5=source_md5)
-        logger.info("Wrote %d rows to %s", rows, destination)
-        written += 1
-    logger.info("Derived %d views (%d already current)", written, skipped)
+    written, skipped, ignored = artifacts.derive_tree(
+        args.input_pattern,
+        args.output_dir,
+        artifact=views.ARTIFACT,
+        write=views.write_view,
+        force=args.force,
+    )
+    if not written and not skipped:
+        raise ValueError(
+            f"no sources derived: all {ignored} matches for {args.input_pattern!r} are "
+            "already derived artifacts"
+        )
 
 
 if __name__ == "__main__":

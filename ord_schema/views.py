@@ -42,17 +42,21 @@ shape what may be added here:
 
 Where the projection has to make a choice, it is documented rather than inferred:
 
-* Every SMILES column prefers the CXSMILES form the source recorded, falling back to
-  plain SMILES. CXSMILES is a superset -- RDKit reads either -- so preferring it keeps
-  enhanced stereochemistry and fragment grouping that plain SMILES cannot express, at
-  the cost of an extension block on some values. ``split_cxsmiles_extension`` returns
-  the bare half for a consumer that wants it.
-* ``reaction_smiles`` is the identifier the source recorded, generated from the
-  components by ``message_helpers.get_reaction_smiles`` when it recorded none.
-* Component SMILES are canonicalized, and derived from another structural identifier
-  (MOLBLOCK, InChI) when a component records neither SMILES form. A component with
-  nothing structural to work from is skipped. Canonical strings are what make the
-  columns comparable across datasets that spell the same molecule differently.
+* Component SMILES prefer the CXSMILES form the source recorded, falling back to plain
+  SMILES and then to any other structural identifier that parses (MOLBLOCK, InChI).
+  CXSMILES is a superset -- RDKit reads either -- so preferring it keeps enhanced
+  stereochemistry and fragment grouping that plain SMILES cannot express, at the cost of
+  an extension block on some values. ``split_cxsmiles_extension`` returns the bare half
+  for a consumer that wants it. Values are canonicalized, which is what makes the column
+  comparable across datasets that spell the same molecule differently; a component with
+  nothing readable is skipped.
+* ``reaction_smiles`` is always generated from the components, never read from a
+  recorded ``REACTION_SMILES``. Recorded values differ in convention between datasets --
+  atom mapping, agent placement, whether solvents appear at all -- so a column built
+  from them compares reactions by whoever deposited them. It carries no agents, and is
+  null unless every reactant and product is readable; see
+  ``message_helpers.derived_reaction_smiles``. The recorded identifier stays in the
+  source for a consumer who wants it as deposited.
 * ``input_smiles`` visits inputs in sorted key order, matching reaction SMILES
   generation, so the column is stable across runs rather than following map iteration
   order.
@@ -70,28 +74,15 @@ Every column except ``reaction_id`` is nullable, and null means "the source does
 say" rather than zero.
 """
 
-import dataclasses
 import os
-from importlib import metadata
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-from rdkit import Chem
 
-import ord_schema
-from ord_schema import atomic_io, message_helpers, parquet, units
+from ord_schema import artifacts, atomic_io, message_helpers, parquet, units
 from ord_schema.proto import reaction_pb2
 
-# Version of the view definition. Bump when a column's meaning or how it is populated
-# changes, so that existing views read as stale.
-VIEW_VERSION = "1"
-
-# Footer keys share the "ord." namespace that ord_schema.parquet stamps source
-# datasets with, so a reader sees one convention across both.
-_META_VIEW_VERSION = "ord.view_version"
-_META_SOURCE_DATASET_ID = "ord.source_dataset_id"
-_META_SOURCE_MD5 = "ord.source_md5"
-_META_ORD_SCHEMA_VERSION = "ord.ord_schema_version"
+ARTIFACT = "view"
 
 SCHEMA = pa.schema(
     [
@@ -112,34 +103,6 @@ SCHEMA = pa.schema(
     ]
 )
 
-# CXSMILES is a superset of SMILES and RDKit reads either, so the richer form wins.
-_PREFERRED_REACTION_TYPES = (
-    reaction_pb2.ReactionIdentifier.REACTION_CXSMILES,
-    reaction_pb2.ReactionIdentifier.REACTION_SMILES,
-)
-_PREFERRED_COMPOUND_TYPES = (
-    reaction_pb2.CompoundIdentifier.CXSMILES,
-    reaction_pb2.CompoundIdentifier.SMILES,
-)
-
-_RESOLVER = units.UnitResolver()
-
-
-def _canonical_value(message: ord_schema.UnitMessage, target: str) -> float | None:
-    """Returns ``message.value`` in ``target`` units, or None if it cannot be read.
-
-    Args:
-        message: A united message, e.g. Temperature or Pressure.
-        target: Unit to convert to, as a string the resolver understands.
-
-    Returns:
-        The converted value, or None when the message carries no value or its units are
-        unspecified.
-    """
-    if not message.HasField("value") or not message.units:
-        return None
-    return _RESOLVER.convert(message, target).value
-
 
 def _outcome_values(
     reaction: reaction_pb2.Reaction,
@@ -151,7 +114,7 @@ def _outcome_values(
     if not reaction.outcomes:
         return None, None
     outcome = reaction.outcomes[0]
-    reaction_time_seconds = _canonical_value(outcome.reaction_time, "s")
+    reaction_time_seconds = units.canonical_value(outcome.reaction_time, "s")
     best_yield = None
     for product in outcome.products:
         for measurement in product.measurements:
@@ -167,40 +130,6 @@ def _outcome_values(
     return best_yield, reaction_time_seconds
 
 
-def _stored_value(
-    message: reaction_pb2.Reaction
-    | reaction_pb2.Compound
-    | reaction_pb2.ProductCompound,
-    preferred_types: tuple[int, ...],
-) -> str | None:
-    """Returns the first non-empty identifier value in order of preference."""
-    for identifier_type in preferred_types:
-        for identifier in message.identifiers:
-            if identifier.type == identifier_type and identifier.value:
-                return identifier.value
-    return None
-
-
-def _compound_smiles(
-    compound: reaction_pb2.Compound | reaction_pb2.ProductCompound,
-) -> str | None:
-    """Returns a canonical SMILES for a compound, or None if it has no structure.
-
-    Falls back to another structural identifier (MOLBLOCK, InChI) when the compound
-    records neither SMILES form, matching what the rest of the project treats as a
-    compound's structure.
-    """
-    stored = _stored_value(compound, _PREFERRED_COMPOUND_TYPES)
-    if stored is not None:
-        mol = Chem.MolFromSmiles(stored)
-        return message_helpers.canonical_smiles(mol) if mol is not None else None
-    try:
-        return message_helpers.smiles_from_compound(compound)
-    except ValueError:
-        # Nothing structural to work from, or an identifier RDKit cannot parse.
-        return None
-
-
 def _component_smiles(reaction: reaction_pb2.Reaction) -> tuple[list[str], list[str]]:
     """Returns ``(input_smiles, output_smiles)``, skipping components without structure.
 
@@ -210,35 +139,16 @@ def _component_smiles(reaction: reaction_pb2.Reaction) -> tuple[list[str], list[
     inputs = []
     for key in sorted(reaction.inputs):
         for compound in reaction.inputs[key].components:
-            smiles = _compound_smiles(compound)
+            smiles = message_helpers.preferred_compound_smiles(compound)
             if smiles:
                 inputs.append(smiles)
     outputs = []
     for outcome in reaction.outcomes:
         for product in outcome.products:
-            smiles = _compound_smiles(product)
+            smiles = message_helpers.preferred_compound_smiles(product)
             if smiles:
                 outputs.append(smiles)
     return inputs, outputs
-
-
-def reaction_smiles(reaction: reaction_pb2.Reaction) -> str | None:
-    """Returns the reaction's SMILES, preferring CXSMILES over the plain form.
-
-    Generated from the components when the reaction records neither. Generation is
-    best-effort, and a reaction that cannot produce a SMILES reads as null rather than
-    failing the whole view.
-    """
-    stored = _stored_value(reaction, _PREFERRED_REACTION_TYPES)
-    if stored is not None:
-        return stored
-    try:
-        return (
-            message_helpers.get_reaction_smiles(reaction, generate_if_missing=True)
-            or None
-        )
-    except ValueError:
-        return None
 
 
 def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
@@ -255,11 +165,11 @@ def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
     inputs, outputs = _component_smiles(reaction)
     return {
         "reaction_id": reaction_id,
-        "reaction_smiles": reaction_smiles(reaction),
+        "reaction_smiles": message_helpers.derived_reaction_smiles(reaction),
         "input_smiles": inputs,
         "output_smiles": outputs,
         "yield_percent": yield_percent,
-        "temperature_kelvin": _canonical_value(
+        "temperature_kelvin": units.canonical_value(
             reaction.conditions.temperature.setpoint, "K"
         ),
         "reaction_time_seconds": reaction_time_seconds,
@@ -268,90 +178,13 @@ def reaction_row(reaction_id: str, reaction: reaction_pb2.Reaction) -> dict:
     }
 
 
-@dataclasses.dataclass(frozen=True)
-class ViewStamps:
-    """Footer stamps recording what a view was derived from, and by what."""
-
-    source_dataset_id: str | None
-    source_md5: str
-    ord_schema_version: str
-    view_version: str
-
-
-def _stamps(source_dataset_id: str | None, source_md5: str) -> ViewStamps:
-    return ViewStamps(
-        source_dataset_id=source_dataset_id,
-        source_md5=source_md5,
-        ord_schema_version=metadata.version("ord-schema"),
-        view_version=VIEW_VERSION,
-    )
-
-
-def load_stamps(path: str | os.PathLike[str]) -> ViewStamps:
-    """Reads a view's footer stamps.
-
-    Args:
-        path: Path to a view Parquet file.
-
-    Returns:
-        The stamps recorded when the view was written.
-
-    Raises:
-        ValueError: If ``path`` is missing a required stamp, e.g. because it is a source
-            dataset rather than a view.
-    """
-    with pq.ParquetFile(path) as parquet_file:
-        raw = parquet_file.schema_arrow.metadata or {}
-
-    def _get(key: str) -> str | None:
-        value = raw.get(key.encode())
-        return value.decode() if value is not None else None
-
-    source_md5 = _get(_META_SOURCE_MD5)
-    ord_schema_version = _get(_META_ORD_SCHEMA_VERSION)
-    view_version = _get(_META_VIEW_VERSION)
-    missing = [
-        key
-        for key, value in (
-            (_META_SOURCE_MD5, source_md5),
-            (_META_ORD_SCHEMA_VERSION, ord_schema_version),
-            (_META_VIEW_VERSION, view_version),
-        )
-        if value is None
-    ]
-    if missing:
-        raise ValueError(f"not a view; missing footer keys: {sorted(missing)}")
-    assert source_md5 is not None  # Type hint.
-    assert ord_schema_version is not None  # Type hint.
-    assert view_version is not None  # Type hint.
-    return ViewStamps(
-        source_dataset_id=_get(_META_SOURCE_DATASET_ID),
-        source_md5=source_md5,
-        ord_schema_version=ord_schema_version,
-        view_version=view_version,
-    )
-
-
-def is_current(view_path: str | os.PathLike[str], source_md5: str) -> bool:
-    """Returns whether a view was derived from ``source_md5`` by this library version.
-
-    A view is current only if all three of the source content, the library, and the view
-    definition match; any of them changing can change a column's value. A missing or
-    unreadable view is not current.
-    """
-    try:
-        stamps = load_stamps(view_path)
-    except (OSError, ValueError):
-        return False
-    return (
-        stamps.source_md5 == source_md5
-        and stamps.ord_schema_version == metadata.version("ord-schema")
-        and stamps.view_version == VIEW_VERSION
-    )
+def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
+    """Returns whether ``path`` is a view of ``source_md5`` by this library."""
+    return artifacts.is_current(path, ARTIFACT, source_md5)
 
 
 def write_view(
-    source: str | os.PathLike[str],
+    source: parquet.DatasetView,
     output: str | os.PathLike[str],
     *,
     source_md5: str | None = None,
@@ -365,38 +198,29 @@ def write_view(
     atomically, so a failure partway leaves any existing view untouched.
 
     Args:
-        source: Path to a source Parquet dataset.
+        source: View of the source Parquet dataset.
         output: Path to write the view to.
         source_md5: Source hash to stamp, if the caller already computed one (e.g. to
-            check whether the view was current). Hashed here when omitted.
+            check whether the view was current). Hashed here when omitted, which costs a
+            full pass over the source.
         compression: Parquet compression codec.
         row_group_size: Rows per output row group.
 
     Returns:
         Number of rows written.
     """
-    footer = parquet.load_footer(source)
     if source_md5 is None:
-        source_md5, _ = parquet.streaming_md5(source)
-    stamps = _stamps(footer.dataset.dataset_id or None, source_md5)
-    metadata_kv = {
-        _META_VIEW_VERSION: stamps.view_version,
-        _META_SOURCE_MD5: stamps.source_md5,
-        _META_ORD_SCHEMA_VERSION: stamps.ord_schema_version,
-    }
-    if stamps.source_dataset_id is not None:
-        metadata_kv[_META_SOURCE_DATASET_ID] = stamps.source_dataset_id
-    schema = SCHEMA.with_metadata(metadata_kv)
+        source_md5 = source.md5()
+    stamps = artifacts.current_stamps(ARTIFACT, source.dataset_id or None, source_md5)
+    schema = SCHEMA.with_metadata(artifacts.to_metadata(stamps))
     rows = 0
     with (
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
     ):
-        for row_group in range(footer.num_row_groups):
+        for row_group in range(source.num_row_groups):
             batch: dict[str, list] = {name: [] for name in SCHEMA.names}
-            for reaction_id, reaction in parquet.iter_reactions(
-                source, row_group=row_group
-            ):
+            for reaction_id, reaction in source.iter_reactions(row_group=row_group):
                 for name, value in reaction_row(reaction_id, reaction).items():
                     batch[name].append(value)
                 rows += 1

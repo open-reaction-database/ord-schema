@@ -19,7 +19,10 @@ from typing import TypeAlias
 import numpy as np
 
 import ord_schema
+from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
+
+logger = get_logger(__name__)
 
 # Protobuf-generated enum constants (e.g. reaction_pb2.Time.DAY) are int-valued;
 # there is no public google.protobuf type for “any enum member” in Python.
@@ -448,6 +451,37 @@ class UnitResolver:
                     / _UNIT_CONVERSIONS[message_type][new_units]
                 )
         return new_message
+
+
+_RESOLVER = UnitResolver()
+
+
+def canonical_value(message: ord_schema.UnitMessage, target: str) -> float | None:
+    """Converts a united message to ``target`` units, or returns None if it cannot.
+
+    Reading as null rather than raising is what a derived column wants: the column is
+    named for ``target``, so a value that could not be converted has nowhere to record
+    that it is in different units, and a number there would be read as ``target``.
+
+    Args:
+        message: A united message, e.g. Temperature or Mass.
+        target: Unit to convert to, spelled as the resolver understands it, e.g. "K".
+
+    Returns:
+        The converted value, or None when the message records no value, records no
+        units, or records units that cannot be converted to ``target``.
+    """
+    if not message.HasField("value") or not message.units:
+        return None
+    try:
+        return _RESOLVER.convert(message, target).value
+    except (KeyError, ValueError):
+        logger.warning(
+            "cannot convert %s to %s; reading as null",
+            type(message).__name__,
+            target,
+        )
+        return None
 
 
 def format_message(message: ord_schema.UnitMessage) -> str | None:

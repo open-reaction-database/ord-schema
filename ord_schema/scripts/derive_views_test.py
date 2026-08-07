@@ -23,7 +23,7 @@ import pathlib
 import pyarrow.parquet as pq
 import pytest
 
-from ord_schema import parquet, views
+from ord_schema import artifacts, parquet, views
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import derive_views
 
@@ -48,43 +48,6 @@ def _corpus(root: pathlib.Path, shards=("aa", "bb")) -> None:
             _dataset(f"ord_dataset-{shard}"),
             str(directory / f"ord_dataset-{shard}.parquet"),
         )
-
-
-@pytest.mark.parametrize(
-    ("pattern", "expected"),
-    [
-        ("data/*/*.parquet", "data"),
-        ("data/**/*.parquet", "data"),
-        ("*.parquet", ""),
-        ("data/[0-4][0-4]/*.parquet", "data"),
-        # No wildcard: the pattern names one file, so the root is its directory.
-        ("a/b/c.parquet", "a/b"),
-        ("c.parquet", ""),
-    ],
-)
-def test_glob_root(pattern, expected):
-    assert derive_views.glob_root(pattern) == pathlib.PurePath(expected)
-
-
-@pytest.mark.parametrize(
-    ("source", "pattern", "expected"),
-    [
-        (
-            "data/aa/ord_dataset-x.parquet",
-            "data/*/*.parquet",
-            "views/aa/ord_dataset-x.parquet",
-        ),
-        # An exact filename must still yield a file under output_dir, not the
-        # directory itself.
-        (
-            "data/aa/ord_dataset-x.parquet",
-            "data/aa/ord_dataset-x.parquet",
-            "views/ord_dataset-x.parquet",
-        ),
-    ],
-)
-def test_output_path_mirrors_the_source_layout(source, pattern, expected):
-    assert derive_views.output_path(source, pattern, "views") == pathlib.Path(expected)
 
 
 def _run(root: pathlib.Path, *extra: str) -> None:
@@ -114,9 +77,9 @@ def test_main_stamps_views_with_their_source(tmp_path):
     _corpus(tmp_path, shards=("aa",))
     _run(tmp_path)
     source = tmp_path / "data" / "aa" / "ord_dataset-aa.parquet"
-    stamps = views.load_stamps(tmp_path / "views" / "aa" / "ord_dataset-aa.parquet")
+    stamps = artifacts.load_stamps(tmp_path / "views" / "aa" / "ord_dataset-aa.parquet")
     assert stamps.source_dataset_id == "ord_dataset-aa"
-    assert stamps.source_md5 == parquet.streaming_md5(str(source))[0]
+    assert stamps.source_md5 == parquet.DatasetView(source).md5()
 
 
 # write_view publishes by renaming a fresh temp file into place, so the inode changes
