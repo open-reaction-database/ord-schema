@@ -15,6 +15,7 @@
 
 import contextlib
 import enum
+import functools
 import gzip
 import os
 import pathlib
@@ -56,7 +57,64 @@ STRUCTURAL_IDENTIFIER_TYPES = frozenset(
     reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name(identifier_type)
     for identifier_type in _COMPOUND_IDENTIFIER_LOADERS
 )
+# Structural identifiers repeat heavily -- shared solvents, reagents and
+# catalysts recur across the reactions of a dataset -- and validation parses
+# each one twice, once to check that it parses and once to canonicalize it for
+# the consistency check. Memoizing the derived SMILES collapses both.
+#
+# The cached value is a string, never the Mol: an RDKit Mol is mutable, so
+# handing the same one to every caller would let any of them corrupt the entry.
+# Bounded because a large dataset's distinct set does not saturate (uspto grows
+# by ~1.3 new molecules per reaction); this holds strings, so the ceiling is
+# tens of MB.
+#
+# Entries assume RDKit parses and writes the same way for the life of the process.
+# A caller that flips a global mid-run (Chem.SetUseLegacyStereoPerception and the
+# like) has to call cache_clear() on both functions below.
+_IDENTIFIER_CACHE_SIZE = 100_000
+
 MessageType = TypeVar("MessageType")  # Generic for setting return types
+
+
+@functools.lru_cache(maxsize=_IDENTIFIER_CACHE_SIZE)
+def canonical_smiles_for_identifier(identifier_type: int, value: str) -> str | None:
+    """Canonicalizes a structural identifier, or returns None if it will not parse.
+
+    Args:
+        identifier_type: CompoundIdentifier type enum value.
+        value: The identifier value.
+
+    Returns:
+        Canonical SMILES, or None if ``value`` is not a valid identifier of that
+        type. Returns None for types no Mol can be built from.
+    """
+    loader = _COMPOUND_IDENTIFIER_LOADERS.get(identifier_type)
+    if loader is None:
+        return None
+    mol = loader(value)
+    if mol is None:
+        return None
+    return canonical_smiles(mol)
+
+
+@functools.lru_cache(maxsize=_IDENTIFIER_CACHE_SIZE)
+def identifier_parses_unsanitized(identifier_type: int, value: str) -> bool:
+    """Tests whether an identifier parses at all once sanitization is skipped.
+
+    Separate from :func:`canonical_smiles_for_identifier` so the extra parse
+    happens only for the identifiers that failed, which are rare.
+
+    Args:
+        identifier_type: CompoundIdentifier type enum value.
+        value: The identifier value.
+
+    Returns:
+        True if ``value`` parses with ``sanitize=False``.
+    """
+    loader = _COMPOUND_IDENTIFIER_LOADERS.get(identifier_type)
+    if loader is None:
+        return False
+    return loader(value, sanitize=False) is not None
 
 
 def _resolve_enum_value(descriptor: Descriptor, field_name: str, key: str) -> int:
@@ -290,7 +348,8 @@ def smiles_from_compound(
 ) -> str:
     """Fetches or generates a SMILES identifier for a compound.
 
-    If a SMILES identifier already exists, it is simply returned.
+    An existing SMILES identifier is used in preference to regenerating one from the
+    structure, but it is still canonicalized when ``canonical`` is True.
 
     Args:
         compound: reaction_pb2.Compound or reaction_pb2.ProductCompound message.
@@ -420,17 +479,20 @@ def check_compound_identifiers(
     """
     smiles = set()
     for identifier in compound.identifiers:
-        if identifier.type in _COMPOUND_IDENTIFIER_LOADERS:
-            mol = _COMPOUND_IDENTIFIER_LOADERS[identifier.type](identifier.value)
-        else:
+        if identifier.type not in _COMPOUND_IDENTIFIER_LOADERS:
             continue
-        if not mol:
+        canonical = canonical_smiles_for_identifier(identifier.type, identifier.value)
+        if canonical is None:
             raise ValueError(
                 f"invalid structural identifier for Compound: {identifier}"
             )
-        smiles.add(canonical_smiles(mol))
+        smiles.add(canonical)
     if len(smiles) > 1:
-        raise ValueError(f"structural identifiers are inconsistent: {smiles}")
+        # Sorted because a set renders in hash order, which varies between runs:
+        # the same dataset would otherwise produce messages that cannot be diffed
+        # against a previous run's. Kept as a list literal so the quoting stays
+        # and SMILES with trailing whitespace remain visible.
+        raise ValueError(f"structural identifiers are inconsistent: {sorted(smiles)}")
 
 
 def get_reaction_smiles(
@@ -896,7 +958,7 @@ def load_message(
         raise ValueError(
             f"{path} is a Parquet dataset; load_message reads a single serialized "
             "message. Use ord_schema.datasets.load_dataset for the whole Dataset, or "
-            "ord_schema.parquet.DatasetView / iter_reactions to stream large ones."
+            "ord_schema.parquet.DatasetView to stream large ones."
         )
     this_open = gzip.open if path.suffix == ".gz" else open
     input_format = _message_format(path)
@@ -987,7 +1049,8 @@ def id_filename(filename: str) -> str:
     if not shard.isalnum():
         raise ValueError(f"basename shard must be alphanumeric: {basename}")
     result = posixpath.join("data", shard, basename)
-    # Defense-in-depth: mirror what werkzeug.security.safe_join used to check.
+    # Defense in depth: basename carries no separator and shard is alphanumeric, so
+    # this is redundant -- but it is what pins the result inside the "data/" root.
     if posixpath.normpath(result) != result or not result.startswith("data/"):
         raise ValueError(f"unsafe path from basename: {basename}")
     return result

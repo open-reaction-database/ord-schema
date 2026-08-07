@@ -69,7 +69,7 @@ _CLASSIFY_JOBS_CAP = 4
 def dataset_id_for_file(filename: str) -> str:
     """Returns the dataset ID for a dataset file without ingesting it."""
     if filename.endswith(".parquet"):
-        return parquet.load_metadata(filename).dataset_id
+        return parquet.DatasetView(filename).dataset_id
     return load_message(filename, dataset_pb2.Dataset).dataset_id
 
 
@@ -94,11 +94,11 @@ def ingest_dataset(filename: str, *, dsn: str, overwrite: bool) -> str:
     """
     if filename.endswith(".parquet"):
         logger.debug(f"Streaming {filename}")
-        dataset_id = parquet.load_metadata(filename).dataset_id
+        view = parquet.DatasetView(filename)
+        dataset_id = view.dataset_id
 
         def compute_md5() -> str:
-            md5_hex, _ = parquet.streaming_md5(filename)
-            return md5_hex
+            return view.md5()
 
         def insert(session: Session) -> None:
             database.add_parquet_dataset(filename, session)
@@ -343,9 +343,10 @@ def _prep_parquet_dataset(filename: str, *, dsn: str, overwrite: bool) -> _Parqu
         ValueError: If the dataset exists with changed content and ``overwrite`` is not
             set.
     """
-    footer = parquet.load_footer(filename)
-    dataset_id = footer.dataset.dataset_id
-    md5_hex, num_reactions = parquet.streaming_md5(filename)
+    view = parquet.DatasetView(filename)
+    dataset_id = view.dataset_id
+    md5_hex = view.md5()
+    num_reactions = len(view.reactions)
     engine = create_engine(dsn)
     try:
         with Session(engine) as session, session.begin():
@@ -375,7 +376,7 @@ def _prep_parquet_dataset(filename: str, *, dsn: str, overwrite: bool) -> _Parqu
         num_reactions,
         needs_load=True,
         dataset_uuid=dataset_uuid,
-        num_row_groups=footer.num_row_groups,
+        num_row_groups=view.num_row_groups,
     )
 
 
@@ -588,8 +589,8 @@ def load_datasets(
         # Datasets are processed serially (the rdkit.* dedup tables are shared, so
         # cross-dataset concurrency could collide on the same structure), but each
         # dataset's pass is sharded by SMILES hash across the pool -- disjoint
-        # partitions keep concurrent inserts off each other's rdkit.* keys, so one large
-        # dataset no longer runs single-threaded.
+        # partitions keep concurrent inserts off each other's rdkit.* keys, allowing a
+        # single large dataset to use multiple workers.
         engine = create_engine(dsn)
         try:
             for dataset_id in tqdm(dataset_ids, desc="RDKit"):
