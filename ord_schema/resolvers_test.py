@@ -23,7 +23,7 @@ from unittest import mock
 import pytest
 from rdkit import Chem
 
-from ord_schema import resolvers
+from ord_schema import message_helpers, resolvers
 from ord_schema.proto import reaction_pb2
 
 # The live resolver smoke tests below run on a single CI matrix entry (set by the
@@ -271,6 +271,17 @@ class TestCanonicalizeSmiles:
     def test_invalid_smiles_raises(self):
         with pytest.raises(ValueError, match="Could not parse SMILES"):
             resolvers.canonicalize_smiles("not a smiles")
+
+    def test_keeps_enhanced_stereochemistry(self):
+        # Consumers parse the result rather than string-matching it, so the stereo
+        # group is worth keeping: a plain SMILES would assert one configuration.
+        assert resolvers.canonicalize_smiles("C[C@H](N)O |o1:1|") == "C[C@H](N)O |o1:1|"
+
+    def test_agrees_with_the_shared_helper(self):
+        mol = Chem.MolFromSmiles("C(CO)O")
+        assert resolvers.canonicalize_smiles(
+            "C(CO)O"
+        ) == message_helpers.canonical_smiles(mol)
 
 
 class TestOpsinResolve:

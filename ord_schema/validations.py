@@ -722,6 +722,14 @@ def _validate_reaction(
             context.error("Reaction requires provenance")
 
 
+# Identifier types whose conventional spelling differs from their enum name, for use in
+# messages a depositor reads. Anything absent falls back to the enum name, which already
+# reads correctly for SMILES and CXSMILES.
+_IDENTIFIER_NAMES = {
+    reaction_pb2.CompoundIdentifier.INCHI: "InChI",
+    reaction_pb2.CompoundIdentifier.MOLBLOCK: "MolBlock",
+}
+
 # Block formats whose leading and trailing newlines are part of the format.
 _WHITESPACE_EXEMPT_TYPES = frozenset(
     {
@@ -923,19 +931,13 @@ def _validate_compound_identifier(
     _check_surrounding_whitespace(message, context)
     if not message.value:
         context.error("value must be set")
-    if message.type in (
-        message.SMILES,
-        message.CXSMILES,
-        message.INCHI,
-        message.MOLBLOCK,
-    ):
-        # MolFromSmiles reads CXSMILES, so both types validate as recorded.
-        identifier_type = {
-            message.SMILES: "SMILES",
-            message.CXSMILES: "CXSMILES",
-            message.INCHI: "InChI",
-            message.MOLBLOCK: "MolBlock",
-        }[message.type]
+    if message.type in message_helpers.STRUCTURAL_IDENTIFIER_TYPES:
+        # Taken from message_helpers rather than listed here, so a type gaining a loader
+        # gains this parse check with it instead of passing unvalidated.
+        identifier_type = _IDENTIFIER_NAMES.get(
+            message.type,
+            reaction_pb2.CompoundIdentifier.CompoundIdentifierType.Name(message.type),
+        )
         if message.type == message.SMILES:
             _check_cxsmiles_type(message.value, "CXSMILES", context)
         # Memoized, and shared with the consistency check in

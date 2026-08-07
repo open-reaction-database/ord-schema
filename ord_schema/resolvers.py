@@ -46,31 +46,27 @@ class _ResolverError(Exception):
     """
 
 
-_COMPOUND_STRUCTURAL_IDENTIFIERS = [
-    reaction_pb2.CompoundIdentifier.SMILES,
-    reaction_pb2.CompoundIdentifier.INCHI,
-    reaction_pb2.CompoundIdentifier.MOLBLOCK,
-    reaction_pb2.CompoundIdentifier.CXSMILES,
-    reaction_pb2.CompoundIdentifier.XYZ,
-]
-
-
 def canonicalize_smiles(smiles: str) -> str:
-    """Canonicalizes a SMILES string.
+    """Canonicalizes a SMILES string, raising if it will not parse.
+
+    A thin wrapper over :func:`message_helpers.canonical_smiles`, so a resolved
+    structure is written the same way as one derived from a Compound. Callers holding a
+    Mol should use that directly; this exists for the string-in, string-out case.
 
     Args:
-        smiles: SMILES string.
+        smiles: SMILES string, which may carry a CXSMILES extension block.
 
     Returns:
-        Canonicalized SMILES string.
+        Canonical SMILES, carrying a block where the structure has enhanced
+        stereochemistry or coordinate bonds.
 
     Raises:
         ValueError: If the SMILES cannot be parsed by RDKit.
     """
     mol = Chem.MolFromSmiles(smiles)
-    if not mol:
+    if mol is None:
         raise ValueError(f"Could not parse SMILES: {smiles}")
-    return Chem.MolToSmiles(mol)
+    return message_helpers.canonical_smiles(mol)
 
 
 def resolve_name(value_type: str, value: str) -> tuple[str, str]:
@@ -109,6 +105,10 @@ def resolve_names(message: ord_schema.Message) -> bool:
     of identifiers for that compound. The first success ends work on that
     Compound; any remaining NAME identifiers on it are left unresolved.
 
+    A compound already carrying an identifier a Mol can be built from is skipped.
+    Coordinates alone do not count, since nothing in this library reads them into a
+    structure, so a compound recorded as XYZ plus a name is worth resolving.
+
     Args:
         message: Protocol buffer tree containing Compound submessages (e.g. Reaction
             or ReactionInput).
@@ -120,7 +120,7 @@ def resolve_names(message: ord_schema.Message) -> bool:
     compounds = message_helpers.find_submessages(message, reaction_pb2.Compound)
     for compound in compounds:
         if any(
-            identifier.type in _COMPOUND_STRUCTURAL_IDENTIFIERS
+            identifier.type in message_helpers.STRUCTURAL_IDENTIFIER_TYPES
             for identifier in compound.identifiers
         ):
             continue  # Compound already has a structural identifier.

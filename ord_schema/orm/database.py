@@ -830,9 +830,10 @@ def _update_compound_smiles(
     # reconstruction fallback below is skipped for it -- keeping the re-attempt of a
     # permanently underivable compound (no derived row is ever inserted, so it is
     # re-selected every run) cheap instead of paying an ORM load plus to_proto that is
-    # certain to raise. The type list is bound from
-    # message_helpers.STRUCTURAL_IDENTIFIER_TYPES so it tracks the loaders that back the
-    # reconstruction, rather than a hand-maintained literal that could drift from them.
+    # certain to raise. The type list is bound from message_helpers, so it tracks the
+    # loaders that back the reconstruction rather than a hand-maintained literal that
+    # could drift from them; the names, not the enum numbers, are what this column
+    # stores.
     select_structural = text(f"""
         SELECT DISTINCT ord.compound_identifier.{derived_id}
         FROM ord.compound_identifier
@@ -864,7 +865,7 @@ def _update_compound_smiles(
                 {
                     "ids": batch_ids,
                     "structural_types": list(
-                        message_helpers.STRUCTURAL_IDENTIFIER_TYPES
+                        message_helpers.STRUCTURAL_IDENTIFIER_TYPE_NAMES
                     ),
                 },
             )
