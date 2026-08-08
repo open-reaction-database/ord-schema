@@ -15,6 +15,7 @@
 """Tests for ord_schema.artifacts."""
 
 import pathlib
+from importlib import metadata
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -27,6 +28,13 @@ from ord_schema.proto import dataset_pb2, reaction_pb2
 def _write(path, metadata):
     schema = pa.schema([pa.field("x", pa.int32())]).with_metadata(metadata)
     pq.write_table(pa.table({"x": [1]}, schema=schema), path)
+
+
+def _current_metadata(**overrides):
+    """Stamps a parent this library considers current, which a chain requires."""
+    return _valid_metadata(
+        **{"ord.ord_schema_version": metadata.version("ord-schema"), **overrides}
+    )
 
 
 def _valid_metadata(**overrides):
@@ -237,7 +245,7 @@ def test_derive_tree_refuses_to_write_over_its_own_sources(tmp_path):
     (tmp_path / "aa").mkdir()
     _fake_source(tmp_path / "aa" / "source.parquet")
     calls = []
-    with pytest.raises(ValueError, match="would write over source datasets"):
+    with pytest.raises(ValueError, match="would write over its inputs"):
         artifacts.derive_tree(
             str(tmp_path / "*" / "*.parquet"),
             str(tmp_path),
@@ -255,7 +263,7 @@ def test_derive_tree_refuses_to_write_over_a_different_source(tmp_path):
     victim = tmp_path / "aa" / "source.parquet"
     _fake_source(victim)
     original = victim.read_bytes()
-    with pytest.raises(ValueError, match="would write over source datasets"):
+    with pytest.raises(ValueError, match="would write over its inputs"):
         artifacts.derive_tree(
             str(tmp_path / "**" / "*.parquet"),
             str(tmp_path / "aa"),
@@ -320,7 +328,7 @@ def test_derive_tree_reads_the_named_parent_artifact(tmp_path):
     (tmp_path / "aa").mkdir()
     _write(
         tmp_path / "aa" / "projected.parquet",
-        _valid_metadata(**{"ord.artifact": "projection", "ord.source_md5": "a" * 32}),
+        _current_metadata(**{"ord.artifact": "projection", "ord.source_md5": "a" * 32}),
     )
     seen = []
 
@@ -346,7 +354,7 @@ def test_derive_tree_ignores_a_source_dataset_when_a_parent_artifact_is_named(tm
     _fake_source(tmp_path / "aa" / "source.parquet")
     _write(
         tmp_path / "aa" / "projected.parquet",
-        _valid_metadata(**{"ord.artifact": "projection"}),
+        _current_metadata(**{"ord.artifact": "projection"}),
     )
     written_paths = []
 
@@ -379,3 +387,68 @@ def test_derive_tree_ignores_an_artifact_of_the_wrong_kind(tmp_path):
         write=lambda *args, **kwargs: 1,
         parent_artifact="projection",
     ) == (0, 0, 1)
+
+
+def test_derive_tree_refuses_a_stale_parent(tmp_path, monkeypatch):
+    # Passing the parent's hash through carries the source content across the hop but
+    # not the version stamps. A view written from a stale projection would stamp itself
+    # with the current versions, and the dataset hash it inherits does not change when
+    # the projection is rebuilt -- so nothing would ever mark it stale again.
+    (tmp_path / "aa").mkdir()
+    parent = tmp_path / "aa" / "projected.parquet"
+    _write(parent, _current_metadata(**{"ord.artifact": "projection"}))
+    monkeypatch.setattr(artifacts, "ARTIFACT_VERSION", "next")
+    with pytest.raises(ValueError, match="stale projection"):
+        artifacts.derive_tree(
+            str(tmp_path / "*" / "*.parquet"),
+            str(tmp_path / "out"),
+            artifact="view",
+            write=lambda *args, **kwargs: 1,
+            parent_artifact="projection",
+        )
+
+
+def test_derive_tree_refuses_to_write_over_a_file_it_did_not_derive(tmp_path):
+    # Comparing destinations against the run's own parents cannot catch this once a
+    # derivation reads one tree and writes another: the source datasets are in neither
+    # set, and replacing a corpus that cannot be regenerated is the one unrecoverable
+    # mistake this driver can make.
+    (tmp_path / "projections").mkdir()
+    _write(
+        tmp_path / "projections" / "ds.parquet",
+        _current_metadata(**{"ord.artifact": "projection"}),
+    )
+    (tmp_path / "data").mkdir()
+    source = tmp_path / "data" / "ds.parquet"
+    _fake_source(source)
+    before = source.read_bytes()
+    with pytest.raises(ValueError, match="would write over its inputs"):
+        artifacts.derive_tree(
+            str(tmp_path / "projections" / "*.parquet"),
+            str(tmp_path / "data"),
+            artifact="view",
+            write=lambda *args, **kwargs: 1,
+            parent_artifact="projection",
+        )
+    assert source.read_bytes() == before
+
+
+def test_derive_tree_still_rewrites_its_own_artifacts(tmp_path):
+    # The guard above must not stop a re-run: an artifact this driver wrote is exactly
+    # what --force is for.
+    (tmp_path / "projections").mkdir()
+    _write(
+        tmp_path / "projections" / "ds.parquet",
+        _current_metadata(**{"ord.artifact": "projection"}),
+    )
+    (tmp_path / "views").mkdir()
+    _write(tmp_path / "views" / "ds.parquet", _valid_metadata())
+    written, skipped, ignored = artifacts.derive_tree(
+        str(tmp_path / "projections" / "*.parquet"),
+        str(tmp_path / "views"),
+        artifact="view",
+        write=lambda *args, **kwargs: 1,
+        force=True,
+        parent_artifact="projection",
+    )
+    assert (written, skipped, ignored) == (1, 0, 0)

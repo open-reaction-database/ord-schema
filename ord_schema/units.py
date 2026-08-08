@@ -422,14 +422,18 @@ class UnitResolver:
         elif message_type == reaction_pb2.Wavelength:
             if message.units != new_units:
                 new_message.value = _WAVENUMBER_NM_CM / message.value
-                # Approximate precision as stdev of previous value \pm precision
-                if message.precision:
+                # Inverting maps the interval [value - precision, value + precision]
+                # onto an asymmetric one, so the converted precision is half its width.
+                # An interval reaching zero inverts to an unbounded one, which no
+                # precision describes -- the value still converts, so it is kept and
+                # the precision left unset rather than failing the whole conversion.
+                if message.precision and message.value != message.precision:
                     new_message.precision = (
                         _WAVENUMBER_NM_CM
                         / 2
                         * (
                             1 / (message.value - message.precision)
-                            + 1 / (message.value + message.precision)
+                            - 1 / (message.value + message.precision)
                         )
                     )
             else:
@@ -502,19 +506,19 @@ def canonical_precision(message: ord_schema.UnitMessage, target: str) -> float |
     Returns:
         The converted precision, or None when the message records no precision, no
         value to attach it to, no units, or units that cannot be converted to
-        ``target``.
+        ``target``. Also None where the conversion declines to state one: an inverted
+        interval reaching zero is unbounded, and no number describes it.
     """
-    if (
-        not message.HasField("value")
-        or not message.HasField("precision")
-        or not message.units
-    ):
+    if not message.HasField("value") or not message.units:
         return None
     try:
         # Read from the conversion rather than scaling here: Temperature is an offset
         # scale, where precision converts by the ratio alone, and Wavelength inverts,
-        # where it does not converge on a single factor at all.
-        return RESOLVER.convert(message, target).precision
+        # where it does not converge on a single factor at all. Presence follows the
+        # conversion for the same reason -- it is what knows whether the target units
+        # can carry an uncertainty at all.
+        converted = RESOLVER.convert(message, target)
+        return converted.precision if converted.HasField("precision") else None
     except (KeyError, ValueError, ZeroDivisionError):
         logger.warning(
             "cannot convert %s precision to %s; reading as null",

@@ -290,6 +290,30 @@ def _is_parent(match: str, parent_artifact: str | None) -> bool:
     return False
 
 
+def _is_irreplaceable(destination: pathlib.Path) -> bool:
+    """Returns whether writing to ``destination`` would destroy something unrecoverable.
+
+    A derived artifact is ours to rewrite; anything else at that path is not. Comparing
+    destinations against the run's own parents is not enough once a derivation reads one
+    tree and writes another, because the source datasets are then in neither set -- and
+    a mistyped ``output_dir`` aimed at them would replace a corpus that cannot be
+    regenerated with views that can.
+
+    Args:
+        destination: Path an artifact would be written to.
+
+    Returns:
+        True if something is already there and it is not a derived artifact.
+    """
+    if not destination.exists():
+        return False
+    try:
+        return not is_artifact(destination)
+    except ValueError:
+        # Not readable as Parquet at all, so certainly not an artifact this run wrote.
+        return True
+
+
 def _parent_provenance(
     parent: str, parent_artifact: str | None
 ) -> tuple[str, str | None]:
@@ -297,9 +321,16 @@ def _parent_provenance(
 
     A derived parent passes its own stamps through rather than being hashed itself, so
     every artifact records the *source dataset* content it reflects however many
-    derivations away it sits. A consumer therefore checks a view against the dataset in
-    one hop, and a chained artifact goes stale on the same three terms as a directly
-    derived one: source content, library version, and artifact version.
+    derivations away it sits, and a consumer checks a view against the dataset in one
+    hop.
+
+    Passing the hash through carries the source content across the hop but not the two
+    version stamps, which describe whoever wrote each file. A stale parent is therefore
+    refused rather than read: an artifact derived from one would stamp itself with the
+    *current* versions while holding what an older definition produced, and since the
+    dataset hash it inherits does not change when the parent is rebuilt, nothing would
+    ever mark it stale again. Refusing keeps the three terms ``is_current`` compares
+    true of a chained artifact as well as a directly derived one.
 
     Args:
         parent: Path to the file being derived from.
@@ -310,10 +341,16 @@ def _parent_provenance(
         The hash of the originating source dataset and its ID, if it records one.
 
     Raises:
-        ValueError: If ``parent`` is not readable as the expected kind of file.
+        ValueError: If ``parent`` is not readable as the expected kind of file, or is a
+            derived artifact that is itself out of date.
     """
     if parent_artifact is not None:
         stamps = load_stamps(parent)
+        if not is_current(parent, parent_artifact, stamps.source_md5):
+            raise ValueError(
+                f"{parent} is a stale {parent_artifact}; derive it again first, or "
+                "what is written here would claim a provenance it does not have"
+            )
         return stamps.source_md5, stamps.source_dataset_id
     try:
         view = parquet.DatasetView(parent)
@@ -379,11 +416,11 @@ def derive_tree(
     clobbered = sorted(
         str(destination)
         for destination in destinations.values()
-        if destination.resolve() in resolved_sources
+        if destination.resolve() in resolved_sources or _is_irreplaceable(destination)
     )
     if clobbered:
         raise ValueError(
-            f"output_dir {output_dir!r} would write over source datasets: {clobbered}"
+            f"output_dir {output_dir!r} would write over its inputs: {clobbered}"
         )
     written = skipped = 0
     for source in sources:

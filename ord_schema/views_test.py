@@ -539,3 +539,60 @@ def test_components_identified_only_by_cxsmiles_are_kept():
     assert views.reaction_row(projection.message_row(reaction))["input_smiles"] == [
         "c1ccccc1"
     ]
+
+
+def test_every_projection_column_read_is_a_leaf_of_the_projection_schema(tmp_path):
+    # pq.read_row_group drops a column path it cannot find and raises nothing, so a
+    # leaf renamed in the projection would surface as a KeyError on the first reaction
+    # that happens to populate it -- or not at all, for a path _nested short-circuits
+    # past. Checked against the schema instead, where a rename fails immediately.
+    path = tmp_path / "empty.parquet"
+    pq.write_table(projection.SCHEMA.empty_table(), path)
+    with pq.ParquetFile(path) as parquet_file:
+        paths = {
+            parquet_file.schema.column(i).path for i in range(len(parquet_file.schema))
+        }
+    assert set(views._PROJECTION_COLUMNS) <= paths
+
+
+def test_write_view_populates_every_column_through_parquet(tmp_path):
+    # The unit tests above narrow an in-memory row holding every projection column;
+    # write_view narrows a column-pruned Parquet read. Only a round trip that populates
+    # all nine columns exercises the paths in _PROJECTION_COLUMNS.
+    reaction = _reaction()
+    reaction.conditions.temperature.setpoint.value = 25.0
+    reaction.conditions.temperature.setpoint.units = reaction_pb2.Temperature.CELSIUS
+    outcome = reaction.outcomes[0]
+    outcome.reaction_time.value = 2.0
+    outcome.reaction_time.units = reaction_pb2.Time.HOUR
+    outcome.products[0].measurements.add(type="YIELD").percentage.value = 87.5
+    reaction.provenance.doi = "10.1000/example"
+    reaction.provenance.patent = "US1234567"
+    source = _project(tmp_path, _dataset(reaction))
+    output = tmp_path / "view.parquet"
+    assert views.write_view(source.path, output) == 1
+    row = pq.read_table(output).to_pylist()[0]
+    assert row == {
+        "reaction_id": "ord-0001",
+        "reaction_smiles": "c1ccccc1>>Cc1ccccc1",
+        "input_smiles": ["c1ccccc1"],
+        "output_smiles": ["Cc1ccccc1"],
+        "yield_percent": pytest.approx(87.5),
+        "temperature_kelvin": pytest.approx(298.15),
+        "reaction_time_seconds": pytest.approx(7200.0),
+        "doi": "10.1000/example",
+        "patent": "US1234567",
+    }
+
+
+def test_reaction_time_takes_the_first_outcome_that_records_one(tmp_path):
+    # Documented in the module docstring, and untested until now: mutating the guard so
+    # a later outcome wins left the whole suite green.
+    reaction = _reaction()
+    reaction.outcomes[0].reaction_time.value = 1.0
+    reaction.outcomes[0].reaction_time.units = reaction_pb2.Time.HOUR
+    later = reaction.outcomes.add()
+    later.reaction_time.value = 5.0
+    later.reaction_time.units = reaction_pb2.Time.HOUR
+    row = views.reaction_row(projection.message_row(reaction))
+    assert row["reaction_time_seconds"] == pytest.approx(3600.0)
