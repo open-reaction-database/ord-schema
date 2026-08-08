@@ -18,12 +18,17 @@ A derived artifact restates a source dataset in a queryable shape. It adds no
 information, so it is wrong if it disagrees with its source and stale if its source has
 moved on. These stamps make both conditions detectable without reading column data.
 
-More than one artifact is expected -- a projection carrying every field, and pivoted
-indexes over the paths that turn out to be hot -- so the parts that do not vary between
-them live here: the stamps, the output-path mapping, and the driver that walks a glob,
-refuses to write over its own sources, ignores matches that are already artifacts, and
-skips what is current. An artifact module supplies only its schema, its projection, and
-its name.
+More than one artifact is expected -- a projection carrying every field, a view
+narrowing it, and pivoted indexes over the paths that turn out to be hot -- so the parts
+that do not vary between them live here: the stamps, the output-path mapping, and the
+driver that walks a glob, refuses to write over what it reads, ignores matches that are
+not the kind of parent it derives from, and skips what is current. An artifact module
+supplies only its schema, its projection, and its name.
+
+An artifact may derive from another rather than from a source dataset, which is how a
+view reaches the projection's columns without recomputing them. Only the reading
+differs: the stamps describe the originating dataset either way, so a chain is invisible
+to a consumer checking whether a file is current.
 
 Every artifact carries these keys, in the ``ord.`` namespace that ``ord_schema.parquet``
 already uses for source datasets:
@@ -35,7 +40,10 @@ already uses for source datasets:
   each other needs to know they were built by the same definition. Per-artifact versions
   would let a view and a projection of the same dataset disagree while both looked
   current.
-* ``ord.source_md5`` -- what it was derived from.
+* ``ord.source_md5`` -- the content of the source dataset it restates. An artifact
+  derived from another artifact passes this through rather than hashing its parent, so
+  every artifact names the dataset it reflects however many derivations away it sits,
+  and one comparison answers "is this current for that dataset?"
 * ``ord.ord_schema_version`` -- what derived it.
 * ``ord.source_dataset_id`` -- the source's ID, written only when the source records
   one, and so the only key not required to read stamps back.
@@ -90,7 +98,11 @@ class Stamps:
 
 
 class ArtifactWriter(Protocol):
-    """Writes one derived artifact from an open view of its source.
+    """Writes one derived artifact from the Parquet file it derives from.
+
+    The parent is passed as a path rather than an open reader, because parents are not
+    all the same kind of file: a projection reads a source dataset, and a view reads a
+    projection. Each writer opens what it knows how to read.
 
     The first two arguments are positional-only, so an implementation is free to name
     them for its own artifact.
@@ -98,11 +110,12 @@ class ArtifactWriter(Protocol):
 
     def __call__(
         self,
-        source: parquet.DatasetView,
+        source: pathlib.Path,
         output: pathlib.Path,
         /,
         *,
         source_md5: str,
+        source_dataset_id: str | None,
     ) -> int:
         """Returns the number of rows written to ``output``."""
 
@@ -191,9 +204,26 @@ def is_current(path: str | os.PathLike[str], artifact: str, source_md5: str) -> 
         # Broad on purpose: every way of failing to read stamps -- absent, truncated,
         # not Parquet at all -- answers "derive it again", which is safe.
         return False
+    return value.source_md5 == source_md5 and stamps_are_current(value, artifact)
+
+
+def stamps_are_current(value: Stamps, artifact: str) -> bool:
+    """Returns whether ``value`` records ``artifact`` as this library defines it now.
+
+    The source content is deliberately not compared: a caller holding the stamps of a
+    parent asks whether the file was written by the current definition, and the hash it
+    carries is the answer to a different question.
+
+    Args:
+        value: Stamps read from an artifact.
+        artifact: Artifact name the file is expected to hold.
+
+    Returns:
+        Whether the artifact name, the library version, and the artifact version all
+        match.
+    """
     return (
         value.artifact == artifact
-        and value.source_md5 == source_md5
         and value.ord_schema_version == metadata.version("ord-schema")
         and value.artifact_version == ARTIFACT_VERSION
     )
@@ -214,13 +244,34 @@ def is_artifact(path: str | os.PathLike[str]) -> bool:
             whether to treat a file as a source, so answering False for a truncated one
             would feed it to a reader that fails later without naming it.
     """
+    return read_stamps(path) is not None
+
+
+def read_stamps(path: str | os.PathLike[str]) -> Stamps | None:
+    """Returns ``path``'s artifact stamps, or None if it carries none.
+
+    One footer read where a predicate followed by ``load_stamps`` would be two, which
+    matters to ``derive_tree``: it needs the answer *and* the stamps behind it for every
+    match of a corpus-wide glob.
+
+    Args:
+        path: Path to a Parquet file.
+
+    Returns:
+        The stamps, or None if ``path`` is readable Parquet that records none.
+
+    Raises:
+        ValueError: If ``path`` cannot be read as Parquet at all. This decides whether a
+            glob match is a candidate parent, so answering None for a truncated one
+            would either feed it to a reader that fails later without naming it, or drop
+            it from the run without a word.
+    """
     try:
-        load_stamps(path)
+        return load_stamps(path)
     except pa.ArrowInvalid as error:
         raise ValueError(f"{path} is not readable as Parquet") from error
     except (OSError, ValueError):
-        return False
-    return True
+        return None
 
 
 def glob_root(pattern: str) -> pathlib.PurePath:
@@ -248,6 +299,108 @@ def output_path(source: str, pattern: str, output_dir: str) -> pathlib.Path:
     return pathlib.Path(output_dir) / relative
 
 
+def _is_parent(match: str, parent_artifact: str | None, stamps: Stamps | None) -> bool:
+    """Returns whether ``match`` is the kind of file this derivation reads.
+
+    Args:
+        match: Path a glob matched, named in the log line when it is ignored.
+        parent_artifact: Artifact name the derivation reads, or None to read source
+            datasets.
+        stamps: ``match``'s stamps, or None if it carries none.
+
+    Returns:
+        True if ``match`` should be derived from. Anything else readable is ignored
+        rather than refused, so a pattern reaching the output tree stays re-runnable.
+    """
+    if stamps is None:
+        if parent_artifact is None:
+            return True
+        logger.info(
+            "%s is a source dataset, not a %s; ignoring", match, parent_artifact
+        )
+        return False
+    if parent_artifact is None:
+        logger.info("%s is a derived artifact, not a source; ignoring", match)
+        return False
+    if stamps.artifact == parent_artifact:
+        return True
+    logger.info(
+        "%s is a %s, not a %s; ignoring", match, stamps.artifact, parent_artifact
+    )
+    return False
+
+
+def _is_irreplaceable(destination: pathlib.Path) -> bool:
+    """Returns whether writing to ``destination`` would destroy something unrecoverable.
+
+    A derived artifact is ours to rewrite; anything else at that path is not. Comparing
+    destinations against the run's own parents is not enough once a derivation reads one
+    tree and writes another, because the source datasets are then in neither set -- and
+    a mistyped ``output_dir`` aimed at them would replace a corpus that cannot be
+    regenerated with views that can.
+
+    Args:
+        destination: Path an artifact would be written to.
+
+    Returns:
+        True if something is already there and it is not a derived artifact.
+    """
+    if not destination.exists():
+        return False
+    try:
+        return not is_artifact(destination)
+    except ValueError:
+        # Not readable as Parquet at all, so certainly not an artifact this run wrote.
+        return True
+
+
+def _parent_provenance(
+    parent: str, parent_artifact: str | None, stamps: Stamps | None
+) -> tuple[str, str | None]:
+    """Returns the provenance an artifact reading ``parent`` should stamp.
+
+    A derived parent passes its own stamps through rather than being hashed itself, so
+    every artifact records the *source dataset* content it reflects however many
+    derivations away it sits, and a consumer checks a view against the dataset in one
+    hop.
+
+    Passing the hash through carries the source content across the hop but not the two
+    version stamps, which describe whoever wrote each file. A stale parent is therefore
+    refused rather than read: an artifact derived from one would stamp itself with the
+    *current* versions while holding what an older definition produced, and since the
+    dataset hash it inherits does not change when the parent is rebuilt, nothing would
+    ever mark it stale again. Refusing keeps the three terms ``is_current`` compares
+    true of a chained artifact as well as a directly derived one.
+
+    Args:
+        parent: Path to the file being derived from.
+        parent_artifact: Artifact name ``parent`` holds, or None if it is a source
+            dataset.
+        stamps: ``parent``'s stamps, already read; None when it is a source dataset.
+
+    Returns:
+        The hash of the originating source dataset and its ID, if it records one.
+
+    Raises:
+        ValueError: If ``parent`` is not readable as the expected kind of file, or is a
+            derived artifact that is itself out of date.
+    """
+    if parent_artifact is not None:
+        # Selection already established that stamps holds this artifact.
+        assert stamps is not None  # Type hint.
+        if not stamps_are_current(stamps, parent_artifact):
+            raise ValueError(
+                f"{parent} is a stale {parent_artifact}; derive it again first, or "
+                "what is written here would claim a provenance it does not have"
+            )
+        return stamps.source_md5, stamps.source_dataset_id
+    try:
+        view = parquet.DatasetView(parent)
+    except ValueError as error:
+        raise ValueError(f"{parent} is not a source dataset: {error}") from error
+    return view.md5(), view.dataset_id or None
+
+
 def derive_tree(
     input_pattern: str,
     output_dir: str,
@@ -255,42 +408,49 @@ def derive_tree(
     artifact: str,
     write: ArtifactWriter,
     force: bool = False,
+    parent_artifact: str | None = None,
 ) -> tuple[int, int, int]:
-    """Derives one artifact per dataset matching ``input_pattern``.
+    """Derives one artifact per file matching ``input_pattern``.
 
-    Outputs mirror the inputs' directory layout beneath ``output_dir``. Matches that
-    are themselves derived artifacts are ignored, so a recursive pattern reaching the
-    output tree stays re-runnable. Artifacts whose footer already records the current
-    source content, library version, and artifact version are skipped, so re-running is
-    cheap.
+    Outputs mirror the inputs' directory layout beneath ``output_dir``. Matches that are
+    not the kind of parent this derivation reads are ignored, so a recursive pattern
+    reaching the output tree stays re-runnable. Artifacts whose footer already records
+    the current source content, library version, and artifact version are skipped, so
+    re-running is cheap.
 
     Args:
-        input_pattern: Glob matching source Parquet datasets.
+        input_pattern: Glob matching the files to derive from.
         output_dir: Directory to write artifacts beneath.
         artifact: Artifact name, used for the staleness check and the footer stamp.
-        write: Writer taking ``(view, output, source_md5=...)`` and returning rows.
+        write: Writer taking ``(parent, output, source_md5=..., source_dataset_id=...)``
+            and returning rows.
         force: Rewrite artifacts that are already current.
+        parent_artifact: Artifact the parents hold, for a derivation that reads another
+            artifact rather than a source dataset. None means the parents are source
+            datasets.
 
     Returns:
         ``(written, skipped, ignored)`` counts: artifacts derived, artifacts already
-        current, and matches that were derived artifacts rather than sources.
+        current, and matches that were not the expected kind of parent.
 
     Raises:
         ValueError: If the input pattern matches nothing, if any match cannot be read as
-            Parquet, or if any destination would land on a source.
+            Parquet, or if any destination would land on a parent.
     """
     matches = sorted(glob.glob(input_pattern, recursive=True))
     if not matches:
         raise ValueError(f"no datasets matched: {input_pattern}")
     sources = []
+    parent_stamps: dict[str, Stamps | None] = {}
     ignored = 0
     for match in matches:
-        if is_artifact(match):
-            logger.info("%s is a derived artifact, not a source; ignoring", match)
-            ignored += 1
-        else:
+        stamps = read_stamps(match)
+        if _is_parent(match, parent_artifact, stamps):
             sources.append(match)
-    logger.info("Found %d datasets", len(sources))
+            parent_stamps[match] = stamps
+        else:
+            ignored += 1
+    logger.info("Found %d %ss", len(sources), parent_artifact or "dataset")
     # Every destination against every source, not against its own: an output_dir nested
     # in the source tree maps one dataset onto a *different* one, which a per-source
     # check passes, destroying a source the run had not reached yet.
@@ -301,26 +461,29 @@ def derive_tree(
     clobbered = sorted(
         str(destination)
         for destination in destinations.values()
-        if destination.resolve() in resolved_sources
+        if destination.resolve() in resolved_sources or _is_irreplaceable(destination)
     )
     if clobbered:
         raise ValueError(
-            f"output_dir {output_dir!r} would write over source datasets: {clobbered}"
+            f"output_dir {output_dir!r} would write over its inputs: {clobbered}"
         )
     written = skipped = 0
     for source in sources:
         destination = destinations[source]
-        try:
-            view = parquet.DatasetView(source)
-        except ValueError as error:
-            raise ValueError(f"{source} is not a source dataset: {error}") from error
-        source_md5 = view.md5()
+        source_md5, source_dataset_id = _parent_provenance(
+            source, parent_artifact, parent_stamps[source]
+        )
         if not force and is_current(destination, artifact, source_md5):
             logger.info("%s is current; skipping", destination)
             skipped += 1
             continue
         destination.parent.mkdir(parents=True, exist_ok=True)
-        rows = write(view, destination, source_md5=source_md5)
+        rows = write(
+            pathlib.Path(source),
+            destination,
+            source_md5=source_md5,
+            source_dataset_id=source_dataset_id,
+        )
         logger.info("Wrote %d rows to %s", rows, destination)
         written += 1
     logger.info(

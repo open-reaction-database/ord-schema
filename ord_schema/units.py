@@ -422,14 +422,18 @@ class UnitResolver:
         elif message_type == reaction_pb2.Wavelength:
             if message.units != new_units:
                 new_message.value = _WAVENUMBER_NM_CM / message.value
-                # Approximate precision as stdev of previous value \pm precision
-                if message.precision:
+                # Inverting maps the interval [value - precision, value + precision]
+                # onto an asymmetric one, so the converted precision is half its width.
+                # An interval reaching zero inverts to an unbounded one, which no
+                # precision describes -- the value still converts, so it is kept and
+                # the precision left unset rather than failing the whole conversion.
+                if message.precision and message.value != message.precision:
                     new_message.precision = (
                         _WAVENUMBER_NM_CM
                         / 2
                         * (
                             1 / (message.value - message.precision)
-                            + 1 / (message.value + message.precision)
+                            - 1 / (message.value + message.precision)
                         )
                     )
             else:
@@ -481,6 +485,43 @@ def canonical_value(message: ord_schema.UnitMessage, target: str) -> float | Non
     except (KeyError, ValueError, ZeroDivisionError):
         logger.warning(
             "cannot convert %s to %s; reading as null",
+            type(message).__name__,
+            target,
+        )
+        return None
+
+
+def canonical_precision(message: ord_schema.UnitMessage, target: str) -> float | None:
+    """Converts a united message's precision to ``target`` units, or returns None.
+
+    Precision is recorded in the same units as the value, so it converts with the value
+    and is null wherever the value is -- a column named for ``target`` has nowhere to
+    say its uncertainty is in different units, and an uncertainty published beside a
+    null reads as a measurement nobody took but everybody bounded.
+
+    Args:
+        message: A united message, e.g. Temperature or Mass.
+        target: Unit to convert to, spelled as the resolver understands it, e.g. "K".
+
+    Returns:
+        The converted precision, or None when the message records no precision, no
+        value to attach it to, no units, or units that cannot be converted to
+        ``target``. Also None where the conversion declines to state one: an inverted
+        interval reaching zero is unbounded, and no number describes it.
+    """
+    if not message.HasField("value") or not message.units:
+        return None
+    try:
+        # Read from the conversion rather than scaling here: Temperature is an offset
+        # scale, where precision converts by the ratio alone, and Wavelength inverts,
+        # where it does not converge on a single factor at all. Presence follows the
+        # conversion for the same reason -- it is what knows whether the target units
+        # can carry an uncertainty at all.
+        converted = RESOLVER.convert(message, target)
+        return converted.precision if converted.HasField("precision") else None
+    except (KeyError, ValueError, ZeroDivisionError):
+        logger.warning(
+            "cannot convert %s precision to %s; reading as null",
             type(message).__name__,
             target,
         )

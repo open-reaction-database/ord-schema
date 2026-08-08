@@ -289,10 +289,9 @@ def test_convert_precision(resolver, message, new_units, expected):
 
 
 def test_convert_wavelength_with_precision(resolver):
-    # Expected per the implementation's documented formula:
-    # (documented formula)
-    # 10000000 / 2 * (1 / (value - precision) + 1 / (value + precision))  # noqa: ERA001
-    # = 5e6 * (1/490 + 1/510) ≈ 20008.0032.
+    # Inverting maps [490, 510] nm onto [19607.8, 20408.2] cm^-1, and the precision is
+    # half that width: 5e6 * (1/490 - 1/510) ≈ 400.16. Averaging the endpoints instead
+    # would give ≈ 20008, an uncertainty as large as the value it qualifies.
     converted = resolver.convert(
         reaction_pb2.Wavelength(
             value=500, units=reaction_pb2.Wavelength.NANOMETER, precision=10
@@ -301,7 +300,7 @@ def test_convert_wavelength_with_precision(resolver):
     )
     assert converted.units == reaction_pb2.Wavelength.WAVENUMBER
     assert converted.value == pytest.approx(20000)
-    assert converted.precision == pytest.approx(20008.003201, rel=1e-6)
+    assert converted.precision == pytest.approx(400.160064, rel=1e-6)
 
 
 @pytest.mark.parametrize(
@@ -446,3 +445,110 @@ def test_every_unit_converts_to_every_other(resolver, message_type):
         message = message_type(value=1.0, units=source)
         for target in unit_values:
             assert resolver.convert(message, target).units == target
+
+
+@pytest.mark.parametrize(
+    ("message", "target", "expected"),
+    [
+        # An offset scale: the precision converts by the ratio alone, so the same
+        # multiplier applied to the value would be wrong.
+        (
+            reaction_pb2.Temperature(
+                value=77, units=reaction_pb2.Temperature.FAHRENHEIT, precision=1.8
+            ),
+            "K",
+            1.0,
+        ),
+        (
+            reaction_pb2.Temperature(
+                value=25, units=reaction_pb2.Temperature.CELSIUS, precision=0.5
+            ),
+            "K",
+            0.5,
+        ),
+        (
+            reaction_pb2.Mass(
+                value=500, units=reaction_pb2.Mass.MILLIGRAM, precision=10
+            ),
+            "g",
+            0.01,
+        ),
+        (
+            reaction_pb2.Time(value=90, units=reaction_pb2.Time.MINUTE, precision=1.5),
+            "s",
+            90.0,
+        ),
+    ],
+)
+def test_canonical_precision(message, target, expected):
+    assert units.canonical_precision(message, target) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        # No precision recorded.
+        reaction_pb2.Mass(value=1, units=reaction_pb2.Mass.GRAM),
+        # Precision recorded, but nothing says what unit it is in.
+        reaction_pb2.Mass(value=1, precision=0.1),
+        # Precision recorded against no value: an uncertainty published beside a null
+        # value reads as a measurement nobody took but everybody bounded.
+        reaction_pb2.Mass(precision=0.1, units=reaction_pb2.Mass.GRAM),
+        # A recorded zero: "+/- 0" carries nothing a null does not, and convert()
+        # already declines to propagate it.
+        reaction_pb2.Mass(value=1, units=reaction_pb2.Mass.GRAM, precision=0.0),
+    ],
+)
+def test_canonical_precision_is_null(message):
+    assert units.canonical_precision(message, "g") is None
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        reaction_pb2.Temperature(precision=0.5, units=reaction_pb2.Temperature.CELSIUS),
+        reaction_pb2.Time(precision=1.5, units=reaction_pb2.Time.MINUTE),
+        reaction_pb2.Wavelength(precision=10, units=reaction_pb2.Wavelength.NANOMETER),
+    ],
+)
+def test_precision_without_a_value_is_null_for_every_conversion_kind(message):
+    # Offset scales, multiplier scales, and the inverting one all reach the value
+    # through a different branch of convert(), so each is checked.
+    target = {"Temperature": "K", "Time": "s", "Wavelength": "nm"}[
+        type(message).__name__
+    ]
+    assert units.canonical_value(message, target) is None
+    assert units.canonical_precision(message, target) is None
+
+
+@pytest.mark.parametrize(
+    ("message", "target", "value", "precision"),
+    [
+        # Inverting: the precision is half the width of the mapped interval, not the
+        # distance to it. A value of 10000 nm cannot be uncertain by 10001 nm.
+        (
+            reaction_pb2.Wavelength(
+                value=1000, precision=10, units=reaction_pb2.Wavelength.WAVENUMBER
+            ),
+            "nm",
+            10000.0,
+            100.01,
+        ),
+        # The interval reaches zero, so it inverts to an unbounded one. The value still
+        # converts, and losing it to a precision that cannot be stated would be worse.
+        (
+            reaction_pb2.Wavelength(
+                value=100, precision=100, units=reaction_pb2.Wavelength.WAVENUMBER
+            ),
+            "nm",
+            100000.0,
+            None,
+        ),
+    ],
+)
+def test_canonical_wavelength(message, target, value, precision):
+    assert units.canonical_value(message, target) == pytest.approx(value)
+    if precision is None:
+        assert units.canonical_precision(message, target) is None
+    else:
+        assert units.canonical_precision(message, target) == pytest.approx(precision)

@@ -18,6 +18,14 @@ A view restates the reactions in a Parquet dataset as flat, queryable columns --
 reaction and per-component SMILES, the scalar condition and outcome measurements, and
 provenance -- so a consumer can filter the corpus without deserializing every proto.
 
+A view is a **narrowing of the projection**, and is derived from one. Every column it
+publishes is already a leaf there, so a second derivation would be a second code path
+obliged to agree with the first about the same values, and it would pay for a full
+deserialization and a canonicalization of every structure to reach what a handful of
+column reads already hold. What is decided here is what the projection deliberately does
+not: which of several plausible fields a column means, and how to reduce a repeated one
+to a scalar.
+
 A view is deliberately **small rather than complete**. It carries the handful of columns
 a consumer wants on first contact, in a shape that reads at a glance and previews in a
 dataset browser. Reaching the rest of the proto is a different artifact's job; a column
@@ -27,9 +35,9 @@ populated in three of fifty-three datasets teaches a reader to expect nulls ever
 and earns its place nowhere.
 
 A view **adds no information**. Every column is a re-projection of what the source
-protos already say, computed from the source alone with this library and RDKit, so a
-view that disagrees with its source is wrong and a stale view is a bug. Two consequences
-shape what may be added here:
+protos already say, reached through the projection with this library, so a view that
+disagrees with its source is wrong and a stale view is a bug. Two consequences shape
+what may be added here:
 
 * **No policy columns.** If a value depends on a threshold, cutoff, or classification
   that a reasonable consumer might set differently, it belongs in that consumer's query,
@@ -40,33 +48,28 @@ shape what may be added here:
   expanded through Crossref -- is a different kind of artifact and does not belong in a
   view.
 
-Where the projection has to make a choice, it is documented rather than inferred:
+Where a choice has to be made, it is documented rather than inferred. The structural
+ones belong to the projection and are inherited here, so the two artifacts cannot
+disagree about what a molecule is:
 
-* Component SMILES prefer the CXSMILES form the source recorded, falling back to plain
-  SMILES and then to any other structural identifier that parses (MOLBLOCK, InChI).
-  CXSMILES is a superset -- RDKit reads either -- so preferring it keeps the enhanced
-  stereochemistry that plain SMILES cannot express, at the cost of an extension block on
-  some values; ``split_cxsmiles_extension`` splits the bare SMILES from the block for a
-  consumer that wants them apart. Fragment grouping does not survive canonicalization.
-  Canonical values are what make the column comparable across datasets that spell the
-  same molecule differently.
+* ``smiles`` on a component prefers the CXSMILES form the source recorded, falling back
+  to plain SMILES and then to any other structural identifier that parses; the
+  reaction's own prefers a recorded ``REACTION_CXSMILES`` or ``REACTION_SMILES``,
+  normalized with its agents removed, and is generated from the components only when
+  nothing readable was recorded. See :mod:`ord_schema.projection`.
+
+The rest are the view's own, and are why it is not simply a column subset:
+
 * ``input_smiles`` carries every component of every input whatever its reaction role, so
   unlike ``reaction_smiles`` it lists solvents, reagents, and catalysts. Components with
   no readable structure are dropped from both list columns, which therefore are not a
   component census; the count of what was dropped is logged per dataset.
-* ``reaction_smiles`` prefers the recorded ``REACTION_CXSMILES`` or ``REACTION_SMILES``,
-  which carries what generation cannot reconstruct -- above all atom mapping. It is
-  normalized rather than copied: agents are removed and the result canonicalized, so
-  agent placement and atom ordering stop deciding whether two reactions look alike. A
-  reaction recording neither, one RDKit cannot read, or one that survives normalization
-  as a half reaction gets a SMILES generated from its components, again without agents
-  and only when every reactant and product is readable. See
-  ``message_helpers.derived_reaction_smiles``.
 * Inputs are visited in sorted key order, so ``input_smiles`` is stable across runs
-  rather than following protobuf map iteration, which is neither sorted nor insertion
-  ordered. That order is the column's own; it does not line up with ``reaction_smiles``,
-  which is deduplicated, sorted by SMILES, and usually read from a recorded identifier
-  that never consulted the components at all.
+  rather than following the projection's map order, which preserves protobuf map
+  iteration and is neither sorted nor insertion ordered. That order is the column's own;
+  it does not line up with ``reaction_smiles``, which is deduplicated, sorted by SMILES,
+  and usually read from a recorded identifier that never consulted the components at
+  all.
 * ``yield_percent`` is the largest YIELD percentage on any product of any outcome, and
   ``reaction_time_seconds`` is the first outcome that records one -- matching the SMILES
   columns, which also span every outcome. A yield the source records only as
@@ -79,10 +82,9 @@ Where the projection has to make a choice, it is documented rather than inferred
   ``ReactionOutcome.reaction_time``, not any of the eight other Time-typed fields --
   addition, workup, observation, and retention times, or the timestamps on individual
   temperature, pressure, and electrochemistry measurements.
-* Measurements are converted to one canonical unit per column (kelvin, seconds). A
-  measurement whose units the resolver cannot read, including one recorded with no
-  units at all, reads as null: an unlabeled number has nowhere in the column to say
-  what unit it is in.
+* Measurements are read from the projection's canonical-unit columns (kelvin, seconds),
+  so a measurement whose units the resolver could not read arrives null: an unlabeled
+  number has nowhere in the column to say what unit it is in.
 
 The scalar and string columns are null where the source is silent, never zero. The two
 list columns are empty rather than null, so a reaction whose components have no readable
@@ -91,18 +93,47 @@ structure is not distinguishable from one with no components by that column alon
 
 import dataclasses
 import math
+import operator
 import os
+from typing import Any
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from ord_schema import artifacts, atomic_io, message_helpers, parquet, units
+from ord_schema import artifacts, atomic_io, projection
 from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
 
 logger = get_logger(__name__)
 
 ARTIFACT = "view"
+
+# The projection writes an enum as its value name, so a yield is matched by name.
+# Resolved from the descriptor, so renaming the value upstream fails at import instead
+# of leaving a literal here that matches nothing.
+_YIELD = reaction_pb2.ProductMeasurement.ProductMeasurementType.Name(
+    reaction_pb2.ProductMeasurement.YIELD
+)
+
+# The projection leaves a view reads, as Parquet column paths so only these are decoded.
+# Every one is a value the projection already computed, which is what makes a view cheap
+# to derive: no proto is deserialized and no structure is canonicalized again.
+_PROJECTION_COLUMNS = (
+    "reaction_id",
+    "smiles",
+    # Both halves of the map: the values carry the structures, and the keys are what
+    # ``input_smiles`` sorts by.
+    "inputs.key_value.key",
+    "inputs.key_value.value.components.list.element.smiles",
+    "outcomes.list.element.reaction_time_seconds",
+    "outcomes.list.element.products.list.element.smiles",
+    "outcomes.list.element.products.list.element.measurements.list.element.type",
+    "outcomes.list.element.products.list.element.measurements.list.element"
+    ".percentage.value",
+    "conditions.temperature.setpoint_kelvin",
+    "provenance.doi",
+    "provenance.patent",
+)
 
 SCHEMA = pa.schema(
     [
@@ -148,8 +179,29 @@ class _Skipped:
         )
 
 
+def _nested(row: Any, *keys: str) -> Any:
+    """Returns the value at a chain of struct keys, or None if any level is absent.
+
+    The projection writes an unset message as null rather than an empty struct, so a
+    reaction that records no conditions at all has ``conditions`` itself missing, not a
+    ``conditions`` holding a missing ``temperature``.
+
+    Args:
+        row: A projected row, or any struct within one.
+        *keys: Field names to follow, outermost first.
+
+    Returns:
+        The value at the end of the chain, or None if the chain is broken.
+    """
+    for key in keys:
+        if row is None:
+            return None
+        row = row[key]
+    return row
+
+
 def _outcome_values(
-    reaction: reaction_pb2.Reaction, skipped: _Skipped
+    projected: dict, skipped: _Skipped
 ) -> tuple[float | None, float | None]:
     """Returns the largest yield over all outcomes, and the first reaction time.
 
@@ -158,7 +210,7 @@ def _outcome_values(
     source is silent when it is not.
 
     Args:
-        reaction: Reaction to read.
+        projected: One row of the projection.
         skipped: Tallies to add to for values that cannot be used.
 
     Returns:
@@ -167,23 +219,23 @@ def _outcome_values(
     """
     best_yield = None
     reaction_time_seconds = None
-    for outcome in reaction.outcomes:
+    for outcome in projected["outcomes"] or []:
         if reaction_time_seconds is None:
-            reaction_time_seconds = units.canonical_value(outcome.reaction_time, "s")
-        for product in outcome.products:
-            for measurement in product.measurements:
-                if measurement.type != reaction_pb2.ProductMeasurement.YIELD:
+            reaction_time_seconds = outcome["reaction_time_seconds"]
+        for product in outcome["products"] or []:
+            for measurement in product["measurements"] or []:
+                if measurement["type"] != _YIELD:
                     continue
-                if not measurement.HasField("percentage"):
+                if measurement["percentage"] is None:
                     # A yield recorded as float_value, amount, or text. Reading it
                     # would require assuming a scale the source did not state.
                     skipped.unyielding += 1
                     continue
-                if not measurement.percentage.HasField("value"):
-                    # An unset value reads as 0.0 through protobuf, and a fabricated
-                    # zero yield is worse than a null.
+                value = measurement["percentage"]["value"]
+                if value is None:
+                    # A percentage message carrying no value. A fabricated zero yield
+                    # is worse than a null.
                     continue
-                value = measurement.percentage.value
                 if not math.isfinite(value):
                     # NaN compares False against everything, so leaving it in would
                     # make the result depend on the order measurements were recorded.
@@ -195,92 +247,70 @@ def _outcome_values(
 
 
 def _component_smiles(
-    reaction: reaction_pb2.Reaction, skipped: _Skipped
+    projected: dict, skipped: _Skipped
 ) -> tuple[list[str], list[str]]:
     """Returns ``(input_smiles, output_smiles)``, skipping components without structure.
 
     Inputs are visited in sorted key order, so the column is stable across runs rather
-    than following protobuf map iteration, which is neither sorted nor insertion
-    ordered.
+    than following the projection's map order, which preserves protobuf map iteration
+    and is neither sorted nor insertion ordered.
 
     Args:
-        reaction: Reaction to read.
+        projected: One row of the projection.
         skipped: Tallies to add to for components with no readable structure.
 
     Returns:
-        Canonical SMILES for every input component and every outcome product that has a
-        readable structure. A component without one is dropped, so the lists are not a
+        The SMILES the projection derived for every input component and every outcome
+        product that has one. A component without one is dropped, so the lists are not a
         component census.
     """
     inputs = []
-    for key in sorted(reaction.inputs):
-        for compound in reaction.inputs[key].components:
-            smiles = message_helpers.smiles_from_compound(compound)
-            if smiles:
-                inputs.append(smiles)
+    for _, value in sorted(projected["inputs"] or [], key=operator.itemgetter(0)):
+        for component in value["components"] or []:
+            if component["smiles"]:
+                inputs.append(component["smiles"])
             else:
                 skipped.components += 1
     outputs = []
-    for outcome in reaction.outcomes:
-        for product in outcome.products:
-            smiles = message_helpers.smiles_from_compound(product)
-            if smiles:
-                outputs.append(smiles)
+    for outcome in projected["outcomes"] or []:
+        for product in outcome["products"] or []:
+            if product["smiles"]:
+                outputs.append(product["smiles"])
             else:
                 skipped.components += 1
     return inputs, outputs
 
 
-def reaction_row(
-    reaction: reaction_pb2.Reaction,
-    reaction_id: str | None = None,
-    skipped: _Skipped | None = None,
-) -> dict:
-    """Projects one Reaction onto the view columns.
+def reaction_row(projected: dict, skipped: _Skipped | None = None) -> dict:
+    """Narrows one row of the projection onto the view columns.
+
+    The projection reconciled the reaction ID against the Reaction it projected, so a
+    column disagreeing with its message cannot reach here.
 
     Args:
-        reaction: Reaction message to project.
-        reaction_id: The source's ``reaction_id`` column value, checked against the
-            message rather than trusted. ``DatasetView.md5`` hashes the Reaction blobs
-            and not that column, so an ID taken from it would be a published value
-            outside the staleness hash. Defaults to the message's own ID.
+        projected: One row of the projection, holding at least ``_PROJECTION_COLUMNS``.
         skipped: Tallies to add to for values this row drops. A caller deriving one row
             outside ``write_view`` can leave it unset.
 
     Returns:
         A dict keyed by ``SCHEMA.names``, with None wherever the source is silent.
-
-    Raises:
-        ValueError: If ``reaction_id`` is empty or disagrees with the message, either of
-            which means the source cannot be joined on its own key.
     """
-    if reaction_id is not None:
-        if not reaction_id:
-            raise ValueError(
-                f"reaction_id column is {reaction_id!r}; the reaction records "
-                f"{reaction.reaction_id!r}"
-            )
-        if reaction_id != reaction.reaction_id:
-            raise ValueError(
-                f"reaction_id column {reaction_id!r} disagrees with the reaction's own "
-                f"{reaction.reaction_id!r}"
-            )
     if skipped is None:
         skipped = _Skipped()
-    yield_percent, reaction_time_seconds = _outcome_values(reaction, skipped)
-    inputs, outputs = _component_smiles(reaction, skipped)
+    yield_percent, reaction_time_seconds = _outcome_values(projected, skipped)
+    inputs, outputs = _component_smiles(projected, skipped)
     return {
-        "reaction_id": reaction.reaction_id,
-        "reaction_smiles": message_helpers.derived_reaction_smiles(reaction),
+        "reaction_id": projected["reaction_id"],
+        "reaction_smiles": projected["smiles"],
         "input_smiles": inputs,
         "output_smiles": outputs,
         "yield_percent": yield_percent,
-        "temperature_kelvin": units.canonical_value(
-            reaction.conditions.temperature.setpoint, "K"
+        "temperature_kelvin": _nested(
+            projected, "conditions", "temperature", "setpoint_kelvin"
         ),
         "reaction_time_seconds": reaction_time_seconds,
-        "doi": reaction.provenance.doi or None,
-        "patent": reaction.provenance.patent or None,
+        "doi": _nested(projected, "provenance", "doi"),
+        "patent": _nested(projected, "provenance", "patent"),
     }
 
 
@@ -295,56 +325,77 @@ def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
 
 
 def write_view(
-    source: parquet.DatasetView,
+    source: str | os.PathLike[str],
     output: str | os.PathLike[str],
     *,
     source_md5: str | None = None,
+    source_dataset_id: str | None = None,
     compression: str = "zstd",
     row_group_size: int = 1000,
 ) -> int:
-    """Derives a view from a source Parquet dataset and writes it.
+    """Narrows a projection into a view and writes it.
 
-    Reactions are read and written one source row group at a time, so peak memory is
-    bounded by the largest row group rather than the dataset. The output is published
-    atomically, so a failure partway leaves any existing view untouched.
+    Only the leaves the view publishes are decoded, one projection row group at a time,
+    so peak memory is bounded by the largest row group rather than the dataset. The
+    output is published atomically, so a failure partway leaves any existing view
+    untouched.
 
     Args:
-        source: View of the source Parquet dataset.
+        source: Path to the projection to narrow.
         output: Path to write the view to.
-        source_md5: Source hash to stamp, if the caller already computed one (e.g. to
-            check whether the view was current). Hashed here when omitted, which costs a
-            full pass over the source.
+        source_md5: Hash of the *source dataset* to stamp, if the caller already read
+            one. Taken from the projection's own stamps when omitted, so a view names
+            the dataset it reflects rather than the artifact it read.
+        source_dataset_id: Source dataset ID to stamp, if the caller already read one.
+            Taken from the projection's stamps when omitted.
         compression: Parquet compression codec.
         row_group_size: Rows per output row group.
 
     Returns:
         Number of rows written.
+
+    Raises:
+        ValueError: If ``source`` is not a projection, or if a row cannot be narrowed.
     """
+    # Read unconditionally rather than only to fill in what the caller omitted: naming
+    # the wrong kind of file is worth a sentence, and the alternative is a KeyError on
+    # a column the file was never going to have.
+    parent = artifacts.load_stamps(source)
+    if parent.artifact != projection.ARTIFACT:
+        raise ValueError(
+            f"{source} is a {parent.artifact}, not a {projection.ARTIFACT}; a view "
+            "narrows a projection"
+        )
     if source_md5 is None:
-        source_md5 = source.md5()
-    stamps = artifacts.current_stamps(ARTIFACT, source.dataset_id or None, source_md5)
+        source_md5 = parent.source_md5
+    if source_dataset_id is None:
+        source_dataset_id = parent.source_dataset_id
+    stamps = artifacts.current_stamps(ARTIFACT, source_dataset_id, source_md5)
     schema = SCHEMA.with_metadata(artifacts.to_metadata(stamps))
     rows = 0
     skipped = _Skipped()
     with (
+        pq.ParquetFile(source) as projected,
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
     ):
-        for row_group in range(source.num_row_groups):
+        for row_group in range(projected.num_row_groups):
             # Seeded from SCHEMA.names so an unexpected key raises here rather than
             # being dropped silently, which from_pylist would do.
             batch: dict[str, list] = {name: [] for name in SCHEMA.names}
-            for reaction_id, reaction in source.iter_reactions(row_group=row_group):
+            table = projected.read_row_group(
+                row_group, columns=list(_PROJECTION_COLUMNS)
+            )
+            for row in table.to_pylist():
                 try:
-                    row = reaction_row(reaction, reaction_id, skipped)
+                    for name, value in reaction_row(row, skipped).items():
+                        batch[name].append(value)
                 except Exception as error:
                     # A corpus run has thousands of datasets and millions of reactions;
                     # neither is in the traceback without this.
                     raise ValueError(
-                        f"{source.path}: {reaction_id}: {error}"
+                        f"{source}: {row.get('reaction_id')}: {error}"
                     ) from error
-                for name, value in row.items():
-                    batch[name].append(value)
                 rows += 1
             writer.write_table(
                 pa.Table.from_pydict(batch, schema=schema),
@@ -353,5 +404,5 @@ def write_view(
     if skipped:
         # Per dataset rather than per row: a count is diffable between runs, so a
         # regression in structure reading shows up instead of hiding in the nulls.
-        logger.info("%s: %s", source.path, skipped)
+        logger.info("%s: %s", source, skipped)
     return rows
