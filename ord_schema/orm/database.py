@@ -804,10 +804,17 @@ def update_derived_tables(
         "WHERE derived.reaction_smiles.reaction_smiles "
         "  IS DISTINCT FROM EXCLUDED.reaction_smiles"
     )
-    # A reaction that derives nothing gets no row, so the pass keeps re-attempting it;
-    # that is cheap next to inventing a NULL row and calling it derived. On a rederive a
-    # row may already exist, and leaving its old value would be a stale record of a
-    # derivation that now yields nothing, so it is cleared in place.
+    # A reaction that derives nothing gets no row, so every pass re-attempts it. That is
+    # deliberate: recording it as derived-to-NULL would put it behind the NOT EXISTS
+    # guard, and a reaction that becomes derivable later -- #935 made a whole class of
+    # them derivable by fixing a crash -- would then need someone to know to rederive,
+    # where today any pass picks it up. The standing cost is ~1.4% of reactions
+    # re-parsed per pass, measured over the published corpus. The compound side needs no
+    # such tradeoff: select_structural already skips the common case (name-only) without
+    # a row, leaving ~0.04% paying for a reconstruction that fails.
+    #
+    # On a rederive a row may already exist, and leaving its old value would be a stale
+    # record of a derivation that now yields nothing, so it is cleared in place.
     clear_reaction_smiles = text(
         "UPDATE derived.reaction_smiles "
         "SET reaction_smiles = NULL, rdkit_reaction_id = NULL "
