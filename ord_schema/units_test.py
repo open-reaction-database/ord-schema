@@ -446,3 +446,59 @@ def test_every_unit_converts_to_every_other(resolver, message_type):
         message = message_type(value=1.0, units=source)
         for target in unit_values:
             assert resolver.convert(message, target).units == target
+
+
+@pytest.mark.parametrize(
+    ("message", "target", "expected"),
+    [
+        # An offset scale: the precision converts by the ratio alone, so the same
+        # multiplier applied to the value would be wrong.
+        (
+            reaction_pb2.Temperature(
+                value=77, units=reaction_pb2.Temperature.FAHRENHEIT, precision=1.8
+            ),
+            "K",
+            1.0,
+        ),
+        (
+            reaction_pb2.Temperature(
+                value=25, units=reaction_pb2.Temperature.CELSIUS, precision=0.5
+            ),
+            "K",
+            0.5,
+        ),
+        (
+            reaction_pb2.Mass(
+                value=500, units=reaction_pb2.Mass.MILLIGRAM, precision=10
+            ),
+            "g",
+            0.01,
+        ),
+        (
+            reaction_pb2.Time(value=90, units=reaction_pb2.Time.MINUTE, precision=1.5),
+            "s",
+            90.0,
+        ),
+        # Recorded zero is a precision the source stated, not a missing one.
+        (
+            reaction_pb2.Mass(value=1, units=reaction_pb2.Mass.GRAM, precision=0.0),
+            "g",
+            0.0,
+        ),
+    ],
+)
+def test_canonical_precision(message, target, expected):
+    assert units.canonical_precision(message, target) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        # No precision recorded.
+        reaction_pb2.Mass(value=1, units=reaction_pb2.Mass.GRAM),
+        # Precision recorded, but nothing says what unit it is in.
+        reaction_pb2.Mass(value=1, precision=0.1),
+    ],
+)
+def test_canonical_precision_is_null(message):
+    assert units.canonical_precision(message, "g") is None

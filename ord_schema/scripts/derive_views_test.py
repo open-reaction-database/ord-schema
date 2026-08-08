@@ -14,8 +14,8 @@
 
 """Tests for ord_schema.scripts.derive_views.
 
-View behavior is covered in ord_schema.views_test; these cover the CLI: path
-mapping, the skip-if-current shortcut, and --force.
+View behavior is covered in ord_schema.views_test; these cover the CLI: path mapping,
+which matches count as sources, the skip-if-current shortcut, and --force.
 """
 
 import pathlib
@@ -25,7 +25,7 @@ import pytest
 
 from ord_schema import artifacts, parquet, views
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.scripts import derive_views
+from ord_schema.scripts import derive_projection, derive_views
 
 
 def _dataset(dataset_id: str, *, reaction_ids=("ord-0001",)):
@@ -50,11 +50,23 @@ def _corpus(root: pathlib.Path, shards=("aa", "bb")) -> None:
         )
 
 
+def _project(root: pathlib.Path) -> None:
+    """Projects the corpus, which is what views are derived from."""
+    derive_projection.main(
+        derive_projection.parse_args(
+            [
+                f"--input_pattern={root / 'data' / '*' / '*.parquet'}",
+                f"--output_dir={root / 'projections'}",
+            ]
+        )
+    )
+
+
 def _run(root: pathlib.Path, *extra: str) -> None:
     derive_views.main(
         derive_views.parse_args(
             [
-                f"--input_pattern={root / 'data' / '*' / '*.parquet'}",
+                f"--input_pattern={root / 'projections' / '*' / '*.parquet'}",
                 f"--output_dir={root / 'views'}",
                 *extra,
             ]
@@ -64,6 +76,7 @@ def _run(root: pathlib.Path, *extra: str) -> None:
 
 def test_main_writes_one_view_per_dataset(tmp_path):
     _corpus(tmp_path)
+    _project(tmp_path)
     _run(tmp_path)
     for shard in ("aa", "bb"):
         view = tmp_path / "views" / shard / f"ord_dataset-{shard}.parquet"
@@ -75,6 +88,7 @@ def test_main_writes_one_view_per_dataset(tmp_path):
 
 def test_main_stamps_views_with_their_source(tmp_path):
     _corpus(tmp_path, shards=("aa",))
+    _project(tmp_path)
     _run(tmp_path)
     source = tmp_path / "data" / "aa" / "ord_dataset-aa.parquet"
     stamps = artifacts.load_stamps(tmp_path / "views" / "aa" / "ord_dataset-aa.parquet")
@@ -86,6 +100,7 @@ def test_main_stamps_views_with_their_source(tmp_path):
 # if and only if the view was rewritten. That is exact, unlike comparing mtimes.
 def test_main_skips_views_that_are_current(tmp_path):
     _corpus(tmp_path, shards=("aa",))
+    _project(tmp_path)
     _run(tmp_path)
     view = tmp_path / "views" / "aa" / "ord_dataset-aa.parquet"
     before = view.stat().st_ino
@@ -95,6 +110,7 @@ def test_main_skips_views_that_are_current(tmp_path):
 
 def test_force_rewrites_a_current_view(tmp_path):
     _corpus(tmp_path, shards=("aa",))
+    _project(tmp_path)
     _run(tmp_path)
     view = tmp_path / "views" / "aa" / "ord_dataset-aa.parquet"
     before = view.stat().st_ino
@@ -104,11 +120,13 @@ def test_force_rewrites_a_current_view(tmp_path):
 
 def test_main_rederives_when_the_source_changes(tmp_path):
     _corpus(tmp_path, shards=("aa",))
+    _project(tmp_path)
     _run(tmp_path)
     source = tmp_path / "data" / "aa" / "ord_dataset-aa.parquet"
     parquet.save_dataset(
         _dataset("ord_dataset-aa", reaction_ids=("ord-0001", "ord-0002")), str(source)
     )
+    _project(tmp_path)
     _run(tmp_path)
     view = tmp_path / "views" / "aa" / "ord_dataset-aa.parquet"
     assert pq.read_table(view).column("reaction_id").to_pylist() == [
@@ -121,13 +139,30 @@ def test_main_raises_when_every_match_is_already_a_view(tmp_path):
     # Aiming --input_pattern at the output tree would otherwise exit 0 having written
     # nothing, and a downstream step would proceed as though the views were built.
     _corpus(tmp_path, shards=("aa",))
+    _project(tmp_path)
     _run(tmp_path)
-    with pytest.raises(ValueError, match="no sources derived"):
+    with pytest.raises(ValueError, match="are projections"):
         derive_views.main(
             derive_views.parse_args(
                 [
                     f"--input_pattern={tmp_path}/views/*/*.parquet",
                     f"--output_dir={tmp_path}/again",
+                ]
+            )
+        )
+
+
+def test_main_ignores_source_datasets(tmp_path):
+    # A view is a narrowing of the projection, so a pattern aimed at the sources has
+    # nothing to narrow -- rather than silently deriving one the slow way.
+    _corpus(tmp_path, shards=("aa",))
+    _project(tmp_path)
+    with pytest.raises(ValueError, match="are projections"):
+        derive_views.main(
+            derive_views.parse_args(
+                [
+                    f"--input_pattern={tmp_path}/data/*/*.parquet",
+                    f"--output_dir={tmp_path}/views",
                 ]
             )
         )
@@ -147,7 +182,8 @@ def test_main_raises_when_nothing_matches(tmp_path):
 
 def test_main_accepts_an_exact_filename(tmp_path):
     _corpus(tmp_path, shards=("aa",))
-    source = tmp_path / "data" / "aa" / "ord_dataset-aa.parquet"
+    _project(tmp_path)
+    source = tmp_path / "projections" / "aa" / "ord_dataset-aa.parquet"
     derive_views.main(
         derive_views.parse_args(
             [f"--input_pattern={source}", f"--output_dir={tmp_path / 'views'}"]

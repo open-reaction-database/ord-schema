@@ -487,6 +487,37 @@ def canonical_value(message: ord_schema.UnitMessage, target: str) -> float | Non
         return None
 
 
+def canonical_precision(message: ord_schema.UnitMessage, target: str) -> float | None:
+    """Converts a united message's precision to ``target`` units, or returns None.
+
+    Precision is recorded in the same units as the value, so it converts with the value
+    and is null under the same conditions -- a column named for ``target`` has nowhere
+    to say its uncertainty is in different units.
+
+    Args:
+        message: A united message, e.g. Temperature or Mass.
+        target: Unit to convert to, spelled as the resolver understands it, e.g. "K".
+
+    Returns:
+        The converted precision, or None when the message records none, records no
+        units, or records units that cannot be converted to ``target``.
+    """
+    if not message.HasField("precision") or not message.units:
+        return None
+    try:
+        # Read from the conversion rather than scaling here: Temperature is an offset
+        # scale, where precision converts by the ratio alone, and Wavelength inverts,
+        # where it does not converge on a single factor at all.
+        return RESOLVER.convert(message, target).precision
+    except (KeyError, ValueError, ZeroDivisionError):
+        logger.warning(
+            "cannot convert %s precision to %s; reading as null",
+            type(message).__name__,
+            target,
+        )
+        return None
+
+
 def format_message(message: ord_schema.UnitMessage) -> str | None:
     """Formats a united message into a string.
 

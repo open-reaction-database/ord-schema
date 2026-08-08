@@ -25,8 +25,8 @@ components of ``--input_pattern`` that hold no wildcard::
 
 Projections whose footer already records the current source content, library version,
 and artifact version are skipped, so re-running is cheap; ``--force`` rewrites them
-anyway. A match that is itself a projection is ignored rather than derived from, so
-``--output_dir`` may sit inside a recursive pattern's reach; an ``--output_dir`` that
+anyway. A match that is itself a derived artifact is ignored rather than derived from,
+so ``--output_dir`` may sit inside a recursive pattern's reach; an ``--output_dir`` that
 would write over any source dataset is an error, as is a run that derives nothing.
 """
 

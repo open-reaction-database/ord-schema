@@ -12,29 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Derives tabular views from Parquet datasets.
+"""Derives tabular views from Parquet projections.
 
-Each input dataset yields one view (see ``ord_schema.views`` for what a view contains,
-and what it deliberately does not). Outputs mirror the inputs' directory layout beneath
-``--output_dir``, rooted at the leading components of ``--input_pattern`` that hold no
-wildcard::
+A view is a narrowing of the projection, so this reads projections rather than source
+datasets: run ``derive_projection.py`` first (see ``ord_schema.views`` for what a view
+contains, and what it deliberately does not). Each input projection yields one view, and
+outputs mirror the inputs' directory layout beneath ``--output_dir``, rooted at the
+leading components of ``--input_pattern`` that hold no wildcard::
 
-    derive_views.py --input_pattern='data/*/*.parquet' --output_dir=views
+    derive_views.py --input_pattern='projections/*/*.parquet' --output_dir=views
 
-    data/aa/ord_dataset-<id>.parquet  ->  views/aa/ord_dataset-<id>.parquet
+    projections/aa/ord_dataset-<id>.parquet  ->  views/aa/ord_dataset-<id>.parquet
 
-Views whose footer already records the current source content, library version, and
-artifact version are skipped, so re-running is cheap; --force rewrites them anyway.
+A view records the hash of the *source dataset* its projection was built from, not of
+the projection, so one comparison answers "is this current for that dataset?". Views
+already recording the current source content, library version, and artifact version are
+skipped, so re-running is cheap; --force rewrites them anyway.
 
-A match that is itself a derived artifact is ignored rather than derived from, so
---output_dir may sit inside a recursive pattern's reach. These are errors: an
---output_dir that would write over any source dataset, a match that cannot be read as
-Parquet at all, and a run that derives nothing.
+A match that is not a projection -- a source dataset, or a view from an earlier run --
+is ignored rather than derived from, so --output_dir may sit inside a recursive
+pattern's reach. These are errors: an --output_dir that would write over any input, a
+match that cannot be read as Parquet at all, and a run that derives nothing.
 """
 
 import argparse
 
-from ord_schema import artifacts, views
+from ord_schema import artifacts, projection, views
 from ord_schema.logging import silence_rdkit_logs
 
 
@@ -44,7 +47,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "--input_pattern", required=True, help="Input pattern for Parquet datasets"
+        "--input_pattern", required=True, help="Input pattern for Parquet projections"
     )
     parser.add_argument(
         "--output_dir", required=True, help="Directory to write views beneath"
@@ -58,15 +61,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(args: argparse.Namespace) -> None:
-    """Derives a view for every dataset matching the input pattern.
+    """Derives a view for every projection matching the input pattern.
 
     Args:
         args: Parsed command-line arguments.
 
     Raises:
-        ValueError: If the pattern matched only derived artifacts, which means it was
-            aimed at an output tree rather than a source tree. Silence there would let a
-            pipeline step downstream proceed as though the views had been built.
+        ValueError: If the pattern matched no projections, which usually means it was
+            aimed at the source tree, or at an output tree, rather than at the
+            projections. Silence there would let a pipeline step downstream proceed as
+            though the views had been built.
     """
     silence_rdkit_logs()
     written, skipped, ignored = artifacts.derive_tree(
@@ -75,11 +79,12 @@ def main(args: argparse.Namespace) -> None:
         artifact=views.ARTIFACT,
         write=views.write_view,
         force=args.force,
+        parent_artifact=projection.ARTIFACT,
     )
     if not written and not skipped:
         raise ValueError(
-            f"no sources derived: all {ignored} matches for {args.input_pattern!r} are "
-            "already derived artifacts"
+            f"no views derived: none of the {ignored} matches for "
+            f"{args.input_pattern!r} are projections"
         )
 
 

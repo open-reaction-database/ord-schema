@@ -31,11 +31,13 @@ recursive message added upstream would otherwise recurse forever at import time.
 
 Two normalizations are applied, and only two. Both cost no query and remove a real trap:
 
-* **United messages become one canonical float.** A ``{value, precision, units}``
-  triple projected verbatim means ``WHERE temperature > 350`` silently misses every row
-  recorded in Celsius. Each becomes a single column named for its unit --
-  ``setpoint_kelvin`` -- so a question in other units stays expressible while the
-  mixed-unit comparison that would quietly return the wrong rows does not.
+* **United messages become canonical floats.** A ``{value, precision, units}`` triple
+  projected verbatim means ``WHERE temperature > 350`` silently misses every row
+  recorded in Celsius. Each becomes two columns named for its unit --
+  ``setpoint_kelvin`` and ``setpoint_precision_kelvin`` -- so a question in other units
+  stays expressible while the mixed-unit comparison that would quietly return the wrong
+  rows does not. The source records precision in the same units as the value, so it
+  converts with the value and is null under the same conditions.
 * **Structural identifiers collapse to one ``smiles``.** ``SMILES``, ``CXSMILES``,
   ``INCHI``, and ``MOLBLOCK`` all answer "what is this molecule," so the projection
   answers it once, through ``message_helpers.smiles_from_compound`` -- the same
@@ -55,8 +57,8 @@ Every other identifier is kept, as a list. ``NAME`` alone covers compounds that 
 structural identifier reaches, and a compound may carry several of them, so pivoting
 identifiers into named scalar fields would silently drop data.
 
-Anything else -- precision, the original units, the identifier types that were collapsed
--- remains in the source ``reaction`` column, which stays authoritative for byte-exact
+Anything else -- the original units, the identifier types that were collapsed -- remains
+in the source ``reaction`` column, which stays authoritative for byte-exact
 round-tripping. The projection promises that every field is *readable*, not that it is
 reproducible from the projection alone.
 
@@ -222,9 +224,37 @@ def column_name(field: FieldDescriptor) -> str:
     return field.name
 
 
+def precision_column_name(field: FieldDescriptor) -> str:
+    """Returns the column name for ``field``'s precision.
+
+    The unit stays the trailing element, matching the value column, so a reader takes
+    the units off the end of either name without knowing which is which.
+
+    Args:
+        field: A united field, as identified by ``_canonical_unit``.
+
+    Returns:
+        The precision column's name.
+
+    Raises:
+        ValueError: If ``field`` is not united, and so has no precision to name.
+    """
+    canonical = _canonical_unit(field)
+    if canonical is None:
+        raise ValueError(f"{field.full_name} is not a united message")
+    return f"{field.name}_precision_{canonical[1]}"
+
+
 def _field_type(field: FieldDescriptor, stack: frozenset[str]) -> pa.DataType:
     if _canonical_unit(field) is not None:
-        return pa.float64()
+        # Singular united fields never reach here: _struct_fields expands them into a
+        # value column and a precision column, which is a pair of leaves rather than
+        # one type. A repeated or map-valued one added upstream would, and that pair
+        # cannot represent it.
+        raise ValueError(
+            f"{field.full_name} is a repeated or map-valued united message; the "
+            "canonical value and precision columns represent only singular ones"
+        )
     message_type = field.message_type
     if message_type is not None and message_type.GetOptions().map_entry:
         key_field = message_type.fields_by_name["key"]
@@ -249,10 +279,12 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
     fields = []
     if descriptor.name in _STRUCTURAL_TYPES:
         fields.append(pa.field("smiles", pa.string()))
-    fields.extend(
-        pa.field(column_name(field), _field_type(field, stack))
-        for field in descriptor.fields
-    )
+    for field in descriptor.fields:
+        if _canonical_unit(field) is not None:
+            fields.append(pa.field(column_name(field), pa.float64()))
+            fields.append(pa.field(precision_column_name(field), pa.float64()))
+        else:
+            fields.append(pa.field(column_name(field), _field_type(field, stack)))
     return fields
 
 
@@ -343,8 +375,10 @@ def message_row(message: Message) -> dict[str, Any]:
         name = column_name(field)
         canonical = _canonical_unit(field)
         if canonical is not None:
-            row[name] = units.canonical_value(
-                getattr(message, field.name), canonical[0]
+            united = getattr(message, field.name)
+            row[name] = units.canonical_value(united, canonical[0])
+            row[precision_column_name(field)] = units.canonical_precision(
+                united, canonical[0]
             )
             continue
         message_type = field.message_type
@@ -434,10 +468,11 @@ def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
 
 
 def write_projection(
-    source: parquet.DatasetView,
+    source: str | os.PathLike[str],
     output: str | os.PathLike[str],
     *,
     source_md5: str | None = None,
+    source_dataset_id: str | None = None,
     compression: str = "zstd",
     row_group_size: int = 1000,
 ) -> int:
@@ -448,10 +483,12 @@ def write_projection(
     atomically, so a failure partway leaves any existing projection untouched.
 
     Args:
-        source: View of the source Parquet dataset.
+        source: Path to the source Parquet dataset.
         output: Path to write the projection to.
         source_md5: Source hash to stamp, if the caller already computed one. Hashed
             here when omitted, which costs a full pass over the source.
+        source_dataset_id: Source dataset ID to stamp, if the caller already read one.
+            Read from the source when omitted.
         compression: Parquet compression codec.
         row_group_size: Rows per output row group.
 
@@ -459,13 +496,17 @@ def write_projection(
         Number of rows written.
 
     Raises:
-        ValueError: If any row's ``reaction_id`` column is missing or disagrees with
-            its Reaction. The message names the source, since a corpus-wide run has
-            thousands of datasets to choose between.
+        ValueError: If ``source`` is not a source dataset, or if any row's
+            ``reaction_id`` column is missing or disagrees with its Reaction. The
+            message names the source, since a corpus-wide run has thousands of datasets
+            to choose between.
     """
+    view = parquet.DatasetView(source)
     if source_md5 is None:
-        source_md5 = source.md5()
-    stamps = artifacts.current_stamps(ARTIFACT, source.dataset_id or None, source_md5)
+        source_md5 = view.md5()
+    if source_dataset_id is None:
+        source_dataset_id = view.dataset_id or None
+    stamps = artifacts.current_stamps(ARTIFACT, source_dataset_id, source_md5)
     schema = SCHEMA.with_metadata(artifacts.to_metadata(stamps))
     rows = 0
     unreadable = 0
@@ -473,13 +514,13 @@ def write_projection(
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
     ):
-        for row_group in range(source.num_row_groups):
+        for row_group in range(view.num_row_groups):
             batch = []
-            for reaction_id, reaction in source.iter_reactions(row_group=row_group):
+            for reaction_id, reaction in view.iter_reactions(row_group=row_group):
                 try:
                     row = reaction_row(reaction, reaction_id)
                 except ValueError as error:
-                    raise ValueError(f"{source.path}: {error}") from error
+                    raise ValueError(f"{view.path}: {error}") from error
                 unreadable += _unreadable_structures(row)
                 batch.append(row)
             rows += len(batch)
@@ -490,7 +531,7 @@ def write_projection(
     if unreadable:
         # Per dataset rather than per row: a count is diffable between runs, so a
         # regression in structure reading shows up instead of hiding in the nulls.
-        logger.info("%s: %d components project no structure", source.path, unreadable)
+        logger.info("%s: %d components project no structure", view.path, unreadable)
     return rows
 
 

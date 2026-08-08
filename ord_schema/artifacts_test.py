@@ -196,8 +196,8 @@ def test_derive_tree_writes_one_artifact_per_source(tmp_path):
         _fake_source(tmp_path / name / "source.parquet")
     written_paths = []
 
-    def _write_one(view, output, *, source_md5):
-        del view, source_md5  # Unused.
+    def _write_one(source, output, *, source_md5, source_dataset_id):
+        del source, source_md5, source_dataset_id  # Unused.
         written_paths.append(output)
         pathlib.Path(output).write_bytes(b"")
         return 1
@@ -212,14 +212,15 @@ def test_derive_tree_writes_one_artifact_per_source(tmp_path):
     assert {path.parent.name for path in written_paths} == {"aa", "bb"}
 
 
-def test_derive_tree_hands_the_writer_an_open_view_of_the_source(tmp_path):
+def test_derive_tree_hands_the_writer_the_source_and_its_provenance(tmp_path):
     (tmp_path / "aa").mkdir()
     source = tmp_path / "aa" / "source.parquet"
     _fake_source(source)
     seen = []
 
-    def _write_one(view, output, *, source_md5):
-        seen.append((view.dataset_id, view.md5() == source_md5))
+    def _write_one(path, output, *, source_md5, source_dataset_id):
+        view = parquet.DatasetView(path)
+        seen.append((source_dataset_id, view.md5() == source_md5))
         pathlib.Path(output).write_bytes(b"")
         return 1
 
@@ -271,8 +272,8 @@ def test_derive_tree_ignores_matches_that_are_themselves_artifacts(tmp_path):
     _write(tmp_path / "aa" / "derived.parquet", _valid_metadata())
     written_paths = []
 
-    def _write_one(view, output, *, source_md5):
-        del view, source_md5  # Unused.
+    def _write_one(source, output, *, source_md5, source_dataset_id):
+        del source, source_md5, source_dataset_id  # Unused.
         written_paths.append(output)
         pathlib.Path(output).write_bytes(b"")
         return 1
@@ -291,8 +292,8 @@ def test_derive_tree_skips_current_artifacts_unless_forced(tmp_path, monkeypatch
     _fake_source(tmp_path / "aa" / "source.parquet")
     calls = []
 
-    def _write_one(view, output, *, source_md5):
-        del view, source_md5  # Unused.
+    def _write_one(source, output, *, source_md5, source_dataset_id):
+        del source, source_md5, source_dataset_id  # Unused.
         calls.append(output)
         pathlib.Path(output).write_bytes(b"")
         return 1
@@ -313,3 +314,68 @@ def test_derive_tree_skips_current_artifacts_unless_forced(tmp_path, monkeypatch
         force=True,
     ) == (1, 0, 0)
     assert len(calls) == 1
+
+
+def test_derive_tree_reads_the_named_parent_artifact(tmp_path):
+    (tmp_path / "aa").mkdir()
+    _write(
+        tmp_path / "aa" / "projected.parquet",
+        _valid_metadata(**{"ord.artifact": "projection", "ord.source_md5": "a" * 32}),
+    )
+    seen = []
+
+    def _write_one(source, output, *, source_md5, source_dataset_id):
+        seen.append((pathlib.Path(source).name, source_md5, source_dataset_id))
+        pathlib.Path(output).write_bytes(b"")
+        return 1
+
+    assert artifacts.derive_tree(
+        str(tmp_path / "*" / "*.parquet"),
+        str(tmp_path / "out"),
+        artifact="view",
+        write=_write_one,
+        parent_artifact="projection",
+    ) == (1, 0, 0)
+    # The source dataset's hash and ID pass through, so a view names the dataset it
+    # reflects rather than the artifact it read.
+    assert seen == [("projected.parquet", "a" * 32, "ord_dataset-1")]
+
+
+def test_derive_tree_ignores_a_source_dataset_when_a_parent_artifact_is_named(tmp_path):
+    (tmp_path / "aa").mkdir()
+    _fake_source(tmp_path / "aa" / "source.parquet")
+    _write(
+        tmp_path / "aa" / "projected.parquet",
+        _valid_metadata(**{"ord.artifact": "projection"}),
+    )
+    written_paths = []
+
+    def _write_one(source, output, *, source_md5, source_dataset_id):
+        del source, source_md5, source_dataset_id  # Unused.
+        written_paths.append(output)
+        pathlib.Path(output).write_bytes(b"")
+        return 1
+
+    assert artifacts.derive_tree(
+        str(tmp_path / "*" / "*.parquet"),
+        str(tmp_path / "out"),
+        artifact="view",
+        write=_write_one,
+        parent_artifact="projection",
+    ) == (1, 0, 1)
+    assert [path.name for path in written_paths] == ["projected.parquet"]
+
+
+def test_derive_tree_ignores_an_artifact_of_the_wrong_kind(tmp_path):
+    # What an earlier run of this same command left in a recursive pattern's reach.
+    (tmp_path / "aa").mkdir()
+    _write(
+        tmp_path / "aa" / "already.parquet", _valid_metadata(**{"ord.artifact": "view"})
+    )
+    assert artifacts.derive_tree(
+        str(tmp_path / "*" / "*.parquet"),
+        str(tmp_path / "out"),
+        artifact="view",
+        write=lambda *args, **kwargs: 1,
+        parent_artifact="projection",
+    ) == (0, 0, 1)

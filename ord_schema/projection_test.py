@@ -14,6 +14,7 @@
 
 """Tests for ord_schema.projection."""
 
+import pathlib
 from typing import cast
 
 import pyarrow as pa
@@ -42,7 +43,7 @@ def _reaction(reaction_id: str = "ord-0001") -> reaction_pb2.Reaction:
 
 def _source(
     tmp_path, reactions, dataset_id="ord_dataset-1", row_group_size=1000
-) -> parquet.DatasetView:
+) -> pathlib.Path:
     path = tmp_path / "source.parquet"
     with parquet.DatasetWriter(
         path,
@@ -52,7 +53,7 @@ def _source(
         row_group_size=row_group_size,
     ) as writer:
         writer.write_all(reactions)
-    return parquet.DatasetView(path)
+    return path
 
 
 def _leaf_count(data_type: pa.DataType) -> int:
@@ -82,9 +83,10 @@ def test_schema_adds_a_collapsed_smiles_at_reaction_and_component_level():
     assert "smiles" in [field.name for field in components.value_type]
 
 
-def test_united_fields_collapse_to_a_float_named_for_its_unit():
+def test_united_fields_collapse_to_floats_named_for_their_unit():
     temperature = projection.SCHEMA.field("conditions").type.field("temperature").type
     assert temperature.field("setpoint_kelvin").type == pa.float64()
+    assert temperature.field("setpoint_precision_kelvin").type == pa.float64()
     assert "setpoint" not in [field.name for field in temperature]
 
 
@@ -143,6 +145,36 @@ def test_temperature_converts_to_kelvin():
     setpoint.units = reaction_pb2.Temperature.CELSIUS
     row = projection.message_row(reaction)
     assert row["conditions"]["temperature"]["setpoint_kelvin"] == pytest.approx(298.15)
+
+
+def test_precision_converts_with_its_value():
+    reaction = _reaction()
+    setpoint = reaction.conditions.temperature.setpoint
+    setpoint.value, setpoint.precision = 77.0, 1.8
+    setpoint.units = reaction_pb2.Temperature.FAHRENHEIT
+    temperature = projection.message_row(reaction)["conditions"]["temperature"]
+    assert temperature["setpoint_kelvin"] == pytest.approx(298.15)
+    # Fahrenheit is an offset scale, so the precision converts by the ratio alone.
+    assert temperature["setpoint_precision_kelvin"] == pytest.approx(1.0)
+
+
+def test_unrecorded_precision_is_null_not_zero():
+    reaction = _reaction()
+    setpoint = reaction.conditions.temperature.setpoint
+    setpoint.value = 25.0
+    setpoint.units = reaction_pb2.Temperature.CELSIUS
+    temperature = projection.message_row(reaction)["conditions"]["temperature"]
+    assert temperature["setpoint_kelvin"] == pytest.approx(298.15)
+    assert temperature["setpoint_precision_kelvin"] is None
+
+
+def test_precision_is_null_where_its_value_cannot_be_converted():
+    reaction = _reaction()
+    setpoint = reaction.conditions.temperature.setpoint
+    setpoint.value, setpoint.precision = 25.0, 0.5  # units left UNSPECIFIED
+    temperature = projection.message_row(reaction)["conditions"]["temperature"]
+    assert temperature["setpoint_kelvin"] is None
+    assert temperature["setpoint_precision_kelvin"] is None
 
 
 def test_amount_mass_converts_to_grams():
@@ -331,15 +363,13 @@ def test_write_projection_reads_the_reaction_id_column(tmp_path):
     # column from the message; the projection has to notice rather than pick one.
     path = tmp_path / "inconsistent.parquet"
     blob = _reaction("ord-in-message").SerializeToString(deterministic=True)
-    schema = pq.read_schema(_source(tmp_path, [_reaction()]).path)
+    schema = pq.read_schema(_source(tmp_path, [_reaction()]))
     pq.write_table(
         pa.table({"reaction_id": ["ord-in-column"], "reaction": [blob]}, schema=schema),
         path,
     )
     with pytest.raises(ValueError, match=f"{path}.*disagrees"):
-        projection.write_projection(
-            parquet.DatasetView(path), tmp_path / "projection.parquet"
-        )
+        projection.write_projection(path, tmp_path / "projection.parquet")
 
 
 def test_write_projection_rejects_a_null_reaction_id_column(tmp_path):
@@ -352,7 +382,7 @@ def test_write_projection_rejects_a_null_reaction_id_column(tmp_path):
             pa.field("reaction_id", pa.string(), nullable=True),
             pa.field("reaction", pa.binary(), nullable=False),
         ]
-    ).with_metadata(pq.read_schema(_source(tmp_path, [_reaction()]).path).metadata)
+    ).with_metadata(pq.read_schema(_source(tmp_path, [_reaction()])).metadata)
     pq.write_table(
         pa.table(
             {
@@ -364,9 +394,7 @@ def test_write_projection_rejects_a_null_reaction_id_column(tmp_path):
         path,
     )
     with pytest.raises(ValueError, match="reaction_id column is None"):
-        projection.write_projection(
-            parquet.DatasetView(path), tmp_path / "projection.parquet"
-        )
+        projection.write_projection(path, tmp_path / "projection.parquet")
 
 
 def test_write_projection_covers_every_row_group(tmp_path):
@@ -375,7 +403,7 @@ def test_write_projection_covers_every_row_group(tmp_path):
     source = _source(
         tmp_path, [_reaction(f"ord-{index}") for index in range(5)], row_group_size=2
     )
-    assert source.num_row_groups == 3
+    assert parquet.DatasetView(source).num_row_groups == 3
     output = tmp_path / "projection.parquet"
     assert projection.write_projection(source, output) == 5
     assert pq.read_table(output).column("reaction_id").to_pylist() == [
@@ -397,7 +425,7 @@ def test_is_current_tracks_source_content(tmp_path):
     source = _source(tmp_path, [_reaction()])
     output = tmp_path / "projection.parquet"
     projection.write_projection(source, output)
-    assert projection.is_current(output, source.md5())
+    assert projection.is_current(output, parquet.DatasetView(source).md5())
     assert not projection.is_current(output, "0" * 32)
 
 
@@ -405,7 +433,7 @@ def test_is_current_rejects_a_different_artifact(tmp_path):
     source = _source(tmp_path, [_reaction()])
     output = tmp_path / "projection.parquet"
     projection.write_projection(source, output)
-    assert not artifacts.is_current(output, "view", source.md5())
+    assert not artifacts.is_current(output, "view", parquet.DatasetView(source).md5())
 
 
 def test_is_current_is_false_for_a_missing_file(tmp_path):
@@ -414,7 +442,7 @@ def test_is_current_is_false_for_a_missing_file(tmp_path):
 
 def test_is_current_is_false_for_a_source_dataset(tmp_path):
     source = _source(tmp_path, [_reaction()])
-    assert not projection.is_current(source.path, source.md5())
+    assert not projection.is_current(source, parquet.DatasetView(source).md5())
 
 
 def test_a_failed_write_leaves_an_existing_projection_intact(tmp_path, monkeypatch):
