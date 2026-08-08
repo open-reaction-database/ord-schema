@@ -80,20 +80,32 @@ here is not success.
 ```sh
 python -u -m ord_schema.orm.scripts.add_datasets \
   --pattern "$ORD_DATA/data/*/*.parquet" --stages derived --rederive \
-  --dsn "postgresql+psycopg://" --n_jobs 16
+  --dsn "postgresql+psycopg://" --n_jobs 4
 ```
 
-**Safe against the live database.** Rows are updated in place, never deleted and reinserted.
-That matters because search inner-joins through `derived.compound_smiles` /
-`derived.product_compound_smiles` / `derived.reaction_smiles` into `rdkit.*` — a row that is
-absent even briefly is a reaction that briefly cannot be found, and emptying those tables
-would return zero results for every structure query until the rebuild finished.
+**Rows are updated in place**, never deleted and reinserted. That matters because search
+inner-joins through `derived.compound_smiles` / `derived.product_compound_smiles` /
+`derived.reaction_smiles` into `rdkit.*` — a row that is absent even briefly is a reaction
+that briefly cannot be found, and emptying those tables would return zero results for every
+structure query until the rebuild finished.
 
-The `DO UPDATE` is conditional on the value actually differing, so a rederive over an
-already-current database touches no rows and writes no WAL. Only rows whose SMILES changed
-get their `rdkit_mol_id` / `rdkit_reaction_id` cleared, which hands them to the linking pass;
-those rows alone are unsearchable until it runs, so let the RDKit stage finish in the same
-invocation.
+The `DO UPDATE` is conditional on the value actually differing, so an unchanged row is not
+rewritten. That is not the same as writing nothing: the upsert still does per-row work, and a
+rederive whose values *have* changed is a full rewrite of the affected tables. Measured over
+the published corpus in August 2026, a rederive after
+[#935](https://github.com/open-reaction-database/ord-schema/pull/935) rewrote essentially
+every reaction SMILES — 10 compound updates against 2.4M reaction updates — because the
+database predated that change.
+
+**A rederive removes reactions from structure search for the length of the run.** Every row
+whose SMILES changed has its `rdkit_mol_id` / `rdkit_reaction_id` cleared, and the linking
+pass that refills them runs *serially after every dataset's SMILES stage* — not per dataset.
+On the August 2026 run that put 1.98M of 2.43M reactions (81%) out of reaction-SMARTS search
+for hours. Component search is unaffected, since `compound_smiles` and
+`product_compound_smiles` relink almost immediately; only `ReactionSmartsQuery` joins
+`rdkit.reactions`. Plan the window accordingly, and do not start one expecting the "only
+changed rows are affected" reading — on a corpus that has drifted, changed rows are most of
+them.
 
 Do not confuse it with `--overwrite`, which is an *ingest* flag meaning "re-ingest a dataset
 whose MD5 changed."
@@ -106,6 +118,35 @@ entity that derives nothing is retried by any later pass rather than sitting beh
 `derived.reaction_classes` is untouched, because classification is a slow opt-in pass that a
 rebuild should not silently redo.
 
+#### Size the parallelism for the largest dataset, not the corpus
+
+`--n_jobs 16` exhausted Aurora's local temp space on the RDKit stage of
+`ord_dataset-1158e351…` (the 2M-reaction USPTO set), failing with
+`psycopg.errors.DiskFull: could not write to file "base/pgsql_tmp/…"`. `FreeLocalStorage`
+bottomed at 1.27 GB on a `db.t4g.large`. The other 52 datasets completed; only the largest
+one has shards big enough to spill concurrently.
+
+Watch `FreeLocalStorage` alongside CPU, and prefer 4 workers for a corpus-wide rederive. The
+run is not much slower — the RDKit stage is serial anyway — and it is the stage that fails.
+
+#### Resuming after a failed rederive
+
+A failed dataset rolls back its shard, so the database stays consistent and the SMILES that
+did land are correct. What remains is the *linking*, which the ordinary derived pass already
+does: it fills `rdkit_*_id` wherever it is `NULL`, which is exactly the set a failure left
+behind, and the partial indexes on those tables exist to make that query cheap.
+
+```sh
+python -u -m ord_schema.orm.scripts.add_datasets \
+  --pattern "$ORD_DATA/data/*/*.parquet" --stages derived --prune_rdkit \
+  --dsn "postgresql+psycopg://" --n_jobs 4
+```
+
+**Without `--rederive`** — the SMILES are already recomputed, so re-running the full rederive
+would redo 2.4M rows to fix a few hundred thousand links, and hit the same temp-space
+ceiling. Confirm first that the SMILES stage really finished, by checking that whatever the
+rebuild was meant to change has changed corpus-wide.
+
 ### Collecting the structures a rebuild strands
 
 `rdkit.mols` and `rdkit.reactions` are shared and deduplicated by structure, so a rederive
@@ -116,7 +157,7 @@ SMILES therefore links to a new structure and leaves the old one referenced by n
 ```sh
 python -u -m ord_schema.orm.scripts.add_datasets \
   --pattern "$ORD_DATA/data/*/*.parquet" --stages derived --rederive --prune_rdkit \
-  --dsn "postgresql+psycopg://" --n_jobs 16
+  --dsn "postgresql+psycopg://" --n_jobs 4
 ```
 
 Whole-database by necessity: a structure is orphaned only if *no* dataset references it, so it
