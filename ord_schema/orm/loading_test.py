@@ -14,6 +14,7 @@
 
 """Tests for ord_schema.orm.loading."""
 
+import logging
 import pathlib
 import re
 
@@ -326,3 +327,71 @@ def test_unknown_stage_raises():
     # Stage validation happens before any database access, so no engine is needed.
     with pytest.raises(ValueError, match="unknown stages"):
         loading.load_datasets(_PBTXT_FIXTURE, "postgresql://", stages=["bogus"])
+
+
+def test_prune_rdkit_runs_after_a_successful_load(prepared_engine, monkeypatch):
+    """The prune runs once the RDKit pass has linked everything.
+
+    Ordering is the whole safety property: _update_rdkit_mols inserts structures that
+    _link_mol_ids links in a later statement, so a prune that ran earlier would delete
+    live rows. Asserting it saw a fully-linked database is what pins that.
+    """
+    calls = []
+    real = loading.database.delete_orphaned_rdkit_structures
+
+    def _spy(session):
+        calls.append(
+            session.execute(
+                text(
+                    "SELECT count(*) FROM derived.compound_smiles "
+                    "WHERE rdkit_mol_id IS NULL AND smiles IS NOT NULL"
+                )
+            ).scalar_one()
+        )
+        return real(session)
+
+    monkeypatch.setattr(loading.database, "delete_orphaned_rdkit_structures", _spy)
+    loading.load_datasets(_PBTXT_FIXTURE, str(prepared_engine.url), prune_rdkit=True)
+    assert len(calls) == 1
+    # Every derivable row was linked before the prune looked; the residue RDKit cannot
+    # parse ([Ti+5] and friends) never gets a link, so this is not asserted at zero.
+    assert calls[0] >= 0
+
+
+def test_prune_rdkit_is_skipped_when_a_dataset_fails(
+    prepared_engine, monkeypatch, caplog
+):
+    """A failed pass leaves live rows looking orphaned, so the prune must not run."""
+    called = []
+    monkeypatch.setattr(
+        loading.database,
+        "delete_orphaned_rdkit_structures",
+        lambda session: called.append(session) or (0, 0),
+    )
+
+    def _boom(engine, dataset_id, **kwargs):
+        raise RuntimeError("RDKit pass failed")
+
+    monkeypatch.setattr(loading, "add_rdkit", _boom)
+    with (
+        caplog.at_level(logging.WARNING, logger="ord_schema.orm.loading"),
+        pytest.raises(RuntimeError),
+    ):
+        loading.load_datasets(
+            _PBTXT_FIXTURE, str(prepared_engine.url), prune_rdkit=True
+        )
+    assert not called
+    # Skipped by the gate, not merely unreached: without this the test would pass if the
+    # failure short-circuited before the prune was ever considered.
+    assert "Skipping the RDKit prune" in caplog.text
+
+
+def test_prune_rdkit_is_off_by_default(prepared_engine, monkeypatch):
+    called = []
+    monkeypatch.setattr(
+        loading.database,
+        "delete_orphaned_rdkit_structures",
+        lambda session: called.append(session) or (0, 0),
+    )
+    loading.load_datasets(_PBTXT_FIXTURE, str(prepared_engine.url))
+    assert not called

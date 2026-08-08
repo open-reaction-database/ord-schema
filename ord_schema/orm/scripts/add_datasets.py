@@ -52,6 +52,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--overwrite", action="store_true", help="Update changed datasets"
     )
     parser.add_argument(
+        "--prune_rdkit",
+        action="store_true",
+        help="After the RDKit pass, delete rdkit.mols/rdkit.reactions rows that no "
+        "derived row references. A rebuild that changes SMILES strands the old "
+        "structures; this collects them. Whole-database, so do not run it beside "
+        "another load.",
+    )
+    parser.add_argument(
         "--rederive",
         action="store_true",
         help="Recompute derived.* SMILES that already exist, instead of only filling "
@@ -116,6 +124,7 @@ def main(args: argparse.Namespace) -> None:
         overwrite=args.overwrite,
         classify_reactions=args.classify_reactions,
         rederive=args.rederive,
+        prune_rdkit=args.prune_rdkit,
         n_jobs=args.n_jobs,
         classify_jobs=args.classify_jobs,
     )

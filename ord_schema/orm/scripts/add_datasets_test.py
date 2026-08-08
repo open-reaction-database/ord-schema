@@ -55,3 +55,33 @@ def test_classify_reactions_requires_extra(monkeypatch):
                 ["--pattern", _PBTXT_FIXTURE, "--classify_reactions"]
             )
         )
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        ([], {"rederive": False, "prune_rdkit": False}),
+        (["--rederive"], {"rederive": True, "prune_rdkit": False}),
+        (["--prune_rdkit"], {"rederive": False, "prune_rdkit": True}),
+        (
+            ["--rederive", "--prune_rdkit"],
+            {"rederive": True, "prune_rdkit": True},
+        ),
+    ],
+)
+def test_rebuild_flags_reach_load_datasets(monkeypatch, argv, expected):
+    """Both rebuild flags are forwarded, and both default off.
+
+    They are destructive, so a wiring mistake either silently does nothing or silently
+    deletes; neither shows up in the loading tests, which call load_datasets directly.
+    """
+    captured = {}
+    monkeypatch.setattr(
+        add_datasets.loading,
+        "load_datasets",
+        lambda *args, **kwargs: captured.update(kwargs),
+    )
+    add_datasets.main(
+        add_datasets.parse_args(["--pattern", _PBTXT_FIXTURE, "--dsn", "x", *argv])
+    )
+    assert {key: captured[key] for key in expected} == expected

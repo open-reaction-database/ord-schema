@@ -735,6 +735,62 @@ def delete_derived_data(
     logger.debug(f"Deleting derived data took {time.time() - start:g}s")
 
 
+def delete_orphaned_rdkit_structures(session: Session) -> tuple[int, int]:
+    """Deletes RDKit structures no derived row references, returning the counts removed.
+
+    ``rdkit.mols`` and ``rdkit.reactions`` are deduplicated by structure and shared
+    across datasets, so :func:`delete_derived_data` cannot touch them: it only removes
+    the rows that point at them. A rebuild that changes a SMILES therefore links to a
+    new structure and leaves the old one behind, referenced by nothing.
+
+    Whole-database by necessity, not by choice. A structure is orphaned only if *no*
+    dataset references it, so this cannot be scoped to one dataset or one shard.
+
+    Run it only when no derivation is in flight. ``_update_rdkit_mols`` inserts
+    structures that ``_link_mol_ids`` links in a later statement, so a concurrent load
+    has a window where live rows look orphaned; deleting then would strand the rows that
+    were about to reference them.
+
+    Args:
+        session: SQLAlchemy session.
+
+    Returns:
+        ``(mols_deleted, reactions_deleted)``.
+    """
+    logger.debug("Deleting orphaned RDKit structures")
+    start = time.time()
+    # The FKs from derived.* declare ON DELETE CASCADE, so a row still referenced would
+    # take its referrer with it. NOT EXISTS is what keeps that from ever being reached.
+    mols = session.execute(
+        text("""
+        DELETE FROM rdkit.mols
+        WHERE NOT EXISTS (
+            SELECT 1 FROM derived.compound_smiles
+            WHERE derived.compound_smiles.rdkit_mol_id = rdkit.mols.id
+        )
+          AND NOT EXISTS (
+            SELECT 1 FROM derived.product_compound_smiles
+            WHERE derived.product_compound_smiles.rdkit_mol_id = rdkit.mols.id
+        )
+        """)
+    )
+    reactions = session.execute(
+        text("""
+        DELETE FROM rdkit.reactions
+        WHERE NOT EXISTS (
+            SELECT 1 FROM derived.reaction_smiles
+            WHERE derived.reaction_smiles.rdkit_reaction_id = rdkit.reactions.id
+        )
+        """)
+    )
+    deleted = (cast(Any, mols).rowcount, cast(Any, reactions).rowcount)
+    logger.debug(
+        f"Deleting orphaned RDKit structures took {time.time() - start:g}s "
+        f"({deleted[0]} mols, {deleted[1]} reactions)"
+    )
+    return deleted
+
+
 def update_derived_tables(
     dataset_id: str,
     session: Session,
