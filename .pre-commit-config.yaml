@@ -13,6 +13,15 @@
 # limitations under the License.
 
 repos:
+  # Every change goes through a branch and a pull request, so a commit landing on main
+  # is a mistake rather than a shortcut. Listed first so it fails before the slower
+  # hooks spend time on a commit that should not exist.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: no-commit-to-branch
+        args: [--branch, main]
+
   - repo: https://github.com/google/addlicense
     rev: v1.2.0
     hooks:
