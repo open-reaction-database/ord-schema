@@ -295,6 +295,17 @@ def test_a_yield_percentage_with_no_value_is_null_not_zero():
     assert views.reaction_row(projection.message_row(reaction))["yield_percent"] is None
 
 
+def test_a_yield_the_source_records_as_zero_is_kept():
+    # The complement of the test above, and the case that breaks first if presence
+    # handling regresses anywhere on the path: Percentage.value carries explicit
+    # presence, so a reaction reported as 0% has to reach the column as 0.0 rather
+    # than collapse into the null that means "unrecorded".
+    reaction = _reaction()
+    measurement = reaction.outcomes[0].products[0].measurements.add(type="YIELD")
+    measurement.percentage.value = 0.0
+    assert views.reaction_row(projection.message_row(reaction))["yield_percent"] == 0.0
+
+
 def test_a_yield_not_recorded_as_a_percentage_is_null():
     # Reading float_value would assume a scale the source never stated.
     reaction = _reaction()
