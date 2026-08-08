@@ -33,6 +33,7 @@ from ord_schema.orm.database import (
     classify_dataset,
     delete_dataset,
     delete_derived_data,
+    delete_orphaned_rdkit_structures,
     get_dataset_md5,
     get_dataset_size,
     update_derived_data,
@@ -916,3 +917,68 @@ def test_rederive_deletes_every_derived_smiles_table(prepared_engine):
                 for table in before
             }
         assert rebuilt == before
+
+
+def _rdkit_counts(session):
+    """Returns ``(mols, reactions)`` row counts in the shared RDKit tables."""
+    return (
+        session.execute(text("SELECT count(*) FROM rdkit.mols")).scalar_one(),
+        session.execute(text("SELECT count(*) FROM rdkit.reactions")).scalar_one(),
+    )
+
+
+def test_prune_leaves_referenced_structures_alone(test_session):
+    # The whole risk of a whole-database delete: the FKs from derived.* cascade, so
+    # deleting a structure something still points at would take the derived row with it.
+    before = _rdkit_counts(test_session)
+    assert all(before), before
+    assert delete_orphaned_rdkit_structures(test_session) == (0, 0)
+    assert _rdkit_counts(test_session) == before
+
+
+def test_prune_deletes_structures_a_rebuild_stranded(test_session):
+    """A structure left behind by a changed SMILES is collected.
+
+    Standing in for the rebuild: unlinking a derived row is exactly the state
+    delete_derived_data plus re-derivation leaves the old structure in.
+    """
+    before_mols, before_reactions = _rdkit_counts(test_session)
+    test_session.execute(
+        text(
+            "UPDATE derived.compound_smiles SET rdkit_mol_id = NULL "
+            "WHERE rdkit_mol_id = (SELECT min(rdkit_mol_id) "
+            "FROM derived.compound_smiles WHERE rdkit_mol_id IS NOT NULL)"
+        )
+    )
+    mols, reactions = delete_orphaned_rdkit_structures(test_session)
+    assert mols >= 1
+    assert reactions == 0
+    after_mols, after_reactions = _rdkit_counts(test_session)
+    assert after_mols == before_mols - mols
+    assert after_reactions == before_reactions
+
+
+def test_prune_keeps_a_mol_a_product_compound_still_references(test_session):
+    # rdkit.mols is referenced from two tables; checking only one would delete a
+    # structure the other still uses, and the cascade would take that row with it.
+    linked = test_session.execute(
+        text(
+            "SELECT rdkit_mol_id FROM derived.product_compound_smiles "
+            "WHERE rdkit_mol_id IS NOT NULL LIMIT 1"
+        )
+    ).scalar_one()
+    # Drop any compound-side references so only the product side keeps it alive.
+    test_session.execute(
+        text(
+            "UPDATE derived.compound_smiles SET rdkit_mol_id = NULL "
+            "WHERE rdkit_mol_id = :id"
+        ),
+        {"id": linked},
+    )
+    delete_orphaned_rdkit_structures(test_session)
+    assert (
+        test_session.execute(
+            text("SELECT count(*) FROM rdkit.mols WHERE id = :id"), {"id": linked}
+        ).scalar_one()
+        == 1
+    )

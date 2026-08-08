@@ -90,9 +90,27 @@ whose MD5 changed."
 Two things it deliberately leaves alone. `rdkit.mols` and `rdkit.reactions` are shared and
 deduplicated by structure, so deleting one dataset's share would break every other dataset;
 the link columns live on the deleted rows, so the RDKit pass re-links from scratch, reusing
-structures already present. A rebuild that changes SMILES therefore leaves unreferenced
-structures behind — space, not correctness. And `derived.reaction_classes` survives, because
-classification is a slow opt-in pass that a rebuild should not silently redo.
+structures already present. And `derived.reaction_classes` survives, because classification
+is a slow opt-in pass that a rebuild should not silently redo.
+
+### Collecting the structures a rebuild strands
+
+Because the `rdkit.*` tables survive, a rebuild that changes a SMILES links to a new structure
+and leaves the old one referenced by nothing. `--prune_rdkit` deletes those, once the RDKit
+pass has finished:
+
+```sh
+python -u -m ord_schema.orm.scripts.add_datasets \
+  --pattern "$ORD_DATA/data/*/*.parquet" --stages derived --rederive --prune_rdkit \
+  --dsn "postgresql+psycopg://" --n_jobs 16
+```
+
+Whole-database by necessity: a structure is orphaned only if *no* dataset references it, so it
+cannot be scoped to one dataset or shard. Two consequences. **Do not run it beside another
+load** — `_update_rdkit_mols` inserts structures that `_link_mol_ids` links in a later
+statement, so a concurrent derive has a window where live rows look orphaned. And it is skipped
+automatically when any dataset failed, since an unfinished pass leaves exactly that window
+open; the log says so rather than staying quiet.
 
 Verify with counts before and after: a rebuild should end with the row counts it started with,
 plus a spot-check of a value you expect to have changed.

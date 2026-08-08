@@ -479,6 +479,7 @@ def load_datasets(
     overwrite: bool = False,
     classify_reactions: bool = False,
     rederive: bool = False,
+    prune_rdkit: bool = False,
     n_jobs: int = 1,
     classify_jobs: int | None = None,
 ) -> None:
@@ -498,6 +499,10 @@ def load_datasets(
         rederive: If True, delete existing derived rows before deriving, so rows written
             by an earlier version of the derivation are recomputed rather than skipped.
             Without it the derived stage backfills gaps but never revisits a row.
+        prune_rdkit: If True, delete RDKit structures nothing references once the RDKit
+            pass has finished. A rebuild that changes SMILES links to new structures and
+            strands the old ones; this collects them. Off by default because it is
+            whole-database and unsafe to run beside a concurrent load.
         n_jobs: Number of parallel workers.
         classify_jobs: Worker count for the classification pass; each worker loads a
             transformer model, so this is bounded separately from ``n_jobs``. Defaults
@@ -630,6 +635,22 @@ def load_datasets(
                     )
                     if rdkit_failures:
                         failures.append(dataset_id)
+            if prune_rdkit and not failures:
+                # After linking, never between the insert and the link: a structure
+                # inserted by _update_rdkit_mols looks orphaned until _link_mol_ids
+                # points a derived row at it. Skipped when anything failed, since an
+                # unfinished pass leaves exactly that window open.
+                with Session(engine) as session, session.begin():
+                    mols, reactions = database.delete_orphaned_rdkit_structures(session)
+                logger.info(
+                    "Pruned %d orphaned mols and %d orphaned reactions", mols, reactions
+                )
+            elif prune_rdkit:
+                logger.warning(
+                    "Skipping the RDKit prune: %d dataset(s) failed, so structures "
+                    "that are merely unlinked cannot be told from orphans",
+                    len(set(failures)),
+                )
         finally:
             engine.dispose()
 
