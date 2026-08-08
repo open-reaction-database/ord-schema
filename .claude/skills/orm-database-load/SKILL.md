@@ -75,8 +75,7 @@ also means an existing row is **never revisited**: after a change to how SMILES 
 the command above writes nothing and exits clean, leaving every stale row in place. Silence
 here is not success.
 
-`--rederive` deletes a dataset's derived SMILES rows before deriving them, which is what turns
-the idempotent passes into a rebuild:
+`--rederive` recomputes every row and updates the ones whose value changed:
 
 ```sh
 python -u -m ord_schema.orm.scripts.add_datasets \
@@ -84,20 +83,35 @@ python -u -m ord_schema.orm.scripts.add_datasets \
   --dsn "postgresql+psycopg://" --n_jobs 16
 ```
 
+**Safe against the live database.** Rows are updated in place, never deleted and reinserted.
+That matters because search inner-joins through `derived.compound_smiles` /
+`derived.product_compound_smiles` / `derived.reaction_smiles` into `rdkit.*` — a row that is
+absent even briefly is a reaction that briefly cannot be found, and emptying those tables
+would return zero results for every structure query until the rebuild finished.
+
+The `DO UPDATE` is conditional on the value actually differing, so a rederive over an
+already-current database touches no rows and writes no WAL. Only rows whose SMILES changed
+get their `rdkit_mol_id` / `rdkit_reaction_id` cleared, which hands them to the linking pass;
+those rows alone are unsearchable until it runs, so let the RDKit stage finish in the same
+invocation.
+
 Do not confuse it with `--overwrite`, which is an *ingest* flag meaning "re-ingest a dataset
 whose MD5 changed."
 
-Two things it deliberately leaves alone. `rdkit.mols` and `rdkit.reactions` are shared and
-deduplicated by structure, so deleting one dataset's share would break every other dataset;
-the link columns live on the deleted rows, so the RDKit pass re-links from scratch, reusing
-structures already present. And `derived.reaction_classes` survives, because classification
-is a slow opt-in pass that a rebuild should not silently redo.
+A row whose source stops yielding a SMILES is **dropped**, not left and not set to NULL. A row
+present always means a SMILES was derived, so a stale value can never stay joinable, and an
+entity that derives nothing is retried by any later pass rather than sitting behind the
+`NOT EXISTS` guard.
+
+`derived.reaction_classes` is untouched, because classification is a slow opt-in pass that a
+rebuild should not silently redo.
 
 ### Collecting the structures a rebuild strands
 
-Because the `rdkit.*` tables survive, a rebuild that changes a SMILES links to a new structure
-and leaves the old one referenced by nothing. `--prune_rdkit` deletes those, once the RDKit
-pass has finished:
+`rdkit.mols` and `rdkit.reactions` are shared and deduplicated by structure, so a rederive
+rewrites the rows that point at them rather than touching them. A rebuild that changes a
+SMILES therefore links to a new structure and leaves the old one referenced by nothing.
+`--prune_rdkit` deletes those, once the RDKit pass has finished:
 
 ```sh
 python -u -m ord_schema.orm.scripts.add_datasets \
@@ -108,40 +122,9 @@ python -u -m ord_schema.orm.scripts.add_datasets \
 Whole-database by necessity: a structure is orphaned only if *no* dataset references it, so it
 cannot be scoped to one dataset or shard. Two consequences. **Do not run it beside another
 load** — `_update_rdkit_mols` inserts structures that `_link_mol_ids` links in a later
-statement, so a concurrent derive has a window where live rows look orphaned. And it is skipped
-automatically when any dataset failed, since an unfinished pass leaves exactly that window
-open; the log says so rather than staying quiet.
-
-Verify with counts before and after: a rebuild should end with the row counts it started with,
-plus a spot-check of a value you expect to have changed.
-
-### If you are on an ord-schema without the #895 fix
-
-Before that fix, the RDKit passes scoped `rdkit_*_id IS NULL` per `(dataset, shard)` but the
-planner drove each from the whole-database unlinked-rows partial index, applying the dataset and
-shard predicates as filters. On an end-to-end load that never bites (the unlinked set drains
-dataset by dataset), but a backfill leaves every dataset's rows unlinked at once, so each
-`(dataset, shard)` rescans the entire unlinked set. Measured 2026-07-09 (~4.7M compounds, 53
-datasets × 32 shards): **~1,084 s per shard, >9 h projected**, versus **372 s** for one global
-pass. The #895 fix scopes each pass to the dataset via the resolved surrogate key, so this no
-longer happens.
-
-To recover a run that is exhibiting this — or on any version, to link a large standing unlinked
-set in one pass:
-
-1. Watch the log. When the `compound_smiles` bars finish and the `RDKit` bar appears, the derive
-   is done and only the link remains.
-2. Kill the job. Killing the client leaves server backends still executing their `UPDATE`s —
-   terminate them, scoped to the target database and never the live one:
-
-   ```sql
-   SELECT pg_terminate_backend(pid) FROM pg_stat_activity
-   WHERE datname = current_database() AND pid <> pg_backend_pid();
-   ```
-
-3. Run `scripts/global_link.py`, which inserts the missing `rdkit.mols` (keeping the `[Ti+5]`
-   guard from issue #672) and links every unlinked row in one pass, chunked to bound WAL, then
-   `ANALYZE`s. It is idempotent, so it is also a safe way to finish any partially-linked database.
+statement, so a concurrent derive has a window where live rows look orphaned. And it is
+skipped automatically when any dataset failed, since an unfinished pass leaves exactly that
+window open; the log says so rather than staying quiet.
 
 ## Should you scale up the writer?
 

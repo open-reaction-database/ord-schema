@@ -655,93 +655,13 @@ def _resolve_dataset_pk(dataset_id: str, session: Session) -> Any:
     ).scalar_one()
 
 
-def delete_derived_data(
-    dataset_id: str, session: Session, *, shard: tuple[int, int] | None = None
-) -> None:
-    """Deletes a dataset's derived SMILES rows so the derived passes recompute them.
-
-    Every derived pass is guarded by ``NOT EXISTS``, which makes re-running cheap but
-    means an existing row is never revisited: a change to how SMILES are derived reaches
-    only rows that do not exist yet. Deleting first is what turns the idempotent passes
-    into a rebuild, so a database can be updated in place instead of reloaded.
-
-    ``rdkit.mols`` and ``rdkit.reactions`` are deliberately left alone. They are shared,
-    deduplicated by structure, and referenced by every dataset, so deleting this
-    dataset's share of them would break others. The link columns live on the rows
-    removed here, so the RDKit pass re-links from scratch, reusing structures that are
-    already present and inserting the ones that are not. A rebuild that changes SMILES
-    therefore leaves unreferenced structures behind; they cost space, not correctness.
-
-    ``derived.reaction_classes`` is also left alone: classification is a separate opt-in
-    pass, and discarding it here would silently make every rebuild pay for it again.
-
-    Args:
-        dataset_id: Dataset whose derived rows to delete.
-        session: SQLAlchemy session.
-        shard: ``(index, num_shards)`` to restrict to one disjoint hash-partition, using
-            the same partitioning as the derived passes, so a sharded rebuild deletes
-            exactly the rows that shard is about to recompute.
-    """
-    logger.debug(f"Deleting derived data for {dataset_id=}")
-    start = time.time()
-    dataset_pk = _resolve_dataset_pk(dataset_id, session)
-    reaction_shard_sql, reaction_shard_params = _shard_predicate(
-        "ord.reaction.id", shard
-    )
-    session.execute(
-        text(f"""
-        DELETE FROM derived.reaction_smiles
-        WHERE derived.reaction_smiles.reaction_id IN (
-            SELECT ord.reaction.id
-            FROM ord.reaction
-            WHERE ord.reaction.dataset_id = :id
-              {reaction_shard_sql}
-        )
-        """),  # noqa: S608  (table/column names are internal constants, not user input)
-        {"id": dataset_pk, **reaction_shard_params},
-    )
-    for compound_table, reaction_joins, derived_table, derived_id in (
-        (
-            "ord.compound",
-            _COMPOUND_REACTION_JOINS,
-            "derived.compound_smiles",
-            "compound_id",
-        ),
-        (
-            "ord.product_compound",
-            _PRODUCT_COMPOUND_REACTION_JOINS,
-            "derived.product_compound_smiles",
-            "product_compound_id",
-        ),
-    ):
-        shard_sql, shard_params = _shard_predicate(f"{compound_table}.id", shard)
-        select_ids = "\nUNION ALL\n".join(
-            f"""
-                SELECT {compound_table}.id
-                FROM {compound_table}
-                {reaction_join}
-                WHERE ord.reaction.dataset_id = :id
-                  {shard_sql}
-            """  # noqa: S608
-            for reaction_join in reaction_joins
-        )
-        session.execute(
-            text(f"""
-            DELETE FROM {derived_table}
-            WHERE {derived_table}.{derived_id} IN ({select_ids})
-            """),  # noqa: S608
-            {"id": dataset_pk, **shard_params},
-        )
-    logger.debug(f"Deleting derived data took {time.time() - start:g}s")
-
-
 def delete_orphaned_rdkit_structures(session: Session) -> tuple[int, int]:
     """Deletes RDKit structures no derived row references, returning the counts removed.
 
     ``rdkit.mols`` and ``rdkit.reactions`` are deduplicated by structure and shared
-    across datasets, so :func:`delete_derived_data` cannot touch them: it only removes
-    the rows that point at them. A rebuild that changes a SMILES therefore links to a
-    new structure and leaves the old one behind, referenced by nothing.
+    across datasets, so a rederive cannot touch them: it rewrites the rows that point at
+    them. A rebuild that changes a SMILES therefore links to a new structure and leaves
+    the old one behind, referenced by nothing.
 
     Whole-database by necessity, not by choice. A structure is orphaned only if *no*
     dataset references it, so this cannot be scoped to one dataset or one shard.
@@ -816,15 +736,14 @@ def update_derived_tables(
         dataset_id: Dataset to derive.
         session: SQLAlchemy session.
         shard: ``(index, num_shards)`` to derive one disjoint hash-partition.
-        rederive: If True, delete this dataset's existing derived rows first, so rows
-            written by an earlier version of the derivation are recomputed rather than
-            skipped by the ``NOT EXISTS`` guards. Sharded runs delete only their own
-            partition, so workers stay disjoint. See :func:`delete_derived_data`.
+        rederive: If True, recompute every row rather than only the missing ones, and
+            update the ones whose value changed. Rows are updated in place, never
+            deleted and reinserted: search inner-joins through these tables, so a row
+            that is briefly absent is a row that is briefly unsearchable. A row whose
+            SMILES changes has its RDKit link cleared for the linking pass to redo.
     """
     logger.debug(f"Updating derived tables for {dataset_id=}")
     start = time.time()
-    if rederive:
-        delete_derived_data(dataset_id, session, shard=shard)
     # dataset_id and the compound link columns live on the polymorphic child mappers, so
     # rows are scoped to the dataset via raw SQL (like the RDKit pass).
     dataset_pk = _resolve_dataset_pk(dataset_id, session)
@@ -834,6 +753,17 @@ def update_derived_tables(
     reaction_shard_sql, reaction_shard_params = _shard_predicate(
         "ord.reaction.id", shard
     )
+    # Rederiving visits every reaction; otherwise the NOT EXISTS guard keeps the pass
+    # to the rows that have no derived value yet.
+    reaction_missing_sql = (
+        ""
+        if rederive
+        else """
+                  AND NOT EXISTS (
+                      SELECT 1 FROM derived.reaction_smiles
+                      WHERE derived.reaction_smiles.reaction_id = ord.reaction.id
+                  )"""
+    )
     reaction_ids = (
         session.execute(
             text(f"""
@@ -842,10 +772,7 @@ def update_derived_tables(
                 JOIN public.reactions
                     ON public.reactions.reaction_id = ord.reaction.reaction_id
                 WHERE ord.reaction.dataset_id = :id
-                  AND NOT EXISTS (
-                      SELECT 1 FROM derived.reaction_smiles
-                      WHERE derived.reaction_smiles.reaction_id = ord.reaction.id
-                  )
+                  {reaction_missing_sql}
                   {reaction_shard_sql}
                 """),  # noqa: S608  (shard predicate is an internal constant fragment)
             {"id": dataset_pk, **reaction_shard_params},
@@ -864,8 +791,37 @@ def update_derived_tables(
     ).bindparams(bindparam("ids", expanding=True))
     insert_reaction_smiles = text(
         "INSERT INTO derived.reaction_smiles (reaction_id, reaction_smiles) "
-        "VALUES (:reaction_id, :reaction_smiles)"
+        "VALUES (:reaction_id, :reaction_smiles) "
+        # Updating in place, rather than deleting and reinserting, is what lets this
+        # run against a live database: search inner-joins through this table, so a row
+        # that is briefly absent is a row that is briefly unsearchable. The DO UPDATE
+        # fires only on a real change, so an unchanged rederive writes no WAL. Clearing
+        # rdkit_reaction_id hands the row back to the linking pass, since the structure
+        # it pointed at is the old SMILES.
+        "ON CONFLICT (reaction_id) DO UPDATE SET "
+        "  reaction_smiles = EXCLUDED.reaction_smiles, "
+        "  rdkit_reaction_id = NULL "
+        "WHERE derived.reaction_smiles.reaction_smiles "
+        "  IS DISTINCT FROM EXCLUDED.reaction_smiles"
     )
+    # A reaction that derives nothing gets no row, so every pass re-attempts it. That is
+    # deliberate: recording it as derived-to-NULL would put it behind the NOT EXISTS
+    # guard, and a reaction that becomes derivable later -- #935 made a whole class of
+    # them derivable by fixing a crash -- would then need someone to know to rederive,
+    # where today any pass picks it up. The standing cost is ~1.4% of reactions
+    # re-parsed per pass, measured over the published corpus. The compound side needs no
+    # such tradeoff: select_structural already skips the common case (name-only) without
+    # a row, leaving ~0.04% paying for a reconstruction that fails.
+    #
+    # On a rederive a row may already exist, and leaving it would keep a stale SMILES
+    # joinable -- the compound or reaction would stay searchable under a structure the
+    # source no longer supports. The row is dropped rather than set to NULL so that a
+    # row present always means a SMILES was derived, which is the invariant the
+    # re-attempt above depends on.
+    drop_reaction_smiles = text(
+        "DELETE FROM derived.reaction_smiles "
+        "WHERE derived.reaction_smiles.reaction_id IN :ids"
+    ).bindparams(bindparam("ids", expanding=True))
     for batch_start in tqdm(
         range(0, len(reaction_ids), _DERIVED_BATCH),
         desc=f"reaction SMILES {dataset_id}",
@@ -874,12 +830,14 @@ def update_derived_tables(
     ):
         batch_ids = reaction_ids[batch_start : batch_start + _DERIVED_BATCH]
         inserts = []
+        underivable = []
         for reaction_id, proto in session.execute(select_protos, {"ids": batch_ids}):
             reaction_smiles = message_helpers.derived_reaction_smiles(
                 reaction_pb2.Reaction.FromString(proto)
             )
             if reaction_smiles is None:
                 logger.debug(f"No reaction SMILES for reaction id={reaction_id}")
+                underivable.append(reaction_id)
                 continue
             # Stored whole: an extension block is chemistry the source recorded, and
             # reaction_from_smiles reads one, so rdkit.reactions can be keyed by it.
@@ -888,6 +846,8 @@ def update_derived_tables(
             )
         if inserts:
             session.execute(insert_reaction_smiles, inserts)
+        if rederive and underivable:
+            session.execute(drop_reaction_smiles, {"ids": underivable})
     _update_compound_smiles(
         session,
         dataset_pk=dataset_pk,
@@ -897,6 +857,7 @@ def update_derived_tables(
         derived_table="derived.compound_smiles",
         derived_id="compound_id",
         shard=shard,
+        rederive=rederive,
     )
     _update_compound_smiles(
         session,
@@ -907,6 +868,7 @@ def update_derived_tables(
         derived_table="derived.product_compound_smiles",
         derived_id="product_compound_id",
         shard=shard,
+        rederive=rederive,
     )
     logger.debug(f"Updating derived tables took {time.time() - start:g}s")
 
@@ -921,6 +883,7 @@ def _update_compound_smiles(
     derived_table: str,
     derived_id: str,
     shard: tuple[int, int] | None = None,
+    rederive: bool = False,
 ) -> None:
     """Derives SMILES for one (product) compound table's not-yet-derived rows.
 
@@ -950,16 +913,24 @@ def _update_compound_smiles(
     compound_shard_sql, compound_shard_params = _shard_predicate(
         f"{compound_table}.id", shard
     )
+    # Rederiving visits every compound; otherwise the NOT EXISTS guard keeps the pass to
+    # the rows that have no derived value yet.
+    compound_missing_sql = (
+        ""
+        if rederive
+        else f"""
+                  AND NOT EXISTS (
+                      SELECT 1 FROM {derived_table}
+                      WHERE {derived_table}.{derived_id} = {compound_table}.id
+                  )"""  # noqa: S608  (internal constants, not user input)
+    )
     select_ids = "\nUNION ALL\n".join(
         f"""
                 SELECT {compound_table}.id
                 FROM {compound_table}
                 {reaction_join}
                 WHERE ord.reaction.dataset_id = :id
-                  AND NOT EXISTS (
-                      SELECT 1 FROM {derived_table}
-                      WHERE {derived_table}.{derived_id} = {compound_table}.id
-                  )
+                  {compound_missing_sql}
                   {compound_shard_sql}
         """  # noqa: S608  (table/column names are internal constants, not user input)
         for reaction_join in reaction_joins
@@ -1013,9 +984,24 @@ def _update_compound_smiles(
         bindparam("ids", expanding=True),
         bindparam("structural_types", expanding=True),
     )
+    # A compound that no longer derives anything loses its row, so it stops being
+    # searchable under a structure the source no longer supports. Leaving the row would
+    # keep a stale SMILES joinable; NULLing it would keep a row that means "derived"
+    # while holding nothing, putting the compound behind the NOT EXISTS guard forever.
+    drop_smiles = text(
+        f"DELETE FROM {derived_table} WHERE {derived_table}.{derived_id} IN :ids"  # noqa: S608
+    ).bindparams(bindparam("ids", expanding=True))
     insert_smiles = text(
         f"INSERT INTO {derived_table} ({derived_id}, smiles) "  # noqa: S608
-        f"VALUES (:{derived_id}, :smiles)"
+        f"VALUES (:{derived_id}, :smiles) "
+        # Updated in place rather than deleted and reinserted, so a row is never
+        # briefly absent from a table search inner-joins through. DO UPDATE fires only
+        # on a real change, so an unchanged rederive writes no WAL; clearing
+        # rdkit_mol_id hands the row back to the linking pass, since the structure it
+        # points at is the old SMILES.
+        f"ON CONFLICT ({derived_id}) DO UPDATE SET "
+        f"  smiles = EXCLUDED.smiles, rdkit_mol_id = NULL "
+        f"WHERE {derived_table}.smiles IS DISTINCT FROM EXCLUDED.smiles"
     )
     for batch_start in tqdm(
         range(0, len(compound_ids), _DERIVED_BATCH),
@@ -1040,6 +1026,7 @@ def _update_compound_smiles(
             )
         }
         inserts = []
+        underivable = []
         for compound_id in batch_ids:
             smiles = None
             value = stored_smiles.get(compound_id)
@@ -1061,6 +1048,7 @@ def _update_compound_smiles(
                 if compound_id not in derivable:
                     # Only non-structural identifiers, so smiles_from_compound has
                     # nothing to read; skip the reconstruction (see select_structural).
+                    underivable.append(compound_id)
                     continue
                 compound = session.get(compound_class, compound_id)
                 assert compound is not None  # Selected by id above.
@@ -1071,10 +1059,13 @@ def _update_compound_smiles(
                     )
                 )
                 if smiles is None:
+                    underivable.append(compound_id)
                     continue
             inserts.append({derived_id: compound_id, "smiles": smiles})
         if inserts:
             session.execute(insert_smiles, inserts)
+        if rederive and underivable:
+            session.execute(drop_smiles, {"ids": underivable})
 
 
 def update_rdkit_tables(

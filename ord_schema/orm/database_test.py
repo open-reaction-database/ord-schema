@@ -32,7 +32,6 @@ from ord_schema.orm.database import (
     backfill_submission_times,
     classify_dataset,
     delete_dataset,
-    delete_derived_data,
     delete_orphaned_rdkit_structures,
     get_dataset_md5,
     get_dataset_size,
@@ -873,9 +872,74 @@ def test_rederive_leaves_reaction_classes_alone(prepared_engine):
         assert surviving == 1
 
 
-def test_rederive_deletes_every_derived_smiles_table(prepared_engine):
-    # Product compounds hang off a different join path than input compounds; a delete
-    # that missed one would leave half the rebuild stale.
+def test_rederive_never_leaves_a_row_absent(prepared_engine):
+    """Row counts hold steady across a rederive, and changed rows are relinked.
+
+    This is the property that lets a rederive run against a live database: search
+    inner-joins through these tables, so a row that disappears even briefly is a
+    reaction that briefly cannot be found. Counting before and after would miss a
+    delete-then-reinsert, so the check is that the update is in place -- the row keeps
+    its identity while its value changes.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
+    )
+    tables = (
+        "derived.reaction_smiles",
+        "derived.compound_smiles",
+        "derived.product_compound_smiles",
+    )
+    with Session(prepared_engine) as session:
+        with session.begin():
+            add_dataset(dataset, session)
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session)
+
+        def counts():
+            with session.begin():
+                return {
+                    table: session.execute(
+                        text(f"SELECT count(*) FROM {table}")  # noqa: S608  (constant)
+                    ).scalar_one()
+                    for table in tables
+                }
+
+        before = counts()
+        assert all(before.values()), before
+        # Corrupt a value and point it at a bogus link, standing in for a row written by
+        # an earlier derivation.
+        with session.begin():
+            compound_id = session.execute(
+                text("SELECT compound_id FROM derived.compound_smiles LIMIT 1")
+            ).scalar_one()
+            session.execute(
+                text(
+                    "UPDATE derived.compound_smiles SET smiles = 'stale' "
+                    "WHERE compound_id = :id"
+                ),
+                {"id": compound_id},
+            )
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session, rederive=True)
+        assert counts() == before
+        with session.begin():
+            smiles, mol_id = session.execute(
+                text(
+                    "SELECT smiles, rdkit_mol_id FROM derived.compound_smiles "
+                    "WHERE compound_id = :id"
+                ),
+                {"id": compound_id},
+            ).one()
+        assert smiles != "stale"
+        # Cleared so the linking pass redoes it: the structure it pointed at was keyed
+        # by the old SMILES.
+        assert mol_id is None
+
+
+def test_rederive_is_a_no_op_when_nothing_changed(prepared_engine):
+    # The DO UPDATE is conditional, so a rederive over an already-current database
+    # touches no rows -- which is what keeps it cheap enough to run routinely.
     dataset = load_dataset(
         pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
         as_dataset=True,
@@ -886,37 +950,28 @@ def test_rederive_deletes_every_derived_smiles_table(prepared_engine):
         with session.begin():
             update_derived_tables(dataset.dataset_id, session)
         with session.begin():
-            before = {
-                table: session.execute(
-                    text(f"SELECT count(*) FROM {table}")  # noqa: S608  (constant)
-                ).scalar_one()
-                for table in (
-                    "derived.reaction_smiles",
-                    "derived.compound_smiles",
-                    "derived.product_compound_smiles",
+            update_rdkit_tables(dataset.dataset_id, session)
+        with session.begin():
+            update_rdkit_ids(dataset.dataset_id, session)
+        with session.begin():
+            linked_before = session.execute(
+                text(
+                    "SELECT count(*) FROM derived.compound_smiles "
+                    "WHERE rdkit_mol_id IS NOT NULL"
                 )
-            }
-        assert all(before.values()), before
+            ).scalar_one()
+        assert linked_before > 0
         with session.begin():
-            delete_derived_data(dataset.dataset_id, session)
+            update_derived_tables(dataset.dataset_id, session, rederive=True)
         with session.begin():
-            after = {
-                table: session.execute(
-                    text(f"SELECT count(*) FROM {table}")  # noqa: S608  (constant)
-                ).scalar_one()
-                for table in before
-            }
-        assert after == dict.fromkeys(before, 0), after
-        with session.begin():
-            update_derived_tables(dataset.dataset_id, session)
-        with session.begin():
-            rebuilt = {
-                table: session.execute(
-                    text(f"SELECT count(*) FROM {table}")  # noqa: S608  (constant)
-                ).scalar_one()
-                for table in before
-            }
-        assert rebuilt == before
+            linked_after = session.execute(
+                text(
+                    "SELECT count(*) FROM derived.compound_smiles "
+                    "WHERE rdkit_mol_id IS NOT NULL"
+                )
+            ).scalar_one()
+        # No value changed, so no link was cleared and nothing needs relinking.
+        assert linked_after == linked_before
 
 
 def _rdkit_counts(session):
@@ -939,8 +994,8 @@ def test_prune_leaves_referenced_structures_alone(test_session):
 def test_prune_deletes_structures_a_rebuild_stranded(test_session):
     """A structure left behind by a changed SMILES is collected.
 
-    Standing in for the rebuild: unlinking a derived row is exactly the state
-    delete_derived_data plus re-derivation leaves the old structure in.
+    Standing in for the rebuild: unlinking a derived row is exactly the state a
+    rederive leaves the old structure in once the SMILES it was keyed by changes.
     """
     before_mols, before_reactions = _rdkit_counts(test_session)
     test_session.execute(
@@ -982,3 +1037,58 @@ def test_prune_keeps_a_mol_a_product_compound_still_references(test_session):
         ).scalar_one()
         == 1
     )
+
+
+@pytest.mark.parametrize(
+    ("derived_table", "value_column"),
+    [
+        ("derived.compound_smiles", "smiles"),
+        ("derived.reaction_smiles", "reaction_smiles"),
+    ],
+)
+def test_rederive_drops_a_row_that_no_longer_derives(
+    prepared_engine, monkeypatch, derived_table, value_column
+):
+    """A row whose source stops yielding a SMILES is removed, not left or NULLed.
+
+    Leaving it keeps a stale SMILES joinable, so the entity stays searchable under a
+    structure the source no longer supports. NULLing it keeps a row that means
+    "derived" while holding nothing, which puts the entity behind the NOT EXISTS guard
+    and stops any later pass from retrying it.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
+    )
+    with Session(prepared_engine) as session:
+        with session.begin():
+            add_dataset(dataset, session)
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session)
+        with session.begin():
+            before = session.execute(
+                text(f"SELECT count(*) FROM {derived_table}")  # noqa: S608  (constant)
+            ).scalar_one()
+        assert before > 0
+        # Stand in for a derivation that stops producing a value.
+        monkeypatch.setattr(
+            _orm_database.message_helpers, "smiles_from_compound", lambda _c: None
+        )
+        monkeypatch.setattr(
+            _orm_database.message_helpers, "derived_reaction_smiles", lambda _r: None
+        )
+        monkeypatch.setattr(_orm_database.Chem, "MolFromSmiles", lambda *_a, **_k: None)
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session, rederive=True)
+        with session.begin():
+            after = session.execute(
+                text(f"SELECT count(*) FROM {derived_table}")  # noqa: S608  (constant)
+            ).scalar_one()
+            nulls = session.execute(
+                text(
+                    f"SELECT count(*) FROM {derived_table} "  # noqa: S608  (constant)
+                    f"WHERE {value_column} IS NULL"
+                )
+            ).scalar_one()
+        assert after == 0, f"{derived_table} kept {after} stale rows"
+        assert nulls == 0
