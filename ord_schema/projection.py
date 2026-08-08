@@ -155,6 +155,14 @@ _ARROW_SCALARS: dict[int, pa.DataType] = {
 
 _RESOLVER = units.RESOLVER
 
+# Field metadata naming the values an enum column may hold. An enum projects as its
+# value *name*, and Arrow has no type that records the choices -- a dictionary column
+# carries only the values a batch happened to contain, and DuckDB reads it back as
+# VARCHAR regardless. Metadata does survive, nested to any depth, which makes the
+# published Parquet self-describing: a consumer learns the spellings from the footer
+# rather than from this library.
+_META_ENUM = "ord.enum"
+
 
 def _validate_canonical_units() -> None:
     """Checks ``_CANONICAL_UNITS`` against the resolver and the reachable messages.
@@ -245,15 +253,35 @@ def precision_column_name(field: FieldDescriptor) -> str:
     return f"{field.name}_precision_{canonical[1]}"
 
 
+def _enum_metadata(field: FieldDescriptor) -> dict[str, str] | None:
+    """Returns metadata recording an enum's members, or None for any other type."""
+    if field.type != FieldDescriptor.TYPE_ENUM:
+        return None
+    return {_META_ENUM: ",".join(value.name for value in field.enum_type.values)}
+
+
+def enum_members(field: pa.Field) -> tuple[str, ...] | None:
+    """Returns the values ``field`` may hold, or None if it is not an enum column.
+
+    Args:
+        field: A field of ``SCHEMA``, or of a struct within it.
+
+    Returns:
+        The member names in declaration order, or None.
+    """
+    raw = (field.metadata or {}).get(_META_ENUM.encode())
+    return tuple(raw.decode().split(",")) if raw else None
+
+
 def _field_type(field: FieldDescriptor, stack: frozenset[str]) -> pa.DataType:
     if _canonical_unit(field) is not None:
-        # Singular united fields never reach here: _struct_fields expands them into a
-        # value column and a precision column, which is a pair of leaves rather than
-        # one type. A repeated or map-valued one added upstream would, and that pair
-        # cannot represent it.
+        # No field _struct_fields handles reaches here: it expands a united field into a
+        # value column and a precision column, which is a pair of leaves rather than one
+        # type, and refuses a repeated one outright. Only a map whose values are united
+        # arrives, and that pair cannot represent one either.
         raise ValueError(
-            f"{field.full_name} is a repeated or map-valued united message; the "
-            "canonical value and precision columns represent only singular ones"
+            f"{field.full_name} is a map-valued united message; a value column and a "
+            "precision column represent only singular ones"
         )
     message_type = field.message_type
     if message_type is not None and message_type.GetOptions().map_entry:
@@ -280,11 +308,25 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
     if descriptor.name in _STRUCTURAL_TYPES:
         fields.append(pa.field("smiles", pa.string()))
     for field in descriptor.fields:
-        if _canonical_unit(field) is not None:
-            fields.append(pa.field(column_name(field), pa.float64()))
-            fields.append(pa.field(precision_column_name(field), pa.float64()))
-        else:
-            fields.append(pa.field(column_name(field), _field_type(field, stack)))
+        if _canonical_unit(field) is None:
+            fields.append(
+                pa.field(
+                    column_name(field),
+                    _field_type(field, stack),
+                    metadata=_enum_metadata(field),
+                )
+            )
+            continue
+        if field.label == FieldDescriptor.LABEL_REPEATED:
+            # Two scalar columns cannot carry a list of measurements, and expanding one
+            # anyway would publish a schema that quietly holds a single value per
+            # reaction where the source holds several.
+            raise ValueError(
+                f"{field.full_name} is a repeated united message; a value column and a "
+                "precision column represent only singular ones"
+            )
+        fields.append(pa.field(column_name(field), pa.float64()))
+        fields.append(pa.field(precision_column_name(field), pa.float64()))
     return fields
 
 

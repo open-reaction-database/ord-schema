@@ -15,12 +15,13 @@
 """Tests for ord_schema.projection."""
 
 import pathlib
+from types import SimpleNamespace
 from typing import cast
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-from google.protobuf.descriptor import Descriptor
+from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from rdkit import Chem
 
 from ord_schema import artifacts, parquet, projection
@@ -471,3 +472,44 @@ def test_precision_without_a_value_is_null():
     temperature = projection.message_row(reaction)["conditions"]["temperature"]
     assert temperature["setpoint_kelvin"] is None
     assert temperature["setpoint_precision_kelvin"] is None
+
+
+def test_enum_fields_carry_their_members_in_metadata():
+    # Arrow has no type that records an enum's choices: a dictionary column carries only
+    # the values a batch contained, and DuckDB reads it back as VARCHAR either way.
+    # Metadata does survive, nested to any depth, so the published file says what the
+    # spellings are without anyone holding this library.
+    components = (
+        projection.SCHEMA.field("inputs").type.item_type.field("components").type
+    )
+    members = projection.enum_members(components.value_type.field("reaction_role"))
+    assert members is not None
+    assert members[:2] == ("UNSPECIFIED", "REACTANT")
+    assert projection.enum_members(projection.SCHEMA.field("reaction_id")) is None
+
+
+def test_enum_metadata_survives_a_parquet_round_trip(tmp_path):
+    source = _source(tmp_path, [_reaction()])
+    output = tmp_path / "projection.parquet"
+    projection.write_projection(source, output)
+    schema = pq.read_schema(output)
+    components = schema.field("inputs").type.item_type.field("components").type
+    members = projection.enum_members(components.value_type.field("reaction_role"))
+    assert members is not None
+    assert members[:2] == ("UNSPECIFIED", "REACTANT")
+
+
+def test_a_repeated_united_field_is_refused():
+    # A tripwire for a schema change upstream, so it needs its own proof: a repeated
+    # united field takes the same branch as a singular one, and expanding it would
+    # publish two scalar columns holding one measurement per reaction where the source
+    # holds several. No such field exists today, hence the synthetic descriptor.
+    field = SimpleNamespace(
+        name="durations",
+        full_name="ord.Fake.durations",
+        message_type=SimpleNamespace(name="Time"),
+        label=FieldDescriptor.LABEL_REPEATED,
+    )
+    descriptor = SimpleNamespace(name="Fake", full_name="ord.Fake", fields=[field])
+    with pytest.raises(ValueError, match="repeated united message"):
+        projection._struct_fields(cast(Descriptor, descriptor), frozenset())
