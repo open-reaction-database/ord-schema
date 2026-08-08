@@ -491,18 +491,24 @@ def canonical_precision(message: ord_schema.UnitMessage, target: str) -> float |
     """Converts a united message's precision to ``target`` units, or returns None.
 
     Precision is recorded in the same units as the value, so it converts with the value
-    and is null under the same conditions -- a column named for ``target`` has nowhere
-    to say its uncertainty is in different units.
+    and is null wherever the value is -- a column named for ``target`` has nowhere to
+    say its uncertainty is in different units, and an uncertainty published beside a
+    null reads as a measurement nobody took but everybody bounded.
 
     Args:
         message: A united message, e.g. Temperature or Mass.
         target: Unit to convert to, spelled as the resolver understands it, e.g. "K".
 
     Returns:
-        The converted precision, or None when the message records none, records no
-        units, or records units that cannot be converted to ``target``.
+        The converted precision, or None when the message records no precision, no
+        value to attach it to, no units, or units that cannot be converted to
+        ``target``.
     """
-    if not message.HasField("precision") or not message.units:
+    if (
+        not message.HasField("value")
+        or not message.HasField("precision")
+        or not message.units
+    ):
         return None
     try:
         # Read from the conversion rather than scaling here: Temperature is an offset

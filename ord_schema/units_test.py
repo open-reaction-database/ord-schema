@@ -498,7 +498,28 @@ def test_canonical_precision(message, target, expected):
         reaction_pb2.Mass(value=1, units=reaction_pb2.Mass.GRAM),
         # Precision recorded, but nothing says what unit it is in.
         reaction_pb2.Mass(value=1, precision=0.1),
+        # Precision recorded against no value: an uncertainty published beside a null
+        # value reads as a measurement nobody took but everybody bounded.
+        reaction_pb2.Mass(precision=0.1, units=reaction_pb2.Mass.GRAM),
     ],
 )
 def test_canonical_precision_is_null(message):
     assert units.canonical_precision(message, "g") is None
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        reaction_pb2.Temperature(precision=0.5, units=reaction_pb2.Temperature.CELSIUS),
+        reaction_pb2.Time(precision=1.5, units=reaction_pb2.Time.MINUTE),
+        reaction_pb2.Wavelength(precision=10, units=reaction_pb2.Wavelength.NANOMETER),
+    ],
+)
+def test_precision_without_a_value_is_null_for_every_conversion_kind(message):
+    # Offset scales, multiplier scales, and the inverting one all reach the value
+    # through a different branch of convert(), so each is checked.
+    target = {"Temperature": "K", "Time": "s", "Wavelength": "nm"}[
+        type(message).__name__
+    ]
+    assert units.canonical_value(message, target) is None
+    assert units.canonical_precision(message, target) is None

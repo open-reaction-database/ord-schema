@@ -459,3 +459,15 @@ def test_a_failed_write_leaves_an_existing_projection_intact(tmp_path, monkeypat
         projection.write_projection(source, output)
     assert output.read_bytes() == original
     assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_precision_without_a_value_is_null():
+    # The pair has to agree: a null setpoint beside a stated uncertainty reads as a
+    # measurement nobody took but everybody bounded.
+    reaction = _reaction()
+    setpoint = reaction.conditions.temperature.setpoint
+    setpoint.precision = 0.5
+    setpoint.units = reaction_pb2.Temperature.CELSIUS
+    temperature = projection.message_row(reaction)["conditions"]["temperature"]
+    assert temperature["setpoint_kelvin"] is None
+    assert temperature["setpoint_precision_kelvin"] is None
