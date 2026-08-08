@@ -596,3 +596,19 @@ def test_reaction_time_takes_the_first_outcome_that_records_one(tmp_path):
     later.reaction_time.units = reaction_pb2.Time.HOUR
     row = views.reaction_row(projection.message_row(reaction))
     assert row["reaction_time_seconds"] == pytest.approx(3600.0)
+
+
+def test_write_view_refuses_a_view_as_its_parent(tmp_path):
+    # derive_tree screens this for the CLI, so it is a direct caller who would
+    # otherwise get a KeyError naming a column the file was never going to have.
+    source = _project(tmp_path)
+    already = tmp_path / "already.parquet"
+    views.write_view(source.path, already)
+    with pytest.raises(ValueError, match="narrows a projection"):
+        views.write_view(already, tmp_path / "out.parquet")
+
+
+def test_write_view_refuses_a_source_dataset_as_its_parent(tmp_path):
+    _project(tmp_path)
+    with pytest.raises(ValueError, match="not a derived artifact"):
+        views.write_view(tmp_path / "ds.parquet", tmp_path / "out.parquet")

@@ -100,7 +100,7 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from ord_schema import artifacts, atomic_io
+from ord_schema import artifacts, atomic_io, projection
 from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
 
@@ -357,12 +357,19 @@ def write_view(
     Raises:
         ValueError: If ``source`` is not a projection, or if a row cannot be narrowed.
     """
-    if source_md5 is None or source_dataset_id is None:
-        parent = artifacts.load_stamps(source)
-        if source_md5 is None:
-            source_md5 = parent.source_md5
-        if source_dataset_id is None:
-            source_dataset_id = parent.source_dataset_id
+    # Read unconditionally rather than only to fill in what the caller omitted: naming
+    # the wrong kind of file is worth a sentence, and the alternative is a KeyError on
+    # a column the file was never going to have.
+    parent = artifacts.load_stamps(source)
+    if parent.artifact != projection.ARTIFACT:
+        raise ValueError(
+            f"{source} is a {parent.artifact}, not a {projection.ARTIFACT}; a view "
+            "narrows a projection"
+        )
+    if source_md5 is None:
+        source_md5 = parent.source_md5
+    if source_dataset_id is None:
+        source_dataset_id = parent.source_dataset_id
     stamps = artifacts.current_stamps(ARTIFACT, source_dataset_id, source_md5)
     schema = SCHEMA.with_metadata(artifacts.to_metadata(stamps))
     rows = 0
