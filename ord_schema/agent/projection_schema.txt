@@ -1,0 +1,537 @@
+smiles: VARCHAR
+identifiers: LIST<STRUCT>
+  type: VARCHAR  (UNSPECIFIED | CUSTOM | REACTION_SMILES | REACTION_CXSMILES | RDFILE | RINCHI | REACTION_TYPE)
+  details: VARCHAR
+  value: VARCHAR
+  is_mapped: BOOLEAN
+inputs: MAP<VARCHAR, STRUCT>
+  components: LIST<STRUCT>
+    smiles: VARCHAR
+    identifiers: LIST<STRUCT>
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | SMILES | INCHI | MOLBLOCK | IUPAC_NAME | NAME | CAS_NUMBER | PUBCHEM_CID | CHEMSPIDER_ID | CXSMILES | INCHI_KEY | XYZ | UNIPROT_ID | PDB_ID | AMINO_ACID_SEQUENCE | HELM | MDL)
+      details: VARCHAR
+      value: VARCHAR
+    amount: STRUCT
+      mass_grams: DOUBLE
+      mass_precision_grams: DOUBLE
+      moles_moles: DOUBLE
+      moles_precision_moles: DOUBLE
+      volume_liters: DOUBLE
+      volume_precision_liters: DOUBLE
+      unmeasured: STRUCT
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | SATURATED | CATALYTIC | TITRATED)
+        details: VARCHAR
+      volume_includes_solutes: BOOLEAN
+    reaction_role: VARCHAR  (UNSPECIFIED | REACTANT | REAGENT | SOLVENT | CATALYST | WORKUP | INTERNAL_STANDARD | AUTHENTIC_STANDARD | PRODUCT | BYPRODUCT | SIDE_PRODUCT)
+    is_limiting: BOOLEAN
+    preparations: LIST<STRUCT>
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | NONE | REPURIFIED | SPARGED | DRIED | SYNTHESIZED)
+      details: VARCHAR
+      reaction_id: VARCHAR
+    source: STRUCT
+      vendor: VARCHAR
+      catalog_id: VARCHAR
+      lot: VARCHAR
+    features: MAP<VARCHAR, STRUCT>
+      float_value: FLOAT
+      integer_value: INTEGER
+      bytes_value: BLOB
+      string_value: VARCHAR
+      url: VARCHAR
+      description: VARCHAR
+      format: VARCHAR
+    analyses: MAP<VARCHAR, STRUCT>
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD)
+      details: VARCHAR
+      chmo_id: INTEGER
+      is_of_isolated_species: BOOLEAN
+      data: MAP<VARCHAR, STRUCT>
+        float_value: FLOAT
+        integer_value: INTEGER
+        bytes_value: BLOB
+        string_value: VARCHAR
+        url: VARCHAR
+        description: VARCHAR
+        format: VARCHAR
+      instrument_manufacturer: VARCHAR
+      instrument_last_calibrated: STRUCT
+        value: VARCHAR
+    texture: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+      details: VARCHAR
+  crude_components: LIST<STRUCT>
+    reaction_id: VARCHAR
+    includes_workup: BOOLEAN
+    has_derived_amount: BOOLEAN
+    amount: STRUCT
+      mass_grams: DOUBLE
+      mass_precision_grams: DOUBLE
+      moles_moles: DOUBLE
+      moles_precision_moles: DOUBLE
+      volume_liters: DOUBLE
+      volume_precision_liters: DOUBLE
+      unmeasured: STRUCT
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | SATURATED | CATALYTIC | TITRATED)
+        details: VARCHAR
+      volume_includes_solutes: BOOLEAN
+    texture: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+      details: VARCHAR
+  addition_order: INTEGER
+  addition_time_seconds: DOUBLE
+  addition_time_precision_seconds: DOUBLE
+  addition_speed: STRUCT
+    type: VARCHAR  (UNSPECIFIED | ALL_AT_ONCE | FAST | SLOW | DROPWISE | CONTINUOUS | PORTIONWISE)
+    details: VARCHAR
+  addition_duration_seconds: DOUBLE
+  addition_duration_precision_seconds: DOUBLE
+  flow_rate_milliliters_per_minute: DOUBLE
+  flow_rate_precision_milliliters_per_minute: DOUBLE
+  addition_device: STRUCT
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | NONE | SYRINGE | CANNULA | ADDITION_FUNNEL | PIPETTE | POSITIVE_DISPLACEMENT_PIPETTE | PISTON_PUMP | SYRINGE_PUMP | PERISTALTIC_PUMP)
+    details: VARCHAR
+  addition_temperature_kelvin: DOUBLE
+  addition_temperature_precision_kelvin: DOUBLE
+  texture: STRUCT
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+    details: VARCHAR
+setup: STRUCT
+  vessel: STRUCT
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | ROUND_BOTTOM_FLASK | VIAL | WELL_PLATE | MICROWAVE_VIAL | TUBE | CONTINUOUS_STIRRED_TANK_REACTOR | PACKED_BED_REACTOR | NMR_TUBE | PRESSURE_FLASK | PRESSURE_REACTOR | ELECTROCHEMICAL_CELL)
+    details: VARCHAR
+    material: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | GLASS | POLYPROPYLENE | PLASTIC | METAL | QUARTZ)
+      details: VARCHAR
+    preparations: LIST<STRUCT>
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | NONE | OVEN_DRIED | FLAME_DRIED | EVACUATED_BACKFILLED | PURGED)
+      details: VARCHAR
+    attachments: LIST<STRUCT>
+      type: VARCHAR  (UNSPECIFIED | NONE | CUSTOM | SEPTUM | CAP | MAT | REFLUX_CONDENSER | VENT_NEEDLE | DEAN_STARK | VACUUM_TUBE | ADDITION_FUNNEL | DRYING_TUBE | ALUMINUM_FOIL | THERMOCOUPLE | BALLOON | GAS_ADAPTER | PRESSURE_REGULATOR | RELEASE_VALVE)
+      details: VARCHAR
+    volume_liters: DOUBLE
+    volume_precision_liters: DOUBLE
+    vessel_id: VARCHAR
+    position: VARCHAR
+    row: VARCHAR
+    col: VARCHAR
+  is_automated: BOOLEAN
+  automation_platform: VARCHAR
+  automation_code: MAP<VARCHAR, STRUCT>
+    float_value: FLOAT
+    integer_value: INTEGER
+    bytes_value: BLOB
+    string_value: VARCHAR
+    url: VARCHAR
+    description: VARCHAR
+    format: VARCHAR
+  environment: STRUCT
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | FUME_HOOD | BENCH_TOP | GLOVE_BOX | GLOVE_BAG)
+    details: VARCHAR
+conditions: STRUCT
+  temperature: STRUCT
+    control: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | AMBIENT | OIL_BATH | WATER_BATH | SAND_BATH | ICE_BATH | DRY_ALUMINUM_PLATE | MICROWAVE | DRY_ICE_BATH | AIR_FAN | LIQUID_NITROGEN)
+      details: VARCHAR
+    setpoint_kelvin: DOUBLE
+    setpoint_precision_kelvin: DOUBLE
+    measurements: LIST<STRUCT>
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | THERMOCOUPLE_INTERNAL | THERMOCOUPLE_EXTERNAL | INFRARED)
+      details: VARCHAR
+      time_seconds: DOUBLE
+      time_precision_seconds: DOUBLE
+      temperature_kelvin: DOUBLE
+      temperature_precision_kelvin: DOUBLE
+  pressure: STRUCT
+    control: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | AMBIENT | SLIGHT_POSITIVE | SEALED | PRESSURIZED)
+      details: VARCHAR
+    setpoint_kilopascals: DOUBLE
+    setpoint_precision_kilopascals: DOUBLE
+    atmosphere: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | AIR | NITROGEN | ARGON | OXYGEN | HYDROGEN | CARBON_MONOXIDE | CARBON_DIOXIDE | METHANE | AMMONIA | OZONE | ETHYLENE | ACETYLENE)
+      details: VARCHAR
+    measurements: LIST<STRUCT>
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | PRESSURE_TRANSDUCER)
+      details: VARCHAR
+      time_seconds: DOUBLE
+      time_precision_seconds: DOUBLE
+      pressure_kilopascals: DOUBLE
+      pressure_precision_kilopascals: DOUBLE
+  stirring: STRUCT
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | NONE | STIR_BAR | OVERHEAD_MIXER | AGITATION | BALL_MILLING | SONICATION)
+    details: VARCHAR
+    rate: STRUCT
+      type: VARCHAR  (UNSPECIFIED | HIGH | MEDIUM | LOW)
+      details: VARCHAR
+      rpm: INTEGER
+  illumination: STRUCT
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | AMBIENT | DARK | LED | HALOGEN_LAMP | DEUTERIUM_LAMP | SOLAR_SIMULATOR | BROAD_SPECTRUM)
+    details: VARCHAR
+    peak_wavelength_nanometers: DOUBLE
+    peak_wavelength_precision_nanometers: DOUBLE
+    color: VARCHAR
+    distance_to_vessel_centimeters: DOUBLE
+    distance_to_vessel_precision_centimeters: DOUBLE
+  electrochemistry: STRUCT
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | CONSTANT_CURRENT | CONSTANT_VOLTAGE)
+    details: VARCHAR
+    current_amperes: DOUBLE
+    current_precision_amperes: DOUBLE
+    voltage_volts: DOUBLE
+    voltage_precision_volts: DOUBLE
+    anode_material: VARCHAR
+    cathode_material: VARCHAR
+    electrode_separation_centimeters: DOUBLE
+    electrode_separation_precision_centimeters: DOUBLE
+    measurements: LIST<STRUCT>
+      time_seconds: DOUBLE
+      time_precision_seconds: DOUBLE
+      current_amperes: DOUBLE
+      current_precision_amperes: DOUBLE
+      voltage_volts: DOUBLE
+      voltage_precision_volts: DOUBLE
+    cell: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | DIVIDED_CELL | UNDIVIDED_CELL)
+      details: VARCHAR
+  flow: STRUCT
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | PLUG_FLOW_REACTOR | CONTINUOUS_STIRRED_TANK_REACTOR | PACKED_BED_REACTOR)
+    details: VARCHAR
+    pump_type: VARCHAR
+    tubing: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | STEEL | COPPER | PFA | FEP | TEFLONAF | PTFE | GLASS | QUARTZ | SILICON | PDMS)
+      details: VARCHAR
+      diameter_centimeters: DOUBLE
+      diameter_precision_centimeters: DOUBLE
+  reflux: BOOLEAN
+  ph: FLOAT
+  conditions_are_dynamic: BOOLEAN
+  details: VARCHAR
+notes: STRUCT
+  is_heterogeneous: BOOLEAN
+  forms_precipitate: BOOLEAN
+  is_exothermic: BOOLEAN
+  offgasses: BOOLEAN
+  is_sensitive_to_moisture: BOOLEAN
+  is_sensitive_to_oxygen: BOOLEAN
+  is_sensitive_to_light: BOOLEAN
+  safety_notes: VARCHAR
+  procedure_details: VARCHAR
+observations: LIST<STRUCT>
+  time_seconds: DOUBLE
+  time_precision_seconds: DOUBLE
+  comment: VARCHAR
+  image: STRUCT
+    float_value: FLOAT
+    integer_value: INTEGER
+    bytes_value: BLOB
+    string_value: VARCHAR
+    url: VARCHAR
+    description: VARCHAR
+    format: VARCHAR
+workups: LIST<STRUCT>
+  type: VARCHAR  (UNSPECIFIED | CUSTOM | ADDITION | ALIQUOT | TEMPERATURE | CONCENTRATION | EXTRACTION | FILTRATION | WASH | DRY_IN_VACUUM | DRY_WITH_MATERIAL | FLASH_CHROMATOGRAPHY | OTHER_CHROMATOGRAPHY | SCAVENGING | WAIT | STIRRING | PH_ADJUST | DISSOLUTION | DISTILLATION)
+  details: VARCHAR
+  duration_seconds: DOUBLE
+  duration_precision_seconds: DOUBLE
+  input: STRUCT
+    components: LIST<STRUCT>
+      smiles: VARCHAR
+      identifiers: LIST<STRUCT>
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | SMILES | INCHI | MOLBLOCK | IUPAC_NAME | NAME | CAS_NUMBER | PUBCHEM_CID | CHEMSPIDER_ID | CXSMILES | INCHI_KEY | XYZ | UNIPROT_ID | PDB_ID | AMINO_ACID_SEQUENCE | HELM | MDL)
+        details: VARCHAR
+        value: VARCHAR
+      amount: STRUCT
+        mass_grams: DOUBLE
+        mass_precision_grams: DOUBLE
+        moles_moles: DOUBLE
+        moles_precision_moles: DOUBLE
+        volume_liters: DOUBLE
+        volume_precision_liters: DOUBLE
+        unmeasured: STRUCT
+          type: VARCHAR  (UNSPECIFIED | CUSTOM | SATURATED | CATALYTIC | TITRATED)
+          details: VARCHAR
+        volume_includes_solutes: BOOLEAN
+      reaction_role: VARCHAR  (UNSPECIFIED | REACTANT | REAGENT | SOLVENT | CATALYST | WORKUP | INTERNAL_STANDARD | AUTHENTIC_STANDARD | PRODUCT | BYPRODUCT | SIDE_PRODUCT)
+      is_limiting: BOOLEAN
+      preparations: LIST<STRUCT>
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | NONE | REPURIFIED | SPARGED | DRIED | SYNTHESIZED)
+        details: VARCHAR
+        reaction_id: VARCHAR
+      source: STRUCT
+        vendor: VARCHAR
+        catalog_id: VARCHAR
+        lot: VARCHAR
+      features: MAP<VARCHAR, STRUCT>
+        float_value: FLOAT
+        integer_value: INTEGER
+        bytes_value: BLOB
+        string_value: VARCHAR
+        url: VARCHAR
+        description: VARCHAR
+        format: VARCHAR
+      analyses: MAP<VARCHAR, STRUCT>
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD)
+        details: VARCHAR
+        chmo_id: INTEGER
+        is_of_isolated_species: BOOLEAN
+        data: MAP<VARCHAR, STRUCT>
+          float_value: FLOAT
+          integer_value: INTEGER
+          bytes_value: BLOB
+          string_value: VARCHAR
+          url: VARCHAR
+          description: VARCHAR
+          format: VARCHAR
+        instrument_manufacturer: VARCHAR
+        instrument_last_calibrated: STRUCT
+          value: VARCHAR
+      texture: STRUCT
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+        details: VARCHAR
+    crude_components: LIST<STRUCT>
+      reaction_id: VARCHAR
+      includes_workup: BOOLEAN
+      has_derived_amount: BOOLEAN
+      amount: STRUCT
+        mass_grams: DOUBLE
+        mass_precision_grams: DOUBLE
+        moles_moles: DOUBLE
+        moles_precision_moles: DOUBLE
+        volume_liters: DOUBLE
+        volume_precision_liters: DOUBLE
+        unmeasured: STRUCT
+          type: VARCHAR  (UNSPECIFIED | CUSTOM | SATURATED | CATALYTIC | TITRATED)
+          details: VARCHAR
+        volume_includes_solutes: BOOLEAN
+      texture: STRUCT
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+        details: VARCHAR
+    addition_order: INTEGER
+    addition_time_seconds: DOUBLE
+    addition_time_precision_seconds: DOUBLE
+    addition_speed: STRUCT
+      type: VARCHAR  (UNSPECIFIED | ALL_AT_ONCE | FAST | SLOW | DROPWISE | CONTINUOUS | PORTIONWISE)
+      details: VARCHAR
+    addition_duration_seconds: DOUBLE
+    addition_duration_precision_seconds: DOUBLE
+    flow_rate_milliliters_per_minute: DOUBLE
+    flow_rate_precision_milliliters_per_minute: DOUBLE
+    addition_device: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | NONE | SYRINGE | CANNULA | ADDITION_FUNNEL | PIPETTE | POSITIVE_DISPLACEMENT_PIPETTE | PISTON_PUMP | SYRINGE_PUMP | PERISTALTIC_PUMP)
+      details: VARCHAR
+    addition_temperature_kelvin: DOUBLE
+    addition_temperature_precision_kelvin: DOUBLE
+    texture: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+      details: VARCHAR
+  amount: STRUCT
+    mass_grams: DOUBLE
+    mass_precision_grams: DOUBLE
+    moles_moles: DOUBLE
+    moles_precision_moles: DOUBLE
+    volume_liters: DOUBLE
+    volume_precision_liters: DOUBLE
+    unmeasured: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | SATURATED | CATALYTIC | TITRATED)
+      details: VARCHAR
+    volume_includes_solutes: BOOLEAN
+  temperature: STRUCT
+    control: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | AMBIENT | OIL_BATH | WATER_BATH | SAND_BATH | ICE_BATH | DRY_ALUMINUM_PLATE | MICROWAVE | DRY_ICE_BATH | AIR_FAN | LIQUID_NITROGEN)
+      details: VARCHAR
+    setpoint_kelvin: DOUBLE
+    setpoint_precision_kelvin: DOUBLE
+    measurements: LIST<STRUCT>
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | THERMOCOUPLE_INTERNAL | THERMOCOUPLE_EXTERNAL | INFRARED)
+      details: VARCHAR
+      time_seconds: DOUBLE
+      time_precision_seconds: DOUBLE
+      temperature_kelvin: DOUBLE
+      temperature_precision_kelvin: DOUBLE
+  keep_phase: VARCHAR
+  stirring: STRUCT
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | NONE | STIR_BAR | OVERHEAD_MIXER | AGITATION | BALL_MILLING | SONICATION)
+    details: VARCHAR
+    rate: STRUCT
+      type: VARCHAR  (UNSPECIFIED | HIGH | MEDIUM | LOW)
+      details: VARCHAR
+      rpm: INTEGER
+  target_ph: FLOAT
+  is_automated: BOOLEAN
+outcomes: LIST<STRUCT>
+  reaction_time_seconds: DOUBLE
+  reaction_time_precision_seconds: DOUBLE
+  conversion: STRUCT
+    value: FLOAT
+    precision: FLOAT
+  products: LIST<STRUCT>
+    smiles: VARCHAR
+    identifiers: LIST<STRUCT>
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | SMILES | INCHI | MOLBLOCK | IUPAC_NAME | NAME | CAS_NUMBER | PUBCHEM_CID | CHEMSPIDER_ID | CXSMILES | INCHI_KEY | XYZ | UNIPROT_ID | PDB_ID | AMINO_ACID_SEQUENCE | HELM | MDL)
+      details: VARCHAR
+      value: VARCHAR
+    is_desired_product: BOOLEAN
+    measurements: LIST<STRUCT>
+      analysis_key: VARCHAR
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | IDENTITY | YIELD | SELECTIVITY | PURITY | AREA | COUNTS | INTENSITY | AMOUNT)
+      details: VARCHAR
+      uses_internal_standard: BOOLEAN
+      is_normalized: BOOLEAN
+      uses_authentic_standard: BOOLEAN
+      authentic_standard: STRUCT
+        smiles: VARCHAR
+        identifiers: LIST<STRUCT>
+          type: VARCHAR  (UNSPECIFIED | CUSTOM | SMILES | INCHI | MOLBLOCK | IUPAC_NAME | NAME | CAS_NUMBER | PUBCHEM_CID | CHEMSPIDER_ID | CXSMILES | INCHI_KEY | XYZ | UNIPROT_ID | PDB_ID | AMINO_ACID_SEQUENCE | HELM | MDL)
+          details: VARCHAR
+          value: VARCHAR
+        amount: STRUCT
+          mass_grams: DOUBLE
+          mass_precision_grams: DOUBLE
+          moles_moles: DOUBLE
+          moles_precision_moles: DOUBLE
+          volume_liters: DOUBLE
+          volume_precision_liters: DOUBLE
+          unmeasured: STRUCT
+            type: VARCHAR  (UNSPECIFIED | CUSTOM | SATURATED | CATALYTIC | TITRATED)
+            details: VARCHAR
+          volume_includes_solutes: BOOLEAN
+        reaction_role: VARCHAR  (UNSPECIFIED | REACTANT | REAGENT | SOLVENT | CATALYST | WORKUP | INTERNAL_STANDARD | AUTHENTIC_STANDARD | PRODUCT | BYPRODUCT | SIDE_PRODUCT)
+        is_limiting: BOOLEAN
+        preparations: LIST<STRUCT>
+          type: VARCHAR  (UNSPECIFIED | CUSTOM | NONE | REPURIFIED | SPARGED | DRIED | SYNTHESIZED)
+          details: VARCHAR
+          reaction_id: VARCHAR
+        source: STRUCT
+          vendor: VARCHAR
+          catalog_id: VARCHAR
+          lot: VARCHAR
+        features: MAP<VARCHAR, STRUCT>
+          float_value: FLOAT
+          integer_value: INTEGER
+          bytes_value: BLOB
+          string_value: VARCHAR
+          url: VARCHAR
+          description: VARCHAR
+          format: VARCHAR
+        analyses: MAP<VARCHAR, STRUCT>
+          type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD)
+          details: VARCHAR
+          chmo_id: INTEGER
+          is_of_isolated_species: BOOLEAN
+          data: MAP<VARCHAR, STRUCT>
+            float_value: FLOAT
+            integer_value: INTEGER
+            bytes_value: BLOB
+            string_value: VARCHAR
+            url: VARCHAR
+            description: VARCHAR
+            format: VARCHAR
+          instrument_manufacturer: VARCHAR
+          instrument_last_calibrated: STRUCT
+            value: VARCHAR
+        texture: STRUCT
+          type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+          details: VARCHAR
+      percentage: STRUCT
+        value: FLOAT
+        precision: FLOAT
+      float_value: STRUCT
+        value: FLOAT
+        precision: FLOAT
+      string_value: VARCHAR
+      amount: STRUCT
+        mass_grams: DOUBLE
+        mass_precision_grams: DOUBLE
+        moles_moles: DOUBLE
+        moles_precision_moles: DOUBLE
+        volume_liters: DOUBLE
+        volume_precision_liters: DOUBLE
+        unmeasured: STRUCT
+          type: VARCHAR  (UNSPECIFIED | CUSTOM | SATURATED | CATALYTIC | TITRATED)
+          details: VARCHAR
+        volume_includes_solutes: BOOLEAN
+      retention_time_seconds: DOUBLE
+      retention_time_precision_seconds: DOUBLE
+      mass_spec_details: STRUCT
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | TIC | TIC_POSITIVE | TIC_NEGATIVE | EIC)
+        details: VARCHAR
+        tic_minimum_mz: FLOAT
+        tic_maximum_mz: FLOAT
+        eic_masses: LIST<FLOAT>
+      selectivity: STRUCT
+        type: VARCHAR  (UNSPECIFIED | CUSTOM | EE | ER | DR | EZ | ZE)
+        details: VARCHAR
+      wavelength_nanometers: DOUBLE
+      wavelength_precision_nanometers: DOUBLE
+    isolated_color: VARCHAR
+    texture: STRUCT
+      type: VARCHAR  (UNSPECIFIED | CUSTOM | POWDER | CRYSTAL | OIL | AMORPHOUS_SOLID | FOAM | WAX | SEMI_SOLID | SOLID | LIQUID | GAS)
+      details: VARCHAR
+    features: MAP<VARCHAR, STRUCT>
+      float_value: FLOAT
+      integer_value: INTEGER
+      bytes_value: BLOB
+      string_value: VARCHAR
+      url: VARCHAR
+      description: VARCHAR
+      format: VARCHAR
+    reaction_role: VARCHAR  (UNSPECIFIED | REACTANT | REAGENT | SOLVENT | CATALYST | WORKUP | INTERNAL_STANDARD | AUTHENTIC_STANDARD | PRODUCT | BYPRODUCT | SIDE_PRODUCT)
+  analyses: MAP<VARCHAR, STRUCT>
+    type: VARCHAR  (UNSPECIFIED | CUSTOM | LC | GC | IR | NMR_1H | NMR_13C | NMR_OTHER | MP | UV | TLC | MS | HRMS | MSMS | WEIGHT | LCMS | GCMS | ELSD | CD | SFC | EPR | XRD | RAMAN | ED | OPTICAL_ROTATION | CAD)
+    details: VARCHAR
+    chmo_id: INTEGER
+    is_of_isolated_species: BOOLEAN
+    data: MAP<VARCHAR, STRUCT>
+      float_value: FLOAT
+      integer_value: INTEGER
+      bytes_value: BLOB
+      string_value: VARCHAR
+      url: VARCHAR
+      description: VARCHAR
+      format: VARCHAR
+    instrument_manufacturer: VARCHAR
+    instrument_last_calibrated: STRUCT
+      value: VARCHAR
+provenance: STRUCT
+  experimenter: STRUCT
+    username: VARCHAR
+    name: VARCHAR
+    orcid: VARCHAR
+    organization: VARCHAR
+    email: VARCHAR
+  city: VARCHAR
+  experiment_start: STRUCT
+    value: VARCHAR
+  doi: VARCHAR
+  patent: VARCHAR
+  publication_url: VARCHAR
+  record_created: STRUCT
+    time: STRUCT
+      value: VARCHAR
+    person: STRUCT
+      username: VARCHAR
+      name: VARCHAR
+      orcid: VARCHAR
+      organization: VARCHAR
+      email: VARCHAR
+    details: VARCHAR
+  record_modified: LIST<STRUCT>
+    time: STRUCT
+      value: VARCHAR
+    person: STRUCT
+      username: VARCHAR
+      name: VARCHAR
+      orcid: VARCHAR
+      organization: VARCHAR
+      email: VARCHAR
+    details: VARCHAR
+  reaction_metadata: MAP<VARCHAR, STRUCT>
+    float_value: FLOAT
+    integer_value: INTEGER
+    bytes_value: BLOB
+    string_value: VARCHAR
+    url: VARCHAR
+    description: VARCHAR
+    format: VARCHAR
+  is_mined: BOOLEAN
+reaction_id: VARCHAR
