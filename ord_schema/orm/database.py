@@ -813,13 +813,14 @@ def update_derived_tables(
     # such tradeoff: select_structural already skips the common case (name-only) without
     # a row, leaving ~0.04% paying for a reconstruction that fails.
     #
-    # On a rederive a row may already exist, and leaving its old value would be a stale
-    # record of a derivation that now yields nothing, so it is cleared in place.
-    clear_reaction_smiles = text(
-        "UPDATE derived.reaction_smiles "
-        "SET reaction_smiles = NULL, rdkit_reaction_id = NULL "
-        "WHERE derived.reaction_smiles.reaction_id IN :ids "
-        "  AND derived.reaction_smiles.reaction_smiles IS NOT NULL"
+    # On a rederive a row may already exist, and leaving it would keep a stale SMILES
+    # joinable -- the compound or reaction would stay searchable under a structure the
+    # source no longer supports. The row is dropped rather than set to NULL so that a
+    # row present always means a SMILES was derived, which is the invariant the
+    # re-attempt above depends on.
+    drop_reaction_smiles = text(
+        "DELETE FROM derived.reaction_smiles "
+        "WHERE derived.reaction_smiles.reaction_id IN :ids"
     ).bindparams(bindparam("ids", expanding=True))
     for batch_start in tqdm(
         range(0, len(reaction_ids), _DERIVED_BATCH),
@@ -846,7 +847,7 @@ def update_derived_tables(
         if inserts:
             session.execute(insert_reaction_smiles, inserts)
         if rederive and underivable:
-            session.execute(clear_reaction_smiles, {"ids": underivable})
+            session.execute(drop_reaction_smiles, {"ids": underivable})
     _update_compound_smiles(
         session,
         dataset_pk=dataset_pk,
@@ -983,6 +984,13 @@ def _update_compound_smiles(
         bindparam("ids", expanding=True),
         bindparam("structural_types", expanding=True),
     )
+    # A compound that no longer derives anything loses its row, so it stops being
+    # searchable under a structure the source no longer supports. Leaving the row would
+    # keep a stale SMILES joinable; NULLing it would keep a row that means "derived"
+    # while holding nothing, putting the compound behind the NOT EXISTS guard forever.
+    drop_smiles = text(
+        f"DELETE FROM {derived_table} WHERE {derived_table}.{derived_id} IN :ids"  # noqa: S608
+    ).bindparams(bindparam("ids", expanding=True))
     insert_smiles = text(
         f"INSERT INTO {derived_table} ({derived_id}, smiles) "  # noqa: S608
         f"VALUES (:{derived_id}, :smiles) "
@@ -1018,6 +1026,7 @@ def _update_compound_smiles(
             )
         }
         inserts = []
+        underivable = []
         for compound_id in batch_ids:
             smiles = None
             value = stored_smiles.get(compound_id)
@@ -1039,6 +1048,7 @@ def _update_compound_smiles(
                 if compound_id not in derivable:
                     # Only non-structural identifiers, so smiles_from_compound has
                     # nothing to read; skip the reconstruction (see select_structural).
+                    underivable.append(compound_id)
                     continue
                 compound = session.get(compound_class, compound_id)
                 assert compound is not None  # Selected by id above.
@@ -1049,10 +1059,13 @@ def _update_compound_smiles(
                     )
                 )
                 if smiles is None:
+                    underivable.append(compound_id)
                     continue
             inserts.append({derived_id: compound_id, "smiles": smiles})
         if inserts:
             session.execute(insert_smiles, inserts)
+        if rederive and underivable:
+            session.execute(drop_smiles, {"ids": underivable})
 
 
 def update_rdkit_tables(

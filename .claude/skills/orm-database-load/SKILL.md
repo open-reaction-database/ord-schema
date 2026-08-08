@@ -98,6 +98,11 @@ invocation.
 Do not confuse it with `--overwrite`, which is an *ingest* flag meaning "re-ingest a dataset
 whose MD5 changed."
 
+A row whose source stops yielding a SMILES is **dropped**, not left and not set to NULL. A row
+present always means a SMILES was derived, so a stale value can never stay joinable, and an
+entity that derives nothing is retried by any later pass rather than sitting behind the
+`NOT EXISTS` guard.
+
 `derived.reaction_classes` is untouched, because classification is a slow opt-in pass that a
 rebuild should not silently redo.
 

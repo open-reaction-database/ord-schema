@@ -1037,3 +1037,58 @@ def test_prune_keeps_a_mol_a_product_compound_still_references(test_session):
         ).scalar_one()
         == 1
     )
+
+
+@pytest.mark.parametrize(
+    ("derived_table", "value_column"),
+    [
+        ("derived.compound_smiles", "smiles"),
+        ("derived.reaction_smiles", "reaction_smiles"),
+    ],
+)
+def test_rederive_drops_a_row_that_no_longer_derives(
+    prepared_engine, monkeypatch, derived_table, value_column
+):
+    """A row whose source stops yielding a SMILES is removed, not left or NULLed.
+
+    Leaving it keeps a stale SMILES joinable, so the entity stays searchable under a
+    structure the source no longer supports. NULLing it keeps a row that means
+    "derived" while holding nothing, which puts the entity behind the NOT EXISTS guard
+    and stops any later pass from retrying it.
+    """
+    dataset = load_dataset(
+        pathlib.Path(__file__).parent / "testdata" / "ord-nielsen-example.pbtxt",
+        as_dataset=True,
+    )
+    with Session(prepared_engine) as session:
+        with session.begin():
+            add_dataset(dataset, session)
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session)
+        with session.begin():
+            before = session.execute(
+                text(f"SELECT count(*) FROM {derived_table}")  # noqa: S608  (constant)
+            ).scalar_one()
+        assert before > 0
+        # Stand in for a derivation that stops producing a value.
+        monkeypatch.setattr(
+            _orm_database.message_helpers, "smiles_from_compound", lambda _c: None
+        )
+        monkeypatch.setattr(
+            _orm_database.message_helpers, "derived_reaction_smiles", lambda _r: None
+        )
+        monkeypatch.setattr(_orm_database.Chem, "MolFromSmiles", lambda *_a, **_k: None)
+        with session.begin():
+            update_derived_tables(dataset.dataset_id, session, rederive=True)
+        with session.begin():
+            after = session.execute(
+                text(f"SELECT count(*) FROM {derived_table}")  # noqa: S608  (constant)
+            ).scalar_one()
+            nulls = session.execute(
+                text(
+                    f"SELECT count(*) FROM {derived_table} "  # noqa: S608  (constant)
+                    f"WHERE {value_column} IS NULL"
+                )
+            ).scalar_one()
+        assert after == 0, f"{derived_table} kept {after} stale rows"
+        assert nulls == 0
