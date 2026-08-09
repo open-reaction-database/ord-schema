@@ -487,7 +487,7 @@ def derive_tree(
         logger.info("Wrote %d rows to %s", rows, destination)
         written += 1
     logger.info(
-        "Derived %d %ss (%d already current, %d ignored)",
+        "Derived %d %s artifacts (%d already current, %d ignored)",
         written,
         artifact,
         skipped,
