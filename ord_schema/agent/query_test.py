@@ -14,9 +14,12 @@
 
 """Tests for ord_schema.agent.query."""
 
+import warnings
+
 import duckdb
 import pytest
 from pydantic import ValidationError
+from rdkit import Chem
 
 from ord_schema import projection
 from ord_schema.agent import query, sql
@@ -460,3 +463,209 @@ def test_suggestions_do_not_name_internal_columns():
     with pytest.raises(query.QueryError, match="no field named") as excinfo:
         query.resolve("inputs.components.structure")
     assert "structure_id" not in str(excinfo.value)
+
+
+# Structure predicates
+
+
+def _substructure(smarts="c1ccncc1", path="smiles"):
+    return {"op": "substructure", "path": path, "smarts": smarts}
+
+
+def test_substructure_compiles_to_a_bitmap_test():
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": _substructure(),
+                }
+            }
+        )
+    )
+    assert "get_bit(CAST($structure_0 AS BITSTRING)" in compiled.sql
+    assert "e0.structure_id IS NOT NULL" in compiled.sql
+    assert f"+ {query.STRUCTURE_OFFSET})::INTEGER" in compiled.sql
+    (parameter,) = compiled.structures
+    assert parameter.op == "substructure"
+    assert parameter.pattern == "c1ccncc1"
+    assert parameter.compound is None
+
+
+def test_equal_structure_predicates_share_one_parameter():
+    # The executor screens and verifies each distinct predicate once, however many
+    # times the query states it.
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {
+                "where": {
+                    "op": "or",
+                    "clauses": [
+                        {
+                            "op": "exists",
+                            "path": "inputs.components",
+                            "where": _substructure(),
+                        },
+                        {
+                            "op": "exists",
+                            "path": "outcomes.products",
+                            "where": _substructure(),
+                        },
+                    ],
+                }
+            }
+        )
+    )
+    assert len(compiled.structures) == 1
+    assert compiled.sql.count("$structure_0") == 2
+
+
+def test_similarity_compiles_with_its_threshold():
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": {
+                        "op": "similarity",
+                        "path": "smiles",
+                        "smiles": "CCO",
+                        "threshold": 0.7,
+                    },
+                }
+            }
+        )
+    )
+    (parameter,) = compiled.structures
+    assert parameter.op == "similarity"
+    assert parameter.pattern == "CCO"
+    assert parameter.threshold == 0.7
+
+
+def test_a_smarts_with_an_explicit_hydrogen_is_merged_with_a_warning():
+    # Measured: [H]OC fails the fingerprint screen against methanol even though the
+    # merged query matches it, so the hydrogens are folded into heavy-atom H counts
+    # rather than silently missing true hits.
+    with pytest.warns(UserWarning, match="rewritten"):
+        model = query.Substructure.model_validate(
+            {"op": "substructure", "path": "smiles", "smarts": "[H]OC"}
+        )
+    merged = Chem.MolFromSmarts(model.smarts)
+    assert merged is not None
+    assert not any(atom.GetAtomicNum() == 1 for atom in merged.GetAtoms())
+    assert Chem.MolFromSmiles("CO").HasSubstructMatch(merged)
+
+
+@pytest.mark.parametrize("smarts", ["[H][H]", "[2H]OC", "[2H]"])
+def test_an_unfoldable_explicit_hydrogen_passes_through(smarts):
+    # These hydrogens cannot be implicit in a stored molecule either -- an isotope and
+    # H2 have no heavy atom to hide in -- so they are real graph atoms the query
+    # already matches. 28,297 ORD reactions have an [H][H] component, so rewriting or
+    # refusing them would lose exactly the queries that work.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        model = query.Substructure.model_validate(
+            {"op": "substructure", "path": "smiles", "smarts": smarts}
+        )
+    assert model.smarts == smarts
+
+
+@pytest.mark.parametrize("smarts", ["", "[]"])
+def test_a_smarts_with_no_atoms_is_refused(smarts):
+    # An empty query fingerprints to no bits, so the screen admits the whole corpus
+    # and verification then rejects all of it: an empty answer at full cost.
+    with pytest.raises(ValueError, match=r"no atoms|does not parse"):
+        query.Substructure.model_validate(
+            {"op": "substructure", "path": "smiles", "smarts": smarts}
+        )
+
+
+def test_a_similarity_smiles_with_no_atoms_is_refused():
+    with pytest.raises(ValueError, match="no atoms"):
+        query.Similarity.model_validate(
+            {"op": "similarity", "path": "smiles", "smiles": "", "threshold": 0.5}
+        )
+
+
+def test_an_h_count_smarts_is_accepted():
+    query.Substructure.model_validate(
+        {"op": "substructure", "path": "smiles", "smarts": "[OX2H]C"}
+    )
+
+
+def test_an_unparseable_smarts_is_refused():
+    with pytest.raises(ValueError, match="does not parse"):
+        query.Substructure.model_validate(
+            {"op": "substructure", "path": "smiles", "smarts": "not-smarts"}
+        )
+
+
+def test_a_substructure_on_a_non_smiles_column_is_refused():
+    with pytest.raises(query.QueryError, match="smiles"):
+        query.compile_query(
+            query.Query.model_validate(
+                {
+                    "where": {
+                        "op": "exists",
+                        "path": "inputs.components",
+                        "where": _substructure(path="reaction_role"),
+                    }
+                }
+            )
+        )
+
+
+def test_a_substructure_on_the_reaction_smiles_is_refused():
+    # The reaction-level smiles is a reaction, not a molecule; it has no structure id
+    # and reaction substructure search is a different operation.
+    with pytest.raises(query.QueryError, match="no structure id"):
+        query.compile_query(
+            query.Query.model_validate({"where": _substructure(path="smiles")})
+        )
+
+
+def test_an_unquantified_substructure_is_refused():
+    with pytest.raises(query.QueryError, match="exists or forall"):
+        query.compile_query(
+            query.Query.model_validate(
+                {"where": _substructure(path="inputs.components.smiles")}
+            )
+        )
+
+
+def test_a_similarity_threshold_is_required_and_bounded():
+    with pytest.raises(ValueError, match="threshold"):
+        query.Similarity.model_validate(
+            {"op": "similarity", "path": "smiles", "smiles": "CCO"}
+        )
+    with pytest.raises(ValueError, match="less than or equal to 1"):
+        query.Similarity.model_validate(
+            {"op": "similarity", "path": "smiles", "smiles": "CCO", "threshold": 1.5}
+        )
+
+
+def test_a_compound_named_like_a_structure_parameter_is_refused():
+    with pytest.raises(query.QueryError, match="collide"):
+        query.compile_query(
+            query.Query.model_validate(
+                {
+                    "where": {
+                        "op": "exists",
+                        "path": "inputs.components",
+                        "where": {
+                            "op": "and",
+                            "clauses": [
+                                _substructure(),
+                                {
+                                    "op": "eq",
+                                    "path": "smiles",
+                                    "value": {"compound": "structure_0"},
+                                },
+                            ],
+                        },
+                    }
+                }
+            )
+        )

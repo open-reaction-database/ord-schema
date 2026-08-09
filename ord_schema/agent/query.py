@@ -43,21 +43,59 @@ They are different nodes rather than a subtlety of join keys.
 Compounds are named, never spelled. A ``{"compound": "thf"}`` value compiles to a bound
 parameter, so the model never writes a structure and the caller resolves the name
 through :mod:`ord_schema.resolvers` before binding.
+
+Structure predicates -- ``substructure`` and ``similarity`` -- compile to a bitmap test
+rather than to chemistry. The chemistry runs *outside* the query, against the
+:mod:`ord_schema.structures` artifact (:mod:`ord_schema.agent.execute` is the driver),
+and the match set re-enters as a bitmap parameter indexed by the corpus-wide id --
+the projection's ``structure_id`` plus its file's offset: DuckDB permits no subquery
+inside a lambda expression, so the element a quantifier binds cannot semi-join a match
+table, but it can test one integer against a bitmap. The compiled SQL therefore
+references ``structure_offset``, a column only the executor's relation carries -- a raw
+projection cannot answer a structure query, which is the point: the ids are
+dataset-local and only the executor knows the offsets that make them one corpus-wide
+space.
 """
 
 import dataclasses
 import difflib
 import re
+import warnings
 from typing import Annotated, Any, Literal
 
 import pyarrow as pa
 from pydantic import BaseModel, Field, model_validator
+from rdkit import Chem
 
 from ord_schema import projection
 
 # The relation a compiled query reads. The only one in scope, so nothing else is
 # nameable and a join has nothing to join to.
 TABLE = "reactions"
+
+# The per-row column mapping a dataset-local structure_id into the corpus-wide id
+# space a bitmap parameter is indexed by. Supplied by the executor's relation and
+# absent from the projection schema resolve() defaults to, so a model-supplied path
+# does not reach it.
+STRUCTURE_OFFSET = "structure_offset"
+
+
+def executable_schema(schema: pa.Schema | None = None) -> pa.Schema:
+    """Returns the schema of the relation a compiled query actually runs against.
+
+    The executor's relation is the projection plus ``STRUCTURE_OFFSET``, so validating
+    compiled SQL (:func:`ord_schema.agent.sql.validate`) needs this schema whenever the
+    query carries a structure predicate; the projection schema alone cannot bind it.
+
+    Args:
+        schema: Base schema; the projection schema by default.
+
+    Returns:
+        The base schema with the offset column appended.
+    """
+    base = schema if schema is not None else projection.SCHEMA
+    return base.append(pa.field(STRUCTURE_OFFSET, pa.int64()))
+
 
 _COMPARISONS = {"eq": "=", "ne": "<>", "lt": "<", "le": "<=", "gt": ">", "ge": ">="}
 _ORDERED = frozenset({"lt", "le", "gt", "ge"})
@@ -81,12 +119,40 @@ class QueryError(ValueError):
     """A query that cannot be compiled against the projection schema."""
 
 
+def _explicit_hydrogens(pattern: Chem.Mol) -> int:
+    """Returns how many of a query's atoms are hydrogens in their own right."""
+    return sum(1 for atom in pattern.GetAtoms() if atom.GetAtomicNum() == 1)
+
+
+@dataclasses.dataclass(frozen=True)
+class StructureParameter:
+    """A structure predicate the executor evaluates and binds as a bitmap.
+
+    Exactly one of ``pattern`` and ``compound`` is set. ``pattern`` is a SMARTS for a
+    substructure predicate and a SMILES for a similarity one, already validated;
+    ``compound`` is a name still to be resolved at execution.
+    """
+
+    name: str
+    op: str
+    pattern: str | None
+    compound: str | None
+    threshold: float | None
+
+
 @dataclasses.dataclass(frozen=True)
 class Compiled:
-    """A compiled query, and the compound names its parameters still need."""
+    """A compiled query, and the parameters its execution still needs.
+
+    ``compounds`` are names whose resolved SMILES the caller binds. ``structures`` are
+    predicates the caller evaluates against the structures artifact, each bound as a
+    bitmap over corpus-wide structure ids; a query carrying any also references the
+    ``STRUCTURE_OFFSET`` column, so it runs only against the executor's relation.
+    """
 
     sql: str
     compounds: tuple[str, ...]
+    structures: tuple[StructureParameter, ...] = ()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -107,7 +173,9 @@ def _members(current: pa.Schema | pa.DataType) -> list[str]:
     return []
 
 
-def _lookup(current: pa.Schema | pa.DataType, name: str, path: str) -> pa.Field:
+def _lookup(
+    current: pa.Schema | pa.DataType, name: str, path: str, allow_internal: bool
+) -> pa.Field:
     """Returns the field ``name`` within ``current``, or raises a helpful QueryError."""
     members = _members(current)
     if name not in members:
@@ -125,7 +193,7 @@ def _lookup(current: pa.Schema | pa.DataType, name: str, path: str) -> pa.Field:
         suggestion = f"; did you mean {', '.join(map(repr, close))}?" if close else ""
         raise QueryError(f"{path}: no field named {name!r}{suggestion}")
     field = current.field(name)
-    if projection.is_internal(field):
+    if projection.is_internal(field) and not allow_internal:
         # Artifact-internal machinery (structure_id): its values are not stable across
         # builds, so a comparison against one is a wrong answer waiting to move.
         raise QueryError(f"{path}: {name!r} is internal to the artifacts")
@@ -133,7 +201,11 @@ def _lookup(current: pa.Schema | pa.DataType, name: str, path: str) -> pa.Field:
 
 
 def resolve(
-    path: str, *, schema: pa.Schema = projection.SCHEMA, root: str | None = None
+    path: str,
+    *,
+    schema: pa.Schema = projection.SCHEMA,
+    root: str | None = None,
+    allow_internal: bool = False,
 ) -> _Resolved:
     """Resolves a dotted path against the projection schema.
 
@@ -145,6 +217,8 @@ def resolve(
         path: Dotted column path, e.g. ``conditions.temperature.setpoint_kelvin``.
         schema: Schema or struct type to resolve within.
         root: Bound variable the path is relative to, inside a quantifier.
+        allow_internal: Permit internal columns. Library-internal: the compiler reaches
+            ``structure_id`` this way; a model-supplied path never sets it.
 
     Returns:
         The DuckDB expression, whether it evaluates to a list, and the type it reaches.
@@ -158,7 +232,7 @@ def resolve(
     repeated = False
     current: Any = schema
     for part in path.split("."):
-        field = _lookup(current, part, path)
+        field = _lookup(current, part, path, allow_internal)
         if expression is None:
             expression = part if root is None else f"{root}.{part}"
         elif repeated:
@@ -245,8 +319,93 @@ class NullCheck(BaseModel):
     path: str
 
 
+class Substructure(BaseModel):
+    """The element's structure contains the query as a subgraph.
+
+    ``path`` names a compound's ``smiles``. The query is a SMARTS pattern, or a
+    compound name resolved to a molecule at execution; exactly one is given.
+    """
+
+    op: Literal["substructure"]
+    path: str
+    smarts: str | None = None
+    compound: str | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> "Substructure":
+        if (self.smarts is None) == (self.compound is None):
+            raise ValueError("a substructure query is a smarts or a compound, not both")
+        if self.compound is not None and not _NAME.match(self.compound):
+            raise ValueError(f"compound name is not an identifier: {self.compound!r}")
+        if self.smarts is not None:
+            pattern = Chem.MolFromSmarts(self.smarts)
+            if pattern is None:
+                raise ValueError(f"SMARTS does not parse: {self.smarts!r}")
+            if not pattern.GetNumAtoms():
+                # An empty SMARTS parses to a zero-atom query whose fingerprint has
+                # no bits, so the screen admits every structure and verification then
+                # rejects all of them: a guaranteed-empty answer at full corpus cost.
+                raise ValueError(f"SMARTS has no atoms: {self.smarts!r}")
+            merged = Chem.MergeQueryHs(pattern)
+            if _explicit_hydrogens(merged) < _explicit_hydrogens(pattern):
+                # A stored molecule is built from SMILES, so its hydrogens are
+                # implicit wherever they can be, and a query naming one as its own
+                # atom matches nothing -- [H]OC finds no methanol, and says nothing
+                # about why. Folding them into heavy-atom H counts asks the question
+                # the corpus can answer.
+                rewritten = Chem.MolToSmarts(merged)
+                warnings.warn(
+                    f"SMARTS {self.smarts!r} names hydrogens that a stored molecule "
+                    f"holds implicitly, and would match nothing; rewritten as "
+                    f"{rewritten!r}, with those hydrogens folded into heavy-atom H "
+                    "counts",
+                    # No fixed stacklevel reaches the caller: pydantic-core invokes
+                    # this validator, so anything but the default points into pydantic.
+                    stacklevel=1,
+                )
+                self.smarts = rewritten
+            # Hydrogens that do not fold -- isotopic ([2H]), or with no heavy atom to
+            # fold into ([H][H]) -- are left exactly as written. They cannot be
+            # implicit in a stored molecule either, so they are real graph atoms that
+            # the query already matches and screens for; 28,297 ORD reactions have an
+            # [H][H] component, and rewriting or refusing those would lose them.
+        return self
+
+
+class Similarity(BaseModel):
+    """The element's structure is Tanimoto-similar to the query molecule.
+
+    Similarity is defined on the Morgan fingerprints in the structures artifact, so
+    the screen is the whole answer and no verification step exists. ``path`` names a
+    compound's ``smiles``. The query is a SMILES, or a compound name resolved at
+    execution; exactly one is given.
+    """
+
+    op: Literal["similarity"]
+    path: str
+    smiles: str | None = None
+    compound: str | None = None
+    threshold: float = Field(gt=0, le=1)
+
+    @model_validator(mode="after")
+    def _check(self) -> "Similarity":
+        if (self.smiles is None) == (self.compound is None):
+            raise ValueError("a similarity query is a smiles or a compound, not both")
+        if self.compound is not None and not _NAME.match(self.compound):
+            raise ValueError(f"compound name is not an identifier: {self.compound!r}")
+        if self.smiles is not None:
+            molecule = Chem.MolFromSmiles(self.smiles)
+            if molecule is None:
+                raise ValueError(f"SMILES does not parse: {self.smiles!r}")
+            if not molecule.GetNumAtoms():
+                # Its fingerprint has no bits, so Tanimoto against it is 0 for every
+                # structure: a guaranteed-empty answer that still scans the corpus.
+                raise ValueError(f"SMILES has no atoms: {self.smiles!r}")
+        return self
+
+
 Predicate = Annotated[
-    And | Or | Not | Quantifier | Comparison | NullCheck,
+    And | Or | Not | Quantifier | Comparison | NullCheck | Substructure | Similarity,
     Field(discriminator="op"),
 ]
 
@@ -359,8 +518,82 @@ def _leaf(node: Any, resolved: _Resolved, compounds: list[str]) -> str:
     return f"{resolved.expression} {_COMPARISONS[node.op]} {operand}"
 
 
+def _structure_parameter(
+    node: "Substructure | Similarity", structures: list[StructureParameter]
+) -> str:
+    """Returns the parameter name for a structure predicate, reusing an equal one.
+
+    Deduplicated by content so the executor screens and verifies each distinct
+    predicate once, however many times the query states it.
+    """
+    pattern = node.smarts if isinstance(node, Substructure) else node.smiles
+    threshold = node.threshold if isinstance(node, Similarity) else None
+    for existing in structures:
+        if (existing.op, existing.pattern, existing.compound, existing.threshold) == (
+            node.op,
+            pattern,
+            node.compound,
+            threshold,
+        ):
+            return existing.name
+    parameter = StructureParameter(
+        name=f"structure_{len(structures)}",
+        op=node.op,
+        pattern=pattern,
+        compound=node.compound,
+        threshold=threshold,
+    )
+    structures.append(parameter)
+    return parameter.name
+
+
+def _structure(
+    node: "Substructure | Similarity",
+    scope: str | None,
+    schema: Any,
+    structures: list[StructureParameter],
+) -> str:
+    """Compiles a structure predicate to a bitmap test on the element's structure id.
+
+    The chemistry happens in the executor; what compiles here is only the re-entry of
+    its match set. The null guard keeps a compound with no recorded structure from
+    reading as a match under negation-free semantics: no structure, no match.
+    """
+    parts = node.path.split(".")
+    if parts[-1] != "smiles":
+        raise QueryError(
+            f"{node.path}: {node.op} applies to a compound ``smiles`` column"
+        )
+    resolved = resolve(node.path, schema=schema, root=scope)
+    if resolved.repeated:
+        raise QueryError(
+            f"{node.path}: crosses a repeated level, so whether it means any or every "
+            "element is unstated; wrap it in an exists or forall"
+        )
+    identifier_path = ".".join([*parts[:-1], "structure_id"])
+    try:
+        identifier = resolve(
+            identifier_path, schema=schema, root=scope, allow_internal=True
+        )
+    except QueryError as error:
+        raise QueryError(
+            f"{node.path}: {node.op} needs a compound smiles, and this smiles has no "
+            f"structure id beside it ({error})"
+        ) from error
+    parameter = _structure_parameter(node, structures)
+    return (
+        f"({identifier.expression} IS NOT NULL AND get_bit(CAST(${parameter} AS "
+        f"BITSTRING), ({identifier.expression} + {STRUCTURE_OFFSET})::INTEGER) = 1)"
+    )
+
+
 def _quantifier(
-    node: "Quantifier", scope: str | None, schema: Any, compounds: list[str], depth: int
+    node: "Quantifier",
+    scope: str | None,
+    schema: Any,
+    compounds: list[str],
+    structures: list[StructureParameter],
+    depth: int,
 ) -> str:
     """Compiles a quantifier to a filter over the elements at a repeated level.
 
@@ -375,7 +608,9 @@ def _quantifier(
             f"{resolved.type}; compare it directly instead"
         )
     variable = f"e{depth}"
-    body = _predicate(node.where, variable, resolved.type, compounds, depth + 1)
+    body = _predicate(
+        node.where, variable, resolved.type, compounds, structures, depth + 1
+    )
     if node.op == "exists":
         return f"len(list_filter({resolved.expression}, {variable} -> {body})) > 0"
     # No counterexample, which is vacuously true of an empty level.
@@ -383,7 +618,12 @@ def _quantifier(
 
 
 def _predicate(
-    node: Any, scope: str | None, schema: Any, compounds: list[str], depth: int
+    node: Any,
+    scope: str | None,
+    schema: Any,
+    compounds: list[str],
+    structures: list[StructureParameter],
+    depth: int,
 ) -> str:
     """Compiles one predicate node to a boolean DuckDB expression."""
     if isinstance(node, And | Or):
@@ -391,30 +631,25 @@ def _predicate(
         return (
             "("
             + keyword.join(
-                _predicate(clause, scope, schema, compounds, depth)
+                _predicate(clause, scope, schema, compounds, structures, depth)
                 for clause in node.clauses
             )
             + ")"
         )
     if isinstance(node, Not):
-        return f"(NOT {_predicate(node.clause, scope, schema, compounds, depth)})"
+        inner = _predicate(node.clause, scope, schema, compounds, structures, depth)
+        return f"(NOT {inner})"
     if isinstance(node, Quantifier):
-        return _quantifier(node, scope, schema, compounds, depth)
+        return _quantifier(node, scope, schema, compounds, structures, depth)
+    if isinstance(node, Substructure | Similarity):
+        return _structure(node, scope, schema, structures)
     resolved = resolve(node.path, schema=schema, root=scope)
     if resolved.repeated:
         raise QueryError(
             f"{node.path}: crosses a repeated level, so whether it means any or every "
             "element is unstated; wrap it in an exists or forall"
         )
-    if isinstance(node, NullCheck):
-        return (
-            f"{resolved.expression} IS {'NULL' if node.op == 'is_null' else 'NOT NULL'}"
-        )
-    _check_operand(node, resolved)
-    operand = _literal(node.value, compounds)
-    if node.op in _TEXT:
-        return f"{_TEXT[node.op]}({resolved.expression}, {operand})"
-    return f"{resolved.expression} {_COMPARISONS[node.op]} {operand}"
+    return _leaf(node, resolved, compounds)
 
 
 def _scalar(path: str, schema: pa.Schema, what: str) -> str:
@@ -439,15 +674,18 @@ def compile_query(
             bound this grammar exists to provide would hold only by convention.
 
     Returns:
-        The SQL, and the compound names whose resolved SMILES the caller binds.
+        The SQL, the compound names whose resolved SMILES the caller binds, and the
+        structure predicates the caller evaluates and binds as bitmaps.
 
     Raises:
-        QueryError: If ``table`` is not an identifier, or if any path, operator, or
-            ordering key cannot be meant against the schema.
+        QueryError: If ``table`` is not an identifier, if any path, operator, or
+            ordering key cannot be meant against the schema, or if a compound name
+            collides with a generated structure parameter.
     """
     if not _NAME.match(table):
         raise QueryError(f"table is not an identifier: {table!r}")
     compounds: list[str] = []
+    structures: list[StructureParameter] = []
     if query.aggregate:
         groups = [
             _scalar(path, schema, "group_by") for path in query.aggregate.group_by
@@ -472,7 +710,17 @@ def compile_query(
     # value reached the string as a bound parameter or a quoted literal.
     sql = f"SELECT {', '.join(selected)} FROM {table}"  # noqa: S608
     if query.where is not None:
-        sql += f" WHERE {_predicate(query.where, None, schema, compounds, 0)}"
+        sql += (
+            f" WHERE {_predicate(query.where, None, schema, compounds, structures, 0)}"
+        )
+    taken = {parameter.name for parameter in structures}
+    collisions = sorted(taken & set(compounds))
+    if collisions:
+        # Both reach the SQL as $-parameters, so a compound named like a structure
+        # parameter would receive the wrong binding silently.
+        raise QueryError(
+            f"compound names collide with structure parameters: {collisions}"
+        )
     if query.aggregate and groups:
         sql += " GROUP BY " + ", ".join(str(index + 1) for index in range(len(groups)))
     if query.order_by:
@@ -493,4 +741,4 @@ def compile_query(
         sql += " ORDER BY " + ", ".join(keys)
     if query.limit is not None:
         sql += f" LIMIT {query.limit}"
-    return Compiled(sql, tuple(compounds))
+    return Compiled(sql, tuple(compounds), tuple(structures))
