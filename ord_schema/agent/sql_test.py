@@ -16,7 +16,7 @@
 
 import pytest
 
-from ord_schema.agent import sql
+from ord_schema.agent import query, sql
 
 _LAMBDA_QUERY = (
     "SELECT reaction_id FROM reactions WHERE len(list_filter(flatten(list_transform("
@@ -144,3 +144,27 @@ def test_an_operator_name_in_a_literal_is_not_an_operator():
     # The plan carries filter expressions alongside operator names, so a substring
     # search over the JSON would refuse this.
     sql.validate("SELECT reaction_id FROM reactions WHERE smiles = 'INOUT_FUNCTION'")
+
+
+def test_a_structure_query_validates_against_the_executable_schema():
+    # A compiled structure predicate references the executor's offset column, which
+    # the bare projection schema cannot bind.
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": {
+                        "op": "substructure",
+                        "path": "smiles",
+                        "smarts": "c1ccncc1",
+                    },
+                }
+            }
+        )
+    )
+    parameters = {compiled.structures[0].name: "0"}
+    with pytest.raises(sql.InvalidQueryError, match="structure_offset"):
+        sql.validate(compiled.sql, parameters=parameters)
+    sql.validate(compiled.sql, parameters=parameters, schema=query.executable_schema())

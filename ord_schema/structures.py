@@ -78,6 +78,16 @@ _MORGAN = rdFingerprintGenerator.GetMorganGenerator(
     radius=MORGAN_RADIUS, fpSize=MORGAN_FP_SIZE
 )
 
+
+def morgan_fingerprint(molecule: Chem.Mol) -> DataStructs.ExplicitBitVect:
+    """Returns the Morgan fingerprint with the parameters this artifact stores.
+
+    The query side of a similarity search must fingerprint identically to the artifact
+    or the comparison is meaningless, so this is the one place the parameters live.
+    """
+    return _MORGAN.GetFingerprint(molecule)
+
+
 # Named so a published file says how its fingerprints were made; the reader recovers
 # the parameters from the footer rather than from this library's history.
 _META_FINGERPRINT = "ord.fingerprint"

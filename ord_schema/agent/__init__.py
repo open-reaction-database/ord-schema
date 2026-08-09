@@ -23,8 +23,10 @@ describe the *data*, not a deployment. A description that tells a model which co
 exist has to be versioned alongside the code that generates them, or it silently drifts
 from a schema it cannot see; :mod:`ord_schema.agent.schema` and
 :mod:`ord_schema.agent.sql` both read ``projection.SCHEMA`` for exactly that reason. For
-the same reason nothing here does HTTP, holds a database connection, or owns a cache; a
-server supplies those and maps library exceptions onto its own protocol.
+the same reason nothing here does HTTP or owns a cache; a server supplies those and
+maps library exceptions onto its own protocol. The one connection held is DuckDB's
+embedded one, opened by :mod:`ord_schema.agent.execute` over local artifact files --
+part of reading the data, not of serving it.
 
 Requires the ``agent`` extra (``pip install ord-schema[agent]``).
 """

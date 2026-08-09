@@ -47,6 +47,9 @@ Predicate  = { op: "and" | "or", clauses: [Predicate] }
            | { op: "eq"|"ne"|"lt"|"le"|"gt"|"ge", path: Path, value: Value }
            | { op: "contains"|"starts_with"|"ends_with", path: Path, value: Value }
            | { op: "is_null" | "not_null", path: Path }
+           | { op: "substructure", path: Path, smarts?: string, compound?: <name> }
+           | { op: "similarity", path: Path, smiles?: string, compound?: <name>,
+               threshold: float }
 
 Value      = { literal: <scalar> } | { compound: <name> }
 
@@ -75,6 +78,57 @@ is a compile error rather than a wrong answer:
   holds rather than by an explosion over a repeated level.
 - A `{"compound": ...}` value is resolved through [`ord_schema.resolvers`](../resolvers.py) and
   **bound as a parameter**, so the model names compounds and never spells structures.
+- A `substructure`/`similarity` path must name a compound's `smiles` (inside a
+  quantifier, like any element predicate), and a SMARTS with an explicit hydrogen is
+  refused outright: measured, `[H]OC` fails the fingerprint screen against methanol
+  while the equivalent H-count form `[OX2H]C` both matches and screens — explicit
+  hydrogens are the one case where the screen silently misses true hits.
+
+## Structure search
+
+A structure predicate compiles to a bitmap test, not to chemistry. The chemistry runs
+in [`execute.Corpus`](execute.py) against the [structures artifact](../structures.py):
+a fingerprint **screen** — complete but not exact — over every distinct structure in
+the corpus, then exact subgraph **verification** from the serialized molecules for
+substructure (similarity needs no verification; Tanimoto is defined on the Morgan
+fingerprint, so the screen is the answer). The verified match set re-enters the query
+as a `BITSTRING` parameter indexed by the projection's internal `structure_id`, which
+is what preserves element binding: `exists(components, substructure(pyridine) and
+role = SOLVENT)` means one component that is both, and the measured alternative —
+intersecting reaction-id sets — over-returns by 94% on exactly that query.
+
+```python
+from ord_schema.agent import execute, query
+
+corpus = execute.Corpus("projections/*/*.parquet", "structures/*/*.parquet", n_jobs=8)
+table = corpus.search(
+    query.Query.model_validate(
+        {
+            "where": {
+                "op": "exists",
+                "path": "inputs.components",
+                "where": {
+                    "op": "and",
+                    "clauses": [
+                        {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"},
+                        {"op": "eq", "path": "reaction_role",
+                         "value": {"literal": "SOLVENT"}},
+                    ],
+                },
+            },
+            "limit": 100,
+        }
+    ),
+    timeout_seconds=60,
+)
+```
+
+`Corpus` refuses artifacts that do not pair: every projection must have a structures
+artifact derived from the same source dataset, because the ids joining them are
+meaningful only as a pair. Structure ids are dataset-local; the executor's relation
+carries a per-file offset column (`structure_offset`), which is why compiled SQL with a
+structure predicate runs only there — validate it against `query.executable_schema()`
+rather than the bare projection schema.
 
 ## Usage
 
