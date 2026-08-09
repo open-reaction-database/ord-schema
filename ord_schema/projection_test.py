@@ -598,3 +598,30 @@ def test_write_projection_stamps_one_id_space_per_dataset(tmp_path):
         (product,) = row["outcomes"][0]["products"]
         assert component["structure_id"] == 0
         assert product["structure_id"] == 1
+
+
+def test_structure_ids_span_source_row_groups(tmp_path):
+    # The id mapping is created once per dataset, not once per row group: rebuilding
+    # it inside the loop would restart the ids and corrupt every join in a dataset
+    # bigger than one group, while every small test still passed.
+    source = _source(
+        tmp_path, [_reaction(f"ord-{i:04d}") for i in range(3)], row_group_size=1
+    )
+    output = tmp_path / "projection.parquet"
+    projection.write_projection(source, output)
+    with pq.ParquetFile(output) as projected:
+        assert projected.num_row_groups == 3
+        for row_group in range(projected.num_row_groups):
+            table = projected.read_row_group(
+                row_group,
+                columns=[
+                    "inputs.key_value.key",
+                    "inputs.key_value.value.components.list.element.structure_id",
+                    "outcomes.list.element.products.list.element.structure_id",
+                ],
+            )
+            for row in table.to_pylist():
+                (component,) = row["inputs"][0][1]["components"]
+                (product,) = row["outcomes"][0]["products"]
+                assert component["structure_id"] == 0
+                assert product["structure_id"] == 1

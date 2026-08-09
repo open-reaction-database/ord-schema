@@ -27,11 +27,15 @@ from ord_schema import artifacts, parquet, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import derive_projection, derive_structures
 
+# Distinct molecules per shard, so a test can tell one dataset's artifact -- and its
+# id space -- from another's.
+_SHARD_SMILES = {"aa": "c1ccccc1", "bb": "CCO"}
 
-def _dataset(dataset_id: str):
+
+def _dataset(dataset_id: str, smiles: str):
     reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
     component = reaction.inputs["a"].components.add()
-    component.identifiers.add(type="SMILES", value="c1ccccc1")
+    component.identifiers.add(type="SMILES", value=smiles)
     return dataset_pb2.Dataset(
         dataset_id=dataset_id, name="test", description="desc", reactions=[reaction]
     )
@@ -43,7 +47,7 @@ def _corpus(root: pathlib.Path, shards=("aa", "bb")) -> None:
         directory = root / "data" / shard
         directory.mkdir(parents=True, exist_ok=True)
         parquet.save_dataset(
-            _dataset(f"ord_dataset-{shard}"),
+            _dataset(f"ord_dataset-{shard}", _SHARD_SMILES[shard]),
             str(directory / f"ord_dataset-{shard}.parquet"),
         )
 
@@ -81,7 +85,10 @@ def test_main_writes_one_artifact_per_dataset(tmp_path):
         assert artifact.exists()
         table = pq.read_table(artifact)
         assert table.schema.names == structures.SCHEMA.names
-        assert table.column("smiles").to_pylist() == ["c1ccccc1"]
+        # Each dataset gets its own artifact and its own id space: each shard's
+        # molecule sits at id 0 of its own file, not offset by the other's.
+        assert table.column("smiles").to_pylist() == [_SHARD_SMILES[shard]]
+        assert table.column("structure_id").to_pylist() == [0]
 
 
 def test_main_stamps_artifacts_with_their_source(tmp_path):

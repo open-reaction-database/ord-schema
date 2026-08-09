@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Derives structure-search artifacts from projections.
+r"""Derives structure-search artifacts from projections.
 
 Each projection yields one structures artifact: one row per distinct structure, with
 the fingerprints a query engine screens against and the serialized molecule
@@ -30,7 +30,8 @@ artifact version are skipped, so re-running is cheap; --force rewrites them anyw
 A match that is not a projection -- a source dataset, or a structures artifact from an
 earlier run -- is ignored rather than derived from, so --output_dir may sit inside a
 recursive pattern's reach. These are errors: an --output_dir that would write over any
-input, a match that cannot be read as Parquet at all, and a run that derives nothing.
+input, a match that cannot be read as Parquet at all, and a run that finds no
+projections at all.
 """
 
 import argparse

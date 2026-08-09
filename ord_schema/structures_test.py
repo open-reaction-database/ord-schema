@@ -82,6 +82,30 @@ def test_shared_structures_are_deduplicated(tmp_path):
     source = _project(tmp_path, reactions)
     output = tmp_path / "structures.parquet"
     assert structures.write_structures(source, output) == 2
+    table = pq.read_table(output)
+    assert table.column("structure_id").to_pylist() == [0, 1]
+    assert table.column("smiles").to_pylist() == ["c1ccccc1", "Cc1ccccc1"]
+
+
+def test_row_groups_keep_ids_aligned(tmp_path):
+    # Position in the file is the id, so each output row group must continue the
+    # sequence and each row's derived columns must be its own molecule's --
+    # misalignment here is silent join corruption, not an error.
+    reaction = _reaction()
+    component = reaction.inputs["b"].components.add()
+    component.identifiers.add(type="SMILES", value="CCO")
+    source = _project(tmp_path, [reaction])
+    output = tmp_path / "structures.parquet"
+    assert structures.write_structures(source, output, row_group_size=1) == 3
+    with pq.ParquetFile(output) as artifact:
+        assert artifact.num_row_groups == 3
+    table = pq.read_table(output)
+    assert table.column("structure_id").to_pylist() == [0, 1, 2]
+    for row in table.to_pylist():
+        mol = Chem.Mol(row["mol_binary"])
+        assert Chem.MolToSmiles(mol) == Chem.CanonSmiles(row["smiles"]), row["smiles"]
+        fingerprint = DataStructs.CreateFromBinaryText(row["morgan_fp"])
+        assert row["morgan_popcount"] == fingerprint.GetNumOnBits()
 
 
 def test_the_screen_is_complete_and_verification_is_exact(tmp_path):
@@ -104,6 +128,21 @@ def test_the_screen_is_complete_and_verification_is_exact(tmp_path):
     mol = Chem.Mol(target["mol_binary"])
     assert mol.HasSubstructMatch(query)
     assert Chem.MolToSmiles(mol) == Chem.CanonSmiles("Cc1ccccc1")
+    # Containment is directional: benzene's row must not pass a toluene query, or the
+    # screen is comparing something other than the fingerprints.
+    benzene_fp = DataStructs.CreateFromBinaryText(
+        next(row for row in rows if row["smiles"] == "c1ccccc1")["pattern_fp"]
+    )
+    assert (target_fp & benzene_fp).GetNumOnBits() < target_fp.GetNumOnBits()
+    # A query with a generic atom exercises RDKit's query-fingerprint generalization,
+    # the part of PatternFingerprint most likely to shift under an upgrade.
+    generic = Chem.MolFromSmarts("*c1ccccc1")
+    generic_fp = DataStructs.CreateFromBinaryText(
+        DataStructs.BitVectToBinaryText(
+            Chem.PatternFingerprint(generic, fpSize=structures.PATTERN_FP_SIZE)
+        )
+    )
+    assert (generic_fp & target_fp).GetNumOnBits() == generic_fp.GetNumOnBits()
 
 
 def test_morgan_popcount_counts_the_morgan_fingerprint(tmp_path):
@@ -139,6 +178,8 @@ def test_structures_from_workups_and_standards_are_included(tmp_path):
 
 
 def test_a_dataset_with_no_structures_writes_an_empty_artifact(tmp_path):
+    # The empty file is the point: it carries the schema and stamps, so the derive
+    # driver can tell "done, nothing to featurize" from "never derived".
     reaction = reaction_pb2.Reaction(reaction_id="ord-0001")
     component = reaction.inputs["a"].components.add()
     component.identifiers.add(type="NAME", value="mystery")
@@ -149,6 +190,9 @@ def test_a_dataset_with_no_structures_writes_an_empty_artifact(tmp_path):
     table = pq.read_table(output)
     assert table.num_rows == 0
     assert table.schema.names == structures.SCHEMA.names
+    stamps = artifacts.load_stamps(output)
+    assert stamps.artifact == structures.ARTIFACT
+    assert structures.is_current(output, stamps.source_md5)
 
 
 def test_stamps_name_the_source_dataset_not_the_projection(tmp_path):
@@ -227,4 +271,67 @@ def test_a_gap_in_the_id_space_is_refused(tmp_path):
     row["reaction_id"] = "ord-0001"
     path = _corrupt_projection(tmp_path, [row])
     with pytest.raises(ValueError, match="not dense"):
+        structures.write_structures(path, tmp_path / "structures.parquet")
+
+
+def test_an_unparseable_structure_survives_the_write_path(tmp_path):
+    # Cannot arise from a same-version projection -- its SMILES are RDKit-canonical --
+    # so it is staged through _corrupt_projection: the row must keep its position (the
+    # id space stays dense) rather than being cleaned out of the batch.
+    ids: dict[str, int] = {}
+    row = projection.message_row(_reaction(), ids)
+    (component,) = dict(row["inputs"])["a"]["components"]
+    component["smiles"] = "not-a-smiles"  # Keeps the id benzene was assigned.
+    row["reaction_id"] = "ord-0001"
+    path = _corrupt_projection(tmp_path, [row])
+    output = tmp_path / "structures.parquet"
+    assert structures.write_structures(path, output) == 2
+    rows = pq.read_table(output).to_pylist()
+    bad = next(r for r in rows if r["smiles"] == "not-a-smiles")
+    assert bad["structure_id"] == ids["c1ccccc1"]
+    for column in ("pattern_fp", "morgan_fp", "morgan_popcount", "mol_binary"):
+        assert bad[column] is None, column
+    good = next(r for r in rows if r["smiles"] != "not-a-smiles")
+    assert good["mol_binary"] is not None
+
+
+def test_a_projection_missing_the_id_columns_is_refused(tmp_path):
+    # read_row_group silently drops requested columns a file does not have, so an
+    # old-schema projection would otherwise state no pairs at all and derive an empty
+    # artifact that stamps itself current.
+    stamps = artifacts.current_stamps(projection.ARTIFACT, "ord_dataset-1", "0" * 32)
+    component = pa.struct([pa.field("smiles", pa.string())])
+    reaction_input = pa.struct([pa.field("components", pa.list_(component))])
+    schema = pa.schema(
+        [
+            pa.field("reaction_id", pa.string()),
+            pa.field("inputs", pa.map_(pa.string(), reaction_input)),
+        ]
+    ).with_metadata(artifacts.to_metadata(stamps))
+    path = tmp_path / "projection.parquet"
+    pq.write_table(
+        pa.Table.from_pylist(
+            [{"reaction_id": "ord-0001", "inputs": []}], schema=schema
+        ),
+        path,
+    )
+    with pytest.raises(ValueError, match="derive the projection again"):
+        structures.write_structures(path, tmp_path / "structures.parquet")
+
+
+def test_a_stale_projection_is_refused(tmp_path):
+    # The output inherits the dataset hash, so an artifact derived from a stale
+    # projection would claim a provenance it does not have and never read stale again.
+    stamps = artifacts.Stamps(
+        artifact=projection.ARTIFACT,
+        source_dataset_id="ord_dataset-1",
+        source_md5="0" * 32,
+        ord_schema_version="0.0.0",
+        artifact_version=artifacts.ARTIFACT_VERSION,
+        rdkit_version="0000.00.0",
+    )
+    schema = projection.SCHEMA.with_metadata(artifacts.to_metadata(stamps))
+    path = tmp_path / "projection.parquet"
+    pq.write_table(pa.Table.from_pylist([], schema=schema), path)
+    with pytest.raises(ValueError, match="stale"):
         structures.write_structures(path, tmp_path / "structures.parquet")

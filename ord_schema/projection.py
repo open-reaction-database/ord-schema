@@ -154,6 +154,14 @@ _STRUCTURAL_TYPES: dict[str, frozenset[int]] = {
 # reaction-level structure search is a different operation and no id is assigned there.
 _STRUCTURE_ID_TYPES = frozenset({"Compound", "ProductCompound"})
 
+# An id rides beside the collapsed smiles and cannot exist without it: the schema
+# would gain a structure_id with no sibling smiles, and message_row would KeyError.
+if not set(_STRUCTURAL_TYPES) >= _STRUCTURE_ID_TYPES:
+    raise ValueError(
+        "_STRUCTURE_ID_TYPES must be a subset of _STRUCTURAL_TYPES; "
+        f"{sorted(_STRUCTURE_ID_TYPES - set(_STRUCTURAL_TYPES))} has no smiles"
+    )
+
 _ARROW_SCALARS: dict[int, pa.DataType] = {
     FieldDescriptor.TYPE_DOUBLE: pa.float64(),
     FieldDescriptor.TYPE_FLOAT: pa.float32(),
@@ -619,8 +627,9 @@ def write_projection(
     schema = SCHEMA.with_metadata(artifacts.to_metadata(stamps))
     rows = 0
     unreadable = 0
-    # One id space per dataset, in first-seen order: deterministic for a given source,
-    # and shared with the structures artifact derived from this file.
+    # One id space per dataset, in first-seen order, shared with the structures
+    # artifact derived from this file. The order follows protobuf map iteration, which
+    # is unspecified, so ids are a fact about this file rather than about the dataset.
     structure_ids: dict[str, int] = {}
     with (
         atomic_io.atomic_path(output) as temp_path,

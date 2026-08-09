@@ -45,12 +45,18 @@ already uses for source datasets:
   every artifact names the dataset it reflects however many derivations away it sits,
   and one comparison answers "is this current for that dataset?"
 * ``ord.ord_schema_version`` -- what derived it.
+* ``ord.rdkit_version`` -- the RDKit that derived it. Every artifact leans on RDKit --
+  canonical SMILES in the projection and the view, fingerprints in the structures
+  artifact -- and RDKit releases have changed both canonicalization and pattern
+  fingerprints, either of which silently breaks an artifact whose consumers run the new
+  RDKit against files built by the old. Optional to *read* so that files stamped before
+  the key existed still load; absent reads as stale, which rebuilds them.
 * ``ord.source_dataset_id`` -- the source's ID, written only when the source records
   one, and so the only key not required to read stamps back.
 
-``is_current`` requires the artifact name, the source content, the library version, and
-the artifact version to all match, since any of the four changing can change a value or
-mean the file answers a different question.
+``is_current`` requires the artifact name, the source content, the library version, the
+artifact version, and the RDKit version to all match, since any of the five changing
+can change a value or mean the file answers a different question.
 """
 
 import dataclasses
@@ -62,6 +68,7 @@ from typing import Protocol
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+from rdkit import rdBase
 
 from ord_schema import parquet
 from ord_schema.logging import get_logger
@@ -74,6 +81,7 @@ ARTIFACT_VERSION = "1"
 
 _META_ARTIFACT = "ord.artifact"
 _META_ARTIFACT_VERSION = "ord.artifact_version"
+_META_RDKIT_VERSION = "ord.rdkit_version"
 _META_SOURCE_DATASET_ID = "ord.source_dataset_id"
 _META_SOURCE_MD5 = "ord.source_md5"
 _META_ORD_SCHEMA_VERSION = "ord.ord_schema_version"
@@ -88,13 +96,18 @@ _REQUIRED = (
 
 @dataclasses.dataclass(frozen=True)
 class Stamps:
-    """Footer stamps recording what an artifact was derived from, and by what."""
+    """Footer stamps recording what an artifact was derived from, and by what.
+
+    ``rdkit_version`` is None only when read from a file stamped before the key
+    existed; such a file reads as stale.
+    """
 
     artifact: str
     source_dataset_id: str | None
     source_md5: str
     ord_schema_version: str
     artifact_version: str
+    rdkit_version: str | None = None
 
 
 class ArtifactWriter(Protocol):
@@ -139,6 +152,7 @@ def current_stamps(
         source_md5=source_md5,
         ord_schema_version=metadata.version("ord-schema"),
         artifact_version=ARTIFACT_VERSION,
+        rdkit_version=rdBase.rdkitVersion,
     )
 
 
@@ -152,6 +166,8 @@ def to_metadata(value: Stamps) -> dict[str, str]:
     }
     if value.source_dataset_id is not None:
         result[_META_SOURCE_DATASET_ID] = value.source_dataset_id
+    if value.rdkit_version is not None:
+        result[_META_RDKIT_VERSION] = value.rdkit_version
     return result
 
 
@@ -180,6 +196,7 @@ def load_stamps(path: str | os.PathLike[str]) -> Stamps:
             )
         values[key] = value.decode()
     source_dataset_id = raw.get(_META_SOURCE_DATASET_ID.encode())
+    rdkit_version = raw.get(_META_RDKIT_VERSION.encode())
     return Stamps(
         artifact=values[_META_ARTIFACT],
         source_dataset_id=(
@@ -188,15 +205,16 @@ def load_stamps(path: str | os.PathLike[str]) -> Stamps:
         source_md5=values[_META_SOURCE_MD5],
         ord_schema_version=values[_META_ORD_SCHEMA_VERSION],
         artifact_version=values[_META_ARTIFACT_VERSION],
+        rdkit_version=rdkit_version.decode() if rdkit_version is not None else None,
     )
 
 
 def is_current(path: str | os.PathLike[str], artifact: str, source_md5: str) -> bool:
     """Returns whether ``path`` holds ``artifact`` derived from ``source_md5`` by us.
 
-    All of the source content, the library version, and the artifact version must match;
-    any of them changing can change a value. A missing, unreadable, or wrong-artifact
-    file is not current.
+    All of the source content, the library version, the artifact version, and the RDKit
+    version must match; any of them changing can change a value. A missing, unreadable,
+    or wrong-artifact file is not current.
     """
     try:
         value = load_stamps(path)
@@ -219,13 +237,14 @@ def stamps_are_current(value: Stamps, artifact: str) -> bool:
         artifact: Artifact name the file is expected to hold.
 
     Returns:
-        Whether the artifact name, the library version, and the artifact version all
-        match.
+        Whether the artifact name, the library version, the artifact version, and the
+        RDKit version all match. A file with no RDKit stamp is not current.
     """
     return (
         value.artifact == artifact
         and value.ord_schema_version == metadata.version("ord-schema")
         and value.artifact_version == ARTIFACT_VERSION
+        and value.rdkit_version == rdBase.rdkitVersion
     )
 
 
@@ -450,7 +469,9 @@ def derive_tree(
             parent_stamps[match] = stamps
         else:
             ignored += 1
-    logger.info("Found %d %ss", len(sources), parent_artifact or "dataset")
+    logger.info(
+        "Found %d matching %s files", len(sources), parent_artifact or "dataset"
+    )
     # Every destination against every source, not against its own: an output_dir nested
     # in the source tree maps one dataset onto a *different* one, which a per-source
     # check passes, destroying a source the run had not reached yet.

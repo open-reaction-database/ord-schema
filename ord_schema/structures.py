@@ -28,10 +28,13 @@ The artifact is deduplicated, which is what makes both steps affordable: the cor
 holds roughly fifteen component occurrences per distinct structure, so screening and
 verification run against the distinct set and their results fan back out through the
 projection. The join is ``structure_id`` -- assigned by ``write_projection`` in
-first-seen order, carried on every compound there and numbered ``0..n-1`` here, so a
-match set travels back into a query as a bitmap indexed by id. The two files are two
-statements of one derivation and are meaningful only together; ids are not stable
-across builds and nothing outside the artifacts should record them.
+first-seen order, carried on every compound there that records a structure and numbered
+``0..n-1`` here, so a match set travels back into a query as a bitmap indexed by id.
+The two files are two statements of one derivation and are meaningful only together:
+ids are not stable across builds, nothing outside the artifacts should record them, and
+a projection rewritten in place needs its structures artifact rederived with it -- the
+currency stamps name the source dataset rather than the projection file, so the skip
+check cannot see that the pairing changed.
 
 The screen's completeness is an invariant, not a hope: if query ``Q`` is a subgraph of
 target ``T``, every bit of ``Q``'s pattern fingerprint is set in ``T``'s, so
@@ -81,8 +84,8 @@ _META_FINGERPRINT = "ord.fingerprint"
 
 SCHEMA = pa.schema(
     [
-        # The join key: every compound in the sibling projection carries one, and rows
-        # here are numbered 0..n-1 in the same first-seen order.
+        # The join key: every compound in the sibling projection with a ``smiles``
+        # carries one, and rows here are numbered 0..n-1 in the same first-seen order.
         pa.field("structure_id", pa.uint32(), nullable=False),
         pa.field("smiles", pa.string(), nullable=False),
         pa.field(
@@ -170,16 +173,29 @@ def _collect(source: str | os.PathLike[str]) -> list[str]:
         The distinct SMILES, indexed by ``structure_id``.
 
     Raises:
-        ValueError: If the pairs do not state a single dense one-to-one mapping -- an
-            id bound to two SMILES, one SMILES under two ids, a compound with one half
-            of the pair, or a gap in the id space. Each means ``source`` was not
-            written by ``write_projection``, and an artifact derived from it would
-            join wrongly rather than fail.
+        ValueError: If ``source``'s schema does not hold the structure columns this
+            library's projection defines, or if the pairs do not state a single dense
+            one-to-one mapping -- an id bound to two SMILES, one SMILES under two ids,
+            a compound with one half of the pair, or a gap in the id space. Each means
+            ``source`` was not written by this library's ``write_projection``, and an
+            artifact derived from it would join wrongly rather than fail.
     """
     smiles_by_id: dict[int, str] = {}
     id_by_smiles: dict[str, int] = {}
     columns = _structure_columns()
     with pq.ParquetFile(source) as projected:
+        # Checked against the file's own schema because read_row_group silently drops
+        # requested columns the file does not have: an old-schema projection would
+        # otherwise state no pairs at all and derive an empty artifact that stamps
+        # itself current.
+        available = _structure_columns(projected.schema_arrow)
+        if available != columns:
+            raise ValueError(
+                f"{source}: structure columns disagree with this library's projection "
+                f"schema (missing {sorted(set(columns) - set(available))}, unexpected "
+                f"{sorted(set(available) - set(columns))}); derive the projection "
+                "again first"
+            )
         for row_group in range(projected.num_row_groups):
             table = projected.read_row_group(row_group, columns=columns)
             for row in table.to_pylist():
@@ -294,6 +310,13 @@ def write_structures(
             f"{source} is a {parent.artifact}, not a {projection.ARTIFACT}; the "
             "structures artifact featurizes a projection"
         )
+    # derive_tree refuses stale parents, but this writer is public and its output
+    # inherits the dataset hash: an artifact derived from a stale projection would
+    # claim a provenance it does not have and nothing would ever mark it stale again.
+    if not artifacts.stamps_are_current(parent, projection.ARTIFACT):
+        raise ValueError(
+            f"{source} is a stale {projection.ARTIFACT}; derive it again first"
+        )
     if source_md5 is None:
         source_md5 = parent.source_md5
     if source_dataset_id is None:
@@ -306,9 +329,9 @@ def write_structures(
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
     ):
-        # ``or [0]``: a projection with no structures still writes one empty table, so
-        # the file exists and carries the schema and stamps a reader checks.
-        for start in range(0, len(all_smiles), row_group_size) or [0]:
+        # A projection with no structures leaves the loop empty; the writer's close
+        # still produces a valid zero-row file carrying the schema and stamps.
+        for start in range(0, len(all_smiles), row_group_size):
             batch = [
                 _row(structure_id, smiles)
                 for structure_id, smiles in enumerate(
@@ -318,7 +341,8 @@ def write_structures(
             unparseable += sum(row["mol_binary"] is None for row in batch)
             writer.write_table(pa.Table.from_pylist(batch, schema=schema))
     if unparseable:
-        # Per dataset rather than per row: a count is diffable between runs, so a
-        # regression in structure parsing shows up instead of hiding in the nulls.
-        logger.info("%s: %d structures do not parse", source, unparseable)
+        # A warning because any nonzero count is anomalous: the projection's SMILES
+        # are RDKit-canonical, so a re-parse failure means version skew or an RDKit
+        # bug. Per dataset rather than per row so the count is diffable between runs.
+        logger.warning("%s: %d structures do not parse", source, unparseable)
     return len(all_smiles)
