@@ -126,8 +126,14 @@ def test_projection_schema_renders():
 
 
 def _fields(schema_or_type):
-    """Yields every field reachable from a schema or nested type, once each."""
+    """Yields every renderable field reachable from a schema or nested type.
+
+    Internal fields (structure_id) are skipped to match describe(), which hides them:
+    they join artifacts together rather than stating a fact a model may query.
+    """
     for field in schema_or_type:
+        if projection.is_internal(field):
+            continue
         yield field
         data_type = field.type
         if pa.types.is_list(data_type):
@@ -174,3 +180,9 @@ def test_only_a_field_carrying_members_is_annotated():
         )
     )
     assert rendered == "kind: VARCHAR  (A | B)\nfree: VARCHAR"
+
+
+def test_internal_columns_are_hidden():
+    # structure_id joins the projection to its structures artifact; its values are not
+    # stable across builds, so a model must not learn the name to compare against.
+    assert "structure_id" not in schema.describe()

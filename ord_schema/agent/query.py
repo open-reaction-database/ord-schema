@@ -113,12 +113,23 @@ def _lookup(current: pa.Schema | pa.DataType, name: str, path: str) -> pa.Field:
     if name not in members:
         if not members:
             raise QueryError(f"{path}: {name!r} has no fields to descend into")
-        close = difflib.get_close_matches(name, members, n=3)
+        # Internal fields are excluded from the suggestions, not just refused: a
+        # near-miss like 'structure' must not teach the model the one name the schema
+        # description withholds.
+        candidates = [
+            member
+            for member in members
+            if not projection.is_internal(current.field(member))
+        ]
+        close = difflib.get_close_matches(name, candidates, n=3)
         suggestion = f"; did you mean {', '.join(map(repr, close))}?" if close else ""
         raise QueryError(f"{path}: no field named {name!r}{suggestion}")
-    if isinstance(current, pa.Schema):
-        return current.field(name)
-    return current.field(name)
+    field = current.field(name)
+    if projection.is_internal(field):
+        # Artifact-internal machinery (structure_id): its values are not stable across
+        # builds, so a comparison against one is a wrong answer waiting to move.
+        raise QueryError(f"{path}: {name!r} is internal to the artifacts")
+    return field
 
 
 def resolve(

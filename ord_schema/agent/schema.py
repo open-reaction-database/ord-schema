@@ -86,6 +86,10 @@ def _render(field: pa.Field, depth: int, lines: list[str]) -> None:
         depth: Indentation depth.
         lines: Accumulator to append to.
     """
+    if projection.is_internal(field):
+        # Artifact-internal machinery (structure_id): not a fact about the reaction,
+        # and not stable across builds. A model told about it would compare against it.
+        return
     indent = _INDENT * depth
     name, dtype = field.name, field.type
     if pa.types.is_struct(dtype):

@@ -513,3 +513,115 @@ def test_a_repeated_united_field_is_refused():
     descriptor = SimpleNamespace(name="Fake", full_name="ord.Fake", fields=[field])
     with pytest.raises(ValueError, match="repeated united message"):
         projection._struct_fields(cast(Descriptor, descriptor), frozenset())
+
+
+def test_schema_adds_a_structure_id_beside_the_compound_smiles():
+    components = (
+        projection.SCHEMA.field("inputs").type.item_type.field("components").type
+    )
+    field = components.value_type.field("structure_id")
+    assert field.type == pa.uint32()
+    assert projection.is_internal(field)
+    # The reaction-level smiles is a reaction, not a molecule; no id is assigned there.
+    assert "structure_id" not in projection.SCHEMA.names
+    assert not projection.is_internal(projection.SCHEMA.field("smiles"))
+
+
+def test_message_row_without_a_mapping_leaves_structure_id_null():
+    row = projection.message_row(_reaction())
+    (component,) = row["inputs"][0][1]["components"]
+    assert component["smiles"] == "Cc1ccccc1"
+    assert component["structure_id"] is None
+
+
+def test_structure_ids_are_assigned_in_first_seen_order():
+    structure_ids: dict[str, int] = {}
+    row = projection.message_row(_reaction(), structure_ids)
+    (component,) = row["inputs"][0][1]["components"]
+    (product,) = row["outcomes"][0]["products"]
+    assert component["structure_id"] == 0
+    assert product["structure_id"] == 1
+    assert structure_ids == {"Cc1ccccc1": 0, "Cc1ccccc1O": 1}
+
+
+def test_the_same_structure_shares_one_id_across_reactions():
+    structure_ids: dict[str, int] = {}
+    first = projection.message_row(_reaction("ord-0001"), structure_ids)
+    second = projection.message_row(_reaction("ord-0002"), structure_ids)
+    for row in (first, second):
+        (component,) = row["inputs"][0][1]["components"]
+        assert component["structure_id"] == 0
+    assert len(structure_ids) == 2
+
+
+def test_a_compound_without_a_smiles_gets_no_structure_id():
+    reaction = _reaction()
+    component = reaction.inputs["unnamed"].components.add()
+    component.identifiers.add(type="NAME", value="mystery compound")
+    structure_ids: dict[str, int] = {}
+    row = projection.message_row(reaction, structure_ids)
+    (unnamed,) = dict(row["inputs"])["unnamed"]["components"]
+    assert unnamed["smiles"] is None
+    assert unnamed["structure_id"] is None
+    assert "mystery compound" not in structure_ids
+
+
+def test_structure_ids_reach_compounds_beyond_inputs_and_products():
+    # message_row assigns by descriptor name, so a compound in a workup input or an
+    # authentic standard shares the id space; the structures artifact reads them all.
+    reaction = _reaction()
+    workup = reaction.workups.add()
+    workup.input.components.add().identifiers.add(type="SMILES", value="Cc1ccccc1")
+    structure_ids: dict[str, int] = {}
+    row = projection.message_row(reaction, structure_ids)
+    (workup_component,) = row["workups"][0]["input"]["components"]
+    assert workup_component["structure_id"] == 0  # Same molecule as the toluene input.
+    assert len(structure_ids) == 2
+
+
+def test_write_projection_stamps_one_id_space_per_dataset(tmp_path):
+    source = _source(tmp_path, [_reaction(f"ord-{i:04d}") for i in range(3)])
+    output = tmp_path / "projection.parquet"
+    projection.write_projection(source, output)
+    with pq.ParquetFile(output) as projected:
+        table = projected.read_row_group(
+            0,
+            columns=[
+                "inputs.key_value.key",
+                "inputs.key_value.value.components.list.element.structure_id",
+                "outcomes.list.element.products.list.element.structure_id",
+            ],
+        )
+    assert table.num_rows == 3
+    for row in table.to_pylist():
+        (component,) = row["inputs"][0][1]["components"]
+        (product,) = row["outcomes"][0]["products"]
+        assert component["structure_id"] == 0
+        assert product["structure_id"] == 1
+
+
+def test_structure_ids_span_source_row_groups(tmp_path):
+    # The id mapping is created once per dataset, not once per row group: rebuilding
+    # it inside the loop would restart the ids and corrupt every join in a dataset
+    # bigger than one group, while every small test still passed.
+    source = _source(
+        tmp_path, [_reaction(f"ord-{i:04d}") for i in range(3)], row_group_size=1
+    )
+    output = tmp_path / "projection.parquet"
+    projection.write_projection(source, output)
+    with pq.ParquetFile(output) as projected:
+        assert projected.num_row_groups == 3
+        for row_group in range(projected.num_row_groups):
+            table = projected.read_row_group(
+                row_group,
+                columns=[
+                    "inputs.key_value.key",
+                    "inputs.key_value.value.components.list.element.structure_id",
+                    "outcomes.list.element.products.list.element.structure_id",
+                ],
+            )
+            for row in table.to_pylist():
+                (component,) = row["inputs"][0][1]["components"]
+                (product,) = row["outcomes"][0]["products"]
+                assert component["structure_id"] == 0
+                assert product["structure_id"] == 1

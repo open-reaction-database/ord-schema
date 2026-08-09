@@ -66,6 +66,10 @@ is a compile error rather than a wrong answer:
 
 - A comparison path must end at a scalar and must not cross a repeated level.
 - An `exists`/`forall` path must end *at* a repeated level.
+- A path naming an artifact-internal column (`structure_id`, the join key into the
+  structures artifact) is refused, and internal columns are withheld from the rendered
+  schema and from "did you mean" suggestions: their values are not stable across
+  builds.
 - Operators must suit the leaf type — `contains` is text-only, ordering is numeric-only.
 - `group_by` paths must be scalar, so the number of groups is bounded by the values a column
   holds rather than by an explosion over a repeated level.

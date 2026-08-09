@@ -14,12 +14,14 @@
 
 """Tests for ord_schema.artifacts."""
 
+import dataclasses
 import pathlib
 from importlib import metadata
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+from rdkit import rdBase
 
 from ord_schema import artifacts, parquet
 from ord_schema.proto import dataset_pb2, reaction_pb2
@@ -43,6 +45,7 @@ def _valid_metadata(**overrides):
         "ord.artifact_version": artifacts.ARTIFACT_VERSION,
         "ord.source_md5": "0" * 32,
         "ord.ord_schema_version": "9.9.9",
+        "ord.rdkit_version": rdBase.rdkitVersion,
         "ord.source_dataset_id": "ord_dataset-1",
     }
     metadata.update(overrides)
@@ -452,3 +455,29 @@ def test_derive_tree_still_rewrites_its_own_artifacts(tmp_path):
         parent_artifact="projection",
     )
     assert (written, skipped, ignored) == (1, 0, 0)
+
+
+def test_stamps_record_the_rdkit_version():
+    value = artifacts.current_stamps("view", "ord_dataset-1", "abc")
+    assert value.rdkit_version == rdBase.rdkitVersion
+    assert artifacts.stamps_are_current(value, "view")
+
+
+def test_an_artifact_from_a_different_rdkit_reads_stale():
+    # Fingerprints and canonical SMILES are both functions of RDKit, so an upgrade
+    # must mark artifacts stale or the screen's completeness rests on cross-version
+    # fingerprint compatibility nothing enforces.
+    value = dataclasses.replace(
+        artifacts.current_stamps("view", "ord_dataset-1", "abc"),
+        rdkit_version="0000.00.0",
+    )
+    assert not artifacts.stamps_are_current(value, "view")
+
+
+def test_an_artifact_with_no_rdkit_stamp_reads_stale():
+    # Files stamped before the key existed still load, and read stale: rebuilding is
+    # the safe answer for an artifact whose RDKit nobody recorded.
+    value = dataclasses.replace(
+        artifacts.current_stamps("view", "ord_dataset-1", "abc"), rdkit_version=None
+    )
+    assert not artifacts.stamps_are_current(value, "view")

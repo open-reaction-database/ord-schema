@@ -445,3 +445,18 @@ def test_a_plain_relation_name_is_still_allowed():
     assert query.compile_query(query.Query(), table="projections").sql.endswith(
         "FROM projections"
     )
+
+
+def test_an_internal_column_is_refused():
+    # structure_id is real in the schema but internal to the artifacts: its values are
+    # not stable across builds, so a comparison against one is refused at resolution.
+    with pytest.raises(query.QueryError, match="internal"):
+        query.resolve("inputs.components.structure_id")
+
+
+def test_suggestions_do_not_name_internal_columns():
+    # A near-miss like 'structure' is exactly what a model gropes for when asked a
+    # structure question; the suggestion must not teach it the withheld name.
+    with pytest.raises(query.QueryError, match="no field named") as excinfo:
+        query.resolve("inputs.components.structure")
+    assert "structure_id" not in str(excinfo.value)

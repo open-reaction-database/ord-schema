@@ -57,6 +57,17 @@ Every other identifier is kept, as a list. ``NAME`` alone covers compounds that 
 structural identifier reaches, and a compound may carry several of them, so pivoting
 identifiers into named scalar fields would silently drop data.
 
+One derived column rides beside the compound-level ``smiles``: a ``structure_id``
+numbering the dataset's distinct structures in first-seen order, the join key into the
+dataset's ``structures`` artifact (:mod:`ord_schema.structures`), where the
+fingerprints live. It exists because a structure predicate is evaluated *outside* the
+query -- screened and verified against the structures artifact -- and its match set has
+to re-enter the query at element granularity: DuckDB does not allow a subquery inside a
+lambda expression, so the components a quantifier binds cannot semi-join against a match
+table, but they can test one integer against a bitmap parameter. The ids are meaningful
+only alongside the projection that assigned them, so the column is marked internal and
+stays out of what a model is told it may query.
+
 Anything else -- the original units, the identifier types that were collapsed -- remains
 in the source ``reaction`` column, which stays authoritative for byte-exact
 round-tripping. The projection promises that every field is *readable*, not that it is
@@ -86,7 +97,7 @@ reproducible from the projection alone.
 """
 
 import os
-from collections.abc import Iterator
+from collections.abc import Iterator, MutableMapping
 from typing import Any, cast, get_args
 
 import pyarrow as pa
@@ -138,6 +149,19 @@ _STRUCTURAL_TYPES: dict[str, frozenset[int]] = {
     "Reaction": _STRUCTURAL_REACTION_TYPES,
 }
 
+# Messages whose collapsed ``smiles`` is a molecule, and that therefore carry a
+# ``structure_id``. Reaction is structural but its smiles is a reaction;
+# reaction-level structure search is a different operation and no id is assigned there.
+_STRUCTURE_ID_TYPES = frozenset({"Compound", "ProductCompound"})
+
+# An id rides beside the collapsed smiles and cannot exist without it: the schema
+# would gain a structure_id with no sibling smiles, and message_row would KeyError.
+if not set(_STRUCTURAL_TYPES) >= _STRUCTURE_ID_TYPES:
+    raise ValueError(
+        "_STRUCTURE_ID_TYPES must be a subset of _STRUCTURAL_TYPES; "
+        f"{sorted(_STRUCTURE_ID_TYPES - set(_STRUCTURAL_TYPES))} has no smiles"
+    )
+
 _ARROW_SCALARS: dict[int, pa.DataType] = {
     FieldDescriptor.TYPE_DOUBLE: pa.float64(),
     FieldDescriptor.TYPE_FLOAT: pa.float32(),
@@ -162,6 +186,13 @@ _RESOLVER = units.RESOLVER
 # published Parquet self-describing: a consumer learns the spellings from the footer
 # rather than from this library.
 _META_ENUM = "ord.enum"
+
+# Field metadata marking a column as artifact-internal: machinery the library uses to
+# join artifacts together, not a fact about the reaction. Internal columns stay out of
+# the schema description a model queries against, and a query naming one is refused --
+# their values are not stable across builds, so nothing outside this library should
+# depend on them.
+_META_INTERNAL = "ord.internal"
 
 
 def _validate_canonical_units() -> None:
@@ -273,6 +304,20 @@ def enum_members(field: pa.Field) -> tuple[str, ...] | None:
     return tuple(raw.decode().split(",")) if raw else None
 
 
+def is_internal(field: pa.Field) -> bool:
+    """Returns whether ``field`` is artifact-internal machinery rather than data.
+
+    Args:
+        field: A field of ``SCHEMA``, or of a struct within it.
+
+    Returns:
+        True for columns like ``structure_id`` whose values join artifacts together and
+        are not stable across builds. They are hidden from the schema description a
+        model sees, and a query naming one is refused.
+    """
+    return bool((field.metadata or {}).get(_META_INTERNAL.encode()))
+
+
 def _field_type(field: FieldDescriptor, stack: frozenset[str]) -> pa.DataType:
     if _canonical_unit(field) is not None:
         # No field _struct_fields handles reaches here: it expands a united field into a
@@ -307,6 +352,14 @@ def _struct_fields(descriptor: Descriptor, stack: frozenset[str]) -> list[pa.Fie
     fields = []
     if descriptor.name in _STRUCTURAL_TYPES:
         fields.append(pa.field("smiles", pa.string()))
+    if descriptor.name in _STRUCTURE_ID_TYPES:
+        fields.append(
+            pa.field(
+                "structure_id",
+                pa.uint32(),
+                metadata={_META_INTERNAL: "joins the dataset's structures artifact"},
+            )
+        )
     for field in descriptor.fields:
         if _canonical_unit(field) is None:
             fields.append(
@@ -391,7 +444,9 @@ def _enum_name(field: FieldDescriptor, number: int) -> str:
     return field.enum_type.values_by_number[number].name
 
 
-def message_row(message: Message) -> dict[str, Any]:
+def message_row(
+    message: Message, structure_ids: MutableMapping[str, int] | None = None
+) -> dict[str, Any]:
     """Projects ``message`` to a dict matching its struct type in ``SCHEMA``.
 
     Unset fields are None rather than the proto default, so a consumer can tell "the
@@ -399,6 +454,10 @@ def message_row(message: Message) -> dict[str, Any]:
 
     Args:
         message: Any message reachable from Reaction.
+        structure_ids: Mapping from SMILES to ``structure_id``, extended in first-seen
+            order as compounds are projected. None -- the default, for a message
+            projected outside a dataset -- leaves every ``structure_id`` null, since an
+            id is meaningful only against the artifact that shares the mapping.
 
     Returns:
         A dict keyed by projected column name.
@@ -413,6 +472,13 @@ def message_row(message: Message) -> dict[str, Any]:
         row["smiles"] = smiles
         if smiles is not None:
             collapsed = _STRUCTURAL_TYPES[descriptor.name]
+    if descriptor.name in _STRUCTURE_ID_TYPES:
+        if row["smiles"] is not None and structure_ids is not None:
+            row["structure_id"] = structure_ids.setdefault(
+                row["smiles"], len(structure_ids)
+            )
+        else:
+            row["structure_id"] = None
     for field in descriptor.fields:
         name = column_name(field)
         canonical = _canonical_unit(field)
@@ -428,7 +494,9 @@ def message_row(message: Message) -> dict[str, Any]:
             value_field = message_type.fields_by_name["value"]
             items = getattr(message, field.name).items()
             if value_field.message_type is not None:
-                row[name] = [(key, message_row(value)) for key, value in items] or None
+                row[name] = [
+                    (key, message_row(value, structure_ids)) for key, value in items
+                ] or None
             else:
                 row[name] = list(items) or None
             continue
@@ -437,7 +505,9 @@ def message_row(message: Message) -> dict[str, Any]:
             if field.name == "identifiers":
                 values = _kept_identifiers(values, collapsed)
             if message_type is not None:
-                row[name] = [message_row(value) for value in values] or None
+                row[name] = [
+                    message_row(value, structure_ids) for value in values
+                ] or None
             elif field.type == FieldDescriptor.TYPE_ENUM:
                 row[name] = [_enum_name(field, value) for value in values] or None
             else:
@@ -445,7 +515,7 @@ def message_row(message: Message) -> dict[str, Any]:
             continue
         if message_type is not None:
             row[name] = (
-                message_row(getattr(message, field.name))
+                message_row(getattr(message, field.name), structure_ids)
                 if message.HasField(field.name)
                 else None
             )
@@ -466,7 +536,9 @@ def message_row(message: Message) -> dict[str, Any]:
 
 
 def reaction_row(
-    reaction: reaction_pb2.Reaction, reaction_id: str | None
+    reaction: reaction_pb2.Reaction,
+    reaction_id: str | None,
+    structure_ids: MutableMapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """Projects one row of a source dataset to a dict matching ``SCHEMA``.
 
@@ -483,6 +555,9 @@ def reaction_row(
             where the column is null. Required rather than defaulted, so a null cannot
             arrive looking like a caller who read no column and skip the check. Project
             a Reaction from anywhere else with ``message_row``.
+        structure_ids: Mapping from SMILES to ``structure_id``, shared across a
+            dataset's rows and extended in first-seen order. None leaves every
+            ``structure_id`` null.
 
     Returns:
         A dict keyed by projected column name.
@@ -501,7 +576,7 @@ def reaction_row(
             f"reaction_id column {reaction_id!r} disagrees with the reaction's own "
             f"{reaction.reaction_id!r}"
         )
-    return message_row(reaction)
+    return message_row(reaction, structure_ids)
 
 
 def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
@@ -552,6 +627,10 @@ def write_projection(
     schema = SCHEMA.with_metadata(artifacts.to_metadata(stamps))
     rows = 0
     unreadable = 0
+    # One id space per dataset, in first-seen order, shared with the structures
+    # artifact derived from this file. The order follows protobuf map iteration, which
+    # is unspecified, so ids are a fact about this file rather than about the dataset.
+    structure_ids: dict[str, int] = {}
     with (
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
@@ -560,7 +639,7 @@ def write_projection(
             batch = []
             for reaction_id, reaction in view.iter_reactions(row_group=row_group):
                 try:
-                    row = reaction_row(reaction, reaction_id)
+                    row = reaction_row(reaction, reaction_id, structure_ids)
                 except ValueError as error:
                     raise ValueError(f"{view.path}: {error}") from error
                 unreadable += _unreadable_structures(row)

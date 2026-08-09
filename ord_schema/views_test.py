@@ -18,6 +18,7 @@ import pathlib
 from importlib import metadata
 from typing import NamedTuple
 
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
@@ -612,3 +613,21 @@ def test_write_view_refuses_a_source_dataset_as_its_parent(tmp_path):
     _project(tmp_path)
     with pytest.raises(ValueError, match="not a derived artifact"):
         views.write_view(tmp_path / "ds.parquet", tmp_path / "out.parquet")
+
+
+def test_write_view_refuses_a_stale_projection(tmp_path):
+    # The output inherits the dataset hash, so a view derived from a stale projection
+    # would claim a provenance it does not have and never read stale again.
+    stamps = artifacts.Stamps(
+        artifact=projection.ARTIFACT,
+        source_dataset_id="ord_dataset-1",
+        source_md5="0" * 32,
+        ord_schema_version="0.0.0",
+        artifact_version=artifacts.ARTIFACT_VERSION,
+        rdkit_version="0000.00.0",
+    )
+    schema = projection.SCHEMA.with_metadata(artifacts.to_metadata(stamps))
+    path = tmp_path / "projection.parquet"
+    pq.write_table(pa.Table.from_pylist([], schema=schema), path)
+    with pytest.raises(ValueError, match="stale"):
+        views.write_view(path, tmp_path / "view.parquet")
