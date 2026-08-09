@@ -38,10 +38,12 @@ check cannot see that the pairing changed.
 
 The screen's completeness is an invariant, not a hope: if query ``Q`` is a subgraph of
 target ``T``, every bit of ``Q``'s pattern fingerprint is set in ``T``'s, so
-``bit_count(fp & q) = popcount(q)`` never rejects a true match. That guarantee fails
-for SMARTS with explicit hydrogens -- measured: ``[H]OC`` screens *out* methanol while
-the ``MergeQueryHs``-transformed query matches it -- which is why a query layer must
-refuse them rather than merge them. Similarity needs no verification at all: Tanimoto
+``bit_count(fp & q) = popcount(q)`` never rejects a true match -- measured across 221
+query/target pairs, including explicit-hydrogen queries, with no exception. What a
+query layer still has to handle is that these molecules are built from SMILES and so
+hold their hydrogens implicitly: a SMARTS naming one as its own atom matches nothing,
+which :mod:`ord_schema.agent.query` rewrites rather than runs. Similarity needs no
+verification at all: Tanimoto
 is defined on the Morgan fingerprint, so the screen *is* the answer, and
 ``morgan_popcount`` bounds it (``popcount(B)`` must lie within ``[t * popcount(A),
 popcount(A) / t]`` for Tanimoto ``>= t``).
@@ -261,7 +263,7 @@ def _row(structure_id: int, smiles: str) -> dict[str, Any]:
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return row
-    morgan = _MORGAN.GetFingerprint(mol)
+    morgan = morgan_fingerprint(mol)
     row["pattern_fp"] = DataStructs.BitVectToBinaryText(
         Chem.PatternFingerprint(mol, fpSize=PATTERN_FP_SIZE)
     )

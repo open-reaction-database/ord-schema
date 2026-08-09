@@ -78,24 +78,31 @@ is a compile error rather than a wrong answer:
   holds rather than by an explosion over a repeated level.
 - A `{"compound": ...}` value is resolved through [`ord_schema.resolvers`](../resolvers.py) and
   **bound as a parameter**, so the model names compounds and never spells structures.
-- A `substructure`/`similarity` path must name a compound's `smiles` (inside a
-  quantifier, like any element predicate), and a SMARTS with an explicit hydrogen is
-  refused outright: measured, `[H]OC` fails the fingerprint screen against methanol
-  while the equivalent H-count form `[OX2H]C` both matches and screens — explicit
-  hydrogens are the one case where the screen silently misses true hits.
+- A `substructure`/`similarity` path must name a compound's `smiles`, inside a
+  quantifier like any other element predicate.
+- A SMARTS naming a hydrogen the corpus stores implicitly is rewritten, with a warning,
+  rather than run as written: stored molecules come from SMILES, so `[H]OC` matches no
+  methanol and would return empty without saying why. `MergeQueryHs` folds it to
+  `[O&!H0]C`, which matches. Hydrogens that cannot be folded — isotopic (`[2H]`), or
+  with no heavy atom to fold into (`[H][H]`) — are left exactly as written, because
+  those are real graph atoms in a stored molecule and the query already works;
+  28,297 ORD reactions have an `[H][H]` component.
 
 ## Structure search
 
 A structure predicate compiles to a bitmap test, not to chemistry. The chemistry runs
 in [`execute.Corpus`](execute.py) against the [structures artifact](../structures.py):
-a fingerprint **screen** — complete but not exact — over every distinct structure in
-the corpus, then exact subgraph **verification** from the serialized molecules for
+a fingerprint **screen** — complete but not exact — over every structure row in the
+corpus (deduplicated per dataset, so a molecule in two datasets is screened twice),
+then exact subgraph **verification** from the serialized molecules for
 substructure (similarity needs no verification; Tanimoto is defined on the Morgan
 fingerprint, so the screen is the answer). The verified match set re-enters the query
-as a `BITSTRING` parameter indexed by the projection's internal `structure_id`, which
-is what preserves element binding: `exists(components, substructure(pyridine) and
-role = SOLVENT)` means one component that is both, and the measured alternative —
-intersecting reaction-id sets — over-returns by 94% on exactly that query.
+as a `BITSTRING` parameter indexed by the corpus-wide id (`structure_id` plus the
+file's offset), which is what preserves element binding: `exists(components,
+substructure(pyridine) and role = SOLVENT)` means one component that is both. The
+alternative — intersecting reaction-id sets — over-returns by 94% on exactly that
+query; see [ord-logbook#28](https://github.com/open-reaction-database/ord-logbook/pull/28),
+finding 4.
 
 ```python
 from ord_schema.agent import execute, query
@@ -124,8 +131,10 @@ table = corpus.search(
 ```
 
 `Corpus` refuses artifacts that do not pair: every projection must have a structures
-artifact derived from the same source dataset, because the ids joining them are
-meaningful only as a pair. Structure ids are dataset-local; the executor's relation
+artifact derived from the same source dataset, and long enough to hold every
+`structure_id` the projection carries, because the ids joining them are meaningful only
+as a pair. Pairing is by source dataset rather than by filename, so the two trees need
+not share a layout. Structure ids are dataset-local; the executor's relation
 carries a per-file offset column (`structure_offset`), which is why compiled SQL with a
 structure predicate runs only there — validate it against `query.executable_schema()`
 rather than the bare projection schema.

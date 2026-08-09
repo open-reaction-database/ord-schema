@@ -14,6 +14,8 @@
 
 """Tests for ord_schema.agent.query."""
 
+import warnings
+
 import duckdb
 import pytest
 from pydantic import ValidationError
@@ -556,14 +558,35 @@ def test_a_smarts_with_an_explicit_hydrogen_is_merged_with_a_warning():
     assert Chem.MolFromSmiles("CO").HasSubstructMatch(merged)
 
 
-def test_an_unmergeable_explicit_hydrogen_is_refused():
-    # A hydrogen with no heavy neighbor has nothing to fold into, and folding an
-    # isotopic hydrogen into a count would drop the isotope constraint silently.
-    for smarts in ("[H][H]", "[2H]OC"):
-        with pytest.raises(ValueError, match="explicit hydrogen"):
-            query.Substructure.model_validate(
-                {"op": "substructure", "path": "smiles", "smarts": smarts}
-            )
+@pytest.mark.parametrize("smarts", ["[H][H]", "[2H]OC", "[2H]"])
+def test_an_unfoldable_explicit_hydrogen_passes_through(smarts):
+    # These hydrogens cannot be implicit in a stored molecule either -- an isotope and
+    # H2 have no heavy atom to hide in -- so they are real graph atoms the query
+    # already matches. 28,297 ORD reactions have an [H][H] component, so rewriting or
+    # refusing them would lose exactly the queries that work.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        model = query.Substructure.model_validate(
+            {"op": "substructure", "path": "smiles", "smarts": smarts}
+        )
+    assert model.smarts == smarts
+
+
+@pytest.mark.parametrize("smarts", ["", "[]"])
+def test_a_smarts_with_no_atoms_is_refused(smarts):
+    # An empty query fingerprints to no bits, so the screen admits the whole corpus
+    # and verification then rejects all of it: an empty answer at full cost.
+    with pytest.raises(ValueError, match=r"no atoms|does not parse"):
+        query.Substructure.model_validate(
+            {"op": "substructure", "path": "smiles", "smarts": smarts}
+        )
+
+
+def test_a_similarity_smiles_with_no_atoms_is_refused():
+    with pytest.raises(ValueError, match="no atoms"):
+        query.Similarity.model_validate(
+            {"op": "similarity", "path": "smiles", "smiles": "", "threshold": 0.5}
+        )
 
 
 def test_an_h_count_smarts_is_accepted():

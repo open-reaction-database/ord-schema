@@ -14,9 +14,11 @@
 
 """Tests for ord_schema.agent.execute."""
 
+import contextlib
 import pathlib
 from collections.abc import Iterator
 
+import pyarrow.parquet as pq
 import pytest
 
 from ord_schema import parquet, projection, structures
@@ -105,27 +107,27 @@ def _search(corpus, where) -> set[str]:
     return set(table.column("reaction_id").to_pylist())
 
 
-def test_substructure_binds_to_the_element(corpus):
-    # Both aa reactions contain pyridine; only aa01 has it as the solvent. The
-    # co-membership is the point: a reaction-granularity intersection would return
-    # both.
-    matched = _search(
-        corpus,
-        _exists(
-            {
-                "op": "and",
-                "clauses": [
-                    {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"},
-                    {
-                        "op": "eq",
-                        "path": "reaction_role",
-                        "value": {"literal": "SOLVENT"},
-                    },
-                ],
-            }
-        ),
+def _role_and_structure(smarts, role):
+    return _exists(
+        {
+            "op": "and",
+            "clauses": [
+                {"op": "substructure", "path": "smiles", "smarts": smarts},
+                {"op": "eq", "path": "reaction_role", "value": {"literal": role}},
+            ],
+        }
     )
-    assert matched == {"ord-aa01"}
+
+
+def test_substructure_binds_to_the_element(corpus):
+    # aa01 holds benzene as a REACTANT and pyridine as its SOLVENT. Bound, that is one
+    # component required to be both, which nothing satisfies. The unbound reading --
+    # "contains benzene" intersected with "contains a solvent" -- would return aa01, so
+    # this is the assertion that fails if element binding is ever lost.
+    assert _search(corpus, _role_and_structure("c1ccccc1", "SOLVENT")) == set()
+    # The same query against the component that really is the solvent does match, so
+    # the empty set above is binding at work rather than a predicate that never fires.
+    assert _search(corpus, _role_and_structure("c1ccncc1", "SOLVENT")) == {"ord-aa01"}
 
 
 def test_substructure_reaches_the_offset_dataset(corpus):
@@ -230,7 +232,7 @@ def test_verification_prunes_screen_false_positives(corpus, monkeypatch):
 
 
 def test_unpaired_artifacts_are_refused(corpus_dir, tmp_path):
-    with pytest.raises(execute.PairingError, match="only one side"):
+    with pytest.raises(execute.PairingError, match="no counterpart"):
         execute.Corpus(
             str(corpus_dir / "projections" / "*.parquet"),
             str(corpus_dir / "structures" / "ord_dataset-aa.parquet"),
@@ -259,7 +261,7 @@ def test_a_mismatched_pair_is_refused(corpus_dir, tmp_path):
         source = corpus_dir / "projections" / f"ord_dataset-{shard}.parquet"
         (projections / source.name).write_bytes(source.read_bytes())
     projection.write_projection(changed, projections / "ord_dataset-bb.parquet")
-    with pytest.raises(execute.PairingError, match="different sources"):
+    with pytest.raises(execute.PairingError, match="no counterpart"):
         execute.Corpus(
             str(projections / "*.parquet"),
             str(corpus_dir / "structures" / "*.parquet"),
@@ -272,3 +274,243 @@ def test_nothing_matched_is_refused(tmp_path):
             str(tmp_path / "absent" / "*.parquet"),
             str(tmp_path / "absent" / "*.parquet"),
         )
+
+
+def _copy_corpus(corpus_dir, tmp_path) -> pathlib.Path:
+    """Copies the built corpus so a test can damage one artifact in isolation."""
+    for name in ("projections", "structures"):
+        (tmp_path / name).mkdir()
+        for source in (corpus_dir / name).glob("*.parquet"):
+            (tmp_path / name / source.name).write_bytes(source.read_bytes())
+    return tmp_path
+
+
+def test_offsets_place_each_dataset_in_its_own_slice(corpus):
+    # Toluene is the product of every reaction and lives in BOTH datasets, at local id
+    # 2 in aa and 1 in bb. Reaching all three reactions therefore requires each id to
+    # be offset by its own file's base: swapping the two offsets, or shifting both,
+    # produces a different answer.
+    matched = corpus.search(
+        query.Query.model_validate(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "outcomes.products",
+                    "where": {
+                        "op": "substructure",
+                        "path": "smiles",
+                        "smarts": "Cc1ccccc1",
+                    },
+                }
+            }
+        )
+    )
+    assert set(matched.column("reaction_id").to_pylist()) == {
+        "ord-aa01",
+        "ord-aa02",
+        "ord-bb01",
+    }
+
+
+def test_a_structures_artifact_short_of_its_projection_is_refused(corpus_dir, tmp_path):
+    # The dangerous desynchronization: an artifact rederived from a rewritten
+    # projection keeps the same source hash, so the stamps still agree. A short one
+    # would pair cleanly and then alias the next dataset's molecules -- in range for
+    # get_bit, wrong about the chemistry, and silent.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    target = root / "structures" / "ord_dataset-aa.parquet"
+    with pq.ParquetFile(target) as artifact:
+        table = artifact.read()
+        schema = artifact.schema_arrow
+    pq.write_table(table.slice(0, table.num_rows - 1).cast(schema), target)
+    with pytest.raises(execute.PairingError, match="would join to another dataset"):
+        execute.Corpus(
+            str(root / "projections" / "*.parquet"),
+            str(root / "structures" / "*.parquet"),
+        )
+
+
+def test_two_artifacts_of_one_dataset_are_refused(corpus_dir, tmp_path):
+    # Which of them answers a query would be arbitrary, so neither may.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    source = root / "projections" / "ord_dataset-aa.parquet"
+    (root / "projections" / "copy.parquet").write_bytes(source.read_bytes())
+    with pytest.raises(execute.PairingError, match="same source dataset"):
+        execute.Corpus(
+            str(root / "projections" / "*.parquet"),
+            str(root / "structures" / "*.parquet"),
+        )
+
+
+def test_artifacts_pair_across_differing_directory_layouts(corpus_dir, tmp_path):
+    # Pairing is by source dataset, not by filename, so a corpus whose two trees are
+    # laid out differently -- or whose files share a basename across directories --
+    # still pairs. Keying on the basename would drop a dataset here without a word.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    for shard, name in (
+        ("one", "ord_dataset-aa.parquet"),
+        ("two", "ord_dataset-bb.parquet"),
+    ):
+        (root / "sharded" / shard).mkdir(parents=True)
+        (root / "sharded" / shard / "data.parquet").write_bytes(
+            (root / "projections" / name).read_bytes()
+        )
+    with execute.Corpus(
+        str(root / "sharded" / "*" / "*.parquet"),
+        str(root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        matched = value.search(
+            query.Query.model_validate(
+                {
+                    "where": _exists(
+                        {"op": "substructure", "path": "smiles", "smarts": "[OX2H]"}
+                    )
+                }
+            )
+        )
+    assert matched.column("reaction_id").to_pylist() == ["ord-bb01"]
+
+
+def test_a_stale_artifact_is_refused(corpus_dir, tmp_path):
+    root = _copy_corpus(corpus_dir, tmp_path)
+    target = root / "structures" / "ord_dataset-aa.parquet"
+    with pq.ParquetFile(target) as artifact:
+        table = artifact.read()
+        schema = artifact.schema_arrow
+    metadata = dict(schema.metadata)
+    metadata[b"ord.rdkit_version"] = b"0000.00.0"
+    pq.write_table(table.cast(schema.with_metadata(metadata)), target)
+    with pytest.raises(execute.PairingError, match="stale"):
+        execute.Corpus(
+            str(root / "projections" / "*.parquet"),
+            str(root / "structures" / "*.parquet"),
+        )
+    # The same corpus opens when the caller takes responsibility for the mismatch.
+    with execute.Corpus(
+        str(root / "projections" / "*.parquet"),
+        str(root / "structures" / "*.parquet"),
+        require_current=False,
+        resolver={}.__getitem__,
+    ) as value:
+        assert value.search(query.Query.model_validate({})).num_rows == 3
+
+
+def test_similarity_bounds_the_match_set_at_the_threshold(corpus):
+    # Tanimoto against pyridine in this fixture: benzene 0.3333, toluene 0.1765,
+    # ethanol 0.0. Exact sets on either side of benzene pin the popcount band and the
+    # comparison in both directions -- a band that dropped smaller candidates, or a
+    # strict >, would change one of these.
+    def at(threshold):
+        return _search(
+            corpus,
+            _exists(
+                {
+                    "op": "similarity",
+                    "path": "smiles",
+                    "smiles": "c1ccncc1",
+                    "threshold": threshold,
+                }
+            ),
+        )
+
+    assert at(0.3) == {"ord-aa01", "ord-aa02"}  # Reaches benzene, in aa01.
+    assert at(0.34) == {"ord-aa01", "ord-aa02"}  # Benzene excluded; pyridine remains.
+    assert at(1.0) == {"ord-aa01", "ord-aa02"}  # Identity: >= must not become >.
+
+
+def test_similarity_at_one_is_an_exact_structure_query(corpus):
+    # threshold 1.0 is legal and is the exact-structure query; a strict comparison
+    # would return nothing for it.
+    matched = _search(
+        corpus,
+        _exists(
+            {
+                "op": "similarity",
+                "path": "smiles",
+                "smiles": "OCC",
+                "threshold": 1.0,
+            }
+        ),
+    )
+    assert matched == {"ord-bb01"}
+
+
+def test_an_explicit_hydrogen_smarts_runs_after_the_rewrite(corpus):
+    # The rewritten pattern has to survive the screen and the verification, not just
+    # RDKit: [H]OC matches no stored molecule, [O&!H0]C matches ethanol's hydroxyl.
+    with pytest.warns(UserWarning, match="rewritten"):
+        request = query.Query.model_validate(
+            {
+                "where": _exists(
+                    {"op": "substructure", "path": "smiles", "smarts": "[H]OC"}
+                )
+            }
+        )
+    matched = set(corpus.search(request).column("reaction_id").to_pylist())
+    assert matched == {"ord-bb01"}
+
+
+def test_forall_and_not_compose_with_a_structure_predicate(corpus):
+    pyridine = {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"}
+    # aa02's only input is pyridine, so it is the one reaction where every component
+    # satisfies the predicate.
+    every = corpus.search(
+        query.Query.model_validate(
+            {"where": {"op": "forall", "path": "inputs.components", "where": pyridine}}
+        )
+    )
+    assert "ord-aa02" in set(every.column("reaction_id").to_pylist())
+    negated = _search(corpus, _exists({"op": "not", "clause": pyridine}))
+    assert negated == {"ord-aa01", "ord-bb01"}
+
+
+def test_verification_runs_in_worker_processes(corpus_dir):
+    # Blobs and ids have to survive pickling to the workers and back.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        n_jobs=2,
+        resolver={}.__getitem__,
+    ) as value:
+        matched = value.search(
+            query.Query.model_validate(
+                {
+                    "where": _exists(
+                        {"op": "substructure", "path": "smiles", "smarts": "[OX2H]"}
+                    )
+                }
+            )
+        )
+    assert matched.column("reaction_id").to_pylist() == ["ord-bb01"]
+
+
+def test_a_timeout_does_not_outlive_its_own_search(corpus):
+    # Timer.cancel only sets a flag, so a timer past its own check fires anyway. If
+    # that interrupt could outlive the search that armed it, the NEXT query would fail
+    # and be reported as having timed out.
+    request = query.Query.model_validate(
+        {"where": _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}})}
+    )
+    # A timeout this short may or may not fire; either outcome is fine for the query
+    # that armed it. What must never happen is the interrupt landing on a later query.
+    for _ in range(20):
+        with contextlib.suppress(TimeoutError):
+            corpus.search(request, timeout_seconds=0.001)
+        assert _search(
+            corpus, _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}})
+        ) == {"ord-bb01"}
+
+
+def test_a_generous_timeout_returns_the_answer(corpus):
+    matched = corpus.search(
+        query.Query.model_validate(
+            {
+                "where": _exists(
+                    {"op": "substructure", "path": "smiles", "smarts": "[OX2H]"}
+                )
+            }
+        ),
+        timeout_seconds=60,
+    )
+    assert matched.column("reaction_id").to_pylist() == ["ord-bb01"]

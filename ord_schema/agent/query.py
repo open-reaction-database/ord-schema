@@ -47,13 +47,14 @@ through :mod:`ord_schema.resolvers` before binding.
 Structure predicates -- ``substructure`` and ``similarity`` -- compile to a bitmap test
 rather than to chemistry. The chemistry runs *outside* the query, against the
 :mod:`ord_schema.structures` artifact (:mod:`ord_schema.agent.execute` is the driver),
-and the match set re-enters as a bitmap parameter indexed by the projection's
-``structure_id``: DuckDB permits no subquery inside a lambda expression, so the
-element a quantifier binds cannot semi-join a match table, but it can test one integer
-against a bitmap. The compiled SQL therefore references ``structure_offset``, a column
-only the executor's relation carries -- a raw projection cannot answer a structure
-query, which is the point: the ids are dataset-local and only the executor knows the
-offsets that make them one corpus-wide space.
+and the match set re-enters as a bitmap parameter indexed by the corpus-wide id --
+the projection's ``structure_id`` plus its file's offset: DuckDB permits no subquery
+inside a lambda expression, so the element a quantifier binds cannot semi-join a match
+table, but it can test one integer against a bitmap. The compiled SQL therefore
+references ``structure_offset``, a column only the executor's relation carries -- a raw
+projection cannot answer a structure query, which is the point: the ids are
+dataset-local and only the executor knows the offsets that make them one corpus-wide
+space.
 """
 
 import dataclasses
@@ -73,8 +74,9 @@ from ord_schema import projection
 TABLE = "reactions"
 
 # The per-row column mapping a dataset-local structure_id into the corpus-wide id
-# space a bitmap parameter is indexed by. Supplied by the executor's relation; absent
-# from the projection itself, so it is unreachable through resolve().
+# space a bitmap parameter is indexed by. Supplied by the executor's relation and
+# absent from the projection schema resolve() defaults to, so a model-supplied path
+# does not reach it.
 STRUCTURE_OFFSET = "structure_offset"
 
 
@@ -115,6 +117,11 @@ _NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 class QueryError(ValueError):
     """A query that cannot be compiled against the projection schema."""
+
+
+def _explicit_hydrogens(pattern: Chem.Mol) -> int:
+    """Returns how many of a query's atoms are hydrogens in their own right."""
+    return sum(1 for atom in pattern.GetAtoms() if atom.GetAtomicNum() == 1)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -334,32 +341,34 @@ class Substructure(BaseModel):
             pattern = Chem.MolFromSmarts(self.smarts)
             if pattern is None:
                 raise ValueError(f"SMARTS does not parse: {self.smarts!r}")
-            if any(atom.GetAtomicNum() == 1 for atom in pattern.GetAtoms()):
-                # Explicit hydrogens are the one case where the fingerprint screen
-                # produces false negatives -- measured: [H]OC screens out methanol
-                # while the merged query matches it -- so the pattern is rewritten
-                # with the hydrogens folded into their heavy atoms as H-count
-                # constraints, which both matches and screens. MergeQueryHs keeps an
-                # H it cannot fold -- isotopic ([2H]), or with no heavy neighbor --
-                # and those are refused: dropping the atom would change what the
-                # pattern means, and keeping it would silently miss true hits.
-                merged = Chem.MergeQueryHs(pattern)
-                if any(atom.GetAtomicNum() == 1 for atom in merged.GetAtoms()):
-                    raise ValueError(
-                        f"SMARTS with an explicit hydrogen is refused: {self.smarts!r} "
-                        "would silently miss true matches at the fingerprint screen, "
-                        "and its hydrogens cannot be folded into heavy-atom H counts "
-                        "(isotopic hydrogens and hydrogens with no heavy neighbor "
-                        "cannot be)."
-                    )
+            if not pattern.GetNumAtoms():
+                # An empty SMARTS parses to a zero-atom query whose fingerprint has
+                # no bits, so the screen admits every structure and verification then
+                # rejects all of them: a guaranteed-empty answer at full corpus cost.
+                raise ValueError(f"SMARTS has no atoms: {self.smarts!r}")
+            merged = Chem.MergeQueryHs(pattern)
+            if _explicit_hydrogens(merged) < _explicit_hydrogens(pattern):
+                # A stored molecule is built from SMILES, so its hydrogens are
+                # implicit wherever they can be, and a query naming one as its own
+                # atom matches nothing -- [H]OC finds no methanol, and says nothing
+                # about why. Folding them into heavy-atom H counts asks the question
+                # the corpus can answer.
                 rewritten = Chem.MolToSmarts(merged)
                 warnings.warn(
-                    f"SMARTS {self.smarts!r} carries explicit hydrogens, which fail "
-                    f"the fingerprint screen; rewritten as {rewritten!r} with the "
-                    "hydrogens folded into heavy-atom H counts",
-                    stacklevel=2,
+                    f"SMARTS {self.smarts!r} names hydrogens that a stored molecule "
+                    f"holds implicitly, and would match nothing; rewritten as "
+                    f"{rewritten!r}, with those hydrogens folded into heavy-atom H "
+                    "counts",
+                    # No fixed stacklevel reaches the caller: pydantic-core invokes
+                    # this validator, so anything but the default points into pydantic.
+                    stacklevel=1,
                 )
                 self.smarts = rewritten
+            # Hydrogens that do not fold -- isotopic ([2H]), or with no heavy atom to
+            # fold into ([H][H]) -- are left exactly as written. They cannot be
+            # implicit in a stored molecule either, so they are real graph atoms that
+            # the query already matches and screens for; 28,297 ORD reactions have an
+            # [H][H] component, and rewriting or refusing those would lose them.
         return self
 
 
@@ -384,8 +393,14 @@ class Similarity(BaseModel):
             raise ValueError("a similarity query is a smiles or a compound, not both")
         if self.compound is not None and not _NAME.match(self.compound):
             raise ValueError(f"compound name is not an identifier: {self.compound!r}")
-        if self.smiles is not None and Chem.MolFromSmiles(self.smiles) is None:
-            raise ValueError(f"SMILES does not parse: {self.smiles!r}")
+        if self.smiles is not None:
+            molecule = Chem.MolFromSmiles(self.smiles)
+            if molecule is None:
+                raise ValueError(f"SMILES does not parse: {self.smiles!r}")
+            if not molecule.GetNumAtoms():
+                # Its fingerprint has no bits, so Tanimoto against it is 0 for every
+                # structure: a guaranteed-empty answer that still scans the corpus.
+                raise ValueError(f"SMILES has no atoms: {self.smiles!r}")
         return self
 
 
@@ -659,11 +674,13 @@ def compile_query(
             bound this grammar exists to provide would hold only by convention.
 
     Returns:
-        The SQL, and the compound names whose resolved SMILES the caller binds.
+        The SQL, the compound names whose resolved SMILES the caller binds, and the
+        structure predicates the caller evaluates and binds as bitmaps.
 
     Raises:
-        QueryError: If ``table`` is not an identifier, or if any path, operator, or
-            ordering key cannot be meant against the schema.
+        QueryError: If ``table`` is not an identifier, if any path, operator, or
+            ordering key cannot be meant against the schema, or if a compound name
+            collides with a generated structure parameter.
     """
     if not _NAME.match(table):
         raise QueryError(f"table is not an identifier: {table!r}")
