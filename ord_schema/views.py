@@ -366,6 +366,13 @@ def write_view(
             f"{source} is a {parent.artifact}, not a {projection.ARTIFACT}; a view "
             "narrows a projection"
         )
+    # derive_tree refuses stale parents, but this writer is public and its output
+    # inherits the dataset hash: a view derived from a stale projection would claim a
+    # provenance it does not have and nothing would ever mark it stale again.
+    if not artifacts.stamps_are_current(parent, projection.ARTIFACT):
+        raise ValueError(
+            f"{source} is a stale {projection.ARTIFACT}; derive it again first"
+        )
     if source_md5 is None:
         source_md5 = parent.source_md5
     if source_dataset_id is None:
