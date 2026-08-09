@@ -240,8 +240,9 @@ def test_unpaired_artifacts_are_refused(corpus_dir, tmp_path):
 
 
 def test_a_mismatched_pair_is_refused(corpus_dir, tmp_path):
-    # Rebuild bb's projection from a different source; its structures artifact now
-    # describes molecules the projection does not hold, so the pair must not open.
+    # Rebuild bb's projection from a different source, leaving its structures
+    # artifact describing molecules the projection does not hold: the pair must not
+    # open, or ids would join to the wrong chemistry.
     changed = tmp_path / "ord_dataset-bb.parquet"
     parquet.save_dataset(
         dataset_pb2.Dataset(

@@ -114,10 +114,10 @@ def _verify_chunk(
 ) -> list[int]:
     """Returns the ids whose serialized molecule contains the query as a subgraph.
 
-    A module-level function so joblib can ship it to worker processes, and it returns
-    ids rather than flags so a worker sends back only what matched instead of a verdict
-    per candidate. The query travels as a string and is parsed once per chunk, which is
-    cheaper than shipping a molecule.
+    A module-level function so joblib can ship it to worker processes. Returning the
+    matching ids keeps a worker's reply proportional to the answer rather than to the
+    batch it was handed. The query travels as a string and is parsed once per chunk,
+    which is cheaper than shipping a molecule.
 
     Args:
         pattern: The query, as SMARTS or SMILES.
