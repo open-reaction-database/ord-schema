@@ -170,12 +170,14 @@ def _collect(source: str | os.PathLike[str]) -> list[str]:
         The distinct SMILES, indexed by ``structure_id``.
 
     Raises:
-        ValueError: If the pairs do not state a single dense mapping -- an id bound to
-            two SMILES, a compound with one half of the pair, or a gap in the id space.
-            Each means ``source`` was not written by ``write_projection``, and an
-            artifact derived from it would join wrongly rather than fail.
+        ValueError: If the pairs do not state a single dense one-to-one mapping -- an
+            id bound to two SMILES, one SMILES under two ids, a compound with one half
+            of the pair, or a gap in the id space. Each means ``source`` was not
+            written by ``write_projection``, and an artifact derived from it would
+            join wrongly rather than fail.
     """
     smiles_by_id: dict[int, str] = {}
+    id_by_smiles: dict[str, int] = {}
     columns = _structure_columns()
     with pq.ParquetFile(source) as projected:
         for row_group in range(projected.num_row_groups):
@@ -195,6 +197,13 @@ def _collect(source: str | os.PathLike[str]) -> list[str]:
                         raise ValueError(
                             f"{source}: structure_id {structure_id} is both "
                             f"{known!r} and {smiles!r}"
+                        )
+                    known_id = id_by_smiles.setdefault(smiles, structure_id)
+                    if known_id != structure_id:
+                        raise ValueError(
+                            f"{source}: {smiles!r} is both structure_id {known_id} "
+                            f"and {structure_id}; the artifact would hold one "
+                            "structure twice"
                         )
     if set(smiles_by_id) != set(range(len(smiles_by_id))):
         missing = sorted(set(range(len(smiles_by_id))) - set(smiles_by_id))[:5]
@@ -297,6 +306,8 @@ def write_structures(
         atomic_io.atomic_path(output) as temp_path,
         pq.ParquetWriter(temp_path, schema, compression=compression) as writer,
     ):
+        # ``or [0]``: a projection with no structures still writes one empty table, so
+        # the file exists and carries the schema and stamps a reader checks.
         for start in range(0, len(all_smiles), row_group_size) or [0]:
             batch = [
                 _row(structure_id, smiles)

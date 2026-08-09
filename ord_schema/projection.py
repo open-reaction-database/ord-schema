@@ -149,9 +149,9 @@ _STRUCTURAL_TYPES: dict[str, frozenset[int]] = {
     "Reaction": _STRUCTURAL_REACTION_TYPES,
 }
 
-# Messages whose collapsed ``smiles`` is a molecule, and so gets a ``structure_id``.
-# Reaction is structural but its smiles is a reaction; reaction-level structure search
-# is a different operation and no id is assigned there.
+# Messages whose collapsed ``smiles`` is a molecule, and that therefore carry a
+# ``structure_id``. Reaction is structural but its smiles is a reaction;
+# reaction-level structure search is a different operation and no id is assigned there.
 _STRUCTURE_ID_TYPES = frozenset({"Compound", "ProductCompound"})
 
 _ARROW_SCALARS: dict[int, pa.DataType] = {

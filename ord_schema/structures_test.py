@@ -51,7 +51,8 @@ def _project(tmp_path, reactions=None) -> pathlib.Path:
 
 def test_structure_columns_cover_every_compound_location():
     columns = structures._structure_columns()
-    # Compounds sit in four places; a hand-written list missed two of them once.
+    # Compounds sit in four places; the two beyond inputs and products are easy to
+    # overlook, which is why the columns are walked from the schema rather than listed.
     for prefix in (
         "inputs.key_value.value.components",
         "workups.list.element.input.components",
@@ -205,6 +206,19 @@ def test_conflicting_ids_are_refused(tmp_path):
     row_a["reaction_id"], row_b["reaction_id"] = "ord-0001", "ord-0002"
     path = _corrupt_projection(tmp_path, [row_a, row_b])
     with pytest.raises(ValueError, match="is both"):
+        structures.write_structures(path, tmp_path / "structures.parquet")
+
+
+def test_one_smiles_under_two_ids_is_refused(tmp_path):
+    # The reverse defect of conflicting ids: the mapping must be one-to-one in both
+    # directions, or the artifact holds duplicate rows and an inflated distinct count.
+    ids_a = {"c1ccccc1": 0, "Cc1ccccc1": 1}
+    ids_b = {"c1ccccc1": 2, "Cc1ccccc1": 1}
+    row_a = projection.message_row(_reaction("ord-0001"), ids_a)
+    row_b = projection.message_row(_reaction("ord-0002"), ids_b)
+    row_a["reaction_id"], row_b["reaction_id"] = "ord-0001", "ord-0002"
+    path = _corrupt_projection(tmp_path, [row_a, row_b])
+    with pytest.raises(ValueError, match="one structure twice"):
         structures.write_structures(path, tmp_path / "structures.parquet")
 
 
