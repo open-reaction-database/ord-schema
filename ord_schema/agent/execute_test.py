@@ -910,6 +910,185 @@ def test_concurrent_first_searches_build_one_library(corpus_dir, monkeypatch):
     assert results == [["ord-aa01", "ord-aa02"]] * threads_count
 
 
+_SUBSTRUCTURE = {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"}
+_SOLVENT = {"op": "eq", "path": "reaction_role", "value": {"literal": "SOLVENT"}}
+
+# Every shape the planner accepts, so the agreement below covers the whole surface
+# rather than the one case that prompted the index.
+_ROUTABLE = {
+    "structure alone": {"where": _exists(_SUBSTRUCTURE)},
+    "structure and role": {
+        "where": _exists({"op": "and", "clauses": [_SUBSTRUCTURE, _SOLVENT]})
+    },
+    "role and structure, reversed": {
+        "where": _exists({"op": "and", "clauses": [_SOLVENT, _SUBSTRUCTURE]})
+    },
+    "similarity": {
+        "where": _exists(
+            {"op": "similarity", "path": "smiles", "smiles": "OCC", "threshold": 0.4}
+        )
+    },
+    "a compound name": {
+        "where": _exists(
+            {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+        )
+    },
+    "products rather than inputs": {
+        "where": {
+            "op": "exists",
+            "path": "outcomes.products",
+            "where": {"op": "substructure", "path": "smiles", "smarts": "Cc1ccccc1"},
+        }
+    },
+    "matches nothing": {
+        "where": _exists({"op": "substructure", "path": "smiles", "smarts": "[Pt]"})
+    },
+    # Toluene is every reaction's product and nobody's input, so asking for it among
+    # the inputs must come back empty. An index that lost the path it was asked about
+    # would answer with the products and return all three reactions.
+    "a structure that lives only at another path": {
+        "where": _exists(
+            {"op": "substructure", "path": "smiles", "smarts": "Cc1ccccc1"}
+        )
+    },
+    # Matches pyridine and benzene both, which are two components of aa01: one reaction
+    # reached through two occurrence rows.
+    "several components of one reaction": {
+        "where": _exists({"op": "substructure", "path": "smiles", "smarts": "c1ccccc1"})
+    },
+}
+
+_NOT_ROUTABLE = {
+    # The index holds no column to group by.
+    "an aggregate": {
+        "where": _exists(_SUBSTRUCTURE),
+        "aggregate": {"measures": [{"fn": "count", "name": "n"}]},
+    },
+    # Nor one to sort on beyond the reaction.
+    "an ordering": {
+        "where": _exists(_SUBSTRUCTURE),
+        "order_by": [{"key": "reaction_id"}],
+    },
+    # No structure means no bitmap, and the index is only worth its scan with one.
+    "a role alone": {"where": _exists(_SOLVENT)},
+    # amount lives on the element but not in the index.
+    "an unindexed element field": {
+        "where": _exists(
+            {
+                "op": "and",
+                "clauses": [
+                    _SUBSTRUCTURE,
+                    {"op": "gt", "path": "amount.mass.value", "value": {"literal": 1}},
+                ],
+            }
+        )
+    },
+    # A negated or disjoint element predicate is not a row filter.
+    "a negation": {"where": _exists({"op": "not", "clause": _SUBSTRUCTURE})},
+    "a disjunction": {
+        "where": _exists({"op": "or", "clauses": [_SUBSTRUCTURE, _SOLVENT]})
+    },
+    # forall is not exists: the index sees matching rows, never their absence.
+    "a universal": {
+        "where": {"op": "forall", "path": "inputs.components", "where": _SUBSTRUCTURE}
+    },
+    # A scalar outside the quantifier is a projection column.
+    "a scalar beside the quantifier": {
+        "where": {
+            "op": "and",
+            "clauses": [
+                _exists(_SUBSTRUCTURE),
+                {
+                    "op": "gt",
+                    "path": "conditions.temperature.setpoint_kelvin",
+                    "value": {"literal": 300},
+                },
+            ],
+        }
+    },
+}
+
+
+@pytest.mark.parametrize("label", sorted(_ROUTABLE))
+def test_the_index_answers_exactly_what_the_projection_would(corpus, label):
+    # The index is a second way to reach the same reactions, so the only thing that
+    # makes it safe is that it never reaches different ones. Both paths screen and
+    # verify through the same compiler, so any disagreement is the index's traversal
+    # or its role column, which is what this compares.
+    request = query.Query.model_validate(_ROUTABLE[label])
+    planned = execute.Corpus._plan(request)
+    assert planned is not None, "expected this to route"
+    through_index = set(corpus.search(request).column("reaction_id").to_pylist())
+    projected = query.compile_query(request)
+    assert projected.sql != planned.sql  # Two paths, or this compares one to itself.
+    parameters = {
+        parameter.name: corpus._bitmap(
+            corpus._substructure_ids(parameter, corpus._resolver)
+            if parameter.op == "substructure"
+            else corpus._similarity_ids(corpus._connection, parameter, corpus._resolver)
+        )
+        for parameter in projected.structures
+    }
+    through_projection = set(
+        corpus._connection.execute(projected.sql, parameters)
+        .to_arrow_table()
+        .column("reaction_id")
+        .to_pylist()
+    )
+    assert through_index == through_projection
+
+
+@pytest.mark.parametrize("label", sorted(_NOT_ROUTABLE))
+def test_the_planner_leaves_the_projection_what_the_index_cannot_answer(label):
+    # Routing one of these would answer a different question than it was asked, so the
+    # planner has to decline rather than approximate.
+    assert (
+        execute.Corpus._plan(query.Query.model_validate(_NOT_ROUTABLE[label])) is None
+    )
+
+
+def test_the_index_names_each_reaction_once(corpus):
+    # A reaction holding two matching components is two rows in the index and one row
+    # in the projection. Comparing the two as sets would hide that, so the count is
+    # asserted here: a caller reading the table sees the duplicate, not a set.
+    matched = corpus.search(
+        query.Query.model_validate(
+            {
+                "where": _exists(
+                    # Both of aa01's inputs are aromatic carbocycles or contain one.
+                    {"op": "substructure", "path": "smiles", "smarts": "c"}
+                )
+            }
+        )
+    ).column("reaction_id")
+    assert len(matched) == len(set(matched.to_pylist()))
+
+
+def test_the_index_is_built_once_and_only_when_wanted(corpus_dir):
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        # A scalar query cannot use the index, so it must not pay to build one.
+        value.search(
+            query.Query.model_validate(
+                {
+                    "where": _exists(
+                        {"op": "eq", "path": "smiles", "value": {"literal": "CCO"}}
+                    )
+                }
+            )
+        )
+        assert not value._occurrences_built
+        request = query.Query.model_validate(_ROUTABLE["structure alone"])
+        assert value.search(request).num_rows == 2
+        assert value._occurrences_built
+        # A second search reuses it rather than rebuilding, which CREATE TABLE would
+        # refuse anyway -- so this failing looks like an error, not a slow query.
+        assert value.search(request).num_rows == 2
+
+
 def test_the_match_limit_has_to_be_passed_or_matches_are_dropped():
     # GetMatches defaults to 1000 results and truncates in silence, which at corpus
     # scale would turn a broad pattern into a wrong answer rather than a slow one. The

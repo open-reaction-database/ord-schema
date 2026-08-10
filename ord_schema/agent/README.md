@@ -103,6 +103,21 @@ its last `execute` and concurrent searches sharing one would read each other's r
 `threads` is per search rather than per corpus, so a server expecting several at once
 should set it to the core count divided by that concurrency instead of leaving it at
 `-1`.
+
+Finding which reactions hold a match is a separate cost from the chemistry, and the
+larger one. An **occurrence index** — one row per structure occurrence, carrying the
+corpus-wide ID, the path, and the element's own `reaction_role` — replaces that scan
+with a filter over a narrow table (14.1M rows, 130 MB against the projections' 1.65 GB).
+Keeping the role beside the structure is what preserves element binding. End to end at
+corpus scale: pyridine among the inputs 7.56s → 1.46s, pyridine as the solvent
+5.00s → 1.74s, a boronic acid 2.93s → 0.15s, with identical match sets. The remainder
+for common patterns is the RDKit screen and verify, which the index does not touch.
+
+The index answers only the shape it holds: some element at an indexed path contains a
+structure, optionally with a given role. A query reaching another element field, or
+needing a projection column to group or sort by, runs against the projection unchanged.
+It is built on the first query that can use it — four passes over the projections, so
+budget for it alongside the library at startup.
 Similarity needs no verification — Tanimoto is defined on the Morgan fingerprint, so
 the screen is the answer — and stays in SQL. The verified match set re-enters the query
 as a `BITSTRING` parameter indexed by the corpus-wide ID (`structure_id` plus the
