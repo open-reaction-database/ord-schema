@@ -18,36 +18,36 @@ A derived artifact restates a source dataset in a queryable shape. It adds no
 information, so it is wrong if it disagrees with its source and stale if its source has
 moved on. These stamps make both conditions detectable without reading column data.
 
-More than one artifact is expected -- a projection carrying every field, a view
-narrowing it, and pivoted indexes over the paths that turn out to be hot -- so the parts
-that do not vary between them live here: the stamps, the output-path mapping, and the
-driver that walks a glob, refuses to write over what it reads, ignores matches that are
-not the kind of parent it derives from, and skips what is current. An artifact module
-supplies only its schema, its projection, and its name.
+More than one artifact is expected -- a projection carrying every field, structures
+pulled out of it for search, and pivoted indexes over the paths that turn out to be
+hot -- so the parts that do not vary between them live here: the stamps, the
+output-path mapping, and the driver that walks a glob, refuses to write over what it
+reads, ignores matches that are not the kind of parent it derives from, and skips what
+is current. An artifact module supplies only its schema, its projection, and its name.
 
-An artifact may derive from another rather than from a source dataset, which is how a
-view reaches the projection's columns without recomputing them. Only the reading
-differs: the stamps describe the originating dataset either way, so a chain is invisible
-to a consumer checking whether a file is current.
+An artifact may derive from another rather than from a source dataset, which is how the
+structures artifact reaches the projection's columns without recomputing them. Only the
+reading differs: the stamps describe the originating dataset either way, so a chain is
+invisible to a consumer checking whether a file is current.
 
 Every artifact carries these keys, in the ``ord.`` namespace that ``ord_schema.parquet``
 already uses for source datasets:
 
-* ``ord.artifact`` -- which artifact this is, so a reader can tell a view from a
-  projection without inspecting the schema.
+* ``ord.artifact`` -- which artifact this is, so a reader can tell one from another
+  without inspecting the schema.
 * ``ord.artifact_version`` -- one version across *all* artifacts, deliberately. A
   derivation change usually touches shared helpers, and a reader comparing artifacts to
   each other needs to know they were built by the same definition. Per-artifact versions
-  would let a view and a projection of the same dataset disagree while both looked
-  current.
+  would let a structures artifact and a projection of the same dataset disagree while
+  both looked current.
 * ``ord.source_md5`` -- the content of the source dataset it restates. An artifact
   derived from another artifact passes this through rather than hashing its parent, so
   every artifact names the dataset it reflects however many derivations away it sits,
   and one comparison answers "is this current for that dataset?"
 * ``ord.ord_schema_version`` -- what derived it.
 * ``ord.rdkit_version`` -- the RDKit that derived it. Every artifact leans on RDKit --
-  canonical SMILES in the projection and the view, fingerprints in the structures
-  artifact -- and RDKit releases have changed both canonicalization and pattern
+  canonical SMILES in the projection, fingerprints in the structures artifact -- and
+  RDKit releases have changed both canonicalization and pattern
   fingerprints, either of which silently breaks an artifact whose consumers run the new
   RDKit against files built by the old. Optional to *read* so that files stamped before
   the key existed still load; absent reads as stale, which rebuilds them.
@@ -114,8 +114,8 @@ class ArtifactWriter(Protocol):
     """Writes one derived artifact from the Parquet file it derives from.
 
     The parent is passed as a path rather than an open reader, because parents are not
-    all the same kind of file: a projection reads a source dataset, and a view reads a
-    projection. Each writer opens what it knows how to read.
+    all the same kind of file: a projection reads a source dataset, and the structures
+    artifact reads a projection. Each writer opens what it knows how to read.
 
     The first two arguments are positional-only, so an implementation is free to name
     them for its own artifact.
@@ -139,7 +139,7 @@ def current_stamps(
     """Returns the stamps to write for an artifact derived by the current library.
 
     Args:
-        artifact: Artifact name, e.g. ``"view"`` or ``"projection"``.
+        artifact: Artifact name, e.g. ``"structures"`` or ``"projection"``.
         source_dataset_id: Source dataset ID, or None if the source records none.
         source_md5: Hash of the source, from ``parquet.DatasetView.md5``.
 
@@ -297,9 +297,9 @@ def glob_root(pattern: str) -> pathlib.PurePath:
     """Returns the leading directories of a glob pattern that contain no wildcards.
 
     Output paths are built relative to this, so ``data/*/x.parquet`` under
-    ``output_dir=views`` lands at ``views/<subdir>/x.parquet``. A pattern naming a
-    single file has no wildcard to stop at, so its own last component is the file
-    rather than a directory and the root is the directory holding it.
+    ``output_dir=structures`` lands at ``structures/<subdir>/x.parquet``. A pattern
+    naming a single file has no wildcard to stop at, so its own last component is the
+    file rather than a directory and the root is the directory holding it.
     """
     parts = pathlib.PurePath(pattern).parts
     fixed = []
@@ -356,7 +356,7 @@ def _is_irreplaceable(destination: pathlib.Path) -> bool:
     destinations against the run's own parents is not enough once a derivation reads one
     tree and writes another, because the source datasets are then in neither set -- and
     a mistyped ``output_dir`` aimed at them would replace a corpus that cannot be
-    regenerated with views that can.
+    regenerated with artifacts that can.
 
     Args:
         destination: Path an artifact would be written to.
@@ -380,8 +380,8 @@ def _parent_provenance(
 
     A derived parent passes its own stamps through rather than being hashed itself, so
     every artifact records the *source dataset* content it reflects however many
-    derivations away it sits, and a consumer checks a view against the dataset in one
-    hop.
+    derivations away it sits, and a consumer checks an artifact against the dataset in
+    one hop.
 
     Passing the hash through carries the source content across the hop but not the two
     version stamps, which describe whoever wrote each file. A stale parent is therefore

@@ -41,7 +41,7 @@ def _current_metadata(**overrides):
 
 def _valid_metadata(**overrides):
     metadata = {
-        "ord.artifact": "view",
+        "ord.artifact": "structures",
         "ord.artifact_version": artifacts.ARTIFACT_VERSION,
         "ord.source_md5": "0" * 32,
         "ord.ord_schema_version": "9.9.9",
@@ -56,14 +56,16 @@ def _valid_metadata(**overrides):
 
 
 def test_stamps_carries_the_current_versions():
-    value = artifacts.current_stamps("view", "ord_dataset-1", "abc")
-    assert value.artifact == "view"
+    value = artifacts.current_stamps("structures", "ord_dataset-1", "abc")
+    assert value.artifact == "structures"
     assert value.artifact_version == artifacts.ARTIFACT_VERSION
     assert value.ord_schema_version
 
 
 def test_to_metadata_omits_a_missing_dataset_id():
-    metadata = artifacts.to_metadata(artifacts.current_stamps("view", None, "abc"))
+    metadata = artifacts.to_metadata(
+        artifacts.current_stamps("structures", None, "abc")
+    )
     assert "ord.source_dataset_id" not in metadata
     assert metadata["ord.source_md5"] == "abc"
 
@@ -72,7 +74,7 @@ def test_load_stamps_round_trips(tmp_path):
     path = tmp_path / "artifact.parquet"
     _write(path, _valid_metadata())
     stamps = artifacts.load_stamps(path)
-    assert stamps.artifact == "view"
+    assert stamps.artifact == "structures"
     assert stamps.source_dataset_id == "ord_dataset-1"
     assert stamps.source_md5 == "0" * 32
 
@@ -134,12 +136,12 @@ def test_is_current_requires_every_stamp_to_match(tmp_path, monkeypatch):
     path = tmp_path / "artifact.parquet"
     _write(path, _valid_metadata(**{"ord.ord_schema_version": "9.9.9"}))
     monkeypatch.setattr(artifacts.metadata, "version", lambda _: "9.9.9")
-    assert artifacts.is_current(path, "view", "0" * 32)
+    assert artifacts.is_current(path, "structures", "0" * 32)
     monkeypatch.setattr(artifacts.metadata, "version", lambda _: "9.9.10")
-    assert not artifacts.is_current(path, "view", "0" * 32)
+    assert not artifacts.is_current(path, "structures", "0" * 32)
     monkeypatch.setattr(artifacts.metadata, "version", lambda _: "9.9.9")
     monkeypatch.setattr(artifacts, "ARTIFACT_VERSION", "99")
-    assert not artifacts.is_current(path, "view", "0" * 32)
+    assert not artifacts.is_current(path, "structures", "0" * 32)
 
 
 # Output paths
@@ -162,15 +164,15 @@ def test_glob_root(pattern, expected):
 
 def test_output_path_mirrors_the_input_layout():
     assert artifacts.output_path(
-        "data/aa/ord_dataset-x.parquet", "data/*/*.parquet", "views"
-    ) == pathlib.Path("views/aa/ord_dataset-x.parquet")
+        "data/aa/ord_dataset-x.parquet", "data/*/*.parquet", "structures"
+    ) == pathlib.Path("structures/aa/ord_dataset-x.parquet")
 
 
 def test_output_path_for_an_exact_filename_writes_into_the_directory():
     # A pattern naming one file must land inside output_dir, not become it.
     assert artifacts.output_path(
-        "data/aa/one.parquet", "data/aa/one.parquet", "views"
-    ) == pathlib.Path("views/one.parquet")
+        "data/aa/one.parquet", "data/aa/one.parquet", "structures"
+    ) == pathlib.Path("structures/one.parquet")
 
 
 # Driver
@@ -196,7 +198,7 @@ def test_derive_tree_raises_when_nothing_matches(tmp_path):
         artifacts.derive_tree(
             str(tmp_path / "*.parquet"),
             str(tmp_path / "out"),
-            artifact="view",
+            artifact="structures",
             write=lambda *args, **kwargs: 0,
         )
 
@@ -216,7 +218,7 @@ def test_derive_tree_writes_one_artifact_per_source(tmp_path):
     written, skipped, ignored = artifacts.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
-        artifact="view",
+        artifact="structures",
         write=_write_one,
     )
     assert (written, skipped, ignored) == (2, 0, 0)
@@ -238,7 +240,7 @@ def test_derive_tree_hands_the_writer_the_source_and_its_provenance(tmp_path):
     artifacts.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
-        artifact="view",
+        artifact="structures",
         write=_write_one,
     )
     assert seen == [("ord_dataset-1", True)]
@@ -252,7 +254,7 @@ def test_derive_tree_refuses_to_write_over_its_own_sources(tmp_path):
         artifacts.derive_tree(
             str(tmp_path / "*" / "*.parquet"),
             str(tmp_path),
-            artifact="view",
+            artifact="structures",
             write=lambda *args, **kwargs: calls.append(args) or 1,
         )
     assert not calls
@@ -270,7 +272,7 @@ def test_derive_tree_refuses_to_write_over_a_different_source(tmp_path):
         artifacts.derive_tree(
             str(tmp_path / "**" / "*.parquet"),
             str(tmp_path / "aa"),
-            artifact="view",
+            artifact="structures",
             write=lambda *args, **kwargs: 1,
         )
     assert victim.read_bytes() == original
@@ -292,7 +294,7 @@ def test_derive_tree_ignores_matches_that_are_themselves_artifacts(tmp_path):
     assert artifacts.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
-        artifact="view",
+        artifact="structures",
         write=_write_one,
     ) == (1, 0, 1)
     assert [path.name for path in written_paths] == ["source.parquet"]
@@ -313,14 +315,14 @@ def test_derive_tree_skips_current_artifacts_unless_forced(tmp_path, monkeypatch
     assert artifacts.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
-        artifact="view",
+        artifact="structures",
         write=_write_one,
     ) == (0, 1, 0)
     assert not calls
     assert artifacts.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
-        artifact="view",
+        artifact="structures",
         write=_write_one,
         force=True,
     ) == (1, 0, 0)
@@ -343,11 +345,11 @@ def test_derive_tree_reads_the_named_parent_artifact(tmp_path):
     assert artifacts.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
-        artifact="view",
+        artifact="structures",
         write=_write_one,
         parent_artifact="projection",
     ) == (1, 0, 0)
-    # The source dataset's hash and ID pass through, so a view names the dataset it
+    # The source dataset's hash and ID pass through, so an artifact names the dataset it
     # reflects rather than the artifact it read.
     assert seen == [("projected.parquet", "a" * 32, "ord_dataset-1")]
 
@@ -370,7 +372,7 @@ def test_derive_tree_ignores_a_source_dataset_when_a_parent_artifact_is_named(tm
     assert artifacts.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
-        artifact="view",
+        artifact="structures",
         write=_write_one,
         parent_artifact="projection",
     ) == (1, 0, 1)
@@ -381,12 +383,13 @@ def test_derive_tree_ignores_an_artifact_of_the_wrong_kind(tmp_path):
     # What an earlier run of this same command left in a recursive pattern's reach.
     (tmp_path / "aa").mkdir()
     _write(
-        tmp_path / "aa" / "already.parquet", _valid_metadata(**{"ord.artifact": "view"})
+        tmp_path / "aa" / "already.parquet",
+        _valid_metadata(**{"ord.artifact": "structures"}),
     )
     assert artifacts.derive_tree(
         str(tmp_path / "*" / "*.parquet"),
         str(tmp_path / "out"),
-        artifact="view",
+        artifact="structures",
         write=lambda *args, **kwargs: 1,
         parent_artifact="projection",
     ) == (0, 0, 1)
@@ -394,9 +397,9 @@ def test_derive_tree_ignores_an_artifact_of_the_wrong_kind(tmp_path):
 
 def test_derive_tree_refuses_a_stale_parent(tmp_path, monkeypatch):
     # Passing the parent's hash through carries the source content across the hop but
-    # not the version stamps. A view written from a stale projection would stamp itself
-    # with the current versions, and the dataset hash it inherits does not change when
-    # the projection is rebuilt -- so nothing would ever mark it stale again.
+    # not the version stamps. An artifact written from a stale projection would stamp
+    # itself with the current versions, and the dataset hash it inherits does not change
+    # when the projection is rebuilt -- so nothing would ever mark it stale again.
     (tmp_path / "aa").mkdir()
     parent = tmp_path / "aa" / "projected.parquet"
     _write(parent, _current_metadata(**{"ord.artifact": "projection"}))
@@ -405,7 +408,7 @@ def test_derive_tree_refuses_a_stale_parent(tmp_path, monkeypatch):
         artifacts.derive_tree(
             str(tmp_path / "*" / "*.parquet"),
             str(tmp_path / "out"),
-            artifact="view",
+            artifact="structures",
             write=lambda *args, **kwargs: 1,
             parent_artifact="projection",
         )
@@ -429,7 +432,7 @@ def test_derive_tree_refuses_to_write_over_a_file_it_did_not_derive(tmp_path):
         artifacts.derive_tree(
             str(tmp_path / "projections" / "*.parquet"),
             str(tmp_path / "data"),
-            artifact="view",
+            artifact="structures",
             write=lambda *args, **kwargs: 1,
             parent_artifact="projection",
         )
@@ -444,12 +447,12 @@ def test_derive_tree_still_rewrites_its_own_artifacts(tmp_path):
         tmp_path / "projections" / "ds.parquet",
         _current_metadata(**{"ord.artifact": "projection"}),
     )
-    (tmp_path / "views").mkdir()
-    _write(tmp_path / "views" / "ds.parquet", _valid_metadata())
+    (tmp_path / "structures").mkdir()
+    _write(tmp_path / "structures" / "ds.parquet", _valid_metadata())
     written, skipped, ignored = artifacts.derive_tree(
         str(tmp_path / "projections" / "*.parquet"),
-        str(tmp_path / "views"),
-        artifact="view",
+        str(tmp_path / "structures"),
+        artifact="structures",
         write=lambda *args, **kwargs: 1,
         force=True,
         parent_artifact="projection",
@@ -458,9 +461,9 @@ def test_derive_tree_still_rewrites_its_own_artifacts(tmp_path):
 
 
 def test_stamps_record_the_rdkit_version():
-    value = artifacts.current_stamps("view", "ord_dataset-1", "abc")
+    value = artifacts.current_stamps("structures", "ord_dataset-1", "abc")
     assert value.rdkit_version == rdBase.rdkitVersion
-    assert artifacts.stamps_are_current(value, "view")
+    assert artifacts.stamps_are_current(value, "structures")
 
 
 def test_an_artifact_from_a_different_rdkit_reads_stale():
@@ -468,16 +471,17 @@ def test_an_artifact_from_a_different_rdkit_reads_stale():
     # must mark artifacts stale or the screen's completeness rests on cross-version
     # fingerprint compatibility nothing enforces.
     value = dataclasses.replace(
-        artifacts.current_stamps("view", "ord_dataset-1", "abc"),
+        artifacts.current_stamps("structures", "ord_dataset-1", "abc"),
         rdkit_version="0000.00.0",
     )
-    assert not artifacts.stamps_are_current(value, "view")
+    assert not artifacts.stamps_are_current(value, "structures")
 
 
 def test_an_artifact_with_no_rdkit_stamp_reads_stale():
     # Files stamped before the key existed still load, and read stale: rebuilding is
     # the safe answer for an artifact whose RDKit nobody recorded.
     value = dataclasses.replace(
-        artifacts.current_stamps("view", "ord_dataset-1", "abc"), rdkit_version=None
+        artifacts.current_stamps("structures", "ord_dataset-1", "abc"),
+        rdkit_version=None,
     )
-    assert not artifacts.stamps_are_current(value, "view")
+    assert not artifacts.stamps_are_current(value, "structures")
