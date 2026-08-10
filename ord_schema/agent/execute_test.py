@@ -256,7 +256,12 @@ def test_an_unparseable_structure_holds_its_slot(corpus_dir, tmp_path):
         str(root / "structures" / "*.parquet"),
         resolver={}.__getitem__,
     ) as value:
-        assert len(value._library()) == value._total
+        # The library holds distinct molecules, so its length is not the corpus's. What
+        # has to hold is that every structure ID resolves to exactly one entry.
+        library = value._library()
+        assert len(value._starts) - 1 == len(library)
+        assert len(value._members) == value._total
+        assert sorted(value._members) == list(range(value._total))
         # Benzene sits after the hole in aa, ethanol after it in bb. Both still name
         # their own reactions, which holds only while the empty slot is there.
         assert _search(
@@ -1087,6 +1092,151 @@ def test_the_index_is_built_once_and_only_when_wanted(corpus_dir):
         # A second search reuses it rather than rebuilding, which CREATE TABLE would
         # refuse anyway -- so this failing looks like an error, not a slow query.
         assert value.search(request).num_rows == 2
+
+
+def test_one_molecule_in_two_datasets_is_matched_once_and_found_twice(corpus):
+    # Structures are deduplicated per dataset, so toluene holds a row in aa and another
+    # in bb. The library matches it once; the answer still has to name both structures,
+    # and through them every reaction that made it.
+    library = corpus._library()
+    assert len(library) < corpus._total, "expected the corpus to hold a duplicate"
+    entries = {
+        corpus._members[corpus._starts[entry]]: corpus._starts[entry + 1]
+        - corpus._starts[entry]
+        for entry in range(len(library))
+    }
+    assert max(entries.values()) == 2, "toluene should cover two structure IDs"
+    assert sum(entries.values()) == corpus._total
+    matched = corpus.search(
+        query.Query.model_validate(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "outcomes.products",
+                    "where": {
+                        "op": "substructure",
+                        "path": "smiles",
+                        "smarts": "Cc1ccccc1",
+                    },
+                }
+            }
+        )
+    )
+    assert set(matched.column("reaction_id").to_pylist()) == {
+        "ord-aa01",
+        "ord-aa02",
+        "ord-bb01",
+    }
+
+
+def _substructure(smarts):
+    return query.Query.model_validate(
+        {"where": _exists({"op": "substructure", "path": "smiles", "smarts": smarts})}
+    )
+
+
+def test_a_repeated_predicate_is_matched_once(corpus_dir, monkeypatch):
+    # Matching is a pass over every molecule in the corpus and depends on nothing but
+    # the query, so asking twice must cost once -- and must answer the same.
+    matched = 0
+    original = execute.Corpus._substructure_ids
+
+    def counted(self, parameter, resolve):
+        nonlocal matched
+        matched += 1
+        return original(self, parameter, resolve)
+
+    monkeypatch.setattr(execute.Corpus, "_substructure_ids", counted)
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={"pyridine": "c1ccncc1", "azabenzene": "c1ccncc1"}.__getitem__,
+    ) as value:
+        first = set(
+            value.search(_substructure("c1ccncc1")).column("reaction_id").to_pylist()
+        )
+        second = set(
+            value.search(_substructure("c1ccncc1")).column("reaction_id").to_pylist()
+        )
+        assert first == second == {"ord-aa01", "ord-aa02"}
+        assert matched == 1
+        # A different pattern is a different question, cache or no cache.
+        assert set(
+            value.search(_substructure("[OX2H]")).column("reaction_id").to_pylist()
+        ) == {"ord-bb01"}
+        assert matched == 2
+        # Two names for one molecule are one match, since the key is what they resolve
+        # to rather than what they were called.
+        by_name = query.Query.model_validate(
+            {
+                "where": _exists(
+                    {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+                )
+            }
+        )
+        other_name = query.Query.model_validate(
+            {
+                "where": _exists(
+                    {"op": "substructure", "path": "smiles", "compound": "azabenzene"}
+                )
+            }
+        )
+        assert value.search(by_name).num_rows == 2
+        assert value.search(other_name).num_rows == 2
+        assert matched == 2  # Both resolve to the pattern already matched above.
+
+
+def test_the_cache_does_not_confuse_two_predicates(corpus):
+    # One molecule, several questions. Toluene's Tanimoto against the inputs is benzene
+    # 0.273, pyridine 0.176, ethanol 0.062, so each threshold below selects a different
+    # set of reactions -- a key that ignored the threshold would answer one with
+    # another. The same SMILES read as a substructure is a different operation again.
+    def similarity(threshold):
+        return set(
+            corpus.search(
+                query.Query.model_validate(
+                    {
+                        "where": _exists(
+                            {
+                                "op": "similarity",
+                                "path": "smiles",
+                                "smiles": "Cc1ccccc1",
+                                "threshold": threshold,
+                            }
+                        )
+                    }
+                )
+            )
+            .column("reaction_id")
+            .to_pylist()
+        )
+
+    tight = similarity(0.25)
+    assert tight == {"ord-aa01"}  # Benzene only.
+    assert similarity(0.15) == {"ord-aa01", "ord-aa02"}  # Pyridine joins it.
+    assert similarity(0.05) == {"ord-aa01", "ord-aa02", "ord-bb01"}  # Ethanol too.
+    # Substructure with that SMILES read as a SMARTS matches no input at all.
+    assert (
+        set(corpus.search(_substructure("Cc1ccccc1")).column("reaction_id").to_pylist())
+        == set()
+    )
+    assert similarity(0.25) == tight  # Still itself after the others went through.
+
+
+def test_the_cache_stays_bounded(corpus_dir, monkeypatch):
+    # Each entry is a bitmap over the whole corpus, so an unbounded cache would grow
+    # without limit on a server asked many different questions.
+    monkeypatch.setattr(execute, "_CACHED_MATCHES", 2)
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        for smarts in ("c1ccncc1", "[OX2H]", "c1ccccc1", "[Pt]"):
+            value.search(_substructure(smarts))
+        assert len(value._matched) == 2
+        # The two most recent survive; the earliest are gone.
+        assert [key[1] for key in value._matched] == ["c1ccccc1", "[Pt]"]
 
 
 def test_the_match_limit_has_to_be_passed_or_matches_are_dropped():

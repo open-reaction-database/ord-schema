@@ -118,6 +118,22 @@ structure, optionally with a given role. A query reaching another element field,
 needing a projection column to group or sort by, runs against the projection unchanged.
 It is built on the first query that can use it — four passes over the projections, so
 budget for it alongside the library at startup.
+
+What remains is the chemistry itself, and two things cut it. Structures are deduplicated
+per dataset, so the library holds one entry per **distinct** molecule — 1,435,426 of the
+corpus's 2,016,224 rows, so 29% of the matching disappears — and maps each entry back to
+every structure ID sharing it. And a match set depends on the query molecule and nothing
+else, so recent ones are **cached**: pyridine costs 1.05s the first time and 0.02s the
+next. A compound is keyed by what it resolved to, not by its name.
+
+The screen itself is not a lever. It is the same `PatternFingerprint` the RDKit
+PostgreSQL cartridge screens with (`rdkit.sss_fp_size`, via `makeMolSignature`), and for
+a small common query it admits most of the corpus — 80% for pyridine, of which 73% then
+fail verification. Measured and rejected: more bits does nothing (2048 → 8192 moves
+pyridine 80% → 79%), and a circular fingerprint is not usable at all, since it cannot be
+computed from a SMARTS and its bits are not preserved under subgraph extraction — a
+radius-2 Morgan screen dropped 4 of 5 true matches. Verification of the survivors is the
+real cost, and it is intrinsic.
 Similarity needs no verification — Tanimoto is defined on the Morgan fingerprint, so
 the screen is the answer — and stays in SQL. The verified match set re-enters the query
 as a `BITSTRING` parameter indexed by the corpus-wide ID (`structure_id` plus the

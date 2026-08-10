@@ -62,6 +62,8 @@ corpus, the index being four passes over the projections -- on top of whatever t
 it was given.
 """
 
+import array
+import collections
 import dataclasses
 import glob
 import math
@@ -85,6 +87,12 @@ logger = get_logger(__name__)
 # Structures read per batch while building the library. Bounds peak memory during the
 # build without making the per-batch Python overhead matter.
 _BUILD_BATCH = 50_000
+
+# Match sets kept for reuse. Each is a bitmap over the corpus ID space -- 2 MB at ORD's
+# scale -- so this trades a few tens of megabytes for the repeat of a query that costs
+# seconds. Small because the distribution is the point: a handful of scaffolds account
+# for most of what anyone asks.
+_CACHED_MATCHES = 16
 
 
 class PairingError(ValueError):
@@ -133,9 +141,9 @@ def _max_structure_id(path: str) -> int | None:
     return largest
 
 
-# An ID whose structure did not parse still occupies a slot, so a library index is a
-# corpus-wide structure ID and needs no translation. An empty molecule fingerprints to
-# no bits, and a query with no atoms is refused, so it can never match.
+# A structure that did not parse still gets a library entry, so every structure ID
+# resolves to one and the mapping needs no special case. An empty molecule fingerprints
+# to no bits, and a query with no atoms is refused, so it can never match.
 _UNPARSEABLE = Chem.Mol().ToBinary()
 _NO_BITS = DataStructs.ExplicitBitVect(structures.PATTERN_FP_SIZE)
 
@@ -186,6 +194,31 @@ def _indexed_paths(schema: pa.Schema = projection.SCHEMA) -> dict[str, str]:
 INDEXED_PATHS = _indexed_paths()
 
 
+def _group(entry_of: array.array, count: int) -> tuple[array.array, array.array]:
+    """Inverts structure-to-entry into entry-to-structures.
+
+    Args:
+        entry_of: The library entry each structure ID resolves to, indexed by ID.
+        count: How many entries the library holds.
+
+    Returns:
+        ``(members, starts)``, where the structure IDs sharing entry ``i`` are
+        ``members[starts[i]:starts[i + 1]]``. Counting sort, so one pass each way and
+        no per-entry list object.
+    """
+    starts = array.array("I", bytes(4 * (count + 1)))
+    for entry in entry_of:
+        starts[entry + 1] += 1
+    for index in range(1, count + 1):
+        starts[index] += starts[index - 1]
+    members = array.array("I", bytes(4 * len(entry_of)))
+    cursor = starts[:-1]
+    for global_id, entry in enumerate(entry_of):
+        members[cursor[entry]] = global_id
+        cursor[entry] += 1
+    return members, starts
+
+
 class Corpus:
     """A searchable pairing of projections with their structures artifacts.
 
@@ -227,12 +260,21 @@ class Corpus:
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
         self._threads = threads
-        # Built on first substructure query; see _library.
+        # Built on first substructure query; see _library. The library holds one entry
+        # per distinct molecule, and _members maps an entry back to the structure IDs
+        # sharing it.
         self._substructure_library: rdSubstructLibrary.SubstructLibrary | None = None
+        self._members = array.array("I")
+        self._starts = array.array("I")
         self._library_lock = threading.Lock()
         # Built on the first query that can use it; see _occurrences.
         self._occurrences_built = False
         self._occurrences_lock = threading.Lock()
+        # Recent match sets, most recently used last; see _matches.
+        self._matched: collections.OrderedDict[tuple[str, str, float | None], str] = (
+            collections.OrderedDict()
+        )
+        self._matches_lock = threading.Lock()
         pairs = self._pair(projection_pattern, structures_pattern, require_current)
         self._connection = duckdb.connect()
         try:
@@ -434,22 +476,28 @@ class Corpus:
         """Returns the substructure library, building it on first use.
 
         Built lazily because it costs seconds and gigabytes, and a corpus asked only
-        for similarity or scalar queries never needs it. Streamed in ID order so a
-        library index *is* a corpus-wide structure ID: a structure that did not parse
-        still occupies its slot, holding an empty molecule that nothing matches.
+        for similarity or scalar queries never needs it.
+
+        Structures are deduplicated per dataset, so a molecule used by several datasets
+        occupies a row in each and would otherwise be matched once per copy. The library
+        holds one entry per distinct SMILES -- 1,435,426 of the corpus's 2,016,224 rows,
+        so 29% of the matching disappears -- and ``_members`` maps an entry back to
+        every structure ID sharing its molecule. Two structures with one SMILES have one
+        molecule and one fingerprint, both derived from that SMILES by the RDKit the
+        stamps pin, so which row is read does not matter.
 
         Concurrent first searches serialize on the build rather than each building a
-        copy, which at corpus scale is about 2 GB apiece. Whoever waits needs the
+        copy, which at corpus scale is about 1.5 GB apiece. Whoever waits needs the
         finished library anyway.
 
         Returns:
-            A library over every structure in the corpus, screened by the pattern
-            fingerprints the artifact already stores.
+            A library over every distinct molecule in the corpus, screened by the
+            pattern fingerprints the artifact already stores.
 
         Raises:
             PairingError: If the corpus IDs are not exactly ``0`` to ``total - 1``, so
-                that a library index would name a different structure, or if a
-                structure holds one of its derived columns without the other.
+                that a structure ID would name a different structure, or if a structure
+                holds one of its derived columns without the other.
         """
         with self._library_lock:
             if self._substructure_library is not None:
@@ -458,18 +506,24 @@ class Corpus:
             molecules = rdSubstructLibrary.CachedMolHolder()
             patterns = rdSubstructLibrary.PatternHolder(structures.PATTERN_FP_SIZE)
             cursor = self._connection.cursor()
+            # Which library entry each structure ID resolves to, in ID order. Held as
+            # an array rather than a list of lists: at corpus scale the difference is
+            # 8 MB against several hundred.
+            entry_of = array.array("I")
+            entries: dict[str, int] = {}
             position = 0
             try:
                 reader = cursor.execute(
-                    "SELECT global_id, mol_binary, pattern_fp FROM corpus_structures "
-                    "ORDER BY global_id"
+                    "SELECT global_id, smiles, mol_binary, pattern_fp "
+                    "FROM corpus_structures ORDER BY global_id"
                 ).to_arrow_reader(_BUILD_BATCH)
                 for batch in reader:
                     identifiers = batch.column("global_id").to_pylist()
+                    smiles_values = batch.column("smiles").to_pylist()
                     blobs = batch.column("mol_binary").to_pylist()
                     fingerprints = batch.column("pattern_fp").to_pylist()
-                    for global_id, blob, fingerprint in zip(
-                        identifiers, blobs, fingerprints, strict=True
+                    for global_id, smiles, blob, fingerprint in zip(
+                        identifiers, smiles_values, blobs, fingerprints, strict=True
                     ):
                         # Sorting alone does not make an index an ID; it does that only
                         # while the IDs are every integer from zero, each once. A
@@ -479,7 +533,7 @@ class Corpus:
                             raise PairingError(
                                 f"the corpus states structure ID {global_id} where "
                                 f"{position} was expected, so its IDs are not one "
-                                "unbroken run and a library index would name a "
+                                "unbroken run and a structure ID would name a "
                                 "different structure; derive the structures artifacts "
                                 "again"
                             )
@@ -497,26 +551,33 @@ class Corpus:
                                 "a structures artifact writes both or neither, so this "
                                 "one was not written by this library"
                             )
-                        if blob is None:
-                            molecules.AddBinary(_UNPARSEABLE)
-                            patterns.AddFingerprint(_NO_BITS)
-                        else:
-                            molecules.AddBinary(blob)
-                            patterns.AddFingerprint(
-                                DataStructs.CreateFromBinaryText(fingerprint)
-                            )
+                        entry = entries.get(smiles)
+                        if entry is None:
+                            entry = entries[smiles] = len(entries)
+                            if blob is None:
+                                molecules.AddBinary(_UNPARSEABLE)
+                                patterns.AddFingerprint(_NO_BITS)
+                            else:
+                                molecules.AddBinary(blob)
+                                patterns.AddFingerprint(
+                                    DataStructs.CreateFromBinaryText(fingerprint)
+                                )
+                        entry_of.append(entry)
                         position += 1
             finally:
                 cursor.close()
             library = rdSubstructLibrary.SubstructLibrary(molecules, patterns)
-            if len(library) != self._total:
+            self._members, self._starts = _group(entry_of, len(entries))
+            if position != self._total:
                 raise PairingError(
-                    f"the library holds {len(library)} structures but the corpus has "
+                    f"the library covers {position} structures but the corpus has "
                     f"{self._total}; its indices would not be structure IDs"
                 )
             logger.info(
-                "built a substructure library over %d structures in %.1fs",
+                "built a substructure library over %d distinct molecules covering "
+                "%d structures in %.1fs",
                 len(library),
+                position,
                 time.perf_counter() - start,
             )
             self._substructure_library = library
@@ -674,11 +735,17 @@ class Corpus:
         library = self._library()
         # maxResults defaults to 1000, which would silently truncate: a broad pattern
         # matches hundreds of thousands of structures in ORD.
-        return list(
-            library.GetMatches(
-                molecule, numThreads=self._threads, maxResults=len(library) or 1
-            )
+        matched = library.GetMatches(
+            molecule, numThreads=self._threads, maxResults=len(library) or 1
         )
+        # A library entry is a molecule, not a structure: every ID sharing that molecule
+        # matched too, and the answer is stated in IDs.
+        identifiers: list[int] = []
+        for entry in matched:
+            identifiers.extend(
+                self._members[self._starts[entry] : self._starts[entry + 1]]
+            )
+        return identifiers
 
     def _similarity_ids(
         self,
@@ -722,6 +789,61 @@ class Corpus:
         for global_id in matched:
             bits[global_id] = ord("1")
         return bits.decode()
+
+    def _matches(
+        self,
+        cursor: duckdb.DuckDBPyConnection,
+        parameter: query.StructureParameter,
+        resolve: Callable[[str], str],
+    ) -> str:
+        """Returns a structure predicate's match set as a bitmap, reusing a recent one.
+
+        The chemistry depends on the query molecule and nothing else, so the same
+        predicate asked twice has the same answer -- and asking it costs a pass over
+        every molecule in the corpus. A compound is keyed by what it resolved to rather
+        than by its name, so two names for one molecule share an entry and a resolver
+        that starts answering differently is a different key.
+
+        Args:
+            cursor: The cursor a similarity screen runs on.
+            parameter: The predicate to evaluate.
+            resolve: Maps a compound name to SMILES.
+
+        Returns:
+            The bitmap over corpus-wide structure IDs.
+        """
+        pattern = (
+            parameter.pattern
+            if parameter.pattern is not None
+            else resolve(parameter.compound or "")
+        )
+        key = (parameter.op, pattern, parameter.threshold)
+        with self._matches_lock:
+            cached = self._matched.get(key)
+            if cached is not None:
+                # Reinserted so the eviction below drops what has gone longest unused
+                # rather than what was computed longest ago.
+                self._matched.move_to_end(key)
+                logger.info("%s %r reused a cached match set", parameter.op, pattern)
+                return cached
+        if parameter.op == "substructure":
+            matched = self._substructure_ids(parameter, resolve)
+        else:
+            matched = self._similarity_ids(cursor, parameter, resolve)
+        logger.info(
+            "%s %r matched %d of %d structures (%d unsearchable)",
+            parameter.op,
+            pattern,
+            len(matched),
+            self._searchable,
+            self._total - self._searchable,
+        )
+        bitmap = self._bitmap(matched)
+        with self._matches_lock:
+            self._matched[key] = bitmap
+            while len(self._matched) > _CACHED_MATCHES:
+                self._matched.popitem(last=False)
+        return bitmap
 
     def search(
         self, request: query.Query, *, timeout_seconds: float | None = None
@@ -773,22 +895,7 @@ class Corpus:
                 name: resolve(name) for name in compiled.compounds
             }
             for parameter in compiled.structures:
-                if parameter.op == "substructure":
-                    matched = self._substructure_ids(parameter, resolve)
-                else:
-                    matched = self._similarity_ids(cursor, parameter, resolve)
-                unsearchable = self._total - self._searchable
-                logger.info(
-                    "%s %r matched %d of %d structures (%d unsearchable)",
-                    parameter.op,
-                    parameter.pattern
-                    if parameter.pattern is not None
-                    else parameter.compound,
-                    len(matched),
-                    self._searchable,
-                    unsearchable,
-                )
-                parameters[parameter.name] = self._bitmap(matched)
+                parameters[parameter.name] = self._matches(cursor, parameter, resolve)
             if timeout_seconds is None:
                 return cursor.execute(compiled.sql, parameters).to_arrow_table()
             return self._run_with_timeout(
