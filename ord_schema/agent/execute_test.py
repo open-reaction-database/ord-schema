@@ -627,6 +627,52 @@ def test_a_timeout_interrupts_a_query_that_outlasts_it():
         connection.close()
 
 
+def test_an_interrupt_reaches_only_the_cursor_it_was_called_on():
+    # Timeouts are per search because interrupt() is per cursor. That is DuckDB's
+    # behavior rather than this module's, and the whole timeout design rests on it: were
+    # an interrupt ever to reach the connection's other cursors, one search timing out
+    # would abort every search in flight and report each as having timed out. Pinned
+    # here so the change is caught on a version bump instead of in production.
+    connection = duckdb.connect()
+    try:
+        victim, other = connection.cursor(), connection.cursor()
+        slow = "SELECT count(*) FROM range(30000000000)"
+        # The query has to be long enough that an interrupt lands mid-flight, or the
+        # assertions below would hold for a query that simply finished first.
+        timer = threading.Timer(0.2, victim.interrupt)
+        timer.start()
+        try:
+            with pytest.raises(duckdb.InterruptException):
+                victim.execute(slow).fetchall()
+        finally:
+            timer.cancel()
+        # Same query, same duration, interrupted through a sibling cursor instead.
+        outcome: list[str] = []
+
+        def run():
+            try:
+                other.execute(slow).fetchall()
+                outcome.append("completed")
+            except duckdb.InterruptException:
+                outcome.append("interrupted")
+
+        thread = threading.Thread(target=run)
+        thread.start()
+        time.sleep(0.2)  # Well inside the query, as the self-interrupt above showed.
+        victim.interrupt()
+        connection.interrupt()
+        time.sleep(0.3)  # Longer than the self-interrupt took to land.
+        # Neither reached it: the query is still running. Asserting that it is alive is
+        # the whole test, since interrupting it below would end it either way.
+        still_running = thread.is_alive()
+        other.interrupt()  # Ends the query, so the test does not run for minutes.
+        thread.join(timeout=_WAIT)
+    finally:
+        connection.close()
+    assert still_running, "a sibling cursor or the connection interrupted the query"
+    assert outcome == ["interrupted"]  # Its own cursor did stop it.
+
+
 def test_a_timeout_does_not_disturb_a_concurrent_search(corpus_dir):
     # A search arming a timer must interrupt only itself. Interrupting anything wider
     # would abort whatever else is in flight and report it, wrongly, as a timeout.
