@@ -106,18 +106,26 @@ should set it to the core count divided by that concurrency instead of leaving i
 
 Finding which reactions hold a match is a separate cost from the chemistry, and the
 larger one. An **occurrence index** — one row per structure occurrence, carrying the
-corpus-wide ID, the path, and the element's own `reaction_role` — replaces that scan
-with a filter over a narrow table (14.1M rows, 130 MB against the projections' 1.65 GB).
-Keeping the role beside the structure is what preserves element binding. End to end at
-corpus scale: pyridine among the inputs 7.56s → 1.46s, pyridine as the solvent
-5.00s → 1.74s, a boronic acid 2.93s → 0.15s, with identical match sets. The remainder
-for common patterns is the RDKit screen and verify, which the index does not touch.
+corpus-wide ID, the path, and the element's own `reaction_role` — makes that a filter
+over a narrow table rather than a scan of every reaction. Keeping the role beside the
+structure is what keeps a bound query a condition on one row. At corpus scale the index
+is 14.1M rows and about 130 MB, held in memory for the life of the `Corpus`, and answers
+pyridine among the inputs in 1.46s, pyridine as the solvent in 1.74s, and a boronic acid
+in 0.15s. What remains for common patterns is the RDKit screen and verify, which the
+index does not touch.
 
-The index answers only the shape it holds: some element at an indexed path contains a
-structure, optionally with a given role. A query reaching another element field, or
-needing a projection column to group or sort by, runs against the projection unchanged.
-It is built on the first query that can use it — four passes over the projections, so
-budget for it alongside the library at startup.
+The index answers only the shape it holds: a bare `exists` at an indexed path whose body
+asks for one structure and at most one role. A query reaching another element field, or
+needing a projection column to group or sort by — and every `forall`, negation, and
+disjunction — runs against the projection. Both paths screen and verify through the same
+compiler, and the log line says which one answered. The index is built on the first query
+that routes to it, four passes over the projections, so a server wanting the first real
+query to be fast should warm it rather than budget for it at open.
+
+A `limit` with no `order_by` is the one place the two paths visibly differ: neither
+relation orders what it was not asked to order, so each returns some rows of the same
+match set and they do not agree on which.
+
 Similarity needs no verification — Tanimoto is defined on the Morgan fingerprint, so
 the screen is the answer — and stays in SQL. The verified match set re-enters the query
 as a `BITSTRING` parameter indexed by the corpus-wide ID (`structure_id` plus the

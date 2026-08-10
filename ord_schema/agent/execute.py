@@ -49,17 +49,17 @@ Keeping the role beside the structure is what preserves element binding: "pyridi
 the solvent" stays a condition on a single row rather than an intersection of two
 reaction sets, which over-returns. A query the index cannot answer, because it reaches
 an element field the index does not carry or needs a projection column to group or sort
-by, runs against the projection unchanged; both paths screen and verify through the same
-compiler, so they differ only in how they reach the reactions.
+by, runs against the projection; both paths screen and verify through the same compiler,
+so they differ only in how they reach the reactions.
 
 The grammar bounds what a query can cost (one pass and a sort), and ``search``
 takes a wall-clock timeout that interrupts the final query. Name resolution, the
 one-time library and index builds, screening, and verification all run before the timer
 starts: each is bounded by the corpus rather than by the query, so a slow one is slow
-for every caller and shows up in the logs rather than in a timeout. The first
-substructure search therefore takes both builds -- upwards of a minute over the whole
-corpus, the index being four passes over the projections -- on top of whatever timeout
-it was given.
+for every caller and shows up in the logs rather than in a timeout. The two builds have
+separate triggers -- the library on the first substructure predicate, the index on the
+first query the planner routes -- and a search wanting both pays both, upwards of a
+minute over the whole corpus, on top of whatever timeout it was given.
 """
 
 import dataclasses
@@ -184,6 +184,19 @@ def _indexed_paths(schema: pa.Schema = projection.SCHEMA) -> dict[str, str]:
 
 
 INDEXED_PATHS = _indexed_paths()
+
+
+@dataclasses.dataclass(frozen=True)
+class _IndexTerms:
+    """What a predicate the occurrence index can answer asks of one row.
+
+    Attributes:
+        role: The role the element must hold, or None if the query does not bind one.
+            Absence is not a wildcard the index applies -- it is a query that named no
+            role, so the condition is left off.
+    """
+
+    role: str | None
 
 
 class Corpus:
@@ -523,16 +536,16 @@ class Corpus:
             return self._substructure_library
 
     @staticmethod
-    def _index_terms(where: query.Predicate) -> tuple[bool, str | None] | None:
-        """Returns whether an element predicate is one the index holds.
+    def _index_terms(where: query.Predicate) -> _IndexTerms | None:
+        """Returns what an element predicate asks of one occurrence row, or None.
 
         Args:
             where: The predicate inside a quantifier, relative to the element.
 
         Returns:
-            ``(has_structure, role)`` if every clause is a structure predicate on the
-            element's own structure or an equality on the indexed field, or None if any
-            clause reaches something the index does not carry.
+            The terms, if every clause is a structure predicate on the element's own
+            structure or an equality on the indexed field, or None if any clause reaches
+            something the index does not carry.
         """
         clauses = where.clauses if isinstance(where, query.And) else [where]
         structures_seen = 0
@@ -556,17 +569,24 @@ class Corpus:
         # column cannot apply both to the same row.
         if structures_seen != 1:
             return None
-        return True, role
+        return _IndexTerms(role=role)
 
     @staticmethod
     def _plan(request: query.Query) -> query.Compiled | None:
         """Returns a compiled occurrence-index query, or None to use the projection.
 
-        The index carries a structure and one field per element, so it answers exactly
-        the shape it holds: some element at an indexed path contains a structure, and
-        optionally equals a role. Everything else -- another element field, a scalar
-        outside the quantifier, a group-by column, an ordering -- lives only in the
-        projection, and asking the index for it would answer a different question.
+        An occurrence row carries a structure and one element field, so the index
+        answers exactly one shape: a bare ``exists`` at an indexed path whose body is a
+        conjunction of one structure predicate on the element's own ``smiles`` and at
+        most one ``reaction_role`` equality, with nothing aggregated and nothing
+        ordered. Every other query -- a ``forall``, a negation or a disjunction,
+        another element field, a scalar outside the quantifier, a group-by column, an
+        ordering -- reaches something an occurrence row does not hold, and the
+        projection answers it.
+
+        A ``limit`` rides along. Neither relation orders what a query did not ask to be
+        ordered, so a limited query with no ``order_by`` selects some rows of the match
+        set on both paths, and which ones differs between them.
 
         Args:
             request: The query to plan.
@@ -574,6 +594,11 @@ class Corpus:
         Returns:
             A compiled query over ``occurrences``, or None if the projection has to
             answer it.
+
+        Raises:
+            query.QueryError: If the query does not compile. Planning compiles it to
+                reach the structure parameter, so a malformed query fails here rather
+                than on the projection path.
         """
         where = request.where
         if (
@@ -587,7 +612,6 @@ class Corpus:
         terms = Corpus._index_terms(where.where)
         if terms is None:
             return None
-        _, role = terms
         compiled = query.compile_query(request)
         # The bitmap and the molecule behind it are the compiler's, so the two paths
         # screen and verify identically and differ only in how they reach the reactions
@@ -599,8 +623,8 @@ class Corpus:
             f"get_bit(CAST(${compiled.structures[0].name} AS BITSTRING), "
             "global_id::INTEGER) = 1",
         ]
-        if role is not None:
-            escaped = role.replace("'", "''")
+        if terms.role is not None:
+            escaped = terms.role.replace("'", "''")
             conditions.append(f"{_INDEXED_FIELD} = '{escaped}'")
         limit = f" LIMIT {request.limit}" if request.limit is not None else ""
         # S608: every fragment is a schema-derived path, a compiler-issued parameter
@@ -609,6 +633,9 @@ class Corpus:
             "SELECT DISTINCT reaction_id FROM occurrences "  # noqa: S608
             f"WHERE {' AND '.join(conditions)}{limit}"
         )
+        # Which relation answered is the one thing a result does not show, and the two
+        # are supposed to agree, so a disagreement is only ever debugged from here.
+        logger.info("the occurrence index answers %s", where.path)
         return dataclasses.replace(compiled, sql=sql)
 
     def _occurrences(self) -> None:
@@ -620,9 +647,16 @@ class Corpus:
         condition on one row rather than an intersection of two reaction sets, which
         over-returns.
 
-        Costs a full pass over the projections, so it is built when a query first wants
-        it rather than at open. Concurrent first queries serialize here and share the
-        result.
+        Costs one pass over the projections per indexed path, so it is built when a
+        query first wants it rather than at open. Concurrent first queries serialize
+        here and share the result.
+
+        Raises:
+            PairingError: If a corpus holding structures indexes none of them. Every
+                path the projection can carry a structure at is indexed, so an empty
+                index means a traversal reached nothing -- and an empty index answers
+                every structure query with "no matches", which reads like an answer
+                rather than like a corpus that cannot be searched.
         """
         with self._occurrences_lock:
             if self._occurrences_built:
@@ -641,19 +675,38 @@ class Corpus:
                 """  # noqa: S608
                 for path, expression in INDEXED_PATHS.items()
             )
-            # S608: the fragments are this module's own schema walk and the compiler's
-            # traversals, not anything a query supplies.
-            self._connection.execute(f"CREATE TABLE occurrences AS {selects}")
-            count = self._connection.execute(
-                "SELECT count(*) FROM occurrences"
-            ).fetchone()
-            assert count is not None  # An aggregate over any relation returns one row.
+            # Its own cursor: this runs while other searches are in flight, and the
+            # shared connection holds their results.
+            cursor = self._connection.cursor()
+            try:
+                # OR REPLACE, so a build interrupted after the table exists is a build
+                # the next query repeats rather than one that collides with itself
+                # forever. S608: the fragments are this module's own schema walk and
+                # the compiler's traversals, not anything a query supplies.
+                cursor.execute(f"CREATE OR REPLACE TABLE occurrences AS {selects}")
+                indexed = cursor.execute(
+                    "SELECT path, count(*) FROM occurrences GROUP BY path"
+                ).fetchall()
+                counts = dict(indexed)
+                total = sum(counts.values())
+                if self._total and not total:
+                    raise PairingError(
+                        f"the occurrence index came out empty over {self._total} "
+                        f"structures; none of {sorted(INDEXED_PATHS)} reached an "
+                        "element, so the projections are not the schema this walk was "
+                        "built from"
+                    )
+                self._occurrences_built = True
+            finally:
+                cursor.close()
+            # Per path, so one that reaches nothing is visible here rather than only in
+            # the answers it fails to contribute to.
             logger.info(
-                "indexed %d structure occurrences in %.1fs",
-                count[0],
+                "indexed %d structure occurrences in %.1fs: %s",
+                total,
                 time.perf_counter() - start,
+                ", ".join(f"{path} {counts.get(path, 0)}" for path in INDEXED_PATHS),
             )
-            self._occurrences_built = True
 
     def _substructure_ids(
         self, parameter: query.StructureParameter, resolve: Callable[[str], str]
@@ -729,13 +782,15 @@ class Corpus:
         """Compiles and runs a query, returning the result as an Arrow table.
 
         Runs on its own cursor, so concurrent searches sharing this corpus do not read
-        each other's results. They still serialize on the library build, and only on
-        that: the first substructure search builds it while the others wait.
+        each other's results. They serialize on the library build and on the index
+        build, each of which the first search wanting it performs while the others wait.
 
         A query the occurrence index can answer runs against it instead of the
         projection, which is the same answer reached without scanning every reaction.
         The screening and verification are the compiler's either way, so the two paths
-        differ only in how they find the reactions holding a match.
+        differ only in how they find the reactions holding a match. Which one answered
+        is logged, because it is the one thing about a search that the result does not
+        show.
 
         Args:
             request: The query to run.
@@ -751,13 +806,16 @@ class Corpus:
         Raises:
             query.QueryError: If the query does not compile.
             ValueError: If a compound name cannot be resolved.
-            PairingError: If the library does not come out one entry per structure.
+            PairingError: If the corpus IDs do not come out one unbroken run, or a
+                corpus holding structures indexes none of them.
             TimeoutError: If the query exceeds ``timeout_seconds``.
         """
         indexed = self._plan(request)
         compiled = indexed if indexed is not None else query.compile_query(request)
         if indexed is not None:
             self._occurrences()
+        else:
+            logger.info("the projection answers this query")
         # Cached across the whole search: a compound named in both a value and a
         # structure predicate is one external lookup, not two.
         resolved: dict[str, str] = {}
