@@ -20,6 +20,8 @@ from collections.abc import Iterator
 
 import pyarrow.parquet as pq
 import pytest
+from rdkit import Chem
+from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import parquet, projection, structures
 from ord_schema.agent import execute, query
@@ -210,25 +212,29 @@ def test_an_aggregate_with_a_structure_predicate(corpus):
     assert table.column("n").to_pylist() == [2]
 
 
-def test_verification_prunes_screen_false_positives(corpus, monkeypatch):
-    # Force the screen to pass everything: verification alone must still produce the
-    # right answer, which is what makes the screen safe to loosen and never to skip.
-    matched_rows = corpus._connection.execute(
-        "SELECT count(*) FROM corpus_structures"
-    ).fetchone()[0]
-    assert matched_rows > 0
-    original = execute._pattern_blob
-
-    def _passes_everything(molecule):
-        blob, _ = original(molecule)
-        return b"\x00" * len(blob), 0
-
-    monkeypatch.setattr(execute, "_pattern_blob", _passes_everything)
-    matched = _search(
-        corpus,
-        _exists({"op": "substructure", "path": "smiles", "smarts": "[OX2H]"}),
+def test_the_screen_only_accelerates_the_answer(corpus):
+    # The fingerprint screen is an accelerator, never part of the answer: a library
+    # built with no screen at all has to match exactly the same structures. That is
+    # the property which makes the screen safe to loosen and never safe to trust.
+    screened = corpus._library()
+    unscreened = rdSubstructLibrary.SubstructLibrary(
+        rdSubstructLibrary.CachedMolHolder()
     )
-    assert matched == {"ord-bb01"}
+    for index in range(len(screened)):
+        unscreened.AddMol(screened.GetMol(index))
+    for smarts in ("[OX2H]", "c1ccncc1", "c1ccccc1"):
+        pattern = Chem.MolFromSmarts(smarts)
+        with_screen = set(screened.GetMatches(pattern, maxResults=len(screened)))
+        without_screen = set(unscreened.GetMatches(pattern, maxResults=len(unscreened)))
+        assert with_screen == without_screen, smarts
+
+
+def test_an_unparseable_structure_holds_its_slot(corpus):
+    # A structure that did not parse still occupies its id, or every id after it would
+    # shift and the bitmap would name different molecules. It matches nothing.
+    library = corpus._library()
+    assert len(library) == corpus._total
+    assert not library.GetMatches(Chem.MolFromSmarts("[#0]"), maxResults=len(library))
 
 
 def test_unpaired_artifacts_are_refused(corpus_dir, tmp_path):
@@ -466,12 +472,13 @@ def test_forall_and_not_compose_with_a_structure_predicate(corpus):
     assert negated == {"ord-aa01", "ord-bb01"}
 
 
-def test_verification_runs_in_worker_processes(corpus_dir):
-    # Blobs and ids have to survive pickling to the workers and back.
+def test_matching_runs_across_threads(corpus_dir):
+    # RDKit matches across its own threads with the GIL released; the answer must not
+    # depend on how many it uses.
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
-        n_jobs=2,
+        threads=2,
         resolver={}.__getitem__,
     ) as value:
         matched = value.search(
@@ -515,3 +522,15 @@ def test_a_generous_timeout_returns_the_answer(corpus):
         timeout_seconds=60,
     )
     assert matched.column("reaction_id").to_pylist() == ["ord-bb01"]
+
+
+def test_the_artifact_fingerprint_is_the_one_the_library_screens_with():
+    # The library is fed the pattern_fp the artifact already stores rather than
+    # recomputing it. That is only sound while RDKit's own PatternHolder fingerprint
+    # is the same function -- if it ever diverges, the screen would start rejecting
+    # true matches, so the equality is pinned here rather than assumed.
+    molecule = Chem.MolFromSmiles("Cc1ccncc1O")
+    holder = rdSubstructLibrary.PatternHolder(structures.PATTERN_FP_SIZE)
+    holder.AddMol(molecule)
+    stored = Chem.PatternFingerprint(molecule, fpSize=structures.PATTERN_FP_SIZE)
+    assert list(holder.GetFingerprint(0).GetOnBits()) == list(stored.GetOnBits())

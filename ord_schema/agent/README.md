@@ -91,12 +91,15 @@ is a compile error rather than a wrong answer:
 ## Structure search
 
 A structure predicate compiles to a bitmap test, not to chemistry. The chemistry runs
-in [`execute.Corpus`](execute.py) against the [structures artifact](../structures.py):
-a fingerprint **screen** — complete but not exact — over every structure row in the
-corpus (deduplicated per dataset, so a molecule in two datasets is screened twice),
-then exact subgraph **verification** from the serialized molecules for
-substructure (similarity needs no verification; Tanimoto is defined on the Morgan
-fingerprint, so the screen is the answer). The verified match set re-enters the query
+in [`execute.Corpus`](execute.py) against the [structures artifact](../structures.py).
+Substructure runs through an RDKit `SubstructLibrary` built over the corpus: a
+fingerprint **screen** — complete but not exact — over every structure row
+(deduplicated per dataset, so a molecule in two datasets is screened twice), then exact
+subgraph **verification** of the survivors. It runs on RDKit's own threads with the GIL
+released, so one `Corpus` serves concurrent requests without forking; the library is
+built on the first substructure query and costs about 8s and 2 GB for the full corpus.
+Similarity needs no verification — Tanimoto is defined on the Morgan fingerprint, so
+the screen is the answer — and stays in SQL. The verified match set re-enters the query
 as a `BITSTRING` parameter indexed by the corpus-wide id (`structure_id` plus the
 file's offset), which is what preserves element binding: `exists(components,
 substructure(pyridine) and role = SOLVENT)` means one component that is both. The
@@ -107,7 +110,7 @@ finding 4.
 ```python
 from ord_schema.agent import execute, query
 
-corpus = execute.Corpus("projections/*/*.parquet", "structures/*/*.parquet", n_jobs=8)
+corpus = execute.Corpus("projections/*/*.parquet", "structures/*/*.parquet")
 table = corpus.search(
     query.Query.model_validate(
         {

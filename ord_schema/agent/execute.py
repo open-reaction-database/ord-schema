@@ -20,11 +20,13 @@ purpose, and this module is where both happen:
 * **Names become structures.** Compound names bind as resolved SMILES, through
   :mod:`ord_schema.resolvers` by default or any injected resolver.
 * **Structure predicates become bitmaps.** Each compiles to a bitmap test on the
-  element's ``structure_id``; the chemistry -- a fingerprint screen over the structures
-  artifact, then exact subgraph verification from the serialized molecules -- runs
-  here, and the verified match set binds as a ``BITSTRING`` parameter. Similarity has
-  no verification step: Tanimoto is defined on the Morgan fingerprint, so the screen is
-  the whole answer.
+  element's ``structure_id``, and the chemistry runs here. Substructure goes through an
+  RDKit ``SubstructLibrary`` built over the corpus: it screens on the pattern
+  fingerprints the artifact already stores and matches the survivors exactly, across
+  its own threads with the GIL released, so a server can share one corpus between
+  concurrent requests without forking. Similarity stays in SQL and has no verification
+  step at all -- Tanimoto is defined on the Morgan fingerprint, so the screen is the
+  whole answer.
 
 Structure ids are dataset-local, so a corpus-wide bitmap needs an offset per file.
 ``Corpus`` pairs every projection with its structures artifact, refuses a pair whose
@@ -43,14 +45,15 @@ than in a timeout.
 import glob
 import math
 import threading
-from collections.abc import Callable, Iterable, Iterator, Sequence
+import time
+from collections.abc import Callable, Iterable, Sequence
 from typing import Any, Self
 
 import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
-from joblib import Parallel, delayed
 from rdkit import Chem, DataStructs
+from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import artifacts, projection, resolvers, structures
 from ord_schema.agent import query
@@ -58,9 +61,9 @@ from ord_schema.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Structures verified per joblib task. Large enough that pickling blobs is amortized,
-# small enough that a dozen workers stay busy on a typical survivor set.
-_VERIFY_CHUNK = 4096
+# Structures read per batch while building the library. Bounds peak memory during the
+# build without making the per-batch Python overhead matter.
+_BUILD_BATCH = 50_000
 
 
 class PairingError(ValueError):
@@ -109,37 +112,11 @@ def _max_structure_id(path: str) -> int | None:
     return largest
 
 
-def _verify_chunk(
-    pattern: str, from_smarts: bool, identifiers: Sequence[int], blobs: Sequence[bytes]
-) -> list[int]:
-    """Returns the ids whose serialized molecule contains the query as a subgraph.
-
-    A module-level function so joblib can ship it to worker processes. Returning the
-    matching ids keeps a worker's reply proportional to the answer rather than to the
-    batch it was handed. The query travels as a string and is parsed once per chunk,
-    which is cheaper than shipping a molecule.
-
-    Args:
-        pattern: The query, as SMARTS or SMILES.
-        from_smarts: Whether ``pattern`` is SMARTS.
-        identifiers: Corpus-wide structure ids, positionally matching ``blobs``.
-        blobs: Serialized molecules (``mol_binary`` column values).
-
-    Returns:
-        The subset of ``identifiers`` that verified.
-    """
-    parsed = Chem.MolFromSmarts(pattern) if from_smarts else Chem.MolFromSmiles(pattern)
-    return [
-        identifier
-        for identifier, blob in zip(identifiers, blobs, strict=True)
-        if Chem.Mol(bytes(blob)).HasSubstructMatch(parsed)  # ty: ignore[no-matching-overload]
-    ]
-
-
-def _pattern_blob(molecule: Chem.Mol) -> tuple[bytes, int]:
-    """Returns the packed pattern fingerprint and its popcount."""
-    fingerprint = Chem.PatternFingerprint(molecule, fpSize=structures.PATTERN_FP_SIZE)
-    return DataStructs.BitVectToBinaryText(fingerprint), fingerprint.GetNumOnBits()
+# An id whose structure did not parse still occupies a slot, so a library index is a
+# corpus-wide structure id and needs no translation. An empty molecule fingerprints to
+# no bits, and a query with no atoms is refused, so it can never match.
+_UNPARSEABLE = Chem.Mol().ToBinary()
+_NO_BITS = DataStructs.ExplicitBitVect(structures.PATTERN_FP_SIZE)
 
 
 class Corpus:
@@ -155,7 +132,7 @@ class Corpus:
         structures_pattern: str,
         *,
         resolver: Callable[[str], str] | None = None,
-        n_jobs: int = 1,
+        threads: int = -1,
         require_current: bool = True,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
@@ -166,7 +143,9 @@ class Corpus:
             resolver: Maps a compound name to SMILES. Defaults to
                 ``ord_schema.resolvers``, which calls external services; inject
                 something local for tests or offline use.
-            n_jobs: Worker processes for substructure verification. 1 verifies inline.
+            threads: Threads RDKit uses to match a substructure query; -1 means one
+                per core. These are real threads with the GIL released, so a server
+                may share one corpus across concurrent requests.
             require_current: Refuse artifacts not written by the current library,
                 artifact, and RDKit versions. The screen's completeness guarantee
                 assumes the query and the artifact fingerprint identically, so turning
@@ -178,7 +157,9 @@ class Corpus:
                 dataset, or -- with ``require_current`` -- any artifact is stale.
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
-        self._n_jobs = n_jobs
+        self._threads = threads
+        # Built on first substructure query; see _library.
+        self._substruct_library: rdSubstructLibrary.SubstructLibrary | None = None
         pairs = self._pair(projection_pattern, structures_pattern, require_current)
         self._connection = duckdb.connect()
         try:
@@ -368,49 +349,70 @@ class Corpus:
             )
         return molecule
 
-    def _survivors(self, blob: bytes, popcount: int) -> Iterator[tuple[list, list]]:
-        """Yields (global ids, serialized molecules) for each batch the screen passes.
+    def _library(self) -> rdSubstructLibrary.SubstructLibrary:
+        """Returns the substructure library, building it on first use.
 
-        Streamed rather than fetched whole: a broad pattern survives the screen on most
-        of the corpus, and at ORD's scale the serialized molecules alone are hundreds of
-        megabytes. Batching lets each one be verified and released.
+        Built lazily because it costs seconds and gigabytes, and a corpus asked only
+        for similarity or scalar queries never needs it. Streamed in id order so a
+        library index *is* a corpus-wide structure id: a structure that did not parse
+        still occupies its slot, holding an empty molecule that nothing matches.
 
-        Args:
-            blob: The query's packed pattern fingerprint.
-            popcount: How many bits it sets.
-
-        Yields:
-            One (ids, molecules) pair per record batch.
+        Returns:
+            A library over every structure in the corpus, screened by the pattern
+            fingerprints the artifact already stores.
         """
-        reader = self._connection.execute(
-            """
-            SELECT global_id, mol_binary FROM corpus_structures
-            WHERE pattern_fp IS NOT NULL
-              AND bit_count(CAST(pattern_fp AS BITSTRING) & CAST($q AS BITSTRING)) = $n
-            """,
-            {"q": blob, "n": popcount},
-        ).to_arrow_reader(_VERIFY_CHUNK)
-        for batch in reader:
-            yield (
-                batch.column("global_id").to_pylist(),
-                batch.column("mol_binary").to_pylist(),
+        if self._substruct_library is None:
+            start = time.perf_counter()
+            molecules = rdSubstructLibrary.CachedMolHolder()
+            patterns = rdSubstructLibrary.PatternHolder(structures.PATTERN_FP_SIZE)
+            reader = self._connection.execute(
+                "SELECT mol_binary, pattern_fp FROM corpus_structures "
+                "ORDER BY global_id"
+            ).to_arrow_reader(_BUILD_BATCH)
+            for batch in reader:
+                blobs = batch.column("mol_binary").to_pylist()
+                fingerprints = batch.column("pattern_fp").to_pylist()
+                for blob, fingerprint in zip(blobs, fingerprints, strict=True):
+                    if blob is None:
+                        molecules.AddBinary(_UNPARSEABLE)
+                        patterns.AddFingerprint(_NO_BITS)
+                    else:
+                        molecules.AddBinary(blob)
+                        patterns.AddFingerprint(
+                            DataStructs.CreateFromBinaryText(fingerprint)
+                        )
+            library = rdSubstructLibrary.SubstructLibrary(molecules, patterns)
+            if len(library) != self._total:
+                raise PairingError(
+                    f"the library holds {len(library)} structures but the corpus has "
+                    f"{self._total}; its indices would not be structure ids"
+                )
+            logger.info(
+                "built a substructure library over %d structures in %.1fs",
+                len(library),
+                time.perf_counter() - start,
             )
+            self._substruct_library = library
+        return self._substruct_library
 
     def _substructure_ids(
         self, parameter: query.StructureParameter, resolve: Callable[[str], str]
     ) -> list[int]:
-        """Screens and verifies a substructure predicate; returns global ids."""
+        """Screens and verifies a substructure predicate; returns global ids.
+
+        RDKit screens and matches in one call, across its own threads with the GIL
+        released, so a server handling concurrent requests neither forks nor
+        serializes on this.
+        """
         molecule = self._query_molecule(parameter, resolve)
-        blob, popcount = _pattern_blob(molecule)
-        if parameter.op == "substructure" and parameter.pattern is not None:
-            pattern, from_smarts = parameter.pattern, True
-        else:
-            pattern, from_smarts = Chem.MolToSmiles(molecule), False
-        verified = Parallel(n_jobs=self._n_jobs, return_as="generator")(
-            delayed(_verify_chunk)(pattern, from_smarts, identifiers, blobs)
-            for identifiers, blobs in self._survivors(blob, popcount)
+        library = self._library()
+        # maxResults defaults to 1000, which would silently truncate: a broad pattern
+        # matches hundreds of thousands of structures in ORD.
+        return list(
+            library.GetMatches(
+                molecule, numThreads=self._threads, maxResults=len(library) or 1
+            )
         )
-        return [identifier for chunk in verified for identifier in chunk]
 
     def _similarity_ids(
         self, parameter: query.StructureParameter, resolve: Callable[[str], str]
