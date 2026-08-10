@@ -64,13 +64,14 @@ minute over the whole corpus, on top of whatever timeout it was given.
 
 import array
 import collections
+import contextlib
 import dataclasses
 import glob
 import math
 import re
 import threading
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import Any, Self
 
 import duckdb
@@ -91,19 +92,25 @@ _BUILD_BATCH = 50_000
 
 # Match sets kept for reuse. Each is a bitmap over the corpus ID space -- 2 MB at ORD's
 # scale -- so this trades a few tens of megabytes for the repeat of a query that costs
-# seconds. Small because the distribution is the point: a handful of scaffolds account
-# for most of what anyone asks.
+# seconds.
 _CACHED_MATCHES = 16
 
-# How much memory the materialized column sets may hold between them. Reached by
+# How much memory the materialized column sets may hold between them. Held to by
 # evicting the least recently used, so a corpus asked many different questions settles
-# on the columns it is actually asked about.
+# on the columns it is actually asked about. Enforced after a table is built rather than
+# before, since what one costs is known only once it exists, so the peak is this plus
+# the largest single set; a set larger than the whole budget is dropped again unkept.
 _NARROW_BUDGET_BYTES = 2 * 1024**3
 
 # Top-level projection columns, which is the granularity a compiled query names them at.
-# A narrower table holding only the ones a query mentions answers it identically, and
-# the query needs no rewriting to say so.
+# A narrower table holding only the ones a query mentions answers it identically, so the
+# query is compiled against it as written.
 _TOP_LEVEL = tuple(projection.SCHEMA.names)
+
+
+# What a structure predicate's answer depends on: the operation, whether the string
+# is read as SMARTS or as SMILES, the string, and the similarity threshold.
+_MatchKey = tuple[str, bool, str, float | None]
 
 
 class PairingError(ValueError):
@@ -230,6 +237,22 @@ def _group(entry_of: array.array, count: int) -> tuple[array.array, array.array]
     return members, starts
 
 
+@dataclasses.dataclass
+class _Narrow:
+    """A materialized table holding some of the projection's top-level columns.
+
+    Attributes:
+        name: The table's name in the catalog.
+        held: What it costs to keep, in bytes.
+        readers: Searches currently reading it. An entry with any is passed over by
+            eviction, since a search holds only the name until it runs.
+    """
+
+    name: str
+    held: int
+    readers: int
+
+
 @dataclasses.dataclass(frozen=True)
 class _IndexTerms:
     """What a predicate the occurrence index can answer asks of one row.
@@ -285,8 +308,8 @@ class Corpus:
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
         self._threads = threads
         # Built on first substructure query; see _library. The library holds one entry
-        # per distinct molecule, and _members maps an entry back to the structure IDs
-        # sharing it.
+        # per distinct molecule, and _members with _starts map an entry back to the
+        # structure IDs sharing it.
         self._substructure_library: rdSubstructLibrary.SubstructLibrary | None = None
         self._members = array.array("I")
         self._starts = array.array("I")
@@ -295,18 +318,20 @@ class Corpus:
         self._occurrences_built = False
         self._occurrences_lock = threading.Lock()
         # Recent match sets, most recently used last; see _matches.
-        self._matched: collections.OrderedDict[tuple[str, str, float | None], str] = (
+        self._matched: collections.OrderedDict[_MatchKey, str] = (
             collections.OrderedDict()
         )
         # Match sets a thread is computing, so callers asking the same question while it
         # runs wait for that answer instead of repeating it; see _matches.
-        self._matching: dict[tuple[str, str, float | None], threading.Event] = {}
+        self._matching: dict[_MatchKey, threading.Event] = {}
         self._matches_lock = threading.Lock()
-        # Materialized column sets, most recently used last; see _narrow_table. Maps
-        # the columns to the table holding them and what it costs to keep.
-        self._narrowed: collections.OrderedDict[frozenset[str], tuple[str, int]] = (
+        # Materialized column sets, most recently used last; see _narrowed_table. The
+        # serial names them, and never repeats, so a build that fails partway leaves no
+        # name for the next one to collide with.
+        self._narrowed: collections.OrderedDict[frozenset[str], _Narrow] = (
             collections.OrderedDict()
         )
+        self._narrow_serial = 0
         self._narrow_lock = threading.Lock()
         pairs = self._pair(projection_pattern, structures_pattern, require_current)
         self._connection = duckdb.connect()
@@ -529,8 +554,10 @@ class Corpus:
 
         Raises:
             PairingError: If the corpus IDs are not exactly ``0`` to ``total - 1``, so
-                that a structure ID would name a different structure, or if a structure
-                holds one of its derived columns without the other.
+                that the position an ID is assumed to occupy holds another structure; if
+                the library and the entry table disagree about how many distinct
+                molecules there are; or if a structure holds one of its derived columns
+                without the other.
         """
         with self._library_lock:
             if self._substructure_library is not None:
@@ -539,9 +566,9 @@ class Corpus:
             molecules = rdSubstructLibrary.CachedMolHolder()
             patterns = rdSubstructLibrary.PatternHolder(structures.PATTERN_FP_SIZE)
             cursor = self._connection.cursor()
-            # Which library entry each structure ID resolves to, in ID order. Held as
-            # an array rather than a list of lists: at corpus scale the difference is
-            # 8 MB against several hundred.
+            # Which library entry each structure ID resolves to, in ID order. An array
+            # of unsigned ints rather than a list, which at corpus scale is 8 MB against
+            # something closer to 60.
             entry_of = array.array("I")
             entries: dict[str, int] = {}
             position = 0
@@ -558,17 +585,17 @@ class Corpus:
                     for global_id, smiles, blob, fingerprint in zip(
                         identifiers, smiles_values, blobs, fingerprints, strict=True
                     ):
-                        # Sorting alone does not make an index an ID; it does that only
-                        # while the IDs are every integer from zero, each once. A
-                        # duplicate or a gap slides every later structure onto a
-                        # neighbor's index, which a row count cannot see.
+                        # An ID is read as the position it occupies in this pass, which
+                        # it is only while the IDs are every integer from zero, each
+                        # once. A duplicate or a gap slides every later structure one
+                        # position along, which a row count cannot see.
                         if global_id != position:
                             raise PairingError(
                                 f"the corpus states structure ID {global_id} where "
                                 f"{position} was expected, so its IDs are not one "
-                                "unbroken run and a structure ID would name a "
-                                "different structure; derive the structures artifacts "
-                                "again"
+                                "unbroken run and every later structure sits at a "
+                                "position other than its own ID; derive the structures "
+                                "artifacts again"
                             )
                         # A structures artifact writes the derived columns together or
                         # not at all. One without the other means the row came from
@@ -600,12 +627,23 @@ class Corpus:
             finally:
                 cursor.close()
             library = rdSubstructLibrary.SubstructLibrary(molecules, patterns)
-            self._members, self._starts = _group(entry_of, len(entries))
             if position != self._total:
                 raise PairingError(
                     f"the library covers {position} structures but the corpus has "
-                    f"{self._total}; its indices would not be structure IDs"
+                    f"{self._total}, so a structure ID would fall outside the run this "
+                    "read and resolve to no entry"
                 )
+            # The holders and the entry table are filled in the same branch, so a
+            # divergence means one of them missed a row -- after which every entry above
+            # the divergence maps to a neighbor's structures: in range, wrong molecule,
+            # and invisible to a count of either one alone.
+            if len(library) != len(entries):
+                raise PairingError(
+                    f"the library holds {len(library)} molecules against "
+                    f"{len(entries)} distinct SMILES, so an entry index does not name "
+                    "the molecule it was built from"
+                )
+            self._members, self._starts = _group(entry_of, len(entries))
             logger.info(
                 "built a substructure library over %d distinct molecules covering "
                 "%d structures in %.1fs",
@@ -756,8 +794,8 @@ class Corpus:
                 """  # noqa: S608
                 for path, expression in INDEXED_PATHS.items()
             )
-            # Its own cursor: this runs while other searches are in flight, and the
-            # shared connection holds their results.
+            # Its own cursor: this runs while searches are in flight, and the shared
+            # connection holds their results.
             cursor = self._connection.cursor()
             try:
                 # OR REPLACE, so a build interrupted after the table exists is a build
@@ -807,7 +845,7 @@ class Corpus:
         molecule = self._query_molecule(parameter, resolve)
         library = self._library()
         # maxResults defaults to 1000, which would silently truncate: a broad pattern
-        # matches hundreds of thousands of structures in ORD.
+        # matches hundreds of thousands of ORD's distinct molecules.
         matched = library.GetMatches(
             molecule, numThreads=self._threads, maxResults=len(library) or 1
         )
@@ -869,8 +907,12 @@ class Corpus:
 
         Read back off the SQL rather than walked from the query, because the SQL is
         what has to resolve: a column named there and missing from the table is a
-        catalog error, and one named only in the query is nothing at all. A name that
-        appears inside a string literal costs an unnecessary column and no correctness.
+        catalog error, and one named only in the query is nothing at all.
+
+        Matched as a word anywhere in the SQL, so this errs wide: a nested field sharing
+        a leaf name with a top-level column names both -- ``smiles`` is a component's
+        field and a reaction's own column -- and a name inside a string literal counts
+        too. Each costs a column that gets materialized and never read.
 
         Args:
             sql: The compiled query.
@@ -886,48 +928,65 @@ class Corpus:
         mentioned.add("reaction_id")
         return frozenset(mentioned)
 
-    def _narrow_table(self, columns: frozenset[str]) -> str | None:
-        """Returns a table holding only ``columns``, materializing it on first use.
+    @staticmethod
+    def _memory_bytes(cursor: duckdb.DuckDBPyConnection) -> int:
+        """Returns the bytes DuckDB holds in its in-memory tables.
 
-        Reading a handful of columns out of a 442-leaf projection spread over 53 files
-        costs mostly per-file overhead, which is the same whatever the query asks for.
-        Paying it once and answering from memory afterwards is worth a materialization
-        for the columns a corpus is actually asked about: a temperature filter falls
-        from 0.91s to 0.06s, a group-by on the DOI from 0.81s to 0.002s.
+        The database-wide figure, so the cost of one table is the difference across
+        creating it. ``duckdb_tables`` reports a row *count* rather than a size, which
+        is why this asks the memory accounting instead.
 
-        The rows are the same rows; their order is not. Neither relation orders anything
-        a query did not ask to be ordered, and they do not agree on the accident, so a
-        caller wanting a particular order has to say so -- as it did before this.
+        Args:
+            cursor: Any cursor on the corpus connection.
+
+        Returns:
+            Bytes held, across every table in the database.
+        """
+        row = cursor.execute(
+            "SELECT coalesce(sum(memory_usage_bytes), 0) FROM duckdb_memory() "
+            "WHERE tag = 'IN_MEMORY_TABLE'"
+        ).fetchone()
+        return int(row[0]) if row is not None and row[0] is not None else 0
+
+    def _materialize(self, columns: frozenset[str]) -> _Narrow | None:
+        """Returns a held table of ``columns``, building it if the cache lacks one.
+
+        The caller owns a read on whatever comes back and has to release it, which
+        ``_narrowed_table`` does; an entry with a reader is never evicted.
 
         Args:
             columns: Top-level projection columns the query names.
 
         Returns:
-            The table's name, or None if materializing it would cost more memory than
-            the whole cache is allowed, in which case the projection answers directly.
+            The entry, or None if this column set costs more than the cache may hold in
+            total, in which case nothing is kept and the projection answers directly.
         """
         with self._narrow_lock:
             cached = self._narrowed.get(columns)
             if cached is not None:
                 self._narrowed.move_to_end(columns)
-                return cached[0]
-            name = f"narrow_{len(self._narrowed)}_{abs(hash(columns)) % 10**9}"
+                cached.readers += 1
+                return cached
+            # Never reused, so a build that fails between the CREATE and the entry
+            # cannot leave a name the next attempt collides with.
+            self._narrow_serial += 1
+            name = f"narrow_{self._narrow_serial}"
             selected = ", ".join([*sorted(columns), query.STRUCTURE_OFFSET])
             start = time.perf_counter()
-            # Its own cursor, like every other statement here: this runs while other
-            # searches are in flight, and the shared connection holds their results.
+            # Its own cursor, for the same reason the index build takes one: searches
+            # are in flight, and the shared connection holds their results.
             cursor = self._connection.cursor()
             try:
+                before = self._memory_bytes(cursor)
                 # S608: the names come from the projection schema and this module.
                 cursor.execute(
                     f"CREATE TABLE {name} AS "  # noqa: S608
                     f"SELECT {selected} FROM {query.TABLE}"
                 )
-                size = cursor.execute(
-                    "SELECT estimated_size FROM duckdb_tables() WHERE table_name = ?",
-                    [name],
-                ).fetchone()
-                held = int(size[0]) if size is not None and size[0] is not None else 0
+                # Measured under the lock, so no other materialization moves the figure
+                # between the two reads. An index build can, which costs an
+                # overstatement and an eviction, never a wrong answer.
+                held = max(self._memory_bytes(cursor) - before, 0)
                 if held > _NARROW_BUDGET_BYTES:
                     # Too big to keep, and keeping it is the only reason to build it.
                     cursor.execute(f"DROP TABLE {name}")
@@ -937,6 +996,12 @@ class Corpus:
                         held / 1024**3,
                     )
                     return None
+            except Exception:
+                # A table nobody tracks is memory nobody frees, and the failure the
+                # caller sees has to be the one that happened.
+                with contextlib.suppress(duckdb.Error):
+                    cursor.execute(f"DROP TABLE IF EXISTS {name}")
+                raise
             finally:
                 cursor.close()
             logger.info(
@@ -946,21 +1011,74 @@ class Corpus:
                 held / 1024**3,
                 time.perf_counter() - start,
             )
-            self._narrowed[columns] = (name, held)
-            while sum(entry[1] for entry in self._narrowed.values()) > (
+            entry = _Narrow(name=name, held=held, readers=1)
+            self._narrowed[columns] = entry
+            self._evict()
+            return entry
+
+    def _evict(self) -> None:
+        """Drops materialized tables, least recently used first, down to the budget.
+
+        Called with ``_narrow_lock`` held. An entry a search is reading is passed over
+        rather than dropped: the search bound the table's name into its SQL and reads it
+        only after resolving names and matching structures, so dropping it there would
+        fail a query that had already been answered correctly. Passing over every
+        candidate leaves the cache above its budget until a reader finishes, which is
+        the direction that keeps answers right.
+        """
+        for held in list(self._narrowed):
+            if sum(entry.held for entry in self._narrowed.values()) <= (
                 _NARROW_BUDGET_BYTES
             ):
-                evicted, (table, _) = self._narrowed.popitem(last=False)
-                if evicted == columns:  # Never evict what this call just built.
-                    self._narrowed[columns] = (name, held)
-                    break
-                dropper = self._connection.cursor()
-                try:
-                    dropper.execute(f"DROP TABLE {table}")
-                finally:
-                    dropper.close()
-                logger.info("evicted the materialized %s", sorted(evicted))
-            return name
+                return
+            entry = self._narrowed[held]
+            if entry.readers:
+                continue
+            cursor = self._connection.cursor()
+            try:
+                cursor.execute(f"DROP TABLE {entry.name}")
+            except duckdb.Error:
+                # Bookkeeping, not the caller's query: the entry goes either way, since
+                # keeping one whose table may be gone would answer from a name that
+                # does not resolve.
+                logger.exception("could not drop the materialized %s", entry.name)
+            finally:
+                cursor.close()
+            del self._narrowed[held]
+            logger.info("evicted the materialized %s", sorted(held))
+
+    @contextlib.contextmanager
+    def _narrowed_table(self, columns: frozenset[str]) -> Iterator[str | None]:
+        """Yields a table holding only ``columns``, held against eviction while read.
+
+        Reading a handful of columns out of a 442-leaf projection spread over 53 files
+        costs mostly per-file overhead, which is the same whatever the query asks for.
+        Paying it once and answering from memory afterwards is worth a materialization
+        for the columns a corpus is actually asked about: a temperature filter falls
+        from 1.24s to 0.21s, a group-by on stirring type from 0.75s to 0.003s.
+
+        The rows are the same rows; their order is not. Neither relation orders anything
+        a query did not ask to be ordered, and they do not agree on the accident, so a
+        caller wanting a particular order has to say so -- and a caller wanting a
+        particular *subset*, which is what a ``limit`` with no ordering asks for, is
+        asking a question neither relation answers the same way twice.
+
+        Args:
+            columns: Top-level projection columns the query names.
+
+        Yields:
+            The table's name, or None if materializing it would cost more memory than
+            the whole cache is allowed, in which case the projection answers directly.
+        """
+        entry = self._materialize(columns)
+        if entry is None:
+            yield None
+            return
+        try:
+            yield entry.name
+        finally:
+            with self._narrow_lock:
+                entry.readers -= 1
 
     def _matches(
         self,
@@ -970,11 +1088,11 @@ class Corpus:
     ) -> str:
         """Returns a structure predicate's match set as a bitmap, reusing a recent one.
 
-        The chemistry depends on the query molecule and nothing else, so the same
-        predicate asked twice has the same answer -- and asking it costs a pass over
-        every molecule in the corpus. A compound is keyed by what it resolved to rather
-        than by its name, so two names for one molecule share an entry and a resolver
-        that starts answering differently is a different key.
+        The chemistry depends on the query molecule, the operation, and the threshold,
+        so the same predicate asked twice has the same answer -- and asking it costs a
+        pass over every molecule in the corpus. A compound is keyed by what it resolved
+        to rather than by its name, so two names for one molecule share an entry and a
+        resolver that starts answering differently is a different key.
 
         One question is answered once even while it is still being answered: a caller
         arriving during another thread's pass waits for that pass rather than starting
@@ -990,13 +1108,29 @@ class Corpus:
 
         Returns:
             The bitmap over corpus-wide structure IDs.
+
+        Raises:
+            ValueError: If the predicate names neither a pattern nor a compound, or if
+                a resolved compound's SMILES does not parse.
+            PairingError: If the library does not come out one entry per distinct
+                molecule over an unbroken run of IDs.
         """
-        pattern = (
-            parameter.pattern
-            if parameter.pattern is not None
-            else resolve(parameter.compound or "")
-        )
-        key = (parameter.op, pattern, parameter.threshold)
+        if parameter.pattern is not None:
+            pattern = parameter.pattern
+        elif parameter.compound is not None:
+            pattern = resolve(parameter.compound)
+        else:
+            raise ValueError(
+                f"structure parameter {parameter.name!r} names neither a pattern nor a "
+                "compound, which the grammar does not allow"
+            )
+        # Which parser reads the string is part of what the string means, so it is part
+        # of the key: _query_molecule reads a stated substructure pattern as SMARTS and
+        # everything else as SMILES, and one text is two query molecules across them --
+        # C1=CC=CC=C1 is benzene as SMILES and six aliphatic carbons as SMARTS.
+        # Resolvers answer in that Kekule form, so a name and a pattern do collide.
+        from_smarts = parameter.pattern is not None and parameter.op == "substructure"
+        key = (parameter.op, from_smarts, pattern, parameter.threshold)
         while True:
             with self._matches_lock:
                 cached = self._matched.get(key)
@@ -1036,7 +1170,9 @@ class Corpus:
             # Woken after the result is published, so a waiter finds it on the next turn
             # of the loop; a failed pass leaves nothing there and the waiter recomputes.
             with self._matches_lock:
-                self._matching.pop(key).set()
+                waiters = self._matching.pop(key, None)
+            if waiters is not None:
+                waiters.set()
         return bitmap
 
     def search(
@@ -1045,9 +1181,11 @@ class Corpus:
         """Compiles and runs a query, returning the result as an Arrow table.
 
         Runs on its own cursor, so concurrent searches sharing this corpus do not read
-        each other's results. Two searches wait on each other only where waiting saves
-        work they would otherwise duplicate: the one-time library and index builds, and
-        a structure predicate one of them is already matching.
+        each other's results. Two searches wait on each other at the one-time library
+        and index builds, at a structure predicate one of them is already matching, and
+        at a materialization, which is one lock for all column sets: the cost of a table
+        is read as the difference two memory readings make, and two builds interleaved
+        would each be charged the other's.
 
         A query the occurrence index can answer runs against it instead of the
         projection, which is the same answer reached without scanning every reaction.
@@ -1055,6 +1193,11 @@ class Corpus:
         differ only in how they find the reactions holding a match. Which one answered
         is logged, because it is the one thing about a search that the result does not
         show.
+
+        A query the index declines is compiled a second time, against a table holding
+        only the columns the first compilation named. The narrow table is held for the
+        life of the search, since the query names it seconds before it reads it and
+        eviction would otherwise drop it in between.
 
         Args:
             request: The query to run.
@@ -1076,19 +1219,6 @@ class Corpus:
         """
         indexed = self._plan(request)
         compiled = indexed if indexed is not None else query.compile_query(request)
-        if indexed is not None:
-            self._occurrences()
-        else:
-            logger.info("the projection answers this query")
-            # The index answers by itself; everything else reads the projection, and
-            # reads it faster from a table holding only the columns it names.
-            narrow = self._narrow_table(self._mentioned(compiled.sql))
-            if narrow is not None:
-                assert compiled.sql.count(f"FROM {query.TABLE}") == 1  # One pass.
-                compiled = dataclasses.replace(
-                    compiled,
-                    sql=compiled.sql.replace(f"FROM {query.TABLE}", f"FROM {narrow}"),
-                )
         # Cached across the whole search: a compound named in both a value and a
         # structure predicate is one external lookup, not two.
         resolved: dict[str, str] = {}
@@ -1098,20 +1228,38 @@ class Corpus:
                 resolved[name] = self._resolver(name)
             return resolved[name]
 
-        cursor = self._connection.cursor()
-        try:
-            parameters: dict[str, Any] = {
-                name: resolve(name) for name in compiled.compounds
-            }
-            for parameter in compiled.structures:
-                parameters[parameter.name] = self._matches(cursor, parameter, resolve)
-            if timeout_seconds is None:
-                return cursor.execute(compiled.sql, parameters).to_arrow_table()
-            return self._run_with_timeout(
-                cursor, compiled.sql, parameters, timeout_seconds
-            )
-        finally:
-            cursor.close()
+        with contextlib.ExitStack() as reading:
+            if indexed is not None:
+                self._occurrences()
+            else:
+                logger.info("the projection answers this query")
+                # The index answers by itself; everything else reads the projection, and
+                # reads it faster from a table holding only the columns it names. Which
+                # ones those are is read off the compiled SQL, so the second compilation
+                # is over the same query against a different relation -- no rewriting of
+                # SQL text, which a query whose own string literal named the relation
+                # would otherwise corrupt.
+                narrow = reading.enter_context(
+                    self._narrowed_table(self._mentioned(compiled.sql))
+                )
+                if narrow is not None:
+                    compiled = query.compile_query(request, table=narrow)
+            cursor = self._connection.cursor()
+            try:
+                parameters: dict[str, Any] = {
+                    name: resolve(name) for name in compiled.compounds
+                }
+                for parameter in compiled.structures:
+                    parameters[parameter.name] = self._matches(
+                        cursor, parameter, resolve
+                    )
+                if timeout_seconds is None:
+                    return cursor.execute(compiled.sql, parameters).to_arrow_table()
+                return self._run_with_timeout(
+                    cursor, compiled.sql, parameters, timeout_seconds
+                )
+            finally:
+                cursor.close()
 
     @staticmethod
     def _run_with_timeout(

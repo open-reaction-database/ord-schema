@@ -903,7 +903,7 @@ def test_concurrent_searches_return_their_own_answers(corpus_dir):
 
 
 def test_concurrent_first_searches_build_one_library(corpus_dir, monkeypatch):
-    # The library is about 2 GB at corpus scale. First searches arriving together must
+    # The library is about 1.5 GB at corpus scale. First searches arriving together must
     # not each build their own copy, so the build is serialized and whoever waits takes
     # the finished one.
     threads_count = 4
@@ -1468,7 +1468,9 @@ def test_a_repeated_predicate_is_matched_once(corpus_dir, monkeypatch):
         )
         assert value.search(by_name).num_rows == 2
         assert value.search(other_name).num_rows == 2
-        assert matched == 2  # Both resolve to the pattern already matched above.
+        # One match between them, and one more than before: a name resolves to SMILES,
+        # and the identical text stated as a pattern was read as SMARTS.
+        assert matched == 3
 
 
 def test_the_cache_does_not_confuse_two_predicates(corpus):
@@ -1609,13 +1611,14 @@ def test_the_cache_stays_bounded(corpus_dir, monkeypatch):
             value.search(_substructure(smarts))
         assert len(value._matched) == 2
         # The two most recent survive; the earliest are gone.
-        assert [key[1] for key in value._matched] == ["c1ccccc1", "[Pt]"]
+        assert [key[2] for key in value._matched] == ["c1ccccc1", "[Pt]"]
 
 
-def _no_narrow_table(self, columns: frozenset[str]) -> str | None:
-    """Stands in for _narrow_table so a search reads the projection directly."""
+@contextlib.contextmanager
+def _no_narrow_table(self, columns: frozenset[str]) -> Iterator[str | None]:
+    """Stands in for _narrowed_table so a search reads the projection directly."""
     del self, columns  # Unused.
-    return None
+    yield None
 
 
 def test_a_narrow_table_answers_what_the_projection_would(corpus_dir):
@@ -1670,9 +1673,14 @@ def test_a_narrow_table_answers_what_the_projection_would(corpus_dir):
             narrowed = value.search(request).to_pylist()
             # The same request with the materialization turned off.
             with pytest.MonkeyPatch.context() as patcher:
-                patcher.setattr(execute.Corpus, "_narrow_table", _no_narrow_table)
+                patcher.setattr(execute.Corpus, "_narrowed_table", _no_narrow_table)
                 direct = value.search(request).to_pylist()
-            assert sorted(map(repr, narrowed)) == sorted(map(repr, direct)), label
+            if request.order_by:
+                # An ordered query is the one case where the order is the answer, so
+                # this is the one comparison that may not sort first.
+                assert list(map(repr, narrowed)) == list(map(repr, direct)), label
+            else:
+                assert sorted(map(repr, narrowed)) == sorted(map(repr, direct)), label
 
 
 def test_the_columns_a_query_names_are_the_ones_materialized(corpus_dir):
@@ -1715,6 +1723,178 @@ def test_a_materialized_column_set_is_reused(corpus_dir):
         assert len(value._narrowed) == 2
 
 
+def _stated_bytes(*readings):
+    """Stands in for _memory_bytes, reading the given figures in order.
+
+    Stated rather than measured so a budget test admits exactly the tables it means to,
+    whatever DuckDB's allocator does with three rows.
+    """
+    figures = iter(readings)
+    return staticmethod(lambda cursor: next(figures))
+
+
+def _tables(value) -> set[str]:
+    """Returns the names of the tables the corpus connection holds."""
+    cursor = value._connection.cursor()
+    try:
+        rows = cursor.execute("SELECT table_name FROM duckdb_tables()").fetchall()
+    finally:
+        cursor.close()
+    return {row[0] for row in rows}
+
+
+def test_a_materialization_is_measured_in_bytes(corpus_dir):
+    # duckdb_tables reports a row *count* under a name that reads like a size, and
+    # spending it as one makes the budget a number that can never be crossed and the
+    # eviction below dead code. Three rows, and the table is tens of kilobytes.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        value.search(
+            query.Query.model_validate(
+                {"where": {"op": "not_null", "path": "provenance.doi"}}
+            )
+        )
+        (entry,) = value._narrowed.values()
+        assert entry.held > 1024
+
+
+def test_the_cache_evicts_the_least_recently_used_and_drops_its_table(
+    corpus_dir, monkeypatch
+):
+    # An unevicted cache is one table per column set a server is ever asked for, none of
+    # them ever freed. Sizes are stated here rather than measured so the budget admits
+    # exactly one table whatever DuckDB's allocator does with three rows.
+    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 150)
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        monkeypatch.setattr(
+            execute.Corpus, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
+        )
+        first = frozenset({"reaction_id", "provenance"})
+        second = frozenset({"reaction_id", "conditions"})
+        with value._narrowed_table(first) as name:
+            dropped = name
+        assert dropped in _tables(value)
+        with value._narrowed_table(second) as name:
+            kept = name
+        assert list(value._narrowed) == [second]
+        assert dropped not in _tables(value)  # Dropped, not merely forgotten.
+        assert kept in _tables(value)
+
+
+def test_a_table_a_search_is_reading_is_not_evicted(corpus_dir, monkeypatch):
+    # A search takes the table's name, then resolves compounds and matches structures --
+    # seconds during which it holds nothing but a string. Evicting there would fail a
+    # query that had already been answered correctly, with a catalog error naming a
+    # table the caller has never heard of.
+    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 150)
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        monkeypatch.setattr(
+            execute.Corpus, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
+        )
+        first = frozenset({"reaction_id", "provenance"})
+        second = frozenset({"reaction_id", "conditions"})
+        with value._narrowed_table(first) as reading:
+            with value._narrowed_table(second):
+                pass
+            # Over budget, and the only candidate is being read: it stays, and the
+            # cache stays over its budget until the reader is done.
+            assert reading in _tables(value)
+            assert list(value._narrowed) == [first, second]
+        # Released, so the next materialization can take it.
+        with value._narrowed_table(frozenset({"reaction_id", "notes"})):
+            pass
+        assert first not in value._narrowed
+        assert reading not in _tables(value)
+
+
+def test_a_failed_materialization_leaves_nothing_behind(corpus_dir, monkeypatch):
+    # A table nobody tracks is memory nobody frees, and under a name a later attempt
+    # would collide with. The failure is raised after the CREATE, which is the window.
+    request = query.Query.model_validate(
+        {"where": {"op": "not_null", "path": "provenance.doi"}}
+    )
+    failing = True
+    original = execute.Corpus._memory_bytes
+    reads = 0
+
+    def sometimes(cursor):
+        # The second reading is the one taken after the CREATE, so failing there is the
+        # window where a table exists and nothing has recorded it.
+        nonlocal reads
+        reads += 1
+        if failing and reads == 2:
+            raise duckdb.Error("no memory accounting today")
+        return original(cursor)
+
+    monkeypatch.setattr(execute.Corpus, "_memory_bytes", staticmethod(sometimes))
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        with pytest.raises(duckdb.Error, match="no memory accounting"):
+            value.search(request)
+        assert not value._narrowed
+        assert not [name for name in _tables(value) if name.startswith("narrow_")]
+        failing = False
+        # The column set is still materializable, under a name of its own.
+        value.search(request)
+        assert len(value._narrowed) == 1
+
+
+def test_a_literal_naming_the_relation_is_not_a_rewrite(tmp_path):
+    # The columns are read off the compiled SQL, which carries string literals inline --
+    # so a query searching for the text "FROM reactions" puts that text in the SQL. The
+    # narrow table is reached by compiling again against it, not by editing that SQL: an
+    # edit would rewrite the literal too, and this reaction would stop being findable by
+    # what its own notes say.
+    note = "distilled FROM reactions overnight"
+    reaction = _reaction("ord-dd01", components=[("CCO", _ROLE.REACTANT)])
+    reaction.notes.procedure_details = note
+    source = tmp_path / "data" / "ord_dataset-dd.parquet"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-dd",
+            name="test",
+            description="test",
+            reactions=[reaction],
+        ),
+        str(source),
+    )
+    projected = tmp_path / "projections" / source.name
+    projected.parent.mkdir(parents=True, exist_ok=True)
+    projection.write_projection(source, projected)
+    structured = tmp_path / "structures" / source.name
+    structured.parent.mkdir(parents=True, exist_ok=True)
+    structures.write_structures(projected, structured)
+    request = query.Query.model_validate(
+        {
+            "where": {
+                "op": "eq",
+                "path": "notes.procedure_details",
+                "value": {"literal": note},
+            }
+        }
+    )
+    with execute.Corpus(
+        str(projected), str(structured), resolver={}.__getitem__
+    ) as value:
+        assert _reactions(value.search(request)) == {"ord-dd01"}
+        assert len(value._narrowed) == 1
+
+
 def test_a_column_set_too_large_to_keep_is_not_kept(corpus_dir, monkeypatch):
     # Materializing is only worth it if the table survives to answer the next query.
     monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 1)
@@ -1735,6 +1915,144 @@ def test_a_column_set_too_large_to_keep_is_not_kept(corpus_dir, monkeypatch):
         # Answered anyway, straight from the projection.
         assert matched.column("reaction_id").to_pylist() == ["ord-bb01"]
         assert not value._narrowed
+
+
+def test_a_library_that_lost_a_molecule_is_refused(corpus_dir, monkeypatch):
+    # The holders and the entry table are filled in one branch, so a divergence means
+    # one of them missed a row -- after which every entry above it maps to a neighbor's
+    # structures: in range, wrong molecule, and invisible to a count of either alone.
+    class _Short:
+        """A library that holds fewer molecules than the corpus has distinct SMILES."""
+
+        def __init__(self, molecules, patterns):
+            del molecules, patterns  # Unused: nothing gets as far as searching it.
+
+        def __len__(self):
+            return 1
+
+    monkeypatch.setattr(execute.rdSubstructLibrary, "SubstructLibrary", _Short)
+    with (
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+        ) as value,
+        pytest.raises(execute.PairingError, match="distinct SMILES"),
+    ):
+        value._library()
+
+
+def test_a_pattern_and_a_name_that_read_alike_are_not_one_answer(corpus_dir):
+    # A stated substructure pattern is SMARTS; a resolved compound is SMILES. The same
+    # text is two query molecules across those parsers -- C1=CC=CC=C1 is benzene as
+    # SMILES and six aliphatic carbons as SMARTS -- and resolvers answer in exactly that
+    # Kekule form, so a key holding only the text would answer one with the other.
+    kekule = "C1=CC=CC=C1"
+    by_name = query.Query.model_validate(
+        {"where": _exists({"op": "substructure", "path": "smiles", "compound": "b"})}
+    )
+
+    def answers(first, second):
+        with execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={"b": kekule}.__getitem__,
+        ) as value:
+            return _reactions(value.search(first)), _reactions(value.search(second))
+
+    # The corpus stores benzene aromatic, so the name matches it and the pattern, read
+    # as six aliphatic carbons, matches nothing. Whichever runs first, both hold.
+    assert answers(_substructure(kekule), by_name) == (set(), {"ord-aa01"})
+    assert answers(by_name, _substructure(kekule)) == ({"ord-aa01"}, set())
+
+
+def test_a_structure_parameter_naming_nothing_is_an_error(corpus):
+    # The grammar guarantees one of the two, so this cannot come from a query -- but
+    # resolving "" would ask the external resolver for a compound with no name and cache
+    # whatever came back, which is a long way from where the mistake was.
+    parameter = query.StructureParameter(
+        name="p0", op="substructure", pattern=None, compound=None, threshold=None
+    )
+    cursor = corpus._connection.cursor()
+    try:
+        with pytest.raises(ValueError, match="neither a pattern nor a compound"):
+            corpus._matches(cursor, parameter, {}.__getitem__)
+    finally:
+        cursor.close()
+
+
+def test_the_cache_keeps_what_was_asked_for_most_recently(corpus_dir, monkeypatch):
+    # Least recently *used*, not least recently computed: a scaffold asked for over and
+    # over is exactly what the cache is for, and it would be the first thing dropped if
+    # a hit did not count as a use.
+    monkeypatch.setattr(execute, "_CACHED_MATCHES", 2)
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        value.search(_substructure("c1ccncc1"))
+        value.search(_substructure("[OX2H]"))
+        value.search(_substructure("c1ccncc1"))  # Asked again: now the newest.
+        value.search(_substructure("[Pt]"))
+        assert [key[2] for key in value._matched] == ["c1ccncc1", "[Pt]"]
+
+
+def test_a_waiter_behind_a_failed_match_answers_for_itself(corpus_dir, monkeypatch):
+    # A pass that raises publishes nothing, so the callers queued behind it have to take
+    # the matching over rather than inherit an error they had no part in -- and none of
+    # them may be left waiting on an event that will never be set.
+    threads_count = 4
+    failing = True
+    original = execute.Corpus._substructure_ids
+    ready = threading.Barrier(threads_count)
+
+    def sometimes(self, parameter, resolve):
+        if failing:
+            time.sleep(0.5)  # Long enough that the others are waiting on this one.
+            raise RuntimeError("the library gave up")
+        return original(self, parameter, resolve)
+
+    monkeypatch.setattr(execute.Corpus, "_substructure_ids", sometimes)
+    released = threading.Event()
+
+    def resolver(name):
+        # The barrier is one-shot: every thread reaches it before any gets through, so
+        # the searches after them do not wait for a crowd that has already dispersed.
+        if not released.is_set():
+            ready.wait(timeout=_WAIT)
+            released.set()
+        return {"pyridine": "c1ccncc1"}[name]
+
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver=resolver,
+    ) as value:
+        value._library()
+        request = query.Query.model_validate(_ROUTABLE["a compound name"])
+        failures: list[BaseException] = []
+        results: list[int] = []
+
+        def search():
+            try:
+                results.append(value.search(request).num_rows)
+            except BaseException as error:  # noqa: BLE001
+                failures.append(error)
+
+        threads = [threading.Thread(target=search) for _ in range(threads_count)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=_WAIT)
+        alive = [thread for thread in threads if thread.is_alive()]
+        assert alive == []
+        assert results == []
+        assert [type(error) for error in failures] == [RuntimeError] * threads_count
+        assert value._matching == {}
+        # Nothing was cached, so the predicate is still askable once matching works.
+        failing = False
+        assert value.search(request).num_rows == 2
 
 
 def test_the_match_limit_has_to_be_passed_or_matches_are_dropped():

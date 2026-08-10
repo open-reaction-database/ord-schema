@@ -313,7 +313,8 @@ def glob_root(pattern: str) -> pathlib.PurePath:
         pattern: Glob pattern, with ``*``, ``?``, or ``[`` marking the first wildcard.
 
     Returns:
-        The wildcard-free leading directories, empty for a pattern with no directory.
+        The wildcard-free leading directories, or ``.`` when the pattern names no
+        directory or begins with a wildcard.
     """
     parts = pathlib.PurePath(pattern).parts
     fixed = []
