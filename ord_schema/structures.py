@@ -29,9 +29,9 @@ holds roughly fifteen component occurrences per distinct structure, so screening
 verification run against the distinct set and their results fan back out through the
 projection. The join is ``structure_id`` -- assigned by ``write_projection`` in
 first-seen order, carried on every compound there that records a structure and numbered
-``0..n-1`` here, so a match set travels back into a query as a bitmap indexed by id.
+``0..n-1`` here, so a match set travels back into a query as a bitmap indexed by ID.
 The two files are two statements of one derivation and are meaningful only together:
-ids are not stable across builds, nothing outside the artifacts should record them, and
+IDs are not stable across builds, nothing outside the artifacts should record them, and
 a projection rewritten in place needs its structures artifact rederived with it -- the
 currency stamps name the source dataset rather than the projection file, so the skip
 check cannot see that the pairing changed.
@@ -48,7 +48,7 @@ is defined on the Morgan fingerprint, so the screen *is* the answer, and
 ``morgan_popcount`` bounds it (``popcount(B)`` must lie within ``[t * popcount(A),
 popcount(A) / t]`` for Tanimoto ``>= t``).
 
-A structure whose SMILES RDKit cannot parse keeps its row -- the id space must stay
+A structure whose SMILES RDKit cannot parse keeps its row -- the ID space must stay
 dense -- with every derived column null. It can never match a structure query, and the
 count of such rows is logged per dataset.
 """
@@ -187,8 +187,8 @@ def _collect(source: str | os.PathLike[str]) -> list[str]:
     Raises:
         ValueError: If ``source``'s schema does not hold the structure columns this
             library's projection defines, or if the pairs do not state a single dense
-            one-to-one mapping -- an id bound to two SMILES, one SMILES under two ids,
-            a compound with one half of the pair, or a gap in the id space. Each means
+            one-to-one mapping -- an ID bound to two SMILES, one SMILES under two IDs,
+            a compound with one half of the pair, or a gap in the ID space. Each means
             ``source`` was not written by this library's ``write_projection``, and an
             artifact derived from it would join wrongly rather than fail.
     """
@@ -236,7 +236,7 @@ def _collect(source: str | os.PathLike[str]) -> list[str]:
     if set(smiles_by_id) != set(range(len(smiles_by_id))):
         missing = sorted(set(range(len(smiles_by_id))) - set(smiles_by_id))[:5]
         raise ValueError(
-            f"{source}: structure ids are not dense; first missing {missing}"
+            f"{source}: structure IDs are not dense; first missing {missing}"
         )
     return [smiles_by_id[structure_id] for structure_id in range(len(smiles_by_id))]
 
@@ -245,7 +245,7 @@ def _row(structure_id: int, smiles: str) -> dict[str, Any]:
     """Featurizes one structure into a row matching ``SCHEMA``.
 
     Args:
-        structure_id: The row's id, equal to its position in the artifact.
+        structure_id: The row's ID, equal to its position in the artifact.
         smiles: The structure, as the projection derived it.
 
     Returns:

@@ -91,23 +91,31 @@ is a compile error rather than a wrong answer:
 ## Structure search
 
 A structure predicate compiles to a bitmap test, not to chemistry. The chemistry runs
-in [`execute.Corpus`](execute.py) against the [structures artifact](../structures.py):
-a fingerprint **screen** — complete but not exact — over every structure row in the
-corpus (deduplicated per dataset, so a molecule in two datasets is screened twice),
-then exact subgraph **verification** from the serialized molecules for
-substructure (similarity needs no verification; Tanimoto is defined on the Morgan
-fingerprint, so the screen is the answer). The verified match set re-enters the query
-as a `BITSTRING` parameter indexed by the corpus-wide id (`structure_id` plus the
+in [`execute.Corpus`](execute.py) against the [structures artifact](../structures.py).
+Substructure runs through an RDKit `SubstructLibrary` built over the corpus: a
+fingerprint **screen** — complete but not exact — over every structure row
+(deduplicated per dataset, so a molecule in two datasets is screened twice), then exact
+subgraph **verification** of the survivors. It runs on RDKit's own threads with the GIL
+released, so one `Corpus` serves concurrent requests without forking; the library is
+built on the first substructure query and costs about 8s and 2 GB for the full corpus.
+Each search takes its own DuckDB cursor, since a connection holds the pending result of
+its last `execute` and concurrent searches sharing one would read each other's rows.
+`threads` is per search rather than per corpus, so a server expecting several at once
+should set it to the core count divided by that concurrency instead of leaving it at
+`-1`.
+Similarity needs no verification — Tanimoto is defined on the Morgan fingerprint, so
+the screen is the answer — and stays in SQL. The verified match set re-enters the query
+as a `BITSTRING` parameter indexed by the corpus-wide ID (`structure_id` plus the
 file's offset), which is what preserves element binding: `exists(components,
 substructure(pyridine) and role = SOLVENT)` means one component that is both. The
-alternative — intersecting reaction-id sets — over-returns by 94% on exactly that
+alternative — intersecting reaction-ID sets — over-returns by 94% on exactly that
 query; see [ord-logbook#28](https://github.com/open-reaction-database/ord-logbook/pull/28),
 finding 4.
 
 ```python
 from ord_schema.agent import execute, query
 
-corpus = execute.Corpus("projections/*/*.parquet", "structures/*/*.parquet", n_jobs=8)
+corpus = execute.Corpus("projections/*/*.parquet", "structures/*/*.parquet")
 table = corpus.search(
     query.Query.model_validate(
         {
@@ -132,9 +140,9 @@ table = corpus.search(
 
 `Corpus` refuses artifacts that do not pair: every projection must have a structures
 artifact derived from the same source dataset, and long enough to hold every
-`structure_id` the projection carries, because the ids joining them are meaningful only
+`structure_id` the projection carries, because the IDs joining them are meaningful only
 as a pair. Pairing is by source dataset rather than by filename, so the two trees need
-not share a layout. Structure ids are dataset-local; the executor's relation
+not share a layout. Structure IDs are dataset-local; the executor's relation
 carries a per-file offset column (`structure_offset`), which is why compiled SQL with a
 structure predicate runs only there — validate it against `query.executable_schema()`
 rather than the bare projection schema.

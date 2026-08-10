@@ -16,10 +16,16 @@
 
 import contextlib
 import pathlib
+import threading
+import time
 from collections.abc import Iterator
 
+import duckdb
+import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+from rdkit import Chem
+from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import parquet, projection, structures
 from ord_schema.agent import execute, query
@@ -43,7 +49,7 @@ def _reaction(reaction_id, *, components, product="Cc1ccccc1"):
     return reaction
 
 
-# Two datasets, so that the second's structure ids only join correctly through a
+# Two datasets, so that the second's structure IDs only join correctly through a
 # nonzero offset. Basenames sort "aa" before "bb".
 _REACTIONS = {
     "aa": [
@@ -131,7 +137,7 @@ def test_substructure_binds_to_the_element(corpus):
 
 
 def test_substructure_reaches_the_offset_dataset(corpus):
-    # The hydroxyl is only in bb, whose ids are only correct through its offset.
+    # The hydroxyl is only in bb, whose IDs are only correct through its offset.
     matched = _search(
         corpus,
         _exists({"op": "substructure", "path": "smiles", "smarts": "[OX2H]"}),
@@ -210,25 +216,65 @@ def test_an_aggregate_with_a_structure_predicate(corpus):
     assert table.column("n").to_pylist() == [2]
 
 
-def test_verification_prunes_screen_false_positives(corpus, monkeypatch):
-    # Force the screen to pass everything: verification alone must still produce the
-    # right answer, which is what makes the screen safe to loosen and never to skip.
-    matched_rows = corpus._connection.execute(
-        "SELECT count(*) FROM corpus_structures"
-    ).fetchone()[0]
-    assert matched_rows > 0
-    original = execute._pattern_blob
-
-    def _passes_everything(molecule):
-        blob, _ = original(molecule)
-        return b"\x00" * len(blob), 0
-
-    monkeypatch.setattr(execute, "_pattern_blob", _passes_everything)
-    matched = _search(
-        corpus,
-        _exists({"op": "substructure", "path": "smiles", "smarts": "[OX2H]"}),
+def test_the_screen_only_accelerates_the_answer(corpus):
+    # The fingerprint screen is an accelerator, never part of the answer: a library
+    # built with no screen at all has to match exactly the same structures. That is
+    # the property which makes the screen safe to loosen and never safe to trust.
+    screened = corpus._library()
+    unscreened = rdSubstructLibrary.SubstructLibrary(
+        rdSubstructLibrary.CachedMolHolder()
     )
-    assert matched == {"ord-bb01"}
+    for index in range(len(screened)):
+        unscreened.AddMol(screened.GetMol(index))
+    for smarts in ("[OX2H]", "c1ccncc1", "c1ccccc1"):
+        pattern = Chem.MolFromSmarts(smarts)
+        with_screen = set(screened.GetMatches(pattern, maxResults=len(screened)))
+        without_screen = set(unscreened.GetMatches(pattern, maxResults=len(unscreened)))
+        assert with_screen == without_screen, smarts
+
+
+def test_an_unparseable_structure_holds_its_slot(corpus_dir, tmp_path):
+    # A structure RDKit could not read still occupies its ID. Skipping it instead would
+    # shift every later ID down one, and the bitmap would then name molecules that are
+    # not the ones matched -- wrong chemistry, corpus-wide, and silent. The nulled row
+    # is aa's first structure, so every remaining structure in the corpus sits after it
+    # and answers correctly only if the empty slot is really there.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    target = root / "structures" / "ord_dataset-aa.parquet"
+    with pq.ParquetFile(target) as artifact:
+        table = artifact.read()
+        schema = artifact.schema_arrow
+    assert table.column("smiles")[0].as_py() == "c1ccncc1", "expected pyridine first"
+    columns = {field.name: table.column(field.name) for field in schema}
+    for name in ("mol_binary", "pattern_fp"):
+        values = table.column(name).to_pylist()
+        values[0] = None
+        columns[name] = pa.array(values, type=schema.field(name).type)
+    pq.write_table(pa.table(columns, schema=schema), target)
+    with execute.Corpus(
+        str(root / "projections" / "*.parquet"),
+        str(root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        assert len(value._library()) == value._total
+        # Benzene sits after the hole in aa, ethanol after it in bb. Both still name
+        # their own reactions, which holds only while the empty slot is there.
+        assert _search(
+            value,
+            _exists({"op": "substructure", "path": "smiles", "smarts": "c1ccccc1"}),
+        ) == {"ord-aa01"}
+        assert _search(
+            value, _exists({"op": "substructure", "path": "smiles", "smarts": "[OX2H]"})
+        ) == {"ord-bb01"}
+        # The unreadable structure matches nothing at all, rather than matching whatever
+        # molecule happens to land on its index.
+        assert (
+            _search(
+                value,
+                _exists({"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"}),
+            )
+            == set()
+        )
 
 
 def test_unpaired_artifacts_are_refused(corpus_dir, tmp_path):
@@ -242,7 +288,7 @@ def test_unpaired_artifacts_are_refused(corpus_dir, tmp_path):
 def test_a_mismatched_pair_is_refused(corpus_dir, tmp_path):
     # Rebuild bb's projection from a different source, leaving its structures
     # artifact describing molecules the projection does not hold: the pair must not
-    # open, or ids would join to the wrong chemistry.
+    # open, or IDs would join to the wrong chemistry.
     changed = tmp_path / "ord_dataset-bb.parquet"
     parquet.save_dataset(
         dataset_pb2.Dataset(
@@ -287,8 +333,8 @@ def _copy_corpus(corpus_dir, tmp_path) -> pathlib.Path:
 
 
 def test_offsets_place_each_dataset_in_its_own_slice(corpus):
-    # Toluene is the product of every reaction and lives in BOTH datasets, at local id
-    # 2 in aa and 1 in bb. Reaching all three reactions therefore requires each id to
+    # Toluene is the product of every reaction and lives in BOTH datasets, at local ID
+    # 2 in aa and 1 in bb. Reaching all three reactions therefore requires each ID to
     # be offset by its own file's base: swapping the two offsets, or shifting both,
     # produces a different answer.
     matched = corpus.search(
@@ -329,6 +375,65 @@ def test_a_structures_artifact_short_of_its_projection_is_refused(corpus_dir, tm
             str(root / "projections" / "*.parquet"),
             str(root / "structures" / "*.parquet"),
         )
+
+
+def _rewrite_structures(root, shard, **columns):
+    """Replaces whole columns of one structures artifact, keeping its schema."""
+    target = root / "structures" / f"ord_dataset-{shard}.parquet"
+    with pq.ParquetFile(target) as artifact:
+        table = artifact.read()
+        schema = artifact.schema_arrow
+    replaced = {field.name: table.column(field.name) for field in schema}
+    for name, values in columns.items():
+        replaced[name] = pa.array(values, type=schema.field(name).type)
+    pq.write_table(pa.table(replaced, schema=schema), target)
+
+
+@pytest.mark.parametrize(
+    ("label", "identifiers"),
+    [("a duplicate", [0, 1, 1]), ("a gap", [0, 1, 3])],
+)
+def test_structure_ids_that_are_not_one_unbroken_run_are_refused(
+    corpus_dir, tmp_path, label, identifiers
+):
+    # A library index is a structure ID only while the IDs are every integer from zero,
+    # each exactly once. A duplicate or a gap slides later structures onto a neighbor's
+    # index, and the row count -- unchanged by either -- cannot see it.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    _rewrite_structures(root, "aa", structure_id=identifiers)
+    with (
+        execute.Corpus(
+            str(root / "projections" / "*.parquet"),
+            str(root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+        ) as value,
+        pytest.raises(execute.PairingError, match="not one unbroken run"),
+    ):
+        value._library()
+
+
+@pytest.mark.parametrize("missing", ["mol_binary", "pattern_fp"])
+def test_half_a_derived_structure_is_refused(corpus_dir, tmp_path, missing):
+    # The artifact writes a molecule and its fingerprint together or not at all, and
+    # the library relies on that. Left to itself, one without the other goes two
+    # different wrong ways: a missing molecule discards a live fingerprint, so the
+    # structure quietly matches nothing while still counting as searchable, and a
+    # missing fingerprint reaches RDKit as a type error naming no row at all.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    target = root / "structures" / "ord_dataset-bb.parquet"
+    with pq.ParquetFile(target) as artifact:
+        values = artifact.read().column(missing).to_pylist()
+    values[0] = None
+    _rewrite_structures(root, "bb", **{missing: values})
+    with (
+        execute.Corpus(
+            str(root / "projections" / "*.parquet"),
+            str(root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+        ) as value,
+        pytest.raises(execute.PairingError, match="writes both or neither"),
+    ):
+        value._library()
 
 
 def test_two_artifacts_of_one_dataset_are_refused(corpus_dir, tmp_path):
@@ -466,12 +571,13 @@ def test_forall_and_not_compose_with_a_structure_predicate(corpus):
     assert negated == {"ord-aa01", "ord-bb01"}
 
 
-def test_verification_runs_in_worker_processes(corpus_dir):
-    # Blobs and ids have to survive pickling to the workers and back.
+def test_matching_runs_across_threads(corpus_dir):
+    # RDKit matches across its own threads with the GIL released; the answer must not
+    # depend on how many it uses.
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
-        n_jobs=2,
+        threads=2,
         resolver={}.__getitem__,
     ) as value:
         matched = value.search(
@@ -486,10 +592,10 @@ def test_verification_runs_in_worker_processes(corpus_dir):
     assert matched.column("reaction_id").to_pylist() == ["ord-bb01"]
 
 
-def test_a_timeout_does_not_outlive_its_own_search(corpus):
-    # Timer.cancel only sets a flag, so a timer past its own check fires anyway. If
-    # that interrupt could outlive the search that armed it, the NEXT query would fail
-    # and be reported as having timed out.
+def test_a_timeout_does_not_disturb_a_later_search(corpus):
+    # Timer.cancel only sets a flag, so a timer past its own check fires anyway. An
+    # interrupt outliving the search that armed it would fail a later query and report
+    # it as having timed out.
     request = query.Query.model_validate(
         {"where": _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}})}
     )
@@ -501,6 +607,115 @@ def test_a_timeout_does_not_outlive_its_own_search(corpus):
         assert _search(
             corpus, _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}})
         ) == {"ord-bb01"}
+
+
+def test_a_timeout_interrupts_a_query_that_outlasts_it():
+    # Nothing in the fixture corpus is slow enough to time out, so the interrupt itself
+    # is pinned here against a query that is. Were it ever to stop reaching the running
+    # statement, every timeout would quietly become no timeout at all.
+    connection = duckdb.connect()
+    try:
+        cursor = connection.cursor()
+        started = time.perf_counter()
+        with pytest.raises(TimeoutError, match=r"exceeded 0\.2 seconds"):
+            execute.Corpus._run_with_timeout(
+                cursor, "SELECT count(*) FROM range(100000000000)", {}, 0.2
+            )
+        # The bound is what ends it, rather than the query finishing on its own.
+        assert time.perf_counter() - started < 30
+    finally:
+        connection.close()
+
+
+def test_an_interrupt_reaches_only_the_cursor_it_was_called_on():
+    # Timeouts are per search because interrupt() is per cursor. That is DuckDB's
+    # behavior rather than this module's, and the whole timeout design rests on it: were
+    # an interrupt ever to reach the connection's other cursors, one search timing out
+    # would abort every search in flight and report each as having timed out. Pinned
+    # here so the change is caught on a version bump instead of in production.
+    connection = duckdb.connect()
+    try:
+        victim, other = connection.cursor(), connection.cursor()
+        slow = "SELECT count(*) FROM range(30000000000)"
+        # The query has to be long enough that an interrupt lands mid-flight, or the
+        # assertions below would hold for a query that simply finished first.
+        timer = threading.Timer(0.2, victim.interrupt)
+        timer.start()
+        try:
+            with pytest.raises(duckdb.InterruptException):
+                victim.execute(slow).fetchall()
+        finally:
+            timer.cancel()
+        # Same query, same duration, interrupted through a sibling cursor instead.
+        outcome: list[str] = []
+
+        def run():
+            try:
+                other.execute(slow).fetchall()
+                outcome.append("completed")
+            except duckdb.InterruptException:
+                outcome.append("interrupted")
+
+        thread = threading.Thread(target=run)
+        thread.start()
+        time.sleep(0.2)  # Well inside the query, as the self-interrupt above showed.
+        victim.interrupt()
+        connection.interrupt()
+        time.sleep(0.3)  # Longer than the self-interrupt took to land.
+        # Neither reached it: the query is still running. Asserting that it is alive is
+        # the whole test, since interrupting it below would end it either way.
+        still_running = thread.is_alive()
+        other.interrupt()  # Ends the query, so the test does not run for minutes.
+        thread.join(timeout=_WAIT)
+    finally:
+        connection.close()
+    assert still_running, "a sibling cursor or the connection interrupted the query"
+    assert outcome == ["interrupted"]  # Its own cursor did stop it.
+
+
+def test_a_timeout_does_not_disturb_a_concurrent_search(corpus_dir):
+    # A search arming a timer must interrupt only itself. Interrupting anything wider
+    # would abort whatever else is in flight and report it, wrongly, as a timeout.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        value._library()
+        timed = query.Query.model_validate(
+            {"where": _exists({"op": "substructure", "path": "smiles", "smarts": "*"})}
+        )
+        steady = query.Query.model_validate(
+            {
+                "where": _exists(
+                    {"op": "eq", "path": "smiles", "value": {"literal": "CCO"}}
+                )
+            }
+        )
+        failures: list[BaseException] = []
+        wrong: list[list[str]] = []
+        stop = threading.Event()
+
+        def timing_out():
+            try:
+                while not stop.is_set():
+                    with contextlib.suppress(TimeoutError):
+                        value.search(timed, timeout_seconds=0.001)
+            except BaseException as error:  # noqa: BLE001
+                failures.append(error)
+
+        armer = threading.Thread(target=timing_out)
+        armer.start()
+        try:
+            for _ in range(40):
+                matched = value.search(steady).column("reaction_id").to_pylist()
+                if matched != ["ord-bb01"]:
+                    wrong.append(matched)
+        finally:
+            stop.set()
+            armer.join(timeout=_WAIT)
+    assert failures == []
+    assert wrong == []
 
 
 def test_a_generous_timeout_returns_the_answer(corpus):
@@ -515,3 +730,208 @@ def test_a_generous_timeout_returns_the_answer(corpus):
         timeout_seconds=60,
     )
     assert matched.column("reaction_id").to_pylist() == ["ord-bb01"]
+
+
+# Long enough that a loaded machine does not trip it, short enough that a regression
+# reports as a failure instead of parking the suite forever. Nothing here waits on real
+# work: every barrier is released by threads that have already been started.
+_WAIT = 60
+
+
+class _CursorCounter:
+    """A connection that counts cursors and refuses to be queried directly.
+
+    Forwards everything else, so a search that takes a cursor works and one that runs
+    its own query on the shared connection fails.
+    """
+
+    def __init__(self, connection):
+        self.connection = connection
+        self.cursors = 0
+
+    def cursor(self):
+        self.cursors += 1
+        return self.connection.cursor()
+
+    def execute(self, *args, **kwargs):
+        raise AssertionError("the search queried the shared connection")
+
+    def __getattr__(self, name):
+        return getattr(self.connection, name)
+
+
+def test_a_search_runs_on_a_cursor_rather_than_the_shared_connection(corpus_dir):
+    # A DuckDBPyConnection carries the pending result of its last execute, so searches
+    # sharing one read each other's rows instead of raising. Counting cursors alone
+    # would pass an implementation that took one and then queried the connection
+    # anyway, so the connection is made unusable for queries: the search has to run on
+    # what cursor() handed it.
+    request = query.Query.model_validate(
+        {"where": _exists({"op": "eq", "path": "smiles", "value": {"literal": "CCO"}})}
+    )
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        value._connection = counter = _CursorCounter(value._connection)
+        assert value.search(request).num_rows == 1
+        assert counter.cursors == 1
+
+
+def test_concurrent_searches_return_their_own_answers(corpus_dir):
+    # Distinct queries with distinct answers, run at once against one corpus: each
+    # thread has to come back with the reactions its own query selected. Sharing one
+    # connection also makes searches raise "No open result set" as often as it makes
+    # them lie, so the exceptions are collected too -- a thread that dies takes its
+    # traceback to threading.excepthook, where an assertion on results alone sees
+    # nothing wrong.
+    # The similarity thread covers the one path that runs two statements on a single
+    # cursor -- its screen, then the compiled query -- so reuse within one search shows
+    # up here and nowhere else.
+    expected = {
+        "hydroxyl": ["ord-bb01"],
+        "pyridine": ["ord-aa01", "ord-aa02"],
+        "benzene": ["ord-aa01"],
+        "like ethanol": ["ord-bb01"],
+    }
+    predicates = {
+        "hydroxyl": {"op": "substructure", "path": "smiles", "smarts": "[OX2H]"},
+        "pyridine": {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"},
+        "benzene": {"op": "substructure", "path": "smiles", "smarts": "c1ccccc1"},
+        "like ethanol": {
+            "op": "similarity",
+            "path": "smiles",
+            "smiles": "OCC",
+            "threshold": 0.99,
+        },
+    }
+    rounds = 20
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        value._library()  # Build once up front, so the threads race on searching.
+        # Built before any thread starts: validation that raised inside a thread would
+        # leave the others parked on a barrier nobody else reaches.
+        requests = {
+            label: query.Query.model_validate({"where": _exists(predicate)})
+            for label, predicate in predicates.items()
+        }
+        wrong: list[tuple[str, list[str]]] = []
+        failures: list[BaseException] = []
+        completed: list[str] = []
+        ready = threading.Barrier(len(expected))
+
+        def search(label):
+            try:
+                ready.wait(timeout=_WAIT)
+                for _ in range(rounds):
+                    matched = sorted(
+                        value.search(requests[label]).column("reaction_id").to_pylist()
+                    )
+                    if matched != expected[label]:
+                        wrong.append((label, matched))
+                completed.append(label)
+            except BaseException as error:  # noqa: BLE001
+                failures.append(error)
+
+        threads = [threading.Thread(target=search, args=(label,)) for label in expected]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=_WAIT)
+        alive = [thread for thread in threads if thread.is_alive()]
+    assert failures == []
+    assert alive == []
+    assert wrong == []
+    assert sorted(completed) == sorted(expected)
+
+
+def test_concurrent_first_searches_build_one_library(corpus_dir, monkeypatch):
+    # The library is about 2 GB at corpus scale. First searches arriving together must
+    # not each build their own copy, so the build is serialized and whoever waits takes
+    # the finished one.
+    threads_count = 4
+    builds = 0
+    counting = threading.Lock()
+    original = execute.rdSubstructLibrary.SubstructLibrary
+
+    def counted(*args, **kwargs):
+        nonlocal builds
+        with counting:
+            builds += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(execute.rdSubstructLibrary, "SubstructLibrary", counted)
+    ready = threading.Barrier(threads_count)
+
+    def resolver(name):
+        # Every thread is inside search and about to want the library; releasing them
+        # together is what makes the race reachable at all. This assumes each search
+        # resolves the name itself -- were that cache ever hoisted to the corpus, the
+        # threads that skipped it would leave this barrier one short, so it times out
+        # rather than parking the suite.
+        ready.wait(timeout=_WAIT)
+        return {"pyridine": "c1ccncc1"}[name]
+
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver=resolver,
+    ) as value:
+        request = query.Query.model_validate(
+            {
+                "where": _exists(
+                    {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+                )
+            }
+        )
+        results: list[list[str]] = []
+        failures: list[BaseException] = []
+
+        def search():
+            try:
+                matched = value.search(request).column("reaction_id").to_pylist()
+                results.append(sorted(matched))
+            except BaseException as error:  # noqa: BLE001
+                failures.append(error)
+
+        threads = [threading.Thread(target=search) for _ in range(threads_count)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=_WAIT)
+        alive = [thread for thread in threads if thread.is_alive()]
+    assert failures == []
+    assert alive == []
+    assert builds == 1
+    assert results == [["ord-aa01", "ord-aa02"]] * threads_count
+
+
+def test_the_match_limit_has_to_be_passed_or_matches_are_dropped():
+    # GetMatches defaults to 1000 results and truncates in silence, which at corpus
+    # scale would turn a broad pattern into a wrong answer rather than a slow one. The
+    # fixture has five structures, so no test of it can reach the limit; the default is
+    # pinned here instead, against a library large enough to cross it.
+    benzene = Chem.MolFromSmiles("c1ccccc1")
+    holder = rdSubstructLibrary.CachedMolHolder()
+    for _ in range(1500):
+        holder.AddMol(benzene)
+    library = rdSubstructLibrary.SubstructLibrary(holder)
+    pattern = Chem.MolFromSmarts("c1ccccc1")
+    assert len(library.GetMatches(pattern)) == 1000
+    assert len(library.GetMatches(pattern, maxResults=len(library))) == 1500
+
+
+def test_the_artifact_fingerprint_is_the_one_the_library_screens_with():
+    # The library is fed the pattern_fp the artifact already stores rather than
+    # recomputing it. That is only sound while RDKit's own PatternHolder fingerprint
+    # is the same function -- if it ever diverges, the screen would start rejecting
+    # true matches, so the equality is pinned here rather than assumed.
+    molecule = Chem.MolFromSmiles("Cc1ccncc1O")
+    holder = rdSubstructLibrary.PatternHolder(structures.PATTERN_FP_SIZE)
+    holder.AddMol(molecule)
+    stored = Chem.PatternFingerprint(molecule, fpSize=structures.PATTERN_FP_SIZE)
+    assert list(holder.GetFingerprint(0).GetOnBits()) == list(stored.GetOnBits())

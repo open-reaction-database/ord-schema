@@ -47,12 +47,12 @@ through :mod:`ord_schema.resolvers` before binding.
 Structure predicates -- ``substructure`` and ``similarity`` -- compile to a bitmap test
 rather than to chemistry. The chemistry runs *outside* the query, against the
 :mod:`ord_schema.structures` artifact (:mod:`ord_schema.agent.execute` is the driver),
-and the match set re-enters as a bitmap parameter indexed by the corpus-wide id --
+and the match set re-enters as a bitmap parameter indexed by the corpus-wide ID --
 the projection's ``structure_id`` plus its file's offset: DuckDB permits no subquery
 inside a lambda expression, so the element a quantifier binds cannot semi-join a match
 table, but it can test one integer against a bitmap. The compiled SQL therefore
 references ``structure_offset``, a column only the executor's relation carries -- a raw
-projection cannot answer a structure query, which is the point: the ids are
+projection cannot answer a structure query, which is the point: the IDs are
 dataset-local and only the executor knows the offsets that make them one corpus-wide
 space.
 """
@@ -73,7 +73,7 @@ from ord_schema import projection
 # nameable and a join has nothing to join to.
 TABLE = "reactions"
 
-# The per-row column mapping a dataset-local structure_id into the corpus-wide id
+# The per-row column mapping a dataset-local structure_id into the corpus-wide ID
 # space a bitmap parameter is indexed by. Supplied by the executor's relation and
 # absent from the projection schema resolve() defaults to, so a model-supplied path
 # does not reach it.
@@ -146,7 +146,7 @@ class Compiled:
 
     ``compounds`` are names whose resolved SMILES the caller binds. ``structures`` are
     predicates the caller evaluates against the structures artifact, each bound as a
-    bitmap over corpus-wide structure ids; a query carrying any also references the
+    bitmap over corpus-wide structure IDs; a query carrying any also references the
     ``STRUCTURE_OFFSET`` column, so it runs only against the executor's relation.
     """
 
@@ -553,7 +553,7 @@ def _structure(
     schema: Any,
     structures: list[StructureParameter],
 ) -> str:
-    """Compiles a structure predicate to a bitmap test on the element's structure id.
+    """Compiles a structure predicate to a bitmap test on the element's structure ID.
 
     The chemistry happens in the executor; what compiles here is only the re-entry of
     its match set. The null guard keeps a compound with no recorded structure from
@@ -578,7 +578,7 @@ def _structure(
     except QueryError as error:
         raise QueryError(
             f"{node.path}: {node.op} needs a compound smiles, and this smiles has no "
-            f"structure id beside it ({error})"
+            f"structure ID beside it ({error})"
         ) from error
     parameter = _structure_parameter(node, structures)
     return (

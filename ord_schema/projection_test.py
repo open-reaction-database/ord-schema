@@ -522,7 +522,7 @@ def test_schema_adds_a_structure_id_beside_the_compound_smiles():
     field = components.value_type.field("structure_id")
     assert field.type == pa.uint32()
     assert projection.is_internal(field)
-    # The reaction-level smiles is a reaction, not a molecule; no id is assigned there.
+    # The reaction-level smiles is a reaction, not a molecule; no ID is assigned there.
     assert "structure_id" not in projection.SCHEMA.names
     assert not projection.is_internal(projection.SCHEMA.field("smiles"))
 
@@ -568,7 +568,7 @@ def test_a_compound_without_a_smiles_gets_no_structure_id():
 
 def test_structure_ids_reach_compounds_beyond_inputs_and_products():
     # message_row assigns by descriptor name, so a compound in a workup input or an
-    # authentic standard shares the id space; the structures artifact reads them all.
+    # authentic standard shares the ID space; the structures artifact reads them all.
     reaction = _reaction()
     workup = reaction.workups.add()
     workup.input.components.add().identifiers.add(type="SMILES", value="Cc1ccccc1")
@@ -601,8 +601,8 @@ def test_write_projection_stamps_one_id_space_per_dataset(tmp_path):
 
 
 def test_structure_ids_span_source_row_groups(tmp_path):
-    # The id mapping is created once per dataset, not once per row group: rebuilding
-    # it inside the loop would restart the ids and corrupt every join in a dataset
+    # The ID mapping is created once per dataset, not once per row group: rebuilding
+    # it inside the loop would restart the IDs and corrupt every join in a dataset
     # bigger than one group, while every small test still passed.
     source = _source(
         tmp_path, [_reaction(f"ord-{i:04d}") for i in range(3)], row_group_size=1

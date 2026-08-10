@@ -64,7 +64,7 @@ fingerprints live. It exists because a structure predicate is evaluated *outside
 query -- screened and verified against the structures artifact -- and its match set has
 to re-enter the query at element granularity: DuckDB does not allow a subquery inside a
 lambda expression, so the components a quantifier binds cannot semi-join against a match
-table, but they can test one integer against a bitmap parameter. The ids are meaningful
+table, but they can test one integer against a bitmap parameter. The IDs are meaningful
 only alongside the projection that assigned them, so the column is marked internal and
 stays out of what a model is told it may query.
 
@@ -151,10 +151,10 @@ _STRUCTURAL_TYPES: dict[str, frozenset[int]] = {
 
 # Messages whose collapsed ``smiles`` is a molecule, and that therefore carry a
 # ``structure_id``. Reaction is structural but its smiles is a reaction;
-# reaction-level structure search is a different operation and no id is assigned there.
+# reaction-level structure search is a different operation and no ID is assigned there.
 _STRUCTURE_ID_TYPES = frozenset({"Compound", "ProductCompound"})
 
-# An id rides beside the collapsed smiles and cannot exist without it: the schema
+# An ID rides beside the collapsed smiles and cannot exist without it: the schema
 # would gain a structure_id with no sibling smiles, and message_row would KeyError.
 if not set(_STRUCTURAL_TYPES) >= _STRUCTURE_ID_TYPES:
     raise ValueError(
@@ -457,7 +457,7 @@ def message_row(
         structure_ids: Mapping from SMILES to ``structure_id``, extended in first-seen
             order as compounds are projected. None -- the default, for a message
             projected outside a dataset -- leaves every ``structure_id`` null, since an
-            id is meaningful only against the artifact that shares the mapping.
+            ID is meaningful only against the artifact that shares the mapping.
 
     Returns:
         A dict keyed by projected column name.
@@ -627,9 +627,9 @@ def write_projection(
     schema = SCHEMA.with_metadata(artifacts.to_metadata(stamps))
     rows = 0
     unreadable = 0
-    # One id space per dataset, in first-seen order, shared with the structures
+    # One ID space per dataset, in first-seen order, shared with the structures
     # artifact derived from this file. The order follows protobuf map iteration, which
-    # is unspecified, so ids are a fact about this file rather than about the dataset.
+    # is unspecified, so IDs are a fact about this file rather than about the dataset.
     structure_ids: dict[str, int] = {}
     with (
         atomic_io.atomic_path(output) as temp_path,

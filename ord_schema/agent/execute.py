@@ -20,37 +20,47 @@ purpose, and this module is where both happen:
 * **Names become structures.** Compound names bind as resolved SMILES, through
   :mod:`ord_schema.resolvers` by default or any injected resolver.
 * **Structure predicates become bitmaps.** Each compiles to a bitmap test on the
-  element's ``structure_id``; the chemistry -- a fingerprint screen over the structures
-  artifact, then exact subgraph verification from the serialized molecules -- runs
-  here, and the verified match set binds as a ``BITSTRING`` parameter. Similarity has
-  no verification step: Tanimoto is defined on the Morgan fingerprint, so the screen is
-  the whole answer.
+  element's ``structure_id``, and the chemistry runs here. Substructure goes through an
+  RDKit ``SubstructLibrary`` built over the corpus: it screens on the pattern
+  fingerprints the artifact already stores and matches the survivors exactly, across
+  its own threads with the GIL released, so a server can share one corpus between
+  concurrent requests without forking. Similarity stays in SQL and has no verification
+  step at all -- Tanimoto is defined on the Morgan fingerprint, so the screen is the
+  whole answer.
 
-Structure ids are dataset-local, so a corpus-wide bitmap needs an offset per file.
+Structure IDs are dataset-local, so a corpus-wide bitmap needs an offset per file.
 ``Corpus`` pairs every projection with its structures artifact, refuses a pair whose
 stamps disagree about the source dataset -- the two files are two statements of one
-derivation, and a mismatched pair would join ids to the wrong molecules silently --
+derivation, and a mismatched pair would join IDs to the wrong molecules silently --
 and publishes a ``reactions`` relation carrying each row's offset in the column the
 compiled SQL expects.
 
+A ``Corpus`` is safe to share between concurrent searches. A ``DuckDBPyConnection``
+holds the pending result of its last ``execute``, so two threads stepping on one read
+each other's rows rather than raising; each search therefore takes its own cursor. A
+cursor in turn sees only the catalog, not the objects ``register`` attaches to the
+connection that registered them, so every relation here is a catalog table or view.
+
 The grammar bounds what a query can cost (one pass and a sort), and ``search``
-takes a wall-clock timeout that interrupts the final query. Name resolution, screening,
-and verification run before the timer starts: each is bounded by the corpus rather than
-by the query, so a slow one is slow for every caller and shows up in the logs rather
-than in a timeout.
+takes a wall-clock timeout that interrupts the final query. Name resolution, the
+one-time library build, screening, and verification all run before the timer starts:
+each is bounded by the corpus rather than by the query, so a slow one is slow for every
+caller and shows up in the logs rather than in a timeout. The first substructure search
+therefore takes the build's several seconds on top of whatever timeout it was given.
 """
 
 import glob
 import math
 import threading
-from collections.abc import Callable, Iterable, Iterator, Sequence
+import time
+from collections.abc import Callable, Iterable, Sequence
 from typing import Any, Self
 
 import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
-from joblib import Parallel, delayed
 from rdkit import Chem, DataStructs
+from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import artifacts, projection, resolvers, structures
 from ord_schema.agent import query
@@ -58,9 +68,9 @@ from ord_schema.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Structures verified per joblib task. Large enough that pickling blobs is amortized,
-# small enough that a dozen workers stay busy on a typical survivor set.
-_VERIFY_CHUNK = 4096
+# Structures read per batch while building the library. Bounds peak memory during the
+# build without making the per-batch Python overhead matter.
+_BUILD_BATCH = 50_000
 
 
 class PairingError(ValueError):
@@ -109,37 +119,11 @@ def _max_structure_id(path: str) -> int | None:
     return largest
 
 
-def _verify_chunk(
-    pattern: str, from_smarts: bool, identifiers: Sequence[int], blobs: Sequence[bytes]
-) -> list[int]:
-    """Returns the ids whose serialized molecule contains the query as a subgraph.
-
-    A module-level function so joblib can ship it to worker processes. Returning the
-    matching ids keeps a worker's reply proportional to the answer rather than to the
-    batch it was handed. The query travels as a string and is parsed once per chunk,
-    which is cheaper than shipping a molecule.
-
-    Args:
-        pattern: The query, as SMARTS or SMILES.
-        from_smarts: Whether ``pattern`` is SMARTS.
-        identifiers: Corpus-wide structure ids, positionally matching ``blobs``.
-        blobs: Serialized molecules (``mol_binary`` column values).
-
-    Returns:
-        The subset of ``identifiers`` that verified.
-    """
-    parsed = Chem.MolFromSmarts(pattern) if from_smarts else Chem.MolFromSmiles(pattern)
-    return [
-        identifier
-        for identifier, blob in zip(identifiers, blobs, strict=True)
-        if Chem.Mol(bytes(blob)).HasSubstructMatch(parsed)  # ty: ignore[no-matching-overload]
-    ]
-
-
-def _pattern_blob(molecule: Chem.Mol) -> tuple[bytes, int]:
-    """Returns the packed pattern fingerprint and its popcount."""
-    fingerprint = Chem.PatternFingerprint(molecule, fpSize=structures.PATTERN_FP_SIZE)
-    return DataStructs.BitVectToBinaryText(fingerprint), fingerprint.GetNumOnBits()
+# An ID whose structure did not parse still occupies a slot, so a library index is a
+# corpus-wide structure ID and needs no translation. An empty molecule fingerprints to
+# no bits, and a query with no atoms is refused, so it can never match.
+_UNPARSEABLE = Chem.Mol().ToBinary()
+_NO_BITS = DataStructs.ExplicitBitVect(structures.PATTERN_FP_SIZE)
 
 
 class Corpus:
@@ -155,7 +139,7 @@ class Corpus:
         structures_pattern: str,
         *,
         resolver: Callable[[str], str] | None = None,
-        n_jobs: int = 1,
+        threads: int = -1,
         require_current: bool = True,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
@@ -166,7 +150,11 @@ class Corpus:
             resolver: Maps a compound name to SMILES. Defaults to
                 ``ord_schema.resolvers``, which calls external services; inject
                 something local for tests or offline use.
-            n_jobs: Worker processes for substructure verification. 1 verifies inline.
+            threads: Threads RDKit uses to match a substructure query; -1 means one
+                per core. These are real threads with the GIL released, so concurrent
+                searches overlap instead of serializing. The count is per search, not
+                per corpus, so a server expecting several at once should divide the
+                core count by that concurrency rather than leaving this at -1.
             require_current: Refuse artifacts not written by the current library,
                 artifact, and RDKit versions. The screen's completeness guarantee
                 assumes the query and the artifact fingerprint identically, so turning
@@ -178,7 +166,10 @@ class Corpus:
                 dataset, or -- with ``require_current`` -- any artifact is stale.
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
-        self._n_jobs = n_jobs
+        self._threads = threads
+        # Built on first substructure query; see _library.
+        self._substructure_library: rdSubstructLibrary.SubstructLibrary | None = None
+        self._library_lock = threading.Lock()
         pairs = self._pair(projection_pattern, structures_pattern, require_current)
         self._connection = duckdb.connect()
         try:
@@ -255,7 +246,7 @@ class Corpus:
         for projected, structured in pairs:
             with pq.ParquetFile(structured) as artifact:
                 count = artifact.metadata.num_rows
-            # The ids the projection carries have to land inside the partner's rows.
+            # The IDs the projection carries have to land inside the partner's rows.
             # Stamps cannot see this: an artifact rederived from a rewritten
             # projection keeps the same source hash, so a short one pairs cleanly and
             # then aliases its neighbor's molecules -- in range for get_bit, wrong
@@ -265,24 +256,29 @@ class Corpus:
             if largest is not None and largest >= count:
                 raise PairingError(
                     f"{projected} carries structure_id {largest} but {structured} "
-                    f"holds only {count} structures, so its ids would join to another "
+                    f"holds only {count} structures, so its IDs would join to another "
                     "dataset's molecules; derive the structures artifact from this "
                     "projection again"
                 )
             offsets.append((projected, structured, total))
             total += count
-        self._connection.register(
-            "structure_offsets",
-            pa.table(
-                {
-                    "projection_filename": [offset[0] for offset in offsets],
-                    "structures_filename": [offset[1] for offset in offsets],
-                    query.STRUCTURE_OFFSET: pa.array(
-                        [offset[2] for offset in offsets], type=pa.int64()
-                    ),
-                }
-            ),
+        registered = pa.table(
+            {
+                "projection_filename": [offset[0] for offset in offsets],
+                "structures_filename": [offset[1] for offset in offsets],
+                query.STRUCTURE_OFFSET: pa.array(
+                    [offset[2] for offset in offsets], type=pa.int64()
+                ),
+            }
         )
+        # A registered object belongs to the connection that registered it, so a
+        # per-search cursor raises a catalog error on any view built over one. Copying
+        # it into the catalog puts the views below within reach of every cursor.
+        self._connection.register("registered_offsets", registered)
+        self._connection.execute(
+            "CREATE TABLE structure_offsets AS SELECT * FROM registered_offsets"
+        )
+        self._connection.unregister("registered_offsets")
         # Inlined rather than bound because DuckDB refuses parameters in DDL. The
         # paths came from this process's own glob, and the quoting still escapes them.
         projection_files = _sql_strings(pair[0] for pair in pairs)
@@ -310,7 +306,10 @@ class Corpus:
         # that makes the two disagree -- a glob metacharacter in a directory name is
         # the reachable one, since read_parquet globs each element it is handed --
         # drops rows from the join rather than failing, leaving a corpus that answers
-        # every query with silence. Counting once here catches it whatever the cause.
+        # every query with silence. The structures side is counted against a total
+        # taken from the footers; the reactions side has no such total to check
+        # against, so a projection whose path failed the same way goes unnoticed here
+        # and shows up only as reactions nobody can find.
         counts = self._connection.execute(
             "SELECT count(*), count(pattern_fp) FROM corpus_structures"
         ).fetchone()
@@ -368,52 +367,128 @@ class Corpus:
             )
         return molecule
 
-    def _survivors(self, blob: bytes, popcount: int) -> Iterator[tuple[list, list]]:
-        """Yields (global ids, serialized molecules) for each batch the screen passes.
+    def _library(self) -> rdSubstructLibrary.SubstructLibrary:
+        """Returns the substructure library, building it on first use.
 
-        Streamed rather than fetched whole: a broad pattern survives the screen on most
-        of the corpus, and at ORD's scale the serialized molecules alone are hundreds of
-        megabytes. Batching lets each one be verified and released.
+        Built lazily because it costs seconds and gigabytes, and a corpus asked only
+        for similarity or scalar queries never needs it. Streamed in ID order so a
+        library index *is* a corpus-wide structure ID: a structure that did not parse
+        still occupies its slot, holding an empty molecule that nothing matches.
 
-        Args:
-            blob: The query's packed pattern fingerprint.
-            popcount: How many bits it sets.
+        Concurrent first searches serialize on the build rather than each building a
+        copy, which at corpus scale is about 2 GB apiece. Whoever waits needs the
+        finished library anyway.
 
-        Yields:
-            One (ids, molecules) pair per record batch.
+        Returns:
+            A library over every structure in the corpus, screened by the pattern
+            fingerprints the artifact already stores.
+
+        Raises:
+            PairingError: If the corpus IDs are not exactly ``0`` to ``total - 1``, so
+                that a library index would name a different structure, or if a
+                structure holds one of its derived columns without the other.
         """
-        reader = self._connection.execute(
-            """
-            SELECT global_id, mol_binary FROM corpus_structures
-            WHERE pattern_fp IS NOT NULL
-              AND bit_count(CAST(pattern_fp AS BITSTRING) & CAST($q AS BITSTRING)) = $n
-            """,
-            {"q": blob, "n": popcount},
-        ).to_arrow_reader(_VERIFY_CHUNK)
-        for batch in reader:
-            yield (
-                batch.column("global_id").to_pylist(),
-                batch.column("mol_binary").to_pylist(),
+        with self._library_lock:
+            if self._substructure_library is not None:
+                return self._substructure_library
+            start = time.perf_counter()
+            molecules = rdSubstructLibrary.CachedMolHolder()
+            patterns = rdSubstructLibrary.PatternHolder(structures.PATTERN_FP_SIZE)
+            cursor = self._connection.cursor()
+            position = 0
+            try:
+                reader = cursor.execute(
+                    "SELECT global_id, mol_binary, pattern_fp FROM corpus_structures "
+                    "ORDER BY global_id"
+                ).to_arrow_reader(_BUILD_BATCH)
+                for batch in reader:
+                    identifiers = batch.column("global_id").to_pylist()
+                    blobs = batch.column("mol_binary").to_pylist()
+                    fingerprints = batch.column("pattern_fp").to_pylist()
+                    for global_id, blob, fingerprint in zip(
+                        identifiers, blobs, fingerprints, strict=True
+                    ):
+                        # Sorting alone does not make an index an ID; it does that only
+                        # while the IDs are every integer from zero, each once. A
+                        # duplicate or a gap slides every later structure onto a
+                        # neighbor's index, which a row count cannot see.
+                        if global_id != position:
+                            raise PairingError(
+                                f"the corpus states structure ID {global_id} where "
+                                f"{position} was expected, so its IDs are not one "
+                                "unbroken run and a library index would name a "
+                                "different structure; derive the structures artifacts "
+                                "again"
+                            )
+                        # A structures artifact writes the derived columns together or
+                        # not at all. One without the other means the row came from
+                        # somewhere else, and taking either branch would be a guess:
+                        # dropping a live fingerprint makes the structure unmatchable
+                        # while it still counts as searchable, and a missing one
+                        # reaches RDKit as a type error naming no row.
+                        if (blob is None) != (fingerprint is None):
+                            raise PairingError(
+                                f"structure {global_id} has "
+                                f"{'no ' if blob is None else 'a '}molecule but "
+                                f"{'no ' if fingerprint is None else 'a '}fingerprint; "
+                                "a structures artifact writes both or neither, so this "
+                                "one was not written by this library"
+                            )
+                        if blob is None:
+                            molecules.AddBinary(_UNPARSEABLE)
+                            patterns.AddFingerprint(_NO_BITS)
+                        else:
+                            molecules.AddBinary(blob)
+                            patterns.AddFingerprint(
+                                DataStructs.CreateFromBinaryText(fingerprint)
+                            )
+                        position += 1
+            finally:
+                cursor.close()
+            library = rdSubstructLibrary.SubstructLibrary(molecules, patterns)
+            if len(library) != self._total:
+                raise PairingError(
+                    f"the library holds {len(library)} structures but the corpus has "
+                    f"{self._total}; its indices would not be structure IDs"
+                )
+            logger.info(
+                "built a substructure library over %d structures in %.1fs",
+                len(library),
+                time.perf_counter() - start,
             )
+            self._substructure_library = library
+            return self._substructure_library
 
     def _substructure_ids(
         self, parameter: query.StructureParameter, resolve: Callable[[str], str]
     ) -> list[int]:
-        """Screens and verifies a substructure predicate; returns global ids."""
+        """Screens and verifies a substructure predicate; returns global IDs.
+
+        RDKit screens and matches in one call, across its own threads with the GIL
+        released, so concurrent searches overlap here instead of serializing.
+
+        Args:
+            parameter: The predicate to match.
+            resolve: Maps a compound name to SMILES.
+
+        Returns:
+            The corpus-wide structure IDs whose molecules contain the query.
+        """
         molecule = self._query_molecule(parameter, resolve)
-        blob, popcount = _pattern_blob(molecule)
-        if parameter.op == "substructure" and parameter.pattern is not None:
-            pattern, from_smarts = parameter.pattern, True
-        else:
-            pattern, from_smarts = Chem.MolToSmiles(molecule), False
-        verified = Parallel(n_jobs=self._n_jobs, return_as="generator")(
-            delayed(_verify_chunk)(pattern, from_smarts, identifiers, blobs)
-            for identifiers, blobs in self._survivors(blob, popcount)
+        library = self._library()
+        # maxResults defaults to 1000, which would silently truncate: a broad pattern
+        # matches hundreds of thousands of structures in ORD.
+        return list(
+            library.GetMatches(
+                molecule, numThreads=self._threads, maxResults=len(library) or 1
+            )
         )
-        return [identifier for chunk in verified for identifier in chunk]
 
     def _similarity_ids(
-        self, parameter: query.StructureParameter, resolve: Callable[[str], str]
+        self,
+        cursor: duckdb.DuckDBPyConnection,
+        parameter: query.StructureParameter,
+        resolve: Callable[[str], str],
     ) -> list[int]:
         """Screens a similarity predicate; the fingerprint is the whole answer."""
         molecule = self._query_molecule(parameter, resolve)
@@ -424,7 +499,7 @@ class Corpus:
         assert threshold is not None  # A similarity predicate always carries one.
         # Tanimoto >= t bounds the candidate popcount to [t * q, q / t], which the
         # artifact's morgan_popcount column answers without touching the fingerprints.
-        rows = self._connection.execute(
+        rows = cursor.execute(
             """
             SELECT global_id FROM corpus_structures
             WHERE morgan_fp IS NOT NULL
@@ -446,7 +521,7 @@ class Corpus:
         return [row[0] for row in rows]
 
     def _bitmap(self, matched: Sequence[int]) -> str:
-        """Returns the match set as a bitmap over the corpus-wide id space."""
+        """Returns the match set as a bitmap over the corpus-wide ID space."""
         bits = bytearray(b"0" * max(self._total, 1))
         for global_id in matched:
             bits[global_id] = ord("1")
@@ -457,11 +532,16 @@ class Corpus:
     ) -> pa.Table:
         """Compiles and runs a query, returning the result as an Arrow table.
 
+        Runs on its own cursor, so concurrent searches sharing this corpus do not read
+        each other's results. They still serialize on the library build, and only on
+        that: the first substructure search builds it while the others wait.
+
         Args:
             request: The query to run.
-            timeout_seconds: Wall-clock bound on the final query. Name resolution,
-                screening, and verification run before the timer starts and are not
-                counted. None runs unbounded.
+            timeout_seconds: Wall-clock bound on the final query. Name resolution, the
+                library build, screening, and verification run before the timer starts
+                and are not counted, so a first substructure search can take seconds
+                longer than this allows. None runs unbounded.
 
         Returns:
             The selected columns: ``reaction_id`` for a plain query, the group and
@@ -470,6 +550,7 @@ class Corpus:
         Raises:
             query.QueryError: If the query does not compile.
             ValueError: If a compound name cannot be resolved.
+            PairingError: If the library does not come out one entry per structure.
             TimeoutError: If the query exceeds ``timeout_seconds``.
         """
         compiled = query.compile_query(request)
@@ -482,42 +563,52 @@ class Corpus:
                 resolved[name] = self._resolver(name)
             return resolved[name]
 
-        parameters: dict[str, Any] = {
-            name: resolve(name) for name in compiled.compounds
-        }
-        for parameter in compiled.structures:
-            if parameter.op == "substructure":
-                matched = self._substructure_ids(parameter, resolve)
-            else:
-                matched = self._similarity_ids(parameter, resolve)
-            unsearchable = self._total - self._searchable
-            logger.info(
-                "%s %r matched %d of %d structures (%d unsearchable)",
-                parameter.op,
-                parameter.pattern
-                if parameter.pattern is not None
-                else parameter.compound,
-                len(matched),
-                self._searchable,
-                unsearchable,
+        cursor = self._connection.cursor()
+        try:
+            parameters: dict[str, Any] = {
+                name: resolve(name) for name in compiled.compounds
+            }
+            for parameter in compiled.structures:
+                if parameter.op == "substructure":
+                    matched = self._substructure_ids(parameter, resolve)
+                else:
+                    matched = self._similarity_ids(cursor, parameter, resolve)
+                unsearchable = self._total - self._searchable
+                logger.info(
+                    "%s %r matched %d of %d structures (%d unsearchable)",
+                    parameter.op,
+                    parameter.pattern
+                    if parameter.pattern is not None
+                    else parameter.compound,
+                    len(matched),
+                    self._searchable,
+                    unsearchable,
+                )
+                parameters[parameter.name] = self._bitmap(matched)
+            if timeout_seconds is None:
+                return cursor.execute(compiled.sql, parameters).to_arrow_table()
+            return self._run_with_timeout(
+                cursor, compiled.sql, parameters, timeout_seconds
             )
-            parameters[parameter.name] = self._bitmap(matched)
-        if timeout_seconds is None:
-            return self._connection.execute(compiled.sql, parameters).to_arrow_table()
-        return self._run_with_timeout(compiled.sql, parameters, timeout_seconds)
+        finally:
+            cursor.close()
 
+    @staticmethod
     def _run_with_timeout(
-        self, sql: str, parameters: dict[str, Any], timeout_seconds: float
+        cursor: duckdb.DuckDBPyConnection,
+        sql: str,
+        parameters: dict[str, Any],
+        timeout_seconds: float,
     ) -> pa.Table:
         """Runs ``sql``, interrupting it if it outlasts ``timeout_seconds``.
 
         ``Timer.cancel`` only sets a flag, so a timer that has already passed its own
-        check fires anyway. The lock makes the interrupt and the teardown exclusive: it
-        either lands while this query owns the connection, or not at all. Without it a
-        late interrupt reaches whatever query runs next and reports that one as having
-        timed out.
+        check fires anyway. The lock makes the interrupt and the teardown exclusive, so
+        it either lands while this query is running or not at all -- and in particular
+        never after the caller closes the cursor.
 
         Args:
+            cursor: The cursor to run on, and the one an expired timer interrupts.
             sql: The compiled query.
             parameters: Values to bind.
             timeout_seconds: Wall-clock bound.
@@ -534,12 +625,12 @@ class Corpus:
         def interrupt() -> None:
             with lock:
                 if running:
-                    self._connection.interrupt()
+                    cursor.interrupt()
 
         timer = threading.Timer(timeout_seconds, interrupt)
         timer.start()
         try:
-            return self._connection.execute(sql, parameters).to_arrow_table()
+            return cursor.execute(sql, parameters).to_arrow_table()
         except duckdb.InterruptException as error:
             raise TimeoutError(f"query exceeded {timeout_seconds} seconds") from error
         finally:
