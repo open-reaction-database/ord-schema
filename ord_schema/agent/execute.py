@@ -67,6 +67,7 @@ import collections
 import dataclasses
 import glob
 import math
+import re
 import threading
 import time
 from collections.abc import Callable, Iterable, Sequence
@@ -93,6 +94,16 @@ _BUILD_BATCH = 50_000
 # seconds. Small because the distribution is the point: a handful of scaffolds account
 # for most of what anyone asks.
 _CACHED_MATCHES = 16
+
+# How much memory the materialized column sets may hold between them. Reached by
+# evicting the least recently used, so a corpus asked many different questions settles
+# on the columns it is actually asked about.
+_NARROW_BUDGET_BYTES = 2 * 1024**3
+
+# Top-level projection columns, which is the granularity a compiled query names them at.
+# A narrower table holding only the ones a query mentions answers it identically, and
+# the query needs no rewriting to say so.
+_TOP_LEVEL = tuple(projection.SCHEMA.names)
 
 
 class PairingError(ValueError):
@@ -275,6 +286,12 @@ class Corpus:
             collections.OrderedDict()
         )
         self._matches_lock = threading.Lock()
+        # Materialized column sets, most recently used last; see _narrow_table. Maps
+        # the columns to the table holding them and what it costs to keep.
+        self._narrowed: collections.OrderedDict[frozenset[str], tuple[str, int]] = (
+            collections.OrderedDict()
+        )
+        self._narrow_lock = threading.Lock()
         pairs = self._pair(projection_pattern, structures_pattern, require_current)
         self._connection = duckdb.connect()
         try:
@@ -702,12 +719,16 @@ class Corpus:
                 """  # noqa: S608
                 for path, expression in INDEXED_PATHS.items()
             )
-            # S608: the fragments are this module's own schema walk and the compiler's
-            # traversals, not anything a query supplies.
-            self._connection.execute(f"CREATE TABLE occurrences AS {selects}")
-            count = self._connection.execute(
-                "SELECT count(*) FROM occurrences"
-            ).fetchone()
+            # Its own cursor, like every other statement here: this runs while other
+            # searches are in flight, and the shared connection holds their results.
+            cursor = self._connection.cursor()
+            try:
+                # S608: the fragments are this module's own schema walk and the
+                # compiler's traversals, not anything a query supplies.
+                cursor.execute(f"CREATE TABLE occurrences AS {selects}")
+                count = cursor.execute("SELECT count(*) FROM occurrences").fetchone()
+            finally:
+                cursor.close()
             assert count is not None  # An aggregate over any relation returns one row.
             logger.info(
                 "indexed %d structure occurrences in %.1fs",
@@ -789,6 +810,105 @@ class Corpus:
         for global_id in matched:
             bits[global_id] = ord("1")
         return bits.decode()
+
+    @staticmethod
+    def _mentioned(sql: str) -> frozenset[str]:
+        """Returns the top-level projection columns a compiled query names.
+
+        Read back off the SQL rather than walked from the query, because the SQL is
+        what has to resolve: a column named there and missing from the table is a
+        catalog error, and one named only in the query is nothing at all. A name that
+        appears inside a string literal costs an unnecessary column and no correctness.
+
+        Args:
+            sql: The compiled query.
+
+        Returns:
+            The columns the query mentions, always including ``reaction_id``.
+        """
+        mentioned = {
+            column
+            for column in _TOP_LEVEL
+            if re.search(rf"\b{re.escape(column)}\b", sql)
+        }
+        mentioned.add("reaction_id")
+        return frozenset(mentioned)
+
+    def _narrow_table(self, columns: frozenset[str]) -> str | None:
+        """Returns a table holding only ``columns``, materializing it on first use.
+
+        Reading a handful of columns out of a 442-leaf projection spread over 53 files
+        costs mostly per-file overhead, which is the same whatever the query asks for.
+        Paying it once and answering from memory afterwards is worth a materialization
+        for the columns a corpus is actually asked about: a temperature filter falls
+        from 0.91s to 0.06s, a group-by on the DOI from 0.81s to 0.002s.
+
+        The rows are the same rows; their order is not. Neither relation orders anything
+        a query did not ask to be ordered, and they do not agree on the accident, so a
+        caller wanting a particular order has to say so -- as it did before this.
+
+        Args:
+            columns: Top-level projection columns the query names.
+
+        Returns:
+            The table's name, or None if materializing it would cost more memory than
+            the whole cache is allowed, in which case the projection answers directly.
+        """
+        with self._narrow_lock:
+            cached = self._narrowed.get(columns)
+            if cached is not None:
+                self._narrowed.move_to_end(columns)
+                return cached[0]
+            name = f"narrow_{len(self._narrowed)}_{abs(hash(columns)) % 10**9}"
+            selected = ", ".join([*sorted(columns), query.STRUCTURE_OFFSET])
+            start = time.perf_counter()
+            # Its own cursor, like every other statement here: this runs while other
+            # searches are in flight, and the shared connection holds their results.
+            cursor = self._connection.cursor()
+            try:
+                # S608: the names come from the projection schema and this module.
+                cursor.execute(
+                    f"CREATE TABLE {name} AS "  # noqa: S608
+                    f"SELECT {selected} FROM {query.TABLE}"
+                )
+                size = cursor.execute(
+                    "SELECT estimated_size FROM duckdb_tables() WHERE table_name = ?",
+                    [name],
+                ).fetchone()
+                held = int(size[0]) if size is not None and size[0] is not None else 0
+                if held > _NARROW_BUDGET_BYTES:
+                    # Too big to keep, and keeping it is the only reason to build it.
+                    cursor.execute(f"DROP TABLE {name}")
+                    logger.info(
+                        "not caching %s: %.1f GB exceeds the budget",
+                        sorted(columns),
+                        held / 1024**3,
+                    )
+                    return None
+            finally:
+                cursor.close()
+            logger.info(
+                "materialized %s as %s, %.2f GB in %.1fs",
+                sorted(columns),
+                name,
+                held / 1024**3,
+                time.perf_counter() - start,
+            )
+            self._narrowed[columns] = (name, held)
+            while sum(entry[1] for entry in self._narrowed.values()) > (
+                _NARROW_BUDGET_BYTES
+            ):
+                evicted, (table, _) = self._narrowed.popitem(last=False)
+                if evicted == columns:  # Never evict what this call just built.
+                    self._narrowed[columns] = (name, held)
+                    break
+                dropper = self._connection.cursor()
+                try:
+                    dropper.execute(f"DROP TABLE {table}")
+                finally:
+                    dropper.close()
+                logger.info("evicted the materialized %s", sorted(evicted))
+            return name
 
     def _matches(
         self,
@@ -880,6 +1000,16 @@ class Corpus:
         compiled = indexed if indexed is not None else query.compile_query(request)
         if indexed is not None:
             self._occurrences()
+        else:
+            # The index answers by itself; everything else reads the projection, and
+            # reads it faster from a table holding only the columns it names.
+            narrow = self._narrow_table(self._mentioned(compiled.sql))
+            if narrow is not None:
+                assert compiled.sql.count(f"FROM {query.TABLE}") == 1  # One pass.
+                compiled = dataclasses.replace(
+                    compiled,
+                    sql=compiled.sql.replace(f"FROM {query.TABLE}", f"FROM {narrow}"),
+                )
         # Cached across the whole search: a compound named in both a value and a
         # structure predicate is one external lookup, not two.
         resolved: dict[str, str] = {}

@@ -126,6 +126,17 @@ every structure ID sharing it. And a match set depends on the query molecule and
 else, so recent ones are **cached**: pyridine costs 1.05s the first time and 0.02s the
 next. A compound is keyed by what it resolved to, not by its name.
 
+Queries the index declines read the projection, and read it faster from a table holding
+only the top-level columns they name. Reading a handful of columns out of a 442-leaf
+projection spread over 53 files costs mostly per-file overhead, which is the same
+whatever the query asks for; paying it once and answering from memory afterwards takes a
+temperature filter from 1.24s to 0.21s and a group-by on stirring type from 0.75s to
+0.003s. The columns are read back off the compiled SQL, so one it names and the table
+lacks is a catalog error rather than a wrong answer. Materialized sets are held to a
+memory budget and evicted least-recently-used; one too large to keep is not kept, and
+the projection answers directly. The rows are the same rows either way, in an order
+neither relation promises — a query wanting one has to say so.
+
 The screen itself is not a lever. It is the same `PatternFingerprint` the RDKit
 PostgreSQL cartridge screens with (`rdkit.sss_fp_size`, via `makeMolSignature`), and for
 a small common query it admits most of the corpus — 80% for pyridine, of which 73% then

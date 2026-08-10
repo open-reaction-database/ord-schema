@@ -780,8 +780,12 @@ def test_a_search_runs_on_a_cursor_rather_than_the_shared_connection(corpus_dir)
         resolver={}.__getitem__,
     ) as value:
         value._connection = counter = _CursorCounter(value._connection)
+        # The first search also materializes its columns, which is a cursor of its own.
         assert value.search(request).num_rows == 1
-        assert counter.cursors == 1
+        # Steady state, with that table already built: one search, one cursor.
+        taken = counter.cursors
+        assert value.search(request).num_rows == 1
+        assert counter.cursors == taken + 1
 
 
 def test_concurrent_searches_return_their_own_answers(corpus_dir):
@@ -1237,6 +1241,131 @@ def test_the_cache_stays_bounded(corpus_dir, monkeypatch):
         assert len(value._matched) == 2
         # The two most recent survive; the earliest are gone.
         assert [key[1] for key in value._matched] == ["c1ccccc1", "[Pt]"]
+
+
+def _no_narrow_table(self, columns: frozenset[str]) -> str | None:
+    """Stands in for _narrow_table so a search reads the projection directly."""
+    del self, columns  # Unused.
+    return None
+
+
+def test_a_narrow_table_answers_what_the_projection_would(corpus_dir):
+    # Materializing the columns a query names is a second relation to answer from, so
+    # what makes it safe is that it answers identically. Each of these is run against
+    # the narrow table and against the projection, and compared as multisets: a query
+    # with no ordering has none, and the two relations really do return the same rows
+    # in different orders at corpus scale. What must never differ is which rows.
+    requests = {
+        "a scalar leaf": {
+            "where": {
+                "op": "not_null",
+                "path": "conditions.temperature.setpoint_kelvin",
+            }
+        },
+        "a nested quantifier": {
+            "where": _exists(
+                {"op": "eq", "path": "smiles", "value": {"literal": "CCO"}}
+            )
+        },
+        "an aggregate": {
+            "where": None,
+            "aggregate": {
+                "group_by": ["conditions.stirring.type"],
+                "measures": [{"fn": "count", "name": "n"}],
+            },
+        },
+        "an ordering and a limit": {
+            "where": None,
+            "order_by": [{"key": "reaction_id"}],
+            "limit": 2,
+        },
+        "a structure predicate the index declines": {
+            "where": {
+                "op": "and",
+                "clauses": [
+                    _exists(
+                        {"op": "substructure", "path": "smiles", "smarts": "[OX2H]"}
+                    ),
+                    {"op": "not_null", "path": "reaction_id"},
+                ],
+            }
+        },
+    }
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        for label, body in requests.items():
+            request = query.Query.model_validate(body)
+            narrowed = value.search(request).to_pylist()
+            # The same request with the materialization turned off.
+            with pytest.MonkeyPatch.context() as patcher:
+                patcher.setattr(execute.Corpus, "_narrow_table", _no_narrow_table)
+                direct = value.search(request).to_pylist()
+            assert sorted(map(repr, narrowed)) == sorted(map(repr, direct)), label
+
+
+def test_the_columns_a_query_names_are_the_ones_materialized(corpus_dir):
+    # Too few and the query fails to resolve; too many and the corpus holds columns
+    # nobody asked about. A name inside a string literal costs a column, nothing more.
+    assert execute.Corpus._mentioned(
+        "SELECT reaction_id FROM reactions WHERE conditions.temperature.x > 1"
+    ) == frozenset({"reaction_id", "conditions"})
+    assert "provenance" in execute.Corpus._mentioned(
+        "SELECT provenance.doi FROM reactions"
+    )
+    # reaction_id comes along whether or not the query said so.
+    assert "reaction_id" in execute.Corpus._mentioned("SELECT 1 FROM reactions")
+    # A substring of a real column is not that column.
+    assert "conditions" not in execute.Corpus._mentioned(
+        "SELECT reaction_id FROM reactions WHERE notes.preconditions_x = 'a'"
+    )
+
+
+def test_a_materialized_column_set_is_reused(corpus_dir):
+    request = query.Query.model_validate(
+        {"where": {"op": "not_null", "path": "conditions.temperature.setpoint_kelvin"}}
+    )
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        value.search(request)
+        assert len(value._narrowed) == 1
+        built = dict(value._narrowed)
+        value.search(request)
+        assert dict(value._narrowed) == built  # Reused, not rebuilt under a new name.
+        # A query naming other columns is a different set, materialized separately.
+        value.search(
+            query.Query.model_validate(
+                {"where": {"op": "not_null", "path": "provenance.doi"}}
+            )
+        )
+        assert len(value._narrowed) == 2
+
+
+def test_a_column_set_too_large_to_keep_is_not_kept(corpus_dir, monkeypatch):
+    # Materializing is only worth it if the table survives to answer the next query.
+    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 1)
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        matched = value.search(
+            query.Query.model_validate(
+                {
+                    "where": _exists(
+                        {"op": "eq", "path": "smiles", "value": {"literal": "CCO"}}
+                    )
+                }
+            )
+        )
+        # Answered anyway, straight from the projection.
+        assert matched.column("reaction_id").to_pylist() == ["ord-bb01"]
+        assert not value._narrowed
 
 
 def test_the_match_limit_has_to_be_passed_or_matches_are_dropped():
