@@ -35,11 +35,18 @@ derivation, and a mismatched pair would join IDs to the wrong molecules silently
 and publishes a ``reactions`` relation carrying each row's offset in the column the
 compiled SQL expects.
 
+A ``Corpus`` is safe to share between concurrent searches. A ``DuckDBPyConnection``
+holds the pending result of its last ``execute``, so two threads stepping on one read
+each other's rows rather than raising; each search therefore takes its own cursor. A
+cursor in turn sees only the catalog, not the objects ``register`` attaches to the
+connection that registered them, so every relation here is a catalog table or view.
+
 The grammar bounds what a query can cost (one pass and a sort), and ``search``
-takes a wall-clock timeout that interrupts the final query. Name resolution, screening,
-and verification run before the timer starts: each is bounded by the corpus rather than
-by the query, so a slow one is slow for every caller and shows up in the logs rather
-than in a timeout.
+takes a wall-clock timeout that interrupts the final query. Name resolution, the
+one-time library build, screening, and verification all run before the timer starts:
+each is bounded by the corpus rather than by the query, so a slow one is slow for every
+caller and shows up in the logs rather than in a timeout. The first substructure search
+therefore takes the build's several seconds on top of whatever timeout it was given.
 """
 
 import glob
@@ -144,8 +151,10 @@ class Corpus:
                 ``ord_schema.resolvers``, which calls external services; inject
                 something local for tests or offline use.
             threads: Threads RDKit uses to match a substructure query; -1 means one
-                per core. These are real threads with the GIL released, so a server
-                may share one corpus across concurrent requests.
+                per core. These are real threads with the GIL released, so concurrent
+                searches overlap instead of serializing. The count is per search, not
+                per corpus, so a server expecting several at once should divide the
+                core count by that concurrency rather than leaving this at -1.
             require_current: Refuse artifacts not written by the current library,
                 artifact, and RDKit versions. The screen's completeness guarantee
                 assumes the query and the artifact fingerprint identically, so turning
@@ -159,7 +168,8 @@ class Corpus:
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
         self._threads = threads
         # Built on first substructure query; see _library.
-        self._substruct_library: rdSubstructLibrary.SubstructLibrary | None = None
+        self._substructure_library: rdSubstructLibrary.SubstructLibrary | None = None
+        self._library_lock = threading.Lock()
         pairs = self._pair(projection_pattern, structures_pattern, require_current)
         self._connection = duckdb.connect()
         try:
@@ -252,18 +262,23 @@ class Corpus:
                 )
             offsets.append((projected, structured, total))
             total += count
-        self._connection.register(
-            "structure_offsets",
-            pa.table(
-                {
-                    "projection_filename": [offset[0] for offset in offsets],
-                    "structures_filename": [offset[1] for offset in offsets],
-                    query.STRUCTURE_OFFSET: pa.array(
-                        [offset[2] for offset in offsets], type=pa.int64()
-                    ),
-                }
-            ),
+        registered = pa.table(
+            {
+                "projection_filename": [offset[0] for offset in offsets],
+                "structures_filename": [offset[1] for offset in offsets],
+                query.STRUCTURE_OFFSET: pa.array(
+                    [offset[2] for offset in offsets], type=pa.int64()
+                ),
+            }
         )
+        # Copied into the catalog rather than left as a registration: a registered
+        # object belongs to the connection that registered it, so the views below would
+        # fail to resolve on the per-search cursors with a catalog error.
+        self._connection.register("registered_offsets", registered)
+        self._connection.execute(
+            "CREATE TABLE structure_offsets AS SELECT * FROM registered_offsets"
+        )
+        self._connection.unregister("registered_offsets")
         # Inlined rather than bound because DuckDB refuses parameters in DDL. The
         # paths came from this process's own glob, and the quoting still escapes them.
         projection_files = _sql_strings(pair[0] for pair in pairs)
@@ -357,30 +372,44 @@ class Corpus:
         library index *is* a corpus-wide structure ID: a structure that did not parse
         still occupies its slot, holding an empty molecule that nothing matches.
 
+        Concurrent first searches serialize on the build rather than each building a
+        copy, which at corpus scale is about 2 GB apiece. Whoever waits needs the
+        finished library anyway.
+
         Returns:
             A library over every structure in the corpus, screened by the pattern
             fingerprints the artifact already stores.
+
+        Raises:
+            PairingError: If the built library does not hold one entry per structure,
+                which would stop its indices from being structure IDs.
         """
-        if self._substruct_library is None:
+        with self._library_lock:
+            if self._substructure_library is not None:
+                return self._substructure_library
             start = time.perf_counter()
             molecules = rdSubstructLibrary.CachedMolHolder()
             patterns = rdSubstructLibrary.PatternHolder(structures.PATTERN_FP_SIZE)
-            reader = self._connection.execute(
-                "SELECT mol_binary, pattern_fp FROM corpus_structures "
-                "ORDER BY global_id"
-            ).to_arrow_reader(_BUILD_BATCH)
-            for batch in reader:
-                blobs = batch.column("mol_binary").to_pylist()
-                fingerprints = batch.column("pattern_fp").to_pylist()
-                for blob, fingerprint in zip(blobs, fingerprints, strict=True):
-                    if blob is None:
-                        molecules.AddBinary(_UNPARSEABLE)
-                        patterns.AddFingerprint(_NO_BITS)
-                    else:
-                        molecules.AddBinary(blob)
-                        patterns.AddFingerprint(
-                            DataStructs.CreateFromBinaryText(fingerprint)
-                        )
+            cursor = self._connection.cursor()
+            try:
+                reader = cursor.execute(
+                    "SELECT mol_binary, pattern_fp FROM corpus_structures "
+                    "ORDER BY global_id"
+                ).to_arrow_reader(_BUILD_BATCH)
+                for batch in reader:
+                    blobs = batch.column("mol_binary").to_pylist()
+                    fingerprints = batch.column("pattern_fp").to_pylist()
+                    for blob, fingerprint in zip(blobs, fingerprints, strict=True):
+                        if blob is None:
+                            molecules.AddBinary(_UNPARSEABLE)
+                            patterns.AddFingerprint(_NO_BITS)
+                        else:
+                            molecules.AddBinary(blob)
+                            patterns.AddFingerprint(
+                                DataStructs.CreateFromBinaryText(fingerprint)
+                            )
+            finally:
+                cursor.close()
             library = rdSubstructLibrary.SubstructLibrary(molecules, patterns)
             if len(library) != self._total:
                 raise PairingError(
@@ -392,8 +421,8 @@ class Corpus:
                 len(library),
                 time.perf_counter() - start,
             )
-            self._substruct_library = library
-        return self._substruct_library
+            self._substructure_library = library
+            return self._substructure_library
 
     def _substructure_ids(
         self, parameter: query.StructureParameter, resolve: Callable[[str], str]
@@ -401,8 +430,14 @@ class Corpus:
         """Screens and verifies a substructure predicate; returns global IDs.
 
         RDKit screens and matches in one call, across its own threads with the GIL
-        released, so a server handling concurrent requests neither forks nor
-        serializes on this.
+        released, so concurrent searches overlap here instead of serializing.
+
+        Args:
+            parameter: The predicate to match.
+            resolve: Maps a compound name to SMILES.
+
+        Returns:
+            The corpus-wide structure IDs whose molecules contain the query.
         """
         molecule = self._query_molecule(parameter, resolve)
         library = self._library()
@@ -415,7 +450,10 @@ class Corpus:
         )
 
     def _similarity_ids(
-        self, parameter: query.StructureParameter, resolve: Callable[[str], str]
+        self,
+        cursor: duckdb.DuckDBPyConnection,
+        parameter: query.StructureParameter,
+        resolve: Callable[[str], str],
     ) -> list[int]:
         """Screens a similarity predicate; the fingerprint is the whole answer."""
         molecule = self._query_molecule(parameter, resolve)
@@ -426,7 +464,7 @@ class Corpus:
         assert threshold is not None  # A similarity predicate always carries one.
         # Tanimoto >= t bounds the candidate popcount to [t * q, q / t], which the
         # artifact's morgan_popcount column answers without touching the fingerprints.
-        rows = self._connection.execute(
+        rows = cursor.execute(
             """
             SELECT global_id FROM corpus_structures
             WHERE morgan_fp IS NOT NULL
@@ -459,11 +497,16 @@ class Corpus:
     ) -> pa.Table:
         """Compiles and runs a query, returning the result as an Arrow table.
 
+        Runs on its own cursor, so concurrent searches sharing this corpus do not read
+        each other's results. They still serialize on the library build, and only on
+        that: the first substructure search builds it while the others wait.
+
         Args:
             request: The query to run.
-            timeout_seconds: Wall-clock bound on the final query. Name resolution,
-                screening, and verification run before the timer starts and are not
-                counted. None runs unbounded.
+            timeout_seconds: Wall-clock bound on the final query. Name resolution, the
+                library build, screening, and verification run before the timer starts
+                and are not counted, so a first substructure search can take seconds
+                longer than this allows. None runs unbounded.
 
         Returns:
             The selected columns: ``reaction_id`` for a plain query, the group and
@@ -472,6 +515,7 @@ class Corpus:
         Raises:
             query.QueryError: If the query does not compile.
             ValueError: If a compound name cannot be resolved.
+            PairingError: If the library does not come out one entry per structure.
             TimeoutError: If the query exceeds ``timeout_seconds``.
         """
         compiled = query.compile_query(request)
@@ -484,42 +528,52 @@ class Corpus:
                 resolved[name] = self._resolver(name)
             return resolved[name]
 
-        parameters: dict[str, Any] = {
-            name: resolve(name) for name in compiled.compounds
-        }
-        for parameter in compiled.structures:
-            if parameter.op == "substructure":
-                matched = self._substructure_ids(parameter, resolve)
-            else:
-                matched = self._similarity_ids(parameter, resolve)
-            unsearchable = self._total - self._searchable
-            logger.info(
-                "%s %r matched %d of %d structures (%d unsearchable)",
-                parameter.op,
-                parameter.pattern
-                if parameter.pattern is not None
-                else parameter.compound,
-                len(matched),
-                self._searchable,
-                unsearchable,
+        cursor = self._connection.cursor()
+        try:
+            parameters: dict[str, Any] = {
+                name: resolve(name) for name in compiled.compounds
+            }
+            for parameter in compiled.structures:
+                if parameter.op == "substructure":
+                    matched = self._substructure_ids(parameter, resolve)
+                else:
+                    matched = self._similarity_ids(cursor, parameter, resolve)
+                unsearchable = self._total - self._searchable
+                logger.info(
+                    "%s %r matched %d of %d structures (%d unsearchable)",
+                    parameter.op,
+                    parameter.pattern
+                    if parameter.pattern is not None
+                    else parameter.compound,
+                    len(matched),
+                    self._searchable,
+                    unsearchable,
+                )
+                parameters[parameter.name] = self._bitmap(matched)
+            if timeout_seconds is None:
+                return cursor.execute(compiled.sql, parameters).to_arrow_table()
+            return self._run_with_timeout(
+                cursor, compiled.sql, parameters, timeout_seconds
             )
-            parameters[parameter.name] = self._bitmap(matched)
-        if timeout_seconds is None:
-            return self._connection.execute(compiled.sql, parameters).to_arrow_table()
-        return self._run_with_timeout(compiled.sql, parameters, timeout_seconds)
+        finally:
+            cursor.close()
 
+    @staticmethod
     def _run_with_timeout(
-        self, sql: str, parameters: dict[str, Any], timeout_seconds: float
+        cursor: duckdb.DuckDBPyConnection,
+        sql: str,
+        parameters: dict[str, Any],
+        timeout_seconds: float,
     ) -> pa.Table:
         """Runs ``sql``, interrupting it if it outlasts ``timeout_seconds``.
 
         ``Timer.cancel`` only sets a flag, so a timer that has already passed its own
-        check fires anyway. The lock makes the interrupt and the teardown exclusive: it
-        either lands while this query owns the connection, or not at all. Without it a
-        late interrupt reaches whatever query runs next and reports that one as having
-        timed out.
+        check fires anyway. The lock makes the interrupt and the teardown exclusive, so
+        it either lands while this query is running or not at all -- and in particular
+        never after the caller closes the cursor.
 
         Args:
+            cursor: The cursor to run on, and the one an expired timer interrupts.
             sql: The compiled query.
             parameters: Values to bind.
             timeout_seconds: Wall-clock bound.
@@ -536,12 +590,12 @@ class Corpus:
         def interrupt() -> None:
             with lock:
                 if running:
-                    self._connection.interrupt()
+                    cursor.interrupt()
 
         timer = threading.Timer(timeout_seconds, interrupt)
         timer.start()
         try:
-            return self._connection.execute(sql, parameters).to_arrow_table()
+            return cursor.execute(sql, parameters).to_arrow_table()
         except duckdb.InterruptException as error:
             raise TimeoutError(f"query exceeded {timeout_seconds} seconds") from error
         finally:

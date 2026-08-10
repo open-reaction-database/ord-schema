@@ -98,6 +98,11 @@ fingerprint **screen** — complete but not exact — over every structure row
 subgraph **verification** of the survivors. It runs on RDKit's own threads with the GIL
 released, so one `Corpus` serves concurrent requests without forking; the library is
 built on the first substructure query and costs about 8s and 2 GB for the full corpus.
+Each search takes its own DuckDB cursor, since a connection holds the pending result of
+its last `execute` and concurrent searches sharing one would read each other's rows.
+`threads` is per search rather than per corpus, so a server expecting several at once
+should set it to the core count divided by that concurrency instead of leaving it at
+`-1`.
 Similarity needs no verification — Tanimoto is defined on the Morgan fingerprint, so
 the screen is the answer — and stays in SQL. The verified match set re-enters the query
 as a `BITSTRING` parameter indexed by the corpus-wide ID (`structure_id` plus the
