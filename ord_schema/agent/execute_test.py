@@ -257,8 +257,8 @@ def test_an_unparseable_structure_holds_its_slot(corpus_dir, tmp_path):
         resolver={}.__getitem__,
     ) as value:
         assert len(value._library()) == value._total
-        # Benzene sits after the hole inside aa, ethanol after it over in bb. Both
-        # still name their own reactions, which holds only while the slot is held.
+        # Benzene sits after the hole in aa, ethanol after it in bb. Both still name
+        # their own reactions, which holds only while the empty slot is there.
         assert _search(
             value,
             _exists({"op": "substructure", "path": "smiles", "smarts": "c1ccccc1"}),
@@ -681,9 +681,9 @@ def test_concurrent_searches_return_their_own_answers(corpus_dir):
     # them lie, so the exceptions are collected too -- a thread that dies takes its
     # traceback to threading.excepthook, where an assertion on results alone sees
     # nothing wrong.
-    # The similarity thread earns its place: that path runs its screen and then the
-    # compiled query as two statements on one cursor, so it is where reuse within a
-    # single search would show up.
+    # The similarity thread covers the one path that runs two statements on a single
+    # cursor -- its screen, then the compiled query -- so reuse within one search shows
+    # up here and nowhere else.
     expected = {
         "hydroxyl": ["ord-bb01"],
         "pyridine": ["ord-aa01", "ord-aa02"],

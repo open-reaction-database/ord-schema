@@ -271,9 +271,9 @@ class Corpus:
                 ),
             }
         )
-        # Copied into the catalog rather than left as a registration: a registered
-        # object belongs to the connection that registered it, so the views below would
-        # fail to resolve on the per-search cursors with a catalog error.
+        # A registered object belongs to the connection that registered it, so a
+        # per-search cursor raises a catalog error on any view built over one. Copying
+        # it into the catalog puts the views below within reach of every cursor.
         self._connection.register("registered_offsets", registered)
         self._connection.execute(
             "CREATE TABLE structure_offsets AS SELECT * FROM registered_offsets"
