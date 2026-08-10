@@ -215,6 +215,14 @@ def is_current(path: str | os.PathLike[str], artifact: str, source_md5: str) -> 
     All of the source content, the library version, the artifact version, and the RDKit
     version must match; any of them changing can change a value. A missing, unreadable,
     or wrong-artifact file is not current.
+
+    Args:
+        path: Path to check. Need not exist.
+        artifact: Artifact name the file is expected to hold.
+        source_md5: Hash the file is expected to restate.
+
+    Returns:
+        Whether the file is one this library would write today.
     """
     try:
         value = load_stamps(path)
@@ -226,7 +234,7 @@ def is_current(path: str | os.PathLike[str], artifact: str, source_md5: str) -> 
 
 
 def stamps_are_current(value: Stamps, artifact: str) -> bool:
-    """Returns whether ``value`` records ``artifact`` as this library defines it now.
+    """Returns whether ``value`` records ``artifact`` as this library defines it.
 
     The source content is deliberately not compared: a caller holding the stamps of a
     parent asks whether the file was written by the current definition, and the hash it
@@ -300,6 +308,12 @@ def glob_root(pattern: str) -> pathlib.PurePath:
     ``output_dir=structures`` lands at ``structures/<subdir>/x.parquet``. A pattern
     naming a single file has no wildcard to stop at, so its own last component is the
     file rather than a directory and the root is the directory holding it.
+
+    Args:
+        pattern: Glob pattern, with ``*``, ``?``, or ``[`` marking the first wildcard.
+
+    Returns:
+        The wildcard-free leading directories, empty for a pattern with no directory.
     """
     parts = pathlib.PurePath(pattern).parts
     fixed = []

@@ -525,6 +525,13 @@ def _structure_parameter(
 
     Deduplicated by content so the executor screens and verifies each distinct
     predicate once, however many times the query states it.
+
+    Args:
+        node: The structure predicate to name.
+        structures: Parameters named so far, appended to when this one is new.
+
+    Returns:
+        The parameter name to bind the predicate's bitmap under.
     """
     pattern = node.smarts if isinstance(node, Substructure) else node.smiles
     threshold = node.threshold if isinstance(node, Similarity) else None
@@ -558,6 +565,19 @@ def _structure(
     The chemistry happens in the executor; what compiles here is only the re-entry of
     its match set. The null guard keeps a compound with no recorded structure from
     reading as a match under negation-free semantics: no structure, no match.
+
+    Args:
+        node: The structure predicate to compile.
+        scope: Bound variable the path is relative to, or None at the row.
+        schema: Schema or struct type the path resolves within.
+        structures: Parameters named so far, appended to when this one is new.
+
+    Returns:
+        The DuckDB expression testing the element's ID against the predicate's bitmap.
+
+    Raises:
+        QueryError: If the path does not name a compound's ``smiles``, or crosses a
+            repeated level without a quantifier to say which element is meant.
     """
     parts = node.path.split(".")
     if parts[-1] != "smiles":
@@ -600,6 +620,22 @@ def _quantifier(
     The element is bound to a fresh variable, and the body compiles against *it* rather
     than against the row, which is what lets one component be required to satisfy
     several conditions at once.
+
+    Args:
+        node: The quantifier to compile.
+        scope: Bound variable the path is relative to, or None at the row.
+        schema: Schema or struct type the path resolves within.
+        compounds: Compound names collected so far, appended to by the body.
+        structures: Structure parameters collected so far, appended to by the body.
+        depth: How many quantifiers enclose this one, which names its variable.
+
+    Returns:
+        The DuckDB expression filtering the level, true when the quantifier holds.
+        ``forall`` is stated as the absence of a counterexample, so it is vacuously
+        true of an empty level.
+
+    Raises:
+        QueryError: If the path does not reach a repeated level.
     """
     resolved = resolve(node.path, schema=schema, root=scope)
     if not resolved.repeated:

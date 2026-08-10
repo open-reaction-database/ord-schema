@@ -56,6 +56,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(args: argparse.Namespace) -> None:
     """Derives a projection for every dataset matching the input pattern.
 
+    Args:
+        args: Parsed arguments, read for ``input_pattern``, ``output_dir``, and
+            ``force``.
+
     Raises:
         ValueError: If the pattern matched only derived artifacts, which means it was
             aimed at an output tree rather than a source tree. Silence there would let a

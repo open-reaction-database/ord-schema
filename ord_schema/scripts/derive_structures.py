@@ -63,7 +63,8 @@ def main(args: argparse.Namespace) -> None:
     """Derives a structures artifact for every projection matching the input pattern.
 
     Args:
-        args: Parsed command-line arguments.
+        args: Parsed arguments, read for ``input_pattern``, ``output_dir``, and
+            ``force``.
 
     Raises:
         ValueError: If the pattern matched no projections, which usually means it was

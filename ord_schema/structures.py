@@ -86,6 +86,12 @@ def morgan_fingerprint(molecule: Chem.Mol) -> DataStructs.ExplicitBitVect:
 
     The query side of a similarity search must fingerprint identically to the artifact
     or the comparison is meaningless, so this is the one place the parameters live.
+
+    Args:
+        molecule: The molecule to fingerprint.
+
+    Returns:
+        A ``MORGAN_FP_SIZE``-bit fingerprint at radius ``MORGAN_RADIUS``.
     """
     return _MORGAN.GetFingerprint(molecule)
 
@@ -279,6 +285,14 @@ def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
     Delegates to ``artifacts.is_current``, which requires the artifact name, the source
     content, the library version, and the artifact version to all match. A missing or
     unreadable file is not current.
+
+    Args:
+        path: Path to check. Need not exist.
+        source_md5: Hash of the source dataset the artifact should restate, which is
+            the dataset's own even though the artifact derives from a projection.
+
+    Returns:
+        Whether the file is a structures artifact this library would write today.
     """
     return artifacts.is_current(path, ARTIFACT, source_md5)
 
