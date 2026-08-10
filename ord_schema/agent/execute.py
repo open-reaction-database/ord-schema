@@ -306,7 +306,10 @@ class Corpus:
         # that makes the two disagree -- a glob metacharacter in a directory name is
         # the reachable one, since read_parquet globs each element it is handed --
         # drops rows from the join rather than failing, leaving a corpus that answers
-        # every query with silence. Counting once here catches it whatever the cause.
+        # every query with silence. The structures side is counted against a total
+        # taken from the footers; the reactions side has no such total to check
+        # against, so a projection whose path failed the same way goes unnoticed here
+        # and shows up only as reactions nobody can find.
         counts = self._connection.execute(
             "SELECT count(*), count(pattern_fp) FROM corpus_structures"
         ).fetchone()
@@ -381,8 +384,9 @@ class Corpus:
             fingerprints the artifact already stores.
 
         Raises:
-            PairingError: If the built library does not hold one entry per structure,
-                which would stop its indices from being structure IDs.
+            PairingError: If the corpus IDs are not exactly ``0`` to ``total - 1``, so
+                that a library index would name a different structure, or if a
+                structure holds one of its derived columns without the other.
         """
         with self._library_lock:
             if self._substructure_library is not None:
@@ -391,15 +395,45 @@ class Corpus:
             molecules = rdSubstructLibrary.CachedMolHolder()
             patterns = rdSubstructLibrary.PatternHolder(structures.PATTERN_FP_SIZE)
             cursor = self._connection.cursor()
+            position = 0
             try:
                 reader = cursor.execute(
-                    "SELECT mol_binary, pattern_fp FROM corpus_structures "
+                    "SELECT global_id, mol_binary, pattern_fp FROM corpus_structures "
                     "ORDER BY global_id"
                 ).to_arrow_reader(_BUILD_BATCH)
                 for batch in reader:
+                    identifiers = batch.column("global_id").to_pylist()
                     blobs = batch.column("mol_binary").to_pylist()
                     fingerprints = batch.column("pattern_fp").to_pylist()
-                    for blob, fingerprint in zip(blobs, fingerprints, strict=True):
+                    for global_id, blob, fingerprint in zip(
+                        identifiers, blobs, fingerprints, strict=True
+                    ):
+                        # Sorting alone does not make an index an ID; it does that only
+                        # while the IDs are every integer from zero, each once. A
+                        # duplicate or a gap slides every later structure onto a
+                        # neighbor's index, which a row count cannot see.
+                        if global_id != position:
+                            raise PairingError(
+                                f"the corpus states structure ID {global_id} where "
+                                f"{position} was expected, so its IDs are not one "
+                                "unbroken run and a library index would name a "
+                                "different structure; derive the structures artifacts "
+                                "again"
+                            )
+                        # A structures artifact writes the derived columns together or
+                        # not at all. One without the other means the row came from
+                        # somewhere else, and taking either branch would be a guess:
+                        # dropping a live fingerprint makes the structure unmatchable
+                        # while it still counts as searchable, and a missing one
+                        # reaches RDKit as a type error naming no row.
+                        if (blob is None) != (fingerprint is None):
+                            raise PairingError(
+                                f"structure {global_id} has "
+                                f"{'no ' if blob is None else 'a '}molecule but "
+                                f"{'no ' if fingerprint is None else 'a '}fingerprint; "
+                                "a structures artifact writes both or neither, so this "
+                                "one was not written by this library"
+                            )
                         if blob is None:
                             molecules.AddBinary(_UNPARSEABLE)
                             patterns.AddFingerprint(_NO_BITS)
@@ -408,6 +442,7 @@ class Corpus:
                             patterns.AddFingerprint(
                                 DataStructs.CreateFromBinaryText(fingerprint)
                             )
+                        position += 1
             finally:
                 cursor.close()
             library = rdSubstructLibrary.SubstructLibrary(molecules, patterns)

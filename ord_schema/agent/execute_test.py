@@ -377,6 +377,65 @@ def test_a_structures_artifact_short_of_its_projection_is_refused(corpus_dir, tm
         )
 
 
+def _rewrite_structures(root, shard, **columns):
+    """Replaces whole columns of one structures artifact, keeping its schema."""
+    target = root / "structures" / f"ord_dataset-{shard}.parquet"
+    with pq.ParquetFile(target) as artifact:
+        table = artifact.read()
+        schema = artifact.schema_arrow
+    replaced = {field.name: table.column(field.name) for field in schema}
+    for name, values in columns.items():
+        replaced[name] = pa.array(values, type=schema.field(name).type)
+    pq.write_table(pa.table(replaced, schema=schema), target)
+
+
+@pytest.mark.parametrize(
+    ("label", "identifiers"),
+    [("a duplicate", [0, 1, 1]), ("a gap", [0, 1, 3])],
+)
+def test_structure_ids_that_are_not_one_unbroken_run_are_refused(
+    corpus_dir, tmp_path, label, identifiers
+):
+    # A library index is a structure ID only while the IDs are every integer from zero,
+    # each exactly once. A duplicate or a gap slides later structures onto a neighbor's
+    # index, and the row count -- unchanged by either -- cannot see it.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    _rewrite_structures(root, "aa", structure_id=identifiers)
+    with (
+        execute.Corpus(
+            str(root / "projections" / "*.parquet"),
+            str(root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+        ) as value,
+        pytest.raises(execute.PairingError, match="not one unbroken run"),
+    ):
+        value._library()
+
+
+@pytest.mark.parametrize("missing", ["mol_binary", "pattern_fp"])
+def test_half_a_derived_structure_is_refused(corpus_dir, tmp_path, missing):
+    # The artifact writes a molecule and its fingerprint together or not at all, and
+    # the library relies on that. Left to itself, one without the other goes two
+    # different wrong ways: a missing molecule discards a live fingerprint, so the
+    # structure quietly matches nothing while still counting as searchable, and a
+    # missing fingerprint reaches RDKit as a type error naming no row at all.
+    root = _copy_corpus(corpus_dir, tmp_path)
+    target = root / "structures" / "ord_dataset-bb.parquet"
+    with pq.ParquetFile(target) as artifact:
+        values = artifact.read().column(missing).to_pylist()
+    values[0] = None
+    _rewrite_structures(root, "bb", **{missing: values})
+    with (
+        execute.Corpus(
+            str(root / "projections" / "*.parquet"),
+            str(root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+        ) as value,
+        pytest.raises(execute.PairingError, match="writes both or neither"),
+    ):
+        value._library()
+
+
 def test_two_artifacts_of_one_dataset_are_refused(corpus_dir, tmp_path):
     # Which of them answers a query would be arbitrary, so neither may.
     root = _copy_corpus(corpus_dir, tmp_path)
