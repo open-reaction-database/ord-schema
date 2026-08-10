@@ -124,7 +124,9 @@ per dataset, so the library holds one entry per **distinct** molecule — 1,435,
 corpus's 2,016,224 rows, so 29% of the matching disappears — and maps each entry back to
 every structure ID sharing it. And a match set depends on the query molecule and nothing
 else, so recent ones are **cached**: pyridine costs 1.05s the first time and 0.02s the
-next. A compound is keyed by what it resolved to, not by its name.
+next. A compound is keyed by what it resolved to, not by its name. A predicate asked
+again while the first pass is still running waits for that pass, so a burst of identical
+requests costs one match; unrelated searches still overlap.
 
 Queries the index declines read the projection, and read it faster from a table holding
 only the top-level columns they name. Reading a handful of columns out of a 442-leaf

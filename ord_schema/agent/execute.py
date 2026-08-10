@@ -285,6 +285,9 @@ class Corpus:
         self._matched: collections.OrderedDict[tuple[str, str, float | None], str] = (
             collections.OrderedDict()
         )
+        # Match sets a thread is computing, so callers asking the same question while it
+        # runs wait for that answer instead of repeating it; see _matches.
+        self._matching: dict[tuple[str, str, float | None], threading.Event] = {}
         self._matches_lock = threading.Lock()
         # Materialized column sets, most recently used last; see _narrow_table. Maps
         # the columns to the table holding them and what it costs to keep.
@@ -924,6 +927,13 @@ class Corpus:
         than by its name, so two names for one molecule share an entry and a resolver
         that starts answering differently is a different key.
 
+        One question is answered once even while it is still being answered: a caller
+        arriving during another thread's pass waits for that pass rather than starting
+        a second, so a burst of identical requests costs one. The wait is per predicate,
+        so unrelated searches still overlap. A pass that raises publishes nothing and a
+        waiter behind it takes the matching over, which leaves the error with the caller
+        that hit it rather than with everyone queued behind.
+
         Args:
             cursor: The cursor a similarity screen runs on.
             parameter: The predicate to evaluate.
@@ -938,31 +948,46 @@ class Corpus:
             else resolve(parameter.compound or "")
         )
         key = (parameter.op, pattern, parameter.threshold)
-        with self._matches_lock:
-            cached = self._matched.get(key)
-            if cached is not None:
-                # Reinserted so the eviction below drops what has gone longest unused
-                # rather than what was computed longest ago.
-                self._matched.move_to_end(key)
-                logger.info("%s %r reused a cached match set", parameter.op, pattern)
-                return cached
-        if parameter.op == "substructure":
-            matched = self._substructure_ids(parameter, resolve)
-        else:
-            matched = self._similarity_ids(cursor, parameter, resolve)
-        logger.info(
-            "%s %r matched %d of %d structures (%d unsearchable)",
-            parameter.op,
-            pattern,
-            len(matched),
-            self._searchable,
-            self._total - self._searchable,
-        )
-        bitmap = self._bitmap(matched)
-        with self._matches_lock:
-            self._matched[key] = bitmap
-            while len(self._matched) > _CACHED_MATCHES:
-                self._matched.popitem(last=False)
+        while True:
+            with self._matches_lock:
+                cached = self._matched.get(key)
+                if cached is not None:
+                    # Reinserted so the eviction below drops what has gone longest
+                    # unused rather than what was computed longest ago.
+                    self._matched.move_to_end(key)
+                    logger.info(
+                        "%s %r reused a cached match set", parameter.op, pattern
+                    )
+                    return cached
+                computing = self._matching.get(key)
+                if computing is None:
+                    self._matching[key] = threading.Event()
+                    break
+            logger.info("%s %r is already running; waiting", parameter.op, pattern)
+            computing.wait()
+        try:
+            if parameter.op == "substructure":
+                matched = self._substructure_ids(parameter, resolve)
+            else:
+                matched = self._similarity_ids(cursor, parameter, resolve)
+            logger.info(
+                "%s %r matched %d of %d structures (%d unsearchable)",
+                parameter.op,
+                pattern,
+                len(matched),
+                self._searchable,
+                self._total - self._searchable,
+            )
+            bitmap = self._bitmap(matched)
+            with self._matches_lock:
+                self._matched[key] = bitmap
+                while len(self._matched) > _CACHED_MATCHES:
+                    self._matched.popitem(last=False)
+        finally:
+            # Woken after the result is published, so a waiter finds it on the next turn
+            # of the loop; a failed pass leaves nothing there and the waiter recomputes.
+            with self._matches_lock:
+                self._matching.pop(key).set()
         return bitmap
 
     def search(
@@ -971,8 +996,9 @@ class Corpus:
         """Compiles and runs a query, returning the result as an Arrow table.
 
         Runs on its own cursor, so concurrent searches sharing this corpus do not read
-        each other's results. They still serialize on the library build, and only on
-        that: the first substructure search builds it while the others wait.
+        each other's results. Two searches wait on each other only where waiting saves
+        work they would otherwise duplicate: the one-time library and index builds, and
+        a structure predicate one of them is already matching.
 
         A query the occurrence index can answer runs against it instead of the
         projection, which is the same answer reached without scanning every reaction.

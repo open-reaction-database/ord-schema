@@ -1227,6 +1227,94 @@ def test_the_cache_does_not_confuse_two_predicates(corpus):
     assert similarity(0.25) == tight  # Still itself after the others went through.
 
 
+def test_one_predicate_asked_at_once_is_matched_once(corpus_dir, monkeypatch):
+    # Several clients asking for the same scaffold at once is what a popular query looks
+    # like, and the cache alone does not cover it: it holds finished answers, so callers
+    # arriving while the first pass runs would each start their own. The pass below is
+    # held open long enough that they all arrive during it.
+    threads_count = 4
+    matched = 0
+    counting = threading.Lock()
+    original = execute.Corpus._substructure_ids
+
+    def held(self, parameter, resolve):
+        nonlocal matched
+        with counting:
+            matched += 1
+        time.sleep(0.5)
+        return original(self, parameter, resolve)
+
+    monkeypatch.setattr(execute.Corpus, "_substructure_ids", held)
+    ready = threading.Barrier(threads_count)
+
+    def resolver(name):
+        # Releases every thread together, which is what puts them in one another's way.
+        ready.wait(timeout=_WAIT)
+        return {"pyridine": "c1ccncc1"}[name]
+
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver=resolver,
+    ) as value:
+        value._library()  # Built up front, so the threads race on matching alone.
+        request = query.Query.model_validate(
+            {
+                "where": _exists(
+                    {"op": "substructure", "path": "smiles", "compound": "pyridine"}
+                )
+            }
+        )
+        results: list[list[str]] = []
+        failures: list[BaseException] = []
+
+        def search():
+            try:
+                matches = value.search(request).column("reaction_id").to_pylist()
+                results.append(sorted(matches))
+            except BaseException as error:  # noqa: BLE001
+                failures.append(error)
+
+        threads = [threading.Thread(target=search) for _ in range(threads_count)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=_WAIT)
+        alive = [thread for thread in threads if thread.is_alive()]
+        waiting = dict(value._matching)
+    assert failures == []
+    assert alive == []
+    assert matched == 1
+    assert results == [["ord-aa01", "ord-aa02"]] * threads_count
+    assert waiting == {}  # The bookkeeping is dropped with the answer published.
+
+
+def test_a_failed_match_is_not_left_in_the_way(corpus_dir, monkeypatch):
+    # A pass that raises publishes nothing, so the predicate has to be left askable: the
+    # error belongs to the caller that hit it, not to the corpus.
+    failing = True
+    original = execute.Corpus._substructure_ids
+
+    def sometimes(self, parameter, resolve):
+        if failing:
+            raise RuntimeError("the library gave up")
+        return original(self, parameter, resolve)
+
+    monkeypatch.setattr(execute.Corpus, "_substructure_ids", sometimes)
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        with pytest.raises(RuntimeError, match="gave up"):
+            value.search(_substructure("c1ccncc1"))
+        assert value._matching == {}
+        failing = False
+        assert set(
+            value.search(_substructure("c1ccncc1")).column("reaction_id").to_pylist()
+        ) == {"ord-aa01", "ord-aa02"}
+
+
 def test_the_cache_stays_bounded(corpus_dir, monkeypatch):
     # Each entry is a bitmap over the whole corpus, so an unbounded cache would grow
     # without limit on a server asked many different questions.
