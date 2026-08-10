@@ -28,10 +28,10 @@ purpose, and this module is where both happen:
   step at all -- Tanimoto is defined on the Morgan fingerprint, so the screen is the
   whole answer.
 
-Structure ids are dataset-local, so a corpus-wide bitmap needs an offset per file.
+Structure IDs are dataset-local, so a corpus-wide bitmap needs an offset per file.
 ``Corpus`` pairs every projection with its structures artifact, refuses a pair whose
 stamps disagree about the source dataset -- the two files are two statements of one
-derivation, and a mismatched pair would join ids to the wrong molecules silently --
+derivation, and a mismatched pair would join IDs to the wrong molecules silently --
 and publishes a ``reactions`` relation carrying each row's offset in the column the
 compiled SQL expects.
 
@@ -112,8 +112,8 @@ def _max_structure_id(path: str) -> int | None:
     return largest
 
 
-# An id whose structure did not parse still occupies a slot, so a library index is a
-# corpus-wide structure id and needs no translation. An empty molecule fingerprints to
+# An ID whose structure did not parse still occupies a slot, so a library index is a
+# corpus-wide structure ID and needs no translation. An empty molecule fingerprints to
 # no bits, and a query with no atoms is refused, so it can never match.
 _UNPARSEABLE = Chem.Mol().ToBinary()
 _NO_BITS = DataStructs.ExplicitBitVect(structures.PATTERN_FP_SIZE)
@@ -236,7 +236,7 @@ class Corpus:
         for projected, structured in pairs:
             with pq.ParquetFile(structured) as artifact:
                 count = artifact.metadata.num_rows
-            # The ids the projection carries have to land inside the partner's rows.
+            # The IDs the projection carries have to land inside the partner's rows.
             # Stamps cannot see this: an artifact rederived from a rewritten
             # projection keeps the same source hash, so a short one pairs cleanly and
             # then aliases its neighbor's molecules -- in range for get_bit, wrong
@@ -246,7 +246,7 @@ class Corpus:
             if largest is not None and largest >= count:
                 raise PairingError(
                     f"{projected} carries structure_id {largest} but {structured} "
-                    f"holds only {count} structures, so its ids would join to another "
+                    f"holds only {count} structures, so its IDs would join to another "
                     "dataset's molecules; derive the structures artifact from this "
                     "projection again"
                 )
@@ -353,8 +353,8 @@ class Corpus:
         """Returns the substructure library, building it on first use.
 
         Built lazily because it costs seconds and gigabytes, and a corpus asked only
-        for similarity or scalar queries never needs it. Streamed in id order so a
-        library index *is* a corpus-wide structure id: a structure that did not parse
+        for similarity or scalar queries never needs it. Streamed in ID order so a
+        library index *is* a corpus-wide structure ID: a structure that did not parse
         still occupies its slot, holding an empty molecule that nothing matches.
 
         Returns:
@@ -385,7 +385,7 @@ class Corpus:
             if len(library) != self._total:
                 raise PairingError(
                     f"the library holds {len(library)} structures but the corpus has "
-                    f"{self._total}; its indices would not be structure ids"
+                    f"{self._total}; its indices would not be structure IDs"
                 )
             logger.info(
                 "built a substructure library over %d structures in %.1fs",
@@ -398,7 +398,7 @@ class Corpus:
     def _substructure_ids(
         self, parameter: query.StructureParameter, resolve: Callable[[str], str]
     ) -> list[int]:
-        """Screens and verifies a substructure predicate; returns global ids.
+        """Screens and verifies a substructure predicate; returns global IDs.
 
         RDKit screens and matches in one call, across its own threads with the GIL
         released, so a server handling concurrent requests neither forks nor
@@ -448,7 +448,7 @@ class Corpus:
         return [row[0] for row in rows]
 
     def _bitmap(self, matched: Sequence[int]) -> str:
-        """Returns the match set as a bitmap over the corpus-wide id space."""
+        """Returns the match set as a bitmap over the corpus-wide ID space."""
         bits = bytearray(b"0" * max(self._total, 1))
         for global_id in matched:
             bits[global_id] = ord("1")

@@ -100,10 +100,10 @@ released, so one `Corpus` serves concurrent requests without forking; the librar
 built on the first substructure query and costs about 8s and 2 GB for the full corpus.
 Similarity needs no verification — Tanimoto is defined on the Morgan fingerprint, so
 the screen is the answer — and stays in SQL. The verified match set re-enters the query
-as a `BITSTRING` parameter indexed by the corpus-wide id (`structure_id` plus the
+as a `BITSTRING` parameter indexed by the corpus-wide ID (`structure_id` plus the
 file's offset), which is what preserves element binding: `exists(components,
 substructure(pyridine) and role = SOLVENT)` means one component that is both. The
-alternative — intersecting reaction-id sets — over-returns by 94% on exactly that
+alternative — intersecting reaction-ID sets — over-returns by 94% on exactly that
 query; see [ord-logbook#28](https://github.com/open-reaction-database/ord-logbook/pull/28),
 finding 4.
 
@@ -135,9 +135,9 @@ table = corpus.search(
 
 `Corpus` refuses artifacts that do not pair: every projection must have a structures
 artifact derived from the same source dataset, and long enough to hold every
-`structure_id` the projection carries, because the ids joining them are meaningful only
+`structure_id` the projection carries, because the IDs joining them are meaningful only
 as a pair. Pairing is by source dataset rather than by filename, so the two trees need
-not share a layout. Structure ids are dataset-local; the executor's relation
+not share a layout. Structure IDs are dataset-local; the executor's relation
 carries a per-file offset column (`structure_offset`), which is why compiled SQL with a
 structure predicate runs only there — validate it against `query.executable_schema()`
 rather than the bare projection schema.

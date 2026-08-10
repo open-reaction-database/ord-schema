@@ -618,9 +618,9 @@ def test_a_substructure_on_a_non_smiles_column_is_refused():
 
 
 def test_a_substructure_on_the_reaction_smiles_is_refused():
-    # The reaction-level smiles is a reaction, not a molecule; it has no structure id
+    # The reaction-level smiles is a reaction, not a molecule; it has no structure ID
     # and reaction substructure search is a different operation.
-    with pytest.raises(query.QueryError, match="no structure id"):
+    with pytest.raises(query.QueryError, match="no structure ID"):
         query.compile_query(
             query.Query.model_validate({"where": _substructure(path="smiles")})
         )

@@ -76,7 +76,7 @@ def test_write_structures_round_trips(tmp_path):
 
 
 def test_shared_structures_are_deduplicated(tmp_path):
-    # Benzene appears in every reaction; the artifact holds it once, under the id the
+    # Benzene appears in every reaction; the artifact holds it once, under the ID the
     # projection stamped everywhere it occurs.
     reactions = [_reaction(f"ord-{i:04d}") for i in range(5)]
     source = _project(tmp_path, reactions)
@@ -88,7 +88,7 @@ def test_shared_structures_are_deduplicated(tmp_path):
 
 
 def test_row_groups_keep_ids_aligned(tmp_path):
-    # Position in the file is the id, so each output row group must continue the
+    # Position in the file is the ID, so each output row group must continue the
     # sequence and each row's derived columns must be its own molecule's --
     # misalignment here is silent join corruption, not an error.
     reaction = _reaction()
@@ -233,7 +233,7 @@ def _corrupt_projection(tmp_path, rows) -> pathlib.Path:
 
 
 def test_a_smiles_without_an_id_is_refused(tmp_path):
-    # message_row without a mapping leaves ids null; deriving from such a file would
+    # message_row without a mapping leaves IDs null; deriving from such a file would
     # join wrongly rather than fail, so the mismatch is an error here.
     row = projection.message_row(_reaction())
     row["reaction_id"] = "ord-0001"
@@ -254,7 +254,7 @@ def test_conflicting_ids_are_refused(tmp_path):
 
 
 def test_one_smiles_under_two_ids_is_refused(tmp_path):
-    # The reverse defect of conflicting ids: the mapping must be one-to-one in both
+    # The reverse defect of conflicting IDs: the mapping must be one-to-one in both
     # directions, or the artifact holds duplicate rows and an inflated distinct count.
     ids_a = {"c1ccccc1": 0, "Cc1ccccc1": 1}
     ids_b = {"c1ccccc1": 2, "Cc1ccccc1": 1}
@@ -277,11 +277,11 @@ def test_a_gap_in_the_id_space_is_refused(tmp_path):
 def test_an_unparseable_structure_survives_the_write_path(tmp_path):
     # Cannot arise from a same-version projection -- its SMILES are RDKit-canonical --
     # so it is staged through _corrupt_projection: the row must keep its position (the
-    # id space stays dense) rather than being cleaned out of the batch.
+    # ID space stays dense) rather than being cleaned out of the batch.
     ids: dict[str, int] = {}
     row = projection.message_row(_reaction(), ids)
     (component,) = dict(row["inputs"])["a"]["components"]
-    component["smiles"] = "not-a-smiles"  # Keeps the id benzene was assigned.
+    component["smiles"] = "not-a-smiles"  # Keeps the ID benzene was assigned.
     row["reaction_id"] = "ord-0001"
     path = _corrupt_projection(tmp_path, [row])
     output = tmp_path / "structures.parquet"

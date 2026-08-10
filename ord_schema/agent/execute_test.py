@@ -45,7 +45,7 @@ def _reaction(reaction_id, *, components, product="Cc1ccccc1"):
     return reaction
 
 
-# Two datasets, so that the second's structure ids only join correctly through a
+# Two datasets, so that the second's structure IDs only join correctly through a
 # nonzero offset. Basenames sort "aa" before "bb".
 _REACTIONS = {
     "aa": [
@@ -133,7 +133,7 @@ def test_substructure_binds_to_the_element(corpus):
 
 
 def test_substructure_reaches_the_offset_dataset(corpus):
-    # The hydroxyl is only in bb, whose ids are only correct through its offset.
+    # The hydroxyl is only in bb, whose IDs are only correct through its offset.
     matched = _search(
         corpus,
         _exists({"op": "substructure", "path": "smiles", "smarts": "[OX2H]"}),
@@ -230,7 +230,7 @@ def test_the_screen_only_accelerates_the_answer(corpus):
 
 
 def test_an_unparseable_structure_holds_its_slot(corpus):
-    # A structure that did not parse still occupies its id, or every id after it would
+    # A structure that did not parse still occupies its ID, or every ID after it would
     # shift and the bitmap would name different molecules. It matches nothing.
     library = corpus._library()
     assert len(library) == corpus._total
@@ -248,7 +248,7 @@ def test_unpaired_artifacts_are_refused(corpus_dir, tmp_path):
 def test_a_mismatched_pair_is_refused(corpus_dir, tmp_path):
     # Rebuild bb's projection from a different source, leaving its structures
     # artifact describing molecules the projection does not hold: the pair must not
-    # open, or ids would join to the wrong chemistry.
+    # open, or IDs would join to the wrong chemistry.
     changed = tmp_path / "ord_dataset-bb.parquet"
     parquet.save_dataset(
         dataset_pb2.Dataset(
@@ -293,8 +293,8 @@ def _copy_corpus(corpus_dir, tmp_path) -> pathlib.Path:
 
 
 def test_offsets_place_each_dataset_in_its_own_slice(corpus):
-    # Toluene is the product of every reaction and lives in BOTH datasets, at local id
-    # 2 in aa and 1 in bb. Reaching all three reactions therefore requires each id to
+    # Toluene is the product of every reaction and lives in BOTH datasets, at local ID
+    # 2 in aa and 1 in bb. Reaching all three reactions therefore requires each ID to
     # be offset by its own file's base: swapping the two offsets, or shifting both,
     # produces a different answer.
     matched = corpus.search(
