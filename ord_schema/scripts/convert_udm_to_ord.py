@@ -17,10 +17,12 @@ Given a UDM file, converts it to a Dataset .pbtxt for ORD. A UDM <REACTION>
 may contain multiple <VARIATION> elements; each variation is emitted as its
 own ORD Reaction, since UDM variations represent distinct experiments run
 under the same reaction identifiers. A <VARIATION> may itself contain
-multiple <CONDITION_GROUP> elements; ORD's Reaction has only one
-ReactionConditions, and UDM does not document precisely enough what
-multiple groups within one variation mean to safely merge or split them, so
-only the first group is represented structurally (see _add_variation).
+multiple <CONDITION_GROUP> elements, which per the UDM ChangeLog model a
+single dynamic, multi-stage condition profile (e.g. "20 degC for 23 min,
+then 165 degC for 5 min") rather than alternative readings or separate
+experiments; these are recorded via ReactionConditions.conditions_are_dynamic
+and .details rather than merged into or split across a static single-step
+ReactionConditions (see _add_variation).
 
 UDM (Unified Data Model) is a Pistoia Alliance format; see
 https://github.com/PistoiaAlliance/UDM for the schema and example data.
@@ -261,6 +263,63 @@ def _text_and_unit(value: Any) -> tuple[str | None, str | None]:
     return value, None
 
 
+def _parse_range(value: UdmDict) -> tuple[float, float | None] | None:
+    """Parses a UDM min/max/exact range into (midpoint, precision).
+
+    UDM's *Range types (temperatureRange, pressureRange, etc.) hold exactly
+    one of {min, max, min and max, exact} -- see Docs/ChangeLog.md's note on
+    XML Schema's limited support for "exactly one of" constraints. `exact`
+    maps to (value, None); a min/max pair maps to their midpoint with
+    precision = half the spread; a lone min or max maps to that value with
+    no precision. Returns None if none of min/max/exact is present.
+    """
+    if "exact" in value:
+        return float(value["exact"]), None
+    min_v, max_v = value.get("min"), value.get("max")
+    if min_v is not None and max_v is not None:
+        min_f, max_f = float(min_v), float(max_v)
+        return (min_f + max_f) / 2, (max_f - min_f) / 2
+    if min_v is not None:
+        return float(min_v), None
+    if max_v is not None:
+        return float(max_v), None
+    return None
+
+
+def _format_range_text(value: UdmDict, default_unit: str) -> str | None:
+    """Renders a UDM min/max/exact range as human-readable text, e.g. "20±5 degC"."""
+    parsed = _parse_range(value)
+    if parsed is None:
+        return None
+    midpoint, precision = parsed
+    unit = value.get("@unit", default_unit)
+    if precision:
+        return f"{midpoint}±{precision} {unit}".strip()
+    return f"{midpoint} {unit}".strip()
+
+
+def _summarize_condition_group(group: UdmDict, index: int) -> str:
+    """Renders one CONDITION_GROUP as a human-readable line for .conditions.details."""
+    parts = []
+    if group.get("PROCESS"):
+        parts.append(group["PROCESS"])
+    for field, default_unit, label in (
+        ("TEMPERATURE", "degC", "temperature"),
+        ("PRESSURE", "torr", "pressure"),
+        ("TIME", "hr", "time"),
+        ("STIRRING", "rpm", "stirring"),
+        ("PH", "", "pH"),
+    ):
+        text = _format_range_text(group.get(field, {}), default_unit)
+        if text:
+            parts.append(f"{label} {text}")
+    if "REFLUX" in group:
+        parts.append(f"reflux={group['REFLUX']}")
+    if group.get("ATMOSPHERE"):
+        parts.append(f"atmosphere={group['ATMOSPHERE']}")
+    return f"Stage {index}: " + ("; ".join(parts) if parts else "(no data)")
+
+
 def _document_context_xml(root: ET.Element) -> str:
     """Serializes the UDM document-level context shared by every reaction.
 
@@ -371,30 +430,25 @@ def _add_variation(
         )
         pb2_reaction.setup.environment.details = "; ".join(preparations)
 
-    # <CONDITIONS> may repeat <CONDITION_GROUP>. Splitting each group into
-    # its own Reaction (an earlier version of this code did that) is wrong
-    # too: REACTANT/PRODUCT/YIELD/COMMENT/provenance are variation-level, not
-    # per-group, so splitting would duplicate a single recorded outcome into
-    # every group's Reaction, asserting it was independently reproduced under
-    # each condition set. Since UDM doesn't document what multiple groups
-    # mean well enough to resolve that safely, only the first group is
-    # represented structurally; the rest are noted, not merged or dropped
-    # silently, so at least no fabricated composite or duplicate is created.
+    # <CONDITIONS> may repeat <CONDITION_GROUP>. Per Docs/ChangeLog.md's
+    # CONDITIONS section (Pistoia Alliance UDM repo), multiple groups model a
+    # single dynamic, multi-stage condition profile -- e.g. "20 degC for 23
+    # min, then 165 degC for 5 min, then held 6 more min" -- not alternative
+    # readings or separate experiments. Merging them into one static
+    # ReactionConditions or splitting each into its own Reaction would both
+    # fabricate data that isn't in the source. ORD models exactly this case
+    # with conditions_are_dynamic + a free-text details field ("e.g.,
+    # multiple stages" per its own doc comment), so the full staged profile
+    # is recorded as text instead.
     condition_groups = _as_list(conditions.get("CONDITION_GROUP"))
-    if condition_groups:
+    if len(condition_groups) == 1:
         _add_conditions(pb2_reaction, condition_groups[0])
-        if len(condition_groups) > 1:
-            logger.warning(
-                "VARIATION has %d CONDITION_GROUPs; only the first is "
-                "represented in structured fields (see conditions.details).",
-                len(condition_groups),
-            )
-            pb2_reaction.conditions.details = (
-                f"UDM recorded {len(condition_groups)} CONDITION_GROUP entries "
-                "for this variation; only the first is represented in the "
-                "structured fields above. Re-run with --include-udm-xml to "
-                "recover the rest from the source."
-            )
+    elif len(condition_groups) > 1:
+        pb2_reaction.conditions.conditions_are_dynamic = True
+        pb2_reaction.conditions.details = "; ".join(
+            _summarize_condition_group(group, i)
+            for i, group in enumerate(condition_groups, start=1)
+        )
 
     comment = variation.get("COMMENT")
     if comment:
@@ -470,15 +524,23 @@ def _add_conditions(
 ) -> None:
     """Populates ReactionConditions from a UDM CONDITION_GROUP."""
     temperature = condition_group.get("TEMPERATURE", {})
-    if "exact" in temperature:
-        pb2_reaction.conditions.temperature.setpoint.value = float(temperature["exact"])
+    parsed = _parse_range(temperature)
+    if parsed:
+        value, precision = parsed
+        pb2_reaction.conditions.temperature.setpoint.value = value
+        if precision:
+            pb2_reaction.conditions.temperature.setpoint.precision = precision
         pb2_reaction.conditions.temperature.setpoint.units = _TEMPERATURE_UNITS.get(
             temperature.get("@unit", "degC"), reaction_pb2.Temperature.UNSPECIFIED
         )
 
     pressure = condition_group.get("PRESSURE", {})
-    if "exact" in pressure:
-        pb2_reaction.conditions.pressure.setpoint.value = float(pressure["exact"])
+    parsed = _parse_range(pressure)
+    if parsed:
+        value, precision = parsed
+        pb2_reaction.conditions.pressure.setpoint.value = value
+        if precision:
+            pb2_reaction.conditions.pressure.setpoint.precision = precision
         pb2_reaction.conditions.pressure.setpoint.units = _PRESSURE_UNITS.get(
             pressure.get("@unit", "torr"), reaction_pb2.Pressure.UNSPECIFIED
         )
@@ -487,8 +549,9 @@ def _add_conditions(
     # "rpm"), not free text; ORD's StirringConditions.rate.rpm is the closest
     # match. Units other than rpm can't be represented and are dropped.
     stirring = condition_group.get("STIRRING", {})
-    if "exact" in stirring and stirring.get("@unit", "rpm") == "rpm":
-        rpm = round(float(stirring["exact"]))
+    parsed = _parse_range(stirring)
+    if parsed and stirring.get("@unit", "rpm") == "rpm":
+        rpm = round(parsed[0])
         pb2_reaction.conditions.stirring.type = reaction_pb2.StirringConditions.CUSTOM
         pb2_reaction.conditions.stirring.details = f"{rpm} rpm"
         pb2_reaction.conditions.stirring.rate.rpm = rpm
@@ -497,8 +560,9 @@ def _add_conditions(
         pb2_reaction.conditions.reflux = _parse_bool(condition_group["REFLUX"])
 
     ph = condition_group.get("PH", {})
-    if "exact" in ph:
-        pb2_reaction.conditions.ph = float(ph["exact"])
+    parsed = _parse_range(ph)
+    if parsed:
+        pb2_reaction.conditions.ph = parsed[0]
 
 
 def _parse_bool(value: str) -> bool:

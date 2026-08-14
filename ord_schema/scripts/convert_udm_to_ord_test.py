@@ -298,19 +298,21 @@ def test_multiple_variations_become_separate_reactions(tmp_path):
     assert amounts == {1.0, 2.0}
 
 
-def test_multiple_condition_groups_use_first_group_only(tmp_path):
-    """Regression test: multiple <CONDITION_GROUP>s must not be merged, and
-    must not multiply the Reaction.
+def test_multiple_condition_groups_are_recorded_as_dynamic(tmp_path):
+    """Regression test: multiple <CONDITION_GROUP>s model one dynamic,
+    multi-stage profile -- see Docs/ChangeLog.md's CONDITIONS section in the
+    UDM repo -- not alternative readings or separate experiments.
 
-    An earlier version of this code merged every group's fields into one
-    ReactionConditions (fabricating composites, e.g. one group's temperature
-    plus an unrelated group's pressure, that never existed in the source). A
-    later version instead split each group into its own Reaction -- also
-    wrong, since REACTANT/PRODUCT/YIELD/COMMENT/provenance are variation-
-    level, not per-group, so splitting duplicated a single recorded outcome
-    across multiple Reactions as if it were independently reproduced under
-    each condition set. Only the first group is represented structurally;
-    the existence of the rest is noted, not silently dropped.
+    Two earlier versions of this code got this wrong in opposite ways: one
+    merged every group's fields into one static ReactionConditions
+    (fabricating composites, e.g. one group's temperature plus an unrelated
+    group's pressure, that never existed in the source); another split each
+    group into its own Reaction, which duplicated the variation-level
+    REACTANT/PRODUCT/YIELD/COMMENT/provenance into every split, asserting a
+    single recorded outcome was independently reproduced under each
+    condition set. Neither merges nor splits: conditions_are_dynamic and a
+    full-fidelity text summary in .details record the staged profile, per
+    the fields ORD itself provides for exactly this case.
     """
     reaction_xml = """
     <REACTION>
@@ -325,10 +327,15 @@ def test_multiple_condition_groups_use_first_group_only(tmp_path):
         </PRODUCT>
         <CONDITIONS>
           <CONDITION_GROUP>
-            <TEMPERATURE><exact>25.0</exact></TEMPERATURE>
+            <TEMPERATURE><min>20</min><max>20</max></TEMPERATURE>
+            <TIME><min>23</min><max>23</max></TIME>
           </CONDITION_GROUP>
           <CONDITION_GROUP>
-            <PRESSURE unit="bar"><exact>2.0</exact></PRESSURE>
+            <TEMPERATURE><min>165</min><max>165</max></TEMPERATURE>
+            <TIME><min>5</min><max>5</max></TIME>
+          </CONDITION_GROUP>
+          <CONDITION_GROUP>
+            <TIME><min>6</min><max>6</max></TIME>
           </CONDITION_GROUP>
         </CONDITIONS>
       </VARIATION>
@@ -347,10 +354,43 @@ def test_multiple_condition_groups_use_first_group_only(tmp_path):
     assert len(reaction.outcomes) == 1
     assert reaction.outcomes[0].products[0].measurements[0].float_value.value == 85.0
 
-    # Only the first group's field is structurally represented.
+    assert reaction.conditions.conditions_are_dynamic
+    # No single-step snapshot: none of the three stages is "the" temperature.
+    assert reaction.conditions.temperature.setpoint.value == 0.0
+    assert "Stage 1: temperature 20.0 degC; time 23.0 hr" in reaction.conditions.details
+    assert "Stage 2: temperature 165.0 degC; time 5.0 hr" in reaction.conditions.details
+    assert "Stage 3: time 6.0 hr" in reaction.conditions.details
+
+
+def test_condition_group_min_max_range_uses_midpoint_and_precision(tmp_path):
+    """A single <CONDITION_GROUP> with a min/max range (no <exact>) -- the
+    form UDM's own documentation example uses -- must still populate the
+    structured setpoint, not just <exact>.
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+        <CONDITIONS>
+          <CONDITION_GROUP>
+            <TEMPERATURE><min>20</min><max>30</max></TEMPERATURE>
+          </CONDITION_GROUP>
+        </CONDITIONS>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    reaction = dataset.reactions[0]
+    assert not reaction.conditions.conditions_are_dynamic
     assert reaction.conditions.temperature.setpoint.value == 25.0
-    assert reaction.conditions.pressure.setpoint.value == 0.0
-    assert "2 CONDITION_GROUP" in reaction.conditions.details
+    assert reaction.conditions.temperature.setpoint.precision == 5.0
 
 
 def test_reaction_without_variation_still_emits_one_reaction(tmp_path):
