@@ -97,11 +97,13 @@ def corpus_dir(tmp_path_factory) -> pathlib.Path:
 
 @pytest.fixture(scope="module")
 def deep_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
-    """A corpus holding a structure at each of the two deepest indexed paths.
+    """A corpus holding a structure at every indexed path.
 
     A workup's components and a product measurement's authentic standard are reached by
     the longest traversals the index generates, and the main fixture has neither, so
-    every assertion about them would otherwise compare nothing to nothing.
+    every assertion about them would otherwise compare nothing to nothing. The inputs
+    and the products carry structures too, which is what lets a query at one deep path
+    assert that a structure living at another is not found there.
     """
     reaction = reaction_pb2.Reaction(reaction_id="ord-cc01")
     _component(reaction.inputs["in"], "CCO", _ROLE.REACTANT)
@@ -1014,7 +1016,7 @@ _ROUTABLE = {
 
 _NOT_ROUTABLE = {
     # The planner declines every aggregate rather than reason about which ones the
-    # index's three columns could serve.
+    # index's four columns could serve.
     "an aggregate": {
         "where": _exists(_SUBSTRUCTURE),
         "aggregate": {"measures": [{"fn": "count", "name": "n"}]},
@@ -1033,7 +1035,7 @@ _NOT_ROUTABLE = {
                 "op": "and",
                 "clauses": [
                     _SUBSTRUCTURE,
-                    {"op": "gt", "path": "amount.mass.value", "value": {"literal": 1}},
+                    {"op": "gt", "path": "amount.mass_grams", "value": {"literal": 1}},
                 ],
             }
         )
@@ -1174,6 +1176,30 @@ def test_the_planner_leaves_the_projection_what_the_index_cannot_answer(label):
     )
 
 
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        # A pyridine that is not the solvent, which is aa02's reactant. Routed as an
+        # equality, this would come back as aa01 -- the one reaction it excludes.
+        ("a role inequality", {"ord-aa02"}),
+        # One component required to be two roles at once, which nothing is. Routed with
+        # only the last role kept, this would come back as every pyridine reactant.
+        ("two roles at once", set()),
+    ],
+)
+def test_a_declined_query_is_answered_rather_than_only_declined(
+    corpus, label, expected
+):
+    # The planner declining is half the property; the other half is that the projection
+    # answers, and answers what the comments beside these cases say routing would get
+    # wrong. Asserted for the two whose routed answer would not merely differ but invert
+    # or over-return.
+    assert (
+        _reactions(corpus.search(query.Query.model_validate(_NOT_ROUTABLE[label])))
+        == expected
+    )
+
+
 def test_the_index_names_each_reaction_once(corpus):
     # A reaction holding two matching components is two rows in the index and one row in
     # the projection. A caller gets the table rather than a set, so a duplicate would
@@ -1213,13 +1239,14 @@ def test_a_role_literal_cannot_close_its_quote(corpus):
     assert matched == set()
 
 
-def test_the_index_is_built_once_and_only_when_wanted(corpus_dir):
+def test_the_index_is_built_once_and_only_when_wanted(corpus_dir, caplog):
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
     ) as value:
-        # A scalar query cannot use the index, so it must not pay to build one.
+        # An element predicate with no structure in it cannot use the index, so it must
+        # not pay to build one.
         value.search(
             query.Query.model_validate(
                 {
@@ -1230,11 +1257,17 @@ def test_the_index_is_built_once_and_only_when_wanted(corpus_dir):
             )
         )
         assert not value._occurrences_built
+        caplog.set_level(logging.INFO, logger="ord_schema.agent.execute")
         request = query.Query.model_validate(_ROUTABLE["structure alone"])
         assert value.search(request).num_rows == 2
         assert value._occurrences_built
-        # A second search reuses it rather than rebuilding.
+        # A second search reuses it rather than rebuilding, which the answer alone
+        # cannot show -- a rebuild answers identically and costs a pass per path.
         assert value.search(request).num_rows == 2
+    builds = [
+        record for record in caplog.records if record.message.startswith("indexed ")
+    ]
+    assert len(builds) == 1
 
 
 @pytest.mark.parametrize(
@@ -1243,8 +1276,7 @@ def test_the_index_is_built_once_and_only_when_wanted(corpus_dir):
         # A workup component: a structure at a path the inputs do not reach.
         ("workups.input.components", "c1ccncc1", {"ord-cc01"}),
         ("workups.input.components", "CCO", set()),
-        # An authentic standard, the deepest indexed path -- reached by flattening twice
-        # and holding a role of its own that no query in the fixture sets.
+        # An authentic standard: the deepest path, reached by flattening twice.
         ("outcomes.products.measurements.authentic_standard", "c1ccccc1", {"ord-cc01"}),
         ("outcomes.products.measurements.authentic_standard", "CCO", set()),
     ],
@@ -1278,6 +1310,57 @@ def test_the_index_reaches_the_deep_paths_the_projection_does(
     assert _reactions(deep_corpus.search(declined)) == expected
 
 
+@pytest.mark.parametrize(
+    ("role", "expected"), [("SOLVENT", {"ord-cc01"}), ("REACTANT", set())]
+)
+def test_a_role_binds_to_the_element_at_a_deep_path(deep_corpus, role, expected):
+    # The index writes reaction_role for all four paths, and every other role condition
+    # here asks about inputs.components. A role that came out right for the inputs and
+    # NULL elsewhere would answer "pyridine as the solvent in the workup" with nothing,
+    # silently, while the same query without the role still worked.
+    request = query.Query.model_validate(
+        {
+            "where": {
+                "op": "exists",
+                "path": "workups.input.components",
+                "where": {
+                    "op": "and",
+                    "clauses": [
+                        {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"},
+                        {
+                            "op": "eq",
+                            "path": "reaction_role",
+                            "value": {"literal": role},
+                        },
+                    ],
+                },
+            }
+        }
+    )
+    assert execute.Corpus._plan(request) is not None, "expected this to route"
+    assert _reactions(deep_corpus.search(request)) == expected
+
+
+def test_a_routed_query_is_bounded_by_the_timeout(corpus, monkeypatch):
+    # The timeout is the only bound on what a query costs, and the routed path is a
+    # different statement reached by a different branch. The fixture is too small to
+    # outlast any timeout worth setting, so what is asserted is that the bound is
+    # carried: a routed query dropping it would run unbounded on a real corpus.
+    seen: list[tuple[str, float]] = []
+    original = execute.Corpus._run_with_timeout
+
+    def recording(cursor, sql, parameters, timeout_seconds):
+        seen.append((sql, timeout_seconds))
+        return original(cursor, sql, parameters, timeout_seconds)
+
+    monkeypatch.setattr(execute.Corpus, "_run_with_timeout", staticmethod(recording))
+    request = query.Query.model_validate(_ROUTABLE["structure and role"])
+    assert execute.Corpus._plan(request) is not None, "expected this to route"
+    assert _reactions(corpus.search(request, timeout_seconds=60)) == {"ord-aa01"}
+    assert [timeout for _, timeout in seen] == [60]
+    assert "FROM occurrences" in seen[0][0]
+
+
 def test_a_routed_query_reads_the_index_and_an_unrouted_one_does_not(corpus_dir):
     # Everything else here compares the two paths, which agree -- so a search that
     # quietly stopped routing would keep passing while the index cost a build and
@@ -1298,31 +1381,44 @@ def test_a_routed_query_reads_the_index_and_an_unrouted_one_does_not(corpus_dir)
             "WHERE reaction_id = 'ord-aa01' AND reaction_role = 'SOLVENT'"
         )
         assert _reactions(value.search(routed)) == {"ord-aa01", "ord-planted"}
+        # The same question with a scalar the fixture satisfies, so the projection's
+        # answer is a set with something in it rather than one that is empty either way.
         declined = query.Query.model_validate(
-            _NOT_ROUTABLE["a scalar beside the quantifier"]
+            {
+                "where": {
+                    "op": "and",
+                    "clauses": [
+                        _ROUTABLE["structure and role"]["where"],
+                        {"op": "not_null", "path": "reaction_id"},
+                    ],
+                }
+            }
         )
-        assert "ord-planted" not in _reactions(value.search(declined))
+        assert execute.Corpus._plan(declined) is None
+        assert _reactions(value.search(declined)) == {"ord-aa01"}
 
 
-def test_concurrent_first_searches_build_one_index(corpus_dir, caplog):
-    # The index is a materialized table, minutes to build at corpus scale. First
+def test_concurrent_first_searches_build_one_index(corpus_dir, caplog, monkeypatch):
+    # The index is a materialized table, several passes over the projections. First
     # searches arriving together must not each build their own; whoever waits takes the
-    # finished one. Counted off the build's own log line rather than left to a second
-    # CREATE TABLE failing, since the build replaces the table rather than colliding
-    # with it -- without the lock this is a wasted rebuild, not an error.
+    # finished one. The barrier sits at the door of the build rather than in the
+    # resolver, which a search reaches only afterwards, so the race is arranged rather
+    # than hoped for -- and the build's own log line is what counts them, since
+    # concurrent CREATEs would also collide in DuckDB's catalog and raise.
     caplog.set_level(logging.INFO, logger="ord_schema.agent.execute")
     threads_count = 4
     ready = threading.Barrier(threads_count)
+    building = execute.Corpus._occurrences
 
-    def resolver(name):
-        # Releases every thread together, so they meet at the build.
+    def synchronized(self):
         ready.wait(timeout=_WAIT)
-        return {"pyridine": "c1ccncc1"}[name]
+        return building(self)
 
+    monkeypatch.setattr(execute.Corpus, "_occurrences", synchronized)
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
-        resolver=resolver,
+        resolver={"pyridine": "c1ccncc1"}.__getitem__,
     ) as value:
         request = query.Query.model_validate(_ROUTABLE["a compound name"])
         results: list[int] = []
@@ -1350,10 +1446,10 @@ def test_concurrent_first_searches_build_one_index(corpus_dir, caplog):
 
 
 def test_an_index_that_reaches_nothing_is_refused(corpus_dir, monkeypatch):
-    # An empty index answers every structure query with no matches, which reads like an
-    # answer rather than like a corpus nobody can search. The fixture has no authentic
-    # standards, so indexing that path alone is a traversal that reaches nothing --
-    # which is what a path binding against the wrong schema would look like.
+    # An index that reaches no structure at all answers every structure query with no
+    # matches, which reads like an answer rather than like a corpus nobody can search.
+    # The fixture has no authentic standards, so indexing that path alone is a traversal
+    # that reaches nothing -- what a path binding against the wrong schema looks like.
     path = "outcomes.products.measurements.authentic_standard"
     monkeypatch.setattr(execute, "INDEXED_PATHS", {path: execute.INDEXED_PATHS[path]})
     request = query.Query.model_validate(
@@ -1370,13 +1466,113 @@ def test_an_index_that_reaches_nothing_is_refused(corpus_dir, monkeypatch):
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
     ) as value:
-        with pytest.raises(execute.PairingError, match="came out empty"):
+        with pytest.raises(execute.PairingError, match="reached 0 of the corpus's 5"):
             value.search(request)
-        # Nothing was published, so the next query builds again rather than reading an
-        # index that was never there.
+        # The table is in the catalog, holding nothing; what was not set is the flag, so
+        # nobody reads it.
         assert not value._occurrences_built
-        with pytest.raises(execute.PairingError, match="came out empty"):
+        value._connection = counter = _CursorCounter(value._connection)
+        with pytest.raises(execute.PairingError, match="reached 0 of the corpus's 5"):
             value.search(request)
+        # A corpus does not change under an open Corpus, so the second refusal is the
+        # first one's reason rather than several more passes to reach it again.
+        assert counter.cursors == 0
+
+
+def test_an_index_that_misses_one_path_is_refused(corpus_dir, monkeypatch):
+    # The dangerous shape is not an index that reaches nothing -- it is one that reaches
+    # almost everything. A single traversal that binds and finds no element leaves the
+    # other paths carrying the total, so a count of occurrences looks healthy while
+    # every query at the dead path answers with silence. Counting the structures reached
+    # is what tells the two apart. Dropping a path is what a schema walk that fell out
+    # of step with the projection would do.
+    kept = {
+        path: expression
+        for path, expression in execute.INDEXED_PATHS.items()
+        if path != "outcomes.products"
+    }
+    monkeypatch.setattr(execute, "INDEXED_PATHS", kept)
+    # Toluene is every reaction's product and nobody's input, so dropping the products
+    # path leaves exactly its two structures unreached.
+    with (
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+        ) as value,
+        pytest.raises(execute.PairingError, match="reached 3 of the corpus's 5"),
+    ):
+        value.search(query.Query.model_validate(_ROUTABLE["structure alone"]))
+
+
+def test_a_path_the_index_does_not_cover_is_left_to_the_projection(
+    corpus_dir, monkeypatch
+):
+    # The planner's path check is unfalsifiable against the real schema, since every
+    # path a structure can sit at is indexed. It becomes load-bearing the moment that
+    # stops being true, and routing a query to a path the index does not carry answers
+    # it with the empty set.
+    kept = {
+        path: expression
+        for path, expression in execute.INDEXED_PATHS.items()
+        if path != "outcomes.products"
+    }
+    monkeypatch.setattr(execute, "INDEXED_PATHS", kept)
+    request = query.Query.model_validate(_ROUTABLE["products rather than inputs"])
+    assert execute.Corpus._plan(request) is None
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        # Answered from the projection, which needs no index and so never builds one.
+        assert _reactions(value.search(request)) == {"ord-aa01", "ord-aa02", "ord-bb01"}
+        assert not value._occurrences_built
+
+
+def test_the_indexed_paths_are_the_ones_a_structure_can_sit_at():
+    # Derived from the projection schema, so what the walk accepts and refuses is worth
+    # pinning against schemas built for the purpose: today's projection exercises only
+    # the accepting branch, and the refusals exist for the schema change that will.
+    assert sorted(execute.INDEXED_PATHS) == [
+        "inputs.components",
+        "outcomes.products",
+        "outcomes.products.measurements.authentic_standard",
+        "workups.input.components",
+    ]
+    # A structure at a path with no role is one the index cannot carry -- and one it
+    # would then report as a structure it failed to reach.
+    with pytest.raises(ValueError, match="no reaction_role"):
+        execute._indexed_paths(
+            pa.schema(
+                [
+                    pa.field(
+                        "inputs",
+                        pa.list_(pa.struct([pa.field("structure_id", pa.uint32())])),
+                    )
+                ]
+            )
+        )
+    # A structure on a level that is not repeated is one the build cannot unnest.
+    with pytest.raises(ValueError, match="rather than a repeated expression"):
+        execute._indexed_paths(
+            pa.schema(
+                [
+                    pa.field(
+                        "setup",
+                        pa.struct(
+                            [
+                                pa.field("structure_id", pa.uint32()),
+                                pa.field("reaction_role", pa.string()),
+                            ]
+                        ),
+                    )
+                ]
+            )
+        )
+    # A schema with no structure anywhere would assemble a build with no SQL in it.
+    with pytest.raises(ValueError, match="no structure at any path"):
+        execute._indexed_paths(pa.schema([pa.field("reaction_id", pa.string())]))
 
 
 def test_one_molecule_in_two_datasets_is_matched_once_and_found_twice(corpus):
