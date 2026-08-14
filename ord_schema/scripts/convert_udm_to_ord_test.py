@@ -13,6 +13,7 @@
 # limitations under the License.
 """Tests for ord_schema.scripts.convert_udm_to_ord."""
 
+import getpass
 import pathlib
 
 import pytest
@@ -28,10 +29,23 @@ _MOLECULES = """
   </MOLECULES>
 """
 
-_ONE_VARIATION_REACTION = """
+# SCIENTIST is UDM's authorDetails type (NAME/EMAIL/PHONE/ORGANISATION), not a
+# bare string -- see udm_6_0_0.xsd.
+_SCIENTIST = """
+        <SCIENTIST>
+          <NAME>Test Scientist</NAME>
+          <EMAIL>scientist@example.com</EMAIL>
+          <ORGANISATION>
+            <NAME>Scientist Org</NAME>
+            <ADDRESS>123 Lab St</ADDRESS>
+          </ORGANISATION>
+        </SCIENTIST>
+"""
+
+_ONE_VARIATION_REACTION = f"""
     <REACTION>
       <VARIATION>
-        <SCIENTIST>Test Scientist</SCIENTIST>
+        {_SCIENTIST}
         <CREATION_DATE>2020-01-01</CREATION_DATE>
         <REACTANT>
           <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
@@ -42,8 +56,11 @@ _ONE_VARIATION_REACTION = """
           <YIELD><exact>85.0</exact></YIELD>
         </PRODUCT>
         <CONDITIONS>
+          <PREPARATION>Stirred under nitrogen.</PREPARATION>
           <CONDITION_GROUP>
-            <TEMPERATURE><exact>25.0</exact></TEMPERATURE>
+            <TEMPERATURE unit="K"><exact>298.0</exact></TEMPERATURE>
+            <PRESSURE unit="bar"><exact>1.5</exact></PRESSURE>
+            <STIRRING><exact>500</exact></STIRRING>
           </CONDITION_GROUP>
         </CONDITIONS>
         <COMMENT>A test reaction</COMMENT>
@@ -57,7 +74,7 @@ def _udm_xml(reactions_xml: str) -> str:
     return f"""<UDM>
   <LEGAL>
     <TITLE>Test Dataset</TITLE>
-    <PRODUCER>Test Org</PRODUCER>
+    <PRODUCER>Data Vendor</PRODUCER>
     <DOI>10.0000/test-doi</DOI>
   </LEGAL>
   {_MOLECULES}
@@ -77,10 +94,14 @@ def _write(tmp_path: pathlib.Path, filename: str, content: str) -> str:
 def test_simple(tmp_path):
     input_filename = _write(tmp_path, "input.xml", _udm_xml(_ONE_VARIATION_REACTION))
     output_filename = str(tmp_path / "output.pbtxt")
-    # UDM's SCIENTIST field carries only a name, no email, so a person's
-    # email -- required by ORD validation -- can never be filled in from UDM
-    # source data alone. Validation is disabled here for that known reason.
-    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    argv = [
+        "--input",
+        input_filename,
+        "--output",
+        output_filename,
+        "--email",
+        "submitter@example.com",
+    ]
     convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
 
     dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
@@ -89,24 +110,86 @@ def test_simple(tmp_path):
     assert len(dataset.reactions) == 1
 
     reaction = dataset.reactions[0]
+    # The experimenter is the original UDM scientist who ran the reaction,
+    # with their own organization/email/address taking precedence over the
+    # dataset-level PRODUCER (a data vendor, not a research institution).
     assert reaction.provenance.experimenter.name == "Test Scientist"
+    assert reaction.provenance.experimenter.email == "scientist@example.com"
+    assert reaction.provenance.experimenter.organization == "Scientist Org"
+    assert reaction.provenance.city == "123 Lab St"
+
+    # record_created is whoever ran this conversion, not the UDM scientist.
+    assert reaction.provenance.record_created.person.username == getpass.getuser()
+    assert reaction.provenance.record_created.person.email == "submitter@example.com"
+    assert reaction.provenance.record_created.person.name != "Test Scientist"
     assert reaction.provenance.record_created.time.value == "2020-01-01"
-    assert reaction.conditions.temperature.setpoint.value == 25.0
+
+    assert reaction.conditions.temperature.setpoint.value == 298.0
     assert (
         reaction.conditions.temperature.setpoint.units
-        == reaction.conditions.temperature.setpoint.CELSIUS
+        == reaction.conditions.temperature.setpoint.KELVIN
     )
+    assert reaction.conditions.pressure.setpoint.value == 1.5
+    assert (
+        reaction.conditions.pressure.setpoint.units
+        == reaction.conditions.pressure.setpoint.BAR
+    )
+    assert reaction.conditions.stirring.rate.rpm == 500.0
+    assert reaction.setup.environment.details == "Stirred under nitrogen."
     assert reaction.observations[0].comment == "A test reaction"
 
     [component] = reaction.inputs["m1"].components
-    assert component.amount.mass.value == 1.0
-    assert component.amount.mass.units == component.amount.mass.GRAM
+    assert component.amount.moles.value == 1.0
+    assert component.amount.moles.units == component.amount.moles.MOLE
 
     [outcome] = reaction.outcomes
     [product] = outcome.products
     assert product.identifiers[0].value == "Product A"
     [measurement] = product.measurements
     assert measurement.float_value.value == 85.0
+
+
+def test_scientist_organization_falls_back_to_producer(tmp_path):
+    """When the scientist has no inline ORGANISATION, PRODUCER fills in."""
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <SCIENTIST><NAME>No Org Scientist</NAME></SCIENTIST>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    reaction = dataset.reactions[0]
+    assert reaction.provenance.experimenter.name == "No Org Scientist"
+    assert reaction.provenance.experimenter.organization == "Data Vendor"
+
+
+def test_record_created_defaults_to_submitter_without_email(tmp_path):
+    """Without --email, record_created still identifies the submitter (by OS
+    username) rather than the UDM scientist; the dataset just won't pass
+    full validation without an explicit --email, since record_created still
+    needs one even though the scientist's own email (if UDM supplies it)
+    goes to experimenter, not record_created.
+    """
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(_ONE_VARIATION_REACTION))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    reaction = dataset.reactions[0]
+    assert reaction.provenance.record_created.person.username == getpass.getuser()
+    assert not reaction.provenance.record_created.person.email
+    assert reaction.provenance.experimenter.name == "Test Scientist"
+    assert reaction.provenance.experimenter.email == "scientist@example.com"
 
 
 def test_multiple_variations_become_separate_reactions(tmp_path):
@@ -119,7 +202,7 @@ def test_multiple_variations_become_separate_reactions(tmp_path):
     reaction_xml = """
     <REACTION>
       <VARIATION>
-        <SCIENTIST>Scientist One</SCIENTIST>
+        <SCIENTIST><NAME>Scientist One</NAME></SCIENTIST>
         <REACTANT>
           <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
           <AMOUNT>1.0</AMOUNT>
@@ -129,7 +212,7 @@ def test_multiple_variations_become_separate_reactions(tmp_path):
         </PRODUCT>
       </VARIATION>
       <VARIATION>
-        <SCIENTIST>Scientist Two</SCIENTIST>
+        <SCIENTIST><NAME>Scientist Two</NAME></SCIENTIST>
         <REACTANT>
           <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
           <AMOUNT>2.0</AMOUNT>
@@ -150,7 +233,7 @@ def test_multiple_variations_become_separate_reactions(tmp_path):
     scientists = {r.provenance.experimenter.name for r in dataset.reactions}
     assert scientists == {"Scientist One", "Scientist Two"}
     amounts = {
-        r.inputs["m1"].components[0].amount.mass.value for r in dataset.reactions
+        r.inputs["m1"].components[0].amount.moles.value for r in dataset.reactions
     }
     assert amounts == {1.0, 2.0}
 
@@ -172,6 +255,30 @@ def test_reaction_without_variation_still_emits_one_reaction(tmp_path):
     dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
     assert len(dataset.reactions) == 1
     assert dataset.reactions[0].identifiers[0].value == "CC.O>>CCO"
+
+
+def test_single_reactant_id_is_not_split_into_characters(tmp_path):
+    """Regression test: a lone <REACTANT_ID> must not be iterated as a string.
+
+    UDM's REACTANT_ID/PRODUCT_ID are maxOccurs="unbounded"; etree_to_dict
+    collapses a single occurrence to a bare string rather than a one-element
+    list, so naive iteration over it would previously produce one bogus
+    identifier per character.
+    """
+    reaction_xml = """
+    <REACTION>
+      <REACTANT_ID>abc123</REACTANT_ID>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    [component] = dataset.reactions[0].inputs["REACTANT_IDS"].components
+    assert len(component.identifiers) == 1
+    assert component.identifiers[0].value == "abc123"
 
 
 def test_unknown_molecule_reference_does_not_crash(tmp_path):

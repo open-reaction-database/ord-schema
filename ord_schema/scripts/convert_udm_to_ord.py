@@ -17,9 +17,13 @@ Given a UDM file, converts it to a Dataset .pbtxt for ORD. A UDM <REACTION>
 may contain multiple <VARIATION> elements; each variation is emitted as its
 own ORD Reaction, since UDM variations represent distinct experiments run
 under the same reaction identifiers.
+
+UDM (Unified Data Model) is a Pistoia Alliance format; see
+https://github.com/PistoiaAlliance/UDM for the schema and example data.
 """
 
 import argparse
+import getpass
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
@@ -54,6 +58,38 @@ _RXNSTRUCTURE_FORMATS: dict[str, tuple[int, str]] = {
     "rxn": (reaction_pb2.ReactionIdentifier.CUSTOM, "rxn"),
 }
 
+# Unit mappings below are taken from the UDM v6.0.0 XSD schema
+# (udm_6_0_0_units.xsd, udm_6_0_0.xsd), not guessed:
+# https://github.com/PistoiaAlliance/UDM/blob/master/udm_6_0_0_units.xsd
+
+# <AMOUNT> is UDM's molType: a decimal with an optional @unit attribute
+# defaulting to "mol". Units not listed here fall back to UNSPECIFIED.
+_MOLES_UNITS: dict[str, int] = {
+    "mol": reaction_pb2.Moles.MOLE,
+    "mmol": reaction_pb2.Moles.MILLIMOLE,
+    "umol": reaction_pb2.Moles.MICROMOLE,
+    "μmol": reaction_pb2.Moles.MICROMOLE,  # UDM allows the literal mu character.
+    "nmol": reaction_pb2.Moles.NANOMOLE,
+}
+
+# temperatureRange's @unit attribute defaults to "degC".
+_TEMPERATURE_UNITS: dict[str, int] = {
+    "degC": reaction_pb2.Temperature.CELSIUS,
+    "degF": reaction_pb2.Temperature.FAHRENHEIT,
+    "K": reaction_pb2.Temperature.KELVIN,
+}
+
+# pressureRange's @unit attribute defaults to "torr", not "atm".
+_PRESSURE_UNITS: dict[str, int] = {
+    "atm": reaction_pb2.Pressure.ATMOSPHERE,
+    "bar": reaction_pb2.Pressure.BAR,
+    "psi": reaction_pb2.Pressure.PSI,
+    "KPa": reaction_pb2.Pressure.KILOPASCAL,
+    "Pa": reaction_pb2.Pressure.PASCAL,
+    "torr": reaction_pb2.Pressure.TORR,
+    "mmHg": reaction_pb2.Pressure.MM_HG,
+}
+
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parses command-line arguments."""
@@ -62,6 +98,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", help="Output Dataset filename (*.pbtxt)")
     parser.add_argument("--name", help="Name for this dataset")
     parser.add_argument("--description", help="Description for this dataset")
+    parser.add_argument(
+        "--email",
+        help=(
+            "Email address of the person running this conversion. Recorded as "
+            "the record_created/record_modified provenance, since that person "
+            "-- not the original UDM scientist, who is recorded separately as "
+            "the experimenter -- is who is creating this ORD record."
+        ),
+    )
     parser.add_argument(
         "--no-validate",
         action="store_true",
@@ -114,6 +159,11 @@ def main(args: argparse.Namespace) -> None:
             mol_data["molblock"] = molecule["MOLSTRUCTURE"]
         all_molecules[molecule["@ID"]] = mol_data
 
+    # The person running this conversion is the one creating this ORD record,
+    # distinct from the original UDM scientist who performed the reaction
+    # (recorded separately as the experimenter).
+    submitter_username = getpass.getuser()
+
     pb2_reactions = []
     for reaction in _as_list(udm_reactions["REACTIONS"]["REACTION"]):
         base_reaction = _build_base_reaction(reaction)
@@ -125,7 +175,13 @@ def main(args: argparse.Namespace) -> None:
             pb2_reaction = reaction_pb2.Reaction()
             pb2_reaction.CopyFrom(base_reaction)
             _add_variation(
-                pb2_reaction, reaction, variation, udm_reactions, all_molecules
+                pb2_reaction,
+                reaction,
+                variation,
+                udm_reactions,
+                all_molecules,
+                submitter_username,
+                args.email,
             )
             pb2_reactions.append(pb2_reaction)
 
@@ -142,13 +198,32 @@ def main(args: argparse.Namespace) -> None:
     logger.info("Conversion completed successfully: wrote %s.", outputfile)
 
 
-def _as_list(value: Any) -> list[UdmDict]:
-    """Normalizes an etree_to_dict value that may be absent, a dict, or a list."""
+def _as_list(value: Any) -> list[Any]:
+    """Normalizes an etree_to_dict value that may be absent, a single item, or a list.
+
+    etree_to_dict collapses a single occurrence of a repeatable element to a
+    bare dict or string rather than a one-element list, so a naive `for x in
+    value` silently iterates a string's characters instead of treating it as
+    one item. Only an already-list value is left as-is.
+    """
     if not value:
         return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
+def _text_and_unit(value: Any) -> tuple[str | None, str | None]:
+    """Splits an etree_to_dict value into (text, unit).
+
+    Several UDM elements (AMOUNT, PREPARATION) carry an optional @unit or
+    @format attribute alongside their text. etree_to_dict represents such an
+    element as plain text when no attribute is present, or as a dict with
+    "#text" plus "@..." keys when one is. This normalizes both shapes.
+    """
     if isinstance(value, dict):
-        return [value]
-    return value
+        return value.get("#text"), value.get("@unit") or value.get("@format")
+    return value, None
 
 
 def _build_base_reaction(reaction: UdmDict) -> reaction_pb2.Reaction:
@@ -162,7 +237,7 @@ def _build_base_reaction(reaction: UdmDict) -> reaction_pb2.Reaction:
 
     if "REACTANT_ID" in reaction:
         molinput = base_reaction.inputs["REACTANT_IDS"]
-        for reactant_id in reaction["REACTANT_ID"]:
+        for reactant_id in _as_list(reaction["REACTANT_ID"]):
             identifier = molinput.components.add().identifiers.add(
                 type="CUSTOM", details="REACTANT_ID from UDM"
             )
@@ -183,7 +258,7 @@ def _build_base_reaction(reaction: UdmDict) -> reaction_pb2.Reaction:
 
     if "PRODUCT_ID" in reaction:
         outcome = base_reaction.outcomes.add()
-        for product_id in reaction["PRODUCT_ID"]:
+        for product_id in _as_list(reaction["PRODUCT_ID"]):
             identifier = outcome.products.add().identifiers.add(
                 type="CUSTOM", details="PRODUCT_ID from UDM"
             )
@@ -198,16 +273,30 @@ def _add_variation(
     variation: UdmDict,
     udm_reactions: UdmDict,
     all_molecules: dict[str, UdmDict],
+    submitter_username: str,
+    submitter_email: str | None,
 ) -> None:
     """Populates a Reaction already seeded with base data from one VARIATION."""
     for role_name, role in _ROLES.items():
         for entry in _as_list(variation.get(role_name)):
             _add_component(pb2_reaction, all_molecules, entry, role, role_name)
 
-    condition_group: UdmDict = variation.get("CONDITIONS", {}).get(
-        "CONDITION_GROUP", {}
-    )
-    if condition_group:
+    conditions: UdmDict = variation.get("CONDITIONS", {})
+    # <PREPARATION> is a direct child of <CONDITIONS>, not <CONDITION_GROUP>.
+    preparations = []
+    for prep in _as_list(conditions.get("PREPARATION")):
+        text, _ = _text_and_unit(prep)
+        if text:
+            preparations.append(text)
+    if preparations:
+        pb2_reaction.setup.environment.type = (
+            reaction_pb2.ReactionSetup.ReactionEnvironment.CUSTOM
+        )
+        pb2_reaction.setup.environment.details = "; ".join(preparations)
+    # <CONDITIONS> may repeat <CONDITION_GROUP>; ORD has only one
+    # ReactionConditions per Reaction, so later groups overwrite fields set
+    # by earlier ones rather than being merged or dropped.
+    for condition_group in _as_list(conditions.get("CONDITION_GROUP")):
         _add_conditions(pb2_reaction, condition_group)
 
     comment = variation.get("COMMENT")
@@ -217,7 +306,14 @@ def _add_variation(
     for udm_product in _as_list(variation.get("PRODUCT")):
         _add_product(pb2_reaction, all_molecules, udm_product)
 
-    _add_provenance(pb2_reaction, reaction, variation, udm_reactions)
+    _add_provenance(
+        pb2_reaction,
+        reaction,
+        variation,
+        udm_reactions,
+        submitter_username,
+        submitter_email,
+    )
     pb2_reaction.provenance.is_mined = False
 
 
@@ -236,11 +332,14 @@ def _add_component(
     _set_molecule_identifier(component, all_molecules, mol_id, role_label)
     component.reaction_role = role
     if "AMOUNT" in entry:
-        # UDM's parsed <AMOUNT> is a bare number with no unit attribute visible
-        # in the source data available at the time of writing; grams are
-        # assumed. Revisit once real UDM sample data confirms the unit.
-        component.amount.mass.value = float(entry["AMOUNT"])
-        component.amount.mass.units = reaction_pb2.Mass.GRAM
+        # UDM's <AMOUNT> (molType) is molar, defaulting to "mol"; it is not a
+        # mass. See _MOLES_UNITS.
+        text, unit = _text_and_unit(entry["AMOUNT"])
+        if text:
+            component.amount.moles.value = float(text)
+            component.amount.moles.units = _MOLES_UNITS.get(
+                unit or "mol", reaction_pb2.Moles.UNSPECIFIED
+            )
 
 
 def _set_molecule_identifier(
@@ -272,27 +371,30 @@ def _set_molecule_identifier(
 def _add_conditions(
     pb2_reaction: reaction_pb2.Reaction, condition_group: UdmDict
 ) -> None:
-    """Populates ReactionConditions/ReactionSetup from a UDM CONDITION_GROUP."""
+    """Populates ReactionConditions from a UDM CONDITION_GROUP."""
     temperature = condition_group.get("TEMPERATURE", {})
     if "exact" in temperature:
-        # No unit is present in the source data available at the time of
-        # writing, so Celsius is assumed.
         pb2_reaction.conditions.temperature.setpoint.value = float(temperature["exact"])
-        pb2_reaction.conditions.temperature.setpoint.units = (
-            reaction_pb2.Temperature.CELSIUS
+        pb2_reaction.conditions.temperature.setpoint.units = _TEMPERATURE_UNITS.get(
+            temperature.get("@unit", "degC"), reaction_pb2.Temperature.UNSPECIFIED
         )
 
     pressure = condition_group.get("PRESSURE", {})
     if "exact" in pressure:
-        # Same caveat as temperature: unit assumed, not present in the source data.
         pb2_reaction.conditions.pressure.setpoint.value = float(pressure["exact"])
-        pb2_reaction.conditions.pressure.setpoint.units = (
-            reaction_pb2.Pressure.ATMOSPHERE
+        pb2_reaction.conditions.pressure.setpoint.units = _PRESSURE_UNITS.get(
+            pressure.get("@unit", "torr"), reaction_pb2.Pressure.UNSPECIFIED
         )
 
-    if "STIRRING" in condition_group:
+    # UDM's STIRRING is a numeric rate (stirringRange, @unit defaulting to
+    # "rpm"), not free text; ORD's StirringConditions.rate.rpm is the closest
+    # match. Units other than rpm can't be represented and are dropped.
+    stirring = condition_group.get("STIRRING", {})
+    if "exact" in stirring and stirring.get("@unit", "rpm") == "rpm":
+        rpm = round(float(stirring["exact"]))
         pb2_reaction.conditions.stirring.type = reaction_pb2.StirringConditions.CUSTOM
-        pb2_reaction.conditions.stirring.details = condition_group["STIRRING"]
+        pb2_reaction.conditions.stirring.details = f"{rpm} rpm"
+        pb2_reaction.conditions.stirring.rate.rpm = rpm
 
     if "REFLUX" in condition_group:
         pb2_reaction.conditions.reflux = _parse_bool(condition_group["REFLUX"])
@@ -300,12 +402,6 @@ def _add_conditions(
     ph = condition_group.get("PH", {})
     if "exact" in ph:
         pb2_reaction.conditions.ph = float(ph["exact"])
-
-    if "PREPARATION" in condition_group:
-        pb2_reaction.setup.environment.type = (
-            reaction_pb2.ReactionSetup.ReactionEnvironment.CUSTOM
-        )
-        pb2_reaction.setup.environment.details = condition_group["PREPARATION"]
 
 
 def _parse_bool(value: str) -> bool:
@@ -338,23 +434,45 @@ def _add_provenance(
     reaction: UdmDict,
     variation: UdmDict,
     udm_reactions: UdmDict,
+    submitter_username: str,
+    submitter_email: str | None,
 ) -> None:
     """Populates ReactionProvenance from reaction- and variation-level UDM fields."""
+    # record_created/record_modified describe who is creating this ORD
+    # record -- i.e. whoever is running this conversion -- not the original
+    # UDM scientist, who is recorded separately below as the experimenter.
+    pb2_reaction.provenance.record_created.person.username = submitter_username
+    if submitter_email:
+        pb2_reaction.provenance.record_created.person.email = submitter_email
+
     legal: UdmDict = udm_reactions.get("LEGAL", {})
     producer = legal.get("PRODUCER")
     if producer:
+        # Fallback organization; overridden below if the scientist has their
+        # own affiliation, since PRODUCER is the data vendor (e.g. "REAXYS"),
+        # not necessarily the scientist's research institution.
         pb2_reaction.provenance.experimenter.organization = producer
-        pb2_reaction.provenance.record_created.person.organization = producer
 
-    scientist = variation.get("SCIENTIST")
-    if scientist:
+    # SCIENTIST is UDM's authorDetails type (NAME/EMAIL/PHONE/ORGANISATION),
+    # not a plain string, and may repeat; the first is taken as the
+    # experimenter of record.
+    scientists = _as_list(variation.get("SCIENTIST"))
+    scientist = scientists[0] if scientists else None
+    if isinstance(scientist, dict):
+        if scientist.get("NAME"):
+            pb2_reaction.provenance.experimenter.name = scientist["NAME"]
+        if scientist.get("EMAIL"):
+            pb2_reaction.provenance.experimenter.email = scientist["EMAIL"]
+        organisation = scientist.get("ORGANISATION")
+        if isinstance(organisation, dict):
+            if organisation.get("NAME"):
+                pb2_reaction.provenance.experimenter.organization = organisation["NAME"]
+            if organisation.get("ADDRESS"):
+                pb2_reaction.provenance.city = organisation["ADDRESS"]
+    elif scientist:
+        # Defensive fallback in case a non-conformant UDM file has a bare
+        # string SCIENTIST rather than the schema's authorDetails structure.
         pb2_reaction.provenance.experimenter.name = scientist
-        pb2_reaction.provenance.record_created.person.name = scientist
-
-    if "ORGANISATIONS" in reaction:
-        pb2_reaction.provenance.city = reaction["ORGANISATIONS"][0]["ORGANISATION"][
-            "ADDRESS"
-        ]
 
     doi = legal.get("DOI")
     if doi and "CITATIONS" not in reaction:
@@ -386,10 +504,9 @@ def _add_provenance(
     if modification_date:
         event = pb2_reaction.provenance.record_modified.add()
         event.time.value = modification_date
-        if scientist:
-            event.person.name = scientist
-        if producer:
-            event.person.organization = producer
+        event.person.username = submitter_username
+        if submitter_email:
+            event.person.email = submitter_email
 
 
 # Converts XML tree into Python dictionary.
