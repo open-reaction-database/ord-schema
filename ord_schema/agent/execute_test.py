@@ -669,7 +669,7 @@ def test_a_timeout_interrupts_a_query_that_outlasts_it():
         cursor = connection.cursor()
         started = time.perf_counter()
         with pytest.raises(TimeoutError, match=r"exceeded 0\.2 seconds"):
-            execute.Corpus._run_with_timeout(
+            execute._run_with_timeout(
                 cursor, "SELECT count(*) FROM range(100000000000)", {}, 0.2
             )
         # The bound is what ends it, rather than the query finishing on its own.
@@ -975,7 +975,7 @@ def _index_spent(body) -> bool:
 
     def index(path, fields, allocate):
         nonlocal spent
-        condition = execute.Corpus._index_condition(path, fields, allocate)
+        condition = execute._index_condition(path, fields, allocate)
         spent = spent or condition is not None
         return condition
 
@@ -1229,9 +1229,7 @@ def test_the_index_answers_exactly_what_the_projection_would(corpus, label):
     request = query.Query.model_validate(body)
     with_index = corpus.search(request).to_pylist()
     with pytest.MonkeyPatch.context() as patcher:
-        patcher.setattr(
-            execute.Corpus, "_index_condition", staticmethod(_no_index_condition)
-        )
+        patcher.setattr(execute, "_index_condition", _no_index_condition)
         direct = corpus.search(request).to_pylist()
     if request.order_by:
         assert list(map(repr, with_index)) == list(map(repr, direct)), label
@@ -1372,9 +1370,7 @@ def test_the_index_reaches_the_deep_paths_the_projection_does(
     # The same question compiled over the elements, so the projection answers what the
     # index just answered.
     with pytest.MonkeyPatch.context() as patcher:
-        patcher.setattr(
-            execute.Corpus, "_index_condition", staticmethod(_no_index_condition)
-        )
+        patcher.setattr(execute, "_index_condition", _no_index_condition)
         assert _reactions(deep_corpus.search(request)) == expected
 
 
@@ -1414,13 +1410,13 @@ def test_a_routed_query_is_bounded_by_the_timeout(corpus, monkeypatch):
     # outlast any timeout worth setting, so what is asserted is that the bound is
     # carried: a routed query dropping it would run unbounded on a real corpus.
     seen: list[tuple[str, float]] = []
-    original = execute.Corpus._run_with_timeout
+    original = execute._run_with_timeout
 
     def recording(cursor, sql, parameters, timeout_seconds):
         seen.append((sql, timeout_seconds))
         return original(cursor, sql, parameters, timeout_seconds)
 
-    monkeypatch.setattr(execute.Corpus, "_run_with_timeout", staticmethod(recording))
+    monkeypatch.setattr(execute, "_run_with_timeout", recording)
     body = _ROUTABLE["structure and role"]
     assert _index_spent(body), "expected the index to take the clause"
     request = query.Query.model_validate(body)
@@ -1955,16 +1951,14 @@ def test_a_narrow_table_answers_what_the_projection_would(corpus_dir):
 def test_the_columns_a_query_names_are_the_ones_materialized(corpus_dir):
     # Too few and the query fails to resolve; too many and the corpus holds columns
     # nobody asked about. A name inside a string literal costs a column, nothing more.
-    assert execute.Corpus._mentioned(
+    assert execute._mentioned(
         "SELECT reaction_id FROM reactions WHERE conditions.temperature.x > 1"
     ) == frozenset({"reaction_id", "conditions"})
-    assert "provenance" in execute.Corpus._mentioned(
-        "SELECT provenance.doi FROM reactions"
-    )
+    assert "provenance" in execute._mentioned("SELECT provenance.doi FROM reactions")
     # reaction_id comes along whether or not the query said so.
-    assert "reaction_id" in execute.Corpus._mentioned("SELECT 1 FROM reactions")
+    assert "reaction_id" in execute._mentioned("SELECT 1 FROM reactions")
     # A substring of a real column is not that column.
-    assert "conditions" not in execute.Corpus._mentioned(
+    assert "conditions" not in execute._mentioned(
         "SELECT reaction_id FROM reactions WHERE notes.preconditions_x = 'a'"
     )
 
@@ -1999,7 +1993,7 @@ def _stated_bytes(*readings):
     whatever DuckDB's allocator does with three rows.
     """
     figures = iter(readings)
-    return staticmethod(lambda cursor: next(figures))
+    return lambda cursor: next(figures)
 
 
 def _tables(value) -> set[str]:
@@ -2043,7 +2037,7 @@ def test_the_cache_evicts_the_least_recently_used_and_drops_its_table(
         resolver={}.__getitem__,
     ) as value:
         monkeypatch.setattr(
-            execute.Corpus, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
+            execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
         )
         first = frozenset({"reaction_id", "provenance"})
         second = frozenset({"reaction_id", "conditions"})
@@ -2069,7 +2063,7 @@ def test_a_table_a_search_is_reading_is_not_evicted(corpus_dir, monkeypatch):
         resolver={}.__getitem__,
     ) as value:
         monkeypatch.setattr(
-            execute.Corpus, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
+            execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
         )
         first = frozenset({"reaction_id", "provenance"})
         second = frozenset({"reaction_id", "conditions"})
@@ -2094,7 +2088,7 @@ def test_a_failed_materialization_leaves_nothing_behind(corpus_dir, monkeypatch)
         {"where": {"op": "not_null", "path": "provenance.doi"}}
     )
     failing = True
-    original = execute.Corpus._memory_bytes
+    original = execute._memory_bytes
     reads = 0
 
     def sometimes(cursor):
@@ -2106,7 +2100,7 @@ def test_a_failed_materialization_leaves_nothing_behind(corpus_dir, monkeypatch)
             raise duckdb.Error("no memory accounting today")
         return original(cursor)
 
-    monkeypatch.setattr(execute.Corpus, "_memory_bytes", staticmethod(sometimes))
+    monkeypatch.setattr(execute, "_memory_bytes", sometimes)
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),

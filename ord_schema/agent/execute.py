@@ -167,6 +167,61 @@ def _max_structure_id(path: str) -> int | None:
     return largest
 
 
+def _index(pattern: str, artifact: str, require_current: bool) -> dict[str, str]:
+    """Returns the artifacts matching ``pattern``, keyed by source dataset.
+
+    Keyed by the source hash rather than the filename because that is what an
+    artifact *is*: two files pair when they restate the same dataset, whatever
+    they are called or wherever they sit. Keying on the basename would let two
+    files in different directories collapse onto one another silently.
+
+    Args:
+        pattern: Glob matching the artifact files.
+        artifact: Artifact name every match must hold.
+        require_current: Refuse artifacts not written by the current versions.
+
+    Returns:
+        A mapping from source dataset hash to path.
+
+    Raises:
+        PairingError: If a match holds another artifact, is stale under
+            ``require_current``, or restates a dataset another match already did.
+    """
+    index: dict[str, str] = {}
+    for path in sorted(glob.glob(pattern, recursive=True)):
+        stamps = artifacts.load_stamps(path)
+        if stamps.artifact != artifact:
+            raise PairingError(f"{path} is a {stamps.artifact}, not a {artifact}")
+        if require_current and not artifacts.stamps_are_current(stamps, artifact):
+            raise PairingError(f"{path} is stale; derive it again first")
+        if stamps.source_md5 in index:
+            raise PairingError(
+                f"{path} and {index[stamps.source_md5]} are both {artifact} "
+                "artifacts of the same source dataset; which one answers a query "
+                "would be arbitrary"
+            )
+        index[stamps.source_md5] = path
+    return index
+
+
+def _pair(
+    projection_pattern: str, structures_pattern: str, require_current: bool
+) -> list[tuple[str, str]]:
+    """Returns (projection, structures) path pairs, verified by their stamps."""
+    projections = _index(projection_pattern, projection.ARTIFACT, require_current)
+    structure_files = _index(structures_pattern, structures.ARTIFACT, require_current)
+    if not projections:
+        raise PairingError(f"no projections matched: {projection_pattern}")
+    unpaired = projections.keys() ^ structure_files.keys()
+    if unpaired:
+        orphans = sorted((projections | structure_files)[key] for key in unpaired)
+        raise PairingError(
+            "projections and structures artifacts do not pair up; these have no "
+            f"counterpart derived from the same source dataset: {orphans}"
+        )
+    return [(projections[key], structure_files[key]) for key in sorted(projections)]
+
+
 # A structure that did not parse still gets a library entry, so every structure ID
 # resolves to one and the mapping needs no special case. An empty molecule fingerprints
 # to no bits, and a query with no atoms is refused, so it can never match.
@@ -246,6 +301,53 @@ def _indexed_paths(schema: pa.Schema = projection.SCHEMA) -> dict[str, str]:
 INDEXED_PATHS = _indexed_paths()
 
 
+def _index_condition(
+    path: str,
+    fields: dict[str, str],
+    allocate: Callable[[], str],
+) -> str | None:
+    """Returns a row condition standing for an element quantifier, or None.
+
+    The compiler's ``ElementIndex``: it has already read the quantifier's body down
+    to a structure predicate on the element's own ``smiles`` and the field
+    equalities beside it, and this decides whether an occurrence row can carry that
+    question. A row holds the path, the corpus-wide structure ID, and one element
+    field, so a query binding any other field, or asking about a path the index does
+    not cover, is left to the elements.
+
+    What comes back is a semi-join rather than a whole query, which is what lets the
+    rest of the query stay exactly what it was: the aggregate, the ordering, the
+    limit, and every clause beside this one compile unchanged, and this condition
+    narrows the same rows they are about. A reaction is one row of ``reactions``, so
+    the join cannot multiply rows and needs no DISTINCT.
+
+    Args:
+        path: The path the quantifier ranges over.
+        fields: Element fields the body requires, mapped to their literals.
+        allocate: Names the structure parameter the match set binds under.
+
+    Returns:
+        The condition, or None to leave the quantifier compiled over the elements.
+    """
+    if path not in INDEXED_PATHS or set(fields) - {_INDEXED_FIELD}:
+        return None
+    conditions = [
+        f"occurrence.path = '{path}'",
+        f"get_bit(CAST(${allocate()} AS BITSTRING), occurrence.global_id::INTEGER) = 1",
+    ]
+    role = fields.get(_INDEXED_FIELD)
+    if role is not None:
+        escaped = role.replace("'", "''")
+        conditions.append(f"occurrence.{_INDEXED_FIELD} = '{escaped}'")
+    # S608: every fragment is a schema-derived path, a compiler-issued parameter
+    # name, or an escaped literal. The inner relation is aliased so that the outer
+    # reaction_id and the inner one cannot be confused for each other.
+    return (
+        "reaction_id IN (SELECT occurrence.reaction_id "  # noqa: S608
+        f"FROM occurrences AS occurrence WHERE {' AND '.join(conditions)})"
+    )
+
+
 def _group(entry_of: array.array, count: int) -> tuple[array.array, array.array]:
     """Inverts structure-to-entry into entry-to-structures.
 
@@ -269,6 +371,103 @@ def _group(entry_of: array.array, count: int) -> tuple[array.array, array.array]
         members[cursor[entry]] = global_id
         cursor[entry] += 1
     return members, starts
+
+
+def _mentioned(sql: str) -> frozenset[str]:
+    """Returns the top-level projection columns a compiled query names.
+
+    Read back off the SQL rather than walked from the query, because the SQL is
+    what has to resolve: a column named there and missing from the table is a
+    catalog error, and one named only in the query is nothing at all.
+
+    Matched as a word anywhere outside a string literal, so this errs wide in one
+    way: a nested field sharing a leaf name with a top-level column names both --
+    ``smiles`` is a component's field and a reaction's own column -- and costs a
+    column that gets materialized and never read. Literals are stripped first
+    because a name inside one is never a column reference, and the index's
+    semi-joins carry path literals like ``'inputs.components'`` that would otherwise
+    pull the projection's largest column into every narrow table.
+
+    Args:
+        sql: The compiled query.
+
+    Returns:
+        The columns the query mentions, always including ``reaction_id``.
+    """
+    # An escaped quote inside a literal is two quotes, so this eats those too.
+    outside = re.sub(r"'(?:[^']|'')*'", "''", sql)
+    mentioned = {
+        column
+        for column in _TOP_LEVEL
+        if re.search(rf"\b{re.escape(column)}\b", outside)
+    }
+    mentioned.add("reaction_id")
+    return frozenset(mentioned)
+
+
+def _memory_bytes(cursor: duckdb.DuckDBPyConnection) -> int:
+    """Returns the bytes DuckDB holds in its in-memory tables.
+
+    The database-wide figure, so the cost of one table is the difference across
+    creating it. ``duckdb_tables`` reports a row *count* rather than a size, which
+    is why this asks the memory accounting instead.
+
+    Args:
+        cursor: Any cursor on the corpus connection.
+
+    Returns:
+        Bytes held, across every table in the database.
+    """
+    row = cursor.execute(
+        "SELECT coalesce(sum(memory_usage_bytes), 0) FROM duckdb_memory() "
+        "WHERE tag = 'IN_MEMORY_TABLE'"
+    ).fetchone()
+    return int(row[0]) if row is not None and row[0] is not None else 0
+
+
+def _run_with_timeout(
+    cursor: duckdb.DuckDBPyConnection,
+    sql: str,
+    parameters: dict[str, Any],
+    timeout_seconds: float,
+) -> pa.Table:
+    """Runs ``sql``, interrupting it if it outlasts ``timeout_seconds``.
+
+    ``Timer.cancel`` only sets a flag, so a timer that has already passed its own
+    check fires anyway. The lock makes the interrupt and the teardown exclusive, so
+    it either lands while this query is running or not at all -- and in particular
+    never after the caller closes the cursor.
+
+    Args:
+        cursor: The cursor to run on, and the one an expired timer interrupts.
+        sql: The compiled query.
+        parameters: Values to bind.
+        timeout_seconds: Wall-clock bound.
+
+    Returns:
+        The result as an Arrow table.
+
+    Raises:
+        TimeoutError: If the query is interrupted by the timer.
+    """
+    lock = threading.Lock()
+    running = True
+
+    def interrupt() -> None:
+        with lock:
+            if running:
+                cursor.interrupt()
+
+    timer = threading.Timer(timeout_seconds, interrupt)
+    timer.start()
+    try:
+        return cursor.execute(sql, parameters).to_arrow_table()
+    except duckdb.InterruptException as error:
+        raise TimeoutError(f"query exceeded {timeout_seconds} seconds") from error
+    finally:
+        timer.cancel()
+        with lock:
+            running = False
 
 
 @dataclasses.dataclass
@@ -357,7 +556,7 @@ class Corpus:
         )
         self._narrow_serial = 0
         self._narrow_lock = threading.Lock()
-        pairs = self._pair(projection_pattern, structures_pattern, require_current)
+        pairs = _pair(projection_pattern, structures_pattern, require_current)
         self._connection = duckdb.connect()
         try:
             self._total, self._searchable = self._prepare(pairs)
@@ -366,65 +565,6 @@ class Corpus:
             # close one from if __init__ does not return.
             self._connection.close()
             raise
-
-    @staticmethod
-    def _index(pattern: str, artifact: str, require_current: bool) -> dict[str, str]:
-        """Returns the artifacts matching ``pattern``, keyed by source dataset.
-
-        Keyed by the source hash rather than the filename because that is what an
-        artifact *is*: two files pair when they restate the same dataset, whatever
-        they are called or wherever they sit. Keying on the basename would let two
-        files in different directories collapse onto one another silently.
-
-        Args:
-            pattern: Glob matching the artifact files.
-            artifact: Artifact name every match must hold.
-            require_current: Refuse artifacts not written by the current versions.
-
-        Returns:
-            A mapping from source dataset hash to path.
-
-        Raises:
-            PairingError: If a match holds another artifact, is stale under
-                ``require_current``, or restates a dataset another match already did.
-        """
-        index: dict[str, str] = {}
-        for path in sorted(glob.glob(pattern, recursive=True)):
-            stamps = artifacts.load_stamps(path)
-            if stamps.artifact != artifact:
-                raise PairingError(f"{path} is a {stamps.artifact}, not a {artifact}")
-            if require_current and not artifacts.stamps_are_current(stamps, artifact):
-                raise PairingError(f"{path} is stale; derive it again first")
-            if stamps.source_md5 in index:
-                raise PairingError(
-                    f"{path} and {index[stamps.source_md5]} are both {artifact} "
-                    "artifacts of the same source dataset; which one answers a query "
-                    "would be arbitrary"
-                )
-            index[stamps.source_md5] = path
-        return index
-
-    @staticmethod
-    def _pair(
-        projection_pattern: str, structures_pattern: str, require_current: bool
-    ) -> list[tuple[str, str]]:
-        """Returns (projection, structures) path pairs, verified by their stamps."""
-        projections = Corpus._index(
-            projection_pattern, projection.ARTIFACT, require_current
-        )
-        structure_files = Corpus._index(
-            structures_pattern, structures.ARTIFACT, require_current
-        )
-        if not projections:
-            raise PairingError(f"no projections matched: {projection_pattern}")
-        unpaired = projections.keys() ^ structure_files.keys()
-        if unpaired:
-            orphans = sorted((projections | structure_files)[key] for key in unpaired)
-            raise PairingError(
-                "projections and structures artifacts do not pair up; these have no "
-                f"counterpart derived from the same source dataset: {orphans}"
-            )
-        return [(projections[key], structure_files[key]) for key in sorted(projections)]
 
     def _prepare(self, pairs: list[tuple[str, str]]) -> tuple[int, int]:
         """Publishes the relations, and returns the total and searchable row counts."""
@@ -678,54 +818,6 @@ class Corpus:
             self._substructure_library = library
             return self._substructure_library
 
-    @staticmethod
-    def _index_condition(
-        path: str,
-        fields: dict[str, str],
-        allocate: Callable[[], str],
-    ) -> str | None:
-        """Returns a row condition standing for an element quantifier, or None.
-
-        The compiler's ``ElementIndex``: it has already read the quantifier's body down
-        to a structure predicate on the element's own ``smiles`` and the field
-        equalities beside it, and this decides whether an occurrence row can carry that
-        question. A row holds the path, the corpus-wide structure ID, and one element
-        field, so a query binding any other field, or asking about a path the index does
-        not cover, is left to the elements.
-
-        What comes back is a semi-join rather than a whole query, which is what lets the
-        rest of the query stay exactly what it was: the aggregate, the ordering, the
-        limit, and every clause beside this one compile unchanged, and this condition
-        narrows the same rows they are about. A reaction is one row of ``reactions``, so
-        the join cannot multiply rows and needs no DISTINCT.
-
-        Args:
-            path: The path the quantifier ranges over.
-            fields: Element fields the body requires, mapped to their literals.
-            allocate: Names the structure parameter the match set binds under.
-
-        Returns:
-            The condition, or None to leave the quantifier compiled over the elements.
-        """
-        if path not in INDEXED_PATHS or set(fields) - {_INDEXED_FIELD}:
-            return None
-        conditions = [
-            f"occurrence.path = '{path}'",
-            f"get_bit(CAST(${allocate()} AS BITSTRING), "
-            "occurrence.global_id::INTEGER) = 1",
-        ]
-        role = fields.get(_INDEXED_FIELD)
-        if role is not None:
-            escaped = role.replace("'", "''")
-            conditions.append(f"occurrence.{_INDEXED_FIELD} = '{escaped}'")
-        # S608: every fragment is a schema-derived path, a compiler-issued parameter
-        # name, or an escaped literal. The inner relation is aliased so that the outer
-        # reaction_id and the inner one cannot be confused for each other.
-        return (
-            "reaction_id IN (SELECT occurrence.reaction_id "  # noqa: S608
-            f"FROM occurrences AS occurrence WHERE {' AND '.join(conditions)})"
-        )
-
     def _occurrences(self) -> None:
         """Builds the occurrence index, once.
 
@@ -887,58 +979,6 @@ class Corpus:
             bits[global_id] = ord("1")
         return bits.decode()
 
-    @staticmethod
-    def _mentioned(sql: str) -> frozenset[str]:
-        """Returns the top-level projection columns a compiled query names.
-
-        Read back off the SQL rather than walked from the query, because the SQL is
-        what has to resolve: a column named there and missing from the table is a
-        catalog error, and one named only in the query is nothing at all.
-
-        Matched as a word anywhere outside a string literal, so this errs wide in one
-        way: a nested field sharing a leaf name with a top-level column names both --
-        ``smiles`` is a component's field and a reaction's own column -- and costs a
-        column that gets materialized and never read. Literals are stripped first
-        because a name inside one is never a column reference, and the index's
-        semi-joins carry path literals like ``'inputs.components'`` that would otherwise
-        pull the projection's largest column into every narrow table.
-
-        Args:
-            sql: The compiled query.
-
-        Returns:
-            The columns the query mentions, always including ``reaction_id``.
-        """
-        # An escaped quote inside a literal is two quotes, so this eats those too.
-        outside = re.sub(r"'(?:[^']|'')*'", "''", sql)
-        mentioned = {
-            column
-            for column in _TOP_LEVEL
-            if re.search(rf"\b{re.escape(column)}\b", outside)
-        }
-        mentioned.add("reaction_id")
-        return frozenset(mentioned)
-
-    @staticmethod
-    def _memory_bytes(cursor: duckdb.DuckDBPyConnection) -> int:
-        """Returns the bytes DuckDB holds in its in-memory tables.
-
-        The database-wide figure, so the cost of one table is the difference across
-        creating it. ``duckdb_tables`` reports a row *count* rather than a size, which
-        is why this asks the memory accounting instead.
-
-        Args:
-            cursor: Any cursor on the corpus connection.
-
-        Returns:
-            Bytes held, across every table in the database.
-        """
-        row = cursor.execute(
-            "SELECT coalesce(sum(memory_usage_bytes), 0) FROM duckdb_memory() "
-            "WHERE tag = 'IN_MEMORY_TABLE'"
-        ).fetchone()
-        return int(row[0]) if row is not None and row[0] is not None else 0
-
     def _materialize(self, columns: frozenset[str]) -> _Narrow | None:
         """Returns a held table of ``columns``, building it if the cache lacks one.
 
@@ -968,7 +1008,7 @@ class Corpus:
             # are in flight, and the shared connection holds their results.
             cursor = self._connection.cursor()
             try:
-                before = self._memory_bytes(cursor)
+                before = _memory_bytes(cursor)
                 # S608: the names come from the projection schema and this module.
                 cursor.execute(
                     f"CREATE TABLE {name} AS "  # noqa: S608
@@ -977,7 +1017,7 @@ class Corpus:
                 # Measured under the lock, so no other materialization moves the figure
                 # between the two reads. An index build can, which costs an
                 # overstatement and an eviction, never a wrong answer.
-                held = max(self._memory_bytes(cursor) - before, 0)
+                held = max(_memory_bytes(cursor) - before, 0)
                 if held > _NARROW_BUDGET_BYTES:
                     # Too big to keep, and keeping it is the only reason to build it.
                     cursor.execute(f"DROP TABLE {name}")
@@ -1218,7 +1258,7 @@ class Corpus:
             path: str, fields: dict[str, str], allocate: Callable[[], str]
         ) -> str | None:
             nonlocal indexing
-            condition = self._index_condition(path, fields, allocate)
+            condition = _index_condition(path, fields, allocate)
             indexing = indexing or condition is not None
             return condition
 
@@ -1246,7 +1286,7 @@ class Corpus:
             # against a different relation -- no rewriting of SQL text, which a query
             # whose own string literal named the relation would otherwise corrupt.
             narrow = reading.enter_context(
-                self._narrowed_table(self._mentioned(compiled.sql))
+                self._narrowed_table(_mentioned(compiled.sql))
             )
             if narrow is not None:
                 compiled = query.compile_query(request, table=narrow, index=index)
@@ -1261,53 +1301,8 @@ class Corpus:
                     )
                 if timeout_seconds is None:
                     return cursor.execute(compiled.sql, parameters).to_arrow_table()
-                return self._run_with_timeout(
+                return _run_with_timeout(
                     cursor, compiled.sql, parameters, timeout_seconds
                 )
             finally:
                 cursor.close()
-
-    @staticmethod
-    def _run_with_timeout(
-        cursor: duckdb.DuckDBPyConnection,
-        sql: str,
-        parameters: dict[str, Any],
-        timeout_seconds: float,
-    ) -> pa.Table:
-        """Runs ``sql``, interrupting it if it outlasts ``timeout_seconds``.
-
-        ``Timer.cancel`` only sets a flag, so a timer that has already passed its own
-        check fires anyway. The lock makes the interrupt and the teardown exclusive, so
-        it either lands while this query is running or not at all -- and in particular
-        never after the caller closes the cursor.
-
-        Args:
-            cursor: The cursor to run on, and the one an expired timer interrupts.
-            sql: The compiled query.
-            parameters: Values to bind.
-            timeout_seconds: Wall-clock bound.
-
-        Returns:
-            The result as an Arrow table.
-
-        Raises:
-            TimeoutError: If the query is interrupted by the timer.
-        """
-        lock = threading.Lock()
-        running = True
-
-        def interrupt() -> None:
-            with lock:
-                if running:
-                    cursor.interrupt()
-
-        timer = threading.Timer(timeout_seconds, interrupt)
-        timer.start()
-        try:
-            return cursor.execute(sql, parameters).to_arrow_table()
-        except duckdb.InterruptException as error:
-            raise TimeoutError(f"query exceeded {timeout_seconds} seconds") from error
-        finally:
-            timer.cancel()
-            with lock:
-                running = False
