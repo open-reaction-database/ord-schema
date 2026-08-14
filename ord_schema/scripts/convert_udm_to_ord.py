@@ -427,8 +427,12 @@ def _build_base_reaction(
     """Builds the reaction-level data shared by every variation of `reaction`.
 
     Covers the UDM fields that live directly on <REACTION> rather than on a
-    specific <VARIATION>: REACTANT_ID/PRODUCT_ID placeholders, RXNSTRUCTURE
+    specific <VARIATION>: the REACTANT_ID placeholder, RXNSTRUCTURE
     identifiers, and (if requested via --include-udm-xml) the raw source XML.
+    PRODUCT_ID is handled per-variation instead (see _add_variation), since
+    it needs to know which product molecules that variation's own <PRODUCT>
+    entries already cover, to avoid double-counting one product as two
+    ReactionOutcomes.
     """
     base_reaction = reaction_pb2.Reaction()
 
@@ -468,14 +472,6 @@ def _build_base_reaction(
             base_reaction.identifiers.add(
                 type=ordtype, details=orddetails, value=structure["value"]
             )
-
-    if "PRODUCT_ID" in reaction:
-        outcome = base_reaction.outcomes.add()
-        for product_id in _as_list(reaction["PRODUCT_ID"]):
-            identifier = outcome.products.add().identifiers.add(
-                type="CUSTOM", details="PRODUCT_ID from UDM"
-            )
-            identifier.value = product_id
 
     return base_reaction
 
@@ -539,8 +535,27 @@ def _add_variation(
     if comment:
         pb2_reaction.observations.add().comment = comment
 
+    # PRODUCT_ID is a reaction-level placeholder (bare molecule ID, no
+    # structure/yield); PRODUCT is the fuller variation-level data. Track
+    # which molecules this variation's own PRODUCT entries already cover so
+    # a PRODUCT_ID for the same molecule isn't recorded as a second,
+    # duplicate ReactionOutcome.
+    covered_product_ids = set()
     for udm_product in _as_list(variation.get("PRODUCT")):
+        molecule = udm_product.get("MOLECULE")
+        if molecule and molecule.get("@MOL_ID"):
+            covered_product_ids.add(molecule["@MOL_ID"])
         _add_product(pb2_reaction, all_molecules, udm_product)
+
+    for product_id in _as_list(reaction.get("PRODUCT_ID")):
+        if product_id in covered_product_ids:
+            continue
+        identifier = (
+            pb2_reaction.outcomes.add()
+            .products.add()
+            .identifiers.add(type="CUSTOM", details="PRODUCT_ID from UDM")
+        )
+        identifier.value = product_id
 
     _add_provenance(
         pb2_reaction,

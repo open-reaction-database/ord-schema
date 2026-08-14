@@ -588,6 +588,83 @@ def test_single_reactant_id_is_not_split_into_characters(tmp_path):
     assert component.identifiers[0].value == "abc123"
 
 
+def test_empty_product_id_does_not_add_spurious_outcome(tmp_path):
+    """Regression test: a self-closing <PRODUCT_ID/> must not add an empty
+    ReactionOutcome with zero products.
+    """
+    reaction_xml = """
+    <REACTION>
+      <PRODUCT_ID/>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    assert len(dataset.reactions[0].outcomes) == 0
+
+
+def test_product_id_does_not_duplicate_a_covered_product(tmp_path):
+    """Regression test: a reaction-level PRODUCT_ID for a molecule already
+    covered by the variation's own <PRODUCT> must not add a second,
+    duplicate ReactionOutcome for the same product.
+    """
+    reaction_xml = """
+    <REACTION>
+      <PRODUCT_ID>m2</PRODUCT_ID>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+        <PRODUCT>
+          <MOLECULE MOL_ID="m2"><NAME>Product A</NAME></MOLECULE>
+          <YIELD><exact>85.0</exact></YIELD>
+        </PRODUCT>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    [outcome] = dataset.reactions[0].outcomes
+    [product] = outcome.products
+    assert product.measurements[0].percentage.value == 85.0
+
+
+def test_product_id_still_recorded_when_not_covered_by_product(tmp_path):
+    """A PRODUCT_ID for a molecule the variation's own PRODUCT list doesn't
+    mention is still recorded as its own placeholder outcome.
+    """
+    reaction_xml = """
+    <REACTION>
+      <PRODUCT_ID>m2</PRODUCT_ID>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    [outcome] = dataset.reactions[0].outcomes
+    assert outcome.products[0].identifiers[0].value == "m2"
+
+
 def test_unknown_molecule_reference_does_not_crash(tmp_path):
     reaction_xml = """
     <REACTION>
