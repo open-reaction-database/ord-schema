@@ -298,6 +298,23 @@ def _format_range_text(value: UdmDict, default_unit: str) -> str | None:
     return f"{midpoint} {unit}".strip()
 
 
+def _format_incr(value: UdmDict) -> str | None:
+    """Renders a *Range's optional <incr> ramp-rate child as text, if present.
+
+    Only temperatureRange (and percentageRange, unused by CONDITION_GROUP)
+    define <incr> in the XSD; every other range type simply won't have it,
+    so this is a no-op for them. ORD has no ramp-rate field on Temperature,
+    so incr never has a structured home -- it must always be surfaced as
+    text, even when the range's central value is captured structurally.
+    """
+    if "incr" not in value:
+        return None
+    text, unit = _text_and_unit(value["incr"])
+    if not text:
+        return None
+    return f"{text} {unit}".strip() if unit else text
+
+
 # CONDITION_GROUP's *Range-typed fields, with the default @unit each takes
 # per the XSD when @unit is omitted (udm_6_0_0.xsd / udm_6_0_0_units.xsd).
 _CONDITION_GROUP_RANGE_FIELDS: tuple[tuple[str, str, str], ...] = (
@@ -348,11 +365,17 @@ def _condition_group_fields(
         if ids:
             parts.append(f"{label}={','.join(ids)}")
     for field, default_unit, label in _CONDITION_GROUP_RANGE_FIELDS:
-        if field in exclude:
-            continue
-        text = _format_range_text(group.get(field, {}), default_unit)
-        if text:
-            parts.append(f"{label} {text}")
+        field_value = group.get(field, {})
+        if field not in exclude:
+            text = _format_range_text(field_value, default_unit)
+            if text:
+                parts.append(f"{label} {text}")
+        # incr (ramp rate) has no ORD equivalent regardless of whether the
+        # central value above is captured structurally, so it's always
+        # checked, not just when `field` itself isn't excluded.
+        incr = _format_incr(field_value)
+        if incr:
+            parts.append(f"{label} ramp={incr}")
     if "REFLUX" not in exclude and "REFLUX" in group:
         parts.append(f"reflux={group['REFLUX']}")
     if "BUFFER_TYPE" not in exclude and group.get("BUFFER_TYPE"):

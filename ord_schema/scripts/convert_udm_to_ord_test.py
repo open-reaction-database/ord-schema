@@ -472,6 +472,43 @@ def test_dynamic_condition_groups_include_buffer_and_agent_fields(tmp_path):
     assert "buffer=phosphate" in reaction.conditions.details
 
 
+def test_temperature_ramp_incr_is_not_dropped(tmp_path):
+    """Regression test: <TEMPERATURE>'s optional <incr> ramp-rate child has
+    no ORD field to live in, so it must surface as text even in the
+    single-group case where the central value *is* captured structurally
+    (Temperature.setpoint) -- excluding all of TEMPERATURE from the "extra"
+    text pass would silently drop incr along with it.
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+        <CONDITIONS>
+          <CONDITION_GROUP>
+            <TEMPERATURE>
+              <max>100</max>
+              <incr unit="deg_C/hour">5</incr>
+            </TEMPERATURE>
+          </CONDITION_GROUP>
+        </CONDITIONS>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    reaction = dataset.reactions[0]
+    # Central value still structural.
+    assert reaction.conditions.temperature.setpoint.value == 100.0
+    # Ramp rate, which has no structured home, surfaces as text instead.
+    assert "temperature ramp=5 deg_C/hour" in reaction.conditions.details
+
+
 def test_reaction_without_variation_still_emits_one_reaction(tmp_path):
     reaction_xml = """
     <REACTION>
