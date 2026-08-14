@@ -265,14 +265,23 @@ def _text_and_unit(value: Any) -> tuple[str | None, str | None]:
 
 
 def _parse_range(value: UdmDict) -> tuple[float, float | None] | None:
-    """Parses a UDM min/max/exact range into (midpoint, precision).
+    """Parses a UDM min/max/exact range into a point value: (midpoint, precision).
 
     UDM's *Range types (temperatureRange, pressureRange, etc.) hold exactly
     one of {min, max, min and max, exact} -- see Docs/ChangeLog.md's note on
     XML Schema's limited support for "exactly one of" constraints. `exact`
     maps to (value, None); a min/max pair maps to their midpoint with
-    precision = half the spread; a lone min or max maps to that value with
-    no precision. Returns None if none of min/max/exact is present.
+    precision = half the spread.
+
+    A *lone* min or max is deliberately NOT treated as a point value here:
+    "at most 100 degC" is not the same claim as "exactly 100 degC", and
+    ORD's Temperature/Pressure/etc. messages have no field for a one-sided
+    bound, only value+precision. Returning it as (100, None) -- identical
+    to what an actual <exact>100</exact> produces -- would silently turn a
+    bound into a fabricated exact reading. Callers that only need a
+    complete/exact point value should use this function directly and treat
+    None as "not capturable structurally"; _format_range_text (below)
+    additionally renders a one-sided bound as labeled text.
     """
     if "exact" in value:
         return float(value["exact"]), None
@@ -280,23 +289,31 @@ def _parse_range(value: UdmDict) -> tuple[float, float | None] | None:
     if min_v is not None and max_v is not None:
         min_f, max_f = float(min_v), float(max_v)
         return (min_f + max_f) / 2, (max_f - min_f) / 2
-    if min_v is not None:
-        return float(min_v), None
-    if max_v is not None:
-        return float(max_v), None
     return None
 
 
 def _format_range_text(value: UdmDict, default_unit: str) -> str | None:
-    """Renders a UDM min/max/exact range as human-readable text, e.g. "20±5 degC"."""
-    parsed = _parse_range(value)
-    if parsed is None:
-        return None
-    midpoint, precision = parsed
+    """Renders a UDM min/max/exact range as human-readable text.
+
+    A complete range or exact value renders as "20±5 degC" / "20 degC". A
+    lone min or max -- which _parse_range deliberately does not turn into a
+    point value, see its docstring -- renders as a labeled bound instead,
+    e.g. ">=20 degC" or "<=100 degC", so it's never confused with an exact
+    reading.
+    """
     unit = value.get("@unit", default_unit)
-    if precision:
-        return f"{midpoint}±{precision} {unit}".strip()
-    return f"{midpoint} {unit}".strip()
+    parsed = _parse_range(value)
+    if parsed is not None:
+        midpoint, precision = parsed
+        if precision:
+            return f"{midpoint}±{precision} {unit}".strip()
+        return f"{midpoint} {unit}".strip()
+    min_v, max_v = value.get("min"), value.get("max")
+    if min_v is not None:
+        return f">={min_v} {unit}".strip()
+    if max_v is not None:
+        return f"<={max_v} {unit}".strip()
+    return None
 
 
 def _format_incr(value: UdmDict) -> str | None:
@@ -723,7 +740,8 @@ def _add_product(
     _set_molecule_identifier(
         component, all_molecules, molecule.get("@MOL_ID"), "PRODUCT"
     )
-    parsed = _parse_range(udm_product.get("YIELD", {}))
+    yield_ = udm_product.get("YIELD", {})
+    parsed = _parse_range(yield_)
     if parsed:
         value, precision = parsed
         measurement = component.measurements.add()
@@ -733,6 +751,19 @@ def _add_product(
         measurement.percentage.value = value
         if precision:
             measurement.percentage.precision = precision
+    else:
+        # A lone <min> or <max> ("at least"/"at most" X%) isn't a point
+        # value _parse_range will produce (see its docstring) -- ORD's
+        # Percentage has no field for a one-sided bound, so it's recorded
+        # as text via .details instead of being fabricated as exact or
+        # silently dropped.
+        text = _format_range_text(yield_, "percent")
+        if text:
+            measurement = component.measurements.add()
+            measurement.type = (
+                reaction_pb2.ProductMeasurement.ProductMeasurementType.YIELD
+            )
+            measurement.details = f"yield {text}"
 
 
 def _add_provenance(

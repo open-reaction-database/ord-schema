@@ -478,6 +478,9 @@ def test_temperature_ramp_incr_is_not_dropped(tmp_path):
     single-group case where the central value *is* captured structurally
     (Temperature.setpoint) -- excluding all of TEMPERATURE from the "extra"
     text pass would silently drop incr along with it.
+
+    Uses a complete <min>/<max> pair rather than <exact>, since the XSD's
+    temperatureRange only allows <incr> alongside min/max, never <exact>.
     """
     reaction_xml = """
     <REACTION>
@@ -488,7 +491,8 @@ def test_temperature_ramp_incr_is_not_dropped(tmp_path):
         <CONDITIONS>
           <CONDITION_GROUP>
             <TEMPERATURE>
-              <max>100</max>
+              <min>95</min>
+              <max>105</max>
               <incr unit="deg_C/hour">5</incr>
             </TEMPERATURE>
           </CONDITION_GROUP>
@@ -503,10 +507,77 @@ def test_temperature_ramp_incr_is_not_dropped(tmp_path):
 
     dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
     reaction = dataset.reactions[0]
-    # Central value still structural.
+    # Central value still structural: a complete min/max pair is a point
+    # value (midpoint + precision), unlike a lone bound (see the next test).
     assert reaction.conditions.temperature.setpoint.value == 100.0
+    assert reaction.conditions.temperature.setpoint.precision == 5.0
     # Ramp rate, which has no structured home, surfaces as text instead.
     assert "temperature ramp=5 deg_C/hour" in reaction.conditions.details
+
+
+def test_lone_bound_is_not_treated_as_an_exact_value(tmp_path):
+    """Regression test: a lone <max> (no <min>, no <exact>) means "at most
+    X", not "exactly X" -- it must not be written to Temperature.setpoint
+    as if it were an exact reading, and must still be recoverable as
+    labeled text rather than silently dropped.
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+        <CONDITIONS>
+          <CONDITION_GROUP>
+            <TEMPERATURE><max>100</max></TEMPERATURE>
+          </CONDITION_GROUP>
+        </CONDITIONS>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    reaction = dataset.reactions[0]
+    # Not fabricated as an exact 100 degC setpoint.
+    assert reaction.conditions.temperature.setpoint.value == 0.0
+    # But not silently dropped either -- recorded as a labeled bound.
+    assert "temperature <=100 degC" in reaction.conditions.details
+
+
+def test_lone_bound_in_dynamic_stage_is_labeled(tmp_path):
+    """Same lone-bound distinction, but in the multi-group (dynamic) text
+    summary, which is the only record of each stage.
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+        <CONDITIONS>
+          <CONDITION_GROUP>
+            <TEMPERATURE><min>20</min><max>20</max></TEMPERATURE>
+          </CONDITION_GROUP>
+          <CONDITION_GROUP>
+            <TEMPERATURE><min>90</min></TEMPERATURE>
+          </CONDITION_GROUP>
+        </CONDITIONS>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    details = dataset.reactions[0].conditions.details
+    assert "Stage 1: temperature 20.0 degC" in details
+    assert "Stage 2: temperature >=90 degC" in details
 
 
 def test_non_rpm_stirring_is_not_dropped(tmp_path):
@@ -794,6 +865,33 @@ def test_yield_min_max_range_is_not_dropped(tmp_path):
         message_helpers.get_product_yield(dataset.reactions[0].outcomes[0].products[0])
         == 85.0
     )
+
+
+def test_yield_lone_bound_is_not_fabricated_as_exact(tmp_path):
+    """Regression test: a YIELD given as a lone <min> ("at least X%") must
+    not be written to Percentage.value as if it were an exact reading --
+    Percentage has no field for a one-sided bound, so it's recorded as text
+    via ProductMeasurement.details instead.
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <PRODUCT>
+          <MOLECULE MOL_ID="m2"><NAME>Product A</NAME></MOLECULE>
+          <YIELD><min>80</min></YIELD>
+        </PRODUCT>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    [measurement] = dataset.reactions[0].outcomes[0].products[0].measurements
+    assert not measurement.HasField("percentage")
+    assert measurement.details == "yield >=80 percent"
 
 
 def test_reaction_level_citations_with_multiple_entries(tmp_path):
