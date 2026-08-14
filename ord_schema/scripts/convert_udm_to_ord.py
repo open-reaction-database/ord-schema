@@ -579,7 +579,18 @@ def _add_component(
     if "MOLECULE" not in entry:
         return
     mol_id = entry["MOLECULE"]["@MOL_ID"]
-    component = pb2_reaction.inputs[mol_id].components.add()
+    # ReactionInput map keys are just descriptions (see reaction.proto), but
+    # components sharing one ReactionInput are modeled as added together in
+    # one addition event. If this MOL_ID already has a component under a
+    # *different* role, reuse would misrepresent two separate additions
+    # (e.g. the same compound used as both a REAGENT and a CATALYST, with
+    # distinct amounts) as one; disambiguate the key in that case only, so
+    # the common (non-colliding) case keeps the plain MOL_ID key.
+    key = mol_id
+    existing = pb2_reaction.inputs.get(mol_id)
+    if existing and any(c.reaction_role != role for c in existing.components):
+        key = f"{mol_id}_{role_label}"
+    component = pb2_reaction.inputs[key].components.add()
     _set_molecule_identifier(component, all_molecules, mol_id, role_label)
     component.reaction_role = role
     if "AMOUNT" in entry:
@@ -611,6 +622,17 @@ def _set_molecule_identifier(
             type="CUSTOM", details=f"{role_label} MOLECULE NAME from UDM"
         )
         identifier.value = molval["name"]
+    elif molval is not None:
+        # The molecule exists in <MOLECULES> but has neither a name nor a
+        # structure -- distinct from mol_id not being in <MOLECULES> at all.
+        identifier = component.identifiers.add(
+            type="CUSTOM",
+            details=(
+                f"{role_label} MOL_ID from UDM (found in <MOLECULES> but has "
+                "no NAME or MOLSTRUCTURE)"
+            ),
+        )
+        identifier.value = mol_id
     else:
         identifier = component.identifiers.add(
             type="CUSTOM",

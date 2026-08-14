@@ -19,7 +19,7 @@ import pathlib
 import pytest
 
 from ord_schema import message_helpers
-from ord_schema.proto import dataset_pb2
+from ord_schema.proto import dataset_pb2, reaction_pb2
 from ord_schema.scripts import convert_udm_to_ord
 
 _MOLECULES = """
@@ -684,6 +684,86 @@ def test_unknown_molecule_reference_does_not_crash(tmp_path):
     [component] = dataset.reactions[0].inputs["does_not_exist"].components
     assert component.identifiers[0].type == component.identifiers[0].CUSTOM
     assert component.identifiers[0].value == "does_not_exist"
+
+
+def test_molecule_found_but_empty_is_not_mislabeled_as_missing(tmp_path):
+    """Regression test: a <MOLECULE> present in <MOLECULES> but with neither
+    a NAME nor a MOLSTRUCTURE must not be labeled "not found in <MOLECULES>"
+    -- it was found, it's just empty, which is a different, distinguishable
+    problem for anyone debugging conversion gaps.
+    """
+    molecules = """
+      <MOLECULES>
+        <MOLECULE ID="m1"/>
+      </MOLECULES>
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+      </VARIATION>
+    </REACTION>
+"""
+    udm_xml = f"""<UDM>
+  <LEGAL><TITLE>Test Dataset</TITLE></LEGAL>
+  {molecules}
+  <REACTIONS>{reaction_xml}</REACTIONS>
+</UDM>
+"""
+    input_filename = _write(tmp_path, "input.xml", udm_xml)
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    [component] = dataset.reactions[0].inputs["m1"].components
+    details = component.identifiers[0].details
+    assert "not found in <MOLECULES>" not in details
+    assert "found in <MOLECULES> but has no NAME or MOLSTRUCTURE" in details
+
+
+def test_same_molecule_in_two_roles_does_not_merge_inputs(tmp_path):
+    """Regression test: the same MOL_ID used under two different roles in one
+    variation (e.g. as both a REAGENT and a CATALYST) must not collapse into
+    a single ReactionInput, which would misrepresent two separate additions
+    (with distinct amounts) as one addition event.
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <REAGENT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+          <AMOUNT>1.0</AMOUNT>
+        </REAGENT>
+        <CATALYST>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+          <AMOUNT>0.05</AMOUNT>
+        </CATALYST>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    reaction = dataset.reactions[0]
+    # The first-seen role (REAGENT) keeps the plain MOL_ID key; the second,
+    # different role (CATALYST) gets a disambiguated key instead of merging
+    # into the same ReactionInput.
+    assert len(reaction.inputs) == 2
+    [reagent_component] = reaction.inputs["m1"].components
+    assert reagent_component.reaction_role == reaction_pb2.ReactionRole.REAGENT
+    assert reagent_component.amount.moles.value == 1.0
+
+    [other_key] = [key for key in reaction.inputs if key != "m1"]
+    assert other_key == "m1_CATALYST"
+    [catalyst_component] = reaction.inputs[other_key].components
+    assert catalyst_component.reaction_role == reaction_pb2.ReactionRole.CATALYST
+    assert catalyst_component.amount.moles.value == pytest.approx(0.05)
 
 
 def test_yield_min_max_range_is_not_dropped(tmp_path):
