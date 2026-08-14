@@ -93,24 +93,90 @@ is a compile error rather than a wrong answer:
 A structure predicate compiles to a bitmap test, not to chemistry. The chemistry runs
 in [`execute.Corpus`](execute.py) against the [structures artifact](../structures.py).
 Substructure runs through an RDKit `SubstructLibrary` built over the corpus: a
-fingerprint **screen** — complete but not exact — over every structure row
-(deduplicated per dataset, so a molecule in two datasets is screened twice), then exact
-subgraph **verification** of the survivors. It runs on RDKit's own threads with the GIL
-released, so one `Corpus` serves concurrent requests without forking; the library is
-built on the first substructure query and costs about 8s and 2 GB for the full corpus.
+fingerprint **screen** — complete but not exact — over every distinct molecule in the
+corpus, then exact subgraph **verification** of the survivors. It runs on RDKit's own
+threads with the GIL released, so one `Corpus` serves concurrent requests without
+forking; the library is built on the first substructure query and costs seconds and
+about 1.5 GB for the full corpus.
 Each search takes its own DuckDB cursor, since a connection holds the pending result of
 its last `execute` and concurrent searches sharing one would read each other's rows.
 `threads` is per search rather than per corpus, so a server expecting several at once
 should set it to the core count divided by that concurrency instead of leaving it at
 `-1`.
+
+Finding which reactions hold a match is a separate cost from the chemistry, and the
+larger one. An **occurrence index** — one row per structure occurrence, carrying the
+corpus-wide ID, the path, and the element's own `reaction_role` — makes that a semi-join
+against a narrow table rather than a scan of every reaction. Keeping the role beside the
+structure is what keeps a bound query a condition on one row. At corpus scale the index
+is 14.1M rows and about 130 MB, resident for the life of the `Corpus`. A search for
+pyridine among the inputs returns in 1.46s **end to end**, pyridine as the solvent in
+1.74s, and a boronic acid in 0.15s — and for a common pattern nearly all of that is the
+RDKit screen and verify, which the index does not touch: pyridine's match alone is about
+1.4s of its 1.46s. What the index cut is the reaction lookup, from roughly 3.5s to 0.2s.
+
+The index answers one *quantifier* at a time, not one query: an `exists` whose body asks
+for one structure and at most one role becomes `reaction_id IN (...)`, and the rest of
+the query compiles as if the index did not exist. So "reactions with yield > 50% where
+pyridine is the solvent" spends the index on its pyridine clause and answers the yield
+clause from the projection, in one query — and aggregates, orderings, limits, negations,
+disjunctions, and second structure predicates all compose the same way. A quantifier the
+index cannot carry — one binding another element field, holding no structure predicate
+or two, or any `forall`, which needs every element rather than some — compiles over the
+elements, and the projection answers it. Either way it is one compiled query, screened
+and verified identically; the log line says whether the index took a clause. A level the
+source never recorded — most reactions have no workups and no authentic standards — is a
+level with no elements: nothing satisfies an `exists` there and nothing contradicts a
+`forall`, so "reactions **without** pyridine in the workup" includes every reaction that
+has no workup at all, whichever way the clause was answered. The index
+is built on the first query that spends it, one pass over the projections per indexed
+path, so a server that wants its first real query to be fast should issue a throwaway
+structure query at startup.
+
+What remains is the chemistry itself, and two things cut it. Structures are deduplicated
+per dataset, so the library holds one entry per **distinct** molecule — 1,435,426 of the
+corpus's 2,016,224 rows, so 29% of the matching disappears — and maps each entry back to
+every structure ID sharing it. And a match set depends on the query molecule, the
+operation, and the threshold, so recent ones are **cached**: pyridine costs 1.05s the
+first time and 0.02s the next. A compound is keyed by what it resolved to rather than by
+its name, and by which parser reads it — the same text is one molecule as SMILES and
+another as SMARTS. A predicate asked
+again while the first pass is still running waits for that pass, so a burst of identical
+requests costs one match; unrelated searches still overlap.
+
+Queries the index declines read the projection, and read it faster from a **materialized
+column set** holding only the top-level columns they name. Reading a handful of columns
+out of a 442-leaf projection spread over 53 files costs mostly per-file overhead, which
+is the same whatever the query asks for; paying it once and answering from memory
+afterwards takes a temperature filter from 1.24s to 0.21s and a group-by on stirring
+type from 0.75s to 0.003s. The columns are read back off the compiled SQL and the query
+is then compiled again against the table, so a column it names and the table lacks is a
+catalog error rather than a wrong answer, and no SQL text is edited. Sets are held to a
+memory budget and evicted least-recently-used, skipping any a search is still reading;
+one too large to keep is not kept, the projection answers directly, and that is
+remembered rather than rediscovered by building it again. Only builds wait on builds: a
+search whose columns are already materialized is answered while another is being built. The rows are the
+same rows either way, in an order neither relation promises — a query wanting one has to
+say so.
+
+The screen itself is not a lever. It is the same `PatternFingerprint` the RDKit
+PostgreSQL cartridge screens with (`rdkit.sss_fp_size`, via `makeMolSignature`), and for
+a small common query it admits most of the corpus — 80% for pyridine, of which 73% then
+fail verification. Measured and rejected: more bits does nothing (2048 → 8192 moves
+pyridine 80% → 79%), and a circular fingerprint is not usable at all, since it cannot be
+computed from a SMARTS and its bits are not preserved under subgraph extraction — a
+radius-2 Morgan screen dropped 4 of 5 true matches. Verification of the survivors is the
+real cost, and it is intrinsic.
+
 Similarity needs no verification — Tanimoto is defined on the Morgan fingerprint, so
 the screen is the answer — and stays in SQL. The verified match set re-enters the query
-as a `BITSTRING` parameter indexed by the corpus-wide ID (`structure_id` plus the
-file's offset), which is what preserves element binding: `exists(components,
+as a `BITSTRING` parameter indexed by the corpus-wide ID (`structure_id` plus the file's
+offset), which is how the projection path tests a single element: `exists(components,
 substructure(pyridine) and role = SOLVENT)` means one component that is both. The
 alternative — intersecting reaction-ID sets — over-returns by 94% on exactly that
 query; see [ord-logbook#28](https://github.com/open-reaction-database/ord-logbook/pull/28),
-finding 4.
+finding 4. Every corpus-scale figure on this page was measured against that logbook
+entry's snapshot of ORD.
 
 ```python
 from ord_schema.agent import execute, query

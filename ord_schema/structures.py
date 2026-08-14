@@ -86,6 +86,12 @@ def morgan_fingerprint(molecule: Chem.Mol) -> DataStructs.ExplicitBitVect:
 
     The query side of a similarity search must fingerprint identically to the artifact
     or the comparison is meaningless, so this is the one place the parameters live.
+
+    Args:
+        molecule: The molecule to fingerprint.
+
+    Returns:
+        A ``MORGAN_FP_SIZE``-bit fingerprint at radius ``MORGAN_RADIUS``.
     """
     return _MORGAN.GetFingerprint(molecule)
 
@@ -122,12 +128,47 @@ SCHEMA = pa.schema(
 )
 
 
+def structure_levels(
+    schema: pa.Schema = projection.SCHEMA,
+) -> list[tuple[str, str, pa.DataType]]:
+    """Returns the levels of ``schema`` whose elements carry a structure.
+
+    Walked rather than listed by hand, so a compound field added upstream is found
+    wherever it lands -- components, products, workup inputs, authentic standards --
+    without anyone updating a list. Everything that has to agree about where a
+    structure can sit reads this one walk, since two walks are two answers waiting to
+    disagree about a corpus.
+
+    Args:
+        schema: The projection schema.
+
+    Returns:
+        One ``(column, path, dtype)`` per structure-bearing struct, in schema order:
+        ``column`` is the Parquet physical prefix, carrying the ``list.element`` and
+        ``key_value.value`` segments a file has; ``path`` is the same level as the
+        query grammar names it, which has no wrapper segments; and ``dtype`` is the
+        struct, so a caller can ask what else the element carries.
+    """
+    levels: list[tuple[str, str, pa.DataType]] = []
+
+    def walk(dtype: pa.DataType, column: str, path: str) -> None:
+        if pa.types.is_struct(dtype):
+            if "structure_id" in [field.name for field in dtype]:
+                levels.append((column, path, dtype))
+            for child in dtype:
+                walk(child.type, f"{column}.{child.name}", f"{path}.{child.name}")
+        elif pa.types.is_list(dtype):
+            walk(dtype.value_type, f"{column}.list.element", path)
+        elif pa.types.is_map(dtype):
+            walk(dtype.item_type, f"{column}.key_value.value", path)
+
+    for field in schema:
+        walk(field.type, field.name, field.name)
+    return levels
+
+
 def _structure_columns(schema: pa.Schema = projection.SCHEMA) -> list[str]:
     """Returns the projection's (smiles, structure_id) leaves as Parquet column paths.
-
-    Walked from the schema rather than listed by hand, so a compound field added
-    upstream is read from wherever it lands -- components, products, workup inputs,
-    authentic standards -- without anyone updating a list here.
 
     Args:
         schema: The projection schema.
@@ -135,23 +176,11 @@ def _structure_columns(schema: pa.Schema = projection.SCHEMA) -> list[str]:
     Returns:
         Parquet physical column paths, in schema order.
     """
-    paths: list[str] = []
-
-    def walk(dtype: pa.DataType, prefix: str) -> None:
-        if pa.types.is_struct(dtype):
-            if "structure_id" in [field.name for field in dtype]:
-                paths.append(f"{prefix}.smiles")
-                paths.append(f"{prefix}.structure_id")
-            for child in dtype:
-                walk(child.type, f"{prefix}.{child.name}")
-        elif pa.types.is_list(dtype):
-            walk(dtype.value_type, f"{prefix}.list.element")
-        elif pa.types.is_map(dtype):
-            walk(dtype.item_type, f"{prefix}.key_value.value")
-
-    for field in schema:
-        walk(field.type, field.name)
-    return paths
+    return [
+        f"{column}.{leaf}"
+        for column, _, _ in structure_levels(schema)
+        for leaf in ("smiles", "structure_id")
+    ]
 
 
 def _pairs(value: Any) -> Iterator[tuple[str | None, int | None]]:
@@ -279,6 +308,14 @@ def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
     Delegates to ``artifacts.is_current``, which requires the artifact name, the source
     content, the library version, and the artifact version to all match. A missing or
     unreadable file is not current.
+
+    Args:
+        path: Path to check. Need not exist.
+        source_md5: Hash of the source dataset the artifact should restate, which is
+            the dataset's own even though the artifact derives from a projection.
+
+    Returns:
+        Whether the file is a structures artifact this library would write today.
     """
     return artifacts.is_current(path, ARTIFACT, source_md5)
 

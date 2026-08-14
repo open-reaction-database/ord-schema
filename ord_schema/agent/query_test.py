@@ -125,7 +125,10 @@ def test_forall_is_the_negation_of_a_counterexample():
         }
     )
     assert "NOT (" in compiled.sql
-    assert compiled.sql.endswith(")) = 0")
+    # Vacuously true of a level with no elements, which the projection writes as NULL,
+    # so the count comparison is folded to what an absent level means rather than left
+    # to answer neither way.
+    assert compiled.sql.endswith(")) = 0, true)")
 
 
 def test_a_nested_quantifier_binds_its_own_element():
