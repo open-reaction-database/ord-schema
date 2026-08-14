@@ -53,10 +53,11 @@ _ROLES = {
     "SOLVENT": reaction_pb2.ReactionRole.SOLVENT,
 }
 
-# UDM RXNSTRUCTURE @format values that map onto an ORD ReactionIdentifierType.
-# Anything not listed here (including UDM's default, unlabeled format) falls
-# back to UNSPECIFIED; that reaction identifier is then dropped rather than
-# emitted with an invalid type (see _build_base_reaction).
+# UDM RXNSTRUCTURE <format> (a child element, not an XML attribute -- see
+# _build_base_reaction's structure.get("format", ...)) values that map onto
+# an ORD ReactionIdentifierType. Anything not listed here (including UDM's
+# default, unlabeled format) falls back to UNSPECIFIED; that reaction
+# identifier is then dropped rather than emitted with an invalid type.
 _RXNSTRUCTURE_FORMATS: dict[str, tuple[int, str]] = {
     "cdxml": (reaction_pb2.ReactionIdentifier.CUSTOM, "cdxml"),
     "rinchi": (reaction_pb2.ReactionIdentifier.RINCHI, ""),
@@ -685,11 +686,16 @@ def _add_product(
     _set_molecule_identifier(
         component, all_molecules, molecule.get("@MOL_ID"), "PRODUCT"
     )
-    yield_ = udm_product.get("YIELD", {})
-    if "exact" in yield_:
+    parsed = _parse_range(udm_product.get("YIELD", {}))
+    if parsed:
+        value, precision = parsed
         measurement = component.measurements.add()
         measurement.type = reaction_pb2.ProductMeasurement.ProductMeasurementType.YIELD
-        measurement.float_value.value = float(yield_["exact"])
+        # ORD expects YIELD as a percentage (validations.py warns otherwise);
+        # UDM's YIELD is already percentage-scale.
+        measurement.percentage.value = value
+        if precision:
+            measurement.percentage.precision = precision
 
 
 def _add_provenance(
@@ -752,8 +758,11 @@ def _add_provenance(
                 pb2_reaction.provenance.doi = citation["DOI"]
                 break
 
-    if "CITATIONS" in reaction:
-        reaction_citation = _as_list(reaction["CITATIONS"])[0]["CITATION"]
+    # reaction.get("CITATIONS") may be None (empty <CITATIONS/>); its
+    # "CITATION" child, not CITATIONS itself, is the repeatable element.
+    reaction_citations = _as_list((reaction.get("CITATIONS") or {}).get("CITATION"))
+    if reaction_citations:
+        reaction_citation = reaction_citations[0]
         if "DOI" in reaction_citation:
             pb2_reaction.provenance.doi = reaction_citation["DOI"]
         if "PATENT_NUMBER" in reaction_citation:

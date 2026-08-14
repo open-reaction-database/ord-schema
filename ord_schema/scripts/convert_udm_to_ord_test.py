@@ -146,7 +146,7 @@ def test_simple(tmp_path):
     [product] = outcome.products
     assert product.identifiers[0].value == "Product A"
     [measurement] = product.measurements
-    assert measurement.float_value.value == 85.0
+    assert measurement.percentage.value == 85.0
 
     # Off by default: no raw UDM XML embedded without --include-udm-xml.
     assert "udm_reaction_xml" not in reaction.provenance.reaction_metadata
@@ -352,7 +352,7 @@ def test_multiple_condition_groups_are_recorded_as_dynamic(tmp_path):
 
     # Only the outcome recorded once in the source, not duplicated.
     assert len(reaction.outcomes) == 1
-    assert reaction.outcomes[0].products[0].measurements[0].float_value.value == 85.0
+    assert reaction.outcomes[0].products[0].measurements[0].percentage.value == 85.0
 
     assert reaction.conditions.conditions_are_dynamic
     # No single-step snapshot: none of the three stages is "the" temperature.
@@ -607,6 +607,88 @@ def test_unknown_molecule_reference_does_not_crash(tmp_path):
     [component] = dataset.reactions[0].inputs["does_not_exist"].components
     assert component.identifiers[0].type == component.identifiers[0].CUSTOM
     assert component.identifiers[0].value == "does_not_exist"
+
+
+def test_yield_min_max_range_is_not_dropped(tmp_path):
+    """Regression test: a YIELD given as <min>/<max> (no <exact>) must still
+    produce a measurement, using percentage (not float_value) so it's
+    readable via message_helpers.get_product_yield(), the standard accessor.
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <PRODUCT>
+          <MOLECULE MOL_ID="m2"><NAME>Product A</NAME></MOLECULE>
+          <YIELD><min>80</min><max>90</max></YIELD>
+        </PRODUCT>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    [measurement] = dataset.reactions[0].outcomes[0].products[0].measurements
+    assert measurement.percentage.value == 85.0
+    assert measurement.percentage.precision == 5.0
+    assert (
+        message_helpers.get_product_yield(dataset.reactions[0].outcomes[0].products[0])
+        == 85.0
+    )
+
+
+def test_reaction_level_citations_with_multiple_entries(tmp_path):
+    """Regression test: a reaction-level <CITATIONS> with more than one
+    <CITATION> child must still resolve a DOI/patent from the first one,
+    not silently drop them because the wrong dict level got _as_list'd.
+    """
+    reaction_xml = """
+    <REACTION>
+      <CITATIONS>
+        <CITATION><DOI>10.0000/first</DOI><PATENT_NUMBER>US123</PATENT_NUMBER></CITATION>
+        <CITATION><DOI>10.0000/second</DOI></CITATION>
+      </CITATIONS>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    assert dataset.reactions[0].provenance.doi == "10.0000/first"
+    assert dataset.reactions[0].provenance.patent == "US123"
+
+
+def test_reaction_level_empty_citations_does_not_crash(tmp_path):
+    """Regression test: a self-closing <CITATIONS/> must not crash the
+    conversion with an IndexError.
+    """
+    reaction_xml = """
+    <REACTION>
+      <CITATIONS/>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    assert len(dataset.reactions) == 1
+    assert not dataset.reactions[0].provenance.doi
 
 
 def test_missing_input_file(tmp_path):
