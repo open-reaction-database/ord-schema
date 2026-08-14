@@ -60,6 +60,10 @@ body binds any other element field, reaches a nested one, holds no structure pre
 or more than one, or is not a plain conjunction -- and every ``forall``, since the index
 shows the elements that match, never that every element does.
 
+An occurrence names its reaction by ID, so the index is built only over a corpus that
+states each reaction once; two files carrying one reaction would have each copy's
+structures answering for the other.
+
 The grammar bounds what a query can cost (one pass and a sort), and ``search``
 takes a wall-clock timeout that interrupts the final query. Name resolution, the
 one-time library and index builds, screening, and verification all run before the timer
@@ -119,6 +123,23 @@ _TOP_LEVEL = tuple(projection.SCHEMA.names)
 # What a structure predicate's answer depends on: the operation, whether the string
 # is read as SMARTS or as SMILES, the string, and the similarity threshold.
 _MatchKey = tuple[str, bool, str, float | None]
+
+
+def _reads_as_smarts(parameter: query.StructureParameter) -> bool:
+    """Returns whether the predicate's string is read as SMARTS rather than SMILES.
+
+    Which parser reads a string is part of what the string means -- ``C1=CC=CC=C1`` is
+    benzene as SMILES and six aliphatic carbons as SMARTS -- so the query molecule and
+    the key a match set is cached under have to make this call the same way.
+
+    Args:
+        parameter: The structure predicate.
+
+    Returns:
+        True for a substructure predicate stating its own pattern, which is the only
+        form a query writes in SMARTS; a resolved compound is always SMILES.
+    """
+    return parameter.pattern is not None and parameter.op == "substructure"
 
 
 class PairingError(ValueError):
@@ -207,7 +228,21 @@ def _index(pattern: str, artifact: str, require_current: bool) -> dict[str, str]
 def _pair(
     projection_pattern: str, structures_pattern: str, require_current: bool
 ) -> list[tuple[str, str]]:
-    """Returns (projection, structures) path pairs, verified by their stamps."""
+    """Returns (projection, structures) path pairs, verified by their stamps.
+
+    Args:
+        projection_pattern: Glob matching the projection artifacts.
+        structures_pattern: Glob matching the structures artifacts.
+        require_current: Refuse artifacts not written by the current versions.
+
+    Returns:
+        One pair per source dataset, ordered by the projection's source hash.
+
+    Raises:
+        PairingError: If no projection matches, or if either side states a dataset the
+            other does not, since a projection's IDs index its own partner's molecules
+            and nobody else's.
+    """
     projections = _index(projection_pattern, projection.ARTIFACT, require_current)
     structure_files = _index(structures_pattern, structures.ARTIFACT, require_current)
     if not projections:
@@ -380,13 +415,13 @@ def _mentioned(sql: str) -> frozenset[str]:
     what has to resolve: a column named there and missing from the table is a
     catalog error, and one named only in the query is nothing at all.
 
-    Matched as a word anywhere outside a string literal, so this errs wide in one
-    way: a nested field sharing a leaf name with a top-level column names both --
-    ``smiles`` is a component's field and a reaction's own column -- and costs a
-    column that gets materialized and never read. Literals are stripped first
-    because a name inside one is never a column reference, and the index's
-    semi-joins carry path literals like ``'inputs.components'`` that would otherwise
-    pull the projection's largest column into every narrow table.
+    Matched as a word outside a string literal and not behind a dot. A top-level
+    column is always where a path starts, while a field reached through one is
+    always qualified -- an element's ``e0.smiles`` and a reaction's own ``smiles``
+    are different columns spelled alike, and matching the qualified form would
+    materialize the reaction-level column for a query that reads only the element's.
+    Literals are stripped for the same reason: the semi-joins carry path literals
+    like ``'inputs.components'``, and a name inside one is never a column reference.
 
     Args:
         sql: The compiled query.
@@ -399,7 +434,7 @@ def _mentioned(sql: str) -> frozenset[str]:
     mentioned = {
         column
         for column in _TOP_LEVEL
-        if re.search(rf"\b{re.escape(column)}\b", outside)
+        if re.search(rf"(?<![.\w]){re.escape(column)}\b", outside)
     }
     mentioned.add("reaction_id")
     return frozenset(mentioned)
@@ -554,6 +589,10 @@ class Corpus:
         self._narrowed: collections.OrderedDict[frozenset[str], _Narrow] = (
             collections.OrderedDict()
         )
+        # Column sets that came out larger than the whole budget. Kept because the
+        # projection they are built from does not change while this object is open, so
+        # building one again costs a pass over the corpus to reach the same refusal.
+        self._narrow_refused: set[frozenset[str]] = set()
         self._narrow_serial = 0
         self._narrow_lock = threading.Lock()
         pairs = _pair(projection_pattern, structures_pattern, require_current)
@@ -679,7 +718,8 @@ class Corpus:
                 resolver's contract is RDKit-readable SMILES, so this is a resolver
                 bug, not a query error.
         """
-        if parameter.pattern is not None and parameter.op == "substructure":
+        if _reads_as_smarts(parameter):
+            assert parameter.pattern is not None  # What reading it as SMARTS means.
             return Chem.MolFromSmarts(parameter.pattern)  # Validated at model time.
         if parameter.pattern is not None:
             smiles = parameter.pattern
@@ -862,6 +902,25 @@ class Corpus:
             # connection holds their results.
             cursor = self._connection.cursor()
             try:
+                # An occurrence names the reaction it sat in by ID, so the semi-join
+                # answers for every row carrying that ID. Two files stating the same
+                # reaction pair cleanly -- what pairing checks is that each projection
+                # has its structures, not that the corpus states a reaction once -- and
+                # each one's structures would then answer the other's queries. Costs a
+                # scan of one column against the several this build already runs.
+                duplicated = cursor.execute(
+                    f"SELECT reaction_id, count(*) FROM {query.TABLE} "  # noqa: S608
+                    "GROUP BY reaction_id HAVING count(*) > 1 "
+                    "ORDER BY reaction_id LIMIT 1"
+                ).fetchone()
+                if duplicated is not None:
+                    self._refused = (
+                        f"reaction {duplicated[0]} is stated by {duplicated[1]} rows "
+                        "of the corpus, and the occurrence index finds reactions by "
+                        "ID, so one copy's structures would answer for the other; "
+                        "glob one artifact per reaction"
+                    )
+                    raise PairingError(self._refused)
                 # OR REPLACE, so a build interrupted after the table exists is a build
                 # the next query repeats rather than one that collides with itself
                 # forever. S608: the fragments are this module's own schema walk and
@@ -990,7 +1049,9 @@ class Corpus:
 
         Returns:
             The entry, or None if this column set costs more than the cache may hold in
-            total, in which case nothing is kept and the projection answers directly.
+            total, in which case nothing is kept, the projection answers directly, and
+            the refusal is remembered so the next query naming these columns does not
+            build them again to throw them away again.
         """
         with self._narrow_lock:
             cached = self._narrowed.get(columns)
@@ -998,6 +1059,8 @@ class Corpus:
                 self._narrowed.move_to_end(columns)
                 cached.readers += 1
                 return cached
+            if columns in self._narrow_refused:
+                return None
             # Never reused, so a build that fails between the CREATE and the entry
             # cannot leave a name the next attempt collides with.
             self._narrow_serial += 1
@@ -1021,6 +1084,7 @@ class Corpus:
                 if held > _NARROW_BUDGET_BYTES:
                     # Too big to keep, and keeping it is the only reason to build it.
                     cursor.execute(f"DROP TABLE {name}")
+                    self._narrow_refused.add(columns)
                     logger.info(
                         "not caching %s: %.1f GB exceeds the budget",
                         sorted(columns),
@@ -1156,12 +1220,10 @@ class Corpus:
                 "compound, which the grammar does not allow"
             )
         # Which parser reads the string is part of what the string means, so it is part
-        # of the key: _query_molecule reads a stated substructure pattern as SMARTS and
-        # everything else as SMILES, and one text is two query molecules across them --
-        # C1=CC=CC=C1 is benzene as SMILES and six aliphatic carbons as SMARTS.
-        # Resolvers answer in that Kekule form, so a name and a pattern do collide.
-        from_smarts = parameter.pattern is not None and parameter.op == "substructure"
-        key = (parameter.op, from_smarts, pattern, parameter.threshold)
+        # of the key -- and it is asked of the same function the query molecule comes
+        # from, so the two cannot come apart. Resolvers answer in the Kekule form a
+        # SMARTS pattern is written in, so a name and a pattern do collide.
+        key = (parameter.op, _reads_as_smarts(parameter), pattern, parameter.threshold)
         while True:
             with self._matches_lock:
                 cached = self._matched.get(key)

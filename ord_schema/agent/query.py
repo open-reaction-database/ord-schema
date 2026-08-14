@@ -692,9 +692,14 @@ def _quantifier(
         index: Consulted for an ``exists`` at the row; see ``ElementIndex``.
 
     Returns:
-        The DuckDB expression filtering the level, true when the quantifier holds.
-        ``forall`` is stated as the absence of a counterexample, so it is vacuously
-        true of an empty level.
+        The DuckDB expression filtering the level, true when the quantifier holds. A
+        level the source never recorded is a level with no elements: the projection
+        writes NULL there rather than an empty list, and ``len`` of NULL is NULL, so
+        both forms are folded to what an empty level means -- no element satisfies an
+        ``exists``, and a ``forall`` has no counterexample. Left as NULL, a reaction
+        without workups would answer neither yes nor no to a question about them, and
+        so would vanish from ``NOT exists`` -- where an indexed quantifier, which knows
+        only whether the index holds a matching occurrence, says true.
 
     Raises:
         QueryError: If the path does not reach a repeated level.
@@ -725,9 +730,15 @@ def _quantifier(
         node.where, variable, resolved.type, compounds, structures, depth + 1, index
     )
     if node.op == "exists":
-        return f"len(list_filter({resolved.expression}, {variable} -> {body})) > 0"
-    # No counterexample, which is vacuously true of an empty level.
-    return f"len(list_filter({resolved.expression}, {variable} -> NOT ({body}))) = 0"
+        return (
+            f"coalesce(len(list_filter({resolved.expression}, "
+            f"{variable} -> {body})) > 0, false)"
+        )
+    # No counterexample, which is vacuously true of a level with no elements.
+    return (
+        f"coalesce(len(list_filter({resolved.expression}, "
+        f"{variable} -> NOT ({body}))) = 0, true)"
+    )
 
 
 def _predicate(
@@ -744,6 +755,23 @@ def _predicate(
     An ``index`` is carried down unchanged. A condition it returns stands for one
     quantifier and composes like any other boolean: negated, it says no element matches;
     beside another clause, it narrows the same rows the rest of the query is about.
+
+    Args:
+        node: The clause to compile: a connective, a quantifier, a structure predicate,
+            or a comparison against a leaf.
+        scope: Bound variable the paths within are relative to, or None at the row.
+        schema: Schema or struct type the paths resolve within.
+        compounds: Compound names collected so far, appended to as they are met.
+        structures: Structure parameters collected so far, appended to as they are met.
+        depth: How many quantifiers enclose this clause, which names their variables.
+        index: Offered to an ``exists`` at the row; see ``ElementIndex``.
+
+    Returns:
+        The DuckDB expression, true when the clause holds of the row or element.
+
+    Raises:
+        QueryError: If a path does not resolve, crosses a repeated level without a
+            quantifier, or is compared in a way its type does not allow.
     """
     if isinstance(node, And | Or):
         keyword = " AND " if isinstance(node, And) else " OR "

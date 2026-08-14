@@ -97,13 +97,17 @@ def corpus_dir(tmp_path_factory) -> pathlib.Path:
 
 @pytest.fixture(scope="module")
 def deep_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
-    """A corpus holding a structure at every indexed path.
+    """A corpus holding a structure at every indexed path, and a reaction at none.
 
     A workup's components and a product measurement's authentic standard are reached by
     the longest traversals the index generates, and the main fixture has neither, so
     every assertion about them would otherwise compare nothing to nothing. The inputs
     and the products carry structures too, which is what lets a query at one deep path
     assert that a structure living at another is not found there.
+
+    The second reaction has inputs and nothing else, so the deep levels are what the
+    projection writes for a level the source never recorded: NULL rather than an empty
+    list. A question about those levels has to answer for it too.
     """
     reaction = reaction_pb2.Reaction(reaction_id="ord-cc01")
     _component(reaction.inputs["in"], "CCO", _ROLE.REACTANT)
@@ -113,6 +117,8 @@ def deep_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
     product.identifiers.add(type="SMILES", value="Cc1ccccc1")
     standard = product.measurements.add(analysis_key="nmr").authentic_standard
     standard.identifiers.add(type="SMILES", value="c1ccccc1")
+    shallow = reaction_pb2.Reaction(reaction_id="ord-cc02")
+    _component(shallow.inputs["in"], "CCO", _ROLE.REACTANT)
     root = tmp_path_factory.mktemp("deep")
     source = root / "data" / "ord_dataset-cc.parquet"
     source.parent.mkdir(parents=True, exist_ok=True)
@@ -121,7 +127,7 @@ def deep_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
             dataset_id="ord_dataset-cc",
             name="test",
             description="test",
-            reactions=[reaction],
+            reactions=[reaction, shallow],
         ),
         str(source),
     )
@@ -1375,6 +1381,65 @@ def test_the_index_reaches_the_deep_paths_the_projection_does(
 
 
 @pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        # ord-cc02 records no workups and no outcomes, so the projection writes NULL at
+        # both. Nothing pyridine-shaped sits at a level with no elements, which makes
+        # the negation true of it -- and true is what the index says, since it holds no
+        # occurrence for that reaction. A level left as NULL would answer neither way
+        # and drop the reaction from the projection's answer alone.
+        ("workups.input.components", {"ord-cc02"}),
+        # The deepest path: ord-cc01 records one and it is benzene, so neither reaction
+        # has pyridine there -- one by holding something else, the other by holding
+        # nothing at all.
+        (
+            "outcomes.products.measurements.authentic_standard",
+            {"ord-cc01", "ord-cc02"},
+        ),
+        # The level both reactions do record, so the same negation over a level that is
+        # there says the same thing on either path.
+        ("inputs.components", {"ord-cc01", "ord-cc02"}),
+    ],
+)
+def test_a_negation_answers_the_same_over_a_level_the_source_never_recorded(
+    deep_corpus, path, expected
+):
+    body = {
+        "where": {
+            "op": "not",
+            "clause": {
+                "op": "exists",
+                "path": path,
+                "where": {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"},
+            },
+        }
+    }
+    assert _index_spent(body), "expected the index to take the clause"
+    request = query.Query.model_validate(body)
+    assert _reactions(deep_corpus.search(request)) == expected
+    with pytest.MonkeyPatch.context() as patcher:
+        patcher.setattr(execute, "_index_condition", _no_index_condition)
+        assert _reactions(deep_corpus.search(request)) == expected
+
+
+def test_a_universal_holds_of_a_level_the_source_never_recorded(deep_corpus):
+    # A forall is the absence of a counterexample, and a level with no elements holds
+    # none. The projection writes NULL there, so this is the one place the answer would
+    # otherwise be neither true nor false -- and a reaction would vanish from a question
+    # it plainly satisfies.
+    request = query.Query.model_validate(
+        {
+            "where": {
+                "op": "forall",
+                "path": "workups.input.components",
+                "where": {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"},
+            }
+        }
+    )
+    assert _reactions(deep_corpus.search(request)) == {"ord-cc01", "ord-cc02"}
+
+
+@pytest.mark.parametrize(
     ("role", "expected"), [("SOLVENT", {"ord-cc01"}), ("REACTANT", set())]
 )
 def test_a_role_binds_to_the_element_at_a_deep_path(deep_corpus, role, expected):
@@ -1545,6 +1610,41 @@ def test_an_index_that_reaches_nothing_is_refused(corpus_dir, monkeypatch):
         # A corpus does not change under an open Corpus, so the second refusal is the
         # first one's reason rather than several more passes to reach it again.
         assert counter.cursors == 0
+
+
+def test_a_reaction_two_files_both_state_is_refused(tmp_path):
+    # An occurrence names its reaction by ID, so a semi-join answers for every row
+    # carrying that ID. Two files stating one reaction pair cleanly -- what pairing
+    # checks is that each projection has its structures -- and each copy's structures
+    # would then answer the other's queries: an original dataset globbed beside a
+    # corrected re-release returns reactions whose own components hold nothing.
+    for shard, smiles in (("aa", "c1ccncc1"), ("bb", "CCO")):
+        source = tmp_path / "data" / f"ord_dataset-{shard}.parquet"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        parquet.save_dataset(
+            dataset_pb2.Dataset(
+                dataset_id=f"ord_dataset-{shard}",
+                name="test",
+                description="test",
+                reactions=[_reaction("ord-x01", components=[(smiles, _ROLE.SOLVENT)])],
+            ),
+            str(source),
+        )
+        projected = tmp_path / "projections" / source.name
+        projected.parent.mkdir(parents=True, exist_ok=True)
+        projection.write_projection(source, projected)
+        structured = tmp_path / "structures" / source.name
+        structured.parent.mkdir(parents=True, exist_ok=True)
+        structures.write_structures(projected, structured)
+    with (
+        execute.Corpus(
+            str(tmp_path / "projections" / "*.parquet"),
+            str(tmp_path / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+        ) as value,
+        pytest.raises(execute.PairingError, match="ord-x01 is stated by 2 rows"),
+    ):
+        value.search(query.Query.model_validate(_ROUTABLE["structure alone"]))
 
 
 def test_an_index_that_misses_one_path_is_refused(corpus_dir, monkeypatch):
@@ -1961,6 +2061,16 @@ def test_the_columns_a_query_names_are_the_ones_materialized(corpus_dir):
     assert "conditions" not in execute._mentioned(
         "SELECT reaction_id FROM reactions WHERE notes.preconditions_x = 'a'"
     )
+    # An element's field is not the reaction's column of the same name: a query
+    # filtering components by their SMILES reads no reaction-level smiles column, and
+    # materializing one costs the largest column in the projection.
+    assert "smiles" not in execute._mentioned(
+        "SELECT reaction_id FROM reactions WHERE len(list_filter("
+        "flatten(list_transform(map_values(inputs), x -> x.components)), "
+        "e0 -> e0.smiles = 'CCO')) > 0"
+    )
+    # Where a path starts is where a top-level column is named.
+    assert "smiles" in execute._mentioned("SELECT smiles FROM reactions")
 
 
 def test_a_materialized_column_set_is_reused(corpus_dir):
@@ -2178,6 +2288,26 @@ def test_a_column_set_too_large_to_keep_is_not_kept(corpus_dir, monkeypatch):
         # Answered anyway, straight from the projection.
         assert matched.column("reaction_id").to_pylist() == ["ord-bb01"]
         assert not value._narrowed
+
+
+def test_a_column_set_too_large_to_keep_is_not_built_twice(corpus_dir, monkeypatch):
+    # What the refusal costs is a pass over the corpus, and the projection it reads
+    # does not change while the corpus is open. Asking again is the common case -- a
+    # notebook loop, a server serving one shape of question -- and rebuilding a table
+    # only to drop it again holds the narrow lock against every other search each time.
+    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 1)
+    columns = frozenset({"reaction_id", "provenance"})
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        with value._narrowed_table(columns) as name:
+            assert name is None
+        built = value._narrow_serial
+        with value._narrowed_table(columns) as name:
+            assert name is None
+        assert value._narrow_serial == built  # No second CREATE to name.
 
 
 def test_a_library_that_lost_a_molecule_is_refused(corpus_dir, monkeypatch):

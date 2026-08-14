@@ -124,7 +124,11 @@ disjunctions, and second structure predicates all compose the same way. A quanti
 index cannot carry — one binding another element field, holding no structure predicate
 or two, or any `forall`, which needs every element rather than some — compiles over the
 elements, and the projection answers it. Either way it is one compiled query, screened
-and verified identically; the log line says whether the index took a clause. The index
+and verified identically; the log line says whether the index took a clause. A level the
+source never recorded — most reactions have no workups and no authentic standards — is a
+level with no elements: nothing satisfies an `exists` there and nothing contradicts a
+`forall`, so "reactions **without** pyridine in the workup" includes every reaction that
+has no workup at all, whichever way the clause was answered. The index
 is built on the first query that spends it, one pass over the projections per indexed
 path, so a server that wants its first real query to be fast should issue a throwaway
 structure query at startup.
