@@ -616,6 +616,72 @@ def test_non_rpm_stirring_is_not_dropped(tmp_path):
     assert "stirring 50.0 Hz" in reaction.conditions.details
 
 
+def test_stirring_range_precision_is_not_dropped(tmp_path):
+    """Regression test: an rpm STIRRING given as a <min>/<max> range must not
+    be silently rounded down to a bare exact value -- StirringConditions.
+    rate.rpm has no precision field (unlike Temperature/Pressure's
+    setpoint), so the range would otherwise vanish, leaving 490-510 rpm
+    indistinguishable from an exact 500 rpm.
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+        <CONDITIONS>
+          <CONDITION_GROUP>
+            <STIRRING><min>490</min><max>510</max></STIRRING>
+          </CONDITION_GROUP>
+        </CONDITIONS>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    reaction = dataset.reactions[0]
+    # Best-effort structural value: the rounded midpoint.
+    assert reaction.conditions.stirring.rate.rpm == 500
+    # But the range itself isn't lost -- it's still in the text fallback,
+    # as midpoint and precision (avoid asserting the literal "±" glyph).
+    assert "stirring 500.0" in reaction.conditions.details
+    assert "10.0 rpm" in reaction.conditions.details
+
+
+def test_stirring_exact_value_is_not_duplicated_as_text(tmp_path):
+    """An exact (or degenerate min==max) rpm STIRRING loses nothing by being
+    rounded, so it should be captured structurally only, not also repeated
+    in the text fallback.
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+        <CONDITIONS>
+          <CONDITION_GROUP>
+            <STIRRING><exact>500</exact></STIRRING>
+          </CONDITION_GROUP>
+        </CONDITIONS>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    reaction = dataset.reactions[0]
+    assert reaction.conditions.stirring.rate.rpm == 500
+    assert "stirring" not in reaction.conditions.details
+
+
 def test_reaction_without_variation_still_emits_one_reaction(tmp_path):
     reaction_xml = """
     <REACTION>

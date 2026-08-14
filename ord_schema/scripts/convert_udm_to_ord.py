@@ -703,11 +703,18 @@ def _add_conditions(
     stirring = condition_group.get("STIRRING", {})
     parsed = _parse_range(stirring)
     if parsed and stirring.get("@unit", "rpm") == "rpm":
-        rpm = round(parsed[0])
+        value, precision = parsed
+        rpm = round(value)
         pb2_reaction.conditions.stirring.type = reaction_pb2.StirringConditions.CUSTOM
         pb2_reaction.conditions.stirring.details = f"{rpm} rpm"
         pb2_reaction.conditions.stirring.rate.rpm = rpm
-        captured.add("STIRRING")
+        # rate.rpm is a bare int with no precision field, unlike
+        # Temperature/Pressure's setpoint -- a real min/max spread (e.g.
+        # 490-510) would be silently rounded away to 500 with no trace
+        # unless STIRRING is left out of `captured` here, letting it fall
+        # through to the text fallback, which does render the full range.
+        if not precision:
+            captured.add("STIRRING")
 
     if "REFLUX" in condition_group:
         pb2_reaction.conditions.reflux = _parse_bool(condition_group["REFLUX"])
