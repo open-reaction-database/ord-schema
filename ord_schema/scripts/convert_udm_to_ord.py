@@ -108,6 +108,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--include-udm-xml",
+        action="store_true",
+        help=(
+            "If set, embed the raw UDM source XML for each reaction (and the "
+            "document-level UDM_VERSION/LEGAL/ORGANISATIONS/CITATIONS context "
+            "shared by every reaction) in provenance.reaction_metadata. Useful "
+            "for provenance and for humans spot-checking the converter's "
+            "output against the original UDM. Off by default: the source XML "
+            "may carry a different license than the converted dataset (see "
+            "the CC-BY-SA warning above), so only enable this for UDM sources "
+            "you have the rights to redistribute."
+        ),
+    )
+    parser.add_argument(
         "--no-validate",
         action="store_true",
         help="If set, do not run validations on reactions",
@@ -164,9 +178,26 @@ def main(args: argparse.Namespace) -> None:
     # (recorded separately as the experimenter).
     submitter_username = getpass.getuser()
 
+    parent_xml = (
+        _document_context_xml(udm_tree.getroot()) if args.include_udm_xml else None
+    )
+    # Parallel to _as_list(...REACTION) below: etree_to_dict and findall() both
+    # walk children in document order, so index i corresponds to the same
+    # <REACTION> in both.
+    reaction_elements: list[ET.Element] = []
+    if args.include_udm_xml:
+        reactions_element = udm_tree.getroot().find("REACTIONS")
+        assert reactions_element is not None  # Already validated above.
+        reaction_elements = reactions_element.findall("REACTION")
+
     pb2_reactions = []
-    for reaction in _as_list(udm_reactions["REACTIONS"]["REACTION"]):
-        base_reaction = _build_base_reaction(reaction)
+    for i, reaction in enumerate(_as_list(udm_reactions["REACTIONS"]["REACTION"])):
+        reaction_xml = (
+            ET.tostring(reaction_elements[i], encoding="unicode")
+            if args.include_udm_xml
+            else None
+        )
+        base_reaction = _build_base_reaction(reaction, reaction_xml, parent_xml)
         # Each variation becomes its own Reaction, seeded with the
         # reaction-level identifiers built above. A reaction with no
         # <VARIATION> elements still gets a single Reaction, since it has no
@@ -226,14 +257,56 @@ def _text_and_unit(value: Any) -> tuple[str | None, str | None]:
     return value, None
 
 
-def _build_base_reaction(reaction: UdmDict) -> reaction_pb2.Reaction:
+def _document_context_xml(root: ET.Element) -> str:
+    """Serializes the UDM document-level context shared by every reaction.
+
+    This is everything under the <UDM> root except <REACTIONS> (reaction data,
+    handled per-reaction) and <MOLECULES> (a lookup table already captured via
+    each Compound's identifiers, and often large).
+    """
+    context = ET.Element(root.tag, root.attrib)
+    for child in root:
+        if child.tag not in ("REACTIONS", "MOLECULES"):
+            context.append(child)
+    return ET.tostring(context, encoding="unicode")
+
+
+def _set_xml_metadata(
+    reaction_metadata: Any, key: str, xml_text: str, description: str
+) -> None:
+    """Stores raw XML text as a Data entry in a reaction_metadata map."""
+    data = reaction_metadata[key]
+    data.string_value = xml_text
+    data.format = "xml"
+    data.description = description
+
+
+def _build_base_reaction(
+    reaction: UdmDict, reaction_xml: str | None, parent_xml: str | None
+) -> reaction_pb2.Reaction:
     """Builds the reaction-level data shared by every variation of `reaction`.
 
     Covers the UDM fields that live directly on <REACTION> rather than on a
-    specific <VARIATION>: REACTANT_ID/PRODUCT_ID placeholders and RXNSTRUCTURE
-    identifiers.
+    specific <VARIATION>: REACTANT_ID/PRODUCT_ID placeholders, RXNSTRUCTURE
+    identifiers, and (if requested via --include-udm-xml) the raw source XML.
     """
     base_reaction = reaction_pb2.Reaction()
+
+    if reaction_xml:
+        _set_xml_metadata(
+            base_reaction.provenance.reaction_metadata,
+            "udm_reaction_xml",
+            reaction_xml,
+            "Raw UDM <REACTION> XML element this Reaction was converted from.",
+        )
+    if parent_xml:
+        _set_xml_metadata(
+            base_reaction.provenance.reaction_metadata,
+            "udm_parent_xml",
+            parent_xml,
+            "Raw UDM document-level context (UDM_VERSION/LEGAL/ORGANISATIONS/"
+            "CITATIONS) shared by every reaction in the source file.",
+        )
 
     if "REACTANT_ID" in reaction:
         molinput = base_reaction.inputs["REACTANT_IDS"]

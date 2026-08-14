@@ -148,6 +148,66 @@ def test_simple(tmp_path):
     [measurement] = product.measurements
     assert measurement.float_value.value == 85.0
 
+    # Off by default: no raw UDM XML embedded without --include-udm-xml.
+    assert "udm_reaction_xml" not in reaction.provenance.reaction_metadata
+    assert "udm_parent_xml" not in reaction.provenance.reaction_metadata
+
+
+def test_include_udm_xml(tmp_path):
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <SCIENTIST><NAME>Scientist One</NAME></SCIENTIST>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+      </VARIATION>
+      <VARIATION>
+        <SCIENTIST><NAME>Scientist Two</NAME></SCIENTIST>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = [
+        "--input",
+        input_filename,
+        "--output",
+        output_filename,
+        "--no-validate",
+        "--include-udm-xml",
+    ]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    assert len(dataset.reactions) == 2
+
+    for reaction in dataset.reactions:
+        metadata = reaction.provenance.reaction_metadata
+        assert metadata["udm_reaction_xml"].format == "xml"
+        assert "<REACTION>" in metadata["udm_reaction_xml"].string_value
+        # Both VARIATIONs came from the same <REACTION>, so they share
+        # identical reaction-level XML, including both scientists.
+        assert "Scientist One" in metadata["udm_reaction_xml"].string_value
+        assert "Scientist Two" in metadata["udm_reaction_xml"].string_value
+        assert metadata["udm_parent_xml"].format == "xml"
+        assert "Test Dataset" in metadata["udm_parent_xml"].string_value
+        assert "Data Vendor" in metadata["udm_parent_xml"].string_value
+        # MOLECULES is deliberately excluded: it's a lookup table, not
+        # reaction-specific context, and can be large.
+        assert "MOLECULES" not in metadata["udm_parent_xml"].string_value
+
+    # The two reactions' udm_reaction_xml differ only by REACTION-vs-VARIATION
+    # scope, not by content -- both variations share one <REACTION> element.
+    reaction_xmls = {
+        r.provenance.reaction_metadata["udm_reaction_xml"].string_value
+        for r in dataset.reactions
+    }
+    assert len(reaction_xmls) == 1
+
 
 def test_scientist_organization_falls_back_to_producer(tmp_path):
     """When the scientist has no inline ORGANISATION, PRODUCER fills in."""
