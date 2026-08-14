@@ -61,6 +61,7 @@ import dataclasses
 import difflib
 import re
 import warnings
+from collections.abc import Callable
 from typing import Annotated, Any, Literal
 
 import pyarrow as pa
@@ -78,6 +79,15 @@ TABLE = "reactions"
 # absent from the projection schema resolve() defaults to, so a model-supplied path
 # does not reach it.
 STRUCTURE_OFFSET = "structure_offset"
+
+
+# Consulted for an ``exists`` at the row, given the path it quantifies over, the field
+# equalities its body asks for, and a thunk naming the structure parameter the match set
+# will bind under. Returns a row condition standing for the whole quantifier, or None to
+# leave it compiled as a filter over the elements. The thunk is called only by an index
+# that takes the clause, because a parameter named and left unbound is an error rather
+# than a wasted name.
+ElementIndex = Callable[[str, dict[str, str], Callable[[], str]], str | None]
 
 
 def executable_schema(schema: pa.Schema | None = None) -> pa.Schema:
@@ -607,6 +617,50 @@ def _structure(
     )
 
 
+def _element_terms(
+    node: "Quantifier",
+) -> "tuple[Substructure | Similarity, dict[str, str]] | None":
+    """Returns what an ``exists`` body asks of one element, or None if it asks more.
+
+    The shape an element index can answer, stated without knowing what any index holds:
+    one structure predicate on the element's own ``smiles``, and equalities on the
+    element's own fields. A caller decides whether those fields are ones it carries.
+
+    Args:
+        node: The quantifier to read.
+
+    Returns:
+        ``(structure, fields)``, where ``fields`` maps a field name to the literal it
+        must equal, or None if the body is anything else -- a ``forall``, a negation, a
+        disjunction, a nested quantifier, a comparison that is not an equality against a
+        string literal, a path that descends past the element, or a count of structure
+        predicates that is not exactly one.
+    """
+    if node.op != "exists":
+        return None
+    clauses = node.where.clauses if isinstance(node.where, And) else [node.where]
+    structure: Substructure | Similarity | None = None
+    fields: dict[str, str] = {}
+    for clause in clauses:
+        if isinstance(clause, Substructure | Similarity):
+            if structure is not None or clause.path != "smiles":
+                return None
+            structure = clause
+        elif (
+            isinstance(clause, Comparison)
+            and clause.op == "eq"
+            and "." not in clause.path
+            and clause.path not in fields
+            and isinstance(clause.value.literal, str)
+        ):
+            fields[clause.path] = clause.value.literal
+        else:
+            return None
+    if structure is None:
+        return None
+    return structure, fields
+
+
 def _quantifier(
     node: "Quantifier",
     scope: str | None,
@@ -614,12 +668,19 @@ def _quantifier(
     compounds: list[str],
     structures: list[StructureParameter],
     depth: int,
+    index: ElementIndex | None = None,
 ) -> str:
     """Compiles a quantifier to a filter over the elements at a repeated level.
 
     The element is bound to a fresh variable, and the body compiles against *it* rather
     than against the row, which is what lets one component be required to satisfy
     several conditions at once.
+
+    An ``index`` that can answer the body replaces the filter with whatever condition
+    it returns, which is how a caller holding a precomputed index over elements spends
+    it without the rest of the query changing. Offered only at the row, since a
+    condition on the row is not a condition on an enclosing element, and only for
+    ``exists``: an index shows the elements that match, never that every element does.
 
     Args:
         node: The quantifier to compile.
@@ -628,6 +689,7 @@ def _quantifier(
         compounds: Compound names collected so far, appended to by the body.
         structures: Structure parameters collected so far, appended to by the body.
         depth: How many quantifiers enclose this one, which names its variable.
+        index: Consulted for an ``exists`` at the row; see ``ElementIndex``.
 
     Returns:
         The DuckDB expression filtering the level, true when the quantifier holds.
@@ -643,9 +705,24 @@ def _quantifier(
             f"{node.path}: {node.op} needs a repeated level, and this path reaches "
             f"{resolved.type}; compare it directly instead"
         )
+    # Offered at the row only. A nested quantifier's path is element-relative and would
+    # not match an index's absolute paths anyway, so the scope check is defense in
+    # depth rather than the working guard.
+    if index is not None and scope is None:
+        terms = _element_terms(node)
+        if terms is not None:
+            structure, fields = terms
+            # The thunk defers naming the structure parameter until the index accepts.
+            # A declined clause allocates through its element compilation instead, and
+            # _structure_parameter dedupes by content, so early or late it is one name.
+            condition = index(
+                node.path, fields, lambda: _structure_parameter(structure, structures)
+            )
+            if condition is not None:
+                return condition
     variable = f"e{depth}"
     body = _predicate(
-        node.where, variable, resolved.type, compounds, structures, depth + 1
+        node.where, variable, resolved.type, compounds, structures, depth + 1, index
     )
     if node.op == "exists":
         return f"len(list_filter({resolved.expression}, {variable} -> {body})) > 0"
@@ -660,23 +737,31 @@ def _predicate(
     compounds: list[str],
     structures: list[StructureParameter],
     depth: int,
+    index: ElementIndex | None = None,
 ) -> str:
-    """Compiles one predicate node to a boolean DuckDB expression."""
+    """Compiles one predicate node to a boolean DuckDB expression.
+
+    An ``index`` is carried down unchanged. A condition it returns stands for one
+    quantifier and composes like any other boolean: negated, it says no element matches;
+    beside another clause, it narrows the same rows the rest of the query is about.
+    """
     if isinstance(node, And | Or):
         keyword = " AND " if isinstance(node, And) else " OR "
         return (
             "("
             + keyword.join(
-                _predicate(clause, scope, schema, compounds, structures, depth)
+                _predicate(clause, scope, schema, compounds, structures, depth, index)
                 for clause in node.clauses
             )
             + ")"
         )
     if isinstance(node, Not):
-        inner = _predicate(node.clause, scope, schema, compounds, structures, depth)
+        inner = _predicate(
+            node.clause, scope, schema, compounds, structures, depth, index
+        )
         return f"(NOT {inner})"
     if isinstance(node, Quantifier):
-        return _quantifier(node, scope, schema, compounds, structures, depth)
+        return _quantifier(node, scope, schema, compounds, structures, depth, index)
     if isinstance(node, Substructure | Similarity):
         return _structure(node, scope, schema, structures)
     resolved = resolve(node.path, schema=schema, root=scope)
@@ -697,7 +782,11 @@ def _scalar(path: str, schema: pa.Schema, what: str) -> str:
 
 
 def compile_query(
-    query: Query, *, schema: pa.Schema = projection.SCHEMA, table: str = TABLE
+    query: Query,
+    *,
+    schema: pa.Schema = projection.SCHEMA,
+    table: str = TABLE,
+    index: ElementIndex | None = None,
 ) -> Compiled:
     """Compiles a query to DuckDB SQL over the projection.
 
@@ -708,6 +797,9 @@ def compile_query(
             as text: a caller passing ``"reactions, range(1000000000)"`` would otherwise
             get a cross join the ``Query`` never asked for, and the single-relation cost
             bound this grammar exists to provide would hold only by convention.
+        index: An element index to spend where it can answer a quantifier; see
+            ``ElementIndex``. Without one, every quantifier compiles to a filter over
+            the elements, which is what the projection alone can answer.
 
     Returns:
         The SQL, the compound names whose resolved SMILES the caller binds, and the
@@ -746,8 +838,8 @@ def compile_query(
     # value reached the string as a bound parameter or a quoted literal.
     sql = f"SELECT {', '.join(selected)} FROM {table}"  # noqa: S608
     if query.where is not None:
-        sql += (
-            f" WHERE {_predicate(query.where, None, schema, compounds, structures, 0)}"
+        sql += " WHERE " + _predicate(
+            query.where, None, schema, compounds, structures, 0, index
         )
     taken = {parameter.name for parameter in structures}
     collisions = sorted(taken & set(compounds))

@@ -968,9 +968,29 @@ def test_concurrent_first_searches_build_one_library(corpus_dir, monkeypatch):
 _SUBSTRUCTURE = {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"}
 _SOLVENT = {"op": "eq", "path": "reaction_role", "value": {"literal": "SOLVENT"}}
 
-# Every shape the planner accepts whose two paths must agree exactly, which is all of
-# them but a limit: a limited query with no ordering takes some of the match set, and
-# the two paths take different rows of it. That one has its own test below.
+
+def _index_spent(body) -> bool:
+    """Returns whether the occurrence index takes any clause of this query."""
+    spent = False
+
+    def index(path, fields, allocate):
+        nonlocal spent
+        condition = execute.Corpus._index_condition(path, fields, allocate)
+        spent = spent or condition is not None
+        return condition
+
+    query.compile_query(query.Query.model_validate(body), index=index)
+    return spent
+
+
+def _no_index_condition(path, fields, allocate):
+    """Stands in for _index_condition so every quantifier compiles over the elements."""
+    del path, fields, allocate  # Unused.
+
+
+# Every shape where the index takes a clause. The index answers one quantifier, not the
+# query, so everything around that quantifier -- aggregates, orderings, limits, scalars,
+# negation, disjunction, a second quantifier -- composes and belongs here.
 _ROUTABLE = {
     "structure alone": {"where": _exists(_SUBSTRUCTURE)},
     "structure and role": {
@@ -1008,24 +1028,63 @@ _ROUTABLE = {
         )
     },
     # One aromatic carbon matches pyridine and benzene both, which are aa01's two
-    # inputs: one reaction reached through two occurrence rows.
+    # inputs: one reaction reached through two occurrence rows -- and a semi-join names
+    # the reaction once however many rows carry it.
     "several components of one reaction": {
         "where": _exists({"op": "substructure", "path": "smiles", "smarts": "c"})
     },
-}
-
-_NOT_ROUTABLE = {
-    # The planner declines every aggregate rather than reason about which ones the
-    # index's four columns could serve.
-    "an aggregate": {
+    # The shapes below wrap the indexed quantifier in the rest of the grammar, which is
+    # the point of answering a clause rather than the query.
+    "an aggregate over the quantifier": {
         "where": _exists(_SUBSTRUCTURE),
         "aggregate": {"measures": [{"fn": "count", "name": "n"}]},
     },
-    # And every ordering, including this one, which is on a column the index does hold.
     "an ordering": {
         "where": _exists(_SUBSTRUCTURE),
         "order_by": [{"key": "reaction_id"}],
     },
+    "an ordering and a limit": {
+        "where": _exists(_SUBSTRUCTURE),
+        "order_by": [{"key": "reaction_id"}],
+        "limit": 1,
+    },
+    "a scalar beside the quantifier": {
+        "where": {
+            "op": "and",
+            "clauses": [
+                _exists(_SUBSTRUCTURE),
+                {"op": "not_null", "path": "reaction_id"},
+            ],
+        }
+    },
+    # No element holds a match, which the semi-join states as absent membership.
+    "a negation of the quantifier": {
+        "where": {"op": "not", "clause": _exists(_SUBSTRUCTURE)}
+    },
+    "a disjunction of two quantifiers": {
+        "where": {
+            "op": "or",
+            "clauses": [
+                _exists(_SUBSTRUCTURE),
+                _exists({"op": "substructure", "path": "smiles", "smarts": "[OX2H]"}),
+            ],
+        }
+    },
+    # Two quantifiers are two semi-joins, each with its own bitmap.
+    "two structure predicates": {
+        "where": {
+            "op": "and",
+            "clauses": [
+                _exists({"op": "and", "clauses": [_SUBSTRUCTURE, _SOLVENT]}),
+                _exists({"op": "substructure", "path": "smiles", "smarts": "c1ccccc1"}),
+            ],
+        }
+    },
+}
+
+# Element predicates an occurrence row cannot carry, so the quantifier compiles over
+# the elements and the projection answers it -- whatever surrounds the quantifier.
+_NOT_ROUTABLE = {
     # No structure means no bitmap, and the index is only worth its scan with one.
     "a role alone": {"where": _exists(_SOLVENT)},
     # amount lives on the element but not in the index.
@@ -1109,30 +1168,49 @@ _NOT_ROUTABLE = {
             }
         )
     },
-    # Absence is not a row: the index sees the rows that match, so a negation would have
-    # to be read off rows that are not there.
-    "a negation": {"where": _exists({"op": "not", "clause": _SUBSTRUCTURE})},
-    # A disjunction is expressible as a row filter, but the planner reads conjunctions
-    # only, so it declines rather than carry a second way to build a condition.
-    "a disjunction": {
+    # Two structure predicates on one element are two bitmaps, and one occurrence row
+    # carries one structure: keeping either alone would drop the other's condition.
+    "two structure predicates on one element": {
+        "where": _exists(
+            {
+                "op": "and",
+                "clauses": [
+                    _SUBSTRUCTURE,
+                    {"op": "substructure", "path": "smiles", "smarts": "c1ccccc1"},
+                ],
+            }
+        )
+    },
+    # A negation inside the element is about what a row does not say, and a disjunction
+    # there needs the element's own fields; both are element logic, not row membership.
+    "a negation inside the quantifier": {
+        "where": _exists({"op": "not", "clause": _SUBSTRUCTURE})
+    },
+    "a disjunction inside the quantifier": {
         "where": _exists({"op": "or", "clauses": [_SUBSTRUCTURE, _SOLVENT]})
     },
-    # forall is not exists: the index sees matching rows, never their absence.
+    # forall is not exists: the index shows the elements that match, never that every
+    # element does.
     "a universal": {
         "where": {"op": "forall", "path": "inputs.components", "where": _SUBSTRUCTURE}
     },
-    # A scalar outside the quantifier is a projection column.
-    "a scalar beside the quantifier": {
+    # isolated_color is an element field no occurrence row carries, like any of the
+    # dozens beside the one indexed field.
+    "an equality on an element field of the products": {
         "where": {
-            "op": "and",
-            "clauses": [
-                _exists(_SUBSTRUCTURE),
-                {
-                    "op": "gt",
-                    "path": "conditions.temperature.setpoint_kelvin",
-                    "value": {"literal": 300},
-                },
-            ],
+            "op": "exists",
+            "path": "outcomes.products",
+            "where": {
+                "op": "and",
+                "clauses": [
+                    {"op": "substructure", "path": "smiles", "smarts": "Cc1ccccc1"},
+                    {
+                        "op": "eq",
+                        "path": "isolated_color",
+                        "value": {"literal": "white"},
+                    },
+                ],
+            },
         }
     },
 }
@@ -1141,39 +1219,32 @@ _NOT_ROUTABLE = {
 @pytest.mark.parametrize("label", sorted(_ROUTABLE))
 def test_the_index_answers_exactly_what_the_projection_would(corpus, label):
     # The index is a second way to reach the same reactions, so the only thing that
-    # makes it safe is that it never reaches different ones. Both paths screen and
-    # verify through the same compiler, so any disagreement is the index's traversal
-    # or its role column, which is what this compares.
-    request = query.Query.model_validate(_ROUTABLE[label])
-    planned = execute.Corpus._plan(request)
-    assert planned is not None, "expected this to route"
-    through_index = set(corpus.search(request).column("reaction_id").to_pylist())
-    projected = query.compile_query(request)
-    assert projected.sql != planned.sql  # Two paths, or this compares one to itself.
-    parameters = {
-        parameter.name: corpus._bitmap(
-            corpus._substructure_ids(parameter, corpus._resolver)
-            if parameter.op == "substructure"
-            else corpus._similarity_ids(corpus._connection, parameter, corpus._resolver)
+    # makes it safe is that it never reaches different ones. Each query runs twice
+    # through search itself -- once with the index, once with the hook answering None
+    # everywhere, which is a corpus that never built one -- so both sides are the
+    # production path. An ordered query is compared in order, since there the order is
+    # the answer; the rest as multisets, since neither relation promises one.
+    body = _ROUTABLE[label]
+    assert _index_spent(body), "expected the index to take a clause"
+    request = query.Query.model_validate(body)
+    with_index = corpus.search(request).to_pylist()
+    with pytest.MonkeyPatch.context() as patcher:
+        patcher.setattr(
+            execute.Corpus, "_index_condition", staticmethod(_no_index_condition)
         )
-        for parameter in projected.structures
-    }
-    through_projection = set(
-        corpus._connection.execute(projected.sql, parameters)
-        .to_arrow_table()
-        .column("reaction_id")
-        .to_pylist()
-    )
-    assert through_index == through_projection
+        direct = corpus.search(request).to_pylist()
+    if request.order_by:
+        assert list(map(repr, with_index)) == list(map(repr, direct)), label
+    else:
+        assert sorted(map(repr, with_index)) == sorted(map(repr, direct)), label
 
 
 @pytest.mark.parametrize("label", sorted(_NOT_ROUTABLE))
-def test_the_planner_leaves_the_projection_what_the_index_cannot_answer(label):
-    # Routing one of these would answer a different question than it was asked, so the
-    # planner has to decline rather than approximate.
-    assert (
-        execute.Corpus._plan(query.Query.model_validate(_NOT_ROUTABLE[label])) is None
-    )
+def test_the_index_declines_what_an_occurrence_row_cannot_carry(label):
+    # Taking one of these clauses would answer a different question than was asked, so
+    # the hook has to decline rather than approximate; the quantifier then compiles over
+    # the elements and the projection answers it.
+    assert not _index_spent(_NOT_ROUTABLE[label])
 
 
 @pytest.mark.parametrize(
@@ -1185,6 +1256,12 @@ def test_the_planner_leaves_the_projection_what_the_index_cannot_answer(label):
         # One component required to be two roles at once, which nothing is. Routed with
         # only the last role kept, this would come back as every pyridine reactant.
         ("two roles at once", set()),
+        # Declined by the executor rather than by the shape, so the search exercises
+        # the decline that happens after the terms were read.
+        ("an equality on another element field", {"ord-aa01", "ord-aa02"}),
+        # No molecule is a pyridine ring and a benzene ring at once. Kept as one of the
+        # two clauses -- either one -- this would return that clause's matches instead.
+        ("two structure predicates on one element", set()),
     ],
 )
 def test_a_declined_query_is_answered_rather_than_only_declined(
@@ -1218,16 +1295,16 @@ def test_the_index_names_each_reaction_once(corpus):
 
 
 def test_a_limited_query_takes_some_of_the_match_set(corpus):
-    # A limit rides along to the index. Neither path orders what it was not asked to
-    # order, so the two take different rows of one match set and equality is the wrong
-    # assertion; what has to hold is that the rows are the match set's and that there
-    # are as many as were asked for. A limit dropped on the way to the index would
-    # return the whole set, which the count catches.
-    request = query.Query.model_validate({"where": _exists(_SUBSTRUCTURE), "limit": 1})
-    assert execute.Corpus._plan(request) is not None, "expected this to route"
-    limited = corpus.search(request).column("reaction_id").to_pylist()
-    assert len(limited) == 1
-    assert set(limited) <= {"ord-aa01", "ord-aa02"}
+    # A limit with no ordering asks for some rows rather than particular ones, so
+    # equality against the unindexed answer is not the property; the count and the
+    # membership are. The semi-join leaves the limit on the outer query, where a dropped
+    # one would return the whole set and the count catches it.
+    body = {"where": _exists(_SUBSTRUCTURE), "limit": 1}
+    assert _index_spent(body), "expected the index to take the clause"
+    limited = corpus.search(query.Query.model_validate(body))
+    matched = limited.column("reaction_id").to_pylist()
+    assert len(matched) == 1
+    assert set(matched) <= {"ord-aa01", "ord-aa02"}
 
 
 def test_a_role_literal_cannot_close_its_quote(corpus):
@@ -1288,26 +1365,17 @@ def test_the_index_reaches_the_deep_paths_the_projection_does(
     # the other two are asserted here: the same query, routed and declined, over a
     # corpus that actually has something at each.
     where = {"op": "substructure", "path": "smiles", "smarts": smarts}
-    request = query.Query.model_validate(
-        {"where": {"op": "exists", "path": path, "where": where}}
-    )
-    assert execute.Corpus._plan(request) is not None, "expected this to route"
+    body = {"where": {"op": "exists", "path": path, "where": where}}
+    assert _index_spent(body), "expected the index to take the clause"
+    request = query.Query.model_validate(body)
     assert _reactions(deep_corpus.search(request)) == expected
-    # The same question with a scalar beside it, which the planner declines, so the
-    # projection answers a query the index just answered.
-    declined = query.Query.model_validate(
-        {
-            "where": {
-                "op": "and",
-                "clauses": [
-                    {"op": "exists", "path": path, "where": where},
-                    {"op": "not_null", "path": "reaction_id"},
-                ],
-            }
-        }
-    )
-    assert execute.Corpus._plan(declined) is None
-    assert _reactions(deep_corpus.search(declined)) == expected
+    # The same question compiled over the elements, so the projection answers what the
+    # index just answered.
+    with pytest.MonkeyPatch.context() as patcher:
+        patcher.setattr(
+            execute.Corpus, "_index_condition", staticmethod(_no_index_condition)
+        )
+        assert _reactions(deep_corpus.search(request)) == expected
 
 
 @pytest.mark.parametrize(
@@ -1337,7 +1405,6 @@ def test_a_role_binds_to_the_element_at_a_deep_path(deep_corpus, role, expected)
             }
         }
     )
-    assert execute.Corpus._plan(request) is not None, "expected this to route"
     assert _reactions(deep_corpus.search(request)) == expected
 
 
@@ -1354,47 +1421,52 @@ def test_a_routed_query_is_bounded_by_the_timeout(corpus, monkeypatch):
         return original(cursor, sql, parameters, timeout_seconds)
 
     monkeypatch.setattr(execute.Corpus, "_run_with_timeout", staticmethod(recording))
-    request = query.Query.model_validate(_ROUTABLE["structure and role"])
-    assert execute.Corpus._plan(request) is not None, "expected this to route"
+    body = _ROUTABLE["structure and role"]
+    assert _index_spent(body), "expected the index to take the clause"
+    request = query.Query.model_validate(body)
     assert _reactions(corpus.search(request, timeout_seconds=60)) == {"ord-aa01"}
     assert [timeout for _, timeout in seen] == [60]
     assert "FROM occurrences" in seen[0][0]
 
 
-def test_a_routed_query_reads_the_index_and_an_unrouted_one_does_not(corpus_dir):
+def test_a_spent_clause_reads_the_index_and_a_declined_one_does_not(corpus_dir):
     # Everything else here compares the two paths, which agree -- so a search that
-    # quietly stopped routing would keep passing while the index cost a build and
-    # answered nothing. A row only the index holds separates them: a routed query
-    # returns it, and one the planner declines cannot see it.
+    # quietly stopped spending the index would keep passing while the index cost a
+    # build and answered nothing. A row only the index holds separates them: the
+    # semi-join filters reactions by membership, so redirecting an existing reaction
+    # through a planted occurrence row changes the indexed answer and cannot change the
+    # projection's.
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
     ) as value:
-        routed = query.Query.model_validate(_ROUTABLE["structure and role"])
-        assert _reactions(value.search(routed)) == {"ord-aa01"}
+        spent = query.Query.model_validate(_ROUTABLE["structure and role"])
+        assert _reactions(value.search(spent)) == {"ord-aa01"}
         # aa01's solvent is its pyridine, so this copies the row the query just matched
-        # on and attributes it to a reaction that exists nowhere else.
+        # on and attributes it to bb01, which holds no pyridine at all.
         value._connection.execute(
-            "INSERT INTO occurrences SELECT 'ord-planted', path, global_id, "
+            "INSERT INTO occurrences SELECT 'ord-bb01', path, global_id, "
             "reaction_role FROM occurrences "
             "WHERE reaction_id = 'ord-aa01' AND reaction_role = 'SOLVENT'"
         )
-        assert _reactions(value.search(routed)) == {"ord-aa01", "ord-planted"}
-        # The same question with a scalar the fixture satisfies, so the projection's
-        # answer is a set with something in it rather than one that is empty either way.
-        declined = query.Query.model_validate(
-            {
-                "where": {
+        assert _reactions(value.search(spent)) == {"ord-aa01", "ord-bb01"}
+        # The same question about an element field no occurrence row carries, so the
+        # quantifier compiles over the elements and the planted row is invisible.
+        declined_body = {
+            "where": _exists(
+                {
                     "op": "and",
                     "clauses": [
-                        _ROUTABLE["structure and role"]["where"],
-                        {"op": "not_null", "path": "reaction_id"},
+                        _SUBSTRUCTURE,
+                        _SOLVENT,
+                        {"op": "is_null", "path": "amount.mass_grams"},
                     ],
                 }
-            }
-        )
-        assert execute.Corpus._plan(declined) is None
+            )
+        }
+        assert not _index_spent(declined_body)
+        declined = query.Query.model_validate(declined_body)
         assert _reactions(value.search(declined)) == {"ord-aa01"}
 
 
@@ -1518,8 +1590,9 @@ def test_a_path_the_index_does_not_cover_is_left_to_the_projection(
         if path != "outcomes.products"
     }
     monkeypatch.setattr(execute, "INDEXED_PATHS", kept)
-    request = query.Query.model_validate(_ROUTABLE["products rather than inputs"])
-    assert execute.Corpus._plan(request) is None
+    body = _ROUTABLE["products rather than inputs"]
+    assert not _index_spent(body)
+    request = query.Query.model_validate(body)
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),

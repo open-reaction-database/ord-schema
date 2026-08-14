@@ -106,8 +106,8 @@ should set it to the core count divided by that concurrency instead of leaving i
 
 Finding which reactions hold a match is a separate cost from the chemistry, and the
 larger one. An **occurrence index** — one row per structure occurrence, carrying the
-corpus-wide ID, the path, and the element's own `reaction_role` — makes that a filter
-over a narrow table rather than a scan of every reaction. Keeping the role beside the
+corpus-wide ID, the path, and the element's own `reaction_role` — makes that a semi-join
+against a narrow table rather than a scan of every reaction. Keeping the role beside the
 structure is what keeps a bound query a condition on one row. At corpus scale the index
 is 14.1M rows and about 130 MB, resident for the life of the `Corpus`. A search for
 pyridine among the inputs returns in 1.46s **end to end**, pyridine as the solvent in
@@ -115,19 +115,19 @@ pyridine among the inputs returns in 1.46s **end to end**, pyridine as the solve
 RDKit screen and verify, which the index does not touch: pyridine's match alone is about
 1.4s of its 1.46s. What the index cut is the reaction lookup, from roughly 3.5s to 0.2s.
 
-The index answers only the shape it holds: a bare `exists` at an indexed path whose body
-asks for one structure and at most one role. A query reaching another element field, or
-needing a projection column to group or sort by — and every `forall`, negation, and
-disjunction — runs against the projection, so "reactions with yield > 50% where pyridine
-is the solvent" is answered there rather than here. Both paths screen and verify through
-the same compiler, and the log line says which one answered. The index is built on the
-first query that routes to it, one pass over the projections per indexed path, so a
-server that wants its first real query to be fast should issue a throwaway structure
-query at startup.
-
-A `limit` with no `order_by` is the one place the two paths visibly differ: neither
-relation orders what it was not asked to order, so each returns some rows of the same
-match set and they do not agree on which.
+The index answers one *quantifier* at a time, not one query: an `exists` whose body asks
+for one structure and at most one role becomes `reaction_id IN (...)`, and the rest of
+the query compiles as if the index did not exist. So "reactions with yield > 50% where
+pyridine is the solvent" spends the index on its pyridine clause and answers the yield
+clause from the projection, in one query — and aggregates, orderings, limits, negations,
+disjunctions, and second structure predicates all compose the same way. A quantifier the
+index cannot carry — one binding another element field, holding no structure predicate
+or two, or any `forall`, which needs every element rather than some — compiles over the
+elements, and the projection answers it. Either way it is one compiled query, screened
+and verified identically; the log line says whether the index took a clause. The index
+is built on the first query that spends it, one pass over the projections per indexed
+path, so a server that wants its first real query to be fast should issue a throwaway
+structure query at startup.
 
 What remains is the chemistry itself, and two things cut it. Structures are deduplicated
 per dataset, so the library holds one entry per **distinct** molecule — 1,435,426 of the
