@@ -509,6 +509,42 @@ def test_temperature_ramp_incr_is_not_dropped(tmp_path):
     assert "temperature ramp=5 deg_C/hour" in reaction.conditions.details
 
 
+def test_non_rpm_stirring_is_not_dropped(tmp_path):
+    """Regression test: STIRRING in a unit other than rpm has no structured
+    home (StirringConditions.rate.rpm is rpm-specific), so it must surface
+    as text -- unlike rpm-unit stirring, which _add_conditions does capture
+    structurally, this one isn't actually captured despite STIRRING usually
+    being a "structural" field, so it can't be blanket-excluded from the
+    text pass the way BUFFER_TYPE etc. are (see _add_conditions' return
+    value, which _add_variation checks rather than assuming).
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+        <CONDITIONS>
+          <CONDITION_GROUP>
+            <STIRRING unit="Hz"><exact>50</exact></STIRRING>
+          </CONDITION_GROUP>
+        </CONDITIONS>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    reaction = dataset.reactions[0]
+    # Not structurally represented: rate.rpm can't hold a Hz value.
+    assert reaction.conditions.stirring.rate.rpm == 0
+    # But not silently dropped either.
+    assert "stirring 50.0 Hz" in reaction.conditions.details
+
+
 def test_reaction_without_variation_still_emits_one_reaction(tmp_path):
     reaction_xml = """
     <REACTION>

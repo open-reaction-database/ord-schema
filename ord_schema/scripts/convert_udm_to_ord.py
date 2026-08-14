@@ -336,13 +336,6 @@ _CONDITION_GROUP_ID_REF_FIELDS: tuple[tuple[str, str], ...] = (
     ("SOLVENT_ID", "solvents"),
 )
 
-# _add_conditions already represents these fields structurally for a single
-# CONDITION_GROUP; _condition_group_fields excludes them there so they
-# aren't duplicated in .conditions.details.
-_STRUCTURED_CONDITION_FIELDS = frozenset(
-    {"TEMPERATURE", "PRESSURE", "STIRRING", "REFLUX", "PH"}
-)
-
 
 def _condition_group_fields(
     group: UdmDict, exclude: frozenset[str] = frozenset()
@@ -525,13 +518,13 @@ def _add_variation(
     # is recorded as text instead.
     condition_groups = _as_list(conditions.get("CONDITION_GROUP"))
     if len(condition_groups) == 1:
-        _add_conditions(pb2_reaction, condition_groups[0])
-        # Fields _add_conditions doesn't have a structured place for (e.g.
-        # BUFFER_TYPE, REACTION_MOLARITY, agent ID references) still get
-        # recorded as text rather than silently dropped.
-        extra = _condition_group_fields(
-            condition_groups[0], exclude=_STRUCTURED_CONDITION_FIELDS
-        )
+        captured = _add_conditions(pb2_reaction, condition_groups[0])
+        # Whatever _add_conditions didn't actually manage to capture
+        # structurally -- either because ORD has no field for it (e.g.
+        # BUFFER_TYPE) or because this particular value couldn't be, despite
+        # the field type usually being structural (e.g. STIRRING in a unit
+        # other than rpm) -- still gets recorded as text, not dropped.
+        extra = _condition_group_fields(condition_groups[0], exclude=captured)
         if extra:
             pb2_reaction.conditions.details = "; ".join(extra)
     elif len(condition_groups) > 1:
@@ -612,8 +605,17 @@ def _set_molecule_identifier(
 
 def _add_conditions(
     pb2_reaction: reaction_pb2.Reaction, condition_group: UdmDict
-) -> None:
-    """Populates ReactionConditions from a UDM CONDITION_GROUP."""
+) -> frozenset[str]:
+    """Populates ReactionConditions from a UDM CONDITION_GROUP.
+
+    Returns the CONDITION_GROUP field names actually captured structurally,
+    so the caller knows what's safe to omit from a free-text fallback (and,
+    just as importantly, what wasn't captured despite being present and
+    still needs to be surfaced as text -- e.g. STIRRING in a unit other than
+    rpm, which ORD's StirringConditions.rate.rpm can't represent).
+    """
+    captured = set()
+
     temperature = condition_group.get("TEMPERATURE", {})
     parsed = _parse_range(temperature)
     if parsed:
@@ -624,6 +626,7 @@ def _add_conditions(
         pb2_reaction.conditions.temperature.setpoint.units = _TEMPERATURE_UNITS.get(
             temperature.get("@unit", "degC"), reaction_pb2.Temperature.UNSPECIFIED
         )
+        captured.add("TEMPERATURE")
 
     pressure = condition_group.get("PRESSURE", {})
     parsed = _parse_range(pressure)
@@ -635,10 +638,13 @@ def _add_conditions(
         pb2_reaction.conditions.pressure.setpoint.units = _PRESSURE_UNITS.get(
             pressure.get("@unit", "torr"), reaction_pb2.Pressure.UNSPECIFIED
         )
+        captured.add("PRESSURE")
 
     # UDM's STIRRING is a numeric rate (stirringRange, @unit defaulting to
     # "rpm"), not free text; ORD's StirringConditions.rate.rpm is the closest
-    # match. Units other than rpm can't be represented and are dropped.
+    # match, but only when the unit actually is rpm -- stirringRange's @unit
+    # is unrestricted xs:string in the XSD, not an enum, so other units are
+    # possible and can't be represented structurally.
     stirring = condition_group.get("STIRRING", {})
     parsed = _parse_range(stirring)
     if parsed and stirring.get("@unit", "rpm") == "rpm":
@@ -646,14 +652,19 @@ def _add_conditions(
         pb2_reaction.conditions.stirring.type = reaction_pb2.StirringConditions.CUSTOM
         pb2_reaction.conditions.stirring.details = f"{rpm} rpm"
         pb2_reaction.conditions.stirring.rate.rpm = rpm
+        captured.add("STIRRING")
 
     if "REFLUX" in condition_group:
         pb2_reaction.conditions.reflux = _parse_bool(condition_group["REFLUX"])
+        captured.add("REFLUX")
 
     ph = condition_group.get("PH", {})
     parsed = _parse_range(ph)
     if parsed:
         pb2_reaction.conditions.ph = parsed[0]
+        captured.add("PH")
+
+    return frozenset(captured)
 
 
 def _parse_bool(value: str) -> bool:
