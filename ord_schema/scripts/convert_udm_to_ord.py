@@ -298,25 +298,85 @@ def _format_range_text(value: UdmDict, default_unit: str) -> str | None:
     return f"{midpoint} {unit}".strip()
 
 
-def _summarize_condition_group(group: UdmDict, index: int) -> str:
-    """Renders one CONDITION_GROUP as a human-readable line for .conditions.details."""
+# CONDITION_GROUP's *Range-typed fields, with the default @unit each takes
+# per the XSD when @unit is omitted (udm_6_0_0.xsd / udm_6_0_0_units.xsd).
+_CONDITION_GROUP_RANGE_FIELDS: tuple[tuple[str, str, str], ...] = (
+    ("TEMPERATURE", "degC", "temperature"),
+    ("PRESSURE", "torr", "pressure"),
+    ("TIME", "hr", "time"),
+    ("STIRRING", "rpm", "stirring"),
+    ("PH", "", "pH"),
+    ("REACTION_MOLARITY", "mol/L", "reaction molarity"),
+    ("BUFFER_CONCENTRATION", "mol/L", "buffer concentration"),
+    ("TOTAL_VOLUME", "L", "total volume"),
+)
+
+# CONDITION_GROUP's Id-Ref-typed fields (references to other entities).
+_CONDITION_GROUP_ID_REF_FIELDS: tuple[tuple[str, str], ...] = (
+    ("REACTANT_ID", "reactants"),
+    ("REAGENT_ID", "reagents"),
+    ("CATALYST_ID", "catalysts"),
+    ("SOLVENT_ID", "solvents"),
+)
+
+# _add_conditions already represents these fields structurally for a single
+# CONDITION_GROUP; _condition_group_fields excludes them there so they
+# aren't duplicated in .conditions.details.
+_STRUCTURED_CONDITION_FIELDS = frozenset(
+    {"TEMPERATURE", "PRESSURE", "STIRRING", "REFLUX", "PH"}
+)
+
+
+def _condition_group_fields(
+    group: UdmDict, exclude: frozenset[str] = frozenset()
+) -> list[str]:
+    """Renders every known CONDITION_GROUP field as human-readable text fragments.
+
+    Covers the whole CONDITION_GROUP element (udm_6_0_0.xsd), not just the
+    fields ORD has a matching structured field for, so nothing is silently
+    dropped: `_add_conditions` (single group) and `_summarize_condition_group`
+    (multiple, dynamic groups) both build on this rather than each picking
+    their own subset.
+    """
     parts = []
-    if group.get("PROCESS"):
+    if "PROCESS" not in exclude and group.get("PROCESS"):
         parts.append(group["PROCESS"])
-    for field, default_unit, label in (
-        ("TEMPERATURE", "degC", "temperature"),
-        ("PRESSURE", "torr", "pressure"),
-        ("TIME", "hr", "time"),
-        ("STIRRING", "rpm", "stirring"),
-        ("PH", "", "pH"),
-    ):
+    for id_field, label in _CONDITION_GROUP_ID_REF_FIELDS:
+        if id_field in exclude:
+            continue
+        ids = _as_list(group.get(id_field))
+        if ids:
+            parts.append(f"{label}={','.join(ids)}")
+    for field, default_unit, label in _CONDITION_GROUP_RANGE_FIELDS:
+        if field in exclude:
+            continue
         text = _format_range_text(group.get(field, {}), default_unit)
         if text:
             parts.append(f"{label} {text}")
-    if "REFLUX" in group:
+    if "REFLUX" not in exclude and "REFLUX" in group:
         parts.append(f"reflux={group['REFLUX']}")
-    if group.get("ATMOSPHERE"):
+    if "BUFFER_TYPE" not in exclude and group.get("BUFFER_TYPE"):
+        parts.append(f"buffer={group['BUFFER_TYPE']}")
+    if "ATMOSPHERE" not in exclude and group.get("ATMOSPHERE"):
         parts.append(f"atmosphere={group['ATMOSPHERE']}")
+    if "PREPARATION" not in exclude:
+        preparations = []
+        for prep in _as_list(group.get("PREPARATION")):
+            text, _ = _text_and_unit(prep)
+            if text:
+                preparations.append(text)
+        if preparations:
+            parts.append(f"preparation={'; '.join(preparations)}")
+    if "SECTION" not in exclude and "SECTION" in group:
+        # SECTION is UDM's generic, schema-free extension point; its content
+        # isn't renderable as text, but its presence is still noted.
+        parts.append("custom SECTION data present (see --include-udm-xml)")
+    return parts
+
+
+def _summarize_condition_group(group: UdmDict, index: int) -> str:
+    """Renders one CONDITION_GROUP as a human-readable line for .conditions.details."""
+    parts = _condition_group_fields(group)
     return f"Stage {index}: " + ("; ".join(parts) if parts else "(no data)")
 
 
@@ -443,6 +503,14 @@ def _add_variation(
     condition_groups = _as_list(conditions.get("CONDITION_GROUP"))
     if len(condition_groups) == 1:
         _add_conditions(pb2_reaction, condition_groups[0])
+        # Fields _add_conditions doesn't have a structured place for (e.g.
+        # BUFFER_TYPE, REACTION_MOLARITY, agent ID references) still get
+        # recorded as text rather than silently dropped.
+        extra = _condition_group_fields(
+            condition_groups[0], exclude=_STRUCTURED_CONDITION_FIELDS
+        )
+        if extra:
+            pb2_reaction.conditions.details = "; ".join(extra)
     elif len(condition_groups) > 1:
         pb2_reaction.conditions.conditions_are_dynamic = True
         pb2_reaction.conditions.details = "; ".join(

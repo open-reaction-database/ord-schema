@@ -393,6 +393,85 @@ def test_condition_group_min_max_range_uses_midpoint_and_precision(tmp_path):
     assert reaction.conditions.temperature.setpoint.precision == 5.0
 
 
+def test_condition_group_buffer_and_agent_fields_are_not_dropped(tmp_path):
+    """Regression test: CONDITION_GROUP fields ORD has no structured field for
+    (BUFFER_TYPE, BUFFER_CONCENTRATION, REACTION_MOLARITY, TOTAL_VOLUME,
+    REAGENT_ID/...) must still show up somewhere, not vanish silently just
+    because they aren't temperature/pressure/stirring/reflux/pH.
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+        <CONDITIONS>
+          <CONDITION_GROUP>
+            <TEMPERATURE><exact>25.0</exact></TEMPERATURE>
+            <REAGENT_ID>r1</REAGENT_ID>
+            <BUFFER_TYPE>phosphate</BUFFER_TYPE>
+            <BUFFER_CONCENTRATION><exact>0.1</exact></BUFFER_CONCENTRATION>
+            <REACTION_MOLARITY><exact>0.5</exact></REACTION_MOLARITY>
+            <TOTAL_VOLUME><exact>10</exact></TOTAL_VOLUME>
+          </CONDITION_GROUP>
+        </CONDITIONS>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    reaction = dataset.reactions[0]
+    # Still structurally represented, same as before.
+    assert reaction.conditions.temperature.setpoint.value == 25.0
+    # Everything else lands in details rather than disappearing.
+    details = reaction.conditions.details
+    assert "reagents=r1" in details
+    assert "buffer=phosphate" in details
+    assert "buffer concentration 0.1 mol/L" in details
+    assert "reaction molarity 0.5 mol/L" in details
+    assert "total volume 10.0 L" in details
+    # Not duplicated: temperature is structural only, not also in details.
+    assert "temperature" not in details
+
+
+def test_dynamic_condition_groups_include_buffer_and_agent_fields(tmp_path):
+    """Same as above, but for the multi-group (conditions_are_dynamic) path,
+    where every field -- including temperature/pressure/stirring/pH -- has
+    to come from the text summary, since nothing is structurally set there.
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+        <CONDITIONS>
+          <CONDITION_GROUP>
+            <TEMPERATURE><exact>20.0</exact></TEMPERATURE>
+            <BUFFER_TYPE>phosphate</BUFFER_TYPE>
+          </CONDITION_GROUP>
+          <CONDITION_GROUP>
+            <TEMPERATURE><exact>40.0</exact></TEMPERATURE>
+          </CONDITION_GROUP>
+        </CONDITIONS>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    reaction = dataset.reactions[0]
+    assert reaction.conditions.conditions_are_dynamic
+    assert "buffer=phosphate" in reaction.conditions.details
+
+
 def test_reaction_without_variation_still_emits_one_reaction(tmp_path):
     reaction_xml = """
     <REACTION>
