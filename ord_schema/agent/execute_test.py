@@ -2191,6 +2191,143 @@ def test_a_table_a_search_is_reading_is_not_evicted(corpus_dir, monkeypatch):
         assert reading not in _tables(value)
 
 
+@contextlib.contextmanager
+def _stalled_build(value, monkeypatch) -> Iterator[threading.Event]:
+    """Runs a materialization that stops mid-build, and yields what releases it.
+
+    The stall stands in for the pass over the corpus a real build spends its seconds
+    in. Whatever the caller does while it holds is what a search does while another
+    search is materializing.
+    """
+    building = threading.Event()
+    finish = threading.Event()
+    original = execute._memory_bytes
+
+    def blocking(cursor):
+        # The reading taken after the CREATE, so the table exists and the build is
+        # holding whatever it holds while nothing else has recorded it.
+        if building.is_set():
+            return original(cursor)
+        building.set()
+        finish.wait()
+        return original(cursor)
+
+    monkeypatch.setattr(execute, "_memory_bytes", blocking)
+    stalled: list[BaseException] = []
+
+    def build() -> None:
+        try:
+            with value._narrowed_table(frozenset({"reaction_id", "conditions"})):
+                pass
+        except BaseException as error:  # noqa: BLE001 - reported below, not handled.
+            stalled.append(error)
+
+    builder = threading.Thread(target=build)
+    builder.start()
+    try:
+        assert building.wait(timeout=30), "the build never reached its stall"
+        yield finish
+    finally:
+        finish.set()
+        builder.join(timeout=30)
+    assert not builder.is_alive()
+    assert stalled == []
+
+
+def _in_a_thread(work) -> tuple[threading.Thread, list]:
+    """Runs ``work`` in a thread, and returns it with the list its result lands in."""
+    done: list = []
+    thread = threading.Thread(target=lambda: done.append(work()))
+    thread.start()
+    return thread, done
+
+
+def test_a_materialized_table_is_handed_out_while_another_is_being_built(
+    corpus_dir, monkeypatch
+):
+    # A build is a pass over the corpus, and a Corpus is shared between searches. A
+    # search whose columns are already materialized has nothing to wait for, and making
+    # it wait turns one slow first query into a stall for everyone. Asked from a thread
+    # rather than here, so a hit that does wait fails this test rather than hanging it.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        cached = frozenset({"reaction_id", "provenance"})
+        with value._narrowed_table(cached):
+            pass
+        with _stalled_build(value, monkeypatch):
+
+            def read() -> str | None:
+                with value._narrowed_table(cached) as name:
+                    return name
+
+            reader, answered = _in_a_thread(read)
+            reader.join(timeout=10)
+            assert answered, "a cache hit waited on an unrelated build"
+            assert answered[0] is not None
+        assert not reader.is_alive()
+
+
+def test_one_column_set_is_built_once_however_many_searches_want_it(
+    corpus_dir, monkeypatch
+):
+    # Two searches naming the same columns arrive together on a cold cache. Building
+    # twice costs two passes over the corpus and leaves two tables of one column set,
+    # of which only the last is remembered -- the other is memory nothing will free.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        wanted = frozenset({"reaction_id", "conditions"})
+        with _stalled_build(value, monkeypatch):
+
+            def read() -> str | None:
+                with value._narrowed_table(wanted) as name:
+                    return name
+
+            # The stalled build is materializing these very columns.
+            second, answered = _in_a_thread(read)
+            second.join(timeout=1)
+            assert not answered, "the second ask did not wait for the build in flight"
+        second.join(timeout=30)
+        assert answered, "the second ask never got its table"
+        assert answered[0] is not None
+        assert value._narrow_serial == 1  # One name taken, so one table built.
+        assert [name for name in _tables(value) if name.startswith("narrow_")] == [
+            answered[0]
+        ]
+
+
+def test_a_table_a_second_search_took_from_the_cache_is_not_evicted(
+    corpus_dir, monkeypatch
+):
+    # A hit hands back a name the search will read seconds later, exactly as a build
+    # does, so it has to take the read the same way. Held at zero readers, the table is
+    # the first thing eviction takes, and the search fails on a name that no longer
+    # resolves after it had already been answered correctly.
+    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 150)
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        monkeypatch.setattr(
+            execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
+        )
+        first = frozenset({"reaction_id", "provenance"})
+        with value._narrowed_table(first) as built:
+            pass
+        # Taken from the cache this time, and read while the budget forces an eviction.
+        with value._narrowed_table(first) as reading:
+            assert reading == built
+            with value._narrowed_table(frozenset({"reaction_id", "conditions"})):
+                pass
+            assert reading in _tables(value)
+
+
 def test_a_failed_materialization_leaves_nothing_behind(corpus_dir, monkeypatch):
     # A table nobody tracks is memory nobody frees, and under a name a later attempt
     # would collide with. The failure is raised after the CREATE, which is the window.

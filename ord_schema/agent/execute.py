@@ -152,10 +152,15 @@ def _resolve_with_resolvers(name: str) -> str:
     return smiles
 
 
+def _sql_string(value: str) -> str:
+    """Returns ``value`` as a SQL string literal, single quotes escaped."""
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
+
+
 def _sql_strings(values: Iterable[str]) -> str:
     """Returns ``values`` as a SQL list literal, single quotes escaped."""
-    quoted = ", ".join("'" + value.replace("'", "''") + "'" for value in values)
-    return f"[{quoted}]"
+    return "[" + ", ".join(_sql_string(value) for value in values) + "]"
 
 
 def _max_structure_id(path: str) -> int | None:
@@ -271,9 +276,9 @@ _INDEXED_FIELD = "reaction_role"
 def _indexed_paths(schema: pa.Schema = projection.SCHEMA) -> dict[str, str]:
     """Returns the paths an occurrence index covers, mapped to their traversals.
 
-    Walked from the schema and resolved through the compiler, so the index reaches the
-    same elements the projection does by construction rather than by a list here
-    agreeing with one there.
+    Taken from the same schema walk the structures artifact is built from and resolved
+    through the compiler, so the index reaches the elements the projection does by
+    construction rather than by a list here agreeing with one there.
 
     Every path the schema can carry a structure at has to come out covered, which is
     what lets the build check what it indexed against what the corpus says it holds. A
@@ -293,38 +298,20 @@ def _indexed_paths(schema: pa.Schema = projection.SCHEMA) -> dict[str, str]:
             because the answer is to change this module rather than to retry.
     """
     paths: dict[str, str] = {}
-
-    def walk(dtype: pa.DataType, prefix: str) -> None:
-        if pa.types.is_struct(dtype):
-            names = [field.name for field in dtype]
-            if "structure_id" in names:
-                # The schema walk speaks Parquet; the grammar has no wrapper levels.
-                path = prefix.replace(".list.element", "").replace(
-                    ".key_value.value", ""
-                )
-                resolved = query.resolve(path, schema=schema, allow_internal=True)
-                if _INDEXED_FIELD not in names:
-                    raise ValueError(
-                        f"{path} carries a structure but no {_INDEXED_FIELD}, so the "
-                        "occurrence index cannot cover it and a structure sitting only "
-                        "there would look like one the index lost"
-                    )
-                if not resolved.repeated:
-                    raise ValueError(
-                        f"{path} carries a structure but resolves to one element "
-                        "rather than a repeated expression, which the build cannot "
-                        "unnest"
-                    )
-                paths[path] = resolved.expression
-            for child in dtype:
-                walk(child.type, f"{prefix}.{child.name}")
-        elif pa.types.is_list(dtype):
-            walk(dtype.value_type, f"{prefix}.list.element")
-        elif pa.types.is_map(dtype):
-            walk(dtype.item_type, f"{prefix}.key_value.value")
-
-    for field in schema:
-        walk(field.type, field.name)
+    for _, path, dtype in structures.structure_levels(schema):
+        resolved = query.resolve(path, schema=schema, allow_internal=True)
+        if _INDEXED_FIELD not in [field.name for field in dtype]:
+            raise ValueError(
+                f"{path} carries a structure but no {_INDEXED_FIELD}, so the "
+                "occurrence index cannot cover it and a structure sitting only "
+                "there would look like one the index lost"
+            )
+        if not resolved.repeated:
+            raise ValueError(
+                f"{path} carries a structure but resolves to one element rather than "
+                "a repeated expression, which the build cannot unnest"
+            )
+        paths[path] = resolved.expression
     if not paths:
         raise ValueError(
             "the schema carries no structure at any path, so an occurrence index has "
@@ -367,13 +354,12 @@ def _index_condition(
     if path not in INDEXED_PATHS or set(fields) - {_INDEXED_FIELD}:
         return None
     conditions = [
-        f"occurrence.path = '{path}'",
+        f"occurrence.path = {_sql_string(path)}",
         f"get_bit(CAST(${allocate()} AS BITSTRING), occurrence.global_id::INTEGER) = 1",
     ]
     role = fields.get(_INDEXED_FIELD)
     if role is not None:
-        escaped = role.replace("'", "''")
-        conditions.append(f"occurrence.{_INDEXED_FIELD} = '{escaped}'")
+        conditions.append(f"occurrence.{_INDEXED_FIELD} = {_sql_string(role)}")
     # S608: every fragment is a schema-derived path, a compiler-issued parameter
     # name, or an escaped literal. The inner relation is aliased so that the outer
     # reaction_id and the inner one cannot be confused for each other.
@@ -595,6 +581,9 @@ class Corpus:
         self._narrow_refused: set[frozenset[str]] = set()
         self._narrow_serial = 0
         self._narrow_lock = threading.Lock()
+        # Held across a materialization, so the two memory readings bracket one table
+        # and no search waits on a build to be told what the cache already holds.
+        self._narrow_build_lock = threading.Lock()
         pairs = _pair(projection_pattern, structures_pattern, require_current)
         self._connection = duckdb.connect()
         try:
@@ -889,7 +878,7 @@ class Corpus:
             # offset comes from the row's own file, which the reactions view carries.
             selects = "\nUNION ALL\n".join(
                 f"""
-                SELECT reaction_id, '{path}' AS path,
+                SELECT reaction_id, {_sql_string(path)} AS path,
                        (element.structure_id + {query.STRUCTURE_OFFSET})::UINTEGER
                            AS global_id,
                        element.{_INDEXED_FIELD} AS {_INDEXED_FIELD}
@@ -1044,6 +1033,11 @@ class Corpus:
         The caller owns a read on whatever comes back and has to release it, which
         ``_narrowed_table`` does; an entry with a reader is never evicted.
 
+        What the cache holds is read under the short lock the bookkeeping takes, and
+        only a build waits on another build. A search whose columns are already
+        materialized is answered while one is running, which is the common case on a
+        corpus serving several questions at once.
+
         Args:
             columns: Top-level projection columns the query names.
 
@@ -1054,62 +1048,103 @@ class Corpus:
             build them again to throw them away again.
         """
         with self._narrow_lock:
-            cached = self._narrowed.get(columns)
-            if cached is not None:
-                self._narrowed.move_to_end(columns)
-                cached.readers += 1
-                return cached
-            if columns in self._narrow_refused:
-                return None
+            settled, entry = self._cached(columns)
+        if settled:
+            return entry
+        with self._narrow_build_lock:
+            # Asked again under the build lock: whoever held it may have been building
+            # exactly these columns, and a second table of them would be memory held
+            # twice for one answer.
+            with self._narrow_lock:
+                settled, entry = self._cached(columns)
+            if settled:
+                return entry
+            return self._build(columns)
+
+    def _cached(self, columns: frozenset[str]) -> tuple[bool, _Narrow | None]:
+        """Returns whether the cache settles ``columns``, and the entry if it holds one.
+
+        Called with ``_narrow_lock`` held. A hit takes the read on the caller's behalf,
+        since an entry released back to the cache between the lookup and the read could
+        be evicted in between.
+
+        Args:
+            columns: Top-level projection columns the query names.
+
+        Returns:
+            ``(True, entry)`` for a hit, ``(True, None)`` for a set already refused as
+            too large, and ``(False, None)`` for one nobody has built yet.
+        """
+        cached = self._narrowed.get(columns)
+        if cached is not None:
+            self._narrowed.move_to_end(columns)
+            cached.readers += 1
+            return True, cached
+        return columns in self._narrow_refused, None
+
+    def _build(self, columns: frozenset[str]) -> _Narrow | None:
+        """Materializes ``columns``, recording its cost or that it costs too much.
+
+        Called with ``_narrow_build_lock`` held and ``_narrow_lock`` free, so the two
+        memory readings bracket this table and nothing else the cache does. An index
+        build can still move the figure between them, which costs an overstatement and
+        an eviction, never a wrong answer.
+
+        Args:
+            columns: Top-level projection columns the query names.
+
+        Returns:
+            The entry, held once for the caller, or None if it exceeds the budget.
+        """
+        with self._narrow_lock:
             # Never reused, so a build that fails between the CREATE and the entry
             # cannot leave a name the next attempt collides with.
             self._narrow_serial += 1
             name = f"narrow_{self._narrow_serial}"
-            selected = ", ".join([*sorted(columns), query.STRUCTURE_OFFSET])
-            start = time.perf_counter()
-            # Its own cursor, for the same reason the index build takes one: searches
-            # are in flight, and the shared connection holds their results.
-            cursor = self._connection.cursor()
-            try:
-                before = _memory_bytes(cursor)
-                # S608: the names come from the projection schema and this module.
-                cursor.execute(
-                    f"CREATE TABLE {name} AS "  # noqa: S608
-                    f"SELECT {selected} FROM {query.TABLE}"
-                )
-                # Measured under the lock, so no other materialization moves the figure
-                # between the two reads. An index build can, which costs an
-                # overstatement and an eviction, never a wrong answer.
-                held = max(_memory_bytes(cursor) - before, 0)
-                if held > _NARROW_BUDGET_BYTES:
-                    # Too big to keep, and keeping it is the only reason to build it.
-                    cursor.execute(f"DROP TABLE {name}")
-                    self._narrow_refused.add(columns)
-                    logger.info(
-                        "not caching %s: %.1f GB exceeds the budget",
-                        sorted(columns),
-                        held / 1024**3,
-                    )
-                    return None
-            except Exception:
-                # A table nobody tracks is memory nobody frees, and the failure the
-                # caller sees has to be the one that happened.
-                with contextlib.suppress(duckdb.Error):
-                    cursor.execute(f"DROP TABLE IF EXISTS {name}")
-                raise
-            finally:
-                cursor.close()
-            logger.info(
-                "materialized %s as %s, %.2f GB in %.1fs",
-                sorted(columns),
-                name,
-                held / 1024**3,
-                time.perf_counter() - start,
+        selected = ", ".join([*sorted(columns), query.STRUCTURE_OFFSET])
+        start = time.perf_counter()
+        # Its own cursor, for the same reason the index build takes one: searches
+        # are in flight, and the shared connection holds their results.
+        cursor = self._connection.cursor()
+        try:
+            before = _memory_bytes(cursor)
+            # S608: the names come from the projection schema and this module.
+            cursor.execute(
+                f"CREATE TABLE {name} AS "  # noqa: S608
+                f"SELECT {selected} FROM {query.TABLE}"
             )
-            entry = _Narrow(name=name, held=held, readers=1)
+            held = max(_memory_bytes(cursor) - before, 0)
+            if held > _NARROW_BUDGET_BYTES:
+                # Too big to keep, and keeping it is the only reason to build it.
+                cursor.execute(f"DROP TABLE {name}")
+                with self._narrow_lock:
+                    self._narrow_refused.add(columns)
+                logger.info(
+                    "not caching %s: %.1f GB exceeds the budget",
+                    sorted(columns),
+                    held / 1024**3,
+                )
+                return None
+        except Exception:
+            # A table nobody tracks is memory nobody frees, and the failure the
+            # caller sees has to be the one that happened.
+            with contextlib.suppress(duckdb.Error):
+                cursor.execute(f"DROP TABLE IF EXISTS {name}")
+            raise
+        finally:
+            cursor.close()
+        logger.info(
+            "materialized %s as %s, %.2f GB in %.1fs",
+            sorted(columns),
+            name,
+            held / 1024**3,
+            time.perf_counter() - start,
+        )
+        entry = _Narrow(name=name, held=held, readers=1)
+        with self._narrow_lock:
             self._narrowed[columns] = entry
             self._evict()
-            return entry
+        return entry
 
     def _evict(self) -> None:
         """Drops materialized tables, least recently used first, down to the budget.

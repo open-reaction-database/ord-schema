@@ -153,7 +153,9 @@ type from 0.75s to 0.003s. The columns are read back off the compiled SQL and th
 is then compiled again against the table, so a column it names and the table lacks is a
 catalog error rather than a wrong answer, and no SQL text is edited. Sets are held to a
 memory budget and evicted least-recently-used, skipping any a search is still reading;
-one too large to keep is not kept, and the projection answers directly. The rows are the
+one too large to keep is not kept, the projection answers directly, and that is
+remembered rather than rediscovered by building it again. Only builds wait on builds: a
+search whose columns are already materialized is answered while another is being built. The rows are the
 same rows either way, in an order neither relation promises — a query wanting one has to
 say so.
 
