@@ -298,13 +298,19 @@ def test_multiple_variations_become_separate_reactions(tmp_path):
     assert amounts == {1.0, 2.0}
 
 
-def test_multiple_condition_groups_become_separate_reactions(tmp_path):
-    """Regression test: each <CONDITION_GROUP> must produce its own Reaction.
+def test_multiple_condition_groups_use_first_group_only(tmp_path):
+    """Regression test: multiple <CONDITION_GROUP>s must not be merged, and
+    must not multiply the Reaction.
 
-    Merging multiple groups into one ReactionConditions (last field wins per
-    field) can fabricate a condition set -- e.g. one group's temperature
-    combined with a different, unrelated group's pressure -- that never
-    existed in the source.
+    An earlier version of this code merged every group's fields into one
+    ReactionConditions (fabricating composites, e.g. one group's temperature
+    plus an unrelated group's pressure, that never existed in the source). A
+    later version instead split each group into its own Reaction -- also
+    wrong, since REACTANT/PRODUCT/YIELD/COMMENT/provenance are variation-
+    level, not per-group, so splitting duplicated a single recorded outcome
+    across multiple Reactions as if it were independently reproduced under
+    each condition set. Only the first group is represented structurally;
+    the existence of the rest is noted, not silently dropped.
     """
     reaction_xml = """
     <REACTION>
@@ -313,6 +319,10 @@ def test_multiple_condition_groups_become_separate_reactions(tmp_path):
         <REACTANT>
           <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
         </REACTANT>
+        <PRODUCT>
+          <MOLECULE MOL_ID="m2"><NAME>Product A</NAME></MOLECULE>
+          <YIELD><exact>85.0</exact></YIELD>
+        </PRODUCT>
         <CONDITIONS>
           <CONDITION_GROUP>
             <TEMPERATURE><exact>25.0</exact></TEMPERATURE>
@@ -330,22 +340,17 @@ def test_multiple_condition_groups_become_separate_reactions(tmp_path):
     convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
 
     dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
-    assert len(dataset.reactions) == 2
+    assert len(dataset.reactions) == 1
+    reaction = dataset.reactions[0]
 
-    # Both reactions share everything except conditions: same scientist,
-    # same reactant, since they came from the same VARIATION.
-    scientists = {r.provenance.experimenter.name for r in dataset.reactions}
-    assert scientists == {"Test Scientist"}
+    # Only the outcome recorded once in the source, not duplicated.
+    assert len(reaction.outcomes) == 1
+    assert reaction.outcomes[0].products[0].measurements[0].float_value.value == 85.0
 
-    temperatures = {r.conditions.temperature.setpoint.value for r in dataset.reactions}
-    pressures = {r.conditions.pressure.setpoint.value for r in dataset.reactions}
-    assert temperatures == {25.0, 0.0}
-    assert pressures == {0.0, 2.0}
-    # Neither reaction has both fields set -- they weren't merged.
-    for reaction in dataset.reactions:
-        has_temperature = reaction.conditions.temperature.setpoint.value != 0.0
-        has_pressure = reaction.conditions.pressure.setpoint.value != 0.0
-        assert has_temperature != has_pressure
+    # Only the first group's field is structurally represented.
+    assert reaction.conditions.temperature.setpoint.value == 25.0
+    assert reaction.conditions.pressure.setpoint.value == 0.0
+    assert "2 CONDITION_GROUP" in reaction.conditions.details
 
 
 def test_reaction_without_variation_still_emits_one_reaction(tmp_path):
