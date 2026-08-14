@@ -14,9 +14,13 @@
 """Builds a Dataset from a set of (UDM) Reactions.
 
 Given a UDM file, converts it to a Dataset .pbtxt for ORD. A UDM <REACTION>
-may contain multiple <VARIATION> elements; each variation is emitted as its
-own ORD Reaction, since UDM variations represent distinct experiments run
-under the same reaction identifiers.
+may contain multiple <VARIATION> elements, and a <VARIATION> may itself
+contain multiple <CONDITION_GROUP> elements; each (variation, condition
+group) pair is emitted as its own ORD Reaction, since ORD's Reaction has
+only one ReactionConditions and UDM's groups can describe genuinely
+different condition sets rather than stages of one experiment. Merging them
+into a single ReactionConditions would fabricate a composite that never
+existed in the source.
 
 UDM (Unified Data Model) is a Pistoia Alliance format; see
 https://github.com/PistoiaAlliance/UDM for the schema and example data.
@@ -203,18 +207,23 @@ def main(args: argparse.Namespace) -> None:
         # <VARIATION> elements still gets a single Reaction, since it has no
         # variation-specific data to add.
         for variation in _as_list(reaction.get("VARIATION")) or [{}]:
-            pb2_reaction = reaction_pb2.Reaction()
-            pb2_reaction.CopyFrom(base_reaction)
-            _add_variation(
-                pb2_reaction,
-                reaction,
-                variation,
-                udm_reactions,
-                all_molecules,
-                submitter_username,
-                args.email,
-            )
-            pb2_reactions.append(pb2_reaction)
+            conditions: UdmDict = variation.get("CONDITIONS", {})
+            # A variation with no <CONDITION_GROUP> still gets one Reaction,
+            # with ReactionConditions left unset.
+            for condition_group in _as_list(conditions.get("CONDITION_GROUP")) or [{}]:
+                pb2_reaction = reaction_pb2.Reaction()
+                pb2_reaction.CopyFrom(base_reaction)
+                _add_variation(
+                    pb2_reaction,
+                    reaction,
+                    variation,
+                    udm_reactions,
+                    all_molecules,
+                    submitter_username,
+                    args.email,
+                    condition_group,
+                )
+                pb2_reactions.append(pb2_reaction)
 
     dataset = dataset_pb2.Dataset(
         name=dataset_name, description=dataset_description, reactions=pb2_reactions
@@ -348,14 +357,16 @@ def _add_variation(
     all_molecules: dict[str, UdmDict],
     submitter_username: str,
     submitter_email: str | None,
+    condition_group: UdmDict,
 ) -> None:
-    """Populates a Reaction already seeded with base data from one VARIATION."""
+    """Populates a Reaction from one (VARIATION, CONDITION_GROUP) pair."""
     for role_name, role in _ROLES.items():
         for entry in _as_list(variation.get(role_name)):
             _add_component(pb2_reaction, all_molecules, entry, role, role_name)
 
     conditions: UdmDict = variation.get("CONDITIONS", {})
-    # <PREPARATION> is a direct child of <CONDITIONS>, not <CONDITION_GROUP>.
+    # <PREPARATION> is a direct child of <CONDITIONS>, not <CONDITION_GROUP>,
+    # so it applies to every condition group split out of this variation.
     preparations = []
     for prep in _as_list(conditions.get("PREPARATION")):
         text, _ = _text_and_unit(prep)
@@ -366,10 +377,8 @@ def _add_variation(
             reaction_pb2.ReactionSetup.ReactionEnvironment.CUSTOM
         )
         pb2_reaction.setup.environment.details = "; ".join(preparations)
-    # <CONDITIONS> may repeat <CONDITION_GROUP>; ORD has only one
-    # ReactionConditions per Reaction, so later groups overwrite fields set
-    # by earlier ones rather than being merged or dropped.
-    for condition_group in _as_list(conditions.get("CONDITION_GROUP")):
+
+    if condition_group:
         _add_conditions(pb2_reaction, condition_group)
 
     comment = variation.get("COMMENT")

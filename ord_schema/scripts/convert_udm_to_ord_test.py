@@ -298,6 +298,56 @@ def test_multiple_variations_become_separate_reactions(tmp_path):
     assert amounts == {1.0, 2.0}
 
 
+def test_multiple_condition_groups_become_separate_reactions(tmp_path):
+    """Regression test: each <CONDITION_GROUP> must produce its own Reaction.
+
+    Merging multiple groups into one ReactionConditions (last field wins per
+    field) can fabricate a condition set -- e.g. one group's temperature
+    combined with a different, unrelated group's pressure -- that never
+    existed in the source.
+    """
+    reaction_xml = """
+    <REACTION>
+      <VARIATION>
+        <SCIENTIST><NAME>Test Scientist</NAME></SCIENTIST>
+        <REACTANT>
+          <MOLECULE MOL_ID="m1"><NAME>Reactant A</NAME></MOLECULE>
+        </REACTANT>
+        <CONDITIONS>
+          <CONDITION_GROUP>
+            <TEMPERATURE><exact>25.0</exact></TEMPERATURE>
+          </CONDITION_GROUP>
+          <CONDITION_GROUP>
+            <PRESSURE unit="bar"><exact>2.0</exact></PRESSURE>
+          </CONDITION_GROUP>
+        </CONDITIONS>
+      </VARIATION>
+    </REACTION>
+"""
+    input_filename = _write(tmp_path, "input.xml", _udm_xml(reaction_xml))
+    output_filename = str(tmp_path / "output.pbtxt")
+    argv = ["--input", input_filename, "--output", output_filename, "--no-validate"]
+    convert_udm_to_ord.main(convert_udm_to_ord.parse_args(argv))
+
+    dataset = message_helpers.load_message(output_filename, dataset_pb2.Dataset)
+    assert len(dataset.reactions) == 2
+
+    # Both reactions share everything except conditions: same scientist,
+    # same reactant, since they came from the same VARIATION.
+    scientists = {r.provenance.experimenter.name for r in dataset.reactions}
+    assert scientists == {"Test Scientist"}
+
+    temperatures = {r.conditions.temperature.setpoint.value for r in dataset.reactions}
+    pressures = {r.conditions.pressure.setpoint.value for r in dataset.reactions}
+    assert temperatures == {25.0, 0.0}
+    assert pressures == {0.0, 2.0}
+    # Neither reaction has both fields set -- they weren't merged.
+    for reaction in dataset.reactions:
+        has_temperature = reaction.conditions.temperature.setpoint.value != 0.0
+        has_pressure = reaction.conditions.pressure.setpoint.value != 0.0
+        assert has_temperature != has_pressure
+
+
 def test_reaction_without_variation_still_emits_one_reaction(tmp_path):
     reaction_xml = """
     <REACTION>
