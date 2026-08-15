@@ -69,6 +69,10 @@ from rdkit import Chem
 
 from ord_schema import projection
 
+# Aliased because ``pivot`` is the parameter name a caller passes an index under, and a
+# module shadowed inside the function that needs it is a bug waiting for an edit.
+from ord_schema.agent import pivot as pivot_levels
+
 # The relation a compiled query reads. The only one in scope, so nothing else is
 # nameable and a join has nothing to join to.
 TABLE = "reactions"
@@ -87,6 +91,32 @@ STRUCTURE_OFFSET = "structure_offset"
 # that takes the clause, because a parameter named and left unbound is an error rather
 # than a wasted name.
 ElementIndex = Callable[[str, dict[str, str], Callable[[], str]], str | None]
+
+
+# Consulted for a quantifier at the row, given the path it ranges over. Returns the
+# relation holding one row per element of that level, or None to leave the quantifier
+# compiled as a filter over the elements. What the rows carry is ``pivot.LEVELS``, which
+# this module reads from the schema rather than from the caller; the caller decides only
+# whether the relation exists.
+PivotIndex = Callable[[str], str | None]
+
+
+@dataclasses.dataclass(frozen=True)
+class _Routing:
+    """Where a quantifier may be answered, besides by filtering the elements.
+
+    Attributes:
+        table: The relation the query reads. Carried because a semi-join has to
+            qualify its correlation with it: the pivot holds a ``reaction_id`` of its
+            own, so an unqualified outer reference binds to the *inner* one and the
+            correlation compares a column to itself, which is true of every row.
+        index: An occurrence index, consulted for an ``exists`` at the row.
+        pivot: Pivoted levels, consulted after ``index`` and for ``forall`` too.
+    """
+
+    table: str
+    index: ElementIndex | None = None
+    pivot: PivotIndex | None = None
 
 
 def executable_schema(schema: pa.Schema | None = None) -> pa.Schema:
@@ -660,6 +690,78 @@ def _element_terms(
     return structure, fields
 
 
+def _pivoted(
+    node: "Quantifier",
+    compounds: list[str],
+    structures: list[StructureParameter],
+    depth: int,
+    routing: _Routing,
+) -> str | None:
+    """Returns a semi-join standing for a quantifier, or None to leave it to the level.
+
+    A pivot holds one row per element, so ``exists`` is a semi-join and ``forall`` is
+    the absence of a counterexample. Both are written as ``EXISTS`` rather than ``IN``:
+    a NULL ``reaction_id`` would make ``NOT IN`` answer NULL for every reaction and
+    return nothing, where ``NOT EXISTS`` answers the same on a corpus that has one and
+    on a corpus that does not.
+
+    The body compiles against the element's *pruned* type, so a path reaching a field
+    the pivot dropped -- anything repeated -- raises and this declines, leaving the
+    quantifier to the elements. That is what keeps the covered set honest without a
+    second list of what a pivot can answer.
+
+    A level the source never recorded has no rows here, which is what the nested form
+    means by folding NULL to an empty level: no element satisfies an ``exists``, and a
+    ``forall`` has no counterexample.
+
+    Args:
+        node: The quantifier to compile.
+        compounds: Compound names collected so far, appended to by the body.
+        structures: Structure parameters collected so far, appended to by the body.
+        depth: How many quantifiers enclose this one, which names its variable.
+        routing: Where this quantifier may be answered; its ``pivot`` names the
+            relation, and its ``table`` qualifies the correlation.
+
+    Returns:
+        The condition, or None if no pivot holds the level or the body asks for
+        something its rows do not carry.
+    """
+    level = pivot_levels.LEVELS.get(node.path)
+    if level is None:
+        return None
+    assert routing.pivot is not None  # Consulted only when the caller supplied one.
+    table = routing.pivot(node.path)
+    if table is None:
+        return None
+    variable = f"x{depth}"
+    # Compiled into throwaway lists: a body that raises partway would otherwise leave
+    # this quantifier's parameters behind for a compilation that no longer wants them.
+    taken_compounds, taken_structures = list(compounds), list(structures)
+    try:
+        body = _predicate(
+            node.where,
+            f"{variable}.{pivot_levels.ELEMENT}",
+            level.element_type,
+            taken_compounds,
+            taken_structures,
+            depth + 1,
+            routing,
+        )
+    except QueryError:
+        return None
+    compounds[:], structures[:] = taken_compounds, taken_structures
+    # S608: the relation is named by this module's own walk of the schema, and every
+    # fragment of the body is an expression resolved against that walk's element type.
+    inner = (
+        f"SELECT 1 FROM {table} AS {variable} "  # noqa: S608
+        f"WHERE {variable}.{pivot_levels.REACTION_ID} = "
+        f"{routing.table}.{pivot_levels.REACTION_ID} AND "
+    )
+    if node.op == "exists":
+        return f"EXISTS ({inner}{body})"
+    return f"NOT EXISTS ({inner}NOT ({body}))"
+
+
 def _quantifier(
     node: "Quantifier",
     scope: str | None,
@@ -667,7 +769,7 @@ def _quantifier(
     compounds: list[str],
     structures: list[StructureParameter],
     depth: int,
-    index: ElementIndex | None = None,
+    routing: _Routing,
 ) -> str:
     """Compiles a quantifier to a filter over the elements at a repeated level.
 
@@ -688,7 +790,10 @@ def _quantifier(
         compounds: Compound names collected so far, appended to by the body.
         structures: Structure parameters collected so far, appended to by the body.
         depth: How many quantifiers enclose this one, which names its variable.
-        index: Consulted for an ``exists`` at the row; see ``ElementIndex``.
+        routing: Where this quantifier may be answered besides the elements. Its
+            ``index`` is consulted for an ``exists`` at the row; its ``pivot`` is
+            consulted after that, and for ``forall`` too, because a pivot holds every
+            element rather than only the ones carrying a structure.
 
     Returns:
         The DuckDB expression filtering the level, true when the quantifier holds. A
@@ -712,21 +817,31 @@ def _quantifier(
     # Offered at the row only. A nested quantifier's path is element-relative and would
     # not match an index's absolute paths anyway, so the scope check is defense in
     # depth rather than the working guard.
-    if index is not None and scope is None:
+    if routing.index is not None and scope is None:
         terms = _element_terms(node)
         if terms is not None:
             structure, fields = terms
             # The thunk defers naming the structure parameter until the index accepts.
             # A declined clause allocates through its element compilation instead, and
             # _structure_parameter dedupes by content, so early or late it is one name.
-            condition = index(
+            condition = routing.index(
                 node.path, fields, lambda: _structure_parameter(structure, structures)
             )
             if condition is not None:
                 return condition
+    if routing.pivot is not None and scope is None:
+        condition = _pivoted(node, compounds, structures, depth, routing)
+        if condition is not None:
+            return condition
     variable = f"e{depth}"
     body = _predicate(
-        node.where, variable, resolved.type, compounds, structures, depth + 1, index
+        node.where,
+        variable,
+        resolved.type,
+        compounds,
+        structures,
+        depth + 1,
+        routing,
     )
     if node.op == "exists":
         return (
@@ -747,7 +862,7 @@ def _predicate(
     compounds: list[str],
     structures: list[StructureParameter],
     depth: int,
-    index: ElementIndex | None = None,
+    routing: _Routing,
 ) -> str:
     """Compiles one predicate node to a boolean DuckDB expression.
 
@@ -763,7 +878,8 @@ def _predicate(
         compounds: Compound names collected so far, appended to as they are met.
         structures: Structure parameters collected so far, appended to as they are met.
         depth: How many quantifiers enclose this clause, which names their variables.
-        index: Offered to an ``exists`` at the row; see ``ElementIndex``.
+        routing: Where a quantifier may be answered besides the elements; carried
+            down unchanged. See ``_Routing``.
 
     Returns:
         The DuckDB expression, true when the clause holds of the row or element.
@@ -777,18 +893,18 @@ def _predicate(
         return (
             "("
             + keyword.join(
-                _predicate(clause, scope, schema, compounds, structures, depth, index)
+                _predicate(clause, scope, schema, compounds, structures, depth, routing)
                 for clause in node.clauses
             )
             + ")"
         )
     if isinstance(node, Not):
         inner = _predicate(
-            node.clause, scope, schema, compounds, structures, depth, index
+            node.clause, scope, schema, compounds, structures, depth, routing
         )
         return f"(NOT {inner})"
     if isinstance(node, Quantifier):
-        return _quantifier(node, scope, schema, compounds, structures, depth, index)
+        return _quantifier(node, scope, schema, compounds, structures, depth, routing)
     if isinstance(node, Substructure | Similarity):
         return _structure(node, scope, schema, structures)
     resolved = resolve(node.path, schema=schema, root=scope)
@@ -814,6 +930,7 @@ def compile_query(
     schema: pa.Schema = projection.SCHEMA,
     table: str = TABLE,
     index: ElementIndex | None = None,
+    pivot: PivotIndex | None = None,
 ) -> Compiled:
     """Compiles a query to DuckDB SQL over the projection.
 
@@ -827,6 +944,9 @@ def compile_query(
         index: An element index to spend where it can answer a quantifier; see
             ``ElementIndex``. Without one, every quantifier compiles to a filter over
             the elements, which is what the projection alone can answer.
+        pivot: Pivoted levels to spend where they can answer a quantifier; see
+            ``PivotIndex``. Consulted after ``index``, and for ``forall`` as well as
+            ``exists``.
 
     Returns:
         The SQL, the compound names whose resolved SMILES the caller binds, and the
@@ -866,7 +986,13 @@ def compile_query(
     sql = f"SELECT {', '.join(selected)} FROM {table}"  # noqa: S608
     if query.where is not None:
         sql += " WHERE " + _predicate(
-            query.where, None, schema, compounds, structures, 0, index
+            query.where,
+            None,
+            schema,
+            compounds,
+            structures,
+            0,
+            _Routing(table, index, pivot),
         )
     taken = {parameter.name for parameter in structures}
     collisions = sorted(taken & set(compounds))
