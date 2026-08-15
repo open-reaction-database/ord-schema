@@ -55,21 +55,57 @@ REACTION_ID = "reaction_id"
 
 
 @dataclasses.dataclass(frozen=True)
+class Step:
+    """One repeated level on the way to another, and how to reach it.
+
+    Attributes:
+        segments: The dotted hops from the previous element -- or from the row, for the
+            first step -- down to the repeated field itself.
+        is_map: Whether the repeated field is a map, whose values are the elements.
+        ordinal: The column naming this element's position among its siblings.
+    """
+
+    segments: tuple[str, ...]
+    is_map: bool
+    ordinal: str
+
+    def expression(self, source: str | None) -> str:
+        """Returns the list to unnest at this step.
+
+        Args:
+            source: The variable bound to the previous element, or None at the row.
+
+        Returns:
+            A DuckDB expression evaluating to a list. A map contributes its values,
+            since those are the elements a query quantifies over.
+        """
+        parts = self.segments if source is None else (source, *self.segments)
+        reached = ".".join(parts)
+        return f"map_values({reached})" if self.is_map else reached
+
+
+@dataclasses.dataclass(frozen=True)
 class RepeatedLevel:
     """A repeated level of the projection, and the shape of a pivot over it.
 
     Attributes:
         path: The level as the query grammar names it, with no wrapper segments.
-        ordinals: One column name per repeated level from the root down to and
-            including this one, outermost first.
+        steps: One per repeated level from the root down to and including this one,
+            outermost first. Unnesting them in order is what a build walks, and their
+            ordinals are what a row carries to say which element it was.
         element_type: The element's struct type with repeated fields removed
             recursively, which is what a body must resolve against to be answerable
             from the pivot.
     """
 
     path: str
-    ordinals: tuple[str, ...]
+    steps: tuple[Step, ...]
     element_type: pa.DataType
+
+    @property
+    def ordinals(self) -> tuple[str, ...]:
+        """Returns the ordinal column names, outermost first."""
+        return tuple(step.ordinal for step in self.steps)
 
 
 def _prune(dtype: pa.DataType) -> pa.DataType | None:
@@ -137,30 +173,65 @@ def repeated_levels(
     """
     levels: dict[str, RepeatedLevel] = {}
 
-    def walk(dtype: pa.DataType, path: str, ordinals: tuple[str, ...]) -> None:
+    def walk(
+        dtype: pa.DataType,
+        path: str,
+        steps: tuple[Step, ...],
+        pending: tuple[str, ...],
+    ) -> None:
         if pa.types.is_list(dtype) or pa.types.is_map(dtype):
-            value = dtype.item_type if pa.types.is_map(dtype) else dtype.value_type
+            is_map = pa.types.is_map(dtype)
+            value = dtype.item_type if is_map else dtype.value_type
             ordinal = f"{inflection.singularize(path.rsplit('.', 1)[-1])}_index"
-            if ordinal in ordinals:
+            if ordinal in [step.ordinal for step in steps]:
                 raise ValueError(
                     f"{path} would carry two ordinals named {ordinal}, so a row's "
                     "outer position would be overwritten by its inner one"
                 )
-            ordinals = (*ordinals, ordinal)
+            steps = (*steps, Step(pending, is_map, ordinal))
             if pa.types.is_struct(value):
                 element = _prune(value)
                 if element is not None:
-                    levels[path] = RepeatedLevel(path, ordinals, element)
-            walk(value, path, ordinals)
+                    levels[path] = RepeatedLevel(path, steps, element)
+            walk(value, path, steps, ())
         elif pa.types.is_struct(dtype):
             for field in dtype:
                 walk(
-                    field.type, f"{path}.{field.name}" if path else field.name, ordinals
+                    field.type,
+                    f"{path}.{field.name}" if path else field.name,
+                    steps,
+                    (*pending, field.name),
                 )
 
     for field in schema:
-        walk(field.type, field.name, ())
+        walk(field.type, field.name, (), (field.name,))
     return levels
+
+
+def element_expression(dtype: pa.DataType, source: str) -> str:
+    """Returns a struct literal rebuilding ``source`` without its repeated fields.
+
+    The pivot stores what a predicate can read rather than the whole element, which is
+    where the size comes down: the lists a build already unnested into their own levels
+    would otherwise be carried again on every row above them.
+
+    Args:
+        dtype: The pruned element type, as ``RepeatedLevel.element_type`` gives it.
+        source: The DuckDB expression bound to the element.
+
+    Returns:
+        A struct literal holding each kept field, recursing into kept structs.
+    """
+    parts = []
+    for field in dtype:
+        reached = f"{source}.{field.name}"
+        value = (
+            element_expression(field.type, reached)
+            if pa.types.is_struct(field.type)
+            else reached
+        )
+        parts.append(f"'{field.name}': {value}")
+    return "{" + ", ".join(parts) + "}"
 
 
 def table_name(path: str) -> str:

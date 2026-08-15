@@ -727,9 +727,8 @@ def _pivoted(
         something its rows do not carry.
     """
     level = pivot_levels.LEVELS.get(node.path)
-    if level is None:
+    if level is None or routing.pivot is None:
         return None
-    assert routing.pivot is not None  # Consulted only when the caller supplied one.
     table = routing.pivot(node.path)
     if table is None:
         return None

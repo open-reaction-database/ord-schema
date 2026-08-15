@@ -93,7 +93,7 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import artifacts, projection, resolvers, structures
-from ord_schema.agent import query
+from ord_schema.agent import pivot, query
 from ord_schema.logging import get_logger
 
 logger = get_logger(__name__)
@@ -514,6 +514,25 @@ def _run_with_timeout(
             running = False
 
 
+@dataclasses.dataclass(frozen=True)
+class _Held:
+    """Something worth keeping in memory, and the statement that builds it.
+
+    One cache and one budget cover both kinds, so eviction can weigh a column set
+    against a pivot rather than each starving the other in its own pool.
+
+    Attributes:
+        key: Identity in the cache. Carries the kind, so a pivot over a path and a
+            column set naming it cannot collide.
+        select: The query ``CREATE TABLE`` wraps.
+        description: How the entry is named in a log line or a warning.
+    """
+
+    key: tuple[str, ...]
+    select: str
+    description: str
+
+
 @dataclasses.dataclass
 class _Narrow:
     """A materialized table holding some of the projection's top-level columns.
@@ -623,7 +642,7 @@ class Corpus:
         # Materialized column sets, most recently used last; see _narrowed_table. The
         # serial names them, and never repeats, so a build that fails partway leaves no
         # name for the next one to collide with.
-        self._narrowed: collections.OrderedDict[frozenset[str], _Narrow] = (
+        self._narrowed: collections.OrderedDict[tuple[str, ...], _Narrow] = (
             collections.OrderedDict()
         )
         # Column sets that came out larger than the whole budget, and what each cost.
@@ -631,7 +650,7 @@ class Corpus:
         # object is open, so building one again costs a pass over the corpus to reach
         # the same refusal -- and because every query naming one is slow for a reason
         # worth restating; see _warn_refused.
-        self._narrow_refused: dict[frozenset[str], int] = {}
+        self._narrow_refused: dict[tuple[str, ...], int] = {}
         self._narrow_serial = 0
         self._narrow_lock = threading.Lock()
         # Held across a materialization, so the two memory readings bracket one table
@@ -1085,8 +1104,8 @@ class Corpus:
             bits[global_id] = ord("1")
         return bits.decode()
 
-    def _materialize(self, columns: frozenset[str]) -> _Narrow | None:
-        """Returns a held table of ``columns``, building it if the cache lacks one.
+    def _materialize(self, held: _Held) -> _Narrow | None:
+        """Returns the table ``held`` describes, building it if the cache lacks one.
 
         The caller owns a read on whatever comes back and has to release it, which
         ``_narrowed_table`` does; an entry with a reader is never evicted.
@@ -1097,14 +1116,13 @@ class Corpus:
         corpus serving several questions at once.
 
         Args:
-            columns: Top-level projection columns the query names.
+            held: What to keep, and the statement that builds it.
 
         Returns:
-            The entry, or None when the budget is zero or this column set costs more
-            than the cache may hold in total. Nothing is kept either way and the
-            projection answers directly; a set refused as too large is remembered, so
-            the next query naming those columns does not build them again to throw them
-            away again.
+            The entry, or None when the budget is zero or this costs more than the
+            cache may hold in total. Nothing is kept either way and the projection
+            answers directly; something refused as too large is remembered, so the next
+            query wanting it does not build it again to throw it away again.
         """
         if not self._narrow_budget:
             # The one budget that can be settled without building, since what a set
@@ -1112,75 +1130,73 @@ class Corpus:
             # answers from Parquet.
             return None
         with self._narrow_lock:
-            settled, entry, refused = self._cached(columns)
+            settled, entry, refused = self._cached(held.key)
         if settled:
             # Warned outside the lock: it is the one every search takes to read the
             # cache, and a log handler is not something to hold it through.
             if refused is not None:
-                self._warn_refused(columns, refused)
+                self._warn_refused(held, refused)
             return entry
         with self._narrow_build_lock:
             # Asked again under the build lock: whoever held it may have been building
-            # exactly these columns, and a second table of them would be memory held
-            # twice for one answer.
+            # exactly this, and a second table of it would be memory held twice for one
+            # answer.
             with self._narrow_lock:
-                settled, entry, refused = self._cached(columns)
+                settled, entry, refused = self._cached(held.key)
             if settled:
                 if refused is not None:
-                    self._warn_refused(columns, refused)
+                    self._warn_refused(held, refused)
                 return entry
-            return self._build(columns)
+            return self._build(held)
 
-    def _cached(
-        self, columns: frozenset[str]
-    ) -> tuple[bool, _Narrow | None, int | None]:
-        """Returns whether the cache settles ``columns``, and how.
+    def _cached(self, key: tuple[str, ...]) -> tuple[bool, _Narrow | None, int | None]:
+        """Returns whether the cache settles ``key``, and how.
 
         Called with ``_narrow_lock`` held. A hit takes the read on the caller's behalf,
         since an entry released back to the cache between the lookup and the read could
         be evicted in between.
 
         Args:
-            columns: Top-level projection columns the query names.
+            key: Identity of the entry, as ``_Held.key`` gives it.
 
         Returns:
-            Whether the cache settles the question, the entry for a hit, and what the
-            set cost where it was refused as too large -- which the caller says out
-            loud once it is no longer holding the lock.
+            Whether the cache settles the question, the entry for a hit, and what it
+            cost where it was refused as too large -- which the caller says out loud
+            once it is no longer holding the lock.
         """
-        cached = self._narrowed.get(columns)
+        cached = self._narrowed.get(key)
         if cached is not None:
-            self._narrowed.move_to_end(columns)
+            self._narrowed.move_to_end(key)
             cached.readers += 1
             return True, cached, None
-        refused = self._narrow_refused.get(columns)
+        refused = self._narrow_refused.get(key)
         if refused is not None:
             return True, None, refused
         return False, None, None
 
-    def _warn_refused(self, columns: frozenset[str], held: int) -> None:
+    def _warn_refused(self, held: _Held, cost: int) -> None:
         """Says that a query is about to be answered the slow way, and what to change.
 
-        Warned on every query that names the columns rather than once when they were
-        first refused, because the query is slow every time and whoever is asking why is
+        Warned on every query that wants the entry rather than once when it was first
+        refused, because the query is slow every time and whoever is asking why is
         reading the log now, not the one line printed when the corpus opened.
 
         Args:
-            columns: Top-level projection columns the query names.
-            held: What materializing them cost when it was measured.
+            held: What was refused, and how to name it.
+            cost: What building it took when it was measured.
         """
         logger.warning(
             "materializing %s takes %s, over this corpus's budget of %s, so every "
-            "query naming those columns reads the Parquet files instead -- seconds "
-            "rather than tenths of a second at ORD's scale. Open the Corpus with a "
-            "larger narrow_budget_bytes if the machine has the memory to spare.",
-            sorted(columns),
-            _format_bytes(held),
+            "query wanting it reads the Parquet files instead -- seconds rather than "
+            "tenths of a second at ORD's scale. Open the Corpus with a larger "
+            "narrow_budget_bytes if the machine has the memory to spare.",
+            held.description,
+            _format_bytes(cost),
             _format_bytes(self._narrow_budget),
         )
 
-    def _build(self, columns: frozenset[str]) -> _Narrow | None:
-        """Materializes ``columns``, recording its cost or that it costs too much.
+    def _build(self, held: _Held) -> _Narrow | None:
+        """Materializes ``held``, recording its cost or that it costs too much.
 
         Called with ``_narrow_build_lock`` held and ``_narrow_lock`` free, so the two
         memory readings bracket this table and nothing else: every other statement that
@@ -1188,7 +1204,7 @@ class Corpus:
         takes the same lock.
 
         Args:
-            columns: Top-level projection columns the query names.
+            held: What to keep, and the statement that builds it.
 
         Returns:
             The entry, held once for the caller, or None if it exceeds the budget.
@@ -1198,25 +1214,26 @@ class Corpus:
             # cannot leave a name the next attempt collides with.
             self._narrow_serial += 1
             name = f"narrow_{self._narrow_serial}"
-        selected = ", ".join([*sorted(columns), query.STRUCTURE_OFFSET])
         start = time.perf_counter()
         # Its own cursor, for the same reason the index build takes one: searches
         # are in flight, and the shared connection holds their results.
         cursor = self._connection.cursor()
         try:
+            # Said before the pass rather than after it, because the pass is what
+            # takes the time and whoever is watching a query hang wants to know what it
+            # is waiting for while it waits.
+            logger.info("building %s", held.description)
             before = _memory_bytes(cursor)
-            # S608: the names come from the projection schema and this module.
-            cursor.execute(
-                f"CREATE TABLE {name} AS "  # noqa: S608
-                f"SELECT {selected} FROM {query.TABLE}"
-            )
-            held = max(_memory_bytes(cursor) - before, 0)
-            if held > self._narrow_budget:
+            # The select was assembled by whoever built the _Held, which is where
+            # its fragments are accounted for.
+            cursor.execute(f"CREATE TABLE {name} AS {held.select}")
+            cost = max(_memory_bytes(cursor) - before, 0)
+            if cost > self._narrow_budget:
                 # Too big to keep, and keeping it is the only reason to build it.
                 cursor.execute(f"DROP TABLE {name}")
                 with self._narrow_lock:
-                    self._narrow_refused[columns] = held
-                self._warn_refused(columns, held)
+                    self._narrow_refused[held.key] = cost
+                self._warn_refused(held, cost)
                 return None
         except Exception:
             # A table nobody tracks is memory nobody frees, and the failure the
@@ -1233,14 +1250,14 @@ class Corpus:
             cursor.close()
         logger.info(
             "materialized %s as %s, %s in %.1fs",
-            sorted(columns),
+            held.description,
             name,
-            _format_bytes(held),
+            _format_bytes(cost),
             time.perf_counter() - start,
         )
-        entry = _Narrow(name=name, held=held, readers=1)
+        entry = _Narrow(name=name, held=cost, readers=1)
         with self._narrow_lock:
-            self._narrowed[columns] = entry
+            self._narrowed[held.key] = entry
             self._evict()
         return entry
 
@@ -1254,13 +1271,13 @@ class Corpus:
         candidate leaves the cache above its budget until a reader finishes, which is
         the direction that keeps answers right.
         """
-        for columns in list(self._narrowed):
+        for key in list(self._narrowed):
             if (
                 sum(entry.held for entry in self._narrowed.values())
                 <= self._narrow_budget
             ):
                 return
-            entry = self._narrowed[columns]
+            entry = self._narrowed[key]
             if entry.readers:
                 continue
             cursor = self._connection.cursor()
@@ -1273,8 +1290,8 @@ class Corpus:
                 logger.exception("could not drop the materialized %s", entry.name)
             finally:
                 cursor.close()
-            del self._narrowed[columns]
-            logger.info("evicted the materialized %s", sorted(columns))
+            del self._narrowed[key]
+            logger.info("evicted the materialized %s", entry.name)
 
     @contextlib.contextmanager
     def _narrowed_table(self, columns: frozenset[str]) -> Iterator[str | None]:
@@ -1300,7 +1317,15 @@ class Corpus:
             or a set costing more memory than the whole cache is allowed -- in which
             case the projection answers directly.
         """
-        entry = self._materialize(columns)
+        selected = ", ".join([*sorted(columns), query.STRUCTURE_OFFSET])
+        entry = self._materialize(
+            _Held(
+                key=("columns", *sorted(columns)),
+                # S608: the names come from the projection schema and this module.
+                select=f"SELECT {selected} FROM {query.TABLE}",  # noqa: S608
+                description=str(sorted(columns)),
+            )
+        )
         if entry is None:
             yield None
             return
@@ -1309,6 +1334,76 @@ class Corpus:
         finally:
             with self._narrow_lock:
                 entry.readers -= 1
+
+    @contextlib.contextmanager
+    def _pivoted_table(self, path: str) -> Iterator[str | None]:
+        """Yields a pivot over ``path``, held against eviction while read.
+
+        One row per element of the level, carrying the ordinals that say which element
+        it was and the element's own fields with the repeated ones removed. A quantifier
+        answered from it is a semi-join rather than a decode of the whole nested column,
+        which over ORD is milliseconds against seconds.
+
+        Building it costs a pass that unnests every level down to this one, so the first
+        query wanting a path waits for it. That cost belongs in a derived artifact
+        rather than in a query, and until there is one it is announced rather than
+        hidden.
+
+        Args:
+            path: The repeated level, as the query grammar names it.
+
+        Yields:
+            The table's name, or None when the schema has no such level or the budget
+            refuses it -- in which case the quantifier compiles over the elements.
+        """
+        level = pivot.LEVELS.get(path)
+        if level is None:
+            yield None
+            return
+        entry = self._materialize(
+            _Held(
+                key=("pivot", path),
+                select=self._pivot_select(level),
+                description=f"the pivot over {path}",
+            )
+        )
+        if entry is None:
+            yield None
+            return
+        try:
+            yield entry.name
+        finally:
+            with self._narrow_lock:
+                entry.readers -= 1
+
+    def _pivot_select(self, level: pivot.RepeatedLevel) -> str:
+        """Returns the query building the pivot over ``level``.
+
+        Unnests one repeated level at a time rather than the flattened traversal the
+        compiler uses, because the ordinals are what each unnest contributes and a
+        flattened list has lost them.
+
+        Args:
+            level: The level to pivot.
+
+        Returns:
+            A SELECT over the executor's relation, one row per element.
+        """
+        froms, source = [query.TABLE], None
+        for depth, step in enumerate(level.steps):
+            froms.append(
+                f"unnest({step.expression(source)}) WITH ORDINALITY "
+                f"AS u{depth}(e{depth}, {step.ordinal})"
+            )
+            source = f"e{depth}"
+        selected = [
+            pivot.REACTION_ID,
+            *level.ordinals,
+            f"{pivot.element_expression(level.element_type, str(source))} "
+            f"AS {pivot.ELEMENT}",
+        ]
+        # S608: every fragment is this module's own walk of the projection schema.
+        return f"SELECT {', '.join(selected)} FROM {', '.join(froms)}"  # noqa: S608
 
     def _matches(
         self,
@@ -1460,7 +1555,6 @@ class Corpus:
             indexing = indexing or condition is not None
             return condition
 
-        compiled = query.compile_query(request, index=index)
         # Cached across the whole search: a compound named in both a value and a
         # structure predicate is one external lookup, not two.
         resolved: dict[str, str] = {}
@@ -1471,6 +1565,18 @@ class Corpus:
             return resolved[name]
 
         with contextlib.ExitStack() as reading:
+            pivoted: dict[str, str | None] = {}
+
+            def pivot_table(path: str) -> str | None:
+                # Built while compiling rather than after, because the budget decides
+                # whether the table exists at all and the SQL names it either way. The
+                # answer is remembered so the second compilation, against the narrow
+                # relation, cannot route a quantifier differently from the first.
+                if path not in pivoted:
+                    pivoted[path] = reading.enter_context(self._pivoted_table(path))
+                return pivoted[path]
+
+            compiled = query.compile_query(request, index=index, pivot=pivot_table)
             if indexing:
                 # Built after compiling and before running: the condition names the
                 # table, so the table has to exist by the time the query does. Logged
@@ -1487,7 +1593,9 @@ class Corpus:
                 self._narrowed_table(_mentioned(compiled.sql))
             )
             if narrow is not None:
-                compiled = query.compile_query(request, table=narrow, index=index)
+                compiled = query.compile_query(
+                    request, table=narrow, index=index, pivot=pivot_table
+                )
             cursor = self._connection.cursor()
             try:
                 parameters: dict[str, Any] = {

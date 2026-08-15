@@ -2009,6 +2009,11 @@ def test_the_cache_stays_bounded(corpus_dir, monkeypatch):
         assert [key[2] for key in value._matched] == ["c1ccccc1", "[Pt]"]
 
 
+def _columns_key(columns: frozenset[str]) -> tuple[str, ...]:
+    """Returns the cache key a materialized column set is held under."""
+    return ("columns", *sorted(columns))
+
+
 @contextlib.contextmanager
 def _no_narrow_table(self, columns: frozenset[str]) -> Iterator[str | None]:
     """Stands in for _narrowed_table so a search reads the projection directly."""
@@ -2216,7 +2221,7 @@ def test_the_cache_evicts_the_least_recently_used_and_drops_its_table(
         assert dropped in _tables(value)
         with value._narrowed_table(second) as name:
             kept = name
-        assert list(value._narrowed) == [second]
+        assert list(value._narrowed) == [_columns_key(second)]
         assert dropped not in _tables(value)  # Dropped, not merely forgotten.
         assert kept in _tables(value)
 
@@ -2244,7 +2249,10 @@ def test_a_table_a_search_is_reading_is_not_evicted(corpus_dir, monkeypatch):
             # Over budget, and the only candidate is being read: it stays, and the
             # cache stays over its budget until the reader is done.
             assert reading in _tables(value)
-            assert list(value._narrowed) == [first, second]
+            assert list(value._narrowed) == [
+                _columns_key(first),
+                _columns_key(second),
+            ]
         # Released, so the next materialization can take it.
         with value._narrowed_table(frozenset({"reaction_id", "notes"})):
             pass
