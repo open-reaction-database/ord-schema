@@ -2752,3 +2752,230 @@ def test_the_artifact_fingerprint_is_the_one_the_library_screens_with():
     holder.AddMol(molecule)
     stored = Chem.PatternFingerprint(molecule, fpSize=structures.PATTERN_FP_SIZE)
     assert list(holder.GetFingerprint(0).GetOnBits()) == list(stored.GetOnBits())
+
+
+def _wide_reactions() -> list[reaction_pb2.Reaction]:
+    """Reactions exercising the element shapes the ORD corpus barely holds.
+
+    Measured over the whole corpus, no reaction records a NULL or empty ``outcomes``
+    and only 119 record a NULL ``products`` under one, so corpus agreement is weak
+    evidence about levels that are absent, empty, or carry a NULL leaf. These say it
+    outright. Two outcomes on one reaction matter most: ORD is effectively
+    single-outcome, which is exactly why a correlation that dropped the outcome
+    ordinal answered identically and looked correct.
+    """
+    reactions = []
+
+    # Two outcomes. The high yield belongs to the product that is not desired, so a
+    # correlation blind to either ordinal pairs them and answers yes.
+    split = reaction_pb2.Reaction(reaction_id="ord-wd01")
+    first = split.outcomes.add()
+    undesired = first.products.add(is_desired_product=False, isolated_color="white")
+    undesired.measurements.add(type="YIELD").percentage.value = 90
+    second = split.outcomes.add()
+    desired = second.products.add(is_desired_product=True, isolated_color="yellow")
+    desired.measurements.add(type="YIELD").percentage.value = 10
+    reactions.append(split)
+
+    # One outcome, one product, both conditions on the same element.
+    together = reaction_pb2.Reaction(reaction_id="ord-wd02")
+    product = together.outcomes.add().products.add(
+        is_desired_product=True, isolated_color="white"
+    )
+    product.measurements.add(type="YIELD").percentage.value = 90
+    reactions.append(together)
+
+    # An outcome carrying no products at all: the level is present and empty.
+    empty = reaction_pb2.Reaction(reaction_id="ord-wd03")
+    empty.outcomes.add()
+    reactions.append(empty)
+
+    # No outcomes at all: the projection writes NULL rather than an empty list.
+    reactions.append(reaction_pb2.Reaction(reaction_id="ord-wd04"))
+
+    # A product carrying no isolated_color, so the leaf a body reads is NULL.
+    blank = reaction_pb2.Reaction(reaction_id="ord-wd05")
+    blank.outcomes.add().products.add(is_desired_product=True)
+    reactions.append(blank)
+
+    # Several products where only the last matches, so a filter that stopped early or
+    # read only the first element would miss it.
+    several = reaction_pb2.Reaction(reaction_id="ord-wd06")
+    outcome = several.outcomes.add()
+    outcome.products.add(is_desired_product=False, isolated_color="red")
+    outcome.products.add(is_desired_product=False, isolated_color="green")
+    outcome.products.add(is_desired_product=True, isolated_color="white")
+    reactions.append(several)
+
+    return reactions
+
+
+@pytest.fixture(scope="module")
+def wide_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
+    """A corpus of element shapes, for comparing the pivot route against the level."""
+    root = tmp_path_factory.mktemp("wide")
+    source = root / "data" / "ord_dataset-wd.parquet"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-wd",
+            name="test",
+            description="test",
+            reactions=_wide_reactions(),
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir(parents=True, exist_ok=True)
+    projection.write_projection(source, projected)
+    structured = root / "structures" / source.name
+    structured.parent.mkdir(parents=True, exist_ok=True)
+    structures.write_structures(projected, structured)
+    with execute.Corpus(
+        str(projected), str(structured), resolver={}.__getitem__
+    ) as value:
+        yield value
+
+
+def _white(op):
+    return {
+        "op": op,
+        "path": "outcomes.products",
+        "where": {
+            "op": "eq",
+            "path": "isolated_color",
+            "value": {"literal": "white"},
+        },
+    }
+
+
+_DIFFERENTIAL = {
+    "exists a white product": _white("exists"),
+    "every product is white": _white("forall"),
+    "no white product": {"op": "not", "clause": _white("exists")},
+    "not every product is white": {"op": "not", "clause": _white("forall")},
+    # Two conditions on one element: the pivot answers this from one row, which is the
+    # co-membership the nested form gets by binding an element.
+    "a desired white product": {
+        "op": "exists",
+        "path": "outcomes.products",
+        "where": {
+            "op": "and",
+            "clauses": [
+                {
+                    "op": "eq",
+                    "path": "isolated_color",
+                    "value": {"literal": "white"},
+                },
+                {
+                    "op": "eq",
+                    "path": "is_desired_product",
+                    "value": {"literal": True},
+                },
+            ],
+        },
+    },
+    # The leaf is NULL for ord-wd05, so the comparison is NULL rather than false and
+    # both routes have to fold it the same way.
+    "a product that is not white": {
+        "op": "exists",
+        "path": "outcomes.products",
+        "where": {
+            "op": "ne",
+            "path": "isolated_color",
+            "value": {"literal": "white"},
+        },
+    },
+    "every measurement is a yield": {
+        "op": "forall",
+        "path": "outcomes.products.measurements",
+        "where": {"op": "eq", "path": "type", "value": {"literal": "YIELD"}},
+    },
+    "a yield above 50%": {
+        "op": "exists",
+        "path": "outcomes.products.measurements",
+        "where": {
+            "op": "and",
+            "clauses": [
+                {"op": "eq", "path": "type", "value": {"literal": "YIELD"}},
+                {
+                    "op": "gt",
+                    "path": "percentage.value",
+                    "value": {"literal": 50},
+                },
+            ],
+        },
+    },
+}
+
+
+@pytest.mark.parametrize("where", list(_DIFFERENTIAL.values()), ids=list(_DIFFERENTIAL))
+def test_a_pivot_answers_what_the_level_answers(wide_corpus, monkeypatch, where):
+    # The guard on two routes to one answer. A pivot that lost an ordinal, folded a
+    # NULL level the other way, or correlated on the wrong prefix shows up here as a
+    # set that differs -- which is how the 942-reaction over-match was found.
+    pivoted = _search(wide_corpus, where)
+    monkeypatch.setattr(
+        execute.Corpus, "_pivoted_table", _no_pivoted_table, raising=True
+    )
+    assert _search(wide_corpus, where) == pivoted
+
+
+@contextlib.contextmanager
+def _no_pivoted_table(self, path: str) -> Iterator[str | None]:
+    """Stands in for _pivoted_table so a quantifier compiles over the elements."""
+    del self, path  # Unused.
+    yield None
+
+
+def test_the_differential_cases_are_not_all_the_same_answer(wide_corpus):
+    # A differential test comparing two routes proves nothing if every case answers
+    # with the whole corpus, which is what a fixture that lost its variety would do.
+    answers = {
+        name: frozenset(_search(wide_corpus, where))
+        for name, where in _DIFFERENTIAL.items()
+    }
+    assert len(set(answers.values())) >= 5
+    assert any(answer for answer in answers.values())
+    assert any(len(answer) < 6 for answer in answers.values())
+
+
+def test_a_pivot_row_says_which_element_it_was(wide_corpus):
+    # Nothing in phase 1 joins on the ordinals, so the differential test cannot see
+    # them; they are what a correlation across levels will need, and a pivot that
+    # numbered its elements wrongly would look correct until then. ord-wd01 carries two
+    # outcomes of one product each, and ord-wd06 one outcome of three.
+    with wide_corpus._pivoted_table("outcomes.products") as name:
+        assert name is not None
+        rows = wide_corpus._connection.execute(
+            f"SELECT reaction_id, outcome_index, product_index, "  # noqa: S608
+            f"element.isolated_color FROM {name} "
+            "WHERE reaction_id IN ('ord-wd01', 'ord-wd06') "
+            "ORDER BY reaction_id, outcome_index, product_index"
+        ).fetchall()
+    assert rows == [
+        ("ord-wd01", 1, 1, "white"),
+        ("ord-wd01", 2, 1, "yellow"),
+        ("ord-wd06", 1, 1, "red"),
+        ("ord-wd06", 1, 2, "green"),
+        ("ord-wd06", 1, 3, "white"),
+    ]
+
+
+def test_a_pivot_holds_every_element_including_an_empty_one(wide_corpus):
+    # Completeness is what lets a pivot answer forall, so an element whose fields are
+    # all NULL still gets a row: ord-wd05 records a product with no isolated_color.
+    with wide_corpus._pivoted_table("outcomes.products") as name:
+        assert name is not None
+        blank = wide_corpus._connection.execute(
+            f"SELECT count(*) FROM {name} WHERE reaction_id = 'ord-wd05'"  # noqa: S608
+        ).fetchone()
+        # A level that is present but empty contributes no rows, and one the source
+        # never recorded contributes none either -- which is what makes forall
+        # vacuously true of both.
+        absent = wide_corpus._connection.execute(
+            f"SELECT count(*) FROM {name} "  # noqa: S608
+            "WHERE reaction_id IN ('ord-wd03', 'ord-wd04')"
+        ).fetchone()
+    assert blank == (1,)
+    assert absent == (0,)
