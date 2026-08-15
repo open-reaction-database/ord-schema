@@ -43,15 +43,33 @@ the elements that match something never can.
 """
 
 import dataclasses
+import os
+import pathlib
 
+import duckdb
 import inflection
 import pyarrow as pa
+import pyarrow.parquet as pq
 
-from ord_schema import projection
+from ord_schema import artifacts, atomic_io, projection
+from ord_schema.logging import get_logger
+
+logger = get_logger(__name__)
+
+# The artifact name a pivot is stamped with, and the footer key naming which level it
+# holds. One artifact name covers every level, because they are one kind of thing
+# derived one way; the path is what tells them apart.
+ARTIFACT = "pivot"
+_META_PIVOT_PATH = "ord.pivot_path"
 
 # The column the element's own fields sit under, and the row's join key.
 ELEMENT = "element"
 REACTION_ID = "reaction_id"
+
+# What an ordinal is stored as. A reaction cannot hold four billion of anything at one
+# level, and the narrower column is the one a pivot carries once per row.
+ORDINAL_TYPE = pa.uint32()
+ORDINAL_SQL = "UINTEGER"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -208,6 +226,55 @@ def repeated_levels(
     return levels
 
 
+def select(level: RepeatedLevel, table: str) -> str:
+    """Returns the query building the pivot over ``level``.
+
+    Unnests one repeated level at a time rather than taking the flattened traversal the
+    compiler uses, because the ordinals are what each unnest contributes and a list
+    already flattened has lost them.
+
+    Args:
+        level: The level to pivot.
+        table: The relation holding the reactions.
+
+    Returns:
+        A SELECT over ``table``, one row per element of the level.
+    """
+    froms, source = [table], None
+    for depth, step in enumerate(level.steps):
+        froms.append(
+            f"unnest({step.expression(source)}) WITH ORDINALITY "
+            f"AS u{depth}(e{depth}, {step.ordinal})"
+        )
+        source = f"e{depth}"
+    # Cast, because WITH ORDINALITY counts in BIGINT and an artifact's schema is a
+    # promise rather than whatever the build happened to produce.
+    ordinals = [f"{ordinal}::{ORDINAL_SQL} AS {ordinal}" for ordinal in level.ordinals]
+    selected = [
+        REACTION_ID,
+        *ordinals,
+        f"{element_expression(level.element_type, str(source))} AS {ELEMENT}",
+    ]
+    # S608: every fragment is this module's own walk of the projection schema.
+    return f"SELECT {', '.join(selected)} FROM {', '.join(froms)}"  # noqa: S608
+
+
+def schema(level: RepeatedLevel) -> pa.Schema:
+    """Returns the schema of a pivot artifact over ``level``.
+
+    Args:
+        level: The level the artifact holds.
+
+    Returns:
+        ``reaction_id``, one ordinal per repeated level above and including this one,
+        and the pruned element.
+    """
+    fields = [pa.field(REACTION_ID, pa.string())]
+    fields += [pa.field(ordinal, ORDINAL_TYPE) for ordinal in level.ordinals]
+    fields.append(pa.field(ELEMENT, level.element_type))
+    return pa.schema(fields)
+
+
 def element_expression(dtype: pa.DataType, source: str) -> str:
     """Returns a struct literal rebuilding ``source`` without its repeated fields.
 
@@ -247,3 +314,115 @@ def table_name(path: str) -> str:
 
 
 LEVELS = repeated_levels()
+
+
+def pivot_path(path: str | os.PathLike[str]) -> str | None:
+    """Returns the level a pivot artifact holds, or None if it holds none.
+
+    Args:
+        path: Path to a Parquet file.
+
+    Returns:
+        The dotted level path stamped in the footer, or None if the file is not a
+        pivot artifact.
+    """
+    metadata = pq.read_schema(path).metadata or {}
+    value = metadata.get(_META_PIVOT_PATH.encode())
+    return value.decode() if value is not None else None
+
+
+def write_pivot(
+    source: str | os.PathLike[str],
+    output: str | os.PathLike[str],
+    /,
+    *,
+    level_path: str,
+    source_md5: str | None = None,
+    source_dataset_id: str | None = None,
+    compression: str = "zstd",
+    row_group_size: int = 100_000,
+) -> int:
+    """Derives a pivot artifact over one repeated level and writes it.
+
+    One artifact holds one level of one projection, because the levels have different
+    schemas and a reader globs the one it wants. The rows stream out of DuckDB a batch
+    at a time, so a level that explodes -- a corpus of long measurement lists -- costs
+    a batch of memory rather than the whole level.
+
+    The output is published atomically, so a failure partway leaves any existing
+    artifact untouched.
+
+    Args:
+        source: Path to the projection to pivot.
+        output: Path to write the artifact to.
+        level_path: The repeated level to pivot, as the query grammar names it.
+        source_md5: Hash of the *source dataset* to stamp, if the caller already read
+            one. Taken from the projection's own stamps when omitted, so the artifact
+            names the dataset it reflects rather than the file it read.
+        source_dataset_id: Source dataset ID to stamp, if the caller already read one.
+            Taken from the projection's stamps when omitted.
+        compression: Parquet codec, any name ``pq.ParquetWriter`` accepts.
+        row_group_size: Rows per output row group, which is also how many elements are
+            held in memory at a time.
+
+    Returns:
+        Number of rows written: the number of elements at that level.
+
+    Raises:
+        ValueError: If ``source`` is not a current projection, or the schema has no
+            such repeated level.
+    """
+    level = LEVELS.get(level_path)
+    if level is None:
+        raise ValueError(
+            f"{level_path} is not a repeated level of the projection schema; "
+            f"a pivot has nothing to hold. Known levels: {sorted(LEVELS)}"
+        )
+    parent = artifacts.load_stamps(source)
+    if parent.artifact != projection.ARTIFACT:
+        raise ValueError(
+            f"{source} is a {parent.artifact}, not a {projection.ARTIFACT}; a pivot "
+            "unnests a projection"
+        )
+    # derive_tree refuses stale parents, but this writer is public and its output
+    # inherits the dataset hash: an artifact derived from a stale projection would
+    # claim a provenance it does not have and nothing would ever mark it stale again.
+    if not artifacts.stamps_are_current(parent, projection.ARTIFACT):
+        raise ValueError(
+            f"{source} is a stale {projection.ARTIFACT}; derive it again first"
+        )
+    if source_md5 is None:
+        source_md5 = parent.source_md5
+    if source_dataset_id is None:
+        source_dataset_id = parent.source_dataset_id
+    stamps = artifacts.current_stamps(ARTIFACT, source_dataset_id, source_md5)
+    metadata = artifacts.to_metadata(stamps) | {_META_PIVOT_PATH: level_path}
+    target = schema(level).with_metadata(metadata)
+    connection = duckdb.connect()
+    written = 0
+    try:
+        # Through the relational API rather than a path interpolated into SQL, which a
+        # filename holding a quote would otherwise close.
+        connection.read_parquet(str(pathlib.Path(source))).create_view("reactions")
+        result = connection.execute(select(level, "reactions"))
+        with (
+            atomic_io.atomic_path(output) as temp_path,
+            pq.ParquetWriter(temp_path, target, compression=compression) as writer,
+        ):
+            # A projection whose reactions record nothing at this level leaves the loop
+            # empty; the writer's close still produces a valid zero-row file carrying
+            # the schema and stamps, which is what a reader globs and finds nothing in
+            # rather than a file that is missing.
+            for batch in result.to_arrow_reader(row_group_size):
+                # Cast rather than trust: DuckDB's own widths are its business, and the
+                # artifact's schema is a promise to whoever reads it later.
+                writer.write_table(
+                    pa.Table.from_batches([batch])
+                    .cast(schema(level))
+                    .replace_schema_metadata(metadata)
+                )
+                written += batch.num_rows
+    finally:
+        connection.close()
+    logger.info("%s: %d elements at %s", source, written, level_path)
+    return written

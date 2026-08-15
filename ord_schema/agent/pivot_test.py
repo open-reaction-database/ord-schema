@@ -14,10 +14,15 @@
 
 """Tests for ord_schema.agent.pivot."""
 
+import pathlib
+
 import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
+from ord_schema import artifacts, parquet, projection
 from ord_schema.agent import pivot
+from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
 def test_covers_the_levels_a_query_quantifies_over():
@@ -130,3 +135,91 @@ def test_ordinals_that_would_collide_are_refused():
     )
     with pytest.raises(ValueError, match="analysis_index"):
         pivot.repeated_levels(schema)
+
+
+@pytest.fixture(scope="module")
+def projected(tmp_path_factory) -> pathlib.Path:
+    """A written projection with two outcomes on one reaction and none on another."""
+    root = tmp_path_factory.mktemp("pivot")
+    split = reaction_pb2.Reaction(reaction_id="ord-pv01")
+    first = split.outcomes.add()
+    first.products.add(isolated_color="white", is_desired_product=False)
+    second = split.outcomes.add()
+    second.products.add(isolated_color="yellow", is_desired_product=True)
+    second.products.add(isolated_color="red", is_desired_product=False)
+    source = root / "ord_dataset-pv.parquet"
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-pv",
+            name="test",
+            description="test",
+            reactions=[split, reaction_pb2.Reaction(reaction_id="ord-pv02")],
+        ),
+        str(source),
+    )
+    output = root / "projection.parquet"
+    projection.write_projection(source, output)
+    return output
+
+
+def test_a_written_pivot_carries_its_rows_and_its_ordinals(projected, tmp_path):
+    output = tmp_path / "products.parquet"
+    written = pivot.write_pivot(projected, output, level_path="outcomes.products")
+    assert written == 3
+    table = pq.read_table(output)
+    assert table.column_names == [
+        "reaction_id",
+        "outcome_index",
+        "product_index",
+        "element",
+    ]
+    rows = [
+        (
+            row["reaction_id"],
+            row["outcome_index"],
+            row["product_index"],
+            row["element"]["isolated_color"],
+        )
+        for row in table.to_pylist()
+    ]
+    assert sorted(rows) == [
+        ("ord-pv01", 1, 1, "white"),
+        ("ord-pv01", 2, 1, "yellow"),
+        ("ord-pv01", 2, 2, "red"),
+    ]
+
+
+def test_a_written_pivot_is_stamped_with_its_level(projected, tmp_path):
+    output = tmp_path / "products.parquet"
+    pivot.write_pivot(projected, output, level_path="outcomes.products")
+    stamps = artifacts.load_stamps(output)
+    assert stamps.artifact == pivot.ARTIFACT
+    assert stamps.source_dataset_id == "ord_dataset-pv"
+    assert stamps.source_md5 == artifacts.load_stamps(projected).source_md5
+    assert artifacts.stamps_are_current(stamps, pivot.ARTIFACT)
+    assert pivot.pivot_path(output) == "outcomes.products"
+
+
+def test_a_level_with_no_elements_still_writes_a_readable_file(projected, tmp_path):
+    # A reader globs the level it wants; a file that is missing and a file that is
+    # empty are different things, and only the second says the build ran.
+    output = tmp_path / "workups.parquet"
+    assert pivot.write_pivot(projected, output, level_path="workups") == 0
+    assert pq.read_table(output).num_rows == 0
+    assert pivot.pivot_path(output) == "workups"
+
+
+def test_a_path_that_is_not_a_level_is_refused(projected, tmp_path):
+    with pytest.raises(ValueError, match="not a repeated level"):
+        pivot.write_pivot(
+            projected, tmp_path / "x.parquet", level_path="conditions.temperature"
+        )
+
+
+def test_pivoting_something_that_is_not_a_projection_is_refused(projected, tmp_path):
+    output = tmp_path / "products.parquet"
+    pivot.write_pivot(projected, output, level_path="outcomes.products")
+    with pytest.raises(ValueError, match="not a projection"):
+        pivot.write_pivot(
+            output, tmp_path / "again.parquet", level_path="outcomes.products"
+        )

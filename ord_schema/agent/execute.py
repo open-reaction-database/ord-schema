@@ -565,6 +565,7 @@ class Corpus:
         threads: int = -1,
         require_current: bool = True,
         narrow_budget_bytes: int | None = None,
+        pivots_dir: str | None = None,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
 
@@ -592,6 +593,12 @@ class Corpus:
                 nothing at all, which is what bounds a small machine: a set is measured
                 by building it, so any other figure has a peak of itself plus the
                 largest set a query names, whether or not that set is then kept.
+            pivots_dir: Directory holding derived pivot artifacts, one subdirectory per
+                repeated level. Given one, a quantifier over a level reads the artifact
+                instead of unnesting the projection to build it, which is minutes per
+                level over ORD and is paid by whichever query asks first. A level with
+                no subdirectory is still built in process, so a partial set of
+                artifacts is a partial speedup rather than a missing answer.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
@@ -657,6 +664,13 @@ class Corpus:
         # and no search waits on a build to be told what the cache already holds.
         self._narrow_build_lock = threading.Lock()
         pairs = _pair(projection_pattern, structures_pattern, require_current)
+        self._pivots_dir = pivots_dir
+        self._require_current = require_current
+        # The projections a pivot artifact has to have been derived from, and the views
+        # already published over the artifacts that were; see _pivot_view.
+        self._projections = [pair[0] for pair in pairs]
+        self._pivot_views: dict[str, str | None] = {}
+        self._pivot_lock = threading.Lock()
         self._connection = duckdb.connect()
         try:
             self._total, self._searchable = self._prepare(pairs)
@@ -1335,6 +1349,90 @@ class Corpus:
             with self._narrow_lock:
                 entry.readers -= 1
 
+    def _pivot_view(self, path: str) -> str | None:
+        """Returns a view over the pivot artifacts for ``path``, or None if none exist.
+
+        Published once per level and remembered, including the answer that there is
+        nothing to publish, so a corpus without artifacts globs the directory once
+        rather than on every query.
+
+        Args:
+            path: The repeated level, as the query grammar names it.
+
+        Returns:
+            The view's name, or None to leave the level to be built in process.
+
+        Raises:
+            PairingError: If the artifacts for this level were not derived from the
+                projections this corpus reads -- a pivot of another corpus answers
+                confidently and wrongly, since its reaction IDs resolve against the
+                wrong rows -- or, with ``require_current``, if any of them is stale.
+        """
+        if self._pivots_dir is None:
+            return None
+        with self._pivot_lock:
+            if path in self._pivot_views:
+                return self._pivot_views[path]
+            files = sorted(glob.glob(f"{self._pivots_dir}/{path}/*.parquet"))
+            if not files:
+                self._pivot_views[path] = None
+                return None
+            self._check_pivots(path, files)
+            name = pivot.table_name(path)
+            # S608: the name comes from this module's walk of the schema, and the paths
+            # from this process's own glob, quoted with their single quotes escaped.
+            self._connection.execute(
+                f"CREATE OR REPLACE VIEW {name} AS "  # noqa: S608
+                f"SELECT * FROM read_parquet({_sql_strings(files)})"
+            )
+            logger.info("read %d pivot artifacts for %s", len(files), path)
+            self._pivot_views[path] = name
+            return name
+
+    def _check_pivots(self, path: str, files: list[str]) -> None:
+        """Refuses pivot artifacts that do not belong to this corpus.
+
+        A pivot names its reactions by ID, and an ID resolves against whatever rows the
+        projections hold. Artifacts derived from another corpus therefore answer a
+        quantifier confidently and wrongly rather than failing, which is why the check
+        is on the source datasets rather than on the file count.
+
+        Args:
+            path: The repeated level the files claim to hold.
+            files: The artifacts found for it.
+
+        Raises:
+            PairingError: If a file is not a pivot over ``path``, if the set of source
+                datasets differs from the projections', or -- with ``require_current``
+                -- if any artifact is stale.
+        """
+        wanted = {artifacts.load_stamps(name).source_md5 for name in self._projections}
+        found = set()
+        for name in files:
+            stamps = artifacts.load_stamps(name)
+            if stamps.artifact != pivot.ARTIFACT:
+                raise PairingError(
+                    f"{name} is a {stamps.artifact}, not a {pivot.ARTIFACT}"
+                )
+            held = pivot.pivot_path(name)
+            if held != path:
+                raise PairingError(
+                    f"{name} holds the pivot over {held}, but sits where {path} is "
+                    "read from, so a quantifier would be answered by the wrong level"
+                )
+            if self._require_current and not artifacts.stamps_are_current(
+                stamps, pivot.ARTIFACT
+            ):
+                raise PairingError(f"{name} is a stale {pivot.ARTIFACT}")
+            found.add(stamps.source_md5)
+        if found != wanted:
+            raise PairingError(
+                f"the {pivot.ARTIFACT} artifacts for {path} were derived from "
+                f"{len(found)} source datasets and the projections from {len(wanted)}, "
+                f"and {len(wanted - found)} of the projections' are missing; a pivot "
+                "of another corpus names reactions this one does not hold"
+            )
+
     @contextlib.contextmanager
     def _pivoted_table(self, path: str) -> Iterator[str | None]:
         """Yields a pivot over ``path``, held against eviction while read.
@@ -1360,10 +1458,16 @@ class Corpus:
         if level is None:
             yield None
             return
+        published = self._pivot_view(path)
+        if published is not None:
+            # A view over artifacts costs no memory to hold and nothing to release, so
+            # there is no reader to take and no budget to spend.
+            yield published
+            return
         entry = self._materialize(
             _Held(
                 key=("pivot", path),
-                select=self._pivot_select(level),
+                select=pivot.select(level, query.TABLE),
                 description=f"the pivot over {path}",
             )
         )
@@ -1375,35 +1479,6 @@ class Corpus:
         finally:
             with self._narrow_lock:
                 entry.readers -= 1
-
-    def _pivot_select(self, level: pivot.RepeatedLevel) -> str:
-        """Returns the query building the pivot over ``level``.
-
-        Unnests one repeated level at a time rather than the flattened traversal the
-        compiler uses, because the ordinals are what each unnest contributes and a
-        flattened list has lost them.
-
-        Args:
-            level: The level to pivot.
-
-        Returns:
-            A SELECT over the executor's relation, one row per element.
-        """
-        froms, source = [query.TABLE], None
-        for depth, step in enumerate(level.steps):
-            froms.append(
-                f"unnest({step.expression(source)}) WITH ORDINALITY "
-                f"AS u{depth}(e{depth}, {step.ordinal})"
-            )
-            source = f"e{depth}"
-        selected = [
-            pivot.REACTION_ID,
-            *level.ordinals,
-            f"{pivot.element_expression(level.element_type, str(source))} "
-            f"AS {pivot.ELEMENT}",
-        ]
-        # S608: every fragment is this module's own walk of the projection schema.
-        return f"SELECT {', '.join(selected)} FROM {', '.join(froms)}"  # noqa: S608
 
     def _matches(
         self,

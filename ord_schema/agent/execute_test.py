@@ -30,7 +30,7 @@ from rdkit import Chem
 from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import parquet, projection, structures
-from ord_schema.agent import execute, query
+from ord_schema.agent import execute, pivot, query
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _ROLE = reaction_pb2.ReactionRole
@@ -2979,3 +2979,139 @@ def test_a_pivot_holds_every_element_including_an_empty_one(wide_corpus):
         ).fetchone()
     assert blank == (1,)
     assert absent == (0,)
+
+
+def _write_pivots(root: pathlib.Path, levels: tuple[str, ...]) -> pathlib.Path:
+    """Derives pivot artifacts for ``levels`` from every projection under ``root``."""
+    pivots = root / "pivots"
+    for level in levels:
+        (pivots / level).mkdir(parents=True, exist_ok=True)
+        for projected in sorted((root / "projections").glob("*.parquet")):
+            pivot.write_pivot(
+                projected, pivots / level / projected.name, level_path=level
+            )
+    return pivots
+
+
+@pytest.fixture(scope="module")
+def wide_root(tmp_path_factory) -> pathlib.Path:
+    """The wide corpus on disk, so pivot artifacts can be derived beside it."""
+    root = tmp_path_factory.mktemp("wide_artifacts")
+    source = root / "data" / "ord_dataset-wd.parquet"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-wd",
+            name="test",
+            description="test",
+            reactions=_wide_reactions(),
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir(parents=True, exist_ok=True)
+    projection.write_projection(source, projected)
+    structured = root / "structures" / source.name
+    structured.parent.mkdir(parents=True, exist_ok=True)
+    structures.write_structures(projected, structured)
+    return root
+
+
+@pytest.mark.parametrize("where", list(_DIFFERENTIAL.values()), ids=list(_DIFFERENTIAL))
+def test_a_pivot_artifact_answers_what_building_one_answers(wide_root, where):
+    # The artifact is the same rows by another route, so the whole point is that it
+    # cannot answer differently from the pivot the executor would have built.
+    pivots = _write_pivots(wide_root, ("outcomes.products",))
+    projected = str(wide_root / "projections" / "*.parquet")
+    structured = str(wide_root / "structures" / "*.parquet")
+    with execute.Corpus(projected, structured, resolver={}.__getitem__) as built:
+        expected = _search(built, where)
+    with execute.Corpus(
+        projected, structured, resolver={}.__getitem__, pivots_dir=str(pivots)
+    ) as read:
+        assert _search(read, where) == expected
+
+
+def test_a_pivot_artifact_is_read_rather_than_built(wide_root, caplog):
+    pivots = _write_pivots(wide_root, ("outcomes.products",))
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.agent.execute"),
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+        ) as corpus,
+    ):
+        _search(corpus, _white("exists"))
+    messages = [record.message for record in caplog.records]
+    assert any("read 1 pivot artifacts" in message for message in messages)
+    assert not any("building the pivot" in message for message in messages)
+
+
+def test_a_level_without_artifacts_is_still_built(wide_root, caplog):
+    # A partial set of artifacts is a partial speedup, not a missing answer.
+    pivots = _write_pivots(wide_root, ("outcomes.products",))
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.agent.execute"),
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+        ) as corpus,
+    ):
+        found = _search(
+            corpus,
+            {
+                "op": "exists",
+                "path": "outcomes.products.measurements",
+                "where": {
+                    "op": "eq",
+                    "path": "type",
+                    "value": {"literal": "YIELD"},
+                },
+            },
+        )
+    assert found == {"ord-wd01", "ord-wd02"}
+    assert any(
+        "building the pivot over outcomes.products.measurements" in record.message
+        for record in caplog.records
+    )
+
+
+def test_a_pivot_from_another_corpus_is_refused(wide_root, corpus_dir, tmp_path):
+    # The failure this pins is silent: a pivot names reactions by ID, so artifacts
+    # derived elsewhere answer a quantifier against rows this corpus does not hold.
+    stranger = _write_pivots(corpus_dir, ("outcomes.products",))
+    with (
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(stranger),
+        ) as corpus,
+        pytest.raises(execute.PairingError, match="another corpus"),
+    ):
+        _search(corpus, _white("exists"))
+
+
+def test_a_pivot_filed_under_the_wrong_level_is_refused(wide_root, tmp_path):
+    pivots = tmp_path / "pivots"
+    (pivots / "outcomes.products").mkdir(parents=True)
+    projected = next((wide_root / "projections").glob("*.parquet"))
+    pivot.write_pivot(
+        projected,
+        pivots / "outcomes.products" / projected.name,
+        level_path="outcomes.products.measurements",
+    )
+    with (
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+        ) as corpus,
+        pytest.raises(execute.PairingError, match="wrong level"),
+    ):
+        _search(corpus, _white("exists"))
