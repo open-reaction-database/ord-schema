@@ -19,14 +19,15 @@ per-level layout a Corpus reads, which matches count as sources, the skip-if-cur
 shortcut, and how an unknown level is refused.
 """
 
+import logging
 import pathlib
 
 import pytest
 
 from ord_schema import artifacts, parquet
-from ord_schema.agent import pivot
+from ord_schema.agent import execute, pivot, query
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.scripts import derive_pivots, derive_projection
+from ord_schema.scripts import derive_pivots, derive_projection, derive_structures
 
 
 def _dataset(dataset_id: str):
@@ -120,3 +121,40 @@ def test_a_pattern_matching_only_non_projections_is_an_error(tmp_path):
     parquet.save_dataset(_dataset("ord_dataset-aa"), str(directory / "source.parquet"))
     with pytest.raises(ValueError, match="no pivots derived for workups"):
         _run(tmp_path, "--levels", "workups")
+
+
+def test_a_corpus_reads_the_tree_this_script_writes(projected, caplog):
+    # The layout is a contract between this script and Corpus(pivots_dir=...), and each
+    # side tested against its own idea of it would agree with nobody. Derived here and
+    # read there, end to end.
+    derive_structures.main(
+        derive_structures.parse_args(
+            [
+                f"--input_pattern={projected / 'projections' / '*' / '*.parquet'}",
+                f"--output_dir={projected / 'structures'}",
+            ]
+        )
+    )
+    _run(projected, "--levels", "workups")
+    where = {
+        "op": "exists",
+        "path": "workups",
+        "where": {"op": "eq", "path": "type", "value": {"literal": "EXTRACTION"}},
+    }
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.agent.execute"),
+        execute.Corpus(
+            str(projected / "projections" / "*" / "*.parquet"),
+            str(projected / "structures" / "*" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(projected / "pivots"),
+        ) as corpus,
+    ):
+        found = corpus.search(query.Query.model_validate({"where": where}))
+    assert set(found.column("reaction_id").to_pylist()) == {
+        "ord-ord_dataset-aa-01",
+        "ord-ord_dataset-bb-01",
+    }
+    messages = [record.message for record in caplog.records]
+    assert any("read 2 pivot artifacts for workups" in message for message in messages)
+    assert not any("building the pivot" in message for message in messages)

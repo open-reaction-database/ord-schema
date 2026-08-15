@@ -1373,7 +1373,12 @@ class Corpus:
         with self._pivot_lock:
             if path in self._pivot_views:
                 return self._pivot_views[path]
-            files = sorted(glob.glob(f"{self._pivots_dir}/{path}/*.parquet"))
+            # Recursive, because a pivot tree mirrors the projections it was derived
+            # from: a sharded corpus puts them under <level>/<shard>/ rather than
+            # directly under the level.
+            files = sorted(
+                glob.glob(f"{self._pivots_dir}/{path}/**/*.parquet", recursive=True)
+            )
             if not files:
                 self._pivot_views[path] = None
                 return None

@@ -2982,14 +2982,18 @@ def test_a_pivot_holds_every_element_including_an_empty_one(wide_corpus):
 
 
 def _write_pivots(root: pathlib.Path, levels: tuple[str, ...]) -> pathlib.Path:
-    """Derives pivot artifacts for ``levels`` from every projection under ``root``."""
+    """Derives pivot artifacts for ``levels`` from every projection under ``root``.
+
+    Written under ``<level>/<shard>/`` rather than directly under the level, because
+    that is where ``derive_pivots`` puts them: it mirrors the projections' own layout,
+    and a helper that flattened it would test a tree nothing produces.
+    """
     pivots = root / "pivots"
     for level in levels:
-        (pivots / level).mkdir(parents=True, exist_ok=True)
         for projected in sorted((root / "projections").glob("*.parquet")):
-            pivot.write_pivot(
-                projected, pivots / level / projected.name, level_path=level
-            )
+            shard = pivots / level / projected.stem[-2:]
+            shard.mkdir(parents=True, exist_ok=True)
+            pivot.write_pivot(projected, shard / projected.name, level_path=level)
     return pivots
 
 
