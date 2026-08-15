@@ -2155,7 +2155,7 @@ def test_the_budget_is_a_share_of_the_machine_unless_stated(corpus_dir, monkeypa
         resolver={}.__getitem__,
     ) as value:
         assert value._narrow_budget == execute._default_narrow_budget()
-        assert value._narrow_budget >= execute._NARROW_BUDGET_FLOOR_BYTES
+        assert value._narrow_budget > 0
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
@@ -2168,20 +2168,77 @@ def test_the_budget_is_a_share_of_the_machine_unless_stated(corpus_dir, monkeypa
     # rather than read, since what this test asserts is the arithmetic and the machine
     # running it is whatever it is.
     machine = 64 * 1024**3
-    monkeypatch.setattr(
-        execute.os,
-        "sysconf",
-        lambda name: {
-            "SC_PAGE_SIZE": 4096,
-            "SC_PHYS_PAGES": machine // 4096,
-        }[name],
-    )
+    _state_machine_memory(monkeypatch, machine)
+    monkeypatch.setattr(execute, "_CGROUP_LIMITS", ())
     assert execute._default_narrow_budget() == int(
         machine * execute._NARROW_BUDGET_FRACTION
     )
-    # Where the memory cannot be read, the floor stands rather than a share of nothing.
+    # Where nothing states a limit, a figure stands rather than a share of nothing.
     monkeypatch.setattr(execute.os, "sysconf_names", {})
-    assert execute._default_narrow_budget() == execute._NARROW_BUDGET_FLOOR_BYTES
+    assert execute._default_narrow_budget() == execute._NARROW_BUDGET_UNKNOWN_BYTES
+
+
+def _state_machine_memory(monkeypatch, memory: int) -> None:
+    """Makes ``sysconf`` report a machine of the given size."""
+    monkeypatch.setattr(
+        execute.os,
+        "sysconf",
+        lambda name: {"SC_PAGE_SIZE": 4096, "SC_PHYS_PAGES": memory // 4096}[name],
+    )
+    monkeypatch.setattr(
+        execute.os, "sysconf_names", {"SC_PAGE_SIZE": 1, "SC_PHYS_PAGES": 2}
+    )
+
+
+def test_a_container_is_budgeted_by_what_it_may_hold_not_by_the_host(
+    tmp_path, monkeypatch
+):
+    # sysconf reports the host to a process a container limits to a fraction of it, so
+    # a corpus that budgeted by the host would hold memory it cannot have and be killed
+    # for it -- or starve whatever it shares the machine with.
+    _state_machine_memory(monkeypatch, 64 * 1024**3)
+    limit = tmp_path / "memory.max"
+    limit.write_text("8589934592\n")  # 8 GB, as a cgroup states it.
+    monkeypatch.setattr(execute, "_CGROUP_LIMITS", (str(limit),))
+    assert execute._default_narrow_budget() == int(
+        8 * 1024**3 * execute._NARROW_BUDGET_FRACTION
+    )
+    # A cgroup that limits nothing says so in words, and the host stands.
+    limit.write_text("max\n")
+    assert execute._default_narrow_budget() == int(
+        64 * 1024**3 * execute._NARROW_BUDGET_FRACTION
+    )
+    # cgroup v1 spells the same thing as a number near the word size.
+    limit.write_text(f"{(1 << 63) - 4096}\n")
+    assert execute._default_narrow_budget() == int(
+        64 * 1024**3 * execute._NARROW_BUDGET_FRACTION
+    )
+    # Taken for a limit, that number is only harmless while something else states a
+    # smaller one. On a platform whose sysconf says nothing, a quarter of it is a
+    # budget no machine can hold, and every column set would be kept.
+    monkeypatch.setattr(execute.os, "sysconf_names", {})
+    assert execute._default_narrow_budget() == execute._NARROW_BUDGET_UNKNOWN_BYTES
+
+
+def test_a_machine_that_will_not_say_how_large_it_is_does_not_stop_a_corpus(
+    corpus_dir, monkeypatch
+):
+    # sysconf names can exist and still be refused, and a default that raised there
+    # would fail to open a corpus rather than fall back to a figure.
+    def refusing(name):
+        raise OSError(f"no answer for {name}")
+
+    monkeypatch.setattr(execute.os, "sysconf", refusing)
+    monkeypatch.setattr(execute, "_CGROUP_LIMITS", ())
+    assert execute._default_narrow_budget() == execute._NARROW_BUDGET_UNKNOWN_BYTES
+    monkeypatch.setattr(execute.os, "sysconf", lambda name: -1)
+    assert execute._default_narrow_budget() == execute._NARROW_BUDGET_UNKNOWN_BYTES
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        assert value._narrow_budget == execute._NARROW_BUDGET_UNKNOWN_BYTES
 
 
 def test_a_materialization_is_measured_in_bytes(corpus_dir):

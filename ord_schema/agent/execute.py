@@ -116,9 +116,21 @@ _CACHED_MATCHES = 16
 # tenths, which is the difference the materialization exists to make.
 _NARROW_BUDGET_FRACTION = 0.25
 
-# What to allow where the machine's memory cannot be read, and the least this will claim
-# anywhere. Enough for the columns a scalar query names, not for the largest.
-_NARROW_BUDGET_FLOOR_BYTES = 2 * 1024**3
+# What to allow where nothing states how much memory this process may use. Enough for
+# the columns a scalar query names, not for the largest.
+_NARROW_BUDGET_UNKNOWN_BYTES = 2 * 1024**3
+
+# Where a container states what its processes may hold, most specific first. The host's
+# memory is what ``sysconf`` reports whether or not a limit applies to this process, so
+# a corpus in a container would otherwise budget against memory it cannot have.
+_CGROUP_LIMITS = (
+    "/sys/fs/cgroup/memory.max",  # cgroup v2
+    "/sys/fs/cgroup/memory/memory.limit_in_bytes",  # cgroup v1
+)
+
+# cgroup v1 spells "no limit" as a number near the word size rather than as a word, so a
+# figure this large is a limit in name only.
+_CGROUP_UNLIMITED = 1 << 62
 
 # Top-level projection columns, which is the granularity a compiled query names them at.
 # A narrower table holding only the ones a query mentions answers it identically, so the
@@ -152,21 +164,71 @@ class PairingError(ValueError):
     """The projections and structures artifacts do not form a consistent corpus."""
 
 
-def _default_narrow_budget() -> int:
-    """Returns what the materialized column sets may hold on this machine.
+def _host_memory_bytes() -> int | None:
+    """Returns the machine's memory, or None where it cannot be read.
 
-    A share of the machine's memory, since the alternative is a figure that is either
-    too small for the corpus it is asked about or too large for the machine it runs on.
-    Where the memory cannot be read -- ``sysconf`` is a Unix interface -- the floor
-    stands, which serves scalar queries and refuses the largest columns.
+    ``sysconf`` is a Unix interface, and even where the names exist a platform may
+    refuse the question or answer -1 for it.
 
     Returns:
-        Bytes the cache may hold, never below ``_NARROW_BUDGET_FLOOR_BYTES``.
+        Bytes of physical memory, or None if nothing readable says.
     """
-    if not hasattr(os, "sysconf") or "SC_PHYS_PAGES" not in os.sysconf_names:
-        return _NARROW_BUDGET_FLOOR_BYTES
-    memory = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
-    return max(int(memory * _NARROW_BUDGET_FRACTION), _NARROW_BUDGET_FLOOR_BYTES)
+    names = {"SC_PAGE_SIZE", "SC_PHYS_PAGES"}
+    if not hasattr(os, "sysconf") or not names.issubset(os.sysconf_names):
+        return None
+    try:
+        size = os.sysconf("SC_PAGE_SIZE")
+        pages = os.sysconf("SC_PHYS_PAGES")
+    except (OSError, ValueError):
+        return None
+    if size <= 0 or pages <= 0:
+        return None
+    return size * pages
+
+
+def _cgroup_memory_bytes() -> int | None:
+    """Returns what a container limits this process to, or None if nothing does.
+
+    The limit a container runs under is stated here and nowhere ``sysconf`` looks,
+    which reports the host's memory to a process that may hold a fraction of it.
+
+    Returns:
+        Bytes this process may hold, or None outside a container and where the limit
+        is stated as unlimited.
+    """
+    for path in _CGROUP_LIMITS:
+        try:
+            with open(path) as stated:  # noqa: PTH123 - a sysfs file, not a data path.
+                limit = int(stated.read().strip())
+        except (OSError, ValueError):
+            # Absent outside a container, and "max" rather than a number when a cgroup
+            # v2 states no limit; either way the next path may still say.
+            continue
+        if 0 < limit < _CGROUP_UNLIMITED:
+            return limit
+    return None
+
+
+def _default_narrow_budget() -> int:
+    """Returns what the materialized column sets may hold, absent a stated budget.
+
+    A share of what this process may use, since the alternative is a figure either too
+    small for the corpus it is asked about or too large for the machine it runs on. The
+    share is of the smaller of the machine and any container limit, so a corpus in a
+    container budgets against what it can have rather than against the host.
+
+    Returns:
+        Bytes the cache may hold; ``_NARROW_BUDGET_UNKNOWN_BYTES`` where nothing states
+        a limit at all.
+    """
+    limits = [
+        limit
+        for limit in (_host_memory_bytes(), _cgroup_memory_bytes())
+        if limit is not None
+    ]
+    if not limits:
+        return _NARROW_BUDGET_UNKNOWN_BYTES
+    return int(min(limits) * _NARROW_BUDGET_FRACTION)
 
 
 def _resolve_with_resolvers(name: str) -> str:
