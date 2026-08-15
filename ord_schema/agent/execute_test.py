@@ -1086,6 +1086,35 @@ _ROUTABLE = {
             ],
         }
     },
+    # The shape the index answers half of: over the corpus, what the other half costs
+    # is set by whether its column was materialized -- 0.43s against 3.34s for the same
+    # question, which is why the budget is what it is.
+    "a clause the projection has to answer beside it": {
+        "where": {
+            "op": "and",
+            "clauses": [
+                _exists(_SUBSTRUCTURE),
+                {
+                    "op": "exists",
+                    "path": "outcomes.products",
+                    "where": {
+                        "op": "eq",
+                        "path": "isolated_color",
+                        "value": {"literal": "white"},
+                    },
+                },
+            ],
+        }
+    },
+    "a negated clause beside the indexed one": {
+        "where": {
+            "op": "and",
+            "clauses": [
+                _exists(_SUBSTRUCTURE),
+                {"op": "not", "clause": {"op": "not_null", "path": "provenance.doi"}},
+            ],
+        }
+    },
 }
 
 # Element predicates an occurrence row cannot carry, so the quantifier compiles over
@@ -2116,6 +2145,45 @@ def _tables(value) -> set[str]:
     return {row[0] for row in rows}
 
 
+def test_the_budget_is_a_share_of_the_machine_unless_stated(corpus_dir, monkeypatch):
+    # A fixed default cannot be right: ORD's inputs column is 4.07 GB materialized, so
+    # anything safe on a small machine refuses the columns most worth holding on a large
+    # one, and a refused column set is read from Parquet on every query that names it.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+    ) as value:
+        assert value._narrow_budget == execute._default_narrow_budget()
+        assert value._narrow_budget >= execute._NARROW_BUDGET_FLOOR_BYTES
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        narrow_budget_bytes=7,
+    ) as value:
+        # A caller who knows what else the machine is doing outranks the share.
+        assert value._narrow_budget == 7
+    # The share is of the machine, so a larger machine holds more of the corpus. Stated
+    # rather than read, since what this test asserts is the arithmetic and the machine
+    # running it is whatever it is.
+    machine = 64 * 1024**3
+    monkeypatch.setattr(
+        execute.os,
+        "sysconf",
+        lambda name: {
+            "SC_PAGE_SIZE": 4096,
+            "SC_PHYS_PAGES": machine // 4096,
+        }[name],
+    )
+    assert execute._default_narrow_budget() == int(
+        machine * execute._NARROW_BUDGET_FRACTION
+    )
+    # Where the memory cannot be read, the floor stands rather than a share of nothing.
+    monkeypatch.setattr(execute.os, "sysconf_names", {})
+    assert execute._default_narrow_budget() == execute._NARROW_BUDGET_FLOOR_BYTES
+
+
 def test_a_materialization_is_measured_in_bytes(corpus_dir):
     # duckdb_tables reports a row *count* under a name that reads like a size, and
     # spending it as one makes the budget a number that can never be crossed and the
@@ -2140,11 +2208,12 @@ def test_the_cache_evicts_the_least_recently_used_and_drops_its_table(
     # An unevicted cache is one table per column set a server is ever asked for, none of
     # them ever freed. Sizes are stated here rather than measured so the budget admits
     # exactly one table whatever DuckDB's allocator does with three rows.
-    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 150)
+    budget = 150
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
+        narrow_budget_bytes=budget,
     ) as value:
         monkeypatch.setattr(
             execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
@@ -2166,11 +2235,12 @@ def test_a_table_a_search_is_reading_is_not_evicted(corpus_dir, monkeypatch):
     # seconds during which it holds nothing but a string. Evicting there would fail a
     # query that had already been answered correctly, with a catalog error naming a
     # table the caller has never heard of.
-    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 150)
+    budget = 150
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
+        narrow_budget_bytes=budget,
     ) as value:
         monkeypatch.setattr(
             execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
@@ -2308,11 +2378,12 @@ def test_a_table_a_second_search_took_from_the_cache_is_not_evicted(
     # does, so it has to take the read the same way. Held at zero readers, the table is
     # the first thing eviction takes, and the search fails on a name that no longer
     # resolves after it had already been answered correctly.
-    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 150)
+    budget = 150
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
+        narrow_budget_bytes=budget,
     ) as value:
         monkeypatch.setattr(
             execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
@@ -2407,11 +2478,12 @@ def test_a_literal_naming_the_relation_is_not_a_rewrite(tmp_path):
 
 def test_a_column_set_too_large_to_keep_is_not_kept(corpus_dir, monkeypatch):
     # Materializing is only worth it if the table survives to answer the next query.
-    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 1)
+    budget = 1
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
+        narrow_budget_bytes=budget,
     ) as value:
         matched = value.search(
             query.Query.model_validate(
@@ -2432,12 +2504,13 @@ def test_a_column_set_too_large_to_keep_is_not_built_twice(corpus_dir, monkeypat
     # does not change while the corpus is open. Asking again is the common case -- a
     # notebook loop, a server serving one shape of question -- and rebuilding a table
     # only to drop it again holds the narrow lock against every other search each time.
-    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 1)
+    budget = 1
     columns = frozenset({"reaction_id", "provenance"})
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
+        narrow_budget_bytes=budget,
     ) as value:
         with value._narrowed_table(columns) as name:
             assert name is None

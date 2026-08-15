@@ -159,6 +159,33 @@ search whose columns are already materialized is answered while another is being
 same rows either way, in an order neither relation promises — a query wanting one has to
 say so.
 
+**The budget is the cliff.** Materialized, ORD's `inputs` is 4.07 GB and its `outcomes`
+3.26 GB, against 1.71 GB for `conditions` and 1.46 GB for `notes`. A column set the
+budget refuses is read from the 53 Parquet files on every query that names it, and
+scattered rows do not let a reader skip row groups, so the same question costs seconds
+instead of tenths — "pyridine as the solvent with a yield above 50%" is 3.34s where
+`outcomes` is refused and 0.41s where it is held. The default is therefore a **quarter of
+the machine's memory** rather than a fixed figure, and `Corpus(narrow_budget_bytes=...)`
+states it outright where the machine is shared or more can be spent. This is also the
+second thing the index buys: a query whose structure clause becomes a semi-join never
+names `inputs` at all, so what has to be resident is far smaller than the same question
+answered from the elements.
+
+Over the whole corpus (2,428,291 reactions, 53 files, a 6 GB budget, warm), a mixed set
+of queries pairing an indexed clause with one only the projection can answer:
+
+| query | index | projection |
+| --- | --- | --- |
+| pyridine solvent, above 350 K | 0.02s | 0.20s |
+| pyridine solvent, yield > 50% | 0.41s | 4.82s |
+| pyridine solvent, white product | 0.24s | 4.30s |
+| pyridine solvent, "reflux" in the procedure | 0.05s | 0.20s |
+| yields by product color (grouped) | 0.40s | 1.53s |
+| hottest with a yield (ordered, limited) | 0.41s | 0.99s |
+| boronic acid, pyridine solvent, yield > 50% | 0.43s | 12.75s |
+| any aromatic carbon, yield > 50% | 0.45s | 14.79s |
+| **not** pyridine anywhere, with a yield | 0.55s | 14.86s |
+
 The screen itself is not a lever. It is the same `PatternFingerprint` the RDKit
 PostgreSQL cartridge screens with (`rdkit.sss_fp_size`, via `makeMolSignature`), and for
 a small common query it admits most of the corpus — 80% for pyridine, of which 73% then

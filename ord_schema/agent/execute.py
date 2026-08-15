@@ -80,6 +80,7 @@ import contextlib
 import dataclasses
 import glob
 import math
+import os
 import re
 import threading
 import time
@@ -107,12 +108,17 @@ _BUILD_BATCH = 50_000
 # seconds.
 _CACHED_MATCHES = 16
 
-# How much memory the materialized column sets may hold between them. Held to by
-# evicting the least recently used, so a corpus asked many different questions settles
-# on the columns it is actually asked about. Enforced after a table is built rather than
-# before, since what one costs is known only once it exists, so the peak is this plus
-# the largest single set; a set larger than the whole budget is dropped again unkept.
-_NARROW_BUDGET_BYTES = 2 * 1024**3
+# What share of the machine the materialized column sets may hold between them, when the
+# caller states no budget of its own. A share rather than a figure because what the sets
+# cost is set by the corpus: ORD's ``inputs`` is 4.07 GB and its ``outcomes`` 3.26 GB,
+# so any fixed default small enough to be safe on a laptop refuses both on a server. A
+# query whose columns are refused reads the Parquet files instead -- seconds rather than
+# tenths, which is the difference the materialization exists to make.
+_NARROW_BUDGET_FRACTION = 0.25
+
+# What to allow where the machine's memory cannot be read, and the least this will claim
+# anywhere. Enough for the columns a scalar query names, not for the largest.
+_NARROW_BUDGET_FLOOR_BYTES = 2 * 1024**3
 
 # Top-level projection columns, which is the granularity a compiled query names them at.
 # A narrower table holding only the ones a query mentions answers it identically, so the
@@ -144,6 +150,23 @@ def _reads_as_smarts(parameter: query.StructureParameter) -> bool:
 
 class PairingError(ValueError):
     """The projections and structures artifacts do not form a consistent corpus."""
+
+
+def _default_narrow_budget() -> int:
+    """Returns what the materialized column sets may hold on this machine.
+
+    A share of the machine's memory, since the alternative is a figure that is either
+    too small for the corpus it is asked about or too large for the machine it runs on.
+    Where the memory cannot be read -- ``sysconf`` is a Unix interface -- the floor
+    stands, which serves scalar queries and refuses the largest columns.
+
+    Returns:
+        Bytes the cache may hold, never below ``_NARROW_BUDGET_FLOOR_BYTES``.
+    """
+    if not hasattr(os, "sysconf") or "SC_PHYS_PAGES" not in os.sysconf_names:
+        return _NARROW_BUDGET_FLOOR_BYTES
+    memory = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    return max(int(memory * _NARROW_BUDGET_FRACTION), _NARROW_BUDGET_FLOOR_BYTES)
 
 
 def _resolve_with_resolvers(name: str) -> str:
@@ -522,6 +545,7 @@ class Corpus:
         resolver: Callable[[str], str] | None = None,
         threads: int = -1,
         require_current: bool = True,
+        narrow_budget_bytes: int | None = None,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
 
@@ -540,6 +564,12 @@ class Corpus:
                 artifact, and RDKit versions. The screen's completeness guarantee
                 assumes the query and the artifact fingerprint identically, so turning
                 this off is only for reading a corpus known to match anyway.
+            narrow_budget_bytes: How much memory the materialized column sets may hold
+                between them; a quarter of the machine's by default. Worth stating
+                where the machine serves something else too, or where more of it can be
+                spent than that: a column set the budget refuses is read from the
+                Parquet files on every query that names it, which over ORD is seconds
+                against tenths of a second.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
@@ -547,6 +577,11 @@ class Corpus:
                 dataset, or -- with ``require_current`` -- any artifact is stale.
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
+        self._narrow_budget = (
+            narrow_budget_bytes
+            if narrow_budget_bytes is not None
+            else _default_narrow_budget()
+        )
         self._threads = threads
         # Built on first substructure query; see _library. The library holds one entry
         # per distinct molecule, and _members with _starts map an entry back to the
@@ -1114,7 +1149,7 @@ class Corpus:
                 f"SELECT {selected} FROM {query.TABLE}"
             )
             held = max(_memory_bytes(cursor) - before, 0)
-            if held > _NARROW_BUDGET_BYTES:
+            if held > self._narrow_budget:
                 # Too big to keep, and keeping it is the only reason to build it.
                 cursor.execute(f"DROP TABLE {name}")
                 with self._narrow_lock:
@@ -1157,8 +1192,9 @@ class Corpus:
         the direction that keeps answers right.
         """
         for held in list(self._narrowed):
-            if sum(entry.held for entry in self._narrowed.values()) <= (
-                _NARROW_BUDGET_BYTES
+            if (
+                sum(entry.held for entry in self._narrowed.values())
+                <= self._narrow_budget
             ):
                 return
             entry = self._narrowed[held]
