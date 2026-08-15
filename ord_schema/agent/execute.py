@@ -719,10 +719,12 @@ class Corpus:
         self._narrowed: collections.OrderedDict[frozenset[str], _Narrow] = (
             collections.OrderedDict()
         )
-        # Column sets that came out larger than the whole budget. Kept because the
-        # projection they are built from does not change while this object is open, so
-        # building one again costs a pass over the corpus to reach the same refusal.
-        self._narrow_refused: set[frozenset[str]] = set()
+        # Column sets that came out larger than the whole budget, and what each cost.
+        # Kept because the projection they are built from does not change while this
+        # object is open, so building one again costs a pass over the corpus to reach
+        # the same refusal -- and because every query naming one is slow for a reason
+        # worth restating; see _refusal_warning.
+        self._narrow_refused: dict[frozenset[str], int] = {}
         self._narrow_serial = 0
         self._narrow_lock = threading.Lock()
         # Held across a materialization, so the two memory readings bracket one table
@@ -1224,7 +1226,33 @@ class Corpus:
             self._narrowed.move_to_end(columns)
             cached.readers += 1
             return True, cached
-        return columns in self._narrow_refused, None
+        refused = self._narrow_refused.get(columns)
+        if refused is not None:
+            self._warn_refused(columns, refused)
+            return True, None
+        return False, None
+
+    def _warn_refused(self, columns: frozenset[str], held: int) -> None:
+        """Says that a query is about to be answered the slow way, and what to change.
+
+        Warned on every query that names the columns rather than once when they were
+        first refused, because the query is slow every time and whoever is asking why is
+        reading the log now, not the one line printed when the corpus opened.
+
+        Args:
+            columns: Top-level projection columns the query names.
+            held: What materializing them cost when it was measured.
+        """
+        logger.warning(
+            "materializing %s takes %.1f GB, over this corpus's %.1f GB budget, so "
+            "every query naming those columns reads the Parquet files instead -- "
+            "seconds rather than tenths of a second at ORD's scale. Open the Corpus "
+            "with a larger narrow_budget_bytes, or give the process more memory: the "
+            "default budget is a quarter of what it may hold.",
+            sorted(columns),
+            held / 1024**3,
+            self._narrow_budget / 1024**3,
+        )
 
     def _build(self, columns: frozenset[str]) -> _Narrow | None:
         """Materializes ``columns``, recording its cost or that it costs too much.
@@ -1262,12 +1290,8 @@ class Corpus:
                 # Too big to keep, and keeping it is the only reason to build it.
                 cursor.execute(f"DROP TABLE {name}")
                 with self._narrow_lock:
-                    self._narrow_refused.add(columns)
-                logger.info(
-                    "not caching %s: %.1f GB exceeds the budget",
-                    sorted(columns),
-                    held / 1024**3,
-                )
+                    self._narrow_refused[columns] = held
+                self._warn_refused(columns, held)
                 return None
         except Exception:
             # A table nobody tracks is memory nobody frees, and the failure the

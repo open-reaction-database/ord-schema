@@ -159,7 +159,20 @@ search whose columns are already materialized is answered while another is being
 same rows either way, in an order neither relation promises — a query wanting one has to
 say so.
 
-**The budget is the cliff.** Materialized, ORD's `inputs` is 4.07 GB and its `outcomes`
+**The budget is the cliff, and it says so.** A refused column set logs a **warning** on
+every query that names it, giving what the set costs, what the budget is, and the
+argument that changes them — so a query that suddenly takes seconds explains itself in
+the log rather than by profiling:
+
+```text
+WARNING materializing ['outcomes', 'reaction_id'] takes 3.3 GB, over this corpus's
+2.0 GB budget, so every query naming those columns reads the Parquet files instead --
+seconds rather than tenths of a second at ORD's scale. Open the Corpus with a larger
+narrow_budget_bytes, or give the process more memory: the default budget is a quarter
+of what it may hold.
+```
+
+Materialized, ORD's `inputs` is 4.07 GB and its `outcomes`
 3.26 GB, against 1.71 GB for `conditions` and 1.46 GB for `notes`. A column set the
 budget refuses is read from the 53 Parquet files on every query that names it, and
 scattered rows do not let a reader skip row groups, so the same question costs seconds

@@ -2627,6 +2627,46 @@ def test_a_column_set_too_large_to_keep_is_not_kept(corpus_dir, monkeypatch):
         assert not value._narrowed
 
 
+def test_a_column_set_too_large_to_keep_says_so_and_says_what_to_change(
+    corpus_dir, caplog
+):
+    # The slowest thing a corpus does is answer from Parquet because a column set did
+    # not fit, and nothing about the answer says that is what happened. Whoever is
+    # asking why a query takes seconds is reading the log, so the log has to name the
+    # columns, the two figures, and the argument that changes it.
+    caplog.set_level(logging.INFO, logger="ord_schema.agent.execute")
+    request = query.Query.model_validate(
+        {"where": {"op": "not_null", "path": "provenance.doi"}}
+    )
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        narrow_budget_bytes=1,
+    ) as value:
+        value.search(request)
+        warned = [
+            record for record in caplog.records if record.levelno >= logging.WARNING
+        ]
+        assert len(warned) == 1
+        said = warned[0].getMessage()
+        assert "provenance" in said
+        assert "narrow_budget_bytes" in said
+        # Said again for the next query, since that query is slow for the same reason
+        # and its asker was not necessarily watching when the corpus first found out.
+        value.search(request)
+        assert (
+            len(
+                [
+                    record
+                    for record in caplog.records
+                    if record.levelno >= logging.WARNING
+                ]
+            )
+            == 2
+        )
+
+
 def test_a_column_set_too_large_to_keep_is_not_built_twice(corpus_dir, monkeypatch):
     # What the refusal costs is a pass over the corpus, and the projection it reads
     # does not change while the corpus is open. Asking again is the common case -- a
