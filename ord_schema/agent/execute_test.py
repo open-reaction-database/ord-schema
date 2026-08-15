@@ -2169,13 +2169,36 @@ def test_the_budget_is_a_share_of_the_machine_unless_stated(corpus_dir, monkeypa
     # running it is whatever it is.
     machine = 64 * 1024**3
     _state_machine_memory(monkeypatch, machine)
-    monkeypatch.setattr(execute, "_CGROUP_LIMITS", ())
+    monkeypatch.setattr(execute, "_CGROUP_HIERARCHIES", ())
     assert execute._default_narrow_budget() == int(
         machine * execute._NARROW_BUDGET_FRACTION
     )
     # Where nothing states a limit, a figure stands rather than a share of nothing.
     monkeypatch.setattr(execute.os, "sysconf_names", {})
     assert execute._default_narrow_budget() == execute._NARROW_BUDGET_UNKNOWN_BYTES
+
+
+def _state_cgroup(monkeypatch, tmp_path, path: str, limits: dict[str, str]) -> None:
+    """Puts this process in a cgroup at ``path``, with the stated limits along it.
+
+    Args:
+        monkeypatch: The fixture, which points the module at the tree built here.
+        tmp_path: Where to build the tree.
+        path: The process's own cgroup, as ``/proc/self/cgroup`` states it.
+        limits: What each level from the mount down states, keyed by its path within
+            the mount; a level not named here states nothing, as most do not.
+    """
+    mount = tmp_path / "cgroup"
+    for level, stated in limits.items():
+        directory = mount.joinpath(*[part for part in level.split("/") if part])
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "memory.max").write_text(stated)
+    proc = tmp_path / "proc_self_cgroup"
+    proc.write_text(f"0::{path}\n")
+    monkeypatch.setattr(execute, "_PROC_CGROUP", str(proc))
+    monkeypatch.setattr(
+        execute, "_CGROUP_HIERARCHIES", ((str(mount), "memory.max", ""),)
+    )
 
 
 def _state_machine_memory(monkeypatch, memory: int) -> None:
@@ -2197,19 +2220,17 @@ def test_a_container_is_budgeted_by_what_it_may_hold_not_by_the_host(
     # a corpus that budgeted by the host would hold memory it cannot have and be killed
     # for it -- or starve whatever it shares the machine with.
     _state_machine_memory(monkeypatch, 64 * 1024**3)
-    limit = tmp_path / "memory.max"
-    limit.write_text("8589934592\n")  # 8 GB, as a cgroup states it.
-    monkeypatch.setattr(execute, "_CGROUP_LIMITS", (str(limit),))
+    _state_cgroup(monkeypatch, tmp_path, "/", {"/": "8589934592\n"})
     assert execute._default_narrow_budget() == int(
         8 * 1024**3 * execute._NARROW_BUDGET_FRACTION
     )
     # A cgroup that limits nothing says so in words, and the host stands.
-    limit.write_text("max\n")
+    _state_cgroup(monkeypatch, tmp_path, "/", {"/": "max\n"})
     assert execute._default_narrow_budget() == int(
         64 * 1024**3 * execute._NARROW_BUDGET_FRACTION
     )
     # cgroup v1 spells the same thing as a number near the word size.
-    limit.write_text(f"{(1 << 63) - 4096}\n")
+    _state_cgroup(monkeypatch, tmp_path, "/", {"/": f"{(1 << 63) - 4096}\n"})
     assert execute._default_narrow_budget() == int(
         64 * 1024**3 * execute._NARROW_BUDGET_FRACTION
     )
@@ -2218,6 +2239,56 @@ def test_a_container_is_budgeted_by_what_it_may_hold_not_by_the_host(
     # budget no machine can hold, and every column set would be kept.
     monkeypatch.setattr(execute.os, "sysconf_names", {})
     assert execute._default_narrow_budget() == execute._NARROW_BUDGET_UNKNOWN_BYTES
+
+
+def test_the_smallest_limit_over_a_process_is_the_one_it_is_held_to(
+    tmp_path, monkeypatch
+):
+    # A service under a systemd slice, or a container run without a cgroup namespace of
+    # its own, sits below the mount root: the root states nothing and an ancestor states
+    # the limit. Reading the root alone would budget by the whole machine again.
+    _state_machine_memory(monkeypatch, 64 * 1024**3)
+    _state_cgroup(
+        monkeypatch,
+        tmp_path,
+        "/system.slice/ord.service",
+        {
+            "/": "max\n",
+            "/system.slice": "4294967296\n",  # 4 GB over everything in the slice.
+            "/system.slice/ord.service": "max\n",
+        },
+    )
+    assert execute._default_narrow_budget() == int(
+        4 * 1024**3 * execute._NARROW_BUDGET_FRACTION
+    )
+    # Its own is what holds when it is the smaller, whatever an ancestor allows.
+    _state_cgroup(
+        monkeypatch,
+        tmp_path,
+        "/system.slice/ord.service",
+        {
+            "/system.slice": "4294967296\n",
+            "/system.slice/ord.service": "1073741824\n",  # 1 GB
+        },
+    )
+    assert execute._default_narrow_budget() == int(
+        1024**3 * execute._NARROW_BUDGET_FRACTION
+    )
+    # A cgroup may ask for more than the one above it allows, and gets what the one
+    # above it allows. Reading the nearest limit rather than the smallest would believe
+    # the 8 GB and budget past what the process can hold.
+    _state_cgroup(
+        monkeypatch,
+        tmp_path,
+        "/system.slice/ord.service",
+        {
+            "/system.slice": "2147483648\n",  # 2 GB over the slice
+            "/system.slice/ord.service": "8589934592\n",  # 8 GB asked for below it
+        },
+    )
+    assert execute._default_narrow_budget() == int(
+        2 * 1024**3 * execute._NARROW_BUDGET_FRACTION
+    )
 
 
 def test_a_machine_that_will_not_say_how_large_it_is_does_not_stop_a_corpus(
@@ -2229,7 +2300,7 @@ def test_a_machine_that_will_not_say_how_large_it_is_does_not_stop_a_corpus(
         raise OSError(f"no answer for {name}")
 
     monkeypatch.setattr(execute.os, "sysconf", refusing)
-    monkeypatch.setattr(execute, "_CGROUP_LIMITS", ())
+    monkeypatch.setattr(execute, "_CGROUP_HIERARCHIES", ())
     assert execute._default_narrow_budget() == execute._NARROW_BUDGET_UNKNOWN_BYTES
     monkeypatch.setattr(execute.os, "sysconf", lambda name: -1)
     assert execute._default_narrow_budget() == execute._NARROW_BUDGET_UNKNOWN_BYTES

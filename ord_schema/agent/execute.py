@@ -81,6 +81,7 @@ import dataclasses
 import glob
 import math
 import os
+import pathlib
 import re
 import threading
 import time
@@ -120,13 +121,20 @@ _NARROW_BUDGET_FRACTION = 0.25
 # the columns a scalar query names, not for the largest.
 _NARROW_BUDGET_UNKNOWN_BYTES = 2 * 1024**3
 
-# Where a container states what its processes may hold, most specific first. The host's
-# memory is what ``sysconf`` reports whether or not a limit applies to this process, so
-# a corpus in a container would otherwise budget against memory it cannot have.
-_CGROUP_LIMITS = (
-    "/sys/fs/cgroup/memory.max",  # cgroup v2
-    "/sys/fs/cgroup/memory/memory.limit_in_bytes",  # cgroup v1
+# Where a cgroup states what its processes may hold: the mount, the file naming the
+# limit, and the controller the process's own path is listed under. The host's memory is
+# what ``sysconf`` reports whether or not a limit applies to this process, so a corpus
+# under one would otherwise budget against memory it cannot have.
+_CGROUP_HIERARCHIES = (
+    ("/sys/fs/cgroup", "memory.max", ""),  # v2, whose unified hierarchy has no name
+    ("/sys/fs/cgroup/memory", "memory.limit_in_bytes", "memory"),  # v1
 )
+
+# Where a process's own cgroup path is written. What sits at the mount root is the limit
+# of the whole hierarchy, which is not this process's unless it happens to sit there --
+# a service under a systemd slice takes its limit from an ancestor, and every level from
+# the process's own up to the root can state one.
+_PROC_CGROUP = "/proc/self/cgroup"
 
 # cgroup v1 spells "no limit" as a number near the word size rather than as a word, so a
 # figure this large is a limit in name only.
@@ -186,27 +194,66 @@ def _host_memory_bytes() -> int | None:
     return size * pages
 
 
-def _cgroup_memory_bytes() -> int | None:
-    """Returns what a container limits this process to, or None if nothing does.
+def _stated_limit(path: pathlib.Path) -> int | None:
+    """Returns the memory limit a cgroup file states, or None if it states none.
 
-    The limit a container runs under is stated here and nowhere ``sysconf`` looks,
-    which reports the host's memory to a process that may hold a fraction of it.
+    Args:
+        path: A cgroup memory-limit file, which need not exist.
 
     Returns:
-        Bytes this process may hold, or None outside a container and where the limit
-        is stated as unlimited.
+        Bytes, or None where the file is absent, unreadable, or says no limit -- which
+        cgroup v2 spells as the word ``max`` and v1 as a number near the word size.
     """
-    for path in _CGROUP_LIMITS:
-        try:
-            with open(path) as stated:  # noqa: PTH123 - a sysfs file, not a data path.
-                limit = int(stated.read().strip())
-        except (OSError, ValueError):
-            # Absent outside a container, and "max" rather than a number when a cgroup
-            # v2 states no limit; either way the next path may still say.
-            continue
-        if 0 < limit < _CGROUP_UNLIMITED:
-            return limit
-    return None
+    try:
+        limit = int(path.read_text().strip())
+    except (OSError, ValueError):
+        return None
+    return limit if 0 < limit < _CGROUP_UNLIMITED else None
+
+
+def _own_cgroup(controller: str) -> str:
+    """Returns this process's path within a cgroup hierarchy.
+
+    Args:
+        controller: The hierarchy's name in ``/proc/self/cgroup``; empty for the v2
+            unified hierarchy, which lists itself as ``0::<path>``.
+
+    Returns:
+        The path relative to the hierarchy's mount, or ``/`` where nothing says -- which
+        is the root, and reads the whole hierarchy's limit.
+    """
+    try:
+        for line in pathlib.Path(_PROC_CGROUP).read_text().splitlines():
+            _, controllers, path = line.split(":", 2)
+            if controller in controllers.split(","):
+                return path
+            if controller == "" and controllers == "":
+                return path
+    except (OSError, ValueError):
+        return "/"
+    return "/"
+
+
+def _cgroup_memory_bytes() -> int | None:
+    """Returns what a cgroup limits this process to, or None if none does.
+
+    Every level from the process's own cgroup up to the mount root may state a limit,
+    and the process is held to the smallest: a service under a systemd slice, or a
+    container run without its own cgroup namespace, takes its limit from an ancestor
+    while the root states none at all.
+
+    Returns:
+        The smallest limit stated over this process, or None where nothing states one.
+    """
+    limits = []
+    for mount, filename, controller in _CGROUP_HIERARCHIES:
+        parts = [part for part in _own_cgroup(controller).split("/") if part]
+        # Its own cgroup first, then each ancestor, ending at the mount root.
+        for depth in range(len(parts), -1, -1):
+            limit = _stated_limit(pathlib.Path(mount, *parts[:depth], filename))
+            if limit is not None:
+                limits.append(limit)
+    return min(limits) if limits else None
 
 
 def _default_narrow_budget() -> int:
