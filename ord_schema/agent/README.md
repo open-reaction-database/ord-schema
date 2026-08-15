@@ -165,10 +165,36 @@ reactions where the answer is 22,666 — 942 wrong, silently. ORD is effectively
 single-outcome, so dropping the *outcome* ordinal changes nothing at all, which is
 exactly why the product-level error looks correct until it is checked.
 
+Over the whole corpus, warm, against the same queries answered from the elements:
+
+| query | pivot | elements |
+| --- | --- | --- |
+| a white product | 0.050s | 0.936s |
+| yield > 50% | 0.086s | 2.758s |
+| every product is desired | 0.070s | 2.055s |
+| **not** a yield above 50% | 0.098s | 3.480s |
+| a solvent input | 0.178s | 4.229s |
+| an extraction workup | 3.660s | 7.816s |
+| above 350 K | 0.041s | 0.035s |
+
+Every one returns the same reactions either way. The last two are the shape of the
+thing: `above 350 K` is a scalar path with no quantifier, so no pivot is involved and
+nothing moves, and the workup query is one whose pivot the budget refused — the
+projection answered it, which is the fallback working rather than the pivot helping.
+
 Building one unnests the projection down to its level, which over ORD is minutes:
 `outcomes.products` is 487.8 MB in 478s and `outcomes.products.measurements` 1.7 GB in
 783s, charged against the same `narrow_budget_bytes` as a materialized column set and
-evicted by the same LRU. That cost belongs offline, which is what
+evicted by the same LRU.
+
+How much a pivot saves depends on how wide its elements are, and pruning only the
+repeated fields is coarse. `workups` is the case that shows it: its elements carry a
+whole `ReactionInput` besides, so the pivot is **4.4 GB** against 5.08 GB for the nested
+column — over the 4 GB default, refused, and answered from the projection. A level whose
+elements are narrow behaves the other way, which is why the two `outcomes` levels are
+tenths of a second and the workup query is seconds.
+
+That build cost belongs offline, which is what
 `scripts/derive_pivots.py` is for — one subdirectory per level, one file per projection
 within it, stamped like any other derived artifact and read by
 `Corpus(..., pivots_dir=...)`. Artifacts are refused unless they were derived from this
