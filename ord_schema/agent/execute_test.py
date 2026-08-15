@@ -17,6 +17,7 @@
 import contextlib
 import logging
 import pathlib
+import re
 import threading
 import time
 from collections.abc import Iterator
@@ -2145,171 +2146,29 @@ def _tables(value) -> set[str]:
     return {row[0] for row in rows}
 
 
-def test_the_budget_is_a_share_of_the_machine_unless_stated(corpus_dir, monkeypatch):
-    # A fixed default cannot be right: ORD's inputs column is 4.07 GB materialized, so
-    # anything safe on a small machine refuses the columns most worth holding on a large
-    # one, and a refused column set is read from Parquet on every query that names it.
+def test_a_budget_no_memory_could_answer_to_is_refused(corpus_dir):
+    # Negative is not an amount of memory, and taken as one it makes every set too
+    # large and every eviction immediate, which reads as a corpus that cannot cache.
+    with pytest.raises(ValueError, match="not an amount of memory"):
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            narrow_budget_bytes=-1,
+        )
+    # Zero is an amount of memory, and a caller asking to materialize nothing means it.
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
+        narrow_budget_bytes=0,
     ) as value:
-        assert value._narrow_budget == execute._default_narrow_budget()
-        assert value._narrow_budget > 0
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-        narrow_budget_bytes=7,
-    ) as value:
-        # A caller who knows what else the machine is doing outranks the share.
-        assert value._narrow_budget == 7
-    # The share is of the machine, so a larger machine holds more of the corpus. Stated
-    # rather than read, since what this test asserts is the arithmetic and the machine
-    # running it is whatever it is.
-    machine = 64 * 1024**3
-    _state_machine_memory(monkeypatch, machine)
-    monkeypatch.setattr(execute, "_CGROUP_HIERARCHIES", ())
-    assert execute._default_narrow_budget() == int(
-        machine * execute._NARROW_BUDGET_FRACTION
-    )
-    # Where nothing states a limit, a figure stands rather than a share of nothing.
-    monkeypatch.setattr(execute.os, "sysconf_names", {})
-    assert execute._default_narrow_budget() == execute._NARROW_BUDGET_UNKNOWN_BYTES
-
-
-def _state_cgroup(monkeypatch, tmp_path, path: str, limits: dict[str, str]) -> None:
-    """Puts this process in a cgroup at ``path``, with the stated limits along it.
-
-    Args:
-        monkeypatch: The fixture, which points the module at the tree built here.
-        tmp_path: Where to build the tree.
-        path: The process's own cgroup, as ``/proc/self/cgroup`` states it.
-        limits: What each level from the mount down states, keyed by its path within
-            the mount; a level not named here states nothing, as most do not.
-    """
-    mount = tmp_path / "cgroup"
-    for level, stated in limits.items():
-        directory = mount.joinpath(*[part for part in level.split("/") if part])
-        directory.mkdir(parents=True, exist_ok=True)
-        (directory / "memory.max").write_text(stated)
-    proc = tmp_path / "proc_self_cgroup"
-    proc.write_text(f"0::{path}\n")
-    monkeypatch.setattr(execute, "_PROC_CGROUP", str(proc))
-    monkeypatch.setattr(
-        execute, "_CGROUP_HIERARCHIES", ((str(mount), "memory.max", ""),)
-    )
-
-
-def _state_machine_memory(monkeypatch, memory: int) -> None:
-    """Makes ``sysconf`` report a machine of the given size."""
-    monkeypatch.setattr(
-        execute.os,
-        "sysconf",
-        lambda name: {"SC_PAGE_SIZE": 4096, "SC_PHYS_PAGES": memory // 4096}[name],
-    )
-    monkeypatch.setattr(
-        execute.os, "sysconf_names", {"SC_PAGE_SIZE": 1, "SC_PHYS_PAGES": 2}
-    )
-
-
-def test_a_container_is_budgeted_by_what_it_may_hold_not_by_the_host(
-    tmp_path, monkeypatch
-):
-    # sysconf reports the host to a process a container limits to a fraction of it, so
-    # a corpus that budgeted by the host would hold memory it cannot have and be killed
-    # for it -- or starve whatever it shares the machine with.
-    _state_machine_memory(monkeypatch, 64 * 1024**3)
-    _state_cgroup(monkeypatch, tmp_path, "/", {"/": "8589934592\n"})
-    assert execute._default_narrow_budget() == int(
-        8 * 1024**3 * execute._NARROW_BUDGET_FRACTION
-    )
-    # A cgroup that limits nothing says so in words, and the host stands.
-    _state_cgroup(monkeypatch, tmp_path, "/", {"/": "max\n"})
-    assert execute._default_narrow_budget() == int(
-        64 * 1024**3 * execute._NARROW_BUDGET_FRACTION
-    )
-    # cgroup v1 spells the same thing as a number near the word size.
-    _state_cgroup(monkeypatch, tmp_path, "/", {"/": f"{(1 << 63) - 4096}\n"})
-    assert execute._default_narrow_budget() == int(
-        64 * 1024**3 * execute._NARROW_BUDGET_FRACTION
-    )
-    # Taken for a limit, that number is only harmless while something else states a
-    # smaller one. On a platform whose sysconf says nothing, a quarter of it is a
-    # budget no machine can hold, and every column set would be kept.
-    monkeypatch.setattr(execute.os, "sysconf_names", {})
-    assert execute._default_narrow_budget() == execute._NARROW_BUDGET_UNKNOWN_BYTES
-
-
-def test_the_smallest_limit_over_a_process_is_the_one_it_is_held_to(
-    tmp_path, monkeypatch
-):
-    # A service under a systemd slice, or a container run without a cgroup namespace of
-    # its own, sits below the mount root: the root states nothing and an ancestor states
-    # the limit. Reading the root alone would budget by the whole machine again.
-    _state_machine_memory(monkeypatch, 64 * 1024**3)
-    _state_cgroup(
-        monkeypatch,
-        tmp_path,
-        "/system.slice/ord.service",
-        {
-            "/": "max\n",
-            "/system.slice": "4294967296\n",  # 4 GB over everything in the slice.
-            "/system.slice/ord.service": "max\n",
-        },
-    )
-    assert execute._default_narrow_budget() == int(
-        4 * 1024**3 * execute._NARROW_BUDGET_FRACTION
-    )
-    # Its own is what holds when it is the smaller, whatever an ancestor allows.
-    _state_cgroup(
-        monkeypatch,
-        tmp_path,
-        "/system.slice/ord.service",
-        {
-            "/system.slice": "4294967296\n",
-            "/system.slice/ord.service": "1073741824\n",  # 1 GB
-        },
-    )
-    assert execute._default_narrow_budget() == int(
-        1024**3 * execute._NARROW_BUDGET_FRACTION
-    )
-    # A cgroup may ask for more than the one above it allows, and gets what the one
-    # above it allows. Reading the nearest limit rather than the smallest would believe
-    # the 8 GB and budget past what the process can hold.
-    _state_cgroup(
-        monkeypatch,
-        tmp_path,
-        "/system.slice/ord.service",
-        {
-            "/system.slice": "2147483648\n",  # 2 GB over the slice
-            "/system.slice/ord.service": "8589934592\n",  # 8 GB asked for below it
-        },
-    )
-    assert execute._default_narrow_budget() == int(
-        2 * 1024**3 * execute._NARROW_BUDGET_FRACTION
-    )
-
-
-def test_a_machine_that_will_not_say_how_large_it_is_does_not_stop_a_corpus(
-    corpus_dir, monkeypatch
-):
-    # sysconf names can exist and still be refused, and a default that raised there
-    # would fail to open a corpus rather than fall back to a figure.
-    def refusing(name):
-        raise OSError(f"no answer for {name}")
-
-    monkeypatch.setattr(execute.os, "sysconf", refusing)
-    monkeypatch.setattr(execute, "_CGROUP_HIERARCHIES", ())
-    assert execute._default_narrow_budget() == execute._NARROW_BUDGET_UNKNOWN_BYTES
-    monkeypatch.setattr(execute.os, "sysconf", lambda name: -1)
-    assert execute._default_narrow_budget() == execute._NARROW_BUDGET_UNKNOWN_BYTES
-    with execute.Corpus(
-        str(corpus_dir / "projections" / "*.parquet"),
-        str(corpus_dir / "structures" / "*.parquet"),
-        resolver={}.__getitem__,
-    ) as value:
-        assert value._narrow_budget == execute._NARROW_BUDGET_UNKNOWN_BYTES
+        value.search(
+            query.Query.model_validate(
+                {"where": {"op": "not_null", "path": "provenance.doi"}}
+            )
+        )
+        assert not value._narrowed
 
 
 def test_a_materialization_is_measured_in_bytes(corpus_dir):
@@ -2638,6 +2497,15 @@ def test_a_column_set_too_large_to_keep_says_so_and_says_what_to_change(
     request = query.Query.model_validate(
         {"where": {"op": "not_null", "path": "provenance.doi"}}
     )
+
+    def warnings() -> list[str]:
+        return [
+            record.getMessage()
+            for record in caplog.records
+            if record.levelno >= logging.WARNING
+            and record.name == "ord_schema.agent.execute"
+        ]
+
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
@@ -2645,26 +2513,47 @@ def test_a_column_set_too_large_to_keep_says_so_and_says_what_to_change(
         narrow_budget_bytes=1,
     ) as value:
         value.search(request)
-        warned = [
-            record for record in caplog.records if record.levelno >= logging.WARNING
-        ]
-        assert len(warned) == 1
-        said = warned[0].getMessage()
+        assert len(warnings()) == 1
+        said = warnings()[0]
         assert "provenance" in said
         assert "narrow_budget_bytes" in said
+        assert execute._format_bytes(value._narrow_budget) in said
+        # Both figures have to be figures. Stated in gigabytes, a fixture costing
+        # kilobytes against a budget of one byte reads "0.0 GB over 0.0 GB", which
+        # names the problem in units that hide it.
+        assert "1 B" in said
+        assert re.search(r"takes \d+(\.\d+)? (kB|MB|GB)", said), said
         # Said again for the next query, since that query is slow for the same reason
         # and its asker was not necessarily watching when the corpus first found out.
         value.search(request)
-        assert (
-            len(
-                [
-                    record
-                    for record in caplog.records
-                    if record.levelno >= logging.WARNING
-                ]
-            )
-            == 2
-        )
+        assert len(warnings()) == 2
+
+
+def test_two_searches_wanting_one_refused_column_set_build_it_once(
+    corpus_dir, monkeypatch
+):
+    # The refusal is settled under the build lock as well as before it, so a search
+    # that waited out another's build finds the answer rather than repeating a pass
+    # over the corpus to reach the same refusal.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        narrow_budget_bytes=1,
+    ) as value:
+        wanted = frozenset({"reaction_id", "conditions"})
+        with _stalled_build(value, monkeypatch):
+
+            def read() -> str | None:
+                with value._narrowed_table(wanted) as name:
+                    return name
+
+            second, answered = _in_a_thread(read)
+            second.join(timeout=1)
+            assert not answered, "the second ask did not wait for the build in flight"
+        second.join(timeout=30)
+        assert answered == [None]  # Refused, and told so rather than building again.
+        assert value._narrow_serial == 1
 
 
 def test_a_column_set_too_large_to_keep_is_not_built_twice(corpus_dir, monkeypatch):

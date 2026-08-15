@@ -80,8 +80,6 @@ import contextlib
 import dataclasses
 import glob
 import math
-import os
-import pathlib
 import re
 import threading
 import time
@@ -109,36 +107,18 @@ _BUILD_BATCH = 50_000
 # seconds.
 _CACHED_MATCHES = 16
 
-# What share of the machine the materialized column sets may hold between them, when the
-# caller states no budget of its own. A share rather than a figure because what the sets
-# cost is set by the corpus: ORD's ``inputs`` is 4.07 GB and its ``outcomes`` 3.26 GB,
-# so any fixed default small enough to be safe on a laptop refuses both on a server. A
-# query whose columns are refused reads the Parquet files instead -- seconds rather than
-# tenths, which is the difference the materialization exists to make.
-_NARROW_BUDGET_FRACTION = 0.25
-
-# What to allow where nothing states how much memory this process may use. Enough for
-# the columns a scalar query names, not for the largest.
-_NARROW_BUDGET_UNKNOWN_BYTES = 2 * 1024**3
-
-# Where a cgroup states what its processes may hold: the mount, the file naming the
-# limit, and the controller the process's own path is listed under. The host's memory is
-# what ``sysconf`` reports whether or not a limit applies to this process, so a corpus
-# under one would otherwise budget against memory it cannot have.
-_CGROUP_HIERARCHIES = (
-    ("/sys/fs/cgroup", "memory.max", ""),  # v2, whose unified hierarchy has no name
-    ("/sys/fs/cgroup/memory", "memory.limit_in_bytes", "memory"),  # v1
-)
-
-# Where a process's own cgroup path is written. What sits at the mount root is the limit
-# of the whole hierarchy, which is not this process's unless it happens to sit there --
-# a service under a systemd slice takes its limit from an ancestor, and every level from
-# the process's own up to the root can state one.
-_PROC_CGROUP = "/proc/self/cgroup"
-
-# cgroup v1 spells "no limit" as a number near the word size rather than as a word, so a
-# figure this large is a limit in name only.
-_CGROUP_UNLIMITED = 1 << 62
+# How much memory the materialized column sets may hold between them, when the caller
+# states no budget. Fixed rather than a share of the machine: the whole projection is
+# 18.46 GB in memory at ORD's scale and no default holds it, so every budget is a
+# partial cache and the question is only which columns fit. This holds any single one
+# of the large ones -- workups is 5.08 GB, inputs 3.93 GB, outcomes 3.04 GB -- which is
+# what a query pairing a structure clause with a projection one needs. A corpus asked
+# for more says so on every query it costs, naming this argument; see _warn_refused.
+#
+# Held to after a set is built rather than before, since what one costs is known only
+# once it exists: the peak is this plus the largest single set, and building a set costs
+# its size whether or not it is kept.
+_NARROW_BUDGET_BYTES = 4 * 1024**3
 
 # Top-level projection columns, which is the granularity a compiled query names them at.
 # A narrower table holding only the ones a query mentions answers it identically, so the
@@ -172,110 +152,21 @@ class PairingError(ValueError):
     """The projections and structures artifacts do not form a consistent corpus."""
 
 
-def _host_memory_bytes() -> int | None:
-    """Returns the machine's memory, or None where it cannot be read.
-
-    ``sysconf`` is a Unix interface, and even where the names exist a platform may
-    refuse the question or answer -1 for it.
-
-    Returns:
-        Bytes of physical memory, or None if nothing readable says.
-    """
-    names = {"SC_PAGE_SIZE", "SC_PHYS_PAGES"}
-    if not hasattr(os, "sysconf") or not names.issubset(os.sysconf_names):
-        return None
-    try:
-        size = os.sysconf("SC_PAGE_SIZE")
-        pages = os.sysconf("SC_PHYS_PAGES")
-    except (OSError, ValueError):
-        return None
-    if size <= 0 or pages <= 0:
-        return None
-    return size * pages
-
-
-def _stated_limit(path: pathlib.Path) -> int | None:
-    """Returns the memory limit a cgroup file states, or None if it states none.
+def _format_bytes(value: float) -> str:
+    """Returns a byte count in the largest unit it reaches, for a person to read.
 
     Args:
-        path: A cgroup memory-limit file, which need not exist.
+        value: Bytes.
 
     Returns:
-        Bytes, or None where the file is absent, unreadable, or says no limit -- which
-        cgroup v2 spells as the word ``max`` and v1 as a number near the word size.
+        The figure and its unit, e.g. ``3.3 GB``. A budget stated in gigabytes says
+        nothing about a table that costs kilobytes, and a warning naming both has to
+        make the two comparable.
     """
-    try:
-        limit = int(path.read_text().strip())
-    except (OSError, ValueError):
-        return None
-    return limit if 0 < limit < _CGROUP_UNLIMITED else None
-
-
-def _own_cgroup(controller: str) -> str:
-    """Returns this process's path within a cgroup hierarchy.
-
-    Args:
-        controller: The hierarchy's name in ``/proc/self/cgroup``; empty for the v2
-            unified hierarchy, which lists itself as ``0::<path>``.
-
-    Returns:
-        The path relative to the hierarchy's mount, or ``/`` where nothing says -- which
-        is the root, and reads the whole hierarchy's limit.
-    """
-    try:
-        for line in pathlib.Path(_PROC_CGROUP).read_text().splitlines():
-            _, controllers, path = line.split(":", 2)
-            if controller in controllers.split(","):
-                return path
-            if controller == "" and controllers == "":
-                return path
-    except (OSError, ValueError):
-        return "/"
-    return "/"
-
-
-def _cgroup_memory_bytes() -> int | None:
-    """Returns what a cgroup limits this process to, or None if none does.
-
-    Every level from the process's own cgroup up to the mount root may state a limit,
-    and the process is held to the smallest: a service under a systemd slice, or a
-    container run without its own cgroup namespace, takes its limit from an ancestor
-    while the root states none at all.
-
-    Returns:
-        The smallest limit stated over this process, or None where nothing states one.
-    """
-    limits = []
-    for mount, filename, controller in _CGROUP_HIERARCHIES:
-        parts = [part for part in _own_cgroup(controller).split("/") if part]
-        # Its own cgroup first, then each ancestor, ending at the mount root.
-        for depth in range(len(parts), -1, -1):
-            limit = _stated_limit(pathlib.Path(mount, *parts[:depth], filename))
-            if limit is not None:
-                limits.append(limit)
-    return min(limits) if limits else None
-
-
-def _default_narrow_budget() -> int:
-    """Returns what the materialized column sets may hold, absent a stated budget.
-
-    A share of what this process may use, since the alternative is a figure either too
-    small for the corpus it is asked about or too large for the machine it runs on. The
-    share is of the smaller of the machine and any container limit, so a corpus in a
-    container budgets against what it can have rather than against the host.
-
-    Returns:
-        Bytes the cache may hold; ``_NARROW_BUDGET_UNKNOWN_BYTES`` where nothing states
-        a limit at all.
-    """
-    limits = [
-        limit
-        for limit in (_host_memory_bytes(), _cgroup_memory_bytes())
-        if limit is not None
-    ]
-    if not limits:
-        return _NARROW_BUDGET_UNKNOWN_BYTES
-    return int(min(limits) * _NARROW_BUDGET_FRACTION)
+    for unit, scale in (("GB", 1024**3), ("MB", 1024**2), ("kB", 1024)):
+        if abs(value) >= scale:
+            return f"{value / scale:.1f} {unit}"
+    return f"{value:.0f} B"
 
 
 def _resolve_with_resolvers(name: str) -> str:
@@ -673,23 +564,36 @@ class Corpus:
                 artifact, and RDKit versions. The screen's completeness guarantee
                 assumes the query and the artifact fingerprint identically, so turning
                 this off is only for reading a corpus known to match anyway.
-            narrow_budget_bytes: How much memory the materialized column sets may hold
-                between them; a quarter of the machine's by default. Worth stating
-                where the machine serves something else too, or where more of it can be
-                spent than that: a column set the budget refuses is read from the
-                Parquet files on every query that names it, which over ORD is seconds
-                against tenths of a second.
+            narrow_budget_bytes: How much memory the materialized column sets may
+                hold between them; 4 GB by default. Worth stating on a machine that can
+                spend more, since a column set the budget refuses is read from the
+                Parquet files on every query that names it -- over ORD, seconds against
+                tenths of a second. The whole projection is 18.46 GB in memory, so a
+                corpus asked about most of it wants most of that.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
                 partner on the other, a pair's stamps disagree about the source
                 dataset, or -- with ``require_current`` -- any artifact is stale.
+            ValueError: If ``narrow_budget_bytes`` is negative, which no amount of
+                memory is; zero is allowed, and materializes nothing.
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
+        if narrow_budget_bytes is not None and narrow_budget_bytes < 0:
+            raise ValueError(
+                f"narrow_budget_bytes is {narrow_budget_bytes}, which is not an amount "
+                "of memory; pass zero to materialize nothing"
+            )
         self._narrow_budget = (
             narrow_budget_bytes
             if narrow_budget_bytes is not None
-            else _default_narrow_budget()
+            else _NARROW_BUDGET_BYTES
+        )
+        # Said at open because the alternative is saying it nowhere: a process killed
+        # for holding too much leaves no log of its own, and what it thought it was
+        # allowed to hold is the first thing worth knowing afterwards.
+        logger.info(
+            "materialized column sets may hold %s", _format_bytes(self._narrow_budget)
         )
         self._threads = threads
         # Built on first substructure query; see _library. The library holds one entry
@@ -1056,11 +960,15 @@ class Corpus:
                         "glob one artifact per reaction"
                     )
                     raise PairingError(self._refused)
+                # Under the build lock, so the only other thing that puts a table
+                # in this database does not do it while a materialization is measuring
+                # what one costs -- a difference of two readings taken across everyone.
                 # OR REPLACE, so a build interrupted after the table exists is a build
                 # the next query repeats rather than one that collides with itself
                 # forever. S608: the fragments are this module's own schema walk and
                 # the compiler's traversals, not anything a query supplies.
-                cursor.execute(f"CREATE OR REPLACE TABLE occurrences AS {selects}")
+                with self._narrow_build_lock:
+                    cursor.execute(f"CREATE OR REPLACE TABLE occurrences AS {selects}")
                 counts = dict(
                     cursor.execute(
                         "SELECT path, count(*) FROM occurrences GROUP BY path"
@@ -1194,21 +1102,29 @@ class Corpus:
             build them again to throw them away again.
         """
         with self._narrow_lock:
-            settled, entry = self._cached(columns)
+            settled, entry, refused = self._cached(columns)
         if settled:
+            # Warned outside the lock: it is the one every search takes to read the
+            # cache, and a log handler is not something to hold it through.
+            if refused is not None:
+                self._warn_refused(columns, refused)
             return entry
         with self._narrow_build_lock:
             # Asked again under the build lock: whoever held it may have been building
             # exactly these columns, and a second table of them would be memory held
             # twice for one answer.
             with self._narrow_lock:
-                settled, entry = self._cached(columns)
+                settled, entry, refused = self._cached(columns)
             if settled:
+                if refused is not None:
+                    self._warn_refused(columns, refused)
                 return entry
             return self._build(columns)
 
-    def _cached(self, columns: frozenset[str]) -> tuple[bool, _Narrow | None]:
-        """Returns whether the cache settles ``columns``, and the entry if it holds one.
+    def _cached(
+        self, columns: frozenset[str]
+    ) -> tuple[bool, _Narrow | None, int | None]:
+        """Returns whether the cache settles ``columns``, and how.
 
         Called with ``_narrow_lock`` held. A hit takes the read on the caller's behalf,
         since an entry released back to the cache between the lookup and the read could
@@ -1218,19 +1134,19 @@ class Corpus:
             columns: Top-level projection columns the query names.
 
         Returns:
-            ``(True, entry)`` for a hit, ``(True, None)`` for a set already refused as
-            too large, and ``(False, None)`` for one nobody has built yet.
+            Whether the cache settles the question, the entry for a hit, and what the
+            set cost where it was refused as too large -- which the caller says out
+            loud once it is no longer holding the lock.
         """
         cached = self._narrowed.get(columns)
         if cached is not None:
             self._narrowed.move_to_end(columns)
             cached.readers += 1
-            return True, cached
+            return True, cached, None
         refused = self._narrow_refused.get(columns)
         if refused is not None:
-            self._warn_refused(columns, refused)
-            return True, None
-        return False, None
+            return True, None, refused
+        return False, None, None
 
     def _warn_refused(self, columns: frozenset[str], held: int) -> None:
         """Says that a query is about to be answered the slow way, and what to change.
@@ -1244,23 +1160,22 @@ class Corpus:
             held: What materializing them cost when it was measured.
         """
         logger.warning(
-            "materializing %s takes %.1f GB, over this corpus's %.1f GB budget, so "
-            "every query naming those columns reads the Parquet files instead -- "
-            "seconds rather than tenths of a second at ORD's scale. Open the Corpus "
-            "with a larger narrow_budget_bytes, or give the process more memory: the "
-            "default budget is a quarter of what it may hold.",
+            "materializing %s takes %s, over this corpus's budget of %s, so every "
+            "query naming those columns reads the Parquet files instead -- seconds "
+            "rather than tenths of a second at ORD's scale. Open the Corpus with a "
+            "larger narrow_budget_bytes if the machine has the memory to spare.",
             sorted(columns),
-            held / 1024**3,
-            self._narrow_budget / 1024**3,
+            _format_bytes(held),
+            _format_bytes(self._narrow_budget),
         )
 
     def _build(self, columns: frozenset[str]) -> _Narrow | None:
         """Materializes ``columns``, recording its cost or that it costs too much.
 
         Called with ``_narrow_build_lock`` held and ``_narrow_lock`` free, so the two
-        memory readings bracket this table and nothing else the cache does. An index
-        build can still move the figure between them, which costs an overstatement and
-        an eviction, never a wrong answer.
+        memory readings bracket this table and nothing else: every other statement that
+        puts a table in this database -- another materialization, or the index build --
+        takes the same lock.
 
         Args:
             columns: Top-level projection columns the query names.
@@ -1295,17 +1210,22 @@ class Corpus:
                 return None
         except Exception:
             # A table nobody tracks is memory nobody frees, and the failure the
-            # caller sees has to be the one that happened.
-            with contextlib.suppress(duckdb.Error):
+            # caller sees has to be the one that happened -- so the cleanup swallows
+            # everything, and says what it swallowed. A DROP that fails here leaves
+            # memory the cache will never account for, which is worth a line even
+            # though it is not what the caller asked about.
+            try:
                 cursor.execute(f"DROP TABLE IF EXISTS {name}")
+            except Exception:
+                logger.exception("could not drop %s after a failed build", name)
             raise
         finally:
             cursor.close()
         logger.info(
-            "materialized %s as %s, %.2f GB in %.1fs",
+            "materialized %s as %s, %s in %.1fs",
             sorted(columns),
             name,
-            held / 1024**3,
+            _format_bytes(held),
             time.perf_counter() - start,
         )
         entry = _Narrow(name=name, held=held, readers=1)

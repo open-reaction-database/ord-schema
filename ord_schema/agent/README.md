@@ -165,24 +165,36 @@ argument that changes them — so a query that suddenly takes seconds explains i
 the log rather than by profiling:
 
 ```text
-WARNING materializing ['outcomes', 'reaction_id'] takes 3.3 GB, over this corpus's
-2.0 GB budget, so every query naming those columns reads the Parquet files instead --
-seconds rather than tenths of a second at ORD's scale. Open the Corpus with a larger
-narrow_budget_bytes, or give the process more memory: the default budget is a quarter
-of what it may hold.
+WARNING materializing ['outcomes', 'reaction_id'] takes 3.0 GB, over this corpus's
+budget of 4.0 GB, so every query naming those columns reads the Parquet files instead
+-- seconds rather than tenths of a second at ORD's scale. Open the Corpus with a larger
+narrow_budget_bytes if the machine has the memory to spare.
 ```
 
-Materialized, ORD's `inputs` is 4.07 GB and its `outcomes`
-3.26 GB, against 1.71 GB for `conditions` and 1.46 GB for `notes`. A column set the
-budget refuses is read from the 53 Parquet files on every query that names it, and
-scattered rows do not let a reader skip row groups, so the same question costs seconds
-instead of tenths — "pyridine as the solvent with a yield above 50%" is 3.34s where
-`outcomes` is refused and 0.41s where it is held. The default is therefore a **quarter of
-the machine's memory** rather than a fixed figure, and `Corpus(narrow_budget_bytes=...)`
-states it outright where the machine is shared or more can be spent. This is also the
-second thing the index buys: a query whose structure clause becomes a semi-join never
-names `inputs` at all, so what has to be resident is far smaller than the same question
-answered from the elements.
+A column set the budget refuses is read from the 53 Parquet files on every query that
+names it, and scattered rows do not let a reader skip row groups, so the same question
+costs seconds instead of tenths — "pyridine as the solvent with a yield above 50%" is
+3.34s where `outcomes` is refused and 0.41s where it is held.
+
+The projection is **18.46 GB in memory**, from 1.53 GB of Parquet — a twelvefold
+expansion, and more than any default should claim:
+
+| column | in memory | | column | in memory |
+| --- | --- | --- | --- | --- |
+| `workups` | 5.08 GB | | `notes` | 1.33 GB |
+| `inputs` | 3.93 GB | | `smiles` | 0.89 GB |
+| `outcomes` | 3.04 GB | | `setup` | 0.59 GB |
+| `provenance` | 1.65 GB | | `observations` | 0.13 GB |
+| `conditions` | 1.61 GB | | `identifiers`, `reaction_id` | 0.21 GB |
+
+So every budget is a partial cache and the only question is which columns fit. The
+default is a fixed **4 GB**, which holds any single one of the large columns — what a
+query pairing a structure clause with a projection one needs — and
+`Corpus(narrow_budget_bytes=...)` states otherwise on a machine with room to spare.
+Building a set costs its size whether or not it is kept, so the peak is the budget plus
+the largest set, not the budget alone. This is also the second thing the index buys: a
+query whose structure clause becomes a semi-join never names `inputs` at all, so what
+has to be resident is far smaller than for the same question answered from the elements.
 
 Over the whole corpus (2,428,291 reactions, 53 files, a 6 GB budget, warm), a mixed set
 of queries pairing an indexed clause with one only the projection can answer:
