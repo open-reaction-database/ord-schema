@@ -16,8 +16,8 @@
 
 Structure search runs in two steps that this artifact serves in turn. A **screen**
 tests the query's fingerprint bits against every row -- a bitwise scan a query engine
-runs in milliseconds, with no chemistry library in sight -- and is complete but not
-exact: it never misses a true match, and passes false ones. **Verification** then runs
+runs in milliseconds without a chemistry library -- and is complete but not exact: it
+never misses a true match, and passes false ones. **Verification** then runs
 real subgraph isomorphism over the survivors, from the serialized molecule carried
 here, which skips re-parsing SMILES and runs about five times faster for it. Neither
 step needs an index; the reason a structure search elsewhere needs one is the cost of
@@ -43,10 +43,9 @@ query/target pairs, including explicit-hydrogen queries, with no exception. What
 query layer still has to handle is that these molecules are built from SMILES and so
 hold their hydrogens implicitly: a SMARTS naming one as its own atom matches nothing,
 which :mod:`ord_schema.agent.query` rewrites rather than runs. Similarity needs no
-verification at all: Tanimoto
-is defined on the Morgan fingerprint, so the screen *is* the answer, and
-``morgan_popcount`` bounds it (``popcount(B)`` must lie within ``[t * popcount(A),
-popcount(A) / t]`` for Tanimoto ``>= t``).
+verification at all: Tanimoto is defined on the Morgan fingerprint, so the screen *is*
+the answer, and ``morgan_popcount`` bounds it (``popcount(B)`` must lie within ``[t *
+popcount(A), popcount(A) / t]`` for Tanimoto ``>= t``).
 
 A structure whose SMILES RDKit cannot parse keeps its row -- the ID space must stay
 dense -- with every derived column null. It can never match a structure query, and the
@@ -69,9 +68,9 @@ logger = get_logger(__name__)
 
 ARTIFACT = "structures"
 
-# Fingerprint parameters. Screen precision plateaus by 2048 bits -- the residual false
-# positives are the gap between feature containment and subgraph isomorphism, which no
-# width closes -- so wider fingerprints buy storage, not selectivity.
+# Screen precision plateaus by 2048 bits -- the residual false positives are the gap
+# between feature containment and subgraph isomorphism, which no width closes -- so
+# wider fingerprints buy storage, not selectivity.
 PATTERN_FP_SIZE = 2048
 MORGAN_FP_SIZE = 2048
 MORGAN_RADIUS = 2
@@ -135,19 +134,20 @@ def structure_levels(
 
     Walked rather than listed by hand, so a compound field added upstream is found
     wherever it lands -- components, products, workup inputs, authentic standards --
-    without anyone updating a list. Everything that has to agree about where a
+    without anyone updating a list. Every caller that has to agree about where a
     structure can sit reads this one walk, since two walks are two answers waiting to
-    disagree about a corpus.
+    disagree.
 
     Args:
-        schema: The projection schema.
+        schema: Schema to walk; the projection schema this library defines by default,
+            or a written file's ``schema_arrow`` to ask what that file holds.
 
     Returns:
         One ``(column, path, dtype)`` per structure-bearing struct, in schema order:
         ``column`` is the Parquet physical prefix, carrying the ``list.element`` and
-        ``key_value.value`` segments a file has; ``path`` is the same level as the
-        query grammar names it, which has no wrapper segments; and ``dtype`` is the
-        struct, so a caller can ask what else the element carries.
+        ``key_value.value`` segments a file has; ``path`` is the same level as the query
+        grammar names it, which has no wrapper segments; and ``dtype`` is the struct, so
+        a caller can ask what else the element carries.
     """
     levels: list[tuple[str, str, pa.DataType]] = []
 
@@ -171,7 +171,9 @@ def _structure_columns(schema: pa.Schema = projection.SCHEMA) -> list[str]:
     """Returns the projection's (smiles, structure_id) leaves as Parquet column paths.
 
     Args:
-        schema: The projection schema.
+        schema: Schema to read the leaves from; the projection schema this library
+            defines by default, or a written file's ``schema_arrow`` to ask what that
+            file holds.
 
     Returns:
         Parquet physical column paths, in schema order.
@@ -306,8 +308,8 @@ def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
     """Returns whether ``path`` is a structures artifact of ``source_md5`` by us.
 
     Delegates to ``artifacts.is_current``, which requires the artifact name, the source
-    content, the library version, and the artifact version to all match. A missing or
-    unreadable file is not current.
+    content, the library version, the artifact version, and the RDKit version to all
+    match. A missing or unreadable file is not current.
 
     Args:
         path: Path to check. Need not exist.
@@ -343,8 +345,9 @@ def write_structures(
             names the dataset it reflects rather than the file it read.
         source_dataset_id: Source dataset ID to stamp, if the caller already read one.
             Taken from the projection's stamps when omitted.
-        compression: Parquet compression codec.
-        row_group_size: Rows per output row group.
+        compression: Parquet codec, any name ``pq.ParquetWriter`` accepts.
+        row_group_size: Rows per output row group, which is also how many structures
+            are featurized and held in memory at a time.
 
     Returns:
         Number of rows written: the number of distinct structures in the projection.

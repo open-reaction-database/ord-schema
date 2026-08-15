@@ -2156,7 +2156,9 @@ def test_a_budget_no_memory_could_answer_to_is_refused(corpus_dir):
             resolver={}.__getitem__,
             narrow_budget_bytes=-1,
         )
-    # Zero is an amount of memory, and a caller asking to materialize nothing means it.
+    # Zero is an amount of memory, and a caller asking to materialize nothing means it
+    # -- including the build that would otherwise measure a set before dropping it,
+    # which is the peak a machine has to have room for.
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
@@ -2169,6 +2171,8 @@ def test_a_budget_no_memory_could_answer_to_is_refused(corpus_dir):
             )
         )
         assert not value._narrowed
+        assert value._narrow_serial == 0  # No table was built to find that out.
+        assert not [name for name in _tables(value) if name.startswith("narrow_")]
 
 
 def test_a_materialization_is_measured_in_bytes(corpus_dir):

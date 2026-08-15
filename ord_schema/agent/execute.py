@@ -108,12 +108,12 @@ _BUILD_BATCH = 50_000
 _CACHED_MATCHES = 16
 
 # How much memory the materialized column sets may hold between them, when the caller
-# states no budget. Fixed rather than a share of the machine: the whole projection is
-# 18.46 GB in memory at ORD's scale and no default holds it, so every budget is a
-# partial cache and the question is only which columns fit. This holds any single one
-# of the large ones -- workups is 5.08 GB, inputs 3.93 GB, outcomes 3.04 GB -- which is
-# what a query pairing a structure clause with a projection one needs. A corpus asked
-# for more says so on every query it costs, naming this argument; see _warn_refused.
+# states no budget. The whole projection is 18.46 GB in memory at ORD's scale and no
+# default holds it, so every budget is a partial cache and the question is only which
+# columns fit. This holds any single one of the large ones -- workups is 5.08 GB,
+# inputs 3.93 GB, outcomes 3.04 GB -- which is what a query pairing a structure clause
+# with a projection one needs. A corpus asked for more says so on every query it costs,
+# naming this argument; see _warn_refused.
 #
 # Held to after a set is built rather than before, since what one costs is known only
 # once it exists: the peak is this plus the largest single set, and building a set costs
@@ -569,7 +569,10 @@ class Corpus:
                 spend more, since a column set the budget refuses is read from the
                 Parquet files on every query that names it -- over ORD, seconds against
                 tenths of a second. The whole projection is 18.46 GB in memory, so a
-                corpus asked about most of it wants most of that.
+                corpus asked about most of it wants most of that. Zero materializes
+                nothing at all, which is what bounds a small machine: a set is measured
+                by building it, so any other figure has a peak of itself plus the
+                largest set a query names, whether or not that set is then kept.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
@@ -627,7 +630,7 @@ class Corpus:
         # Kept because the projection they are built from does not change while this
         # object is open, so building one again costs a pass over the corpus to reach
         # the same refusal -- and because every query naming one is slow for a reason
-        # worth restating; see _refusal_warning.
+        # worth restating; see _warn_refused.
         self._narrow_refused: dict[frozenset[str], int] = {}
         self._narrow_serial = 0
         self._narrow_lock = threading.Lock()
@@ -911,12 +914,13 @@ class Corpus:
         here and share the result.
 
         Raises:
-            PairingError: If the index does not reach every structure the corpus holds.
-                An unreached structure is one whose reactions no routed query can find,
-                and the answer comes back empty rather than wrong -- which reads like an
-                answer rather than like a corpus that cannot be searched. The reason is
-                kept and re-raised, since a corpus does not change under an open
-                ``Corpus`` and rebuilding is several passes to reach the same refusal.
+            PairingError: If the corpus states a reaction more than once, or the index
+                does not reach every structure the corpus holds. An unreached structure
+                is one whose reactions no routed query can find, and the answer comes
+                back empty rather than wrong -- which reads like an answer rather than
+                like a corpus that cannot be searched. The reason is kept and re-raised,
+                since a corpus does not change under an open ``Corpus`` and rebuilding
+                is several passes to reach the same refusal.
         """
         with self._occurrences_lock:
             if self._refused is not None:
@@ -1096,11 +1100,17 @@ class Corpus:
             columns: Top-level projection columns the query names.
 
         Returns:
-            The entry, or None if this column set costs more than the cache may hold in
-            total, in which case nothing is kept, the projection answers directly, and
-            the refusal is remembered so the next query naming these columns does not
-            build them again to throw them away again.
+            The entry, or None when the budget is zero or this column set costs more
+            than the cache may hold in total. Nothing is kept either way and the
+            projection answers directly; a set refused as too large is remembered, so
+            the next query naming those columns does not build them again to throw them
+            away again.
         """
+        if not self._narrow_budget:
+            # The one budget that can be settled without building, since what a set
+            # costs is known only once it exists. A small container spends nothing and
+            # answers from Parquet.
+            return None
         with self._narrow_lock:
             settled, entry, refused = self._cached(columns)
         if settled:
@@ -1244,13 +1254,13 @@ class Corpus:
         candidate leaves the cache above its budget until a reader finishes, which is
         the direction that keeps answers right.
         """
-        for held in list(self._narrowed):
+        for columns in list(self._narrowed):
             if (
                 sum(entry.held for entry in self._narrowed.values())
                 <= self._narrow_budget
             ):
                 return
-            entry = self._narrowed[held]
+            entry = self._narrowed[columns]
             if entry.readers:
                 continue
             cursor = self._connection.cursor()
@@ -1263,8 +1273,8 @@ class Corpus:
                 logger.exception("could not drop the materialized %s", entry.name)
             finally:
                 cursor.close()
-            del self._narrowed[held]
-            logger.info("evicted the materialized %s", sorted(held))
+            del self._narrowed[columns]
+            logger.info("evicted the materialized %s", sorted(columns))
 
     @contextlib.contextmanager
     def _narrowed_table(self, columns: frozenset[str]) -> Iterator[str | None]:
@@ -1286,8 +1296,9 @@ class Corpus:
             columns: Top-level projection columns the query names.
 
         Yields:
-            The table's name, or None if materializing it would cost more memory than
-            the whole cache is allowed, in which case the projection answers directly.
+            The table's name, or None when nothing is materialized -- a budget of zero,
+            or a set costing more memory than the whole cache is allowed -- in which
+            case the projection answers directly.
         """
         entry = self._materialize(columns)
         if entry is None:
@@ -1433,7 +1444,8 @@ class Corpus:
             query.QueryError: If the query does not compile.
             ValueError: If a compound name cannot be resolved.
             PairingError: If the corpus IDs do not come out one unbroken run, or the
-                occurrence index does not reach every structure the corpus holds.
+                occurrence index refuses the corpus -- a reaction stated by more than
+                one row, or a structure no indexed path reaches.
             TimeoutError: If the query exceeds ``timeout_seconds``.
         """
         # Records into this search rather than onto the corpus: two searches share one

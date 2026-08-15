@@ -22,8 +22,7 @@ function, so the worst program expressible in it is one pass over the corpus and
 sort. Expensive queries are not discouraged here; they are unwritable.
 
 It reaches every column the projection has, because a column is a *parameter* rather
-than part of the grammar. That is the difference between this and the per-predicate
-enumeration it replaces: adding a field upstream adds a queryable column and costs
+than part of the grammar: adding a field upstream adds a queryable column and costs
 nothing here.
 
 Two things the compiler settles that SQL leaves to whoever writes it:
@@ -91,7 +90,7 @@ ElementIndex = Callable[[str, dict[str, str], Callable[[], str]], str | None]
 
 
 def executable_schema(schema: pa.Schema | None = None) -> pa.Schema:
-    """Returns the schema of the relation a compiled query actually runs against.
+    """Returns the schema of the relation a compiled query runs against.
 
     The executor's relation is the projection plus ``STRUCTURE_OFFSET``, so validating
     compiled SQL (:func:`ord_schema.agent.sql.validate`) needs this schema whenever the
@@ -186,7 +185,7 @@ def _members(current: pa.Schema | pa.DataType) -> list[str]:
 def _lookup(
     current: pa.Schema | pa.DataType, name: str, path: str, allow_internal: bool
 ) -> pa.Field:
-    """Returns the field ``name`` within ``current``, or raises a helpful QueryError."""
+    """Returns the field ``name`` within ``current``, or raises QueryError."""
     members = _members(current)
     if name not in members:
         if not members:
@@ -633,8 +632,8 @@ def _element_terms(
         ``(structure, fields)``, where ``fields`` maps a field name to the literal it
         must equal, or None if the body is anything else -- a ``forall``, a negation, a
         disjunction, a nested quantifier, a comparison that is not an equality against a
-        string literal, a path that descends past the element, or a count of structure
-        predicates that is not exactly one.
+        string literal, a path that descends past the element, a field equated twice,
+        or a count of structure predicates that is not exactly one.
     """
     if node.op != "exists":
         return None

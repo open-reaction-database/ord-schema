@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Shared mechanics for derived artifacts: footer stamps, and the derive-a-tree driver.
+"""Shared mechanics for derived artifacts: footer stamps and the derive-a-tree driver.
 
 A derived artifact restates a source dataset in a queryable shape. It adds no
 information, so it is wrong if it disagrees with its source and stale if its source has
 moved on. These stamps make both conditions detectable without reading column data.
 
 More than one artifact is expected -- a projection carrying every field, structures
-pulled out of it for search, and pivoted indexes over the paths that turn out to be
-hot -- so the parts that do not vary between them live here: the stamps, the
-output-path mapping, and the driver that walks a glob, refuses to write over what it
-reads, ignores matches that are not the kind of parent it derives from, and skips what
-is current. An artifact module supplies only its schema, its projection, and its name.
+pulled out of it for search, and pivoted indexes over the paths that turn out to be hot
+-- so the parts that do not vary between them live here: the stamps, the output-path
+mapping, and the driver that walks a glob, refuses to write over what it reads, and
+skips what is current. An artifact module supplies only its schema, its projection, and
+its name.
 
 An artifact may derive from another rather than from a source dataset, which is how the
 structures artifact reaches the projection's columns without recomputing them. Only the
@@ -47,10 +47,10 @@ already uses for source datasets:
 * ``ord.ord_schema_version`` -- what derived it.
 * ``ord.rdkit_version`` -- the RDKit that derived it. Every artifact leans on RDKit --
   canonical SMILES in the projection, fingerprints in the structures artifact -- and
-  RDKit releases have changed both canonicalization and pattern
-  fingerprints, either of which silently breaks an artifact whose consumers run the new
-  RDKit against files built by the old. Optional to *read* so that files stamped before
-  the key existed still load; absent reads as stale, which rebuilds them.
+  RDKit releases have changed both canonicalization and pattern fingerprints, either of
+  which silently breaks an artifact whose consumers run the new RDKit against files
+  built by the old. Optional to *read* so that a file stamped before the key existed
+  still loads; absent reads as stale, which rebuilds it.
 * ``ord.source_dataset_id`` -- the source's ID, written only when the source records
   one, and so the only key not required to read stamps back.
 
@@ -398,13 +398,13 @@ def _parent_provenance(
     derivations away it sits, and a consumer checks an artifact against the dataset in
     one hop.
 
-    Passing the hash through carries the source content across the hop but not the two
+    Passing the hash through carries the source content across the hop but not the
     version stamps, which describe whoever wrote each file. A stale parent is therefore
     refused rather than read: an artifact derived from one would stamp itself with the
     *current* versions while holding what an older definition produced, and since the
     dataset hash it inherits does not change when the parent is rebuilt, nothing would
-    ever mark it stale again. Refusing keeps the three terms ``is_current`` compares
-    true of a chained artifact as well as a directly derived one.
+    ever mark it stale again. Refusing keeps every term ``is_current`` compares true of
+    a chained artifact as well as a directly derived one.
 
     Args:
         parent: Path to the file being derived from.
@@ -449,8 +449,7 @@ def derive_tree(
     Outputs mirror the inputs' directory layout beneath ``output_dir``. Matches that are
     not the kind of parent this derivation reads are ignored, so a recursive pattern
     reaching the output tree stays re-runnable. Artifacts whose footer already records
-    the current source content, library version, and artifact version are skipped, so
-    re-running is cheap.
+    the current source content and versions are skipped, so re-running is cheap.
 
     Args:
         input_pattern: Glob matching the files to derive from.

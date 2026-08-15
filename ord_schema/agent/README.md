@@ -192,9 +192,19 @@ default is a fixed **4 GB**, which holds any single one of the large columns —
 query pairing a structure clause with a projection one needs — and
 `Corpus(narrow_budget_bytes=...)` states otherwise on a machine with room to spare.
 Building a set costs its size whether or not it is kept, so the peak is the budget plus
-the largest set, not the budget alone. This is also the second thing the index buys: a
-query whose structure clause becomes a semi-join never names `inputs` at all, so what
-has to be resident is far smaller than for the same question answered from the elements.
+the largest set, not the budget alone — `narrow_budget_bytes=0` is the one figure that
+avoids the build entirely, and so the one that bounds a small machine. This is also the
+second thing the index buys: a query whose structure clause becomes a semi-join never
+names `inputs` at all, so what has to be resident is far smaller than for the same
+question answered from the elements.
+
+**Sizing a deployment.** What must be resident is the RDKit library (about 1.5 GB), the
+occurrence index (about 130 MB), and the runtime — call it 3 GB, and nothing about that
+is optional for substructure search, since the screen and verify are RDKit in this
+process rather than SQL in an engine. Everything above that is latency: a container held
+to `narrow_budget_bytes=0` answers every query from Parquet in seconds, and one given
+room to hold `outcomes` answers the same query in tenths. There is no managed service to
+move this to — Athena and its kin can scan the Parquet, but the chemistry is not SQL.
 
 Over the whole corpus (2,428,291 reactions, 53 files, a 6 GB budget, warm), a mixed set
 of queries pairing an indexed clause with one only the projection can answer:
