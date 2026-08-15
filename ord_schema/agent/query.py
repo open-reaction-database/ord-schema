@@ -729,9 +729,6 @@ def _pivoted(
     level = pivot_levels.LEVELS.get(node.path)
     if level is None or routing.pivot is None:
         return None
-    table = routing.pivot(node.path)
-    if table is None:
-        return None
     variable = f"x{depth}"
     # Compiled into throwaway lists: a body that raises partway would otherwise leave
     # this quantifier's parameters behind for a compilation that no longer wants them.
@@ -747,6 +744,12 @@ def _pivoted(
             routing,
         )
     except QueryError:
+        return None
+    # Asked for only once the body is known to resolve, because supplying a pivot is
+    # what builds it: a level unnested over ORD is minutes, and a body reaching a
+    # repeated field would otherwise pay them and then decline anyway.
+    table = routing.pivot(node.path)
+    if table is None:
         return None
     compounds[:], structures[:] = taken_compounds, taken_structures
     # S608: the relation is named by this module's own walk of the schema, and every

@@ -914,3 +914,35 @@ def test_a_structure_predicate_routes_through_the_pivot_with_the_outer_offset():
     assert "+ structure_offset)" in compiled.sql
     assert "x0.structure_offset" not in compiled.sql
     assert len(compiled.structures) == 1
+
+
+def test_a_declining_body_is_never_charged_for_a_pivot():
+    # Supplying a pivot is what builds it, and over ORD that is minutes per level. A
+    # body reaching a repeated field declines, so it must not ask for one first.
+    asked = []
+
+    def watched(path):
+        asked.append(path)
+        return _every_level(path)
+
+    query.compile_query(
+        query.Query.model_validate(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "workups",
+                    "where": {
+                        "op": "exists",
+                        "path": "input.components",
+                        "where": {
+                            "op": "eq",
+                            "path": "reaction_role",
+                            "value": {"literal": "SOLVENT"},
+                        },
+                    },
+                }
+            }
+        ),
+        pivot=watched,
+    )
+    assert asked == []
