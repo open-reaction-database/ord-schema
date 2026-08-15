@@ -876,3 +876,41 @@ def test_a_pivoted_semi_join_answers_what_the_elements_answer():
         assert connection.execute(compiled.sql).fetchall() == [("a",)]
     finally:
         connection.close()
+
+
+def test_a_structure_predicate_routes_through_the_pivot_with_the_outer_offset():
+    # The occurrence index declines a body that is not one structure predicate plus
+    # string equalities, so this lands on the pivot. Its rows carry structure_id but no
+    # structure_offset, and the bitmap is indexed by the two added: the offset resolves
+    # outward to the reaction the element belongs to, which is the one its ID is meant
+    # to be read against. Pinned here because it holds by name resolution -- a pivot
+    # that ever carried an offset column of its own would bind inward instead.
+    compiled = query.compile_query(
+        query.Query.model_validate(
+            {
+                "where": {
+                    "op": "exists",
+                    "path": "inputs.components",
+                    "where": {
+                        "op": "and",
+                        "clauses": [
+                            {
+                                "op": "substructure",
+                                "path": "smiles",
+                                "smarts": "c1ccncc1",
+                            },
+                            {"op": "not_null", "path": "smiles"},
+                        ],
+                    },
+                }
+            }
+        ),
+        pivot=_every_level,
+    )
+    assert "EXISTS (SELECT 1 FROM pivot_inputs_components AS x0" in compiled.sql
+    assert "x0.element.structure_id" in compiled.sql
+    # Unqualified, so it is the enclosing relation's column rather than one of the
+    # pivot's; the pivot has none.
+    assert "+ structure_offset)" in compiled.sql
+    assert "x0.structure_offset" not in compiled.sql
+    assert len(compiled.structures) == 1

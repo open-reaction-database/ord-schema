@@ -3115,3 +3115,49 @@ def test_a_pivot_filed_under_the_wrong_level_is_refused(wide_root, tmp_path):
         pytest.raises(execute.PairingError, match="wrong level"),
     ):
         _search(corpus, _white("exists"))
+
+
+def test_a_structure_predicate_inside_a_pivoted_quantifier_agrees(corpus, monkeypatch):
+    # The occurrence index declines this: its shape is one structure predicate and
+    # string equalities, and a not_null clause is neither. The pivot takes it instead,
+    # and its rows carry a structure_id but no structure_offset -- that column resolves
+    # outward to the reaction the element belongs to, which is the offset its ID is
+    # meant to be read against. Correct by name resolution rather than by construction,
+    # so it is compared against the elements rather than assumed.
+    where = {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+            "op": "and",
+            "clauses": [
+                {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"},
+                {"op": "not_null", "path": "smiles"},
+            ],
+        },
+    }
+    pivoted = _search(corpus, where)
+    monkeypatch.setattr(execute.Corpus, "_pivoted_table", _no_pivoted_table)
+    assert _search(corpus, where) == pivoted
+    # And the answer is the pyridine-bearing reactions, not everything or nothing.
+    assert pivoted == {"ord-aa01", "ord-aa02"}
+
+
+def test_a_pivoted_quantifier_still_reaches_the_structures_artifact(corpus):
+    # Guards the offset arithmetic across datasets: ethanol lives in the second file,
+    # so finding it through a pivot proves the outward structure_offset is the right
+    # one rather than the first file's.
+    found = _search(
+        corpus,
+        {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": {
+                "op": "and",
+                "clauses": [
+                    {"op": "substructure", "path": "smiles", "smarts": "[OX2H]"},
+                    {"op": "not_null", "path": "smiles"},
+                ],
+            },
+        },
+    )
+    assert found == {"ord-bb01"}
