@@ -133,6 +133,90 @@ is built on the first query that spends it, one pass over the projections per in
 path, so a server that wants its first real query to be fast should issue a throwaway
 structure query at startup.
 
+## Pivoted levels
+
+The occurrence index answers a quantifier about a *structure*. A **pivot** answers one
+about anything else: one row per element of a repeated level, carrying `reaction_id`,
+the ordinal of every repeated level from the root down to that one, and the element's
+own fields with the repeated ones removed recursively. A quantifier over a covered level
+becomes `EXISTS (SELECT 1 FROM <pivot> AS x WHERE x.reaction_id = reactions.reaction_id
+AND …)`, and a `forall` the same with `NOT EXISTS` and the body negated.
+
+Two properties do the work. The pivot is **complete** — every element gets a row,
+including one whose fields are all NULL — which is what lets it answer `forall`, where
+the occurrence index cannot, since that one holds only elements carrying a structure.
+And struct nesting is **kept**, so `percentage.value` is `x.element.percentage.value`
+here and `e0.percentage.value` over the elements: the same path by the same spelling,
+which is what makes the two routes comparable. Removing only the repeated fields is
+where the size goes; the cost was never struct access but the reconstruction of lists of
+structs, and a scalar pulled out of a deep struct across the whole corpus is seconds.
+
+That also decides coverage without a list anybody maintains. A body reaching a field the
+pivot dropped fails to resolve against the pruned element type, so the quantifier falls
+back to the elements. What a pivot does carry is `structure_id`, so a structure
+predicate inside a pivoted quantifier works too, reading `structure_offset` from the
+enclosing reaction. A quantifier's path need not name a level either: descending from
+one through singular struct fields reaches one value per element rather than a list of
+its own — an authentic standard is one compound per measurement — so the level it ranges
+over is the nearest repeated ancestor, whose pivot already carries the struct.
+
+The ordinals are what a flat row needs to say *which* element it was, and a **nested**
+quantifier is where they are spent: an `exists` inside a pivoted one becomes a semi-join
+against the child level's pivot, joined on the reaction and every ordinal the enclosing
+level carries.
+
+```sql
+EXISTS (SELECT 1 FROM pivot_outcomes_products_measurements AS x1
+        WHERE x1.reaction_id = x0.reaction_id
+          AND x1.outcome_index = x0.outcome_index
+          AND x1.product_index = x0.product_index AND …)
+```
+
+Correlating on anything short of that whole prefix returns reactions where the two
+clauses hold of *different* elements: "a desired product with a yield above 50%" answers
+23,608 reactions on `(reaction_id, outcome_index)` where the answer is 22,666 — 942
+wrong, silently. ORD is effectively single-outcome, so dropping the *outcome* ordinal
+changes nothing at all, which is exactly why the product-level error looks correct until
+it is checked.
+
+Over the whole corpus, warm, against the same queries answered from the elements:
+
+| query | pivot | elements |
+| --- | --- | --- |
+| a white product | 0.050s | 0.936s |
+| yield > 50% | 0.086s | 2.758s |
+| every product is desired | 0.070s | 2.055s |
+| **not** a yield above 50% | 0.098s | 3.480s |
+| a solvent input | 0.178s | 4.229s |
+| an extraction workup | 3.660s | 7.816s |
+| above 350 K | 0.041s | 0.035s |
+
+Every one returns the same reactions either way. The last two are the shape of the
+thing: `above 350 K` is a scalar path with no quantifier, so no pivot is involved and
+nothing moves, and the workup query is one whose pivot the budget refused — the
+projection answered it, which is the fallback working rather than the pivot helping.
+
+Building one unnests the projection down to its level, which over ORD is minutes:
+`outcomes.products` is 487.8 MB in 478s and `outcomes.products.measurements` 1.7 GB in
+783s, charged against the same `narrow_budget_bytes` as a materialized column set and
+evicted by the same LRU.
+
+How much a pivot saves depends on how wide its elements are, and pruning only the
+repeated fields is coarse. `workups` is the case that shows it: its elements carry a
+whole `ReactionInput` besides, so the pivot is **4.4 GB** against 5.08 GB for the nested
+column — over the 4 GB default, refused, and answered from the projection. A level whose
+elements are narrow behaves the other way, which is why the two `outcomes` levels are
+tenths of a second and the workup query is seconds.
+
+That build cost belongs offline, which is what
+`scripts/derive_pivots.py` is for — one subdirectory per level, one file per projection
+within it, stamped like any other derived artifact and read by
+`Corpus(..., pivots_dir=...)`. Artifacts are refused unless they were derived from this
+corpus's own projections: a pivot names its reactions by ID, so one derived elsewhere
+answers against rows this corpus does not hold, confidently and wrongly. A level with no
+artifacts is still built in process, so a partial set is a partial speedup rather than a
+missing answer.
+
 What remains is the chemistry itself, and two things cut it. Structures are deduplicated
 per dataset, so the library holds one entry per **distinct** molecule — 1,435,426 of the
 corpus's 2,016,224 rows, so 29% of the matching disappears — and maps each entry back to
@@ -158,6 +242,68 @@ remembered rather than rediscovered by building it again. Only builds wait on bu
 search whose columns are already materialized is answered while another is being built. The rows are the
 same rows either way, in an order neither relation promises — a query wanting one has to
 say so.
+
+**The budget is the cliff, and it says so.** A refused column set logs a **warning** on
+every query that names it, giving what the set costs, what the budget is, and the
+argument that changes them — so a query that suddenly takes seconds explains itself in
+the log rather than by profiling:
+
+```text
+WARNING materializing ['outcomes', 'reaction_id'] takes 3.0 GB, over this corpus's
+budget of 4.0 GB, so every query naming those columns reads the Parquet files instead
+-- seconds rather than tenths of a second at ORD's scale. Open the Corpus with a larger
+narrow_budget_bytes if the machine has the memory to spare.
+```
+
+A column set the budget refuses is read from the 53 Parquet files on every query that
+names it, and scattered rows do not let a reader skip row groups, so the same question
+costs seconds instead of tenths — "pyridine as the solvent with a yield above 50%" is
+3.34s where `outcomes` is refused and 0.41s where it is held.
+
+The projection is **18.46 GB in memory**, from 1.53 GB of Parquet — a twelvefold
+expansion, and more than any default should claim:
+
+| column | in memory | | column | in memory |
+| --- | --- | --- | --- | --- |
+| `workups` | 5.08 GB | | `notes` | 1.33 GB |
+| `inputs` | 3.93 GB | | `smiles` | 0.89 GB |
+| `outcomes` | 3.04 GB | | `setup` | 0.59 GB |
+| `provenance` | 1.65 GB | | `observations` | 0.13 GB |
+| `conditions` | 1.61 GB | | `identifiers`, `reaction_id` | 0.21 GB |
+
+So every budget is a partial cache and the only question is which columns fit. The
+default is a fixed **4 GB**, which holds any single one of the large columns — what a
+query pairing a structure clause with a projection one needs — and
+`Corpus(narrow_budget_bytes=...)` states otherwise on a machine with room to spare.
+Building a set costs its size whether or not it is kept, so the peak is the budget plus
+the largest set, not the budget alone — `narrow_budget_bytes=0` is the one figure that
+avoids the build entirely, and so the one that bounds a small machine. This is also the
+second thing the index buys: a query whose structure clause becomes a semi-join never
+names `inputs` at all, so what has to be resident is far smaller than for the same
+question answered from the elements.
+
+**Sizing a deployment.** What must be resident is the RDKit library (about 1.5 GB), the
+occurrence index (about 130 MB), and the runtime — call it 3 GB, and nothing about that
+is optional for substructure search, since the screen and verify are RDKit in this
+process rather than SQL in an engine. Everything above that is latency: a container held
+to `narrow_budget_bytes=0` answers every query from Parquet in seconds, and one given
+room to hold `outcomes` answers the same query in tenths. There is no managed service to
+move this to — Athena and its kin can scan the Parquet, but the chemistry is not SQL.
+
+Over the whole corpus (2,428,291 reactions, 53 files, a 6 GB budget, warm), a mixed set
+of queries pairing an indexed clause with one only the projection can answer:
+
+| query | index | projection |
+| --- | --- | --- |
+| pyridine solvent, above 350 K | 0.02s | 0.20s |
+| pyridine solvent, yield > 50% | 0.41s | 4.82s |
+| pyridine solvent, white product | 0.24s | 4.30s |
+| pyridine solvent, "reflux" in the procedure | 0.05s | 0.20s |
+| yields by product color (grouped) | 0.40s | 1.53s |
+| hottest with a yield (ordered, limited) | 0.41s | 0.99s |
+| boronic acid, pyridine solvent, yield > 50% | 0.43s | 12.75s |
+| any aromatic carbon, yield > 50% | 0.45s | 14.79s |
+| **not** pyridine anywhere, with a yield | 0.55s | 14.86s |
 
 The screen itself is not a lever. It is the same `PatternFingerprint` the RDKit
 PostgreSQL cartridge screens with (`rdkit.sss_fp_size`, via `makeMolSignature`), and for

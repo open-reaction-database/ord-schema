@@ -93,7 +93,7 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import artifacts, projection, resolvers, structures
-from ord_schema.agent import query
+from ord_schema.agent import pivot, query
 from ord_schema.logging import get_logger
 
 logger = get_logger(__name__)
@@ -107,12 +107,18 @@ _BUILD_BATCH = 50_000
 # seconds.
 _CACHED_MATCHES = 16
 
-# How much memory the materialized column sets may hold between them. Held to by
-# evicting the least recently used, so a corpus asked many different questions settles
-# on the columns it is actually asked about. Enforced after a table is built rather than
-# before, since what one costs is known only once it exists, so the peak is this plus
-# the largest single set; a set larger than the whole budget is dropped again unkept.
-_NARROW_BUDGET_BYTES = 2 * 1024**3
+# How much memory the materialized column sets may hold between them, when the caller
+# states no budget. The whole projection is 18.46 GB in memory at ORD's scale and no
+# default holds it, so every budget is a partial cache and the question is only which
+# columns fit. This holds any single one of the large ones -- workups is 5.08 GB,
+# inputs 3.93 GB, outcomes 3.04 GB -- which is what a query pairing a structure clause
+# with a projection one needs. A corpus asked for more says so on every query it costs,
+# naming this argument; see _warn_refused.
+#
+# Held to after a set is built rather than before, since what one costs is known only
+# once it exists: the peak is this plus the largest single set, and building a set costs
+# its size whether or not it is kept.
+_NARROW_BUDGET_BYTES = 4 * 1024**3
 
 # Top-level projection columns, which is the granularity a compiled query names them at.
 # A narrower table holding only the ones a query mentions answers it identically, so the
@@ -144,6 +150,23 @@ def _reads_as_smarts(parameter: query.StructureParameter) -> bool:
 
 class PairingError(ValueError):
     """The projections and structures artifacts do not form a consistent corpus."""
+
+
+def _format_bytes(value: float) -> str:
+    """Returns a byte count in the largest unit it reaches, for a person to read.
+
+    Args:
+        value: Bytes.
+
+    Returns:
+        The figure and its unit, e.g. ``3.3 GB``. A budget stated in gigabytes says
+        nothing about a table that costs kilobytes, and a warning naming both has to
+        make the two comparable.
+    """
+    for unit, scale in (("GB", 1024**3), ("MB", 1024**2), ("kB", 1024)):
+        if abs(value) >= scale:
+            return f"{value / scale:.1f} {unit}"
+    return f"{value:.0f} B"
 
 
 def _resolve_with_resolvers(name: str) -> str:
@@ -491,6 +514,25 @@ def _run_with_timeout(
             running = False
 
 
+@dataclasses.dataclass(frozen=True)
+class _Held:
+    """Something worth keeping in memory, and the statement that builds it.
+
+    One cache and one budget cover both kinds, so eviction can weigh a column set
+    against a pivot rather than each starving the other in its own pool.
+
+    Attributes:
+        key: Identity in the cache. Carries the kind, so a pivot over a path and a
+            column set naming it cannot collide.
+        select: The query ``CREATE TABLE`` wraps.
+        description: How the entry is named in a log line or a warning.
+    """
+
+    key: tuple[str, ...]
+    select: str
+    description: str
+
+
 @dataclasses.dataclass
 class _Narrow:
     """A materialized table holding some of the projection's top-level columns.
@@ -522,6 +564,8 @@ class Corpus:
         resolver: Callable[[str], str] | None = None,
         threads: int = -1,
         require_current: bool = True,
+        narrow_budget_bytes: int | None = None,
+        pivots_dir: str | None = None,
     ) -> None:
         """Pairs the artifacts, checks their stamps, and prepares the relations.
 
@@ -540,13 +584,46 @@ class Corpus:
                 artifact, and RDKit versions. The screen's completeness guarantee
                 assumes the query and the artifact fingerprint identically, so turning
                 this off is only for reading a corpus known to match anyway.
+            narrow_budget_bytes: How much memory the materialized column sets may
+                hold between them; 4 GB by default. Worth stating on a machine that can
+                spend more, since a column set the budget refuses is read from the
+                Parquet files on every query that names it -- over ORD, seconds against
+                tenths of a second. The whole projection is 18.46 GB in memory, so a
+                corpus asked about most of it wants most of that. Zero materializes
+                nothing at all, which is what bounds a small machine: a set is measured
+                by building it, so any other figure has a peak of itself plus the
+                largest set a query names, whether or not that set is then kept.
+            pivots_dir: Directory holding derived pivot artifacts, one subdirectory per
+                repeated level. Given one, a quantifier over a level reads the artifact
+                instead of unnesting the projection to build it, which is minutes per
+                level over ORD and is paid by whichever query asks first. A level with
+                no subdirectory is still built in process, so a partial set of
+                artifacts is a partial speedup rather than a missing answer.
 
         Raises:
             PairingError: If either pattern matches nothing, a file on one side has no
                 partner on the other, a pair's stamps disagree about the source
                 dataset, or -- with ``require_current`` -- any artifact is stale.
+            ValueError: If ``narrow_budget_bytes`` is negative, which no amount of
+                memory is; zero is allowed, and materializes nothing.
         """
         self._resolver = resolver if resolver is not None else _resolve_with_resolvers
+        if narrow_budget_bytes is not None and narrow_budget_bytes < 0:
+            raise ValueError(
+                f"narrow_budget_bytes is {narrow_budget_bytes}, which is not an amount "
+                "of memory; pass zero to materialize nothing"
+            )
+        self._narrow_budget = (
+            narrow_budget_bytes
+            if narrow_budget_bytes is not None
+            else _NARROW_BUDGET_BYTES
+        )
+        # Said at open because the alternative is saying it nowhere: a process killed
+        # for holding too much leaves no log of its own, and what it thought it was
+        # allowed to hold is the first thing worth knowing afterwards.
+        logger.info(
+            "materialized column sets may hold %s", _format_bytes(self._narrow_budget)
+        )
         self._threads = threads
         # Built on first substructure query; see _library. The library holds one entry
         # per distinct molecule, and _members with _starts map an entry back to the
@@ -572,19 +649,28 @@ class Corpus:
         # Materialized column sets, most recently used last; see _narrowed_table. The
         # serial names them, and never repeats, so a build that fails partway leaves no
         # name for the next one to collide with.
-        self._narrowed: collections.OrderedDict[frozenset[str], _Narrow] = (
+        self._narrowed: collections.OrderedDict[tuple[str, ...], _Narrow] = (
             collections.OrderedDict()
         )
-        # Column sets that came out larger than the whole budget. Kept because the
-        # projection they are built from does not change while this object is open, so
-        # building one again costs a pass over the corpus to reach the same refusal.
-        self._narrow_refused: set[frozenset[str]] = set()
+        # Column sets that came out larger than the whole budget, and what each cost.
+        # Kept because the projection they are built from does not change while this
+        # object is open, so building one again costs a pass over the corpus to reach
+        # the same refusal -- and because every query naming one is slow for a reason
+        # worth restating; see _warn_refused.
+        self._narrow_refused: dict[tuple[str, ...], int] = {}
         self._narrow_serial = 0
         self._narrow_lock = threading.Lock()
         # Held across a materialization, so the two memory readings bracket one table
         # and no search waits on a build to be told what the cache already holds.
         self._narrow_build_lock = threading.Lock()
         pairs = _pair(projection_pattern, structures_pattern, require_current)
+        self._pivots_dir = pivots_dir
+        self._require_current = require_current
+        # The projections a pivot artifact has to have been derived from, and the views
+        # already published over the artifacts that were; see _pivot_view.
+        self._projections = [pair[0] for pair in pairs]
+        self._pivot_views: dict[str, str | None] = {}
+        self._pivot_lock = threading.Lock()
         self._connection = duckdb.connect()
         try:
             self._total, self._searchable = self._prepare(pairs)
@@ -676,6 +762,45 @@ class Corpus:
                 "to their offsets; a path did not survive read_parquet"
             )
         return total, searchable
+
+    def check_pivots(self) -> dict[str, int]:
+        """Publishes every pivot artifact this corpus can read, and returns the counts.
+
+        Meant for startup. Artifacts are otherwise found by the first query that wants
+        a level, so a tree derived from another corpus, filed under the wrong level, or
+        left stale is a ``PairingError`` raised at whatever hour that query arrives.
+        Calling this makes the same refusal happen while a server is still starting,
+        where it is a failed deployment rather than a failed request.
+
+        Publishing is the check: a level whose artifacts are wrong cannot be published,
+        and one that is fine is left ready, so the first real query does not pay the
+        glob. Cheap either way -- a view over Parquet reads footers, not rows.
+
+        Returns:
+            The number of artifacts found per level, for the levels that have any.
+            Empty when the corpus was opened without ``pivots_dir``, which is not an
+            error: every level is then built in process.
+
+        Raises:
+            PairingError: If any level's artifacts were not derived from this corpus's
+                projections, hold a different level than the one they are filed under,
+                or -- with ``require_current`` -- are stale.
+        """
+        if self._pivots_dir is None:
+            return {}
+        found = {}
+        for path in sorted(pivot.LEVELS):
+            if self._pivot_view(path) is not None:
+                found[path] = len(
+                    glob.glob(f"{self._pivots_dir}/{path}/**/*.parquet", recursive=True)
+                )
+        logger.info(
+            "%d of %d levels are held as artifacts: %s",
+            len(found),
+            len(pivot.LEVELS),
+            ", ".join(f"{path} {count}" for path, count in found.items()) or "none",
+        )
+        return found
 
     def __enter__(self) -> Self:
         """Returns the corpus itself; closing on exit is the whole protocol."""
@@ -861,12 +986,13 @@ class Corpus:
         here and share the result.
 
         Raises:
-            PairingError: If the index does not reach every structure the corpus holds.
-                An unreached structure is one whose reactions no routed query can find,
-                and the answer comes back empty rather than wrong -- which reads like an
-                answer rather than like a corpus that cannot be searched. The reason is
-                kept and re-raised, since a corpus does not change under an open
-                ``Corpus`` and rebuilding is several passes to reach the same refusal.
+            PairingError: If the corpus states a reaction more than once, or the index
+                does not reach every structure the corpus holds. An unreached structure
+                is one whose reactions no routed query can find, and the answer comes
+                back empty rather than wrong -- which reads like an answer rather than
+                like a corpus that cannot be searched. The reason is kept and re-raised,
+                since a corpus does not change under an open ``Corpus`` and rebuilding
+                is several passes to reach the same refusal.
         """
         with self._occurrences_lock:
             if self._refused is not None:
@@ -910,11 +1036,15 @@ class Corpus:
                         "glob one artifact per reaction"
                     )
                     raise PairingError(self._refused)
+                # Under the build lock, so the only other thing that puts a table
+                # in this database does not do it while a materialization is measuring
+                # what one costs -- a difference of two readings taken across everyone.
                 # OR REPLACE, so a build interrupted after the table exists is a build
                 # the next query repeats rather than one that collides with itself
                 # forever. S608: the fragments are this module's own schema walk and
                 # the compiler's traversals, not anything a query supplies.
-                cursor.execute(f"CREATE OR REPLACE TABLE occurrences AS {selects}")
+                with self._narrow_build_lock:
+                    cursor.execute(f"CREATE OR REPLACE TABLE occurrences AS {selects}")
                 counts = dict(
                     cursor.execute(
                         "SELECT path, count(*) FROM occurrences GROUP BY path"
@@ -1027,8 +1157,8 @@ class Corpus:
             bits[global_id] = ord("1")
         return bits.decode()
 
-    def _materialize(self, columns: frozenset[str]) -> _Narrow | None:
-        """Returns a held table of ``columns``, building it if the cache lacks one.
+    def _materialize(self, held: _Held) -> _Narrow | None:
+        """Returns the table ``held`` describes, building it if the cache lacks one.
 
         The caller owns a read on whatever comes back and has to release it, which
         ``_narrowed_table`` does; an entry with a reader is never evicted.
@@ -1039,59 +1169,95 @@ class Corpus:
         corpus serving several questions at once.
 
         Args:
-            columns: Top-level projection columns the query names.
+            held: What to keep, and the statement that builds it.
 
         Returns:
-            The entry, or None if this column set costs more than the cache may hold in
-            total, in which case nothing is kept, the projection answers directly, and
-            the refusal is remembered so the next query naming these columns does not
-            build them again to throw them away again.
+            The entry, or None when the budget is zero or this costs more than the
+            cache may hold in total. Nothing is kept either way and the projection
+            answers directly; something refused as too large is remembered, so the next
+            query wanting it does not build it again to throw it away again.
         """
+        if not self._narrow_budget:
+            # The one budget that can be settled without building, since what a set
+            # costs is known only once it exists. A small container spends nothing and
+            # answers from Parquet.
+            return None
         with self._narrow_lock:
-            settled, entry = self._cached(columns)
+            settled, entry, refused = self._cached(held.key)
         if settled:
+            # Warned outside the lock: it is the one every search takes to read the
+            # cache, and a log handler is not something to hold it through.
+            if refused is not None:
+                self._warn_refused(held, refused)
             return entry
         with self._narrow_build_lock:
             # Asked again under the build lock: whoever held it may have been building
-            # exactly these columns, and a second table of them would be memory held
-            # twice for one answer.
+            # exactly this, and a second table of it would be memory held twice for one
+            # answer.
             with self._narrow_lock:
-                settled, entry = self._cached(columns)
+                settled, entry, refused = self._cached(held.key)
             if settled:
+                if refused is not None:
+                    self._warn_refused(held, refused)
                 return entry
-            return self._build(columns)
+            return self._build(held)
 
-    def _cached(self, columns: frozenset[str]) -> tuple[bool, _Narrow | None]:
-        """Returns whether the cache settles ``columns``, and the entry if it holds one.
+    def _cached(self, key: tuple[str, ...]) -> tuple[bool, _Narrow | None, int | None]:
+        """Returns whether the cache settles ``key``, and how.
 
         Called with ``_narrow_lock`` held. A hit takes the read on the caller's behalf,
         since an entry released back to the cache between the lookup and the read could
         be evicted in between.
 
         Args:
-            columns: Top-level projection columns the query names.
+            key: Identity of the entry, as ``_Held.key`` gives it.
 
         Returns:
-            ``(True, entry)`` for a hit, ``(True, None)`` for a set already refused as
-            too large, and ``(False, None)`` for one nobody has built yet.
+            Whether the cache settles the question, the entry for a hit, and what it
+            cost where it was refused as too large -- which the caller says out loud
+            once it is no longer holding the lock.
         """
-        cached = self._narrowed.get(columns)
+        cached = self._narrowed.get(key)
         if cached is not None:
-            self._narrowed.move_to_end(columns)
+            self._narrowed.move_to_end(key)
             cached.readers += 1
-            return True, cached
-        return columns in self._narrow_refused, None
+            return True, cached, None
+        refused = self._narrow_refused.get(key)
+        if refused is not None:
+            return True, None, refused
+        return False, None, None
 
-    def _build(self, columns: frozenset[str]) -> _Narrow | None:
-        """Materializes ``columns``, recording its cost or that it costs too much.
+    def _warn_refused(self, held: _Held, cost: int) -> None:
+        """Says that a query is about to be answered the slow way, and what to change.
 
-        Called with ``_narrow_build_lock`` held and ``_narrow_lock`` free, so the two
-        memory readings bracket this table and nothing else the cache does. An index
-        build can still move the figure between them, which costs an overstatement and
-        an eviction, never a wrong answer.
+        Warned on every query that wants the entry rather than once when it was first
+        refused, because the query is slow every time and whoever is asking why is
+        reading the log now, not the one line printed when the corpus opened.
 
         Args:
-            columns: Top-level projection columns the query names.
+            held: What was refused, and how to name it.
+            cost: What building it took when it was measured.
+        """
+        logger.warning(
+            "materializing %s takes %s, over this corpus's budget of %s, so every "
+            "query wanting it reads the Parquet files instead -- seconds rather than "
+            "tenths of a second at ORD's scale. Open the Corpus with a larger "
+            "narrow_budget_bytes if the machine has the memory to spare.",
+            held.description,
+            _format_bytes(cost),
+            _format_bytes(self._narrow_budget),
+        )
+
+    def _build(self, held: _Held) -> _Narrow | None:
+        """Materializes ``held``, recording its cost or that it costs too much.
+
+        Called with ``_narrow_build_lock`` held and ``_narrow_lock`` free, so the two
+        memory readings bracket this table and nothing else: every other statement that
+        puts a table in this database -- another materialization, or the index build --
+        takes the same lock.
+
+        Args:
+            held: What to keep, and the statement that builds it.
 
         Returns:
             The entry, held once for the caller, or None if it exceeds the budget.
@@ -1101,48 +1267,50 @@ class Corpus:
             # cannot leave a name the next attempt collides with.
             self._narrow_serial += 1
             name = f"narrow_{self._narrow_serial}"
-        selected = ", ".join([*sorted(columns), query.STRUCTURE_OFFSET])
         start = time.perf_counter()
         # Its own cursor, for the same reason the index build takes one: searches
         # are in flight, and the shared connection holds their results.
         cursor = self._connection.cursor()
         try:
+            # Said before the pass rather than after it, because the pass is what
+            # takes the time and whoever is watching a query hang wants to know what it
+            # is waiting for while it waits.
+            logger.info("building %s", held.description)
             before = _memory_bytes(cursor)
-            # S608: the names come from the projection schema and this module.
-            cursor.execute(
-                f"CREATE TABLE {name} AS "  # noqa: S608
-                f"SELECT {selected} FROM {query.TABLE}"
-            )
-            held = max(_memory_bytes(cursor) - before, 0)
-            if held > _NARROW_BUDGET_BYTES:
+            # The select was assembled by whoever built the _Held, which is where
+            # its fragments are accounted for.
+            cursor.execute(f"CREATE TABLE {name} AS {held.select}")
+            cost = max(_memory_bytes(cursor) - before, 0)
+            if cost > self._narrow_budget:
                 # Too big to keep, and keeping it is the only reason to build it.
                 cursor.execute(f"DROP TABLE {name}")
                 with self._narrow_lock:
-                    self._narrow_refused.add(columns)
-                logger.info(
-                    "not caching %s: %.1f GB exceeds the budget",
-                    sorted(columns),
-                    held / 1024**3,
-                )
+                    self._narrow_refused[held.key] = cost
+                self._warn_refused(held, cost)
                 return None
         except Exception:
             # A table nobody tracks is memory nobody frees, and the failure the
-            # caller sees has to be the one that happened.
-            with contextlib.suppress(duckdb.Error):
+            # caller sees has to be the one that happened -- so the cleanup swallows
+            # everything, and says what it swallowed. A DROP that fails here leaves
+            # memory the cache will never account for, which is worth a line even
+            # though it is not what the caller asked about.
+            try:
                 cursor.execute(f"DROP TABLE IF EXISTS {name}")
+            except Exception:
+                logger.exception("could not drop %s after a failed build", name)
             raise
         finally:
             cursor.close()
         logger.info(
-            "materialized %s as %s, %.2f GB in %.1fs",
-            sorted(columns),
+            "materialized %s as %s, %s in %.1fs",
+            held.description,
             name,
-            held / 1024**3,
+            _format_bytes(cost),
             time.perf_counter() - start,
         )
-        entry = _Narrow(name=name, held=held, readers=1)
+        entry = _Narrow(name=name, held=cost, readers=1)
         with self._narrow_lock:
-            self._narrowed[columns] = entry
+            self._narrowed[held.key] = entry
             self._evict()
         return entry
 
@@ -1156,12 +1324,13 @@ class Corpus:
         candidate leaves the cache above its budget until a reader finishes, which is
         the direction that keeps answers right.
         """
-        for held in list(self._narrowed):
-            if sum(entry.held for entry in self._narrowed.values()) <= (
-                _NARROW_BUDGET_BYTES
+        for key in list(self._narrowed):
+            if (
+                sum(entry.held for entry in self._narrowed.values())
+                <= self._narrow_budget
             ):
                 return
-            entry = self._narrowed[held]
+            entry = self._narrowed[key]
             if entry.readers:
                 continue
             cursor = self._connection.cursor()
@@ -1174,8 +1343,8 @@ class Corpus:
                 logger.exception("could not drop the materialized %s", entry.name)
             finally:
                 cursor.close()
-            del self._narrowed[held]
-            logger.info("evicted the materialized %s", sorted(held))
+            del self._narrowed[key]
+            logger.info("evicted the materialized %s", entry.name)
 
     @contextlib.contextmanager
     def _narrowed_table(self, columns: frozenset[str]) -> Iterator[str | None]:
@@ -1197,10 +1366,155 @@ class Corpus:
             columns: Top-level projection columns the query names.
 
         Yields:
-            The table's name, or None if materializing it would cost more memory than
-            the whole cache is allowed, in which case the projection answers directly.
+            The table's name, or None when nothing is materialized -- a budget of zero,
+            or a set costing more memory than the whole cache is allowed -- in which
+            case the projection answers directly.
         """
-        entry = self._materialize(columns)
+        selected = ", ".join([*sorted(columns), query.STRUCTURE_OFFSET])
+        entry = self._materialize(
+            _Held(
+                key=("columns", *sorted(columns)),
+                # S608: the names come from the projection schema and this module.
+                select=f"SELECT {selected} FROM {query.TABLE}",  # noqa: S608
+                description=str(sorted(columns)),
+            )
+        )
+        if entry is None:
+            yield None
+            return
+        try:
+            yield entry.name
+        finally:
+            with self._narrow_lock:
+                entry.readers -= 1
+
+    def _pivot_view(self, path: str) -> str | None:
+        """Returns a view over the pivot artifacts for ``path``, or None if none exist.
+
+        Published once per level and remembered, including the answer that there is
+        nothing to publish, so a corpus without artifacts globs the directory once
+        rather than on every query.
+
+        Args:
+            path: The repeated level, as the query grammar names it.
+
+        Returns:
+            The view's name, or None to leave the level to be built in process.
+
+        Raises:
+            PairingError: If the artifacts for this level were not derived from the
+                projections this corpus reads -- a pivot of another corpus answers
+                confidently and wrongly, since its reaction IDs resolve against the
+                wrong rows -- or, with ``require_current``, if any of them is stale.
+        """
+        if self._pivots_dir is None:
+            return None
+        with self._pivot_lock:
+            if path in self._pivot_views:
+                return self._pivot_views[path]
+            # Recursive, because a pivot tree mirrors the projections it was derived
+            # from: a sharded corpus puts them under <level>/<shard>/ rather than
+            # directly under the level.
+            files = sorted(
+                glob.glob(f"{self._pivots_dir}/{path}/**/*.parquet", recursive=True)
+            )
+            if not files:
+                self._pivot_views[path] = None
+                return None
+            self._check_pivots(path, files)
+            name = pivot.table_name(path)
+            # S608: the name comes from this module's walk of the schema, and the paths
+            # from this process's own glob, quoted with their single quotes escaped.
+            self._connection.execute(
+                f"CREATE OR REPLACE VIEW {name} AS "  # noqa: S608
+                f"SELECT * FROM read_parquet({_sql_strings(files)})"
+            )
+            logger.info("read %d pivot artifacts for %s", len(files), path)
+            self._pivot_views[path] = name
+            return name
+
+    def _check_pivots(self, path: str, files: list[str]) -> None:
+        """Refuses pivot artifacts that do not belong to this corpus.
+
+        A pivot names its reactions by ID, and an ID resolves against whatever rows the
+        projections hold. Artifacts derived from another corpus therefore answer a
+        quantifier confidently and wrongly rather than failing, which is why the check
+        is on the source datasets rather than on the file count.
+
+        Args:
+            path: The repeated level the files claim to hold.
+            files: The artifacts found for it.
+
+        Raises:
+            PairingError: If a file is not a pivot over ``path``, if the set of source
+                datasets differs from the projections', or -- with ``require_current``
+                -- if any artifact is stale.
+        """
+        wanted = {artifacts.load_stamps(name).source_md5 for name in self._projections}
+        found = set()
+        for name in files:
+            stamps = artifacts.load_stamps(name)
+            if stamps.artifact != pivot.ARTIFACT:
+                raise PairingError(
+                    f"{name} is a {stamps.artifact}, not a {pivot.ARTIFACT}"
+                )
+            held = pivot.pivot_path(name)
+            if held != path:
+                raise PairingError(
+                    f"{name} holds the pivot over {held}, but sits where {path} is "
+                    "read from, so a quantifier would be answered by the wrong level"
+                )
+            if self._require_current and not artifacts.stamps_are_current(
+                stamps, pivot.ARTIFACT
+            ):
+                raise PairingError(f"{name} is a stale {pivot.ARTIFACT}")
+            found.add(stamps.source_md5)
+        if found != wanted:
+            raise PairingError(
+                f"the {pivot.ARTIFACT} artifacts for {path} were derived from "
+                f"{len(found)} source datasets and the projections from {len(wanted)}, "
+                f"and {len(wanted - found)} of the projections' are missing; a pivot "
+                "of another corpus names reactions this one does not hold"
+            )
+
+    @contextlib.contextmanager
+    def _pivoted_table(self, path: str) -> Iterator[str | None]:
+        """Yields a pivot over ``path``, held against eviction while read.
+
+        One row per element of the level, carrying the ordinals that say which element
+        it was and the element's own fields with the repeated ones removed. A quantifier
+        answered from it is a semi-join rather than a decode of the whole nested column,
+        which over ORD is milliseconds against seconds.
+
+        Building it costs a pass that unnests every level down to this one, so the first
+        query wanting a path waits for it. That cost belongs in a derived artifact
+        rather than in a query, and until there is one it is announced rather than
+        hidden.
+
+        Args:
+            path: The repeated level, as the query grammar names it.
+
+        Yields:
+            The table's name, or None when the schema has no such level or the budget
+            refuses it -- in which case the quantifier compiles over the elements.
+        """
+        level = pivot.LEVELS.get(path)
+        if level is None:
+            yield None
+            return
+        published = self._pivot_view(path)
+        if published is not None:
+            # A view over artifacts costs no memory to hold and nothing to release, so
+            # there is no reader to take and no budget to spend.
+            yield published
+            return
+        entry = self._materialize(
+            _Held(
+                key=("pivot", path),
+                select=pivot.select(level, query.TABLE),
+                description=f"the pivot over {path}",
+            )
+        )
         if entry is None:
             yield None
             return
@@ -1344,7 +1658,8 @@ class Corpus:
             query.QueryError: If the query does not compile.
             ValueError: If a compound name cannot be resolved.
             PairingError: If the corpus IDs do not come out one unbroken run, or the
-                occurrence index does not reach every structure the corpus holds.
+                occurrence index refuses the corpus -- a reaction stated by more than
+                one row, or a structure no indexed path reaches.
             TimeoutError: If the query exceeds ``timeout_seconds``.
         """
         # Records into this search rather than onto the corpus: two searches share one
@@ -1359,7 +1674,6 @@ class Corpus:
             indexing = indexing or condition is not None
             return condition
 
-        compiled = query.compile_query(request, index=index)
         # Cached across the whole search: a compound named in both a value and a
         # structure predicate is one external lookup, not two.
         resolved: dict[str, str] = {}
@@ -1370,6 +1684,18 @@ class Corpus:
             return resolved[name]
 
         with contextlib.ExitStack() as reading:
+            pivoted: dict[str, str | None] = {}
+
+            def pivot_table(path: str) -> str | None:
+                # Built while compiling rather than after, because the budget decides
+                # whether the table exists at all and the SQL names it either way. The
+                # answer is remembered so the second compilation, against the narrow
+                # relation, cannot route a quantifier differently from the first.
+                if path not in pivoted:
+                    pivoted[path] = reading.enter_context(self._pivoted_table(path))
+                return pivoted[path]
+
+            compiled = query.compile_query(request, index=index, pivot=pivot_table)
             if indexing:
                 # Built after compiling and before running: the condition names the
                 # table, so the table has to exist by the time the query does. Logged
@@ -1386,7 +1712,9 @@ class Corpus:
                 self._narrowed_table(_mentioned(compiled.sql))
             )
             if narrow is not None:
-                compiled = query.compile_query(request, table=narrow, index=index)
+                compiled = query.compile_query(
+                    request, table=narrow, index=index, pivot=pivot_table
+                )
             cursor = self._connection.cursor()
             try:
                 parameters: dict[str, Any] = {

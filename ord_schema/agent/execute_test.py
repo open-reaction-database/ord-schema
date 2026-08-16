@@ -17,6 +17,7 @@
 import contextlib
 import logging
 import pathlib
+import re
 import threading
 import time
 from collections.abc import Iterator
@@ -29,7 +30,7 @@ from rdkit import Chem
 from rdkit.Chem import rdSubstructLibrary
 
 from ord_schema import parquet, projection, structures
-from ord_schema.agent import execute, query
+from ord_schema.agent import execute, pivot, query
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 _ROLE = reaction_pb2.ReactionRole
@@ -1086,6 +1087,35 @@ _ROUTABLE = {
             ],
         }
     },
+    # The shape the index answers half of: over the corpus, what the other half costs
+    # is set by whether its column was materialized -- 0.43s against 3.34s for the same
+    # question, which is why the budget is what it is.
+    "a clause the projection has to answer beside it": {
+        "where": {
+            "op": "and",
+            "clauses": [
+                _exists(_SUBSTRUCTURE),
+                {
+                    "op": "exists",
+                    "path": "outcomes.products",
+                    "where": {
+                        "op": "eq",
+                        "path": "isolated_color",
+                        "value": {"literal": "white"},
+                    },
+                },
+            ],
+        }
+    },
+    "a negated clause beside the indexed one": {
+        "where": {
+            "op": "and",
+            "clauses": [
+                _exists(_SUBSTRUCTURE),
+                {"op": "not", "clause": {"op": "not_null", "path": "provenance.doi"}},
+            ],
+        }
+    },
 }
 
 # Element predicates an occurrence row cannot carry, so the quantifier compiles over
@@ -1979,6 +2009,11 @@ def test_the_cache_stays_bounded(corpus_dir, monkeypatch):
         assert [key[2] for key in value._matched] == ["c1ccccc1", "[Pt]"]
 
 
+def _columns_key(columns: frozenset[str]) -> tuple[str, ...]:
+    """Returns the cache key a materialized column set is held under."""
+    return ("columns", *sorted(columns))
+
+
 @contextlib.contextmanager
 def _no_narrow_table(self, columns: frozenset[str]) -> Iterator[str | None]:
     """Stands in for _narrowed_table so a search reads the projection directly."""
@@ -2116,6 +2151,35 @@ def _tables(value) -> set[str]:
     return {row[0] for row in rows}
 
 
+def test_a_budget_no_memory_could_answer_to_is_refused(corpus_dir):
+    # Negative is not an amount of memory, and taken as one it makes every set too
+    # large and every eviction immediate, which reads as a corpus that cannot cache.
+    with pytest.raises(ValueError, match="not an amount of memory"):
+        execute.Corpus(
+            str(corpus_dir / "projections" / "*.parquet"),
+            str(corpus_dir / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            narrow_budget_bytes=-1,
+        )
+    # Zero is an amount of memory, and a caller asking to materialize nothing means it
+    # -- including the build that would otherwise measure a set before dropping it,
+    # which is the peak a machine has to have room for.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        narrow_budget_bytes=0,
+    ) as value:
+        value.search(
+            query.Query.model_validate(
+                {"where": {"op": "not_null", "path": "provenance.doi"}}
+            )
+        )
+        assert not value._narrowed
+        assert value._narrow_serial == 0  # No table was built to find that out.
+        assert not [name for name in _tables(value) if name.startswith("narrow_")]
+
+
 def test_a_materialization_is_measured_in_bytes(corpus_dir):
     # duckdb_tables reports a row *count* under a name that reads like a size, and
     # spending it as one makes the budget a number that can never be crossed and the
@@ -2140,11 +2204,12 @@ def test_the_cache_evicts_the_least_recently_used_and_drops_its_table(
     # An unevicted cache is one table per column set a server is ever asked for, none of
     # them ever freed. Sizes are stated here rather than measured so the budget admits
     # exactly one table whatever DuckDB's allocator does with three rows.
-    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 150)
+    budget = 150
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
+        narrow_budget_bytes=budget,
     ) as value:
         monkeypatch.setattr(
             execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
@@ -2156,7 +2221,7 @@ def test_the_cache_evicts_the_least_recently_used_and_drops_its_table(
         assert dropped in _tables(value)
         with value._narrowed_table(second) as name:
             kept = name
-        assert list(value._narrowed) == [second]
+        assert list(value._narrowed) == [_columns_key(second)]
         assert dropped not in _tables(value)  # Dropped, not merely forgotten.
         assert kept in _tables(value)
 
@@ -2166,11 +2231,12 @@ def test_a_table_a_search_is_reading_is_not_evicted(corpus_dir, monkeypatch):
     # seconds during which it holds nothing but a string. Evicting there would fail a
     # query that had already been answered correctly, with a catalog error naming a
     # table the caller has never heard of.
-    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 150)
+    budget = 150
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
+        narrow_budget_bytes=budget,
     ) as value:
         monkeypatch.setattr(
             execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
@@ -2183,7 +2249,10 @@ def test_a_table_a_search_is_reading_is_not_evicted(corpus_dir, monkeypatch):
             # Over budget, and the only candidate is being read: it stays, and the
             # cache stays over its budget until the reader is done.
             assert reading in _tables(value)
-            assert list(value._narrowed) == [first, second]
+            assert list(value._narrowed) == [
+                _columns_key(first),
+                _columns_key(second),
+            ]
         # Released, so the next materialization can take it.
         with value._narrowed_table(frozenset({"reaction_id", "notes"})):
             pass
@@ -2308,11 +2377,12 @@ def test_a_table_a_second_search_took_from_the_cache_is_not_evicted(
     # does, so it has to take the read the same way. Held at zero readers, the table is
     # the first thing eviction takes, and the search fails on a name that no longer
     # resolves after it had already been answered correctly.
-    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 150)
+    budget = 150
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
+        narrow_budget_bytes=budget,
     ) as value:
         monkeypatch.setattr(
             execute, "_memory_bytes", _stated_bytes(0, 100, 0, 100, 0, 100)
@@ -2407,11 +2477,12 @@ def test_a_literal_naming_the_relation_is_not_a_rewrite(tmp_path):
 
 def test_a_column_set_too_large_to_keep_is_not_kept(corpus_dir, monkeypatch):
     # Materializing is only worth it if the table survives to answer the next query.
-    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 1)
+    budget = 1
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
+        narrow_budget_bytes=budget,
     ) as value:
         matched = value.search(
             query.Query.model_validate(
@@ -2427,17 +2498,88 @@ def test_a_column_set_too_large_to_keep_is_not_kept(corpus_dir, monkeypatch):
         assert not value._narrowed
 
 
+def test_a_column_set_too_large_to_keep_says_so_and_says_what_to_change(
+    corpus_dir, caplog
+):
+    # The slowest thing a corpus does is answer from Parquet because a column set did
+    # not fit, and nothing about the answer says that is what happened. Whoever is
+    # asking why a query takes seconds is reading the log, so the log has to name the
+    # columns, the two figures, and the argument that changes it.
+    caplog.set_level(logging.INFO, logger="ord_schema.agent.execute")
+    request = query.Query.model_validate(
+        {"where": {"op": "not_null", "path": "provenance.doi"}}
+    )
+
+    def warnings() -> list[str]:
+        return [
+            record.getMessage()
+            for record in caplog.records
+            if record.levelno >= logging.WARNING
+            and record.name == "ord_schema.agent.execute"
+        ]
+
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        narrow_budget_bytes=1,
+    ) as value:
+        value.search(request)
+        assert len(warnings()) == 1
+        said = warnings()[0]
+        assert "provenance" in said
+        assert "narrow_budget_bytes" in said
+        assert execute._format_bytes(value._narrow_budget) in said
+        # Both figures have to be figures. Stated in gigabytes, a fixture costing
+        # kilobytes against a budget of one byte reads "0.0 GB over 0.0 GB", which
+        # names the problem in units that hide it.
+        assert "1 B" in said
+        assert re.search(r"takes \d+(\.\d+)? (kB|MB|GB)", said), said
+        # Said again for the next query, since that query is slow for the same reason
+        # and its asker was not necessarily watching when the corpus first found out.
+        value.search(request)
+        assert len(warnings()) == 2
+
+
+def test_two_searches_wanting_one_refused_column_set_build_it_once(
+    corpus_dir, monkeypatch
+):
+    # The refusal is settled under the build lock as well as before it, so a search
+    # that waited out another's build finds the answer rather than repeating a pass
+    # over the corpus to reach the same refusal.
+    with execute.Corpus(
+        str(corpus_dir / "projections" / "*.parquet"),
+        str(corpus_dir / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        narrow_budget_bytes=1,
+    ) as value:
+        wanted = frozenset({"reaction_id", "conditions"})
+        with _stalled_build(value, monkeypatch):
+
+            def read() -> str | None:
+                with value._narrowed_table(wanted) as name:
+                    return name
+
+            second, answered = _in_a_thread(read)
+            second.join(timeout=1)
+            assert not answered, "the second ask did not wait for the build in flight"
+        second.join(timeout=30)
+        assert answered == [None]  # Refused, and told so rather than building again.
+        assert value._narrow_serial == 1
+
+
 def test_a_column_set_too_large_to_keep_is_not_built_twice(corpus_dir, monkeypatch):
     # What the refusal costs is a pass over the corpus, and the projection it reads
     # does not change while the corpus is open. Asking again is the common case -- a
     # notebook loop, a server serving one shape of question -- and rebuilding a table
     # only to drop it again holds the narrow lock against every other search each time.
-    monkeypatch.setattr(execute, "_NARROW_BUDGET_BYTES", 1)
+    budget = 1
     columns = frozenset({"reaction_id", "provenance"})
     with execute.Corpus(
         str(corpus_dir / "projections" / "*.parquet"),
         str(corpus_dir / "structures" / "*.parquet"),
         resolver={}.__getitem__,
+        narrow_budget_bytes=budget,
     ) as value:
         with value._narrowed_table(columns) as name:
             assert name is None
@@ -2610,3 +2752,550 @@ def test_the_artifact_fingerprint_is_the_one_the_library_screens_with():
     holder.AddMol(molecule)
     stored = Chem.PatternFingerprint(molecule, fpSize=structures.PATTERN_FP_SIZE)
     assert list(holder.GetFingerprint(0).GetOnBits()) == list(stored.GetOnBits())
+
+
+def _wide_reactions() -> list[reaction_pb2.Reaction]:
+    """Reactions exercising the element shapes the ORD corpus barely holds.
+
+    Measured over the whole corpus, no reaction records a NULL or empty ``outcomes``
+    and only 119 record a NULL ``products`` under one, so corpus agreement is weak
+    evidence about levels that are absent, empty, or carry a NULL leaf. These say it
+    outright. Two outcomes on one reaction matter most: ORD is effectively
+    single-outcome, which is exactly why a correlation that dropped the outcome
+    ordinal answered identically and looked correct.
+    """
+    reactions = []
+
+    # Two outcomes. The high yield belongs to the product that is not desired, so a
+    # correlation blind to either ordinal pairs them and answers yes.
+    split = reaction_pb2.Reaction(reaction_id="ord-wd01")
+    first = split.outcomes.add()
+    undesired = first.products.add(is_desired_product=False, isolated_color="white")
+    undesired.measurements.add(type="YIELD").percentage.value = 90
+    second = split.outcomes.add()
+    desired = second.products.add(is_desired_product=True, isolated_color="yellow")
+    desired.measurements.add(type="YIELD").percentage.value = 10
+    reactions.append(split)
+
+    # One outcome, one product, both conditions on the same element.
+    together = reaction_pb2.Reaction(reaction_id="ord-wd02")
+    product = together.outcomes.add().products.add(
+        is_desired_product=True, isolated_color="white"
+    )
+    product.measurements.add(type="YIELD").percentage.value = 90
+    reactions.append(together)
+
+    # An outcome carrying no products at all: the level is present and empty.
+    empty = reaction_pb2.Reaction(reaction_id="ord-wd03")
+    empty.outcomes.add()
+    reactions.append(empty)
+
+    # No outcomes at all: the projection writes NULL rather than an empty list.
+    reactions.append(reaction_pb2.Reaction(reaction_id="ord-wd04"))
+
+    # A product carrying no isolated_color, so the leaf a body reads is NULL.
+    blank = reaction_pb2.Reaction(reaction_id="ord-wd05")
+    blank.outcomes.add().products.add(is_desired_product=True)
+    reactions.append(blank)
+
+    # Several products where only the last matches, so a filter that stopped early or
+    # read only the first element would miss it.
+    several = reaction_pb2.Reaction(reaction_id="ord-wd06")
+    outcome = several.outcomes.add()
+    outcome.products.add(is_desired_product=False, isolated_color="red")
+    outcome.products.add(is_desired_product=False, isolated_color="green")
+    outcome.products.add(is_desired_product=True, isolated_color="white")
+    reactions.append(several)
+
+    # One outcome holding both, so the *product* ordinal is what separates them. This
+    # is the shape of the 942 reactions a product-blind correlation over-returned on
+    # ORD, which an outcome-blind one could not see: the corpus is single-outcome.
+    sibling = reaction_pb2.Reaction(reaction_id="ord-wd07")
+    outcome = sibling.outcomes.add()
+    wanted = outcome.products.add(is_desired_product=True, isolated_color="blue")
+    wanted.measurements.add(type="YIELD").percentage.value = 10
+    other = outcome.products.add(is_desired_product=False, isolated_color="blue")
+    other.measurements.add(type="YIELD").percentage.value = 90
+    reactions.append(sibling)
+
+    return reactions
+
+
+@pytest.fixture(scope="module")
+def wide_corpus(tmp_path_factory) -> Iterator[execute.Corpus]:
+    """A corpus of element shapes, for comparing the pivot route against the level."""
+    root = tmp_path_factory.mktemp("wide")
+    source = root / "data" / "ord_dataset-wd.parquet"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-wd",
+            name="test",
+            description="test",
+            reactions=_wide_reactions(),
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir(parents=True, exist_ok=True)
+    projection.write_projection(source, projected)
+    structured = root / "structures" / source.name
+    structured.parent.mkdir(parents=True, exist_ok=True)
+    structures.write_structures(projected, structured)
+    with execute.Corpus(
+        str(projected), str(structured), resolver={}.__getitem__
+    ) as value:
+        yield value
+
+
+def _white(op):
+    return {
+        "op": op,
+        "path": "outcomes.products",
+        "where": {
+            "op": "eq",
+            "path": "isolated_color",
+            "value": {"literal": "white"},
+        },
+    }
+
+
+_DIFFERENTIAL = {
+    "exists a white product": _white("exists"),
+    "every product is white": _white("forall"),
+    "no white product": {"op": "not", "clause": _white("exists")},
+    "not every product is white": {"op": "not", "clause": _white("forall")},
+    # Two conditions on one element: the pivot answers this from one row, which is the
+    # co-membership the nested form gets by binding an element.
+    "a desired white product": {
+        "op": "exists",
+        "path": "outcomes.products",
+        "where": {
+            "op": "and",
+            "clauses": [
+                {
+                    "op": "eq",
+                    "path": "isolated_color",
+                    "value": {"literal": "white"},
+                },
+                {
+                    "op": "eq",
+                    "path": "is_desired_product",
+                    "value": {"literal": True},
+                },
+            ],
+        },
+    },
+    # The leaf is NULL for ord-wd05, so the comparison is NULL rather than false and
+    # both routes have to fold it the same way.
+    "a product that is not white": {
+        "op": "exists",
+        "path": "outcomes.products",
+        "where": {
+            "op": "ne",
+            "path": "isolated_color",
+            "value": {"literal": "white"},
+        },
+    },
+    "every measurement is a yield": {
+        "op": "forall",
+        "path": "outcomes.products.measurements",
+        "where": {"op": "eq", "path": "type", "value": {"literal": "YIELD"}},
+    },
+    # The nested-correlation case, and the one the wide corpus was built for: ord-wd01
+    # carries the 90% yield on the product that is *not* desired, in a different
+    # outcome from the one that is. A correlation joining on anything short of the
+    # whole ordinal prefix pairs them and answers yes.
+    "a desired product with a yield above 50%": {
+        "op": "exists",
+        "path": "outcomes.products",
+        "where": {
+            "op": "and",
+            "clauses": [
+                {
+                    "op": "eq",
+                    "path": "is_desired_product",
+                    "value": {"literal": True},
+                },
+                {
+                    "op": "exists",
+                    "path": "measurements",
+                    "where": {
+                        "op": "and",
+                        "clauses": [
+                            {"op": "eq", "path": "type", "value": {"literal": "YIELD"}},
+                            {
+                                "op": "gt",
+                                "path": "percentage.value",
+                                "value": {"literal": 50},
+                            },
+                        ],
+                    },
+                },
+            ],
+        },
+    },
+    "a yield above 50%": {
+        "op": "exists",
+        "path": "outcomes.products.measurements",
+        "where": {
+            "op": "and",
+            "clauses": [
+                {"op": "eq", "path": "type", "value": {"literal": "YIELD"}},
+                {
+                    "op": "gt",
+                    "path": "percentage.value",
+                    "value": {"literal": 50},
+                },
+            ],
+        },
+    },
+}
+
+
+@pytest.mark.parametrize("where", list(_DIFFERENTIAL.values()), ids=list(_DIFFERENTIAL))
+def test_a_pivot_answers_what_the_level_answers(wide_corpus, monkeypatch, where):
+    # The guard on two routes to one answer. A pivot that lost an ordinal, folded a
+    # NULL level the other way, or correlated on the wrong prefix shows up here as a
+    # set that differs -- which is how the 942-reaction over-match was found.
+    pivoted = _search(wide_corpus, where)
+    monkeypatch.setattr(
+        execute.Corpus, "_pivoted_table", _no_pivoted_table, raising=True
+    )
+    assert _search(wide_corpus, where) == pivoted
+
+
+@contextlib.contextmanager
+def _no_pivoted_table(self, path: str) -> Iterator[str | None]:
+    """Stands in for _pivoted_table so a quantifier compiles over the elements."""
+    del self, path  # Unused.
+    yield None
+
+
+def test_the_differential_cases_are_not_all_the_same_answer(wide_corpus):
+    # A differential test comparing two routes proves nothing if every case answers
+    # with the whole corpus, which is what a fixture that lost its variety would do.
+    answers = {
+        name: frozenset(_search(wide_corpus, where))
+        for name, where in _DIFFERENTIAL.items()
+    }
+    assert len(set(answers.values())) >= 5
+    assert any(answer for answer in answers.values())
+    assert any(len(answer) < 6 for answer in answers.values())
+
+
+def test_a_pivot_row_says_which_element_it_was(wide_corpus):
+    # Nothing in phase 1 joins on the ordinals, so the differential test cannot see
+    # them; they are what a correlation across levels will need, and a pivot that
+    # numbered its elements wrongly would look correct until then. ord-wd01 carries two
+    # outcomes of one product each, and ord-wd06 one outcome of three.
+    with wide_corpus._pivoted_table("outcomes.products") as name:
+        assert name is not None
+        rows = wide_corpus._connection.execute(
+            f"SELECT reaction_id, outcome_index, product_index, "  # noqa: S608
+            f"element.isolated_color FROM {name} "
+            "WHERE reaction_id IN ('ord-wd01', 'ord-wd06') "
+            "ORDER BY reaction_id, outcome_index, product_index"
+        ).fetchall()
+    assert rows == [
+        ("ord-wd01", 1, 1, "white"),
+        ("ord-wd01", 2, 1, "yellow"),
+        ("ord-wd06", 1, 1, "red"),
+        ("ord-wd06", 1, 2, "green"),
+        ("ord-wd06", 1, 3, "white"),
+    ]
+
+
+def test_a_pivot_holds_every_element_including_an_empty_one(wide_corpus):
+    # Completeness is what lets a pivot answer forall, so an element whose fields are
+    # all NULL still gets a row: ord-wd05 records a product with no isolated_color.
+    with wide_corpus._pivoted_table("outcomes.products") as name:
+        assert name is not None
+        blank = wide_corpus._connection.execute(
+            f"SELECT count(*) FROM {name} WHERE reaction_id = 'ord-wd05'"  # noqa: S608
+        ).fetchone()
+        # A level that is present but empty contributes no rows, and one the source
+        # never recorded contributes none either -- which is what makes forall
+        # vacuously true of both.
+        absent = wide_corpus._connection.execute(
+            f"SELECT count(*) FROM {name} "  # noqa: S608
+            "WHERE reaction_id IN ('ord-wd03', 'ord-wd04')"
+        ).fetchone()
+    assert blank == (1,)
+    assert absent == (0,)
+
+
+def _write_pivots(root: pathlib.Path, levels: tuple[str, ...]) -> pathlib.Path:
+    """Derives pivot artifacts for ``levels`` from every projection under ``root``.
+
+    Written under ``<level>/<shard>/`` rather than directly under the level, because
+    that is where ``derive_pivots`` puts them: it mirrors the projections' own layout,
+    and a helper that flattened it would test a tree nothing produces.
+    """
+    pivots = root / "pivots"
+    for level in levels:
+        for projected in sorted((root / "projections").glob("*.parquet")):
+            shard = pivots / level / projected.stem[-2:]
+            shard.mkdir(parents=True, exist_ok=True)
+            pivot.write_pivot(projected, shard / projected.name, level_path=level)
+    return pivots
+
+
+@pytest.fixture(scope="module")
+def wide_root(tmp_path_factory) -> pathlib.Path:
+    """The wide corpus on disk, so pivot artifacts can be derived beside it."""
+    root = tmp_path_factory.mktemp("wide_artifacts")
+    source = root / "data" / "ord_dataset-wd.parquet"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    parquet.save_dataset(
+        dataset_pb2.Dataset(
+            dataset_id="ord_dataset-wd",
+            name="test",
+            description="test",
+            reactions=_wide_reactions(),
+        ),
+        str(source),
+    )
+    projected = root / "projections" / source.name
+    projected.parent.mkdir(parents=True, exist_ok=True)
+    projection.write_projection(source, projected)
+    structured = root / "structures" / source.name
+    structured.parent.mkdir(parents=True, exist_ok=True)
+    structures.write_structures(projected, structured)
+    return root
+
+
+@pytest.mark.parametrize("where", list(_DIFFERENTIAL.values()), ids=list(_DIFFERENTIAL))
+def test_a_pivot_artifact_answers_what_building_one_answers(wide_root, where):
+    # The artifact is the same rows by another route, so the whole point is that it
+    # cannot answer differently from the pivot the executor would have built.
+    pivots = _write_pivots(wide_root, ("outcomes.products",))
+    projected = str(wide_root / "projections" / "*.parquet")
+    structured = str(wide_root / "structures" / "*.parquet")
+    with execute.Corpus(projected, structured, resolver={}.__getitem__) as built:
+        expected = _search(built, where)
+    with execute.Corpus(
+        projected, structured, resolver={}.__getitem__, pivots_dir=str(pivots)
+    ) as read:
+        assert _search(read, where) == expected
+
+
+def test_a_pivot_artifact_is_read_rather_than_built(wide_root, caplog):
+    pivots = _write_pivots(wide_root, ("outcomes.products",))
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.agent.execute"),
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+        ) as corpus,
+    ):
+        _search(corpus, _white("exists"))
+    messages = [record.message for record in caplog.records]
+    assert any("read 1 pivot artifacts" in message for message in messages)
+    assert not any("building the pivot" in message for message in messages)
+
+
+def test_a_level_without_artifacts_is_still_built(wide_root, caplog):
+    # A partial set of artifacts is a partial speedup, not a missing answer.
+    pivots = _write_pivots(wide_root, ("outcomes.products",))
+    with (
+        caplog.at_level(logging.INFO, logger="ord_schema.agent.execute"),
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+        ) as corpus,
+    ):
+        found = _search(
+            corpus,
+            {
+                "op": "exists",
+                "path": "outcomes.products.measurements",
+                "where": {
+                    "op": "eq",
+                    "path": "type",
+                    "value": {"literal": "YIELD"},
+                },
+            },
+        )
+    assert found == {"ord-wd01", "ord-wd02", "ord-wd07"}
+    assert any(
+        "building the pivot over outcomes.products.measurements" in record.message
+        for record in caplog.records
+    )
+
+
+def test_a_pivot_from_another_corpus_is_refused(wide_root, corpus_dir, tmp_path):
+    # The failure this pins is silent: a pivot names reactions by ID, so artifacts
+    # derived elsewhere answer a quantifier against rows this corpus does not hold.
+    stranger = _write_pivots(corpus_dir, ("outcomes.products",))
+    with (
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(stranger),
+        ) as corpus,
+        pytest.raises(execute.PairingError, match="another corpus"),
+    ):
+        _search(corpus, _white("exists"))
+
+
+def test_a_pivot_filed_under_the_wrong_level_is_refused(wide_root, tmp_path):
+    pivots = tmp_path / "pivots"
+    (pivots / "outcomes.products").mkdir(parents=True)
+    projected = next((wide_root / "projections").glob("*.parquet"))
+    pivot.write_pivot(
+        projected,
+        pivots / "outcomes.products" / projected.name,
+        level_path="outcomes.products.measurements",
+    )
+    with (
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(pivots),
+        ) as corpus,
+        pytest.raises(execute.PairingError, match="wrong level"),
+    ):
+        _search(corpus, _white("exists"))
+
+
+def test_a_structure_predicate_inside_a_pivoted_quantifier_agrees(corpus, monkeypatch):
+    # The occurrence index declines this: its shape is one structure predicate and
+    # string equalities, and a not_null clause is neither. The pivot takes it instead,
+    # and its rows carry a structure_id but no structure_offset -- that column resolves
+    # outward to the reaction the element belongs to, which is the offset its ID is
+    # meant to be read against. Correct by name resolution rather than by construction,
+    # so it is compared against the elements rather than assumed.
+    where = {
+        "op": "exists",
+        "path": "inputs.components",
+        "where": {
+            "op": "and",
+            "clauses": [
+                {"op": "substructure", "path": "smiles", "smarts": "c1ccncc1"},
+                {"op": "not_null", "path": "smiles"},
+            ],
+        },
+    }
+    pivoted = _search(corpus, where)
+    monkeypatch.setattr(execute.Corpus, "_pivoted_table", _no_pivoted_table)
+    assert _search(corpus, where) == pivoted
+    # And the answer is the pyridine-bearing reactions, not everything or nothing.
+    assert pivoted == {"ord-aa01", "ord-aa02"}
+
+
+def test_a_pivoted_quantifier_still_reaches_the_structures_artifact(corpus):
+    # Guards the offset arithmetic across datasets: ethanol lives in the second file,
+    # so finding it through a pivot proves the outward structure_offset is the right
+    # one rather than the first file's.
+    found = _search(
+        corpus,
+        {
+            "op": "exists",
+            "path": "inputs.components",
+            "where": {
+                "op": "and",
+                "clauses": [
+                    {"op": "substructure", "path": "smiles", "smarts": "[OX2H]"},
+                    {"op": "not_null", "path": "smiles"},
+                ],
+            },
+        },
+    )
+    assert found == {"ord-bb01"}
+
+
+def test_check_pivots_reports_the_levels_held_as_artifacts(wide_root):
+    pivots = _write_pivots(wide_root, ("outcomes.products", "workups"))
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
+    ) as corpus:
+        assert corpus.check_pivots() == {"outcomes.products": 1, "workups": 1}
+
+
+def test_check_pivots_is_empty_without_a_directory(wide_corpus):
+    # Not an error: every level is built in process, which is the phase the executor
+    # started in and still supports.
+    assert wide_corpus.check_pivots() == {}
+
+
+def test_check_pivots_refuses_a_stranger_at_startup(wide_root, corpus_dir):
+    # The whole point: this refusal would otherwise arrive with whichever query first
+    # wanted the level, at whatever hour that was.
+    stranger = _write_pivots(corpus_dir, ("outcomes.products",))
+    with (
+        execute.Corpus(
+            str(wide_root / "projections" / "*.parquet"),
+            str(wide_root / "structures" / "*.parquet"),
+            resolver={}.__getitem__,
+            pivots_dir=str(stranger),
+        ) as corpus,
+        pytest.raises(execute.PairingError, match="another corpus"),
+    ):
+        corpus.check_pivots()
+
+
+def test_check_pivots_leaves_the_levels_ready(wide_root, caplog):
+    # Publishing is the check, so a level it accepted is one the first query does not
+    # have to glob for or build.
+    pivots = _write_pivots(wide_root, ("outcomes.products",))
+    with execute.Corpus(
+        str(wide_root / "projections" / "*.parquet"),
+        str(wide_root / "structures" / "*.parquet"),
+        resolver={}.__getitem__,
+        pivots_dir=str(pivots),
+    ) as corpus:
+        corpus.check_pivots()
+        # Cleared, because check_pivots logs the publish it just did and the question
+        # here is what the *query* had left to do.
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger="ord_schema.agent.execute"):
+            found = _search(corpus, _white("exists"))
+    assert found == {"ord-wd01", "ord-wd02", "ord-wd06"}
+    messages = [record.message for record in caplog.records]
+    assert not any("read 1 pivot artifacts" in message for message in messages)
+    assert not any("building the pivot" in message for message in messages)
+
+
+def test_a_singular_struct_under_a_level_is_answered_by_that_level_s_pivot(
+    deep_corpus, monkeypatch
+):
+    # An authentic standard is one compound per measurement rather than a list of its
+    # own, so no pivot is named for it; the measurements' pivot carries it. This is the
+    # one occurrence-indexed path that is not a repeated level, so it is also what an
+    # index the pivot was meant to subsume would have quietly stopped covering.
+    where = {
+        "op": "exists",
+        "path": "outcomes.products.measurements.authentic_standard",
+        "where": {
+            "op": "and",
+            "clauses": [
+                {"op": "substructure", "path": "smiles", "smarts": "c1ccccc1"},
+                {"op": "not_null", "path": "smiles"},
+            ],
+        },
+    }
+    pivoted = _search(deep_corpus, where)
+    assert pivoted == {"ord-cc01"}
+    monkeypatch.setattr(execute.Corpus, "_pivoted_table", _no_pivoted_table)
+    assert _search(deep_corpus, where) == pivoted
+
+
+def test_a_nested_correlation_binds_the_measurement_to_its_own_product(wide_corpus):
+    # ord-wd01 has a 90% yield on an undesired product in one outcome and a desired
+    # product with 10% in another; ord-wd02 has both on one product. Only the second
+    # answers, and a correlation that lost either ordinal would return both.
+    found = _search(
+        wide_corpus, _DIFFERENTIAL["a desired product with a yield above 50%"]
+    )
+    # ord-wd07 keeps both in one outcome, so only the product ordinal separates them.
+    assert found == {"ord-wd02"}

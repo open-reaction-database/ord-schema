@@ -33,8 +33,7 @@ against cannot disagree.
 
 Types are named in DuckDB's vocabulary rather than Arrow's, since DuckDB is the dialect
 the model writes. Units are already in the column names -- ``setpoint_kelvin``,
-``mass_grams`` -- so the tree carries them without a word of prose, and nothing has to
-explain that temperatures are kelvin.
+``mass_grams`` -- so the tree carries them without a word of prose.
 """
 
 import pyarrow as pa
