@@ -112,16 +112,16 @@ _BUILD_BATCH = 50_000
 # seconds.
 _CACHED_MATCHES = 16
 
-# How much memory the materialized column sets may hold between them, when the caller
-# states no budget. The whole projection is 18.46 GB in memory at ORD's scale and no
-# default holds it, so every budget is a partial cache and the question is only which
-# columns fit. This holds any single one of the large ones -- workups is 5.08 GB,
-# inputs 3.93 GB, outcomes 3.04 GB -- which is what a query pairing a structure clause
-# with a projection one needs. A corpus asked for more says so on every query it costs,
-# naming this argument; see _warn_refused.
+# How much memory the materialized column sets and pivots may hold between them, when
+# the caller states no budget. The whole projection is 18.46 GB in memory at ORD's scale
+# and no default holds it, so every budget is a partial cache and the question is only
+# what fits. This holds any single one of the large entries -- the workups column is
+# 5.08 GB, inputs 3.93 GB, outcomes 3.04 GB, and the pivots worth the most are 0.45 to
+# 4.40 GB. A corpus asked for more says so on every query it costs, naming this
+# argument; see _warn_refused.
 #
-# Held to after a set is built rather than before, since what one costs is known only
-# once it exists: the peak is this plus the largest single set, and building a set costs
+# Held to after an entry is built rather than before, since what one costs is known only
+# once it exists: the peak is this plus the largest single entry, and building one costs
 # its size whether or not it is kept.
 _NARROW_BUDGET_BYTES = 4 * 1024**3
 
