@@ -17,9 +17,10 @@
 import pyarrow.parquet as pq
 import pytest
 
-from ord_schema import artifacts, parquet, projection
+from ord_schema import parquet
+from ord_schema.artifacts import base, projection
+from ord_schema.artifacts.scripts import derive_projection
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.scripts import derive_projection
 
 
 def _dataset(tmp_path, shard: str, dataset_id: str):
@@ -71,7 +72,7 @@ def test_main_writes_a_readable_projection(tmp_path):
     table = pq.read_table(output)
     assert table.num_rows == 1
     assert table.column("reaction_id").to_pylist() == ["ord-aa"]
-    assert artifacts.load_stamps(output).artifact == projection.ARTIFACT
+    assert base.load_stamps(output).artifact == projection.ARTIFACT
 
 
 def test_rerunning_skips_current_projections(tmp_path):
@@ -142,7 +143,7 @@ def test_a_pattern_reaching_the_output_tree_stays_rerunnable(tmp_path):
     # The projection is now itself a match for the pattern; it is not a source.
     derive_projection.main(args)
     assert output.stat().st_ino == first
-    assert artifacts.load_stamps(output).artifact == projection.ARTIFACT
+    assert base.load_stamps(output).artifact == projection.ARTIFACT
 
 
 def test_a_pattern_aimed_at_the_output_tree_is_an_error(tmp_path):

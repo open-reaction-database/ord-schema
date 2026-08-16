@@ -27,7 +27,7 @@ field's own metadata, so this stays a rendering of the schema and nothing else.
 The rendering is generated from ``projection.SCHEMA`` rather than written by hand,
 because that schema is itself generated from the proto descriptors -- a field added
 upstream becomes a column with nobody deciding it should, and a hand-written description
-would silently fall behind it. ``ord_schema.agent.sql`` validates against the same
+would silently fall behind it. ``ord_schema.search.sql`` validates against the same
 schema object, so the columns a model is told about and the columns its query is checked
 against cannot disagree.
 
@@ -38,7 +38,7 @@ the model writes. Units are already in the column names -- ``setpoint_kelvin``,
 
 import pyarrow as pa
 
-from ord_schema import projection
+from ord_schema.artifacts import projection
 
 # Arrow leaf types the projection can hold, in DuckDB's names. Deliberately not a
 # fallback to ``str(dtype)``: a type the projection gains later should surface here as a

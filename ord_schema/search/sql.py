@@ -17,7 +17,7 @@
 Validation needs no corpus. ``projection.SCHEMA`` is generated from the proto
 descriptors, so an empty Arrow table carrying it has the real 442-leaf shape, and
 planning a query against that resolves every column reference and type without reading a
-byte of data. The prompt in :mod:`ord_schema.agent.schema` renders the same schema
+byte of data. The prompt in :mod:`ord_schema.search.schema` renders the same schema
 object, so the columns a model is told about and the columns its query is checked
 against come from one call.
 
@@ -59,7 +59,7 @@ from typing import Any
 import duckdb
 import pyarrow as pa
 
-from ord_schema import projection
+from ord_schema.artifacts import projection
 
 # The name the model is told to query. The only relation in scope, so no other table is
 # reachable -- which is not the same as no join being expressible, since a query can

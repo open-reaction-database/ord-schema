@@ -14,10 +14,10 @@
 
 r"""Derives structure-search artifacts from projections.
 
-Each projection yields one structures artifact: one row per distinct structure, with
-the fingerprints a query engine screens against and the serialized molecule
-verification reads; see ``ord_schema.structures`` for the columns and why. Outputs
-mirror the inputs' directory layout beneath ``--output_dir``::
+Each projection yields one structures artifact: one row per distinct structure, with the
+fingerprints a query engine screens against and the serialized molecule verification
+reads; see ``ord_schema.artifacts.structures`` for the columns and why. Outputs mirror
+the inputs' directory layout beneath ``--output_dir``::
 
     derive_structures.py --input_pattern='projections/*/*.parquet' \
         --output_dir=structures
@@ -36,7 +36,7 @@ projections at all.
 
 import argparse
 
-from ord_schema import artifacts, projection, structures
+from ord_schema.artifacts import base, projection, structures
 from ord_schema.logging import silence_rdkit_logs
 
 
@@ -73,7 +73,7 @@ def main(args: argparse.Namespace) -> None:
             though the artifacts had been built.
     """
     silence_rdkit_logs()
-    written, skipped, ignored = artifacts.derive_tree(
+    written, skipped, ignored = base.derive_tree(
         args.input_pattern,
         args.output_dir,
         artifact=structures.ARTIFACT,

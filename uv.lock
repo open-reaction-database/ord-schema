@@ -2169,10 +2169,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-agent = [
-    { name = "duckdb" },
-    { name = "pydantic" },
-]
 docs = [
     { name = "ipython", version = "9.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "ipython", version = "9.12.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -2197,6 +2193,10 @@ orm = [
     { name = "sqlalchemy" },
     { name = "uuid6" },
 ]
+search = [
+    { name = "duckdb" },
+    { name = "pydantic" },
+]
 tests = [
     { name = "coverage" },
     { name = "duckdb" },
@@ -2218,7 +2218,7 @@ tests = [
 [package.metadata]
 requires-dist = [
     { name = "coverage", marker = "extra == 'tests'", specifier = ">=5.2.1" },
-    { name = "duckdb", marker = "extra == 'agent'", specifier = ">=1.1" },
+    { name = "duckdb", marker = "extra == 'search'", specifier = ">=1.1" },
     { name = "huggingface-hub", marker = "extra == 'huggingface'", specifier = ">=0.20" },
     { name = "inflection", marker = "extra == 'orm'", specifier = ">=0.5.1" },
     { name = "ipython", marker = "extra == 'docs'", specifier = ">=8.4.0" },
@@ -2226,12 +2226,12 @@ requires-dist = [
     { name = "matplotlib", marker = "extra == 'examples'", specifier = ">=3.3.4" },
     { name = "numpy", specifier = ">=1.26.4" },
     { name = "openpyxl", specifier = ">=3.0.5" },
-    { name = "ord-schema", extras = ["agent", "huggingface", "orm"], marker = "extra == 'tests'" },
+    { name = "ord-schema", extras = ["search", "huggingface", "orm"], marker = "extra == 'tests'" },
     { name = "pandas", specifier = ">=1.0.4" },
     { name = "protobuf", specifier = ">=4.22.3,<6" },
     { name = "psycopg", extras = ["binary", "pool"], marker = "extra == 'orm'", specifier = ">=3" },
     { name = "pyarrow", specifier = ">=14" },
-    { name = "pydantic", marker = "extra == 'agent'", specifier = ">=2" },
+    { name = "pydantic", marker = "extra == 'search'", specifier = ">=2" },
     { name = "pygments", marker = "extra == 'docs'", specifier = ">=2.13.0" },
     { name = "pytest", marker = "extra == 'tests'", specifier = ">=7.1.1" },
     { name = "pytest-cov", marker = "extra == 'tests'", specifier = ">=3.0.0" },
@@ -2252,7 +2252,7 @@ requires-dist = [
     { name = "uuid6", marker = "extra == 'orm'", specifier = ">=2023" },
     { name = "wget", marker = "extra == 'examples'", specifier = ">=3.2" },
 ]
-provides-extras = ["agent", "docs", "examples", "huggingface", "orm", "tests"]
+provides-extras = ["search", "docs", "examples", "huggingface", "orm", "tests"]
 
 [[package]]
 name = "overrides"

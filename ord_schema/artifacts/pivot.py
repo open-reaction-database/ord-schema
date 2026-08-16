@@ -51,7 +51,8 @@ import inflection
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from ord_schema import artifacts, atomic_io, projection
+from ord_schema import atomic_io
+from ord_schema.artifacts import base, projection
 from ord_schema.logging import get_logger
 
 logger = get_logger(__name__)
@@ -417,7 +418,7 @@ def write_pivot(
             f"{level_path} is not a repeated level of the projection schema; "
             f"a pivot has nothing to hold. Known levels: {sorted(LEVELS)}"
         )
-    parent = artifacts.load_stamps(source)
+    parent = base.load_stamps(source)
     if parent.artifact != projection.ARTIFACT:
         raise ValueError(
             f"{source} is a {parent.artifact}, not a {projection.ARTIFACT}; a pivot "
@@ -426,7 +427,7 @@ def write_pivot(
     # derive_tree refuses stale parents, but this writer is public and its output
     # inherits the dataset hash: an artifact derived from a stale projection would
     # claim a provenance it does not have and nothing would ever mark it stale again.
-    if not artifacts.stamps_are_current(parent, projection.ARTIFACT):
+    if not base.stamps_are_current(parent, projection.ARTIFACT):
         raise ValueError(
             f"{source} is a stale {projection.ARTIFACT}; derive it again first"
         )
@@ -434,8 +435,8 @@ def write_pivot(
         source_md5 = parent.source_md5
     if source_dataset_id is None:
         source_dataset_id = parent.source_dataset_id
-    stamps = artifacts.current_stamps(ARTIFACT, source_dataset_id, source_md5)
-    metadata = artifacts.to_metadata(stamps) | {_META_PIVOT_PATH: level_path}
+    stamps = base.current_stamps(ARTIFACT, source_dataset_id, source_md5)
+    metadata = base.to_metadata(stamps) | {_META_PIVOT_PATH: level_path}
     target = schema(level).with_metadata(metadata)
     connection = duckdb.connect()
     written = 0

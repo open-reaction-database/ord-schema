@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ord_schema.agent.execute."""
+"""Tests for ord_schema.search.execute."""
 
 import contextlib
 import logging
@@ -29,9 +29,10 @@ import pytest
 from rdkit import Chem
 from rdkit.Chem import rdSubstructLibrary
 
-from ord_schema import parquet, projection, structures
-from ord_schema.agent import execute, pivot, query
+from ord_schema import parquet
+from ord_schema.artifacts import pivot, projection, structures
 from ord_schema.proto import dataset_pb2, reaction_pb2
+from ord_schema.search import execute, query
 
 _ROLE = reaction_pb2.ReactionRole
 
@@ -1368,7 +1369,7 @@ def test_the_index_is_built_once_and_only_when_wanted(corpus_dir, caplog):
             )
         )
         assert not value._occurrences_built
-        caplog.set_level(logging.INFO, logger="ord_schema.agent.execute")
+        caplog.set_level(logging.INFO, logger="ord_schema.search.execute")
         request = query.Query.model_validate(_ROUTABLE["structure alone"])
         assert value.search(request).num_rows == 2
         assert value._occurrences_built
@@ -1568,7 +1569,7 @@ def test_concurrent_first_searches_build_one_index(corpus_dir, caplog, monkeypat
     # resolver, which a search reaches only afterwards, so the race is arranged rather
     # than hoped for -- and the build's own log line is what counts them, since
     # concurrent CREATEs would also collide in DuckDB's catalog and raise.
-    caplog.set_level(logging.INFO, logger="ord_schema.agent.execute")
+    caplog.set_level(logging.INFO, logger="ord_schema.search.execute")
     threads_count = 4
     ready = threading.Barrier(threads_count)
     building = execute.Corpus._occurrences
@@ -2505,7 +2506,7 @@ def test_a_column_set_too_large_to_keep_says_so_and_says_what_to_change(
     # not fit, and nothing about the answer says that is what happened. Whoever is
     # asking why a query takes seconds is reading the log, so the log has to name the
     # columns, the two figures, and the argument that changes it.
-    caplog.set_level(logging.INFO, logger="ord_schema.agent.execute")
+    caplog.set_level(logging.INFO, logger="ord_schema.search.execute")
     request = query.Query.model_validate(
         {"where": {"op": "not_null", "path": "provenance.doi"}}
     )
@@ -2515,7 +2516,7 @@ def test_a_column_set_too_large_to_keep_says_so_and_says_what_to_change(
             record.getMessage()
             for record in caplog.records
             if record.levelno >= logging.WARNING
-            and record.name == "ord_schema.agent.execute"
+            and record.name == "ord_schema.search.execute"
         ]
 
     with execute.Corpus(
@@ -3083,7 +3084,7 @@ def test_a_pivot_artifact_answers_what_building_one_answers(wide_root, where):
 def test_a_pivot_artifact_is_read_rather_than_built(wide_root, caplog):
     pivots = _write_pivots(wide_root, ("outcomes.products",))
     with (
-        caplog.at_level(logging.INFO, logger="ord_schema.agent.execute"),
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
         execute.Corpus(
             str(wide_root / "projections" / "*.parquet"),
             str(wide_root / "structures" / "*.parquet"),
@@ -3101,7 +3102,7 @@ def test_a_level_without_artifacts_is_still_built(wide_root, caplog):
     # A partial set of artifacts is a partial speedup, not a missing answer.
     pivots = _write_pivots(wide_root, ("outcomes.products",))
     with (
-        caplog.at_level(logging.INFO, logger="ord_schema.agent.execute"),
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
         execute.Corpus(
             str(wide_root / "projections" / "*.parquet"),
             str(wide_root / "structures" / "*.parquet"),
@@ -3258,7 +3259,7 @@ def test_check_pivots_leaves_the_levels_ready(wide_root, caplog):
         # Cleared, because check_pivots logs the publish it just did and the question
         # here is what the *query* had left to do.
         caplog.clear()
-        with caplog.at_level(logging.INFO, logger="ord_schema.agent.execute"):
+        with caplog.at_level(logging.INFO, logger="ord_schema.search.execute"):
             found = _search(corpus, _white("exists"))
     assert found == {"ord-wd01", "ord-wd02", "ord-wd06"}
     messages = [record.message for record in caplog.records]

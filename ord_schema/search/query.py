@@ -45,15 +45,14 @@ through :mod:`ord_schema.resolvers` before binding.
 
 Structure predicates -- ``substructure`` and ``similarity`` -- compile to a bitmap test
 rather than to chemistry. The chemistry runs *outside* the query, against the
-:mod:`ord_schema.structures` artifact (:mod:`ord_schema.agent.execute` is the driver),
-and the match set re-enters as a bitmap parameter indexed by the corpus-wide ID --
-the projection's ``structure_id`` plus its file's offset: DuckDB permits no subquery
+:mod:`ord_schema.artifacts.structures` artifact (:mod:`ord_schema.search.execute` is the
+driver), and the match set re-enters as a bitmap parameter indexed by the corpus-wide ID
+-- the projection's ``structure_id`` plus its file's offset: DuckDB permits no subquery
 inside a lambda expression, so the element a quantifier binds cannot semi-join a match
 table, but it can test one integer against a bitmap. The compiled SQL therefore
 references ``structure_offset``, a column only the executor's relation carries -- a raw
-projection cannot answer a structure query, which is the point: the IDs are
-dataset-local and only the executor knows the offsets that make them one corpus-wide
-space.
+projection cannot answer a structure query, which is the point: the IDs are dataset-
+local and only the executor knows the offsets that make them one corpus-wide space.
 """
 
 import dataclasses
@@ -67,11 +66,10 @@ import pyarrow as pa
 from pydantic import BaseModel, Field, model_validator
 from rdkit import Chem
 
-from ord_schema import projection
-
 # Aliased because ``pivot`` is the parameter name a caller passes an index under, and a
 # module shadowed inside the function that needs it is a bug waiting for an edit.
-from ord_schema.agent import pivot as pivot_levels
+from ord_schema.artifacts import pivot as pivot_levels
+from ord_schema.artifacts import projection
 
 # The relation a compiled query reads. The only one in scope, so nothing else is
 # nameable and a join has nothing to join to.
@@ -129,7 +127,7 @@ def executable_schema(schema: pa.Schema | None = None) -> pa.Schema:
     """Returns the schema of the relation a compiled query runs against.
 
     The executor's relation is the projection plus ``STRUCTURE_OFFSET``, so validating
-    compiled SQL (:func:`ord_schema.agent.sql.validate`) needs this schema whenever the
+    compiled SQL (:func:`ord_schema.search.sql.validate`) needs this schema whenever the
     query carries a structure predicate; the projection schema alone cannot bind it.
 
     Args:

@@ -59,7 +59,7 @@ identifiers into named scalar fields would silently drop data.
 
 One derived column rides beside the compound-level ``smiles``: a ``structure_id``
 numbering the dataset's distinct structures in first-seen order, the join key into the
-dataset's ``structures`` artifact (:mod:`ord_schema.structures`), where the
+dataset's ``structures`` artifact (:mod:`ord_schema.artifacts.structures`), where the
 fingerprints live. It exists because a structure predicate is evaluated *outside* the
 query -- screened and verified against the structures artifact -- and its match set has
 to re-enter the query at element granularity: DuckDB does not allow a subquery inside a
@@ -106,7 +106,8 @@ from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
 
 import ord_schema
-from ord_schema import artifacts, atomic_io, message_helpers, parquet, units
+from ord_schema import atomic_io, message_helpers, parquet, units
+from ord_schema.artifacts import base
 from ord_schema.logging import get_logger
 from ord_schema.proto import reaction_pb2
 
@@ -581,7 +582,7 @@ def reaction_row(
 
 def is_current(path: str | os.PathLike[str], source_md5: str) -> bool:
     """Returns whether ``path`` is a projection of ``source_md5`` by this library."""
-    return artifacts.is_current(path, ARTIFACT, source_md5)
+    return base.is_current(path, ARTIFACT, source_md5)
 
 
 def write_projection(
@@ -623,8 +624,8 @@ def write_projection(
         source_md5 = view.md5()
     if source_dataset_id is None:
         source_dataset_id = view.dataset_id or None
-    stamps = artifacts.current_stamps(ARTIFACT, source_dataset_id, source_md5)
-    schema = SCHEMA.with_metadata(artifacts.to_metadata(stamps))
+    stamps = base.current_stamps(ARTIFACT, source_dataset_id, source_md5)
+    schema = SCHEMA.with_metadata(base.to_metadata(stamps))
     rows = 0
     unreadable = 0
     # One ID space per dataset, in first-seen order, shared with the structures

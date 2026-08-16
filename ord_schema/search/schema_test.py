@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ord_schema.agent.schema."""
+"""Tests for ord_schema.search.schema."""
 
 from importlib import resources
 
 import pyarrow as pa
 import pytest
 
-from ord_schema import projection
-from ord_schema.agent import schema
+from ord_schema.artifacts import projection
+from ord_schema.search import schema
 
 
 def test_scalars():
@@ -150,11 +150,11 @@ def test_the_snapshot_matches_what_describe_renders():
     # the diff, where it can be read, rather than leaving it to be discovered from a
     # model's behavior. The snapshot is a review artifact, never a source: describe()
     # generates what actually ships, and this test is what keeps the two honest.
-    path = resources.files("ord_schema.agent") / "projection_schema.txt"
+    path = resources.files("ord_schema.search") / "projection_schema.txt"
     assert path.read_text(encoding="utf-8") == schema.describe() + "\n", (
         "the projection schema changed; regenerate the snapshot with\n"
-        "  python -c 'from ord_schema.agent import schema; "
-        'open("ord_schema/agent/projection_schema.txt", "w").write(schema.describe() '
+        "  python -c 'from ord_schema.search import schema; "
+        'open("ord_schema/search/projection_schema.txt", "w").write(schema.describe() '
         "+ chr(10))'"
     )
 

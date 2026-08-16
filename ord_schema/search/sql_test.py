@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ord_schema.agent.sql."""
+"""Tests for ord_schema.search.sql."""
 
 import pytest
 
-from ord_schema.agent import query, sql
+from ord_schema.search import query, sql
 
 _LAMBDA_QUERY = (
     "SELECT reaction_id FROM reactions WHERE len(list_filter(flatten(list_transform("

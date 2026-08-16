@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for ord_schema.agent.pivot."""
+"""Tests for ord_schema.artifacts.pivot."""
 
 import pathlib
 
@@ -20,8 +20,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from ord_schema import artifacts, parquet, projection
-from ord_schema.agent import pivot
+from ord_schema import parquet
+from ord_schema.artifacts import base, pivot, projection
 from ord_schema.proto import dataset_pb2, reaction_pb2
 
 
@@ -192,11 +192,11 @@ def test_a_written_pivot_carries_its_rows_and_its_ordinals(projected, tmp_path):
 def test_a_written_pivot_is_stamped_with_its_level(projected, tmp_path):
     output = tmp_path / "products.parquet"
     pivot.write_pivot(projected, output, level_path="outcomes.products")
-    stamps = artifacts.load_stamps(output)
+    stamps = base.load_stamps(output)
     assert stamps.artifact == pivot.ARTIFACT
     assert stamps.source_dataset_id == "ord_dataset-pv"
-    assert stamps.source_md5 == artifacts.load_stamps(projected).source_md5
-    assert artifacts.stamps_are_current(stamps, pivot.ARTIFACT)
+    assert stamps.source_md5 == base.load_stamps(projected).source_md5
+    assert base.stamps_are_current(stamps, pivot.ARTIFACT)
     assert pivot.pivot_path(output) == "outcomes.products"
 
 

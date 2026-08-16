@@ -14,8 +14,8 @@
 
 """Tests for ord_schema.scripts.derive_pivots.
 
-Artifact behavior is covered in ord_schema.agent.pivot_test; these cover the CLI: the
-per-level layout a Corpus reads, which matches count as sources, the skip-if-current
+Artifact behavior is covered in ord_schema.artifacts.pivot_test; these cover the CLI:
+the per-level layout a Corpus reads, which matches count as sources, the skip-if-current
 shortcut, and how an unknown level is refused.
 """
 
@@ -24,10 +24,15 @@ import pathlib
 
 import pytest
 
-from ord_schema import artifacts, parquet
-from ord_schema.agent import execute, pivot, query
+from ord_schema import parquet
+from ord_schema.artifacts import base, pivot
+from ord_schema.artifacts.scripts import (
+    derive_pivots,
+    derive_projection,
+    derive_structures,
+)
 from ord_schema.proto import dataset_pb2, reaction_pb2
-from ord_schema.scripts import derive_pivots, derive_projection, derive_structures
+from ord_schema.search import execute, query
 
 
 def _dataset(dataset_id: str):
@@ -84,7 +89,7 @@ def test_each_level_gets_its_own_tree(projected):
             )
             assert written.exists()
             assert pivot.pivot_path(written) == level
-            assert artifacts.load_stamps(written).artifact == pivot.ARTIFACT
+            assert base.load_stamps(written).artifact == pivot.ARTIFACT
     # A level not asked for is not derived, which is what makes naming them cheaper
     # than deriving all 39.
     assert not (projected / "pivots" / "inputs.components").exists()
@@ -142,7 +147,7 @@ def test_a_corpus_reads_the_tree_this_script_writes(projected, caplog):
         "where": {"op": "eq", "path": "type", "value": {"literal": "EXTRACTION"}},
     }
     with (
-        caplog.at_level(logging.INFO, logger="ord_schema.agent.execute"),
+        caplog.at_level(logging.INFO, logger="ord_schema.search.execute"),
         execute.Corpus(
             str(projected / "projections" / "*" / "*.parquet"),
             str(projected / "structures" / "*" / "*.parquet"),
